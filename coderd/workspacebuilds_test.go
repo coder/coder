@@ -1094,6 +1094,154 @@ func TestWorkspaceBuildLogs(t *testing.T) {
 	require.Fail(t, "example message never happened")
 }
 
+// TestWorkspaceBuildLogs_UserSecrets asserts that the runner emits a
+// "User secrets" stage with one INFO line per user secret describing the
+// environment variable and/or file path the user configured. The stage
+// serves as the canonical record of which user secrets the build
+// observed at plan time. The secret value must never appear in any log
+// line.
+func TestWorkspaceBuildLogs_UserSecrets(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	// Create three secrets covering each binding combination, plus one
+	// secret with neither binding that must be filtered.
+	const (
+		envOnlyValue  = "env-only-value-must-not-leak"
+		fileOnlyValue = "file-only-value-must-not-leak"
+		bothValue     = "both-value-must-not-leak"
+		noBindValue   = "no-bind-value-must-not-leak"
+	)
+	_, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
+		Name: "github-token", Value: envOnlyValue, EnvName: "GITHUB_TOKEN",
+	})
+	require.NoError(t, err)
+	_, err = client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
+		Name: "ssh-key", Value: fileOnlyValue, FilePath: "/home/coder/.ssh/id_rsa",
+	})
+	require.NoError(t, err)
+	_, err = client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
+		Name: "both-binding", Value: bothValue, EnvName: "BOTH", FilePath: "/etc/both",
+	})
+	require.NoError(t, err)
+	_, err = client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
+		Name: "no-binding", Value: noBindValue,
+	})
+	require.NoError(t, err)
+
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+
+	logs, closer, err := client.WorkspaceBuildLogsAfter(ctx, workspace.LatestBuild.ID, 0)
+	require.NoError(t, err)
+	defer closer.Close()
+
+	var secretLogs []codersdk.ProvisionerJobLog
+	for log := range logs {
+		if log.Stage == "User secrets" {
+			secretLogs = append(secretLogs, log)
+		}
+		// Defensive: assert no secret value leaked into any log line, not
+		// just the User secrets stage.
+		require.NotContains(t, log.Output, envOnlyValue, "env-only secret value leaked")
+		require.NotContains(t, log.Output, fileOnlyValue, "file-only secret value leaked")
+		require.NotContains(t, log.Output, bothValue, "both-binding secret value leaked")
+		require.NotContains(t, log.Output, noBindValue, "no-binding secret value leaked")
+	}
+
+	outputs := make([]string, 0, len(secretLogs))
+	for _, l := range secretLogs {
+		outputs = append(outputs, l.Output)
+		require.Equal(t, codersdk.LogLevelInfo, l.Level)
+		require.Equal(t, codersdk.LogSourceProvisionerDaemon, l.Source)
+	}
+	require.ElementsMatch(t, []string{
+		"Observed secret with environment variable BOTH and file path /etc/both",
+		"Observed secret with environment variable GITHUB_TOKEN",
+		"Observed secret with file path /home/coder/.ssh/id_rsa",
+	}, outputs, "expected exactly three User secrets lines, one per bound secret")
+}
+
+// TestWorkspaceBuildLogs_UserSecrets_NoBindings asserts that the "User
+// secrets" stage is always present on a Start build, even when the user
+// has no secrets configured. This makes the section a definitive record
+// of which user secrets the build observed.
+func TestWorkspaceBuildLogs_UserSecrets_NoBindings(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+
+	logs, closer, err := client.WorkspaceBuildLogsAfter(ctx, workspace.LatestBuild.ID, 0)
+	require.NoError(t, err)
+	defer closer.Close()
+
+	var secretLogs []codersdk.ProvisionerJobLog
+	for log := range logs {
+		if log.Stage == "User secrets" {
+			secretLogs = append(secretLogs, log)
+		}
+	}
+	require.Len(t, secretLogs, 1, "expected exactly one User secrets line when no bindings are configured")
+	require.Equal(t, "No user secrets observed.", secretLogs[0].Output)
+	require.Equal(t, codersdk.LogLevelInfo, secretLogs[0].Level)
+	require.Equal(t, codersdk.LogSourceProvisionerDaemon, secretLogs[0].Source)
+}
+
+// TestWorkspaceBuildLogs_UserSecrets_StopTransition asserts that the
+// "User secrets" stage is suppressed on Stop transitions: user secrets
+// are not in scope for teardown builds, and emitting a section on every
+// shutdown would add noise without informational value. Destroy is
+// gated by the same condition.
+func TestWorkspaceBuildLogs_UserSecrets_StopTransition(t *testing.T) {
+	t.Parallel()
+
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	// Configure a secret so a regression that removed the transition gate
+	// would surface as a User secrets stage on stop.
+	_, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
+		Name: "github-token", Value: "value-must-not-leak", EnvName: "GITHUB_TOKEN",
+	})
+	require.NoError(t, err)
+
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+	stopped := coderdtest.MustTransitionWorkspace(t, client, workspace.ID,
+		codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
+
+	logs, closer, err := client.WorkspaceBuildLogsAfter(ctx, stopped.LatestBuild.ID, 0)
+	require.NoError(t, err)
+	defer closer.Close()
+
+	for log := range logs {
+		require.NotEqual(t, "User secrets", log.Stage,
+			"Stop transitions must not emit a User secrets stage")
+	}
+}
+
 func TestWorkspaceBuildLogsFormat(t *testing.T) {
 	t.Parallel()
 

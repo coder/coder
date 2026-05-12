@@ -956,6 +956,9 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 		}
 	}
 
+	// Log the user secrets that will be available to terraform plan.
+	r.logUserSecrets(ctx, r.job.GetWorkspaceBuild().GetUserSecrets())
+
 	// Run `terraform plan`
 	planComplete, failed := r.plan(ctx, "Planning Infrastructure", &sdkproto.PlanRequest{
 		Metadata:                r.job.GetWorkspaceBuild().Metadata,
@@ -1095,6 +1098,68 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 			},
 		},
 	}, nil
+}
+
+// logUserSecrets emits one INFO log line per user secret describing the
+// bindings (environment variable name, file path, or both) under a
+// dedicated "User secrets" stage. This stage is the canonical record of
+// the user secrets that were observed during this build's plan; readers
+// can rely on its presence (on a Start transition) to confirm what the
+// build received. The secret value is intentionally never included.
+func (r *Runner) logUserSecrets(ctx context.Context, secrets []*sdkproto.UserSecretValue) {
+	// Only emit on Start transitions. Stop and Destroy builds carry no
+	// user secrets (acquireProtoJob filters them out for non-Start
+	// transitions), and emitting an empty section on every teardown
+	// would add noise without informational value.
+	if r.job.GetWorkspaceBuild().GetMetadata().GetWorkspaceTransition() != sdkproto.WorkspaceTransition_START {
+		return
+	}
+
+	const stage = "User secrets"
+	now := time.Now().UnixMilli()
+	emit := func(output string) {
+		r.queueLog(ctx, &proto.Log{
+			Source:    proto.LogSource_PROVISIONER_DAEMON,
+			Level:     sdkproto.LogLevel_INFO,
+			CreatedAt: now,
+			Stage:     stage,
+			Output:    output,
+		})
+	}
+
+	var emitted int
+	for _, secret := range secrets {
+		line := formatUserSecretLog(secret)
+		if line == "" {
+			continue
+		}
+		emit(line)
+		emitted++
+	}
+	if emitted == 0 {
+		// Always emit at least one line so the section is a definitive
+		// record even for users with no secrets configured.
+		emit("No user secrets observed.")
+	}
+}
+
+// formatUserSecretLog returns a single log line describing the bindings of
+// a user secret. Returns the empty string for a secret with neither an
+// environment variable name nor a file path, indicating no line should be
+// emitted. The secret value is intentionally never included.
+func formatUserSecretLog(secret *sdkproto.UserSecretValue) string {
+	env := secret.GetEnvName()
+	file := secret.GetFilePath()
+	switch {
+	case env != "" && file != "":
+		return fmt.Sprintf("Observed secret with environment variable %s and file path %s", env, file)
+	case env != "":
+		return fmt.Sprintf("Observed secret with environment variable %s", env)
+	case file != "":
+		return fmt.Sprintf("Observed secret with file path %s", file)
+	default:
+		return ""
+	}
 }
 
 func resourceNames(rs []*sdkproto.Resource) []string {
