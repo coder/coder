@@ -109,11 +109,13 @@ jobs:
           target_ref=$(echo "$output" | jq -r '.target_ref')
           create_branch=$(echo "$output" | jq -r '.create_branch // empty')
 
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "previous_version=$previous_version" >> "$GITHUB_OUTPUT"
-          echo "channel=$channel" >> "$GITHUB_OUTPUT"
-          echo "target_ref=$target_ref" >> "$GITHUB_OUTPUT"
-          echo "create_branch=$create_branch" >> "$GITHUB_OUTPUT"
+          {
+            echo "version=$version"
+            echo "previous_version=$previous_version"
+            echo "channel=$channel"
+            echo "target_ref=$target_ref"
+            echo "create_branch=$create_branch"
+          } >> "$GITHUB_OUTPUT"
 
           echo "Version: $version"
           echo "Previous version: $previous_version"
@@ -243,6 +245,7 @@ jobs:
           VERSION: ${{ needs.prepare-release.outputs.version }}
         run: |
           set -euo pipefail
+          # shellcheck disable=SC2153 -- VERSION is from env, not a misspelling of version.
           # Strip the "v" prefix for use in build steps.
           version="${VERSION#v}"
           echo "version=$version" >> "$GITHUB_OUTPUT"
