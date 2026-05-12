@@ -5,7 +5,11 @@ import { HttpResponse, http } from "msw";
 import type { FC } from "react";
 import type { MockInstance } from "vitest";
 import * as apiModule from "#/api/api";
-import type { TemplateVersionParameter, Workspace } from "#/api/typesGenerated";
+import type {
+	Template,
+	TemplateVersionParameter,
+	Workspace,
+} from "#/api/typesGenerated";
 import {
 	DashboardContext,
 	type DashboardProvider,
@@ -14,6 +18,7 @@ import type { WorkspacePermissions } from "#/modules/workspaces/permissions";
 import {
 	MockAppearanceConfig,
 	MockBuildInfo,
+	MockDeletedWorkspace,
 	MockDeploymentConfig,
 	MockEntitlements,
 	MockFailedWorkspace,
@@ -39,22 +44,33 @@ import WorkspacePage from "./WorkspacePage";
 
 const { API, MissingBuildParameters } = apiModule;
 
-type RenderWorkspacePageOptions = Omit<RenderWithAuthOptions, "route" | "path">;
+type RenderWorkspacePageOptions = Omit<
+	RenderWithAuthOptions,
+	"route" | "path"
+> & {
+	template?: Template;
+	templateError?: unknown;
+};
 
 // Renders the workspace page and waits for it be loaded
 const renderWorkspacePage = async (
 	workspace: Workspace,
 	options: RenderWorkspacePageOptions = {},
 ) => {
+	const { template = MockTemplate, templateError, ...renderOptions } = options;
 	vi.spyOn(API, "getWorkspaceByOwnerAndName").mockResolvedValue(workspace);
-	vi.spyOn(API, "getTemplate").mockResolvedValueOnce(MockTemplate);
+	if (templateError) {
+		vi.spyOn(API, "getTemplate").mockRejectedValueOnce(templateError);
+	} else {
+		vi.spyOn(API, "getTemplate").mockResolvedValueOnce(template);
+	}
 	vi.spyOn(API, "getDeploymentConfig").mockResolvedValueOnce(
 		MockDeploymentConfig,
 	);
 	vi.spyOn(apiModule, "watchWorkspaceAgentLogs");
 
 	const result = renderWithAuth(<WorkspacePage />, {
-		...options,
+		...renderOptions,
 		route: `/@${workspace.owner_name}/${workspace.name}`,
 		path: "/:username/:workspace",
 	});
@@ -611,6 +627,32 @@ describe("WorkspacePage", () => {
 	});
 
 	describe("Navigation to other pages", () => {
+		it("links deleted workspace recreate action to the original template create flow", async () => {
+			await renderWorkspacePage(MockDeletedWorkspace);
+
+			const createLink = await screen.findByRole<HTMLAnchorElement>("link", {
+				name: `Create another from ${MockTemplate.display_name}`,
+			});
+			expect(
+				createLink.href.endsWith(`/templates/${MockTemplate.name}/workspace`),
+			).toBe(true);
+		});
+
+		it("falls back to workspaces when the deleted workspace template is unavailable", async () => {
+			await renderWorkspacePage(MockDeletedWorkspace, {
+				templateError: new Error("Template not found"),
+			});
+
+			expect(
+				screen.queryByRole("link", { name: /Create another from/i }),
+			).not.toBeInTheDocument();
+
+			const backLink = await screen.findByRole<HTMLAnchorElement>("link", {
+				name: "Back to workspaces",
+			});
+			expect(backLink.href.endsWith("/workspaces")).toBe(true);
+		});
+
 		it("Shows a quota link when quota budget is greater than 0. Link navigates user to /workspaces route with the URL params populated with the corresponding organization", async () => {
 			vi.spyOn(API, "getWorkspaceQuota").mockResolvedValueOnce({
 				budget: 25,

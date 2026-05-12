@@ -36,7 +36,7 @@ import { pageTitle } from "#/utils/page";
 import { Workspace } from "./Workspace";
 
 interface WorkspaceReadyPageProps {
-	template: TypesGen.Template;
+	template?: TypesGen.Template;
 	workspace: TypesGen.Workspace;
 	permissions: WorkspacePermissions;
 }

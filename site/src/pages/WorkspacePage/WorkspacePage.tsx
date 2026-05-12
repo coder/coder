@@ -101,9 +101,16 @@ const WorkspacePage: FC = () => {
 	}, [workspaceId, workspaceName]);
 
 	// Page statuses
+	const isDeletedWorkspace = workspace?.latest_build.status === "deleted";
+	// Deleted templates return 404, but a deleted workspace can still show
+	// its banner and workspace navigation without template details.
+	const canRenderWithoutTemplate = isDeletedWorkspace && templateQuery.isError;
 	const pageError =
-		workspaceQuery.error ?? templateQuery.error ?? permissionsQuery.error;
-	const isLoading = !workspace || !template || !permissions;
+		workspaceQuery.error ??
+		permissionsQuery.error ??
+		(canRenderWithoutTemplate ? undefined : templateQuery.error);
+	const isLoading =
+		!workspace || !permissions || (!template && !canRenderWithoutTemplate);
 
 	return pageError ? (
 		<Margins>

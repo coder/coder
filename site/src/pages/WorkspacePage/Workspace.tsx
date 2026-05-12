@@ -1,10 +1,10 @@
 import { BlocksIcon, HistoryIcon } from "lucide-react";
 import type { FC } from "react";
-import { useNavigate } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { SidebarIconButton } from "#/components/FullPageLayout/Sidebar";
 import { useSearchParamsKey } from "#/hooks/useSearchParamsKey";
+import { linkToTemplate, useLinks } from "#/modules/navigation";
 import { ProvisionerStatusAlert } from "#/modules/provisioners/ProvisionerStatusAlert";
 import { AgentRow } from "#/modules/resources/AgentRow";
 import { WorkspaceTimings } from "#/modules/workspaces/WorkspaceTiming/WorkspaceTimings";
@@ -23,7 +23,7 @@ import { WorkspaceTopbar } from "./WorkspaceTopbar";
 
 interface WorkspaceProps {
 	workspace: TypesGen.Workspace;
-	template: TypesGen.Template;
+	template?: TypesGen.Template;
 	permissions: WorkspacePermissions;
 	isUpdating: boolean;
 	isRestarting: boolean;
@@ -64,7 +64,15 @@ export const Workspace: FC<WorkspaceProps> = ({
 	handleRetry,
 	handleDebug,
 }) => {
-	const navigate = useNavigate();
+	const getLink = useLinks();
+	const createWorkspaceLink =
+		template !== undefined && !template.deleted
+			? `${getLink(
+					linkToTemplate(workspace.organization_name, workspace.template_name),
+				)}/workspace`
+			: undefined;
+	const templateName =
+		workspace.template_display_name || workspace.template_name;
 
 	const transitionStats =
 		template !== undefined
@@ -166,7 +174,8 @@ export const Workspace: FC<WorkspaceProps> = ({
 						<div className="flex flex-col gap-6 max-w-[1200px] m-auto">
 							{workspace.latest_build.status === "deleted" && (
 								<WorkspaceDeletedBanner
-									handleClick={() => navigate("/templates")}
+									createWorkspaceLink={createWorkspaceLink}
+									templateName={templateName}
 								/>
 							)}
 
@@ -202,7 +211,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 								<WorkspaceBuildLogsSection logs={buildLogs} />
 							)}
 
-							{selectedResource && (
+							{selectedResource && template && (
 								<section className="flex flex-col gap-6 flex-grow min-w-0">
 									{selectedResource.agents
 										// If an agent has a `parent_id`, that means it is

@@ -47,7 +47,7 @@ interface WorkspaceTopbarProps {
 	isUpdating: boolean;
 	isRestarting: boolean;
 	workspace: TypesGen.Workspace;
-	template: TypesGen.Template;
+	template?: TypesGen.Template;
 	permissions: WorkspacePermissions;
 	latestVersion?: TypesGen.TemplateVersion;
 	handleStart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
@@ -218,21 +218,25 @@ export const WorkspaceTopbar: FC<WorkspaceTopbarProps> = ({
 
 			{!isImmutable && (
 				<div className="flex items-center gap-4">
-					<WorkspaceScheduleControls
-						workspace={workspace}
-						template={template}
-						canUpdateSchedule={permissions.updateWorkspace}
-					/>
+					{template && (
+						<>
+							<WorkspaceScheduleControls
+								workspace={workspace}
+								template={template}
+								canUpdateSchedule={permissions.updateWorkspace}
+							/>
 
-					<WorkspaceNotifications
-						workspace={workspace}
-						template={template}
-						latestVersion={latestVersion}
-						permissions={permissions}
-						onRestartWorkspace={handleRestart}
-						onUpdateWorkspace={handleUpdate}
-						onActivateWorkspace={handleDormantActivate}
-					/>
+							<WorkspaceNotifications
+								workspace={workspace}
+								template={template}
+								latestVersion={latestVersion}
+								permissions={permissions}
+								onRestartWorkspace={handleRestart}
+								onUpdateWorkspace={handleUpdate}
+								onActivateWorkspace={handleDormantActivate}
+							/>
+						</>
+					)}
 
 					<WorkspaceStatusIndicator workspace={workspace} />
 
