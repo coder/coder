@@ -170,7 +170,7 @@ jobs:
 
           ${CONTEXT}
 
-          If this chat has no workspace attached yet, use \`list_templates\` and \`create_workspace\` to provision one from the \`coder-workflow-bot\` template. Its startup script bootstraps the GitHub App credentials \`gh\` needs to read and post on coder/coder. Reuse an existing workspace from that same template if one is already attached.
+          When creating a new workspace, use the \"coder-workflow-bot\" template.
 
           Use \`gh\` to get PR details, diff, and all comments. Look for an existing doc-check comment containing \`<!-- doc-check-sticky -->\` - if one exists, you'll update it instead of creating a new one.
 
@@ -235,3 +235,7 @@ jobs:
           github-token: ${{ github.token }}
           wait: complete
           wait-timeout-seconds: "600"
+          # The chat agent posts the doc-check sticky review comment
+          # itself; skip the action's own lifecycle comment to avoid
+          # dual-posting on every run.
+          comment-on-issue: "false"
