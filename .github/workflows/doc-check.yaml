@@ -235,7 +235,3 @@ jobs:
           github-token: ${{ github.token }}
           wait: complete
           wait-timeout-seconds: "600"
-          # The chat agent posts the doc-check sticky review comment
-          # itself; skip the action's own lifecycle comment to avoid
-          # dual-posting on every run.
-          comment-on-issue: "false"
