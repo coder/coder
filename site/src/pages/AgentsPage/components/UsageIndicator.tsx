@@ -105,7 +105,8 @@ const useWorkspaceQuotaUsage = (): UsageSectionData | undefined => {
 		enabled: organizationName !== "" && username !== "",
 	});
 	const quota = quotaQuery.data;
-	const shouldFetchWorkspaceCount = quota !== undefined && quota.budget > 0;
+	const shouldFetchWorkspaceCount =
+		quota !== undefined && quota.budget > 0 && quota.credits_consumed > 0;
 	const userWorkspacesRequest = {
 		q: `owner:me organization:${organizationName}`,
 		limit: 0,
@@ -119,7 +120,8 @@ const useWorkspaceQuotaUsage = (): UsageSectionData | undefined => {
 		quotaQuery.isLoading ||
 		quotaQuery.isError ||
 		!quota ||
-		quota.budget <= 0
+		quota.budget <= 0 ||
+		quota.credits_consumed <= 0
 	) {
 		return undefined;
 	}
