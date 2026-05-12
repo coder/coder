@@ -41,6 +41,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
@@ -60,17 +61,39 @@ func chatDeploymentValues(t testing.TB) *codersdk.DeploymentValues {
 	return values
 }
 
-func newChatClient(t testing.TB, overrides ...func(*coderdtest.Options)) *codersdk.ExperimentalClient {
+func newChatTestOptions(
+	t testing.TB,
+	values *codersdk.DeploymentValues,
+	overrides ...func(*coderdtest.Options),
+) *coderdtest.Options {
 	t.Helper()
 
 	opts := &coderdtest.Options{
-		DeploymentValues: chatDeploymentValues(t),
+		DeploymentValues: values,
 	}
 	for _, override := range overrides {
 		override(opts)
 	}
+	if opts.ChatProviderAPIKeys == nil {
+		coderdtest.WithFakeOpenAICompatProvider(t)(opts)
+	}
+	return opts
+}
+
+func newChatClient(t testing.TB, overrides ...func(*coderdtest.Options)) *codersdk.ExperimentalClient {
+	t.Helper()
+
+	opts := newChatTestOptions(t, chatDeploymentValues(t), overrides...)
 	client := coderdtest.New(t, opts)
 	return codersdk.NewExperimentalClient(client)
+}
+
+func newChatClientWithAPI(t testing.TB, overrides ...func(*coderdtest.Options)) (*codersdk.ExperimentalClient, *coderd.API) {
+	t.Helper()
+
+	opts := newChatTestOptions(t, chatDeploymentValues(t), overrides...)
+	client, _, api := coderdtest.NewWithAPI(t, opts)
+	return codersdk.NewExperimentalClient(client), api
 }
 
 func newChatClientWithDeploymentValues(
@@ -79,23 +102,25 @@ func newChatClientWithDeploymentValues(
 ) *codersdk.ExperimentalClient {
 	t.Helper()
 
-	client := coderdtest.New(t, &coderdtest.Options{
-		DeploymentValues: values,
-	})
+	opts := newChatTestOptions(t, values)
+	client := coderdtest.New(t, opts)
 	return codersdk.NewExperimentalClient(client)
 }
 
 func newChatClientWithDatabase(t testing.TB, overrides ...func(*coderdtest.Options)) (*codersdk.ExperimentalClient, database.Store) {
 	t.Helper()
 
-	opts := &coderdtest.Options{
-		DeploymentValues: chatDeploymentValues(t),
-	}
-	for _, override := range overrides {
-		override(opts)
-	}
+	opts := newChatTestOptions(t, chatDeploymentValues(t), overrides...)
 	client, db := coderdtest.NewWithDatabase(t, opts)
 	return codersdk.NewExperimentalClient(client), db
+}
+
+func newChatClientWithAPIAndDatabase(t testing.TB, overrides ...func(*coderdtest.Options)) (*codersdk.ExperimentalClient, database.Store, *coderd.API) {
+	t.Helper()
+
+	opts := newChatTestOptions(t, chatDeploymentValues(t), overrides...)
+	client, _, api := coderdtest.NewWithAPI(t, opts)
+	return codersdk.NewExperimentalClient(client), api.Database, api
 }
 
 type failNextChatSystemPromptStore struct {
@@ -1442,14 +1467,14 @@ func TestListChatModels(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
 		_ = coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModelConfig(t, client)
+		modelConfig := createChatModelConfig(t, client)
 
 		models, err := client.ListChatModels(ctx)
 		require.NoError(t, err)
 
 		var openAIProvider *codersdk.ChatModelProvider
 		for i := range models.Providers {
-			if models.Providers[i].Provider == "openai" {
+			if models.Providers[i].Provider == modelConfig.Provider {
 				openAIProvider = &models.Providers[i]
 				break
 			}
@@ -1459,7 +1484,7 @@ func TestListChatModels(t *testing.T) {
 
 		foundModel := false
 		for _, model := range openAIProvider.Models {
-			if model.Provider == "openai" && model.Model == "gpt-4o-mini" {
+			if model.Provider == modelConfig.Provider && model.Model == modelConfig.Model {
 				foundModel = true
 				break
 			}
@@ -1485,14 +1510,14 @@ func TestListChatModels(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
 		_ = coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModelConfig(t, client)
+		modelConfig := createChatModelConfig(t, client)
 
 		models, err := client.ListChatModels(ctx)
 		require.NoError(t, err)
 
 		var openAIProvider *codersdk.ChatModelProvider
 		for i := range models.Providers {
-			if models.Providers[i].Provider == "openai" {
+			if models.Providers[i].Provider == modelConfig.Provider {
 				openAIProvider = &models.Providers[i]
 				break
 			}
@@ -1977,14 +2002,14 @@ func TestListChatProviders(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)
 		_ = coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModelConfig(t, client)
+		modelConfig := createChatModelConfig(t, client)
 
 		providers, err := client.ListChatProviders(ctx)
 		require.NoError(t, err)
 
 		var openAIProvider *codersdk.ChatProviderConfig
 		for i := range providers {
-			if providers[i].Provider == "openai" {
+			if providers[i].Provider == modelConfig.Provider {
 				openAIProvider = &providers[i]
 				break
 			}
@@ -3387,8 +3412,8 @@ func TestListChatModelConfigs(t *testing.T) {
 		for _, config := range configs {
 			if config.ID == modelConfig.ID {
 				found = true
-				require.Equal(t, "openai", config.Provider)
-				require.Equal(t, "gpt-4o-mini", config.Model)
+				require.Equal(t, modelConfig.Provider, config.Provider)
+				require.Equal(t, modelConfig.Model, config.Model)
 				require.True(t, config.IsDefault)
 			}
 		}
@@ -3447,7 +3472,7 @@ func TestListChatModelConfigs(t *testing.T) {
 		contextLimit := int64(4096)
 		enabled := false
 		_, err := adminClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-			Provider:     "openai",
+			Provider:     enabledConfig.Provider,
 			Model:        "gpt-4o-disabled",
 			DisplayName:  "GPT-4o Disabled",
 			Enabled:      &enabled,
@@ -3520,8 +3545,8 @@ func TestListChatModelConfigs(t *testing.T) {
 		for _, config := range configs {
 			if config.ID == modelConfig.ID {
 				found = true
-				require.Equal(t, "openai", config.Provider)
-				require.Equal(t, "gpt-4o-mini", config.Model)
+				require.Equal(t, modelConfig.Provider, config.Provider)
+				require.Equal(t, modelConfig.Model, config.Model)
 			}
 		}
 		require.True(t, found)
@@ -4362,21 +4387,6 @@ func TestPatchChat(t *testing.T) {
 		return db2sdk.Chat(dbChat, nil, nil)
 	}
 
-	// waitChatSettled polls the chat until its background title-generation
-	// daemon has left the Pending/Running state. Without this, an immediate
-	// UpdateChat can hit a 409 (title regeneration in progress).
-	waitChatSettled := func(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, chatID uuid.UUID) {
-		t.Helper()
-		require.Eventually(t, func() bool {
-			c, err := client.GetChat(ctx, chatID)
-			if err != nil {
-				return false
-			}
-			return c.Status != codersdk.ChatStatusPending &&
-				c.Status != codersdk.ChatStatusRunning
-		}, testutil.WaitShort, testutil.IntervalFast)
-	}
-
 	t.Run("PlanMode", func(t *testing.T) {
 		t.Parallel()
 
@@ -4644,13 +4654,13 @@ func TestPatchChat(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			client := newChatClient(t)
+			client, api := newChatClientWithAPI(t)
 			firstUser := coderdtest.CreateFirstUser(t, client.Client)
 			_ = createChatModelConfig(t, client)
 
 			chat := createChat(ctx, t, client, firstUser.OrganizationID, "original title")
 
-			waitChatSettled(ctx, t, client, chat.ID)
+			coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
 
 			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
 				Title: ptr.Ref("renamed title"),
@@ -4665,13 +4675,13 @@ func TestPatchChat(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			client := newChatClient(t)
+			client, api := newChatClientWithAPI(t)
 			firstUser := coderdtest.CreateFirstUser(t, client.Client)
 			_ = createChatModelConfig(t, client)
 
 			chat := createChat(ctx, t, client, firstUser.OrganizationID, "before trim")
 
-			waitChatSettled(ctx, t, client, chat.ID)
+			coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
 
 			err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
 				Title: ptr.Ref("   padded title   "),
@@ -4765,11 +4775,11 @@ func TestPatchChat(t *testing.T) {
 					t.Parallel()
 
 					ctx := testutil.Context(t, testutil.WaitLong)
-					client := newChatClient(t)
+					client, api := newChatClientWithAPI(t)
 					firstUser := coderdtest.CreateFirstUser(t, client.Client)
 					_ = createChatModelConfig(t, client)
 					chat := createChat(ctx, t, client, firstUser.OrganizationID, "boundary baseline")
-					waitChatSettled(ctx, t, client, chat.ID)
+					coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
 
 					err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
 						Title: ptr.Ref(tc.title),
@@ -4791,17 +4801,19 @@ func TestPatchChat(t *testing.T) {
 
 			ctx := testutil.Context(t, testutil.WaitLong)
 			db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
-			clientRaw := coderdtest.New(t, &coderdtest.Options{
-				DeploymentValues: chatDeploymentValues(t),
-				Database:         db,
-				Pubsub:           ps,
+			providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
+			clientRaw, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+				DeploymentValues:    chatDeploymentValues(t),
+				Database:            db,
+				Pubsub:              ps,
+				ChatProviderAPIKeys: &providerKeys,
 			})
 			client := codersdk.NewExperimentalClient(clientRaw)
 			firstUser := coderdtest.CreateFirstUser(t, client.Client)
 			_ = createChatModelConfig(t, client)
 
 			chat := createChat(ctx, t, client, firstUser.OrganizationID, "rename me")
-			waitChatSettled(ctx, t, client, chat.ID)
+			coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
 
 			past := time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Second)
 			_, err := sqlDB.ExecContext(ctx,
@@ -4826,17 +4838,19 @@ func TestPatchChat(t *testing.T) {
 
 			ctx := testutil.Context(t, testutil.WaitLong)
 			db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
-			clientRaw := coderdtest.New(t, &coderdtest.Options{
-				DeploymentValues: chatDeploymentValues(t),
-				Database:         db,
-				Pubsub:           ps,
+			providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
+			clientRaw, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+				DeploymentValues:    chatDeploymentValues(t),
+				Database:            db,
+				Pubsub:              ps,
+				ChatProviderAPIKeys: &providerKeys,
 			})
 			client := codersdk.NewExperimentalClient(clientRaw)
 			firstUser := coderdtest.CreateFirstUser(t, client.Client)
 			_ = createChatModelConfig(t, client)
 
 			chat := createChat(ctx, t, client, firstUser.OrganizationID, "steady title")
-			waitChatSettled(ctx, t, client, chat.ID)
+			coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
 
 			past := time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Second)
 			_, err := sqlDB.ExecContext(ctx,
@@ -4860,13 +4874,13 @@ func TestPatchChat(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			client := newChatClient(t)
+			client, api := newChatClientWithAPI(t)
 			firstUser := coderdtest.CreateFirstUser(t, client.Client)
 			_ = createChatModelConfig(t, client)
 
 			chat := createChat(ctx, t, client, firstUser.OrganizationID, "announce me")
 
-			waitChatSettled(ctx, t, client, chat.ID)
+			coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
 
 			conn, err := client.Dial(ctx, "/api/experimental/chats/watch", nil)
 			require.NoError(t, err)
@@ -5826,7 +5840,7 @@ func TestSendMessageWithModelOverrideUpdatesLastModelConfigID(t *testing.T) {
 	client, db := newChatClientWithDatabase(t)
 	user := coderdtest.CreateFirstUser(t, client.Client)
 	modelConfigA := createChatModelConfig(t, client)
-	modelConfigB := createAdditionalChatModelConfig(t, client, "openai", "gpt-4o-mini-override-"+uuid.NewString())
+	modelConfigB := createAdditionalChatModelConfig(t, client, modelConfigA.Provider, "gpt-4o-mini-override-"+uuid.NewString())
 
 	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    user.OrganizationID,
@@ -5869,7 +5883,7 @@ func TestSendMessageQueuesEffectiveModelConfigID(t *testing.T) {
 	client, db := newChatClientWithDatabase(t)
 	user := coderdtest.CreateFirstUser(t, client.Client)
 	modelConfigA := createChatModelConfig(t, client)
-	modelConfigB := createAdditionalChatModelConfig(t, client, "openai", "gpt-4o-mini-queued-"+uuid.NewString())
+	modelConfigB := createAdditionalChatModelConfig(t, client, modelConfigA.Provider, "gpt-4o-mini-queued-"+uuid.NewString())
 
 	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    user.OrganizationID,
@@ -5920,7 +5934,7 @@ func TestQueuedMessageWithoutOverrideCapturesEnqueueTimeModel(t *testing.T) {
 	client, db := newChatClientWithDatabase(t)
 	user := coderdtest.CreateFirstUser(t, client.Client)
 	modelConfigA := createChatModelConfig(t, client)
-	modelConfigB := createAdditionalChatModelConfig(t, client, "openai", "gpt-4o-mini-later-"+uuid.NewString())
+	modelConfigB := createAdditionalChatModelConfig(t, client, modelConfigA.Provider, "gpt-4o-mini-later-"+uuid.NewString())
 
 	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    user.OrganizationID,
@@ -5972,7 +5986,7 @@ func TestSubsequentSendWithoutOverrideUsesPersistedModel(t *testing.T) {
 	client, db := newChatClientWithDatabase(t)
 	user := coderdtest.CreateFirstUser(t, client.Client)
 	_ = createChatModelConfig(t, client)
-	modelConfigB := createAdditionalChatModelConfig(t, client, "openai", "gpt-4o-mini-persisted-"+uuid.NewString())
+	modelConfigB := createAdditionalChatModelConfig(t, client, coderdtest.TestChatProviderOpenAICompat, "gpt-4o-mini-persisted-"+uuid.NewString())
 
 	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    user.OrganizationID,
@@ -6013,7 +6027,7 @@ func TestWatchChatsStatusChangeCarriesUpdatedLastModelConfigID(t *testing.T) {
 		client, db := newChatClientWithDatabase(t)
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfigA := createChatModelConfig(t, client)
-		modelConfigB := createAdditionalChatModelConfig(t, client, "openai", "gpt-4o-mini-watch-direct-"+uuid.NewString())
+		modelConfigB := createAdditionalChatModelConfig(t, client, modelConfigA.Provider, "gpt-4o-mini-watch-direct-"+uuid.NewString())
 
 		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    user.OrganizationID,
@@ -6046,7 +6060,7 @@ func TestWatchChatsStatusChangeCarriesUpdatedLastModelConfigID(t *testing.T) {
 		client, db := newChatClientWithDatabase(t)
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfigA := createChatModelConfig(t, client)
-		modelConfigB := createAdditionalChatModelConfig(t, client, "openai", "gpt-4o-mini-watch-promote-"+uuid.NewString())
+		modelConfigB := createAdditionalChatModelConfig(t, client, modelConfigA.Provider, "gpt-4o-mini-watch-promote-"+uuid.NewString())
 
 		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    user.OrganizationID,
@@ -7679,9 +7693,9 @@ func TestRegenerateChatTitle(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
+		client, db, api := newChatClientWithAPIAndDatabase(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModelConfig(t, client)
+		_ = createChatModelConfigWithTitleFailure(t, client)
 
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: firstUser.OrganizationID,
@@ -7694,16 +7708,7 @@ func TestRegenerateChatTitle(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Wait for background processing triggered by signalWake
-		// to finish before setting the status, otherwise the
-		// processor may update updated_at concurrently.
-		require.Eventually(t, func() bool {
-			c, getErr := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
-			if getErr != nil {
-				return false
-			}
-			return c.Status != database.ChatStatusPending && c.Status != database.ChatStatusRunning
-		}, testutil.WaitShort, testutil.IntervalFast)
+		coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
 
 		_, err = db.UpdateChatStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateChatStatusParams{
 			ID:          chat.ID,
@@ -7776,9 +7781,9 @@ func TestProposeChatTitle(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
+		client, db, api := newChatClientWithAPIAndDatabase(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModelConfig(t, client)
+		_ = createChatModelConfigWithTitleFailure(t, client)
 
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: firstUser.OrganizationID,
@@ -7788,13 +7793,7 @@ func TestProposeChatTitle(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		require.Eventually(t, func() bool {
-			c, getErr := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
-			if getErr != nil {
-				return false
-			}
-			return c.Status != database.ChatStatusPending && c.Status != database.ChatStatusRunning
-		}, testutil.WaitShort, testutil.IntervalFast)
+		coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
 
 		before, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
 		require.NoError(t, err)
@@ -9752,26 +9751,25 @@ func TestWatchChatGitAuthz(t *testing.T) {
 	require.Equal(t, http.StatusForbidden, res.StatusCode)
 }
 
-func createChatModelConfig(t *testing.T, client *codersdk.ExperimentalClient) codersdk.ChatModelConfig {
+func createChatModelConfig(t testing.TB, client *codersdk.ExperimentalClient) codersdk.ChatModelConfig {
 	t.Helper()
+	return coderdtest.CreateOpenAICompatChatModelConfig(t, client)
+}
 
-	ctx := testutil.Context(t, testutil.WaitLong)
-	_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
-		Provider: "openai",
-		APIKey:   "test-api-key",
-	})
-	require.NoError(t, err)
+func createChatModelConfigWithBaseURL(t testing.TB, client *codersdk.ExperimentalClient, baseURL string) codersdk.ChatModelConfig {
+	t.Helper()
+	return coderdtest.CreateOpenAICompatChatModelConfigWithBaseURL(t, client, baseURL)
+}
 
-	contextLimit := int64(4096)
-	isDefault := true
-	modelConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-		Provider:     "openai",
-		Model:        "gpt-4o-mini",
-		ContextLimit: &contextLimit,
-		IsDefault:    &isDefault,
+func createChatModelConfigWithTitleFailure(t testing.TB, client *codersdk.ExperimentalClient) codersdk.ChatModelConfig {
+	t.Helper()
+	baseURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if req.Stream {
+			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("Hello from test server.")...)
+		}
+		return chattest.OpenAIErrorResponse(http.StatusUnauthorized, "invalid_api_key", "test title failure")
 	})
-	require.NoError(t, err)
-	return modelConfig
+	return createChatModelConfigWithBaseURL(t, client, baseURL)
 }
 
 func createAdditionalChatModelConfig(
@@ -10655,11 +10653,11 @@ func TestUserChatPersonalModelOverrides(t *testing.T) {
 	noKeyClient := codersdk.NewExperimentalClient(noKeyClientRaw)
 
 	defaultModelConfig := createChatModelConfig(t, adminClient)
-	provider := enableUserChatProviderKey(t, adminClient, memberClient, "openai")
+	provider := enableUserChatProviderKey(t, adminClient, memberClient, defaultModelConfig.Provider)
 	modelConfig := createAdditionalChatModelConfig(
 		t,
 		adminClient,
-		"openai",
+		defaultModelConfig.Provider,
 		"gpt-4o-personal-"+uuid.NewString(),
 	)
 	err := adminClient.UpdateChatModelOverride(ctx, codersdk.ChatModelOverrideContextGeneral, codersdk.UpdateChatModelOverrideRequest{
@@ -10674,7 +10672,7 @@ func TestUserChatPersonalModelOverrides(t *testing.T) {
 	disabledModelConfig := createDisabledChatModelConfig(
 		t,
 		adminClient,
-		"openai",
+		defaultModelConfig.Provider,
 		"gpt-4o-personal-disabled-"+uuid.NewString(),
 	)
 	disabledProvider, err := adminClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{

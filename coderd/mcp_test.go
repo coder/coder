@@ -30,8 +30,10 @@ func mcpDeploymentValues(t testing.TB) *codersdk.DeploymentValues {
 func newMCPClient(t testing.TB) *codersdk.Client {
 	t.Helper()
 
+	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 	return coderdtest.New(t, &coderdtest.Options{
-		DeploymentValues: mcpDeploymentValues(t),
+		DeploymentValues:    mcpDeploymentValues(t),
+		ChatProviderAPIKeys: &providerKeys,
 	})
 }
 
@@ -1409,29 +1411,9 @@ func TestChatWithMCPServerIDs(t *testing.T) {
 	require.Contains(t, fetched.MCPServerIDs, mcpConfig.ID)
 }
 
-// createChatModelConfigForMCP sets up a chat provider and model
-// config so that CreateChat succeeds. This mirrors the helper in
-// chats_test.go but is defined here to avoid coupling.
 func createChatModelConfigForMCP(t testing.TB, client *codersdk.ExperimentalClient) codersdk.ChatModelConfig {
 	t.Helper()
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
-		Provider: "openai",
-		APIKey:   "test-api-key",
-	})
-	require.NoError(t, err)
-
-	contextLimit := int64(4096)
-	isDefault := true
-	modelConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-		Provider:     "openai",
-		Model:        "gpt-4o-mini",
-		ContextLimit: &contextLimit,
-		IsDefault:    &isDefault,
-	})
-	require.NoError(t, err)
-	return modelConfig
+	return coderdtest.CreateOpenAICompatChatModelConfig(t, client)
 }
 
 func TestMCPOAuth2DiscoveryEdgeCases(t *testing.T) {
