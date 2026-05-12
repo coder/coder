@@ -126,7 +126,6 @@ export const NavbarView: FC<NavbarViewProps> = ({
 				<div className="hidden md:block">
 					<DeploymentDropdown
 						canViewAuditLog={canViewAuditLog}
-						canViewOrganizations={canViewOrganizations}
 						canViewDeployment={canViewDeployment}
 						canViewHealth={canViewHealth}
 						canViewConnectionLog={canViewConnectionLog}
