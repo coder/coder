@@ -151,7 +151,13 @@ const PinnedStreamingContent: FC<{
 		}
 	}, [activityBlockCount]);
 
-	const showPinnedIndicator = isStreaming && !hasResponse;
+	// The pinned indicator shows during every active phase
+	// (starting, streaming, retrying, reconnecting), not just
+	// while chunks are arriving. It only disappears once response
+	// text arrives or the phase goes idle.
+	const isAgentWorking =
+		liveStatus.phase !== "idle" && liveStatus.phase !== "failed";
+	const showPinnedIndicator = isAgentWorking && !hasResponse;
 	const showActivityContainer = activityBlocks.length > 0;
 
 	// When thinking: fixed-height box so "Thinking" never moves.
