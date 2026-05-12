@@ -1008,42 +1008,26 @@ func TestListChats(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, _ := newChatClientWithDatabase(t)
+		client, db := newChatClientWithDatabase(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModelConfig(t, client)
+		modelConfig := createChatModelConfig(t, client)
 
-		// Create 5 chats.
+		// Insert chats with a terminal status so the chatd
+		// processor never acquires them and never bumps
+		// updated_at. The GetChats cursor subquery re-reads the
+		// cursor row's updated_at, so a concurrent bump would
+		// shift the cursor position between page requests.
 		const totalChats = 5
-		createdChats := make([]codersdk.Chat, 0, totalChats)
+		createdChatIDs := make([]uuid.UUID, 0, totalChats)
 		for i := 0; i < totalChats; i++ {
-			chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-				OrganizationID: firstUser.OrganizationID,
-				Content: []codersdk.ChatInputPart{
-					{
-						Type: codersdk.ChatInputPartTypeText,
-						Text: fmt.Sprintf("chat-%d", i),
-					},
-				},
+			dbChat := dbgen.Chat(t, db, database.Chat{
+				OrganizationID:    firstUser.OrganizationID,
+				OwnerID:           firstUser.UserID,
+				LastModelConfigID: modelConfig.ID,
+				Title:             fmt.Sprintf("chat-%d", i),
+				Status:            database.ChatStatusCompleted,
 			})
-			require.NoError(t, err)
-			createdChats = append(createdChats, chat)
-		}
-
-		// Wait for all chats to reach a terminal status so
-		// updated_at is stable before paginating.
-		for _, c := range createdChats {
-			require.Eventually(t, func() bool {
-				all, listErr := client.ListChats(ctx, nil)
-				if listErr != nil {
-					return false
-				}
-				for _, ch := range all {
-					if ch.ID == c.ID {
-						return ch.Status != codersdk.ChatStatusPending && ch.Status != codersdk.ChatStatusRunning
-					}
-				}
-				return false
-			}, testutil.WaitLong, testutil.IntervalFast)
+			createdChatIDs = append(createdChatIDs, dbChat.ID)
 		}
 
 		// Fetch first page with limit=2.
@@ -1088,9 +1072,9 @@ func TestListChats(t *testing.T) {
 		for _, c := range append(append(page1, page2...), page3...) {
 			allIDs[c.ID] = struct{}{}
 		}
-		for _, c := range createdChats {
-			_, found := allIDs[c.ID]
-			require.True(t, found, "chat %s should appear in paginated results", c.ID)
+		for _, id := range createdChatIDs {
+			_, found := allIDs[id]
+			require.True(t, found, "chat %s should appear in paginated results", id)
 		}
 
 		// Fetch with offset=3, limit=2 — should return 2 chats.
@@ -1111,63 +1095,38 @@ func TestListChats(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, _ := newChatClientWithDatabase(t)
+		client, db := newChatClientWithDatabase(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModelConfig(t, client)
+		modelConfig := createChatModelConfig(t, client)
 
-		// Create the chat that will later be pinned. It gets the
-		// earliest updated_at because it is inserted first.
-		pinnedChat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: firstUser.OrganizationID,
-			Content: []codersdk.ChatInputPart{{
-				Type: codersdk.ChatInputPartTypeText,
-				Text: "pinned-chat",
-			}},
+		// Insert chats directly with a terminal status: see
+		// the Pagination subtest for the cursor-race rationale.
+		// Direct insertion also avoids spawning 51 background
+		// chat processors, which causes timeouts under -race.
+		pinnedDBChat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    firstUser.OrganizationID,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "pinned-chat",
+			Status:            database.ChatStatusCompleted,
 		})
-		require.NoError(t, err)
 
-		// Fill page 1 with newer chats so the pinned chat would
-		// normally be pushed off the first page (default limit 50).
+		// Fill page 1 with newer chats so the pinned chat
+		// would normally be pushed off the first page
+		// (default limit 50).
 		const fillerCount = 51
-		fillerChats := make([]codersdk.Chat, 0, fillerCount)
 		for i := range fillerCount {
-			c, createErr := client.CreateChat(ctx, codersdk.CreateChatRequest{
-				OrganizationID: firstUser.OrganizationID,
-				Content: []codersdk.ChatInputPart{{
-					Type: codersdk.ChatInputPartTypeText,
-					Text: fmt.Sprintf("filler-%d", i),
-				}},
+			_ = dbgen.Chat(t, db, database.Chat{
+				OrganizationID:    firstUser.OrganizationID,
+				OwnerID:           firstUser.UserID,
+				LastModelConfigID: modelConfig.ID,
+				Title:             fmt.Sprintf("filler-%d", i),
+				Status:            database.ChatStatusCompleted,
 			})
-			require.NoError(t, createErr)
-			fillerChats = append(fillerChats, c)
 		}
-
-		// Wait for all chats to reach a terminal status so
-		// updated_at is stable before paginating. A single
-		// polling loop checks every chat per tick to avoid
-		// O(N) separate Eventually loops.
-		allCreated := append([]codersdk.Chat{pinnedChat}, fillerChats...)
-		pending := make(map[uuid.UUID]struct{}, len(allCreated))
-		for _, c := range allCreated {
-			pending[c.ID] = struct{}{}
-		}
-		testutil.Eventually(ctx, t, func(_ context.Context) bool {
-			all, listErr := client.ListChats(ctx, &codersdk.ListChatsOptions{
-				Pagination: codersdk.Pagination{Limit: fillerCount + 10},
-			})
-			if listErr != nil {
-				return false
-			}
-			for _, ch := range all {
-				if _, ok := pending[ch.ID]; ok && ch.Status != codersdk.ChatStatusPending && ch.Status != codersdk.ChatStatusRunning {
-					delete(pending, ch.ID)
-				}
-			}
-			return len(pending) == 0
-		}, testutil.IntervalFast)
 
 		// Pin the earliest chat.
-		err = client.UpdateChat(ctx, pinnedChat.ID, codersdk.UpdateChatRequest{
+		err := client.UpdateChat(ctx, pinnedDBChat.ID, codersdk.UpdateChatRequest{
 			PinOrder: ptr.Ref(int32(1)),
 		})
 		require.NoError(t, err)
@@ -1183,11 +1142,11 @@ func TestListChats(t *testing.T) {
 		for _, c := range page1 {
 			page1IDs[c.ID] = struct{}{}
 		}
-		_, found := page1IDs[pinnedChat.ID]
+		_, found := page1IDs[pinnedDBChat.ID]
 		require.True(t, found, "pinned chat should appear on page 1")
 
 		// The pinned chat should be the first item in the list.
-		require.Equal(t, pinnedChat.ID, page1[0].ID, "pinned chat should be first")
+		require.Equal(t, pinnedDBChat.ID, page1[0].ID, "pinned chat should be first")
 	})
 
 	// Test cursor pagination with a mix of pinned and unpinned chats.
@@ -1195,44 +1154,33 @@ func TestListChats(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, _ := newChatClientWithDatabase(t)
+		client, db := newChatClientWithDatabase(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModelConfig(t, client)
+		modelConfig := createChatModelConfig(t, client)
 
-		// Create 5 chats: 2 will be pinned, 3 unpinned.
+		// Insert chats directly with a terminal status: see
+		// the Pagination subtest for the cursor-race rationale.
 		const totalChats = 5
-		createdChats := make([]codersdk.Chat, 0, totalChats)
+		createdChatIDs := make([]uuid.UUID, 0, totalChats)
 		for i := range totalChats {
-			c, createErr := client.CreateChat(ctx, codersdk.CreateChatRequest{
-				OrganizationID: firstUser.OrganizationID,
-				Content: []codersdk.ChatInputPart{{
-					Type: codersdk.ChatInputPartTypeText,
-					Text: fmt.Sprintf("cursor-pin-chat-%d", i),
-				}},
+			dbChat := dbgen.Chat(t, db, database.Chat{
+				OrganizationID:    firstUser.OrganizationID,
+				OwnerID:           firstUser.UserID,
+				LastModelConfigID: modelConfig.ID,
+				Title:             fmt.Sprintf("cursor-pin-chat-%d", i),
+				Status:            database.ChatStatusCompleted,
 			})
-			require.NoError(t, createErr)
-			createdChats = append(createdChats, c)
+			createdChatIDs = append(createdChatIDs, dbChat.ID)
 		}
 
-		// Wait for all chats to reach terminal status.
-		// Check each chat by ID rather than fetching the full list.
-		testutil.Eventually(ctx, t, func(_ context.Context) bool {
-			for _, c := range createdChats {
-				ch, err := client.GetChat(ctx, c.ID)
-				require.NoError(t, err, "GetChat should succeed for just-created chat %s", c.ID)
-				if ch.Status == codersdk.ChatStatusPending || ch.Status == codersdk.ChatStatusRunning {
-					return false
-				}
-			}
-			return true
-		}, testutil.IntervalFast)
-
 		// Pin the first two chats (oldest updated_at).
-		err := client.UpdateChat(ctx, createdChats[0].ID, codersdk.UpdateChatRequest{
+		// PinChatByID and UpdateChatPinOrder do not touch
+		// updated_at, so the cursor ordering stays stable.
+		err := client.UpdateChat(ctx, createdChatIDs[0], codersdk.UpdateChatRequest{
 			PinOrder: ptr.Ref(int32(1)),
 		})
 		require.NoError(t, err)
-		err = client.UpdateChat(ctx, createdChats[1].ID, codersdk.UpdateChatRequest{
+		err = client.UpdateChat(ctx, createdChatIDs[1], codersdk.UpdateChatRequest{
 			PinOrder: ptr.Ref(int32(1)),
 		})
 		require.NoError(t, err)
@@ -1283,9 +1231,9 @@ func TestListChats(t *testing.T) {
 
 		// Verify within-pinned ordering: pin_order=1 before
 		// pin_order=2 (the -pin_order DESC column).
-		require.Equal(t, createdChats[0].ID, allPaginated[0].ID,
+		require.Equal(t, createdChatIDs[0], allPaginated[0].ID,
 			"pin_order=1 chat should be first")
-		require.Equal(t, createdChats[1].ID, allPaginated[1].ID,
+		require.Equal(t, createdChatIDs[1], allPaginated[1].ID,
 			"pin_order=2 chat should be second")
 	})
 
