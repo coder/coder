@@ -212,7 +212,7 @@ RUN chmod a+x /opt/configure-chrome-flags.sh && \
 ENV RUSTUP_HOME=/usr/local/rustup \
 	CARGO_HOME=/usr/local/cargo
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
-	sh -s -- -y --default-toolchain stable --profile minimal
+	sh -s -- -y --default-toolchain stable --profile default
 ENV PATH=$CARGO_HOME/bin:$PATH
 
 # NOTE: In scripts/Dockerfile.base we specifically install Terraform version 1.15.2.
