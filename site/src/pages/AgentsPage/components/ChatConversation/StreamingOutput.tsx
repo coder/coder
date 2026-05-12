@@ -106,52 +106,30 @@ const PinnedStreamingContent: FC<{
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const isStreaming = liveStatus.phase === "streaming";
 
-	// Split blocks: thinking blocks are stripped entirely (the
-	// pinned indicator replaces them); response blocks render
-	// outside the constrained container; everything else is
-	// activity.
-	const activityBlocks: RenderBlock[] = [];
-	const responseBlocks: RenderBlock[] = [];
-	let foundResponse = false;
-	for (const block of blocks) {
-		// Suppress thinking blocks; the pinned indicator is the
-		// only "thinking" signal in this mode.
-		if (block.type === "thinking") {
-			continue;
-		}
-		if (block.type === "response") {
-			foundResponse = true;
-		}
-		if (foundResponse && block.type === "response") {
-			responseBlocks.push(block);
-		} else {
-			activityBlocks.push(block);
-		}
-	}
+	// Strip thinking blocks; the pinned indicator is the only
+	// "thinking" signal in this mode. Everything else (response
+	// text, tool calls, files) stays inside the fixed-height
+	// scrolling area so nothing can push the indicator around.
+	const visibleBlocks = blocks.filter((b) => b.type !== "thinking");
 
-	// Auto-scroll the activity container to the bottom so the
-	// latest thinking/tool content stays visible. useLayoutEffect
-	// avoids a visible frame where content has grown but not
-	// scrolled.
-	const activityBlockCount = activityBlocks.length;
+	// Auto-scroll the container to the bottom so the latest
+	// content stays visible. useLayoutEffect avoids a frame
+	// where content has grown but not scrolled.
+	const blockCount = visibleBlocks.length;
 	useLayoutEffect(() => {
-		if (activityBlockCount && scrollRef.current) {
+		if (blockCount && scrollRef.current) {
 			scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
 		}
-	}, [activityBlockCount]);
+	}, [blockCount]);
 
-	// The pinned indicator stays visible for the entire turn,
-	// not just until response text arrives. It only disappears
-	// once the phase goes idle or the turn fails.
 	const isAgentWorking =
 		liveStatus.phase !== "idle" && liveStatus.phase !== "failed";
-	const showActivityContainer = activityBlocks.length > 0;
 
 	return (
 		<div className="space-y-3">
-			{/* Fixed-height box: activity scrolls inside, indicator
-			    anchored at bottom. Stays the same height for the
-			    entire turn so "Thinking..." never moves. */}
+			{/* Fixed-height box: all content scrolls inside, indicator
+			    anchored at bottom. Height never changes so
+			    "Thinking..." never moves. */}
 			{isAgentWorking && (
 				<div className="flex h-48 flex-col">
 					<div
@@ -159,10 +137,10 @@ const PinnedStreamingContent: FC<{
 						className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
 						style={PINNED_FADE_MASK}
 					>
-						{showActivityContainer && (
+						{visibleBlocks.length > 0 && (
 							<div className="space-y-3">
 								<BlockList
-									blocks={activityBlocks}
+									blocks={visibleBlocks}
 									tools={streamTools}
 									keyPrefix="stream"
 									isStreaming={isStreaming}
@@ -179,22 +157,6 @@ const PinnedStreamingContent: FC<{
 						<PinnedThinkingIndicator />
 					</div>
 				</div>
-			)}
-
-			{/* Response text renders below the fixed box at full
-			    brightness so the user knows to pay attention. */}
-			{responseBlocks.length > 0 && (
-				<BlockList
-					blocks={responseBlocks}
-					tools={streamTools}
-					keyPrefix="stream-response"
-					isStreaming={isStreaming}
-					subagentTitles={subagentTitles}
-					subagentVariants={subagentVariants}
-					subagentStatusOverrides={subagentStatusOverrides}
-					urlTransform={urlTransform}
-					mcpServers={mcpServers}
-				/>
 			)}
 		</div>
 	);
