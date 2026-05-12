@@ -542,6 +542,20 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 			return BuildError{code, "insert workspace build", err}
 		}
 
+		// Soft-delete any agents from prior builds of this workspace so the
+		// aws-instance-identity handler (which rejects ambiguous
+		// (auth_instance_id, deleted=FALSE) lookups since #24325) sees only
+		// the current build's agent for any given cloud instance ID.
+		// Atomic with the build insert above so the table never transiently
+		// holds two non-deleted rows for the same workspace. See #25155.
+		err = store.SoftDeletePriorWorkspaceAgents(b.ctx, database.SoftDeletePriorWorkspaceAgentsParams{
+			WorkspaceID:    b.workspace.ID,
+			CurrentBuildID: workspaceBuildID,
+		})
+		if err != nil {
+			return BuildError{http.StatusInternalServerError, "soft-delete prior workspace agents", err}
+		}
+
 		task, err := b.getWorkspaceTask(store)
 		if err != nil {
 			return BuildError{http.StatusInternalServerError, "get task by workspace id", err}
@@ -614,6 +628,14 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 				Deleted: true,
 			}); err != nil {
 				return BuildError{http.StatusInternalServerError, "mark workspace as deleted", err}
+			}
+
+			// Soft-delete any agents tied to this workspace so the
+			// aws-instance-identity handler doesn't keep seeing
+			// orphaned rows. Mirrors the path in
+			// provisionerdserver.CompleteJob. See #25155.
+			if err := store.SoftDeleteWorkspaceAgentsByWorkspaceID(b.ctx, b.workspace.ID); err != nil {
+				return BuildError{http.StatusInternalServerError, "soft-delete workspace agents on orphan delete", err}
 			}
 		}
 

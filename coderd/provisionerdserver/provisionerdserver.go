@@ -2391,6 +2391,14 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			return xerrors.Errorf("update workspace deleted: %w", err)
 		}
 
+		// Soft-delete any agents tied to this workspace so the
+		// aws-instance-identity handler (which filters on
+		// workspace_agents.deleted) doesn't keep seeing orphaned rows
+		// after the workspace itself is deleted. See #25155.
+		if err := db.SoftDeleteWorkspaceAgentsByWorkspaceID(ctx, workspaceBuild.WorkspaceID); err != nil {
+			return xerrors.Errorf("soft delete workspace agents: %w", err)
+		}
+
 		// A user might delete their task workspace directly, instead of
 		// deleting the task. To avoid leaving the Task in a scenario where
 		// it has no workspace, we also attempt to delete the task.

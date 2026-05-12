@@ -1185,3 +1185,214 @@ func TestMigration000475AgentsAccessOrgRole(t *testing.T) {
 		"trigger should only create org-member and org-service-account system roles",
 	)
 }
+
+func TestMigration000492SoftDeleteStaleWorkspaceAgents(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion = 492
+
+	sqlDB := testSQLDB(t)
+
+	// Step up to migrationVersion - 1.
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == migrationVersion-1 {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+
+	// Seed the prerequisite tables. Two workspaces share the same EC2-style
+	// instance id across several builds; a third workspace has a single
+	// build on a different instance (baseline, must not be affected).
+	userID := uuid.New()
+	orgID := uuid.New()
+	templateID := uuid.New()
+	templateVersionID := uuid.New()
+	fileID := uuid.New()
+
+	wsA := uuid.New()
+	wsB := uuid.New()
+	wsSingle := uuid.New()
+	wsDeleted := uuid.New()
+
+	instanceAB := "i-shared-ab"
+	instanceSingle := "i-solo"
+	instanceDeleted := "i-deleted"
+
+	// For workspace A: 3 builds on the same instance.
+	// For workspace B: 2 builds on the same instance (different workspace,
+	// same instance id — exercises the cross-workspace scoping case).
+	// For wsSingle: 1 build — should stay non-deleted after the backfill.
+	// For wsDeleted: 1 build on a soft-deleted workspace — agent should be
+	// marked deleted even though it's on the latest build.
+	type build struct {
+		id         uuid.UUID
+		jobID      uuid.UUID
+		resourceID uuid.UUID
+		agentID    uuid.UUID
+		buildNum   int32
+		wsID       uuid.UUID
+		instanceID string
+	}
+
+	mkBuild := func(ws uuid.UUID, buildNum int32, instance string) build {
+		return build{
+			id:         uuid.New(),
+			jobID:      uuid.New(),
+			resourceID: uuid.New(),
+			agentID:    uuid.New(),
+			buildNum:   buildNum,
+			wsID:       ws,
+			instanceID: instance,
+		}
+	}
+
+	aBuilds := []build{
+		mkBuild(wsA, 1, instanceAB),
+		mkBuild(wsA, 2, instanceAB),
+		mkBuild(wsA, 3, instanceAB),
+	}
+	bBuilds := []build{
+		mkBuild(wsB, 1, instanceAB),
+		mkBuild(wsB, 2, instanceAB),
+	}
+	singleBuilds := []build{
+		mkBuild(wsSingle, 1, instanceSingle),
+	}
+	deletedBuilds := []build{
+		mkBuild(wsDeleted, 1, instanceDeleted),
+	}
+	allBuilds := append(append(append(append([]build{}, aBuilds...), bBuilds...), singleBuilds...), deletedBuilds...)
+
+	tx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer tx.Rollback()
+
+	// Minimal user / org / template / template_version / file.
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		userID, "seed", "seed@test.com", []byte{}, now, now, "active", pq.StringArray{}, "password",
+	)
+	require.NoError(t, err)
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO organizations (id, name, display_name, description, icon, created_at, updated_at, is_default)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		orgID, "seed-org", "Seed Org", "", "", now, now, false,
+	)
+	require.NoError(t, err)
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO files (id, hash, created_at, created_by, mimetype, data) VALUES ($1, $2, $3, $4, $5, $6)`,
+		fileID, "hash", now, userID, "application/octet-stream", []byte{},
+	)
+	require.NoError(t, err)
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO templates (id, created_at, updated_at, organization_id, name, provisioner, active_version_id, description, created_by, group_acl, user_acl, display_name)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+		templateID, now, now, orgID, "tpl", "echo", templateVersionID, "", userID, "{}", "{}", "",
+	)
+	require.NoError(t, err)
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO template_versions (id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, message)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+		templateVersionID, templateID, orgID, now, now, "v", "", uuid.New(), userID, "",
+	)
+	require.NoError(t, err)
+
+	for _, ws := range []uuid.UUID{wsA, wsB, wsSingle} {
+		_, err = tx.ExecContext(ctx,
+			`INSERT INTO workspaces (id, created_at, updated_at, owner_id, organization_id, template_id, name, deleted, automatic_updates)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, false, 'never')`,
+			ws, now, now, userID, orgID, templateID, "ws-"+ws.String()[:8],
+		)
+		require.NoError(t, err)
+	}
+	// wsDeleted is a soft-deleted workspace — its agent is on the latest
+	// build but must still be soft-deleted by the migration.
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO workspaces (id, created_at, updated_at, owner_id, organization_id, template_id, name, deleted, automatic_updates)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, true, 'never')`,
+		wsDeleted, now, now, userID, orgID, templateID, "ws-"+wsDeleted.String()[:8],
+	)
+	require.NoError(t, err)
+
+	// For every build: provisioner_job -> workspace_build -> workspace_resource -> workspace_agent.
+	for _, b := range allBuilds {
+		_, err = tx.ExecContext(ctx,
+			`INSERT INTO provisioner_jobs (id, created_at, updated_at, organization_id, initiator_id, provisioner, storage_method, type, input, file_id)
+			VALUES ($1, $2, $3, $4, $5, 'echo', 'file', 'workspace_build', '{}', $6)`,
+			b.jobID, now, now, orgID, userID, fileID,
+		)
+		require.NoError(t, err)
+		_, err = tx.ExecContext(ctx,
+			`INSERT INTO workspace_builds (id, created_at, updated_at, workspace_id, template_version_id, build_number, transition, initiator_id, job_id, reason)
+			VALUES ($1, $2, $3, $4, $5, $6, 'start', $7, $8, 'initiator')`,
+			b.id, now, now, b.wsID, templateVersionID, b.buildNum, userID, b.jobID,
+		)
+		require.NoError(t, err)
+		_, err = tx.ExecContext(ctx,
+			`INSERT INTO workspace_resources (id, created_at, job_id, transition, type, name)
+			VALUES ($1, $2, $3, 'start', 'aws_instance', 'dev')`,
+			b.resourceID, now, b.jobID,
+		)
+		require.NoError(t, err)
+		_, err = tx.ExecContext(ctx,
+			`INSERT INTO workspace_agents (id, created_at, updated_at, name, resource_id, auth_token, auth_instance_id, architecture, operating_system, deleted)
+			VALUES ($1, $2, $3, 'main', $4, $5, $6, 'amd64', 'linux', false)`,
+			b.agentID, now, now, b.resourceID, uuid.New(), b.instanceID,
+		)
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, tx.Commit())
+
+	// Sanity check pre-migration: all agents should be deleted=false.
+	var preDeletedCount int
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM workspace_agents WHERE deleted = true`).Scan(&preDeletedCount)
+	require.NoError(t, err)
+	require.Equal(t, 0, preDeletedCount, "no agents should be deleted pre-migration")
+
+	// Run migration 491.
+	version, more, err := next()
+	require.NoError(t, err)
+	require.True(t, more)
+	require.EqualValues(t, migrationVersion, version)
+
+	// Backfill assertions:
+	//   wsA: builds 1,2,3 → keep agent for build 3, delete for 1 and 2.
+	//   wsB: builds 1,2 → keep agent for build 2, delete for 1.
+	//   wsSingle: 1 build → keep.
+	//   Per workspace, exactly one agent remains deleted=false.
+	check := func(label string, expectDeleted bool, agent uuid.UUID) {
+		var deleted bool
+		err := sqlDB.QueryRowContext(ctx,
+			`SELECT deleted FROM workspace_agents WHERE id = $1`, agent).Scan(&deleted)
+		require.NoError(t, err, label)
+		require.Equal(t, expectDeleted, deleted, label)
+	}
+	check("wsA build 1 (old) should be deleted", true, aBuilds[0].agentID)
+	check("wsA build 2 (old) should be deleted", true, aBuilds[1].agentID)
+	check("wsA build 3 (latest) should be kept", false, aBuilds[2].agentID)
+	check("wsB build 1 (old) should be deleted", true, bBuilds[0].agentID)
+	check("wsB build 2 (latest) should be kept", false, bBuilds[1].agentID)
+	check("wsSingle build 1 (solo latest) should be kept", false, singleBuilds[0].agentID)
+	check("wsDeleted: agent on deleted workspace should be soft-deleted even though it's the latest build",
+		true, deletedBuilds[0].agentID)
+
+	// The ongoing invariants are enforced by wsbuilder.Builder.Build and
+	// provisionerdserver.CompleteJob via SoftDeletePriorWorkspaceAgents and
+	// SoftDeleteWorkspaceAgentsByWorkspaceID. Those paths are covered by
+	// the querier tests TestSoftDeletePriorWorkspaceAgents and
+	// TestSoftDeleteWorkspaceAgentsByWorkspaceID, plus integration tests
+	// under coderd/coderd_test.go; not retested here.
+}
