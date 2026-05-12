@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -163,7 +164,7 @@ func TestWatcher_RemovalTransitionsToEmpty(t *testing.T) {
 }
 
 // TestWatcher_DebouncesBurst uses the quartz mock clock to
-// confirm that two writes inside a single debounce window
+// confirm that three writes inside a single debounce window
 // produce exactly one onChange invocation. This is the
 // guarantee that lets the watcher coalesce editor-style
 // multi-event writes (write + chmod + rename) into a single
@@ -187,7 +188,7 @@ func TestWatcher_DebouncesBurst(t *testing.T) {
 	target := filepath.Join(dir, ".mcp.json")
 	cw.Sync([]string{target})
 
-	// First write: simulate two fsnotify events landing within
+	// First write: simulate three fsnotify events landing within
 	// the debounce window. We do this by directly calling
 	// scheduleFire, which is exactly what handleEvent does for
 	// each matching event.
@@ -433,6 +434,17 @@ func TestWatcher_SharedParentRefcount(t *testing.T) {
 // short-circuits instead of blocking firesWG.Wait() for the full
 // connect timeout. Without the ordering, this test would block
 // at Close() for ~30 s.
+//
+// The test installs a connectStartedHook that signals when a
+// watcher-driven reload has reached connectAll and then blocks
+// until released. While the hook is blocking the singleflight
+// reload goroutine, the test calls Close() and asserts it
+// returns quickly: the DEREM-5 ordering ensures m.closedCh is
+// closed before w.Close()'s firesWG.Wait(), so waitReload
+// observes the close, fire() returns, and firesWG drains. If
+// the ordering is reverted, w.Close() blocks on firesWG.Wait()
+// while fire() is stuck inside waitReload waiting for the
+// connect that will never finish.
 func TestWatcher_CloseDoesNotStallOnInFlightReload(t *testing.T) {
 	t.Parallel()
 
@@ -450,14 +462,41 @@ func TestWatcher_CloseDoesNotStallOnInFlightReload(t *testing.T) {
 	useFastDebounce(t, m)
 	m.MarkStartupSettled()
 
+	// Arm the watcher with an initial empty Reload. We install the
+	// hook after this so the first connectAll (with empty
+	// toConnect) is not blocked.
 	require.NoError(t, m.Reload(ctx, []string{configPath}))
 
-	// Write the file. The watcher will fire a debounced reload.
+	reached := make(chan struct{})
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	releaseHook := func() { releaseOnce.Do(func() { close(release) }) }
+	t.Cleanup(releaseHook)
+
+	m.mu.Lock()
+	var hookOnce sync.Once
+	m.connectStartedHook = func() {
+		hookOnce.Do(func() { close(reached) })
+		<-release
+	}
+	m.mu.Unlock()
+
+	// Write the file. The watcher will fire a debounced reload
+	// that hits the connectStartedHook and blocks there.
 	_, entry := fakeMCPServerConfig(t, "srv")
 	writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
 
-	// Call Close. With the correct ordering this returns
-	// quickly even if a fire() is mid-flight.
+	select {
+	case <-reached:
+	case <-time.After(testutil.WaitLong):
+		t.Fatal("watcher-driven reload never reached connectAll")
+	}
+
+	// Reload is in-flight: connectAll is blocked inside the hook,
+	// the singleflight body has not returned, and fire() is
+	// blocked in waitReload. Now call Close. With the correct
+	// ordering (m.closedCh closed before w.Close()), this returns
+	// quickly even though the hook is still blocking.
 	done := make(chan error, 1)
 	go func() { done <- m.Close() }()
 
@@ -467,4 +506,9 @@ func TestWatcher_CloseDoesNotStallOnInFlightReload(t *testing.T) {
 	case <-time.After(testutil.WaitMedium):
 		t.Fatal("Close stalled; ordering bug: w.Close before m.closed=true")
 	}
+
+	// Release the hook so the leaked singleflight goroutine can
+	// drain. The manager is already closed, so its work has no
+	// observable effect.
+	releaseHook()
 }

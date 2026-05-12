@@ -121,6 +121,13 @@ type Manager struct {
 	watcher       *configWatcher
 	watcherOnce   sync.Once
 	watchDebounce time.Duration
+
+	// connectStartedHook is a test hook invoked at the start of
+	// connectAll, before any client is dialed. Production code
+	// leaves this nil; tests set it to coordinate with an
+	// in-flight reload (for example, to verify Close()'s
+	// shutdown ordering does not stall on a stuck connect).
+	connectStartedHook func()
 }
 
 // serverEntry pairs a server config with its connected client.
@@ -357,16 +364,16 @@ func (m *Manager) handleWatchedConfigChange() {
 	}
 
 	logger := m.logger.With(slog.F("trigger", "fsnotify"))
-	logger.Debug(m.ctx, "mcp manager: reloading due to config change")
+	logger.Debug(m.ctx, "reloading due to config change")
 	if err := m.Reload(m.ctx, paths); err != nil {
 		if errors.Is(err, ErrManagerClosed) ||
 			errors.Is(err, context.Canceled) {
 			logger.Debug(m.ctx,
-				"mcp manager: watched reload short-circuited by shutdown",
+				"watched reload short-circuited by shutdown",
 				slog.Error(err))
 			return
 		}
-		logger.Warn(m.ctx, "mcp manager: watched reload failed", slog.Error(err))
+		logger.Warn(m.ctx, "watched reload failed", slog.Error(err))
 	}
 }
 
@@ -615,6 +622,10 @@ func (m *Manager) classifyServers(wanted map[string]ServerConfig) (*serverDiff, 
 func (m *Manager) connectAll(ctx context.Context, toConnect []ServerConfig) []connectedServer {
 	logger := m.logger.With(agentchat.Fields(ctx)...)
 
+	if hook := m.connectStartedHook; hook != nil {
+		hook()
+	}
+
 	var (
 		mu        sync.Mutex
 		connected []connectedServer
@@ -856,7 +867,8 @@ func (m *Manager) RefreshTools(ctx context.Context) error {
 }
 
 // Close terminates all MCP server connections and child
-// processes.
+// processes, stops the config file watcher, and waits for any
+// in-flight watcher-driven reload to complete.
 func (m *Manager) Close() error {
 	// Mark the manager closed and signal closedCh first, then
 	// hand the watcher off and release the lock. Marking closed
