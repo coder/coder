@@ -145,38 +145,39 @@
   <!-- Child sessions row label -->
   <text class="small" x="416" y="516">Child claude session processes (up to --capacity)</text>
 
+  <!-- All three sessions belong to the locked user. Anthropic's design:
+       "A runner serves one user at a time ... continues to serve only that
+       account until the account's queued and active sessions drain to zero."
+       Parallelism comes from different surfaces the same user is using. -->
   <rect class="session-card" x="400" y="528" width="172" height="120" rx="8"/>
   <text class="title-sm" x="412" y="550">session 1</text>
   <rect class="creator-badge" x="412" y="558" width="148" height="28" rx="5"/>
   <text class="badge-label badge-anthropic-l" x="420" y="571">Session creator</text>
   <text class="mono-sm" x="420" y="582">@alice (from JWT)</text>
-  <text class="mono-sm" x="412" y="606">working tree</text>
-  <text class="mono-sm" x="412" y="622">model + git calls</text>
-  <text class="mono-sm" x="412" y="638">stdio to runner</text>
+  <text class="mono-sm" x="412" y="606">from claude.ai/code</text>
+  <text class="mono-sm" x="412" y="622">tab A, repo X</text>
 
   <rect class="session-card" x="586" y="528" width="172" height="120" rx="8"/>
   <text class="title-sm" x="598" y="550">session 2</text>
   <rect class="creator-badge" x="598" y="558" width="148" height="28" rx="5"/>
   <text class="badge-label badge-anthropic-l" x="606" y="571">Session creator</text>
-  <text class="mono-sm" x="606" y="582">@bob (from JWT)</text>
-  <text class="mono-sm" x="598" y="606">working tree</text>
-  <text class="mono-sm" x="598" y="622">model + git calls</text>
-  <text class="mono-sm" x="598" y="638">stdio to runner</text>
+  <text class="mono-sm" x="606" y="582">@alice (from JWT)</text>
+  <text class="mono-sm" x="598" y="606">from a scheduled</text>
+  <text class="mono-sm" x="598" y="622">routine, repo Y</text>
 
   <rect class="session-card" x="772" y="528" width="172" height="120" rx="8"/>
   <text class="title-sm" x="784" y="550">session N</text>
   <rect class="creator-badge" x="784" y="558" width="148" height="28" rx="5"/>
   <text class="badge-label badge-anthropic-l" x="792" y="571">Session creator</text>
   <text class="mono-sm" x="792" y="582">@alice (from JWT)</text>
-  <text class="mono-sm" x="784" y="606">working tree</text>
-  <text class="mono-sm" x="784" y="622">model + git calls</text>
-  <text class="mono-sm" x="784" y="638">stdio to runner</text>
+  <text class="mono-sm" x="784" y="606">from the mobile</text>
+  <text class="mono-sm" x="784" y="622">app, repo Z</text>
 
-  <!-- Workspace footer: three identities cheat sheet -->
-  <text class="small" x="400" y="676">Three identities at play:</text>
-  <text class="mono-sm" x="400" y="694">Coder workspace owner = workspace identity (Coder external auth, GIT_ASKPASS, audit).</text>
-  <text class="mono-sm" x="400" y="708">Anthropic-locked user = first session's creator. Lock persists until the runner drains and restarts.</text>
-  <text class="mono-sm" x="400" y="722">Session creator = per-session JWT (act.email). Wrapper scripts can decode for per-creator credentials.</text>
+  <!-- Workspace footer: why multiple sessions + identity model -->
+  <text class="small" x="400" y="672">Why multiple sessions on one runner?</text>
+  <text class="mono-sm" x="400" y="688">One locked user, several parallel work streams (web tabs, routines, agents, mobile) up to --capacity.</text>
+  <text class="mono-sm" x="400" y="704">All sessions on this runner share the same creator: the locked user. Anthropic keeps it that way for the runner's lifetime.</text>
+  <text class="small" x="400" y="724">Basic flow: Coder owner = locked user = session creator (all @alice). Stage 6 fleet pools can split owner from locked user.</text>
 
   <!-- ====================================================== -->
   <!-- Zone 3: Your network                                    -->
@@ -262,7 +263,7 @@
   <text class="small" x="1128" y="784">Anthropic lock</text>
 
   <rect class="creator-badge" x="1216" y="770" width="14" height="14" rx="3"/>
-  <text class="small" x="1236" y="784">Creator</text>
+  <text class="small" x="1236" y="784">Per-session JWT</text>
 
   <!-- Footnote -->
   <text class="footnote" x="32" y="752">No inbound connectivity from Anthropic. The workspace dials out and the runner streams events over the same connection.</text>
