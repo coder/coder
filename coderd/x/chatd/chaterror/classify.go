@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/net/http2"
+
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -188,15 +190,22 @@ func Classify(err error) ClassifiedError {
 		return classified
 	}
 
+	retryableHTTP2StreamReset, hasHTTP2StreamReset := classifyHTTP2StreamReset(err)
 	deadline := errors.Is(err, context.DeadlineExceeded) || strings.Contains(lower, "context deadline exceeded")
 	overloadedMatch := statusCode == 529 || containsAny(lower, overloadedPatterns...)
 	authStrong := statusCode == 401 || containsAny(lower, authStrongPatterns...)
 	configMatch := containsAny(lower, configPatterns...)
 	authWeak := statusCode == 403 || containsAny(lower, authWeakPatterns...)
 	rateLimitMatch := statusCode == 429 || containsAny(lower, rateLimitPatterns...)
+	timeoutPatternMatch := containsAny(lower, timeoutPatterns...)
+	if hasHTTP2StreamReset && !retryableHTTP2StreamReset {
+		// A typed HTTP/2 stream error gives us the reset code. Trust it
+		// over broader string fallbacks so protocol bugs do not retry.
+		timeoutPatternMatch = false
+	}
 	timeoutMatch := deadline || statusCode == 408 || statusCode == 502 ||
 		statusCode == 503 || statusCode == 504 ||
-		containsAny(lower, timeoutPatterns...)
+		retryableHTTP2StreamReset || timeoutPatternMatch
 	genericRetryableMatch := statusCode == 500 || containsAny(lower, genericRetryablePatterns...)
 
 	// Config signals should beat ambiguous wrapper signals so
@@ -267,6 +276,39 @@ func Classify(err error) ClassifiedError {
 		StatusCode: statusCode,
 		RetryAfter: structured.retryAfter,
 	})
+}
+
+func classifyHTTP2StreamReset(err error) (bool, bool) {
+	streamErr, ok := findHTTP2StreamError(err)
+	if !ok {
+		return false, false
+	}
+	return isRetryableHTTP2StreamCode(streamErr.Code), true
+}
+
+func findHTTP2StreamError(err error) (http2.StreamError, bool) {
+	var streamErr http2.StreamError
+	if errors.As(err, &streamErr) {
+		return streamErr, true
+	}
+	var streamErrPtr *http2.StreamError
+	if errors.As(err, &streamErrPtr) && streamErrPtr != nil {
+		return *streamErrPtr, true
+	}
+	return http2.StreamError{}, false
+}
+
+func isRetryableHTTP2StreamCode(code http2.ErrCode) bool {
+	switch code {
+	case http2.ErrCodeNo,
+		http2.ErrCodeInternal,
+		http2.ErrCodeRefusedStream,
+		http2.ErrCodeCancel,
+		http2.ErrCodeEnhanceYourCalm:
+		return true
+	default:
+		return false
+	}
 }
 
 func streamIncompleteClassification(
