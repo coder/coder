@@ -11,8 +11,8 @@ RUN cargo install jj-cli typos-cli watchexec-cli
 FROM ubuntu:jammy@sha256:3ba65aa20f86a0fad9df2b2c259c613df006b2e6d0bfcc8a146afb8c525a9751 AS go
 
 # Install Go manually, so that we can control the version
-ARG GO_VERSION=1.25.9
-ARG GO_CHECKSUM="00859d7bd6defe8bf84d9db9e57b9a4467b2887c18cd93ae7460e713db774bc1"
+ARG GO_VERSION=1.25.10
+ARG GO_CHECKSUM="42d4f7a32316aa66591eca7e89867256057a4264451aca10570a715b3637ba70"
 
 # Boring Go is needed to build FIPS-compliant binaries.
 RUN apt-get update && \
