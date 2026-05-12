@@ -27,8 +27,7 @@ import {
 	ChevronDownIcon,
 	ChevronRightIcon,
 	CoinsIcon,
-	EllipsisIcon,
-	FilterIcon,
+	EllipsisVerticalIcon,
 	FlaskConicalIcon,
 	GitMergeIcon,
 	GitPullRequestArrowIcon,
@@ -56,7 +55,6 @@ import {
 import {
 	createContext,
 	type FC,
-	type ReactNode,
 	useContext,
 	useEffect,
 	useEffectEvent,
@@ -110,6 +108,7 @@ import { asNonEmptyString } from "../ChatConversation/blockUtils";
 import type { ModelSelectorOption } from "../ChatElements";
 import { asString } from "../ChatElements/runtimeTypeUtils";
 import { UsageIndicator } from "../UsageIndicator";
+import { FilterDropdown } from "./FilterDropdown";
 import { RenameChatDialog } from "./RenameChatDialog";
 
 type SidebarView =
@@ -727,7 +726,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 												className="absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
 												aria-label={`Open actions for ${chat.title}`}
 											>
-												<EllipsisIcon className="h-3.5 w-3.5" />
+												<EllipsisVerticalIcon className="h-3.5 w-3.5" />
 											</Button>
 										</DropdownMenuTrigger>
 										<DropdownMenuContent
@@ -820,7 +819,6 @@ interface ChatSectionHeaderProps {
 	readonly count: number;
 	readonly expanded: boolean;
 	readonly onToggle: () => void;
-	readonly action?: ReactNode;
 	readonly testId: string;
 }
 
@@ -829,12 +827,11 @@ const ChatSectionHeader: FC<ChatSectionHeaderProps> = ({
 	count,
 	expanded,
 	onToggle,
-	action,
 	testId,
 }) => {
 	const actionLabel = expanded ? "Collapse" : "Expand";
 	return (
-		<div className="group/header mb-1 ml-2.5 -mr-0.5 flex h-7 items-center text-xs font-medium text-content-secondary">
+		<div className="group/header mb-1 ml-2.5 mr-2 flex h-7 items-center text-xs font-medium text-content-secondary">
 			<button
 				type="button"
 				className="flex h-7 min-w-0 flex-1 cursor-pointer appearance-none items-center rounded-md border-0 bg-transparent p-0 text-left font-sans text-xs font-medium text-current focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link [@media(hover:hover)]:group-hover/header:text-content-primary"
@@ -856,7 +853,6 @@ const ChatSectionHeader: FC<ChatSectionHeaderProps> = ({
 					/>
 				</span>
 			</button>
-			{action && <div className="shrink-0">{action}</div>}
 		</div>
 	);
 };
@@ -1011,57 +1007,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		onReorderPinnedAgent?.(activeId, newIndex + 1);
 	};
 
-	// Attach the archived filter to the first visible section header.
-	// When the list is empty, fall back to contextual empty-state links
-	// instead of a floating standalone icon.
-	const showFilterOnPinned = pinnedChats.length > 0;
-	const firstNonEmptyGroup = showFilterOnPinned
-		? undefined
-		: TIME_GROUPS.find((group) =>
-				visibleRootIDs.some((id) => {
-					const chat = chatById.get(id);
-					return (
-						chat !== undefined &&
-						getTimeGroup(chat.updated_at) === group &&
-						chat.pin_order === 0
-					);
-				}),
-			);
-	const filterDropdown = (
-		<DropdownMenu>
-			<DropdownMenuTrigger asChild>
-				<Button
-					variant="subtle"
-					size="icon"
-					aria-label="Filter agents"
-					className={cn(
-						"h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover/header:text-content-primary",
-						archivedFilter === "archived" && "text-content-primary",
-					)}
-				>
-					<FilterIcon />
-				</Button>
-			</DropdownMenuTrigger>
-			<DropdownMenuContent
-				align="end"
-				className="mobile-full-width-dropdown mobile-full-width-dropdown-top-below-header [&_[role=menuitem]]:text-[13px]"
-			>
-				<DropdownMenuItem onSelect={() => onArchivedFilterChange?.("active")}>
-					Active
-					{archivedFilter === "active" && (
-						<CheckIcon className="ml-auto h-3.5 w-3.5" />
-					)}
-				</DropdownMenuItem>
-				<DropdownMenuItem onSelect={() => onArchivedFilterChange?.("archived")}>
-					Archived
-					{archivedFilter === "archived" && (
-						<CheckIcon className="ml-auto h-3.5 w-3.5" />
-					)}
-				</DropdownMenuItem>
-			</DropdownMenuContent>
-		</DropdownMenu>
-	);
-
 	// Auto-expand ancestors of the active chat so it's always visible.
 	// Only runs when activeChatId changes, not on every parentById
 	// recalculation, so user-initiated collapse is preserved.
@@ -1148,7 +1093,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							</NavLink>
 							<FeatureStageBadge contentType="beta" size="xs" />
 						</div>
-						<div className="flex items-center gap-0.5 -mr-1.5">
+						<div className="mr-5 flex items-center gap-0.5">
 							<Button
 								asChild
 								variant="subtle"
@@ -1260,6 +1205,12 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 										<div>
 											{visibleRootIDs.length > 0 && (
 												<div className="pb-2">
+													<div className="mb-2 flex h-5 justify-end pr-1.5">
+														<FilterDropdown
+															archivedFilter={archivedFilter}
+															onArchivedFilterChange={onArchivedFilterChange}
+														/>
+													</div>
 													{/* ── Pinned section ── */}
 													{pinnedChats.length > 0 && (
 														<div className="[&:not(:first-child)]:mt-3">
@@ -1271,11 +1222,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																}
 																onToggle={() =>
 																	toggleSection(PINNED_SECTION_KEY)
-																}
-																action={
-																	showFilterOnPinned
-																		? filterDropdown
-																		: undefined
 																}
 																testId={getSectionToggleTestId(
 																	PINNED_SECTION_KEY,
@@ -1329,11 +1275,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																	count={groupChats.length}
 																	expanded={isGroupExpanded}
 																	onToggle={() => toggleSection(group)}
-																	action={
-																		group === firstNonEmptyGroup
-																			? filterDropdown
-																			: undefined
-																	}
 																	testId={getSectionToggleTestId(group)}
 																/>
 																{isGroupExpanded && (

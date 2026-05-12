@@ -1700,36 +1700,6 @@ export const UnpinContextMenu: Story = {
 	},
 };
 
-export const FilterOnPinnedHeader: Story = {
-	args: {
-		chats: [
-			buildChat({
-				id: "pinned-filter",
-				title: "Pinned Chat",
-				updated_at: recentTimestamp,
-				pin_order: 1,
-			}),
-			buildChat({
-				id: "unpinned-filter",
-				title: "Unpinned Chat",
-				updated_at: recentTimestamp,
-			}),
-		],
-	},
-	parameters: {
-		reactRouter: reactRouterParameters({
-			location: { path: "/agents" },
-			routing: agentsRouting,
-		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(canvas.getByText("Pinned")).toBeInTheDocument();
-			expect(canvas.getByLabelText("Filter agents")).toBeInTheDocument();
-		});
-	},
-};
 
 export const FilterOnTimeGroupNoPins: Story = {
 	args: {
