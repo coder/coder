@@ -31,7 +31,7 @@ func TestAgent_ConnectsAndReachesReady(t *testing.T) {
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	a := agentfake.NewAgent(client.URL, r.AgentToken, logger)
-	t.Cleanup(func() { _ = a.Close() })
+	t.Cleanup(func() { a.Close() })
 
 	runCtx, cancel := context.WithCancel(ctx)
 	t.Cleanup(cancel)
@@ -71,6 +71,6 @@ func TestAgent_ConnectsAndReachesReady(t *testing.T) {
 	}
 
 	// Close is idempotent and safe to call after Run returns.
-	require.NoError(t, a.Close())
-	require.NoError(t, a.Close())
+	a.Close()
+	a.Close()
 }

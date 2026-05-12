@@ -111,7 +111,7 @@ func TestManager_FiveAgentsHeartbeat(t *testing.T) {
 	manager := agentfake.NewManager(client, logger, agentfake.ManagerOptions{
 		Template: tmpl.Name,
 	})
-	t.Cleanup(func() { _ = manager.Close() })
+	t.Cleanup(func() { manager.Close() })
 
 	managerCtx, cancelManager := context.WithCancel(ctx)
 	t.Cleanup(cancelManager)

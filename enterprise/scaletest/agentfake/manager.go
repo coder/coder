@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
@@ -53,8 +54,6 @@ type Manager struct {
 
 	mu     sync.Mutex
 	agents []*Agent
-
-	closeOnce sync.Once
 }
 
 // NewManager returns an Agent Manager. The provided client must already be authenticated with sufficient privilege
@@ -107,51 +106,38 @@ func (m *Manager) Run(ctx context.Context) error {
 
 // Close stops every Agent constructed during Run. Safe to call any
 // number of times.
-func (m *Manager) Close() error {
-	m.closeOnce.Do(func() {
-		m.mu.Lock()
-		defer m.mu.Unlock()
-		for _, a := range m.agents {
-			_ = a.Close()
-		}
-	})
-	return nil
+func (m *Manager) Close() {
+	for _, a := range m.agents {
+		a.Close()
+	}
 }
 
 // enumerateWithRetry calls EnumerateExternalAgents with exponential backoff on transient failures.
 // Fatal failures (auth, permission, missing template) exit immediately.
 func (m *Manager) enumerateWithRetry(ctx context.Context) ([]TokenInfo, error) {
-	backoff := initialEnumerateBackoff
-	var lastErr error
-	for attempt := 0; attempt <= maxEnumerateRetries; attempt++ {
-		tokens, err := m.EnumerateExternalAgents(ctx)
-		if err == nil {
-			return tokens, nil
-		}
-		if IsFatalEnumerationError(err) {
-			return nil, err
-		}
-		lastErr = err
-		if attempt == maxEnumerateRetries {
-			break
-		}
-		m.logger.Warn(ctx, "enumeration failed, will retry",
-			slog.F("attempt", attempt+1),
-			slog.F("backoff", backoff),
-			slog.Error(err))
+	b := backoff.NewExponentialBackOff()
+	b.InitialInterval = initialEnumerateBackoff
+	b.MaxInterval = maxEnumerateRetryBackoff
+	bkoff := backoff.WithContext(backoff.WithMaxRetries(b, maxEnumerateRetries), ctx)
 
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-time.After(backoff):
+	var tokens []TokenInfo
+	// for attempt := 0; attempt <= maxEnumerateRetries; attempt++ {
+	err := backoff.Retry(func() error {
+		var retryErr error
+		tokens, retryErr = m.EnumerateExternalAgents(ctx)
+		if retryErr == nil {
+			return nil
 		}
-
-		backoff *= 2
-		if backoff > maxEnumerateRetryBackoff {
-			backoff = maxEnumerateRetryBackoff
+		if IsFatalEnumerationError(retryErr) {
+			m.logger.Warn(ctx, "enumeration failed, will retry", slog.Error(retryErr))
+			return backoff.Permanent(retryErr)
 		}
+		return retryErr
+	}, bkoff)
+	if err != nil {
+		return nil, xerrors.Errorf("enumeration exhausted retries: %w", err)
 	}
-	return nil, xerrors.Errorf("enumeration exhausted retries: %w", lastErr)
+	return tokens, nil
 }
 
 // EnumerateExternalAgents asks coderd for the list of workspaces matching the configured template, walks each

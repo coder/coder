@@ -3,7 +3,6 @@ package agentfake
 import (
 	"context"
 	"net/url"
-	"sync"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -22,8 +21,7 @@ type Agent struct {
 	token    string
 	logger   slog.Logger
 
-	closeOnce sync.Once
-	closed    chan struct{}
+	cancel context.CancelFunc
 }
 
 func NewAgent(coderURL *url.URL, token string, logger slog.Logger) *Agent {
@@ -31,7 +29,6 @@ func NewAgent(coderURL *url.URL, token string, logger slog.Logger) *Agent {
 		coderURL: coderURL,
 		token:    token,
 		logger:   logger,
-		closed:   make(chan struct{}),
 	}
 }
 
@@ -42,14 +39,8 @@ func NewAgent(coderURL *url.URL, token string, logger slog.Logger) *Agent {
 func (a *Agent) Run(ctx context.Context) error {
 	// Tie a.closed into ctx so a single select can wait on either.
 	runCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	go func() {
-		select {
-		case <-a.closed:
-			cancel()
-		case <-runCtx.Done():
-		}
-	}()
+	a.cancel = cancel
+	defer a.cancel()
 
 	client := agentsdk.New(a.coderURL, agentsdk.WithFixedToken(a.token))
 	for {
@@ -105,9 +96,8 @@ func (a *Agent) connectAndServe(ctx context.Context, client *agentsdk.Client) er
 }
 
 // Close stops the agent. Safe to call multiple times.
-func (a *Agent) Close() error {
-	a.closeOnce.Do(func() {
-		close(a.closed)
-	})
-	return nil
+func (a *Agent) Close() {
+	if a.cancel != nil {
+		a.cancel()
+	}
 }
