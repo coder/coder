@@ -560,7 +560,11 @@ func TestClassify_HTTP2StreamErrorValues(t *testing.T) {
 		},
 		{
 			name: "CancelPointer",
-			err:  &http2.StreamError{StreamID: 455, Code: http2.ErrCodeCancel},
+			err: &http2.StreamError{
+				StreamID: 455,
+				Code:     http2.ErrCodeCancel,
+				Cause:    xerrors.New("received from peer"),
+			},
 			want: chaterror.ClassifiedError{
 				Message:   "The AI provider is temporarily unavailable.",
 				Kind:      codersdk.ChatErrorKindTimeout,
@@ -591,6 +595,35 @@ func TestClassify_HTTP2StreamErrorValues(t *testing.T) {
 		t.Run("Retryable/"+tt.name, func(t *testing.T) {
 			t.Parallel()
 			require.Equal(t, tt.want, chaterror.Classify(tt.err))
+		})
+	}
+
+	localNonRetryable := []struct {
+		name string
+		err  error
+	}{
+		{
+			name: "CancelWithoutPeerCause",
+			err: http2.StreamError{
+				StreamID: 455,
+				Code:     http2.ErrCodeCancel,
+			},
+		},
+		{
+			name: "InternalWithLocalCause",
+			err: http2.StreamError{
+				StreamID: 455,
+				Code:     http2.ErrCodeInternal,
+				Cause:    xerrors.New("local transport reset"),
+			},
+		},
+	}
+	for _, tt := range localNonRetryable {
+		t.Run("NonRetryable/"+tt.name, func(t *testing.T) {
+			t.Parallel()
+			classified := chaterror.Classify(tt.err)
+			require.Equal(t, codersdk.ChatErrorKindGeneric, classified.Kind)
+			require.False(t, classified.Retryable)
 		})
 	}
 

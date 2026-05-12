@@ -35,6 +35,10 @@ type ClassifiedError struct {
 	ChainBroken bool
 }
 
+// http2PeerResetCause mirrors golang.org/x/net/http2's unexported
+// errFromPeer message.
+const http2PeerResetCause = "received from peer"
+
 const responsesAPIDiagnosticMessage = "The chat continuation failed due to an " +
 	"internal state mismatch. This is not a configuration or billing issue."
 
@@ -283,6 +287,9 @@ func classifyHTTP2StreamReset(err error) (retryable bool, found bool) {
 	if !ok {
 		return false, false
 	}
+	if !isPeerHTTP2StreamError(streamErr) {
+		return false, true
+	}
 	return isRetryableHTTP2StreamCode(streamErr.Code), true
 }
 
@@ -296,6 +303,10 @@ func findHTTP2StreamError(err error) (http2.StreamError, bool) {
 		return *streamErrPtr, true
 	}
 	return http2.StreamError{}, false
+}
+
+func isPeerHTTP2StreamError(streamErr http2.StreamError) bool {
+	return streamErr.Cause != nil && streamErr.Cause.Error() == http2PeerResetCause
 }
 
 func isRetryableHTTP2StreamCode(code http2.ErrCode) bool {
