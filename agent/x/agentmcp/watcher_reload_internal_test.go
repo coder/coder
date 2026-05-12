@@ -188,7 +188,7 @@ func TestWatcher_DebouncesBurst(t *testing.T) {
 	target := filepath.Join(dir, ".mcp.json")
 	cw.Sync([]string{target})
 
-	// First write: simulate three fsnotify events landing within
+	// First burst: simulate three fsnotify events landing within
 	// the debounce window. We do this by directly calling
 	// scheduleFire, which is exactly what handleEvent does for
 	// each matching event.
