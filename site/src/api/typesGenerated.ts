@@ -3071,6 +3071,11 @@ export interface CreateMCPServerConfigRequest {
 	readonly enabled: boolean;
 	readonly model_intent: boolean;
 	readonly allow_in_plan_mode: boolean;
+	/**
+	 * ForwardCoderHeaders, when true, forwards Coder identity
+	 * headers on every outgoing MCP request. See MCPServerConfig.
+	 */
+	readonly forward_coder_headers: boolean;
 }
 
 // From codersdk/organizations.go
@@ -3879,6 +3884,12 @@ export interface DynamicToolResponse {
  */
 export interface EditChatMessageRequest {
 	readonly content: readonly ChatInputPart[];
+	/**
+	 * ModelConfigID, when set, overrides the model used for the
+	 * replacement user message and the assistant turn that follows.
+	 * When nil the original message's model is preserved.
+	 */
+	readonly model_config_id?: string;
 }
 
 // From codersdk/chats.go
@@ -4769,6 +4780,14 @@ export interface MCPServerConfig {
 	readonly enabled: boolean;
 	readonly model_intent: boolean;
 	readonly allow_in_plan_mode: boolean;
+	/**
+	 * ForwardCoderHeaders forwards the same Coder identity headers we
+	 * send to LLM providers (X-Coder-Owner-Id, X-Coder-Chat-Id, and the
+	 * optional X-Coder-Subchat-Id and X-Coder-Workspace-Id) to this
+	 * MCP server on every request. Off by default to avoid leaking
+	 * chat identity to third-party servers.
+	 */
+	readonly forward_coder_headers: boolean;
 	readonly created_at: string;
 	readonly updated_at: string;
 	/**
@@ -8224,6 +8243,11 @@ export interface UpdateMCPServerConfigRequest {
 	readonly enabled?: boolean;
 	readonly model_intent?: boolean;
 	readonly allow_in_plan_mode?: boolean;
+	/**
+	 * ForwardCoderHeaders, when set, updates whether Coder identity
+	 * headers are forwarded on every outgoing MCP request.
+	 */
+	readonly forward_coder_headers?: boolean;
 }
 
 // From codersdk/notifications.go

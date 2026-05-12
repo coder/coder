@@ -2013,7 +2013,8 @@ Experimental: this endpoint is subject to change.
       "text": "string",
       "type": "text"
     }
-  ]
+  ],
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
 }
 ```
 

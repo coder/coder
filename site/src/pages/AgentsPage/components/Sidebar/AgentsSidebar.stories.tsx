@@ -592,6 +592,115 @@ export const MixedCacheDoesNotDuplicateChild: Story = {
 // without embedding a literal date that drifts across calendar days.
 const recentTimestamp = new Date(Date.now() - 60_000).toISOString();
 
+const timestampAtLocalNoon = (dayOffset: number) => {
+	const date = new Date();
+	date.setHours(12, 0, 0, 0);
+	date.setDate(date.getDate() + dayOffset);
+	return date.toISOString();
+};
+const todayTimestamp = timestampAtLocalNoon(0);
+const yesterdayTimestamp = timestampAtLocalNoon(-1);
+const thisWeekTimestamp = timestampAtLocalNoon(-3);
+
+export const SectionHeadersCollapseAndFilter: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "pinned-section-one",
+				title: "Pinned section one",
+				pin_order: 1,
+				updated_at: todayTimestamp,
+			}),
+			buildChat({
+				id: "pinned-section-two",
+				title: "Pinned section two",
+				pin_order: 2,
+				updated_at: todayTimestamp,
+			}),
+			buildChat({
+				id: "today-section-one",
+				title: "Today section one",
+				updated_at: todayTimestamp,
+			}),
+			buildChat({
+				id: "today-section-two",
+				title: "Today section two",
+				updated_at: todayTimestamp,
+			}),
+			buildChat({
+				id: "yesterday-section-one",
+				title: "Yesterday section one",
+				updated_at: yesterdayTimestamp,
+			}),
+			buildChat({
+				id: "week-section-one",
+				title: "This week section one",
+				updated_at: thisWeekTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await expect(canvas.getByText("Pinned (2)")).toBeInTheDocument();
+		await expect(canvas.getByText("Today (2)")).toBeInTheDocument();
+		await expect(canvas.getByText("Yesterday (1)")).toBeInTheDocument();
+		await expect(canvas.getByText("This Week (1)")).toBeInTheDocument();
+
+		const pinnedToggle = canvas.getByRole("button", {
+			name: "Collapse Pinned section",
+		});
+		await userEvent.click(pinnedToggle);
+		await expect(pinnedToggle).toHaveAttribute("aria-expanded", "false");
+		expect(canvas.queryByText("Pinned section one")).not.toBeInTheDocument();
+		expect(canvas.queryByText("Pinned section two")).not.toBeInTheDocument();
+		expect(canvas.getByText("Today section one")).toBeInTheDocument();
+
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Expand Pinned section" }),
+		);
+		await expect(
+			canvas.getByRole("button", { name: "Collapse Pinned section" }),
+		).toHaveAttribute("aria-expanded", "true");
+		expect(canvas.getByText("Pinned section one")).toBeInTheDocument();
+		expect(canvas.getByText("Pinned section two")).toBeInTheDocument();
+
+		const todayToggle = canvas.getByRole("button", {
+			name: "Collapse Today section",
+		});
+		await userEvent.click(todayToggle);
+		await expect(todayToggle).toHaveAttribute("aria-expanded", "false");
+		expect(canvas.queryByText("Today section one")).not.toBeInTheDocument();
+		expect(canvas.queryByText("Today section two")).not.toBeInTheDocument();
+		expect(canvas.getByText("Yesterday section one")).toBeInTheDocument();
+
+		await userEvent.click(canvas.getByTestId("agents-section-toggle-Today"));
+		await expect(
+			canvas.getByRole("button", { name: "Collapse Today section" }),
+		).toHaveAttribute("aria-expanded", "true");
+		expect(canvas.getByText("Today section one")).toBeInTheDocument();
+		expect(canvas.getByText("Today section two")).toBeInTheDocument();
+
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Filter agents" }),
+		);
+		await expect(
+			await body.findByRole("menuitem", { name: /Archived/i }),
+		).toBeInTheDocument();
+		await expect(
+			canvas.getByTestId("agents-section-toggle-Pinned"),
+		).toHaveAttribute("aria-expanded", "true");
+		await userEvent.keyboard("{Escape}");
+	},
+};
+
 export const RenameChatAvailableDuringRegeneration: Story = {
 	args: {
 		chats: [
@@ -1627,7 +1736,7 @@ export const PinnedChatsSection: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await waitFor(() => {
-			expect(canvas.getByText("Pinned")).toBeInTheDocument();
+			expect(canvas.getByText("Pinned (1)")).toBeInTheDocument();
 			expect(canvas.getByText("My pinned agent")).toBeInTheDocument();
 		});
 
@@ -1636,7 +1745,7 @@ export const PinnedChatsSection: Story = {
 		expect(allPinnedLinks).toHaveLength(1);
 
 		// Unpinned chats appear under their time group, not Pinned.
-		expect(canvas.getByText("Today")).toBeInTheDocument();
+		expect(canvas.getByText("Today (2)")).toBeInTheDocument();
 		expect(canvas.getByText("Regular agent one")).toBeInTheDocument();
 	},
 };
@@ -1708,37 +1817,6 @@ export const UnpinContextMenu: Story = {
 	},
 };
 
-export const FilterOnPinnedHeader: Story = {
-	args: {
-		chats: [
-			buildChat({
-				id: "pinned-filter",
-				title: "Pinned Chat",
-				updated_at: recentTimestamp,
-				pin_order: 1,
-			}),
-			buildChat({
-				id: "unpinned-filter",
-				title: "Unpinned Chat",
-				updated_at: recentTimestamp,
-			}),
-		],
-	},
-	parameters: {
-		reactRouter: reactRouterParameters({
-			location: { path: "/agents" },
-			routing: agentsRouting,
-		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(canvas.getByText("Pinned")).toBeInTheDocument();
-			expect(canvas.getByLabelText("Filter agents")).toBeInTheDocument();
-		});
-	},
-};
-
 export const FilterOnTimeGroupNoPins: Story = {
 	args: {
 		chats: [
@@ -1758,7 +1836,7 @@ export const FilterOnTimeGroupNoPins: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await waitFor(() => {
-			expect(canvas.getByText("Today")).toBeInTheDocument();
+			expect(canvas.getByText("Today (1)")).toBeInTheDocument();
 			expect(canvas.getByLabelText("Filter agents")).toBeInTheDocument();
 		});
 	},

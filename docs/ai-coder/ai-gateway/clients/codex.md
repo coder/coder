@@ -91,11 +91,11 @@ If configuring within a Coder workspace, you can use the
 
 ```tf
 module "codex" {
-  source          = "registry.coder.com/coder-labs/codex/coder"
-  version         = "~> 4.1"
-  agent_id        = coder_agent.main.id
-  workdir         = "/path/to/project"  # Set to your project directory
-  enable_aibridge = true
+  source            = "registry.coder.com/coder-labs/codex/coder"
+  version           = "~> 4.1"
+  agent_id          = coder_agent.main.id
+  workdir           = "/path/to/project"  # Set to your project directory
+  enable_ai_gateway = true
 }
 ```
 

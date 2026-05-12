@@ -3060,11 +3060,17 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	editModelConfigID := uuid.Nil
+	if req.ModelConfigID != nil {
+		editModelConfigID = *req.ModelConfigID
+	}
+
 	editResult, editErr := api.chatDaemon.EditMessage(ctx, chatd.EditMessageOptions{
 		ChatID:          chat.ID,
 		CreatedBy:       apiKey.UserID,
 		EditedMessageID: messageID,
 		Content:         contentBlocks,
+		ModelConfigID:   editModelConfigID,
 	})
 	if editErr != nil {
 		if maybeWriteLimitErr(ctx, rw, editErr) {
@@ -3084,6 +3090,10 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		case xerrors.Is(editErr, chatd.ErrEditedMessageNotUser):
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Only user messages can be edited.",
+			})
+		case xerrors.Is(editErr, chatd.ErrInvalidModelConfigID):
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid model config ID.",
 			})
 		default:
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

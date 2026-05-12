@@ -229,6 +229,7 @@ func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerCon
 		Enabled:                 takeFirst(seed.Enabled, true),
 		ModelIntent:             seed.ModelIntent,
 		AllowInPlanMode:         seed.AllowInPlanMode,
+		ForwardCoderHeaders:     seed.ForwardCoderHeaders,
 		CreatedBy:               createdBy,
 		UpdatedBy:               updatedBy,
 	})

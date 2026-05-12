@@ -521,6 +521,10 @@ type CreateChatMessageRequest struct {
 // EditChatMessageRequest is the request to edit a user message in a chat.
 type EditChatMessageRequest struct {
 	Content []ChatInputPart `json:"content"`
+	// ModelConfigID, when set, overrides the model used for the
+	// replacement user message and the assistant turn that follows.
+	// When nil the original message's model is preserved.
+	ModelConfigID *uuid.UUID `json:"model_config_id,omitempty" format:"uuid"`
 }
 
 // CreateChatMessageResponse is the response from adding a message to a chat.

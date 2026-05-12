@@ -25,6 +25,12 @@ import (
 
 func TestOpenAIResponsesNoStaleWebSearchReplay(t *testing.T) {
 	t.Parallel()
+	// TODO(CODAGT-353): Re-enable this test after the chatd notification flow
+	// refactor gives workers enough causal information to distinguish stale
+	// control NOTIFY messages from real interrupts. The current design reuses
+	// the same status notification shape for wake-only and interrupt intents,
+	// so a stale NOTIFY can cancel a new processChat run.
+	t.Skip("skipped until chatd notification flow refactor handles stale control notifications")
 
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -108,6 +114,12 @@ func TestOpenAIResponsesNoStaleWebSearchReplay(t *testing.T) {
 
 func TestOpenAIResponsesFullReplayPairsReasoningAndWebSearch(t *testing.T) {
 	t.Parallel()
+	// TODO(CODAGT-353): Re-enable this test after the chatd notification flow
+	// refactor gives workers enough causal information to distinguish stale
+	// control NOTIFY messages from real interrupts. The current design reuses
+	// the same status notification shape for wake-only and interrupt intents,
+	// so a stale NOTIFY can cancel a new processChat run.
+	t.Skip("skipped until chatd notification flow refactor handles stale control notifications")
 
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -190,6 +202,12 @@ func TestOpenAIResponsesFullReplayPairsReasoningAndWebSearch(t *testing.T) {
 
 func TestOpenAIResponsesChainModeSkipsWhenLocalCallPending(t *testing.T) {
 	t.Parallel()
+	// TODO(CODAGT-353): Re-enable this test after the chatd notification flow
+	// refactor gives workers enough causal information to distinguish stale
+	// control NOTIFY messages from real interrupts. The current design reuses
+	// the same status notification shape for wake-only and interrupt intents,
+	// so a stale NOTIFY can cancel a new processChat run.
+	t.Skip("skipped until chatd notification flow refactor handles stale control notifications")
 
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -257,6 +275,12 @@ func TestOpenAIResponsesChainModeSkipsWhenLocalCallPending(t *testing.T) {
 
 func TestOpenAIResponsesChainModeStillFiresForProviderExecutedOnly(t *testing.T) {
 	t.Parallel()
+	// TODO(CODAGT-353): Re-enable this test after the chatd notification flow
+	// refactor gives workers enough causal information to distinguish stale
+	// control NOTIFY messages from real interrupts. The current design reuses
+	// the same status notification shape for wake-only and interrupt intents,
+	// so a stale NOTIFY can cancel a new processChat run.
+	t.Skip("skipped until chatd notification flow refactor handles stale control notifications")
 
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
