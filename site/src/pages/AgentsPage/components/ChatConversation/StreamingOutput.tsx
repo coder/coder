@@ -121,7 +121,7 @@ const PinnedStreamingContent: FC<{
 		liveStatus.phase !== "idle" && liveStatus.phase !== "failed";
 
 	return (
-		<div className="space-y-3">
+		<>
 			{/* Capped scroll area: streaming content scrolls here.
 			    The pinned indicator lives in LiveStreamTailContent
 			    so it persists across message commits. */}
@@ -131,22 +131,20 @@ const PinnedStreamingContent: FC<{
 					className="max-h-48 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
 					style={PINNED_FADE_MASK}
 				>
-					<div className="space-y-3">
-						<BlockList
-							blocks={visibleBlocks}
-							tools={streamTools}
-							keyPrefix="stream"
-							isStreaming={isStreaming}
-							subagentTitles={subagentTitles}
-							subagentVariants={subagentVariants}
-							subagentStatusOverrides={subagentStatusOverrides}
-							urlTransform={urlTransform}
-							mcpServers={mcpServers}
-						/>
-					</div>
+					<BlockList
+						blocks={visibleBlocks}
+						tools={streamTools}
+						keyPrefix="stream"
+						isStreaming={isStreaming}
+						subagentTitles={subagentTitles}
+						subagentVariants={subagentVariants}
+						subagentStatusOverrides={subagentStatusOverrides}
+						urlTransform={urlTransform}
+						mcpServers={mcpServers}
+					/>
 				</div>
 			)}
-		</div>
+		</>
 	);
 };
 
