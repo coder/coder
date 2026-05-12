@@ -280,11 +280,10 @@ export const ThinkingDuringStreamingWithToolCalls: Story = {
 };
 
 /**
- * Pinned mode: all activity streams inside a height-constrained
- * container with a bottom fade, and a persistent "Thinking"
- * indicator stays pinned below.
+ * Pinned mode: internal activity (thinking, tools) renders muted
+ * while the agent is working. No response text yet.
  */
-export const PinnedModeWithActivity: Story = {
+export const PinnedModeMutedActivity: Story = {
 	parameters: {
 		queries: [
 			{
@@ -317,19 +316,11 @@ export const PinnedModeWithActivity: Story = {
 			},
 		]),
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await waitFor(() => {
-			const matches = canvas.getAllByText("Thinking");
-			expect(matches.length).toBeGreaterThanOrEqual(1);
-		});
-	},
 };
 
 /**
- * Pinned mode with response: when the agent starts producing
- * response text, activity blocks stay in the constrained area and
- * the response renders at full brightness below.
+ * Pinned mode with response: once the agent writes response text,
+ * opacity returns to full brightness.
  */
 export const PinnedModeWithResponse: Story = {
 	parameters: {

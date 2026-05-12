@@ -19,7 +19,11 @@ import {
 	type useChatStore,
 } from "./chatStore";
 import { deriveLiveStatus, type LiveStatusModel } from "./liveStatusModel";
-import { PinnedThinkingIndicator, StreamingOutput } from "./StreamingOutput";
+import {
+	hasResponseBlock,
+	PinnedThinkingIndicator,
+	StreamingOutput,
+} from "./StreamingOutput";
 import { buildStreamTools } from "./streamState";
 import type { MergedTool, StreamState } from "./types";
 
@@ -66,25 +70,22 @@ export const LiveStreamTailContent = ({
 	const shouldRenderEmptyState =
 		isTranscriptEmpty && liveStatus.phase === "idle";
 
-	// In pinned mode, the indicator shows for the entire active
-	// turn at this level so it persists even when streaming
-	// content gets committed to the conversation timeline.
-	// It hides once the agent starts producing visible response
-	// text (the user should read that, not "Thinking...").
-	const streamHasResponse = streamState?.blocks.some(
-		(b) => b.type === "response",
-	);
-	const isPinnedActive =
-		thinkingDisplayMode === "pinned" &&
-		liveStatus.phase !== "idle" &&
-		liveStatus.phase !== "failed" &&
-		!streamHasResponse;
+	// In pinned mode, show "Thinking..." at the bottom of the chat
+	// while the agent is working and hasn't started writing response
+	// text yet. This is the only thinking indicator in pinned mode.
+	const isAgentWorking =
+		liveStatus.phase !== "idle" && liveStatus.phase !== "failed";
+	const streamHasResponse = streamState?.blocks
+		? hasResponseBlock(streamState.blocks)
+		: false;
+	const showPinnedIndicator =
+		thinkingDisplayMode === "pinned" && isAgentWorking && !streamHasResponse;
 
 	if (
 		!shouldRenderEmptyState &&
 		!shouldRenderStreamSection &&
 		!terminalStatus &&
-		!isPinnedActive
+		!showPinnedIndicator
 	) {
 		return null;
 	}
@@ -123,7 +124,7 @@ export const LiveStreamTailContent = ({
 			) : terminalStatus ? (
 				<ChatStatusCallout status={terminalStatus} />
 			) : null}
-			{isPinnedActive && <PinnedThinkingIndicator />}
+			{showPinnedIndicator && <PinnedThinkingIndicator />}
 		</div>
 	);
 };

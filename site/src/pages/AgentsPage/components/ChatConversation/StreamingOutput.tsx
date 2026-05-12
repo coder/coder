@@ -1,4 +1,4 @@
-import { type FC, useLayoutEffect, useRef } from "react";
+import type { FC } from "react";
 import { useQuery } from "react-query";
 import type { UrlTransform } from "streamdown";
 import { preferenceSettings } from "#/api/queries/users";
@@ -30,10 +30,13 @@ const hasTransientLiveStatus = (liveStatus: LiveStatusModel): boolean =>
 const hasTextOrReasoningBlock = (blocks: readonly RenderBlock[]): boolean =>
 	blocks.some((b) => b.type === "response" || b.type === "thinking");
 
+/** True when the stream contains visible response text for the user. */
+export const hasResponseBlock = (blocks: readonly RenderBlock[]): boolean =>
+	blocks.some((b) => b.type === "response");
+
 /**
  * Placeholder shown during streaming before text or reasoning
- * blocks arrive. Uses the same shimmer animation as the
- * collapsible thinking disclosure label.
+ * blocks arrive.
  */
 const StreamingThinkingPlaceholder: FC = () => (
 	<div className="flex w-full items-center gap-2 py-0.5 text-content-secondary">
@@ -44,109 +47,17 @@ const StreamingThinkingPlaceholder: FC = () => (
 );
 
 /**
- * Bottom-fade gradient mask for the pinned thinking container.
- * Content fades to transparent at the bottom, creating the effect
- * of thoughts materializing as they scroll upward.
- */
-const PINNED_FADE_MASK = {
-	maskImage:
-		"linear-gradient(to bottom, black 0%, black calc(100% - 4em), transparent 100%)",
-	WebkitMaskImage:
-		"linear-gradient(to bottom, black 0%, black calc(100% - 4em), transparent 100%)",
-} as const;
-
-/**
- * Pinned thinking indicator shown at the bottom of the streaming
- * output. Stays fixed while activity streams above it.
+ * Persistent thinking indicator rendered by LiveStreamTailContent.
+ * Shows at the bottom of the chat while the agent is working
+ * and hasn't started writing response text yet.
  */
 export const PinnedThinkingIndicator: FC = () => (
-	<div className="flex w-full items-center gap-2 border-t border-border/50 pt-2 text-content-secondary">
+	<div className="flex w-full items-center gap-2 py-1 text-content-secondary">
 		<Shimmer as="span" className="text-[13px] leading-relaxed">
 			Thinking...
 		</Shimmer>
 	</div>
 );
-
-/**
- * Pinned mode wrapper: renders streaming blocks in a
- * height-constrained, bottom-scrolling container with a fade-out
- * gradient at the bottom. A persistent "Thinking" indicator sits
- * below the content area, staying in place while activity streams
- * above it.
- *
- * When the agent produces response text, the thinking indicator
- * fades out and the response block renders outside the constrained
- * container so it appears at full brightness.
- */
-const PinnedStreamingContent: FC<{
-	blocks: readonly RenderBlock[];
-	streamTools: readonly MergedTool[];
-	subagentTitles?: Map<string, string>;
-	subagentVariants?: Map<string, SubagentVariant>;
-	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
-	urlTransform?: UrlTransform;
-	mcpServers?: readonly TypesGen.MCPServerConfig[];
-	liveStatus: LiveStatusModel;
-	startingResetKey?: string;
-}> = ({
-	blocks,
-	streamTools,
-	subagentTitles,
-	subagentVariants,
-	subagentStatusOverrides,
-	urlTransform,
-	mcpServers,
-	liveStatus,
-}) => {
-	const scrollRef = useRef<HTMLDivElement>(null);
-	const isStreaming = liveStatus.phase === "streaming";
-
-	// Strip thinking blocks; the pinned indicator is the only
-	// "thinking" signal in this mode. Everything else (response
-	// text, tool calls, files) stays inside the fixed-height
-	// scrolling area so nothing can push the indicator around.
-	const visibleBlocks = blocks.filter((b) => b.type !== "thinking");
-
-	// Auto-scroll the container to the bottom so the latest
-	// content stays visible. useLayoutEffect avoids a frame
-	// where content has grown but not scrolled.
-	const blockCount = visibleBlocks.length;
-	useLayoutEffect(() => {
-		if (blockCount && scrollRef.current) {
-			scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-		}
-	}, [blockCount]);
-
-	const isAgentWorking =
-		liveStatus.phase !== "idle" && liveStatus.phase !== "failed";
-
-	return (
-		<>
-			{/* Capped scroll area: streaming content scrolls here.
-			    The pinned indicator lives in LiveStreamTailContent
-			    so it persists across message commits. */}
-			{isAgentWorking && visibleBlocks.length > 0 && (
-				<div
-					ref={scrollRef}
-					className="max-h-48 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-					style={PINNED_FADE_MASK}
-				>
-					<BlockList
-						blocks={visibleBlocks}
-						tools={streamTools}
-						keyPrefix="stream"
-						isStreaming={isStreaming}
-						subagentTitles={subagentTitles}
-						subagentVariants={subagentVariants}
-						subagentStatusOverrides={subagentStatusOverrides}
-						urlTransform={urlTransform}
-						mcpServers={mcpServers}
-					/>
-				</div>
-			)}
-		</>
-	);
-};
 
 export const StreamingOutput: FC<{
 	streamState: StreamState | null;
@@ -182,12 +93,6 @@ export const StreamingOutput: FC<{
 		liveStatus.phase === "streaming" || liveStatus.hasAccumulatedOutput;
 	const blocks = shouldShowBlocks ? (streamState?.blocks ?? []) : [];
 
-	// During streaming, keep showing the "Thinking..." indicator
-	// until text or reasoning blocks arrive. This bridges the
-	// visual gap between the "starting" phase placeholder and the
-	// first visible content, preventing the indicator from
-	// flickering away when only tool-call parts (or whitespace-
-	// only text deltas) have been received so far.
 	const needsStreamingThinking =
 		isStreaming && !hasTextOrReasoningBlock(blocks);
 
@@ -200,36 +105,20 @@ export const StreamingOutput: FC<{
 
 	const conversationItemProps = { role: "assistant" as const };
 
-	// Pinned mode: use the dedicated pinned container layout.
-	// Always use the fixed-height box so "Thinking" appears at
-	// the same position from the very first frame.
-	if (thinkingDisplayMode === "pinned") {
-		return (
-			<ConversationItem {...conversationItemProps}>
-				<Message className="w-full">
-					<MessageContent className="whitespace-normal">
-						<PinnedStreamingContent
-							blocks={blocks}
-							streamTools={streamTools}
-							subagentTitles={subagentTitles}
-							subagentVariants={subagentVariants}
-							subagentStatusOverrides={subagentStatusOverrides}
-							urlTransform={urlTransform}
-							mcpServers={mcpServers}
-							liveStatus={liveStatus}
-						/>
-					</MessageContent>
-				</Message>
-			</ConversationItem>
-		);
-	}
+	// In pinned mode, mute all internal activity (tool calls,
+	// thinking) until the agent starts writing response text.
+	// The "Thinking..." indicator lives in LiveStreamTailContent.
+	const isPinned = thinkingDisplayMode === "pinned";
+	const isMuted = isPinned && !hasResponseBlock(blocks);
 
-	// Default mode: original layout
 	return (
 		<ConversationItem {...conversationItemProps}>
 			<Message className="w-full">
 				<MessageContent className="whitespace-normal">
-					<div className="space-y-3">
+					<div
+						className="space-y-3 transition-opacity duration-200"
+						style={{ opacity: isMuted ? 0.45 : 1 }}
+					>
 						{shouldShowBlocks && (
 							<BlockList
 								blocks={blocks}
@@ -243,7 +132,9 @@ export const StreamingOutput: FC<{
 								mcpServers={mcpServers}
 							/>
 						)}
-						{needsStreamingThinking && <StreamingThinkingPlaceholder />}
+						{needsStreamingThinking && !isPinned && (
+							<StreamingThinkingPlaceholder />
+						)}
 						{!needsStreamingThinking && hasTransientLiveStatus(liveStatus) && (
 							<ChatStatusCallout
 								status={liveStatus}

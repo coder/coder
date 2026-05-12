@@ -331,12 +331,6 @@ export const BlockList: FC<{
 						);
 					}
 					case "thinking":
-						// In pinned mode during streaming, the pinned
-						// indicator in StreamingOutput replaces per-block
-						// thinking disclosures to avoid duplicate labels.
-						if (thinkingDisplayMode === "pinned" && isStreaming) {
-							return null;
-						}
 						return (
 							<ReasoningDisclosure
 								key={`${keyPrefix}-thinking-${index}`}
