@@ -38,7 +38,7 @@ type UsageSectionData = {
 	severity?: UsageSeverity;
 };
 
-const usageTriggerMeterWidthClassName = "w-16";
+const usageTriggerMeterWidthClassName = "w-24";
 
 const workspaceQuotaTooltip =
 	"Workspaces, stopped or running, may consume credits. Stop or delete unused ones to free quota.";
