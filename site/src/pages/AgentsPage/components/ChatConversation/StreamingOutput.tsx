@@ -29,8 +29,8 @@ const hasTextOrReasoningBlock = (blocks: readonly RenderBlock[]): boolean =>
 
 /**
  * Placeholder shown during streaming before text or reasoning
- * blocks arrive. Uses the same shimmer animation as the
- * collapsible thinking disclosure label.
+ * blocks arrive. Uses the same shimmer animation and typography
+ * as the ChatStatusCallout status placeholder.
  */
 const StreamingThinkingPlaceholder: FC = () => (
 	<div className="flex w-full items-center gap-2 py-0.5 text-content-secondary">

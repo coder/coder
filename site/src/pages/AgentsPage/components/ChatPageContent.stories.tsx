@@ -114,7 +114,7 @@ export const StartingPhaseToolCallGapRegression: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getAllByText("Thinking...").length).toBeGreaterThan(0);
+		canvas.getAllByText("Thinking...");
 		expect(canvas.queryByTestId("assistant-bottom-spacer")).toBeNull();
 	},
 };

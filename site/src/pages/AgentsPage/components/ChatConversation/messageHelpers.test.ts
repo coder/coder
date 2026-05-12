@@ -14,12 +14,16 @@ const buildMessage = (
 	content,
 });
 
-const getDisplayState = (message: ChatMessage) =>
+const getDisplayState = (
+	message: ChatMessage,
+	overrides: Partial<Parameters<typeof deriveMessageDisplayState>[0]> = {},
+) =>
 	deriveMessageDisplayState({
 		message,
 		parsed: parseMessageContent(message.content),
 		hideActions: false,
 		hasActiveStream: false,
+		...overrides,
 	});
 
 describe("deriveMessageDisplayState", () => {
@@ -57,5 +61,54 @@ describe("deriveMessageDisplayState", () => {
 		);
 
 		expect(getDisplayState(message).hasCopyableContent).toBe(false);
+	});
+
+	it("suppresses the assistant spacer while awaiting the first stream chunk", () => {
+		const message = buildMessage(
+			[{ type: "reasoning", text: "I should think before answering." }],
+			"assistant",
+		);
+
+		expect(
+			getDisplayState(message, { isAwaitingFirstStreamChunk: true })
+				.needsAssistantBottomSpacer,
+		).toBe(false);
+	});
+
+	it("keeps the assistant spacer hidden when actions are hidden, even while awaiting", () => {
+		const message = buildMessage(
+			[{ type: "reasoning", text: "I should think before answering." }],
+			"assistant",
+		);
+
+		expect(
+			getDisplayState(message, {
+				hideActions: true,
+				isAwaitingFirstStreamChunk: true,
+			}).needsAssistantBottomSpacer,
+		).toBe(false);
+	});
+
+	it("keeps the assistant spacer hidden when a stream is active", () => {
+		const message = buildMessage(
+			[{ type: "reasoning", text: "I should think before answering." }],
+			"assistant",
+		);
+
+		expect(
+			getDisplayState(message, {
+				hasActiveStream: true,
+				isAwaitingFirstStreamChunk: true,
+			}).needsAssistantBottomSpacer,
+		).toBe(false);
+	});
+
+	it("never shows the assistant spacer on user messages", () => {
+		const message = buildMessage([{ type: "text", text: "Hello" }], "user");
+
+		expect(
+			getDisplayState(message, { isAwaitingFirstStreamChunk: true })
+				.needsAssistantBottomSpacer,
+		).toBe(false);
 	});
 });
