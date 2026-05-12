@@ -95,6 +95,9 @@ func (s *Server) Serve(ctx, hardCtx context.Context, l net.Listener) (retErr err
 			select {
 			case <-closed:
 			case <-hardCtx.Done():
+				clog.Info(hardCtx, "reconnecting pty closed",
+					slog.F("disconnect_reason", "server shut down"),
+				)
 				disconnected(1, "server shut down")
 				_ = conn.Close()
 			}
@@ -104,15 +107,23 @@ func (s *Server) Serve(ctx, hardCtx context.Context, l net.Listener) (retErr err
 			defer close(closed)
 			defer wg.Done()
 			err := s.handleConn(ctx, clog, conn)
-			if err != nil {
-				if ctx.Err() != nil {
-					disconnected(1, "server shutting down")
-				} else {
-					disconnected(1, err.Error())
-				}
-			} else {
-				disconnected(0, "")
+			var reason string
+			var code int
+			switch {
+			case err != nil && ctx.Err() != nil:
+				reason = "server shutting down"
+				code = 1
+			case err != nil:
+				reason = err.Error()
+				code = 1
+			default:
+				reason = "normal exit"
 			}
+			clog.Info(ctx, "reconnecting pty closed",
+				slog.F("disconnect_reason", reason),
+				slog.F("exit_code", code),
+			)
+			disconnected(code, reason)
 		}()
 	}
 	wg.Wait()
