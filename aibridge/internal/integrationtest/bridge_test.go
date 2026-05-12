@@ -131,6 +131,13 @@ func TestAnthropicMessages(t *testing.T) {
 				require.Len(t, promptUsages, 1)
 				assert.Equal(t, "read the foo file", promptUsages[0].Prompt)
 
+				// Verify PRM attribution is NOT present on non-Bedrock Anthropic requests.
+				received := upstream.receivedRequests()
+				require.Len(t, received, 1)
+				ua := received[0].Header.Get("User-Agent")
+				assert.NotContains(t, ua, "sdk-ua-app-id",
+					"PRM attribution should not be present on non-Bedrock requests")
+
 				bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)
 			})
 		}
@@ -326,6 +333,11 @@ func TestAWSBedrockIntegration(t *testing.T) {
 				require.Equal(t, bedrockCfg.Model, pathParts[2])
 				require.False(t, gjson.GetBytes(received[0].Body, "model").Exists(), "model should be stripped from body")
 				require.False(t, gjson.GetBytes(received[0].Body, "stream").Exists(), "stream should be stripped from body")
+
+				// Verify PRM attribution is appended to the User-Agent header.
+				ua := received[0].Header.Get("User-Agent")
+				require.Contains(t, ua, "sdk-ua-app-id/APN_1.1%2Fpc_cdfmjwn8i6u8l9fwz8h82e4w3%24",
+					"expected AWS PRM attribution in User-Agent header")
 
 				interceptions := bridgeServer.Recorder.RecordedInterceptions()
 				require.Len(t, interceptions, 1)
