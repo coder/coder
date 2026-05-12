@@ -14291,6 +14291,129 @@ func requireSDKError(t *testing.T, err error, expectedStatus int) *codersdk.Erro
 	return sdkErr
 }
 
+func TestChatReadOnlySharedWriteHandlers(t *testing.T) {
+	t.Parallel()
+
+	setup := func(t *testing.T) (
+		ctx context.Context,
+		ownerClient *codersdk.ExperimentalClient,
+		sharedClient *codersdk.ExperimentalClient,
+		chat codersdk.Chat,
+		db database.Store,
+	) {
+		t.Helper()
+
+		ctx = testutil.Context(t, testutil.WaitLong)
+		ownerClient, db = newChatClientWithDatabase(t)
+		owner := coderdtest.CreateFirstUser(t, ownerClient.Client)
+		_ = createChatModelConfig(t, ownerClient)
+		sharedRaw, sharedUser := coderdtest.CreateAnotherUser(
+			t,
+			ownerClient.Client,
+			owner.OrganizationID,
+			rbac.ScopedRoleAgentsAccess(owner.OrganizationID),
+		)
+		sharedClient = codersdk.NewExperimentalClient(sharedRaw)
+
+		var err error
+		chat, err = ownerClient.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: owner.OrganizationID,
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "read only shared chat",
+			}},
+		})
+		require.NoError(t, err)
+
+		err = db.UpdateChatACLByID(dbauthz.As(ctx, rbac.Subject{
+			ID:    owner.UserID.String(),
+			Roles: rbac.RoleIdentifiers{rbac.RoleOwner()},
+			Scope: rbac.ScopeAll,
+		}), database.UpdateChatACLByIDParams{
+			ID: chat.ID,
+			UserACL: database.ChatACL{
+				sharedUser.ID.String(): database.ChatACLEntry{Permissions: []policy.Action{policy.ActionRead}},
+			},
+			GroupACL: database.ChatACL{},
+		})
+		require.NoError(t, err)
+		return ctx, ownerClient, sharedClient, chat, db
+	}
+
+	t.Run("PatchChat", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, _, sharedClient, chat, _ := setup(t)
+		err := sharedClient.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+			Archived: ptr.Ref(true),
+		})
+
+		requireSDKError(t, err, http.StatusForbidden)
+	})
+
+	t.Run("PatchChatMessage", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, ownerClient, sharedClient, chat, _ := setup(t)
+		messagesResult, err := ownerClient.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		var userMessageID int64
+		for _, msg := range messagesResult.Messages {
+			if msg.Role == codersdk.ChatMessageRoleUser {
+				userMessageID = msg.ID
+				break
+			}
+		}
+		require.NotZero(t, userMessageID)
+
+		_, err = sharedClient.EditChatMessage(ctx, chat.ID, userMessageID, codersdk.EditChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "read only user cannot edit",
+			}},
+		})
+
+		requireSDKError(t, err, http.StatusForbidden)
+	})
+
+	t.Run("DeleteChatQueuedMessage", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, _, sharedClient, chat, db := setup(t)
+		queuedContent, err := json.Marshal([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("queued"),
+		})
+		require.NoError(t, err)
+		queuedMessage, err := db.InsertChatQueuedMessage(
+			dbauthz.AsSystemRestricted(ctx),
+			database.InsertChatQueuedMessageParams{
+				ChatID:  chat.ID,
+				Content: queuedContent,
+			},
+		)
+		require.NoError(t, err)
+
+		res, err := sharedClient.Request(
+			ctx,
+			http.MethodDelete,
+			fmt.Sprintf("/api/experimental/chats/%s/queue/%d", chat.ID, queuedMessage.ID),
+			nil,
+		)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusForbidden, res.StatusCode)
+	})
+
+	t.Run("InterruptChat", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, _, sharedClient, chat, _ := setup(t)
+		_, err := sharedClient.InterruptChat(ctx, chat.ID)
+
+		requireSDKError(t, err, http.StatusForbidden)
+	})
+}
+
 // TestChatOwnerOnlyWriteHandlers verifies that only the chat owner can
 // call handlers that trigger chat processing. Org admins pass the RBAC
 // ActionUpdate check (org-level permission) but must still be blocked

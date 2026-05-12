@@ -298,6 +298,7 @@ type sqlcQuerier interface {
 	// This function returns roles for authorization purposes. Implied member roles
 	// are included.
 	GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (GetAuthorizationUserRolesRow, error)
+	GetChatACLByID(ctx context.Context, id uuid.UUID) (GetChatACLByIDRow, error)
 	// GetChatAdvisorConfig returns the deployment-wide runtime configuration
 	// for the experimental chat advisor as a JSON blob. Callers unmarshal the
 	// result into codersdk.AdvisorConfig. Returns '{}' when unset so zero
@@ -411,6 +412,7 @@ type sqlcQuerier interface {
 	// Returns "0s" (disabled) when no value has been configured.
 	GetChatWorkspaceTTL(ctx context.Context) (string, error)
 	GetChats(ctx context.Context, arg GetChatsParams) ([]GetChatsRow, error)
+	GetChatsByChatFileID(ctx context.Context, fileID uuid.UUID) ([]Chat, error)
 	GetChatsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]Chat, error)
 	// Retrieves chats updated after the given timestamp for telemetry
 	// snapshot collection. Uses updated_at so that long-running chats
@@ -1132,6 +1134,7 @@ type sqlcQuerier interface {
 	UpdateAIBridgeInterceptionEnded(ctx context.Context, arg UpdateAIBridgeInterceptionEndedParams) (AIBridgeInterception, error)
 	UpdateAIProvider(ctx context.Context, arg UpdateAIProviderParams) (AIProvider, error)
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
+	UpdateChatACLByID(ctx context.Context, arg UpdateChatACLByIDParams) error
 	UpdateChatBuildAgentBinding(ctx context.Context, arg UpdateChatBuildAgentBindingParams) (Chat, error)
 	UpdateChatByID(ctx context.Context, arg UpdateChatByIDParams) (Chat, error)
 	// Uses COALESCE so that passing NULL from Go means "keep the

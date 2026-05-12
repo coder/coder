@@ -253,3 +253,19 @@ func SetWorkspaceACLDisabled(v bool) {
 func WorkspaceACLDisabled() bool {
 	return workspaceACLDisabled.Load()
 }
+
+// TODO(geokat): similar to builtInRoles, this should ideally be
+// scoped to a coderd rather than a global.
+var chatACLDisabled atomic.Bool
+
+// SetChatACLDisabled is global because database model methods build
+// RBAC objects without API instance state.
+func SetChatACLDisabled(v bool) {
+	chatACLDisabled.Store(v)
+}
+
+// ChatACLDisabled is global because database model methods build RBAC
+// objects without API instance state.
+func ChatACLDisabled() bool {
+	return chatACLDisabled.Load()
+}

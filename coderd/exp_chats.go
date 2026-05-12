@@ -364,7 +364,8 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	params := database.GetChatsParams{
-		OwnerID:     apiKey.UserID,
+		OwnedOnly:   true,
+		ViewerID:    apiKey.UserID,
 		Archived:    searchParams.Archived,
 		AfterID:     paginationParams.AfterID,
 		LabelFilter: labelFilter,
@@ -2576,6 +2577,11 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
 
+	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
 	aReq, commitAudit := audit.InitRequest[database.Chat](rw, &audit.RequestParams{
 		Audit:   *api.Auditor.Load(),
 		Log:     api.Logger,
@@ -3085,6 +3091,11 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 	chat := httpmw.ChatParam(r)
 
+	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
 	// Only the chat owner may edit messages. See postChatMessages
 	// for the security rationale.
 	if apiKey.UserID != chat.OwnerID {
@@ -3198,6 +3209,11 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
 	chatID := chat.ID
+
+	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
+		httpapi.Forbidden(rw)
+		return
+	}
 
 	queuedMessageIDStr := chi.URLParam(r, "queuedMessage")
 	queuedMessageID, err := strconv.ParseInt(queuedMessageIDStr, 10, 64)
@@ -3409,11 +3425,13 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 
 	go httpapi.HeartbeatClose(ctx, logger, cancel, conn)
 
-	// Mark the chat as read when the stream connects and again
-	// when it disconnects so we avoid per-message API calls while
-	// messages are actively streaming.
-	api.markChatAsRead(ctx, chatID)
-	defer api.markChatAsRead(context.WithoutCancel(ctx), chatID)
+	// The last_read_message_id field is owner-scoped. Shared readers
+	// intentionally lack chat update permission, so their streams must not
+	// update it.
+	if chat.OwnerID == httpmw.APIKey(r).UserID {
+		api.markChatAsRead(ctx, chatID)
+		defer api.markChatAsRead(context.WithoutCancel(ctx), chatID)
+	}
 
 	encoder := json.NewEncoder(wsNetConn)
 
@@ -3498,6 +3516,11 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 	chat := httpmw.ChatParam(r)
 	chatID := chat.ID
 	logger := api.Logger.Named("chat_interrupt").With(slog.F("chat_id", chatID))
+
+	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
+		httpapi.Forbidden(rw)
+		return
+	}
 
 	if api.chatDaemon != nil {
 		chat = api.chatDaemon.InterruptChat(ctx, chat)

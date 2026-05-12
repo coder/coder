@@ -1362,16 +1362,18 @@ func TestGetAuthorizedChats(t *testing.T) {
 		require.NoError(t, err)
 		require.GreaterOrEqual(t, len(sameOrgAdminRows), 5, "same-org admin should see all chats in their org")
 
-		// OwnerID filter: member queries their own chats.
+		// OwnedOnly filter: member queries their own chats.
 		memberFilterSelf, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{
-			OwnerID: member.ID,
+			OwnedOnly: true,
+			ViewerID:  member.ID,
 		}, preparedMember)
 		require.NoError(t, err)
 		require.Len(t, memberFilterSelf, 2)
 
-		// OwnerID filter: member queries owner's chats → sees 0.
+		// OwnedOnly filter: member queries owner's chats and sees 0.
 		memberFilterOwner, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{
-			OwnerID: owner.ID,
+			OwnedOnly: true,
+			ViewerID:  owner.ID,
 		}, preparedMember)
 		require.NoError(t, err)
 		require.Len(t, memberFilterOwner, 0)
@@ -1468,6 +1470,114 @@ func TestGetAuthorizedChats(t *testing.T) {
 		// All 7 member chats should be accounted for with no leakage.
 		require.Len(t, allIDs, 7, "pagination should return all member chats exactly once")
 	})
+}
+
+//nolint:tparallel,paralleltest // It toggles the global chat ACL flag.
+func TestGetAuthorizedChatsACLSharing(t *testing.T) {
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	rbac.SetChatACLDisabled(false)
+	t.Cleanup(func() { rbac.SetChatACLDisabled(false) })
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+	authorizer := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+
+	owner := dbgen.User(t, db, database.User{})
+	recipient := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         owner.ID,
+		OrganizationID: org.ID,
+		Roles:          []string{rbac.RoleAgentsAccess()},
+	})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         recipient.ID,
+		OrganizationID: org.ID,
+		Roles:          []string{rbac.RoleAgentsAccess()},
+	})
+
+	dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
+	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Provider:             "openai",
+		Model:                "test-model",
+		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		IsDefault:            true,
+		CompressionThreshold: 80,
+	})
+
+	ownerChat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           owner.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "shared owner chat",
+	})
+	recipientChat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           recipient.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "recipient chat",
+	})
+
+	sharedACL := database.ChatACL{
+		recipient.ID.String(): database.ChatACLEntry{Permissions: []policy.Action{policy.ActionRead}},
+	}
+	err = db.UpdateChatACLByID(ctx, database.UpdateChatACLByIDParams{
+		ID:       ownerChat.ID,
+		UserACL:  sharedACL,
+		GroupACL: database.ChatACL{},
+	})
+	require.NoError(t, err)
+
+	recipientSubject, _, err := httpmw.UserRBACSubject(ctx, db, recipient.ID, rbac.ExpandableScope(rbac.ScopeAll))
+	require.NoError(t, err)
+	preparedRecipient, err := authorizer.Prepare(ctx, recipientSubject, policy.ActionRead, rbac.ResourceChat.Type)
+	require.NoError(t, err)
+
+	chatIDs := func(rows []database.GetChatsRow) []uuid.UUID {
+		ids := make([]uuid.UUID, 0, len(rows))
+		for _, row := range rows {
+			ids = append(ids, row.Chat.ID)
+		}
+		return ids
+	}
+
+	rows, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{}, preparedRecipient)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []uuid.UUID{ownerChat.ID, recipientChat.ID}, chatIDs(rows))
+
+	sharedOnly, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{
+		SharedOnly: true,
+		ViewerID:   recipient.ID,
+	}, preparedRecipient)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []uuid.UUID{ownerChat.ID}, chatIDs(sharedOnly))
+	require.Equal(t, sharedACL, sharedOnly[0].Chat.UserACL)
+	require.Empty(t, sharedOnly[0].Chat.GroupACL)
+
+	_, err = db.GetAuthorizedChats(ctx, database.GetChatsParams{
+		OwnedOnly:  true,
+		SharedOnly: true,
+		ViewerID:   recipient.ID,
+	}, preparedRecipient)
+	require.ErrorContains(t, err, "owned_only and shared_only")
+
+	authzdb := dbauthz.New(db, authorizer, slogtest.Make(t, &slogtest.Options{}), coderdtest.AccessControlStorePointer())
+	recipientCtx := dbauthz.As(ctx, recipientSubject)
+	authzRows, err := authzdb.GetChats(recipientCtx, database.GetChatsParams{})
+	require.NoError(t, err)
+	require.ElementsMatch(t, []uuid.UUID{ownerChat.ID, recipientChat.ID}, chatIDs(authzRows))
+
+	rbac.SetChatACLDisabled(true)
+	disabledRows, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{}, preparedRecipient)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []uuid.UUID{recipientChat.ID}, chatIDs(disabledRows))
 }
 
 func TestInsertWorkspaceAgentLogs(t *testing.T) {
@@ -11783,7 +11893,10 @@ func TestChatLabels(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		rows, err := db.GetChats(ctx, database.GetChatsParams{OwnerID: owner.ID})
+		rows, err := db.GetChats(ctx, database.GetChatsParams{
+			OwnedOnly: true,
+			ViewerID:  owner.ID,
+		})
 		require.NoError(t, err)
 
 		chatIndex := slices.IndexFunc(rows, func(row database.GetChatsRow) bool {
@@ -11935,7 +12048,8 @@ func TestChatLabels(t *testing.T) {
 		filterJSON, err := json.Marshal(database.StringMap{"env": "prod"})
 		require.NoError(t, err)
 		results, err := db.GetChats(ctx, database.GetChatsParams{
-			OwnerID: owner.ID,
+			OwnedOnly: true,
+			ViewerID:  owner.ID,
 			LabelFilter: pqtype.NullRawMessage{
 				RawMessage: filterJSON,
 				Valid:      true,
@@ -11955,7 +12069,8 @@ func TestChatLabels(t *testing.T) {
 		filterJSON, err = json.Marshal(database.StringMap{"env": "prod", "team": "backend"})
 		require.NoError(t, err)
 		results, err = db.GetChats(ctx, database.GetChatsParams{
-			OwnerID: owner.ID,
+			OwnedOnly: true,
+			ViewerID:  owner.ID,
 			LabelFilter: pqtype.NullRawMessage{
 				RawMessage: filterJSON,
 				Valid:      true,
@@ -11964,9 +12079,10 @@ func TestChatLabels(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, results, 1)
 		require.Equal(t, "filter-a", results[0].Chat.Title)
-		// No filter — should return all chats for this owner.
+		// No filter should return all chats for this owner.
 		allChats, err := db.GetChats(ctx, database.GetChatsParams{
-			OwnerID: owner.ID,
+			OwnedOnly: true,
+			ViewerID:  owner.ID,
 		})
 		require.NoError(t, err)
 		require.GreaterOrEqual(t, len(allChats), 3)
@@ -13688,7 +13804,8 @@ func TestChatHasUnread(t *testing.T) {
 
 	getHasUnread := func() bool {
 		rows, err := store.GetChats(ctx, database.GetChatsParams{
-			OwnerID: user.ID,
+			OwnedOnly: true,
+			ViewerID:  user.ID,
 		})
 		require.NoError(t, err)
 		for _, row := range rows {

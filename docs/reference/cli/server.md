@@ -1169,6 +1169,16 @@ Remove the permission for the 'owner' role to have workspace execution on all wo
 
 Disable workspace sharing. Workspace ACL checking is disabled and only owners can have ssh, apps and terminal access to workspaces. Access based on the 'owner' role is also allowed unless disabled via --disable-owner-workspace-access.
 
+### --disable-chat-sharing
+
+|             |                                          |
+|-------------|------------------------------------------|
+| Type        | <code>bool</code>                        |
+| Environment | <code>$CODER_DISABLE_CHAT_SHARING</code> |
+| YAML        | <code>disableChatSharing</code>          |
+
+Disable chat sharing. Chat ACL checking is disabled and only owners can access their chats.
+
 ### --session-duration
 
 |             |                                              |

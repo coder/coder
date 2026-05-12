@@ -218,6 +218,16 @@ func TestRegoQueries(t *testing.T) {
 			VariableConverter: regosql.WorkspaceConverter(),
 		},
 		{
+			Name: "UserChatACLAllow",
+			Queries: []string{
+				`"read" in input.object.acl_user_list["d5389ccc-57a4-4b13-8c3f-31747bcdc9f1"]`,
+				`"*" in input.object.acl_user_list["d5389ccc-57a4-4b13-8c3f-31747bcdc9f1"]`,
+			},
+			ExpectedSQL: "((chats_expanded.user_acl#>array['d5389ccc-57a4-4b13-8c3f-31747bcdc9f1', 'permissions'] ? 'read')" +
+				" OR (chats_expanded.user_acl#>array['d5389ccc-57a4-4b13-8c3f-31747bcdc9f1', 'permissions'] ? '*'))",
+			VariableConverter: regosql.ChatConverter(),
+		},
+		{
 			Name: "NoACLConfig",
 			Queries: []string{
 				`input.object.org_owner != "";

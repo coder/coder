@@ -89,7 +89,7 @@ var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceAssignRole:                    {ActionAssign, ActionRead, ActionUnassign},
 	ResourceAuditLog:                      {ActionCreate, ActionRead},
 	ResourceBoundaryUsage:                 {ActionDelete, ActionRead, ActionUpdate},
-	ResourceChat:                          {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
+	ResourceChat:                          {ActionCreate, ActionDelete, ActionRead, ActionShare, ActionUpdate},
 	ResourceConnectionLog:                 {ActionRead, ActionUpdate},
 	ResourceCryptoKey:                     {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceDebugInfo:                     {ActionRead},
