@@ -23,7 +23,7 @@ import { WorkspaceTopbar } from "./WorkspaceTopbar";
 
 interface WorkspaceProps {
 	workspace: TypesGen.Workspace;
-	template?: TypesGen.Template;
+	template: TypesGen.Template;
 	permissions: WorkspacePermissions;
 	isUpdating: boolean;
 	isRestarting: boolean;
@@ -65,12 +65,9 @@ export const Workspace: FC<WorkspaceProps> = ({
 	handleDebug,
 }) => {
 	const getLink = useLinks();
-	const createWorkspaceLink =
-		template !== undefined && !template.deleted
-			? `${getLink(
-					linkToTemplate(workspace.organization_name, workspace.template_name),
-				)}/workspace`
-			: undefined;
+	const createWorkspaceLink = `${getLink(
+		linkToTemplate(workspace.organization_name, workspace.template_name),
+	)}/workspace`;
 	const templateName =
 		workspace.template_display_name || workspace.template_name;
 
@@ -211,7 +208,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 								<WorkspaceBuildLogsSection logs={buildLogs} />
 							)}
 
-							{selectedResource && template && (
+							{selectedResource && (
 								<section className="flex flex-col gap-6 flex-grow min-w-0">
 									{selectedResource.agents
 										// If an agent has a `parent_id`, that means it is

@@ -15,11 +15,4 @@ type Story = StoryObj<typeof WorkspaceDeletedBanner>;
 
 const Example: Story = {};
 
-const TemplateUnavailable: Story = {
-	args: {
-		createWorkspaceLink: undefined,
-		templateName: undefined,
-	},
-};
-
-export { Example as WorkspaceDeletedBanner, TemplateUnavailable };
+export { Example as WorkspaceDeletedBanner };
