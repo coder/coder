@@ -24,6 +24,7 @@ type AgentDisplayMode = UserPreferenceSettings["code_diff_display_mode"];
 const thinkingDisplayOptions: DisplayModeOption<ThinkingDisplayMode>[] = [
 	{ value: "auto", label: "Auto" },
 	{ value: "preview", label: "Preview" },
+	{ value: "pinned", label: "Pinned" },
 	{ value: "always_expanded", label: "Always Expanded" },
 	{ value: "always_collapsed", label: "Always Collapsed" },
 ];
@@ -102,7 +103,7 @@ export const ThinkingDisplaySettings: FC = () => {
 	return (
 		<DisplayModeSettings
 			title="Thinking Display"
-			description="How thinking blocks should be displayed by default. 'Auto' fully expands during streaming, then auto-collapses when done. 'Preview' auto-expands with a height constraint during streaming. 'Always Expanded' shows full content. 'Always Collapsed' keeps them collapsed."
+			description="How thinking blocks should be displayed by default. 'Auto' fully expands during streaming, then auto-collapses when done. 'Preview' auto-expands with a height constraint during streaming. 'Pinned' keeps a Thinking indicator fixed while activity streams above with a fade effect. 'Always Expanded' shows full content. 'Always Collapsed' keeps them collapsed."
 			ariaLabel="Thinking display mode"
 			errorMessage="Failed to save your thinking display preference."
 			defaultValue="auto"

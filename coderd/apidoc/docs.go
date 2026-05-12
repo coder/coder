@@ -23068,13 +23068,15 @@ const docTemplate = `{
                 "auto",
                 "preview",
                 "always_expanded",
-                "always_collapsed"
+                "always_collapsed",
+                "pinned"
             ],
             "x-enum-varnames": [
                 "ThinkingDisplayModeAuto",
                 "ThinkingDisplayModePreview",
                 "ThinkingDisplayModeAlwaysExpanded",
-                "ThinkingDisplayModeAlwaysCollapsed"
+                "ThinkingDisplayModeAlwaysCollapsed",
+                "ThinkingDisplayModePinned"
             ]
         },
         "codersdk.TimingStage": {

@@ -21216,12 +21216,19 @@
 		},
 		"codersdk.ThinkingDisplayMode": {
 			"type": "string",
-			"enum": ["auto", "preview", "always_expanded", "always_collapsed"],
+			"enum": [
+				"auto",
+				"preview",
+				"always_expanded",
+				"always_collapsed",
+				"pinned"
+			],
 			"x-enum-varnames": [
 				"ThinkingDisplayModeAuto",
 				"ThinkingDisplayModePreview",
 				"ThinkingDisplayModeAlwaysExpanded",
-				"ThinkingDisplayModeAlwaysCollapsed"
+				"ThinkingDisplayModeAlwaysCollapsed",
+				"ThinkingDisplayModePinned"
 			]
 		},
 		"codersdk.TimingStage": {

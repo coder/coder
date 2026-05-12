@@ -281,6 +281,7 @@ const (
 	ThinkingDisplayModePreview         ThinkingDisplayMode = "preview"
 	ThinkingDisplayModeAlwaysExpanded  ThinkingDisplayMode = "always_expanded"
 	ThinkingDisplayModeAlwaysCollapsed ThinkingDisplayMode = "always_collapsed"
+	ThinkingDisplayModePinned          ThinkingDisplayMode = "pinned"
 )
 
 var ValidThinkingDisplayModes = []ThinkingDisplayMode{
@@ -288,6 +289,7 @@ var ValidThinkingDisplayModes = []ThinkingDisplayMode{
 	ThinkingDisplayModePreview,
 	ThinkingDisplayModeAlwaysExpanded,
 	ThinkingDisplayModeAlwaysCollapsed,
+	ThinkingDisplayModePinned,
 }
 
 type AgentDisplayMode string

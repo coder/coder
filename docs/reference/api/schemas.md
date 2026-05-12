@@ -12500,9 +12500,9 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 #### Enumerated Values
 
-| Value(s)                                                 |
-|----------------------------------------------------------|
-| `always_collapsed`, `always_expanded`, `auto`, `preview` |
+| Value(s)                                                           |
+|--------------------------------------------------------------------|
+| `always_collapsed`, `always_expanded`, `auto`, `pinned`, `preview` |
 
 ## codersdk.TimingStage
 

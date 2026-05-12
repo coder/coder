@@ -1,6 +1,9 @@
-import type { FC } from "react";
+import { type FC, useLayoutEffect, useRef } from "react";
+import { useQuery } from "react-query";
 import type { UrlTransform } from "streamdown";
+import { preferenceSettings } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
+import type { ThinkingDisplayMode } from "#/api/typesGenerated";
 import {
 	ConversationItem,
 	Message,
@@ -28,6 +31,14 @@ const hasTextOrReasoningBlock = (blocks: readonly RenderBlock[]): boolean =>
 	blocks.some((b) => b.type === "response" || b.type === "thinking");
 
 /**
+ * True when the block list contains at least one response block
+ * (final output text). Used in pinned mode to detect the
+ * transition from thinking to responding.
+ */
+const hasResponseBlock = (blocks: readonly RenderBlock[]): boolean =>
+	blocks.some((b) => b.type === "response");
+
+/**
  * Placeholder shown during streaming before text or reasoning
  * blocks arrive. Uses the same shimmer animation as the
  * collapsible thinking disclosure label.
@@ -39,6 +50,157 @@ const StreamingThinkingPlaceholder: FC = () => (
 		</Shimmer>
 	</div>
 );
+
+/**
+ * Bottom-fade gradient mask for the pinned thinking container.
+ * Content fades to transparent at the bottom, creating the effect
+ * of thoughts materializing as they scroll upward.
+ */
+const PINNED_FADE_MASK = {
+	maskImage:
+		"linear-gradient(to bottom, black 0%, black calc(100% - 4em), transparent 100%)",
+	WebkitMaskImage:
+		"linear-gradient(to bottom, black 0%, black calc(100% - 4em), transparent 100%)",
+} as const;
+
+/**
+ * Pinned thinking indicator shown at the bottom of the streaming
+ * output. Stays fixed while activity streams above it.
+ */
+const PinnedThinkingIndicator: FC<{ fading?: boolean }> = ({
+	fading = false,
+}) => (
+	<div
+		className="flex w-full items-center gap-2 border-t border-border/50 pt-2 text-content-secondary transition-opacity duration-300"
+		style={{ opacity: fading ? 0 : 1 }}
+	>
+		<Shimmer as="span" className="text-sm">
+			Thinking
+		</Shimmer>
+	</div>
+);
+
+/**
+ * Pinned mode wrapper: renders streaming blocks in a
+ * height-constrained, bottom-scrolling container with a fade-out
+ * gradient at the bottom. A persistent "Thinking" indicator sits
+ * below the content area, staying in place while activity streams
+ * above it.
+ *
+ * When the agent produces response text, the thinking indicator
+ * fades out and the response block renders outside the constrained
+ * container so it appears at full brightness.
+ */
+const PinnedStreamingContent: FC<{
+	blocks: readonly RenderBlock[];
+	streamTools: readonly MergedTool[];
+	isStreaming: boolean;
+	subagentTitles?: Map<string, string>;
+	subagentVariants?: Map<string, SubagentVariant>;
+	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
+	urlTransform?: UrlTransform;
+	mcpServers?: readonly TypesGen.MCPServerConfig[];
+	liveStatus: LiveStatusModel;
+	startingResetKey?: string;
+}> = ({
+	blocks,
+	streamTools,
+	isStreaming,
+	subagentTitles,
+	subagentVariants,
+	subagentStatusOverrides,
+	urlTransform,
+	mcpServers,
+	liveStatus,
+	startingResetKey,
+}) => {
+	const scrollRef = useRef<HTMLDivElement>(null);
+	const hasResponse = hasResponseBlock(blocks);
+
+	// Split blocks: everything before the first response block goes
+	// into the pinned container; response blocks render outside it.
+	const activityBlocks: RenderBlock[] = [];
+	const responseBlocks: RenderBlock[] = [];
+	let foundResponse = false;
+	for (const block of blocks) {
+		if (block.type === "response") {
+			foundResponse = true;
+		}
+		if (foundResponse && block.type === "response") {
+			responseBlocks.push(block);
+		} else {
+			activityBlocks.push(block);
+		}
+	}
+
+	// Auto-scroll the activity container to the bottom so the
+	// latest thinking/tool content stays visible. useLayoutEffect
+	// avoids a visible frame where content has grown but not
+	// scrolled.
+	const activityBlockCount = activityBlocks.length;
+	useLayoutEffect(() => {
+		if (activityBlockCount && scrollRef.current) {
+			scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+		}
+	}, [activityBlockCount]);
+
+	const showPinnedIndicator = isStreaming && !hasResponse;
+	const showActivityContainer = activityBlocks.length > 0;
+
+	return (
+		<div className="space-y-3">
+			{/* Activity container: height-constrained with bottom fade */}
+			{showActivityContainer && (
+				<div
+					ref={scrollRef}
+					className="max-h-48 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+					style={showPinnedIndicator ? PINNED_FADE_MASK : undefined}
+				>
+					<div className="space-y-3">
+						<BlockList
+							blocks={activityBlocks}
+							tools={streamTools}
+							keyPrefix="stream"
+							isStreaming={isStreaming}
+							subagentTitles={subagentTitles}
+							subagentVariants={subagentVariants}
+							subagentStatusOverrides={subagentStatusOverrides}
+							urlTransform={urlTransform}
+							mcpServers={mcpServers}
+						/>
+					</div>
+				</div>
+			)}
+
+			{/* Pinned thinking indicator */}
+			{showPinnedIndicator && <PinnedThinkingIndicator />}
+
+			{/* Status callouts for starting/retrying/reconnecting */}
+			{hasTransientLiveStatus(liveStatus) && !isStreaming && (
+				<ChatStatusCallout
+					status={liveStatus}
+					startingResetKey={startingResetKey}
+				/>
+			)}
+
+			{/* Response blocks render outside the constrained container
+			    at full brightness so the user knows to pay attention. */}
+			{responseBlocks.length > 0 && (
+				<BlockList
+					blocks={responseBlocks}
+					tools={streamTools}
+					keyPrefix="stream-response"
+					isStreaming={isStreaming}
+					subagentTitles={subagentTitles}
+					subagentVariants={subagentVariants}
+					subagentStatusOverrides={subagentStatusOverrides}
+					urlTransform={urlTransform}
+					mcpServers={mcpServers}
+				/>
+			)}
+		</div>
+	);
+};
 
 export const StreamingOutput: FC<{
 	streamState: StreamState | null;
@@ -61,6 +223,10 @@ export const StreamingOutput: FC<{
 	urlTransform,
 	mcpServers,
 }) => {
+	const prefQuery = useQuery(preferenceSettings());
+	const thinkingDisplayMode: ThinkingDisplayMode =
+		prefQuery.data?.thinking_display_mode || "auto";
+
 	if (liveStatus.phase === "idle") {
 		return null;
 	}
@@ -88,6 +254,44 @@ export const StreamingOutput: FC<{
 
 	const conversationItemProps = { role: "assistant" as const };
 
+	// Pinned mode: use the dedicated pinned container layout
+	if (thinkingDisplayMode === "pinned") {
+		return (
+			<ConversationItem {...conversationItemProps}>
+				<Message className="w-full">
+					<MessageContent className="whitespace-normal">
+						{shouldShowBlocks && blocks.length > 0 ? (
+							<PinnedStreamingContent
+								blocks={blocks}
+								streamTools={streamTools}
+								isStreaming={isStreaming}
+								subagentTitles={subagentTitles}
+								subagentVariants={subagentVariants}
+								subagentStatusOverrides={subagentStatusOverrides}
+								urlTransform={urlTransform}
+								mcpServers={mcpServers}
+								liveStatus={liveStatus}
+								startingResetKey={startingResetKey}
+							/>
+						) : (
+							<div className="space-y-3">
+								{needsStreamingThinking && <StreamingThinkingPlaceholder />}
+								{!needsStreamingThinking &&
+									hasTransientLiveStatus(liveStatus) && (
+										<ChatStatusCallout
+											status={liveStatus}
+											startingResetKey={startingResetKey}
+										/>
+									)}
+							</div>
+						)}
+					</MessageContent>
+				</Message>
+			</ConversationItem>
+		);
+	}
+
+	// Default mode: original layout
 	return (
 		<ConversationItem {...conversationItemProps}>
 			<Message className="w-full">

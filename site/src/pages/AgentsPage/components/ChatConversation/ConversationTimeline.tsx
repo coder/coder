@@ -108,6 +108,11 @@ const ReasoningDisclosure = memo<{
 				case "auto":
 				case "preview":
 					return isStreaming;
+				case "pinned":
+					// In pinned mode, individual thinking disclosures
+					// stay collapsed; the pinned container in
+					// StreamingOutput handles the visual indicator.
+					return false;
 				default: {
 					const _exhaustive: never = mode;
 					return _exhaustive;

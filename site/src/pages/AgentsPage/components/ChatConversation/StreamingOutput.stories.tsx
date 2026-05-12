@@ -278,3 +278,96 @@ export const ThinkingDuringStreamingWithToolCalls: Story = {
 		expect(matches.length).toBeGreaterThanOrEqual(1);
 	},
 };
+
+/**
+ * Pinned mode: all activity streams inside a height-constrained
+ * container with a bottom fade, and a persistent "Thinking"
+ * indicator stays pinned below.
+ */
+export const PinnedModeWithActivity: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["me", "preferences"],
+				data: {
+					task_notification_alert_dismissed: false,
+					thinking_display_mode: "pinned" as const,
+					code_diff_display_mode: "auto" as const,
+				},
+			},
+		],
+	},
+	args: {
+		...buildStreamRenderState([
+			{
+				type: "reasoning",
+				text: "Let me analyze the code structure and understand what changes need to be made.",
+			},
+			{
+				type: "tool-call",
+				tool_name: "execute",
+				tool_call_id: "tc-1",
+				args: { command: "find src -name '*.tsx'" },
+			},
+			{
+				type: "tool-call",
+				tool_name: "read_file",
+				tool_call_id: "tc-2",
+				args: { path: "src/components/App.tsx" },
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			const matches = canvas.getAllByText("Thinking");
+			expect(matches.length).toBeGreaterThanOrEqual(1);
+		});
+	},
+};
+
+/**
+ * Pinned mode with response: when the agent starts producing
+ * response text, activity blocks stay in the constrained area and
+ * the response renders at full brightness below.
+ */
+export const PinnedModeWithResponse: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["me", "preferences"],
+				data: {
+					task_notification_alert_dismissed: false,
+					thinking_display_mode: "pinned" as const,
+					code_diff_display_mode: "auto" as const,
+				},
+			},
+		],
+	},
+	args: {
+		...buildStreamRenderState([
+			{
+				type: "reasoning",
+				text: "Let me analyze the code structure.",
+			},
+			{
+				type: "tool-call",
+				tool_name: "execute",
+				tool_call_id: "tc-1",
+				args: { command: "ls -la" },
+			},
+			{
+				type: "text",
+				text: "I've analyzed the code structure. Here are the changes I'll make to implement the feature you requested.",
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await waitFor(() => {
+			expect(
+				canvas.getByText(/analyzed the code structure/i),
+			).toBeInTheDocument();
+		});
+	},
+};

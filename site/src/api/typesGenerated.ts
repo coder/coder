@@ -7865,12 +7865,14 @@ export type ThinkingDisplayMode =
 	| "always_collapsed"
 	| "always_expanded"
 	| "auto"
+	| "pinned"
 	| "preview";
 
 export const ThinkingDisplayModes: ThinkingDisplayMode[] = [
 	"always_collapsed",
 	"always_expanded",
 	"auto",
+	"pinned",
 	"preview",
 ];
 
