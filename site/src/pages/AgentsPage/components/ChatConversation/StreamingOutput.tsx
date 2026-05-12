@@ -147,14 +147,52 @@ const PinnedStreamingContent: FC<{
 	const showPinnedIndicator = isStreaming && !hasResponse;
 	const showActivityContainer = activityBlocks.length > 0;
 
+	// When thinking: fixed-height box so "Thinking" never moves.
+	// Activity scrolls inside the top portion; the indicator is
+	// anchored at the bottom of the fixed box.
+	if (showPinnedIndicator) {
+		return (
+			<div className="flex h-48 flex-col">
+				{/* Activity area: fills remaining space, scrolls internally */}
+				<div
+					ref={scrollRef}
+					className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+					style={PINNED_FADE_MASK}
+				>
+					{showActivityContainer && (
+						<div className="space-y-3">
+							<BlockList
+								blocks={activityBlocks}
+								tools={streamTools}
+								keyPrefix="stream"
+								isStreaming={isStreaming}
+								subagentTitles={subagentTitles}
+								subagentVariants={subagentVariants}
+								subagentStatusOverrides={subagentStatusOverrides}
+								urlTransform={urlTransform}
+								mcpServers={mcpServers}
+							/>
+						</div>
+					)}
+				</div>
+
+				{/* Pinned indicator: always at the bottom of the fixed box */}
+				<div className="shrink-0">
+					<PinnedThinkingIndicator />
+				</div>
+			</div>
+		);
+	}
+
+	// Once the agent starts responding, drop the fixed container.
+	// Activity stays in a capped scroll area; response text renders
+	// at full brightness below.
 	return (
 		<div className="space-y-3">
-			{/* Activity container: height-constrained with bottom fade */}
 			{showActivityContainer && (
 				<div
 					ref={scrollRef}
 					className="max-h-48 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-					style={showPinnedIndicator ? PINNED_FADE_MASK : undefined}
 				>
 					<div className="space-y-3">
 						<BlockList
@@ -172,9 +210,6 @@ const PinnedStreamingContent: FC<{
 				</div>
 			)}
 
-			{/* Pinned thinking indicator */}
-			{showPinnedIndicator && <PinnedThinkingIndicator />}
-
 			{/* Status callouts for starting/retrying/reconnecting */}
 			{hasTransientLiveStatus(liveStatus) && !isStreaming && (
 				<ChatStatusCallout
@@ -183,8 +218,6 @@ const PinnedStreamingContent: FC<{
 				/>
 			)}
 
-			{/* Response blocks render outside the constrained container
-			    at full brightness so the user knows to pay attention. */}
 			{responseBlocks.length > 0 && (
 				<BlockList
 					blocks={responseBlocks}
