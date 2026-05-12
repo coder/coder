@@ -315,10 +315,10 @@ export type AIBudgetPeriod = "month";
 
 export const AIBudgetPeriods: AIBudgetPeriod[] = ["month"];
 
+export const AIBudgetPolicies: AIBudgetPolicy[] = ["highest"];
+
 // From codersdk/deployment.go
 export type AIBudgetPolicy = "highest";
-
-export const AIBudgetPolicys: AIBudgetPolicy[] = ["highest"];
 
 // From codersdk/deployment.go
 export interface AIConfig {
