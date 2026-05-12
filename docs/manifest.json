@@ -1078,6 +1078,26 @@
 					]
 				},
 				{
+					"title": "Claude Code Self-Hosted Runners",
+					"description": "Run Anthropic Claude Code self-hosted runners on Coder workspaces with no Coder product changes",
+					"path": "./ai-coder/claude-code-self-hosted-runners/index.md",
+					"state": ["early access"],
+					"children": [
+						{
+							"title": "Setup",
+							"description": "Publish a Coder template that runs a Claude Code self-hosted runner inside each workspace",
+							"path": "./ai-coder/claude-code-self-hosted-runners/setup.md",
+							"state": ["early access"]
+						},
+						{
+							"title": "Plan",
+							"description": "Staged plan for documenting more advanced setups; no Coder product changes required",
+							"path": "./ai-coder/claude-code-self-hosted-runners/plan.md",
+							"state": ["early access"]
+						}
+					]
+				},
+				{
 					"title": "AI Governance Add-On",
 					"description": "Features around managing agents at scale",
 					"path": "./ai-coder/ai-governance.md",
