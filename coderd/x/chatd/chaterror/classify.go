@@ -278,7 +278,7 @@ func Classify(err error) ClassifiedError {
 	})
 }
 
-func classifyHTTP2StreamReset(err error) (bool, bool) {
+func classifyHTTP2StreamReset(err error) (retryable bool, found bool) {
 	streamErr, ok := findHTTP2StreamError(err)
 	if !ok {
 		return false, false
