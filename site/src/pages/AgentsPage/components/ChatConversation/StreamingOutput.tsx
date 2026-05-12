@@ -34,7 +34,7 @@ const hasTextOrReasoningBlock = (blocks: readonly RenderBlock[]): boolean =>
  */
 const StreamingThinkingPlaceholder: FC = () => (
 	<div className="flex w-full items-center gap-2 py-0.5 text-content-secondary">
-		<Shimmer as="span" className="text-sm">
+		<Shimmer as="span" className="text-[13px] leading-relaxed">
 			Thinking
 		</Shimmer>
 	</div>
