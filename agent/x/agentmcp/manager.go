@@ -106,6 +106,22 @@ type Manager struct {
 	// caller and may outlive Close).
 	closedCh  chan struct{}
 	closeOnce sync.Once
+
+	// lastPaths records the most recent config paths passed to
+	// Reload/Tools. The fsnotify-backed watcher uses these to
+	// drive its own reloads when ~/.mcp.json appears late on
+	// dual-agent workspaces.
+	lastPaths []string
+
+	// watcher fires a debounced Reload when any watched config
+	// file is created, written, removed, or renamed. It is armed
+	// lazily on the first Reload call so tests that never call
+	// Reload do not pay for an extra goroutine and file
+	// descriptor.
+	watcher       *configWatcher
+	watcherErr    error
+	watcherOnce   sync.Once
+	watchDebounce time.Duration
 }
 
 // serverEntry pairs a server config with its connected client.
@@ -136,6 +152,7 @@ func NewManager(
 		snapshot:       make(map[string]fileSnapshot),
 		startupSettled: make(chan struct{}),
 		closedCh:       make(chan struct{}),
+		watchDebounce:  defaultWatchDebounce,
 	}
 }
 
@@ -258,6 +275,14 @@ func (m *Manager) startReloadIfNeeded(paths []string) (<-chan reloadResult, bool
 		}
 		return nil, false, err
 	}
+	// Arm the fsnotify watcher before deciding whether to short
+	// circuit. The first call lazily creates it; subsequent calls
+	// re-sync the watched path set if it changed. Arming before
+	// the SnapshotChanged check ensures any Create event that
+	// races with parseAndDedup is still delivered: the watcher
+	// is running when parseAndDedup returns the empty snapshot.
+	m.armWatcher(paths)
+
 	if firstSyncSettled && !m.SnapshotChanged(paths) {
 		return nil, false, nil
 	}
@@ -268,6 +293,77 @@ func (m *Manager) startReloadIfNeeded(paths []string) (<-chan reloadResult, bool
 		return struct{}{}, err
 	})
 	return ch, true, nil
+}
+
+// armWatcher lazily initializes the fsnotify-backed configWatcher
+// and syncs it to the latest config paths. Lazy initialization
+// keeps unit tests that never call Reload free of extra goroutines
+// and file descriptors.
+//
+// If the underlying watcher cannot be created (e.g. inotify limit
+// reached), the error is logged once and the manager continues
+// without a watcher. The lazy stat-on-request path remains the
+// primary mechanism; the watcher is an optimization that closes
+// the dual-agent race window.
+func (m *Manager) armWatcher(paths []string) {
+	m.watcherOnce.Do(func() {
+		cw, err := newConfigWatcher(
+			m.logger.Named("config_watcher"),
+			m.clock,
+			m.watchDebounce,
+			m.handleWatchedConfigChange,
+		)
+		if err != nil {
+			m.logger.Warn(m.ctx,
+				"mcp manager: failed to start config watcher; falling back to lazy stat",
+				slog.Error(err))
+			m.mu.Lock()
+			m.watcherErr = err
+			m.mu.Unlock()
+			return
+		}
+		m.mu.Lock()
+		m.watcher = cw
+		m.mu.Unlock()
+	})
+
+	m.mu.Lock()
+	m.lastPaths = slices.Clone(paths)
+	w := m.watcher
+	closed := m.closed
+	m.mu.Unlock()
+	if w == nil || closed {
+		return
+	}
+	w.Sync(paths)
+}
+
+// handleWatchedConfigChange is invoked by the watcher on a
+// debounced fire. It triggers a singleflight Reload using the
+// most recently observed path set so the cached server map and
+// snapshot are refreshed without waiting for the next HTTP
+// request.
+func (m *Manager) handleWatchedConfigChange() {
+	m.mu.RLock()
+	paths := slices.Clone(m.lastPaths)
+	closed := m.closed
+	m.mu.RUnlock()
+	if closed || len(paths) == 0 {
+		return
+	}
+
+	logger := m.logger.With(slog.F("trigger", "fsnotify"))
+	logger.Debug(m.ctx, "mcp manager: reloading due to config change")
+	if err := m.Reload(m.ctx, paths); err != nil {
+		if errors.Is(err, ErrManagerClosed) ||
+			errors.Is(err, context.Canceled) {
+			logger.Debug(m.ctx,
+				"mcp manager: watched reload short-circuited by shutdown",
+				slog.Error(err))
+			return
+		}
+		logger.Warn(m.ctx, "mcp manager: watched reload failed", slog.Error(err))
+	}
 }
 
 func (m *Manager) waitReload(ctx context.Context, ch <-chan reloadResult, timeout time.Duration) error {
@@ -758,6 +854,19 @@ func (m *Manager) RefreshTools(ctx context.Context) error {
 // Close terminates all MCP server connections and child
 // processes.
 func (m *Manager) Close() error {
+	m.mu.Lock()
+	w := m.watcher
+	m.watcher = nil
+	m.mu.Unlock()
+
+	// Close the watcher outside the manager lock. Its goroutine
+	// may call handleWatchedConfigChange, which takes m.mu, so
+	// holding m.mu while waiting for the watcher to drain would
+	// deadlock. Close on a nil watcher is a no-op.
+	if w != nil {
+		_ = w.Close()
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
