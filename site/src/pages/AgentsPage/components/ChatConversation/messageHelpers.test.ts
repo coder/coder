@@ -19,6 +19,7 @@ const getDisplayState = (message: ChatMessage) =>
 		message,
 		parsed: parseMessageContent(message.content),
 		hideActions: false,
+		hasActiveStream: false,
 	});
 
 describe("deriveMessageDisplayState", () => {

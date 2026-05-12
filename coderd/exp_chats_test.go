@@ -7290,7 +7290,7 @@ func TestPatchChatMessage(t *testing.T) {
 		overrideModel := createAdditionalChatModelConfig(
 			t,
 			client,
-			"openai",
+			defaultModel.Provider,
 			"gpt-4o-mini-edit-override",
 		)
 
