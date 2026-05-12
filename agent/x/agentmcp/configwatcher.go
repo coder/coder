@@ -34,8 +34,8 @@ type configWatcher struct {
 	debounce time.Duration
 
 	// onChange is invoked once per debounce window when a watched
-	// path is touched. It runs on the watcher's goroutine and
-	// must return promptly; callers should hand off to a
+	// path is touched. It runs on a clock-managed timer goroutine
+	// and must return promptly; callers should hand off to a
 	// singleflight or background goroutine.
 	onChange func()
 
@@ -51,8 +51,9 @@ type configWatcher struct {
 	firesWG   sync.WaitGroup // tracks in-flight fire callbacks.
 }
 
-// newConfigWatcher creates a configWatcher. The watcher goroutine
-// is not started until at least one path is Add()ed.
+// newConfigWatcher creates a configWatcher and starts its event
+// loop. Sync registers the actual paths to watch. The watcher does
+// nothing until Sync is called.
 func newConfigWatcher(
 	logger slog.Logger,
 	clock quartz.Clock,
@@ -88,7 +89,7 @@ func newConfigWatcher(
 
 // Sync replaces the watched set with paths. Files no longer in the
 // list are removed; new files are added. Symlinks are resolved
-// once. Returns nil even if individual files fail to arm; partial
+// once. Individual arm failures are logged and skipped; partial
 // arming is acceptable because parseAndDedup is the source of
 // truth and the watcher exists purely to trigger a fresh stat.
 //
@@ -130,7 +131,7 @@ func (cw *configWatcher) Sync(paths []string) {
 		dir, err := cw.armAncestorLocked(rp)
 		if err != nil {
 			cw.logger.Warn(context.Background(),
-				"mcp config watcher: failed to arm",
+				"failed to arm config file watch",
 				slog.F("path", rp), slog.Error(err))
 			continue
 		}
@@ -141,17 +142,21 @@ func (cw *configWatcher) Sync(paths []string) {
 
 // armAncestorLocked walks up the parent chain from rp until it
 // finds an existing directory, then watches that directory.
-// Returns the actual directory it ended up watching. Callers must
-// hold cw.mu.
+// Returns the actual directory it ended up watching. The last
+// fsnotify Add error is preserved so callers can distinguish a
+// missing-ancestor failure from an inotify-limit (ENOSPC) failure.
+// Callers must hold cw.mu.
 func (cw *configWatcher) armAncestorLocked(rp string) (string, error) {
 	dir := filepath.Dir(rp)
+	var lastAddDir string
+	var lastAddErr error
 	for {
 		// Bail out if we somehow reached the root without finding
 		// an existing directory. filepath.Dir("/") == "/" on POSIX
 		// and "C:\" == "C:\" on Windows, so guard against an
 		// infinite loop.
 		if dir == "" || dir == "." {
-			return "", xerrors.Errorf("no existing ancestor for %q", rp)
+			return "", noAncestorErr(rp, lastAddDir, lastAddErr)
 		}
 
 		if cw.dirs[dir] > 0 {
@@ -159,17 +164,32 @@ func (cw *configWatcher) armAncestorLocked(rp string) (string, error) {
 			return dir, nil
 		}
 
-		if err := cw.watcher.Add(dir); err == nil {
+		err := cw.watcher.Add(dir)
+		if err == nil {
 			cw.dirs[dir] = 1
 			return dir, nil
 		}
+		lastAddDir = dir
+		lastAddErr = err
 
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return "", xerrors.Errorf("no existing ancestor for %q", rp)
+			return "", noAncestorErr(rp, lastAddDir, lastAddErr)
 		}
 		dir = parent
 	}
+}
+
+// noAncestorErr formats the failure to register a watch on any
+// ancestor of path. If the loop tried at least one Add, the
+// underlying error (usually inotify ENOSPC) is wrapped so the
+// operator sees the actual kernel-level cause instead of a generic
+// "no existing ancestor" message.
+func noAncestorErr(path, lastDir string, lastErr error) error {
+	if lastErr != nil {
+		return xerrors.Errorf("cannot watch any ancestor of %q (last attempt on %q): %w", path, lastDir, lastErr)
+	}
+	return xerrors.Errorf("no existing ancestor for %q", path)
 }
 
 // releaseDirLocked decrements the refcount for dir and removes the
@@ -185,7 +205,7 @@ func (cw *configWatcher) releaseDirLocked(dir string) {
 		// Removal can fail when the directory no longer exists;
 		// fsnotify already dropped the watch, so this is benign.
 		cw.logger.Debug(context.Background(),
-			"mcp config watcher: remove dir",
+			"failed to remove config dir watch",
 			slog.F("dir", dir), slog.Error(err))
 	}
 }
@@ -208,7 +228,9 @@ func (cw *configWatcher) run() {
 			if !ok {
 				return
 			}
-			cw.logger.Warn(ctx, "mcp config watcher: error", slog.Error(err))
+			cw.logger.Warn(ctx,
+				"fsnotify watch error; config file changes may not be detected until the next HTTP request",
+				slog.Error(err))
 		}
 	}
 }
@@ -223,10 +245,11 @@ func (cw *configWatcher) handleEvent(ctx context.Context, evt fsnotify.Event) {
 		return
 	}
 
-	// Match against any watched file. We compare on absolute
-	// path; fsnotify gives names relative to the watched
-	// directory, which is itself absolute since armAncestor used
-	// filepath.Dir on a resolved path.
+	// Match against any watched file. fsnotify event names are
+	// already absolute when the watched directory is absolute,
+	// which it is because armAncestorLocked called filepath.Dir
+	// on a path resolved to absolute. The filepath.Abs call below
+	// is a defensive normalization.
 	evtAbs, err := filepath.Abs(evt.Name)
 	if err != nil {
 		cw.mu.Unlock()
@@ -261,7 +284,7 @@ func (cw *configWatcher) handleEvent(ctx context.Context, evt fsnotify.Event) {
 				newDir, armErr := cw.armAncestorLocked(rp)
 				if armErr != nil {
 					cw.logger.Debug(ctx,
-						"mcp config watcher: re-arm failed",
+						"failed to re-arm config file watch on ancestor create",
 						slog.F("path", rp), slog.Error(armErr))
 					// Leave the file unarmed for now;
 					// next Sync will retry.

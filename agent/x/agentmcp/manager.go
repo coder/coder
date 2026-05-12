@@ -119,7 +119,6 @@ type Manager struct {
 	// Reload do not pay for an extra goroutine and file
 	// descriptor.
 	watcher       *configWatcher
-	watcherErr    error
 	watcherOnce   sync.Once
 	watchDebounce time.Duration
 }
@@ -315,14 +314,19 @@ func (m *Manager) armWatcher(paths []string) {
 		)
 		if err != nil {
 			m.logger.Warn(m.ctx,
-				"mcp manager: failed to start config watcher; falling back to lazy stat",
+				"failed to start MCP config watcher; falling back to lazy stat",
 				slog.Error(err))
-			m.mu.Lock()
-			m.watcherErr = err
-			m.mu.Unlock()
 			return
 		}
+		// Close the watcher if the manager was closed between
+		// newConfigWatcher returning and us acquiring m.mu.
+		// Otherwise its goroutine and inotify fd leak.
 		m.mu.Lock()
+		if m.closed {
+			m.mu.Unlock()
+			_ = cw.Close()
+			return
+		}
 		m.watcher = cw
 		m.mu.Unlock()
 	})
@@ -854,7 +858,16 @@ func (m *Manager) RefreshTools(ctx context.Context) error {
 // Close terminates all MCP server connections and child
 // processes.
 func (m *Manager) Close() error {
+	// Mark the manager closed and signal closedCh first, then
+	// hand the watcher off and release the lock. Marking closed
+	// before w.Close() ensures that any in-flight
+	// handleWatchedConfigChange short-circuits and any Reload
+	// blocked in waitReload observes m.closedCh, instead of
+	// blocking firesWG.Wait() inside w.Close() until a 30 s
+	// connectAll times out.
 	m.mu.Lock()
+	m.closed = true
+	m.closeOnce.Do(func() { close(m.closedCh) })
 	w := m.watcher
 	m.watcher = nil
 	m.mu.Unlock()
@@ -870,8 +883,6 @@ func (m *Manager) Close() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	m.closed = true
-	m.closeOnce.Do(func() { close(m.closedCh) })
 	var errs []error
 	for _, entry := range m.servers {
 		if err := entry.client.Close(); err != nil {

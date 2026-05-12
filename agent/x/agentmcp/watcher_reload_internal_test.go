@@ -27,7 +27,7 @@ import (
 // while `~/.mcp.json` still does not exist on disk. The host
 // agent then writes the file ~20s later. Before this fix, the
 // manager cached an empty snapshot and stayed empty until a
-// subsequent HTTP call lazily restated the file. With the
+// subsequent HTTP call lazily re-statted the file. With the
 // fsnotify-backed watcher, the manager picks up the late file
 // without external prompting.
 
@@ -245,7 +245,7 @@ func TestWatcher_CloseStopsGoroutine(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, ".mcp.json")
 
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
 		useFastDebounce(t, m)
 		m.MarkStartupSettled()
@@ -316,4 +316,155 @@ func TestWatcher_DualAgentHTTPNoStall(t *testing.T) {
 	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
 	require.Len(t, resp.Tools, 1)
 	assert.Contains(t, resp.Tools[0].Name, "echo")
+}
+
+// TestWatcher_LateParentDirTriggersReload exercises the
+// ancestor-walk-up branch (handleEvent re-arm path,
+// armAncestorLocked walk-up). The watcher is started with the
+// final parent directory missing; once that directory is
+// created, the watcher must promote its watch deeper and then
+// fire on the file write.
+func TestWatcher_LateParentDirTriggersReload(t *testing.T) {
+	t.Parallel()
+
+	if os.Getenv("TEST_MCP_FAKE_SERVER") == "1" {
+		runFakeMCPServer()
+		return
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	root := t.TempDir()
+	// Parent directory does not exist yet: armAncestorLocked
+	// will watch root instead.
+	missing := filepath.Join(root, "config")
+	configPath := filepath.Join(missing, ".mcp.json")
+
+	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+	useFastDebounce(t, m)
+	m.MarkStartupSettled()
+	t.Cleanup(func() { _ = m.Close() })
+
+	require.NoError(t, m.Reload(ctx, []string{configPath}))
+	require.Empty(t, m.cachedTools())
+
+	// Create the missing parent directory. fsnotify will deliver
+	// a Create event on root; handleEvent must release the root
+	// watch, re-arm on the new parent, and schedule a reload.
+	require.NoError(t, os.MkdirAll(missing, 0o755))
+
+	_, entry := fakeMCPServerConfig(t, "srv")
+	writeMCPConfig(t, missing, map[string]mcpServerEntry{"srv": entry})
+
+	tools := awaitTools(ctx, t, m, func(tools []workspacesdk.MCPToolInfo) bool {
+		return len(tools) == 1
+	})
+	require.Len(t, tools, 1)
+	assert.Contains(t, tools[0].Name, "echo")
+}
+
+// TestWatcher_SharedParentRefcount covers the multi-path
+// directory-watch refcount path: two configured paths in the
+// same parent dir should produce a single fsnotify watch, and
+// removing one path via a subsequent Sync must keep the
+// remaining path armed.
+func TestWatcher_SharedParentRefcount(t *testing.T) {
+	t.Parallel()
+
+	if os.Getenv("TEST_MCP_FAKE_SERVER") == "1" {
+		runFakeMCPServer()
+		return
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	dir := t.TempDir()
+	pathA := filepath.Join(dir, "a.mcp.json")
+	pathB := filepath.Join(dir, "b.mcp.json")
+
+	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+	useFastDebounce(t, m)
+	m.MarkStartupSettled()
+	t.Cleanup(func() { _ = m.Close() })
+
+	// First Reload arms both paths, sharing the dir watch.
+	require.NoError(t, m.Reload(ctx, []string{pathA, pathB}))
+
+	m.mu.RLock()
+	w := m.watcher
+	m.mu.RUnlock()
+	require.NotNil(t, w, "watcher must be armed")
+
+	w.mu.Lock()
+	require.Equal(t, 2, len(w.files), "two files tracked")
+	require.Equal(t, 1, len(w.dirs), "shared parent dir")
+	require.Equal(t, 2, w.dirs[dir], "refcount equals number of files")
+	w.mu.Unlock()
+
+	// Second Reload removes pathB, so the dir refcount drops to
+	// 1 but the watch must remain in place for pathA.
+	require.NoError(t, m.Reload(ctx, []string{pathA}))
+
+	w.mu.Lock()
+	require.Equal(t, 1, len(w.files), "one file tracked after removal")
+	require.Equal(t, 1, w.dirs[dir], "refcount decremented but not zero")
+	w.mu.Unlock()
+
+	// Writing pathA should still trigger a reload via the
+	// surviving dir watch.
+	_, entry := fakeMCPServerConfig(t, "srv")
+	cfg := mcpConfigFile{MCPServers: make(map[string]json.RawMessage)}
+	raw, err := json.Marshal(entry)
+	require.NoError(t, err)
+	cfg.MCPServers["srv"] = raw
+	data, err := json.Marshal(cfg)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(pathA, data, 0o600))
+
+	tools := awaitTools(ctx, t, m, func(tools []workspacesdk.MCPToolInfo) bool {
+		return len(tools) == 1
+	})
+	require.Len(t, tools, 1)
+}
+
+// TestWatcher_CloseDoesNotStallOnInFlightReload guards the
+// shutdown-ordering invariant: Close() must mark the manager
+// closed before w.Close() so an in-flight watcher-driven Reload
+// short-circuits instead of blocking firesWG.Wait() for the full
+// connect timeout. Without the ordering, this test would block
+// at Close() for ~30 s.
+func TestWatcher_CloseDoesNotStallOnInFlightReload(t *testing.T) {
+	t.Parallel()
+
+	if os.Getenv("TEST_MCP_FAKE_SERVER") == "1" {
+		runFakeMCPServer()
+		return
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, ".mcp.json")
+
+	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
+	useFastDebounce(t, m)
+	m.MarkStartupSettled()
+
+	require.NoError(t, m.Reload(ctx, []string{configPath}))
+
+	// Write the file. The watcher will fire a debounced reload.
+	_, entry := fakeMCPServerConfig(t, "srv")
+	writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
+
+	// Call Close. With the correct ordering this returns
+	// quickly even if a fire() is mid-flight.
+	done := make(chan error, 1)
+	go func() { done <- m.Close() }()
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(testutil.WaitMedium):
+		t.Fatal("Close stalled; ordering bug: w.Close before m.closed=true")
+	}
 }
