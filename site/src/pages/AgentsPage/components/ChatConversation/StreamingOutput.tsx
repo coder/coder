@@ -74,8 +74,8 @@ const PinnedThinkingIndicator: FC<{ fading?: boolean }> = ({
 		className="flex w-full items-center gap-2 border-t border-border/50 pt-2 text-content-secondary transition-opacity duration-300"
 		style={{ opacity: fading ? 0 : 1 }}
 	>
-		<Shimmer as="span" className="text-sm">
-			Thinking
+		<Shimmer as="span" className="text-[13px] leading-relaxed">
+			Thinking...
 		</Shimmer>
 	</div>
 );
