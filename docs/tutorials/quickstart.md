@@ -35,7 +35,7 @@ explained through a cooking analogy:
 - 10 minutes of your time
 
 > [!TIP]
-> If you use a coding agent like Claude Code, the [coder/skills](https://github.com/coder/skills) `setup` skill can walk it through the steps below (install Docker, install Coder, create your first template, and launch a workspace).
+> If you use a coding agent like Claude Code, the [coder/skills](https://github.com/coder/skills) `setup` skill can train the coding agent on the following steps (install Docker, install Coder, create your first template, and launch a workspace).
 
 ## Step 1: Install Docker and set up permissions
 

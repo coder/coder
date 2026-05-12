@@ -11,7 +11,7 @@ configure your first Coder deployment, follow the
 [quickstart guide](../tutorials/quickstart.md).
 
 > [!TIP]
-> If you use a coding agent like Claude Code, the [coder/skills](https://github.com/coder/skills) `setup` skill can walk it through installing and bootstrapping a Coder deployment end-to-end.
+> If you use a coding agent like Claude Code, the [coder/skills](https://github.com/coder/skills) `setup` skill can train the coding agent to install and bootstrap a Coder deployment end-to-end.
 
 ## Local/Individual Installs
 
