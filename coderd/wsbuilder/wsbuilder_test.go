@@ -1513,7 +1513,9 @@ func expectUpdateProvisionerJobWithCompleteWithStartedAtByID(assertions func(par
 }
 
 // expectUpdateWorkspaceDeletedByID asserts a call to UpdateWorkspaceDeletedByID
-// and runs the provided assertions against it.
+// and runs the provided assertions against it. It also expects the follow-up
+// SoftDeleteWorkspaceAgentsByWorkspaceID call that wsbuilder.Builder.Build now
+// issues inside the same orphan-delete transaction.
 func expectUpdateWorkspaceDeletedByID(assertions func(params database.UpdateWorkspaceDeletedByIDParams)) func(mTx *dbmock.MockStore) {
 	return func(mTx *dbmock.MockStore) {
 		mTx.EXPECT().UpdateWorkspaceDeletedByID(gomock.Any(), gomock.Any()).
@@ -1524,6 +1526,9 @@ func expectUpdateWorkspaceDeletedByID(assertions func(params database.UpdateWork
 					return nil
 				},
 			)
+		mTx.EXPECT().SoftDeleteWorkspaceAgentsByWorkspaceID(gomock.Any(), gomock.Any()).
+			Times(1).
+			Return(nil)
 	}
 }
 
@@ -1564,6 +1569,11 @@ func expectBuild(
 					return nil
 				},
 			)
+		// wsbuilder.Builder.Build also issues this bookkeeping call inside
+		// the same transaction right after InsertWorkspaceBuild succeeds.
+		mTx.EXPECT().SoftDeletePriorWorkspaceAgents(gomock.Any(), gomock.Any()).
+			Times(1).
+			Return(nil)
 	}
 }
 

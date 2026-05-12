@@ -6165,6 +6165,35 @@ func (q *querier) SoftDeleteContextFileMessages(ctx context.Context, chatID uuid
 	return q.db.SoftDeleteContextFileMessages(ctx, chatID)
 }
 
+func (q *querier) SoftDeletePriorWorkspaceAgents(ctx context.Context, arg database.SoftDeletePriorWorkspaceAgentsParams) error {
+	// Called from wsbuilder.Builder.Build inside the same transaction as
+	// InsertWorkspaceBuild. Authorize on the workspace the caller is
+	// building against — they're already editing it.
+	w, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, w); err != nil {
+		return err
+	}
+	return q.db.SoftDeletePriorWorkspaceAgents(ctx, arg)
+}
+
+func (q *querier) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error {
+	// Called from wsbuilder.Builder.Build (orphan-delete path) and
+	// provisionerdserver.CompleteJob (normal delete path) inside the same
+	// transaction as UpdateWorkspaceDeletedByID. The caller has passed the
+	// delete authorization on the workspace; same check here.
+	w, err := q.db.GetWorkspaceByID(ctx, workspaceID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionDelete, w); err != nil {
+		return err
+	}
+	return q.db.SoftDeleteWorkspaceAgentsByWorkspaceID(ctx, workspaceID)
+}
+
 func (q *querier) TouchChatDebugRunUpdatedAt(ctx context.Context, arg database.TouchChatDebugRunUpdatedAtParams) error {
 	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
