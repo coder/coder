@@ -84,21 +84,44 @@ USER coder
 
 ### Git push credentials
 
-Fetching uses whatever the host already has (SSH agent, credential helper,
-or `.netrc`). For **push**, configure credentials explicitly. The two most
-common patterns:
+Coder already has a feature for this: [external auth](../../admin/external-auth/index.md).
+When a workspace owner authenticates a configured provider (GitHub,
+GitLab, Bitbucket, Azure DevOps, etc.), the Coder agent wires
+`GIT_ASKPASS` automatically. `git push` inside the workspace and inside
+the runner's child `claude` process both pick up the token with no extra
+setup, and Coder refreshes the token in the background. You do not need
+to bake credentials into the image or wire a credential helper.
 
-- **SSH-only Git host.** Add a deploy key or service account key to
-  `/etc/ssh/ssh_known_hosts` and the matching private key, then pass
-  `--git-ssh-rewrite <host>` to the runner so `https://` repo URLs are
-  rewritten to SSH before clone.
-- **HTTPS with a credential helper.** Install a helper that resolves the
-  token at runtime (`git credential-store`, `git credential-cache`, or a
-  custom helper that pulls from your secrets store).
+Reference `coder_external_auth` in the template:
 
-If checkouts will be owned by a different uid than the runner process, the
-`safe.directory '*'` line in the `Dockerfile` covers it. Otherwise drop
-that line.
+```hcl
+data "coder_external_auth" "github" {
+  id = "github"
+}
+```
+
+For the dev or proof-of-concept case where external auth is not yet
+configured on the Coder server, set `optional = true`:
+
+```hcl
+data "coder_external_auth" "github" {
+  id       = "github"
+  optional = true
+}
+```
+
+The workspace still builds. Flip `optional` to `false` once the server
+has `CODER_EXTERNAL_AUTH_0_*` set; Coder then prompts each workspace
+owner to authenticate before creating the workspace.
+
+If your Git host only accepts SSH, fall back to the patterns the runner
+build already supports: mount an SSH key into the image, and pass
+`--git-ssh-rewrite <host>` to the runner so `https://<host>/...` repo
+URLs are rewritten to `git@<host>:...` before clone.
+
+If checkouts will be owned by a different uid than the runner process,
+keep the `safe.directory '*'` line in the `Dockerfile`. Otherwise drop
+it.
 
 ## Step 3: Publish the Coder template
 

@@ -54,18 +54,7 @@ advanced variants and the longer-term plan.
 
 ## How it fits together
 
-```text
- Anthropic                      Coder deployment                  Your network
-┌────────────────┐  register   ┌────────────────────────────┐
-│ control plane  │ <────────── │ workspace (Coder template) │
-│ claude.ai/code │  poll/      │  ┌──────────────────────┐  │
-│ api.anthropic  │  stream     │  │ claude self-hosted-  │  │ ──> internal
-│      .com      │ <─────────> │  │ runner process       │  │     git, pkg,
-│                │             │  │   spawns child(ren)  │  │     build tools
-└────────────────┘             │  │   for each session   │  │
-                               │  └──────────────────────┘  │
-                               └────────────────────────────┘
-```
+<img src="../../images/guides/claude-code-self-hosted-runners/architecture.svg" alt="Anthropic surfaces and control plane on the left send session assignments over outbound HTTPS to a Claude Code self-hosted runner that lives inside a Coder workspace. The runner spawns one child Claude Code process per session. Child sessions reach the Claude model API and your internal Git, package registries, and services." />
 
 - A developer starts a Claude Code session at `claude.ai/code` (or from
   mobile, a routine, etc.) and picks the pool that points at your Coder
@@ -95,27 +84,25 @@ In small teams the same person plays the first three roles.
 
 ### End-to-end flow
 
-```mermaid
-sequenceDiagram
-    participant Admin as Anthropic admin
-    participant TmplAdmin as Coder template admin
-    participant Dev as Developer
-    participant Coder as Coder workspace
-    participant Anthropic as api.anthropic.com
-
-    Admin->>Admin: Create pool in claude.ai, copy pool secret
-    Admin->>TmplAdmin: Share pool secret (vault, password manager, etc.)
-    TmplAdmin->>TmplAdmin: Publish "Claude Code Runner" template
-    Dev->>Coder: Create workspace from template, paste pool secret
-    Coder->>Anthropic: Outbound HTTPS register
-    Anthropic-->>Coder: Runner token
-    loop while workspace is running
-        Coder->>Anthropic: Poll for sessions
-        Anthropic-->>Coder: Session assignment
-        Coder->>Coder: Spawn child `claude` process per session
-        Coder->>Anthropic: Stream session events
-    end
-```
+1. **Anthropic org admin** creates a pool at `claude.ai > Settings > Claude
+   Code > Self-hosted runner pools` and copies the pool secret. The secret
+   is shown once.
+2. **Coder template admin** publishes a Coder template that bakes the
+   runner binary into a workspace image and starts the runner via
+   `coder_script`. Push credentials come from Coder external auth (the
+   agent wires `GIT_ASKPASS` automatically).
+3. **Developer** creates a workspace from the template and supplies the
+   pool secret (either pasted as a sensitive parameter or pre-injected
+   from your secrets platform).
+4. The workspace agent starts the runner. The runner dials out to
+   `api.anthropic.com`, registers with the pool, receives a runner token,
+   and begins polling for sessions.
+5. **Anthropic developer** starts a session at `claude.ai/code` (or from
+   mobile, a routine, etc.) and picks the pool that targets Coder.
+6. The runner claims the session, spawns a child `claude` process inside
+   the workspace, and streams events back to Anthropic. The developer
+   sees the session in the Anthropic UI exactly as if it were an
+   Anthropic-managed session.
 
 ## Basic recipe (no product changes)
 
