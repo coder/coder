@@ -6273,38 +6273,21 @@ func (q *querier) SoftDeleteContextFileMessages(ctx context.Context, chatID uuid
 }
 
 func (q *querier) SoftDeletePriorWorkspaceAgents(ctx context.Context, arg database.SoftDeletePriorWorkspaceAgentsParams) error {
-	// Called from wsbuilder.Builder.Build inside the same transaction as
-	// InsertWorkspaceBuild. Authorize using the same transition-derived
-	// action as the build itself so scoped API keys (e.g. delete-only)
-	// are not rejected by a blanket ActionUpdate check.
-	build, err := q.db.GetWorkspaceBuildByID(ctx, arg.CurrentBuildID)
-	if err != nil {
-		return err
-	}
-	w, err := q.db.GetWorkspaceByID(ctx, build.WorkspaceID)
-	if err != nil {
-		return err
-	}
-	action, err := workspaceTransitionAction(build.Transition)
-	if err != nil {
-		return err
-	}
-	if err := q.authorizeContext(ctx, action, w); err != nil {
+	// Internal bookkeeping called from wsbuilder.Builder.Build inside the
+	// same transaction as an already-authorized InsertWorkspaceBuild.
+	// Callers pass a system-restricted context.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return err
 	}
 	return q.db.SoftDeletePriorWorkspaceAgents(ctx, arg)
 }
 
 func (q *querier) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error {
-	// Called from wsbuilder.Builder.Build (orphan-delete path) and
-	// provisionerdserver.CompleteJob (normal delete path) inside the same
-	// transaction as UpdateWorkspaceDeletedByID. The caller has passed the
-	// delete authorization on the workspace; same check here.
-	w, err := q.db.GetWorkspaceByID(ctx, workspaceID)
-	if err != nil {
-		return err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionDelete, w); err != nil {
+	// Internal bookkeeping called from wsbuilder (orphan-delete) and
+	// provisionerdserver.CompleteJob (normal delete) inside the same
+	// transaction as an already-authorized workspace deletion.
+	// Callers pass a system-restricted context.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return err
 	}
 	return q.db.SoftDeleteWorkspaceAgentsByWorkspaceID(ctx, workspaceID)

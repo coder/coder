@@ -548,7 +548,8 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 		// the current build's agent for any given cloud instance ID.
 		// Atomic with the build insert above so the table never transiently
 		// holds two non-deleted rows for the same workspace. See #25155.
-		err = store.SoftDeletePriorWorkspaceAgents(b.ctx, database.SoftDeletePriorWorkspaceAgentsParams{
+		//nolint:gocritic // System-restricted: bookkeeping inside an already-authorized build transaction.
+		err = store.SoftDeletePriorWorkspaceAgents(dbauthz.AsSystemRestricted(b.ctx), database.SoftDeletePriorWorkspaceAgentsParams{
 			WorkspaceID:    b.workspace.ID,
 			CurrentBuildID: workspaceBuildID,
 		})
@@ -634,7 +635,8 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 			// aws-instance-identity handler doesn't keep seeing
 			// orphaned rows. Mirrors the path in
 			// provisionerdserver.CompleteJob. See #25155.
-			if err := store.SoftDeleteWorkspaceAgentsByWorkspaceID(b.ctx, b.workspace.ID); err != nil {
+			//nolint:gocritic // System-restricted: bookkeeping inside an already-authorized delete transaction.
+			if err := store.SoftDeleteWorkspaceAgentsByWorkspaceID(dbauthz.AsSystemRestricted(b.ctx), b.workspace.ID); err != nil {
 				return BuildError{http.StatusInternalServerError, "soft-delete workspace agents on orphan delete", err}
 			}
 		}

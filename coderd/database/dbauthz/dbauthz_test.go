@@ -4597,24 +4597,17 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns()
 	}))
 	s.Run("SoftDeletePriorWorkspaceAgents", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		w := testutil.Fake(s.T(), faker, database.Workspace{})
-		build := testutil.Fake(s.T(), faker, database.WorkspaceBuild{})
-		build.WorkspaceID = w.ID
-		build.Transition = database.WorkspaceTransitionStart
 		arg := database.SoftDeletePriorWorkspaceAgentsParams{
-			WorkspaceID:    w.ID,
-			CurrentBuildID: build.ID,
+			WorkspaceID:    uuid.New(),
+			CurrentBuildID: uuid.New(),
 		}
-		dbm.EXPECT().GetWorkspaceBuildByID(gomock.Any(), build.ID).Return(build, nil).AnyTimes()
-		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), w.ID).Return(w, nil).AnyTimes()
 		dbm.EXPECT().SoftDeletePriorWorkspaceAgents(gomock.Any(), arg).Return(nil).AnyTimes()
-		check.Args(arg).Asserts(w, policy.ActionWorkspaceStart).Returns()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns()
 	}))
 	s.Run("SoftDeleteWorkspaceAgentsByWorkspaceID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		w := testutil.Fake(s.T(), faker, database.Workspace{})
-		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), w.ID).Return(w, nil).AnyTimes()
-		dbm.EXPECT().SoftDeleteWorkspaceAgentsByWorkspaceID(gomock.Any(), w.ID).Return(nil).AnyTimes()
-		check.Args(w.ID).Asserts(w, policy.ActionDelete).Returns()
+		wsID := uuid.New()
+		dbm.EXPECT().SoftDeleteWorkspaceAgentsByWorkspaceID(gomock.Any(), wsID).Return(nil).AnyTimes()
+		check.Args(wsID).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns()
 	}))
 	s.Run("AcquireProvisionerJob", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := database.AcquireProvisionerJobParams{StartedAt: sql.NullTime{Valid: true, Time: dbtime.Now()}, OrganizationID: uuid.New(), Types: []database.ProvisionerType{database.ProvisionerTypeEcho}, ProvisionerTags: json.RawMessage("{}")}
