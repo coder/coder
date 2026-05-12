@@ -46,9 +46,15 @@ const paramCpu = {
 	order: 1,
 };
 
+const writeTextMock = vi.fn().mockResolvedValue(undefined);
+
 describe("TemplateEmbedPage", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		vi.stubGlobal("navigator", {
+			...navigator,
+			clipboard: { writeText: writeTextMock },
+		});
 	});
 
 	afterEach(() => {
@@ -134,15 +140,6 @@ describe("TemplateEmbedPage", () => {
 		expect(searchParams.get("mode")).toBe("manual");
 		expect(searchParams.get("param.flavor")).toBe("vanilla");
 
-		// Intercept the clipboard write to capture the markdown content.
-		let copiedText = "";
-		const writeTextMock = vi.fn().mockImplementation(async (text: string) => {
-			copiedText = text;
-		});
-		Object.assign(navigator, {
-			clipboard: { writeText: writeTextMock },
-		});
-
 		const copyButton = screen.getByRole("button", {
 			name: /copy button markdown/i,
 		});
@@ -152,6 +149,7 @@ describe("TemplateEmbedPage", () => {
 			expect(writeTextMock).toHaveBeenCalled();
 		});
 
+		const copiedText = writeTextMock.mock.calls[0][0] as string;
 		expect(copiedText).toContain("open-in-coder.svg");
 		expect(copiedText).toContain(
 			`/templates/${MockTemplate.organization_name}/${MockTemplate.name}/workspace`,
@@ -178,15 +176,6 @@ describe("TemplateEmbedPage", () => {
 		const autoRadio = screen.getByLabelText(/automatic/i);
 		await userEvent.click(autoRadio);
 
-		// Verify the copy content includes mode=auto
-		let copiedText = "";
-		const writeTextMock = vi.fn().mockImplementation(async (text: string) => {
-			copiedText = text;
-		});
-		Object.assign(navigator, {
-			clipboard: { writeText: writeTextMock },
-		});
-
 		const copyButton = screen.getByRole("button", {
 			name: /copy button markdown/i,
 		});
@@ -196,6 +185,7 @@ describe("TemplateEmbedPage", () => {
 			expect(writeTextMock).toHaveBeenCalled();
 		});
 
+		const copiedText = writeTextMock.mock.calls[0][0] as string;
 		expect(copiedText).toContain("mode=auto");
 		expect(copiedText).toContain("param.region=us-east-1");
 
