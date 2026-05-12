@@ -221,15 +221,7 @@ func TestOneWayWebSocketEventSender(t *testing.T) {
 		recorder := httptest.NewRecorder()
 
 		var write mockEventSenderWrite = func(b []byte) (int, error) {
-			serverCount, err := mockServer.Write(b)
-			if err != nil {
-				return 0, err
-			}
-			recorderCount, err := recorder.Write(b)
-			if err != nil {
-				return 0, err
-			}
-			return min(serverCount, recorderCount), nil
+			return mockServer.Write(b)
 		}
 
 		return mockOneWaySocketWriter{
