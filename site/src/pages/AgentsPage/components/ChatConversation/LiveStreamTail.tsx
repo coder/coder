@@ -69,10 +69,16 @@ export const LiveStreamTailContent = ({
 	// In pinned mode, the indicator shows for the entire active
 	// turn at this level so it persists even when streaming
 	// content gets committed to the conversation timeline.
+	// It hides once the agent starts producing visible response
+	// text (the user should read that, not "Thinking...").
+	const streamHasResponse = streamState?.blocks.some(
+		(b) => b.type === "response",
+	);
 	const isPinnedActive =
 		thinkingDisplayMode === "pinned" &&
 		liveStatus.phase !== "idle" &&
-		liveStatus.phase !== "failed";
+		liveStatus.phase !== "failed" &&
+		!streamHasResponse;
 
 	if (
 		!shouldRenderEmptyState &&
