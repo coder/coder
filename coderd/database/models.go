@@ -4765,6 +4765,7 @@ type MCPServerConfig struct {
 	UpdatedAt               time.Time      `db:"updated_at" json:"updated_at"`
 	ModelIntent             bool           `db:"model_intent" json:"model_intent"`
 	AllowInPlanMode         bool           `db:"allow_in_plan_mode" json:"allow_in_plan_mode"`
+	ForwardCoderHeaders     bool           `db:"forward_coder_headers" json:"forward_coder_headers"`
 }
 
 type MCPServerUserToken struct {

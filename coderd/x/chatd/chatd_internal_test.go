@@ -2511,12 +2511,14 @@ func TestSubscribeAuthorizedFallsBackToStaleRowWhenRefreshFails(t *testing.T) {
 
 	state := server.getOrCreateStreamState(chatID)
 	state.mu.Lock()
-	state.buffer = []codersdk.ChatStreamEvent{{
-		Type:   codersdk.ChatStreamEventTypeMessagePart,
-		ChatID: chatID,
-		MessagePart: &codersdk.ChatStreamMessagePart{
-			Role: "assistant",
-			Part: codersdk.ChatMessageText("thinking"),
+	state.buffer = []bufferedStreamPart{{
+		event: codersdk.ChatStreamEvent{
+			Type:   codersdk.ChatStreamEventTypeMessagePart,
+			ChatID: chatID,
+			MessagePart: &codersdk.ChatStreamMessagePart{
+				Role: "assistant",
+				Part: codersdk.ChatMessageText("thinking"),
+			},
 		},
 	}}
 	state.mu.Unlock()
@@ -2734,7 +2736,7 @@ func TestPublishToStream_DropWarnRateLimiting(t *testing.T) {
 	// buffering enabled, one saturated subscriber.
 	state := &chatStreamState{
 		buffering: true,
-		buffer:    make([]codersdk.ChatStreamEvent, maxStreamBufferSize),
+		buffer:    make([]bufferedStreamPart, maxStreamBufferSize),
 		subscribers: map[uuid.UUID]chan codersdk.ChatStreamEvent{
 			uuid.New(): subCh,
 		},
@@ -2785,7 +2787,7 @@ func TestPublishToStream_DropWarnRateLimiting(t *testing.T) {
 
 	// --- Phase 3: counter reset (simulates step persist) ---
 	state.mu.Lock()
-	state.buffer = make([]codersdk.ChatStreamEvent, maxStreamBufferSize)
+	state.buffer = make([]bufferedStreamPart, maxStreamBufferSize)
 	state.resetDropCounters()
 	state.mu.Unlock()
 
@@ -3739,10 +3741,12 @@ func TestSubscribeCancelDuringGrace_ReapedBySweep(t *testing.T) {
 		buffering:        false,
 		bufferRetainedAt: start,
 		subscribers:      map[uuid.UUID]chan codersdk.ChatStreamEvent{},
-		buffer: []codersdk.ChatStreamEvent{{
-			Type: codersdk.ChatStreamEventTypeMessagePart,
-			MessagePart: &codersdk.ChatStreamMessagePart{
-				Role: codersdk.ChatMessageRoleAssistant,
+		buffer: []bufferedStreamPart{{
+			event: codersdk.ChatStreamEvent{
+				Type: codersdk.ChatStreamEventTypeMessagePart,
+				MessagePart: &codersdk.ChatStreamMessagePart{
+					Role: codersdk.ChatMessageRoleAssistant,
+				},
 			},
 		}},
 	}
@@ -3786,9 +3790,11 @@ func TestSweepIdleStreams_ReapsStaleRetainedBuffer(t *testing.T) {
 		buffering:        false,
 		bufferRetainedAt: mClock.Now(),
 		subscribers:      map[uuid.UUID]chan codersdk.ChatStreamEvent{},
-		buffer: []codersdk.ChatStreamEvent{{
-			Type:        codersdk.ChatStreamEventTypeMessagePart,
-			MessagePart: &codersdk.ChatStreamMessagePart{},
+		buffer: []bufferedStreamPart{{
+			event: codersdk.ChatStreamEvent{
+				Type:        codersdk.ChatStreamEventTypeMessagePart,
+				MessagePart: &codersdk.ChatStreamMessagePart{},
+			},
 		}},
 	}
 	server.chatStreams.Store(chatID, state)
@@ -3815,9 +3821,11 @@ func TestSweepIdleStreams_DoesNotReapActiveBuffering(t *testing.T) {
 	state := &chatStreamState{
 		buffering:   true,
 		subscribers: map[uuid.UUID]chan codersdk.ChatStreamEvent{},
-		buffer: []codersdk.ChatStreamEvent{{
-			Type:        codersdk.ChatStreamEventTypeMessagePart,
-			MessagePart: &codersdk.ChatStreamMessagePart{},
+		buffer: []bufferedStreamPart{{
+			event: codersdk.ChatStreamEvent{
+				Type:        codersdk.ChatStreamEventTypeMessagePart,
+				MessagePart: &codersdk.ChatStreamMessagePart{},
+			},
 		}},
 	}
 	server.chatStreams.Store(chatID, state)
@@ -3847,9 +3855,11 @@ func TestSweepIdleStreams_DoesNotReapWithSubscribers(t *testing.T) {
 		subscribers: map[uuid.UUID]chan codersdk.ChatStreamEvent{
 			uuid.New(): make(chan codersdk.ChatStreamEvent, 1),
 		},
-		buffer: []codersdk.ChatStreamEvent{{
-			Type:        codersdk.ChatStreamEventTypeMessagePart,
-			MessagePart: &codersdk.ChatStreamMessagePart{},
+		buffer: []bufferedStreamPart{{
+			event: codersdk.ChatStreamEvent{
+				Type:        codersdk.ChatStreamEventTypeMessagePart,
+				MessagePart: &codersdk.ChatStreamMessagePart{},
+			},
 		}},
 	}
 	server.chatStreams.Store(chatID, state)
@@ -3878,9 +3888,11 @@ func TestSweepIdleStreams_DefersDuringGracePeriod(t *testing.T) {
 		buffering:        false,
 		bufferRetainedAt: start,
 		subscribers:      map[uuid.UUID]chan codersdk.ChatStreamEvent{},
-		buffer: []codersdk.ChatStreamEvent{{
-			Type:        codersdk.ChatStreamEventTypeMessagePart,
-			MessagePart: &codersdk.ChatStreamMessagePart{},
+		buffer: []bufferedStreamPart{{
+			event: codersdk.ChatStreamEvent{
+				Type:        codersdk.ChatStreamEventTypeMessagePart,
+				MessagePart: &codersdk.ChatStreamMessagePart{},
+			},
 		}},
 	}
 	server.chatStreams.Store(chatID, state)
@@ -3914,11 +3926,13 @@ func TestPublishToStream_DropZeroesBackingSlot(t *testing.T) {
 
 	// Over-allocate by one so the post-drop append fits in place and
 	// exercises the backing-array reuse this test is checking.
-	buf := make([]codersdk.ChatStreamEvent, maxStreamBufferSize, maxStreamBufferSize+1)
+	buf := make([]bufferedStreamPart, maxStreamBufferSize, maxStreamBufferSize+1)
 	for i := range buf {
-		buf[i] = codersdk.ChatStreamEvent{
-			Type:        codersdk.ChatStreamEventTypeMessagePart,
-			MessagePart: &codersdk.ChatStreamMessagePart{},
+		buf[i] = bufferedStreamPart{
+			event: codersdk.ChatStreamEvent{
+				Type:        codersdk.ChatStreamEventTypeMessagePart,
+				MessagePart: &codersdk.ChatStreamMessagePart{},
+			},
 		}
 	}
 	// Sentinel in slot 0 distinguishes "slot was zeroed" from "slot
@@ -3926,9 +3940,11 @@ func TestPublishToStream_DropZeroesBackingSlot(t *testing.T) {
 	sentinel := &codersdk.ChatStreamMessagePart{
 		Role: codersdk.ChatMessageRoleAssistant,
 	}
-	buf[0] = codersdk.ChatStreamEvent{
-		Type:        codersdk.ChatStreamEventTypeMessagePart,
-		MessagePart: sentinel,
+	buf[0] = bufferedStreamPart{
+		event: codersdk.ChatStreamEvent{
+			Type:        codersdk.ChatStreamEventTypeMessagePart,
+			MessagePart: sentinel,
+		},
 	}
 	// Alias over the full backing array so we can still observe slot
 	// 0 after publishToStream reslices state.buffer forward.
@@ -3949,14 +3965,14 @@ func TestPublishToStream_DropZeroesBackingSlot(t *testing.T) {
 		MessagePart: newPart,
 	})
 
-	require.Equal(t, codersdk.ChatStreamEvent{}, origBacking[0],
+	require.Equal(t, bufferedStreamPart{}, origBacking[0],
 		"dropped slot must be zero-valued so its *ChatStreamMessagePart "+
 			"is eligible for GC; got %+v", origBacking[0])
 
 	// Sanity-check the in-place append path the fix targets: if Go's
 	// growth policy ever makes this append reallocate, this fails
 	// loudly so the test author revisits the setup.
-	require.Same(t, newPart, origBacking[len(origBacking)-1].MessagePart,
+	require.Same(t, newPart, origBacking[len(origBacking)-1].event.MessagePart,
 		"append must have landed in the original backing array; the "+
 			"zero-out invariant only matters when cap > len")
 }
@@ -4259,9 +4275,9 @@ func TestGetWorkspaceConn_StatusCheck(t *testing.T) {
 	t.Parallel()
 
 	type testCase struct {
-		name    string
-		agent   database.WorkspaceAgent
-		dbError bool
+		name       string
+		buildAgent func(now time.Time) database.WorkspaceAgent
+		dbError    bool
 	}
 
 	tests := []testCase{
@@ -4271,37 +4287,43 @@ func TestGetWorkspaceConn_StatusCheck(t *testing.T) {
 			// recovery because the agent did not connect and
 			// then disconnect.
 			name: "TimedOutAgentCacheHit",
-			agent: database.WorkspaceAgent{
-				CreatedAt:                time.Now().Add(-10 * time.Minute),
-				ConnectionTimeoutSeconds: 60,
+			buildAgent: func(now time.Time) database.WorkspaceAgent {
+				return database.WorkspaceAgent{
+					CreatedAt:                now.Add(-10 * time.Minute),
+					ConnectionTimeoutSeconds: 60,
+				}
 			},
 		},
 		{
 			name: "CacheHitHealthyAgent",
-			agent: database.WorkspaceAgent{
-				FirstConnectedAt: sql.NullTime{
-					Time:  time.Now().Add(-5 * time.Minute),
-					Valid: true,
-				},
-				LastConnectedAt: sql.NullTime{
-					Time:  time.Now(),
-					Valid: true,
-				},
+			buildAgent: func(now time.Time) database.WorkspaceAgent {
+				return database.WorkspaceAgent{
+					FirstConnectedAt: sql.NullTime{
+						Time:  now.Add(-5 * time.Minute),
+						Valid: true,
+					},
+					LastConnectedAt: sql.NullTime{
+						Time:  now,
+						Valid: true,
+					},
+				}
 			},
 		},
 		{
 			// When GetWorkspaceAgentByID returns an error on
 			// cache hit, the cached connection should be returned.
 			name: "CacheHitDBError",
-			agent: database.WorkspaceAgent{
-				FirstConnectedAt: sql.NullTime{
-					Time:  time.Now().Add(-5 * time.Minute),
-					Valid: true,
-				},
-				LastConnectedAt: sql.NullTime{
-					Time:  time.Now(),
-					Valid: true,
-				},
+			buildAgent: func(now time.Time) database.WorkspaceAgent {
+				return database.WorkspaceAgent{
+					FirstConnectedAt: sql.NullTime{
+						Time:  now.Add(-5 * time.Minute),
+						Valid: true,
+					},
+					LastConnectedAt: sql.NullTime{
+						Time:  now,
+						Valid: true,
+					},
+				}
 			},
 			dbError: true,
 		},
@@ -4329,8 +4351,17 @@ func TestGetWorkspaceConn_StatusCheck(t *testing.T) {
 				},
 			}
 
-			// Stamp the agent with the generated ID.
-			agent := tc.agent
+			// Stamp the agent with the generated ID. Use the
+			// subtest's mock clock so the agent's timestamps are
+			// anchored to the same `now` the server uses. Using
+			// time.Now() at slice-literal construction time
+			// produced a Windows-CI flake because a slow scheduler
+			// could insert more than agentInactiveDisconnectTimeout
+			// of wall-clock delay between the literal and the
+			// subtest body.
+			clock := quartz.NewMock(t)
+			now := clock.Now()
+			agent := tc.buildAgent(now)
 			agent.ID = agentID
 
 			// Set up the DB mock for GetWorkspaceAgentByID.
@@ -4349,7 +4380,7 @@ func TestGetWorkspaceConn_StatusCheck(t *testing.T) {
 			server := &Server{
 				db:                             db,
 				logger:                         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
-				clock:                          quartz.NewReal(),
+				clock:                          clock,
 				agentInactiveDisconnectTimeout: 30 * time.Second,
 				dialTimeout:                    defaultDialTimeout,
 			}
@@ -5327,4 +5358,332 @@ func TestAutoPromote_InsertFailureSkipsStatusUpdate(t *testing.T) {
 	default:
 		// No signal, as expected.
 	}
+}
+
+// makeInProgressPart is a small constructor for buffered message_part
+// fixtures used by snapshotBufferLocked / subscribeToStream tests. It
+// builds an in-progress part (committedMessageID == 0) with a
+// recognizable text body so failing assertions can identify which
+// part survived the filter.
+func makeInProgressPart(text string) bufferedStreamPart {
+	return bufferedStreamPart{
+		event: codersdk.ChatStreamEvent{
+			Type: codersdk.ChatStreamEventTypeMessagePart,
+			MessagePart: &codersdk.ChatStreamMessagePart{
+				Role: codersdk.ChatMessageRoleAssistant,
+				Part: codersdk.ChatMessageText(text),
+			},
+		},
+	}
+}
+
+// makeCommittedPart builds a part already claimed by the given
+// durable assistant message ID.
+func makeCommittedPart(committedID int64, text string) bufferedStreamPart {
+	p := makeInProgressPart(text)
+	p.committedMessageID = committedID
+	return p
+}
+
+func partText(event codersdk.ChatStreamEvent) string {
+	if event.MessagePart == nil {
+		return ""
+	}
+	return event.MessagePart.Part.Text
+}
+
+// TestSnapshotBufferLocked_DropsCommittedParts asserts the core
+// dedup contract: parts that were claimed by a durable assistant
+// message (committedMessageID != 0) are dropped from the snapshot
+// because the subscriber will receive that durable message through
+// the REST snapshot, the initial DB query, or pubsub.
+func TestSnapshotBufferLocked_DropsCommittedParts(t *testing.T) {
+	t.Parallel()
+
+	buffer := []bufferedStreamPart{
+		makeCommittedPart(100, "turnA-1"),
+		makeCommittedPart(100, "turnA-2"),
+		makeCommittedPart(200, "turnB-1"),
+		makeInProgressPart("in-progress-1"),
+		makeInProgressPart("in-progress-2"),
+	}
+
+	snapshot := snapshotBufferLocked(buffer)
+
+	require.Len(t, snapshot, 2,
+		"only in-progress (committedMessageID == 0) parts should be kept")
+	require.Equal(t, "in-progress-1", partText(snapshot[0]))
+	require.Equal(t, "in-progress-2", partText(snapshot[1]))
+}
+
+// TestSnapshotBufferLocked_AllInProgressReturnsAll covers the
+// fresh-load convention: when no assistant message has committed
+// yet, every buffered part is in-progress and must be delivered.
+func TestSnapshotBufferLocked_AllInProgressReturnsAll(t *testing.T) {
+	t.Parallel()
+
+	buffer := []bufferedStreamPart{
+		makeInProgressPart("a"),
+		makeInProgressPart("b"),
+		makeInProgressPart("c"),
+	}
+
+	snapshot := snapshotBufferLocked(buffer)
+
+	require.Len(t, snapshot, 3,
+		"all in-progress parts must be delivered to the subscriber")
+	require.Equal(t, "a", partText(snapshot[0]))
+	require.Equal(t, "b", partText(snapshot[1]))
+	require.Equal(t, "c", partText(snapshot[2]))
+}
+
+// TestSnapshotBufferLocked_EmptyBufferReturnsNil documents that
+// snapshotBufferLocked returns nil (not an empty slice) for an
+// empty buffer, matching the prior append-from-nil behavior.
+func TestSnapshotBufferLocked_EmptyBufferReturnsNil(t *testing.T) {
+	t.Parallel()
+
+	require.Nil(t, snapshotBufferLocked(nil))
+	require.Nil(t, snapshotBufferLocked([]bufferedStreamPart{}))
+}
+
+// TestSnapshotBufferLocked_AllCommittedReturnsEmpty covers the
+// natural resting point after an assistant turn commits and before
+// the next turn starts streaming: every buffered part has been
+// claimed and must be filtered out. The snapshot must be empty so
+// reconnecting subscribers do not re-render content that is already
+// available as a durable message.
+func TestSnapshotBufferLocked_AllCommittedReturnsEmpty(t *testing.T) {
+	t.Parallel()
+
+	buffer := []bufferedStreamPart{
+		makeCommittedPart(100, "a"),
+		makeCommittedPart(100, "b"),
+		makeCommittedPart(200, "c"),
+	}
+
+	require.Empty(t, snapshotBufferLocked(buffer))
+}
+
+// TestPublishToStream_AppendsAsInProgress verifies that parts
+// buffered while the chat is streaming are tagged as in-progress
+// (committedMessageID == 0) until publishMessage claims them via a
+// committed assistant message.
+func TestPublishToStream_AppendsAsInProgress(t *testing.T) {
+	t.Parallel()
+
+	mClock := quartz.NewMock(t)
+	server := &Server{
+		logger: slogtest.Make(t, nil),
+		clock:  mClock,
+	}
+
+	chatID := uuid.New()
+	state := &chatStreamState{
+		buffering:   true,
+		subscribers: map[uuid.UUID]chan codersdk.ChatStreamEvent{},
+	}
+	server.chatStreams.Store(chatID, state)
+
+	server.publishToStream(chatID, codersdk.ChatStreamEvent{
+		Type: codersdk.ChatStreamEventTypeMessagePart,
+		MessagePart: &codersdk.ChatStreamMessagePart{
+			Role: codersdk.ChatMessageRoleAssistant,
+			Part: codersdk.ChatMessageText("hello"),
+		},
+	})
+
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	require.Len(t, state.buffer, 1)
+	require.Equal(t, int64(0), state.buffer[0].committedMessageID,
+		"newly buffered parts must be in-progress until publishMessage claims them")
+	require.Equal(t, "hello", partText(state.buffer[0].event))
+}
+
+// TestClaimCommittedParts covers the per-role behavior of
+// claimCommittedParts:
+//   - assistant messages claim every in-progress part with the
+//     committed message ID.
+//   - tool / user messages do not claim parts.
+//   - parts already claimed by an earlier assistant message are not
+//     re-claimed.
+//   - a chat with no live state is a no-op (does not panic).
+func TestClaimCommittedParts(t *testing.T) {
+	t.Parallel()
+
+	t.Run("AssistantClaimsAllInProgressParts", func(t *testing.T) {
+		t.Parallel()
+
+		server := &Server{
+			logger: slogtest.Make(t, nil),
+			clock:  quartz.NewMock(t),
+		}
+		chatID := uuid.New()
+		state := server.getOrCreateStreamState(chatID)
+		state.mu.Lock()
+		state.buffer = []bufferedStreamPart{
+			makeCommittedPart(100, "old-1"),
+			makeInProgressPart("new-1"),
+			makeInProgressPart("new-2"),
+		}
+		state.mu.Unlock()
+
+		server.claimCommittedParts(chatID, database.ChatMessage{
+			ID:   200,
+			Role: database.ChatMessageRoleAssistant,
+		})
+
+		state.mu.Lock()
+		defer state.mu.Unlock()
+		require.Equal(t, int64(100), state.buffer[0].committedMessageID,
+			"already-claimed parts must keep their original message ID")
+		require.Equal(t, int64(200), state.buffer[1].committedMessageID,
+			"in-progress parts must be claimed by the new message ID")
+		require.Equal(t, int64(200), state.buffer[2].committedMessageID,
+			"in-progress parts must be claimed by the new message ID")
+	})
+
+	t.Run("ToolMessageIsNoOp", func(t *testing.T) {
+		t.Parallel()
+
+		server := &Server{
+			logger: slogtest.Make(t, nil),
+			clock:  quartz.NewMock(t),
+		}
+		chatID := uuid.New()
+		state := server.getOrCreateStreamState(chatID)
+		state.mu.Lock()
+		state.buffer = []bufferedStreamPart{
+			makeInProgressPart("a"),
+			makeInProgressPart("b"),
+		}
+		state.mu.Unlock()
+
+		server.claimCommittedParts(chatID, database.ChatMessage{
+			ID:   300,
+			Role: database.ChatMessageRoleTool,
+		})
+
+		state.mu.Lock()
+		defer state.mu.Unlock()
+		require.Equal(t, int64(0), state.buffer[0].committedMessageID,
+			"tool messages must not claim buffered parts")
+		require.Equal(t, int64(0), state.buffer[1].committedMessageID,
+			"tool messages must not claim buffered parts")
+	})
+
+	t.Run("UserMessageIsNoOp", func(t *testing.T) {
+		t.Parallel()
+
+		server := &Server{
+			logger: slogtest.Make(t, nil),
+			clock:  quartz.NewMock(t),
+		}
+		chatID := uuid.New()
+		state := server.getOrCreateStreamState(chatID)
+		state.mu.Lock()
+		state.buffer = []bufferedStreamPart{
+			makeInProgressPart("a"),
+		}
+		state.mu.Unlock()
+
+		server.claimCommittedParts(chatID, database.ChatMessage{
+			ID:   400,
+			Role: database.ChatMessageRoleUser,
+		})
+
+		state.mu.Lock()
+		defer state.mu.Unlock()
+		require.Equal(t, int64(0), state.buffer[0].committedMessageID,
+			"user messages must not claim buffered parts")
+	})
+
+	t.Run("NoLiveStateIsNoOp", func(t *testing.T) {
+		t.Parallel()
+
+		server := &Server{
+			logger: slogtest.Make(t, nil),
+			clock:  quartz.NewMock(t),
+		}
+		chatID := uuid.New()
+
+		// No state stored: claimCommittedParts must not panic and
+		// must not allocate a new state for an unknown chat.
+		require.NotPanics(t, func() {
+			server.claimCommittedParts(chatID, database.ChatMessage{
+				ID:   500,
+				Role: database.ChatMessageRoleAssistant,
+			})
+		})
+		_, ok := server.chatStreams.Load(chatID)
+		require.False(t, ok,
+			"claimCommittedParts must not create stream state for a chat that has none")
+	})
+}
+
+// TestSubscribeToStream_FiltersBufferedParts_Integration wires
+// publishToStream, claimCommittedParts (via publishMessage), and
+// subscribeToStream together to confirm the end-to-end contract: a
+// reconnecting subscriber only receives parts that belong to the
+// current in-progress turn, not parts that were already committed
+// to durable assistant messages.
+func TestSubscribeToStream_FiltersBufferedParts_Integration(t *testing.T) {
+	t.Parallel()
+
+	mClock := quartz.NewMock(t)
+	server := &Server{
+		logger: slogtest.Make(t, nil),
+		clock:  mClock,
+	}
+	chatID := uuid.New()
+
+	// Simulate the lifecycle:
+	//   1. Stream parts of turn A (still in-progress, no commit yet).
+	//   2. Commit turn A; its parts are claimed by message 100.
+	//   3. Stream parts of turn B (in-progress).
+	//   4. Commit turn B; its parts are claimed by message 200.
+	//   5. Stream parts of turn C (in-progress, never committed).
+	state := server.getOrCreateStreamState(chatID)
+	state.mu.Lock()
+	state.buffering = true
+	state.mu.Unlock()
+
+	publishPart := func(text string) {
+		server.publishToStream(chatID, codersdk.ChatStreamEvent{
+			Type: codersdk.ChatStreamEventTypeMessagePart,
+			MessagePart: &codersdk.ChatStreamMessagePart{
+				Role: codersdk.ChatMessageRoleAssistant,
+				Part: codersdk.ChatMessageText(text),
+			},
+		})
+	}
+
+	publishPart("A-1")
+	publishPart("A-2")
+	server.claimCommittedParts(chatID, database.ChatMessage{
+		ID:   100,
+		Role: database.ChatMessageRoleAssistant,
+	})
+	publishPart("B-1")
+	publishPart("B-2")
+	server.claimCommittedParts(chatID, database.ChatMessage{
+		ID:   200,
+		Role: database.ChatMessageRoleAssistant,
+	})
+	publishPart("C-1")
+
+	// Reconnecting subscriber: only the currently in-progress turn
+	// (turn C) survives the filter, no matter what cursor the
+	// client passes through SubscribeAuthorized (the filter no
+	// longer depends on the cursor).
+	snapshot, _, _, cancel := server.subscribeToStream(chatID)
+	defer cancel()
+
+	texts := make([]string, 0, len(snapshot))
+	for _, ev := range snapshot {
+		texts = append(texts, partText(ev))
+	}
+	require.Equal(t, []string{"C-1"}, texts,
+		"only in-progress (un-claimed) buffered parts must survive the filter")
 }

@@ -161,12 +161,29 @@ type RunOptions struct {
 	Compaction       *CompactionOptions
 	ReloadMessages   func(context.Context) ([]fantasy.Message, error)
 	DisableChainMode func()
-	// PrepareMessages is called before each LLM step with the
-	// current message history. If it returns non-nil, the returned
-	// slice replaces messages for this and all subsequent steps.
+	// PrepareMessages is called at least once before each LLM step
+	// with the current message history. If it returns non-nil, the
+	// returned slice replaces messages for this and all subsequent
+	// steps.
 	// Used to inject system context that becomes available mid-loop
 	// (e.g. AGENTS.md after create_workspace).
+	// NOTE: It may be called more than once per step in case of a
+	// retry, so callbacks should avoid duplicating messages.
 	PrepareMessages func([]fantasy.Message) []fantasy.Message
+
+	// PrepareTools is called once before each LLM step with the
+	// current tool list. If it returns non-nil, the returned slice
+	// replaces opts.Tools for this and all subsequent steps, and any
+	// new tool names are appended to opts.ActiveTools so they become
+	// callable immediately. Used to inject tools that become available
+	// mid-turn (e.g. workspace MCP tools discovered after
+	// create_workspace).
+	//
+	// The chatloop tracks whether tools have already been replaced so
+	// PrepareTools is not retried on subsequent steps once it has
+	// returned a non-nil slice. Callbacks may still be invoked on later
+	// steps when they previously returned nil.
+	PrepareTools func([]fantasy.AgentTool) []fantasy.AgentTool
 
 	// OnRetry is called before each retry attempt when the LLM
 	// stream fails with a retryable error. It provides the attempt
@@ -349,7 +366,6 @@ func Run(ctx context.Context, opts RunOptions) error {
 	}
 
 	tools := buildToolDefinitions(opts.Tools, opts.ActiveTools, opts.ProviderTools)
-	applyAnthropicCaching := shouldApplyAnthropicPromptCaching(opts.Model)
 
 	messages := opts.Messages
 	var lastUsage fantasy.Usage
@@ -390,30 +406,21 @@ func Run(ctx context.Context, opts RunOptions) error {
 			modelName := opts.Model.Model()
 			opts.Metrics.StepsTotal.WithLabelValues(provider, modelName).Inc()
 			stepStart := time.Now()
-			// Copy messages so that provider-specific caching
-			// mutations don't leak back to the caller's slice.
-			// copy copies Message structs by value, so field
-			// reassignments in addAnthropicPromptCaching only
-			// affect the prepared slice.
-			if opts.PrepareMessages != nil {
-				if updated := opts.PrepareMessages(messages); updated != nil {
-					messages = updated
+			if opts.PrepareTools != nil {
+				if updated := opts.PrepareTools(opts.Tools); updated != nil {
+					opts.ActiveTools = mergeNewToolNames(
+						opts.ActiveTools, opts.Tools, updated,
+					)
+					opts.Tools = updated
+					tools = buildToolDefinitions(
+						opts.Tools, opts.ActiveTools, opts.ProviderTools,
+					)
 				}
 			}
-			prepared := make([]fantasy.Message, len(messages))
-			copy(prepared, messages)
-			prepared, sanitizeStats := chatsanitize.SanitizeAnthropicProviderToolHistory(provider, prepared)
-			chatsanitize.LogAnthropicProviderToolSanitization(
-				ctx, opts.Logger, "pre_request", provider, modelName, sanitizeStats,
-				slog.F("step_index", step),
-				slog.F("total_steps", totalSteps),
+			var prepared []fantasy.Message
+			messages, prepared = prepareMessagesForRequest(
+				ctx, opts, messages, provider, modelName, step, totalSteps,
 			)
-			prepared = chatsanitize.ApplyAnthropicProviderToolGuard(
-				ctx, opts.Logger, provider, modelName, prepared,
-			)
-			if applyAnthropicCaching {
-				addAnthropicPromptCaching(prepared)
-			}
 			opts.Metrics.MessageCount.WithLabelValues(provider, modelName).Observe(float64(len(prepared)))
 			opts.Metrics.PromptSizeBytes.WithLabelValues(provider, modelName).Observe(float64(EstimatePromptSize(prepared)))
 
@@ -469,6 +476,33 @@ func Run(ctx context.Context, opts RunOptions) error {
 				// classified payload handed to OnRetry.
 				classified = classified.WithProvider(provider)
 				opts.Metrics.RecordStreamRetry(provider, modelName, classified)
+				if classified.ChainBroken {
+					if chatopenai.HasPreviousResponseID(opts.ProviderOptions) {
+						opts.ProviderOptions = chatopenai.ClearPreviousResponseID(opts.ProviderOptions)
+					}
+					if chatopenai.HasPreviousResponseID(call.ProviderOptions) {
+						call.ProviderOptions = chatopenai.ClearPreviousResponseID(call.ProviderOptions)
+					}
+					if opts.DisableChainMode != nil {
+						opts.DisableChainMode()
+					}
+					if opts.ReloadMessages != nil {
+						reloaded, err := opts.ReloadMessages(ctx)
+						if err != nil {
+							opts.Logger.Warn(ctx,
+								"chain-broken recovery: reload messages failed",
+								slog.Error(err),
+							)
+						} else {
+							// Reloaded history replaces the prompt prepared before
+							// the failed attempt, so run the same preparation
+							// pipeline used by normal provider requests.
+							messages, call.Prompt = prepareMessagesForRequest(
+								ctx, opts, reloaded, provider, modelName, step, totalSteps,
+							)
+						}
+					}
+				}
 				if opts.OnRetry != nil {
 					opts.OnRetry(attempt, retryErr, classified, delay)
 				}
@@ -654,6 +688,43 @@ func Run(ctx context.Context, opts RunOptions) error {
 	}
 
 	return nil
+}
+
+// prepareMessagesForRequest applies the prompt preparation pipeline used
+// immediately before sending messages to a provider. It returns the
+// possibly updated canonical messages and an independent provider-ready
+// prompt.
+func prepareMessagesForRequest(
+	ctx context.Context,
+	opts RunOptions,
+	messages []fantasy.Message,
+	provider string,
+	modelName string,
+	step int,
+	totalSteps int,
+) (canonical []fantasy.Message, prompt []fantasy.Message) {
+	canonical = messages
+	if opts.PrepareMessages != nil {
+		if updated := opts.PrepareMessages(canonical); updated != nil {
+			canonical = updated
+		}
+	}
+	// Copy messages so provider-specific caching mutations don't leak
+	// back to the canonical message slice.
+	prompt = slices.Clone(canonical)
+	prompt, sanitizeStats := chatsanitize.SanitizeAnthropicProviderToolHistory(provider, prompt)
+	chatsanitize.LogAnthropicProviderToolSanitization(
+		ctx, opts.Logger, "pre_request", provider, modelName, sanitizeStats,
+		slog.F("step_index", step),
+		slog.F("total_steps", totalSteps),
+	)
+	prompt = chatsanitize.ApplyAnthropicProviderToolGuard(
+		ctx, opts.Logger, provider, modelName, prompt,
+	)
+	if shouldApplyAnthropicPromptCaching(opts.Model) {
+		addAnthropicPromptCaching(prompt)
+	}
+	return canonical, prompt
 }
 
 // guardedAttempt owns an attempt-scoped context and startup guard
@@ -1656,6 +1727,39 @@ func tryCompactOnExit(
 
 func isToolActive(name string, activeTools []string) bool {
 	return len(activeTools) == 0 || slices.Contains(activeTools, name)
+}
+
+// mergeNewToolNames returns activeTools augmented with any tool names
+// from newTools that are not present in oldTools and not already in
+// activeTools. This keeps newly injected tools (e.g. via PrepareTools)
+// callable even when activeTools is non-empty.
+//
+// When activeTools is empty, all tools are already active and the slice
+// is returned unchanged.
+func mergeNewToolNames(activeTools []string, oldTools, newTools []fantasy.AgentTool) []string {
+	if len(activeTools) == 0 {
+		return activeTools
+	}
+	old := make(map[string]struct{}, len(oldTools))
+	for _, t := range oldTools {
+		old[t.Info().Name] = struct{}{}
+	}
+	active := make(map[string]struct{}, len(activeTools))
+	for _, name := range activeTools {
+		active[name] = struct{}{}
+	}
+	for _, t := range newTools {
+		name := t.Info().Name
+		if _, alreadyActive := active[name]; alreadyActive {
+			continue
+		}
+		if _, existedBefore := old[name]; existedBefore {
+			continue
+		}
+		activeTools = append(activeTools, name)
+		active[name] = struct{}{}
+	}
+	return activeTools
 }
 
 // buildToolDefinitions converts AgentTool definitions into the

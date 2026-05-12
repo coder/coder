@@ -11,6 +11,7 @@ import {
 	mcpServerConfigs,
 	userChatPersonalModelOverrides,
 } from "#/api/queries/chats";
+import { preferenceSettings } from "#/api/queries/users";
 import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
@@ -23,6 +24,7 @@ import { AgentPageHeader } from "./components/AgentPageHeader";
 import { AgentSetupNotice } from "./components/AgentSetupNotice";
 import { ChimeButton } from "./components/ChimeButton";
 import { WebPushButton } from "./components/WebPushButton";
+import { getAgentChatSendShortcut } from "./utils/agentChatSendShortcut";
 import { getChimeEnabled, setChimeEnabled } from "./utils/chime";
 import {
 	countConfiguredProviderConfigs,
@@ -46,6 +48,7 @@ const AgentCreatePage: FC = () => {
 	const personalModelOverridesQuery = useQuery(
 		userChatPersonalModelOverrides(),
 	);
+	const preferencesQuery = useQuery(preferenceSettings());
 	const mcpServersQuery = useQuery(mcpServerConfigs());
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const createMutation = useMutation(createChat(queryClient));
@@ -148,6 +151,10 @@ const AgentCreatePage: FC = () => {
 			</AgentPageHeader>
 			<AgentCreateForm
 				onCreateChat={handleCreateChat}
+				sendShortcut={getAgentChatSendShortcut(
+					preferencesQuery.data?.agent_chat_send_shortcut,
+					preferencesQuery.isLoading,
+				)}
 				isCreating={createMutation.isPending}
 				createError={createMutation.error}
 				canCreateChat={permissions.createChat}

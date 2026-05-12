@@ -2793,6 +2793,14 @@ func (m queryMetricsStore) GetUserActivityInsights(ctx context.Context, arg data
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetUserAgentChatSendShortcut(ctx context.Context, userID uuid.UUID) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserAgentChatSendShortcut(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetUserAgentChatSendShortcut").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserAgentChatSendShortcut").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetUserAppearanceSettings(ctx context.Context, userID uuid.UUID) (database.GetUserAppearanceSettingsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserAppearanceSettings(ctx, userID)
@@ -3230,6 +3238,14 @@ func (m queryMetricsStore) GetWorkspaceAppsCreatedAfter(ctx context.Context, cre
 	r0, r1 := m.s.GetWorkspaceAppsCreatedAfter(ctx, createdAt)
 	m.queryLatencies.WithLabelValues("GetWorkspaceAppsCreatedAfter").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceAppsCreatedAfter").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetWorkspaceBuildAgentsByInstanceID(ctx context.Context, authInstanceID string) ([]database.GetWorkspaceBuildAgentsByInstanceIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceBuildAgentsByInstanceID(ctx, authInstanceID)
+	m.queryLatencies.WithLabelValues("GetWorkspaceBuildAgentsByInstanceID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceBuildAgentsByInstanceID").Inc()
 	return r0, r1
 }
 
@@ -4991,6 +5007,14 @@ func (m queryMetricsStore) UpdateUsageEventsPostPublish(ctx context.Context, arg
 	m.queryLatencies.WithLabelValues("UpdateUsageEventsPostPublish").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUsageEventsPostPublish").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) UpdateUserAgentChatSendShortcut(ctx context.Context, arg database.UpdateUserAgentChatSendShortcutParams) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateUserAgentChatSendShortcut(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateUserAgentChatSendShortcut").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUserAgentChatSendShortcut").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) UpdateUserChatCompactionThreshold(ctx context.Context, arg database.UpdateUserChatCompactionThresholdParams) (database.UserConfig, error) {

@@ -203,7 +203,6 @@ const ProxySettingsSub: FC<ProxySettingsSubProps> = ({ proxyContextValue }) => {
 
 const AdminSettingsSub: FC<MobileMenuPermissions> = ({
 	canViewDeployment,
-	canViewOrganizations,
 	canViewAuditLog,
 	canViewConnectionLog,
 	canViewHealth,
@@ -235,14 +234,12 @@ const AdminSettingsSub: FC<MobileMenuPermissions> = ({
 						<Link to="/deployment">Deployment</Link>
 					</DropdownMenuItem>
 				)}
-				{canViewOrganizations && (
-					<DropdownMenuItem
-						asChild
-						className={cn(itemStyles.default, itemStyles.sub)}
-					>
-						<Link to="/organizations">Organizations</Link>
-					</DropdownMenuItem>
-				)}
+				<DropdownMenuItem
+					asChild
+					className={cn(itemStyles.default, itemStyles.sub)}
+				>
+					<Link to="/organizations">Organizations</Link>
+				</DropdownMenuItem>
 				{canViewAuditLog && (
 					<DropdownMenuItem
 						asChild

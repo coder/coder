@@ -64,11 +64,18 @@ type MCPServerConfig struct {
 	// Availability policy set by admin.
 	Availability string `json:"availability"` // "force_on", "default_on", "default_off"
 
-	Enabled         bool      `json:"enabled"`
-	ModelIntent     bool      `json:"model_intent"`
-	AllowInPlanMode bool      `json:"allow_in_plan_mode"`
-	CreatedAt       time.Time `json:"created_at" format:"date-time"`
-	UpdatedAt       time.Time `json:"updated_at" format:"date-time"`
+	Enabled         bool `json:"enabled"`
+	ModelIntent     bool `json:"model_intent"`
+	AllowInPlanMode bool `json:"allow_in_plan_mode"`
+
+	// ForwardCoderHeaders forwards the same Coder identity headers we
+	// send to LLM providers (X-Coder-Owner-Id, X-Coder-Chat-Id, and the
+	// optional X-Coder-Subchat-Id and X-Coder-Workspace-Id) to this
+	// MCP server on every request. Off by default to avoid leaking
+	// chat identity to third-party servers.
+	ForwardCoderHeaders bool      `json:"forward_coder_headers"`
+	CreatedAt           time.Time `json:"created_at" format:"date-time"`
+	UpdatedAt           time.Time `json:"updated_at" format:"date-time"`
 
 	// Per-user state (populated for non-admin requests).
 	AuthConnected bool `json:"auth_connected"`
@@ -101,6 +108,10 @@ type CreateMCPServerConfigRequest struct {
 	Enabled         bool   `json:"enabled"`
 	ModelIntent     bool   `json:"model_intent"`
 	AllowInPlanMode bool   `json:"allow_in_plan_mode"`
+
+	// ForwardCoderHeaders, when true, forwards Coder identity
+	// headers on every outgoing MCP request. See MCPServerConfig.
+	ForwardCoderHeaders bool `json:"forward_coder_headers"`
 }
 
 // UpdateMCPServerConfigRequest is the request to update an MCP server config.
@@ -130,6 +141,10 @@ type UpdateMCPServerConfigRequest struct {
 	Enabled         *bool   `json:"enabled,omitempty"`
 	ModelIntent     *bool   `json:"model_intent,omitempty"`
 	AllowInPlanMode *bool   `json:"allow_in_plan_mode,omitempty"`
+
+	// ForwardCoderHeaders, when set, updates whether Coder identity
+	// headers are forwarded on every outgoing MCP request.
+	ForwardCoderHeaders *bool `json:"forward_coder_headers,omitempty"`
 }
 
 func (c *Client) MCPServerConfigs(ctx context.Context) ([]MCPServerConfig, error) {

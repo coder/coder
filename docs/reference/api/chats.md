@@ -125,6 +125,7 @@ Experimental: this endpoint is subject to change.
           0
         ],
         "result_delta": "string",
+        "result_reset": true,
         "signature": "string",
         "skill_description": "string",
         "skill_dir": "string",
@@ -249,6 +250,7 @@ Status Code **200**
 | `»» provider_metadata`            | array                                                                  | false    |              | Provider metadata holds provider-specific response metadata (e.g. Anthropic cache control hints) as raw JSON. Internal only: stripped by db2sdk before API responses.                                                                                                      |
 | `»» result`                       | array                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
 | `»» result_delta`                 | string                                                                 | false    |              |                                                                                                                                                                                                                                                                            |
+| `»» result_reset`                 | boolean                                                                | false    |              |                                                                                                                                                                                                                                                                            |
 | `»» signature`                    | string                                                                 | false    |              |                                                                                                                                                                                                                                                                            |
 | `»» skill_description`            | string                                                                 | false    |              | Skill description is the short description from the skill's SKILL.md frontmatter.                                                                                                                                                                                          |
 | `»» skill_dir`                    | string                                                                 | false    |              | Skill dir is the absolute path to the skill directory inside the workspace filesystem. Internal only: used by read_skill/read_skill_file tools to locate skill files.                                                                                                      |
@@ -455,6 +457,7 @@ Experimental: this endpoint is subject to change.
             0
           ],
           "result_delta": "string",
+          "result_reset": true,
           "signature": "string",
           "skill_description": "string",
           "skill_dir": "string",
@@ -579,6 +582,7 @@ Experimental: this endpoint is subject to change.
         0
       ],
       "result_delta": "string",
+      "result_reset": true,
       "signature": "string",
       "skill_description": "string",
       "skill_dir": "string",
@@ -854,6 +858,7 @@ Experimental: this endpoint is subject to change.
           0
         ],
         "result_delta": "string",
+        "result_reset": true,
         "signature": "string",
         "skill_description": "string",
         "skill_dir": "string",
@@ -1032,6 +1037,7 @@ Experimental: this endpoint is subject to change.
             0
           ],
           "result_delta": "string",
+          "result_reset": true,
           "signature": "string",
           "skill_description": "string",
           "skill_dir": "string",
@@ -1156,6 +1162,7 @@ Experimental: this endpoint is subject to change.
         0
       ],
       "result_delta": "string",
+      "result_reset": true,
       "signature": "string",
       "skill_description": "string",
       "skill_dir": "string",
@@ -1415,6 +1422,7 @@ Experimental: this endpoint is subject to change.
             0
           ],
           "result_delta": "string",
+          "result_reset": true,
           "signature": "string",
           "skill_description": "string",
           "skill_dir": "string",
@@ -1539,6 +1547,7 @@ Experimental: this endpoint is subject to change.
         0
       ],
       "result_delta": "string",
+      "result_reset": true,
       "signature": "string",
       "skill_description": "string",
       "skill_dir": "string",
@@ -1659,6 +1668,7 @@ Experimental: this endpoint is subject to change.
             0
           ],
           "result_delta": "string",
+          "result_reset": true,
           "signature": "string",
           "skill_description": "string",
           "skill_dir": "string",
@@ -1735,6 +1745,7 @@ Experimental: this endpoint is subject to change.
             0
           ],
           "result_delta": "string",
+          "result_reset": true,
           "signature": "string",
           "skill_description": "string",
           "skill_dir": "string",
@@ -1863,6 +1874,7 @@ Experimental: this endpoint is subject to change.
           0
         ],
         "result_delta": "string",
+        "result_reset": true,
         "signature": "string",
         "skill_description": "string",
         "skill_dir": "string",
@@ -1938,6 +1950,7 @@ Experimental: this endpoint is subject to change.
           0
         ],
         "result_delta": "string",
+        "result_reset": true,
         "signature": "string",
         "skill_description": "string",
         "skill_dir": "string",
@@ -2000,7 +2013,8 @@ Experimental: this endpoint is subject to change.
       "text": "string",
       "type": "text"
     }
-  ]
+  ],
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
 }
 ```
 
@@ -2063,6 +2077,7 @@ Experimental: this endpoint is subject to change.
           0
         ],
         "result_delta": "string",
+        "result_reset": true,
         "signature": "string",
         "skill_description": "string",
         "skill_dir": "string",
@@ -2196,6 +2211,7 @@ Experimental: this endpoint is subject to change.
           0
         ],
         "result_delta": "string",
+        "result_reset": true,
         "signature": "string",
         "skill_description": "string",
         "skill_dir": "string",
@@ -2268,6 +2284,7 @@ Experimental: this endpoint is subject to change.
         0
       ],
       "result_delta": "string",
+      "result_reset": true,
       "signature": "string",
       "skill_description": "string",
       "skill_dir": "string",
@@ -2329,6 +2346,7 @@ Experimental: this endpoint is subject to change.
             0
           ],
           "result_delta": "string",
+          "result_reset": true,
           "signature": "string",
           "skill_description": "string",
           "skill_dir": "string",
@@ -2577,6 +2595,7 @@ Experimental: this endpoint is subject to change.
             0
           ],
           "result_delta": "string",
+          "result_reset": true,
           "signature": "string",
           "skill_description": "string",
           "skill_dir": "string",
@@ -2701,6 +2720,7 @@ Experimental: this endpoint is subject to change.
         0
       ],
       "result_delta": "string",
+      "result_reset": true,
       "signature": "string",
       "skill_description": "string",
       "skill_dir": "string",

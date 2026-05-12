@@ -10,6 +10,7 @@ import (
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
@@ -46,7 +47,7 @@ func TestStart(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdminClient, oldVersion.ID)
 		require.Equal(t, oldVersion.ID, template.ActiveVersionID)
 		template = coderdtest.UpdateTemplateMeta(t, templateAdminClient, template.ID, codersdk.UpdateTemplateMeta{
-			RequireActiveVersion: true,
+			RequireActiveVersion: ptr.Ref(true),
 		})
 		require.True(t, template.RequireActiveVersion)
 

@@ -536,7 +536,7 @@ func TestAgent(t *testing.T) {
 
 	t.Run("NotInfinite", func(t *testing.T) {
 		t.Parallel()
-		var fetchCalled uint64
+		var fetchCalled atomic.Uint64
 
 		cmd := &serpent.Command{
 			Handler: func(inv *serpent.Invocation) error {
@@ -544,7 +544,7 @@ func TestAgent(t *testing.T) {
 				err := cliui.Agent(inv.Context(), &buf, uuid.Nil, cliui.AgentOptions{
 					FetchInterval: 10 * time.Millisecond,
 					Fetch: func(ctx context.Context, agentID uuid.UUID) (codersdk.WorkspaceAgent, error) {
-						atomic.AddUint64(&fetchCalled, 1)
+						fetchCalled.Add(1)
 
 						return codersdk.WorkspaceAgent{
 							Status:         codersdk.WorkspaceAgentConnected,
@@ -557,7 +557,7 @@ func TestAgent(t *testing.T) {
 				}
 
 				require.Never(t, func() bool {
-					called := atomic.LoadUint64(&fetchCalled)
+					called := fetchCalled.Load()
 					return called > 5 || called == 0
 				}, time.Second, 100*time.Millisecond)
 

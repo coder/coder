@@ -2,6 +2,7 @@ import { type FC, Profiler, type ReactNode, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
+import type { AgentChatSendShortcut } from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
@@ -117,6 +118,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					onImplementPlan={onImplementPlan}
 					onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
 					isChatCompleted={isChatCompleted}
+					hasActiveStream={hasStream}
 					urlTransform={urlTransform}
 					mcpServers={mcpServers}
 					showDesktopPreviews={false}
@@ -150,6 +152,7 @@ interface ChatPageInputProps {
 		message: string,
 		attachments?: readonly PendingAttachment[],
 	) => Promise<void> | void;
+	sendShortcut: AgentChatSendShortcut;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	onPromoteQueuedMessage: (id: number) => Promise<void>;
 	onInterrupt: () => void;
@@ -214,6 +217,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	store,
 	compressionThreshold,
 	onSend,
+	sendShortcut,
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
 	onInterrupt,
@@ -445,6 +449,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 					}
 				})();
 			}}
+			sendShortcut={sendShortcut}
 			attachments={attachments}
 			onAttach={handleAttach}
 			onRemoveAttachment={handleRemoveAttachment}

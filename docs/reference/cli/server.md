@@ -2046,3 +2046,24 @@ How long expired API keys are retained before being deleted. Keeping expired key
 | Default     | <code>7d</code>                                    |
 
 How long workspace agent logs are retained. Logs from non-latest builds are deleted if the agent hasn't connected within this period. Logs from the latest build are always retained. Set to 0 to disable automatic deletion.
+
+### --disable-template-builder
+
+|             |                                              |
+|-------------|----------------------------------------------|
+| Type        | <code>bool</code>                            |
+| Environment | <code>$CODER_DISABLE_TEMPLATE_BUILDER</code> |
+| YAML        | <code>templateBuilder.disabled</code>        |
+
+Disable the template builder feature for guided template creation. When disabled, all /api/v2/templatebuilder/* endpoints return 404.
+
+### --template-builder-registry-url
+
+|             |                                                   |
+|-------------|---------------------------------------------------|
+| Type        | <code>string</code>                               |
+| Environment | <code>$CODER_TEMPLATE_BUILDER_REGISTRY_URL</code> |
+| YAML        | <code>templateBuilder.registryURL</code>          |
+| Default     | <code>https://registry.coder.com</code>           |
+
+The base URL of the module registry used by the template builder for module source paths.

@@ -369,6 +369,29 @@ WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'preference_code_diff_display_mode'
 RETURNING value AS code_diff_display_mode;
 
+-- name: GetUserAgentChatSendShortcut :one
+SELECT
+	value AS agent_chat_send_shortcut
+FROM
+	user_configs
+WHERE
+	user_id = @user_id
+	AND key = 'preference_agent_chat_send_shortcut';
+
+-- name: UpdateUserAgentChatSendShortcut :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'preference_agent_chat_send_shortcut', @agent_chat_send_shortcut::text)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @agent_chat_send_shortcut
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'preference_agent_chat_send_shortcut'
+RETURNING value AS agent_chat_send_shortcut;
+
 -- name: UpdateUserRoles :one
 UPDATE
 	users

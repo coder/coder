@@ -14909,6 +14909,17 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AgentChatSendShortcut": {
+            "type": "string",
+            "enum": [
+                "enter",
+                "modifier_enter"
+            ],
+            "x-enum-varnames": [
+                "AgentChatSendShortcutEnter",
+                "AgentChatSendShortcutModifierEnter"
+            ]
+        },
         "codersdk.AgentConnectionTiming": {
             "type": "object",
             "properties": {
@@ -15969,6 +15980,9 @@ const docTemplate = `{
                 },
                 "result_delta": {
                     "type": "string"
+                },
+                "result_reset": {
+                    "type": "boolean"
                 },
                 "signature": {
                     "type": "string"
@@ -17820,6 +17834,9 @@ const docTemplate = `{
                 "telemetry": {
                     "$ref": "#/definitions/codersdk.TelemetryConfig"
                 },
+                "template_builder": {
+                    "$ref": "#/definitions/codersdk.TemplateBuilderConfig"
+                },
                 "terms_of_service_url": {
                     "type": "string"
                 },
@@ -17966,6 +17983,11 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatInputPart"
                     }
+                },
+                "model_config_id": {
+                    "description": "ModelConfigID, when set, overrides the model used for the\nreplacement user message and the assistant turn that follows.\nWhen nil the original message's model is preserved.",
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
@@ -22480,6 +22502,17 @@ const docTemplate = `{
                 "$ref": "#/definitions/codersdk.TransitionStats"
             }
         },
+        "codersdk.TemplateBuilderConfig": {
+            "type": "object",
+            "properties": {
+                "disabled": {
+                    "type": "boolean"
+                },
+                "registry_url": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.TemplateExample": {
             "type": "object",
             "properties": {
@@ -23366,7 +23399,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "update_workspace_dormant_at": {
-                    "description": "UpdateWorkspaceDormant updates the dormant_at field of workspaces spawned\nfrom the template. This is useful for preventing dormant workspaces being immediately\ndeleted when updating the dormant_ttl field to a new, shorter value.",
+                    "description": "UpdateWorkspaceDormantAt updates the dormant_at field of workspaces spawned\nfrom the template. This is useful for preventing dormant workspaces being\nimmediately deleted when updating the dormant_ttl field to a new, shorter\nvalue.",
                     "type": "boolean"
                 },
                 "update_workspace_last_used_at": {
@@ -23458,6 +23491,9 @@ const docTemplate = `{
         "codersdk.UpdateUserPreferenceSettingsRequest": {
             "type": "object",
             "properties": {
+                "agent_chat_send_shortcut": {
+                    "$ref": "#/definitions/codersdk.AgentChatSendShortcut"
+                },
                 "code_diff_display_mode": {
                     "$ref": "#/definitions/codersdk.AgentDisplayMode"
                 },
@@ -23943,6 +23979,9 @@ const docTemplate = `{
         "codersdk.UserPreferenceSettings": {
             "type": "object",
             "properties": {
+                "agent_chat_send_shortcut": {
+                    "$ref": "#/definitions/codersdk.AgentChatSendShortcut"
+                },
                 "code_diff_display_mode": {
                     "$ref": "#/definitions/codersdk.AgentDisplayMode"
                 },

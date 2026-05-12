@@ -2322,6 +2322,91 @@ func TestThinkingDisplayMode(t *testing.T) {
 	})
 }
 
+func TestAgentChatSendShortcutPreference(t *testing.T) {
+	t.Parallel()
+
+	adminClient := coderdtest.New(t, nil)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+
+	requireValidationField := func(t *testing.T, err error, field string) {
+		t.Helper()
+
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Len(t, sdkErr.Validations, 1)
+		require.Equal(t, field, sdkErr.Validations[0].Field)
+	}
+
+	t.Run("defaults to enter", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		settings, err := client.GetUserPreferenceSettings(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.AgentChatSendShortcutEnter, settings.AgentChatSendShortcut)
+	})
+
+	t.Run("round-trips shortcut", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		updated, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
+			AgentChatSendShortcut: codersdk.AgentChatSendShortcutModifierEnter,
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.AgentChatSendShortcutModifierEnter, updated.AgentChatSendShortcut)
+
+		settings, err := client.GetUserPreferenceSettings(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.AgentChatSendShortcutModifierEnter, settings.AgentChatSendShortcut)
+	})
+
+	t.Run("rejects invalid shortcut", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		_, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
+			AgentChatSendShortcut: codersdk.AgentChatSendShortcut("bogus"),
+		})
+		requireValidationField(t, err, "agent_chat_send_shortcut")
+	})
+
+	t.Run("updates preserve stored shortcut", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		_, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
+			AgentChatSendShortcut: codersdk.AgentChatSendShortcutModifierEnter,
+			ThinkingDisplayMode:   codersdk.ThinkingDisplayModePreview,
+		})
+		require.NoError(t, err)
+
+		updated, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
+			ThinkingDisplayMode: codersdk.ThinkingDisplayModeAlwaysExpanded,
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ThinkingDisplayModeAlwaysExpanded, updated.ThinkingDisplayMode)
+		require.Equal(t, codersdk.AgentChatSendShortcutModifierEnter, updated.AgentChatSendShortcut)
+	})
+}
+
 func TestAgentDisplayModePreferences(t *testing.T) {
 	t.Parallel()
 

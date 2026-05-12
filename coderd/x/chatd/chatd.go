@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"math"
 	"net/http"
 	"slices"
 	"strconv"
@@ -71,7 +72,7 @@ const (
 	// cold-start agent's first MCP reload can settle before
 	// chatd gives up.
 	workspaceMCPDiscoveryTimeout = 35 * time.Second
-	turnSummaryWriteTimeout      = 5 * time.Second
+	turnStatusLabelWriteTimeout  = 5 * time.Second
 	// defaultDialTimeout matches the timeout used by ~8 other
 	// server-side AgentConn callers.
 	defaultDialTimeout = 30 * time.Second
@@ -83,6 +84,13 @@ const (
 	// per chat during a single LLM step. When exceeded the oldest event is
 	// evicted so memory stays bounded.
 	maxStreamBufferSize = 10000
+	// RelaySentinelAfterID is the after_id sentinel used by cross-replica
+	// relay subscribers. It instructs the peer to skip the durable DB
+	// snapshot and only deliver buffered message_part events. The
+	// buffer itself filters committed parts out (see snapshotBufferLocked),
+	// so the sentinel resolves to "send me any in-progress streaming
+	// parts you have; I will receive durable messages through pubsub."
+	RelaySentinelAfterID = math.MaxInt64
 	// maxDurableMessageCacheSize caps the number of recent durable message
 	// events cached per chat for same-replica stream catch-up.
 	maxDurableMessageCacheSize = 256
@@ -107,10 +115,15 @@ const (
 	// goroutines and lifecycle management.
 	streamDropWarnInterval = 10 * time.Second
 
-	// bufferRetainGracePeriod is how long the message_part
-	// buffer is kept after processing completes. This gives
-	// cross-replica relay subscribers time to connect and
-	// snapshot the buffer before it is garbage-collected.
+	// bufferRetainGracePeriod is how long the per-chat stream
+	// state is kept after processing completes. The retained
+	// state lets late-connecting cross-replica relay subscribers
+	// register against the live stream before the next worker
+	// run starts, preventing a race between cleanupStreamIfIdle
+	// and subscriber registration. The buffer itself is no
+	// longer useful at this point: every part has been claimed
+	// by its durable assistant message and is filtered out of
+	// the subscriber snapshot.
 	bufferRetainGracePeriod = 5 * time.Second
 	// chatStreamControlFetchTimeout bounds subscriber-owned
 	// control-path DB reads when the caller has no deadline.
@@ -477,6 +490,81 @@ func (p *Server) loadCachedWorkspaceContext(
 		tools = append(tools, chattool.NewWorkspaceMCPTool(t, getConn, invalidate))
 	}
 
+	return tools
+}
+
+// discoverWorkspaceMCPTools resolves the chat's workspace agent and
+// lists the workspace MCP tools advertised by that agent. Results are
+// cached per chat keyed on the agent ID so subsequent calls hit the
+// cache. Returns nil (and never an error) on every failure mode so the
+// caller can continue without MCP tools.
+//
+// This helper is shared between the top-of-turn discovery path and the
+// mid-turn PrepareTools path triggered after create_workspace /
+// start_workspace bind a workspace to a chat that started without one.
+func (p *Server) discoverWorkspaceMCPTools(
+	ctx context.Context,
+	logger slog.Logger,
+	chatID uuid.UUID,
+	workspaceCtx *turnWorkspaceContext,
+) []fantasy.AgentTool {
+	// Fast path: check cache using the in-memory cached agent
+	// (ensureWorkspaceAgent is free when already loaded). This
+	// avoids a per-turn latest-build DB query on the common
+	// subsequent-turn path.
+	if agent, agentErr := workspaceCtx.getWorkspaceAgent(ctx); agentErr == nil {
+		if tools := p.loadCachedWorkspaceContext(
+			chatID, agent, workspaceCtx.getWorkspaceConn,
+		); tools != nil {
+			return tools
+		}
+	} // Cache miss, agent changed, or no cache: validate
+	// that the workspace still has a live agent before
+	// attempting a dial.
+	_, _, agentErr := workspaceCtx.workspaceAgentIDForConn(ctx)
+	if agentErr != nil {
+		if xerrors.Is(agentErr, errChatHasNoWorkspaceAgent) {
+			p.workspaceMCPToolsCache.Delete(chatID)
+			return nil
+		}
+		logger.Warn(ctx, "failed to resolve workspace agent for MCP tools",
+			slog.Error(agentErr))
+		return nil
+	}
+
+	// List workspace MCP tools via the agent conn.
+	conn, connErr := workspaceCtx.getWorkspaceConn(ctx)
+	if connErr != nil {
+		logger.Warn(ctx, "failed to get workspace conn for MCP tools",
+			slog.Error(connErr))
+		return nil
+	}
+	listCtx, cancel := context.WithTimeout(ctx, workspaceMCPDiscoveryTimeout)
+	defer cancel()
+	toolsResp, listErr := conn.ListMCPTools(listCtx)
+	if listErr != nil {
+		logger.Warn(ctx, "failed to list workspace MCP tools",
+			slog.Error(listErr))
+		return nil
+	}
+	// Cache the result for subsequent turns. Skip caching when
+	// the list is empty because the agent's MCP Connect may not
+	// have finished yet; caching an empty list would hide tools
+	// permanently.
+	if len(toolsResp.Tools) > 0 {
+		if agent, agentErr := workspaceCtx.getWorkspaceAgent(ctx); agentErr == nil {
+			p.workspaceMCPToolsCache.Store(chatID, &cachedWorkspaceMCPTools{
+				agentID: agent.ID,
+				tools:   toolsResp.Tools,
+			})
+		}
+	}
+
+	invalidate := func() { p.workspaceMCPToolsCache.Delete(chatID) }
+	tools := make([]fantasy.AgentTool, 0, len(toolsResp.Tools))
+	for _, t := range toolsResp.Tools {
+		tools = append(tools, chattool.NewWorkspaceMCPTool(t, workspaceCtx.getWorkspaceConn, invalidate))
+	}
 	return tools
 }
 
@@ -1092,9 +1180,27 @@ type SubscribeFnParams struct {
 	Logger              slog.Logger
 }
 
+// bufferedStreamPart is a buffered message_part event with its
+// committed-message linkage. Parts that have not yet been claimed by
+// a durable assistant message carry committedMessageID == 0 and are
+// considered "in progress"; when an assistant message is published
+// every still-in-progress part is claimed by that durable message
+// ID, marking the part as redundant for any subscriber that will
+// receive the durable message via REST or pubsub.
+type bufferedStreamPart struct {
+	event codersdk.ChatStreamEvent
+	// committedMessageID is the durable assistant message ID that
+	// claimed this part, or 0 while the part belongs to the
+	// in-progress turn. snapshotBufferLocked drops parts with
+	// committedMessageID != 0 because the subscriber will receive
+	// the durable message through a different channel (REST snapshot,
+	// initial DB query in SubscribeAuthorized, or pubsub).
+	committedMessageID int64
+}
+
 type chatStreamState struct {
 	mu                   sync.Mutex
-	buffer               []codersdk.ChatStreamEvent
+	buffer               []bufferedStreamPart
 	buffering            bool
 	durableMessages      []codersdk.ChatStreamEvent
 	durableEvictedBefore int64 // highest message ID evicted from durable cache
@@ -1108,11 +1214,15 @@ type chatStreamState struct {
 	// to retry.
 	currentRetry *codersdk.ChatStreamRetry
 	// bufferRetainedAt records when processing completed and
-	// the buffer was retained for late-connecting relay
-	// subscribers. Zero while buffering is active. When
+	// the per-chat stream state entered the post-completion
+	// grace window. Zero while buffering is active. When
 	// non-zero, cleanupStreamIfIdle skips GC until the grace
-	// period expires so cross-replica relays can still
-	// snapshot the buffer.
+	// period expires so cross-replica relay subscribers can
+	// register without racing state deletion. The buffer
+	// itself does not deliver content here: every part is
+	// claimed by a durable assistant message before
+	// bufferRetainedAt is set, so snapshotBufferLocked
+	// returns no parts during the grace window.
 	bufferRetainedAt time.Time
 }
 
@@ -1301,6 +1411,10 @@ type EditMessageOptions struct {
 	CreatedBy       uuid.UUID
 	EditedMessageID int64
 	Content         []codersdk.ChatMessagePart
+	// ModelConfigID, when non-zero, overrides the model used for
+	// the replacement user message. When set to uuid.Nil the
+	// original message's model is preserved.
+	ModelConfigID uuid.UUID
 }
 
 // EditMessageResult contains the replacement user message and chat status.
@@ -1864,7 +1978,36 @@ func (p *Server) EditMessage(
 			return xerrors.Errorf("soft-delete later chat messages: %w", err)
 		}
 
-		// Insert a new message with the updated content.
+		// Resolve the model for the replacement message. When the
+		// caller does not specify a model, preserve the original
+		// message's model so an edit that only changes text keeps
+		// behaving as before.
+		messageModelConfigID := editedMsg.ModelConfigID.UUID
+		if opts.ModelConfigID != uuid.Nil {
+			if _, err := tx.GetChatModelConfigByID(
+				chatdModelConfigLookupContext(ctx),
+				opts.ModelConfigID,
+			); err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					return xerrors.Errorf(
+						"%w: %s",
+						ErrInvalidModelConfigID,
+						opts.ModelConfigID,
+					)
+				}
+				return xerrors.Errorf(
+					"get requested model config %s: %w",
+					opts.ModelConfigID,
+					err,
+				)
+			}
+			messageModelConfigID = opts.ModelConfigID
+		}
+
+		// Insert a new message with the updated content. The
+		// InsertChatMessages CTE updates chats.last_model_config_id
+		// when the new message's model differs, so the assistant turn
+		// that follows picks up the new selection.
 		msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
 			ChatID: opts.ChatID,
 		}
@@ -1872,7 +2015,7 @@ func (p *Server) EditMessage(
 			database.ChatMessageRoleUser,
 			content,
 			editedMsg.Visibility,
-			editedMsg.ModelConfigID.UUID,
+			messageModelConfigID,
 			chatprompt.CurrentContentVersion,
 		).withCreatedBy(opts.CreatedBy))
 		newMessages, err := insertChatMessageWithStore(ctx, tx, msgParams)
@@ -4144,10 +4287,15 @@ func (p *Server) publishToStream(chatID uuid.UUID, event codersdk.ChatStreamEven
 			// Zero the dropped slot so its *ChatStreamMessagePart is
 			// GC-eligible; the later append reuses this slot in place
 			// whenever cap > len.
-			state.buffer[0] = codersdk.ChatStreamEvent{}
+			state.buffer[0] = bufferedStreamPart{}
 			state.buffer = state.buffer[1:]
 		}
-		state.buffer = append(state.buffer, event)
+		state.buffer = append(state.buffer, bufferedStreamPart{
+			event: event,
+			// committedMessageID stays 0 here: the part belongs to
+			// the in-progress turn until publishMessage claims it
+			// with the committed assistant message ID.
+		})
 	}
 	subscribers := make([]chan codersdk.ChatStreamEvent, 0, len(state.subscribers))
 	for _, ch := range state.subscribers {
@@ -4230,6 +4378,49 @@ func (p *Server) getCachedDurableMessages(
 	return result
 }
 
+// snapshotBufferLocked returns the buffered message_part events that
+// the caller should receive in their initial snapshot.
+//
+// Parts whose committedMessageID != 0 are dropped: those parts were
+// claimed by a durable assistant message that the subscriber will
+// receive through a different channel (REST snapshot, the initial DB
+// query in SubscribeAuthorized, or pubsub catch-up). Delivering them
+// here would render the same content twice on the client, once in the
+// streaming UI and once as a durable message.
+//
+// Every caller receives the same view: in-progress parts are always
+// delivered and committed parts are always dropped, regardless of
+// cursor or relay sentinel. This keeps the buffer free of duplicate
+// work for every subscriber, including cross-replica relay
+// subscribers whose user-facing peers receive the durable message
+// via pubsub.
+//
+// The caller must hold the per-chat stream state lock.
+func snapshotBufferLocked(buffer []bufferedStreamPart) []codersdk.ChatStreamEvent {
+	if len(buffer) == 0 {
+		return nil
+	}
+	snapshot := make([]codersdk.ChatStreamEvent, 0, len(buffer))
+	for _, part := range buffer {
+		if part.committedMessageID != 0 {
+			continue
+		}
+		snapshot = append(snapshot, part.event)
+	}
+	return snapshot
+}
+
+// subscribeToStream registers a subscriber to the per-chat in-memory
+// stream and returns a snapshot of currently in-progress message_part
+// events plus the current retry phase, the live subscriber channel,
+// and a cancel func.
+//
+// Parts that were claimed by a committed durable assistant message
+// (committedMessageID != 0) are excluded from the snapshot. The
+// subscriber will receive those durable messages through the REST
+// snapshot, the initial DB query in SubscribeAuthorized, or pubsub,
+// so re-delivering their constituent parts here would render the
+// same content twice.
 func (p *Server) subscribeToStream(chatID uuid.UUID) (
 	[]codersdk.ChatStreamEvent,
 	*codersdk.ChatStreamRetry,
@@ -4238,7 +4429,7 @@ func (p *Server) subscribeToStream(chatID uuid.UUID) (
 ) {
 	state := p.getOrCreateStreamState(chatID)
 	state.mu.Lock()
-	snapshot := append([]codersdk.ChatStreamEvent(nil), state.buffer...)
+	snapshot := snapshotBufferLocked(state.buffer)
 	var currentRetry *codersdk.ChatStreamRetry
 	if state.currentRetry != nil {
 		retryCopy := *state.currentRetry
@@ -4296,8 +4487,8 @@ func (p *Server) cleanupStreamIfIdle(chatID uuid.UUID, state *chatStreamState) b
 		return false
 	}
 	// Keep stream state alive during the grace period so
-	// late-connecting relay subscribers can snapshot the
-	// buffer after the worker finishes processing.
+	// late-connecting cross-replica relay subscribers can
+	// register against this chat before GC.
 	if !state.bufferRetainedAt.IsZero() &&
 		p.clock.Now().Before(state.bufferRetainedAt.Add(bufferRetainGracePeriod)) {
 		return false
@@ -5222,10 +5413,49 @@ func (p *Server) publishMessage(chatID uuid.UUID, message database.ChatMessage) 
 		Message: &sdkMessage,
 	}
 	p.cacheDurableMessage(chatID, event)
+	// Claim every still-in-progress buffered message_part for this
+	// durable assistant message BEFORE publishing it, so any new
+	// subscriber that races publishEvent below takes a buffer
+	// snapshot in which the parts for this turn are already
+	// suppressed. Existing subscribers already received the
+	// constituent parts on the live channel; the frontend
+	// dedupes those against the durable message via
+	// clearStreamState in the same batch.
+	p.claimCommittedParts(chatID, message)
 	p.publishEvent(chatID, event)
 	p.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
 		AfterMessageID: message.ID - 1,
 	})
+}
+
+// claimCommittedParts walks the chat's buffered message_part events
+// and assigns every in-progress part (committedMessageID == 0) to
+// the supplied assistant message ID. Subsequent subscriber snapshots
+// drop those parts so a reconnecting client does not re-render the
+// content of an assistant turn that has already been delivered as a
+// durable message via REST or pubsub.
+//
+// Tool and user messages do not end an assistant streaming turn, so
+// only assistant-role messages claim parts.
+func (p *Server) claimCommittedParts(chatID uuid.UUID, message database.ChatMessage) {
+	if message.Role != database.ChatMessageRoleAssistant {
+		return
+	}
+	val, ok := p.chatStreams.Load(chatID)
+	if !ok {
+		return
+	}
+	state, ok := val.(*chatStreamState)
+	if !ok {
+		return
+	}
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	for i := range state.buffer {
+		if state.buffer[i].committedMessageID == 0 {
+			state.buffer[i].committedMessageID = message.ID
+		}
+	}
 }
 
 // publishEditedMessage is like publishMessage but uses FullRefresh
@@ -5686,11 +5916,18 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		streamState.currentRetry = nil
 		streamState.resetDropCounters()
 		streamState.buffering = false
-		// Retain the buffer for a grace period so
-		// cross-replica relay subscribers can still snapshot
-		// it after processing completes. The buffer is
+		// Retain the per-chat stream state for a grace period
+		// so cross-replica relay subscribers can register
+		// against this chat after processing completes,
+		// without racing cleanupStreamIfIdle. The buffer is
 		// cleared when the next processChat starts or when
-		// cleanupStreamIfIdle runs after the grace period.
+		// cleanupStreamIfIdle runs after the grace period; on
+		// the normal-completion path every part has been
+		// claimed by its durable assistant message, so the
+		// snapshot is empty. On error or panic exit some parts
+		// may still be in-progress; those are likewise
+		// discarded when the buffer is cleared, and the
+		// frontend recovers via the next REST snapshot.
 		streamState.bufferRetainedAt = p.clock.Now()
 		streamState.mu.Unlock()
 	}()
@@ -5821,7 +6058,7 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 			if lastErrorPayload != nil {
 				lastErrorMessage = lastErrorPayload.Message
 			}
-			p.maybeFinalizeTurnSummaryAndPush(
+			p.maybeFinalizeTurnStatusLabelAndPush(
 				cleanupCtx,
 				finishResult.updatedChat,
 				status,
@@ -5938,7 +6175,7 @@ func (t *generatedChatTitle) Load() (string, bool) {
 
 type runChatResult struct {
 	FinalAssistantText      string
-	PushSummaryModel        fantasy.LanguageModel
+	StatusLabelModel        fantasy.LanguageModel
 	ProviderKeys            chatprovider.ProviderAPIKeys
 	PendingDynamicToolCalls []chatloop.PendingToolCall
 	FallbackProvider        string
@@ -6523,7 +6760,7 @@ func (p *Server) runChat(
 	}
 
 	chainInfo := chatopenai.ResolveChainMode(messages)
-	result.PushSummaryModel = model
+	result.StatusLabelModel = model
 	result.ProviderKeys = providerKeys
 	result.FallbackProvider = modelConfig.Provider
 	result.FallbackModel = modelConfig.Model
@@ -6534,7 +6771,7 @@ func (p *Server) runChat(
 	// Snapshot model, logger, and ctx before launch; all three get
 	// reassigned below (model = cuModel, logger = logger.With(...),
 	// ctx = runCtx) and the goroutine captures by reference.
-	titleModel := result.PushSummaryModel
+	titleModel := model
 	titleLogger := logger
 	titleCtx := context.WithoutCancel(ctx)
 	p.inflight.Add(1)
@@ -6740,75 +6977,21 @@ func (p *Server) runChat(
 			mcpTokens = p.refreshExpiredMCPTokens(ctx, logger, mcpConnectConfigs, mcpTokens)
 			mcpTools, mcpCleanup = mcpclient.ConnectAll(
 				ctx, logger, mcpConnectConfigs, mcpTokens, chat.OwnerID, p.oidcTokenSource,
+				chatprovider.CoderHeaders(chat),
 			)
 			return nil
 		})
 	}
 	// Workspace MCP discovery stays disabled for all plan-mode turns.
 	// Root plan mode only gets approved external MCP servers, and
-	// plan-mode subagents get no MCP tools.
+	// plan-mode subagents get no MCP tools. When the chat has no
+	// workspace yet, discovery happens mid-turn via the chatloop
+	// PrepareTools callback installed below in chatloop.Run options.
 	if chat.WorkspaceID.Valid && !isPlanModeTurn {
 		g2.Go(func() error {
-			// Fast path: check cache using the in-memory cached
-			// agent (ensureWorkspaceAgent is free when already
-			// loaded). This avoids a per-turn latest-build DB
-			// query on the common subsequent-turn path.
-			agent, agentErr := workspaceCtx.getWorkspaceAgent(ctx)
-			if agentErr == nil {
-				if workspaceMCPTools = p.loadCachedWorkspaceContext(
-					chat.ID, agent, workspaceCtx.getWorkspaceConn,
-				); workspaceMCPTools != nil {
-					return nil
-				}
-			} // Cache miss, agent changed, or no cache: validate
-			// that the workspace still has a live agent before
-			// attempting a dial.
-			_, _, agentErr = workspaceCtx.workspaceAgentIDForConn(ctx)
-			if agentErr != nil {
-				if xerrors.Is(agentErr, errChatHasNoWorkspaceAgent) {
-					p.workspaceMCPToolsCache.Delete(chat.ID)
-					return nil
-				}
-				logger.Warn(ctx, "failed to resolve workspace agent for MCP tools",
-					slog.Error(agentErr))
-				return nil
-			}
-
-			// List workspace MCP tools via the agent conn.
-			conn, connErr := workspaceCtx.getWorkspaceConn(ctx)
-			if connErr != nil {
-				logger.Warn(ctx, "failed to get workspace conn for MCP tools",
-					slog.Error(connErr))
-				return nil
-			}
-			listCtx, cancel := context.WithTimeout(ctx, workspaceMCPDiscoveryTimeout)
-			defer cancel()
-			toolsResp, listErr := conn.ListMCPTools(listCtx)
-			if listErr != nil {
-				logger.Warn(ctx, "failed to list workspace MCP tools",
-					slog.Error(listErr))
-				return nil
-			}
-			// Cache the result for subsequent turns. Skip
-			// caching when the list is empty because the
-			// agent's MCP Connect may not have finished yet;
-			// caching an empty list would hide tools
-			// permanently.
-			if len(toolsResp.Tools) > 0 {
-				if agent, agentErr := workspaceCtx.getWorkspaceAgent(ctx); agentErr == nil {
-					p.workspaceMCPToolsCache.Store(chat.ID, &cachedWorkspaceMCPTools{
-						agentID: agent.ID,
-						tools:   toolsResp.Tools,
-					})
-				}
-			}
-
-			invalidate := func() { p.workspaceMCPToolsCache.Delete(chat.ID) }
-			for _, t := range toolsResp.Tools {
-				workspaceMCPTools = append(workspaceMCPTools,
-					chattool.NewWorkspaceMCPTool(t, workspaceCtx.getWorkspaceConn, invalidate),
-				)
-			}
+			workspaceMCPTools = p.discoverWorkspaceMCPTools(
+				ctx, logger, chat.ID, &workspaceCtx,
+			)
 			return nil
 		})
 	}
@@ -6855,6 +7038,15 @@ func (p *Server) runChat(
 	}
 
 	instructionInjected := instruction != ""
+	// workspaceMCPDiscovered tracks whether workspace MCP discovery
+	// has already been attempted for this turn. The top-of-turn
+	// discovery path above only fires when chat.WorkspaceID is
+	// valid at the start of the turn. For chats that bind a
+	// workspace mid-turn (e.g. via create_workspace) the chatloop
+	// PrepareTools callback below triggers discovery on the next
+	// step. After discovery has run once (here or in PrepareTools),
+	// this flag prevents redundant dials.
+	workspaceMCPDiscovered := chat.WorkspaceID.Valid || isPlanModeTurn
 	prompt = renderPlanPathPrompt(prompt, resolvePlanPathBlock(ctx))
 	setAdvisorPromptSnapshot(prompt)
 	// Use the model config's context_limit as a fallback when the LLM
@@ -7073,9 +7265,10 @@ func (p *Server) runChat(
 			}
 		}
 
-		// Do NOT clear the stream buffer here. Cross-replica
-		// relay subscribers may still need to snapshot buffered
-		// message_parts after processing completes. The buffer
+		// Do NOT clear the stream buffer here. The per-chat
+		// stream state must remain alive for the post-completion
+		// grace window so cross-replica relay subscribers can
+		// register without racing cleanupStreamIfIdle. The buffer
 		// is bounded by maxStreamBufferSize and is cleared when
 		// the next processChat starts or when the stream state
 		// is garbage-collected after the retention grace period.
@@ -7249,6 +7442,28 @@ func (p *Server) runChat(
 				// when forwarded to the advisor, whose nested run has
 				// no tools. Strip it before handing the snapshot over.
 				return stripAdvisorGuidanceBlock(slices.Clone(advisorPromptSnapshot))
+			},
+			PublishAdviceDelta: func(toolCallID string, delta string) {
+				if toolCallID == "" || delta == "" {
+					return
+				}
+				p.publishMessagePart(chat.ID, codersdk.ChatMessageRoleTool, codersdk.ChatMessagePart{
+					Type:        codersdk.ChatMessagePartTypeToolResult,
+					ToolCallID:  toolCallID,
+					ToolName:    chatadvisor.ToolName,
+					ResultDelta: delta,
+				})
+			},
+			PublishAdviceReset: func(toolCallID string) {
+				if toolCallID == "" {
+					return
+				}
+				p.publishMessagePart(chat.ID, codersdk.ChatMessageRoleTool, codersdk.ChatMessagePart{
+					Type:        codersdk.ChatMessagePartTypeToolResult,
+					ToolCallID:  toolCallID,
+					ToolName:    chatadvisor.ToolName,
+					ResultReset: true,
+				})
 			},
 		}))
 	}
@@ -7529,6 +7744,29 @@ func (p *Server) runChat(
 		},
 		DisableChainMode: func() {
 			chainModeActive = false
+		},
+		PrepareTools: func(currentTools []fantasy.AgentTool) []fantasy.AgentTool {
+			// Mid-turn workspace MCP discovery for chats that bind a
+			// workspace via create_workspace or start_workspace
+			// after the turn has already started. The top-of-turn
+			// discovery path is gated on chat.WorkspaceID.Valid; this
+			// callback bridges the gap so the LLM sees workspace MCP
+			// tools on the very next step instead of the turn after.
+			if workspaceMCPDiscovered || isExploreSubagent {
+				return nil
+			}
+			snapshot := workspaceCtx.currentChatSnapshot()
+			if !snapshot.WorkspaceID.Valid {
+				return nil
+			}
+			workspaceMCPDiscovered = true
+			discovered := p.discoverWorkspaceMCPTools(
+				ctx, loopLogger, chat.ID, &workspaceCtx,
+			)
+			if len(discovered) == 0 {
+				return nil
+			}
+			return append(slices.Clone(currentTools), discovered...)
 		},
 		PrepareMessages: func(msgs []fantasy.Message) []fantasy.Message {
 			// Skip the snapshot update when chain mode is active;
@@ -8631,9 +8869,9 @@ func parseDynamicToolNames(raw pqtype.NullRawMessage) (map[string]bool, error) {
 	return names, nil
 }
 
-// maybeFinalizeTurnSummaryAndPush updates the cached turn summary for
-// parent chats and optionally sends a web push notification.
-func (p *Server) maybeFinalizeTurnSummaryAndPush(
+// maybeFinalizeTurnStatusLabelAndPush updates the cached turn status label
+// for parent chats and optionally sends a web push notification.
+func (p *Server) maybeFinalizeTurnStatusLabelAndPush(
 	ctx context.Context,
 	chat database.Chat,
 	status database.ChatStatus,
@@ -8647,15 +8885,15 @@ func (p *Server) maybeFinalizeTurnSummaryAndPush(
 
 	switch status {
 	case database.ChatStatusWaiting:
-		p.finalizeSuccessfulTurnSummaryAndPush(ctx, chat, runResult, logger)
+		p.finalizeSuccessfulTurnStatusLabelAndPush(ctx, chat, status, runResult, logger)
 
 	case database.ChatStatusPending:
-		p.finalizeSuccessfulTurnSummary(ctx, chat, runResult, logger)
+		p.setLastTurnSummaryAsync(ctx, chat, fallbackTurnStatusLabel(status), logger)
 
 	case database.ChatStatusError:
 		p.clearLastTurnSummaryAsync(ctx, chat, logger)
 		if p.webpushConfigured() {
-			pushBody := "Agent encountered an error."
+			pushBody := fallbackTurnStatusLabel(status)
 			if lastError != "" {
 				pushBody = lastError
 			}
@@ -8663,87 +8901,101 @@ func (p *Server) maybeFinalizeTurnSummaryAndPush(
 		}
 
 	case database.ChatStatusRequiresAction:
-		p.clearLastTurnSummaryAsync(ctx, chat, logger)
+		p.setLastTurnSummaryAsync(ctx, chat, fallbackTurnStatusLabel(status), logger)
 
 	default:
 		// New statuses must be classified before they can safely
-		// preserve or finalize a cached turn summary.
+		// preserve or finalize a cached turn status label.
 		p.clearLastTurnSummaryAsync(ctx, chat, logger)
 	}
 }
 
-func (p *Server) finalizeSuccessfulTurnSummary(
+func (p *Server) finalizeSuccessfulTurnStatusLabelAndPush(
 	ctx context.Context,
 	chat database.Chat,
+	status database.ChatStatus,
 	runResult runChatResult,
 	logger slog.Logger,
 ) {
-	p.finalizeSuccessfulTurnSummaryWithAfterFunc(ctx, chat, runResult, logger, func(context.Context, string) {})
-}
-
-func (p *Server) finalizeSuccessfulTurnSummaryAndPush(
-	ctx context.Context,
-	chat database.Chat,
-	runResult runChatResult,
-	logger slog.Logger,
-) {
-	p.finalizeSuccessfulTurnSummaryWithAfterFunc(ctx, chat, runResult, logger, func(finalizeCtx context.Context, summary string) {
-		p.dispatchSuccessfulTurnPush(finalizeCtx, chat, summary, logger)
+	p.finalizeSuccessfulTurnStatusLabelWithAfterFunc(ctx, chat, status, runResult, logger, func(finalizeCtx context.Context, statusLabel string) {
+		p.dispatchSuccessfulTurnPush(finalizeCtx, chat, statusLabel, logger)
 	})
 }
 
-func (p *Server) finalizeSuccessfulTurnSummaryWithAfterFunc(
+func (p *Server) finalizeSuccessfulTurnStatusLabelWithAfterFunc(
 	ctx context.Context,
 	chat database.Chat,
+	status database.ChatStatus,
 	runResult runChatResult,
 	logger slog.Logger,
 	afterFinalize func(context.Context, string),
 ) {
-	debugSvc := p.existingDebugService()
 	// This helper runs during processChat cleanup, while processChat is
 	// still counted in p.inflight. Do not take inflightMu here because
 	// drainInflight holds it while waiting.
 	p.inflight.Go(func() {
 		finalizeCtx := context.WithoutCancel(ctx)
-		summary := ""
-		assistantText := strings.TrimSpace(runResult.FinalAssistantText)
-		if assistantText != "" && runResult.PushSummaryModel != nil {
-			summary = strings.TrimSpace(generatePushSummary(
-				finalizeCtx,
-				chat,
-				assistantText,
-				runResult.FallbackProvider,
-				runResult.FallbackModel,
-				runResult.PushSummaryModel,
-				runResult.ProviderKeys,
-				logger,
-				debugSvc,
-				runResult.TriggerMessageID,
-				runResult.HistoryTipMessageID,
-			))
-		}
+		statusLabel := p.generateFinalTurnStatusLabel(finalizeCtx, chat, status, runResult, logger)
+		logger.Debug(finalizeCtx, "generated chat turn status label",
+			slog.F("chat_id", chat.ID),
+			slog.F("status", status),
+			slog.F("label_length", len(statusLabel)),
+		)
 
-		shouldPersistSummary := summary != "" || chat.LastTurnSummary.Valid
-		if shouldPersistSummary {
-			p.updateLastTurnSummary(finalizeCtx, chat, chat.UpdatedAt, summary, logger)
-		}
+		p.updateLastTurnSummary(finalizeCtx, chat, chat.UpdatedAt, statusLabel, logger)
 
-		afterFinalize(finalizeCtx, summary)
+		afterFinalize(finalizeCtx, statusLabel)
 	})
+}
+
+func (p *Server) generateFinalTurnStatusLabel(
+	ctx context.Context,
+	chat database.Chat,
+	status database.ChatStatus,
+	runResult runChatResult,
+	logger slog.Logger,
+) string {
+	if status != database.ChatStatusWaiting {
+		return fallbackTurnStatusLabel(status)
+	}
+
+	assistantText := strings.TrimSpace(runResult.FinalAssistantText)
+	if assistantText == "" || runResult.StatusLabelModel == nil {
+		return fallbackTurnStatusLabel(status)
+	}
+
+	statusLabel := generateTurnStatusLabel(
+		ctx,
+		chat,
+		status,
+		assistantText,
+		runResult.FallbackProvider,
+		runResult.FallbackModel,
+		runResult.StatusLabelModel,
+		runResult.ProviderKeys,
+		logger,
+		p.existingDebugService(),
+		runResult.TriggerMessageID,
+		runResult.HistoryTipMessageID,
+	)
+	if statusLabel == "" {
+		return fallbackTurnStatusLabel(status)
+	}
+	return statusLabel
 }
 
 func (p *Server) dispatchSuccessfulTurnPush(
 	ctx context.Context,
 	chat database.Chat,
-	summary string,
+	statusLabel string,
 	logger slog.Logger,
 ) {
 	if !p.webpushConfigured() {
 		return
 	}
-	pushBody := "Agent has finished running."
-	if summary != "" {
-		pushBody = summary
+	pushBody := fallbackTurnStatusLabel(database.ChatStatusWaiting)
+	if statusLabel != "" {
+		pushBody = statusLabel
 	}
 	p.dispatchPush(ctx, chat, pushBody, database.ChatStatusWaiting, logger)
 }
@@ -8757,6 +9009,28 @@ func (p *Server) maybeClearLastTurnSummaryAsync(
 		return
 	}
 	p.clearLastTurnSummaryAsync(ctx, chat, logger)
+}
+
+func (p *Server) setLastTurnSummaryAsync(
+	ctx context.Context,
+	chat database.Chat,
+	summary string,
+	logger slog.Logger,
+) {
+	summary = strings.TrimSpace(summary)
+	if summary == "" {
+		p.clearLastTurnSummaryAsync(ctx, chat, logger)
+		return
+	}
+	if chat.LastTurnSummary.Valid && strings.TrimSpace(chat.LastTurnSummary.String) == summary {
+		return
+	}
+	// This helper runs during processChat cleanup, while processChat is
+	// still counted in p.inflight. Do not take inflightMu here because
+	// drainInflight holds it while waiting.
+	p.inflight.Go(func() {
+		p.updateLastTurnSummary(context.WithoutCancel(ctx), chat, chat.UpdatedAt, summary, logger)
+	})
 }
 
 func (p *Server) clearLastTurnSummaryAsync(
@@ -8790,7 +9064,7 @@ func (p *Server) updateLastTurnSummary(
 
 	//nolint:gocritic // Narrow daemon access for best-effort summary cache writes.
 	updateCtx := dbauthz.AsChatd(ctx)
-	updateCtx, cancel := context.WithTimeout(updateCtx, turnSummaryWriteTimeout)
+	updateCtx, cancel := context.WithTimeout(updateCtx, turnStatusLabelWriteTimeout)
 	defer cancel()
 
 	affected, err := p.db.UpdateChatLastTurnSummary(updateCtx, database.UpdateChatLastTurnSummaryParams{

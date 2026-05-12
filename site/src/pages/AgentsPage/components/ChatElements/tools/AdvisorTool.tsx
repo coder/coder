@@ -110,7 +110,7 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 				data-testid="advisor-tool-scroll-area"
 			>
 				<div className="space-y-3 px-3 py-2">
-					{isRunning ? (
+					{isRunning && adviceText.length === 0 ? (
 						<div role="status" className="text-sm text-content-secondary">
 							Reviewing context and preparing guidance.
 						</div>
@@ -147,7 +147,10 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 									Advice
 								</span>
 							</div>
-							<Response className="[&_h1]:mb-2 [&_h1]:mt-3 [&_h1]:text-[15px] [&_h2]:mb-1.5 [&_h2]:mt-3 [&_h2]:text-sm [&_h3]:mb-1 [&_h3]:mt-2.5 [&_h3]:text-[13px] [&_h4]:mt-2 [&_h4]:text-[13px] [&_h5]:text-xs [&_h6]:text-xs">
+							<Response
+								streaming={isRunning}
+								className="[&_h1]:mb-2 [&_h1]:mt-3 [&_h1]:text-[15px] [&_h2]:mb-1.5 [&_h2]:mt-3 [&_h2]:text-sm [&_h3]:mb-1 [&_h3]:mt-2.5 [&_h3]:text-[13px] [&_h4]:mt-2 [&_h4]:text-[13px] [&_h5]:text-xs [&_h6]:text-xs"
+							>
 								{adviceText || EMPTY_ADVICE_MESSAGE}
 							</Response>
 						</section>
