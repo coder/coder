@@ -1413,7 +1413,7 @@ func TestChatWithMCPServerIDs(t *testing.T) {
 
 func createChatModelConfigForMCP(t testing.TB, client *codersdk.ExperimentalClient) codersdk.ChatModelConfig {
 	t.Helper()
-	return coderdtest.CreateOpenAICompatChatModelConfig(t, client)
+	return coderdtest.CreateOpenAICompatChatModelConfig(t, client, "")
 }
 
 func TestMCPOAuth2DiscoveryEdgeCases(t *testing.T) {

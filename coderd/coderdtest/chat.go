@@ -46,38 +46,12 @@ func FakeOpenAICompatProviderAPIKeys(t testing.TB) chatprovider.ProviderAPIKeys 
 	return OpenAICompatProviderAPIKeys(chattest.OpenAI(t))
 }
 
-// WithFakeOpenAICompatProvider starts a fake OpenAI-compatible provider and
-// installs it into Options. Use this before creating the coderd test server so
-// the fake provider outlives the chat daemon during test cleanup.
-func WithFakeOpenAICompatProvider(t testing.TB) func(*Options) {
-	t.Helper()
-	keys := FakeOpenAICompatProviderAPIKeys(t)
-	return func(options *Options) {
-		options.ChatProviderAPIKeys = &keys
-	}
-}
-
 // CreateOpenAICompatChatModelConfig creates the default provider and model
-// config used by chat runtime tests. Tests that create chats should also use
-// WithFakeOpenAICompatProvider, or otherwise set Options.ChatProviderAPIKeys,
-// so background chat work routes to a local provider until coderd closes.
-func CreateOpenAICompatChatModelConfig(t testing.TB, client *codersdk.ExperimentalClient) codersdk.ChatModelConfig {
-	t.Helper()
-	return provisionOpenAICompatChatModelConfig(t, client, "")
-}
-
-// CreateOpenAICompatChatModelConfigWithBaseURL creates the default provider and
-// model config using the supplied OpenAI-compatible base URL.
-func CreateOpenAICompatChatModelConfigWithBaseURL(
-	t testing.TB,
-	client *codersdk.ExperimentalClient,
-	baseURL string,
-) codersdk.ChatModelConfig {
-	t.Helper()
-	return provisionOpenAICompatChatModelConfig(t, client, baseURL)
-}
-
-func provisionOpenAICompatChatModelConfig(
+// config used by chat runtime tests. Tests that create chats should also set
+// Options.ChatProviderAPIKeys, usually via FakeOpenAICompatProviderAPIKeys, so
+// background chat work routes to a local provider until coderd closes. baseURL,
+// when non-empty, is stored on the provider config.
+func CreateOpenAICompatChatModelConfig(
 	t testing.TB,
 	client *codersdk.ExperimentalClient,
 	baseURL string,
@@ -115,25 +89,40 @@ func WaitForChatSettled(
 	t.Helper()
 
 	require.NotNil(t, api)
-	// Test helper needs system scope to observe chatd-owned status changes.
-	//nolint:gocritic
-	systemCtx := dbauthz.AsSystemRestricted(ctx)
-	var settled database.Chat
-	require.Eventually(t, func() bool {
-		chat, err := api.Database.GetChatByID(systemCtx, chatID)
-		if err != nil {
-			return false
-		}
-		settled = chat
-		return chat.Status != database.ChatStatusPending && chat.Status != database.ChatStatusRunning
-	}, testutil.WaitLong, testutil.IntervalFast)
+	waitForChatTerminalState(ctx, t, api.Database, chatID)
 
 	server := api.ChatDaemonForTest()
 	require.NotNil(t, server)
 	chatd.WaitUntilIdleForTest(server)
 
-	var err error
-	settled, err = api.Database.GetChatByID(systemCtx, chatID)
+	chat, err := getChatByIDAsSystem(ctx, api.Database, chatID)
 	require.NoError(t, err)
-	return settled
+	return chat
+}
+
+func waitForChatTerminalState(
+	ctx context.Context,
+	t testing.TB,
+	db database.Store,
+	chatID uuid.UUID,
+) {
+	t.Helper()
+
+	require.Eventually(t, func() bool {
+		chat, err := getChatByIDAsSystem(ctx, db, chatID)
+		if err != nil {
+			return false
+		}
+		return chat.Status != database.ChatStatusPending && chat.Status != database.ChatStatusRunning
+	}, testutil.WaitLong, testutil.IntervalFast)
+}
+
+func getChatByIDAsSystem(
+	ctx context.Context,
+	db database.Store,
+	chatID uuid.UUID,
+) (database.Chat, error) {
+	// Test helper needs system scope to observe chatd-owned status changes.
+	//nolint:gocritic
+	return db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chatID)
 }

@@ -61,6 +61,10 @@ func chatDeploymentValues(t testing.TB) *codersdk.DeploymentValues {
 	return values
 }
 
+// newChatTestOptions builds coderdtest options for chat runtime tests. Unless
+// a test sets ChatProviderAPIKeys explicitly, it installs a fake
+// OpenAI-compatible provider before coderd starts so background chat work stays
+// local, and the fake server outlives chatd during cleanup.
 func newChatTestOptions(
 	t testing.TB,
 	values *codersdk.DeploymentValues,
@@ -75,7 +79,8 @@ func newChatTestOptions(
 		override(opts)
 	}
 	if opts.ChatProviderAPIKeys == nil {
-		coderdtest.WithFakeOpenAICompatProvider(t)(opts)
+		providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
+		opts.ChatProviderAPIKeys = &providerKeys
 	}
 	return opts
 }
@@ -9753,14 +9758,18 @@ func TestWatchChatGitAuthz(t *testing.T) {
 
 func createChatModelConfig(t testing.TB, client *codersdk.ExperimentalClient) codersdk.ChatModelConfig {
 	t.Helper()
-	return coderdtest.CreateOpenAICompatChatModelConfig(t, client)
+	return coderdtest.CreateOpenAICompatChatModelConfig(t, client, "")
 }
 
 func createChatModelConfigWithBaseURL(t testing.TB, client *codersdk.ExperimentalClient, baseURL string) codersdk.ChatModelConfig {
 	t.Helper()
-	return coderdtest.CreateOpenAICompatChatModelConfigWithBaseURL(t, client, baseURL)
+	return coderdtest.CreateOpenAICompatChatModelConfig(t, client, baseURL)
 }
 
+// createChatModelConfigWithTitleFailure provisions a model whose streaming chat
+// responses succeed, while non-streaming requests fail. The non-streaming path
+// is how quick title generation requests structured output, so tests can fail
+// title generation without breaking the main assistant response.
 func createChatModelConfigWithTitleFailure(t testing.TB, client *codersdk.ExperimentalClient) codersdk.ChatModelConfig {
 	t.Helper()
 	baseURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
