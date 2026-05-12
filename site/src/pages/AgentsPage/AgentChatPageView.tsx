@@ -27,6 +27,7 @@ import {
 	RightPanelSkeleton,
 } from "./components/AgentsSkeletons";
 import type { useChatStore } from "./components/ChatConversation/chatStore";
+import { PinnedThinkingBanner } from "./components/ChatConversation/LiveStreamTail";
 import type { ModelSelectorOption } from "./components/ChatElements";
 import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPanelContext";
 import type { PendingAttachment } from "./components/ChatPageContent";
@@ -518,6 +519,12 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								/>
 							</div>
 						</ChatScrollContainer>
+						<div className="shrink-0 px-4">
+							<PinnedThinkingBanner
+								store={store}
+								persistedError={persistedError}
+							/>
+						</div>
 						<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 [scrollbar-gutter:stable] [scrollbar-width:thin]">
 							<ChatPageInput
 								organizationId={organizationId}

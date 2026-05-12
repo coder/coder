@@ -1,3 +1,4 @@
+import type { FC } from "react";
 import { useQuery } from "react-query";
 import { Link } from "react-router";
 import type { UrlTransform } from "streamdown";
@@ -61,8 +62,6 @@ export const LiveStreamTailContent = ({
 	urlTransform,
 	mcpServers,
 }: LiveStreamTailContentProps) => {
-	const prefQuery = useQuery(preferenceSettings());
-	const thinkingDisplayMode = prefQuery.data?.thinking_display_mode || "auto";
 	const shouldRenderStreamSection = shouldRenderStreamingSection(liveStatus);
 	const terminalStatus = liveStatus.phase === "failed" ? liveStatus : null;
 	const usageLimitStatus =
@@ -70,22 +69,10 @@ export const LiveStreamTailContent = ({
 	const shouldRenderEmptyState =
 		isTranscriptEmpty && liveStatus.phase === "idle";
 
-	// In pinned mode, show "Thinking..." at the bottom of the chat
-	// while the agent is working and hasn't started writing response
-	// text yet. This is the only thinking indicator in pinned mode.
-	const isAgentWorking =
-		liveStatus.phase !== "idle" && liveStatus.phase !== "failed";
-	const streamHasResponse = streamState?.blocks
-		? hasResponseBlock(streamState.blocks)
-		: false;
-	const showPinnedIndicator =
-		thinkingDisplayMode === "pinned" && isAgentWorking && !streamHasResponse;
-
 	if (
 		!shouldRenderEmptyState &&
 		!shouldRenderStreamSection &&
-		!terminalStatus &&
-		!showPinnedIndicator
+		!terminalStatus
 	) {
 		return null;
 	}
@@ -124,7 +111,6 @@ export const LiveStreamTailContent = ({
 			) : terminalStatus ? (
 				<ChatStatusCallout status={terminalStatus} />
 			) : null}
-			{showPinnedIndicator && <PinnedThinkingIndicator />}
 		</div>
 	);
 };
@@ -189,4 +175,47 @@ export const LiveStreamTail = ({
 			mcpServers={mcpServers}
 		/>
 	);
+};
+
+/**
+ * Renders the pinned "Thinking..." indicator outside the scroll
+ * container, in a fixed spot just above the chat input. Reads
+ * store state directly so it can be placed anywhere in the tree.
+ */
+export const PinnedThinkingBanner: FC<{
+	store: ChatStoreHandle;
+	persistedError: ChatDetailError | undefined;
+}> = ({ store, persistedError }) => {
+	const prefQuery = useQuery(preferenceSettings());
+	const mode = prefQuery.data?.thinking_display_mode || "auto";
+
+	const streamState = useChatSelector(store, selectStreamState);
+	const streamError = useChatSelector(store, selectStreamError);
+	const retryState = useChatSelector(store, selectRetryState);
+	const reconnectState = useChatSelector(store, selectReconnectState);
+	const isAwaitingFirstStreamChunk = useChatSelector(
+		store,
+		selectIsAwaitingFirstStreamChunk,
+	);
+
+	const liveStatus = deriveLiveStatus({
+		streamState,
+		retryState,
+		reconnectState,
+		streamError,
+		persistedError: persistedError ?? null,
+		isAwaitingFirstStreamChunk,
+	});
+
+	const isAgentWorking =
+		liveStatus.phase !== "idle" && liveStatus.phase !== "failed";
+	const streamHasResponse = streamState?.blocks
+		? hasResponseBlock(streamState.blocks)
+		: false;
+
+	if (mode !== "pinned" || !isAgentWorking || streamHasResponse) {
+		return null;
+	}
+
+	return <PinnedThinkingIndicator />;
 };

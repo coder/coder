@@ -47,14 +47,15 @@ const StreamingThinkingPlaceholder: FC = () => (
 );
 
 /**
- * Persistent thinking indicator rendered by LiveStreamTailContent.
- * Shows at the bottom of the chat while the agent is working
- * and hasn't started writing response text yet.
+ * Persistent thinking indicator rendered between the scroll
+ * container and the chat input. Shows at a fixed position
+ * just above the input while the agent is working and hasn't
+ * started writing response text yet.
  */
 export const PinnedThinkingIndicator: FC = () => (
 	<div className="flex w-full items-center gap-2 py-1 text-content-secondary">
 		<Shimmer as="span" className="text-[13px] leading-relaxed">
-			Thinking...
+			Weeping...
 		</Shimmer>
 	</div>
 );
