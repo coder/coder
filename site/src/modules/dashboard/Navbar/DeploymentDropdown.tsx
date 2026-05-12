@@ -12,6 +12,7 @@ import { linkToAuditing } from "#/modules/navigation";
 
 interface DeploymentDropdownProps {
 	canViewDeployment: boolean;
+	canViewOrganizations: boolean;
 	canViewAuditLog: boolean;
 	canViewConnectionLog: boolean;
 	canViewHealth: boolean;
@@ -20,6 +21,7 @@ interface DeploymentDropdownProps {
 
 export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
 	canViewDeployment,
+	canViewOrganizations,
 	canViewAuditLog,
 	canViewConnectionLog,
 	canViewHealth,
@@ -29,6 +31,7 @@ export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
 		!canViewAuditLog &&
 		!canViewConnectionLog &&
 		!canViewDeployment &&
+		!canViewOrganizations &&
 		!canViewHealth &&
 		!canViewAIBridge
 	) {
@@ -47,6 +50,7 @@ export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
 			<DropdownMenuContent align="end" className="w-[180px] min-w-auto">
 				<DeploymentDropdownContent
 					canViewDeployment={canViewDeployment}
+					canViewOrganizations={canViewOrganizations}
 					canViewAuditLog={canViewAuditLog}
 					canViewConnectionLog={canViewConnectionLog}
 					canViewHealth={canViewHealth}
@@ -74,7 +78,6 @@ const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
 			<DropdownMenuItem asChild>
 				<Link to="/organizations">Organizations</Link>
 			</DropdownMenuItem>
-
 			{canViewAuditLog && (
 				<DropdownMenuItem asChild>
 					<Link to={linkToAuditing}>Audit Logs</Link>

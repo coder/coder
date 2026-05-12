@@ -87,7 +87,7 @@ export const ForOrgAdmin: Story = {
 export const ForSingleOrgOSSAdmin: Story = {
 	args: {
 		canViewAuditLog: false,
-		canViewOrganizations: true,
+		canViewOrganizations: false,
 		canViewConnectionLog: false,
 		canViewAIBridge: false,
 	},
