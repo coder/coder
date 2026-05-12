@@ -115,10 +115,15 @@ const (
 	// goroutines and lifecycle management.
 	streamDropWarnInterval = 10 * time.Second
 
-	// bufferRetainGracePeriod is how long the message_part
-	// buffer is kept after processing completes. This gives
-	// cross-replica relay subscribers time to connect and
-	// snapshot the buffer before it is garbage-collected.
+	// bufferRetainGracePeriod is how long the per-chat stream
+	// state is kept after processing completes. The retained
+	// state lets late-connecting cross-replica relay subscribers
+	// register against the live stream before the next worker
+	// run starts, preventing a race between cleanupStreamIfIdle
+	// and subscriber registration. The buffer itself is no
+	// longer useful at this point: every part has been claimed
+	// by its durable assistant message and is filtered out of
+	// the subscriber snapshot.
 	bufferRetainGracePeriod = 5 * time.Second
 	// chatStreamControlFetchTimeout bounds subscriber-owned
 	// control-path DB reads when the caller has no deadline.
@@ -1104,13 +1109,13 @@ type SubscribeFnParams struct {
 // committed-message linkage. Parts that have not yet been claimed by
 // a durable assistant message carry committedMessageID == 0 and are
 // considered "in progress"; when an assistant message is published
-// every still-in-progress part is stamped with that durable message
+// every still-in-progress part is claimed by that durable message
 // ID, marking the part as redundant for any subscriber that will
 // receive the durable message via REST or pubsub.
 type bufferedStreamPart struct {
 	event codersdk.ChatStreamEvent
 	// committedMessageID is the durable assistant message ID that
-	// claimed this part, or 0 while the part is still part of the
+	// claimed this part, or 0 while the part belongs to the
 	// in-progress turn. snapshotBufferLocked drops parts with
 	// committedMessageID != 0 because the subscriber will receive
 	// the durable message through a different channel (REST snapshot,
@@ -1134,11 +1139,15 @@ type chatStreamState struct {
 	// to retry.
 	currentRetry *codersdk.ChatStreamRetry
 	// bufferRetainedAt records when processing completed and
-	// the buffer was retained for late-connecting relay
-	// subscribers. Zero while buffering is active. When
+	// the per-chat stream state entered the post-completion
+	// grace window. Zero while buffering is active. When
 	// non-zero, cleanupStreamIfIdle skips GC until the grace
-	// period expires so cross-replica relays can still
-	// snapshot the buffer.
+	// period expires so cross-replica relay subscribers can
+	// register without racing state deletion. The buffer
+	// itself does not deliver content here: every part is
+	// claimed by a durable assistant message before
+	// bufferRetainedAt is set, so snapshotBufferLocked
+	// returns no parts during the grace window.
 	bufferRetainedAt time.Time
 }
 
@@ -4176,7 +4185,7 @@ func (p *Server) publishToStream(chatID uuid.UUID, event codersdk.ChatStreamEven
 		state.buffer = append(state.buffer, bufferedStreamPart{
 			event: event,
 			// committedMessageID stays 0 here: the part belongs to
-			// the in-progress turn until publishMessage stamps it
+			// the in-progress turn until publishMessage claims it
 			// with the committed assistant message ID.
 		})
 	}
@@ -4271,12 +4280,12 @@ func (p *Server) getCachedDurableMessages(
 // here would render the same content twice on the client, once in the
 // streaming UI and once as a durable message.
 //
-// The relay sentinel and the zero cursor are no longer special-cased:
-// in-progress parts are always delivered and committed parts are
-// always dropped, regardless of cursor. This keeps the buffer free of
-// duplicate work for every subscriber, including cross-replica relay
-// subscribers whose user-facing peers receive the durable message via
-// pubsub.
+// Every caller receives the same view: in-progress parts are always
+// delivered and committed parts are always dropped, regardless of
+// cursor or relay sentinel. This keeps the buffer free of duplicate
+// work for every subscriber, including cross-replica relay
+// subscribers whose user-facing peers receive the durable message
+// via pubsub.
 //
 // The caller must hold the per-chat stream state lock.
 func snapshotBufferLocked(buffer []bufferedStreamPart) []codersdk.ChatStreamEvent {
@@ -5304,14 +5313,14 @@ func (p *Server) publishMessage(chatID uuid.UUID, message database.ChatMessage) 
 	// constituent parts on the live channel; the frontend
 	// dedupes those against the durable message via
 	// clearStreamState in the same batch.
-	p.stampCommittedParts(chatID, message)
+	p.claimCommittedParts(chatID, message)
 	p.publishEvent(chatID, event)
 	p.publishChatStreamNotify(chatID, coderdpubsub.ChatStreamNotifyMessage{
 		AfterMessageID: message.ID - 1,
 	})
 }
 
-// stampCommittedParts walks the chat's buffered message_part events
+// claimCommittedParts walks the chat's buffered message_part events
 // and assigns every in-progress part (committedMessageID == 0) to
 // the supplied assistant message ID. Subsequent subscriber snapshots
 // drop those parts so a reconnecting client does not re-render the
@@ -5320,7 +5329,7 @@ func (p *Server) publishMessage(chatID uuid.UUID, message database.ChatMessage) 
 //
 // Tool and user messages do not end an assistant streaming turn, so
 // only assistant-role messages claim parts.
-func (p *Server) stampCommittedParts(chatID uuid.UUID, message database.ChatMessage) {
+func (p *Server) claimCommittedParts(chatID uuid.UUID, message database.ChatMessage) {
 	if message.Role != database.ChatMessageRoleAssistant {
 		return
 	}
@@ -5799,11 +5808,15 @@ func (p *Server) processChat(ctx context.Context, chat database.Chat) {
 		streamState.currentRetry = nil
 		streamState.resetDropCounters()
 		streamState.buffering = false
-		// Retain the buffer for a grace period so
-		// cross-replica relay subscribers can still snapshot
-		// it after processing completes. The buffer is
+		// Retain the per-chat stream state for a grace period
+		// so cross-replica relay subscribers can register
+		// against this chat after processing completes,
+		// without racing cleanupStreamIfIdle. The buffer is
 		// cleared when the next processChat starts or when
-		// cleanupStreamIfIdle runs after the grace period.
+		// cleanupStreamIfIdle runs after the grace period; its
+		// contents are not used to backfill subscribers because
+		// every part has already been claimed by its durable
+		// assistant message.
 		streamState.bufferRetainedAt = p.clock.Now()
 		streamState.mu.Unlock()
 	}()

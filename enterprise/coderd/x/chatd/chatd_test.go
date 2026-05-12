@@ -1337,8 +1337,10 @@ func TestSubscribeRelayDialCanceledOnFastCompletion(t *testing.T) {
 			return nil, nil, nil, ctx.Err()
 		}
 		// Connect to the worker. The buffer is retained for a
-		// grace period after processing, so the relay still gets
-		// the message_part snapshot.
+		// grace period after processing, so the relay session
+		// can complete (control events, status updates) even
+		// though every part has been claimed by its durable
+		// message and the snapshot is empty.
 		snapshot, relayEvents, cancel, ok := worker.Subscribe(ctx, chatID, requestHeader, math.MaxInt64)
 		if !ok {
 			return nil, nil, nil, xerrors.New("worker subscribe failed")

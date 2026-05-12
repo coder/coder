@@ -3502,9 +3502,6 @@ func TestProcessChat_IgnoresStaleControlNotification(t *testing.T) {
 		database.ChatUsageLimitConfig{}, sql.ErrNoRows,
 	).AnyTimes()
 	db.EXPECT().GetChatMessagesForPromptByChatID(gomock.Any(), chatID).Return(nil, nil).AnyTimes()
-	db.EXPECT().GetLastChatMessageByRole(gomock.Any(), gomock.Any()).Return(
-		database.ChatMessage{}, sql.ErrNoRows,
-	).AnyTimes()
 
 	chat := database.Chat{ID: chatID, LastModelConfigID: uuid.New()}
 	done := make(chan struct{})
@@ -5279,9 +5276,6 @@ func TestAutoPromote_InsertFailureSkipsStatusUpdate(t *testing.T) {
 		database.ChatUsageLimitConfig{}, sql.ErrNoRows,
 	).AnyTimes()
 	db.EXPECT().GetChatMessagesForPromptByChatID(gomock.Any(), chatID).Return(nil, nil).AnyTimes()
-	db.EXPECT().GetLastChatMessageByRole(gomock.Any(), gomock.Any()).Return(
-		database.ChatMessage{}, sql.ErrNoRows,
-	).AnyTimes()
 
 	// The deferred cleanup transaction: InsertChatMessages fails,
 	// so UpdateChatStatus must NOT be called.
@@ -5383,6 +5377,8 @@ func makeInProgressPart(text string) bufferedStreamPart {
 	}
 }
 
+// makeCommittedPart builds a part already claimed by the given
+// durable assistant message ID.
 func makeCommittedPart(committedID int64, text string) bufferedStreamPart {
 	p := makeInProgressPart(text)
 	p.committedMessageID = committedID
@@ -5451,10 +5447,28 @@ func TestSnapshotBufferLocked_EmptyBufferReturnsNil(t *testing.T) {
 	require.Nil(t, snapshotBufferLocked([]bufferedStreamPart{}))
 }
 
+// TestSnapshotBufferLocked_AllCommittedReturnsEmpty covers the
+// natural resting point after an assistant turn commits and before
+// the next turn starts streaming: every buffered part has been
+// claimed and must be filtered out. The snapshot must be empty so
+// reconnecting subscribers do not re-render content that is already
+// available as a durable message.
+func TestSnapshotBufferLocked_AllCommittedReturnsEmpty(t *testing.T) {
+	t.Parallel()
+
+	buffer := []bufferedStreamPart{
+		makeCommittedPart(100, "a"),
+		makeCommittedPart(100, "b"),
+		makeCommittedPart(200, "c"),
+	}
+
+	require.Empty(t, snapshotBufferLocked(buffer))
+}
+
 // TestPublishToStream_AppendsAsInProgress verifies that parts
 // buffered while the chat is streaming are tagged as in-progress
-// (committedMessageID == 0) until publishMessage stamps them with a
-// committed assistant message ID.
+// (committedMessageID == 0) until publishMessage claims them via a
+// committed assistant message.
 func TestPublishToStream_AppendsAsInProgress(t *testing.T) {
 	t.Parallel()
 
@@ -5483,19 +5497,19 @@ func TestPublishToStream_AppendsAsInProgress(t *testing.T) {
 	defer state.mu.Unlock()
 	require.Len(t, state.buffer, 1)
 	require.Equal(t, int64(0), state.buffer[0].committedMessageID,
-		"newly buffered parts must be in-progress until publishMessage stamps them")
+		"newly buffered parts must be in-progress until publishMessage claims them")
 	require.Equal(t, "hello", partText(state.buffer[0].event))
 }
 
-// TestStampCommittedParts covers the per-role behavior of
-// stampCommittedParts:
-//   - assistant messages stamp every in-progress part with the
+// TestClaimCommittedParts covers the per-role behavior of
+// claimCommittedParts:
+//   - assistant messages claim every in-progress part with the
 //     committed message ID.
 //   - tool / user messages do not claim parts.
 //   - parts already claimed by an earlier assistant message are not
-//     re-stamped.
+//     re-claimed.
 //   - a chat with no live state is a no-op (does not panic).
-func TestStampCommittedParts(t *testing.T) {
+func TestClaimCommittedParts(t *testing.T) {
 	t.Parallel()
 
 	t.Run("AssistantClaimsAllInProgressParts", func(t *testing.T) {
@@ -5515,7 +5529,7 @@ func TestStampCommittedParts(t *testing.T) {
 		}
 		state.mu.Unlock()
 
-		server.stampCommittedParts(chatID, database.ChatMessage{
+		server.claimCommittedParts(chatID, database.ChatMessage{
 			ID:   200,
 			Role: database.ChatMessageRoleAssistant,
 		})
@@ -5523,11 +5537,11 @@ func TestStampCommittedParts(t *testing.T) {
 		state.mu.Lock()
 		defer state.mu.Unlock()
 		require.Equal(t, int64(100), state.buffer[0].committedMessageID,
-			"already-claimed parts must not be re-stamped")
+			"already-claimed parts must keep their original message ID")
 		require.Equal(t, int64(200), state.buffer[1].committedMessageID,
-			"in-progress parts must be stamped with the new message ID")
+			"in-progress parts must be claimed by the new message ID")
 		require.Equal(t, int64(200), state.buffer[2].committedMessageID,
-			"in-progress parts must be stamped with the new message ID")
+			"in-progress parts must be claimed by the new message ID")
 	})
 
 	t.Run("ToolMessageIsNoOp", func(t *testing.T) {
@@ -5546,7 +5560,7 @@ func TestStampCommittedParts(t *testing.T) {
 		}
 		state.mu.Unlock()
 
-		server.stampCommittedParts(chatID, database.ChatMessage{
+		server.claimCommittedParts(chatID, database.ChatMessage{
 			ID:   300,
 			Role: database.ChatMessageRoleTool,
 		})
@@ -5574,7 +5588,7 @@ func TestStampCommittedParts(t *testing.T) {
 		}
 		state.mu.Unlock()
 
-		server.stampCommittedParts(chatID, database.ChatMessage{
+		server.claimCommittedParts(chatID, database.ChatMessage{
 			ID:   400,
 			Role: database.ChatMessageRoleUser,
 		})
@@ -5594,22 +5608,22 @@ func TestStampCommittedParts(t *testing.T) {
 		}
 		chatID := uuid.New()
 
-		// No state stored: stampCommittedParts must not panic and
+		// No state stored: claimCommittedParts must not panic and
 		// must not allocate a new state for an unknown chat.
 		require.NotPanics(t, func() {
-			server.stampCommittedParts(chatID, database.ChatMessage{
+			server.claimCommittedParts(chatID, database.ChatMessage{
 				ID:   500,
 				Role: database.ChatMessageRoleAssistant,
 			})
 		})
 		_, ok := server.chatStreams.Load(chatID)
 		require.False(t, ok,
-			"stampCommittedParts must not create stream state for a chat that has none")
+			"claimCommittedParts must not create stream state for a chat that has none")
 	})
 }
 
 // TestSubscribeToStream_FiltersBufferedParts_Integration wires
-// publishToStream, stampCommittedParts (via publishMessage), and
+// publishToStream, claimCommittedParts (via publishMessage), and
 // subscribeToStream together to confirm the end-to-end contract: a
 // reconnecting subscriber only receives parts that belong to the
 // current in-progress turn, not parts that were already committed
@@ -5647,13 +5661,13 @@ func TestSubscribeToStream_FiltersBufferedParts_Integration(t *testing.T) {
 
 	publishPart("A-1")
 	publishPart("A-2")
-	server.stampCommittedParts(chatID, database.ChatMessage{
+	server.claimCommittedParts(chatID, database.ChatMessage{
 		ID:   100,
 		Role: database.ChatMessageRoleAssistant,
 	})
 	publishPart("B-1")
 	publishPart("B-2")
-	server.stampCommittedParts(chatID, database.ChatMessage{
+	server.claimCommittedParts(chatID, database.ChatMessage{
 		ID:   200,
 		Role: database.ChatMessageRoleAssistant,
 	})
