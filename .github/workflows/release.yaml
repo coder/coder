@@ -245,7 +245,8 @@ jobs:
           VERSION: ${{ needs.prepare-release.outputs.version }}
         run: |
           set -euo pipefail
-          # shellcheck disable=SC2153 -- VERSION is from env, not a misspelling of version.
+          # VERSION comes from the env block, not a misspelling of the local 'version'.
+          # shellcheck disable=SC2153
           # Strip the "v" prefix for use in build steps.
           version="${VERSION#v}"
           echo "version=$version" >> "$GITHUB_OUTPUT"
