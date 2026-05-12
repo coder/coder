@@ -106,7 +106,7 @@ const useWorkspaceQuotaUsage = (): UsageSectionData | undefined => {
 	});
 	const quota = quotaQuery.data;
 	const shouldFetchWorkspaceCount =
-		quota !== undefined && quota.budget > 0 && quota.credits_consumed > 0;
+		quota !== undefined && quota.budget >= 0 && quota.credits_consumed > 0;
 	const userWorkspacesRequest = {
 		q: `owner:me organization:${organizationName}`,
 		limit: 0,
@@ -120,7 +120,7 @@ const useWorkspaceQuotaUsage = (): UsageSectionData | undefined => {
 		quotaQuery.isLoading ||
 		quotaQuery.isError ||
 		!quota ||
-		quota.budget <= 0 ||
+		quota.budget < 0 ||
 		quota.credits_consumed <= 0
 	) {
 		return undefined;
@@ -316,8 +316,11 @@ const UsageProgress: FC<{
 };
 
 function getPercent(used: number, budget: number): number {
-	if (!Number.isFinite(used) || !Number.isFinite(budget) || budget <= 0) {
+	if (!Number.isFinite(used) || !Number.isFinite(budget) || budget < 0) {
 		return 0;
+	}
+	if (budget === 0) {
+		return used > 0 ? 100 : 0;
 	}
 	return clampPercent((used / budget) * 100);
 }
@@ -330,8 +333,11 @@ function clampPercent(percent: number): number {
 }
 
 function getSeverity(used: number, budget: number): UsageSeverity {
-	if (!Number.isFinite(used) || !Number.isFinite(budget) || budget <= 0) {
+	if (!Number.isFinite(used) || !Number.isFinite(budget) || budget < 0) {
 		return "normal";
+	}
+	if (budget === 0) {
+		return used > 0 ? "exceeded" : "normal";
 	}
 	if (used >= budget) {
 		return "exceeded";

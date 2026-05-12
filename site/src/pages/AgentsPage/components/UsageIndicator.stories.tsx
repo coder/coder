@@ -87,6 +87,10 @@ const unusedWorkspaceQuota = {
 	credits_consumed: 0,
 	budget: 100,
 } satisfies WorkspaceQuota;
+const consumedWorkspaceQuotaWithoutBudget = {
+	credits_consumed: 20,
+	budget: 0,
+} satisfies WorkspaceQuota;
 const defaultWorkspaceQuota = {
 	credits_consumed: 30,
 	budget: 100,
@@ -217,6 +221,32 @@ export const WorkspaceQuotaUnused: Story = {
 		const canvas = within(canvasElement);
 
 		expect(canvas.queryByRole("button")).not.toBeInTheDocument();
+	},
+};
+
+export const WorkspaceQuotaWithoutBudget: Story = {
+	decorators: [
+		withUsageLimitStatus({
+			is_limited: false,
+			current_spend: 0,
+		}),
+		withWorkspaceQuota(consumedWorkspaceQuotaWithoutBudget),
+		withWorkspaceCount(1),
+	],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const progressbar = canvas.getByRole("progressbar", {
+			name: "Workspace quota usage",
+		});
+
+		expect(canvas.getByText("Workspace quota")).toBeInTheDocument();
+		expect(progressbar).toHaveAttribute("aria-valuenow", "100");
+
+		await openUsageMenu(canvasElement);
+		expect(within(document.body).getByText("100%")).toBeInTheDocument();
+		expect(
+			within(document.body).getByText("1 workspace using 20 of 0 credits"),
+		).toBeInTheDocument();
 	},
 };
 
