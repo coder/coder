@@ -137,8 +137,12 @@ func (c *Config) ObfuscateMinimalUser(u *codersdk.MinimalUser, selfID uuid.UUID)
 		return
 	}
 	pid := c.ObfuscateUserID(u.ID)
+	// Use PseudoSlug for Username because this field is used as a
+	// URL path parameter in /users/{user} and similar routes.
+	// PseudoSlug also registers a reverse mapping so the slug
+	// can be resolved back to the real user ID.
+	u.Username = c.PseudoSlug(u.ID)
 	u.ID = pid
-	u.Username = PseudoUsername(pid)
 	u.Name = ""
 	u.AvatarURL = ""
 }

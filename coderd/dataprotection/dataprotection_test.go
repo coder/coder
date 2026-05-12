@@ -409,7 +409,7 @@ func TestConfig_ObfuscateMinimalUser(t *testing.T) {
 		u := codersdk.MinimalUser{ID: otherID, Username: "bob", Name: "Bob", AvatarURL: "http://img"}
 		cfg.ObfuscateMinimalUser(&u, selfID)
 		assert.NotEqual(t, otherID, u.ID)
-		assert.Contains(t, u.Username, "Protected User")
+		assert.Contains(t, u.Username, "protected-")
 		assert.Empty(t, u.Name)
 		assert.Empty(t, u.AvatarURL)
 	})

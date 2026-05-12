@@ -647,9 +647,12 @@ func obfuscateOrgMembers(dp *dataprotection.Config, members []codersdk.Organizat
 		if members[i].UserID == selfID {
 			continue
 		}
+		// Use PseudoSlug for Username because this field is used
+		// as a URL path parameter in
+		// /organizations/{org}/members/{user}.
+		members[i].Username = dp.PseudoSlug(members[i].UserID)
 		pid := dp.ObfuscateUserID(members[i].UserID)
 		members[i].UserID = pid
-		members[i].Username = dataprotection.PseudoUsername(pid)
 		members[i].Name = ""
 		members[i].AvatarURL = ""
 		members[i].Email = ""
