@@ -1,25 +1,37 @@
-import type { FC } from "react";
+import { type FC, useEffect, useRef, useState } from "react";
 import {
 	type TerminalFontName,
 	TerminalFontNames,
 	type UpdateUserAppearanceSettingsRequest,
+	type UserAppearanceSettings,
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { PreviewBadge } from "#/components/Badges/Badges";
 import { Label } from "#/components/Label/Label";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
 import {
-	SettingsHeader,
-	SettingsHeaderTitle,
-} from "#/components/SettingsHeader/SettingsHeader";
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "#/components/Select/Select";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { DEFAULT_THEME } from "#/theme";
+import { Section } from "#/pages/UserSettingsPage/Section";
+import type { ConcreteThemeName } from "#/theme";
 import {
 	DEFAULT_TERMINAL_FONT,
 	terminalFontLabels,
 	terminalFonts,
 } from "#/theme/constants";
-import { cn } from "#/utils/cn";
+import {
+	draftFromState,
+	draftToUpdate,
+	migrateLegacyPreference,
+	switchToSingle,
+	type ThemeModeDraft,
+} from "#/theme/themeMode";
+import { SingleModeSection } from "./SingleModeSection";
+import { SyncModeSection } from "./SyncModeSection";
 
 // Display Geist Mono (the default monospace font) first, then the rest
 // alphabetically. TerminalFontNames is auto-generated in alphabetical
@@ -32,7 +44,8 @@ const sortedTerminalFontNames = [
 interface AppearanceFormProps {
 	isUpdating?: boolean;
 	error?: unknown;
-	initialValues: UpdateUserAppearanceSettingsRequest;
+	initialValues: UserAppearanceSettings;
+	activeScheme: "dark" | "light"; // The OS color scheme currently in effect
 	onSubmit: (values: UpdateUserAppearanceSettingsRequest) => Promise<unknown>;
 }
 
@@ -41,82 +54,225 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 	error,
 	onSubmit,
 	initialValues,
+	activeScheme,
 }) => {
-	const currentTheme = initialValues.theme_preference || DEFAULT_THEME;
-	const currentTerminalFont =
-		initialValues.terminal_font || DEFAULT_TERMINAL_FONT;
+	const [draft, setDraft] = useState<ThemeModeDraft>(() =>
+		draftFromState(migrateLegacyPreference(initialValues), {
+			light: initialValues.theme_light,
+			dark: initialValues.theme_dark,
+		}),
+	);
 
-	const onChangeTheme = async (theme: string) => {
-		if (isUpdating) {
+	const [terminalFontDraft, setTerminalFontDraft] = useState<TerminalFontName>(
+		() => initialValues.terminal_font || DEFAULT_TERMINAL_FONT,
+	);
+	const submitInFlightRef = useRef(false);
+	const pendingSubmitRef = useRef<{
+		draft: ThemeModeDraft;
+		terminalFont: TerminalFontName;
+	} | null>(null);
+	const activeSchemeRef = useRef(activeScheme);
+
+	activeSchemeRef.current = activeScheme;
+
+	const {
+		theme_preference,
+		theme_mode,
+		theme_light,
+		theme_dark,
+		terminal_font,
+	} = initialValues;
+	const persistedTerminalFont = terminal_font || DEFAULT_TERMINAL_FONT;
+	useEffect(() => {
+		if (submitInFlightRef.current) {
 			return;
 		}
-		await onSubmit({
-			theme_preference: theme,
-			theme_mode: "",
-			theme_light: "",
-			theme_dark: "",
-			terminal_font: currentTerminalFont,
-		});
+		setDraft(
+			draftFromState(
+				migrateLegacyPreference({
+					theme_preference,
+					theme_mode,
+					theme_light,
+					theme_dark,
+				}),
+				{ light: theme_light, dark: theme_dark },
+			),
+		);
+		setTerminalFontDraft(persistedTerminalFont);
+	}, [
+		theme_preference,
+		theme_mode,
+		theme_light,
+		theme_dark,
+		persistedTerminalFont,
+	]);
+
+	const fireSubmit = (
+		next: ThemeModeDraft,
+		terminalFont: TerminalFontName,
+		rollbackTo: { draft: ThemeModeDraft; terminalFont: TerminalFontName },
+	) => {
+		submitInFlightRef.current = true;
+		let submitted: Promise<unknown>;
+		try {
+			submitted = onSubmit(
+				draftToUpdate(next, terminalFont, activeSchemeRef.current),
+			);
+		} catch (error) {
+			submitInFlightRef.current = false;
+			pendingSubmitRef.current = null;
+			setDraft(rollbackTo.draft);
+			setTerminalFontDraft(rollbackTo.terminalFont);
+			throw error;
+		}
+		void submitted.then(
+			() => {
+				submitInFlightRef.current = false;
+				const queued = pendingSubmitRef.current;
+				if (queued !== null) {
+					pendingSubmitRef.current = null;
+					fireSubmit(queued.draft, queued.terminalFont, {
+						draft: next,
+						terminalFont,
+					});
+				}
+			},
+			() => {
+				submitInFlightRef.current = false;
+				pendingSubmitRef.current = null;
+				setDraft(rollbackTo.draft);
+				setTerminalFontDraft(rollbackTo.terminalFont);
+			},
+		);
 	};
 
-	const onChangeTerminalFont = async (terminalFont: TerminalFontName) => {
-		if (isUpdating) {
+	const submit = (next: ThemeModeDraft, terminalFont: TerminalFontName) => {
+		const previousDraft = {
+			draft,
+			terminalFont: terminalFontDraft,
+		};
+		setDraft(next);
+		setTerminalFontDraft(terminalFont);
+
+		if (submitInFlightRef.current || isUpdating) {
+			pendingSubmitRef.current = { draft: next, terminalFont };
 			return;
 		}
-		await onSubmit({
-			theme_preference: currentTheme,
-			theme_mode: "",
-			theme_light: "",
-			theme_dark: "",
-			terminal_font: terminalFont,
-		});
+
+		fireSubmit(next, terminalFont, previousDraft);
+	};
+
+	const onChangeMode = (mode: "sync" | "single") => {
+		if (mode === draft.mode) {
+			return;
+		}
+		const next: ThemeModeDraft =
+			mode === "single"
+				? {
+						mode: "single",
+						single: switchToSingle(
+							{ mode: "sync", light: draft.light, dark: draft.dark },
+							activeScheme,
+						).theme,
+						light: draft.light,
+						dark: draft.dark,
+					}
+				: {
+						mode: "sync",
+						single: draft.single,
+						light: draft.light,
+						dark: draft.dark,
+					};
+		submit(next, terminalFontDraft);
+	};
+
+	const onSelectSyncSlot = (
+		scheme: "light" | "dark",
+		theme: ConcreteThemeName,
+	) => {
+		const next: ThemeModeDraft =
+			scheme === "light"
+				? { ...draft, light: theme }
+				: { ...draft, dark: theme };
+		submit(next, terminalFontDraft);
+	};
+
+	const onSelectSingle = (theme: ConcreteThemeName) => {
+		submit({ ...draft, single: theme, mode: "single" }, terminalFontDraft);
+	};
+
+	const onChangeTerminalFont = (terminalFont: TerminalFontName) => {
+		submit(draft, terminalFont);
 	};
 
 	return (
-		<form className="flex flex-col gap-12">
+		<form>
 			{Boolean(error) && <ErrorAlert error={error} />}
 
-			<div>
-				<SettingsHeader>
-					<SettingsHeaderTitle>
+			<Section
+				title={
+					<div className="flex flex-row items-center gap-2">
 						<span>Theme</span>
 						<Spinner loading={isUpdating} size="sm" />
-					</SettingsHeaderTitle>
-				</SettingsHeader>
+					</div>
+				}
+				layout="fluid"
+				className="mb-12"
+			>
+				<div className="flex flex-col gap-4">
+					<div className="flex flex-col gap-2">
+						<Label htmlFor="theme-mode" className="text-sm font-medium">
+							Theme mode
+						</Label>
+						<div className="flex items-center gap-4">
+							<Select
+								value={draft.mode}
+								onValueChange={(value) =>
+									onChangeMode(value as "sync" | "single")
+								}
+							>
+								<SelectTrigger
+									id="theme-mode"
+									className="w-48 text-content-primary"
+								>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="sync">Sync with system</SelectItem>
+									<SelectItem value="single">Single theme</SelectItem>
+								</SelectContent>
+							</Select>
+						</div>
+					</div>
 
-				<div className="flex flex-row flex-wrap gap-4">
-					<AutoThemePreviewButton
-						displayName="Auto"
-						active={currentTheme === "auto"}
-						themes={["dark", "light"]}
-						onSelect={() => onChangeTheme("auto")}
-					/>
-					<ThemePreviewButton
-						displayName="Dark"
-						active={currentTheme === "dark"}
-						theme="dark"
-						onSelect={() => onChangeTheme("dark")}
-					/>
-					<ThemePreviewButton
-						displayName="Light"
-						active={currentTheme === "light"}
-						theme="light"
-						onSelect={() => onChangeTheme("light")}
-					/>
+					{draft.mode === "sync" ? (
+						<SyncModeSection
+							light={draft.light}
+							dark={draft.dark}
+							activeScheme={activeScheme}
+							onSelect={onSelectSyncSlot}
+						/>
+					) : (
+						<SingleModeSection
+							selected={draft.single}
+							onSelect={onSelectSingle}
+						/>
+					)}
 				</div>
-			</div>
+			</Section>
 
-			<div>
-				<SettingsHeader>
-					<SettingsHeaderTitle hierarchy="secondary">
+			<Section
+				title={
+					<div className="flex flex-row items-center gap-2">
 						<span id="fonts-radio-buttons-group-label">Terminal Font</span>
 						<Spinner loading={isUpdating} size="sm" />
-					</SettingsHeaderTitle>
-				</SettingsHeader>
-
+					</div>
+				}
+				layout="fluid"
+			>
 				<RadioGroup
 					aria-labelledby="fonts-radio-buttons-group-label"
-					defaultValue={currentTerminalFont}
+					value={terminalFontDraft}
 					name="fonts-radio-buttons-group"
 					onValueChange={(value) =>
 						onChangeTerminalFont(toTerminalFontName(value))
@@ -135,7 +291,7 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 						</div>
 					))}
 				</RadioGroup>
-			</div>
+			</Section>
 		</form>
 	);
 };
@@ -145,163 +301,3 @@ function toTerminalFontName(value: string): TerminalFontName {
 		? (value as TerminalFontName)
 		: "";
 }
-
-type ThemeMode = "dark" | "light";
-
-interface AutoThemePreviewButtonProps extends Omit<ThemePreviewProps, "theme"> {
-	themes: [ThemeMode, ThemeMode];
-	onSelect?: () => void;
-}
-
-const AutoThemePreviewButton: FC<AutoThemePreviewButtonProps> = ({
-	active,
-	preview,
-	className,
-	displayName,
-	themes,
-	onSelect,
-}) => {
-	const [leftTheme, rightTheme] = themes;
-
-	return (
-		<>
-			<input
-				type="radio"
-				name="theme"
-				id={displayName}
-				value={displayName}
-				checked={active}
-				onChange={onSelect}
-				className="sr-only"
-			/>
-			<label
-				htmlFor={displayName}
-				className={cn("relative cursor-pointer", className)}
-			>
-				<ThemePreview
-					className="absolute"
-					style={{
-						// Slightly past the bounding box to avoid cutting off the outline
-						clipPath: "polygon(-5% -5%, 50% -5%, 50% 105%, -5% 105%)",
-					}}
-					active={active}
-					preview={preview}
-					displayName={displayName}
-					theme={leftTheme}
-				/>
-				<ThemePreview
-					active={active}
-					preview={preview}
-					displayName={displayName}
-					theme={rightTheme}
-					style={{
-						// Slightly past the bounding box to avoid cutting off the outline
-						clipPath: "polygon(50% -5%, 105% -5%, 105% 105%, 50% 105%)",
-					}}
-				/>
-			</label>
-		</>
-	);
-};
-
-interface ThemePreviewButtonProps extends ThemePreviewProps {
-	onSelect?: () => void;
-}
-
-const ThemePreviewButton: FC<ThemePreviewButtonProps> = ({
-	active,
-	preview,
-	className,
-	displayName,
-	theme,
-	onSelect,
-}) => {
-	return (
-		<>
-			<input
-				type="radio"
-				name="theme"
-				id={displayName}
-				value={displayName}
-				checked={active}
-				onChange={onSelect}
-				className="sr-only"
-			/>
-			<label htmlFor={displayName} className={cn("cursor-pointer", className)}>
-				<ThemePreview
-					active={active}
-					preview={preview}
-					displayName={displayName}
-					theme={theme}
-				/>
-			</label>
-		</>
-	);
-};
-
-interface ThemePreviewProps {
-	active?: boolean;
-	preview?: boolean;
-	className?: string;
-	style?: React.CSSProperties;
-	displayName: string;
-	theme: ThemeMode;
-}
-
-const ThemePreview: FC<ThemePreviewProps> = ({
-	active,
-	preview,
-	className,
-	style,
-	displayName,
-	theme,
-}) => {
-	return (
-		<div className={theme}>
-			<div
-				className={cn(
-					"w-56 overflow-clip rounded-md border border-border border-solid bg-surface-primary text-content-primary select-none",
-					active && "outline outline-2 outline-content-link",
-					className,
-				)}
-				style={style}
-			>
-				<div className="bg-surface-primary text-content-primary">
-					<div className="bg-surface-primary flex items-center justify-between px-2.5 py-1.5 mb-2 border-0 border-b border-border border-solid">
-						<div className="flex items-center gap-1.5">
-							<div className="bg-content-primary h-1.5 w-5 rounded" />
-							<div className="bg-content-secondary h-1.5 w-5 rounded" />
-							<div className="bg-content-secondary h-1.5 w-5 rounded" />
-						</div>
-						<div className="flex items-center gap-1.5">
-							<div className="bg-green-400 h-1.5 w-3 rounded" />
-							<div className="bg-content-primary h-2 w-2 rounded-full" />
-						</div>
-					</div>
-					<div className="w-32 mx-auto">
-						<div className="bg-content-primary h-2 w-11 rounded mb-1.5" />
-						<div className="border border-solid rounded-t overflow-clip">
-							<div className="bg-surface-secondary h-2.5 -m-px" />
-							<div className="h-4 border-0 border-t border-border border-solid">
-								<div className="bg-content-disabled h-1.5 w-8 rounded mt-1 ml-1" />
-							</div>
-							<div className="h-4 border-0 border-t border-border border-solid">
-								<div className="bg-content-disabled h-1.5 w-8 rounded mt-1 ml-1" />
-							</div>
-							<div className="h-4 border-0 border-t border-border border-solid">
-								<div className="bg-content-disabled h-1.5 w-8 rounded mt-1 ml-1" />
-							</div>
-							<div className="h-4 border-0 border-t border-border border-solid">
-								<div className="bg-content-disabled h-1.5 w-8 rounded mt-1 ml-1" />
-							</div>
-						</div>
-					</div>
-				</div>
-				<div className="flex items-center justify-between border-0 border-t border-border border-solid px-3 py-1 text-sm">
-					<span>{displayName}</span>
-					{preview && <PreviewBadge />}
-				</div>
-			</div>
-		</div>
-	);
-};

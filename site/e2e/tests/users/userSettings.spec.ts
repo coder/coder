@@ -28,8 +28,12 @@ test("adjust user theme preference", async ({ page }) => {
 
 	await page.goto("/settings/appearance", { waitUntil: "domcontentloaded" });
 
-	await page.getByText("Light", { exact: true }).click();
-	await expect(page.getByLabel("Light")).toBeChecked();
+	await page.getByRole("combobox", { name: /theme mode/i }).click();
+	await page.getByRole("option", { name: /single theme/i }).click();
+
+	const singleThemeGroup = page.getByRole("radiogroup", { name: "Theme" });
+	await expect(singleThemeGroup).toBeVisible();
+	await singleThemeGroup.getByText("Light default", { exact: true }).click();
 
 	expectLightThemeClasses(await rootClassNames(page));
 

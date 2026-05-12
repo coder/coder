@@ -1,16 +1,52 @@
-import { screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { API } from "#/api/api";
-import { MockUserOwner } from "#/testHelpers/entities";
-import { renderWithAuth } from "#/testHelpers/renderHelpers";
-import AppearancePage from "./AppearancePage";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
+import type { UserAppearanceSettings } from "#/api/typesGenerated";
+import { TooltipProvider } from "#/components/Tooltip/Tooltip";
+import { AppearanceForm } from "./AppearanceForm";
 
-describe("appearance page", () => {
-	it("does nothing when selecting current theme", async () => {
-		renderWithAuth(<AppearancePage />);
+// Helper for building a mock PUT response. The shape is a full
+// UserAppearanceSettings so the TS contract matches the API method.
+const putResponse = (
+	overrides: Partial<UserAppearanceSettings> = {},
+): UserAppearanceSettings => ({
+	theme_preference: "dark",
+	theme_mode: "single",
+	theme_light: "light",
+	theme_dark: "dark",
+	terminal_font: "",
+	...overrides,
+});
 
-		vi.spyOn(API, "updateAppearanceSettings").mockResolvedValueOnce({
-			...MockUserOwner,
+const renderAppearanceForm = (children: ReactNode) => {
+	return render(
+		<TooltipProvider delayDuration={100}>{children}</TooltipProvider>,
+	);
+};
+
+describe("appearance form", () => {
+	it("queues the latest draft while an update is in flight", async () => {
+		const submitResolvers: Array<(value: UserAppearanceSettings) => void> = [];
+		const onSubmit = vi.fn(
+			() =>
+				new Promise<UserAppearanceSettings>((resolve) => {
+					submitResolvers.push(resolve);
+				}),
+		);
+
+		renderAppearanceForm(
+			<AppearanceForm
+				activeScheme="dark"
+				initialValues={putResponse()}
+				onSubmit={onSubmit}
+			/>,
+		);
+
+		fireEvent.click(screen.getByText("Fira Code"));
+		fireEvent.click(screen.getByRole("radio", { name: /dark tritanopia/i }));
+		fireEvent.click(screen.getByRole("radio", { name: /light default/i }));
+
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+		expect(onSubmit).toHaveBeenLastCalledWith({
 			theme_preference: "dark",
 			theme_mode: "single",
 			theme_light: "light",
@@ -18,110 +54,103 @@ describe("appearance page", () => {
 			terminal_font: "fira-code",
 		});
 
-		const dark = await screen.findByText("Dark");
-		await userEvent.click(dark);
+		await act(async () => {
+			submitResolvers[0]?.(putResponse({ terminal_font: "fira-code" }));
+			await Promise.resolve();
+		});
 
-		// Check if the API was called correctly
-		expect(API.updateAppearanceSettings).toHaveBeenCalledTimes(0);
-	});
-
-	it("changes theme to light", async () => {
-		renderWithAuth(<AppearancePage />);
-
-		vi.spyOn(API, "updateAppearanceSettings").mockResolvedValueOnce({
-			...MockUserOwner,
-			terminal_font: "geist-mono",
+		expect(onSubmit).toHaveBeenCalledTimes(2);
+		expect(onSubmit).toHaveBeenLastCalledWith({
 			theme_preference: "light",
 			theme_mode: "single",
 			theme_light: "light",
 			theme_dark: "dark",
-		});
-
-		const light = await screen.findByText("Light");
-		await userEvent.click(light);
-
-		// Check if the API was called correctly
-		expect(API.updateAppearanceSettings).toHaveBeenCalledTimes(1);
-		expect(API.updateAppearanceSettings).toHaveBeenCalledWith(
-			expect.objectContaining({
-				terminal_font: "geist-mono",
-				theme_preference: "light",
-			}),
-		);
-	});
-
-	it("changes font to fira code", async () => {
-		renderWithAuth(<AppearancePage />);
-
-		vi.spyOn(API, "updateAppearanceSettings").mockResolvedValueOnce({
-			...MockUserOwner,
 			terminal_font: "fira-code",
-			theme_preference: "dark",
-			theme_mode: "single",
-			theme_light: "light",
-			theme_dark: "dark",
 		});
-
-		const firaCode = await screen.findByText("Fira Code");
-		await userEvent.click(firaCode);
-
-		// Check if the API was called correctly
-		expect(API.updateAppearanceSettings).toHaveBeenCalledTimes(1);
-		expect(API.updateAppearanceSettings).toHaveBeenCalledWith(
-			expect.objectContaining({
-				terminal_font: "fira-code",
-				theme_preference: "dark",
-			}),
-		);
+		await act(async () => {
+			submitResolvers[1]?.(
+				putResponse({
+					theme_preference: "light",
+					terminal_font: "fira-code",
+				}),
+			);
+			await Promise.resolve();
+		});
 	});
 
-	it("changes font to fira code, then back to geist mono", async () => {
-		renderWithAuth(<AppearancePage />);
-
-		// given
-		vi.spyOn(API, "updateAppearanceSettings")
-			.mockResolvedValueOnce({
-				...MockUserOwner,
-				terminal_font: "fira-code",
-				theme_preference: "dark",
-				theme_mode: "single",
-				theme_light: "light",
-				theme_dark: "dark",
-			})
-			.mockResolvedValueOnce({
-				...MockUserOwner,
-				terminal_font: "geist-mono",
-				theme_preference: "dark",
-				theme_mode: "single",
-				theme_light: "light",
-				theme_dark: "dark",
-			});
-
-		// when
-		const firaCode = await screen.findByText("Fira Code");
-		await userEvent.click(firaCode);
-
-		// then
-		expect(API.updateAppearanceSettings).toHaveBeenCalledTimes(1);
-		expect(API.updateAppearanceSettings).toHaveBeenCalledWith(
-			expect.objectContaining({
-				terminal_font: "fira-code",
-				theme_preference: "dark",
-			}),
+	it("rolls back local draft and releases submit guard on failure", async () => {
+		let rejectSubmit: ((error: unknown) => void) | undefined;
+		const onSubmit = vi.fn(
+			() =>
+				new Promise<UserAppearanceSettings>((_, reject) => {
+					rejectSubmit = reject;
+				}),
 		);
 
-		// when
-		const geistMono = await screen.findByText("Geist Mono");
-		await userEvent.click(geistMono);
-
-		// then
-		expect(API.updateAppearanceSettings).toHaveBeenCalledTimes(2);
-		expect(API.updateAppearanceSettings).toHaveBeenNthCalledWith(
-			2,
-			expect.objectContaining({
-				terminal_font: "geist-mono",
-				theme_preference: "dark",
-			}),
+		renderAppearanceForm(
+			<AppearanceForm
+				activeScheme="dark"
+				initialValues={putResponse()}
+				onSubmit={onSubmit}
+			/>,
 		);
+
+		const lightDefault = screen.getByRole("radio", {
+			name: /light default/i,
+		});
+		fireEvent.click(lightDefault);
+		expect(lightDefault).toBeChecked();
+
+		await act(async () => {
+			rejectSubmit?.(new Error("failed"));
+			await Promise.resolve();
+		});
+
+		expect(screen.getByRole("radio", { name: /dark default/i })).toBeChecked();
+
+		fireEvent.click(screen.getByRole("radio", { name: /light default/i }));
+		expect(onSubmit).toHaveBeenCalledTimes(2);
+		await act(async () => {
+			rejectSubmit?.(new Error("failed again"));
+			await Promise.resolve();
+		});
+	});
+
+	it("resyncs the local draft when initialValues change between renders", () => {
+		const onSubmit = vi.fn(() => Promise.resolve(putResponse()));
+		const { rerender } = render(
+			<TooltipProvider delayDuration={100}>
+				<AppearanceForm
+					activeScheme="dark"
+					initialValues={putResponse({
+						theme_preference: "dark",
+						theme_mode: "single",
+						theme_light: "light",
+						theme_dark: "dark",
+					})}
+					onSubmit={onSubmit}
+				/>
+			</TooltipProvider>,
+		);
+
+		expect(screen.getByRole("radio", { name: /dark default/i })).toBeChecked();
+
+		rerender(
+			<TooltipProvider delayDuration={100}>
+				<AppearanceForm
+					activeScheme="dark"
+					initialValues={putResponse({
+						theme_preference: "light",
+						theme_mode: "single",
+						theme_light: "light",
+						theme_dark: "dark",
+					})}
+					onSubmit={onSubmit}
+				/>
+			</TooltipProvider>,
+		);
+
+		expect(screen.getByRole("radio", { name: /light default/i })).toBeChecked();
+		expect(onSubmit).not.toHaveBeenCalled();
 	});
 });
