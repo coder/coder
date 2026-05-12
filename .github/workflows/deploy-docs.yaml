@@ -347,6 +347,41 @@ jobs:
             -H "X-Coder-Signature: $SIG" \
             --data "$BODY" \
             https://coder.com/api/algolia-docs-sync) || RC=$?
+          # Render only an allowlisted subset of the handler response in
+          # the step summary. The handler can include free-form fields
+          # (error, reason, revalidateSampleErrors, skippedReasons,
+          # recordsByType) that may reflect upstream error strings. This
+          # repository is public, so the step summary is visible to
+          # anyone with read access; filter those fields out before the
+          # summary is written. The full response remains in the curl
+          # output captured in the workflow logs, which are restricted
+          # to repo collaborators.
+          #
+          # Keep this allowlist in sync with SyncResponseBody in
+          # coder/coder.com/src/pages/api/algolia-docs-sync.ts; add a
+          # field here only after confirming it is bounded enough to be
+          # safe for a public UI.
+          SAFE_RESPONSE=$(jq '
+            if type == "object" then
+              {
+                action,
+                corpus,
+                ref,
+                records,
+                pagesIndexed,
+                pagesSkipped,
+                revalidated,
+                revalidateFailed,
+                mode,
+                pathsRequested,
+                pathsSkipped,
+                index,
+                tookMs
+              } | with_entries(select(.value != null))
+            else
+              {}
+            end
+          ' "$RESPONSE" 2>/dev/null) || SAFE_RESPONSE='{}'
           {
             echo "## Algolia + ISR sync"
             echo
@@ -355,12 +390,17 @@ jobs:
             echo "- Mode: \`$MODE\`"
             echo "- HTTP status: \`${HTTP_STATUS:-n/a}\`"
             echo
-            echo "### Response"
+            echo "### Response (allowlisted fields)"
             echo
             echo '```json'
-            cat "$RESPONSE"
-            echo
+            printf '%s\n' "$SAFE_RESPONSE"
             echo '```'
+            if [ "$RC" -ne 0 ]; then
+              echo
+              echo "### Error"
+              echo
+              echo "The request failed. See the workflow logs for the full handler response; the step summary suppresses free-form error strings because this repository is public."
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
           if [ "$RC" -ne 0 ]; then
             exit "$RC"
@@ -396,19 +436,35 @@ jobs:
             -o "$RESPONSE" \
             -w '%{http_code}' \
             -X POST "$HOOK") || RC=$?
+          # Render only an allowlisted subset of the Vercel deploy hook
+          # response (job.id, job.state, job.createdAt). The deploy hook
+          # URL itself is the only secret in this flow; the response
+          # shape is bounded today, but we filter explicitly to insulate
+          # the public step summary from any future shape change
+          # upstream and to keep the two summary blocks consistent.
+          SAFE_RESPONSE=$(jq '
+            if type == "object" and (.job | type) == "object" then
+              { job: (.job | { id, state, createdAt } | with_entries(select(.value != null))) }
+            else
+              {}
+            end
+          ' "$RESPONSE" 2>/dev/null) || SAFE_RESPONSE='{}'
           {
             echo "## Vercel rebuild"
             echo
             echo "- Reason: \`docs/manifest.json\` changed"
             echo "- HTTP status: \`${HTTP_STATUS:-n/a}\`"
-            if [ -s "$RESPONSE" ]; then
+            echo
+            echo "### Response (allowlisted fields)"
+            echo
+            echo '```json'
+            printf '%s\n' "$SAFE_RESPONSE"
+            echo '```'
+            if [ "$RC" -ne 0 ]; then
               echo
-              echo "### Response"
+              echo "### Error"
               echo
-              echo '```'
-              cat "$RESPONSE"
-              echo
-              echo '```'
+              echo "The request failed. See the workflow logs for the full hook response; the step summary suppresses free-form error strings because this repository is public."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
           if [ "$RC" -ne 0 ]; then
