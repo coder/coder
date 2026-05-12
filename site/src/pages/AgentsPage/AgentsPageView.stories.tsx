@@ -1,9 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
 import { type ComponentProps, useState } from "react";
-import { Navigate } from "react-router";
+import { Navigate, useOutletContext } from "react-router";
 import {
 	expect,
+	fireEvent,
 	fn,
 	screen,
 	spyOn,
@@ -35,8 +36,17 @@ import AgentSettingsInstructionsPage from "./AgentSettingsInstructionsPage";
 import AgentSettingsLifecyclePage from "./AgentSettingsLifecyclePage";
 import AgentSettingsPage from "./AgentSettingsPage";
 import AgentSettingsSpendPage from "./AgentSettingsSpendPage";
-import { AgentsPageView } from "./AgentsPageView";
+import { type AgentsOutletContext, AgentsPageView } from "./AgentsPageView";
 import type { ModelSelectorOption } from "./components/ChatElements";
+import { ChatTopBar } from "./components/ChatTopBar";
+import {
+	clampLeftSidebarWidth,
+	getLeftSidebarMaxWidth,
+	LEFT_SIDEBAR_DEFAULT_WIDTH,
+	LEFT_SIDEBAR_KEYBOARD_RESIZE_STEP,
+	LEFT_SIDEBAR_MIN_WIDTH,
+	LEFT_SIDEBAR_STORAGE_KEY,
+} from "./components/Sidebar/sidebarWidth";
 
 const defaultModelConfigID = "model-config-1";
 
@@ -145,7 +155,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	pin_order: 0,
 	has_unread: false,
 	client_type: "ui",
-	last_error: null,
+	last_turn_summary: null,
 	children: [],
 	...overrides,
 });
@@ -156,10 +166,26 @@ const fixedNow = dayjs("2026-03-12T12:00:00");
 
 const AgentsRouteElement = () => (
 	<AgentSettingsAgentsPageView
-		exploreModelOverrideData={{ has_malformed_override: false }}
+		adminOverridesData={{ allow_users: false }}
+		onSaveAdminOverrides={fn()}
+		isSavingAdminOverrides={false}
+		isSaveAdminOverridesError={false}
+		exploreModelOverrideData={{
+			context: "explore",
+			model_config_id: "",
+			is_malformed: false,
+		}}
+		titleGenerationModelOverrideData={{
+			context: "title_generation",
+			model_config_id: "",
+			is_malformed: false,
+		}}
 		modelConfigsData={[]}
 		modelConfigsError={undefined}
 		isLoadingModelConfigs={false}
+		onSaveTitleGenerationModel={fn()}
+		isSavingTitleGenerationModel={false}
+		isSaveTitleGenerationModelError={false}
 		onSaveExploreModelOverride={fn()}
 		isSavingExploreModelOverride={false}
 		isSaveExploreModelOverrideError={false}
@@ -198,12 +224,37 @@ const agentsRouting = {
 	],
 };
 
+const AgentTopBarRouteElement = () => {
+	const { isSidebarCollapsed, onToggleSidebarCollapsed } =
+		useOutletContext<AgentsOutletContext>();
+	return (
+		<ChatTopBar
+			chatTitle="Collapsed sidebar agent"
+			panel={{ showSidebarPanel: false, onToggleSidebar: fn() }}
+			onArchiveAgent={fn()}
+			onArchiveAndDeleteWorkspace={fn()}
+			onRegenerateTitle={fn()}
+			onUnarchiveAgent={fn()}
+			isSidebarCollapsed={isSidebarCollapsed}
+			onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+		/>
+	);
+};
+
+const agentsWithChatTopBarRouting = {
+	...agentsRouting,
+	children: agentsRouting.children.map((route) =>
+		"path" in route && route.path === ":agentId"
+			? { ...route, element: <AgentTopBarRouteElement /> }
+			: route,
+	),
+};
+
 const defaultArgs: ComponentProps<typeof AgentsPageView> = {
 	agentId: undefined,
 	chatList: [],
 	catalogModelOptions: defaultModelOptions,
 	modelConfigs: defaultModelConfigs,
-	logoUrl: "",
 	handleNewAgent: fn(),
 	isCreating: false,
 	isArchiving: false,
@@ -250,6 +301,7 @@ const meta: Meta<typeof AgentsPageView> = {
 	},
 	args: defaultArgs,
 	beforeEach: () => {
+		localStorage.removeItem(LEFT_SIDEBAR_STORAGE_KEY);
 		spyOn(API, "getWorkspaces").mockResolvedValue({
 			workspaces: [],
 			count: 0,
@@ -374,6 +426,28 @@ type Story = StoryObj<typeof AgentsPageView>;
 
 export const EmptyState: Story = {};
 
+export const ArchivedEmptyState: Story = {
+	args: {
+		archivedFilter: "archived",
+		chatList: [],
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents",
+				searchParams: { archived: "archived" },
+			},
+			routing: agentsRouting,
+		}),
+	},
+	play: async () => {
+		await expect(await screen.findByText("No archived agents")).toBeVisible();
+		await expect(
+			screen.getByRole("button", { name: /back to active/i }),
+		).toBeVisible();
+	},
+};
+
 export const WithChatList: Story = {
 	args: {
 		chatList: [
@@ -393,7 +467,11 @@ export const WithChatList: Story = {
 				id: "chat-3",
 				title: "Fix database migration issue",
 				status: "error",
-				last_error: "Connection timeout",
+				last_error: {
+					message: "Connection timeout",
+					kind: "generic",
+					retryable: false,
+				},
 				updated_at: todayTimestamp,
 			}),
 			buildChat({
@@ -415,6 +493,180 @@ export const WithChatList: Story = {
 				updated_at: todayTimestamp,
 			}),
 		],
+	},
+};
+
+export const ResizableSidebar: Story = {
+	args: {
+		chatList: [
+			buildChat({
+				id: "chat-resize",
+				title: "Resizable sidebar agent",
+				updated_at: todayTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		viewport: { defaultViewport: "ipad" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const sidebar = canvas.getByTestId("agents-sidebar-panel");
+		const handle = canvas.getByRole("separator", {
+			name: "Resize agents sidebar",
+		});
+
+		handle.setPointerCapture = () => {};
+		handle.releasePointerCapture = () => {};
+		handle.hasPointerCapture = () => true;
+
+		const sidebarWidth = () =>
+			sidebar.style.getPropertyValue("--agents-left-sidebar-width");
+		const dragSidebar = (fromX: number, toX: number) => {
+			fireEvent.pointerDown(handle, { clientX: fromX, pointerId: 1 });
+			fireEvent.pointerMove(handle, { clientX: toX, pointerId: 1 });
+			fireEvent.pointerUp(handle, { clientX: toX, pointerId: 1 });
+		};
+
+		const initialWidth = clampLeftSidebarWidth(LEFT_SIDEBAR_DEFAULT_WIDTH);
+		const expandedWidth = Math.min(getLeftSidebarMaxWidth(), initialWidth + 40);
+
+		await expect(handle).toBeVisible();
+		await expect(handle).toHaveAttribute("aria-valuenow", String(initialWidth));
+		await expect(sidebarWidth()).toBe(`${initialWidth}px`);
+
+		dragSidebar(initialWidth, initialWidth + 40);
+		await waitFor(() => {
+			expect(sidebarWidth()).toBe(`${expandedWidth}px`);
+		});
+
+		dragSidebar(expandedWidth, 0);
+		await waitFor(() => {
+			expect(sidebarWidth()).toBe(`${LEFT_SIDEBAR_MIN_WIDTH}px`);
+		});
+
+		const maxWidth = getLeftSidebarMaxWidth();
+		dragSidebar(LEFT_SIDEBAR_MIN_WIDTH, maxWidth + 1000);
+		await waitFor(() => {
+			expect(sidebarWidth()).toBe(`${maxWidth}px`);
+		});
+		await waitFor(() => {
+			expect(localStorage.getItem(LEFT_SIDEBAR_STORAGE_KEY)).toBe(
+				String(maxWidth),
+			);
+		});
+	},
+};
+
+const persistedLeftSidebarWidth = 380;
+
+export const PersistedResizableSidebarWidth: Story = {
+	args: {
+		chatList: [
+			buildChat({
+				id: "chat-resize-persisted",
+				title: "Persisted sidebar width agent",
+				updated_at: todayTimestamp,
+			}),
+		],
+	},
+	decorators: [
+		(Story) => {
+			localStorage.setItem(
+				LEFT_SIDEBAR_STORAGE_KEY,
+				String(persistedLeftSidebarWidth),
+			);
+			return <Story />;
+		},
+	],
+	parameters: {
+		viewport: { defaultViewport: "ipad" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const sidebar = canvas.getByTestId("agents-sidebar-panel");
+		const handle = canvas.getByRole("separator", {
+			name: "Resize agents sidebar",
+		});
+		const sidebarWidth = () =>
+			sidebar.style.getPropertyValue("--agents-left-sidebar-width");
+
+		await expect(handle).toHaveAttribute(
+			"aria-valuenow",
+			String(persistedLeftSidebarWidth),
+		);
+		await expect(sidebarWidth()).toBe(`${persistedLeftSidebarWidth}px`);
+	},
+};
+
+export const ResizableSidebarKeyboard: Story = {
+	args: {
+		chatList: [
+			buildChat({
+				id: "chat-resize-keyboard",
+				title: "Keyboard resizable sidebar agent",
+				updated_at: todayTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		viewport: { defaultViewport: "ipad" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const sidebar = canvas.getByTestId("agents-sidebar-panel");
+		const handle = canvas.getByRole("separator", {
+			name: "Resize agents sidebar",
+		});
+		const sidebarWidth = () =>
+			sidebar.style.getPropertyValue("--agents-left-sidebar-width");
+		const initialWidth = clampLeftSidebarWidth(LEFT_SIDEBAR_DEFAULT_WIDTH);
+		const keyboardExpandedWidth = Math.min(
+			getLeftSidebarMaxWidth(),
+			initialWidth + LEFT_SIDEBAR_KEYBOARD_RESIZE_STEP,
+		);
+		const maxWidth = getLeftSidebarMaxWidth();
+
+		handle.focus();
+		await expect(handle).toHaveFocus();
+
+		fireEvent.keyDown(handle, { key: "ArrowRight" });
+		await waitFor(() => {
+			expect(sidebarWidth()).toBe(`${keyboardExpandedWidth}px`);
+			expect(handle).toHaveAttribute(
+				"aria-valuenow",
+				String(keyboardExpandedWidth),
+			);
+		});
+
+		fireEvent.keyDown(handle, { key: "Home" });
+		await waitFor(() => {
+			expect(sidebarWidth()).toBe(`${LEFT_SIDEBAR_MIN_WIDTH}px`);
+			expect(handle).toHaveAttribute(
+				"aria-valuenow",
+				String(LEFT_SIDEBAR_MIN_WIDTH),
+			);
+		});
+
+		fireEvent.keyDown(handle, { key: "ArrowLeft" });
+		await waitFor(() => {
+			expect(sidebarWidth()).toBe(`${LEFT_SIDEBAR_MIN_WIDTH}px`);
+			expect(handle).toHaveAttribute(
+				"aria-valuenow",
+				String(LEFT_SIDEBAR_MIN_WIDTH),
+			);
+		});
+
+		fireEvent.keyDown(handle, { key: "End" });
+		await waitFor(() => {
+			expect(sidebarWidth()).toBe(`${maxWidth}px`);
+			expect(handle).toHaveAttribute("aria-valuenow", String(maxWidth));
+		});
+		await waitFor(() => {
+			expect(localStorage.getItem(LEFT_SIDEBAR_STORAGE_KEY)).toBe(
+				String(maxWidth),
+			);
+		});
 	},
 };
 
@@ -454,6 +706,92 @@ export const SidebarCollapsed: Story = {
 export const WithToolbarEndContent: Story = {
 	args: {
 		isAgentsAdmin: true,
+	},
+};
+
+export const EmptyStateZoom200Desktop: Story = {
+	parameters: {
+		viewport: { defaultViewport: "desktopZoom200" },
+		chromatic: { viewports: [720] },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const layout = await canvas.findByTestId("agents-page-layout");
+		const sidebar = await canvas.findByTestId("agents-sidebar-panel");
+		const main = await canvas.findByTestId("agents-main-panel");
+
+		await waitFor(() => {
+			const layoutStyles = getComputedStyle(layout);
+			const sidebarStyles = getComputedStyle(sidebar);
+			const mainStyles = getComputedStyle(main);
+			const sidebarRect = sidebar.getBoundingClientRect();
+			const mainRect = main.getBoundingClientRect();
+
+			expect(layoutStyles.flexDirection).toBe("row");
+			expect(sidebarStyles.display).not.toBe("none");
+			expect(mainStyles.display).toBe("flex");
+			expect(sidebarRect.width).toBeGreaterThan(0);
+			expect(mainRect.width).toBeGreaterThan(0);
+			expect(sidebarRect.left).toBeLessThan(mainRect.left);
+			expect(sidebarRect.right).toBeLessThanOrEqual(mainRect.left + 1);
+		});
+
+		await expect(canvas.getByRole("link", { name: "Settings" })).toBeVisible();
+		await expect(canvas.getByRole("link", { name: "New Agent" })).toBeVisible();
+		await expect(
+			canvas.getByRole("button", { name: "Collapse sidebar" }),
+		).toBeVisible();
+		await expect(
+			canvas.getByRole("button", { name: /TestUser/ }),
+		).toBeVisible();
+	},
+};
+
+export const CollapsedSidebarZoom200Desktop: Story = {
+	args: {
+		isSidebarCollapsed: true,
+	},
+	parameters: {
+		viewport: { defaultViewport: "desktopZoom200" },
+		chromatic: { viewports: [720] },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const expandButton = await canvas.findByRole("button", {
+			name: "Expand sidebar",
+		});
+
+		await expect(expandButton).toBeVisible();
+	},
+};
+
+export const CollapsedSidebarZoom200DesktopWithAgent: Story = {
+	args: {
+		agentId: "chat-1",
+		isSidebarCollapsed: true,
+		chatList: [
+			buildChat({
+				id: "chat-1",
+				title: "Collapsed sidebar agent",
+				updated_at: todayTimestamp,
+			}),
+		],
+	},
+	parameters: {
+		viewport: { defaultViewport: "desktopZoom200" },
+		chromatic: { viewports: [720] },
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/chat-1" },
+			routing: agentsWithChatTopBarRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const expandButton = await canvas.findByRole("button", {
+			name: "Expand sidebar",
+		});
+
+		await expect(expandButton).toBeVisible();
 	},
 };
 
@@ -609,10 +947,23 @@ export const WithErrorReasons: Story = {
 
 const openSettingsView = async (canvasElement: HTMLElement) => {
 	const canvas = within(canvasElement);
-	const link = await waitFor(() =>
-		canvas.getByRole("link", { name: "Settings" }),
+	const settingsLink = canvas.queryByRole("link", { name: "Settings" });
+	if (settingsLink) {
+		await userEvent.click(settingsLink);
+		return;
+	}
+
+	const mobileMoreOptionsButton = canvas
+		.getAllByRole("button", { name: "More options" })
+		.find((button) => button.getAttribute("aria-haspopup") === "menu");
+	if (!mobileMoreOptionsButton) {
+		throw new Error("Expected a mobile More options menu button.");
+	}
+	await userEvent.click(mobileMoreOptionsButton);
+	const body = within(canvasElement.ownerDocument.body);
+	await userEvent.click(
+		await body.findByRole("menuitem", { name: "Settings" }),
 	);
-	await userEvent.click(link);
 };
 
 export const OpensAnalyticsForAdmins: Story = {
@@ -701,10 +1052,15 @@ export const OpensAdminSubPanelOnMobile: Story = {
 	},
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/settings" },
+			routing: agentsRouting,
+		}),
 	},
-	play: async ({ canvasElement }) => {
-		await openSettingsView(canvasElement);
-		await userEvent.click(screen.getByRole("link", { name: "Manage Agents" }));
+	play: async () => {
+		await userEvent.click(
+			await screen.findByRole("link", { name: "Manage Agents" }),
+		);
 
 		await expect(
 			await screen.findByRole("link", { name: "Providers" }),

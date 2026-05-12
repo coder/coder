@@ -4,9 +4,11 @@ import type { ThemeRole } from "#/theme/roles";
 import { cn } from "#/utils/cn";
 import { Spinner } from "../Spinner/Spinner";
 
+type PillType = ThemeRole | "muted";
+
 type PillProps = React.ComponentPropsWithRef<"div"> & {
 	icon?: ReactNode;
-	type?: ThemeRole;
+	type?: PillType;
 	size?: "md" | "lg";
 };
 
@@ -22,6 +24,7 @@ const pillRoleVariants = cva("text-content-primary", {
 			inactive: "border-border bg-surface-secondary",
 			danger: "border-border-warning bg-surface-orange",
 			preview: "border-border-purple bg-surface-purple",
+			muted: "border-border-secondary bg-surface-tertiary text-content-secondary",
 		},
 	},
 	defaultVariants: {

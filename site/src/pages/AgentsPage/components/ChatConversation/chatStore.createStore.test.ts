@@ -425,6 +425,74 @@ describe("setQueuedMessages", () => {
 });
 
 // ---------------------------------------------------------------------------
+// suppressQueuedMessageID / applyAuthoritativeQueuedMessages
+// ---------------------------------------------------------------------------
+
+describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
+	it("filters suppressed IDs from authoritative writes and auto-clears", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+		const c = makeQueuedMessage(3, "C");
+
+		store.setQueuedMessages([a, b, c]);
+		store.suppressQueuedMessageID(b.id);
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(b.id)).toBe(true);
+
+		// Transient reordered queue from the running-case backend
+		// must not surface the suppressed message.
+		store.applyAuthoritativeQueuedMessages([b, a, c]);
+		expect(
+			store.getSnapshot().queuedMessages.map((message) => message.id),
+		).toEqual([a.id, c.id]);
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(b.id)).toBe(true);
+
+		store.applyAuthoritativeQueuedMessages([a, c]);
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(b.id)).toBe(
+			false,
+		);
+		expect(
+			store.getSnapshot().queuedMessages.map((message) => message.id),
+		).toEqual([a.id, c.id]);
+	});
+
+	it("filters suppressed IDs from REST hydration via applyAuthoritativeQueuedMessages", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+		const c = makeQueuedMessage(3, "C");
+
+		store.suppressQueuedMessageID(b.id);
+		// REST hydration delivers the unfiltered queue [B, A, C].
+		store.applyAuthoritativeQueuedMessages([b, a, c]);
+		expect(
+			store.getSnapshot().queuedMessages.map((message) => message.id),
+		).toEqual([a.id, c.id]);
+	});
+
+	it("unsuppressQueuedMessageID removes IDs from the suppression set", () => {
+		const store = createChatStore();
+		store.suppressQueuedMessageID(42);
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(42)).toBe(true);
+		store.unsuppressQueuedMessageID(42);
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(42)).toBe(false);
+	});
+
+	it("setQueuedMessages does not auto-clear suppression", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+
+		store.suppressQueuedMessageID(99);
+		// setQueuedMessages is the optimistic path: it must not
+		// touch the suppression set, otherwise the optimistic write
+		// would lift suppression before the authoritative reordered
+		// queue arrives.
+		store.setQueuedMessages([a]);
+		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(99)).toBe(true);
+	});
+});
+
+// ---------------------------------------------------------------------------
 // clearStreamState
 // ---------------------------------------------------------------------------
 

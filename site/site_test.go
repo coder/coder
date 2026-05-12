@@ -102,9 +102,13 @@ func TestRenderPermissionsResolvesMe(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// GIVEN: a user with the agents-access role.
-	userWithRole := dbgen.User(t, db, database.User{
-		RBACRoles: []string{"agents-access"},
+	// GIVEN: a user with the agents-access role at the org level.
+	org := dbgen.Organization(t, db, database.Organization{})
+	userWithRole := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org.ID,
+		UserID:         userWithRole.ID,
+		Roles:          []string{rbac.RoleAgentsAccess()},
 	})
 	_, tokenWithRole := dbgen.APIKey(t, db, database.APIKey{
 		UserID:    userWithRole.ID,
@@ -119,9 +123,8 @@ func TestRenderPermissionsResolvesMe(t *testing.T) {
 	require.Equal(t, http.StatusOK, rw.Code)
 
 	// THEN: the SSR-rendered permissions include createChat = true
-	// because the "me" sentinel in permissions.json was resolved to
-	// the actor's ID, and the agents-access role grants user-scoped
-	// chat create permission.
+	// because the agents-access role grants org-scoped chat create
+	// permission, and the any_org check picks it up.
 	var permsWithRole codersdk.AuthorizationResponse
 	err = json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &permsWithRole)
 	require.NoError(t, err)

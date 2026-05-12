@@ -1,12 +1,13 @@
 import {
 	ChevronDownIcon,
-	ChevronRightIcon,
-	PinIcon,
+	CopyIcon,
+	PencilIcon,
 	PlusIcon,
+	StarIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
 import type { FC } from "react";
-import { useLocation, useNavigate, useSearchParams } from "react-router";
+import { Link, useLocation, useSearchParams } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
@@ -31,15 +32,30 @@ import { hasCustomPricing } from "./pricingFields";
 type ModelView =
 	| { mode: "list" }
 	| { mode: "add"; provider: string }
-	| { mode: "edit"; model: TypesGen.ChatModelConfig };
+	| { mode: "edit"; model: TypesGen.ChatModelConfig }
+	| { mode: "duplicate"; sourceModel: TypesGen.ChatModelConfig };
+
+const MODEL_VIEW_PARAMS = ["model", "newModel", "duplicate"] as const;
+type ModelViewParam = (typeof MODEL_VIEW_PARAMS)[number];
+
+const clearModelViewParams = (params: URLSearchParams) => {
+	for (const param of MODEL_VIEW_PARAMS) {
+		params.delete(param);
+	}
+};
+
+const canManageProviderModels = (providerState: ProviderState | undefined) => {
+	return Boolean(
+		providerState?.providerConfig &&
+			(providerState.hasEffectiveAPIKey ||
+				providerState.providerConfig.allow_user_api_key),
+	);
+};
 
 interface ModelsSectionProps {
 	sectionLabel?: string;
 	sectionDescription?: string;
 	providerStates: readonly ProviderState[];
-	selectedProvider: string | null;
-	selectedProviderState: ProviderState | null;
-	onSelectedProviderChange: (provider: string) => void;
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
 	modelConfigsUnavailable: boolean;
 	isCreating: boolean;
@@ -59,9 +75,6 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 	sectionLabel,
 	sectionDescription,
 	providerStates,
-	selectedProvider,
-	selectedProviderState,
-	onSelectedProviderChange,
 	modelConfigs,
 	modelConfigsUnavailable,
 	isCreating,
@@ -72,15 +85,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 	onDeleteModel,
 }) => {
 	const [searchParams, setSearchParams] = useSearchParams();
-	const navigate = useNavigate();
 	const location = useLocation();
-
-	// Whether the current form entry was pushed by an in-app click
-	// (as opposed to a direct-entry URL like a bookmark or shared link).
-	// When true, navigate(-1) is safe; otherwise we fall back to
-	// clearing params with replace to avoid leaving the app.
-	const canGoBack =
-		(location.state as { pushed?: boolean } | null)?.pushed === true;
 
 	// Derive the current view from URL search params so that
 	// browser back/forward navigation works as expected.
@@ -90,6 +95,13 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 			const model = modelConfigs.find((m) => m.id === editModelId);
 			return model ? { mode: "edit", model } : { mode: "list" };
 		}
+		const duplicateModelId = searchParams.get("duplicate");
+		if (duplicateModelId) {
+			const sourceModel = modelConfigs.find((m) => m.id === duplicateModelId);
+			return sourceModel
+				? { mode: "duplicate", sourceModel }
+				: { mode: "list" };
+		}
 		const addProvider = searchParams.get("newModel");
 		if (addProvider) {
 			return { mode: "add", provider: addProvider };
@@ -97,63 +109,77 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 		return { mode: "list" };
 	})();
 
+	const setModelViewParam = (
+		param: ModelViewParam,
+		value: string,
+		options?: { replace?: boolean },
+	) => {
+		const nextParams = new URLSearchParams(searchParams);
+		clearModelViewParams(nextParams);
+		nextParams.set(param, value);
+		setSearchParams(nextParams, {
+			replace: options?.replace,
+			state: options?.replace ? location.state : { pushed: true },
+		});
+	};
+
 	// Clear model-related search params and return to the list.
 	const clearModelView = () => {
 		setSearchParams((prev) => {
 			const next = new URLSearchParams(prev);
-			next.delete("model");
-			next.delete("newModel");
+			clearModelViewParams(next);
 			return next;
 		});
 	};
 
-	// Navigate back to the list after a destructive or
-	// completion action (create/delete) where the form entry
-	// is stale. Uses navigate(-1) when safe, otherwise clears
-	// the params with replace.
 	const exitModelView = () => {
-		if (canGoBack) {
-			navigate(-1);
-		} else {
-			setSearchParams(
-				(prev) => {
-					const next = new URLSearchParams(prev);
-					next.delete("model");
-					next.delete("newModel");
-					return next;
-				},
-				{ replace: true },
-			);
-		}
+		setSearchParams(
+			(prev) => {
+				const next = new URLSearchParams(prev);
+				clearModelViewParams(next);
+				return next;
+			},
+			{ replace: true },
+		);
 	};
 
 	// When the form is open it takes over the full panel.
-	if (view.mode === "add" || view.mode === "edit") {
+	if (
+		view.mode === "add" ||
+		view.mode === "edit" ||
+		view.mode === "duplicate"
+	) {
 		const editingModel = view.mode === "edit" ? view.model : undefined;
-
-		const getEffectiveProvider = () => {
-			if (editingModel) {
-				return editingModel.provider;
-			}
-			if (view.mode === "add") {
-				return view.provider;
-			}
-			return selectedProvider;
-		};
-
-		const effectiveProvider = getEffectiveProvider();
-		const effectiveProviderState = effectiveProvider
-			? (providerStates.find((ps) => ps.provider === effectiveProvider) ?? null)
-			: selectedProviderState;
+		const duplicateSourceModel =
+			view.mode === "duplicate" ? view.sourceModel : undefined;
+		const effectiveProvider =
+			view.mode === "edit"
+				? view.model.provider
+				: view.mode === "duplicate"
+					? view.sourceModel.provider
+					: view.provider;
+		const effectiveProviderState =
+			providerStates.find((ps) => ps.provider === effectiveProvider) ?? null;
+		const formKey =
+			view.mode === "edit"
+				? `edit:${view.model.id}`
+				: view.mode === "duplicate"
+					? `duplicate:${view.sourceModel.id}`
+					: `add:${view.provider}`;
 
 		return (
 			<ModelForm
-				key={editingModel?.id ?? effectiveProvider ?? "new"}
+				key={formKey}
 				editingModel={editingModel}
+				duplicateSourceModel={duplicateSourceModel}
 				providerStates={providerStates}
 				selectedProvider={effectiveProvider}
 				selectedProviderState={effectiveProviderState}
-				onSelectedProviderChange={onSelectedProviderChange}
+				onSelectedProviderChange={(provider) => {
+					if (view.mode === "add") {
+						setModelViewParam("newModel", provider, { replace: true });
+					}
+				}}
 				modelConfigsUnavailable={modelConfigsUnavailable}
 				isSaving={isCreating || isUpdating}
 				isDeleting={isDeleting}
@@ -182,11 +208,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 
 	// Only show providers that have a deployment key configured or allow
 	// end users to bring their own key.
-	const addableProviders = providerStates.filter(
-		(ps) =>
-			ps.providerConfig &&
-			(ps.hasEffectiveAPIKey || ps.providerConfig.allow_user_api_key),
-	);
+	const addableProviders = providerStates.filter(canManageProviderModels);
 
 	const addButton = addableProviders.length > 0 && (
 		<DropdownMenu>
@@ -202,11 +224,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 					<DropdownMenuItem
 						key={ps.provider}
 						onClick={() => {
-							onSelectedProviderChange(ps.provider);
-							setSearchParams(
-								{ newModel: ps.provider },
-								{ state: { pushed: true } },
-							);
+							setModelViewParam("newModel", ps.provider);
 						}}
 						className="gap-2"
 					>
@@ -219,7 +237,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 	);
 
 	const handleSetDefault = (modelConfig: TypesGen.ChatModelConfig) => {
-		if (modelConfig.is_default || !modelConfig.enabled) return;
+		if (isUpdating || modelConfig.is_default || !modelConfig.enabled) return;
 		void onUpdateModel(modelConfig.id, { is_default: true });
 	};
 
@@ -243,7 +261,14 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 					{addableProviders.length > 0 && addButton}
 					{addableProviders.length === 0 && (
 						<p className="m-0 text-xs text-content-secondary">
-							Connect a provider first to add models.
+							Connect a{" "}
+							<Link
+								to="/agents/settings/providers"
+								className="underline transition-colors hover:text-content-primary"
+							>
+								provider
+							</Link>{" "}
+							first to add models.
 						</p>
 					)}
 				</div>
@@ -253,6 +278,17 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 						const showPricingWarning = !hasCustomPricing(
 							modelConfig.model_config,
 						);
+						const modelName = modelConfig.display_name || modelConfig.model;
+						const starLabel = modelConfig.is_default
+							? `Default model: ${modelName}`
+							: `Set as default model: ${modelName}`;
+						const starUnavailable =
+							isUpdating || modelConfig.is_default || !modelConfig.enabled;
+						const providerState = providerStates.find(
+							(ps) => ps.provider === modelConfig.provider,
+						);
+						const duplicateUnavailable =
+							!canManageProviderModels(providerState);
 
 						return (
 							<div
@@ -262,16 +298,11 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 									i > 0 && "border-0 border-t border-solid border-border/50",
 								)}
 							>
-								{/* Clickable row content */}
 								<button
 									type="button"
-									onClick={() =>
-										setSearchParams(
-											{ model: modelConfig.id },
-											{ state: { pushed: true } },
-										)
-									}
-									className="flex min-w-0 flex-1 cursor-pointer items-center gap-3.5 bg-transparent border-0 p-0 text-left"
+									onClick={() => setModelViewParam("model", modelConfig.id)}
+									aria-label={`Open model: ${modelName}`}
+									className="flex min-w-0 flex-1 cursor-pointer items-center gap-3.5 border-0 bg-transparent p-0 text-left"
 								>
 									<ProviderIcon
 										provider={modelConfig.provider}
@@ -286,7 +317,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 													: "text-content-primary",
 											)}
 										>
-											{modelConfig.display_name || modelConfig.model}
+											{modelName}
 										</span>
 										{showPricingWarning && (
 											<span className="mt-1 flex items-center gap-1 text-xs text-content-warning">
@@ -301,51 +332,85 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 										</Badge>
 									)}
 								</button>
-								{/* Pin for default */}
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<button
-											type="button"
-											onClick={(e) => {
-												e.stopPropagation();
-												handleSetDefault(modelConfig);
-											}}
-											aria-disabled={
-												isUpdating ||
-												modelConfig.is_default ||
-												!modelConfig.enabled
-											}
-											aria-label={
-												modelConfig.is_default
-													? "Default model"
-													: "Set as default model"
-											}
-											className={cn(
-												"flex shrink-0 items-center justify-center bg-transparent border-0 p-0 transition-colors",
-												modelConfig.is_default
-													? "text-content-primary"
-													: !modelConfig.enabled
-														? "cursor-not-allowed text-content-secondary/30"
-														: "cursor-pointer text-content-secondary/30 hover:text-content-secondary",
-											)}
-										>
-											<PinIcon
+								<div className="flex shrink-0 items-center gap-1">
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<Button
+												size="icon"
+												variant="subtle"
+												onClick={(event) => {
+													event.stopPropagation();
+													handleSetDefault(modelConfig);
+												}}
+												aria-disabled={starUnavailable}
+												aria-label={starLabel}
 												className={cn(
-													"h-4 w-4",
-													modelConfig.is_default && "fill-current",
+													"hover:bg-surface-secondary",
+													starUnavailable &&
+														"cursor-not-allowed text-content-secondary/40 hover:bg-transparent hover:text-content-secondary/40",
+													modelConfig.is_default && "text-content-primary",
 												)}
-											/>
-										</button>
-									</TooltipTrigger>
-									<TooltipContent side="left">
-										{!modelConfig.enabled
-											? "Cannot set a disabled model as default"
-											: modelConfig.is_default
-												? "Pinned as default for new conversations"
-												: "Pin as default for new conversations"}
-									</TooltipContent>
-								</Tooltip>
-								<ChevronRightIcon className="h-5 w-5 shrink-0 text-content-secondary" />
+											>
+												<StarIcon
+													className={cn(
+														modelConfig.is_default && "fill-current",
+													)}
+												/>
+											</Button>
+										</TooltipTrigger>
+										<TooltipContent side="top">
+											{!modelConfig.enabled
+												? "Cannot set a disabled model as default"
+												: modelConfig.is_default
+													? "Default for new conversations"
+													: "Set as default for new conversations"}
+										</TooltipContent>
+									</Tooltip>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<Button
+												size="icon"
+												variant="subtle"
+												onClick={(event) => {
+													event.stopPropagation();
+													setModelViewParam("model", modelConfig.id);
+												}}
+												aria-label={`Edit model: ${modelName}`}
+												className="hover:bg-surface-secondary"
+											>
+												<PencilIcon />
+											</Button>
+										</TooltipTrigger>
+										<TooltipContent side="top">Edit model</TooltipContent>
+									</Tooltip>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<Button
+												size="icon"
+												variant="subtle"
+												onClick={(event) => {
+													event.stopPropagation();
+													if (duplicateUnavailable) return;
+													setModelViewParam("duplicate", modelConfig.id);
+												}}
+												aria-disabled={duplicateUnavailable}
+												aria-label={`Duplicate model: ${modelName}`}
+												className={cn(
+													"hover:bg-surface-secondary",
+													duplicateUnavailable &&
+														"cursor-not-allowed text-content-secondary/40 hover:bg-transparent hover:text-content-secondary/40",
+												)}
+											>
+												<CopyIcon />
+											</Button>
+										</TooltipTrigger>
+										<TooltipContent side="top">
+											{duplicateUnavailable
+												? "Set an API key for this provider before duplicating models"
+												: "Duplicate model"}
+										</TooltipContent>
+									</Tooltip>
+								</div>
 							</div>
 						);
 					})}

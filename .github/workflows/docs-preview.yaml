@@ -2,8 +2,13 @@
 # pull request that touches files under docs/ is opened.  The preview
 # is served by coder.com's branch-preview feature at /docs/@<branch>.
 #
+# The link deep-links to the first added/modified/renamed Markdown file
+# under docs/ so reviewers land on the page that actually changed.
 # Branch names are URL-encoded so that names containing slashes or
 # other special characters produce working links.
+#
+# If the PR only deletes Markdown files (or only changes non-Markdown
+# files such as images or manifest.json), no comment is posted.
 
 name: docs-preview
 
@@ -30,14 +35,71 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
         run: |
+          # Fetch the list of non-deleted files from the PR.  This is
+          # intentionally not piped into grep so that a gh-api failure
+          # (network, auth, rate-limit) propagates immediately instead
+          # of being swallowed by `|| true`.
+          all_files=$(gh api --paginate \
+            "repos/${REPO}/pulls/${PR_NUMBER}/files" \
+            --jq '.[] | select(.status != "removed") | .filename')
+
+          # Pick the first Markdown file under docs/.  `|| true` keeps
+          # the pipeline from failing when grep finds no matches or
+          # head triggers SIGPIPE under `set -o pipefail`.
+          first_doc=$(printf '%s\n' "$all_files" \
+            | grep -E '^docs/.*\.md$' \
+            | head -n 1) || true
+
+          if [ -z "$first_doc" ]; then
+            echo "No added/modified Markdown files under docs/, skipping preview comment."
+            exit 0
+          fi
+
+          # Map the repo path to the docs site URL path.
+          #   docs/README.md           -> ""           (docs root)
+          #   docs/<dir>/index.md      -> "<dir>"      (directory index)
+          #   docs/<dir>/README.md     -> "<dir>"      (directory index)
+          #   docs/<dir>/<file>.md     -> "<dir>/<file>"
+          rel="${first_doc#docs/}"
+          case "$rel" in
+            README.md)
+              page_path=""
+              ;;
+            *)
+              base="$(basename "$rel")"
+              dir="$(dirname "$rel")"
+              if [ "$dir" = "." ]; then
+                dir=""
+              fi
+              case "$base" in
+                index.md|README.md)
+                  page_path="$dir"
+                  ;;
+                *)
+                  stripped="${base%.md}"
+                  if [ -z "$dir" ]; then
+                    page_path="$stripped"
+                  else
+                    page_path="${dir}/${stripped}"
+                  fi
+                  ;;
+              esac
+              ;;
+          esac
+
           # URL-encode the branch name so slashes and special
-          # characters don't break the preview URL.
-          encoded=$(jq -rn --arg b "$BRANCH" '$b | @uri')
-          url="https://coder.com/docs/@${encoded}"
+          # characters don't break the preview URL.  The page path is
+          # left as-is because its components are simple ASCII path
+          # segments and the slashes between them must be preserved.
+          encoded_branch=$(jq -rn --arg b "$BRANCH" '$b | @uri')
+          url="https://coder.com/docs/@${encoded_branch}"
+          if [ -n "$page_path" ]; then
+            url="${url}/${page_path}"
+          fi
 
           gh pr comment "${PR_NUMBER}" \
             --repo "${REPO}" \
             --body "## Docs preview
-          [:book: View docs preview](${url})
+          [:book: View docs preview](${url}) for \`${first_doc}\`
 
           <!-- docs-preview -->"

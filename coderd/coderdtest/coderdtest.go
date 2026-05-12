@@ -560,12 +560,19 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	if !options.DeploymentValues.DERP.Server.Enable.Value() {
 		region = nil
 	}
-	derpMap, err := tailnet.NewDERPMap(ctx, region, stunAddresses,
-		options.DeploymentValues.DERP.Config.URL.Value(),
-		options.DeploymentValues.DERP.Config.Path.Value(),
-		options.DeploymentValues.DERP.Config.BlockDirect.Value(),
-	)
-	require.NoError(t, err)
+	derpConfigURL := options.DeploymentValues.DERP.Config.URL.Value()
+	derpConfigPath := options.DeploymentValues.DERP.Config.Path.Value()
+	var derpMap *tailcfg.DERPMap
+	if region == nil && derpConfigURL == "" && derpConfigPath == "" {
+		derpMap = &tailcfg.DERPMap{Regions: map[int]*tailcfg.DERPRegion{}}
+	} else {
+		derpMap, err = tailnet.NewDERPMap(
+			ctx, region, stunAddresses,
+			derpConfigURL, derpConfigPath,
+			options.DeploymentValues.DERP.Config.BlockDirect.Value(),
+		)
+		require.NoError(t, err)
+	}
 
 	return func(h http.Handler) {
 			mutex.Lock()
@@ -662,7 +669,7 @@ func NewWithAPI(t testing.TB, options *Options) (*codersdk.Client, io.Closer, *c
 	if options.IncludeProvisionerDaemon {
 		provisionerCloser = NewTaggedProvisionerDaemon(t, coderAPI, defaultTestDaemonName, options.ProvisionerDaemonTags, coderd.MemoryProvisionerWithVersionOverride(options.ProvisionerDaemonVersion))
 	}
-	client := codersdk.New(serverURL)
+	client := codersdk.New(serverURL, codersdk.WithHTTPClient(NewIsolatedHTTPClient(serverURL)))
 	t.Cleanup(func() {
 		cancelFunc()
 		_ = provisionerCloser.Close()
@@ -670,6 +677,46 @@ func NewWithAPI(t testing.TB, options *Options) (*codersdk.Client, io.Closer, *c
 		client.HTTPClient.CloseIdleConnections()
 	})
 	return client, provisionerCloser, coderAPI
+}
+
+// NewIsolatedHTTPClient returns a test client with its own transport.
+// Closing idle connections at test cleanup must not close http.DefaultTransport
+// while another parallel test is using it.
+func NewIsolatedHTTPClient(serverURL *url.URL) *http.Client {
+	transport := &http.Transport{Proxy: http.ProxyFromEnvironment}
+	if defaultTransport, ok := http.DefaultTransport.(*http.Transport); ok {
+		transport = defaultTransport.Clone()
+	}
+	if serverURL == nil || serverURL.Scheme != "https" {
+		transport.TLSClientConfig = nil
+		return &http.Client{Transport: transport}
+	}
+	if transport.TLSClientConfig == nil {
+		transport.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+	}
+	if transport.TLSClientConfig.MinVersion == 0 {
+		transport.TLSClientConfig.MinVersion = tls.VersionTLS12
+	}
+	//nolint:gosec // The coderdtest server uses test-only TLS certificates.
+	transport.TLSClientConfig.InsecureSkipVerify = true
+	return &http.Client{Transport: transport}
+}
+
+// newHTTPClientWithTransportFrom returns a fresh client that shares the base
+// transport without sharing mutable per-client state like CheckRedirect.
+func newHTTPClientWithTransportFrom(base *http.Client) *http.Client {
+	if base == nil {
+		return NewIsolatedHTTPClient(nil)
+	}
+	if base.Transport == nil {
+		client := NewIsolatedHTTPClient(nil)
+		client.Timeout = base.Timeout
+		return client
+	}
+	return &http.Client{
+		Transport: base.Transport,
+		Timeout:   base.Timeout,
+	}
 }
 
 // ProvisionerdCloser wraps a provisioner daemon as an io.Closer that can be called multiple times
@@ -930,10 +977,11 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 		require.NoError(t, err)
 	}
 
-	other := codersdk.New(client.URL, codersdk.WithSessionToken(sessionToken))
-	t.Cleanup(func() {
-		other.HTTPClient.CloseIdleConnections()
-	})
+	other := codersdk.New(
+		client.URL,
+		codersdk.WithSessionToken(sessionToken),
+		codersdk.WithHTTPClient(newHTTPClientWithTransportFrom(client.HTTPClient)),
+	)
 
 	if len(roles) > 0 {
 		// Find the roles for the org vs the site wide roles

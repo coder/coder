@@ -1,8 +1,8 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router";
 import { CodeExample } from "#/components/CodeExample/CodeExample";
 import { Welcome } from "#/components/Welcome/Welcome";
+import { cn } from "#/utils/cn";
 
 type CliInstallPageViewProps = {
 	origin: string;
@@ -10,10 +10,15 @@ type CliInstallPageViewProps = {
 
 export const CliInstallPageView: FC<CliInstallPageViewProps> = ({ origin }) => {
 	return (
-		<div css={styles.container}>
+		<div
+			className={cn(
+				"mx-auto h-screen w-[480px]",
+				"flex flex-1 flex-col items-center justify-center",
+			)}
+		>
 			<Welcome>Install the Coder CLI</Welcome>
 
-			<p css={styles.instructions}>
+			<p className="pb-2 text-center text-base leading-[1.4] text-content-secondary">
 				Copy the command below and{" "}
 				<strong className="block">paste it in your terminal.</strong>
 			</p>
@@ -25,56 +30,16 @@ export const CliInstallPageView: FC<CliInstallPageViewProps> = ({ origin }) => {
 			/>
 
 			<div className="pt-4">
-				<RouterLink to="/workspaces" css={styles.backLink}>
+				<RouterLink
+					to="/workspaces"
+					className="block py-4 text-center text-content-primary underline decoration-[hsla(0,0%,100%,0.7)] underline-offset-[3px] hover:no-underline"
+				>
 					Go to workspaces
 				</RouterLink>
 			</div>
-			<div css={styles.copyright}>
+			<div className="mt-6 text-xs text-content-secondary">
 				&copy; {new Date().getFullYear()} Coder Technologies, Inc.
 			</div>
 		</div>
 	);
 };
-
-const styles = {
-	container: {
-		flex: 1,
-		// Fallback to 100vh
-		height: ["100vh", "-webkit-fill-available"],
-		display: "flex",
-		flexDirection: "column",
-		justifyContent: "center",
-		alignItems: "center",
-		width: 480,
-		margin: "auto",
-	},
-
-	instructions: (theme) => ({
-		fontSize: 16,
-		color: theme.palette.text.secondary,
-		paddingBottom: 8,
-		textAlign: "center",
-		lineHeight: 1.4,
-	}),
-
-	backLink: (theme) => ({
-		display: "block",
-		textAlign: "center",
-		color: theme.palette.text.primary,
-		textDecoration: "underline",
-		textUnderlineOffset: 3,
-		textDecorationColor: "hsla(0deg, 0%, 100%, 0.7)",
-		paddingTop: 16,
-		paddingBottom: 16,
-
-		"&:hover": {
-			textDecoration: "none",
-		},
-	}),
-
-	copyright: (theme) => ({
-		fontSize: 12,
-		color: theme.palette.text.secondary,
-		marginTop: 24,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

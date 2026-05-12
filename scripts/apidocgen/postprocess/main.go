@@ -209,11 +209,24 @@ func writeDocs(sections [][]byte) error {
 				continue
 			}
 
+			// Preserve existing state and description on children, keyed by
+			// title, so that callouts like `state: ["experimental"]` survive
+			// regeneration. Generated routes always overwrite Title and Path.
+			existingByTitle := make(map[string]route, len(child.Children))
+			for _, existing := range child.Children {
+				existingByTitle[existing.Title] = existing
+			}
+
 			var children []route
 			for _, mdf := range mdFiles {
 				docRoute := route{
 					Title: mdf.title,
 					Path:  mdf.path,
+				}
+				if existing, ok := existingByTitle[mdf.title]; ok {
+					docRoute.State = existing.State
+					docRoute.Description = existing.Description
+					docRoute.IconPath = existing.IconPath
 				}
 				children = append(children, docRoute)
 			}

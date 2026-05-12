@@ -106,7 +106,7 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 	const favicon = getFaviconByStatus(workspace.latest_build);
 	const [faviconTheme, setFaviconTheme] = useState<"light" | "dark">("dark");
 	useEffect(() => {
-		if (typeof window === "undefined" || !window.matchMedia) {
+		if (!window.matchMedia) {
 			return;
 		}
 

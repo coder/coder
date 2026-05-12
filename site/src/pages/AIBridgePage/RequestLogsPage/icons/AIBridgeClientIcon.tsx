@@ -71,6 +71,13 @@ export const AIBridgeClientIcon = ({
 					className={cn(iconClassName, className)}
 				/>
 			);
+		case "Charm Crush":
+			return (
+				<ExternalImage
+					src="/icon/charm-crush.svg"
+					className={cn(iconClassName, className)}
+				/>
+			);
 		case "GitHub Copilot (VS Code)":
 		case "GitHub Copilot (CLI)":
 			return (

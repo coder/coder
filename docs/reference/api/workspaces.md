@@ -12,7 +12,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /organizations/{organization}/members/{user}/workspaces`
+`POST /api/v2/organizations/{organization}/members/{user}/workspaces`
 
 Create a new workspace using a template. The request must
 specify either the Template ID or the Template Version ID,
@@ -237,6 +237,7 @@ of the template will be used.
               {
                 "cron": "string",
                 "display_name": "string",
+                "exit_code": 0,
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "log_path": "string",
                 "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
@@ -244,6 +245,7 @@ of the template will be used.
                 "run_on_stop": true,
                 "script": "string",
                 "start_blocks_login": true,
+                "status": "ok",
                 "timeout": 0
               }
             ],
@@ -343,7 +345,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /organizations/{organization}/members/{user}/workspaces/available-users`
+`GET /api/v2/organizations/{organization}/members/{user}/workspaces/available-users`
 
 ### Parameters
 
@@ -401,7 +403,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/{user}/workspace/{workspacename}`
+`GET /api/v2/users/{user}/workspace/{workspacename}`
 
 ### Parameters
 
@@ -601,6 +603,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
               {
                 "cron": "string",
                 "display_name": "string",
+                "exit_code": 0,
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "log_path": "string",
                 "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
@@ -608,6 +611,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
                 "run_on_stop": true,
                 "script": "string",
                 "start_blocks_login": true,
+                "status": "ok",
                 "timeout": 0
               }
             ],
@@ -708,7 +712,7 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/workspaces \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /users/{user}/workspaces`
+`POST /api/v2/users/{user}/workspaces`
 
 Create a new workspace using a template. The request must
 specify either the Template ID or the Template Version ID,
@@ -932,6 +936,7 @@ of the template will be used.
               {
                 "cron": "string",
                 "display_name": "string",
+                "exit_code": 0,
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "log_path": "string",
                 "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
@@ -939,6 +944,7 @@ of the template will be used.
                 "run_on_stop": true,
                 "script": "string",
                 "start_blocks_login": true,
+                "status": "ok",
                 "timeout": 0
               }
             ],
@@ -1038,7 +1044,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /workspaces`
+`GET /api/v2/workspaces`
 
 ### Parameters
 
@@ -1224,6 +1230,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                   {
                     "cron": "string",
                     "display_name": "string",
+                    "exit_code": 0,
                     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                     "log_path": "string",
                     "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
@@ -1231,6 +1238,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                     "run_on_stop": true,
                     "script": "string",
                     "start_blocks_login": true,
+                    "status": "ok",
                     "timeout": 0
                   }
                 ],
@@ -1332,7 +1340,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /workspaces/{workspace}`
+`GET /api/v2/workspaces/{workspace}`
 
 ### Parameters
 
@@ -1531,6 +1539,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
               {
                 "cron": "string",
                 "display_name": "string",
+                "exit_code": 0,
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "log_path": "string",
                 "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
@@ -1538,6 +1547,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
                 "run_on_stop": true,
                 "script": "string",
                 "start_blocks_login": true,
+                "status": "ok",
                 "timeout": 0
               }
             ],
@@ -1637,7 +1647,7 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaces/{workspace} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PATCH /workspaces/{workspace}`
+`PATCH /api/v2/workspaces/{workspace}`
 
 > Body parameter
 
@@ -1673,7 +1683,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/acl \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /workspaces/{workspace}/acl`
+`GET /api/v2/workspaces/{workspace}/acl`
 
 ### Parameters
 
@@ -1748,7 +1758,7 @@ curl -X DELETE http://coder-server:8080/api/v2/workspaces/{workspace}/acl \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`DELETE /workspaces/{workspace}/acl`
+`DELETE /api/v2/workspaces/{workspace}/acl`
 
 ### Parameters
 
@@ -1775,7 +1785,7 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaces/{workspace}/acl \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PATCH /workspaces/{workspace}/acl`
+`PATCH /api/v2/workspaces/{workspace}/acl`
 
 > Body parameter
 
@@ -1818,7 +1828,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/autostart \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /workspaces/{workspace}/autostart`
+`PUT /api/v2/workspaces/{workspace}/autostart`
 
 > Body parameter
 
@@ -1854,7 +1864,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/autoupdates \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /workspaces/{workspace}/autoupdates`
+`PUT /api/v2/workspaces/{workspace}/autoupdates`
 
 > Body parameter
 
@@ -1891,7 +1901,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /workspaces/{workspace}/dormant`
+`PUT /api/v2/workspaces/{workspace}/dormant`
 
 > Body parameter
 
@@ -2098,6 +2108,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
               {
                 "cron": "string",
                 "display_name": "string",
+                "exit_code": 0,
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "log_path": "string",
                 "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
@@ -2105,6 +2116,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
                 "run_on_stop": true,
                 "script": "string",
                 "start_blocks_login": true,
+                "status": "ok",
                 "timeout": 0
               }
             ],
@@ -2205,7 +2217,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/extend \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /workspaces/{workspace}/extend`
+`PUT /api/v2/workspaces/{workspace}/extend`
 
 > Body parameter
 
@@ -2257,7 +2269,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/favorite \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /workspaces/{workspace}/favorite`
+`PUT /api/v2/workspaces/{workspace}/favorite`
 
 ### Parameters
 
@@ -2283,7 +2295,7 @@ curl -X DELETE http://coder-server:8080/api/v2/workspaces/{workspace}/favorite \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`DELETE /workspaces/{workspace}/favorite`
+`DELETE /api/v2/workspaces/{workspace}/favorite`
 
 ### Parameters
 
@@ -2310,7 +2322,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/resolve-autos
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /workspaces/{workspace}/resolve-autostart`
+`GET /api/v2/workspaces/{workspace}/resolve-autostart`
 
 ### Parameters
 
@@ -2347,7 +2359,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/timings \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /workspaces/{workspace}/timings`
+`GET /api/v2/workspaces/{workspace}/timings`
 
 ### Parameters
 
@@ -2415,7 +2427,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/ttl \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /workspaces/{workspace}/ttl`
+`PUT /api/v2/workspaces/{workspace}/ttl`
 
 > Body parameter
 
@@ -2451,7 +2463,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/usage \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /workspaces/{workspace}/usage`
+`POST /api/v2/workspaces/{workspace}/usage`
 
 > Body parameter
 
@@ -2488,7 +2500,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/watch \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /workspaces/{workspace}/watch`
+`GET /api/v2/workspaces/{workspace}/watch`
 
 ### Parameters
 
@@ -2519,7 +2531,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/watch-ws \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /workspaces/{workspace}/watch-ws`
+`GET /api/v2/workspaces/{workspace}/watch-ws`
 
 ### Parameters
 

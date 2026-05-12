@@ -667,13 +667,12 @@ func TestTraceOpenAIErr(t *testing.T) {
 			},
 		},
 		{
-			name:          "trace_openai_responses_streaming_http_error",
-			fixture:       fixtures.OaiResponsesStreamingHTTPErr,
-			streaming:     true,
-			allowOverflow: true, // 429 error causes retries
+			name:      "trace_openai_responses_streaming_http_error",
+			fixture:   fixtures.OaiResponsesStreamingHTTPErr,
+			streaming: true,
 
 			path:       pathOpenAIResponses,
-			expectCode: http.StatusTooManyRequests,
+			expectCode: http.StatusBadRequest,
 			expect: []expectTrace{
 				{"Intercept", 1, codes.Error},
 				{"Intercept.CreateInterceptor", 1, codes.Unset},
@@ -689,7 +688,7 @@ func TestTraceOpenAIErr(t *testing.T) {
 			streaming: false,
 
 			path:       pathOpenAIResponses,
-			expectCode: http.StatusUnauthorized,
+			expectCode: http.StatusBadRequest,
 			expect: []expectTrace{
 				{"Intercept", 1, codes.Error},
 				{"Intercept.CreateInterceptor", 1, codes.Unset},

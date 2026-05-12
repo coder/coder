@@ -220,7 +220,13 @@ CREATE TYPE api_key_scope AS ENUM (
     'chat:read',
     'chat:update',
     'chat:delete',
-    'chat:*'
+    'chat:*',
+    'ai_seat:*',
+    'ai_seat:create',
+    'ai_seat:read',
+    'ai_model_price:*',
+    'ai_model_price:read',
+    'ai_model_price:update'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -526,7 +532,8 @@ CREATE TYPE resource_type AS ENUM (
     'prebuilds_settings',
     'task',
     'ai_seat',
-    'chat'
+    'chat',
+    'user_secret'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (
@@ -755,6 +762,12 @@ BEGIN
 		-- email if the account is undeleted. Although that is not a guarantee.
 		DELETE FROM user_links
 		WHERE user_id = OLD.id;
+
+		-- Remove their user_secrets.
+		-- user_secrets.user_id has ON DELETE CASCADE, but soft-delete
+		-- does not remove the users row so the FK cascade never fires.
+		DELETE FROM user_secrets
+		WHERE user_id = OLD.id;
 	END IF;
 	RETURN NEW;
 END;
@@ -875,6 +888,21 @@ BEGIN
 	IF (NEW.user_id IS NOT NULL) THEN
 		IF (SELECT deleted FROM users WHERE id = NEW.user_id LIMIT 1) THEN
 			RAISE EXCEPTION 'Cannot create user_link for deleted user';
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION insert_user_secret_fail_if_user_deleted() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+
+DECLARE
+BEGIN
+	IF (NEW.user_id IS NOT NULL) THEN
+		IF (SELECT deleted FROM users WHERE id = NEW.user_id LIMIT 1) THEN
+			RAISE EXCEPTION 'Cannot create user_secret for deleted user';
 		END IF;
 	END IF;
 	RETURN NEW;
@@ -1057,43 +1085,22 @@ BEGIN
 END;
 $$;
 
-CREATE FUNCTION tailnet_notify_coordinator_heartbeat() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-	PERFORM pg_notify('tailnet_coordinator_heartbeat', NEW.id::text);
-	RETURN NULL;
-END;
-$$;
+CREATE TABLE ai_model_prices (
+    provider text NOT NULL,
+    model text NOT NULL,
+    input_price bigint,
+    output_price bigint,
+    cache_read_price bigint,
+    cache_write_price bigint,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ai_model_prices_cache_read_price_check CHECK ((cache_read_price >= 0)),
+    CONSTRAINT ai_model_prices_cache_write_price_check CHECK ((cache_write_price >= 0)),
+    CONSTRAINT ai_model_prices_input_price_check CHECK ((input_price >= 0)),
+    CONSTRAINT ai_model_prices_output_price_check CHECK ((output_price >= 0))
+);
 
-CREATE FUNCTION tailnet_notify_peer_change() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-	IF (OLD IS NOT NULL) THEN
-		PERFORM pg_notify('tailnet_peer_update', OLD.id::text);
-		RETURN NULL;
-	END IF;
-	IF (NEW IS NOT NULL) THEN
-		PERFORM pg_notify('tailnet_peer_update', NEW.id::text);
-		RETURN NULL;
-	END IF;
-END;
-$$;
-
-CREATE FUNCTION tailnet_notify_tunnel_change() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-	IF (NEW IS NOT NULL) THEN
-		PERFORM pg_notify('tailnet_tunnel_update', NEW.src_id || ',' || NEW.dst_id);
-		RETURN NULL;
-	ELSIF (OLD IS NOT NULL) THEN
-		PERFORM pg_notify('tailnet_tunnel_update', OLD.src_id || ',' || OLD.dst_id);
-		RETURN NULL;
-	END IF;
-END;
-$$;
+COMMENT ON TABLE ai_model_prices IS 'Per-model token prices used by AI Bridge to compute interception cost.';
 
 CREATE TABLE ai_seat_state (
     user_id uuid NOT NULL,
@@ -1422,7 +1429,8 @@ CREATE TABLE chat_queued_messages (
     id bigint NOT NULL,
     chat_id uuid NOT NULL,
     content jsonb NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    model_config_id uuid
 );
 
 CREATE SEQUENCE chat_queued_messages_id_seq
@@ -1471,7 +1479,7 @@ CREATE TABLE chats (
     root_chat_id uuid,
     last_model_config_id uuid NOT NULL,
     archived boolean DEFAULT false NOT NULL,
-    last_error text,
+    last_error jsonb,
     mode chat_mode,
     mcp_server_ids uuid[] DEFAULT '{}'::uuid[] NOT NULL,
     labels jsonb DEFAULT '{}'::jsonb NOT NULL,
@@ -1483,7 +1491,10 @@ CREATE TABLE chats (
     dynamic_tools jsonb,
     organization_id uuid NOT NULL,
     plan_mode chat_plan_mode,
-    client_type chat_client_type DEFAULT 'api'::chat_client_type NOT NULL
+    client_type chat_client_type DEFAULT 'api'::chat_client_type NOT NULL,
+    last_turn_summary text,
+    CONSTRAINT chats_pin_order_archived_check CHECK (((pin_order = 0) OR (archived = false))),
+    CONSTRAINT chats_pin_order_parent_check CHECK (((pin_order = 0) OR (parent_chat_id IS NULL)))
 );
 
 CREATE TABLE connection_logs (
@@ -1789,7 +1800,7 @@ CREATE TABLE mcp_server_configs (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     model_intent boolean DEFAULT false NOT NULL,
     allow_in_plan_mode boolean DEFAULT false NOT NULL,
-    CONSTRAINT mcp_server_configs_auth_type_check CHECK ((auth_type = ANY (ARRAY['none'::text, 'oauth2'::text, 'api_key'::text, 'custom_headers'::text]))),
+    CONSTRAINT mcp_server_configs_auth_type_check CHECK ((auth_type = ANY (ARRAY['none'::text, 'oauth2'::text, 'api_key'::text, 'custom_headers'::text, 'user_oidc'::text]))),
     CONSTRAINT mcp_server_configs_availability_check CHECK ((availability = ANY (ARRAY['force_on'::text, 'default_on'::text, 'default_off'::text]))),
     CONSTRAINT mcp_server_configs_transport_check CHECK ((transport = ANY (ARRAY['streamable_http'::text, 'sse'::text])))
 );
@@ -2470,7 +2481,7 @@ CREATE TABLE telemetry_items (
 CREATE TABLE telemetry_locks (
     event_type text NOT NULL,
     period_ending_at timestamp with time zone NOT NULL,
-    CONSTRAINT telemetry_lock_event_type_constraint CHECK ((event_type = ANY (ARRAY['aibridge_interceptions_summary'::text, 'boundary_usage_summary'::text])))
+    CONSTRAINT telemetry_lock_event_type_constraint CHECK ((event_type = ANY (ARRAY['aibridge_interceptions_summary'::text, 'boundary_usage_summary'::text, 'user_secrets_summary'::text])))
 );
 
 COMMENT ON TABLE telemetry_locks IS 'Telemetry lock tracking table for deduplication of heartbeat events across replicas.';
@@ -3388,6 +3399,9 @@ ALTER TABLE ONLY workspace_resource_metadata ALTER COLUMN id SET DEFAULT nextval
 ALTER TABLE ONLY workspace_agent_stats
     ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY ai_model_prices
+    ADD CONSTRAINT ai_model_prices_pkey PRIMARY KEY (provider, model);
+
 ALTER TABLE ONLY ai_seat_state
     ADD CONSTRAINT ai_seat_state_pkey PRIMARY KEY (user_id);
 
@@ -3818,6 +3832,8 @@ CREATE UNIQUE INDEX idx_chat_debug_runs_id_chat ON chat_debug_runs USING btree (
 
 CREATE INDEX idx_chat_debug_runs_stale ON chat_debug_runs USING btree (updated_at) WHERE (finished_at IS NULL);
 
+CREATE INDEX idx_chat_debug_runs_updated_at ON chat_debug_runs USING btree (updated_at);
+
 CREATE INDEX idx_chat_debug_steps_chat_assistant_msg ON chat_debug_steps USING btree (chat_id, assistant_message_id) WHERE (assistant_message_id IS NOT NULL);
 
 CREATE INDEX idx_chat_debug_steps_chat_tip ON chat_debug_steps USING btree (chat_id, history_tip_message_id);
@@ -3857,6 +3873,8 @@ CREATE INDEX idx_chat_providers_enabled ON chat_providers USING btree (enabled);
 CREATE INDEX idx_chat_queued_messages_chat_id ON chat_queued_messages USING btree (chat_id);
 
 CREATE INDEX idx_chats_agent_id ON chats USING btree (agent_id) WHERE (agent_id IS NOT NULL);
+
+CREATE INDEX idx_chats_auto_archive_candidates ON chats USING btree (created_at) WHERE ((archived = false) AND (pin_order = 0) AND (parent_chat_id IS NULL));
 
 CREATE INDEX idx_chats_labels ON chats USING gin (labels);
 
@@ -3990,6 +4008,8 @@ CREATE UNIQUE INDEX users_email_lower_idx ON users USING btree (lower(email)) WH
 
 CREATE UNIQUE INDEX users_username_lower_idx ON users USING btree (lower(username)) WHERE (deleted = false);
 
+CREATE UNIQUE INDEX webpush_subscriptions_user_id_endpoint_idx ON webpush_subscriptions USING btree (user_id, endpoint);
+
 CREATE INDEX workspace_agent_devcontainers_workspace_agent_id ON workspace_agent_devcontainers USING btree (workspace_agent_id);
 
 COMMENT ON INDEX workspace_agent_devcontainers_workspace_agent_id IS 'Workspace agent foreign key and query index';
@@ -4090,12 +4110,6 @@ CREATE TRIGGER remove_organization_member_custom_role BEFORE DELETE ON custom_ro
 
 COMMENT ON TRIGGER remove_organization_member_custom_role ON custom_roles IS 'When a custom_role is deleted, this trigger removes the role from all organization members.';
 
-CREATE TRIGGER tailnet_notify_coordinator_heartbeat AFTER INSERT OR UPDATE ON tailnet_coordinators FOR EACH ROW EXECUTE FUNCTION tailnet_notify_coordinator_heartbeat();
-
-CREATE TRIGGER tailnet_notify_peer_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_peers FOR EACH ROW EXECUTE FUNCTION tailnet_notify_peer_change();
-
-CREATE TRIGGER tailnet_notify_tunnel_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_tunnels FOR EACH ROW EXECUTE FUNCTION tailnet_notify_tunnel_change();
-
 CREATE TRIGGER trigger_aggregate_usage_event AFTER INSERT ON usage_events FOR EACH ROW EXECUTE FUNCTION aggregate_usage_event();
 
 CREATE TRIGGER trigger_delete_group_members_on_org_member_delete BEFORE DELETE ON organization_members FOR EACH ROW EXECUTE FUNCTION delete_group_members_on_org_member_delete();
@@ -4111,6 +4125,8 @@ CREATE TRIGGER trigger_nullify_next_start_at_on_workspace_autostart_modificati A
 CREATE TRIGGER trigger_update_users AFTER INSERT OR UPDATE ON users FOR EACH ROW WHEN ((new.deleted = true)) EXECUTE FUNCTION delete_deleted_user_resources();
 
 CREATE TRIGGER trigger_upsert_user_links BEFORE INSERT OR UPDATE ON user_links FOR EACH ROW EXECUTE FUNCTION insert_user_links_fail_if_user_deleted();
+
+CREATE TRIGGER trigger_upsert_user_secrets BEFORE INSERT OR UPDATE ON user_secrets FOR EACH ROW EXECUTE FUNCTION insert_user_secret_fail_if_user_deleted();
 
 CREATE TRIGGER update_notification_message_dedupe_hash BEFORE INSERT OR UPDATE ON notification_messages FOR EACH ROW EXECUTE FUNCTION compute_notification_message_dedupe_hash();
 

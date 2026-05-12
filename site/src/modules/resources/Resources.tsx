@@ -2,7 +2,6 @@ import { type FC, type JSX, useState } from "react";
 import type { WorkspaceAgent, WorkspaceResource } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
-import { Stack } from "#/components/Stack/Stack";
 import { ResourceCard } from "./ResourceCard";
 
 const countAgents = (resource: WorkspaceResource) => {
@@ -26,7 +25,7 @@ export const Resources: FC<ResourcesProps> = ({ resources, agentRow }) => {
 	const hasHideResources = resources.some((r) => r.hide);
 
 	return (
-		<Stack direction="column" spacing={0} className="bg-surface-primary">
+		<div className="flex flex-col bg-surface-primary">
 			{displayResources.map((resource) => (
 				<ResourceCard
 					key={resource.id}
@@ -50,6 +49,6 @@ export const Resources: FC<ResourcesProps> = ({ resources, agentRow }) => {
 					</Button>
 				</div>
 			)}
-		</Stack>
+		</div>
 	);
 };

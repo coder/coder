@@ -16,10 +16,7 @@ export const IdpPillList: FC<PillListProps> = ({ roles }) => {
 	return (
 		<Stack direction="row" spacing={1}>
 			{roles.length > 0 ? (
-				<Pill
-					type={isUUID(roles[0]) ? "error" : undefined}
-					className="w-fit"
-				>
+				<Pill className="w-fit" type={isUUID(roles[0]) ? "error" : "muted"}>
 					{roles[0]}
 				</Pill>
 			) : (
@@ -39,17 +36,16 @@ const OverflowPill: FC<OverflowPillProps> = ({ roles }) => {
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
-				<Pill data-testid="overflow-pill">+{roles.length} more</Pill>
+				<Pill type="muted" className="w-fit" data-testid="overflow-pill">
+					+{roles.length} more
+				</Pill>
 			</TooltipTrigger>
 
 			<TooltipContent className="px-4 py-3 border-surface-quaternary">
 				<ul className="flex flex-col gap-2 list-none my-0 pl-0">
 					{roles.map((role) => (
 						<li key={role}>
-							<Pill
-								type={isUUID(role) ? "error" : undefined}
-								className="w-fit"
-							>
+							<Pill className="w-fit" type={isUUID(role) ? "error" : "muted"}>
 								{role}
 							</Pill>
 						</li>

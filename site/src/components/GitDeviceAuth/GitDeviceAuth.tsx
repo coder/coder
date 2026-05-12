@@ -73,11 +73,7 @@ export const GitDeviceAuth: FC<GitDeviceAuthProps> = ({
 	deviceExchangeError,
 }) => {
 	let status = (
-		<p
-			className={cn(
-				"m-0 flex items-center justify-center gap-2 text-content-disabled",
-			)}
-		>
+		<p className="flex items-center justify-center gap-2 text-content-disabled">
 			<Spinner size="sm" loading />
 			Checking for authentication...
 		</p>
@@ -136,7 +132,7 @@ export const GitDeviceAuth: FC<GitDeviceAuthProps> = ({
 
 	return (
 		<div>
-			<div className="m-0 text-center text-base leading-[160%] text-content-secondary">
+			<p className="m-0 text-center text-base leading-relaxed text-content-secondary">
 				Copy your one-time code:&nbsp;
 				<span className="inline-flex items-center">
 					<span className="font-bold text-content-primary">
@@ -150,8 +146,8 @@ export const GitDeviceAuth: FC<GitDeviceAuthProps> = ({
 				</span>
 				<br />
 				Then open the link below and paste it:
-			</div>
-			<div className="my-4 flex flex-col gap-1">
+			</p>
+			<div className="m-4 flex flex-col gap-1">
 				<Link
 					className="flex items-center justify-center gap-2 text-base"
 					href={externalAuthDevice.verification_uri}

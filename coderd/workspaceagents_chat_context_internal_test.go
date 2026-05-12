@@ -2,7 +2,6 @@ package coderd
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"testing"
 	"time"
@@ -14,7 +13,7 @@ import (
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -89,40 +88,25 @@ func TestUpdateAgentChatLastInjectedContextFromMessagesUsesMessageIDTieBreaker(t
 }
 
 func insertAgentChatTestModelConfig(
-	ctx context.Context,
 	t testing.TB,
 	db database.Store,
 	userID uuid.UUID,
 ) database.ChatModelConfig {
 	t.Helper()
 
-	sysCtx := dbauthz.AsSystemRestricted(ctx)
 	createdBy := uuid.NullUUID{UUID: userID, Valid: true}
 
-	_, err := db.InsertChatProvider(sysCtx, database.InsertChatProviderParams{
-		Provider:             "openai",
-		DisplayName:          "OpenAI",
-		APIKey:               "test-api-key",
-		ApiKeyKeyID:          sql.NullString{},
-		CreatedBy:            createdBy,
-		Enabled:              true,
-		CentralApiKeyEnabled: true,
+	_ = dbgen.ChatProvider(t, db, database.ChatProvider{
+		Provider:    "openai",
+		DisplayName: "OpenAI",
+		APIKey:      "test-api-key",
+		CreatedBy:   createdBy,
 	})
-	require.NoError(t, err)
 
-	model, err := db.InsertChatModelConfig(sysCtx, database.InsertChatModelConfigParams{
-		Provider:             "openai",
-		Model:                "gpt-4o-mini",
-		DisplayName:          "Test Model",
-		CreatedBy:            createdBy,
-		UpdatedBy:            createdBy,
-		Enabled:              true,
-		IsDefault:            true,
-		ContextLimit:         128000,
-		CompressionThreshold: 70,
-		Options:              json.RawMessage(`{}`),
+	return dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Provider:  "openai",
+		CreatedBy: createdBy,
+		UpdatedBy: createdBy,
+		IsDefault: true,
 	})
-	require.NoError(t, err)
-
-	return model
 }

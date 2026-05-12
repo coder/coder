@@ -118,7 +118,7 @@ func TestBoundaryLicenseVerification(t *testing.T) {
 
 		proxyURL, err := url.Parse(proxy.URL)
 		require.NoError(t, err)
-		proxyClient := codersdk.New(proxyURL)
+		proxyClient := codersdk.New(proxyURL, codersdk.WithHTTPClient(coderdtest.NewIsolatedHTTPClient(proxyURL)))
 		proxyClient.SetSessionToken(client.SessionToken())
 		t.Cleanup(proxyClient.HTTPClient.CloseIdleConnections)
 
@@ -182,7 +182,7 @@ func TestBoundaryLicenseVerification(t *testing.T) {
 
 		proxyURL, err := url.Parse(proxy.URL)
 		require.NoError(t, err)
-		proxyClient := codersdk.New(proxyURL)
+		proxyClient := codersdk.New(proxyURL, codersdk.WithHTTPClient(coderdtest.NewIsolatedHTTPClient(proxyURL)))
 		proxyClient.SetSessionToken(client.SessionToken())
 		t.Cleanup(proxyClient.HTTPClient.CloseIdleConnections)
 
@@ -219,7 +219,7 @@ func TestBoundaryLicenseVerification(t *testing.T) {
 
 		proxyURL, err := url.Parse(proxy.URL)
 		require.NoError(t, err)
-		proxyClient := codersdk.New(proxyURL)
+		proxyClient := codersdk.New(proxyURL, codersdk.WithHTTPClient(coderdtest.NewIsolatedHTTPClient(proxyURL)))
 		proxyClient.SetSessionToken(client.SessionToken())
 		t.Cleanup(proxyClient.HTTPClient.CloseIdleConnections)
 
@@ -286,7 +286,7 @@ func TestBoundaryChildProcessSkipsCheck(t *testing.T) {
 
 	proxyURL, err := url.Parse(proxy.URL)
 	require.NoError(t, err)
-	proxyClient := codersdk.New(proxyURL)
+	proxyClient := codersdk.New(proxyURL, codersdk.WithHTTPClient(coderdtest.NewIsolatedHTTPClient(proxyURL)))
 	proxyClient.SetSessionToken(client.SessionToken())
 	t.Cleanup(proxyClient.HTTPClient.CloseIdleConnections)
 

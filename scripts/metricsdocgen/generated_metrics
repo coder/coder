@@ -157,9 +157,9 @@ coderd_agents_connection_latencies_seconds{agent_name="",username="",workspace_n
 # HELP coderd_agents_connections Agent connections with statuses.
 # TYPE coderd_agents_connections gauge
 coderd_agents_connections{agent_name="",username="",workspace_name="",status="",lifecycle_state="",tailnet_node=""} 0
-# HELP coderd_agents_first_connection_seconds Duration from agent creation to first connection to the control plane in seconds.
+# HELP coderd_agents_first_connection_seconds Duration from agent creation to first connection in seconds.
 # TYPE coderd_agents_first_connection_seconds histogram
-coderd_agents_first_connection_seconds{template_name="",agent_name="",username="",workspace_name=""} 0
+coderd_agents_first_connection_seconds{template_name="",agent_name=""} 0
 # HELP coderd_agents_up The number of active agents per workspace.
 # TYPE coderd_agents_up gauge
 coderd_agents_up{username="",workspace_name="",template_name="",template_version=""} 0
@@ -226,6 +226,9 @@ coderd_authz_prepare_authorize_duration_seconds 0
 # HELP coderd_build_info Describes the current build/version of the Coder server. Value is always 1.
 # TYPE coderd_build_info gauge
 coderd_build_info{version="",revision=""} 0
+# HELP coderd_chat_auto_archive_records_archived_total Total number of chats archived by the auto-archive job (counting both roots and cascaded children).
+# TYPE coderd_chat_auto_archive_records_archived_total counter
+coderd_chat_auto_archive_records_archived_total 0
 # HELP coderd_chatd_chats Number of chats being processed, by state.
 # TYPE coderd_chatd_chats gauge
 coderd_chatd_chats{state=""} 0
@@ -252,7 +255,7 @@ coderd_chatd_stream_buffer_events 0
 coderd_chatd_stream_buffer_size_max 0
 # HELP coderd_chatd_stream_retries_total Total LLM stream retries.
 # TYPE coderd_chatd_stream_retries_total counter
-coderd_chatd_stream_retries_total{provider="",model="",kind=""} 0
+coderd_chatd_stream_retries_total{provider="",model="",kind="",chain_broken=""} 0
 # HELP coderd_chatd_stream_subscribers Current number of chat stream subscribers across all chat streams.
 # TYPE coderd_chatd_stream_subscribers gauge
 coderd_chatd_stream_subscribers 0

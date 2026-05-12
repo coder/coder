@@ -20,11 +20,11 @@ import {
 	AlertTriangleIcon,
 	ArchiveIcon,
 	ArchiveRestoreIcon,
+	ArrowLeftIcon,
 	BotIcon,
 	BoxesIcon,
 	CheckIcon,
 	ChevronDownIcon,
-	ChevronLeftIcon,
 	ChevronRightIcon,
 	CoinsIcon,
 	EllipsisIcon,
@@ -88,8 +88,8 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
-import { CoderIcon } from "#/components/Icons/CoderIcon";
+import { FeatureStageBadge } from "#/components/FeatureStageBadge/FeatureStageBadge";
+import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -105,6 +105,7 @@ import { cn } from "#/utils/cn";
 import { shortRelativeTime } from "#/utils/time";
 import { getNormalizedModelRef } from "../../utils/modelOptions";
 import { getTimeGroup, TIME_GROUPS } from "../../utils/timeGroups";
+import { asNonEmptyString } from "../ChatConversation/blockUtils";
 import type { ModelSelectorOption } from "../ChatElements";
 import { asString } from "../ChatElements/runtimeTypeUtils";
 import { UsageIndicator } from "../UsageIndicator";
@@ -163,7 +164,6 @@ interface AgentsSidebarProps {
 	chatErrorReasons: Record<string, string>;
 	modelOptions: readonly ModelSelectorOption[];
 	modelConfigs: readonly ChatModelConfig[];
-	logoUrl?: string;
 	onArchiveAgent: (chatId: string) => void;
 	onUnarchiveAgent: (chatId: string) => void;
 	onArchiveAndDeleteWorkspace: (chatId: string, workspaceId: string) => void;
@@ -186,6 +186,7 @@ interface AgentsSidebarProps {
 	archivedFilter: "active" | "archived";
 	onArchivedFilterChange?: (filter: "active" | "archived") => void;
 	onCollapse?: () => void;
+	isPersonalModelOverridesEnabled?: boolean;
 	isAdmin?: boolean;
 }
 
@@ -239,14 +240,6 @@ const getPRIconConfig = (
 		};
 	}
 	return { icon: GitPullRequestArrowIcon, className: "text-git-added-bright" };
-};
-
-const asNonEmptyString = (value: unknown): string | undefined => {
-	if (typeof value !== "string") {
-		return undefined;
-	}
-	const trimmed = value.trim();
-	return trimmed.length > 0 ? trimmed : undefined;
 };
 
 const getModelDisplayName = (
@@ -466,6 +459,7 @@ interface ChatTreeNodeProps {
 }
 
 const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
+	const location = useLocation();
 	const {
 		chatTree,
 		chatById,
@@ -503,9 +497,64 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 	);
 	const errorReason =
 		chat.status === "error"
-			? chatErrorReasons[chat.id] || chat.last_error || undefined
+			? chatErrorReasons[chat.id] || chat.last_error?.message || undefined
 			: undefined;
-	const subtitle = errorReason || modelName;
+	const lastTurnSummary = asNonEmptyString(chat.last_turn_summary);
+	// While a turn is in flight the cached last_turn_summary still holds
+	// the previous turn's text. Surface a live "{model} streaming…" label
+	// instead so the sidebar does not look stuck on the old status.
+	const isStreaming = chat.status === "running" || chat.status === "pending";
+	const streamingSubtitle = isStreaming ? `${modelName} streaming…` : undefined;
+	// Server-side, status flips to "waiting" synchronously when streaming
+	// ends, but the new last_turn_summary is written by an async finalizer
+	// (it calls the model to generate a label). For a beat after the stream
+	// stops, the chat row still carries the previous turn's summary text.
+	// Suppress that briefly-stale text: remember the cached summary observed
+	// while streaming, then hide an exact match on the post-stream renders
+	// until the new summary lands. A timeout-based release covers the rare
+	// case where the regenerated summary equals the previous one byte-for-
+	// byte (so the equality-based release would never fire). State is
+	// captured during render using the React "adjust state during render"
+	// pattern so the first post-stream paint already suppresses the stale
+	// string instead of flashing it for a frame.
+	const staleTurnSummaryReleaseMs = 10_000;
+	const [streamingSummary, setStreamingSummary] = useState<string | undefined>(
+		isStreaming ? lastTurnSummary : undefined,
+	);
+	const [suppressionExpired, setSuppressionExpired] = useState(false);
+	if (isStreaming) {
+		if (streamingSummary !== lastTurnSummary) {
+			setStreamingSummary(lastTurnSummary);
+		}
+		if (suppressionExpired) {
+			setSuppressionExpired(false);
+		}
+	} else if (
+		streamingSummary !== undefined &&
+		lastTurnSummary !== streamingSummary
+	) {
+		setStreamingSummary(undefined);
+		if (suppressionExpired) {
+			setSuppressionExpired(false);
+		}
+	}
+	const isStaleTurnSummary =
+		!isStreaming &&
+		lastTurnSummary !== undefined &&
+		!suppressionExpired &&
+		streamingSummary === lastTurnSummary;
+	useEffect(() => {
+		if (!isStaleTurnSummary) {
+			return;
+		}
+		const timeoutId = window.setTimeout(() => {
+			setSuppressionExpired(true);
+		}, staleTurnSummaryReleaseMs);
+		return () => window.clearTimeout(timeoutId);
+	}, [isStaleTurnSummary]);
+	const displayedTurnSummary = isStaleTurnSummary ? undefined : lastTurnSummary;
+	const subtitle =
+		errorReason || streamingSubtitle || displayedTurnSummary || modelName;
 	const diffStatus = getChatDiffStatus(chat);
 	const baseConfig = getStatusConfig(chat.status);
 	const prConfig =
@@ -598,7 +647,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 					<div
 						data-testid={`agents-tree-node-${chat.id}`}
 						className={cn(
-							"group relative flex min-w-0 items-start gap-1.5 rounded-md pl-1 pr-1.5 text-content-secondary",
+							"group relative flex min-w-0 select-none [@media(pointer:coarse)]:[-webkit-touch-callout:none] items-start gap-1.5 rounded-md pl-1 pr-1.5 text-content-secondary",
 							"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary has-[[data-state=open]]:bg-surface-tertiary",
 							"has-[[aria-current=page]]:bg-surface-quaternary/25 has-[[aria-current=page]]:text-content-primary [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
 							isChildNode &&
@@ -645,7 +694,10 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 							)}
 						</div>
 						<NavLink
-							to={`/agents/${chat.id}`}
+							to={{
+								pathname: `/agents/${chat.id}`,
+								search: location.search,
+							}}
 							className="flex min-h-0 min-w-0 flex-1 items-start gap-2 rounded-[inherit] py-1 pr-0.5 text-inherit no-underline"
 						>
 							{({ isActive }) => (
@@ -817,7 +869,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		chatErrorReasons,
 		modelOptions,
 		modelConfigs,
-		logoUrl,
 		onArchiveAgent,
 		onUnarchiveAgent,
 		onArchiveAndDeleteWorkspace,
@@ -840,6 +891,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		archivedFilter,
 		onArchivedFilterChange,
 		onCollapse,
+		isPersonalModelOverridesEnabled = false,
 		isAdmin = false,
 	} = props;
 	const { agentId, chatId } = useParams<{
@@ -887,7 +939,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		.filter((chat): chat is Chat => (chat?.pin_order ?? 0) > 0)
 		.sort((a, b) => a.pin_order - b.pin_order);
 
-	// Local override for pinned order during drag — applied
+	// Local override for pinned order during drag. Applied
 	// synchronously so there's no flash between the dnd-kit
 	// transform clearing and the server data arriving.
 	const [localPinOrder, setLocalPinOrder] = useState<string[] | null>(null);
@@ -991,7 +1043,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 			</DropdownMenuTrigger>
 			<DropdownMenuContent
 				align="end"
-				className="[&_[role=menuitem]]:text-[13px]"
+				className="mobile-full-width-dropdown mobile-full-width-dropdown-top-below-header [&_[role=menuitem]]:text-[13px]"
 			>
 				<DropdownMenuItem onSelect={() => onArchivedFilterChange?.("active")}>
 					Active
@@ -1010,8 +1062,8 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	);
 
 	// Auto-expand ancestors of the active chat so it's always visible.
-	// Only runs when activeChatId changes — not on every parentById
-	// recalculation — so user-initiated collapse is preserved.
+	// Only runs when activeChatId changes, not on every parentById
+	// recalculation, so user-initiated collapse is preserved.
 	const parentByIdRef = useRef(chatTree.parentById);
 	useEffect(() => {
 		parentByIdRef.current = chatTree.parentById;
@@ -1075,21 +1127,20 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 			{/* ── Panel 1: Chats ── */}
 			<div
 				className={cn(
-					"absolute inset-0 flex flex-col md:transition-transform md:duration-200 md:ease-in-out",
+					"absolute inset-0 flex flex-col sm:transition-transform sm:duration-200 sm:ease-in-out",
 					isSettingsPanel && "-translate-x-full",
 				)}
 				aria-hidden={isSettingsPanel}
 				inert={isSettingsPanel ? true : undefined}
 			>
-				<div className="hidden border-b border-border-default px-2 pb-3 pt-1.5 md:block">
+				<div className="hidden border-b border-border-default px-2 pb-3 pt-1.5 sm:block">
 					<div className="mb-2.5 flex items-center justify-between">
-						<NavLink to="/workspaces" className="inline-flex">
-							{logoUrl ? (
-								<ExternalImage className="h-6" src={logoUrl} alt="Logo" />
-							) : (
-								<CoderIcon className="h-6 w-6 fill-content-primary" />
-							)}
-						</NavLink>
+						<div className="flex items-center gap-2">
+							<NavLink to="/workspaces" className="inline-flex">
+								<ProductLogo className="size-6" />
+							</NavLink>
+							<FeatureStageBadge contentType="beta" size="xs" />
+						</div>
 						<div className="flex items-center gap-0.5 -mr-1.5">
 							<Button
 								asChild
@@ -1101,7 +1152,10 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									isSettingsPanel && "text-content-primary",
 								)}
 							>
-								<Link to="/agents/settings" state={{ from: location.pathname }}>
+								<Link
+									to="/agents/settings"
+									state={{ from: location.pathname + location.search }}
+								>
 									<SettingsIcon />
 								</Link>
 							</Button>
@@ -1122,153 +1176,163 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 						icon={SquarePenIcon}
 						label="New Agent"
 						active={!activeChatId && sidebarView.panel === "chats"}
-						to="/agents"
+						to={`/agents${location.search}`}
 						onClick={onBeforeNewAgent}
 						disabled={isCreating}
 					/>
 				</div>
-				<ScrollArea
-					className="flex-1 [&_[data-radix-scroll-area-viewport]>div]:!block"
-					scrollBarClassName="w-1.5"
-				>
-					<div className="flex flex-col gap-2 px-2 py-3 md:px-2">
-						{loadError ? (
-							<div className="space-y-3 px-1">
-								<ErrorAlert error={loadError} />
-								{onRetryLoad && (
-									<Button size="sm" variant="outline" onClick={onRetryLoad}>
-										Retry
-									</Button>
-								)}
-							</div>
-						) : isLoading ? (
-							<>
-								<Skeleton className="ml-2.5 h-3.5 w-16" />
-								<div className="flex flex-col gap-0.5">
-									{Array.from({ length: 6 }, (_, i) => (
-										<div
-											key={i}
-											className="flex items-start gap-2 rounded-md px-2 py-1"
-										>
-											<Skeleton className="mt-0.5 h-5 w-5 shrink-0 rounded-md" />
-											<div className="min-w-0 flex-1 space-y-1.5">
-												<Skeleton
-													className="h-3.5"
-													style={{ width: `${55 + ((i * 17) % 35)}%` }}
-												/>
-												<Skeleton className="h-3 w-20" />
-											</div>
-										</div>
-									))}
+				<div className="relative min-h-0 flex-1">
+					<ScrollArea
+						className="h-full [&_[data-radix-scroll-area-viewport]>div]:!block"
+						scrollBarClassName="w-1.5"
+						viewportClassName={cn(
+							"[mask-image:linear-gradient(to_bottom,transparent_0,black_20px,black_calc(100%-20px),transparent_100%)]",
+							"[-webkit-mask-image:linear-gradient(to_bottom,transparent_0,black_20px,black_calc(100%-20px),transparent_100%)]",
+							"sm:[mask-image:none] sm:[-webkit-mask-image:none]",
+						)}
+					>
+						<div className="flex flex-col gap-2 px-2 py-3">
+							{loadError ? (
+								<div className="space-y-3 px-1">
+									<ErrorAlert error={loadError} />
+									{onRetryLoad && (
+										<Button size="sm" variant="outline" onClick={onRetryLoad}>
+											Retry
+										</Button>
+									)}
 								</div>
-							</>
-						) : (
-							<ChatTreeContext value={chatTreeCtx}>
-								{visibleRootIDs.length === 0 ? (
-									<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
-										<p className="m-0">
-											{normalizedSearch
-												? "No matching agents"
-												: archivedFilter === "archived"
-													? "No archived agents"
-													: "No agents yet"}
-										</p>
-										<button
-											type="button"
-											className="mt-2 cursor-pointer border-none bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary hover:underline"
-											onClick={() =>
-												onArchivedFilterChange?.(
-													archivedFilter === "archived" ? "active" : "archived",
-												)
-											}
-										>
-											{archivedFilter === "archived"
-												? "← Back to active"
-												: "View archived →"}
-										</button>
+							) : isLoading ? (
+								<>
+									<Skeleton className="ml-2.5 h-3.5 w-16" />
+									<div className="flex flex-col gap-0.5">
+										{Array.from({ length: 6 }, (_, i) => (
+											<div
+												key={i}
+												className="flex items-start gap-2 rounded-md px-2 py-1"
+											>
+												<Skeleton className="mt-0.5 h-5 w-5 shrink-0 rounded-md" />
+												<div className="min-w-0 flex-1 space-y-1.5">
+													<Skeleton
+														className="h-3.5"
+														style={{ width: `${55 + ((i * 17) % 35)}%` }}
+													/>
+													<Skeleton className="h-3 w-20" />
+												</div>
+											</div>
+										))}
 									</div>
-								) : (
-									<div>
-										{visibleRootIDs.length > 0 && (
-											<div className="pb-2">
-												{/* ── Pinned section ── */}
-												{pinnedChats.length > 0 && (
-													<div className="[&:not(:first-child)]:mt-3">
-														<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
-															<span>Pinned</span>
-															{showFilterOnPinned && filterDropdown}
-														</div>
-														<DndContext
-															sensors={sensors}
-															collisionDetection={closestCenter}
-															onDragEnd={handleDragEnd}
-														>
-															<SortableContext
-																items={pinnedChatIds}
-																strategy={verticalListSortingStrategy}
+								</>
+							) : (
+								<ChatTreeContext value={chatTreeCtx}>
+									{visibleRootIDs.length === 0 ? (
+										<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
+											<p className="m-0">
+												{normalizedSearch
+													? "No matching agents"
+													: archivedFilter === "archived"
+														? "No archived agents"
+														: "No agents yet"}
+											</p>
+											<button
+												type="button"
+												className="mt-2 cursor-pointer border-none bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary hover:underline"
+												onClick={() =>
+													onArchivedFilterChange?.(
+														archivedFilter === "archived"
+															? "active"
+															: "archived",
+													)
+												}
+											>
+												{archivedFilter === "archived"
+													? "← Back to active"
+													: "View archived →"}
+											</button>
+										</div>
+									) : (
+										<div>
+											{visibleRootIDs.length > 0 && (
+												<div className="pb-2">
+													{/* ── Pinned section ── */}
+													{pinnedChats.length > 0 && (
+														<div className="[&:not(:first-child)]:mt-3">
+															<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
+																<span>Pinned</span>
+																{showFilterOnPinned && filterDropdown}
+															</div>
+															<DndContext
+																sensors={sensors}
+																collisionDetection={closestCenter}
+																onDragEnd={handleDragEnd}
 															>
-																<div
-																	ref={pinnedContainerRef}
-																	className="flex flex-col gap-0.5"
+																<SortableContext
+																	items={pinnedChatIds}
+																	strategy={verticalListSortingStrategy}
 																>
-																	{sortedPinnedChats.map((chat) => (
-																		<SortableChatTreeNode
+																	<div
+																		ref={pinnedContainerRef}
+																		className="flex flex-col gap-0.5"
+																	>
+																		{sortedPinnedChats.map((chat) => (
+																			<SortableChatTreeNode
+																				key={chat.id}
+																				chat={chat}
+																			/>
+																		))}
+																	</div>
+																</SortableContext>
+															</DndContext>
+														</div>
+													)}
+													{/* ── Time-grouped sections ── */}
+													{TIME_GROUPS.map((group) => {
+														const groupChats = visibleRootIDs
+															.map((id) => chatById.get(id))
+															.filter(
+																(chat): chat is Chat =>
+																	chat !== undefined &&
+																	getTimeGroup(chat.updated_at) === group &&
+																	chat.pin_order === 0,
+															);
+														if (groupChats.length === 0) return null;
+														return (
+															<div
+																key={group}
+																className="[&:not(:first-child)]:mt-3"
+															>
+																<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
+																	<span>{group}</span>
+																	{group === firstNonEmptyGroup &&
+																		filterDropdown}
+																</div>
+																<div className="flex flex-col gap-0.5">
+																	{groupChats.map((chat) => (
+																		<ChatTreeNode
 																			key={chat.id}
 																			chat={chat}
+																			isChildNode={false}
 																		/>
 																	))}
 																</div>
-															</SortableContext>
-														</DndContext>
-													</div>
-												)}
-												{/* ── Time-grouped sections ── */}
-												{TIME_GROUPS.map((group) => {
-													const groupChats = visibleRootIDs
-														.map((id) => chatById.get(id))
-														.filter(
-															(chat): chat is Chat =>
-																chat !== undefined &&
-																getTimeGroup(chat.updated_at) === group &&
-																chat.pin_order === 0,
+															</div>
 														);
-													if (groupChats.length === 0) return null;
-													return (
-														<div
-															key={group}
-															className="[&:not(:first-child)]:mt-3"
-														>
-															<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
-																<span>{group}</span>
-																{group === firstNonEmptyGroup && filterDropdown}
-															</div>
-															<div className="flex flex-col gap-0.5">
-																{groupChats.map((chat) => (
-																	<ChatTreeNode
-																		key={chat.id}
-																		chat={chat}
-																		isChildNode={false}
-																	/>
-																))}
-															</div>
-														</div>
-													);
-												})}
-											</div>
-										)}
-									</div>
-								)}
-								{(hasNextPage || isFetchingNextPage) && (
-									<LoadMoreSentinel
-										onLoadMore={onLoadMore}
-										isFetchingNextPage={isFetchingNextPage}
-									/>
-								)}
-							</ChatTreeContext>
-						)}
-					</div>
-				</ScrollArea>
-				<div className="hidden border-0 border-t border-solid md:block">
+													})}
+												</div>
+											)}
+										</div>
+									)}
+									{(hasNextPage || isFetchingNextPage) && (
+										<LoadMoreSentinel
+											onLoadMore={onLoadMore}
+											isFetchingNextPage={isFetchingNextPage}
+										/>
+									)}
+								</ChatTreeContext>
+							)}
+						</div>
+					</ScrollArea>
+				</div>
+				<div className="hidden border-0 border-t border-solid sm:block">
 					<div className="flex items-stretch">
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>
@@ -1309,14 +1373,14 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 			{/* ── Panel 2: Sub-navigation (Settings) ── */}
 			<div
 				className={cn(
-					"absolute inset-0 flex flex-col md:transition-transform md:duration-200 md:ease-in-out",
+					"absolute inset-0 flex flex-col sm:transition-transform sm:duration-200 sm:ease-in-out",
 					!isSettingsPanel && "translate-x-full",
 				)}
 				aria-hidden={!isSettingsPanel}
 				inert={!isSettingsPanel ? true : undefined}
 			>
 				{/* Back header */}
-				<div className="border-b border-border-default px-2 pb-2 pt-3 md:py-2">
+				<div className="border-b border-border-default px-2 pb-2 pt-3 sm:py-2">
 					<div className="relative flex items-center">
 						<span className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm font-medium text-content-primary">
 							{subNavTitle}
@@ -1338,13 +1402,13 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 									state={location.state}
 									aria-label="Back to Settings"
 								>
-									<ChevronLeftIcon />
+									<ArrowLeftIcon />
 								</Link>
 							) : (
 								<Link
 									to={(location.state as { from?: string })?.from || "/agents"}
 								>
-									<ChevronLeftIcon />
+									<ArrowLeftIcon />
 								</Link>
 							)}
 						</Button>
@@ -1355,7 +1419,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 								size="icon"
 								onClick={onCollapse}
 								aria-label="Collapse sidebar"
-								className="relative z-10 hidden h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary md:inline-flex"
+								className="relative z-10 hidden h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary sm:inline-flex"
 							>
 								<PanelLeftCloseIcon />
 							</Button>
@@ -1372,6 +1436,15 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							to="/agents/settings/general"
 							state={location.state}
 						/>
+						{isPersonalModelOverridesEnabled && (
+							<SettingsNavItem
+								icon={BotIcon}
+								label="Agents"
+								active={settingsSection === "user-agents"}
+								to="/agents/settings/user-agents"
+								state={location.state}
+							/>
+						)}
 						<SettingsNavItem
 							icon={ShrinkIcon}
 							label="Compaction"
@@ -1590,7 +1663,7 @@ const LoadMoreSentinel: FC<{
 		// Don't observe while a fetch is in progress. When the
 		// fetch completes this effect re-runs, creating a fresh
 		// observer whose initial entry detects the sentinel if
-		// it's still visible — fixing the case where loaded items
+		// it's still visible, fixing the case where loaded items
 		// don't push the sentinel out of view and the previous
 		// observer never re-fires.
 		if (isFetchingNextPage) return;

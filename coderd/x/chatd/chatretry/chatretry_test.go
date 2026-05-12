@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -27,6 +28,22 @@ func TestIsRetryableDelegatesToClassification(t *testing.T) {
 		{name: "Nil", err: nil, retryable: false},
 		{name: "RetryableExplicitStatus429", err: xerrors.New("received status 429 from upstream"), retryable: true},
 		{name: "RetryableTimeout", err: xerrors.New("service unavailable"), retryable: true},
+		{
+			name: "RetryableAnthropicMissingMessageStop",
+			err: xerrors.Errorf(
+				"anthropic stream closed before message_stop: %w",
+				io.EOF,
+			),
+			retryable: true,
+		},
+		{
+			name: "RetryableOpenAIResponsesMissingTerminalEvent",
+			err: xerrors.Errorf(
+				"openai responses stream closed before terminal event: %w",
+				io.EOF,
+			),
+			retryable: true,
+		},
 		{name: "NonRetryableAuth", err: xerrors.New("invalid api key"), retryable: false},
 		{name: "NonRetryableGeneric", err: xerrors.New("boom"), retryable: false},
 	}

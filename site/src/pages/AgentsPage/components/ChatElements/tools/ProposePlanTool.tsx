@@ -9,7 +9,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 import { Response } from "../Response";
 import type { ToolStatus } from "./utils";
 
@@ -73,8 +72,8 @@ export const ProposePlanTool: React.FC<{
 
 	return (
 		<div className="w-full">
-			<div className="flex items-center gap-1.5 py-0.5">
-				<span className={cn("text-sm", "text-content-secondary")}>
+			<div className="flex items-center gap-1.5 py-0.5 text-content-secondary">
+				<span className="text-[13px]">
 					{isRunning ? `Proposing ${filename}…` : `Proposed ${filename}`}
 				</span>
 				{effectiveError && (
@@ -91,7 +90,7 @@ export const ProposePlanTool: React.FC<{
 					</Tooltip>
 				)}
 				{isRunning && (
-					<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
+					<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current" />
 				)}
 			</div>
 			{hasDisplayContent ? (
@@ -132,13 +131,13 @@ export const ProposePlanTool: React.FC<{
 			) : (
 				!fetchLoading &&
 				!effectiveError && (
-					<p className="text-sm text-content-secondary italic">
+					<p className="text-[13px] text-content-secondary italic">
 						No plan content.
 					</p>
 				)
 			)}
 			{fetchLoading && (
-				<div className="flex items-center gap-1.5 py-2 text-sm text-content-secondary">
+				<div className="flex items-center gap-1.5 py-2 text-[13px] text-content-secondary">
 					<LoaderIcon className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
 					Loading plan…
 				</div>

@@ -56,7 +56,7 @@ export const InlineMarkdown: FC<InlineMarkdownProps> = (props) => {
 
 				code: ({ node, className, children, style, ...props }) => (
 					<code
-						className="rounded-sm bg-border px-1 py-px text-[14px] text-content-primary"
+						className="rounded-sm bg-border px-1 py-px text-sm text-content-primary"
 						{...props}
 					>
 						{children}

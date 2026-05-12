@@ -609,13 +609,13 @@ func TestClientAndConnectionError(t *testing.T) {
 			name:        "blocking_connection_refused",
 			addr:        startRejectingListener(t),
 			streaming:   false,
-			errContains: "connection reset by peer",
+			errContains: `connection reset by peer|forcibly closed`, // RST error message differs between Linux/macOS|Windows.
 		},
 		{
 			name:        "streaming_connection_refused",
 			addr:        startRejectingListener(t),
 			streaming:   true,
-			errContains: "connection reset by peer",
+			errContains: `connection reset by peer|forcibly closed`, // RST error message differs between Linux/macOS|Windows.
 		},
 		{
 			name:        "blocking_bad_url",
@@ -639,10 +639,7 @@ func TestClientAndConnectionError(t *testing.T) {
 			t.Cleanup(cancel)
 
 			// tc.addr may be an intentionally invalid URL; use withCustomProvider.
-			// MaxRetries is set to 0 to disable SDK retries and speed up the test.
 			cfg := openAICfg(tc.addr, apiKey)
-			maxRetries := 0
-			cfg.MaxRetries = &maxRetries
 			bridgeServer := newBridgeTestServer(ctx, t, tc.addr, withCustomProvider(provider.NewOpenAI(cfg)))
 
 			reqBytes := responsesRequestBytes(t, tc.streaming)
@@ -719,10 +716,7 @@ func TestUpstreamError(t *testing.T) {
 			}))
 			t.Cleanup(upstream.Close)
 
-			// MaxRetries is set to 0 to disable SDK retries and speed up the test.
 			cfg := openAICfg(upstream.URL, apiKey)
-			maxRetries := 0
-			cfg.MaxRetries = &maxRetries
 			bridgeServer := newBridgeTestServer(ctx, t, upstream.URL, withCustomProvider(provider.NewOpenAI(cfg)))
 
 			reqBytes := responsesRequestBytes(t, tc.streaming)
@@ -1062,13 +1056,13 @@ func TestResponsesModelThoughts(t *testing.T) {
 	}
 }
 
-func requireResponsesError(t *testing.T, code int, message string, body []byte) {
+func requireResponsesError(t *testing.T, code int, messagePattern string, body []byte) {
 	var respErr responses.Error
 	err := json.Unmarshal(body, &respErr)
 	require.NoError(t, err)
 
 	require.Equal(t, strconv.Itoa(code), respErr.Code)
-	require.Contains(t, respErr.Message, message)
+	require.Regexp(t, messagePattern, respErr.Message)
 }
 
 func responsesRequestBytes(t *testing.T, streaming bool, additionalFields ...keyVal) []byte {

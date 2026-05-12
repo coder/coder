@@ -15,7 +15,6 @@ import type {
 	WorkspaceAgentMetadata,
 } from "#/api/typesGenerated";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
-import { Stack } from "#/components/Stack/Stack";
 import {
 	Tooltip,
 	TooltipContent,
@@ -139,7 +138,7 @@ export const AgentMetadata: FC<AgentMetadataProps> = ({
 
 const AgentMetadataSkeleton: FC = () => {
 	return (
-		<Stack alignItems="baseline" direction="row" spacing={6}>
+		<div className="flex flex-row items-baseline gap-12">
 			<div className="leading-relaxed flex flex-col overflow-visible flex-shrink-0">
 				<Skeleton width={40} height={6} variant="text" />
 				<Skeleton width={65} height={8} variant="text" />
@@ -154,7 +153,7 @@ const AgentMetadataSkeleton: FC = () => {
 				<Skeleton width={40} height={6} variant="text" />
 				<Skeleton width={65} height={8} variant="text" />
 			</div>
-		</Stack>
+		</div>
 	);
 };
 

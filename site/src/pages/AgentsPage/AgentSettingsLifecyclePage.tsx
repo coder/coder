@@ -1,8 +1,12 @@
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
+	chatAutoArchiveDays,
+	chatDebugRetentionDays,
 	chatRetentionDays,
 	chatWorkspaceTTL,
+	updateChatAutoArchiveDays,
+	updateChatDebugRetentionDays,
 	updateChatRetentionDays,
 	updateChatWorkspaceTTL,
 } from "#/api/queries/chats";
@@ -21,11 +25,25 @@ const AgentSettingsLifecyclePage: FC = () => {
 		...chatRetentionDays(),
 		enabled: permissions.editDeploymentConfig,
 	});
+	const autoArchiveDaysQuery = useQuery({
+		...chatAutoArchiveDays(),
+		enabled: permissions.editDeploymentConfig,
+	});
+	const debugRetentionDaysQuery = useQuery({
+		...chatDebugRetentionDays(),
+		enabled: permissions.editDeploymentConfig,
+	});
 	const saveWorkspaceTTLMutation = useMutation(
 		updateChatWorkspaceTTL(queryClient),
 	);
 	const saveRetentionDaysMutation = useMutation(
 		updateChatRetentionDays(queryClient),
+	);
+	const saveAutoArchiveDaysMutation = useMutation(
+		updateChatAutoArchiveDays(queryClient),
+	);
+	const saveDebugRetentionDaysMutation = useMutation(
+		updateChatDebugRetentionDays(queryClient),
 	);
 
 	return (
@@ -43,6 +61,18 @@ const AgentSettingsLifecyclePage: FC = () => {
 				onSaveRetentionDays={saveRetentionDaysMutation.mutate}
 				isSavingRetentionDays={saveRetentionDaysMutation.isPending}
 				isSaveRetentionDaysError={saveRetentionDaysMutation.isError}
+				debugRetentionDaysData={debugRetentionDaysQuery.data}
+				isDebugRetentionDaysLoading={debugRetentionDaysQuery.isLoading}
+				isDebugRetentionDaysLoadError={debugRetentionDaysQuery.isError}
+				onSaveDebugRetentionDays={saveDebugRetentionDaysMutation.mutate}
+				isSavingDebugRetentionDays={saveDebugRetentionDaysMutation.isPending}
+				isSaveDebugRetentionDaysError={saveDebugRetentionDaysMutation.isError}
+				autoArchiveDaysData={autoArchiveDaysQuery.data}
+				isAutoArchiveDaysLoading={autoArchiveDaysQuery.isLoading}
+				isAutoArchiveDaysLoadError={autoArchiveDaysQuery.isError}
+				onSaveAutoArchiveDays={saveAutoArchiveDaysMutation.mutate}
+				isSavingAutoArchiveDays={saveAutoArchiveDaysMutation.isPending}
+				isSaveAutoArchiveDaysError={saveAutoArchiveDaysMutation.isError}
 			/>
 		</RequirePermission>
 	);

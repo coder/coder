@@ -32,9 +32,9 @@ func Test_ProxyServer_Headers(t *testing.T) {
 	// We're not going to actually start a proxy, we're going to point it
 	// towards a fake server that returns an unexpected status code. This'll
 	// cause the proxy to exit with an error that we can check for.
-	var called int64
+	var called atomic.Int64
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		atomic.AddInt64(&called, 1)
+		called.Add(1)
 		assert.Equal(t, headerVal1, r.Header.Get(headerName1))
 		assert.Equal(t, headerVal2, r.Header.Get(headerName2))
 
@@ -57,7 +57,7 @@ func Test_ProxyServer_Headers(t *testing.T) {
 	require.ErrorContains(t, err, "unexpected status code 418")
 	require.NoError(t, pty.Close())
 
-	assert.EqualValues(t, 1, atomic.LoadInt64(&called))
+	assert.EqualValues(t, 1, called.Load())
 }
 
 //nolint:paralleltest,tparallel // Test uses a static port.

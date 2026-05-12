@@ -68,43 +68,81 @@ const (
 	DefaultMCPConfigFile    = ".mcp.json"
 )
 
+// Config holds the agent's context configuration.
+// Defaults are applied by NewAPI, not by the zero value.
+type Config struct {
+	InstructionsDirs string
+	InstructionsFile string
+	SkillsDirs       string
+	SkillMetaFile    string
+	MCPConfigFiles   string
+}
+
+// applyDefaults fills zero-valued fields with their defaults.
+func (c Config) applyDefaults() Config {
+	c.InstructionsDirs = cmp.Or(c.InstructionsDirs, DefaultInstructionsDir)
+	c.InstructionsFile = cmp.Or(c.InstructionsFile, DefaultInstructionsFile)
+	c.SkillsDirs = cmp.Or(c.SkillsDirs, DefaultSkillsDir)
+	c.SkillMetaFile = cmp.Or(c.SkillMetaFile, DefaultSkillMetaFile)
+	c.MCPConfigFiles = cmp.Or(c.MCPConfigFiles, DefaultMCPConfigFile)
+	return c
+}
+
+// ReadEnvConfig reads the CODER_AGENT_EXP_* environment
+// variables, falling back to defaults for unset values.
+func ReadEnvConfig() Config {
+	return Config{
+		InstructionsDirs: strings.TrimSpace(os.Getenv(EnvInstructionsDirs)),
+		InstructionsFile: strings.TrimSpace(os.Getenv(EnvInstructionsFile)),
+		SkillsDirs:       strings.TrimSpace(os.Getenv(EnvSkillsDirs)),
+		SkillMetaFile:    strings.TrimSpace(os.Getenv(EnvSkillMetaFile)),
+		MCPConfigFiles:   strings.TrimSpace(os.Getenv(EnvMCPConfigFiles)),
+	}.applyDefaults()
+}
+
+// envVarKeys returns every CODER_AGENT_EXP_* env var key
+// used by the context configuration subsystem.
+func envVarKeys() []string {
+	return []string{
+		EnvInstructionsDirs, EnvInstructionsFile,
+		EnvSkillsDirs, EnvSkillMetaFile, EnvMCPConfigFiles,
+	}
+}
+
+// ClearEnvVars removes the CODER_AGENT_EXP_* environment
+// variables from the current process so they are not
+// inherited by child processes.
+func ClearEnvVars() {
+	for _, key := range envVarKeys() {
+		_ = os.Unsetenv(key)
+	}
+}
+
 // API exposes the resolved context configuration through the
 // agent's HTTP API.
 type API struct {
 	workingDir func() string
+	cfg        Config
 }
 
-// NewAPI accepts a closure that returns the working directory.
-// The directory is evaluated lazily on each call to Config(),
-// so the caller can update it after construction.
-func NewAPI(workingDir func() string) *API {
+// NewAPI creates a context configuration API. The working
+// directory closure is evaluated lazily per request.
+func NewAPI(workingDir func() string, cfg Config) *API {
 	if workingDir == nil {
 		workingDir = func() string { return "" }
 	}
-	return &API{workingDir: workingDir}
+	return &API{workingDir: workingDir, cfg: cfg.applyDefaults()}
 }
 
-// Config reads env vars, resolves paths, reads instruction files,
-// and discovers skills. Returns the HTTP response and the resolved
-// MCP config file paths (used only agent-internally). Exported
-// for use by tests.
-func Config(workingDir string) (workspacesdk.ContextConfigResponse, []string) {
-	// TrimSpace all env vars before cmp.Or so that a
-	// whitespace-only value falls through to the default
-	// consistently. ResolvePaths also trims each comma-
-	// separated entry, but without pre-trimming here a
-	// bare " " would bypass cmp.Or and produce nil.
-	instructionsDir := cmp.Or(strings.TrimSpace(os.Getenv(EnvInstructionsDirs)), DefaultInstructionsDir)
-	instructionsFile := cmp.Or(strings.TrimSpace(os.Getenv(EnvInstructionsFile)), DefaultInstructionsFile)
-	skillsDir := cmp.Or(strings.TrimSpace(os.Getenv(EnvSkillsDirs)), DefaultSkillsDir)
-	skillMetaFile := cmp.Or(strings.TrimSpace(os.Getenv(EnvSkillMetaFile)), DefaultSkillMetaFile)
-	mcpConfigFile := cmp.Or(strings.TrimSpace(os.Getenv(EnvMCPConfigFiles)), DefaultMCPConfigFile)
-
-	resolvedInstructionsDirs := ResolvePaths(instructionsDir, workingDir)
-	resolvedSkillsDirs := ResolvePaths(skillsDir, workingDir)
+// Resolve reads instruction files, discovers skills, and
+// resolves MCP config file paths for the given config and
+// working directory.
+func Resolve(workingDir string, cfg Config) (workspacesdk.ContextConfigResponse, []string) {
+	resolvedInstructionsDirs := ResolvePaths(cfg.InstructionsDirs, workingDir)
+	resolvedSkillsDirs := ResolvePaths(cfg.SkillsDirs, workingDir)
 
 	// Read instruction files from each configured directory.
-	parts := readInstructionFiles(resolvedInstructionsDirs, instructionsFile)
+	parts := readInstructionFiles(resolvedInstructionsDirs, cfg.InstructionsFile)
 
 	// Also check the working directory for the instruction file,
 	// unless it was already covered by InstructionsDirs.
@@ -114,14 +152,14 @@ func Config(workingDir string) (workspacesdk.ContextConfigResponse, []string) {
 			seenDirs[d] = struct{}{}
 		}
 		if _, ok := seenDirs[workingDir]; !ok {
-			if entry, found := readInstructionFileFromDir(workingDir, instructionsFile); found {
+			if entry, found := readInstructionFileFromDir(workingDir, cfg.InstructionsFile); found {
 				parts = append(parts, entry)
 			}
 		}
 	}
 
 	// Discover skills from each configured skills directory.
-	skillParts := discoverSkills(resolvedSkillsDirs, skillMetaFile)
+	skillParts := discoverSkills(resolvedSkillsDirs, cfg.SkillMetaFile)
 	parts = append(parts, skillParts...)
 
 	// Guarantee non-nil slice to signal agent support.
@@ -131,7 +169,7 @@ func Config(workingDir string) (workspacesdk.ContextConfigResponse, []string) {
 
 	return workspacesdk.ContextConfigResponse{
 		Parts: parts,
-	}, ResolvePaths(mcpConfigFile, workingDir)
+	}, ResolvePaths(cfg.MCPConfigFiles, workingDir)
 }
 
 // ContextPartsFromDir reads instruction files and discovers skills
@@ -164,7 +202,7 @@ func ContextPartsFromDir(dir string) []codersdk.ChatMessagePart {
 // MCPConfigFiles returns the resolved MCP configuration file
 // paths for the agent's MCP manager.
 func (api *API) MCPConfigFiles() []string {
-	_, mcpFiles := Config(api.workingDir())
+	_, mcpFiles := Resolve(api.workingDir(), api.cfg)
 	return mcpFiles
 }
 
@@ -177,7 +215,7 @@ func (api *API) Routes() http.Handler {
 }
 
 func (api *API) handleGet(rw http.ResponseWriter, r *http.Request) {
-	response, _ := Config(api.workingDir())
+	response, _ := Resolve(api.workingDir(), api.cfg)
 	httpapi.Write(r.Context(), rw, http.StatusOK, response)
 }
 

@@ -132,15 +132,16 @@ approach, discussing architecture) never provision or connect to a workspace.
 These tools execute inside the workspace via the workspace daemon's HTTP API.
 They traverse the same Tailnet tunnel used by web terminals and IDE connections.
 
-| Tool             | What it does                                                       |
-|------------------|--------------------------------------------------------------------|
-| `read_file`      | Reads file contents with line-number pagination.                   |
-| `write_file`     | Writes content to a file.                                          |
-| `edit_files`     | Performs atomic search-and-replace edits across one or more files. |
-| `execute`        | Runs a shell command, waiting for completion up to a timeout.      |
-| `process_output` | Retrieves output from a tracked process.                           |
-| `process_list`   | Lists all tracked processes in the workspace.                      |
-| `process_signal` | Sends a signal (SIGTERM or SIGKILL) to a tracked process.          |
+| Tool             | What it does                                                                                                                                                                                                                                                                       |
+|------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `read_file`      | Reads file contents with line-number pagination.                                                                                                                                                                                                                                   |
+| `write_file`     | Writes content to a file.                                                                                                                                                                                                                                                          |
+| `edit_files`     | Performs atomic search-and-replace edits across one or more files.                                                                                                                                                                                                                 |
+| `execute`        | Runs a shell command, waiting for completion up to a timeout.                                                                                                                                                                                                                      |
+| `process_output` | Retrieves output from a tracked process.                                                                                                                                                                                                                                           |
+| `process_list`   | Lists all tracked processes in the workspace.                                                                                                                                                                                                                                      |
+| `process_signal` | Sends a signal (SIGTERM or SIGKILL) to a tracked process.                                                                                                                                                                                                                          |
+| `attach_file`    | Attach a workspace file to the current chat so the user can download it directly from the conversation. Use this when the user should receive an artifact such as a screenshot, log, patch, or document. Pass an absolute file path. The file must already exist in the workspace. |
 
 ### Platform tools
 
@@ -172,13 +173,13 @@ provider-native, and computer-use tools are not available.
 These tools manage sub-agents — child chats that work on independent tasks in
 parallel.
 
-| Tool                                        | What it does                                                                                                                                                                      |
-|---------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `spawn_agent` (`type=general` or `explore`) | Delegates a task to a sub-agent with its own context window.                                                                                                                      |
-| `wait_agent`                                | Waits for a sub-agent to finish and collects its result.                                                                                                                          |
-| `message_agent`                             | Sends a follow-up message to a running sub-agent.                                                                                                                                 |
-| `close_agent`                               | Stops a running sub-agent.                                                                                                                                                        |
-| `spawn_agent` (`type=computer_use`)         | Spawns a sub-agent with desktop interaction capabilities (screenshot, mouse, keyboard). Requires an Anthropic provider and the desktop feature to be enabled by an administrator. |
+| Tool                                        | What it does                                                                                                                                                                                                                                                                     |
+|---------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `spawn_agent` (`type=general` or `explore`) | Delegates a task to a sub-agent with its own context window.                                                                                                                                                                                                                     |
+| `wait_agent`                                | Waits for a sub-agent to finish and collects its result.                                                                                                                                                                                                                         |
+| `message_agent`                             | Sends a follow-up message to a running sub-agent.                                                                                                                                                                                                                                |
+| `close_agent`                               | Stops a running sub-agent.                                                                                                                                                                                                                                                       |
+| `spawn_agent` (`type=computer_use`)         | Spawns a sub-agent with desktop interaction capabilities (screenshot, mouse, keyboard). Requires an administrator-configured computer-use provider (Anthropic or OpenAI) and the [virtual desktop experiment](./platform-controls/experiments.md#virtual-desktop) to be enabled. |
 
 ### Provider tools
 

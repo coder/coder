@@ -13,7 +13,7 @@ import (
 // @Tags Enterprise
 // @Param user_id query string false "Filter by applications authorized for a user"
 // @Success 200 {array} codersdk.OAuth2ProviderApp
-// @Router /oauth2-provider/apps [get]
+// @Router /api/v2/oauth2-provider/apps [get]
 func (api *API) oAuth2ProviderApps() http.HandlerFunc {
 	return oauth2provider.ListApps(api.Database, api.AccessURL)
 }
@@ -25,7 +25,7 @@ func (api *API) oAuth2ProviderApps() http.HandlerFunc {
 // @Tags Enterprise
 // @Param app path string true "App ID"
 // @Success 200 {object} codersdk.OAuth2ProviderApp
-// @Router /oauth2-provider/apps/{app} [get]
+// @Router /api/v2/oauth2-provider/apps/{app} [get]
 func (api *API) oAuth2ProviderApp() http.HandlerFunc {
 	return oauth2provider.GetApp(api.AccessURL)
 }
@@ -38,7 +38,7 @@ func (api *API) oAuth2ProviderApp() http.HandlerFunc {
 // @Tags Enterprise
 // @Param request body codersdk.PostOAuth2ProviderAppRequest true "The OAuth2 application to create."
 // @Success 200 {object} codersdk.OAuth2ProviderApp
-// @Router /oauth2-provider/apps [post]
+// @Router /api/v2/oauth2-provider/apps [post]
 func (api *API) postOAuth2ProviderApp() http.HandlerFunc {
 	return oauth2provider.CreateApp(api.Database, api.AccessURL, api.Auditor.Load(), api.Logger)
 }
@@ -52,7 +52,7 @@ func (api *API) postOAuth2ProviderApp() http.HandlerFunc {
 // @Param app path string true "App ID"
 // @Param request body codersdk.PutOAuth2ProviderAppRequest true "Update an OAuth2 application."
 // @Success 200 {object} codersdk.OAuth2ProviderApp
-// @Router /oauth2-provider/apps/{app} [put]
+// @Router /api/v2/oauth2-provider/apps/{app} [put]
 func (api *API) putOAuth2ProviderApp() http.HandlerFunc {
 	return oauth2provider.UpdateApp(api.Database, api.AccessURL, api.Auditor.Load(), api.Logger)
 }
@@ -63,7 +63,7 @@ func (api *API) putOAuth2ProviderApp() http.HandlerFunc {
 // @Tags Enterprise
 // @Param app path string true "App ID"
 // @Success 204
-// @Router /oauth2-provider/apps/{app} [delete]
+// @Router /api/v2/oauth2-provider/apps/{app} [delete]
 func (api *API) deleteOAuth2ProviderApp() http.HandlerFunc {
 	return oauth2provider.DeleteApp(api.Database, api.Auditor.Load(), api.Logger)
 }
@@ -75,7 +75,7 @@ func (api *API) deleteOAuth2ProviderApp() http.HandlerFunc {
 // @Tags Enterprise
 // @Param app path string true "App ID"
 // @Success 200 {array} codersdk.OAuth2ProviderAppSecret
-// @Router /oauth2-provider/apps/{app}/secrets [get]
+// @Router /api/v2/oauth2-provider/apps/{app}/secrets [get]
 func (api *API) oAuth2ProviderAppSecrets() http.HandlerFunc {
 	return oauth2provider.GetAppSecrets(api.Database)
 }
@@ -87,7 +87,7 @@ func (api *API) oAuth2ProviderAppSecrets() http.HandlerFunc {
 // @Tags Enterprise
 // @Param app path string true "App ID"
 // @Success 200 {array} codersdk.OAuth2ProviderAppSecretFull
-// @Router /oauth2-provider/apps/{app}/secrets [post]
+// @Router /api/v2/oauth2-provider/apps/{app}/secrets [post]
 func (api *API) postOAuth2ProviderAppSecret() http.HandlerFunc {
 	return oauth2provider.CreateAppSecret(api.Database, api.Auditor.Load(), api.Logger)
 }
@@ -99,7 +99,7 @@ func (api *API) postOAuth2ProviderAppSecret() http.HandlerFunc {
 // @Param app path string true "App ID"
 // @Param secretID path string true "Secret ID"
 // @Success 204
-// @Router /oauth2-provider/apps/{app}/secrets/{secretID} [delete]
+// @Router /api/v2/oauth2-provider/apps/{app}/secrets/{secretID} [delete]
 func (api *API) deleteOAuth2ProviderAppSecret() http.HandlerFunc {
 	return oauth2provider.DeleteAppSecret(api.Database, api.Auditor.Load(), api.Logger)
 }

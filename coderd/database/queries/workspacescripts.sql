@@ -17,4 +17,13 @@ SELECT
 RETURNING workspace_agent_scripts.*;
 
 -- name: GetWorkspaceAgentScriptsByAgentIDs :many
-SELECT * FROM workspace_agent_scripts WHERE workspace_agent_id = ANY(@ids :: uuid [ ]);
+SELECT
+	DISTINCT ON (workspace_agent_scripts.id) workspace_agent_scripts.*,
+	workspace_agent_script_timings.exit_code,
+	workspace_agent_script_timings.status
+	FROM workspace_agent_scripts
+	LEFT JOIN workspace_agent_script_timings
+		ON workspace_agent_script_timings.script_id = workspace_agent_scripts.id
+	WHERE workspace_agent_scripts.workspace_agent_id = ANY(@ids :: uuid [ ])
+	ORDER BY workspace_agent_scripts.id, workspace_agent_script_timings.started_at
+	DESC NULLS LAST;

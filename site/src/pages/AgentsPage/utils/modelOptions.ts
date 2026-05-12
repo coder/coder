@@ -39,6 +39,32 @@ type ModelOptionConfigLike =
 			readonly context_limit?: unknown;
 	  });
 
+export const hasConfiguredProviderConfigs = (
+	providerConfigs: readonly TypesGen.ChatProviderConfig[] | null | undefined,
+	catalog: TypesGen.ChatModelsResponse | null | undefined,
+): boolean => {
+	return countConfiguredProviderConfigs(providerConfigs, catalog) > 0;
+};
+
+export const countConfiguredProviderConfigs = (
+	providerConfigs: readonly TypesGen.ChatProviderConfig[] | null | undefined,
+	catalog: TypesGen.ChatModelsResponse | null | undefined,
+): number => {
+	const availableProviders = getAvailableProviders(catalog);
+	return (
+		providerConfigs?.filter((providerConfig) => {
+			if (
+				providerConfig.source === "supported" ||
+				providerConfig.enabled !== true
+			) {
+				return false;
+			}
+			const provider = asString(providerConfig.provider).trim().toLowerCase();
+			return provider !== "" && availableProviders.has(provider);
+		}).length ?? 0
+	);
+};
+
 export const getNormalizedModelRef = (
 	value: ModelRefLike,
 ): { readonly provider: string; readonly model: string } => {
@@ -183,6 +209,16 @@ export const getModelOptionsFromConfigs = (
 		return a.displayName.localeCompare(b.displayName);
 	});
 };
+
+// getProviderForModelOption returns the provider string for the
+// currently-selected model option, or undefined when the selection
+// is not (yet) in the options list. Extracted so resize/budget logic
+// has one place to resolve provider from the selector state.
+export const getProviderForModelOption = (
+	modelOptions: readonly ModelSelectorOption[],
+	selectedModel: string,
+): string | undefined =>
+	modelOptions.find((option) => option.id === selectedModel)?.provider;
 
 export const formatProviderLabel = (provider: string): string => {
 	const normalized = provider.trim().toLowerCase();

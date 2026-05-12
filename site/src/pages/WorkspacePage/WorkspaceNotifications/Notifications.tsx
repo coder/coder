@@ -7,6 +7,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
+import type { ThemeRole } from "#/theme/roles";
 import { cn } from "#/utils/cn";
 
 export type NotificationItem = {
@@ -24,18 +25,55 @@ type NotificationsProps = {
 	icon: ReactNode;
 };
 
+// Maps a ThemeRole severity to Tailwind classes for the role's outline
+// color. These are the closest semantic matches available in the design
+// token system.
+const severityStyles: Record<ThemeRole, { svgColor: string; border: string }> =
+	{
+		error: {
+			svgColor: "[&_svg]:text-border-destructive",
+			border: "border-border-destructive",
+		},
+		warning: {
+			svgColor: "[&_svg]:text-border-warning",
+			border: "border-border-warning",
+		},
+		notice: {
+			svgColor: "[&_svg]:text-border-pending",
+			border: "border-border-pending",
+		},
+		info: {
+			svgColor: "[&_svg]:text-content-secondary",
+			border: "border-border",
+		},
+		success: {
+			svgColor: "[&_svg]:text-border-success",
+			border: "border-border-success",
+		},
+		active: {
+			svgColor: "[&_svg]:text-border-pending",
+			border: "border-border-pending",
+		},
+		inactive: {
+			svgColor: "[&_svg]:text-content-disabled",
+			border: "border-border",
+		},
+		danger: {
+			svgColor: "[&_svg]:text-border-warning",
+			border: "border-border-warning",
+		},
+		preview: {
+			svgColor: "[&_svg]:text-border-purple",
+			border: "border-border-purple",
+		},
+	};
+
 export const Notifications: FC<NotificationsProps> = ({
 	items,
 	severity,
 	icon,
 }) => {
 	const [isOpen, setIsOpen] = useState(false);
-
-	// Map severity to border color for the open popover.
-	const outlineColors: Record<string, string> = {
-		warning: "hsl(var(--border-warning))",
-		info: "hsl(var(--border-default))",
-	};
 
 	return (
 		<Popover open={isOpen} onOpenChange={setIsOpen}>
@@ -56,10 +94,10 @@ export const Notifications: FC<NotificationsProps> = ({
 			<PopoverContent
 				align="end"
 				collisionPadding={16}
-				className="max-w-[400px] p-0 w-auto bg-surface-secondary border-surface-quaternary text-sm text-content-primary"
-				style={{
-					borderColor: outlineColors[severity],
-				}}
+				className={cn(
+					"max-w-[400px] p-0 w-auto bg-surface-secondary text-sm text-content-primary",
+					severityStyles[severity].border,
+				)}
 			>
 				{items.map((n) => (
 					<NotificationItem notification={n} key={n.title} />
@@ -79,18 +117,12 @@ const NotificationPill: FC<NotificationPillProps> = ({
 	icon,
 	isOpen,
 }) => {
-	// Keep the pill background neutral; only color the icon and
-	// the border when the popover is open.
-	const iconColorClass =
-		severity === "warning" ? "[&_svg]:text-content-warning" : "";
-
 	return (
 		<Pill
 			icon={icon}
 			className={cn(
-				iconColorClass,
-				isOpen && severity === "warning" && "border-amber-300",
-				isOpen && severity === "info" && "border-zinc-400",
+				severityStyles[severity].svgColor,
+				isOpen && severityStyles[severity].border,
 			)}
 		>
 			{items.length}

@@ -464,6 +464,24 @@ jobs:
           source scripts/normalize_path.sh
           normalize_path_with_symlinks "$RUNNER_TEMP/sym" "$(dirname "$(which terraform)")"
 
+      - name: Configure Go test JSON capture
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          bin_dir="${RUNNER_TEMP}/go-test-json-bin"
+          mkdir -p "$bin_dir"
+
+          real_gotestsum="$(command -v gotestsum)"
+          real_gotestsum_quoted="$(printf '%q' "$real_gotestsum")"
+          printf '%s\n' \
+            '#!/usr/bin/env bash' \
+            'set -euo pipefail' \
+            "exec ${real_gotestsum_quoted} --jsonfile \"\${RUNNER_TEMP}/go-test.json\" \"\$@\"" \
+            > "${bin_dir}/gotestsum"
+          chmod +x "${bin_dir}/gotestsum"
+          echo "$bin_dir" >> "$GITHUB_PATH"
+
       - name: Setup RAM disk for Embedded Postgres (Windows)
         if: runner.os == 'Windows'
         shell: bash
@@ -540,6 +558,25 @@ jobs:
           embedded-pg-path: "R:/temp/embedded-pg"
           embedded-pg-cache: ${{ steps.embedded-pg-cache.outputs.embedded-pg-cache }}
 
+      - name: Publish Go test failure summary
+        if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
+        run: |
+          go run ./scripts/gotestsummary \
+            --jsonfile "${RUNNER_TEMP}/go-test.json" \
+            --markdown-out - \
+            --failures-out "${RUNNER_TEMP}/go-test-failures.ndjson" \
+            --max-output-bytes 16384 \
+            --max-failures 50 \
+            >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Go test failures
+        if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: go-test-failures-${{ github.job }}-${{ github.sha }}
+          path: ${{ runner.temp }}/go-test-failures.ndjson
+          retention-days: 7
+
       - name: Upload failed test db dumps
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -610,6 +647,24 @@ jobs:
           source scripts/normalize_path.sh
           normalize_path_with_symlinks "$RUNNER_TEMP/sym" "$(dirname "$(which terraform)")"
 
+      - name: Configure Go test JSON capture
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          bin_dir="${RUNNER_TEMP}/go-test-json-bin"
+          mkdir -p "$bin_dir"
+
+          real_gotestsum="$(command -v gotestsum)"
+          real_gotestsum_quoted="$(printf '%q' "$real_gotestsum")"
+          printf '%s\n' \
+            '#!/usr/bin/env bash' \
+            'set -euo pipefail' \
+            "exec ${real_gotestsum_quoted} --jsonfile \"\${RUNNER_TEMP}/go-test.json\" \"\$@\"" \
+            > "${bin_dir}/gotestsum"
+          chmod +x "${bin_dir}/gotestsum"
+          echo "$bin_dir" >> "$GITHUB_PATH"
+
       - name: Test with PostgreSQL Database
         uses: ./.github/actions/test-go-pg
         with:
@@ -620,6 +675,25 @@ jobs:
           # By default, run tests with cache for improved speed (possibly at the expense of correctness).
           # On main, run tests without cache for the inverse.
           test-count: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
+
+      - name: Publish Go test failure summary
+        if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
+        run: |
+          go run ./scripts/gotestsummary \
+            --jsonfile "${RUNNER_TEMP}/go-test.json" \
+            --markdown-out - \
+            --failures-out "${RUNNER_TEMP}/go-test-failures.ndjson" \
+            --max-output-bytes 16384 \
+            --max-failures 50 \
+            >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Go test failures
+        if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: go-test-failures-${{ github.job }}-${{ github.sha }}
+          path: ${{ runner.temp }}/go-test-failures.ndjson
+          retention-days: 7
 
       - name: Upload Test Cache
         uses: ./.github/actions/test-cache/upload
@@ -678,6 +752,24 @@ jobs:
       # c.f. discussion on https://github.com/coder/coder/pull/15106
       # Our Linux runners have 16 cores, but we reduce parallelism since race detection adds a lot of overhead.
       # We aim to have parallelism match CPU count (4*4=16) to avoid making flakes worse.
+      - name: Configure Go test JSON capture
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          bin_dir="${RUNNER_TEMP}/go-test-json-bin"
+          mkdir -p "$bin_dir"
+
+          real_gotestsum="$(command -v gotestsum)"
+          real_gotestsum_quoted="$(printf '%q' "$real_gotestsum")"
+          printf '%s\n' \
+            '#!/usr/bin/env bash' \
+            'set -euo pipefail' \
+            "exec ${real_gotestsum_quoted} --jsonfile \"\${RUNNER_TEMP}/go-test.json\" \"\$@\"" \
+            > "${bin_dir}/gotestsum"
+          chmod +x "${bin_dir}/gotestsum"
+          echo "$bin_dir" >> "$GITHUB_PATH"
+
       - name: Run Tests
         uses: ./.github/actions/test-go-pg
         with:
@@ -685,6 +777,25 @@ jobs:
           test-parallelism-packages: "4"
           test-parallelism-tests: "4"
           race-detection: "true"
+
+      - name: Publish Go test failure summary
+        if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
+        run: |
+          go run ./scripts/gotestsummary \
+            --jsonfile "${RUNNER_TEMP}/go-test.json" \
+            --markdown-out - \
+            --failures-out "${RUNNER_TEMP}/go-test-failures.ndjson" \
+            --max-output-bytes 16384 \
+            --max-failures 50 \
+            >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Go test failures
+        if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: go-test-failures-${{ github.job }}-${{ github.sha }}
+          path: ${{ runner.temp }}/go-test-failures.ndjson
+          retention-days: 7
 
       - name: Upload Test Cache
         uses: ./.github/actions/test-cache/upload
@@ -820,27 +931,36 @@ jobs:
           CODER_E2E_REQUIRE_PREMIUM_TESTS: "1"
         working-directory: site
 
-      - name: Upload Playwright Failed Tests
-        if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
+      - name: Upload Playwright failure artifacts
+        if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: failed-test-videos${{ matrix.variant.premium && '-premium' || '' }}
-          path: ./site/test-results/**/*.webm
+          name: playwright-artifacts-${{ matrix.variant.name }}-${{ github.sha }}
+          path: |
+            ./site/test-results/**
+            ./site/playwright-report/**
           retention-days: 7
 
+      - name: Publish Playwright failure summary
+        if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
+        env:
+          MATRIX_VARIANT: ${{ matrix.variant.name }}
+          GITHUB_SHA_SHORT: ${{ github.sha }}
+        run: bash scripts/playwright-failure-summary.sh site/test-results/results.json >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload debug log
-        if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
+        if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: coderd-debug-logs${{ matrix.variant.premium && '-premium' || ''  }}
+          name: coderd-debug-logs-${{ matrix.variant.name }}-${{ github.sha }}
           path: ./site/e2e/test-results/debug.log
           retention-days: 7
 
       - name: Upload pprof dumps
-        if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
+        if: failure() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: debug-pprof-dumps${{ matrix.variant.premium && '-premium' || ''  }}
+          name: debug-pprof-dumps-${{ matrix.variant.name }}-${{ github.sha }}
           path: ./site/test-results/**/debug-pprof-*.txt
           retention-days: 7
 

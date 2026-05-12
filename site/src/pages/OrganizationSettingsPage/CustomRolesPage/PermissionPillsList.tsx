@@ -57,7 +57,7 @@ const PermissionsPill: FC<PermissionPillProps> = ({
 	);
 
 	return (
-		<Pill className="w-fit">
+		<Pill type="muted" className="w-fit">
 			<b>{resource}</b>:{" "}
 			{actions.map((p) => `${p.negate ? "!" : ""}${p.action}`).join(", ")}
 		</Pill>
@@ -76,7 +76,11 @@ const OverflowPermissionPill: FC<OverflowPermissionPillProps> = ({
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
-				<Pill data-testid="overflow-permissions-pill">
+				<Pill
+					type="muted"
+					className="w-fit"
+					data-testid="overflow-permissions-pill"
+				>
 					+{resources.length} more
 				</Pill>
 			</TooltipTrigger>

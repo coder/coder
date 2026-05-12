@@ -2,9 +2,9 @@
 
 Coder Agents leverages your existing
 [external authentication](../../../admin/external-auth/index.md) configuration
-to power the in-chat diff viewer and [PR Insights](./pr-insights.md).
+to power the in-chat diff viewer.
 Self-hosted GitHub Enterprise deployments require one additional setting
-(`API_BASE_URL`) for these features to work.
+(`API_BASE_URL`) for this feature to work.
 
 > [!NOTE]
 > Only `github` type external auth providers are supported today.
@@ -30,8 +30,8 @@ CODER_EXTERNAL_AUTH_0_REGEX=github\.example\.com
 
 Without `API_BASE_URL`, Coder defaults to `https://api.github.com`. Clone
 and push still work (they use `AUTH_URL` and `TOKEN_URL` directly), but
-the diff viewer and PR Insights silently fail because Coder builds its
-URL-matching patterns from the API base URL.
+the diff viewer silently fails because Coder builds its URL-matching
+patterns from the API base URL.
 
 > [!NOTE]
 > If you have both a `github.com` and a GHE external auth config, only the
@@ -39,10 +39,10 @@ URL-matching patterns from the API base URL.
 
 ## Troubleshooting
 
-### Diffs or PR data not appearing on GHE
+### Diffs not appearing on GHE
 
 Add `API_BASE_URL` to your GHE external auth config and restart Coder.
-Data should appear within a couple of minutes.
+Diffs should appear within a couple of minutes.
 
 ### Users not seeing diffs
 

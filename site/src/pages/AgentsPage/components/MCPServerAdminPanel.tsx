@@ -4,7 +4,6 @@ import {
 	ChevronDownIcon,
 	ChevronRightIcon,
 	CircleIcon,
-	PencilIcon,
 	PlusIcon,
 	ServerIcon,
 	XIcon,
@@ -70,6 +69,7 @@ const AUTH_TYPE_OPTIONS = [
 	{ value: "oauth2", label: "OAuth2" },
 	{ value: "api_key", label: "API Key" },
 	{ value: "custom_headers", label: "Custom Headers" },
+	{ value: "user_oidc", label: "User OIDC Identity" },
 ] as const;
 
 const AVAILABILITY_OPTIONS = [
@@ -471,41 +471,15 @@ const ServerForm: FC<ServerFormProps> = ({
 
 	return (
 		<div className="flex min-h-full flex-col">
-			{/* Back */}
 			<BackButton onClick={onBack} />
-			{/* Header with icon + editable name + enabled toggle */}
 			<div className="flex items-center gap-3">
-				<MCPServerIcon
-					iconUrl={form.values.iconURL}
-					name={form.values.displayName || "New server"}
-					className="h-8 w-8"
-				/>
-				<div className="inline-flex items-center gap-1">
-					<div className="relative inline-grid">
-						<span
-							className="invisible col-start-1 row-start-1 whitespace-pre text-lg font-medium"
-							aria-hidden="true"
-						>
-							{form.values.displayName || "Server display name"}
-						</span>
-						<input
-							type="text"
-							value={form.values.displayName}
-							onChange={(e) => {
-								form.setFieldValue("displayName", e.target.value);
-								if (!form.values.slugTouched) {
-									form.setFieldValue("slug", slugify(e.target.value));
-								}
-							}}
-							disabled={isDisabled}
-							spellCheck={false}
-							className="col-start-1 row-start-1 m-0 min-w-0 border-0 bg-transparent p-0 text-lg font-medium text-content-primary outline-none placeholder:text-content-secondary focus:ring-0"
-							placeholder="Server display name"
-							aria-label="Display Name"
-						/>
-					</div>
-					<PencilIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
-				</div>
+				<span
+					className="truncate text-lg font-medium text-content-primary"
+					title={form.values.displayName || undefined}
+				>
+					{form.values.displayName ||
+						(isEditing ? "Server display name" : "New MCP server")}
+				</span>
 				{isEditing && (
 					<Tooltip>
 						<TooltipTrigger asChild>
@@ -538,6 +512,26 @@ const ServerForm: FC<ServerFormProps> = ({
 			>
 				<div className="space-y-6">
 					<div className="space-y-4">
+						<Field
+							label="Display name"
+							htmlFor={`${formId}-display-name`}
+							required
+						>
+							<Input
+								id={`${formId}-display-name`}
+								className="h-9 text-[13px]"
+								value={form.values.displayName}
+								onChange={(e) => {
+									form.setFieldValue("displayName", e.target.value);
+									if (!form.values.slugTouched) {
+										form.setFieldValue("slug", slugify(e.target.value));
+									}
+								}}
+								placeholder="e.g. Sentry"
+								disabled={isDisabled}
+								aria-label="Display Name"
+							/>
+						</Field>
 						<Field label="Slug" htmlFor={`${formId}-slug`} required>
 							<Input
 								id={`${formId}-slug`}
@@ -905,6 +899,22 @@ const ServerForm: FC<ServerFormProps> = ({
 											<PlusIcon className="h-4 w-4" />
 											Add header
 										</Button>
+									</div>
+								)}
+
+								{form.values.authType === "user_oidc" && (
+									<div className="space-y-2 rounded-lg border border-solid border-border/70 bg-surface-secondary/30 p-4 text-xs text-content-secondary">
+										<p className="m-0">
+											The calling user's OIDC access token is forwarded to this
+											MCP server in the <code>Authorization</code> header.
+											Tokens are refreshed transparently before each request.
+										</p>
+										<p className="m-0">
+											Users who did not log in via OIDC (for example, password
+											or GitHub login) will see requests sent without an
+											authorization header. Configure no other fields for this
+											auth type.
+										</p>
 									</div>
 								)}
 							</CollapsibleContent>

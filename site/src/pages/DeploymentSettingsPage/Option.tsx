@@ -1,8 +1,7 @@
-import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
 import { WrenchIcon } from "lucide-react";
 import type { FC, HTMLAttributes, PropsWithChildren } from "react";
 import { DisabledBadge, EnabledBadge } from "#/components/Badges/Badges";
-import { MONOSPACE_FONT_FAMILY } from "#/theme/constants";
+import { cn } from "#/utils/cn";
 
 export const OptionName: FC<PropsWithChildren> = ({ children }) => {
 	return (
@@ -22,7 +21,8 @@ interface OptionValueProps {
 
 export const OptionValue: FC<OptionValueProps> = (props) => {
 	const { children: value } = props;
-	const theme = useTheme();
+	const optionClassName =
+		"text-sm font-mono [overflow-wrap:anywhere] select-all [&_ul]:p-4";
 
 	if (typeof value === "boolean") {
 		return (
@@ -34,7 +34,7 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
 
 	if (typeof value === "number") {
 		return (
-			<span css={styles.option} className="option-value-number">
+			<span className={cn("option-value-number", optionClassName)}>
 				{value}
 			</span>
 		);
@@ -42,15 +42,13 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
 
 	if (!value || value.length === 0) {
 		return (
-			<span css={styles.option} className="option-value-empty">
-				Not set
-			</span>
+			<span className={cn("option-value-empty", optionClassName)}>Not set</span>
 		);
 	}
 
 	if (typeof value === "string") {
 		return (
-			<span css={styles.option} className="option-value-string">
+			<span className={cn("option-value-string", optionClassName)}>
 				{value}
 			</span>
 		);
@@ -64,16 +62,13 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
 					.map(([option, isEnabled]) => (
 						<li
 							key={option}
-							css={[
-								styles.option,
-								!isEnabled && {
-									marginLeft: 32,
-									color: theme.palette.text.disabled,
-								},
-							]}
-							className={`option-array-item-${option} ${
-								isEnabled ? "option-enabled" : "option-disabled"
-							}`}
+							className={cn(
+								`option-array-item-${option}`,
+								isEnabled
+									? "option-enabled"
+									: "option-disabled ml-8 text-content-disabled",
+								optionClassName,
+							)}
 						>
 							<div className="inline-flex items-center">
 								{isEnabled && <WrenchIcon className="size-4 mx-2" />}
@@ -89,7 +84,7 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
 		return (
 			<ul className="option-array list-inside">
 				{value.map((item) => (
-					<li key={item} css={styles.option}>
+					<li key={item} className={optionClassName}>
 						{item}
 					</li>
 				))}
@@ -98,7 +93,7 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
 	}
 
 	return (
-		<span css={styles.option} className="option-value-json">
+		<span className={cn("option-value-json", optionClassName)}>
 			{JSON.stringify(value)}
 		</span>
 	);
@@ -107,66 +102,36 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
 type OptionConfigProps = HTMLAttributes<HTMLDivElement> & { isSource: boolean };
 
 // OptionConfig takes a isSource bool to indicate if the Option is the source of the configured value.
-export const OptionConfig: FC<OptionConfigProps> = ({ isSource, ...attrs }) => {
+export const OptionConfig: FC<OptionConfigProps> = ({
+	isSource,
+	className,
+	...attrs
+}) => {
 	return (
 		<div
 			{...attrs}
-			css={[styles.configOption, isSource && styles.sourceConfigOption]}
+			className={cn(
+				"inline-flex items-center gap-1.5 rounded border border-solid p-1.5",
+				"font-mono text-[13px] font-semibold leading-none",
+				"border-border-secondary bg-surface-secondary",
+				isSource &&
+					"border-content-link [&_[data-slot=option-config-flag]]:bg-content-link",
+				className,
+			)}
 		/>
 	);
 };
 
 export const OptionConfigFlag: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
-	const theme = useTheme();
-
 	return (
 		<div
 			{...props}
-			className="OptionConfigFlag"
-			css={{
-				fontSize: 10,
-				fontWeight: 600,
-				display: "block",
-				backgroundColor: theme.palette.divider,
-				lineHeight: 1,
-				padding: "2px 4px",
-				borderRadius: 1,
-			}}
+			data-slot="option-config-flag"
+			className={cn(
+				"block rounded-[1px] bg-border-secondary px-1 py-0.5",
+				"text-[10px] font-semibold leading-none",
+				props.className,
+			)}
 		/>
 	);
 };
-
-const styles = {
-	configOption: (theme) => ({
-		fontSize: 13,
-		fontFamily: MONOSPACE_FONT_FAMILY,
-		fontWeight: 600,
-		backgroundColor: theme.palette.background.paper,
-		display: "inline-flex",
-		alignItems: "center",
-		borderRadius: 4,
-		padding: 6,
-		lineHeight: 1,
-		gap: 6,
-		border: `1px solid ${theme.palette.divider}`,
-	}),
-
-	sourceConfigOption: (theme) => ({
-		border: `1px solid ${theme.roles.active.fill.outline}`,
-
-		"& .OptionConfigFlag": {
-			background: theme.roles.active.fill.solid,
-		},
-	}),
-
-	option: css`
-		font-size: 14px;
-		font-family: ${MONOSPACE_FONT_FAMILY};
-		overflow-wrap: anywhere;
-		user-select: all;
-
-		& ul {
-			padding: 16px;
-		}
-	`,
-} satisfies Record<string, Interpolation<Theme>>;

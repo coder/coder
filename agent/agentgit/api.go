@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/agent/agentchat"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/wsjson"
@@ -40,6 +41,25 @@ func (a *API) Routes() http.Handler {
 func (a *API) handleWatch(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
+	var watchChatID uuid.UUID
+	var hasWatchChatID bool
+	if chatIDStr := r.URL.Query().Get("chat_id"); chatIDStr != "" {
+		if parsedChatID, parseErr := uuid.Parse(chatIDStr); parseErr == nil {
+			watchChatID = parsedChatID
+			hasWatchChatID = true
+
+			// Reuse header-derived ancestors only when the query chat
+			// matches the header chat. Otherwise the ancestors belong
+			// to a different chat and would be misleading in logs.
+			var ancestors []uuid.UUID
+			if chatContext, ok := agentchat.FromContext(ctx); ok && chatContext.ID == watchChatID {
+				ancestors = chatContext.AncestorIDs
+			}
+			ctx = agentchat.WithContext(ctx, watchChatID, ancestors)
+		}
+	}
+	logger := a.logger.With(agentchat.Fields(ctx)...)
+
 	conn, err := websocket.Accept(rw, r, &websocket.AcceptOptions{
 		CompressionMode: websocket.CompressionNoContextTakeover,
 	})
@@ -58,62 +78,59 @@ func (a *API) handleWatch(rw http.ResponseWriter, r *http.Request) {
 	stream := wsjson.NewStream[
 		codersdk.WorkspaceAgentGitClientMessage,
 		codersdk.WorkspaceAgentGitServerMessage,
-	](conn, websocket.MessageText, websocket.MessageText, a.logger)
+	](conn, websocket.MessageText, websocket.MessageText, logger)
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	go httpapi.HeartbeatClose(ctx, a.logger, cancel, conn)
+	go httpapi.HeartbeatClose(ctx, logger, cancel, conn)
 
-	handler := NewHandler(a.logger, a.opts...)
+	handler := NewHandler(logger, a.opts...)
 
-	// scanAndSend performs a scan and sends results if there are
-	// changes.
+	// Scan returns nil only when no roots are subscribed; once any
+	// root lands it returns either a delta or a heartbeat message.
 	scanAndSend := func() {
 		msg := handler.Scan(ctx)
-		if msg != nil {
-			if err := stream.Send(*msg); err != nil {
-				a.logger.Debug(ctx, "failed to send changes", slog.Error(err))
-				cancel()
-			}
+		if msg == nil {
+			return
+		}
+		if err := stream.Send(*msg); err != nil {
+			logger.Debug(ctx, "failed to send changes", slog.Error(err))
+			cancel()
 		}
 	}
 
 	// If a chat_id query parameter is provided and the PathStore is
 	// available, subscribe to path updates for this chat.
-	chatIDStr := r.URL.Query().Get("chat_id")
-	if chatIDStr != "" && a.pathStore != nil {
-		chatID, parseErr := uuid.Parse(chatIDStr)
-		if parseErr == nil {
-			// Subscribe to future path updates BEFORE reading
-			// existing paths. This ordering guarantees no
-			// notification from AddPaths is lost: any call that
-			// lands before Subscribe is picked up by GetPaths
-			// below, and any call after Subscribe delivers a
-			// notification on the channel.
-			notifyCh, unsubscribe := a.pathStore.Subscribe(chatID)
-			defer unsubscribe()
+	if hasWatchChatID && a.pathStore != nil {
+		// Subscribe to future path updates BEFORE reading
+		// existing paths. This ordering guarantees no
+		// notification from AddPaths is lost: any call that
+		// lands before Subscribe is picked up by GetPaths
+		// below, and any call after Subscribe delivers a
+		// notification on the channel.
+		notifyCh, unsubscribe := a.pathStore.Subscribe(watchChatID)
+		defer unsubscribe()
 
-			// Load any paths that are already tracked for this chat.
-			existingPaths := a.pathStore.GetPaths(chatID)
-			if len(existingPaths) > 0 {
-				handler.Subscribe(existingPaths)
-				handler.RequestScan()
-			}
-
-			go func() {
-				for {
-					select {
-					case <-ctx.Done():
-						return
-					case <-notifyCh:
-						paths := a.pathStore.GetPaths(chatID)
-						handler.Subscribe(paths)
-						handler.RequestScan()
-					}
-				}
-			}()
+		// Load any paths that are already tracked for this chat.
+		existingPaths := a.pathStore.GetPaths(watchChatID)
+		if len(existingPaths) > 0 {
+			handler.Subscribe(existingPaths)
+			handler.RequestScan()
 		}
+
+		go func() {
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-notifyCh:
+					paths := a.pathStore.GetPaths(watchChatID)
+					handler.Subscribe(paths)
+					handler.RequestScan()
+				}
+			}
+		}()
 	}
 
 	// Start the main run loop in a goroutine.

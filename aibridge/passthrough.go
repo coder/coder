@@ -13,6 +13,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/intercept/apidump"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/aibridge/tracing"
@@ -41,13 +42,17 @@ func newPassthroughRouter(prov provider.Provider, logger slog.Logger, m *metrics
 		ExpectContinueTimeout: 1 * time.Second,
 	}
 
-	// Build a reverse proxy to the upstream, reused across all requests for this provider.
-	// All request modifications happen in Rewrite.
+	// Build the passthrough proxy, reused across all requests for this provider.
+	// Rewrite sets proxy headers. For centralized requests, KeyFailoverTransport
+	// handles auth and failover. BYOK requests pass through.
 	proxy := &httputil.ReverseProxy{
 		Rewrite: func(pr *httputil.ProxyRequest) {
-			rewritePassthroughRequest(pr, provBaseURL, prov)
+			rewritePassthroughRequest(pr, provBaseURL)
 		},
-		Transport: apidump.NewPassthroughMiddleware(t, prov.APIDumpDir(), prov.Name(), logger, quartz.NewReal()),
+		Transport: keypool.NewKeyFailoverTransport(
+			apidump.NewPassthroughMiddleware(t, prov.APIDumpDir(), prov.Name(), logger, quartz.NewReal()),
+			prov.KeyFailoverConfig(logger),
+		),
 		ErrorHandler: func(rw http.ResponseWriter, req *http.Request, e error) {
 			logger.Warn(req.Context(), "reverse proxy error", slog.Error(e), slog.F("path", req.URL.Path))
 			http.Error(rw, "upstream proxy error", http.StatusBadGateway)
@@ -67,8 +72,8 @@ func newPassthroughRouter(prov provider.Provider, logger slog.Logger, m *metrics
 }
 
 // rewritePassthroughRequest configures the outbound request for the upstream and
-// applies proxy headers and provider auth.
-func rewritePassthroughRequest(pr *httputil.ProxyRequest, provBaseURL *url.URL, prov provider.Provider) {
+// applies proxy headers.
+func rewritePassthroughRequest(pr *httputil.ProxyRequest, provBaseURL *url.URL) {
 	pr.SetURL(provBaseURL)
 
 	// Rewrite sets "X-Forwarded-For" to just last hop (clients IP address).
@@ -87,9 +92,6 @@ func rewritePassthroughRequest(pr *httputil.ProxyRequest, provBaseURL *url.URL, 
 	if _, ok := pr.Out.Header["User-Agent"]; !ok {
 		pr.Out.Header.Set("User-Agent", "aibridge") // TODO: use build tag.
 	}
-
-	// Inject provider auth.
-	prov.InjectAuthHeader(&pr.Out.Header)
 }
 
 // newInvalidBaseURLHandler returns a handler that always returns 502

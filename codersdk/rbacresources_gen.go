@@ -5,6 +5,8 @@ type RBACResource string
 
 const (
 	ResourceWildcard                      RBACResource = "*"
+	ResourceAiModelPrice                  RBACResource = "ai_model_price"
+	ResourceAiSeat                        RBACResource = "ai_seat"
 	ResourceAibridgeInterception          RBACResource = "aibridge_interception"
 	ResourceApiKey                        RBACResource = "api_key"
 	ResourceAssignOrgRole                 RBACResource = "assign_org_role"
@@ -77,6 +79,8 @@ const (
 // said resource type.
 var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceWildcard:                      {},
+	ResourceAiModelPrice:                  {ActionRead, ActionUpdate},
+	ResourceAiSeat:                        {ActionCreate, ActionRead},
 	ResourceAibridgeInterception:          {ActionCreate, ActionRead, ActionUpdate},
 	ResourceApiKey:                        {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceAssignOrgRole:                 {ActionAssign, ActionCreate, ActionDelete, ActionRead, ActionUnassign, ActionUpdate},

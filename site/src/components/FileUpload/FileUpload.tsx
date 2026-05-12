@@ -34,7 +34,7 @@ export const FileUpload: FC<FileUploadProps> = ({
 
 	if (!isUploading && file) {
 		return (
-			<div className="flex flex-row items-center justify-between gap-4 rounded-lg border border-border bg-surface-secondary p-4">
+			<div className="flex flex-row items-center justify-between gap-4 rounded-lg border border-border bg-surface-primary p-4">
 				<div className="flex flex-row items-center gap-4">
 					<FolderIcon className="size-icon-sm" />
 					<span>{file.name}</span>
@@ -57,7 +57,8 @@ export const FileUpload: FC<FileUploadProps> = ({
 			<div
 				data-testid="drop-zone"
 				className={cn(
-					"flex cursor-pointer items-center justify-center rounded-lg border-2 border-dashed border-border p-12 hover:bg-surface-secondary",
+					"flex cursor-pointer items-center justify-center rounded-lg border-2",
+					"border-dashed border-border p-12 hover:bg-surface-primary",
 					isUploading && "pointer-events-none opacity-75",
 				)}
 				{...clickable}
@@ -74,7 +75,7 @@ export const FileUpload: FC<FileUploadProps> = ({
 
 					<div className="flex flex-col items-center gap-1">
 						<span className="text-base leading-none">{title}</span>
-						<span className="mt-1 max-w-md text-center text-sm leading-normal text-content-secondary">
+						<span className="mt-1 max-w-[400px] text-center text-sm leading-6 text-content-secondary">
 							{description}
 						</span>
 					</div>

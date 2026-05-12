@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import Link from "@mui/material/Link";
 import type { FC, HTMLAttributes } from "react";
 import { Link as RouterLink } from "react-router";
@@ -6,6 +5,7 @@ import type { TemplateExample } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { Pill } from "#/components/Pill/Pill";
+import { cn } from "#/utils/cn";
 
 type TemplateExampleCardProps = HTMLAttributes<HTMLDivElement> & {
 	example: TemplateExample;
@@ -15,24 +15,31 @@ type TemplateExampleCardProps = HTMLAttributes<HTMLDivElement> & {
 export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
 	example,
 	activeTag,
+	className,
 	...divProps
 }) => {
 	return (
-		<div css={styles.card} {...divProps}>
-			<div css={styles.header}>
-				<div css={styles.icon}>
+		<div
+			className={cn(
+				"flex w-[320px] flex-col rounded-md border border-solid border-border p-6 text-left text-inherit",
+				className,
+			)}
+			{...divProps}
+		>
+			<div className="mb-6 flex items-center justify-between">
+				<div className="size-8 shrink-0 pt-1">
 					<ExternalImage
 						src={example.icon}
 						className="w-full h-full object-contain"
 					/>
 				</div>
 
-				<div css={styles.tags}>
+				<div className="flex flex-wrap justify-end gap-2">
 					{example.tags.map((tag) => (
 						<RouterLink key={tag} to={`/starter-templates?tag=${tag}`}>
 							<Pill
 								type={activeTag === tag ? "active" : undefined}
-								className="cursor-pointer no-underline hover:border-border-hover"
+								className="cursor-pointer no-underline hover:border-content-primary"
 							>
 								{tag}
 							</Pill>
@@ -43,7 +50,7 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
 
 			<div>
 				<h4 className="text-sm font-semibold m-0 mb-1">{example.name}</h4>
-				<span css={styles.description}>
+				<span className="block text-[13px] leading-[1.6] text-content-secondary">
 					{example.description}{" "}
 					<Link
 						component={RouterLink}
@@ -55,7 +62,7 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
 				</span>
 			</div>
 
-			<div css={styles.useButtonContainer}>
+			<div className="mt-auto flex flex-col items-center gap-3 pt-6">
 				<Button asChild className="w-full">
 					<RouterLink to={`/templates/new?exampleId=${example.id}`}>
 						Use template
@@ -65,53 +72,3 @@ export const TemplateExampleCard: FC<TemplateExampleCardProps> = ({
 		</div>
 	);
 };
-
-const styles = {
-	card: (theme) => ({
-		width: "320px",
-		padding: 24,
-		borderRadius: 6,
-		border: `1px solid ${theme.palette.divider}`,
-		textAlign: "left",
-		color: "inherit",
-		display: "flex",
-		flexDirection: "column",
-	}),
-
-	header: {
-		display: "flex",
-		alignItems: "center",
-		justifyContent: "space-between",
-		marginBottom: 24,
-	},
-
-	icon: {
-		flexShrink: 0,
-		paddingTop: 4,
-		width: 32,
-		height: 32,
-	},
-
-	tags: {
-		display: "flex",
-		flexWrap: "wrap",
-		gap: 8,
-		justifyContent: "end",
-	},
-
-	description: (theme) => ({
-		fontSize: 13,
-		color: theme.palette.text.secondary,
-		lineHeight: "1.6",
-		display: "block",
-	}),
-
-	useButtonContainer: {
-		display: "flex",
-		gap: 12,
-		flexDirection: "column",
-		paddingTop: 24,
-		marginTop: "auto",
-		alignItems: "center",
-	},
-} satisfies Record<string, Interpolation<Theme>>;

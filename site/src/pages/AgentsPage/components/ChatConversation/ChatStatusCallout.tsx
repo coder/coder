@@ -133,6 +133,9 @@ const StatusAlert: FC<{ status: RetryOrFailedStatus }> = ({ status }) => {
 	if (status.phase === "retrying") {
 		metadataItems.push(<span key="attempt">Attempt {status.attempt}</span>);
 	}
+	if (status.phase === "failed" && status.statusCode != null) {
+		metadataItems.push(<span key="code">HTTP {status.statusCode}</span>);
+	}
 
 	return (
 		<Alert
