@@ -11305,3 +11305,163 @@ func TestRunChat_WorkspaceMCPDiscoveryWaitsForSlowAgent(t *testing.T) {
 		"workspace MCP tool should reach the LLM once chatd's discovery "+
 			"timeout exceeds the agent's MCP reload time")
 }
+
+// TestRunChat_WorkspaceMCPDiscoveryAfterMidTurnCreateWorkspace guards the
+// regression where chats that bound their workspace mid-turn (via
+// create_workspace) never saw workspace MCP tools on the same turn. The
+// chatloop tool list was frozen at the top of the turn, so the first
+// post-create_workspace step had no workspace MCP tools and the model
+// fell back to bash. See PrepareTools wiring in runChat.
+func TestRunChat_WorkspaceMCPDiscoveryAfterMidTurnCreateWorkspace(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	var (
+		requestsMu sync.Mutex
+		requests   []recordedOpenAIRequest
+	)
+
+	workspaceToolName := "workspace-midturn-mcp__echo"
+	workspaceCreateToolArgsJSON := ""
+
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+
+		requestsMu.Lock()
+		requests = append(requests, recordOpenAIRequest(req))
+		callIdx := len(requests)
+		requestsMu.Unlock()
+
+		if callIdx == 1 {
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk("create_workspace", workspaceCreateToolArgsJSON),
+			)
+		}
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("done")...,
+		)
+	})
+
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+
+	// Seed a workspace+agent for create_workspace to bind to.
+	tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	tpl := dbgen.Template(t, db, database.Template{
+		CreatedBy:       user.ID,
+		OrganizationID:  org.ID,
+		ActiveVersionID: tv.ID,
+	})
+	workspaceCreateToolArgsJSON = fmt.Sprintf(`{"template_id":%q}`, tpl.ID.String())
+
+	ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+		TemplateID:     tpl.ID,
+		OwnerID:        user.ID,
+		OrganizationID: org.ID,
+	})
+	pj := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		InitiatorID:    user.ID,
+		OrganizationID: org.ID,
+		CompletedAt:    sql.NullTime{Valid: true, Time: dbtime.Now()},
+	})
+	build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		TemplateVersionID: tv.ID,
+		WorkspaceID:       ws.ID,
+		JobID:             pj.ID,
+	})
+	res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+		Transition: database.WorkspaceTransitionStart,
+		JobID:      pj.ID,
+	})
+	now := dbtime.Now()
+	dbAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+		ResourceID:       res.ID,
+		LifecycleState:   database.WorkspaceAgentLifecycleStateReady,
+		StartedAt:        sql.NullTime{Time: now, Valid: true},
+		ReadyAt:          sql.NullTime{Time: now, Valid: true},
+		FirstConnectedAt: sql.NullTime{Time: now, Valid: true},
+		LastConnectedAt:  sql.NullTime{Time: now, Valid: true},
+	})
+
+	workspaceToolsResp := workspacesdk.ListMCPToolsResponse{
+		Tools: []workspacesdk.MCPToolInfo{{
+			ServerName:  "workspace-midturn-mcp",
+			Name:        workspaceToolName,
+			Description: "workspace echo tool",
+			Schema: map[string]any{
+				"input": map[string]any{"type": "string"},
+			},
+			Required: []string{"input"},
+		}},
+	}
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	mockConn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
+	mockConn.EXPECT().ContextConfig(gomock.Any()).
+		Return(workspacesdk.ContextConfigResponse{}, xerrors.New("not supported")).AnyTimes()
+	mockConn.EXPECT().ListMCPTools(gomock.Any()).
+		Return(workspaceToolsResp, nil).AnyTimes()
+	mockConn.EXPECT().LS(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(workspacesdk.LSResponse{}, nil).AnyTimes()
+	mockConn.EXPECT().ReadFile(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(io.NopCloser(strings.NewReader("")), "", nil).AnyTimes()
+	mockConn.EXPECT().AwaitReachable(gomock.Any()).Return(true).AnyTimes()
+
+	createFn := func(_ context.Context, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+		return codersdk.Workspace{
+			ID:             ws.ID,
+			Name:           req.Name,
+			OwnerName:      user.Username,
+			OrganizationID: org.ID,
+			TemplateID:     tpl.ID,
+			LatestBuild: codersdk.WorkspaceBuild{
+				ID:     build.ID,
+				Status: codersdk.WorkspaceStatusRunning,
+			},
+		}, nil
+	}
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return mockConn, func() {}, nil
+		}
+		cfg.CreateWorkspace = createFn
+	})
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "workspace-mcp-midturn",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("Create a workspace and call the workspace MCP tool."),
+		},
+	})
+	require.NoError(t, err)
+
+	chatResult := waitForTerminalChat(ctx, t, db, chat.ID)
+	if chatResult.Status == database.ChatStatusError {
+		require.FailNowf(t, "chat failed", "last_error=%q",
+			chatLastErrorMessage(chatResult.LastError))
+	}
+	require.Equal(t, database.ChatStatusWaiting, chatResult.Status)
+
+	requestsMu.Lock()
+	recorded := append([]recordedOpenAIRequest(nil), requests...)
+	requestsMu.Unlock()
+	require.GreaterOrEqual(t, len(recorded), 2,
+		"expected at least two streamed model calls (create_workspace + follow-up)")
+	require.NotContains(t, recorded[0].Tools, workspaceToolName,
+		"first call should not advertise workspace MCP tools because the chat has no workspace yet")
+	require.Contains(t, recorded[1].Tools, workspaceToolName,
+		"second call (after create_workspace) must advertise the workspace MCP tool: "+
+			"this is the fix for mid-turn workspace MCP discovery")
+}
