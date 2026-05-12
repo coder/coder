@@ -287,37 +287,26 @@ export const StreamingOutput: FC<{
 
 	const conversationItemProps = { role: "assistant" as const };
 
-	// Pinned mode: use the dedicated pinned container layout
+	// Pinned mode: use the dedicated pinned container layout.
+	// Always use the fixed-height box so "Thinking" appears at
+	// the same position from the very first frame.
 	if (thinkingDisplayMode === "pinned") {
 		return (
 			<ConversationItem {...conversationItemProps}>
 				<Message className="w-full">
 					<MessageContent className="whitespace-normal">
-						{shouldShowBlocks && blocks.length > 0 ? (
-							<PinnedStreamingContent
-								blocks={blocks}
-								streamTools={streamTools}
-								isStreaming={isStreaming}
-								subagentTitles={subagentTitles}
-								subagentVariants={subagentVariants}
-								subagentStatusOverrides={subagentStatusOverrides}
-								urlTransform={urlTransform}
-								mcpServers={mcpServers}
-								liveStatus={liveStatus}
-								startingResetKey={startingResetKey}
-							/>
-						) : (
-							<div className="space-y-3">
-								{needsStreamingThinking && <StreamingThinkingPlaceholder />}
-								{!needsStreamingThinking &&
-									hasTransientLiveStatus(liveStatus) && (
-										<ChatStatusCallout
-											status={liveStatus}
-											startingResetKey={startingResetKey}
-										/>
-									)}
-							</div>
-						)}
+						<PinnedStreamingContent
+							blocks={blocks}
+							streamTools={streamTools}
+							isStreaming={isStreaming}
+							subagentTitles={subagentTitles}
+							subagentVariants={subagentVariants}
+							subagentStatusOverrides={subagentStatusOverrides}
+							urlTransform={urlTransform}
+							mcpServers={mcpServers}
+							liveStatus={liveStatus}
+							startingResetKey={startingResetKey}
+						/>
 					</MessageContent>
 				</Message>
 			</ConversationItem>
