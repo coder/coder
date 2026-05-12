@@ -13,7 +13,7 @@ runner is a long-lived process that registers with a pool in your Anthropic
 organization, polls for assigned sessions, spawns a Claude Code child process
 per session, and streams results back to Anthropic. Sessions originate from
 Claude Code on the web, the mobile apps, scheduled routines, agents, or other
-Anthropic surfaces — the runner is surface-agnostic.
+Anthropic surfaces. The runner is surface-agnostic.
 
 Because the runner is just a Linux/macOS process with outbound HTTPS to
 `api.anthropic.com`, **a Coder workspace is a natural host for it**. Coder
@@ -34,7 +34,7 @@ advanced variants and the longer-term plan.
 - Each Anthropic user is served by their own workspace, mirroring Anthropic's
   "one runner is locked to one user at a time" model.
 - The runner can reach internal Git, package registries, databases, and
-  build tooling that the workspace can reach — no extra network plumbing.
+  build tooling that the workspace can reach, with no extra network plumbing.
 - Existing Coder primitives (templates, parameters, schedules, RBAC, audit
   log, autostop) govern the runner the same way they govern any other
   workload.
@@ -49,7 +49,7 @@ advanced variants and the longer-term plan.
   [AI Gateway](../ai-gateway/index.md). Coder Agents is Coder's own
   control-plane agent. AI Gateway is Coder's egress proxy for LLM traffic.
   Self-hosted runners are Anthropic's product running on your compute. The
-  three are complementary and can be used together — see
+  three are complementary and can be used together. See
   [How it relates to Coder Agents and AI Gateway](#how-it-relates-to-coder-agents-and-ai-gateway).
 
 ## How it fits together
@@ -125,7 +125,7 @@ gives you a single artifact to scan, sign, and roll out.
 ### 2. Create a pool in `claude.ai`
 
 In `claude.ai`, navigate to **Settings → Claude Code → Self-hosted runner
-pools** and create a pool. Copy the pool secret — it is shown once and cannot
+pools** and create a pool. Copy the pool secret. It is shown once and cannot
 be retrieved later. Store it in your existing secrets system (Vault,
 1Password, AWS Secrets Manager, etc.).
 
@@ -185,7 +185,7 @@ workspace. Within a few seconds, the runner appears in the Anthropic admin
 UI under the pool, and the workspace is ready to serve Claude Code sessions
 for that user.
 
-The developer does not need to keep Coder open — once the workspace is
+The developer does not need to keep Coder open. Once the workspace is
 running, sessions flow in from Anthropic surfaces. They can also use the
 same workspace as a normal Coder workspace (IDE, terminal, port forwards)
 while the runner is active. The runner's child processes operate in their
@@ -217,7 +217,7 @@ matches:
    For the basic flow we recommend setting `coder_script.run_on_start =
    true` and treating workspace restart as the restart boundary.
 
-For the basic flow we do not try to autoscale runners — one workspace per
+For the basic flow we do not try to autoscale runners. One workspace per
 user is enough. See [Plan: advanced topics](./plan.md) for what changes when
 you scale to many concurrent users per workspace, fleet pools, or
 short-lived runner workspaces.

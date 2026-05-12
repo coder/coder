@@ -28,7 +28,7 @@ configuration change a customer can make today.
 If we want any of those, that is separate product work that should be
 proposed in a Linear issue, not in this docs branch.
 
-## Stage 1 — Basic flow (this PR)
+## Stage 1: Basic flow (this PR)
 
 Pages:
 
@@ -57,7 +57,7 @@ Acceptance criteria:
   a time" model without overpromising shared-pool behavior we are not
   implementing yet.
 
-## Stage 2 — Per-creator credentials via wrapper script (docs only)
+## Stage 2: Per-creator credentials via wrapper script (docs only)
 
 Anthropic's runner exposes `CLAUDE_CODE_SESSION_ACCESS_TOKEN`, a JWT whose
 `act` claim carries the session creator's email and IdP subject. Operators
@@ -91,7 +91,7 @@ Open questions:
   `--hooks-dir` `command` hook? Both work; pick one as the recommended
   pattern.
 
-## Stage 3 — Custom checkout via lifecycle hooks (docs only)
+## Stage 3: Custom checkout via lifecycle hooks (docs only)
 
 The runner supports `--hooks-dir <path>` and looks for executable scripts
 with well-known names. The `checkout` hook is the most useful for Coder
@@ -114,7 +114,7 @@ Docs page should include:
   ephemeral. The runner *expects* a fresh filesystem on restart, but a
   read-only bare mirror is fine to persist.
 
-## Stage 4 — Route the child through AI Gateway (docs only)
+## Stage 4: Route the child through AI Gateway (docs only)
 
 The runner process itself must talk to `api.anthropic.com` for pool
 registration and polling, but the child `claude` process makes its own
@@ -137,7 +137,7 @@ Docs page should cover:
 - A clear note that this is opt-in. The runner's own outbound traffic to
   `api.anthropic.com` is unaffected.
 
-## Stage 5 — Pin permissions and tool allowlists in the image (docs only)
+## Stage 5: Pin permissions and tool allowlists in the image (docs only)
 
 The runner gives each session its own `CLAUDE_CONFIG_DIR` seeded from
 `~/.claude/` in the image. That means a template admin can ship a
@@ -155,7 +155,7 @@ Docs page should cover:
 
 This is purely an image and settings exercise; no product work.
 
-## Stage 6 — Fleet pools and runner-only workspaces (docs only, with caveats)
+## Stage 6: Fleet pools and runner-only workspaces (docs only, with caveats)
 
 The basic flow is "one developer = one workspace = one runner." That's
 fine for a small team but does not match Anthropic's intended fleet model
@@ -195,7 +195,7 @@ docs PR but worth tracking):
   module that wraps the `coder_script` + image bake pattern from this
   doc? That would be a registry change, not a Coder core change.
 
-## Stage 7 — Webhook-driven autoscaling (out of scope)
+## Stage 7: Webhook-driven autoscaling (out of scope)
 
 The PDF describes a runner-needed webhook (or fallback CLI poll mode) that
 fires whenever a session is queued and no runner can take it. Anthropic is
