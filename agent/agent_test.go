@@ -2829,15 +2829,15 @@ func TestAgent_DevcontainersDisabledForSubAgent(t *testing.T) {
 		o.Devcontainers = true
 	})
 
-	// Query the containers API endpoint. This should fail because
-	// devcontainers have been disabled for the sub agent.
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancel()
 
-	_, err := conn.ListContainers(ctx)
+	var err error
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		_, err = conn.ListContainers(ctx)
+		return err != nil && strings.Contains(err.Error(), "Dev Container feature not supported.")
+	}, testutil.IntervalFast, "containers endpoint should reject devcontainers inside sub agents")
 	require.Error(t, err)
-
-	// Verify the error message contains the expected text.
 	require.Contains(t, err.Error(), "Dev Container feature not supported.")
 	require.Contains(t, err.Error(), "Dev Container integration inside other Dev Containers is explicitly not supported.")
 }
