@@ -69,6 +69,11 @@ export interface AIBridgeConfig {
 	readonly send_actor_headers: boolean;
 	readonly allow_byok: boolean;
 	/**
+	 * Budget settings for AI Governance cost controls.
+	 */
+	readonly budget_policy?: string;
+	readonly budget_period?: string;
+	/**
 	 * Circuit breaker protects against cascading failures from upstream AI
 	 * provider overload (503, 529).
 	 */
@@ -304,6 +309,16 @@ export interface AIBridgeUserPrompt {
 	readonly metadata: Record<string, unknown>;
 	readonly created_at: string;
 }
+
+// From codersdk/deployment.go
+export type AIBudgetPeriod = "month";
+
+export const AIBudgetPeriods: AIBudgetPeriod[] = ["month"];
+
+export const AIBudgetPolicies: AIBudgetPolicy[] = ["highest"];
+
+// From codersdk/deployment.go
+export type AIBudgetPolicy = "highest";
 
 // From codersdk/deployment.go
 export interface AIConfig {
