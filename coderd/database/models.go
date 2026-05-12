@@ -4676,6 +4676,14 @@ type Group struct {
 	ChatSpendLimitMicros sql.NullInt64 `db:"chat_spend_limit_micros" json:"chat_spend_limit_micros"`
 }
 
+// Per-group AI spend limit applied to each member of the group. No row means no budget is enforced.
+type GroupAiBudget struct {
+	GroupID    uuid.UUID `db:"group_id" json:"group_id"`
+	SpendLimit int64     `db:"spend_limit" json:"spend_limit"`
+	CreatedAt  time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
+}
+
 type GroupMember struct {
 	UserID                 uuid.UUID     `db:"user_id" json:"user_id"`
 	UserEmail              string        `db:"user_email" json:"user_email"`

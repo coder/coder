@@ -21,6 +21,7 @@ const (
 	CheckChatsPinOrderArchivedCheck                  CheckConstraint = "chats_pin_order_archived_check"                     // chats
 	CheckChatsPinOrderParentCheck                    CheckConstraint = "chats_pin_order_parent_check"                       // chats
 	CheckOrganizationIDNotZero                       CheckConstraint = "organization_id_not_zero"                           // custom_roles
+	CheckGroupAiBudgetsSpendLimitCheck               CheckConstraint = "group_ai_budgets_spend_limit_check"                 // group_ai_budgets
 	CheckGroupsChatSpendLimitMicrosCheck             CheckConstraint = "groups_chat_spend_limit_micros_check"               // groups
 	CheckOneTimePasscodeSet                          CheckConstraint = "one_time_passcode_set"                              // users
 	CheckUsersChatSpendLimitMicrosCheck              CheckConstraint = "users_chat_spend_limit_micros_check"                // users
