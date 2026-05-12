@@ -6274,13 +6274,22 @@ func (q *querier) SoftDeleteContextFileMessages(ctx context.Context, chatID uuid
 
 func (q *querier) SoftDeletePriorWorkspaceAgents(ctx context.Context, arg database.SoftDeletePriorWorkspaceAgentsParams) error {
 	// Called from wsbuilder.Builder.Build inside the same transaction as
-	// InsertWorkspaceBuild. Authorize on the workspace the caller is
-	// building against; they're already editing it.
-	w, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
+	// InsertWorkspaceBuild. Authorize using the same transition-derived
+	// action as the build itself so scoped API keys (e.g. delete-only)
+	// are not rejected by a blanket ActionUpdate check.
+	build, err := q.db.GetWorkspaceBuildByID(ctx, arg.CurrentBuildID)
 	if err != nil {
 		return err
 	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, w); err != nil {
+	w, err := q.db.GetWorkspaceByID(ctx, build.WorkspaceID)
+	if err != nil {
+		return err
+	}
+	action, err := workspaceTransitionAction(build.Transition)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, action, w); err != nil {
 		return err
 	}
 	return q.db.SoftDeletePriorWorkspaceAgents(ctx, arg)

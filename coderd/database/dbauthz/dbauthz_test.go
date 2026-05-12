@@ -4598,13 +4598,17 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	}))
 	s.Run("SoftDeletePriorWorkspaceAgents", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		w := testutil.Fake(s.T(), faker, database.Workspace{})
+		build := testutil.Fake(s.T(), faker, database.WorkspaceBuild{})
+		build.WorkspaceID = w.ID
+		build.Transition = database.WorkspaceTransitionStart
 		arg := database.SoftDeletePriorWorkspaceAgentsParams{
 			WorkspaceID:    w.ID,
-			CurrentBuildID: uuid.New(),
+			CurrentBuildID: build.ID,
 		}
+		dbm.EXPECT().GetWorkspaceBuildByID(gomock.Any(), build.ID).Return(build, nil).AnyTimes()
 		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), w.ID).Return(w, nil).AnyTimes()
 		dbm.EXPECT().SoftDeletePriorWorkspaceAgents(gomock.Any(), arg).Return(nil).AnyTimes()
-		check.Args(arg).Asserts(w, policy.ActionUpdate).Returns()
+		check.Args(arg).Asserts(w, policy.ActionWorkspaceStart).Returns()
 	}))
 	s.Run("SoftDeleteWorkspaceAgentsByWorkspaceID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		w := testutil.Fake(s.T(), faker, database.Workspace{})
