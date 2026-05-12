@@ -4873,6 +4873,14 @@ func (q *querier) GetWorkspaceAppsCreatedAfter(ctx context.Context, createdAt ti
 	return q.db.GetWorkspaceAppsCreatedAfter(ctx, createdAt)
 }
 
+func (q *querier) GetWorkspaceBuildAgentsByInstanceID(ctx context.Context, authInstanceID string) ([]database.GetWorkspaceBuildAgentsByInstanceIDRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err == nil {
+		return q.db.GetWorkspaceBuildAgentsByInstanceID(ctx, authInstanceID)
+	}
+
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetWorkspaceBuildAgentsByInstanceID)(ctx, authInstanceID)
+}
+
 func (q *querier) GetWorkspaceBuildByID(ctx context.Context, buildID uuid.UUID) (database.WorkspaceBuild, error) {
 	build, err := q.db.GetWorkspaceBuildByID(ctx, buildID)
 	if err != nil {
