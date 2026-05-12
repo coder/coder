@@ -15,7 +15,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
-	"github.com/coder/coder/v2/scaletest/agentfake"
+	"github.com/coder/coder/v2/enterprise/scaletest/agentfake"
 	"github.com/coder/coder/v2/testutil"
 )
 
