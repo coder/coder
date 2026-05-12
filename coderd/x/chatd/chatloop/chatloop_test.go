@@ -4007,6 +4007,216 @@ func TestRun_PrepareMessagesOnlyFiresOnce(t *testing.T) {
 	require.Equal(t, 3, int(prepareCalls.Load()))
 }
 
+// TestRun_PrepareToolsInjectsToolMidLoop guards the regression where a
+// chat creating its workspace mid-turn (via create_workspace) saw the
+// workspace MCP tools only on the next turn. Before the fix, the tool
+// list was frozen at the top of the turn and the model could not call
+// any workspace MCP tools until turn 2. With the fix, PrepareTools is
+// invoked before every step and can inject tools that become available
+// mid-loop.
+func TestRun_PrepareToolsInjectsToolMidLoop(t *testing.T) {
+	t.Parallel()
+
+	const injectedToolName = "workspace_mcp__echo"
+
+	var mu sync.Mutex
+	var streamCalls int
+	var secondCallTools []fantasy.Tool
+
+	// Step 0 calls create_workspace. Step 1 should see the
+	// injected workspace MCP tool.
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+			mu.Lock()
+			step := streamCalls
+			streamCalls++
+			mu.Unlock()
+
+			switch step {
+			case 0:
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc-1", ToolCallName: "create_workspace"},
+					{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc-1", Delta: `{}`},
+					{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc-1"},
+					{
+						Type:          fantasy.StreamPartTypeToolCall,
+						ID:            "tc-1",
+						ToolCallName:  "create_workspace",
+						ToolCallInput: `{}`,
+					},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
+				}), nil
+			default:
+				mu.Lock()
+				secondCallTools = append([]fantasy.Tool(nil), call.Tools...)
+				mu.Unlock()
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "done"},
+					{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+				}), nil
+			}
+		},
+	}
+
+	var workspaceReady atomic.Bool
+	createWorkspaceTool := fantasy.NewAgentTool(
+		"create_workspace",
+		"create a workspace",
+		func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			workspaceReady.Store(true)
+			return fantasy.ToolResponse{}, nil
+		},
+	)
+
+	var prepareCalls atomic.Int32
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "create a workspace and use MCP"),
+		},
+		Tools:       []fantasy.AgentTool{createWorkspaceTool},
+		ActiveTools: []string{"create_workspace"},
+		MaxSteps:    5,
+		PersistStep: func(_ context.Context, _ PersistedStep) error {
+			return nil
+		},
+		PrepareTools: func(currentTools []fantasy.AgentTool) []fantasy.AgentTool {
+			prepareCalls.Add(1)
+			if !workspaceReady.Load() {
+				return nil
+			}
+			return append(currentTools, newNoopTool(injectedToolName))
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 2, streamCalls)
+	// PrepareTools is called before each of the 2 steps.
+	require.Equal(t, int32(2), prepareCalls.Load())
+
+	require.NotEmpty(t, secondCallTools)
+	var foundInjectedTool bool
+	for _, tool := range secondCallTools {
+		if tool.GetName() == injectedToolName {
+			foundInjectedTool = true
+			break
+		}
+	}
+	require.True(t, foundInjectedTool,
+		"step 1 prompt should advertise the workspace MCP tool injected by PrepareTools")
+}
+
+// TestRun_PrepareToolsAddsNewToolToActiveSet guards the contract that
+// when PrepareTools injects a tool, that tool is callable on the
+// next step even when opts.ActiveTools was non-empty (and would
+// otherwise filter the new tool out).
+func TestRun_PrepareToolsAddsNewToolToActiveSet(t *testing.T) {
+	t.Parallel()
+
+	const injectedToolName = "workspace_mcp__echo"
+
+	var mu sync.Mutex
+	var streamCalls int
+	var injectedToolRan atomic.Bool
+
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			mu.Lock()
+			step := streamCalls
+			streamCalls++
+			mu.Unlock()
+
+			switch step {
+			case 0:
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc-1", ToolCallName: "create_workspace"},
+					{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc-1", Delta: `{}`},
+					{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc-1"},
+					{
+						Type:          fantasy.StreamPartTypeToolCall,
+						ID:            "tc-1",
+						ToolCallName:  "create_workspace",
+						ToolCallInput: `{}`,
+					},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
+				}), nil
+			case 1:
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc-2", ToolCallName: injectedToolName},
+					{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc-2", Delta: `{}`},
+					{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc-2"},
+					{
+						Type:          fantasy.StreamPartTypeToolCall,
+						ID:            "tc-2",
+						ToolCallName:  injectedToolName,
+						ToolCallInput: `{}`,
+					},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
+				}), nil
+			default:
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "done"},
+					{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+				}), nil
+			}
+		},
+	}
+
+	var workspaceReady atomic.Bool
+	createWorkspaceTool := fantasy.NewAgentTool(
+		"create_workspace",
+		"create a workspace",
+		func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			workspaceReady.Store(true)
+			return fantasy.ToolResponse{}, nil
+		},
+	)
+
+	injectedTool := fantasy.NewAgentTool(
+		injectedToolName,
+		"injected workspace MCP tool",
+		func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			injectedToolRan.Store(true)
+			return fantasy.ToolResponse{}, nil
+		},
+	)
+
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "create a workspace and use MCP"),
+		},
+		Tools: []fantasy.AgentTool{createWorkspaceTool},
+		// Active list deliberately excludes the injected tool name;
+		// PrepareTools must add it so the tool is callable.
+		ActiveTools: []string{"create_workspace"},
+		MaxSteps:    5,
+		PersistStep: func(_ context.Context, _ PersistedStep) error {
+			return nil
+		},
+		PrepareTools: func(currentTools []fantasy.AgentTool) []fantasy.AgentTool {
+			if !workspaceReady.Load() {
+				return nil
+			}
+			for _, t := range currentTools {
+				if t.Info().Name == injectedToolName {
+					return nil
+				}
+			}
+			return append(currentTools, injectedTool)
+		},
+	})
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, streamCalls, 2)
+	require.True(t, injectedToolRan.Load(),
+		"injected tool must be callable on the step after PrepareTools adds it")
+}
+
 func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 	t.Parallel()
 

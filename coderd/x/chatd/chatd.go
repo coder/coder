@@ -493,6 +493,81 @@ func (p *Server) loadCachedWorkspaceContext(
 	return tools
 }
 
+// discoverWorkspaceMCPTools resolves the chat's workspace agent and
+// lists the workspace MCP tools advertised by that agent. Results are
+// cached per chat keyed on the agent ID so subsequent calls hit the
+// cache. Returns nil (and never an error) on every failure mode so the
+// caller can continue without MCP tools.
+//
+// This helper is shared between the top-of-turn discovery path and the
+// mid-turn PrepareTools path triggered after create_workspace /
+// start_workspace bind a workspace to a chat that started without one.
+func (p *Server) discoverWorkspaceMCPTools(
+	ctx context.Context,
+	logger slog.Logger,
+	chatID uuid.UUID,
+	workspaceCtx *turnWorkspaceContext,
+) []fantasy.AgentTool {
+	// Fast path: check cache using the in-memory cached agent
+	// (ensureWorkspaceAgent is free when already loaded). This
+	// avoids a per-turn latest-build DB query on the common
+	// subsequent-turn path.
+	if agent, agentErr := workspaceCtx.getWorkspaceAgent(ctx); agentErr == nil {
+		if tools := p.loadCachedWorkspaceContext(
+			chatID, agent, workspaceCtx.getWorkspaceConn,
+		); tools != nil {
+			return tools
+		}
+	} // Cache miss, agent changed, or no cache: validate
+	// that the workspace still has a live agent before
+	// attempting a dial.
+	_, _, agentErr := workspaceCtx.workspaceAgentIDForConn(ctx)
+	if agentErr != nil {
+		if xerrors.Is(agentErr, errChatHasNoWorkspaceAgent) {
+			p.workspaceMCPToolsCache.Delete(chatID)
+			return nil
+		}
+		logger.Warn(ctx, "failed to resolve workspace agent for MCP tools",
+			slog.Error(agentErr))
+		return nil
+	}
+
+	// List workspace MCP tools via the agent conn.
+	conn, connErr := workspaceCtx.getWorkspaceConn(ctx)
+	if connErr != nil {
+		logger.Warn(ctx, "failed to get workspace conn for MCP tools",
+			slog.Error(connErr))
+		return nil
+	}
+	listCtx, cancel := context.WithTimeout(ctx, workspaceMCPDiscoveryTimeout)
+	defer cancel()
+	toolsResp, listErr := conn.ListMCPTools(listCtx)
+	if listErr != nil {
+		logger.Warn(ctx, "failed to list workspace MCP tools",
+			slog.Error(listErr))
+		return nil
+	}
+	// Cache the result for subsequent turns. Skip caching when
+	// the list is empty because the agent's MCP Connect may not
+	// have finished yet; caching an empty list would hide tools
+	// permanently.
+	if len(toolsResp.Tools) > 0 {
+		if agent, agentErr := workspaceCtx.getWorkspaceAgent(ctx); agentErr == nil {
+			p.workspaceMCPToolsCache.Store(chatID, &cachedWorkspaceMCPTools{
+				agentID: agent.ID,
+				tools:   toolsResp.Tools,
+			})
+		}
+	}
+
+	invalidate := func() { p.workspaceMCPToolsCache.Delete(chatID) }
+	tools := make([]fantasy.AgentTool, 0, len(toolsResp.Tools))
+	for _, t := range toolsResp.Tools {
+		tools = append(tools, chattool.NewWorkspaceMCPTool(t, workspaceCtx.getWorkspaceConn, invalidate))
+	}
+	return tools
+}
+
 type turnWorkspaceContext struct {
 	server           *Server
 	chatStateMu      *sync.Mutex
@@ -6875,69 +6950,14 @@ func (p *Server) runChat(
 	}
 	// Workspace MCP discovery stays disabled for all plan-mode turns.
 	// Root plan mode only gets approved external MCP servers, and
-	// plan-mode subagents get no MCP tools.
+	// plan-mode subagents get no MCP tools. When the chat has no
+	// workspace yet, discovery happens mid-turn via the chatloop
+	// PrepareTools callback installed below in chatloop.Run options.
 	if chat.WorkspaceID.Valid && !isPlanModeTurn {
 		g2.Go(func() error {
-			// Fast path: check cache using the in-memory cached
-			// agent (ensureWorkspaceAgent is free when already
-			// loaded). This avoids a per-turn latest-build DB
-			// query on the common subsequent-turn path.
-			agent, agentErr := workspaceCtx.getWorkspaceAgent(ctx)
-			if agentErr == nil {
-				if workspaceMCPTools = p.loadCachedWorkspaceContext(
-					chat.ID, agent, workspaceCtx.getWorkspaceConn,
-				); workspaceMCPTools != nil {
-					return nil
-				}
-			} // Cache miss, agent changed, or no cache: validate
-			// that the workspace still has a live agent before
-			// attempting a dial.
-			_, _, agentErr = workspaceCtx.workspaceAgentIDForConn(ctx)
-			if agentErr != nil {
-				if xerrors.Is(agentErr, errChatHasNoWorkspaceAgent) {
-					p.workspaceMCPToolsCache.Delete(chat.ID)
-					return nil
-				}
-				logger.Warn(ctx, "failed to resolve workspace agent for MCP tools",
-					slog.Error(agentErr))
-				return nil
-			}
-
-			// List workspace MCP tools via the agent conn.
-			conn, connErr := workspaceCtx.getWorkspaceConn(ctx)
-			if connErr != nil {
-				logger.Warn(ctx, "failed to get workspace conn for MCP tools",
-					slog.Error(connErr))
-				return nil
-			}
-			listCtx, cancel := context.WithTimeout(ctx, workspaceMCPDiscoveryTimeout)
-			defer cancel()
-			toolsResp, listErr := conn.ListMCPTools(listCtx)
-			if listErr != nil {
-				logger.Warn(ctx, "failed to list workspace MCP tools",
-					slog.Error(listErr))
-				return nil
-			}
-			// Cache the result for subsequent turns. Skip
-			// caching when the list is empty because the
-			// agent's MCP Connect may not have finished yet;
-			// caching an empty list would hide tools
-			// permanently.
-			if len(toolsResp.Tools) > 0 {
-				if agent, agentErr := workspaceCtx.getWorkspaceAgent(ctx); agentErr == nil {
-					p.workspaceMCPToolsCache.Store(chat.ID, &cachedWorkspaceMCPTools{
-						agentID: agent.ID,
-						tools:   toolsResp.Tools,
-					})
-				}
-			}
-
-			invalidate := func() { p.workspaceMCPToolsCache.Delete(chat.ID) }
-			for _, t := range toolsResp.Tools {
-				workspaceMCPTools = append(workspaceMCPTools,
-					chattool.NewWorkspaceMCPTool(t, workspaceCtx.getWorkspaceConn, invalidate),
-				)
-			}
+			workspaceMCPTools = p.discoverWorkspaceMCPTools(
+				ctx, logger, chat.ID, &workspaceCtx,
+			)
 			return nil
 		})
 	}
@@ -6984,6 +7004,15 @@ func (p *Server) runChat(
 	}
 
 	instructionInjected := instruction != ""
+	// workspaceMCPDiscovered tracks whether workspace MCP discovery
+	// has already been attempted for this turn. The top-of-turn
+	// discovery path above only fires when chat.WorkspaceID is
+	// valid at the start of the turn. For chats that bind a
+	// workspace mid-turn (e.g. via create_workspace) the chatloop
+	// PrepareTools callback below triggers discovery on the next
+	// step. After discovery has run once (here or in PrepareTools),
+	// this flag prevents redundant dials.
+	workspaceMCPDiscovered := chat.WorkspaceID.Valid || isPlanModeTurn
 	prompt = renderPlanPathPrompt(prompt, resolvePlanPathBlock(ctx))
 	setAdvisorPromptSnapshot(prompt)
 	// Use the model config's context_limit as a fallback when the LLM
@@ -7681,6 +7710,29 @@ func (p *Server) runChat(
 		},
 		DisableChainMode: func() {
 			chainModeActive = false
+		},
+		PrepareTools: func(currentTools []fantasy.AgentTool) []fantasy.AgentTool {
+			// Mid-turn workspace MCP discovery for chats that bind a
+			// workspace via create_workspace or start_workspace
+			// after the turn has already started. The top-of-turn
+			// discovery path is gated on chat.WorkspaceID.Valid; this
+			// callback bridges the gap so the LLM sees workspace MCP
+			// tools on the very next step instead of the turn after.
+			if workspaceMCPDiscovered || isExploreSubagent {
+				return nil
+			}
+			snapshot := workspaceCtx.currentChatSnapshot()
+			if !snapshot.WorkspaceID.Valid {
+				return nil
+			}
+			workspaceMCPDiscovered = true
+			discovered := p.discoverWorkspaceMCPTools(
+				ctx, loopLogger, chat.ID, &workspaceCtx,
+			)
+			if len(discovered) == 0 {
+				return nil
+			}
+			return append(slices.Clone(currentTools), discovered...)
 		},
 		PrepareMessages: func(msgs []fantasy.Message) []fantasy.Message {
 			// Skip the snapshot update when chain mode is active;
