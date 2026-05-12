@@ -1230,9 +1230,9 @@ func TestMigration000492SoftDeleteStaleWorkspaceAgents(t *testing.T) {
 
 	// For workspace A: 3 builds on the same instance.
 	// For workspace B: 2 builds on the same instance (different workspace,
-	// same instance id — exercises the cross-workspace scoping case).
-	// For wsSingle: 1 build — should stay non-deleted after the backfill.
-	// For wsDeleted: 1 build on a soft-deleted workspace — agent should be
+	// same instance id, exercises the cross-workspace scoping case).
+	// For wsSingle: 1 build, should stay non-deleted after the backfill.
+	// For wsDeleted: 1 build on a soft-deleted workspace. Agent should be
 	// marked deleted even though it's on the latest build.
 	type build struct {
 		id         uuid.UUID
@@ -1316,7 +1316,7 @@ func TestMigration000492SoftDeleteStaleWorkspaceAgents(t *testing.T) {
 		)
 		require.NoError(t, err)
 	}
-	// wsDeleted is a soft-deleted workspace — its agent is on the latest
+	// wsDeleted is a soft-deleted workspace. Its agent is on the latest
 	// build but must still be soft-deleted by the migration.
 	_, err = tx.ExecContext(ctx,
 		`INSERT INTO workspaces (id, created_at, updated_at, owner_id, organization_id, template_id, name, deleted, automatic_updates)

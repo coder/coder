@@ -6275,7 +6275,7 @@ func (q *querier) SoftDeleteContextFileMessages(ctx context.Context, chatID uuid
 func (q *querier) SoftDeletePriorWorkspaceAgents(ctx context.Context, arg database.SoftDeletePriorWorkspaceAgentsParams) error {
 	// Called from wsbuilder.Builder.Build inside the same transaction as
 	// InsertWorkspaceBuild. Authorize on the workspace the caller is
-	// building against — they're already editing it.
+	// building against; they're already editing it.
 	w, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
 	if err != nil {
 		return err

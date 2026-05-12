@@ -24,8 +24,8 @@
 --
 -- Related:
 --   #24325 (feature that regressed the behavior)
---   #24973 (partial fix — pool starvation)
---   #25031 (partial fix — handler cleanup + deleted-workspace filter)
+--   #24973 (partial fix, pool starvation)
+--   #25031 (partial fix, handler cleanup + deleted-workspace filter)
 --   #25155 (bug report)
 
 -- 1. Soft-delete all agents on workspaces that are themselves deleted.

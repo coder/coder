@@ -13818,7 +13818,7 @@ func TestSoftDeletePriorWorkspaceAgents(t *testing.T) {
 		return buildBundle{workspaceID: wsID, buildID: build.ID, agentID: agent.ID}
 	}
 
-	// Read `deleted` via raw SQL — GetWorkspaceAgentByID filters deleted rows
+	// Read `deleted` via raw SQL. GetWorkspaceAgentByID filters deleted rows
 	// out, which is exactly what we want to observe here.
 	agentDeleted := func(id uuid.UUID) bool {
 		t.Helper()
@@ -13889,7 +13889,7 @@ func TestSoftDeletePriorWorkspaceAgents(t *testing.T) {
 // TestSoftDeleteWorkspaceAgentsByWorkspaceID verifies the delete-path
 // invariant: when a workspace is soft-deleted, every one of its agents
 // (across all builds) gets soft-deleted in the same transaction. Agents on
-// *other* workspaces — even ones sharing an auth_instance_id — must be
+// *other* workspaces, even ones sharing an auth_instance_id, must be
 // untouched.
 func TestSoftDeleteWorkspaceAgentsByWorkspaceID(t *testing.T) {
 	t.Parallel()
