@@ -31,14 +31,6 @@ const hasTextOrReasoningBlock = (blocks: readonly RenderBlock[]): boolean =>
 	blocks.some((b) => b.type === "response" || b.type === "thinking");
 
 /**
- * True when the block list contains at least one response block
- * (final output text). Used in pinned mode to detect the
- * transition from thinking to responding.
- */
-const hasResponseBlock = (blocks: readonly RenderBlock[]): boolean =>
-	blocks.some((b) => b.type === "response");
-
-/**
  * Placeholder shown during streaming before text or reasoning
  * blocks arrive. Uses the same shimmer animation as the
  * collapsible thinking disclosure label.
@@ -94,7 +86,6 @@ const PinnedThinkingIndicator: FC<{ fading?: boolean }> = ({
 const PinnedStreamingContent: FC<{
 	blocks: readonly RenderBlock[];
 	streamTools: readonly MergedTool[];
-	isStreaming: boolean;
 	subagentTitles?: Map<string, string>;
 	subagentVariants?: Map<string, SubagentVariant>;
 	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
@@ -105,17 +96,15 @@ const PinnedStreamingContent: FC<{
 }> = ({
 	blocks,
 	streamTools,
-	isStreaming,
 	subagentTitles,
 	subagentVariants,
 	subagentStatusOverrides,
 	urlTransform,
 	mcpServers,
 	liveStatus,
-	startingResetKey,
 }) => {
 	const scrollRef = useRef<HTMLDivElement>(null);
-	const hasResponse = hasResponseBlock(blocks);
+	const isStreaming = liveStatus.phase === "streaming";
 
 	// Split blocks: thinking blocks are stripped entirely (the
 	// pinned indicator replaces them); response blocks render
@@ -151,86 +140,49 @@ const PinnedStreamingContent: FC<{
 		}
 	}, [activityBlockCount]);
 
-	// The pinned indicator shows during every active phase
-	// (starting, streaming, retrying, reconnecting), not just
-	// while chunks are arriving. It only disappears once response
-	// text arrives or the phase goes idle.
+	// The pinned indicator stays visible for the entire turn,
+	// not just until response text arrives. It only disappears
+	// once the phase goes idle or the turn fails.
 	const isAgentWorking =
 		liveStatus.phase !== "idle" && liveStatus.phase !== "failed";
-	const showPinnedIndicator = isAgentWorking && !hasResponse;
 	const showActivityContainer = activityBlocks.length > 0;
 
-	// When thinking: fixed-height box so "Thinking" never moves.
-	// Activity scrolls inside the top portion; the indicator is
-	// anchored at the bottom of the fixed box.
-	if (showPinnedIndicator) {
-		return (
-			<div className="flex h-48 flex-col">
-				{/* Activity area: fills remaining space, scrolls internally */}
-				<div
-					ref={scrollRef}
-					className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-					style={PINNED_FADE_MASK}
-				>
-					{showActivityContainer && (
-						<div className="space-y-3">
-							<BlockList
-								blocks={activityBlocks}
-								tools={streamTools}
-								keyPrefix="stream"
-								isStreaming={isStreaming}
-								subagentTitles={subagentTitles}
-								subagentVariants={subagentVariants}
-								subagentStatusOverrides={subagentStatusOverrides}
-								urlTransform={urlTransform}
-								mcpServers={mcpServers}
-							/>
-						</div>
-					)}
-				</div>
-
-				{/* Pinned indicator: always at the bottom of the fixed box */}
-				<div className="shrink-0">
-					<PinnedThinkingIndicator />
-				</div>
-			</div>
-		);
-	}
-
-	// Once the agent starts responding, drop the fixed container.
-	// Activity stays in a capped scroll area; response text renders
-	// at full brightness below.
 	return (
 		<div className="space-y-3">
-			{showActivityContainer && (
-				<div
-					ref={scrollRef}
-					className="max-h-48 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-				>
-					<div className="space-y-3">
-						<BlockList
-							blocks={activityBlocks}
-							tools={streamTools}
-							keyPrefix="stream"
-							isStreaming={isStreaming}
-							subagentTitles={subagentTitles}
-							subagentVariants={subagentVariants}
-							subagentStatusOverrides={subagentStatusOverrides}
-							urlTransform={urlTransform}
-							mcpServers={mcpServers}
-						/>
+			{/* Fixed-height box: activity scrolls inside, indicator
+			    anchored at bottom. Stays the same height for the
+			    entire turn so "Thinking..." never moves. */}
+			{isAgentWorking && (
+				<div className="flex h-48 flex-col">
+					<div
+						ref={scrollRef}
+						className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+						style={PINNED_FADE_MASK}
+					>
+						{showActivityContainer && (
+							<div className="space-y-3">
+								<BlockList
+									blocks={activityBlocks}
+									tools={streamTools}
+									keyPrefix="stream"
+									isStreaming={isStreaming}
+									subagentTitles={subagentTitles}
+									subagentVariants={subagentVariants}
+									subagentStatusOverrides={subagentStatusOverrides}
+									urlTransform={urlTransform}
+									mcpServers={mcpServers}
+								/>
+							</div>
+						)}
+					</div>
+					<div className="shrink-0">
+						<PinnedThinkingIndicator />
 					</div>
 				</div>
 			)}
 
-			{/* Status callouts for starting/retrying/reconnecting */}
-			{hasTransientLiveStatus(liveStatus) && !isStreaming && (
-				<ChatStatusCallout
-					status={liveStatus}
-					startingResetKey={startingResetKey}
-				/>
-			)}
-
+			{/* Response text renders below the fixed box at full
+			    brightness so the user knows to pay attention. */}
 			{responseBlocks.length > 0 && (
 				<BlockList
 					blocks={responseBlocks}
@@ -311,14 +263,12 @@ export const StreamingOutput: FC<{
 						<PinnedStreamingContent
 							blocks={blocks}
 							streamTools={streamTools}
-							isStreaming={isStreaming}
 							subagentTitles={subagentTitles}
 							subagentVariants={subagentVariants}
 							subagentStatusOverrides={subagentStatusOverrides}
 							urlTransform={urlTransform}
 							mcpServers={mcpServers}
 							liveStatus={liveStatus}
-							startingResetKey={startingResetKey}
 						/>
 					</MessageContent>
 				</Message>
