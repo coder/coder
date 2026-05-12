@@ -1619,7 +1619,7 @@ export const PinnedChatsSection: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await waitFor(() => {
-			expect(canvas.getByText("Pinned")).toBeInTheDocument();
+			expect(canvas.getByText("Pinned (1)")).toBeInTheDocument();
 			expect(canvas.getByText("My pinned agent")).toBeInTheDocument();
 		});
 
@@ -1628,7 +1628,7 @@ export const PinnedChatsSection: Story = {
 		expect(allPinnedLinks).toHaveLength(1);
 
 		// Unpinned chats appear under their time group, not Pinned.
-		expect(canvas.getByText("Today")).toBeInTheDocument();
+		expect(canvas.getByText("Today (2)")).toBeInTheDocument();
 		expect(canvas.getByText("Regular agent one")).toBeInTheDocument();
 	},
 };
@@ -1700,7 +1700,6 @@ export const UnpinContextMenu: Story = {
 	},
 };
 
-
 export const FilterOnTimeGroupNoPins: Story = {
 	args: {
 		chats: [
@@ -1720,7 +1719,7 @@ export const FilterOnTimeGroupNoPins: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await waitFor(() => {
-			expect(canvas.getByText("Today")).toBeInTheDocument();
+			expect(canvas.getByText("Today (1)")).toBeInTheDocument();
 			expect(canvas.getByLabelText("Filter agents")).toBeInTheDocument();
 		});
 	},

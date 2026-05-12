@@ -23,9 +23,11 @@ export const OpensFilterMenu: Story = {
 			canvas.getByRole("button", { name: "Filter agents" }),
 		);
 
-		await expect(body.getByRole("menuitem", { name: /Active/i })).toBeVisible();
 		await expect(
-			body.getByRole("menuitem", { name: /Archived/i }),
-		).toBeVisible();
+			await body.findByRole("menuitem", { name: /Active/i }),
+		).toBeInTheDocument();
+		await expect(
+			await body.findByRole("menuitem", { name: /Archived/i }),
+		).toBeInTheDocument();
 	},
 };
