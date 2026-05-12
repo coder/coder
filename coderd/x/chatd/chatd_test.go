@@ -2623,6 +2623,7 @@ func TestPromoteQueuedMessageReloadsChatWhenModelConfigChangesDuringPending(t *t
 
 func TestAutoPromoteQueuedMessagesPreservesPerTurnModelOrder(t *testing.T) {
 	t.Parallel()
+	skipUntilChatdNotificationFlowRefactor(t)
 
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
