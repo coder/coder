@@ -9560,6 +9560,48 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// Subscribe before the worker commits any durable messages so we
+	// observe the advisor tool-result deltas live. Buffered parts are
+	// claimed by their committed durable message ID at publishMessage
+	// time and dropped from snapshots of late-connecting subscribers, so
+	// a post-completion Subscribe() would no longer see streaming
+	// deltas. Collecting events from the live channel covers the
+	// streaming UX contract this test exists to verify.
+	_, liveEvents, cancelLive, ok := server.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	var (
+		livePartsMu       sync.Mutex
+		liveAdvisorDeltas []string
+		liveCollectorDone = make(chan struct{})
+	)
+	go func() {
+		defer close(liveCollectorDone)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case event, eventsOK := <-liveEvents:
+				if !eventsOK {
+					return
+				}
+				if event.Type != codersdk.ChatStreamEventTypeMessagePart ||
+					event.MessagePart == nil {
+					continue
+				}
+				part := event.MessagePart.Part
+				if event.MessagePart.Role != codersdk.ChatMessageRoleTool ||
+					part.Type != codersdk.ChatMessagePartTypeToolResult ||
+					part.ToolName != chatadvisor.ToolName ||
+					part.ResultDelta == "" {
+					continue
+				}
+				livePartsMu.Lock()
+				liveAdvisorDeltas = append(liveAdvisorDeltas, part.ResultDelta)
+				livePartsMu.Unlock()
+			}
+		}
+	}()
+
 	require.Eventually(t, func() bool {
 		got, getErr := db.GetChatByID(ctx, chat.ID)
 		if getErr != nil {
@@ -9614,24 +9656,16 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 	require.True(t, parentSawAdvisorResult,
 		"parent must see the advisor reply in its continuation call")
 
-	snapshot, _, cancelStream, ok := server.Subscribe(ctx, chat.ID, nil, 0)
-	require.True(t, ok)
-	cancelStream()
-
-	var streamedAdvisorDeltas []string
-	for _, event := range snapshot {
-		if event.Type != codersdk.ChatStreamEventTypeMessagePart || event.MessagePart == nil {
-			continue
-		}
-		part := event.MessagePart.Part
-		if event.MessagePart.Role == codersdk.ChatMessageRoleTool &&
-			part.Type == codersdk.ChatMessagePartTypeToolResult &&
-			part.ToolName == chatadvisor.ToolName &&
-			part.ResultDelta != "" {
-			streamedAdvisorDeltas = append(streamedAdvisorDeltas, part.ResultDelta)
-		}
-	}
-	require.Equal(t, advisorDeltas, streamedAdvisorDeltas,
+	// Stop the live collector and assert it captured the streaming
+	// advisor deltas during processing. Late subscribers no longer
+	// see committed parts because publishMessage claims them out of
+	// new snapshots, so the assertion must use the live collector.
+	cancelLive()
+	<-liveCollectorDone
+	livePartsMu.Lock()
+	collectedAdvisorDeltas := append([]string(nil), liveAdvisorDeltas...)
+	livePartsMu.Unlock()
+	require.Equal(t, advisorDeltas, collectedAdvisorDeltas,
 		"advisor nested text deltas must stream into the parent tool card")
 
 	persisted, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
