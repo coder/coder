@@ -26,17 +26,6 @@ const buildMessage = (
 	content,
 });
 
-/**
- * Regression guard: `ChatPageTimeline` must pass `isTurnActive={hasStream}`
- * to `ConversationTimeline`. When the last completed assistant message has
- * reasoning but no markdown text, `needsAssistantBottomSpacer` would insert
- * a 24 px invisible spacer below it, creating a ~32 px gap before the live
- * streaming tool call. With `isTurnActive=true` the spacer is suppressed and
- * the gap collapses to the standard `gap-2` (8 px).
- *
- * This story exercises the real store → `hasStream` → `isTurnActive` wiring
- * in `ChatPageTimeline`. If that wiring is removed the play assertion fails.
- */
 export const StreamingToolCallGapRegression: Story = {
 	render: () => {
 		const store = createChatStore();
@@ -45,9 +34,6 @@ export const StreamingToolCallGapRegression: Story = {
 			buildMessage(1, "user", [
 				{ type: "text", text: "Read the source files" },
 			]),
-			// Reasoning + tool calls, no markdown text: hasCopyableContent=false
-			// and parsed.reasoning is non-empty, so needsAssistantBottomSpacer
-			// would fire if isTurnActive were false.
 			buildMessage(2, "assistant", [
 				{
 					type: "reasoning",
@@ -82,8 +68,6 @@ export const StreamingToolCallGapRegression: Story = {
 			]),
 		]);
 
-		// A live streaming tool call makes hasStream=true in the store,
-		// which flows through as isTurnActive={true} to ConversationTimeline.
 		const { streamState } = buildStreamRenderState([
 			{
 				type: "tool-call",
@@ -105,8 +89,6 @@ export const StreamingToolCallGapRegression: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// isTurnActive=true flows from hasStream → ConversationTimeline, so
-		// the assistant-bottom-spacer must not be in the layout.
 		expect(canvas.queryByTestId("assistant-bottom-spacer")).toBeNull();
 	},
 };
