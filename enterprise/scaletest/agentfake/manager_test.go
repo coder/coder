@@ -2,6 +2,7 @@ package agentfake_test
 
 import (
 	"context"
+	"database/sql"
 	"sort"
 	"testing"
 
@@ -12,10 +13,13 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/enterprise/scaletest/agentfake"
+	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -33,7 +37,7 @@ func Test_Manager_EnumerateExternalAgents_returnsAllTokens(t *testing.T) {
 	})
 
 	const numWorkspaces = 3
-	first := agentfake.BuildExternalAgentWorkspace(t, db, user, uuid.Nil)
+	first := buildExternalAgentWorkspace(t, db, user, uuid.Nil)
 	templateID := first.Workspace.TemplateID
 	want := []agentfake.TokenInfo{{
 		WorkspaceID:   first.Workspace.ID,
@@ -43,7 +47,7 @@ func Test_Manager_EnumerateExternalAgents_returnsAllTokens(t *testing.T) {
 		Token:         first.AgentToken,
 	}}
 	for i := 1; i < numWorkspaces; i++ {
-		r := agentfake.BuildExternalAgentWorkspace(t, db, user, templateID)
+		r := buildExternalAgentWorkspace(t, db, user, templateID)
 		want = append(want, agentfake.TokenInfo{
 			WorkspaceID:   r.Workspace.ID,
 			WorkspaceName: r.Workspace.Name,
@@ -92,11 +96,11 @@ func TestManager_FiveAgentsHeartbeat(t *testing.T) {
 	})
 
 	const numAgents = 5
-	first := agentfake.BuildExternalAgentWorkspace(t, db, user, uuid.Nil)
+	first := buildExternalAgentWorkspace(t, db, user, uuid.Nil)
 	templateID := first.Workspace.TemplateID
 	workspaceIDs := []uuid.UUID{first.Workspace.ID}
 	for i := 1; i < numAgents; i++ {
-		r := agentfake.BuildExternalAgentWorkspace(t, db, user, templateID)
+		r := buildExternalAgentWorkspace(t, db, user, templateID)
 		workspaceIDs = append(workspaceIDs, r.Workspace.ID)
 	}
 
@@ -155,8 +159,64 @@ func TestManager_FiveAgentsHeartbeat(t *testing.T) {
 	}
 }
 
+// Asserts that an authentication failure during enumeration produces a fatal error, so the retry loop in
+// enumerateWithRetry surfaces it immediately rather than hammering endpoints with credentials that will never work.
+func Test_Manager_EnumerateExternalAgents_invalidTokenIsFatal(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+
+	r := buildExternalAgentWorkspace(t, db, user, uuid.Nil)
+	tmpl, err := client.Template(ctx, r.Workspace.TemplateID)
+	require.NoError(t, err)
+
+	// Replace the client's session token with garbage to provoke a 401 from coderd's workspace-list endpoint.
+	// The Manager should surface that as a fatal error.
+	client.SetSessionToken("not-a-valid-session-token")
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	m := agentfake.NewManager(client, logger, agentfake.ManagerOptions{Template: tmpl.Name})
+
+	_, err = m.EnumerateExternalAgents(ctx)
+	require.Error(t, err, "expected enumeration to fail with an invalid session token")
+	require.True(t, agentfake.IsFatalEnumerationError(err),
+		"expected error to be classified as fatal so the harness exits and Kubernetes can restart it; got: %v", err)
+}
+
 func sortTokenInfosByWorkspaceID(s []agentfake.TokenInfo) {
 	sort.Slice(s, func(i, j int) bool {
 		return s[i].WorkspaceID.String() < s[j].WorkspaceID.String()
 	})
+}
+
+// buildExternalAgentWorkspace creates one workspace with a coder_external_agent resource, an agent, and
+// HasExternalAgent=true on the latest build. If templateID is uuid.Nil, dbfake mints a fresh template (and the caller
+// can pass the returned Workspace.TemplateID into subsequent calls to share the template).
+func buildExternalAgentWorkspace(
+	t *testing.T,
+	db database.Store,
+	user codersdk.CreateFirstUserResponse,
+	templateID uuid.UUID,
+) dbfake.WorkspaceResponse {
+	t.Helper()
+
+	ws := database.WorkspaceTable{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	}
+	if templateID != uuid.Nil {
+		ws.TemplateID = templateID
+	}
+	return dbfake.WorkspaceBuild(t, db, ws).
+		Seed(database.WorkspaceBuild{
+			HasExternalAgent: sql.NullBool{Bool: true, Valid: true},
+		}).
+		Resource(&sdkproto.Resource{
+			Name: "external",
+			Type: "coder_external_agent",
+		}).
+		WithAgent().
+		Do()
 }

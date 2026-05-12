@@ -128,7 +128,7 @@ func (m *Manager) enumerateWithRetry(ctx context.Context) ([]TokenInfo, error) {
 		if err == nil {
 			return tokens, nil
 		}
-		if isFatalEnumerationError(err) {
+		if IsFatalEnumerationError(err) {
 			return nil, err
 		}
 		lastErr = err
@@ -209,11 +209,11 @@ func (m *Manager) EnumerateExternalAgents(ctx context.Context) ([]TokenInfo, err
 	return tokens, nil
 }
 
-// isFatalEnumerationError reports whether err from a coderd API call indicates an unrecoverable misconfiguration that
+// IsFatalEnumerationError reports whether err from a coderd API call indicates an unrecoverable misconfiguration that
 // retrying will not fix: missing/invalid session token, insufficient permissions, missing license feature, or a template
 // that does not exist.
 // All other errors (network blips, 429, 5xx) are treated as transient and can be retried.
-func isFatalEnumerationError(err error) bool {
+func IsFatalEnumerationError(err error) bool {
 	if err == nil {
 		return false
 	}
