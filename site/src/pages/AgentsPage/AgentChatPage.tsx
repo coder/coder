@@ -1374,10 +1374,28 @@ const AgentChatPage: FC = () => {
 		]);
 
 		if (editedMessageID !== undefined) {
-			const request: TypesGen.EditChatMessageRequest = { content };
 			const originalEditedMessage = chatMessagesList?.find(
 				(existingMessage) => existingMessage.id === editedMessageID,
 			);
+			const originalModelConfigID = originalEditedMessage?.model_config_id;
+			const pickerModelConfigID = effectiveSelectedModel || undefined;
+			const originalIsSelectable =
+				originalModelConfigID !== undefined &&
+				modelOptions.some((opt) => opt.id === originalModelConfigID);
+			// Only override the original model when the user has switched to
+			// a different selectable option. If the original is no longer
+			// selectable, the picker is showing a fallback we should not
+			// silently use; let the backend preserve the original.
+			const editSelectedModelConfigID =
+				pickerModelConfigID &&
+				originalIsSelectable &&
+				pickerModelConfigID !== originalModelConfigID
+					? pickerModelConfigID
+					: undefined;
+			const request: TypesGen.EditChatMessageRequest = {
+				content,
+				model_config_id: editSelectedModelConfigID,
+			};
 			const optimisticMessage = originalEditedMessage
 				? buildOptimisticEditedMessage({
 						requestContent: request.content,
@@ -1406,6 +1424,12 @@ const AgentChatPage: FC = () => {
 					handleUsageLimitError(error);
 				},
 			});
+			if (editSelectedModelConfigID) {
+				localStorage.setItem(
+					lastModelConfigIDStorageKey,
+					editSelectedModelConfigID,
+				);
+			}
 			return;
 		}
 
