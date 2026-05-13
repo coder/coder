@@ -109,6 +109,16 @@ you already use carry over:
   same autoscaler your developer workspaces run on. Coder prebuilds
   keep a warm pool of runners ready, recycle them on a TTL, and let
   you size the pool the way you size any other internal service.
+- **One environment, two use cases.** The same base image, the same
+  internal registries, and the same git access you give a developer
+  for interactive work also serves the runner pool. Ship a developer
+  template and a runner template that share an image, then diverge
+  only where they should: the runner template can tighten egress to
+  `api.anthropic.com` plus your internal hosts, drop interactive
+  ports, and apply [Agent Firewall](../agent-firewall/index.md)
+  rules, while the developer template stays open. Same environment
+  for software engineering and agents, different network controls
+  and policies per workspace.
 - **Compliance.** Source code, build artifacts, and the runner's
   working directories stay on infrastructure you own. Workspaces,
   agent logs, and Coder audit trails live in your tenancy with the
