@@ -120,7 +120,6 @@ require (
 	github.com/fatih/structs v1.1.0
 	github.com/fatih/structtag v1.2.0
 	github.com/fergusstrange/embedded-postgres v1.31.0
-	github.com/fullsailor/pkcs7 v0.0.0-20190404230743-d7302db945fa
 	github.com/gen2brain/beeep v0.11.1
 	github.com/gliderlabs/ssh v0.3.4
 	github.com/go-chi/chi/v5 v5.1.0
@@ -187,7 +186,6 @@ require (
 	github.com/valyala/fasthttp v1.62.0
 	github.com/wagslane/go-password-validator v0.3.0
 	github.com/zclconf/go-cty-yaml v1.1.0
-	go.mozilla.org/pkcs7 v0.9.0
 	go.nhat.io/otelsql v0.16.0
 	go.opentelemetry.io/otel v1.43.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.43.0
@@ -486,6 +484,7 @@ require (
 	github.com/coder/preview v1.0.1
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/mark3labs/mcp-go v0.32.0
+	github.com/smallstep/pkcs7 v0.2.1
 )
 
 require (
