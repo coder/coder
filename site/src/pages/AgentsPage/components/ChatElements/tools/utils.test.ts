@@ -291,6 +291,9 @@ describe("getDiffViewerOptions", () => {
 		const opts = getDiffViewerOptions(false);
 		expect(opts.themeType).toBe("light");
 		expect(opts.theme).toBe("github-light");
+		expect(opts.overflow).toBe("scroll");
+		expect(opts.unsafeCSS).not.toContain("scrollbar-width: none");
+		expect(opts.unsafeCSS).not.toContain("::-webkit-scrollbar { height: 0");
 	});
 });
 

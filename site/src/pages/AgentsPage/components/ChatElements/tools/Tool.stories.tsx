@@ -6,16 +6,17 @@ import { DesktopPanelContext } from "./DesktopPanelContext";
 import { Tool } from "./Tool";
 
 const executeCommand = "git fetch origin";
+// This must overflow the story's diff viewport so scroll behavior is observable.
 const longUnbrokenSegment = "0123456789abcdef".repeat(24);
 
-const getRenderedCode = (root: HTMLElement) => {
-	const container = root.querySelector("diffs-container");
+const getCodeElement = (diffElement: HTMLElement) => {
+	const container = diffElement.querySelector("diffs-container");
 	if (!(container instanceof HTMLElement)) {
-		throw new Error("Diff container was not rendered");
+		throw new Error("Expected <diffs-container> element inside diff root");
 	}
 	const code = container.shadowRoot?.querySelector("[data-code]");
 	if (!(code instanceof HTMLElement)) {
-		throw new Error("Diff code was not rendered");
+		throw new Error("Expected [data-code] element inside <diffs-container>");
 	}
 	return code;
 };
@@ -1117,13 +1118,15 @@ export const EditFilesLongLineHorizontalScroll: Story = {
 		const diff = canvas.getByTestId("edit-file-diff");
 
 		await waitFor(() => {
-			const code = getRenderedCode(diff);
+			const code = getCodeElement(diff);
 			expect(code.scrollWidth).toBeGreaterThan(code.clientWidth);
-
-			const originalScrollLeft = code.scrollLeft;
-			code.scrollLeft = 32;
-			expect(code.scrollLeft).toBeGreaterThan(originalScrollLeft);
 		});
+
+		const code = getCodeElement(diff);
+		const originalScrollLeft = code.scrollLeft;
+		const positiveScrollOffset = 32;
+		code.scrollLeft = positiveScrollOffset;
+		expect(code.scrollLeft).toBeGreaterThan(originalScrollLeft);
 	},
 };
 

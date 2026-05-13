@@ -120,6 +120,15 @@ const STICKY_HEADER_CSS = [
 	"}",
 ].join(" ");
 
+const WRAP_MODE_SCROLLBAR_HIDING_CSS = [
+	"[data-code] {",
+	"  scrollbar-width: none !important;",
+	"}",
+	"[data-code]::-webkit-scrollbar {",
+	"  height: 0 !important;",
+	"}",
+].join(" ");
+
 export type DiffStyle = "unified" | "split";
 const DIFF_STYLE_KEY = "agents.diff-view-style";
 
@@ -537,7 +546,7 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 		diffStyle,
 		// Extend the base CSS to make file headers sticky so they
 		// remain visible while scrolling through long diffs.
-		unsafeCSS: `${base.unsafeCSS ?? ""} ${STICKY_HEADER_CSS}`,
+		unsafeCSS: `${base.unsafeCSS ?? ""} ${STICKY_HEADER_CSS} ${WRAP_MODE_SCROLLBAR_HIDING_CSS}`,
 	};
 
 	const fileOptions = {
