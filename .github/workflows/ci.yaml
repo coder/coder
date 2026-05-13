@@ -186,9 +186,13 @@ jobs:
           dir=$(golangci-lint cache status | awk '/Dir/ { print $2 }')
           echo "LINT_CACHE_DIR=$dir" >> "$GITHUB_ENV"
 
-      - name: golangci-lint cache
-        # zizmor: ignore[cache-poisoning] Keyed on the source go files hash; restored content is verified by golangci-lint's own cache validation.
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      # Cache split into restore + conditional save to avoid letting PR
+      # runs populate a cache that other branches restore from (the
+      # zizmor `cache-poisoning` concern). Only pushes to the default
+      # branch may write the cache; PRs may only read it.
+      - name: Restore golangci-lint cache
+        id: golangci-lint-cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: |
             ${{ env.LINT_CACHE_DIR }}
@@ -233,6 +237,17 @@ jobs:
 
       - name: make lint
         run: make --output-sync=line -j lint
+
+      - name: Save golangci-lint cache
+        # Only the default branch is trusted to write the cache, so PR
+        # runs cannot poison the cache that subsequent runs restore from.
+        # Skip when the cache already had an exact key hit (no new content).
+        if: github.ref == 'refs/heads/main' && steps.golangci-lint-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: |
+            ${{ env.LINT_CACHE_DIR }}
+          key: ${{ steps.golangci-lint-cache.outputs.cache-primary-key }}
 
       - name: Check workflow files
         run: |
