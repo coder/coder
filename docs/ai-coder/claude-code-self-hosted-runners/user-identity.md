@@ -9,12 +9,20 @@ them.
 
 <img src="../../images/guides/claude-code-self-hosted-runners/user-identity-flow.svg" alt="When an Anthropic session is queued, a routing component maps the Anthropic user to their Coder user and claims a warm prebuild on their behalf. The workspace owner flips to the human, Coder external auth wires their git push token, and the runner is born locked to their Anthropic account. User identity is planned and not yet available." />
 
-> [!NOTE]
-> User identity is on the Coder + Anthropic roadmap and is not yet
-> available. The runner protocol pieces it depends on are still being
-> finalized by Anthropic. In the meantime,
-> [System identity](./system-identity.md) is the model documented for
-> today.
+> [!IMPORTANT]
+> User identity is not available yet.
+>
+> - The Anthropic runner protocol pieces it depends on (per-user
+>   routing webhook, pre-locking a runner before its first session)
+>   are still being finalized by Anthropic.
+> - The Coder-side routing component that would receive that webhook,
+>   map the Anthropic user to a Coder user, and claim a prebuild on
+>   their behalf does not exist yet. There is no `coderd` endpoint, no
+>   middleware, no Terraform block you can wire up today.
+>
+> Until both ship, the model documented for production use is
+> [System identity](./system-identity.md). This page describes what
+> the user-identity model will look like once both pieces land.
 
 ## What user identity gives you
 

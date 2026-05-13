@@ -10,10 +10,6 @@ identity, fleet-wide.
 <img src="../../images/guides/claude-code-self-hosted-runners/system-identity-flow.svg" alt="Coder maintains a pool of warm prebuilt workspaces. When an Anthropic session arrives, the pool scheduler picks one and locks it to the developer. When work drains, the workspace deletes itself and the prebuild reconciler queues a replacement." />
 
 > [!NOTE]
-> Self-hosted runners are in early access (EAP) from Anthropic. You will
-> need a `BYOC_VERSION` and tarball URL from your Anthropic account team
-> before you can complete this guide.
->
 > System identity is the model documented on this page. For per-user
 > identity, see [User identity](./user-identity.md), which is on the
 > Coder + Anthropic roadmap.
