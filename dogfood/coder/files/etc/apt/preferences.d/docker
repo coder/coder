@@ -4,13 +4,15 @@ Pin: origin download.docker.com
 Pin-Priority: 1
 
 # Docker Community Edition
+# Pin to 27.x to remain compatible with containerd.io 1.7.23
+# (Docker 28+ requires containerd.io >= 1.7.27)
 Package: docker-ce
-Pin: origin download.docker.com
+Pin: version 5:27.*
 Pin-Priority: 500
 
 # Docker command-line tool
 Package: docker-ce-cli
-Pin: origin download.docker.com
+Pin: version 5:27.*
 Pin-Priority: 500
 
 # containerd runtime
