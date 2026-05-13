@@ -42,11 +42,13 @@ export const deriveMessageDisplayState = ({
 	parsed,
 	hideActions,
 	hasActiveStream,
+	isAwaitingFirstStreamChunk = false,
 }: {
 	message: TypesGen.ChatMessage;
 	parsed: ParsedMessageContent;
 	hideActions: boolean;
 	hasActiveStream: boolean;
+	isAwaitingFirstStreamChunk?: boolean;
 }): MessageDisplayState => {
 	const isUser = message.role === "user";
 	const userInlineContent = isUser
@@ -66,6 +68,7 @@ export const deriveMessageDisplayState = ({
 	const needsAssistantBottomSpacer =
 		!hideActions &&
 		!hasActiveStream &&
+		!isAwaitingFirstStreamChunk &&
 		!isUser &&
 		!hasCopyableContent &&
 		(Boolean(parsed.reasoning) ||
