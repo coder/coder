@@ -1,0 +1,44 @@
+name: visual-regression-poc
+
+on:
+  pull_request:
+    branches:
+      - danielle/visual-baseline
+
+permissions:
+  contents: read
+
+jobs:
+  visual-regression-poc:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
+
+      - name: Install Playwright Chromium
+        working-directory: ./site
+        run: pnpm playwright:install
+
+      - name: Run visual regression PoC
+        working-directory: ./site
+        run: pnpm visual:poc:run
+
+      - name: Upload visual regression report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: visual-regression-poc-${{ github.sha }}
+          path: |
+            site/test-results/visual-regression-poc
+            site/test-results/storybook-snapshots
+          retention-days: 7

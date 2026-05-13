@@ -318,6 +318,9 @@ importers:
       '@storybook/react-vite':
         specifier: 10.3.3
         version: 10.3.3(esbuild@0.25.12)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(storybook@10.3.3(@testing-library/dom@10.4.0)(prettier@3.4.1)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(typescript@6.0.2)(vite@8.0.10(@types/node@20.19.39)(esbuild@0.25.12)(jiti@1.21.7)(yaml@2.8.3))
+      '@storycap-testrun/browser':
+        specifier: 2.1.1
+        version: 2.1.1(@vitest/browser-playwright@4.1.1)
       '@tailwindcss/typography':
         specifier: 0.5.19
         version: 0.5.19(tailwindcss@3.4.18(yaml@2.8.3))
@@ -426,6 +429,9 @@ importers:
       protobufjs:
         specifier: 7.5.6
         version: 7.5.6
+      reg-cli:
+        specifier: 0.19.0-rc0
+        version: 0.19.0-rc0
       resize-observer-polyfill:
         specifier: 1.5.1
         version: 1.5.1
@@ -2433,6 +2439,14 @@ packages:
       typescript:
         optional: true
 
+  '@storycap-testrun/browser@2.1.1':
+    resolution: {integrity: sha512-LQpkmPExjdojELXNzw98IBgWnX2LYkCRzZ4gyBvUk+4ut1vNCOQhbMrT6dhRa/h31OdP/E2utoJXHoITYQKjTw==, tarball: https://registry.npmjs.org/@storycap-testrun/browser/-/browser-2.1.1.tgz}
+    peerDependencies:
+      '@vitest/browser-playwright': '*'
+
+  '@storycap-testrun/internal@2.1.1':
+    resolution: {integrity: sha512-+B+bx8C9ylqVCNJJ6cU3Zrwd+zmjUA4frKrvXUwTUOH1an5DJPYoPELFuwADLoBhCvkiCLqaPabdlmn5j8xcVw==, tarball: https://registry.npmjs.org/@storycap-testrun/internal/-/internal-2.1.1.tgz}
+
   '@tabby_ai/hijri-converter@1.0.5':
     resolution: {integrity: sha512-r5bClKrcIusDoo049dSL8CawnHR6mRdDwhlQuIgZRNty68q0x8k3Lf1BtPAMxRf/GgnHBnIO4ujd3+GQdLWzxQ==, tarball: https://registry.npmjs.org/@tabby_ai/hijri-converter/-/hijri-converter-1.0.5.tgz}
     engines: {node: '>=16.0.0'}
@@ -2506,6 +2520,9 @@ packages:
 
   '@tybys/wasm-util@0.10.1':
     resolution: {integrity: sha512-9tTaPJLSiejZKx+Bmog4uSubteqTvFrVrURwkmHixBo0G4seD0zUxp98E1DzUBJxLQ3NPwXrGKDiVjwx/DpPsg==, tarball: https://registry.npmjs.org/@tybys/wasm-util/-/wasm-util-0.10.1.tgz}
+
+  '@tybys/wasm-util@0.9.0':
+    resolution: {integrity: sha512-6+7nlbMVX/PVDCwaIQ8nTOPveOcFLSt8GcXdx8hD0bt39uWxYT88uXzqTd4fTvqta7oeUJqudepapKNt2DYJFw==, tarball: https://registry.npmjs.org/@tybys/wasm-util/-/wasm-util-0.9.0.tgz}
 
   '@types/aria-query@5.0.3':
     resolution: {integrity: sha512-0Z6Tr7wjKJIk4OUEjVUQMtyunLDy339vcMaj38Kpj6jM2OE1p3S4kXExKZ7a3uXQAPCoy3sbrP1wibDKaf39oA==, tarball: https://registry.npmjs.org/@types/aria-query/-/aria-query-5.0.3.tgz}
@@ -5353,6 +5370,31 @@ packages:
   refractor@3.6.0:
     resolution: {integrity: sha512-MY9W41IOWxxk31o+YvFCNyNzdkc9M20NoZK5vq6jkv4I/uh2zkWcfudj0Q1fovjUQJrNewS9NMzeTtqPf+n5EA==, tarball: https://registry.npmjs.org/refractor/-/refractor-3.6.0.tgz}
 
+  reg-cli@0.19.0-rc0:
+    resolution: {integrity: sha512-Aulw4nphBr9FBKSFP4v6sLhPjZoSMSObKFBHo8Q/oRPq0kQhY33k7hjToTZSkJF2ltNSALsjIRua41FvMWZ73w==, tarball: https://registry.npmjs.org/reg-cli/-/reg-cli-0.19.0-rc0.tgz}
+    engines: {node: '>=20'}
+    hasBin: true
+    peerDependencies:
+      '@opentelemetry/api': ^1.9.1
+      '@opentelemetry/exporter-trace-otlp-http': ^0.216.0
+      '@opentelemetry/resources': ^2.7.1
+      '@opentelemetry/sdk-trace-base': ^2.7.1
+      '@opentelemetry/sdk-trace-node': ^2.7.1
+      '@opentelemetry/semantic-conventions': ^1.40.0
+    peerDependenciesMeta:
+      '@opentelemetry/api':
+        optional: true
+      '@opentelemetry/exporter-trace-otlp-http':
+        optional: true
+      '@opentelemetry/resources':
+        optional: true
+      '@opentelemetry/sdk-trace-base':
+        optional: true
+      '@opentelemetry/sdk-trace-node':
+        optional: true
+      '@opentelemetry/semantic-conventions':
+        optional: true
+
   regenerator-runtime@0.14.1:
     resolution: {integrity: sha512-dYnhHh0nJoMfnkZs6GmmhFknAGRrLznOu5nc9ML+EJxGvrx6H7teuevqVqCuPcPK//3eDrrjQhehXVx9cnkGdw==, tarball: https://registry.npmjs.org/regenerator-runtime/-/regenerator-runtime-0.14.1.tgz}
 
@@ -6303,6 +6345,9 @@ packages:
   wsl-utils@0.3.1:
     resolution: {integrity: sha512-g/eziiSUNBSsdDJtCLB8bdYEUMj4jR7AGeUo96p/3dTafgjHhpF4RiCFPiRILwjQoDXx5MqkBr4fwWtR3Ky4Wg==, tarball: https://registry.npmjs.org/wsl-utils/-/wsl-utils-0.3.1.tgz}
     engines: {node: '>=20'}
+
+  x-img-diff-js@0.3.5:
+    resolution: {integrity: sha512-B97ztoc2JeM+62HH1zFhmTyilsVqL486WMm8X3oQz16lTCGITY1cz+H57mTsNG0QuyVxv1yGq06qC8wy6UPCmQ==, tarball: https://registry.npmjs.org/x-img-diff-js/-/x-img-diff-js-0.3.5.tgz}
 
   xml-name-validator@5.0.0:
     resolution: {integrity: sha512-EvGK8EJ3DhaHfbRlETOWAS5pO9MZITeauHKJyb8wyajUfQUenkIg2MvLDTZ4T/TgIcm3HU0TFBgWWboAZ30UHg==, tarball: https://registry.npmjs.org/xml-name-validator/-/xml-name-validator-5.0.0.tgz}
@@ -8421,6 +8466,13 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  '@storycap-testrun/browser@2.1.1(@vitest/browser-playwright@4.1.1)':
+    dependencies:
+      '@storycap-testrun/internal': 2.1.1
+      '@vitest/browser-playwright': 4.1.1(msw@2.4.8(typescript@6.0.2))(playwright@1.55.1)(vite@8.0.10(@types/node@20.19.39)(esbuild@0.25.12)(jiti@1.21.7)(yaml@2.8.3))(vitest@4.1.5)
+
+  '@storycap-testrun/internal@2.1.1': {}
+
   '@tabby_ai/hijri-converter@1.0.5': {}
 
   '@tailwindcss/typography@0.5.19(tailwindcss@3.4.18(yaml@2.8.3))':
@@ -8509,6 +8561,10 @@ snapshots:
     dependencies:
       tslib: 2.8.1
     optional: true
+
+  '@tybys/wasm-util@0.9.0':
+    dependencies:
+      tslib: 2.8.1
 
   '@types/aria-query@5.0.3': {}
 
@@ -11811,6 +11867,11 @@ snapshots:
       parse-entities: 2.0.0
       prismjs: 1.30.0
 
+  reg-cli@0.19.0-rc0:
+    dependencies:
+      '@tybys/wasm-util': 0.9.0
+      x-img-diff-js: 0.3.5
+
   regenerator-runtime@0.14.1: {}
 
   regex-recursion@6.0.2:
@@ -12779,6 +12840,8 @@ snapshots:
     dependencies:
       is-wsl: 3.1.1
       powershell-utils: 0.1.0
+
+  x-img-diff-js@0.3.5: {}
 
   xml-name-validator@5.0.0: {}
 

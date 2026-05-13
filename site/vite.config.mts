@@ -1,6 +1,7 @@
 import * as path from "node:path";
 import babel from "@rolldown/plugin-babel";
 import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
+import storycap from "@storycap-testrun/browser/vitest-plugin";
 import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { playwright } from "@vitest/browser-playwright";
 import { visualizer } from "rollup-plugin-visualizer";
@@ -12,6 +13,7 @@ import { defineConfig } from "vitest/config";
 // The profiling build uses react-dom/profiling, which keeps optimizations but
 // preserves performance instrumentation.
 const isProfilingBuild = process.env.CODER_REACT_PROFILING === "true";
+const isVisualRegression = process.env.VISUAL_REGRESSION === "true";
 
 const compilerPreset = reactCompilerPreset();
 compilerPreset.rolldown.filter = {
@@ -76,6 +78,7 @@ export default defineConfig({
 		"process.env": {
 			NODE_ENV: process.env.NODE_ENV,
 			STORYBOOK: process.env.STORYBOOK,
+			VISUAL_REGRESSION: process.env.VISUAL_REGRESSION,
 		},
 	},
 	server: {
@@ -254,6 +257,14 @@ export default defineConfig({
 					storybookTest({
 						configDir: path.join(__dirname, ".storybook"),
 					}),
+					isVisualRegression &&
+						storycap({
+							output: {
+								dir: path.join(__dirname, "test-results/storybook-snapshots"),
+								file: "[id].png",
+							},
+							viewport: { height: 720, width: 1280 },
+						}),
 					{
 						name: "storybook-test-setup",
 						// Return 502 for API routes. The proxy is disabled

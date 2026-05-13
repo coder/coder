@@ -30,10 +30,15 @@
 		"storybook:ci": "storybook build --test",
 		"test": "vitest run --project=unit",
 		"test:storybook": "vitest --project=storybook",
+		"test:storybook:snapshots": "STORYBOOK=true VISUAL_REGRESSION=true vitest run --project=storybook",
 		"test:ci": "vitest run --project=unit",
 		"test:watch": "vitest --project=unit",
 		"stats": "STATS=true pnpm build && npx http-server ./stats -p 8081 -c-1",
-		"update-emojis": "cp -rf ./node_modules/emoji-datasource-apple/img/apple/64/* ./static/emojis && cp -f ./node_modules/emoji-datasource-apple/img/apple/sheets-256/64.png ./static/emojis/spritesheet.png"
+		"update-emojis": "cp -rf ./node_modules/emoji-datasource-apple/img/apple/64/* ./static/emojis && cp -f ./node_modules/emoji-datasource-apple/img/apple/sheets-256/64.png ./static/emojis/spritesheet.png",
+		"visual:poc:capture": "node scripts/visual-regression-poc.mjs capture",
+		"visual:poc:baseline": "node scripts/visual-regression-poc.mjs baseline",
+		"visual:poc:compare": "node scripts/visual-regression-poc.mjs compare",
+		"visual:poc:run": "node scripts/visual-regression-poc.mjs run"
 	},
 	"imports": {
 		"#/*": "./src/*"
@@ -136,6 +141,7 @@
 		"@storybook/addon-themes": "10.3.3",
 		"@storybook/addon-vitest": "10.3.3",
 		"@storybook/react-vite": "10.3.3",
+		"@storycap-testrun/browser": "2.1.1",
 		"@tailwindcss/typography": "0.5.19",
 		"@testing-library/jest-dom": "6.9.1",
 		"@testing-library/react": "14.3.1",
@@ -172,6 +178,7 @@
 		"msw": "2.4.8",
 		"postcss": "8.5.10",
 		"protobufjs": "7.5.6",
+		"reg-cli": "0.19.0-rc0",
 		"resize-observer-polyfill": "1.5.1",
 		"rollup-plugin-visualizer": "7.0.1",
 		"rxjs": "7.8.2",

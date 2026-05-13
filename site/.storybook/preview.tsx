@@ -134,5 +134,7 @@ const fontLoader = async () => ({
 	fonts: await document.fonts.ready,
 });
 
+const isVisualRegression = process.env.VISUAL_REGRESSION === "true";
+
 export const loaders: Loader[] =
-	isChromatic() && document.fonts ? [fontLoader] : [];
+	(isChromatic() || isVisualRegression) && document.fonts ? [fontLoader] : [];
