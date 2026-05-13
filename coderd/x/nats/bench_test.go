@@ -676,6 +676,32 @@ func BenchmarkPubsub(b *testing.B) {
 	}
 }
 
+// BenchmarkPubsubUpstream1x1_16KiB mirrors the reference 1:1 pub/sub
+// throughput test documented at:
+//
+//	https://docs.nats.io/using-nats/nats-tools/nats_cli/natsbench#run-a-publishsubscribe-throughput-test
+//
+// Upstream's `nats bench pub foo --size 16kb` + `nats bench sub foo
+// --size 16kb` example reports ~230,800 msgs/sec at 3.5 GiB/sec on a
+// 2024 MacBook Pro M4. This leaf reproduces that exact shape so the
+// wrapper's per-publish cost at a realistic payload size can be
+// compared to the canonical reference.
+//
+// Operator contract matches BenchmarkPubsub: requires -benchtime=Nx.
+func BenchmarkPubsubUpstream1x1_16KiB(b *testing.B) {
+	cfg := leafCfg{
+		name:      fmt.Sprintf("%s/standalone/subj1/1x1/16KiB", *benchType),
+		topology:  "standalone",
+		subjects:  1,
+		payload:   16 * 1024,
+		subsTotal: 1,
+		pubs:      1,
+	}
+	b.Run(cfg.name, func(b *testing.B) {
+		runLeaf(b, cfg)
+	})
+}
+
 // BenchmarkPubsubUpstreamNxM mirrors the reference N:M throughput test
 // documented at:
 //
