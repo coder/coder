@@ -19,10 +19,6 @@ import type {
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import {
-	getPersistedSidebarTabId,
-	savePersistedSidebarTabId,
-} from "./utils/sidebarTabStorage";
-import {
 	AgentChatInput,
 	type ChatMessageInputRef,
 } from "./components/AgentChatInput";
@@ -46,6 +42,10 @@ import { getWorkspaceStatus, StatusIcon } from "./components/StatusIcon";
 import { TerminalPanel } from "./components/TerminalPanel";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
 import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
+import {
+	getPersistedSidebarTabId,
+	savePersistedSidebarTabId,
+} from "./utils/sidebarTabStorage";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
