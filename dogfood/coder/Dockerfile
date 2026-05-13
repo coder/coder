@@ -1,17 +1,17 @@
-# 1.86.0
-FROM rust:slim@sha256:3f391b0678a6e0c88fd26f13e399c9c515ac47354e3cadfee7daee3b21651a4f AS rust-utils
+# 1.94.1
+FROM rust:slim@sha256:cf09adf8c3ebaba10779e5c23ff7fe4df4cccdab8a91f199b0c142c53fef3e1a AS rust-utils
 # Install rust helper programs
 ENV CARGO_INSTALL_ROOT=/tmp/
 # Use more reliable mirrors for Debian packages
 RUN sed -i 's|http://deb.debian.org/debian|http://mirrors.edge.kernel.org/debian|g' /etc/apt/sources.list && \
     apt-get update || true
 RUN apt-get update && apt-get install -y libssl-dev openssl pkg-config build-essential
-RUN cargo install jj-cli typos-cli watchexec-cli
+RUN cargo install jj-cli@0.35.0 typos-cli@1.42.3 watchexec-cli@2.5.1
 
 FROM ubuntu:jammy@sha256:0e5e4a57c2499249aafc3b40fcd541e9a456aab7296681a3994d631587203f97 AS go
 
 # Install Go manually, so that we can control the version
-ARG GO_VERSION=1.24.6
+ARG GO_VERSION=1.25.10
 
 # Boring Go is needed to build FIPS-compliant binaries.
 RUN apt-get update && \
@@ -36,7 +36,7 @@ RUN apt-get update && \
 	# go-swagger tool to generate the go coder api client
 	go install github.com/go-swagger/go-swagger/cmd/swagger@v0.28.0 && \
 	# goimports for updating imports
-	go install golang.org/x/tools/cmd/goimports@v0.31.0 && \
+	go install golang.org/x/tools/cmd/goimports@v0.33.0 && \
 	# protoc-gen-go is needed to build sysbox from source
 	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30 && \
 	# drpc support for v2
@@ -47,7 +47,7 @@ RUN apt-get update && \
 	go install github.com/goreleaser/goreleaser@v1.6.1 && \
 	# Install the latest version of gopls for editors that support
 	# the language server protocol
-	go install golang.org/x/tools/gopls@v0.18.1 && \
+	go install golang.org/x/tools/gopls@v0.21.0 && \
 	# gotestsum makes test output more readable
 	go install gotest.tools/gotestsum@v1.9.0 && \
 	# goveralls collects code coverage metrics from tests
@@ -76,7 +76,7 @@ RUN apt-get update && \
 	# yq v3 used in v1.
 	go install github.com/mikefarah/yq/v4@v4.44.3 && \
 	mv /tmp/bin/yq /tmp/bin/yq4 && \
-	go install go.uber.org/mock/mockgen@v0.5.0 && \
+	go install go.uber.org/mock/mockgen@v0.6.0 && \
 	# Reduce image size.
 	apt-get remove --yes gcc && \
 	apt-get autoremove --yes && \
@@ -290,7 +290,6 @@ ARG CLOUD_SQL_PROXY_VERSION=2.2.0 \
 	KUBECTX_VERSION=0.9.4 \
 	STRIPE_VERSION=1.14.5 \
 	TERRAGRUNT_VERSION=0.45.11 \
-	TRIVY_VERSION=0.41.0 \
 	SYFT_VERSION=1.20.0 \
 	COSIGN_VERSION=2.4.3 \
 	BUN_VERSION=1.2.15
@@ -329,9 +328,6 @@ RUN curl --silent --show-error --location --output /usr/local/bin/cloud_sql_prox
 	# terragrunt for running Terraform and Terragrunt files
 	curl --silent --show-error --location --output /usr/local/bin/terragrunt "https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/terragrunt_linux_amd64" && \
 	chmod a=rx /usr/local/bin/terragrunt && \
-	# AquaSec Trivy for scanning container images for security issues
-	curl --silent --show-error --location "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" | \
-	tar --extract --gzip --directory=/usr/local/bin --file=- trivy && \
 	# Anchore Syft for SBOM generation
 	curl --silent --show-error --location "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_linux_amd64.tar.gz" | \
 	tar --extract --gzip --directory=/usr/local/bin --file=- syft && \
