@@ -399,6 +399,14 @@ resource "coder_agent" "main" {
   }
 }
 
+# coder_script spawns the runner as a detached supervisor and exits
+# within a second. The supervisor runs the runner in the foreground,
+# then calls 'coder delete' to self-evict so the prebuild reconciler
+# refills the pool. Detaching is important: if we foregrounded the
+# runner inside coder_script the workspace UI would show '1 script
+# running' for the lifetime of the workspace, since the agent treats
+# a coder_script as 'Running' while its process is alive.
+
 resource "coder_script" "claude_runner" {
   agent_id           = coder_agent.main.id
   display_name       = "Claude self-hosted runner"
@@ -421,36 +429,48 @@ resource "coder_script" "claude_runner" {
     printf '%s' "$CLAUDE_POOL_SECRET" > "$POOL_SECRET_FILE"
     chmod 0400 "$POOL_SECRET_FILE"
 
-    # Run the runner in the foreground. On drain it exits 0; on a hard
-    # error it exits non-zero. Either way, we fall through to the
-    # self-eviction call below.
-    /usr/local/bin/claude self-hosted-runner \
-      --pool-secret-file "$POOL_SECRET_FILE" \
-      --capacity        "$${CLAUDE_CAPACITY:-1}" \
-      --log-file        "$HOME/.claude/runner.log" \
-      || true
-
-    echo "Runner exited. Self-evicting the workspace so the prebuild pool refills."
-
-    # Self-eviction. Uses the service-account token; the agent token
-    # cannot delete its own workspace.
+    # Resolve the coder CLI once, before detaching.
     coder_cmd="$HOME/.local/bin/coder"
     if [ ! -x "$coder_cmd" ]; then
       coder_cmd=$(find /tmp -maxdepth 2 -type f -name coder -executable 2>/dev/null | head -n1 || true)
     fi
-    if [ -z "$coder_cmd" ] || [ ! -x "$coder_cmd" ]; then
-      echo "coder CLI not found in workspace; skipping self-eviction."
+
+    # Write the supervisor script. The supervisor runs the runner in the
+    # foreground; on runner exit it self-evicts so the prebuild reconciler
+    # refills the pool. CODER_URL must be set so the CLI knows which
+    # server to talk to; a fresh workspace has no global Coder CLI config.
+    SUPERVISOR="$HOME/.claude/supervisor.sh"
+    cat > "$SUPERVISOR" <<SUP
+    #!/usr/bin/env bash
+    set -uo pipefail
+    exec >>"$HOME/.claude/supervisor.log" 2>&1
+    echo "[supervisor] start \$(date -Is)"
+
+    /usr/local/bin/claude self-hosted-runner \
+      --pool-secret-file "$POOL_SECRET_FILE" \
+      --capacity        "$${CLAUDE_CAPACITY:-1}" \
+      --log-file        "$HOME/.claude/runner.log"
+    echo "[supervisor] runner exited rc=\$? \$(date -Is)"
+
+    if [ -z "$${CODER_DELETE_TOKEN:-}" ] || [ -z "$coder_cmd" ] || [ ! -x "$coder_cmd" ]; then
+      echo "[supervisor] skipping self-eviction (token or coder CLI missing)."
       exit 0
     fi
-
-    # CODER_URL must be set so the CLI knows which server to talk to;
-    # a freshly spawned workspace has no global Coder CLI config, so the
-    # CLI prints 'You are not logged in' and self-eviction silently
-    # no-ops without this line.
     CODER_URL="$CODER_AGENT_URL" \
       CODER_SESSION_TOKEN="$CODER_DELETE_TOKEN" \
       "$coder_cmd" delete --yes "$CODER_WORKSPACE_ID" \
-      || echo "Self-eviction failed (continuing)."
+      || echo "[supervisor] self-eviction failed (continuing)."
+    SUP
+    chmod 0700 "$SUPERVISOR"
+
+    # Detach with setsid + nohup so the supervisor survives this script
+    # exiting and ignores SIGHUP. The supervisor reopens stdout/stderr
+    # to a logfile via 'exec >>...' above; we point its standard fds at
+    # /dev/null here.
+    setsid nohup "$SUPERVISOR" </dev/null >/dev/null 2>&1 &
+    disown
+
+    echo "Runner spawned as detached supervisor. See ~/.claude/supervisor.log."
   EOT
 }
 
@@ -491,11 +511,18 @@ resource "docker_container" "workspace" {
 > and the `startup_script` symlinks it onto `~/.local/bin/coder` so the
 > `coder_script` can find it.
 >
-> `startup_script_behavior = "non-blocking"` on the agent is important.
-> The runner is intentionally long-lived: it runs in the foreground for
-> the entire lifetime of the workspace and only exits on drain. Without
-> non-blocking, Coder shows the workspace as "starting" forever and the
-> workspace page banner says "startup scripts are still running."
+> Two settings let Coder show the workspace as "ready" with 0 running
+> scripts while the long-lived runner is still polling Anthropic:
+>
+> - `startup_script_behavior = "non-blocking"` on the agent: lets
+>   the agent flip to "ready" without waiting on `startup_script`.
+> - **Detached supervisor** in `coder_script`: the script writes a
+>   `supervisor.sh`, launches it with `setsid nohup ... &`, and exits.
+>   The supervisor (re-parented to PID 1) runs the runner in the
+>   foreground for the workspace's life, then runs `coder delete` when
+>   the runner drains. Without this detach the agent treats
+>   `coder_script` as "Running" the whole time, so the workspace page
+>   shows "1 script running" and never reaches "ready".
 
 ## Step 6: Push the template
 
@@ -590,7 +617,7 @@ tail -f ~/.claude/runner.log
 | Self-eviction logs `You are not logged in`                       | The `coder_script` is missing `CODER_URL=$CODER_AGENT_URL` on the `coder delete` line. A freshly spawned workspace has no global Coder CLI config, so the CLI cannot guess the server URL. Add the line and re-push the template.                                                          |
 | Workspace does not self-evict on drain                           | `CODER_DELETE_TOKEN` is wrong or the service account lacks `delete:workspace`. The workspace will sit idle until Coder's TTL reaps it. Fix the token or grant the role and re-push the template. As a backstop, set a workspace TTL on the template.                                       |
 | `git push` fails with 403 / Permission denied                    | `git_bot_token` is missing required repo scope, or the bot identity does not have push access to the repo the session is working in. Confirm the bot's permissions on the git host.                                                                                                        |
-| Workspace page shows "startup scripts are still running" forever | Expected. The runner is the foreground process; it runs for the lifetime of the workspace. Set `startup_script_behavior = "non-blocking"` on the agent so the workspace UI flips to "ready" once the agent is up, even while `coder_script` continues to run.                              |
+| Workspace page shows "startup scripts are still running" forever | Expected without the detached supervisor. The runner is intentionally long-lived; the agent treats a `coder_script` as `Running` while its process is alive. Fix by spawning the runner as a detached `setsid nohup` supervisor inside `coder_script` and pairing it with `startup_script_behavior = "non-blocking"` on the agent. With both, the script exits within a second and the workspace flips to "ready".                              |
 | Lock status shows `unlocked` but Active sessions shows `1 / 4`   | Expected with current Anthropic BYOC versions: the `claude_code_self_hosted_runner_locked_account` metric is a bare gauge with no labels, and the runner does not expose the locked user's email over its local endpoints. The locked user is visible only in `claude.ai > Self-hosted runner pools` and in Anthropic's session log. |
 | Metadata shows `?` for active sessions                           | The runner has not started yet, the `/healthz` port is firewalled inside the container, or `jq` is missing from the image. Check `tail -f ~/.claude/runner.log` and `apt list --installed jq`.                                                                                              |
 
