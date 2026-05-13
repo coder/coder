@@ -10,18 +10,20 @@ identity, fleet-wide.
 <img src="../../images/guides/claude-code-self-hosted-runners/system-identity-flow.svg" alt="Coder maintains a pool of warm prebuilt workspaces. When an Anthropic session arrives, the pool scheduler picks one and locks it to the developer. When work drains, the workspace deletes itself and the prebuild reconciler queues a replacement." />
 
 > [!TIP]
-> **System identity ships today.** Every primitive this guide uses is
-> already in Coder (templates, prebuilds, sensitive Terraform
-> variables, agent metadata, self-eviction via the Coder API). For a
-> scoped POC, a single bot identity over a small set of repos, or a
-> fleet that runs Claude Code as a build agent, system identity is
-> the recommended starting point and works on a Coder deployment now.
+> You can run this on Coder today. The primitives this guide depends
+> on (templates, prebuilds, sensitive Terraform variables, agent
+> metadata, self-eviction via the Coder API) are all already there.
+> The recipe is a good fit for a scoped POC, a single bot identity
+> over a small set of repos, or a fleet that runs Claude Code as a
+> build agent.
 >
-> [User identity](./user-identity.md) is the planned follow-on. It
-> reuses the template, image, and pool you publish here and layers a
-> routing component plus per-user external auth on top, so the same
-> recipe later becomes per-human attribution and per-human git push
-> without re-architecting.
+> The routing layer described in [User identity](./user-identity.md)
+> will lift both limitations below: it spawns a workspace per
+> Anthropic user on demand instead of capping at `instances`, and the
+> workspace owner becomes the human so external auth, the audit log,
+> and the commit author can all use the developer's identity. The
+> template, image, and pool you publish here stay; the routing layer
+> goes in front.
 
 ## Limitations
 
