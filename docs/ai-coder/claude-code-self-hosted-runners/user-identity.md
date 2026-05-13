@@ -44,6 +44,26 @@ external-auth refresh, and Coder audit log all just work the way the
 rest of Coder works**. You stop having to special-case Claude Code
 sessions in your audit and policy story.
 
+> [!TIP]
+> If you stay on a bot identity for commits and pushes, the routing
+> layer is still useful on its own. Pointing it at a single bot Coder
+> user instead of the matching human gives you:
+>
+> - **Dynamic concurrency.** A workspace per concurrent Anthropic
+>   user, spawned on demand. Prebuilds become a warm cache for
+>   cold-start latency, not the inventory itself.
+> - **Pre-flight validation.** Sessions for unknown Anthropic users
+>   reject up front instead of silently running as the bot.
+> - **Per-runner audit context.** The routing service account shows up
+>   as the on-behalf-of creator in the Coder audit log, so you can
+>   still tie a workspace build back to a specific Anthropic session,
+>   even if the workspace owner is the bot.
+>
+> You opt into per-human attribution separately by pointing the router
+> at the matching Coder user rather than the bot. The two decisions
+> (dynamic spawn vs. fixed pool, and human owner vs. bot owner) are
+> independent.
+
 ## What stays the same
 
 User identity is built on top of the System identity recipe. You keep:
