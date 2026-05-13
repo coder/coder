@@ -6,6 +6,12 @@ import (
 )
 
 // PendingLimits configures per-subscription NATS pending limits.
+// These limits are applied to each *natsgo.Subscription created on the
+// wrapper's shared subscriber connection (subConn) via
+// SetPendingLimits. They bound each subscription's client-side pending
+// queue independently, so one slow listener gets nats.ErrSlowConsumer
+// for its own subscription without disrupting other subscriptions
+// multiplexed on the same connection.
 type PendingLimits struct {
 	// Msgs is the per-subscription pending message limit.
 	// Zero keeps the NATS client default. Negative disables this limit.

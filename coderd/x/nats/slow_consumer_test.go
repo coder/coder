@@ -230,6 +230,43 @@ drain:
 	ps.mu.Unlock()
 	require.NotNil(t, s)
 
+	// Wait until the async errH path on this conn has synced
+	// s.lastDropped up to NATS's cumulative Dropped() count, and the
+	// dropped count itself has stopped growing. The async errH
+	// callback is dispatched from the conn's internal errchan
+	// goroutine, so there is no synchronous way to flush pending
+	// callbacks; poll until things settle.
+	// Force sync lastDropped to current Dropped() by invoking
+	// handleSlowConsumer with the current count. After this any further
+	// calls with no new drops must emit no callback.
+	ps.handleSlowConsumer(s)
+	// Wait briefly for Dropped() to stabilize after the burst settles.
+	last, derr := s.sub.Dropped()
+	require.NoError(t, derr)
+	require.Eventually(t, func() bool {
+		cur, derr := s.sub.Dropped()
+		if derr != nil {
+			return false
+		}
+		if cur != last {
+			last = cur
+			return false
+		}
+		return true
+	}, testutil.WaitShort, testutil.IntervalFast, "Dropped() never stabilized")
+	// Re-sync after stabilization so lastDropped == final Dropped().
+	ps.handleSlowConsumer(s)
+
+	// Drain any drop callbacks that arrived during the stabilization
+	// wait so the post-manual check sees a clean channel.
+	for done := false; !done; {
+		select {
+		case <-deliveries:
+		default:
+			done = true
+		}
+	}
+
 	ps.handleAsyncError(s.sub, natsgo.ErrSlowConsumer)
 
 	// No additional drop callback should be emitted (delta == 0).

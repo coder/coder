@@ -68,12 +68,11 @@ func buildServerOptions(opts Options, peers []Peer) (*natsserver.Options, string
 		clusterToken = hex.EncodeToString(buf[:])
 	}
 
-	// Bind a loopback random client listener even though the wrapper
-	// itself connects via nats.InProcessServer (see connectInProcess).
+	// Bind a loopback random client listener: the wrapper's pubConn
+	// and subConn dial this listener via connectClient. Additionally,
 	// nats-server v2.12.8 deadlocks the route AcceptLoop on client
 	// listener readiness when DontListen=true is combined with a
-	// non-zero Cluster.Port, so we keep a real (but unused by the
-	// wrapper) client listener bound on loopback.
+	// non-zero Cluster.Port, so the listener must be real.
 	sopts.DontListen = false
 	sopts.Host = "127.0.0.1"
 	sopts.Port = natsserver.RANDOM_PORT
@@ -163,17 +162,27 @@ type connHandlers struct {
 	errH          natsgo.ErrHandler
 }
 
-// connectInProcess builds a NATS client connected to the given embedded
-// server over nats.InProcessServer (an unbuffered net.Pipe). The wrapper
-// uses one of these connections per local subscription (plus one shared
-// publisher connection) so the server's per-client outbound budget
-// applies independently to each subscription, sidestepping the
-// concentration failure mode that one shared client connection produces
-// under wide fan-out. See docs/internal/wrapper-conn-pool-plan.md.
-func connectInProcess(ns *natsserver.Server, opts Options, handlers connHandlers) (*natsgo.Conn, error) {
-	connOpts := []natsgo.Option{natsgo.InProcessServer(ns)}
-	if opts.ClientName != "" {
-		connOpts = append(connOpts, natsgo.Name(opts.ClientName))
+// connectClient builds a NATS client that dials the embedded server's
+// client listener over TCP loopback. The wrapper opens exactly two of
+// these per *Pubsub: pubConn for all publishes, subConn for all
+// subscriptions. TCP loopback gives the server-to-client edge a real
+// kernel socket buffer, which is what makes multiplexing many
+// subscriptions on a single subConn viable. See
+// docs/internal/wrapper-conn-pool-plan.md.
+//
+// connName is applied via natsgo.Name and identifies the connection in
+// server logs (e.g., "coder-pubsub-pub" or "coder-pubsub-sub"). If
+// opts.ClientName is set, it takes precedence.
+func connectClient(ns *natsserver.Server, opts Options, handlers connHandlers, connName string) (*natsgo.Conn, error) {
+	name := opts.ClientName
+	if name == "" {
+		name = connName
+	}
+	connOpts := []natsgo.Option{
+		natsgo.Name(name),
+		// The server lives in this same process; treat any disconnect as
+		// transient and reconnect indefinitely.
+		natsgo.MaxReconnects(-1),
 	}
 	if opts.DrainTimeout > 0 {
 		connOpts = append(connOpts, natsgo.DrainTimeout(opts.DrainTimeout))
@@ -181,6 +190,8 @@ func connectInProcess(ns *natsserver.Server, opts Options, handlers connHandlers
 	if opts.ReconnectWait > 0 {
 		connOpts = append(connOpts, natsgo.ReconnectWait(opts.ReconnectWait))
 	}
+	// Allow callers to override MaxReconnects if they supplied an
+	// explicit non-zero value.
 	if opts.MaxReconnects != 0 {
 		connOpts = append(connOpts, natsgo.MaxReconnects(opts.MaxReconnects))
 	}
@@ -196,9 +207,9 @@ func connectInProcess(ns *natsserver.Server, opts Options, handlers connHandlers
 	if handlers.errH != nil {
 		connOpts = append(connOpts, natsgo.ErrorHandler(handlers.errH))
 	}
-	nc, err := natsgo.Connect("", connOpts...)
+	nc, err := natsgo.Connect(ns.ClientURL(), connOpts...)
 	if err != nil {
-		return nil, xerrors.Errorf("connect in-process: %w", err)
+		return nil, xerrors.Errorf("connect client: %w", err)
 	}
 	return nc, nil
 }

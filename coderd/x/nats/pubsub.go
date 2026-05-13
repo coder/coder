@@ -19,27 +19,30 @@ import (
 // pubsub.Pubsub. See package doc for status.
 //
 // Connection model: when constructed via New, Pubsub owns one embedded
-// server, one shared in-process publisher connection (pubConn), and one
-// dedicated in-process *nats.Conn per active subscription. Subscriptions
-// are opened lazily by Subscribe / SubscribeWithErr. NewFromConn is the
-// single exception: it uses one caller-supplied connection for both
-// publish and subscribe.
+// server and two TCP-loopback *natsgo.Conns dialed at the server's
+// client listener: pubConn for all publishes and subConn for all
+// subscriptions. Subscriptions multiplex over the single subConn and
+// rely on client-side PendingLimits for per-subscription slow-consumer
+// isolation. NewFromConn is the exception: a single caller-supplied
+// connection is used for both publish and subscribe.
 type Pubsub struct {
 	logger slog.Logger
 	opts   Options
 
 	ns *natsserver.Server
-	// pubConn is the wrapper's shared publisher connection. In the
-	// NewFromConn path it doubles as the subscribe connection (the only
-	// path that does not get per-subscription isolation).
+	// pubConn carries all publishes. In the NewFromConn path it doubles
+	// as the subscribe connection.
 	pubConn *natsgo.Conn
+	// subConn carries every subscription created via Subscribe /
+	// SubscribeWithErr. Nil in the NewFromConn path (subscribes share
+	// pubConn there).
+	subConn *natsgo.Conn
 
 	ownsServer  bool
 	ownsPubConn bool
-	// perSubConns is true when each Subscribe should open its own
-	// dedicated in-process connection. False for NewFromConn, which
-	// reuses pubConn for both publish and subscribe.
-	perSubConns bool
+	// ownsSubConn is true when the wrapper opened its own subConn. False
+	// for NewFromConn, which reuses the external connection for subs.
+	ownsSubConn bool
 
 	mu          sync.Mutex
 	closed      bool
@@ -47,13 +50,6 @@ type Pubsub struct {
 	subsByNATS  map[*natsgo.Subscription]*subscription
 	eventCounts map[string]int
 	closeOnce   sync.Once
-
-	// connWG tracks every nats.go ClosedHandler the wrapper has
-	// installed (one per owned subscription connection plus pubConn).
-	// Each handler decrements; Close waits on it after issuing Drain on
-	// every owned connection so we don't have to expose a per-connection
-	// channel or poll.
-	connWG sync.WaitGroup
 
 	metrics pubsubMetrics
 
@@ -86,14 +82,7 @@ type Pubsub struct {
 }
 
 type subscription struct {
-	// nc is the dedicated per-subscription connection when Pubsub was
-	// constructed via New. Nil for NewFromConn-owned subscriptions
-	// (those share Pubsub.pubConn).
-	nc         *natsgo.Conn
 	sub        *natsgo.Subscription
-	ctx        context.Context
-	cancel     context.CancelFunc
-	wg         sync.WaitGroup
 	cancelOnce sync.Once
 
 	event    string
@@ -132,10 +121,7 @@ func defaultPendingLimits(in PendingLimits) PendingLimits {
 
 // buildConnHandlers returns the connHandlers stack installed on every
 // connection the wrapper owns. Handlers are closures over p so wrapper-
-// level counters and slow-consumer routing keep working across many
-// per-subscription connections. The ClosedHandler decrements p.connWG
-// so Close can wait for every drain to complete without per-conn
-// channels.
+// level counters and slow-consumer routing keep working.
 func (p *Pubsub) buildConnHandlers() connHandlers {
 	return connHandlers{
 		disconnectErr: func(_ *natsgo.Conn, err error) {
@@ -149,7 +135,6 @@ func (p *Pubsub) buildConnHandlers() connHandlers {
 			p.logger.Info(context.Background(), "nats client reconnected")
 		},
 		closed: func(_ *natsgo.Conn) {
-			p.connWG.Done()
 			p.logger.Debug(context.Background(), "nats client closed")
 		},
 		errH: func(_ *natsgo.Conn, sub *natsgo.Subscription, err error) {
@@ -165,9 +150,9 @@ func (p *Pubsub) buildConnHandlers() connHandlers {
 }
 
 // New creates a new embedded NATS Pubsub. The returned *Pubsub owns the
-// embedded server and one in-process publisher connection. Subscriptions
-// each open their own dedicated in-process connection on demand. Close
-// shuts down all owned resources.
+// embedded server, one TCP-loopback publisher connection, and one
+// TCP-loopback subscriber connection. All subscriptions multiplex over
+// the subscriber connection. Close shuts down all owned resources.
 func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error) {
 	var peers []Peer
 	if opts.PeerProvider != nil {
@@ -190,24 +175,27 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error)
 	p.ns = ns
 	p.ownsServer = true
 	p.ownsPubConn = true
-	p.perSubConns = true
+	p.ownsSubConn = true
 	p.provider = opts.PeerProvider
 	p.serverOpts = sopts
 	p.currentRoutes = sortRouteURLs(cloneRouteURLs(sopts.Routes))
 	p.effectiveClusterToken = token
 
-	// Track pubConn's ClosedHandler before opening the connection so a
-	// fast-closing transport can't race the Add.
-	p.connWG.Add(1)
-	nc, err := connectInProcess(ns, opts, p.buildConnHandlers())
+	pubConn, err := connectClient(ns, opts, p.buildConnHandlers(), "coder-pubsub-pub")
 	if err != nil {
-		// Connect failed; nothing will ever call our ClosedHandler.
-		p.connWG.Done()
 		ns.Shutdown()
 		ns.WaitForShutdown()
-		return nil, err
+		return nil, xerrors.Errorf("dial pub conn: %w", err)
 	}
-	p.pubConn = nc
+	subConn, err := connectClient(ns, opts, p.buildConnHandlers(), "coder-pubsub-sub")
+	if err != nil {
+		pubConn.Close()
+		ns.Shutdown()
+		ns.WaitForShutdown()
+		return nil, xerrors.Errorf("dial sub conn: %w", err)
+	}
+	p.pubConn = pubConn
+	p.subConn = subConn
 	return p, nil
 }
 
@@ -215,19 +203,18 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error)
 // *Pubsub does not own the connection; Close cancels package-owned
 // subscriptions but does not drain or close the connection or any server.
 //
-// NewFromConn is the only constructor that does NOT give each
-// subscription its own *nats.Conn: the supplied connection is reused for
-// both publish and subscribe. Callers choosing this path own their own
-// connection budgeting and must size the upstream client accordingly.
+// NewFromConn does not get the publish/subscribe split: the supplied
+// connection is reused for both publish and subscribe. Callers choosing
+// this path own their own connection budgeting.
 func NewFromConn(logger slog.Logger, nc *natsgo.Conn) (*Pubsub, error) {
 	if nc == nil {
 		return nil, xerrors.New("nats: nil connection")
 	}
 	p := newPubsub(logger, Options{})
 	p.pubConn = nc
-	// perSubConns is false: subscribes share the external connection.
-	// NewFromConn does not own a server, so refresh has nothing to
-	// reload. RefreshPeers returns ErrNoEmbeddedServer.
+	// subConn aliases pubConn so Subscribe always uses p.subConn. The
+	// ownership flags stay false; Close will not drain or close it.
+	p.subConn = nc
 	return p, nil
 }
 
@@ -277,9 +264,6 @@ func (p *Pubsub) RefreshPeers(ctx context.Context) error {
 		return xerrors.Errorf("build route urls: %w", err)
 	}
 
-	// Drop any routes pointing back at this server (self routes). NATS
-	// already filters self loops at runtime, but eliminating them up
-	// front keeps currentRoutes meaningful for comparison.
 	urls = p.dropSelfRoutes(urls)
 	urls = sortRouteURLs(urls)
 
@@ -287,8 +271,6 @@ func (p *Pubsub) RefreshPeers(ctx context.Context) error {
 		return nil
 	}
 
-	// Take p.mu through ReloadOptions so a concurrent Close cannot
-	// shut the server down between our closed check and the reload.
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.closed {
@@ -398,63 +380,38 @@ func (p *Pubsub) SubscribeWithErr(event string, listener pubsub.ListenerWithErr)
 		return nil, xerrors.Errorf("map event %q: %w", event, err)
 	}
 
-	// Pick the connection this subscription will live on. In the New
-	// path each subscription owns its own dedicated in-process
-	// *nats.Conn. NewFromConn reuses the external connection.
-	var subConn *natsgo.Conn
-	if p.perSubConns {
-		p.connWG.Add(1)
-		subConn, err = connectInProcess(p.ns, p.opts, p.buildConnHandlers())
-		if err != nil {
-			p.connWG.Done()
-			p.metrics.subscribesTotal.WithLabelValues("false").Inc()
-			return nil, xerrors.Errorf("open per-subscription connection: %w", err)
-		}
-	} else {
-		subConn = p.pubConn
+	s := &subscription{
+		event:    event,
+		listener: listener,
 	}
 
-	natsSub, err := subConn.SubscribeSync(string(subj))
+	// Use async Subscribe: nats.go spawns one delivery goroutine per
+	// *Subscription and invokes the callback for each message. The
+	// callback closes over s so we can route via subsByNATS for
+	// slow-consumer error accounting.
+	natsSub, err := p.subConn.Subscribe(string(subj), func(msg *natsgo.Msg) {
+		p.metrics.receivedBytesTotal.Add(float64(len(msg.Data)))
+		s.listener(context.Background(), msg.Data, nil)
+	})
 	if err != nil {
-		if p.perSubConns {
-			subConn.Close()
-		}
 		p.metrics.subscribesTotal.WithLabelValues("false").Inc()
 		return nil, xerrors.Errorf("subscribe: %w", err)
 	}
-	// Flush so the SUB protocol message has actually reached the
-	// server before we return; otherwise a Publish issued immediately
-	// after Subscribe on the wrapper's separate publisher connection
-	// could race ahead of subscription registration.
-	if p.perSubConns {
-		if err := subConn.Flush(); err != nil {
-			_ = natsSub.Unsubscribe()
-			subConn.Close()
-			p.metrics.subscribesTotal.WithLabelValues("false").Inc()
-			return nil, xerrors.Errorf("flush subscribe: %w", err)
-		}
+	// Flush so the SUB protocol message has actually reached the server
+	// before we return; otherwise a Publish issued immediately after
+	// Subscribe on pubConn could race ahead of subscription registration.
+	if err := p.subConn.Flush(); err != nil {
+		_ = natsSub.Unsubscribe()
+		p.metrics.subscribesTotal.WithLabelValues("false").Inc()
+		return nil, xerrors.Errorf("flush subscribe: %w", err)
 	}
 	limits := defaultPendingLimits(p.opts.PendingLimits)
 	if err := natsSub.SetPendingLimits(limits.Msgs, limits.Bytes); err != nil {
 		_ = natsSub.Unsubscribe()
-		if p.perSubConns {
-			subConn.Close()
-		}
 		p.metrics.subscribesTotal.WithLabelValues("false").Inc()
 		return nil, xerrors.Errorf("set pending limits: %w", err)
 	}
-
-	ctx, cancelCtx := context.WithCancel(context.Background())
-	s := &subscription{
-		sub:      natsSub,
-		ctx:      ctx,
-		cancel:   cancelCtx,
-		event:    event,
-		listener: listener,
-	}
-	if p.perSubConns {
-		s.nc = subConn
-	}
+	s.sub = natsSub
 
 	p.mu.Lock()
 	p.subs[s] = struct{}{}
@@ -462,21 +419,24 @@ func (p *Pubsub) SubscribeWithErr(event string, listener pubsub.ListenerWithErr)
 	p.eventCounts[event]++
 	p.mu.Unlock()
 
-	s.wg.Add(1)
-	go p.runSubscription(s)
 	p.metrics.subscribesTotal.WithLabelValues("true").Inc()
 
 	cancelFn := func() {
 		s.cancelOnce.Do(func() {
-			s.cancel()
-			_ = s.sub.Unsubscribe()
-			s.wg.Wait()
-			p.unregisterSubscription(s)
-			// Tear down the dedicated subscription connection (New
-			// path only). The ClosedHandler decrements p.connWG.
-			if s.nc != nil {
-				s.nc.Close()
+			// Drain so in-flight delivery completes; fall back to
+			// Unsubscribe if drain doesn't return promptly.
+			drainTimeout := p.opts.DrainTimeout
+			if drainTimeout <= 0 {
+				drainTimeout = 5 * time.Second
 			}
+			done := make(chan error, 1)
+			go func() { done <- s.sub.Drain() }()
+			select {
+			case <-done:
+			case <-time.After(drainTimeout):
+				_ = s.sub.Unsubscribe()
+			}
+			p.unregisterSubscription(s)
 		})
 	}
 	return cancelFn, nil
@@ -498,30 +458,6 @@ func (p *Pubsub) unregisterSubscription(s *subscription) {
 	}
 }
 
-func (p *Pubsub) runSubscription(s *subscription) {
-	defer s.wg.Done()
-	for {
-		msg, err := s.sub.NextMsgWithContext(s.ctx)
-		if err != nil {
-			switch {
-			case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
-				return
-			case errors.Is(err, natsgo.ErrConnectionClosed),
-				errors.Is(err, natsgo.ErrBadSubscription):
-				return
-			case errors.Is(err, natsgo.ErrSlowConsumer):
-				p.handleSlowConsumer(s)
-				continue
-			default:
-				p.logger.Warn(s.ctx, "nats subscription error", slog.Error(err))
-				return
-			}
-		}
-		p.metrics.receivedBytesTotal.Add(float64(len(msg.Data)))
-		s.listener(s.ctx, msg.Data, nil)
-	}
-}
-
 // handleAsyncError routes async error callbacks. Only slow-consumer
 // errors trigger drop accounting; other errors are ignored here and
 // logged elsewhere.
@@ -538,10 +474,10 @@ func (p *Pubsub) handleAsyncError(sub *natsgo.Subscription, err error) {
 	p.handleSlowConsumer(s)
 }
 
-// handleSlowConsumer is invoked for both sync (NextMsg) and async slow
-// consumer signals on s. It increments slow-consumer metrics, queries
-// NATS for the cumulative dropped count, and emits at most one
-// ErrDroppedMessages callback per delta.
+// handleSlowConsumer is invoked for async slow-consumer signals on s.
+// It increments slow-consumer metrics, queries NATS for the cumulative
+// dropped count, and emits at most one ErrDroppedMessages callback per
+// delta.
 func (p *Pubsub) handleSlowConsumer(s *subscription) {
 	s.dropMu.Lock()
 	defer s.dropMu.Unlock()
@@ -550,17 +486,15 @@ func (p *Pubsub) handleSlowConsumer(s *subscription) {
 
 	dropped, err := s.sub.Dropped()
 	if err != nil {
-		p.logger.Warn(s.ctx, "nats: query dropped count", slog.Error(err))
+		p.logger.Warn(context.Background(), "nats: query dropped count", slog.Error(err))
 		return
 	}
 	if dropped < 0 {
-		p.logger.Warn(s.ctx, "nats: negative dropped count")
+		p.logger.Warn(context.Background(), "nats: negative dropped count")
 		return
 	}
 	cur := uint64(dropped)
 	if cur < s.lastDropped {
-		// Counter went backwards (e.g., subscription replaced); reset
-		// baseline without emitting a callback.
 		s.lastDropped = cur
 		return
 	}
@@ -570,7 +504,7 @@ func (p *Pubsub) handleSlowConsumer(s *subscription) {
 	}
 	p.metrics.droppedMsgsTotal.Add(float64(delta))
 	s.lastDropped = cur
-	s.listener(s.ctx, nil, pubsub.ErrDroppedMessages)
+	s.listener(context.Background(), nil, pubsub.ErrDroppedMessages)
 }
 
 // Close drains and shuts down the Pubsub. It is idempotent.
@@ -585,18 +519,12 @@ func (p *Pubsub) Close() error {
 		}
 		p.mu.Unlock()
 
-		// Cancel each subscription's drain goroutine and tear down
-		// its dedicated connection (if it owns one). Each Close
-		// triggers the ClosedHandler which calls p.connWG.Done().
+		// Unsubscribe each subscription. Don't drain individually here;
+		// we drain subConn as a whole below.
 		for _, s := range subs {
 			s.cancelOnce.Do(func() {
-				s.cancel()
 				_ = s.sub.Unsubscribe()
-				s.wg.Wait()
 				p.unregisterSubscription(s)
-				if s.nc != nil {
-					s.nc.Close()
-				}
 			})
 		}
 
@@ -604,31 +532,17 @@ func (p *Pubsub) Close() error {
 		if drainTimeout <= 0 {
 			drainTimeout = 30 * time.Second
 		}
-		if p.ownsPubConn {
-			if err := p.pubConn.Drain(); err != nil {
-				p.pubConn.Close()
-				errs = append(errs, xerrors.Errorf("drain: %w", err))
+
+		// Drain subConn first so any in-flight deliveries flush to
+		// listeners, then close it.
+		if p.ownsSubConn && p.subConn != nil {
+			if err := drainConn(p.subConn, drainTimeout); err != nil {
+				errs = append(errs, xerrors.Errorf("drain subConn: %w", err))
 			}
 		}
-
-		// Wait for every owned connection's ClosedHandler to fire.
-		// This subsumes the old single-conn closedCh wait and covers
-		// per-subscription connections too.
-		if p.ownsPubConn || len(subs) > 0 {
-			done := make(chan struct{})
-			go func() {
-				p.connWG.Wait()
-				close(done)
-			}()
-			select {
-			case <-done:
-			case <-time.After(drainTimeout):
-				// Force-close anything still hanging on so we
-				// don't block forever.
-				if p.ownsPubConn && !p.pubConn.IsClosed() {
-					p.pubConn.Close()
-				}
-				errs = append(errs, xerrors.Errorf("drain timeout after %s", drainTimeout))
+		if p.ownsPubConn && p.pubConn != nil {
+			if err := drainConn(p.pubConn, drainTimeout); err != nil {
+				errs = append(errs, xerrors.Errorf("drain pubConn: %w", err))
 			}
 		}
 
@@ -638,4 +552,25 @@ func (p *Pubsub) Close() error {
 		}
 	})
 	return errors.Join(errs...)
+}
+
+// drainConn issues Drain on nc and waits for it to reach the closed
+// state, falling back to Close after the timeout.
+func drainConn(nc *natsgo.Conn, timeout time.Duration) error {
+	if nc.IsClosed() {
+		return nil
+	}
+	if err := nc.Drain(); err != nil {
+		nc.Close()
+		return err
+	}
+	deadline := time.Now().Add(timeout)
+	for !nc.IsClosed() {
+		if time.Now().After(deadline) {
+			nc.Close()
+			return xerrors.Errorf("drain timeout after %s", timeout)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	return nil
 }
