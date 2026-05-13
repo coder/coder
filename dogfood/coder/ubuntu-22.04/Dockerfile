@@ -51,7 +51,7 @@ RUN apt-get update && \
 	# Switched to coder/sqlc fork to fix ambiguous column bug, see:
 	# - https://github.com/coder/sqlc/pull/1
 	# - https://github.com/sqlc-dev/sqlc/pull/4159
-	(CGO_ENABLED=1 go install github.com/coder/sqlc/cmd/sqlc@aab4e865a51df0c43e1839f81a9d349b41d14f05) && \
+	(CGO_ENABLED=1 go install github.com/coder/sqlc/cmd/sqlc@337309bfb9524f38466a5090e310040fc7af0203) && \
 	# ruleguard for checking custom rules, without needing to run all of
 	# golangci-lint. Check the go.mod in the release of golangci-lint that
 	# we're using for the version of go-critic that it embeds, then check

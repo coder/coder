@@ -268,13 +268,24 @@ export const ThinkingDuringStreamingWithToolCalls: Story = {
 				tool_call_id: "tc-1",
 				args: { command: "ls -la" },
 			},
+			{
+				type: "tool-call",
+				tool_name: "read_file",
+				tool_call_id: "tc-2",
+				args: { path: "README.md" },
+			},
 		]),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// "Thinking" should still be visible during streaming
-		// when only tool-call blocks have arrived.
+		// Tool-only stream chunks can otherwise clear the activity indicator before text arrives.
 		const matches = canvas.getAllByText("Thinking");
 		expect(matches.length).toBeGreaterThanOrEqual(1);
+
+		const thinkingBlock = matches[0].parentElement;
+		expect(thinkingBlock).toBeInstanceOf(HTMLElement);
+		expect(getComputedStyle(thinkingBlock as HTMLElement).marginTop).toBe(
+			"8px",
+		);
 	},
 };

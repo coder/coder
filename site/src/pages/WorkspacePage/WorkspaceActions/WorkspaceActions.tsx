@@ -94,21 +94,21 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 			<UpdateButton
 				handleAction={handleUpdate}
 				isRunning={false}
-				requireActiveVersion={true}
+				requireActiveVersion
 			/>
 		),
 		updateAndRestart: (
 			<UpdateButton
 				handleAction={handleUpdate}
-				isRunning={true}
+				isRunning
 				requireActiveVersion={false}
 			/>
 		),
 		updateAndRestartRequireActiveVersion: (
 			<UpdateButton
 				handleAction={handleUpdate}
-				isRunning={true}
-				requireActiveVersion={true}
+				isRunning
+				requireActiveVersion
 			/>
 		),
 		updating: <UpdateButton loading handleAction={handleUpdate} />,

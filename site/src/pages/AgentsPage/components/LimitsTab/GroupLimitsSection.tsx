@@ -321,7 +321,7 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 						setPendingDeleteGroupId(null);
 					}}
 					isPending={deletePending}
-					open={true}
+					open
 					onOpenChange={(open) => !open && setPendingDeleteGroupId(null)}
 				/>
 			)}{" "}

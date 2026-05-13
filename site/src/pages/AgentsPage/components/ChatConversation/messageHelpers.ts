@@ -5,12 +5,12 @@ export type UserInlineRenderBlock =
 	| Extract<RenderBlock, { type: "response" }>
 	| Extract<RenderBlock, { type: "file-reference" }>;
 
-type UserFileRenderBlock = Extract<RenderBlock, { type: "file" }>;
+type FileRenderBlock = Extract<RenderBlock, { type: "file" }>;
 
 export type MessageDisplayState = {
 	shouldHide: boolean;
 	userInlineContent: UserInlineRenderBlock[];
-	userFileBlocks: UserFileRenderBlock[];
+	userFileBlocks: FileRenderBlock[];
 	hasUserMessageBody: boolean;
 	hasFileBlocks: boolean;
 	hasCopyableContent: boolean;
@@ -22,9 +22,8 @@ const isUserInlineRenderBlock = (
 ): block is UserInlineRenderBlock =>
 	block.type === "response" || block.type === "file-reference";
 
-const isUserFileRenderBlock = (
-	block: RenderBlock,
-): block is UserFileRenderBlock => block.type === "file";
+const isFileRenderBlock = (block: RenderBlock): block is FileRenderBlock =>
+	block.type === "file";
 
 const isProviderToolResultOnlyMessage = (
 	parts: readonly TypesGen.ChatMessagePart[],
@@ -43,23 +42,25 @@ export const deriveMessageDisplayState = ({
 	parsed,
 	hideActions,
 	hasActiveStream,
+	isAwaitingFirstStreamChunk = false,
 }: {
 	message: TypesGen.ChatMessage;
 	parsed: ParsedMessageContent;
 	hideActions: boolean;
 	hasActiveStream: boolean;
+	isAwaitingFirstStreamChunk?: boolean;
 }): MessageDisplayState => {
 	const isUser = message.role === "user";
 	const userInlineContent = isUser
 		? parsed.blocks.filter(isUserInlineRenderBlock)
 		: [];
-	const userFileBlocks = isUser
-		? parsed.blocks.filter(isUserFileRenderBlock)
-		: [];
+	const userFileBlocks = isUser ? parsed.blocks.filter(isFileRenderBlock) : [];
+	const hasFileAttachments = parsed.blocks.some(isFileRenderBlock);
 	const hasUserMessageBody =
 		userInlineContent.length > 0 || Boolean(parsed.markdown.trim());
 	const hasFileBlocks = userFileBlocks.length > 0;
-	const hasCopyableContent = Boolean(parsed.markdown.trim());
+	const hasCopyableContent =
+		Boolean(parsed.markdown.trim()) && !hasFileAttachments;
 	const hasRenderableContent =
 		parsed.blocks.length > 0 ||
 		parsed.tools.length > 0 ||
@@ -67,6 +68,7 @@ export const deriveMessageDisplayState = ({
 	const needsAssistantBottomSpacer =
 		!hideActions &&
 		!hasActiveStream &&
+		!isAwaitingFirstStreamChunk &&
 		!isUser &&
 		!hasCopyableContent &&
 		(Boolean(parsed.reasoning) ||

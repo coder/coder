@@ -1,12 +1,20 @@
 package azureidentity_test
 
 import (
+	"bytes"
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/base64"
 	"encoding/pem"
+	"math/big"
+	"runtime"
 	"testing"
 	"time"
 
+	"github.com/smallstep/pkcs7"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/azureidentity"
@@ -45,10 +53,8 @@ func TestValidate(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			vm, err := azureidentity.Validate(context.Background(), tc.payload, azureidentity.Options{
-				VerifyOptions: x509.VerifyOptions{
-					CurrentTime: tc.date,
-				},
-				Offline: true,
+				CurrentTime: tc.date,
+				Offline:     true,
 			})
 			require.NoError(t, err)
 			require.Equal(t, tc.vmID, vm)
@@ -98,12 +104,10 @@ func TestExpiresSoon(t *testing.T) {
 	t.Skip()
 	const threshold = 1
 
-	for _, c := range azureidentity.Certificates {
-		block, rest := pem.Decode([]byte(c))
-		require.Zero(t, len(rest))
-		cert, err := x509.ParseCertificate(block.Bytes)
-		require.NoError(t, err)
+	certs, err := azureidentity.ParseCertificates()
+	require.NoError(t, err)
 
+	for _, cert := range certs {
 		expiresSoon := cert.NotAfter.Before(time.Now().AddDate(0, threshold, 0))
 		if expiresSoon {
 			t.Errorf("certificate expires within %d months %s: %s", threshold, cert.NotAfter, cert.Subject.CommonName)
@@ -115,4 +119,207 @@ func TestExpiresSoon(t *testing.T) {
 			t.Logf("certificate %q doesn't expire for a while (%s)", cert.Subject.CommonName, url)
 		}
 	}
+}
+
+func TestIsAllowedCertificateURL(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		url     string
+		allowed bool
+	}{
+		{"microsoft http", "http://www.microsoft.com/pki/mscorp/cert.crt", true},
+		{"microsoft https", "https://www.microsoft.com/pkiops/certs/cert.crt", true},
+		{"digicert http", "http://cacerts.digicert.com/DigiCertGlobalRootG2.crt", true},
+		{"digicert https", "https://cacerts.digicert.com/DigiCertGlobalRootG3.crt", true},
+		{"evil domain", "http://evil.example.com/cert.crt", false},
+		{"metadata endpoint", "http://169.254.169.254/latest/meta-data/", false},
+		{"localhost", "http://localhost/secret", false},
+		{"subdomain trick", "http://www.microsoft.com.evil.com/cert.crt", false},
+		{"empty string", "", false},
+		{"ftp scheme", "ftp://www.microsoft.com/cert.crt", false},
+		{"no scheme", "www.microsoft.com/cert.crt", false},
+		{"javascript scheme", "javascript:alert(1)", false},
+		{"microsoft with path", "http://www.microsoft.com/pkiops/certs/cert.crt", true},
+		{"microsoft explicit port 80", "http://www.microsoft.com:80/cert.crt", true},
+		{"microsoft explicit port 443", "https://www.microsoft.com:443/cert.crt", true},
+		{"microsoft non-standard port", "http://www.microsoft.com:8080/cert.crt", false},
+		{"microsoft port 22", "http://www.microsoft.com:22/cert.crt", false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			result := azureidentity.IsAllowedCertificateURL(tc.url)
+			require.Equal(t, tc.allowed, result, "URL: %s", tc.url)
+		})
+	}
+}
+
+// testCertChain holds a three-level certificate hierarchy (Root CA,
+// Intermediate CA, Signing/leaf) together with their private keys.
+type testCertChain struct {
+	RootCert         *x509.Certificate
+	RootKey          *rsa.PrivateKey
+	IntermediateCert *x509.Certificate
+	IntermediateKey  *rsa.PrivateKey
+	SigningCert      *x509.Certificate
+	SigningKey       *rsa.PrivateKey
+}
+
+// newTestCertChain creates a fresh three-level certificate chain for
+// testing. All certificates are valid at time.Now().
+func newTestCertChain(t *testing.T) testCertChain {
+	t.Helper()
+
+	// Smaller key sizes are fine for tests; keeps them fast.
+	const keyBits = 2048
+
+	// ---- Root CA ----
+	rootKey, err := rsa.GenerateKey(rand.Reader, keyBits)
+	require.NoError(t, err)
+	rootTmpl := &x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: "Test Root CA"},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(24 * time.Hour),
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+	}
+	rootDER, err := x509.CreateCertificate(rand.Reader, rootTmpl, rootTmpl, &rootKey.PublicKey, rootKey)
+	require.NoError(t, err)
+	rootCert, err := x509.ParseCertificate(rootDER)
+	require.NoError(t, err)
+
+	// ---- Intermediate CA ----
+	intermediateKey, err := rsa.GenerateKey(rand.Reader, keyBits)
+	require.NoError(t, err)
+	intermediateTmpl := &x509.Certificate{
+		SerialNumber:          big.NewInt(2),
+		Subject:               pkix.Name{CommonName: "Test Intermediate CA"},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(24 * time.Hour),
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+	}
+	intermediateDER, err := x509.CreateCertificate(rand.Reader, intermediateTmpl, rootCert, &intermediateKey.PublicKey, rootKey)
+	require.NoError(t, err)
+	intermediateCert, err := x509.ParseCertificate(intermediateDER)
+	require.NoError(t, err)
+
+	// ---- Signing (leaf) certificate ----
+	signingKey, err := rsa.GenerateKey(rand.Reader, keyBits)
+	require.NoError(t, err)
+	signingTmpl := &x509.Certificate{
+		SerialNumber: big.NewInt(3),
+		Subject:      pkix.Name{CommonName: "metadata.azure.com"},
+		NotBefore:    time.Now().Add(-time.Hour),
+		NotAfter:     time.Now().Add(24 * time.Hour),
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+	}
+	signingDER, err := x509.CreateCertificate(rand.Reader, signingTmpl, intermediateCert, &signingKey.PublicKey, intermediateKey)
+	require.NoError(t, err)
+	signingCert, err := x509.ParseCertificate(signingDER)
+	require.NoError(t, err)
+
+	return testCertChain{
+		RootCert:         rootCert,
+		RootKey:          rootKey,
+		IntermediateCert: intermediateCert,
+		IntermediateKey:  intermediateKey,
+		SigningCert:      signingCert,
+		SigningKey:       signingKey,
+	}
+}
+
+// createSignedPKCS7 produces a base64-encoded PKCS7 SignedData
+// envelope over content, signed by the chain's leaf certificate.
+func (tc *testCertChain) createSignedPKCS7(t *testing.T, content []byte) string {
+	t.Helper()
+
+	sd, err := pkcs7.NewSignedData(content)
+	require.NoError(t, err)
+	err = sd.AddSignerChain(tc.SigningCert, tc.SigningKey, []*x509.Certificate{tc.IntermediateCert}, pkcs7.SignerInfoConfig{})
+	require.NoError(t, err)
+	der, err := sd.Finish()
+	require.NoError(t, err)
+	return base64.StdEncoding.EncodeToString(der)
+}
+
+// validationOptions returns azureidentity.Options that trust only this
+// chain's Root CA.
+func (tc *testCertChain) validationOptions() azureidentity.Options {
+	roots := x509.NewCertPool()
+	roots.AddCert(tc.RootCert)
+	return azureidentity.Options{
+		Roots:         roots,
+		Intermediates: []*x509.Certificate{tc.IntermediateCert},
+		Offline:       true,
+	}
+}
+
+func TestValidate_TamperedContent(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "darwin" {
+		t.Skip("pkcs7 signing uses SHA1 which may be restricted on macOS")
+	}
+
+	chain := newTestCertChain(t)
+
+	// Build a valid PKCS7 envelope.
+	original := []byte(`{"vmId":"tamper-test-vm"}`)
+	signed := chain.createSignedPKCS7(t, original)
+
+	// Decode, tamper with the content, re-encode.
+	raw, err := base64.StdEncoding.DecodeString(signed)
+	require.NoError(t, err)
+	tampered := bytes.Replace(raw, []byte("tamper-test-vm"), []byte("tampered!!!!!!"), 1)
+	require.NotEqual(t, raw, tampered, "payload should have changed")
+	tamperedB64 := base64.StdEncoding.EncodeToString(tampered)
+
+	opts := chain.validationOptions()
+	_, err = azureidentity.Validate(context.Background(), tamperedB64, opts)
+	require.Error(t, err, "tampered content must not pass validation")
+}
+
+func TestValidate_UntrustedCertWithValidSignature(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "darwin" {
+		t.Skip("pkcs7 signing uses SHA1 which may be restricted on macOS")
+	}
+
+	chain := newTestCertChain(t)
+
+	content := []byte(`{"vmId":"untrusted-test-vm"}`)
+	signed := chain.createSignedPKCS7(t, content)
+
+	// Build options that trust a DIFFERENT root, so the chain
+	// should not verify.
+	otherRoot, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	otherRootTmpl := &x509.Certificate{
+		SerialNumber:          big.NewInt(99),
+		Subject:               pkix.Name{CommonName: "Other Root CA"},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(24 * time.Hour),
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+	}
+	otherRootDER, err := x509.CreateCertificate(rand.Reader, otherRootTmpl, otherRootTmpl, &otherRoot.PublicKey, otherRoot)
+	require.NoError(t, err)
+	otherRootCert, err := x509.ParseCertificate(otherRootDER)
+	require.NoError(t, err)
+
+	untrustedRoots := x509.NewCertPool()
+	untrustedRoots.AddCert(otherRootCert)
+	opts := azureidentity.Options{
+		Roots:         untrustedRoots,
+		Intermediates: []*x509.Certificate{chain.IntermediateCert},
+		Offline:       true,
+	}
+
+	_, err = azureidentity.Validate(context.Background(), signed, opts)
+	require.Error(t, err, "signature from untrusted CA must not pass validation")
 }
