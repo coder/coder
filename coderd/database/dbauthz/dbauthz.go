@@ -1851,6 +1851,13 @@ func (q *querier) CustomRoles(ctx context.Context, arg database.CustomRolesParam
 	return q.db.CustomRoles(ctx, arg)
 }
 
+func (q *querier) DeleteAIProviderByID(ctx context.Context, id uuid.UUID) (database.AiProvider, error) {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAibridgeProvider); err != nil {
+		return database.AiProvider{}, err
+	}
+	return q.db.DeleteAIProviderByID(ctx, id)
+}
+
 func (q *querier) DeleteAIProviderKey(ctx context.Context, id uuid.UUID) (database.AiProviderKey, error) {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAibridgeProvider); err != nil {
 		return database.AiProviderKey{}, err
@@ -2509,18 +2516,22 @@ func (q *querier) GetAIProviderByName(ctx context.Context, name string) (databas
 	return q.db.GetAIProviderByName(ctx, name)
 }
 
-func (q *querier) GetAIProviderByNameIncludeDeleted(ctx context.Context, name string) (database.AiProvider, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAibridgeProvider); err != nil {
-		return database.AiProvider{}, err
-	}
-	return q.db.GetAIProviderByNameIncludeDeleted(ctx, name)
-}
-
 func (q *querier) GetAIProviderKeyByID(ctx context.Context, id uuid.UUID) (database.AiProviderKey, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAibridgeProvider); err != nil {
 		return database.AiProviderKey{}, err
 	}
 	return q.db.GetAIProviderKeyByID(ctx, id)
+}
+
+func (q *querier) GetAIProviderKeys(ctx context.Context) ([]database.AiProviderKey, error) {
+	// This query intentionally returns every key row, including those
+	// whose provider has been soft-deleted, so the dbcrypt key rotation
+	// utility can re-encrypt every row that holds a foreign-key
+	// reference to dbcrypt_keys.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAibridgeProvider); err != nil {
+		return nil, err
+	}
+	return q.db.GetAIProviderKeys(ctx)
 }
 
 func (q *querier) GetAIProviderKeysByProviderID(ctx context.Context, providerID uuid.UUID) ([]database.AiProviderKey, error) {
@@ -2530,32 +2541,11 @@ func (q *querier) GetAIProviderKeysByProviderID(ctx context.Context, providerID 
 	return q.db.GetAIProviderKeysByProviderID(ctx, providerID)
 }
 
-func (q *querier) GetAIProviderKeysForRotation(ctx context.Context) ([]database.AiProviderKey, error) {
-	// This query intentionally returns every key row, including those
-	// whose provider has been soft-deleted, so the dbcrypt key rotation
-	// utility can re-encrypt every row that holds a foreign-key
-	// reference to dbcrypt_keys.
+func (q *querier) GetAIProviders(ctx context.Context, arg database.GetAIProvidersParams) ([]database.AiProvider, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAibridgeProvider); err != nil {
 		return nil, err
 	}
-	return q.db.GetAIProviderKeysForRotation(ctx)
-}
-
-func (q *querier) GetAIProviders(ctx context.Context) ([]database.AiProvider, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAibridgeProvider); err != nil {
-		return nil, err
-	}
-	return q.db.GetAIProviders(ctx)
-}
-
-func (q *querier) GetAIProvidersForRotation(ctx context.Context) ([]database.AiProvider, error) {
-	// This query intentionally returns all rows including soft-deleted
-	// ones so that the dbcrypt key rotation utility can re-encrypt every
-	// row that holds a foreign-key reference to dbcrypt_keys.
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAibridgeProvider); err != nil {
-		return nil, err
-	}
-	return q.db.GetAIProvidersForRotation(ctx)
+	return q.db.GetAIProviders(ctx, arg)
 }
 
 func (q *querier) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
@@ -3266,13 +3256,6 @@ func (q *querier) GetDeploymentWorkspaceStats(ctx context.Context) (database.Get
 
 func (q *querier) GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx context.Context, provisionerJobIDs []uuid.UUID) ([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetEligibleProvisionerDaemonsByProvisionerJobIDs)(ctx, provisionerJobIDs)
-}
-
-func (q *querier) GetEnabledAIProviders(ctx context.Context) ([]database.AiProvider, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAibridgeProvider); err != nil {
-		return nil, err
-	}
-	return q.db.GetEnabledAIProviders(ctx)
 }
 
 func (q *querier) GetEnabledChatModelConfigByID(ctx context.Context, id uuid.UUID) (database.ChatModelConfig, error) {
@@ -6208,13 +6191,6 @@ func (q *querier) SelectUsageEventsForPublishing(ctx context.Context, arg time.T
 	return q.db.SelectUsageEventsForPublishing(ctx, arg)
 }
 
-func (q *querier) SoftDeleteAIProviderByID(ctx context.Context, id uuid.UUID) (database.AiProvider, error) {
-	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAibridgeProvider); err != nil {
-		return database.AiProvider{}, err
-	}
-	return q.db.SoftDeleteAIProviderByID(ctx, id)
-}
-
 func (q *querier) SoftDeleteChatMessageByID(ctx context.Context, id int64) error {
 	msg, err := q.db.GetChatMessageByID(ctx, id)
 	if err != nil {
@@ -6344,25 +6320,14 @@ func (q *querier) UpdateAIProvider(ctx context.Context, arg database.UpdateAIPro
 	return q.db.UpdateAIProvider(ctx, arg)
 }
 
-func (q *querier) UpdateAIProviderEncryptedColumns(ctx context.Context, arg database.UpdateAIProviderEncryptedColumnsParams) (database.AiProvider, error) {
-	// Encrypted columns can be rewritten on any row, including soft-
-	// deleted ones, so the dbcrypt rotation can move every FK reference
-	// to a new key digest before old keys are revoked.
+func (q *querier) UpdateAIProviderSettings(ctx context.Context, arg database.UpdateAIProviderSettingsParams) (database.AiProvider, error) {
+	// Settings can be rewritten on any row, including soft-deleted ones,
+	// so the dbcrypt rotation can move every FK reference to a new key
+	// digest before old keys are revoked.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAibridgeProvider); err != nil {
 		return database.AiProvider{}, err
 	}
-	return q.db.UpdateAIProviderEncryptedColumns(ctx, arg)
-}
-
-func (q *querier) UpdateAIProviderKeyEncryptedColumns(ctx context.Context, arg database.UpdateAIProviderKeyEncryptedColumnsParams) (database.AiProviderKey, error) {
-	// Encrypted columns can be rewritten on any row, including those
-	// whose provider has been soft-deleted, so the dbcrypt rotation can
-	// move every FK reference to a new key digest before old keys are
-	// revoked.
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAibridgeProvider); err != nil {
-		return database.AiProviderKey{}, err
-	}
-	return q.db.UpdateAIProviderKeyEncryptedColumns(ctx, arg)
+	return q.db.UpdateAIProviderSettings(ctx, arg)
 }
 
 func (q *querier) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKeyByIDParams) error {
@@ -6649,6 +6614,17 @@ func (q *querier) UpdateCustomRole(ctx context.Context, arg database.UpdateCusto
 		return database.CustomRole{}, err
 	}
 	return q.db.UpdateCustomRole(ctx, arg)
+}
+
+func (q *querier) UpdateEncryptedAIProviderKey(ctx context.Context, arg database.UpdateEncryptedAIProviderKeyParams) (database.AiProviderKey, error) {
+	// Encrypted columns can be rewritten on any row, including those
+	// whose provider has been soft-deleted, so the dbcrypt rotation can
+	// move every FK reference to a new key digest before old keys are
+	// revoked.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAibridgeProvider); err != nil {
+		return database.AiProviderKey{}, err
+	}
+	return q.db.UpdateEncryptedAIProviderKey(ctx, arg)
 }
 
 func (q *querier) UpdateExternalAuthLink(ctx context.Context, arg database.UpdateExternalAuthLinkParams) (database.ExternalAuthLink, error) {

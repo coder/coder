@@ -99,6 +99,7 @@ type sqlcQuerier interface {
 	CountUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) (int64, error)
 	CreateUserSecret(ctx context.Context, arg CreateUserSecretParams) (UserSecret, error)
 	CustomRoles(ctx context.Context, arg CustomRolesParams) ([]CustomRole, error)
+	DeleteAIProviderByID(ctx context.Context, id uuid.UUID) (AiProvider, error)
 	DeleteAIProviderKey(ctx context.Context, id uuid.UUID) (AiProviderKey, error)
 	DeleteAPIKeyByID(ctx context.Context, id string) error
 	DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
@@ -249,22 +250,21 @@ type sqlcQuerier interface {
 	GetAIModelPriceByProviderModel(ctx context.Context, arg GetAIModelPriceByProviderModelParams) (AiModelPrice, error)
 	GetAIProviderByID(ctx context.Context, id uuid.UUID) (AiProvider, error)
 	GetAIProviderByName(ctx context.Context, name string) (AiProvider, error)
-	GetAIProviderByNameIncludeDeleted(ctx context.Context, name string) (AiProvider, error)
 	GetAIProviderKeyByID(ctx context.Context, id uuid.UUID) (AiProviderKey, error)
+	// Returns every AI provider key row, including those belonging to a
+	// soft-deleted provider, so the dbcrypt key rotation utility can
+	// re-encrypt their api_key and clear references to retired keys.
+	GetAIProviderKeys(ctx context.Context) ([]AiProviderKey, error)
 	// Returns all keys for a provider, ordered by created_at ASC so the
 	// oldest key is returned first. AI Bridge currently uses the first
 	// key per provider; multiple keys are stored to support future
 	// failover and rotation flows.
 	GetAIProviderKeysByProviderID(ctx context.Context, providerID uuid.UUID) ([]AiProviderKey, error)
-	// Returns every AI provider key row, even those whose provider has
-	// been soft-deleted, so the dbcrypt key rotation utility can
-	// re-encrypt their api_key and clear references to retired keys.
-	GetAIProviderKeysForRotation(ctx context.Context) ([]AiProviderKey, error)
-	GetAIProviders(ctx context.Context) ([]AiProvider, error)
-	// Returns every AI provider row, including soft-deleted ones, so the
-	// dbcrypt key rotation utility can re-encrypt their settings and
-	// clear references to retired keys.
-	GetAIProvidersForRotation(ctx context.Context) ([]AiProvider, error)
+	// Returns AI provider rows, optionally filtered by enabled and/or
+	// deleted flags. Pass NULL for either flag to skip that filter; the
+	// dbcrypt key rotation utility relies on this to iterate every row,
+	// including soft-deleted ones.
+	GetAIProviders(ctx context.Context, arg GetAIProvidersParams) ([]AiProvider, error)
 	GetAPIKeyByID(ctx context.Context, id string) (APIKey, error)
 	// there is no unique constraint on empty token names
 	GetAPIKeyByName(ctx context.Context, arg GetAPIKeyByNameParams) (APIKey, error)
@@ -426,7 +426,6 @@ type sqlcQuerier interface {
 	GetDeploymentWorkspaceAgentUsageStats(ctx context.Context, createdAt time.Time) (GetDeploymentWorkspaceAgentUsageStatsRow, error)
 	GetDeploymentWorkspaceStats(ctx context.Context) (GetDeploymentWorkspaceStatsRow, error)
 	GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx context.Context, provisionerJobIds []uuid.UUID) ([]GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error)
-	GetEnabledAIProviders(ctx context.Context) ([]AiProvider, error)
 	// Providers can be disabled independently of their model configs.
 	// Check both to ensure the selected config is actually usable.
 	GetEnabledChatModelConfigByID(ctx context.Context, id uuid.UUID) (ChatModelConfig, error)
@@ -1068,7 +1067,6 @@ type sqlcQuerier interface {
 	// for the table.
 	// The CTE and the reorder is required because UPDATE doesn't guarantee order.
 	SelectUsageEventsForPublishing(ctx context.Context, now time.Time) ([]UsageEvent, error)
-	SoftDeleteAIProviderByID(ctx context.Context, id uuid.UUID) (AiProvider, error)
 	SoftDeleteChatMessageByID(ctx context.Context, id int64) error
 	SoftDeleteChatMessagesAfterID(ctx context.Context, arg SoftDeleteChatMessagesAfterIDParams) error
 	SoftDeleteContextFileMessages(ctx context.Context, chatID uuid.UUID) error
@@ -1114,15 +1112,11 @@ type sqlcQuerier interface {
 	UnsetDefaultChatModelConfigs(ctx context.Context) error
 	UpdateAIBridgeInterceptionEnded(ctx context.Context, arg UpdateAIBridgeInterceptionEndedParams) (AIBridgeInterception, error)
 	UpdateAIProvider(ctx context.Context, arg UpdateAIProviderParams) (AiProvider, error)
-	// Updates only the encrypted columns (settings, settings_key_id) and
+	// Updates only the settings columns (settings, settings_key_id) and
 	// the updated_at timestamp on a row, regardless of its deleted flag.
 	// Used by the dbcrypt key rotation utility to re-encrypt or decrypt
 	// rows in place.
-	UpdateAIProviderEncryptedColumns(ctx context.Context, arg UpdateAIProviderEncryptedColumnsParams) (AiProvider, error)
-	// Updates only the encrypted columns (api_key, api_key_key_id) and
-	// the updated_at timestamp on a row. Used by the dbcrypt key
-	// rotation utility to re-encrypt or decrypt rows in place.
-	UpdateAIProviderKeyEncryptedColumns(ctx context.Context, arg UpdateAIProviderKeyEncryptedColumnsParams) (AiProviderKey, error)
+	UpdateAIProviderSettings(ctx context.Context, arg UpdateAIProviderSettingsParams) (AiProvider, error)
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
 	UpdateChatBuildAgentBinding(ctx context.Context, arg UpdateChatBuildAgentBindingParams) (Chat, error)
 	UpdateChatByID(ctx context.Context, arg UpdateChatByIDParams) (Chat, error)
@@ -1185,6 +1179,10 @@ type sqlcQuerier interface {
 	UpdateChatWorkspaceBinding(ctx context.Context, arg UpdateChatWorkspaceBindingParams) (Chat, error)
 	UpdateCryptoKeyDeletesAt(ctx context.Context, arg UpdateCryptoKeyDeletesAtParams) (CryptoKey, error)
 	UpdateCustomRole(ctx context.Context, arg UpdateCustomRoleParams) (CustomRole, error)
+	// Updates only the encrypted columns (api_key, api_key_key_id) and
+	// the updated_at timestamp on a row. Used by the dbcrypt key
+	// rotation utility to re-encrypt or decrypt rows in place.
+	UpdateEncryptedAIProviderKey(ctx context.Context, arg UpdateEncryptedAIProviderKeyParams) (AiProviderKey, error)
 	UpdateExternalAuthLink(ctx context.Context, arg UpdateExternalAuthLinkParams) (ExternalAuthLink, error)
 	// Optimistic lock: only update the row if the refresh token in the database
 	// still matches the one we read before attempting the refresh. This prevents

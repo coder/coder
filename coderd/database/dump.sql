@@ -1143,7 +1143,7 @@ CREATE TABLE ai_providers (
     enabled boolean DEFAULT true NOT NULL,
     deleted boolean DEFAULT false NOT NULL,
     base_url text NOT NULL,
-    settings text DEFAULT ''::text NOT NULL,
+    settings text,
     settings_key_id text,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
@@ -1154,7 +1154,7 @@ COMMENT ON TABLE ai_providers IS 'Runtime configuration for AI Bridge providers.
 
 COMMENT ON COLUMN ai_providers.deleted IS 'Soft delete flag. Soft-deleted rows are preserved for audit and FK history; their names remain reserved.';
 
-COMMENT ON COLUMN ai_providers.settings IS 'Encrypted JSON blob holding type-specific configuration (e.g. AWS Bedrock region, model, access key secret). Plaintext is a JSON object. Empty string when no type-specific settings are required.';
+COMMENT ON COLUMN ai_providers.settings IS 'Encrypted JSON blob holding type-specific configuration (e.g. AWS Bedrock region, model, access key secret). Plaintext is a JSON object. NULL when no type-specific settings are required.';
 
 COMMENT ON COLUMN ai_providers.settings_key_id IS 'The ID of the key used to encrypt settings. If this is NULL, settings is not encrypted.';
 

@@ -13,7 +13,7 @@ CREATE TABLE ai_providers (
     enabled         boolean NOT NULL DEFAULT TRUE,
     deleted         boolean NOT NULL DEFAULT FALSE,
     base_url        text NOT NULL,
-    settings        text NOT NULL DEFAULT '',
+    settings        text,
     settings_key_id text REFERENCES dbcrypt_keys(active_key_digest),
     created_at      timestamp with time zone NOT NULL DEFAULT NOW(),
     updated_at      timestamp with time zone NOT NULL DEFAULT NOW()
@@ -21,7 +21,7 @@ CREATE TABLE ai_providers (
 
 COMMENT ON TABLE ai_providers IS 'Runtime configuration for AI Bridge providers. Authoritative source for the provider set served by aibridged. Replaces deployment-time CODER_AIBRIDGE_* environment variables.';
 
-COMMENT ON COLUMN ai_providers.settings IS 'Encrypted JSON blob holding type-specific configuration (e.g. AWS Bedrock region, model, access key secret). Plaintext is a JSON object. Empty string when no type-specific settings are required.';
+COMMENT ON COLUMN ai_providers.settings IS 'Encrypted JSON blob holding type-specific configuration (e.g. AWS Bedrock region, model, access key secret). Plaintext is a JSON object. NULL when no type-specific settings are required.';
 
 COMMENT ON COLUMN ai_providers.settings_key_id IS 'The ID of the key used to encrypt settings. If this is NULL, settings is not encrypted.';
 

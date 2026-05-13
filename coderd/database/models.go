@@ -4417,8 +4417,8 @@ type AiProvider struct {
 	// Soft delete flag. Soft-deleted rows are preserved for audit and FK history; their names remain reserved.
 	Deleted bool   `db:"deleted" json:"deleted"`
 	BaseUrl string `db:"base_url" json:"base_url"`
-	// Encrypted JSON blob holding type-specific configuration (e.g. AWS Bedrock region, model, access key secret). Plaintext is a JSON object. Empty string when no type-specific settings are required.
-	Settings string `db:"settings" json:"settings"`
+	// Encrypted JSON blob holding type-specific configuration (e.g. AWS Bedrock region, model, access key secret). Plaintext is a JSON object. NULL when no type-specific settings are required.
+	Settings sql.NullString `db:"settings" json:"settings"`
 	// The ID of the key used to encrypt settings. If this is NULL, settings is not encrypted.
 	SettingsKeyID sql.NullString `db:"settings_key_id" json:"settings_key_id"`
 	CreatedAt     time.Time      `db:"created_at" json:"created_at"`

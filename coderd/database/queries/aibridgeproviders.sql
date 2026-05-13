@@ -14,31 +14,24 @@ FROM
 WHERE
     name = @name::text AND deleted = FALSE;
 
--- name: GetAIProviderByNameIncludeDeleted :one
-SELECT
-    *
-FROM
-    ai_providers
-WHERE
-    name = @name::text;
-
 -- name: GetAIProviders :many
+-- Returns AI provider rows, optionally filtered by enabled and/or
+-- deleted flags. Pass NULL for either flag to skip that filter; the
+-- dbcrypt key rotation utility relies on this to iterate every row,
+-- including soft-deleted ones.
 SELECT
     *
 FROM
     ai_providers
 WHERE
-    deleted = FALSE
-ORDER BY
-    name ASC;
-
--- name: GetEnabledAIProviders :many
-SELECT
-    *
-FROM
-    ai_providers
-WHERE
-    enabled = TRUE AND deleted = FALSE
+    CASE
+        WHEN sqlc.narg('enabled')::boolean IS NULL THEN TRUE
+        ELSE enabled = sqlc.narg('enabled')::boolean
+    END
+    AND CASE
+        WHEN sqlc.narg('deleted')::boolean IS NULL THEN TRUE
+        ELSE deleted = sqlc.narg('deleted')::boolean
+    END
 ORDER BY
     name ASC;
 
@@ -59,7 +52,7 @@ INSERT INTO ai_providers (
     @display_name::text,
     @enabled::boolean,
     @base_url::text,
-    @settings::text,
+    sqlc.narg('settings')::text,
     sqlc.narg('settings_key_id')::text
 )
 RETURNING
@@ -72,7 +65,7 @@ SET
     display_name = @display_name::text,
     enabled = @enabled::boolean,
     base_url = @base_url::text,
-    settings = @settings::text,
+    settings = sqlc.narg('settings')::text,
     settings_key_id = sqlc.narg('settings_key_id')::text,
     updated_at = NOW()
 WHERE
@@ -80,7 +73,7 @@ WHERE
 RETURNING
     *;
 
--- name: SoftDeleteAIProviderByID :one
+-- name: DeleteAIProviderByID :one
 UPDATE
     ai_providers
 SET
@@ -92,26 +85,15 @@ WHERE
 RETURNING
     *;
 
--- name: GetAIProvidersForRotation :many
--- Returns every AI provider row, including soft-deleted ones, so the
--- dbcrypt key rotation utility can re-encrypt their settings and
--- clear references to retired keys.
-SELECT
-    *
-FROM
-    ai_providers
-ORDER BY
-    name ASC;
-
--- name: UpdateAIProviderEncryptedColumns :one
--- Updates only the encrypted columns (settings, settings_key_id) and
+-- name: UpdateAIProviderSettings :one
+-- Updates only the settings columns (settings, settings_key_id) and
 -- the updated_at timestamp on a row, regardless of its deleted flag.
 -- Used by the dbcrypt key rotation utility to re-encrypt or decrypt
 -- rows in place.
 UPDATE
     ai_providers
 SET
-    settings = @settings::text,
+    settings = sqlc.narg('settings')::text,
     settings_key_id = sqlc.narg('settings_key_id')::text,
     updated_at = NOW()
 WHERE

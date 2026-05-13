@@ -21,6 +21,19 @@ ORDER BY
     created_at ASC,
     id ASC;
 
+-- name: GetAIProviderKeys :many
+-- Returns every AI provider key row, including those belonging to a
+-- soft-deleted provider, so the dbcrypt key rotation utility can
+-- re-encrypt their api_key and clear references to retired keys.
+SELECT
+    *
+FROM
+    ai_provider_keys
+ORDER BY
+    provider_id ASC,
+    created_at ASC,
+    id ASC;
+
 -- name: InsertAIProviderKey :one
 -- Optional created_at allows callers (e.g. env-driven seeding) to
 -- preserve insertion order across multiple rows in the same
@@ -52,20 +65,7 @@ WHERE
 RETURNING
     *;
 
--- name: GetAIProviderKeysForRotation :many
--- Returns every AI provider key row, even those whose provider has
--- been soft-deleted, so the dbcrypt key rotation utility can
--- re-encrypt their api_key and clear references to retired keys.
-SELECT
-    *
-FROM
-    ai_provider_keys
-ORDER BY
-    provider_id ASC,
-    created_at ASC,
-    id ASC;
-
--- name: UpdateAIProviderKeyEncryptedColumns :one
+-- name: UpdateEncryptedAIProviderKey :one
 -- Updates only the encrypted columns (api_key, api_key_key_id) and
 -- the updated_at timestamp on a row. Used by the dbcrypt key
 -- rotation utility to re-encrypt or decrypt rows in place.
