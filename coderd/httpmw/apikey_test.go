@@ -692,6 +692,85 @@ func TestAPIKey(t *testing.T) {
 		require.Equal(t, gotLink.OAuthRefreshToken, "moo")
 	})
 
+	t.Run("OAuthRefreshSingleflight", func(t *testing.T) {
+		t.Parallel()
+		// Verifies that concurrent ValidateAPIKey calls for the same user
+		// with an expired OAuth access token only trigger a single
+		// refresh against the IdP. Regression test for coder/coder#25275.
+		var (
+			db, _ = dbtestutil.NewDB(t)
+			user  = dbgen.User(t, db, database.User{})
+			_     = dbgen.UserLink(t, db, database.UserLink{
+				UserID:            user.ID,
+				LoginType:         database.LoginTypeGithub,
+				OAuthRefreshToken: "old-refresh",
+				OAuthAccessToken:  "old-access",
+				OAuthExpiry:       dbtime.Now().AddDate(0, 0, -1),
+			})
+		)
+		// Each request needs its own session token, but they share one user/link.
+		const concurrency = 5
+		tokens := make([]string, concurrency)
+		for i := range tokens {
+			_, tok := dbgen.APIKey(t, db, database.APIKey{
+				UserID:    user.ID,
+				LastUsed:  dbtime.Now(),
+				ExpiresAt: dbtime.Now().AddDate(0, 0, 1),
+				LoginType: database.LoginTypeGithub,
+			})
+			tokens[i] = tok
+		}
+
+		var refreshCalls atomic.Int64
+		// Slow the token source slightly so concurrent goroutines actually
+		// queue on the singleflight group rather than serializing on the
+		// scheduler.
+		oauthCfg := &testutil.OAuth2Config{
+			TokenSourceFunc: testutil.OAuth2TokenSource(func() (*oauth2.Token, error) {
+				refreshCalls.Add(1)
+				time.Sleep(50 * time.Millisecond)
+				return &oauth2.Token{
+					AccessToken:  "new-access",
+					RefreshToken: "new-refresh",
+					Expiry:       dbtestutil.NowInDefaultTimezone().AddDate(0, 0, 1),
+				}, nil
+			}),
+		}
+
+		mw := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+			DB:              db,
+			OAuth2Configs:   &httpmw.OAuth2Configs{Github: oauthCfg},
+			RedirectToLogin: false,
+		})
+
+		start := make(chan struct{})
+		results := make(chan int, concurrency)
+		for i := 0; i < concurrency; i++ {
+			tok := tokens[i]
+			go func() {
+				<-start
+				r := httptest.NewRequest("GET", "/", nil)
+				r.Header.Set(codersdk.SessionTokenHeader, tok)
+				rw := httptest.NewRecorder()
+				mw(successHandler).ServeHTTP(rw, r)
+				results <- rw.Result().StatusCode
+			}()
+		}
+		close(start)
+		for i := 0; i < concurrency; i++ {
+			require.Equal(t, http.StatusOK, <-results)
+		}
+		require.EqualValues(t, 1, refreshCalls.Load(),
+			"expected exactly one refresh request to the IdP for %d concurrent callers", concurrency)
+
+		gotLink, err := db.GetUserLinkByUserIDLoginType(context.Background(), database.GetUserLinkByUserIDLoginTypeParams{
+			UserID:    user.ID,
+			LoginType: database.LoginTypeGithub,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "new-refresh", gotLink.OAuthRefreshToken)
+	})
+
 	t.Run("OAuthExpiredNoRefresh", func(t *testing.T) {
 		t.Parallel()
 		var (
