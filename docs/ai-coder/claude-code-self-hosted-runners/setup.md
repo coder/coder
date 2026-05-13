@@ -71,6 +71,12 @@ RUN set -eux; \
     ln -sf /opt/claude/claude /usr/local/bin/claude; \
     /usr/local/bin/claude --version
 
+# Repository checkout root used by the self-hosted runner. The runner
+# defaults to `--base-dir /workspace` and will `mkdir` it on the first
+# session. Without this line the child claude (running as `coder`)
+# fails with: EACCES: permission denied, mkdir '/workspace'.
+RUN install -d -o coder -g coder /workspace
+
 # Drop back to the workspace user expected by Coder.
 USER coder
 ```
