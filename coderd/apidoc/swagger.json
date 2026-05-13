@@ -445,7 +445,6 @@
 			"patch": {
 				"description": "Experimental: this endpoint is subject to change.",
 				"consumes": ["application/json"],
-				"produces": ["application/json"],
 				"tags": ["Chats"],
 				"summary": "Update chat ACL",
 				"operationId": "update-chat-acl",

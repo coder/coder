@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -54,10 +55,10 @@ func TestChatACLSharingLifecycle(t *testing.T) {
 
 	err = client.UpdateChatACL(ctx, chat.ID, codersdk.UpdateChatACL{
 		UserRoles: map[string]codersdk.ChatRole{
-			sharedUser.ID.String(): codersdk.ChatRoleRead,
+			strings.ToUpper(sharedUser.ID.String()): codersdk.ChatRoleRead,
 		},
 		GroupRoles: map[string]codersdk.ChatRole{
-			sharedGroup.ID.String(): codersdk.ChatRoleRead,
+			strings.ToUpper(sharedGroup.ID.String()): codersdk.ChatRoleRead,
 		},
 	})
 	require.NoError(t, err)
@@ -70,6 +71,8 @@ func TestChatACLSharingLifecycle(t *testing.T) {
 
 	acl, err := client.GetChatACL(ctx, chat.ID)
 	require.NoError(t, err)
+	require.Len(t, acl.Users, 1)
+	require.Equal(t, sharedUser.ID.String(), acl.Users[0].ID.String())
 	require.Equal(t, map[uuid.UUID]codersdk.ChatRole{
 		sharedUser.ID: codersdk.ChatRoleRead,
 	}, chatUserRoles(acl.Users))
@@ -77,6 +80,7 @@ func TestChatACLSharingLifecycle(t *testing.T) {
 		sharedGroup.ID: codersdk.ChatRoleRead,
 	}, chatGroupRoles(acl.Groups))
 	require.Len(t, acl.Groups, 1)
+	require.Equal(t, sharedGroup.ID.String(), acl.Groups[0].ID.String())
 	require.Empty(t, acl.Groups[0].Members)
 	require.Equal(t, 1, acl.Groups[0].TotalMemberCount)
 

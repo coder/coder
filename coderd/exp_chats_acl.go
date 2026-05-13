@@ -78,7 +78,6 @@ func (api *API) getChatACL(rw http.ResponseWriter, r *http.Request) { //nolint:r
 // @Security CoderSessionToken
 // @Tags Chats
 // @Accept json
-// @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
 // @Param request body codersdk.UpdateChatACL true "Update chat ACL request"
 // @Success 204
@@ -263,12 +262,8 @@ func (api *API) chatACLGroups(ctx context.Context, rw http.ResponseWriter, chat 
 		}
 		entry := entries[group.Group.ID.String()]
 		groups = append(groups, codersdk.ChatGroup{
-			Group: db2sdk.Group(database.GetGroupsRow{
-				Group:                   group.Group,
-				OrganizationName:        group.OrganizationName,
-				OrganizationDisplayName: group.OrganizationDisplayName,
-			}, nil, int(memberCount)),
-			Role: convertToChatRole(entry.Permissions),
+			Group: db2sdk.Group(group, nil, int(memberCount)),
+			Role:  convertToChatRole(entry.Permissions),
 		})
 	}
 	return groups, true
