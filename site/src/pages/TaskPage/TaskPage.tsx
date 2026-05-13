@@ -747,7 +747,7 @@ const TaskPaused: FC<TaskPausedProps> = ({
 				open={apiError !== undefined}
 				error={apiError}
 				onClose={resumeMutation.reset}
-				showDetail={true}
+				showDetail
 				workspaceOwner={workspace.owner_name}
 				workspaceName={workspace.name}
 				templateVersionId={workspace.latest_build.template_version_id}

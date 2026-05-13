@@ -334,7 +334,7 @@ describe("AgentsSidebar load-more behavior", () => {
 					{...defaultProps}
 					hasNextPage
 					onLoadMore={onLoadMore}
-					isFetchingNextPage={true}
+					isFetchingNextPage
 				/>
 			</Wrapper>,
 		);
