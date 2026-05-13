@@ -33,13 +33,40 @@ func LegacyEventSubject(event string) (Subject, error) {
 	if event == "" {
 		return "", xerrors.Errorf("legacy event: %w", ErrEmptySubject)
 	}
-	parts := strings.Split(event, ":")
-	for _, p := range parts {
-		if err := ValidateToken(p); err != nil {
-			return "", xerrors.Errorf("legacy event %q: %w", event, err)
+	const mid = ".pubsub."
+	var b strings.Builder
+	b.Grow(len(DefaultSubjectPrefix) + len(mid) + len(event))
+	_, _ = b.WriteString(DefaultSubjectPrefix)
+	_, _ = b.WriteString(mid)
+	// tokenStart tracks the index in event where the current token began,
+	// so we can report an empty-token error with the same wrapping as the
+	// previous Split + ValidateToken implementation.
+	tokenStart := 0
+	for i := 0; i < len(event); i++ {
+		c := event[i]
+		if c == ':' {
+			if i == tokenStart {
+				return "", xerrors.Errorf("legacy event %q: empty token: %w", event, ErrInvalidToken)
+			}
+			_ = b.WriteByte('.')
+			tokenStart = i + 1
+			continue
 		}
+		switch {
+		case c >= 'A' && c <= 'Z':
+		case c >= 'a' && c <= 'z':
+		case c >= '0' && c <= '9':
+		case c == '_' || c == '-':
+		default:
+			return "", xerrors.Errorf("legacy event %q: token contains disallowed character %q: %w", event, rune(c), ErrInvalidToken)
+		}
+		_ = b.WriteByte(c)
 	}
-	return Subject(DefaultSubjectPrefix + ".pubsub." + strings.Join(parts, ".")), nil
+	if tokenStart == len(event) {
+		// Trailing colon (or all-colons): the last token is empty.
+		return "", xerrors.Errorf("legacy event %q: empty token: %w", event, ErrInvalidToken)
+	}
+	return Subject(b.String()), nil
 }
 
 // BuildSubject builds a native coder.v1 subject from a domain and tokens.
