@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, waitFor, within } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 import type { SecretRequirementStatus } from "#/api/typesGenerated";
 import { SecretsTable, secretRequirementLabel } from "./SecretsTable";
 
@@ -20,7 +20,7 @@ const awsAccessKey: SecretRequirementStatus = {
 const awsSecretKey: SecretRequirementStatus = {
 	env: "AWS_SECRET_ACCESS_KEY",
 	help_message:
-		"Secret key paired with AWS_ACCESS_KEY_ID. This description is intentionally long so the row truncates the visible text and relies on the information tooltip for the complete value.",
+		"Secret key paired with AWS_ACCESS_KEY_ID. This description is intentionally long so the row truncates the visible text and uses the hover title for the complete value.",
 	satisfied: false,
 };
 
@@ -60,9 +60,20 @@ const expectSecretsTable = async (
 	expect(rows[0]).toHaveTextContent(/description/i);
 	expect(rows[0]).toHaveTextContent(/action/i);
 	const bodyRows = rows.slice(1);
-	for (const [index, { label }] of expectedRequirements.entries()) {
-		expect(bodyRows[index]).toHaveTextContent(label);
+	for (const [
+		index,
+		{ requirement, label },
+	] of expectedRequirements.entries()) {
+		const row = bodyRows[index];
+		expect(row).toHaveTextContent(label);
+		expect(within(row).getByTitle(label)).toBeVisible();
+		if (requirement.help_message) {
+			expect(within(row).getByTitle(requirement.help_message)).toBeVisible();
+		}
 	}
+	expect(
+		within(table).queryByRole("button", { name: /show full description/i }),
+	).toBeNull();
 
 	const manageSecretsLink = canvas.getByRole("link", {
 		name: /view cli documentation/i,
@@ -163,34 +174,25 @@ export const SingleRow: Story = {
 	},
 };
 
-export const TooltipOnlyWhenTruncated: Story = {
+export const FullTextAvailableOnHover: Story = {
 	args: {
 		requirements: [githubToken, awsCredentials],
 	},
 	render: (args) => (
-		<div style={{ width: 640 }}>
+		<div style={{ width: 320 }}>
 			<SecretsTable {...args} />
 		</div>
 	),
-	play: async ({ canvasElement }) => {
+	play: async ({ canvasElement, args }) => {
+		await expectSecretsTable(canvasElement, args.requirements);
+
 		const canvas = within(canvasElement);
+		const secretName = canvas.getByTitle("GITHUB_TOKEN");
+		const description = canvas.getByTitle(githubTokenHelpMessage);
 
-		const githubTooltipButton = await canvas.findByRole("button", {
-			name: /show full description for github_token/i,
-		});
-		expect(githubTooltipButton).toBeVisible();
-		expect(
-			canvas.queryByRole("button", {
-				name: /show full description for ~\/\.aws\/credentials/i,
-			}),
-		).toBeNull();
-
-		await userEvent.hover(githubTooltipButton);
-		await waitFor(() =>
-			expect(
-				within(document.body).getByText(githubTokenHelpMessage),
-			).toBeVisible(),
-		);
-		await userEvent.unhover(githubTooltipButton);
+		await userEvent.hover(secretName);
+		expect(secretName).toHaveAttribute("title", "GITHUB_TOKEN");
+		await userEvent.hover(description);
+		expect(description).toHaveAttribute("title", githubTokenHelpMessage);
 	},
 };

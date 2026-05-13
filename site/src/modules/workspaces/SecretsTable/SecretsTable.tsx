@@ -1,10 +1,5 @@
-import {
-	CircleAlertIcon,
-	CircleCheckIcon,
-	CircleXIcon,
-	InfoIcon,
-} from "lucide-react";
-import { type FC, useLayoutEffect, useRef, useState } from "react";
+import { CircleAlertIcon, CircleCheckIcon, CircleXIcon } from "lucide-react";
+import type { FC } from "react";
 import type { SecretRequirementStatus } from "#/api/typesGenerated";
 import { Link } from "#/components/Link/Link";
 import {
@@ -15,12 +10,6 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
 import { docs } from "#/utils/docs";
 
 const MANAGE_SECRETS_PATH = "/reference/cli/secret_create";
@@ -112,11 +101,16 @@ export const SecretsTable: FC<SecretsTableProps> = ({
 			)}
 
 			<Table aria-label="Required secrets" className="table-fixed text-sm">
+				<colgroup>
+					<col className="w-[45%]" />
+					<col />
+					<col className="w-28" />
+				</colgroup>
 				<TableHeader className="sr-only">
 					<TableRow>
-						<TableHead className="w-[42%] px-4 py-2">Secret</TableHead>
+						<TableHead className="px-4 py-2">Secret</TableHead>
 						<TableHead className="px-4 py-2">Description</TableHead>
-						<TableHead className="w-32 px-4 py-2 text-right">Action</TableHead>
+						<TableHead className="px-4 py-2 text-right">Action</TableHead>
 					</TableRow>
 				</TableHeader>
 				<TableBody>
@@ -131,16 +125,18 @@ export const SecretsTable: FC<SecretsTableProps> = ({
 
 						return (
 							<TableRow key={key}>
-								<TableCell className="w-[42%] overflow-hidden px-4 py-2 text-content-primary">
+								<TableCell className="overflow-hidden px-4 py-2 text-content-primary">
 									<div className="flex min-w-0 items-center gap-3">
 										<StatusIcon satisfied={requirement.satisfied} />
-										<div className="min-w-0 truncate">{label}</div>
+										<div className="min-w-0 truncate" title={label}>
+											{label}
+										</div>
 									</div>
 								</TableCell>
 								<TableCell className="overflow-hidden px-4 py-2 text-content-secondary">
-									<HelpMessage requirement={requirement} label={label} />
+									<HelpMessage requirement={requirement} />
 								</TableCell>
-								<TableCell className="w-32 px-4 py-2 text-right">
+								<TableCell className="px-4 py-2 text-right">
 									{!requirement.satisfied && (
 										<Link
 											href={manageSecretsHref}
@@ -164,71 +160,16 @@ export const SecretsTable: FC<SecretsTableProps> = ({
 
 const HelpMessage: FC<{
 	requirement: SecretRequirementStatus;
-	label: string;
-}> = ({ requirement, label }) => {
+}> = ({ requirement }) => {
 	const helpMessage = requirement.help_message;
-	const [isTruncated, setIsTruncated] = useState(false);
-	const containerRef = useRef<HTMLDivElement>(null);
-	const messageRef = useRef<HTMLSpanElement>(null);
-
-	useLayoutEffect(() => {
-		if (!helpMessage) {
-			setIsTruncated(false);
-			return;
-		}
-
-		const container = containerRef.current;
-		const message = messageRef.current;
-		if (!container || !message) {
-			return;
-		}
-
-		const updateIsTruncated = () => {
-			setIsTruncated(message.scrollWidth > container.clientWidth);
-		};
-		updateIsTruncated();
-
-		if (typeof ResizeObserver === "undefined") {
-			return;
-		}
-
-		const resizeObserver = new ResizeObserver(updateIsTruncated);
-		resizeObserver.observe(container);
-		resizeObserver.observe(message);
-		return () => resizeObserver.disconnect();
-	}, [helpMessage]);
-
 	if (!helpMessage) {
 		return null;
 	}
 
 	return (
-		<div
-			ref={containerRef}
-			className="flex min-w-0 max-w-full items-center gap-1.5"
-		>
-			<span ref={messageRef} className="truncate">
-				{helpMessage}
-			</span>
-			{isTruncated && (
-				<TooltipProvider delayDuration={100}>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<button
-								type="button"
-								aria-label={`Show full description for ${label}`}
-								className="flex shrink-0 cursor-help items-center border-0 border-none bg-transparent p-0 text-content-secondary hover:text-content-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-content-link"
-							>
-								<InfoIcon className="size-icon-xs" aria-hidden="true" />
-							</button>
-						</TooltipTrigger>
-						<TooltipContent className="max-w-sm whitespace-normal">
-							{helpMessage}
-						</TooltipContent>
-					</Tooltip>
-				</TooltipProvider>
-			)}
-		</div>
+		<span className="block truncate" title={helpMessage}>
+			{helpMessage}
+		</span>
 	);
 };
 
