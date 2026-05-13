@@ -108,9 +108,7 @@ export const ExecuteAlwaysCollapsed: Story = {
 		expect(
 			canvas.queryByText(/From github\.com:coder\/coder/),
 		).not.toBeInTheDocument();
-		await userEvent.click(
-			canvas.getByRole("button", { name: "Expand command output" }),
-		);
+		await userEvent.click(canvas.getByText(executeCommand));
 		await waitFor(() => {
 			expect(canvas.getByText(/From github\.com:coder\/coder/)).toBeVisible();
 		});

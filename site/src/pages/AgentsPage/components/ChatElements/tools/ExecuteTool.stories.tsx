@@ -45,7 +45,9 @@ export const LongCommand: Story = {
 			canvas.queryByRole("button", { name: longCommand }),
 		).not.toBeInTheDocument();
 		await userEvent.hover(command);
-		expect(await screen.findByRole("tooltip")).toHaveTextContent(longCommand);
+		expect(
+			await screen.findByRole("tooltip", undefined, { timeout: 2000 }),
+		).toHaveTextContent(longCommand);
 	},
 };
 

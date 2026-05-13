@@ -82,23 +82,37 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 	const durationLabel = formatShellDurationMs(durationMs);
 
 	return (
-		<div className="group/exec grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-2 rounded-md bg-surface-primary font-mono text-xs leading-5 sm:grid-cols-[auto_minmax(0,1fr)_auto_auto]">
-			<span className="col-start-1 row-start-1 shrink-0 text-content-success">
-				$
-			</span>
-			<div className="col-start-2 row-start-1 min-w-0">
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<span className="block truncate text-content-primary">
-							{command}
-						</span>
-					</TooltipTrigger>
-					<TooltipContent className="max-w-xl whitespace-pre-wrap break-all font-mono">
-						{command}
-					</TooltipContent>
-				</Tooltip>
-			</div>
-			<div className="col-start-3 row-start-1 flex shrink-0 items-center gap-1">
+		<div className="group/exec grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 rounded-md bg-surface-primary font-mono text-xs leading-5">
+			<Tooltip delayDuration={300}>
+				<TooltipTrigger asChild>
+					{hasOutput ? (
+						<button
+							type="button"
+							aria-expanded={outputExpanded}
+							aria-label={outputToggleLabel}
+							onClick={() => setOutputExpanded((value) => !value)}
+							className="col-start-1 row-start-1 m-0 flex w-full min-w-0 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-left font-[inherit] text-[inherit] text-content-secondary transition-colors hover:text-content-primary"
+						>
+							<ShellCommandLine
+								command={command}
+								durationLabel={durationLabel}
+								expanded={outputExpanded}
+							/>
+						</button>
+					) : (
+						<div className="col-start-1 row-start-1 flex min-w-0 items-center gap-2 text-content-secondary">
+							<ShellCommandLine
+								command={command}
+								durationLabel={durationLabel}
+							/>
+						</div>
+					)}
+				</TooltipTrigger>
+				<TooltipContent className="max-w-xl whitespace-pre-wrap break-all font-mono">
+					{command}
+				</TooltipContent>
+			</Tooltip>
+			<div className="col-start-2 row-start-1 flex shrink-0 items-center gap-1">
 				{isRunning && (
 					<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
 				)}
@@ -126,14 +140,6 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 					className="-my-0.5 size-6 p-0 opacity-0 transition-opacity hover:bg-surface-tertiary group-hover/exec:opacity-100"
 				/>
 			</div>
-			{hasOutput && (
-				<ShellOutputToggle
-					expanded={outputExpanded}
-					label={outputToggleLabel}
-					durationLabel={durationLabel}
-					onToggle={() => setOutputExpanded((value) => !value)}
-				/>
-			)}
 			{hasOutput && outputExpanded && (
 				<ShellOutputBody output={output} isError={isError} />
 			)}
@@ -141,29 +147,31 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 	);
 };
 
-const ShellOutputToggle: React.FC<{
-	expanded: boolean;
-	label: string;
+const ShellCommandLine: React.FC<{
+	command: string;
 	durationLabel: string;
-	onToggle: () => void;
-}> = ({ expanded, label, durationLabel, onToggle }) => {
+	expanded?: boolean;
+}> = ({ command, durationLabel, expanded }) => {
 	return (
-		<button
-			type="button"
-			aria-expanded={expanded}
-			aria-label={label}
-			onClick={onToggle}
-			className="col-start-2 col-span-2 row-start-2 mt-1 flex min-w-0 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 font-mono text-xs leading-5 text-content-secondary hover:text-content-primary sm:col-start-4 sm:col-span-1 sm:row-start-1 sm:mt-0"
-		>
-			<span className="sm:hidden">output</span>
-			{durationLabel && <span>{durationLabel}</span>}
-			<ChevronDownIcon
-				className={cn(
-					"size-3.5 shrink-0 transition-transform",
-					expanded ? "rotate-180" : "",
-				)}
-			/>
-		</button>
+		<>
+			<span className="shrink-0 text-content-success">$</span>
+			<span className="block min-w-0 truncate text-content-primary">
+				{command}
+			</span>
+			{durationLabel && (
+				<span className="shrink-0 text-[11px] text-content-secondary">
+					{durationLabel}
+				</span>
+			)}
+			{expanded !== undefined && (
+				<ChevronDownIcon
+					className={cn(
+						"h-3 w-3 shrink-0 text-current transition-transform",
+						expanded ? "rotate-0" : "-rotate-90",
+					)}
+				/>
+			)}
+		</>
 	);
 };
 
@@ -173,7 +181,7 @@ const ShellOutputBody: React.FC<{
 }> = ({ output, isError }) => {
 	return (
 		<ScrollArea
-			className="col-start-1 col-span-3 mt-1 rounded-md border border-solid border-border-default/50 bg-surface-secondary/30 text-2xs sm:col-span-4"
+			className="col-start-1 col-span-2 mt-1 rounded-md border border-solid border-border-default/50 bg-surface-secondary/30 text-2xs"
 			viewportClassName="max-h-64"
 			scrollBarClassName="w-1.5"
 		>
