@@ -57,7 +57,7 @@ import (
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/awsidentity"
-		"github.com/coder/coder/v2/coderd/azureidentity"
+	"github.com/coder/coder/v2/coderd/azureidentity"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbrollup"

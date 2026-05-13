@@ -59,7 +59,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/awsidentity"
-		"github.com/coder/coder/v2/coderd/azureidentity"
+	"github.com/coder/coder/v2/coderd/azureidentity"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
