@@ -18,10 +18,23 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/acl"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func (api *API) chatACL(rw http.ResponseWriter, r *http.Request) {
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Get chat ACLs
+// @ID get-chat-acls
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Param chat path string true "Chat ID" format(uuid)
+// @Success 200 {object} codersdk.ChatACL
+// @Router /api/experimental/chats/{chat}/acl [get]
+// @x-apidocgen {"skip": true}
+// @Description Experimental: this endpoint is subject to change.
+func (api *API) getChatACL(rw http.ResponseWriter, r *http.Request) { //nolint:revive // HTTP handler writes to ResponseWriter.
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
 
@@ -58,6 +71,20 @@ func (api *API) chatACL(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Update chat ACL
+// @ID update-chat-acl
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Produce json
+// @Param chat path string true "Chat ID" format(uuid)
+// @Param request body codersdk.UpdateChatACL true "Update chat ACL request"
+// @Success 204
+// @Router /api/experimental/chats/{chat}/acl [patch]
+// @x-apidocgen {"skip": true}
+// @Description Experimental: this endpoint is subject to change.
 func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
@@ -77,6 +104,10 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 	}
 	if chat.IsSubChat() {
 		writeChatACLSubChatError(ctx, rw, chat)
+		return
+	}
+	if !api.Authorize(r, policy.ActionShare, chat.RBACObject()) {
+		httpapi.Forbidden(rw)
 		return
 	}
 
@@ -109,9 +140,6 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 		current, err := tx.GetChatByIDForUpdate(ctx, chat.ID)
 		if err != nil {
 			return xerrors.Errorf("get chat by ID: %w", err)
-		}
-		if current.IsSubChat() {
-			return errChatACLSubChat
 		}
 		if current.UserACL == nil {
 			current.UserACL = database.ChatACL{}
@@ -154,10 +182,6 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 		return nil
 	}, nil)
 	if err != nil {
-		if xerrors.Is(err, errChatACLSubChat) {
-			writeChatACLSubChatError(ctx, rw, chat)
-			return
-		}
 		if dbauthz.IsNotAuthorizedError(err) {
 			httpapi.Forbidden(rw)
 			return
@@ -226,10 +250,10 @@ func (api *API) chatACLGroups(ctx context.Context, rw http.ResponseWriter, chat 
 
 	groups := make([]codersdk.ChatGroup, 0, len(dbGroups))
 	for _, group := range dbGroups {
-		// Group display parity requires member counts even when ACL readers do not
-		// have direct group member read permissions.
+		// Group member totals stay visible even when the caller cannot read
+		// the group's membership directly.
 		//nolint:gocritic
-		members, err := api.Database.GetGroupMembersByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersByGroupIDParams{
+		memberCount, err := api.Database.GetGroupMembersCountByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersCountByGroupIDParams{
 			GroupID:       group.Group.ID,
 			IncludeSystem: false,
 		})
@@ -243,7 +267,7 @@ func (api *API) chatACLGroups(ctx context.Context, rw http.ResponseWriter, chat 
 				Group:                   group.Group,
 				OrganizationName:        group.OrganizationName,
 				OrganizationDisplayName: group.OrganizationDisplayName,
-			}, members, len(members)),
+			}, nil, int(memberCount)),
 			Role: convertToChatRole(entry.Permissions),
 		})
 	}
@@ -279,8 +303,6 @@ func writeChatACLSubChatError(ctx context.Context, rw http.ResponseWriter, chat 
 
 type ChatACLUpdateValidator codersdk.UpdateChatACL
 
-var errChatACLSubChat = xerrors.New("chat ACLs can only be set on root chats")
-
 var _ acl.UpdateValidator[codersdk.ChatRole] = ChatACLUpdateValidator{}
 
 func (c ChatACLUpdateValidator) Users() (map[string]codersdk.ChatRole, string) {
@@ -299,12 +321,16 @@ func (ChatACLUpdateValidator) ValidateRole(role codersdk.ChatRole) error {
 }
 
 func convertToChatRole(actions []policy.Action) codersdk.ChatRole {
-	if len(actions) == 1 && actions[0] == policy.ActionRead {
+	if slice.SameElements(actions, db2sdk.ChatRoleActions(codersdk.ChatRoleRead)) {
 		return codersdk.ChatRoleRead
 	}
+
 	return codersdk.ChatRoleDeleted
 }
 
+// UUIDs can arrive with non-canonical casing from clients. Normalizing
+// keys avoids duplicate logical ACL entries and keeps audit comparisons
+// stable.
 func canonicalChatACLKeys(entries map[string]codersdk.ChatRole) map[string]codersdk.ChatRole {
 	if len(entries) == 0 {
 		return entries

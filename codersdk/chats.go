@@ -109,7 +109,7 @@ type Chat struct {
 	ID                uuid.UUID          `json:"id" format:"uuid"`
 	OrganizationID    uuid.UUID          `json:"organization_id" format:"uuid"`
 	OwnerID           uuid.UUID          `json:"owner_id" format:"uuid"`
-	OwnerUsername     string             `json:"owner_username"`
+	OwnerUsername     string             `json:"owner_username,omitempty"`
 	OwnerName         string             `json:"owner_name,omitempty"`
 	WorkspaceID       *uuid.UUID         `json:"workspace_id,omitempty" format:"uuid"`
 	BuildID           *uuid.UUID         `json:"build_id,omitempty" format:"uuid"`
@@ -2971,7 +2971,7 @@ func (c *ExperimentalClient) GetChat(ctx context.Context, chatID uuid.UUID) (Cha
 	return chat, json.NewDecoder(res.Body).Decode(&chat)
 }
 
-func (c *ExperimentalClient) ChatACL(ctx context.Context, chatID uuid.UUID) (ChatACL, error) {
+func (c *ExperimentalClient) GetChatACL(ctx context.Context, chatID uuid.UUID) (ChatACL, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/acl", chatID), nil)
 	if err != nil {
 		return ChatACL{}, err

@@ -1449,7 +1449,7 @@ export interface Chat {
 	readonly id: string;
 	readonly organization_id: string;
 	readonly owner_id: string;
-	readonly owner_username: string;
+	readonly owner_username?: string;
 	readonly owner_name?: string;
 	readonly workspace_id?: string;
 	readonly build_id?: string;

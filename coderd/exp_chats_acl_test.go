@@ -68,7 +68,7 @@ func TestChatACLSharingLifecycle(t *testing.T) {
 		UserID:       firstUser.UserID,
 	}))
 
-	acl, err := client.ChatACL(ctx, chat.ID)
+	acl, err := client.GetChatACL(ctx, chat.ID)
 	require.NoError(t, err)
 	require.Equal(t, map[uuid.UUID]codersdk.ChatRole{
 		sharedUser.ID: codersdk.ChatRoleRead,
@@ -76,11 +76,17 @@ func TestChatACLSharingLifecycle(t *testing.T) {
 	require.Equal(t, map[uuid.UUID]codersdk.ChatRole{
 		sharedGroup.ID: codersdk.ChatRoleRead,
 	}, chatGroupRoles(acl.Groups))
+	require.Len(t, acl.Groups, 1)
+	require.Empty(t, acl.Groups[0].Members)
+	require.Equal(t, 1, acl.Groups[0].TotalMemberCount)
 
-	sharedACL, err := sharedClient.ChatACL(ctx, chat.ID)
+	sharedACL, err := sharedClient.GetChatACL(ctx, chat.ID)
 	require.NoError(t, err)
 	require.Equal(t, chatUserRoles(acl.Users), chatUserRoles(sharedACL.Users))
 	require.Equal(t, chatGroupRoles(acl.Groups), chatGroupRoles(sharedACL.Groups))
+	require.Len(t, sharedACL.Groups, 1)
+	require.Empty(t, sharedACL.Groups[0].Members)
+	require.Equal(t, 1, sharedACL.Groups[0].TotalMemberCount)
 
 	sharedChat, err := sharedClient.GetChat(ctx, chat.ID)
 	require.NoError(t, err)
@@ -125,6 +131,13 @@ func TestChatACLSharingLifecycle(t *testing.T) {
 	})
 	requireSDKError(t, err, http.StatusForbidden)
 
+	err = sharedClient.UpdateChatACL(ctx, chat.ID, codersdk.UpdateChatACL{
+		UserRoles: map[string]codersdk.ChatRole{
+			uuid.NewString(): codersdk.ChatRoleRead,
+		},
+	})
+	requireSDKError(t, err, http.StatusForbidden)
+
 	err = client.UpdateChatACL(ctx, chat.ID, codersdk.UpdateChatACL{
 		UserRoles: map[string]codersdk.ChatRole{
 			firstUser.UserID.String(): codersdk.ChatRoleRead,
@@ -141,6 +154,8 @@ func TestChatACLSharingLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	_, err = sharedClient.GetChat(ctx, chat.ID)
 	requireSDKError(t, err, http.StatusNotFound)
+	_, err = groupMemberClient.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
 
 	mAudit.ResetLogs()
 	err = client.UpdateChatACL(ctx, chat.ID, codersdk.UpdateChatACL{
@@ -202,7 +217,7 @@ func TestChatACLSubChatInheritance(t *testing.T) {
 	sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 	require.Equal(t, "Chat ACLs can only be set on root chats.", sdkErr.Message)
 
-	_, err = client.ChatACL(ctx, child.ID)
+	_, err = client.GetChatACL(ctx, child.ID)
 	sdkErr = requireSDKError(t, err, http.StatusBadRequest)
 	require.Equal(t, "Chat ACLs can only be set on root chats.", sdkErr.Message)
 }
@@ -286,7 +301,6 @@ func TestChatACLValidation(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -422,7 +436,7 @@ func TestChatSharingDisabled(t *testing.T) {
 	_, err = viewerClient.GetChat(ctx, chat.ID)
 	requireSDKError(t, err, http.StatusNotFound)
 
-	_, err = client.ChatACL(ctx, chat.ID)
+	_, err = client.GetChatACL(ctx, chat.ID)
 	sdkErr := requireSDKError(t, err, http.StatusForbidden)
 	require.Equal(t, "Chat sharing is disabled for this deployment.", sdkErr.Message)
 
