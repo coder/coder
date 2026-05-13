@@ -1,398 +1,381 @@
-# Client-side connection-pool extension for `coderd/x/nats.Pubsub`
+# Per-subscription in-memory NATS connections for coderd/x/nats.Pubsub
+
+This document is the recommended design for fixing wide fan-out failures in
+the `coderd/x/nats` pubsub wrapper. It supersedes an earlier proposal for a
+striped TCP loopback connection pool. There is no menu of alternatives here:
+the recommendation is one `*nats.Conn` per local subscription, using
+`nats.InProcessServer`, plus one wrapper-owned in-process publisher
+connection.
+
+The public `pubsub.Pubsub` interface (`Publish`, `Subscribe`,
+`SubscribeWithErr`) does not change. Internal `coderd/x/nats.Pubsub`,
+`Options`, `New`, and `NewFromConn` do.
 
 ## 1. Problem restatement
 
-`coderd/x/nats.Pubsub` currently concentrates all wrapper traffic for one
-replica through one NATS client connection. The `Pubsub` struct stores a single
-`*natsgo.Conn` in `p.nc` (`coderd/x/nats/pubsub.go:20-26`), `New` creates one
-connection and assigns it to `p.nc` (`coderd/x/nats/pubsub.go:159-166`), and
-both `Publish` and `SubscribeWithErr` use that same connection
-(`coderd/x/nats/pubsub.go:290-317`, `coderd/x/nats/pubsub.go:335-360`). With
-wide local fan-out, NATS server must enqueue one outbound copy per local
-subscription behind that one client. The captured benchmarks show that this is
-healthy for thin fan-out, `BenchmarkPubsubThinFanout/coder/cluster10/subj1/512KiB`
-reached 100 percent delivery at 1653 pubs/s, but fails when many subscriptions
-are concentrated on each wrapper client: `BenchmarkPubsub/coder/cluster10/subj1/512KiB`
-reached only 2.99 percent delivery, `BenchmarkPubsub/coder/cluster10/subj10/512KiB`
-reached 40.92 percent, and the hot-subject concentrated benchmark reached only
-0.23 to 14.69 percent. This is distinct from server route pooling: server
-options map `Options.RoutePoolSize` into `natsserver.ClusterOpts.PoolSize`
-(`coderd/x/nats/server.go:98-115`), which parallelizes route traffic, not the
-server-to-local-wrapper client outbound queue.
+Today the wrapper concentrates all publish and subscribe traffic for a given
+`coderd/x/nats.Pubsub` instance through a single `*nats.Conn`:
 
-## 2. Existing wrapper facts that constrain the design
+- `Pubsub` stores one embedded server pointer and one NATS client pointer
+  (`coderd/x/nats/pubsub.go:20-26`).
+- `New` starts the embedded server, dials it once via `connectInProcess`,
+  and stores the result in `p.nc` (`coderd/x/nats/pubsub.go:115-166`).
+- `Publish` writes through `p.nc` (`coderd/x/nats/pubsub.go:290-317`).
+- `SubscribeWithErr` creates every NATS subscription on `p.nc` and starts
+  one drain goroutine per subscription
+  (`coderd/x/nats/pubsub.go:335-390`, `coderd/x/nats/pubsub.go:408-429`).
 
-- `Pubsub` stores one embedded server pointer and one NATS client pointer today
-  (`coderd/x/nats/pubsub.go:20-26`). `New` connects once through
-  `connectInProcess` and stores the result in `p.nc`
-  (`coderd/x/nats/pubsub.go:115-166`), while `NewFromConn` wraps one external
-  connection without owning it (`coderd/x/nats/pubsub.go:169-180`).
-- `connectInProcess` connects to `ns.ClientURL()` over TCP loopback and applies
-  client options and handlers (`coderd/x/nats/server.go:168-207`). `Options`
-  has no client pool setting today (`coderd/x/nats/options.go:19-97`).
-- `Publish` maps the event with `LegacyEventSubject`, publishes on `p.nc`, and
-  records wrapper metrics (`coderd/x/nats/pubsub.go:290-317`).
-  `SubscribeWithErr` maps the event, subscribes synchronously on `p.nc`, applies
-  pending limits, registers bookkeeping, and starts one goroutine per
-  subscription (`coderd/x/nats/pubsub.go:335-390`).
-- Each subscription goroutine calls `NextMsgWithContext` and invokes its
-  listener independently (`coderd/x/nats/pubsub.go:408-429`), so the wrapper
-  does not provide global callback ordering across listeners on one subject.
-- Slow-consumer handling is subscription-specific via `subsByNATS` and shared
-  wrapper metrics (`coderd/x/nats/pubsub.go:432-481`). `Close` drains one owned
-  connection and waits on one `closedCh` (`coderd/x/nats/pubsub.go:483-528`).
-- Metrics are wrapper-scoped and unlabeled by connection; `Collect` sums pending
-  messages and bytes across all subscriptions (`coderd/x/nats/metrics.go:38-108`,
-  `coderd/x/nats/metrics.go:131-170`).
-- `RefreshPeers` reloads embedded server route URLs and does not touch the
-  client connection (`coderd/x/nats/pubsub.go:183-255`).
+With many local subscriptions all owned by one client connection, the
+embedded server must enqueue one outbound copy per local subscription into
+that single client's outbound queue. Once that per-client queue passes the
+server's `MaxPending` budget the server disconnects the client as a slow
+consumer.
 
-## 3. Design recommendation
+Previously captured benches show this concentration failure mode clearly:
 
-### 3.1 High-level shape
+- `BenchmarkPubsub/coder/cluster10/subj1/512KiB` fails on wide fan-out.
+- `BenchmarkPubsub/coder/cluster10/subj10/512KiB` fails the same way.
+- `BenchmarkPubsubHotSubjectConcentrated/coder/standalone/subs1000/512KiB`
+  and `subs5000/512KiB` fail with the same per-client backpressure pattern.
 
-Add a client-side subscriber connection pool to `Pubsub`. The pool must reduce
-server outbound queue concentration by making the embedded server see multiple
-local wrapper client connections, each with only a fraction of the wrapper's
-subscriptions.
+Thin fan-out cases pass because the per-client outbound budget is never
+under pressure.
 
-Recommended struct shape, expressed as type signatures only:
+Server route pooling is not the fix. `Options.RoutePoolSize` configures NATS
+server-to-server route pool size and is forwarded into the embedded server's
+cluster options (`coderd/x/nats/server.go:98-115`). It controls route
+traffic between servers, not the server's outbound queue toward a local
+wrapper client connection. The bottleneck described above lives entirely on
+the server-to-local-client edge.
+
+The recommended fix is structural: stop multiplexing many local
+subscriptions through one client connection. Give each subscription its own
+in-memory client connection so the server's per-client outbound budget
+applies per subscription instead of per wrapper.
+
+## 2. Design recommendation: the per-sub-conn model
+
+Architecture:
+
+- `New` starts the embedded server (unchanged) and opens exactly one
+  in-process publisher connection, `pubConn`, via
+  `nats.Connect("", nats.InProcessServer(ns), ...)`.
+- Every `Subscribe` and `SubscribeWithErr` call opens a fresh
+  `*nats.Conn` with `nats.InProcessServer(p.ns)` and creates exactly one
+  NATS subscription on that connection.
+- Canceling the returned `pubsub.CancelFunc` closes that subscription's
+  dedicated connection.
+- `Close` tears down all subscription connections, then `pubConn`, then the
+  embedded server.
+
+Consequences:
+
+- No TCP loopback in the default `New` path. No ephemeral port consumption.
+- No pool size knob. No subject striping. No FNV hash. No `connIndex`
+  bookkeeping.
+- The server's per-client `MaxPending` becomes a per-subscription budget,
+  not a shared budget across all subscriptions owned by one wrapper.
+- nats.go's per-client reader goroutine count grows with subscription
+  count. That is an explicit, accepted tradeoff (see section 6).
+
+Compact shape, not a full implementation:
 
 ```go
-type Options struct {
-    ClientConnPoolSize int
-}
-
 type Pubsub struct {
-    subConns []pooledConn
-    pubConn  *pooledConn
+    ns      *natsserver.Server
+    pubConn *natsgo.Conn
+    subs    map[uuid.UUID]*subscription
+    // existing wrapper metrics, peer refresh state, locks, and close state.
 }
 
-type pooledConn struct {
-    index    int
-    nc       *natsgo.Conn
-    closedCh chan struct{}
+type subscription struct {
+    id  uuid.UUID
+    nc  *natsgo.Conn
+    sub *natsgo.Subscription
+    // existing context, cancel, wait group, listener, and drop counters.
 }
 ```
 
-Implementation notes:
+`NewFromConn` is the explicit exception:
 
-- Replace `p.nc` with a set of owned client connections. A field name like
-  `subConns` is more precise than `ncs` because the pool's main job is spreading
-  subscriptions across server outbound queues.
-- Keep `NewFromConn` as a single-connection wrapper. It should populate
-  `subConns` with one external connection, set `pubConn` to that same entry, and
-  leave ownership false. A future `NewFromConns` is out of scope.
-- Normalize `Options.ClientConnPoolSize <= 0` to `1` at construction time. This
-  preserves current default behavior for existing tests and callers.
-- For `ClientConnPoolSize == 1`, reuse the one subscriber connection as the
-  publisher connection. This keeps the current connection count and the current
-  one-connection behavior by default.
-- For `ClientConnPoolSize > 1`, create `N` subscriber connections plus one
-  dedicated publisher connection. The dedicated publisher connection has no
-  wrapper subscriptions, which keeps publisher writes isolated from subscriber
-  receive pressure and avoids choosing a subscriber connection for publishes.
+- It accepts one external `*nats.Conn` and uses that connection for both
+  publish and subscribe.
+- It does not get the per-subscription connection isolation benefit.
+- It stays intentionally simple. Callers who choose `NewFromConn` own the
+  topology and the per-client budget themselves.
 
-### 3.2 Subscription routing
+Metrics stay wrapper-scoped. Existing metric cardinality is already low and
+pending gauges sum over `p.subs` (`coderd/x/nats/metrics.go:38-108`,
+`coderd/x/nats/metrics.go:143-170`). Do not add per-connection labels: that
+would explode cardinality with the subscription count.
 
-Do not use pure subject-hash routing for subscriptions. It is the natural first
-idea, but it cannot fix the hot-subject benchmark because every subscription for
-one subject would still sit behind one server-to-client outbound queue.
+## 3. `NoEcho` removal
 
-Recommended assignment:
+`Options.NoEcho` is removed rather than emulated. With per-subscription
+connections, no caller in this repository depends on it.
 
-1. Convert the legacy event to the actual NATS subject with `LegacyEventSubject`,
-   matching current publish and subscribe validation
-   (`coderd/x/nats/pubsub.go:300-304`, `coderd/x/nats/pubsub.go:344-348`,
-   `coderd/x/nats/subject.go:28-43`).
-2. Compute a stable per-subject starting offset:
-   `offset = fnv64a(subject) % len(subConns)`.
-3. Maintain a wrapper map like `nextSubSeqBySubject map[string]uint64`, guarded
-   by `p.mu`.
-4. On each `SubscribeWithErr(subject)`, reserve the next sequence number for
-   that subject and assign:
-   `connIndex = (offset + seq) % len(subConns)`.
-5. Create the NATS subscription on `subConns[connIndex].nc`.
-6. Store `connIndex` on the wrapper `subscription` for debugging, tests, and
-   future metrics.
+- `Options.NoEcho` is defined in `coderd/x/nats/options.go:75-77`.
+- It is applied via `natsgo.NoEcho()` in `coderd/x/nats/server.go:179-181`
+  (inside the misnamed `connectInProcess`).
+- It is covered by `TestStandalone_NoEcho` in
+  `coderd/x/nats/pubsub_test.go:98-116`.
+- It is documented in `coderd/x/nats/doc.go:60-65`.
+- A repository grep finds no production callers; remaining references are
+  the option, its application, the doc comment, and the test.
 
-This design uses subject hashing as a deterministic starting offset, then
-stripes multiple subscriptions for the same subject across the pool. It
-preserves per-listener ordering because each listener is still backed by exactly
-one NATS subscription on exactly one connection. It intentionally does not
-promise global callback ordering across separate listeners on the same subject,
-which the current wrapper already does not guarantee because every subscription
-runs its own goroutine (`coderd/x/nats/pubsub.go:377-379`,
-`coderd/x/nats/pubsub.go:408-429`).
+Implementation work for the follow-up code change:
 
-Subscription assignment should be stable for a subscription's lifetime. Existing
-subscriptions should not be moved when the pool size changes because pool size
-is a construction-time option, and rebalancing live NATS subscriptions would add
-complexity and transient duplicate or missed delivery risks.
+- Remove `Options.NoEcho` from `coderd/x/nats/options.go`.
+- Remove the `natsgo.NoEcho()` branch from the connection option builder in
+  `coderd/x/nats/server.go`.
+- Delete `TestStandalone_NoEcho` from `coderd/x/nats/pubsub_test.go`.
+- Update the echo section of `coderd/x/nats/doc.go` so it no longer
+  advertises `Options.NoEcho`.
 
-### 3.3 Publish routing
+The previous plan's "wrapper-instance-ID header" suppression workaround is
+explicitly rejected. With `NoEcho` removed, there is nothing to suppress
+and no compatibility shim is needed.
 
-Recommend a dedicated publisher connection when `ClientConnPoolSize > 1`.
+## 4. Lifecycle
 
-Rationale:
+### Construction
 
-- A dedicated publisher connection has no wrapper subscriptions, so server
-  outbound fan-out to local subscribers is spread only across `subConns`.
-- One publisher connection preserves wrapper-originated publish order better
-  than round-robin publishing because all publish calls enter the server through
-  one client stream.
-- Round-robin publishing is the weakest option. It can reorder consecutive
-  publishes to the same subject across multiple client connections and gives no
-  benefit for the measured server outbound queue bottleneck.
-- Subject-hash publishing over the subscriber pool is acceptable for a minimal
-  first implementation, but it couples writes to one of the receive-heavy
-  connections and interacts poorly with connection-level `NoEcho` once
-  same-subject subscriptions are striped.
+- Start the embedded server as today.
+- Build `pubConn` via `natsgo.Connect("", natsgo.InProcessServer(ns), ...)`.
+- Do not create any subscriber connections at construction time.
+- Peer refresh and route clustering behavior are unrelated to local client
+  connections and remain unchanged.
 
-`NoEcho` needs explicit handling. Existing `Options.NoEcho` is currently passed
-as a NATS connection option (`coderd/x/nats/server.go:179-181`), and the default
-unit test expects a local publish not to deliver back to the same wrapper when
-`NoEcho` is true (`coderd/x/nats/pubsub_test.go:98-116`). NATS connection-level
-`NoEcho` suppresses delivery only to subscriptions on the publishing connection;
-that is insufficient once one wrapper owns multiple subscriber connections.
+### Subscribe / SubscribeWithErr
 
-Recommended compatibility approach:
+- Validate closed state and map the legacy event subject through
+  `LegacyEventSubject`, as today.
+- Open a fresh in-process `*nats.Conn` for this subscription.
+- Install per-connection handlers (`ErrorHandler`, `DisconnectErrHandler`,
+  `ReconnectHandler`, `ClosedHandler`) as closures over `p` so wrapper-level
+  counters and slow-consumer handling continue to work.
+- Create exactly one NATS subscription on that connection.
+- Apply per-subscription pending limits via `Subscription.SetPendingLimits`
+  (this call already exists in the current path,
+  `coderd/x/nats/pubsub.go:354-360`).
+- Register a `subscription{id, nc, sub, ...}` in `p.subs` and
+  `p.subsByNATS`.
+- Start the existing per-subscription drain goroutine (no change to
+  ordering: still one NATS subscription and one drainer per listener).
 
-- Add an unexported wrapper instance ID generated in `New` and `NewFromConn`.
-- When `Options.NoEcho` is true and the wrapper publishes, use `PublishMsg` with
-  a small internal NATS header, for example `Coder-Pubsub-Origin: <instanceID>`.
-- In `runSubscription`, inspect `msg.Header` before metrics and listener
-  delivery. If `Options.NoEcho` is true and the origin header matches the
-  wrapper instance ID, skip the message.
-- Keep the connection-level `natsgo.NoEcho()` option for the single-connection
-  default path if desired, but do not rely on it for correctness when the pool
-  size is greater than one.
+### Unsubscribe
 
-This preserves wrapper-level `NoEcho` semantics without changing the public
-publish or subscribe signatures.
+- Cancel the subscription context.
+- `Unsubscribe` (or `Drain`, depending on whether in-flight delivery should
+  be allowed to complete; match current semantics) the NATS subscription.
+- Wait for the subscription goroutine via the existing wait-group pattern.
+- Unregister from `p.subs` and `p.subsByNATS`.
+- Close that subscription's dedicated connection.
 
-### 3.4 Lifecycle, handlers, and metrics
+### Close
 
-Connection lifecycle should remain wrapper-level, not per-subscription.
-Construction should build the embedded server as today, normalize
-`ClientConnPoolSize`, create one handler set per connection with shared wrapper
-state, and clean up already-created connections if a later connection fails,
-matching the current single-connection failure path
-(`coderd/x/nats/pubsub.go:159-164`).
-
-`Close` should preserve today's order of operations, mark closed, cancel and
-unregister subscriptions, drain owned connections, then shut down the owned
-server (`coderd/x/nats/pubsub.go:483-528`). Drain all unique owned connections
-concurrently, drain an aliased `pubConn` only once, and join errors with
-connection indexes. Replace the single `closedCh` with one closed channel per
-connection, or a wait group decremented by each `ClosedHandler`; the current
-single channel is tied to one connection and would report success after only the
-first pooled connection closed (`coderd/x/nats/pubsub.go:37-40`,
-`coderd/x/nats/pubsub.go:144-146`, `coderd/x/nats/pubsub.go:513-518`).
-
-Handlers should share wrapper-level state. Disconnect, reconnect, and closed
-handlers increment the existing wrapper counters through closures over `p`
-(`coderd/x/nats/pubsub.go:133-157`). Async slow-consumer handling should remain
-subscription-based through `subsByNATS` (`coderd/x/nats/pubsub.go:432-481`).
-
-Keep metrics wrapper-scoped and do not add a `conn` label in the first version.
-Existing metrics have low cardinality and pending gauges already sum across all
-subscriptions (`coderd/x/nats/metrics.go:38-108`,
-`coderd/x/nats/metrics.go:143-170`). A connection label would multiply series by
-pool size. If needed later, add new debug-only sampled gauges rather than
-changing existing counters.
-
-## 4. Subject-to-connection hash function
-
-Use Go's standard `hash/fnv` FNV-1a 64-bit hash over the final NATS subject
-string, then modulo by pool size.
-
-Recommendation details:
-
-- Hash the subject after `LegacyEventSubject`, not the raw legacy event. This
-  makes routing match the actual NATS subject namespace used by `Publish` and
-  `SubscribeWithErr` today (`coderd/x/nats/pubsub.go:300-305`,
-  `coderd/x/nats/pubsub.go:344-350`).
-- Use `fnv.New64a` or an equivalent small helper based on FNV-1a.
-- Do not use `hash/maphash`; it is intentionally seeded per process, which
-  makes tests, logs, and operational reproduction harder.
-- Do not try to match an internal NATS subject hash. The pool assignment is a
-  local wrapper implementation detail, not part of NATS routing semantics.
-- Use the hash only as the subject's starting offset. Actual subscription
-  placement should be striped with the per-subject sequence described above.
-
-## 5. Backward compatibility
-
-- `Options.ClientConnPoolSize == 0` and negative values should normalize to `1`.
-- With the default normalized size of `1`, existing tests should continue to
-  pass without changes. Current unit tests construct `Options{}` in round-trip,
-  echo, ordering, and close tests (`coderd/x/nats/pubsub_test.go:34-144`,
-  `coderd/x/nats/pubsub_test.go:206-225`).
-- The public `pubsub.Pubsub` interface remains unchanged. `Subscribe`,
-  `SubscribeWithErr`, `Publish`, `RefreshPeers`, and `Close` signatures do not
-  change.
-- `NewFromConn` remains single-connection. `ClientConnPoolSize` is relevant to
-  `New`, not to callers that explicitly provide a connection.
-- Pool size is construction-time only. There is no runtime resize API.
-
-## 6. `RefreshPeers` interaction
-
-`RefreshPeers` should not interact with `ClientConnPoolSize`.
-
-Reason: `RefreshPeers` updates embedded server route URLs by cloning server
-options and calling `p.ns.ReloadOptions(newOpts)`
-(`coderd/x/nats/pubsub.go:247-255`). Client connection pool size is local
-client topology against the already-running server's client listener, while
-`RefreshPeers` is server route topology. The existing route pool setting is
-`Options.RoutePoolSize`, applied to `natsserver.ClusterOpts.PoolSize`
-(`coderd/x/nats/server.go:98-115`), and should remain a separate server-side
-routing knob.
-
-## 7. Worked example, `ClientConnPoolSize = 8`
-
-Assumptions:
-
-- Payload is 512 KiB, which is 524,288 bytes.
-- NATS default server `MaxPending` is 64 MiB, which is 67,108,864 bytes.
-- One client queue can therefore hold at most `67,108,864 / 524,288 = 128`
-  queued 512 KiB message copies before exhausting the 64 MiB budget.
-
-Workload: one replica has 100 subscribers split evenly across 10 subjects, so
-there are 10 subscribers per subject. If all 10 subjects receive one 512 KiB
-message during the same burst, total local fan-out is 100 message copies, or
-50 MiB.
-
-Current single-connection wrapper:
-
-- All 100 local subscriptions sit behind one server-to-client queue.
-- One full 10-subject burst queues about `100 * 512 KiB = 50 MiB` for that
-  client if the client cannot drain immediately.
-- Headroom is `64 MiB / 50 MiB = 1.28` such bursts. A second burst can push the
-  client past `MaxPending`, which matches the measured slow-consumer behavior.
-
-Recommended striped subscriber pool with 8 subscriber connections:
-
-- Each subject gets a deterministic offset, and its 10 subscribers are striped
-  across 8 connections.
-- For one subject, each connection gets either 1 or 2 subscribers.
-- Across 10 subjects and 100 subscribers total, each connection should carry
-  about 12 or 13 subscriptions in aggregate, subject to small hash and sequence
-  skew.
-- One full 10-subject burst therefore queues about `12 * 512 KiB = 6 MiB` to
-  `13 * 512 KiB = 6.5 MiB` per client connection.
-- Headroom becomes about `64 MiB / 6.5 MiB = 9.8` full bursts on the busiest
+- Mark the wrapper closed (idempotent).
+- Cancel and close every active subscription, including each subscription's
   connection.
+- Close or drain `pubConn`.
+- Shut down the owned embedded server.
 
-This should lift the measured bottleneck for the 100-subscriber, 10-subject
-case because it reduces the server's per-client outbound pressure by roughly
-the pool size. It should also substantially improve the 100-subscriber,
-1-subject case under the recommended striped design: the 100 subscribers spread
-about 12 or 13 per connection, instead of all 100 staying on one connection.
+The current single `closedCh` field in `Pubsub`
+(`coderd/x/nats/pubsub.go:483-528`) is tied to today's single connection
+and cannot represent many subscription connections. Replace it with either
+per-subscription closed signaling stored on `subscription`, or a wrapper
+`sync.WaitGroup` that tracks all subscription goroutines plus the publisher
+connection's closed handler.
 
-Important limit for the hot-subject benchmark:
+## 5. Slow-listener and `net.Pipe` backpressure
 
-- Pooling raises the threshold linearly with the number of subscriber
-  connections, but it does not make unbounded fan-out free.
-- For 1000 subscribers on one 512 KiB subject and pool size 8, each connection
-  carries about 125 subscriptions, or `125 * 512 KiB = 62.5 MiB` per publish.
-  That is barely under 64 MiB, so pool size 8 has almost no burst headroom.
-  Pool size 16 is a more realistic starting point for reliable delivery.
-- For 5000 subscribers on one 512 KiB subject, pool size 8 would put about 625
-  subscriptions on each connection, or 312.5 MiB per publish, which exceeds the
-  default 64 MiB queue budget before considering any burst. A pool of at least
-  `ceil(5000 / 128) = 40` subscriber connections is required for even one queued
-  publish to fit under 64 MiB per connection, and a larger value such as 64 is a
-  more realistic benchmark sweep point.
+This section is the most important honesty check. The previous code avoided
+`nats.InProcessServer` because `net.Pipe` is unbuffered and a slow consumer
+under heavy fan-out could stall the server's writer. That reasoning is
+documented in `coderd/x/nats/server.go:71-82`. The new design changes the
+shape of that risk but does not eliminate it.
 
-Therefore, the benchmark expectation should be phrased as: the previously
-failing leaves should reach 100 percent delivery when `ClientConnPoolSize` is
-bumped high enough for the fan-out and payload size. Pool size 8 is enough for
-the 100-subscriber worked example, but not for every hot-subject case.
+### Why the old `InProcessServer` problem changes shape
 
-## 8. Test strategy
+- The previous failure mode was N subscriptions multiplexed through one
+  unbuffered pipe. One slow listener stalled the pipe and therefore stalled
+  every other subscription sharing it.
+- With one connection per subscription, only one subscription's messages
+  flow through any given `net.Pipe`. A slow listener stalls its own pipe
+  and its own server-side outbound queue. Other subscriptions are
+  unaffected because they sit on different pipes.
+- The wide fan-out concentration case that previously failed is no longer
+  pipe-bound on a single shared pipe.
 
-### 8.1 Existing tests
+### Residual risk, step by step
 
-Run the existing package tests with default options. Because
-`ClientConnPoolSize` defaults to 1, these should pass without changing their
-call sites:
+1. nats.go's per-connection reader goroutine reads framed messages from the
+   pipe and enqueues into the subscription's pending channel.
+2. The wrapper drain goroutine calls `NextMsgWithContext` and invokes the
+   listener (`coderd/x/nats/pubsub.go:408-429`).
+3. If the listener is slow, the pending channel fills.
+4. Once the reader cannot enqueue, it stops draining the pipe.
+5. With `net.Pipe`, there is no kernel buffer slack, so the server's write
+   into that pipe blocks immediately.
+6. The server applies its `write_deadline` and eventually disconnects the
+   client as a slow consumer. The wrapper observes this via
+   `handleSlowConsumer` (`coderd/x/nats/pubsub.go:432-481`), which already
+   reports `pubsub.ErrDroppedMessages` for that subscription.
 
-- Round trip and normal `SubscribeWithErr` delivery
-  (`coderd/x/nats/pubsub_test.go:34-75`).
-- Default echo and `NoEcho` behavior (`coderd/x/nats/pubsub_test.go:77-116`).
-- Per-listener ordering (`coderd/x/nats/pubsub_test.go:119-144`).
-- `NewFromConn` ownership behavior (`coderd/x/nats/pubsub_test.go:146-204`).
-- Idempotent `Close` (`coderd/x/nats/pubsub_test.go:206-225`).
+The blast radius is the one slow subscription, not the whole wrapper. That
+is the design goal.
 
-### 8.2 New unit tests
+### Wrapper-level mitigation (exactly one)
 
-Add white-box tests in package `nats` when they need unexported connection
-indexes or subscription bookkeeping. Cover:
+- Default `New` to generous per-subscription pending limits, for example
+  `PendingLimits{Msgs: -1, Bytes: 512 * 1024 * 1024}`, unless the caller
+  overrides via `Options.PendingLimits`.
+- Apply those limits to every subscription via `SetPendingLimits` in the
+  subscribe path.
 
-1. Default normalization: `Options{}` and `ClientConnPoolSize: 0` create one
-   subscriber connection and reuse it for publishing.
-2. Pool construction: `ClientConnPoolSize: 4` creates four subscriber
-   connections plus an owned publisher connection.
-3. Deterministic subject offsets: subjects with different FNV offsets for pool
-   size 4 assign their first subscription to the expected indexes.
-4. Same-subject striping: repeated subscriptions follow `(offset + seq) % 4`.
-   This intentionally replaces the weaker same-subject-to-same-connection test,
-   which would not solve hot-subject fan-out.
-5. Subscription lifetime stability: adding or canceling other subscriptions does
-   not move an existing subscription's connection index.
-6. `Close` drains all unique owned connections and remains idempotent.
-7. Slow-consumer async lookup still maps pooled NATS subscriptions through
-   `subsByNATS` and increments shared drop metrics.
-8. `NoEcho` with pool size greater than one suppresses self-published messages
-   for listeners spread across multiple subscriber connections.
+Do not add internal wrapper buffering, worker pools, asynchronous listener
+dispatch, or a TCP fallback. Those would either hide the slow-listener bug
+or reintroduce the per-client concentration problem this design is
+removing.
 
-### 8.3 Benchmark changes
+### Listener latency contract
 
-The existing benchmark has a package-level `-bench.type` flag
-(`coderd/x/nats/bench_test.go:55-60`) and creates Coder-mode pubsubs with
-`xnats.Options{}` in standalone mode (`coderd/x/nats/bench_test.go:306-314`) or
-cluster options in cluster mode (`coderd/x/nats/bench_test.go:337-347`). Add a
-new `-bench.connpool=N` flag that defaults to `1`.
+Listeners must return quickly. Concretely:
 
-Benchmark integration:
+- Target under 10 ms per callback under normal operation.
+- Anything longer must enqueue or hand off to another goroutine and return.
+- Synchronous database work in a listener is a known risk.
 
-- Default the flag to `1` to preserve today's benchmark behavior.
-- Apply it only in Coder mode by setting `Options.ClientConnPoolSize` in both
-  standalone and cluster `setupCoder` paths.
-- Native mode can ignore the flag, or fail fast if the flag is not 1. Ignoring
-  is less surprising for scripts that sweep common flags across both modes.
-- Include the pool size in the benchmark leaf name only when it is not 1, or log
-  it at leaf start. Keeping default names unchanged preserves comparability.
+Known offender, listed as follow-up and not in scope here:
 
-Manual sweeps after implementation:
+- `coderd/workspaceupdates.go:109` subscribes
+  `wspubsub.HandleWorkspaceEvent(s.handleEvent)`.
+- `handleEvent` holds a mutex and calls `GetWorkspacesAndAgentsByOwnerID`
+  inside the callback (`coderd/workspaceupdates.go:60-83`).
+- That listener should be refactored to hand off DB work to a worker, but
+  that is a separate change.
 
-- `BenchmarkPubsub/coder/cluster10/subj1/512KiB` with `-bench.connpool=8` should
-  improve materially because 100 same-subject subscribers per replica stripe
-  across 8 local client queues.
-- `BenchmarkPubsub/coder/cluster10/subj10/512KiB` with `-bench.connpool=8`
-  should have about 10 bursts of 512 KiB headroom per busiest connection in the
-  worked example.
-- `BenchmarkPubsubHotSubjectConcentrated/coder/standalone/subj1/subs1000/512KiB`
-  should be swept at 8, 16, and 32. Pool size 8 is mathematically fragile,
-  while 16 gives useful headroom.
-- `BenchmarkPubsubHotSubjectConcentrated/coder/standalone/subj1/subs5000/512KiB`
-  should be swept at 40, 64, and possibly higher. Pool size 8 cannot fit one
-  full 512 KiB publish under the default 64 MiB per-client budget.
+## 6. Worked examples: recomputing the previously failing benches
+
+Common assumptions:
+
+- Payload is 512 KiB.
+- NATS default per-client `MaxPending` is 64 MiB.
+- 64 MiB / 512 KiB = 128 messages of headroom per client connection.
+- In the new design, each local subscription is its own client connection,
+  so each subscription gets that 128-message budget independently.
+
+### `BenchmarkPubsub/coder/cluster10/subj1/512KiB`
+
+- 100 subscriptions per replica on one subject means 100 in-process client
+  connections per replica.
+- Each connection carries messages for exactly one subscription.
+- If a subscriber is briefly slow, its server-side per-client outbound
+  queue sees one 512 KiB copy per publish for that one subscription.
+- The per-client `MaxPending` budget tolerates roughly 128 pending publishes
+  before disconnect.
+- The previous wide-fan-out concentration case is trivial under this
+  per-client budget. Delivery completeness should reach 100 percent.
+
+### `BenchmarkPubsubHotSubjectConcentrated/coder/standalone/subs1000/512KiB`
+
+- Standalone has 1000 in-process subscription connections.
+- Each connection gets at most one 512 KiB message copy per publish.
+- Per-client outbound is 512 KiB per publish, far below 64 MiB.
+- Expected delivery completeness is 100 percent unless a listener is slow
+  or `net.Pipe` synchronous backpressure dominates.
+
+### `BenchmarkPubsubHotSubjectConcentrated/coder/standalone/subs5000/512KiB`
+
+- Standalone has 5000 in-process subscription connections.
+- Per-client budget is still favorable, one subscription per connection.
+- The bottleneck shifts to: server CPU performing serial fan-out writes to
+  5000 pipes, Go scheduler overhead for 5000 client reader goroutines, and
+  callback drain speed.
+- Be candid: throughput (pubs/s) may be lower than a pooled TCP design
+  would deliver. Delivery completeness should improve to 100 percent as
+  long as listeners keep up and pending limits absorb transient spikes.
+
+## 7. Test strategy
+
+Existing tests in `coderd/x/nats/pubsub_test.go` (round-trip,
+`SubscribeWithErr`, default echo, ordering, `NewFromConn`, idempotent
+`Close`) should largely survive the structural rework.
+
+Changes to existing tests:
+
+- Delete `TestStandalone_NoEcho` because `NoEcho` is removed.
+- The ordering test should still pass: each listener still owns one NATS
+  subscription and one drain goroutine.
+
+New tests to add:
+
+1. `Subscribe` creates a fresh connection per subscription. Verify via
+   white-box state (e.g., distinct `subscription.nc` pointers across two
+   subscriptions on the same wrapper), or via server connection count if
+   that is reliable in tests.
+2. Canceling a subscription closes that subscription's connection (assert
+   on `nc.IsClosed()` after `cancel()` returns).
+3. `Close` closes all subscription connections plus `pubConn` and remains
+   idempotent across repeated calls.
+4. A slow consumer on one subscription does not impact another
+   subscription. Two subscribers on the same subject: one blocks; the
+   other continues receiving. The slow one may receive
+   `pubsub.ErrDroppedMessages` via its error callback; the healthy one
+   must keep receiving without drops.
+5. Subscription creation stays fast. Assert `Subscribe` latency under a
+   small bound (for example 5 ms in local test conditions). This guards
+   against accidentally reintroducing TCP setup or another slow path.
+
+Validation commands during implementation:
+
+- `make test RUN=TestStandalone` for the narrowest first pass.
+- `make test RUN=...` for the broader `coderd/x/nats` package.
+- `make lint` after code changes.
+
+## 8. Benchmark sweeps to validate after implementation
+
+The old `-bench.connpool` flag proposal is gone. There is no pool to size,
+so there is no new bench flag. `-bench.type=coder` already exercises the
+wrapper and will automatically pick up the new per-subscription
+architecture.
+
+Re-run the previously failing wide fan-out leaves and confirm delivery
+completeness:
+
+- `BenchmarkPubsub/coder/cluster10/subj1/512KiB`.
+- `BenchmarkPubsub/coder/cluster10/subj10/512KiB`.
+- `BenchmarkPubsubHotSubjectConcentrated/coder/standalone/subs1000/512KiB`.
+- `BenchmarkPubsubHotSubjectConcentrated/coder/standalone/subs5000/512KiB`.
+
+Specific caveat:
+
+- `BenchmarkPubsubHotSubjectConcentrated/coder/standalone/subs5000/8KiB`
+  previously hit a `Flush` timeout at `-benchtime>=500x`. Re-test it under
+  the new design. High publisher rate combined with many simultaneous
+  `net.Pipe` drains may interact differently from the TCP loopback path,
+  and the result is genuinely uncertain.
+
+Success criteria:
+
+- Delivery completeness approaches or reaches 100 percent for the
+  previously failing wide-fan-out cases.
+- Throughput may drop at very high subscription counts because the server
+  still serializes fan-out work and the runtime schedules thousands of
+  reader goroutines. Accept that tradeoff in exchange for correctness.
 
 ## 9. Out of scope
 
-- Do not change server-side `Cluster.PoolSize` or `Options.RoutePoolSize`; that
-  is route pooling, not local wrapper client pooling
-  (`coderd/x/nats/server.go:98-115`).
-- Do not modify `RefreshPeers` beyond ensuring it continues to work with pooled
-  client connections (`coderd/x/nats/pubsub.go:183-255`).
-- Do not add JetStream support. The embedded server is currently configured with
-  `JetStream: false` (`coderd/x/nats/server.go:54-60`).
-- Do not change the public subscription handler signatures. `Subscribe` and
-  `SubscribeWithErr` should keep their current API shape
-  (`coderd/x/nats/pubsub.go:320-335`).
-- Do not bump server `MaxPending` as part of this change. It is a separate
-  tuning knob and should be evaluated independently after the client-side queue
-  concentration is removed.
-- Do not implement runtime pool resizing or live subscription rebalancing.
-- Do not add per-connection Prometheus labels in the first implementation.
+- TCP loopback or Unix domain sockets as alternative default transports.
+  The recommendation is `nats.InProcessServer` over in-memory `net.Pipe`.
+- A striped fixed connection pool, pool size option, FNV hashing of
+  subjects, or live rebalancing of subscriptions across connections.
+- Refactoring slow listeners such as `coderd/workspaceupdates.go:109`.
+  Document the listener latency contract here; refactor separately.
+- Internal wrapper buffering, worker pools, or asynchronous listener
+  dispatch inside `coderd/x/nats.Pubsub`.
+- JetStream.
+- Public `pubsub.Pubsub` interface changes.
+- Server `MaxPending` tuning as part of this design.
+- `NoEcho` compatibility shims, origin headers, or wrapper-instance-ID
+  suppression.
