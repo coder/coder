@@ -30,13 +30,14 @@ import (
 )
 
 func main() {
-	mode := flag.String("mode", "", "one of: loopback-tcp, loopback-pipe, native-tcp, native-inproc, coder-tcp, coder-inproc")
+	mode := flag.String("mode", "", "one of: loopback-tcp, loopback-pipe, native-tcp, native-inproc, coder-tcp, coder-inproc, native-cluster, coder-cluster")
 	msgs := flag.Int("msgs", 1_000_000, "total messages to publish (shared across publishers)")
 	size := flag.Int("size", 128, "payload size in bytes")
 	pubs := flag.Int("pubs", 1, "number of publisher goroutines")
 	subs := flag.Int("subs", 1, "number of subscriber goroutines")
 	subj := flag.String("subj", "bench", "subject (NATS modes only)")
 	timeout := flag.Duration("timeout", 5*time.Minute, "max wait for subscribers to drain")
+	replicas := flag.Int("replicas", 10, "number of replicas for *-cluster modes (ignored elsewhere)")
 	flag.Parse()
 
 	if *mode == "" {
@@ -49,7 +50,7 @@ func main() {
 		os.Exit(2)
 	}
 
-	if err := run(*mode, *msgs, *size, *pubs, *subs, *subj, *timeout); err != nil {
+	if err := run(*mode, *msgs, *size, *pubs, *subs, *subj, *timeout, *replicas); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "natsbench: %v\n", err)
 		os.Exit(1)
 	}
@@ -64,7 +65,7 @@ type result struct {
 	subCount   int // number of subscribers in the run
 }
 
-func run(mode string, msgs, size, pubs, subs int, subj string, timeout time.Duration) error {
+func run(mode string, msgs, size, pubs, subs int, subj string, timeout time.Duration, replicas int) error {
 	switch mode {
 	case "loopback-tcp", "loopback-pipe":
 		// Loopback modes ignore -pubs/-subs/-subj: single writer, single
@@ -79,7 +80,15 @@ func run(mode string, msgs, size, pubs, subs int, subj string, timeout time.Dura
 		return nil
 	}
 
-	_, _ = fmt.Printf("mode=%s pubs=%d subs=%d msgs=%d size=%d\n", mode, pubs, subs, msgs, size)
+	isCluster := mode == "native-cluster" || mode == "coder-cluster"
+	if isCluster {
+		if replicas < 1 {
+			return xerrors.Errorf("-replicas must be >= 1 for %s", mode)
+		}
+		_, _ = fmt.Printf("mode=%s pubs=%d subs=%d msgs=%d size=%d replicas=%d\n", mode, pubs, subs, msgs, size, replicas)
+	} else {
+		_, _ = fmt.Printf("mode=%s pubs=%d subs=%d msgs=%d size=%d\n", mode, pubs, subs, msgs, size)
+	}
 	var (
 		res result
 		err error
@@ -93,6 +102,10 @@ func run(mode string, msgs, size, pubs, subs int, subj string, timeout time.Dura
 		res, err = runCoder(false, msgs, size, pubs, subs, subj, timeout)
 	case "coder-inproc":
 		res, err = runCoder(true, msgs, size, pubs, subs, subj, timeout)
+	case "native-cluster":
+		res, err = runNativeCluster(msgs, size, pubs, subs, subj, timeout, replicas)
+	case "coder-cluster":
+		res, err = runCoderCluster(msgs, size, pubs, subs, subj, timeout, replicas)
 	default:
 		return xerrors.Errorf("unknown mode %q", mode)
 	}
@@ -511,6 +524,288 @@ func printResult(mode string, r result, msgs, size, pubs, subs int) {
 	aggRate := float64(aggMsgs) / delSecs
 	aggBps := aggRate * float64(size)
 	_, _ = fmt.Printf("aggregate rate: %s msgs/s, %s/s\n", humanCount(aggRate), humanBytes(aggBps))
+}
+
+// runNativeCluster runs the bench against an N-replica full-mesh
+// embedded NATS cluster using bare nats.go clients. Publishers connect
+// to replica 0; subscribers are round-robin-distributed across replicas
+// 1..N-1 so every published message must traverse a cluster route.
+//
+// When replicas==1 there are no remote replicas; subscribers all
+// attach to replica 0 alongside the publishers. This degrades to the
+// runNative shape but preserves the cluster-mode flag plumbing.
+func runNativeCluster(msgs, size, pubs, subs int, subj string, timeout time.Duration, replicas int) (result, error) {
+	t0 := time.Now()
+	servers, err := startNativeCluster(replicas)
+	if err != nil {
+		return result{}, xerrors.Errorf("start native cluster: %w", err)
+	}
+	defer func() {
+		for _, ns := range servers {
+			ns.Shutdown()
+			ns.WaitForShutdown()
+		}
+	}()
+
+	// Publishers go to replica 0; subscribers spread across 1..N-1.
+	// When there are no remote replicas (N==1), fall back to replica 0
+	// for subscribers too.
+	pubReplica := servers[0]
+	subReplicaAt := func(i int) *natsserver.Server {
+		if replicas <= 1 {
+			return servers[0]
+		}
+		return servers[1+(i%(replicas-1))]
+	}
+
+	connect := func(ns *natsserver.Server, name string) (*natsgo.Conn, error) {
+		return natsgo.Connect(ns.ClientURL(),
+			natsgo.Name(name),
+			natsgo.MaxReconnects(-1),
+		)
+	}
+
+	type subState struct {
+		nc     *natsgo.Conn
+		sub    *natsgo.Subscription
+		count  atomic.Int64
+		done   chan struct{}
+		expect int64
+	}
+	subStates := make([]*subState, subs)
+	for i := 0; i < subs; i++ {
+		nc, cerr := connect(subReplicaAt(i), fmt.Sprintf("natsbench-sub-%d", i))
+		if cerr != nil {
+			return result{}, xerrors.Errorf("connect sub %d: %w", i, cerr)
+		}
+		st := &subState{nc: nc, done: make(chan struct{}), expect: int64(msgs)}
+		sub, serr := nc.Subscribe(subj, func(_ *natsgo.Msg) {
+			n := st.count.Add(1)
+			if n == st.expect {
+				close(st.done)
+			}
+		})
+		if serr != nil {
+			return result{}, xerrors.Errorf("subscribe sub %d: %w", i, serr)
+		}
+		if err := sub.SetPendingLimits(-1, -1); err != nil {
+			return result{}, xerrors.Errorf("pending limits sub %d: %w", i, err)
+		}
+		if err := nc.Flush(); err != nil {
+			return result{}, xerrors.Errorf("flush sub %d: %w", i, err)
+		}
+		st.sub = sub
+		subStates[i] = st
+	}
+
+	pubConns := make([]*natsgo.Conn, pubs)
+	for i := 0; i < pubs; i++ {
+		nc, cerr := connect(pubReplica, fmt.Sprintf("natsbench-pub-%d", i))
+		if cerr != nil {
+			return result{}, xerrors.Errorf("connect pub %d: %w", i, cerr)
+		}
+		pubConns[i] = nc
+	}
+	setup := time.Since(t0)
+
+	payload := make([]byte, size)
+	for i := range payload {
+		payload[i] = byte(i)
+	}
+
+	perPub, rem := msgs/pubs, msgs%pubs
+	var wg sync.WaitGroup
+	var publishErr atomic.Value
+	start := make(chan struct{})
+	for i := 0; i < pubs; i++ {
+		n := perPub
+		if i == 0 {
+			n += rem
+		}
+		nc := pubConns[i]
+		wg.Add(1)
+		go func(nc *natsgo.Conn, n int) {
+			defer wg.Done()
+			<-start
+			for j := 0; j < n; j++ {
+				if err := nc.Publish(subj, payload); err != nil {
+					publishErr.Store(err)
+					return
+				}
+			}
+			if err := nc.Flush(); err != nil {
+				publishErr.Store(err)
+			}
+		}(nc, n)
+	}
+	hotStart := time.Now()
+	close(start)
+	wg.Wait()
+	pubDone := time.Now()
+	if v := publishErr.Load(); v != nil {
+		perr, _ := v.(error)
+		return result{}, xerrors.Errorf("publish: %w", perr)
+	}
+
+	deadline := time.NewTimer(timeout)
+	defer deadline.Stop()
+	for _, st := range subStates {
+		select {
+		case <-st.done:
+		case <-deadline.C:
+			var delivered int64
+			for _, s := range subStates {
+				delivered += s.count.Load()
+			}
+			return result{}, xerrors.Errorf("timeout: delivered %d of %d (subs=%d)", delivered, int64(msgs)*int64(subs), subs)
+		}
+	}
+	subDone := time.Now()
+	pubHot := pubDone.Sub(hotStart)
+	deliverHot := subDone.Sub(hotStart)
+	if subs == 0 {
+		deliverHot = pubHot
+	}
+
+	var delivered int64
+	for _, st := range subStates {
+		delivered += st.count.Load()
+		st.nc.Close()
+	}
+	for _, nc := range pubConns {
+		nc.Close()
+	}
+	return result{
+		setup:      setup,
+		pubHot:     pubHot,
+		deliverHot: deliverHot,
+		published:  int64(msgs),
+		delivered:  delivered,
+		subCount:   subs,
+	}, nil
+}
+
+// runCoderCluster runs the bench against an N-replica full-mesh
+// coderd/x/nats.Pubsub cluster. Publishers go to replica 0 (a single
+// *Pubsub instance, since the wrapper multiplexes internally);
+// subscribers register against replicas 1..N-1 round-robin so every
+// published message must cross a route. With replicas==1, subscribers
+// attach to replica 0 (degrades to runCoder shape).
+func runCoderCluster(msgs, size, pubs, subs int, subj string, timeout time.Duration, replicas int) (result, error) {
+	t0 := time.Now()
+	logger := slog.Make() // discard
+	pubsubs, err := startCoderCluster(context.Background(), logger, replicas)
+	if err != nil {
+		return result{}, xerrors.Errorf("start coder cluster: %w", err)
+	}
+	defer func() {
+		for _, p := range pubsubs {
+			_ = p.Close()
+		}
+	}()
+
+	pubPS := pubsubs[0]
+	subPSAt := func(i int) *codernats.Pubsub {
+		if replicas <= 1 {
+			return pubsubs[0]
+		}
+		return pubsubs[1+(i%(replicas-1))]
+	}
+
+	type subState struct {
+		count  atomic.Int64
+		done   chan struct{}
+		expect int64
+		cancel func()
+	}
+	subStates := make([]*subState, subs)
+	for i := 0; i < subs; i++ {
+		st := &subState{done: make(chan struct{}), expect: int64(msgs)}
+		cancel, serr := subPSAt(i).Subscribe(subj, func(_ context.Context, _ []byte) {
+			n := st.count.Add(1)
+			if n == st.expect {
+				close(st.done)
+			}
+		})
+		if serr != nil {
+			return result{}, xerrors.Errorf("subscribe %d: %w", i, serr)
+		}
+		st.cancel = cancel
+		subStates[i] = st
+	}
+	setup := time.Since(t0)
+
+	payload := make([]byte, size)
+	for i := range payload {
+		payload[i] = byte(i)
+	}
+
+	perPub, rem := msgs/pubs, msgs%pubs
+	var wg sync.WaitGroup
+	var publishErr atomic.Value
+	start := make(chan struct{})
+	for i := 0; i < pubs; i++ {
+		n := perPub
+		if i == 0 {
+			n += rem
+		}
+		wg.Add(1)
+		go func(n int) {
+			defer wg.Done()
+			<-start
+			for j := 0; j < n; j++ {
+				if err := pubPS.Publish(subj, payload); err != nil {
+					publishErr.Store(err)
+					return
+				}
+			}
+			if err := pubPS.Flush(); err != nil {
+				publishErr.Store(err)
+			}
+		}(n)
+	}
+	hotStart := time.Now()
+	close(start)
+	wg.Wait()
+	pubDone := time.Now()
+	if v := publishErr.Load(); v != nil {
+		perr, _ := v.(error)
+		return result{}, xerrors.Errorf("publish: %w", perr)
+	}
+
+	deadline := time.NewTimer(timeout)
+	defer deadline.Stop()
+	for _, st := range subStates {
+		select {
+		case <-st.done:
+		case <-deadline.C:
+			var delivered int64
+			for _, s := range subStates {
+				delivered += s.count.Load()
+			}
+			return result{}, xerrors.Errorf("timeout: delivered %d of %d (subs=%d)", delivered, int64(msgs)*int64(subs), subs)
+		}
+	}
+	subDone := time.Now()
+	pubHot := pubDone.Sub(hotStart)
+	deliverHot := subDone.Sub(hotStart)
+	if subs == 0 {
+		deliverHot = pubHot
+	}
+
+	var delivered int64
+	for _, st := range subStates {
+		delivered += st.count.Load()
+		st.cancel()
+	}
+	return result{
+		setup:      setup,
+		pubHot:     pubHot,
+		deliverHot: deliverHot,
+		published:  int64(msgs),
+		delivered:  delivered,
+		subCount:   subs,
+	}, nil
 }
 
 // humanCount renders a count rate with thousands separators (best-effort).

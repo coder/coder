@@ -23,9 +23,12 @@ func freeBenchPort() (int, error) {
 	if err != nil {
 		return 0, xerrors.Errorf("listen 127.0.0.1:0: %w", err)
 	}
-	port := l.Addr().(*net.TCPAddr).Port
+	addr, ok := l.Addr().(*net.TCPAddr)
 	_ = l.Close()
-	return port, nil
+	if !ok {
+		return 0, xerrors.Errorf("listener addr is not *net.TCPAddr: %T", l.Addr())
+	}
+	return addr.Port, nil
 }
 
 // startNativeCluster brings up n embedded nats-servers in a full-mesh
