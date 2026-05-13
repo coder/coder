@@ -48,10 +48,11 @@
   <rect class="anthropic-zone" x="16" y="30" width="172" height="390" rx="14"/>
   <text class="zone-label zone-label-a" x="32" y="58">Anthropic</text>
 
-  <rect class="side-card side-card-a" x="30" y="76" width="144" height="86" rx="8"/>
-  <text class="side-title" x="44" y="100">Developer surfaces</text>
-  <text class="side-line"  x="44" y="124">claude.ai/code,</text>
-  <text class="side-line"  x="44" y="142">mobile, API</text>
+  <rect class="side-card side-card-a" x="30" y="76" width="144" height="96" rx="8"/>
+  <text class="side-title" x="44" y="100">Developer</text>
+  <text class="side-title" x="44" y="120">surfaces</text>
+  <text class="side-line"  x="44" y="144">claude.ai/code,</text>
+  <text class="side-line"  x="44" y="162">mobile, API</text>
 
   <rect class="side-card side-card-a" x="30" y="176" width="144" height="106" rx="8"/>
   <text class="side-title" x="44" y="200">Control plane</text>
@@ -76,10 +77,11 @@
   <text class="side-line"  x="840" y="142">SSH or HTTPS.</text>
 
   <rect class="side-card side-card-n" x="826" y="176" width="144" height="106" rx="8"/>
-  <text class="side-title" x="840" y="200">Package registries</text>
-  <text class="side-line"  x="840" y="224">artifactory,</text>
-  <text class="side-line"  x="840" y="242">npm, pypi,</text>
-  <text class="side-line"  x="840" y="260">internal proxy.</text>
+  <text class="side-title" x="840" y="200">Package</text>
+  <text class="side-title" x="840" y="220">registries</text>
+  <text class="side-line"  x="840" y="244">artifactory,</text>
+  <text class="side-line"  x="840" y="260">npm, pypi,</text>
+  <text class="side-line"  x="840" y="276">internal proxy.</text>
 
   <rect class="side-card side-card-n" x="826" y="296" width="144" height="98" rx="8"/>
   <text class="side-title" x="840" y="320">Internal services</text>
