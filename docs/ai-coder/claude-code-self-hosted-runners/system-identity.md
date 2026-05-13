@@ -30,11 +30,15 @@ Read these first; the rest of this page assumes they fit your team.
 - **One runner serves one Anthropic user at a time.** A runner is
   locked to a single Anthropic user from its first session until drain.
   Concurrent users need concurrent workspaces.
-- **Pool size is a warm-pool target, not a hard cap.** With
-  `instances = N`, Coder keeps N workspaces preheated. If `N+1` users
-  arrive at once, the `N+1`th still gets a workspace; the prebuilds
-  reconciler just builds it from cold, so the first session takes the
-  cold-start time of your template instead of being instant.
+- **Pool size is a hard cap on concurrent Anthropic users.** With
+  `instances = N`, Coder keeps N service-account-owned workspaces, each
+  one a runner that locks 1:1 to whichever Anthropic user it first
+  serves. If `N+1` Anthropic users send sessions at once, the `N+1`th
+  waits in Anthropic's queue until a runner drains. Bumping `instances`
+  is the only knob; you cannot spawn another workspace on demand under
+  this identity model because every workspace is the same service
+  account, not the human. [User identity](./user-identity.md) is what
+  lifts this cap by spawning a workspace per Anthropic user on demand.
 - **Stalled sessions are dropped.** Once the runner's active session
   count hits zero it drains; half-finished working trees are lost. Do
   not park long interactive sessions in this mode; for that, open a
