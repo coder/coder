@@ -1,6 +1,9 @@
 name: visual-regression-poc
 
 on:
+  push:
+    branches:
+      - danielle/visual-baseline
   pull_request:
     branches:
       - danielle/visual-baseline
