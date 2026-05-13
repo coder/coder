@@ -676,6 +676,40 @@ func BenchmarkPubsub(b *testing.B) {
 	}
 }
 
+// BenchmarkPubsubUpstreamNxM mirrors the reference N:M throughput test
+// documented at:
+//
+//	https://docs.nats.io/using-nats/nats-tools/nats_cli/natsbench#run-a-nm-throughput-test
+//
+// Upstream's `nats bench` example uses 4 publishers + 4 subscribers,
+// 128 B messages, 1 subject, 1 standalone nats-server, and reports
+// aggregate publisher throughput around 1,080,144 msgs/sec on a 2024
+// MacBook Pro M4. We reproduce that exact shape here so the wrapper's
+// dual-TCP-conn design can be compared apples-to-apples against the
+// canonical NATS performance reference.
+//
+// Key difference: upstream's --clients 4 spawns four independent
+// *nats.Conn per role. In coder mode, all 4 subscribers multiplex onto
+// the wrapper's single subConn, so this leaf also doubles as a check
+// that multiplexing on one client conn does not measurably regress
+// against the documented per-conn-per-sub baseline at small N and
+// small payload.
+//
+// Operator contract matches BenchmarkPubsub: requires -benchtime=Nx.
+func BenchmarkPubsubUpstreamNxM(b *testing.B) {
+	cfg := leafCfg{
+		name:      fmt.Sprintf("%s/standalone/subj1/4x4/128B", *benchType),
+		topology:  "standalone",
+		subjects:  1,
+		payload:   128,
+		subsTotal: 4,
+		pubs:      4,
+	}
+	b.Run(cfg.name, func(b *testing.B) {
+		runLeaf(b, cfg)
+	})
+}
+
 func runLeaf(b *testing.B, cfg leafCfg) {
 	requireIterBenchtime(b)
 
