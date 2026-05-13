@@ -24,8 +24,8 @@
       .badge-anthropic-l{ fill: #b45309; }
       .title            { font-size: 13px; font-weight: 600; fill: #111827; }
       .title-sm         { font-size: 11px; font-weight: 600; fill: #111827; }
-      .small            { font-size: 11px; fill: #4b5563; }
-      .mono             { font-family: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace; font-size: 10px; fill: #1f2937; }
+      .small            { font-size: 12px; fill: #4b5563; }
+      .mono             { font-family: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace; font-size: 11px; fill: #1f2937; }
       .arrow-anthropic  { fill: none; stroke: #b45309; stroke-width: 1.6; }
       .arrow-coder      { fill: none; stroke: #7c3aed; stroke-width: 1.4; }
       .arrow-routing    { fill: none; stroke: #0e7490; stroke-width: 1.4; stroke-dasharray: 5 4; }
@@ -113,14 +113,13 @@
   <path class="arrow-coder" d="M 472 188 C 504 188, 524 188, 556 142" marker-end="url(#usr-ah-coder)"/>
   <text class="arrow-label" x="478" y="158">claim</text>
 
-  <!-- Warm -> claimed (owner flip) -->
-  <path class="arrow-coder" d="M 704 142 C 712 142, 718 142, 724 142" marker-end="url(#usr-ah-coder)"/>
-  <text class="arrow-label" x="700" y="88">owner flips</text>
-  <text class="arrow-label" x="700" y="100">to @alice</text>
+  <!-- Warm -> claimed (owner flip): arrow arcs above both cards so the label has room -->
+  <path class="arrow-coder" d="M 630 92 C 630 64, 814 64, 822 90" marker-end="url(#usr-ah-coder)"/>
+  <text class="arrow-label" x="656" y="62">owner flips to @alice</text>
 
-  <!-- Anthropic session -> claimed workspace -->
-  <path class="arrow-anthropic" d="M 216 128 C 400 128, 600 60, 822 92" marker-end="url(#usr-ah-anthropic)"/>
-  <text class="arrow-label" x="600" y="76">queued session lands here</text>
+  <!-- Anthropic session -> claimed workspace (arcs above the routing zone, lands at top of claimed) -->
+  <path class="arrow-anthropic" d="M 216 96 C 320 28, 580 28, 760 88" marker-end="url(#usr-ah-anthropic)"/>
+  <text class="arrow-label" x="426" y="26">queued session lands here</text>
 
   <!-- Footnote -->
   <text class="small" x="24" y="346">User identity is planned, not yet available. It builds on the system identity pool: middleware claims a prebuild on behalf of the user, then Coder external auth handles git push as them.</text>

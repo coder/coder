@@ -20,8 +20,8 @@
       .badge-anthropic-l{ fill: #b45309; }
       .title            { font-size: 13px; font-weight: 600; fill: #111827; }
       .title-sm         { font-size: 11px; font-weight: 600; fill: #111827; }
-      .small            { font-size: 11px; fill: #4b5563; }
-      .mono             { font-family: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace; font-size: 10px; fill: #1f2937; }
+      .small            { font-size: 12px; fill: #4b5563; }
+      .mono             { font-family: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace; font-size: 11px; fill: #1f2937; }
       .arrow-anthropic  { fill: none; stroke: #b45309; stroke-width: 1.6; }
       .arrow-coder      { fill: none; stroke: #7c3aed; stroke-width: 1.4; stroke-dasharray: 5 4; }
       .arrow-loop       { fill: none; stroke: #6b7280; stroke-width: 1.2; stroke-dasharray: 3 3; }

@@ -25,23 +25,29 @@ you want to debug what the runner is doing.
 
 ## Architecture
 
-<img src="../../images/guides/claude-code-self-hosted-runners/architecture.svg" alt="Anthropic surfaces and control plane on the left send session assignments over outbound HTTPS to a Claude Code self-hosted runner that lives inside a Coder workspace. The runner spawns one child Claude Code process per session. Child sessions reach the Claude model API and your internal Git, package registries, and services." />
+<img src="../../images/guides/claude-code-self-hosted-runners/concepts.svg" alt="A Coder workspace is the outer container, managed by Coder. Inside the workspace runs the Claude Code self-hosted runner, a long-lived process managed by Anthropic. The runner spawns one child claude process per assigned session, also managed by Anthropic. Each layer is nested inside the layer above it." />
 
-Three zones, two directions of traffic:
+Three nested concepts, three levels of management:
 
-- **Anthropic** runs the developer surfaces (`claude.ai/code`, mobile,
-  routines, agents, the API) and the pool scheduler that assigns
-  sessions to runners.
-- **Coder workspace** hosts the runner process. The workspace template
-  pins the runner binary, sets git identity, and delivers credentials.
-  Coder runs the workspace; Anthropic runs the runner inside it.
-- **Your network** is everything the workspace can already reach:
-  internal Git, package registries, databases, build tooling.
+- **A Coder workspace** is the outer container: a VM or container
+  built from a Coder template, with the image, credentials, and
+  networking the runner needs. **Coder manages workspaces.**
+- **A runner** is the long-lived `claude self-hosted-runner` process
+  that lives inside one workspace, registers with your Anthropic
+  pool, and polls for work. One runner per workspace. The runner
+  locks to a single Anthropic user from its first session until it
+  drains. **Anthropic manages runners.**
+- **A session** is a single Claude Code conversation, spawned as a
+  child `claude` process by the runner when Anthropic assigns one.
+  A runner serves up to `--capacity` sessions in parallel, all for
+  the locked user. **Anthropic manages sessions.**
 
 All traffic from the runner to Anthropic is **outbound HTTPS** to
 `api.anthropic.com`. There is no inbound connectivity from Anthropic
 into your network; the runner dials out and streams events over the
-same long-poll connection that delivers session assignments.
+same long-poll connection that delivers session assignments. From
+those sessions, the runner reaches whatever your workspace can already
+reach: internal Git, package registries, databases, build tooling.
 
 ### How a session flows
 
@@ -111,9 +117,10 @@ who owns the workspace and whose credentials the runner uses.
 ### System identity (Works Today)
 
 Coder maintains N warm bot-owned workspaces via the prebuilds primitive.
-Anthropic's scheduler picks one when a session arrives and locks it to
-that user. When the user's work drains the workspace deletes itself,
-the prebuild reconciler queues a replacement.
+Anthropic's scheduler picks one when a session arrives and locks the
+runner (therefore that workspace) to that user. When the user's work
+drains the workspace deletes itself, the prebuild reconciler queues a
+replacement.
 
 Identity is bot-shaped: every commit author is the bot, every push uses
 a bot PAT shipped as a sensitive Terraform variable. The Anthropic
