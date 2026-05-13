@@ -32,7 +32,7 @@ import (
 )
 
 func main() {
-	mode := flag.String("mode", "", "one of: loopback-tcp, loopback-pipe, native-tcp, native-inproc, coder-tcp, coder-inproc, native-cluster, coder-cluster")
+	mode := flag.String("mode", "", "one of: loopback-tcp, loopback-pipe, native-tcp, native-inproc, coder-tcp, coder-inproc, native-cluster, coder-cluster, native-cluster-symmetric, coder-cluster-symmetric")
 	msgs := flag.Int("msgs", 1_000_000, "total messages to publish (shared across publishers)")
 	size := flag.Int("size", 128, "payload size in bytes")
 	pubs := flag.Int("pubs", 1, "number of publisher goroutines")
@@ -71,6 +71,10 @@ type result struct {
 	delivered  int64
 	subCount   int // number of subscribers in the run
 	rstats     runtimeStats
+	// symmetric is true for *-cluster-symmetric modes where -msgs is
+	// interpreted per-publisher (not total). It only affects the header
+	// line and delivery-count display, not any timing math.
+	symmetric bool
 }
 
 type runtimeStats struct {
@@ -153,11 +157,18 @@ func run(mode string, msgs, size, pubs, subs int, subj string, timeout time.Dura
 	}
 
 	isCluster := mode == "native-cluster" || mode == "coder-cluster"
-	if isCluster {
+	isClusterSym := mode == "native-cluster-symmetric" || mode == "coder-cluster-symmetric"
+	if isCluster || isClusterSym {
 		if replicas < 1 {
 			return xerrors.Errorf("-replicas must be >= 1 for %s", mode)
 		}
-		_, _ = fmt.Printf("mode=%s pubs=%d subs=%d msgs=%d size=%d replicas=%d\n", mode, pubs, subs, msgs, size, replicas)
+		if isClusterSym {
+			// -msgs is interpreted per-publisher in symmetric modes; the
+			// suffix makes that semantic difference explicit.
+			_, _ = fmt.Printf("mode=%s pubs=%d subs=%d msgs=%d size=%d replicas=%d (msgs/pub)\n", mode, pubs, subs, msgs, size, replicas)
+		} else {
+			_, _ = fmt.Printf("mode=%s pubs=%d subs=%d msgs=%d size=%d replicas=%d\n", mode, pubs, subs, msgs, size, replicas)
+		}
 	} else {
 		_, _ = fmt.Printf("mode=%s pubs=%d subs=%d msgs=%d size=%d\n", mode, pubs, subs, msgs, size)
 	}
@@ -178,6 +189,10 @@ func run(mode string, msgs, size, pubs, subs int, subj string, timeout time.Dura
 		res, err = runNativeCluster(msgs, size, pubs, subs, subj, timeout, replicas)
 	case "coder-cluster":
 		res, err = runCoderCluster(msgs, size, pubs, subs, subj, timeout, replicas)
+	case "native-cluster-symmetric":
+		res, err = runNativeClusterSymmetric(msgs, size, pubs, subs, subj, timeout, replicas)
+	case "coder-cluster-symmetric":
+		res, err = runCoderClusterSymmetric(msgs, size, pubs, subs, subj, timeout, replicas)
 	default:
 		return xerrors.Errorf("unknown mode %q", mode)
 	}
@@ -582,7 +597,13 @@ func printResult(mode string, r result, msgs, size, pubs, subs int) {
 	}
 	_, _ = fmt.Printf("total msgs published: %d\n", r.published)
 	if subs > 0 {
-		_, _ = fmt.Printf("total msgs delivered: %d (%d subs x %d)\n", r.delivered, r.subCount, msgs)
+		// In symmetric cluster modes -msgs is per-publisher, so each
+		// subscriber's target is msgs*pubs rather than msgs.
+		perSub := msgs
+		if r.symmetric {
+			perSub = msgs * pubs
+		}
+		_, _ = fmt.Printf("total msgs delivered: %d (%d subs x %d)\n", r.delivered, r.subCount, perSub)
 	}
 	pubSecs := r.pubHot.Seconds()
 	delSecs := r.deliverHot.Seconds()
@@ -912,6 +933,289 @@ func runCoderCluster(msgs, size, pubs, subs int, subj string, timeout time.Durat
 		delivered:  delivered,
 		subCount:   subs,
 		rstats:     rs,
+	}, nil
+}
+
+// runNativeClusterSymmetric is the symmetric variant of runNativeCluster:
+// publishers and subscribers are distributed round-robin across all N
+// replicas (no replica is reserved). -msgs is interpreted per-publisher,
+// so the total messages flowing is msgs*pubs and every subscriber, on
+// the one shared subject, expects msgs*pubs deliveries.
+//
+// MaxPending is bounded at 128 MiB (instead of the default 1 GiB) to
+// cap worst-case in-flight bytes in cluster fan-out scenarios.
+func runNativeClusterSymmetric(msgs, size, pubs, subs int, subj string, timeout time.Duration, replicas int) (result, error) {
+	const symMaxPending int64 = 128 << 20
+	t0 := time.Now()
+	servers, err := startNativeCluster(replicas, symMaxPending)
+	if err != nil {
+		return result{}, xerrors.Errorf("start native cluster: %w", err)
+	}
+	defer func() {
+		for _, ns := range servers {
+			ns.Shutdown()
+			ns.WaitForShutdown()
+		}
+	}()
+
+	// Symmetric: every replica hosts both publishers and subscribers.
+	replicaAt := func(i int) *natsserver.Server {
+		return servers[i%replicas]
+	}
+
+	connect := func(ns *natsserver.Server, name string) (*natsgo.Conn, error) {
+		return natsgo.Connect(ns.ClientURL(),
+			natsgo.Name(name),
+			natsgo.MaxReconnects(-1),
+		)
+	}
+
+	expectPerSub := int64(msgs) * int64(pubs)
+	totalPublished := int64(msgs) * int64(pubs)
+
+	type subState struct {
+		nc     *natsgo.Conn
+		sub    *natsgo.Subscription
+		count  atomic.Int64
+		done   chan struct{}
+		expect int64
+	}
+	subStates := make([]*subState, subs)
+	for i := 0; i < subs; i++ {
+		nc, cerr := connect(replicaAt(i), fmt.Sprintf("natsbench-sub-%d", i))
+		if cerr != nil {
+			return result{}, xerrors.Errorf("connect sub %d: %w", i, cerr)
+		}
+		st := &subState{nc: nc, done: make(chan struct{}), expect: expectPerSub}
+		sub, serr := nc.Subscribe(subj, func(_ *natsgo.Msg) {
+			n := st.count.Add(1)
+			if n == st.expect {
+				close(st.done)
+			}
+		})
+		if serr != nil {
+			return result{}, xerrors.Errorf("subscribe sub %d: %w", i, serr)
+		}
+		if err := sub.SetPendingLimits(-1, -1); err != nil {
+			return result{}, xerrors.Errorf("pending limits sub %d: %w", i, err)
+		}
+		if err := nc.Flush(); err != nil {
+			return result{}, xerrors.Errorf("flush sub %d: %w", i, err)
+		}
+		st.sub = sub
+		subStates[i] = st
+	}
+
+	pubConns := make([]*natsgo.Conn, pubs)
+	for i := 0; i < pubs; i++ {
+		nc, cerr := connect(replicaAt(i), fmt.Sprintf("natsbench-pub-%d", i))
+		if cerr != nil {
+			return result{}, xerrors.Errorf("connect pub %d: %w", i, cerr)
+		}
+		pubConns[i] = nc
+	}
+	setup := time.Since(t0)
+
+	payload := make([]byte, size)
+	for i := range payload {
+		payload[i] = byte(i)
+	}
+
+	// Symmetric mode: each publisher publishes the full msgs count.
+	var wg sync.WaitGroup
+	var publishErr atomic.Value
+	start := make(chan struct{})
+	for i := 0; i < pubs; i++ {
+		nc := pubConns[i]
+		wg.Add(1)
+		go func(nc *natsgo.Conn) {
+			defer wg.Done()
+			<-start
+			for j := 0; j < msgs; j++ {
+				if err := nc.Publish(subj, payload); err != nil {
+					publishErr.Store(err)
+					return
+				}
+			}
+			if err := nc.Flush(); err != nil {
+				publishErr.Store(err)
+			}
+		}(nc)
+	}
+	memBefore := hotStart()
+	hotStartT := time.Now()
+	close(start)
+	wg.Wait()
+	pubDone := time.Now()
+	if v := publishErr.Load(); v != nil {
+		perr, _ := v.(error)
+		return result{}, xerrors.Errorf("publish: %w", perr)
+	}
+
+	deadline := time.NewTimer(timeout)
+	defer deadline.Stop()
+	for _, st := range subStates {
+		select {
+		case <-st.done:
+		case <-deadline.C:
+			var delivered int64
+			for _, s := range subStates {
+				delivered += s.count.Load()
+			}
+			return result{}, xerrors.Errorf("timeout: delivered %d of %d (subs=%d)", delivered, expectPerSub*int64(subs), subs)
+		}
+	}
+	subDone := time.Now()
+	pubHot := pubDone.Sub(hotStartT)
+	deliverHot := subDone.Sub(hotStartT)
+	if subs == 0 {
+		deliverHot = pubHot
+	}
+	rs := hotEnd(memBefore)
+
+	var delivered int64
+	for _, st := range subStates {
+		delivered += st.count.Load()
+		st.nc.Close()
+	}
+	for _, nc := range pubConns {
+		nc.Close()
+	}
+	return result{
+		setup:      setup,
+		pubHot:     pubHot,
+		deliverHot: deliverHot,
+		published:  totalPublished,
+		delivered:  delivered,
+		subCount:   subs,
+		rstats:     rs,
+		symmetric:  true,
+	}, nil
+}
+
+// runCoderClusterSymmetric is the symmetric variant of runCoderCluster:
+// publishers and subscribers are distributed round-robin across all N
+// replicas. -msgs is interpreted per-publisher (total = msgs*pubs);
+// every subscriber sees every message on the shared subject.
+//
+// MaxPending is bounded at 128 MiB (instead of the default 1 GiB) to
+// cap worst-case in-flight bytes in cluster fan-out scenarios.
+func runCoderClusterSymmetric(msgs, size, pubs, subs int, subj string, timeout time.Duration, replicas int) (result, error) {
+	const symMaxPending int64 = 128 << 20
+	t0 := time.Now()
+	logger := slog.Make() // discard
+	pubsubs, err := startCoderCluster(context.Background(), logger, replicas, symMaxPending)
+	if err != nil {
+		return result{}, xerrors.Errorf("start coder cluster: %w", err)
+	}
+	defer func() {
+		for _, p := range pubsubs {
+			_ = p.Close()
+		}
+	}()
+
+	replicaAt := func(i int) *codernats.Pubsub {
+		return pubsubs[i%replicas]
+	}
+
+	expectPerSub := int64(msgs) * int64(pubs)
+	totalPublished := int64(msgs) * int64(pubs)
+
+	type subState struct {
+		count  atomic.Int64
+		done   chan struct{}
+		expect int64
+		cancel func()
+	}
+	subStates := make([]*subState, subs)
+	for i := 0; i < subs; i++ {
+		st := &subState{done: make(chan struct{}), expect: expectPerSub}
+		cancel, serr := replicaAt(i).Subscribe(subj, func(_ context.Context, _ []byte) {
+			n := st.count.Add(1)
+			if n == st.expect {
+				close(st.done)
+			}
+		})
+		if serr != nil {
+			return result{}, xerrors.Errorf("subscribe %d: %w", i, serr)
+		}
+		st.cancel = cancel
+		subStates[i] = st
+	}
+	setup := time.Since(t0)
+
+	payload := make([]byte, size)
+	for i := range payload {
+		payload[i] = byte(i)
+	}
+
+	// Symmetric mode: each publisher publishes the full msgs count on
+	// its assigned replica.
+	var wg sync.WaitGroup
+	var publishErr atomic.Value
+	start := make(chan struct{})
+	for i := 0; i < pubs; i++ {
+		ps := replicaAt(i)
+		wg.Add(1)
+		go func(ps *codernats.Pubsub) {
+			defer wg.Done()
+			<-start
+			for j := 0; j < msgs; j++ {
+				if err := ps.Publish(subj, payload); err != nil {
+					publishErr.Store(err)
+					return
+				}
+			}
+			if err := ps.Flush(); err != nil {
+				publishErr.Store(err)
+			}
+		}(ps)
+	}
+	memBefore := hotStart()
+	hotStartT := time.Now()
+	close(start)
+	wg.Wait()
+	pubDone := time.Now()
+	if v := publishErr.Load(); v != nil {
+		perr, _ := v.(error)
+		return result{}, xerrors.Errorf("publish: %w", perr)
+	}
+
+	deadline := time.NewTimer(timeout)
+	defer deadline.Stop()
+	for _, st := range subStates {
+		select {
+		case <-st.done:
+		case <-deadline.C:
+			var delivered int64
+			for _, s := range subStates {
+				delivered += s.count.Load()
+			}
+			return result{}, xerrors.Errorf("timeout: delivered %d of %d (subs=%d)", delivered, expectPerSub*int64(subs), subs)
+		}
+	}
+	subDone := time.Now()
+	pubHot := pubDone.Sub(hotStartT)
+	deliverHot := subDone.Sub(hotStartT)
+	if subs == 0 {
+		deliverHot = pubHot
+	}
+	rs := hotEnd(memBefore)
+
+	var delivered int64
+	for _, st := range subStates {
+		delivered += st.count.Load()
+		st.cancel()
+	}
+	return result{
+		setup:      setup,
+		pubHot:     pubHot,
+		deliverHot: deliverHot,
+		published:  totalPublished,
+		delivered:  delivered,
+		subCount:   subs,
+		rstats:     rs,
+		symmetric:  true,
 	}, nil
 }
 
