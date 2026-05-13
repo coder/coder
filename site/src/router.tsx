@@ -426,6 +426,20 @@ const AIBridgeSessionThreadsPage = lazy(
 	() => import("./pages/AIBridgePage/SessionThreadsPage/SessionThreadsPage"),
 );
 
+const AIBridgeProvidersLayout = lazy(
+	() => import("./pages/AIBridgePage/AIBridgeProvidersLayout"),
+);
+
+const AIBridgeListProvidersPage = lazy(
+	() => import("./pages/AIBridgePage/ListProvidersPage/ListProvidersPage"),
+);
+const AIBridgeCreateProviderPage = lazy(
+	() => import("./pages/AIBridgePage/CreateProviderPage/CreateProviderPage"),
+);
+const AIBridgeEditProviderPage = lazy(
+	() => import("./pages/AIBridgePage/EditProviderPage/EditProviderPage"),
+);
+
 const GlobalLayout = () => {
 	return (
 		<Suspense fallback={<Loader fullscreen />}>
@@ -673,6 +687,15 @@ export const router = createBrowserRouter(
 					<Route path="/aibridge/sessions" element={<AIBridgeSessionsLayout />}>
 						<Route index element={<AIBridgeListSessionsPage />} />
 						<Route path=":sessionId" element={<AIBridgeSessionThreadsPage />} />
+					</Route>
+
+					<Route
+						path="/aibridge/providers"
+						element={<AIBridgeProvidersLayout />}
+					>
+						<Route index element={<AIBridgeListProvidersPage />} />
+						<Route path="new" element={<AIBridgeCreateProviderPage />} />
+						<Route path=":providerId" element={<AIBridgeEditProviderPage />} />
 					</Route>
 
 					<Route path="/health" element={<HealthLayout />}>
