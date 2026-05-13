@@ -69,12 +69,11 @@ type Options struct {
 	DrainTimeout time.Duration
 
 	// PendingLimits configures per-subscription NATS pending limits.
-	// Zero values keep NATS defaults.
+	// If both Msgs and Bytes are zero, New defaults to
+	// {Msgs: -1, Bytes: 512 MiB} (unlimited message count, 512 MiB byte
+	// cap) so wide fan-out workloads don't trip the NATS client default
+	// limits. Setting either field opts out of the default.
 	PendingLimits PendingLimits
-
-	// NoEcho disables receiving messages published by the same connection.
-	// The default false preserves existing pubsub semantics.
-	NoEcho bool
 
 	// ConnectTimeout bounds the initial client connection. Zero means 2
 	// seconds.

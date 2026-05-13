@@ -68,14 +68,12 @@ func buildServerOptions(opts Options, peers []Peer) (*natsserver.Options, string
 		clusterToken = hex.EncodeToString(buf[:])
 	}
 
-	// Bind a loopback random client listener. The embedded Coder client
-	// connects to this listener over TCP loopback rather than
-	// nats.InProcessServer; InProcessConn is unbuffered net.Pipe, which
-	// is slow-consumer-prone under fan-out, whereas TCP loopback has
-	// kernel socket buffers and is the transport upstream tunes for.
-	// (Also: in nats-server v2.12.8, DontListen=true combined with a
-	// non-zero Cluster.Port deadlocks the route AcceptLoop on client
-	// listener readiness.)
+	// Bind a loopback random client listener even though the wrapper
+	// itself connects via nats.InProcessServer (see connectInProcess).
+	// nats-server v2.12.8 deadlocks the route AcceptLoop on client
+	// listener readiness when DontListen=true is combined with a
+	// non-zero Cluster.Port, so we keep a real (but unused by the
+	// wrapper) client listener bound on loopback.
 	sopts.DontListen = false
 	sopts.Host = "127.0.0.1"
 	sopts.Port = natsserver.RANDOM_PORT
@@ -166,18 +164,16 @@ type connHandlers struct {
 }
 
 // connectInProcess builds a NATS client connected to the given embedded
-// server over TCP loopback (ns.ClientURL()), applying connection-level
-// Options. We intentionally avoid nats.InProcessServer here: its
-// transport is unbuffered net.Pipe, which causes synchronous-rendezvous
-// slow-consumer failures under heavy fan-out. TCP loopback has kernel
-// socket buffers and is the transport upstream benchmarks and tunes for.
+// server over nats.InProcessServer (an unbuffered net.Pipe). The wrapper
+// uses one of these connections per local subscription (plus one shared
+// publisher connection) so the server's per-client outbound budget
+// applies independently to each subscription, sidestepping the
+// concentration failure mode that one shared client connection produces
+// under wide fan-out. See docs/internal/wrapper-conn-pool-plan.md.
 func connectInProcess(ns *natsserver.Server, opts Options, handlers connHandlers) (*natsgo.Conn, error) {
-	var connOpts []natsgo.Option
+	connOpts := []natsgo.Option{natsgo.InProcessServer(ns)}
 	if opts.ClientName != "" {
 		connOpts = append(connOpts, natsgo.Name(opts.ClientName))
-	}
-	if opts.NoEcho {
-		connOpts = append(connOpts, natsgo.NoEcho())
 	}
 	if opts.DrainTimeout > 0 {
 		connOpts = append(connOpts, natsgo.DrainTimeout(opts.DrainTimeout))
@@ -200,9 +196,9 @@ func connectInProcess(ns *natsserver.Server, opts Options, handlers connHandlers
 	if handlers.errH != nil {
 		connOpts = append(connOpts, natsgo.ErrorHandler(handlers.errH))
 	}
-	nc, err := natsgo.Connect(ns.ClientURL(), connOpts...)
+	nc, err := natsgo.Connect("", connOpts...)
 	if err != nil {
-		return nil, xerrors.Errorf("connect tcp loopback: %w", err)
+		return nil, xerrors.Errorf("connect in-process: %w", err)
 	}
 	return nc, nil
 }

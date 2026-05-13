@@ -59,10 +59,25 @@
 //
 // # Echo
 //
-// Echo is enabled by default so that a single-process publisher and
-// subscriber observe each other's messages, preserving parity with
-// the legacy Postgres-backed pubsub. Set Options.NoEcho to true to
-// drop self-published messages on the local connection.
+// Self-published messages are always delivered to local subscribers.
+// Each Subscribe call opens its own in-process *nats.Conn that is
+// distinct from the wrapper's publisher connection, so NATS' per-
+// connection NoEcho flag would not suppress same-wrapper deliveries
+// anyway. Callers that need de-duplication should tag publishes at a
+// higher layer.
+//
+// # Connection model
+//
+// New starts one embedded NATS server and one in-process publisher
+// connection. Every Subscribe / SubscribeWithErr call opens a fresh
+// in-process *nats.Conn dedicated to that subscription and tears it
+// down when the subscription is canceled. This gives every
+// subscription its own per-client outbound budget on the server and
+// avoids the concentration failure mode that a single shared client
+// connection exhibits under wide fan-out. NewFromConn is the explicit
+// exception: it reuses the caller-provided *nats.Conn for both
+// publish and subscribe and therefore does not get per-subscription
+// isolation.
 //
 // # Publish semantics
 //

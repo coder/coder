@@ -268,7 +268,7 @@ func TestMetrics_NATSSlowConsumer(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		require.NoError(t, ps.Publish(event, []byte("burst")))
 	}
-	require.NoError(t, ps.nc.FlushTimeout(testutil.WaitShort))
+	require.NoError(t, ps.pubConn.FlushTimeout(testutil.WaitShort))
 	close(release)
 
 	ctx := testutil.Context(t, testutil.WaitLong)

@@ -95,27 +95,6 @@ func TestStandalone_Echo_Default(t *testing.T) {
 	}
 }
 
-func TestStandalone_NoEcho(t *testing.T) {
-	t.Parallel()
-	ps := newTestPubsub(t, xnats.Options{NoEcho: true})
-
-	got := make(chan []byte, 1)
-	cancel, err := ps.Subscribe("noecho_evt", func(_ context.Context, msg []byte) {
-		got <- msg
-	})
-	require.NoError(t, err)
-	defer cancel()
-
-	require.NoError(t, ps.Publish("noecho_evt", []byte("data")))
-
-	select {
-	case msg := <-got:
-		t.Fatalf("did not expect own message with NoEcho, got %q", string(msg))
-	case <-time.After(testutil.IntervalSlow):
-		// good: nothing delivered
-	}
-}
-
 func TestStandalone_Ordering(t *testing.T) {
 	t.Parallel()
 	ps := newTestPubsub(t, xnats.Options{})
