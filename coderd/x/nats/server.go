@@ -195,6 +195,11 @@ func connectClient(ns *natsserver.Server, opts Options, handlers connHandlers, c
 		// The server lives in this same process; treat any disconnect as
 		// transient and reconnect indefinitely.
 		natsgo.MaxReconnects(-1),
+		// All publish subjects on connections owned by this wrapper are
+		// produced by LegacyEventSubject / BuildSubject, which have
+		// already validated the subject. Skip the redundant per-publish
+		// validation inside nats.go to keep the hot path lean.
+		natsgo.SkipSubjectValidation(),
 	}
 	if opts.DrainTimeout > 0 {
 		connOpts = append(connOpts, natsgo.DrainTimeout(opts.DrainTimeout))
