@@ -17,6 +17,8 @@ import (
 	"io"
 	"net"
 	"os"
+	"runtime"
+	"runtime/pprof"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -38,7 +40,12 @@ func main() {
 	subj := flag.String("subj", "bench", "subject (NATS modes only)")
 	timeout := flag.Duration("timeout", 5*time.Minute, "max wait for subscribers to drain")
 	replicas := flag.Int("replicas", 10, "number of replicas for *-cluster modes (ignored elsewhere)")
+	cpuProfile := flag.String("cpuprofile", "", "write a CPU profile of the hot phase to this path")
+	memProfile := flag.String("memprofile", "", "write a heap profile of live memory after the hot phase to this path")
 	flag.Parse()
+
+	cpuProfilePath = *cpuProfile
+	memProfilePath = *memProfile
 
 	if *mode == "" {
 		_, _ = fmt.Fprintln(os.Stderr, "natsbench: -mode is required")
@@ -63,6 +70,71 @@ type result struct {
 	published  int64
 	delivered  int64
 	subCount   int // number of subscribers in the run
+	rstats     runtimeStats
+}
+
+type runtimeStats struct {
+	goroutines int
+	mallocs    uint64
+	bytes      uint64
+	gcCycles   uint32
+	gcPauseNs  uint64
+}
+
+// cpuProfilePath/memProfilePath are populated from flags in main and read by
+// hotStart/hotEnd so each runner can bracket its hot phase without plumbing
+// the flag values through every signature.
+var (
+	cpuProfilePath string
+	memProfilePath string
+)
+
+// hotStart snapshots runtime stats and (if -cpuprofile is set) begins CPU
+// profiling. The returned MemStats must be passed back to hotEnd.
+func hotStart() runtime.MemStats {
+	if cpuProfilePath != "" {
+		f, err := os.Create(cpuProfilePath)
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "natsbench: create cpuprofile: %v\n", err)
+		} else if err := pprof.StartCPUProfile(f); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "natsbench: start cpuprofile: %v\n", err)
+			_ = f.Close()
+		}
+	}
+	var ms runtime.MemStats
+	runtime.ReadMemStats(&ms)
+	return ms
+}
+
+// hotEnd stops the CPU profile, writes the heap profile if requested, and
+// returns the delta runtime stats relative to the snapshot from hotStart.
+func hotEnd(before runtime.MemStats) runtimeStats {
+	if cpuProfilePath != "" {
+		pprof.StopCPUProfile()
+	}
+	var after runtime.MemStats
+	runtime.ReadMemStats(&after)
+	if memProfilePath != "" {
+		// Force a GC so the heap profile reflects live, reachable memory
+		// at the moment the hot phase ended rather than transient garbage.
+		runtime.GC() //nolint:revive // explicit GC is intentional before WriteHeapProfile
+		f, err := os.Create(memProfilePath)
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "natsbench: create memprofile: %v\n", err)
+		} else {
+			if err := pprof.WriteHeapProfile(f); err != nil {
+				_, _ = fmt.Fprintf(os.Stderr, "natsbench: write memprofile: %v\n", err)
+			}
+			_ = f.Close()
+		}
+	}
+	return runtimeStats{
+		goroutines: runtime.NumGoroutine(),
+		mallocs:    after.Mallocs - before.Mallocs,
+		bytes:      after.TotalAlloc - before.TotalAlloc,
+		gcCycles:   after.NumGC - before.NumGC,
+		gcPauseNs:  after.PauseTotalNs - before.PauseTotalNs,
+	}
 }
 
 func run(mode string, msgs, size, pubs, subs int, subj string, timeout time.Duration, replicas int) error {
@@ -161,7 +233,8 @@ func runLoopback(mode string, msgs, size int) (result, error) {
 			}
 		}
 	}()
-	hotStart := time.Now()
+	memBefore := hotStart()
+	hotStartT := time.Now()
 	close(start)
 
 	scratch := make([]byte, size)
@@ -176,7 +249,8 @@ func runLoopback(mode string, msgs, size int) (result, error) {
 	if writeErr != nil {
 		return result{}, xerrors.Errorf("write: %w", writeErr)
 	}
-	hot := time.Since(hotStart)
+	hot := time.Since(hotStartT)
+	rs := hotEnd(memBefore)
 	return result{
 		setup:      setup,
 		pubHot:     hot,
@@ -184,6 +258,7 @@ func runLoopback(mode string, msgs, size int) (result, error) {
 		published:  int64(msgs),
 		delivered:  delivered,
 		subCount:   1,
+		rstats:     rs,
 	}, nil
 }
 
@@ -328,7 +403,8 @@ func runNative(inProcess bool, msgs, size, pubs, subs int, subj string, timeout 
 			}
 		}(nc, n)
 	}
-	hotStart := time.Now()
+	memBefore := hotStart()
+	hotStartT := time.Now()
 	close(start)
 	wg.Wait()
 	pubDone := time.Now()
@@ -351,11 +427,12 @@ func runNative(inProcess bool, msgs, size, pubs, subs int, subj string, timeout 
 		}
 	}
 	subDone := time.Now()
-	pubHot := pubDone.Sub(hotStart)
-	deliverHot := subDone.Sub(hotStart)
+	pubHot := pubDone.Sub(hotStartT)
+	deliverHot := subDone.Sub(hotStartT)
 	if subs == 0 {
 		deliverHot = pubHot
 	}
+	rs := hotEnd(memBefore)
 
 	var delivered int64
 	for _, st := range subStates {
@@ -372,6 +449,7 @@ func runNative(inProcess bool, msgs, size, pubs, subs int, subj string, timeout 
 		published:  int64(msgs),
 		delivered:  delivered,
 		subCount:   subs,
+		rstats:     rs,
 	}, nil
 }
 
@@ -447,7 +525,8 @@ func runCoder(inProcess bool, msgs, size, pubs, subs int, subj string, timeout t
 			}
 		}(n)
 	}
-	hotStart := time.Now()
+	memBefore := hotStart()
+	hotStartT := time.Now()
 	close(start)
 	wg.Wait()
 	pubDone := time.Now()
@@ -470,11 +549,12 @@ func runCoder(inProcess bool, msgs, size, pubs, subs int, subj string, timeout t
 		}
 	}
 	subDone := time.Now()
-	pubHot := pubDone.Sub(hotStart)
-	deliverHot := subDone.Sub(hotStart)
+	pubHot := pubDone.Sub(hotStartT)
+	deliverHot := subDone.Sub(hotStartT)
 	if subs == 0 {
 		deliverHot = pubHot
 	}
+	rs := hotEnd(memBefore)
 
 	var delivered int64
 	for _, st := range subStates {
@@ -488,6 +568,7 @@ func runCoder(inProcess bool, msgs, size, pubs, subs int, subj string, timeout t
 		published:  int64(msgs),
 		delivered:  delivered,
 		subCount:   subs,
+		rstats:     rs,
 	}, nil
 }
 
@@ -507,6 +588,7 @@ func printResult(mode string, r result, msgs, size, pubs, subs int) {
 	delSecs := r.deliverHot.Seconds()
 	if pubSecs <= 0 || delSecs <= 0 {
 		_, _ = fmt.Println("hot duration <= 0, skipping rate")
+		printRuntimeStats(r.rstats, msgs, subs)
 		return
 	}
 	pubRate := float64(r.published) / pubSecs
@@ -524,6 +606,25 @@ func printResult(mode string, r result, msgs, size, pubs, subs int) {
 	aggRate := float64(aggMsgs) / delSecs
 	aggBps := aggRate * float64(size)
 	_, _ = fmt.Printf("aggregate rate: %s msgs/s, %s/s\n", humanCount(aggRate), humanBytes(aggBps))
+	printRuntimeStats(r.rstats, msgs, subs)
+}
+
+func printRuntimeStats(rs runtimeStats, msgs, subs int) {
+	// Aggregate work units: one publish + one delivery per subscriber per
+	// message. With subs == 0 we only have publish-side work.
+	units := int64(msgs) * int64(1+subs)
+	if subs == 0 {
+		units = int64(msgs)
+	}
+	var perMsg uint64
+	if units > 0 {
+		perMsg = rs.bytes / uint64(units)
+	}
+	_, _ = fmt.Println("runtime stats:")
+	_, _ = fmt.Printf("  goroutines (end): %d\n", rs.goroutines)
+	_, _ = fmt.Printf("  allocs:    %d new objects (%d bytes)\n", rs.mallocs, rs.bytes)
+	_, _ = fmt.Printf("  gc pauses: %d cycles, total %dms\n", rs.gcCycles, rs.gcPauseNs/1_000_000)
+	_, _ = fmt.Printf("  per-msg:   %d bytes/msg allocated\n", perMsg)
 }
 
 // runNativeCluster runs the bench against an N-replica full-mesh
@@ -638,7 +739,8 @@ func runNativeCluster(msgs, size, pubs, subs int, subj string, timeout time.Dura
 			}
 		}(nc, n)
 	}
-	hotStart := time.Now()
+	memBefore := hotStart()
+	hotStartT := time.Now()
 	close(start)
 	wg.Wait()
 	pubDone := time.Now()
@@ -661,11 +763,12 @@ func runNativeCluster(msgs, size, pubs, subs int, subj string, timeout time.Dura
 		}
 	}
 	subDone := time.Now()
-	pubHot := pubDone.Sub(hotStart)
-	deliverHot := subDone.Sub(hotStart)
+	pubHot := pubDone.Sub(hotStartT)
+	deliverHot := subDone.Sub(hotStartT)
 	if subs == 0 {
 		deliverHot = pubHot
 	}
+	rs := hotEnd(memBefore)
 
 	var delivered int64
 	for _, st := range subStates {
@@ -682,6 +785,7 @@ func runNativeCluster(msgs, size, pubs, subs int, subj string, timeout time.Dura
 		published:  int64(msgs),
 		delivered:  delivered,
 		subCount:   subs,
+		rstats:     rs,
 	}, nil
 }
 
@@ -764,7 +868,8 @@ func runCoderCluster(msgs, size, pubs, subs int, subj string, timeout time.Durat
 			}
 		}(n)
 	}
-	hotStart := time.Now()
+	memBefore := hotStart()
+	hotStartT := time.Now()
 	close(start)
 	wg.Wait()
 	pubDone := time.Now()
@@ -787,11 +892,12 @@ func runCoderCluster(msgs, size, pubs, subs int, subj string, timeout time.Durat
 		}
 	}
 	subDone := time.Now()
-	pubHot := pubDone.Sub(hotStart)
-	deliverHot := subDone.Sub(hotStart)
+	pubHot := pubDone.Sub(hotStartT)
+	deliverHot := subDone.Sub(hotStartT)
 	if subs == 0 {
 		deliverHot = pubHot
 	}
+	rs := hotEnd(memBefore)
 
 	var delivered int64
 	for _, st := range subStates {
@@ -805,6 +911,7 @@ func runCoderCluster(msgs, size, pubs, subs int, subj string, timeout time.Durat
 		published:  int64(msgs),
 		delivered:  delivered,
 		subCount:   subs,
+		rstats:     rs,
 	}, nil
 }
 
