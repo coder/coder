@@ -1,20 +1,25 @@
-# Setup: Phase 1, a self-healing pool of bot runners
+# System identity: a pool of bot runners
 
-This page is the copy-and-go version of the [overview](./index.md). It walks
-through publishing a Coder template that runs a pool of Claude Code
-self-hosted runners as **prebuilt workspaces owned by a bot identity**, with
-no Coder product changes required.
+This page is the copy-and-go recipe for running Claude Code self-hosted
+runners on Coder under a **system (bot) identity**. Coder maintains a
+pool of warm runner workspaces; Anthropic's pool scheduler picks one
+when a session arrives and locks it to the developer who started the
+session. The workspace, the git push credential, and the commit author
+are all the same bot identity, fleet-wide.
 
 > [!NOTE]
 > Self-hosted runners are in early access (EAP) from Anthropic. You will
 > need a `BYOC_VERSION` and tarball URL from your Anthropic account team
 > before you can complete this guide.
+>
+> System identity is shippable today. For per-user identity, see
+> [User identity](./user-identity.md), which is on the roadmap.
 
 ## What you build in this guide
 
-- One Coder template that bakes the runner binary, runs it as long as the
-  workspace is up, and deletes the workspace from the inside after the
-  runner drains.
+- One Coder template that bakes the runner binary, runs it as long as
+  the workspace is up, and deletes the workspace from the inside after
+  the runner drains.
 - One Coder preset on that template configured with
   `prebuilds { instances = N }` so Coder keeps N warm runners ready for
   the Anthropic pool to claim.
@@ -28,8 +33,7 @@ no Coder product changes required.
 The result is a self-healing pool. When the Anthropic pool scheduler
 routes a session, one of your warm workspaces locks to that user, serves
 their sessions, drains, and deletes itself. The prebuild reconciler
-notices the deficit and queues a replacement. No middleware, no webhook
-receiver, no Coder product changes.
+notices the deficit and queues a replacement.
 
 ## Prerequisites
 
@@ -50,7 +54,7 @@ receiver, no Coder product changes.
 ## Identity model
 
 Every commit and push from this pool is the **bot identity**, not the
-human. This is intentional in Phase 1:
+human. This is intentional:
 
 | Layer            | Identity                                                            |
 |------------------|---------------------------------------------------------------------|
@@ -60,16 +64,9 @@ human. This is intentional in Phase 1:
 | Anthropic runner | Locked to the Anthropic user that sent the first session            |
 | Commit trailer   | Session URL appended by Claude Code (this is your per-human signal) |
 
-The trade-off is that you cannot use Coder's
-[external auth](../../admin/external-auth/index.md) feature here, because
-the prebuild's owner is a synthetic service account that cannot complete
-an OAuth flow. See the [open questions](./plan.md#open-questions-for-coder)
-for the product change that would close that gap.
-
-[Phase 2](./plan.md#phase-2-user-identity-requires-middleware) restores
-per-user identity by introducing a small middleware that claims prebuilds
-on behalf of the matching Coder user. It depends on contracts Anthropic
-has not yet finalized; ship Phase 1 first.
+If you need per-user git attribution, ssh-signed commits, or Coder audit
+log entries attributed to the human, see
+[User identity](./user-identity.md).
 
 ## Step 1: Create the Anthropic pool
 
@@ -468,11 +465,11 @@ backlog at Anthropic; trim if warm runners sit idle for hours.
 
 ### Rotation
 
-| Secret               | Rotate by                                                       |
-|----------------------|-----------------------------------------------------------------|
-| `pool_secret`        | Create a new pool secret in `claude.ai`, re-push the template with `--variable pool_secret=...`, revoke the old one. Active runners holding the old secret exit on next token refresh and the pool reconciler replaces them. |
-| `git_bot_token`      | Mint a new PAT, re-push the template, revoke the old PAT. Already-running runners use the old token until they drain.                                                                                                       |
-| `coder_delete_token` | Generate a new token for the service account, re-push the template, delete the old token.                                                                                                                                   |
+| Secret               | Rotate by                                                                                                                                                                                                                                                                                                                  |
+|----------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `pool_secret`        | Create a new pool secret in `claude.ai`, re-push the template with `--variable pool_secret=...`, revoke the old one. Active runners holding the old secret exit on next token refresh and the pool reconciler replaces them.                                                                                              |
+| `git_bot_token`      | Mint a new PAT, re-push the template, revoke the old PAT. Already-running runners use the old token until they drain.                                                                                                                                                                                                      |
+| `coder_delete_token` | Generate a new token for the service account, re-push the template, delete the old token.                                                                                                                                                                                                                                  |
 
 ### Upgrade the runner binary
 
@@ -493,23 +490,92 @@ curl -s http://127.0.0.1:8080/metrics | grep claude_code_self_hosted
 tail -f ~/.claude/runner.log
 ```
 
+## Known limitations and workarounds
+
+System identity is the right model for most teams, but it has trade-offs
+worth knowing before you ship.
+
+### Bot author on every commit
+
+Every commit's `Author` is the bot from `/etc/gitconfig`, regardless of
+which human asked Claude to do the work. Your audit signal for the
+human is the **session URL** that Claude Code appends to each commit as
+a trailer.
+
+If your team requires per-human commit authorship (for example, for
+codeowner attribution, signed commits, or push-time policy checks that
+inspect the author), wait for [User identity](./user-identity.md).
+
+### Coder audit log attributes to the service account
+
+The workspace owner is the prebuilds service account, so Coder's audit
+log entries (workspace create, start, stop, delete) attribute to that
+account, not to the human who triggered the Claude session. The richer
+"alice asked Claude to do X" audit trail lives in Anthropic's session
+log.
+
+If you need a single pane of glass that attributes runner activity to
+human users in Coder's audit log, wait for
+[User identity](./user-identity.md).
+
+### Coder external auth is not available inside prebuilt workspaces
+
+The prebuilds primitive creates workspaces under a synthetic service
+account, which cannot complete the OAuth flow Coder uses for
+[external auth](../../admin/external-auth/index.md). That is why this
+recipe ships the bot git credential as a `git_bot_token` Terraform
+variable instead of using `coder_external_auth`.
+
+The trade-off: you rotate `git_bot_token` by re-pushing the template
+rather than getting automatic refresh from Coder. For a fleet-wide bot
+identity that is the right shape; for per-user tokens it would be
+wrong, which is one of the reasons User identity exists as a separate
+mode.
+
+### Capacity is bounded by the prebuild pool size
+
+If you run `instances = 5` and 6 Anthropic users send sessions at the
+same time, the 6th waits in Anthropic's queue until a runner drains or
+the reconciler spawns a replacement. Bump `instances` to your expected
+peak concurrency. Each warm runner is a running container, so this is a
+real cost decision; treat it like sizing a CI runner pool.
+
+### Sessions that stall indefinitely will eventually be dropped
+
+A Claude Code session that hits an unanswered permission prompt or
+otherwise idles past `--release-idle-session-min` will be released by
+the runner. Once the runner's active-session count drops to zero it
+drains and exits. **The half-finished working tree is lost.** Anthropic's
+runner protocol does not retain per-session state across drains.
+
+Avoid relying on long-running interactive Claude sessions in this mode.
+For tasks that need to be paused and resumed, fall back to opening a
+regular Coder workspace and using Claude Code there interactively.
+
+### Pool concurrency model
+
+Anthropic's runner protocol locks one runner to one Anthropic user at a
+time. `--capacity` controls parallelism for that one user, not across
+users. So `instances = 5, capacity = 4` does not give you 20 concurrent
+users; it gives you up to 5 concurrent users, each able to run 4
+parallel sessions.
+
 ## Common pitfalls
 
 | Symptom                                                          | Cause and fix                                                                                                                                                                                                                                                                              |
 |------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `EACCES: permission denied, mkdir '/workspace'`                  | The image is missing the `install -d -o coder -g coder /workspace` step. Sessions fail on first checkout. Fix in the `Dockerfile`, re-push the template, and let prebuilds replace warm runners.                                                                                           |
 | Prebuilds never come up                                          | Confirm your deployment is on **Coder Premium** (prebuilds is an enterprise feature). Check `coder server` logs for `prebuilds` errors.                                                                                                                                                    |
-| Runner appears in pool but sessions stay queued                  | The runner is locked to an Anthropic account that does not match the user trying to send a session. Each runner serves one Anthropic user at a time. Either wait for it to drain, add more `instances`, or use Phase 2 middleware with `--lock-to-account` to pre-lock per Anthropic user. |
+| Runner appears in pool but sessions stay queued                  | The runner is locked to an Anthropic account that does not match the user trying to send a session. Each runner serves one Anthropic user at a time. Either wait for it to drain, add more `instances`, or wait for [User identity](./user-identity.md) which pre-locks per Anthropic user. |
 | Workspace does not self-evict on drain                           | `CODER_DELETE_TOKEN` is wrong or the service account lacks `delete:workspace`. The workspace will sit idle until Coder's TTL reaps it. Fix the token or grant the role and re-push the template. As a backstop, set a workspace TTL on the template.                                       |
 | `git push` fails with 403 / Permission denied                    | `git_bot_token` is missing required repo scope, or the bot identity does not have push access to the repo the session is working in. Confirm the bot's permissions on the git host.                                                                                                        |
 | Metadata shows `?` for active sessions                           | The runner has not started yet, the `/healthz` port is firewalled inside the container, or `jq` is missing from the image. Check `tail -f ~/.claude/runner.log` and `apt list --installed jq`.                                                                                              |
 
 ## Where to next
 
-- [Plan: Phase 2](./plan.md#phase-2-user-identity-requires-middleware)
-  introduces a small middleware that claims prebuilds on behalf of the
-  matching Coder user, restoring per-user identity. It depends on
-  Anthropic contracts that are not yet finalized.
-- [Plan: sub-stages within Phase 1](./plan.md#sub-stages-within-phase-1-docs-follow-ons)
-  layers wrapper scripts, AI Gateway routing, custom checkout, and tool
-  allowlists on top of the recipe above.
+- [User identity](./user-identity.md): the user-identity follow-on,
+  on the roadmap.
+- [Implementation notes](./plan.md): the staged plan, the sub-stages
+  within system identity (per-creator credentials, AI Gateway routing,
+  custom checkout, tool allowlists), and the open questions tracked
+  alongside this delivery.

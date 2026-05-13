@@ -1079,19 +1079,25 @@
 				},
 				{
 					"title": "Claude Code Self-Hosted Runners",
-					"description": "Run Anthropic Claude Code self-hosted runners on Coder workspaces with no Coder product changes",
+					"description": "Run Anthropic Claude Code self-hosted runners on Coder workspaces",
 					"path": "./ai-coder/claude-code-self-hosted-runners/index.md",
 					"state": ["early access"],
 					"children": [
 						{
-							"title": "Setup",
-							"description": "Publish a Coder template that runs a Claude Code self-hosted runner inside each workspace",
-							"path": "./ai-coder/claude-code-self-hosted-runners/setup.md",
+							"title": "System Identity",
+							"description": "A self-healing pool of bot-owned runners using Coder prebuilds. Available today on Coder Premium and the Anthropic EAP.",
+							"path": "./ai-coder/claude-code-self-hosted-runners/system-identity.md",
+							"state": ["premium", "early access"]
+						},
+						{
+							"title": "User Identity",
+							"description": "Per-developer attribution for Claude Code runners on Coder. On the roadmap.",
+							"path": "./ai-coder/claude-code-self-hosted-runners/user-identity.md",
 							"state": ["early access"]
 						},
 						{
-							"title": "Plan",
-							"description": "Staged plan for documenting more advanced setups; no Coder product changes required",
+							"title": "Implementation Notes",
+							"description": "Design history, sub-stages, and open questions tracked alongside the delivery.",
 							"path": "./ai-coder/claude-code-self-hosted-runners/plan.md",
 							"state": ["early access"]
 						}

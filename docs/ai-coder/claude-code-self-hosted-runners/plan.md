@@ -1,24 +1,31 @@
-# Plan: Claude Code self-hosted runners on Coder
+# Implementation notes: Claude Code self-hosted runners on Coder
 
-This page captures the staged plan for documenting how Coder workspaces can
-serve as Claude Code self-hosted runners. It lives in `docs/` so it is easy
-to read and review alongside the user-facing pages.
+This page captures the staged plan and the open questions behind the
+two customer-facing identity models. It is the place to look if you
+are evaluating the [System identity](./system-identity.md) recipe and
+want to understand the trade-offs we accepted, or if you are tracking
+what blocks [User identity](./user-identity.md) from shipping.
 
-The constraint for every stage on this page is **zero Coder product
-changes.** Each item is either documentation, a template change, or a
-configuration change a customer can make today.
+The constraint for the **shippable** parts of this plan is that they
+use only Coder primitives that exist today. Anything that would require
+a Coder product change is called out explicitly in the
+[Open questions for Coder](#open-questions-for-coder) section. Anything
+that would require an Anthropic change is in the
+[Open questions for Anthropic](#open-questions-for-anthropic) section.
 
-The plan is split into two phases. **Phase 1** is what you can ship today
-with shipped Coder primitives. **Phase 2** is what becomes possible once a
-small piece of middleware sits between Anthropic's pool and Coder's
-workspace-create API.
+The customer-facing pages describe two identity models:
+[System identity](./system-identity.md) (shippable today on Coder
+primitives that exist) and [User identity](./user-identity.md) (on the
+roadmap, depends on Anthropic protocol pieces still being finalized).
+This page is the design history behind both models, plus the sub-stages
+and the open questions tracked alongside the delivery.
 
 ## Goals
 
 - Give platform teams a clear path from "I have an Anthropic pool" to
   "developers can route Claude Code sessions to Coder workspaces."
-- Stay strictly within existing Coder capabilities so we can ship this as a
-  docs-only update.
+- Be explicit about which pieces ship today on Coder primitives and
+  which depend on contracts Anthropic or Coder has not finalized.
 - Make it obvious which Anthropic features (wrapper scripts, lifecycle
   hooks, multi-account pools) translate to which Coder primitives so we
   don't accidentally pull product work into a docs project.
@@ -26,14 +33,19 @@ workspace-create API.
 
 ## Non-goals
 
-- Building any new Coder UI, API, or module for self-hosted runners.
+- Building any new Coder UI, API, or module *as part of the system
+  identity recipe*. User identity
+  and the [Coder open questions](#open-questions-for-coder) describe
+  product work that is in scope for the follow-on, but not for the
+  initial docs delivery.
 - Wrapping the runner binary in a Coder-distributed package.
 - Anthropic-side changes (pool management, JWT contents, scheduling).
+  These are tracked as [open questions for Anthropic](#open-questions-for-anthropic).
 
 If we want any of those, that is separate product work that should be
 proposed in a Linear issue, not in this docs branch.
 
-## Phase 1: System identity (shippable today)
+## System identity (shippable today)
 
 A pool of bot-owned Coder workspaces, each running one Claude Code
 self-hosted runner, behind a Coder prebuilds preset that maintains a
@@ -51,7 +63,7 @@ pushing the commit are both the bot.
 
 1. **Workspace template** that bakes the runner binary and starts it under
    `coder_script` with `run_on_start = true`. Today's template under
-   `examples/` plus the [setup guide](./setup.md) is the reference.
+   `examples/` plus the [System identity recipe](./system-identity.md) is the reference.
 2. **Sensitive template variables** for the pool secret and the bot's git
    credential (PAT or private key). Both are fleet-wide, both rotate by
    re-pushing the template.
@@ -92,16 +104,21 @@ pushing the commit are both the bot.
   Anthropic users. The 6th waits in Anthropic's queue. Tune `instances`
   for your expected concurrency.
 
-### Phase 1 acceptance criteria
+### System identity acceptance criteria
 
 - A reader who has never seen self-hosted runners can stand up a working
-  Coder template using only the [setup guide](./setup.md) and the runner
-  build from Anthropic.
-- The reader does not have to make any Coder product changes.
+  Coder template using only the [System identity recipe](./system-identity.md) and the
+  runner build from Anthropic.
+- The reader uses only shipped Coder primitives. Where System identity hits a
+  limitation in those primitives (the prebuilds service account cannot
+  complete an OAuth flow, so external auth does not resolve inside a
+  prebuilt workspace), the recipe documents the workaround (bot PAT via
+  sensitive variable) and the gap is filed in the
+  [open questions for Coder](#open-questions-for-coder).
 - The pool maintains N warm runners through drain, error exit, and TTL
   expiry.
 
-## Phase 2: User identity (requires middleware)
+## User identity (on the roadmap)
 
 A small webhook receiver listens for Anthropic's `runner-needed` event,
 maps the session creator (from the event payload) to a Coder user, and
@@ -128,22 +145,23 @@ arrives so there is no first-session-wins race.
    human admin's PAT.
 3. **`--lock-to-account` parameter on the template.** A new
    `coder_parameter` that flows through to the runner CLI. Default empty
-   (behaves like Phase 1); set by the middleware on every spawn.
-4. **Phase 1's prebuilds preset and self-eviction.** Phase 2 reuses Phase
-   1's pool as inventory. The middleware claims a warm prebuild on behalf
-   of the user, which atomically transfers ownership from the prebuilds
-   service account to the human. The claim build runs with the human's
-   owner context, so external-auth resolves to their token.
+   (behaves like System identity); set by the middleware on every spawn.
+4. **The system identity prebuilds preset and self-eviction.** User
+   identity reuses the system identity pool as inventory. The middleware
+   claims a warm prebuild on behalf of the user, which atomically
+   transfers ownership from the prebuilds service account to the human.
+   The claim build runs with the human's owner context, so external-auth
+   resolves to their token.
 
 ### Open questions for Anthropic
 
 These are documented in the dedicated [open questions](#open-questions-for-anthropic)
-section below. The two that block Phase 2 specifically:
+section below. The two that block User identity specifically:
 
 - The shape and auth contract of the `runner-needed` webhook.
 - Graduation of `--lock-to-account` from its current "(pending)" status.
 
-### Phase 2 acceptance criteria
+### User identity acceptance criteria
 
 - The middleware can convert one Anthropic `runner-needed` event into one
   Coder workspace owned by the matching human.
@@ -152,11 +170,11 @@ section below. The two that block Phase 2 specifically:
 - Coder's audit log attributes the workspace to the human, with the
   service account shown as the on-behalf-of creator.
 
-## Sub-stages within Phase 1 (docs follow-ons)
+## Sub-stages within system identity (docs follow-ons)
 
-These layer on top of Phase 1 and are pure documentation and template
+These layer on top of System identity and are pure documentation and template
 work. They are stage-numbered for sequencing, not because they require
-Phase 2 to ship.
+User identity to ship.
 
 ### Stage A: Per-creator credentials via wrapper script
 
@@ -258,28 +276,28 @@ This is purely an image and settings exercise; no product work.
 
 ## Sequencing and review
 
-| Stage           | Pages                            | Reviewers                   | Notes                                                                 |
-|-----------------|----------------------------------|-----------------------------|-----------------------------------------------------------------------|
-| Phase 1         | overview, setup, this plan       | docs, AI team, platform-eng | Ship as a single PR. Don't gate on Phase 2.                           |
-| Stage A         | wrapper scripts page             | security, IdP owners        | Needs IdP examples beyond AWS STS.                                    |
-| Stage B         | lifecycle hooks page             | infra, source-control       | Pair with a Coder template that demonstrates the cache volume layout. |
-| Stage C         | AI Gateway integration page      | AI Gateway maintainers      | Behind AI Governance Add-on entitlement.                              |
-| Stage D         | permissions and skills page      | security, AI team           | Mostly cribs from the PDF + existing `~/.claude` content.             |
-| Phase 2         | middleware reference, plan diff  | platform-eng, AI team       | Depends on Anthropic publishing the webhook contract.                 |
+| Stage             | Pages                            | Reviewers                   | Notes                                                                 |
+|-------------------|----------------------------------|-----------------------------|-----------------------------------------------------------------------|
+| System identity   | overview, system-identity, plan  | docs, AI team, platform-eng | Ship as a single PR. Don't gate on User identity.                     |
+| Stage A           | wrapper scripts page             | security, IdP owners        | Needs IdP examples beyond AWS STS.                                    |
+| Stage B           | lifecycle hooks page             | infra, source-control       | Pair with a Coder template that demonstrates the cache volume layout. |
+| Stage C           | AI Gateway integration page      | AI Gateway maintainers      | Behind AI Governance Add-on entitlement.                              |
+| Stage D           | permissions and skills page      | security, AI team           | Mostly cribs from the PDF + existing `~/.claude` content.             |
+| User identity     | middleware reference, plan diff  | platform-eng, AI team       | Depends on Anthropic publishing the webhook contract.                 |
 
 ## Risks and open issues
 
 - **EAP churn.** The runner build, JWT claim shape, scaling signals, and
   flag set are all flagged in the PDF as subject to change during the EAP.
-  We should ship Phase 1 with a clear EAP banner and pin the documented
+  We should ship System identity with a clear EAP banner and pin the documented
   `BYOC_VERSION` to whatever Anthropic gave us at write time.
 - **Two-source ownership.** Anthropic owns the runner binary, the pool, and
   the session control plane. Coder owns the workspace and the
   observability around it. A reader who hits a problem will need to know
-  which logs to read first; the troubleshooting section in `setup.md` is
+  which logs to read first; the troubleshooting section in `system-identity.md` is
   the first attempt at that and will need iteration.
 - **Multi-repo sessions.** The PDF mentions that multi-repo sessions spawn
-  from a parent directory with `--add-dir` per repo. Phase 1 does
+  from a parent directory with `--add-dir` per repo. System identity does
   not exercise this. We should add a short note once we have tested it.
 - **Persistence.** Anthropic expects each runner restart to give a fresh
   filesystem. Coder workspaces typically persist `$HOME`. We default to
@@ -362,23 +380,23 @@ If the answer is "no, runners are always ephemeral":
 - "The user's Claude session on their workspace" is a transient
   relationship the workspace cannot make durable. The docs say so
   plainly.
-- Phase 2 fleet pools become the only correct deployment shape for
-  multi-user scenarios. Phase 1's "pool of warm runners" is
-  the only correct shape for system-identity deployments.
+- User identity becomes the only correct deployment shape for
+  multi-user scenarios. System identity's pool of warm runners is the
+  only correct shape for system-identity deployments.
 
 ### Webhook payload and `--lock-to-account` graduation
 
-Phase 2 depends on two interfaces the PDF flags as not yet finalized:
+User identity depends on two interfaces the PDF flags as not yet finalized:
 
 - The `runner-needed` webhook payload shape and auth contract. Per the
   PDF: "tell us which scaling signal fits your infrastructure, what
   payload fields you need to provision a runner (for example: pool ID,
   the account the runner should serve, repository URLs to pre-clone),
   and what authentication shape your webhook receiver expects." We have
-  a concrete consumer (the middleware in Phase 2) and would like to
+  a concrete consumer (the middleware in User identity) and would like to
   influence the contract before it is finalized.
 - The `--lock-to-account` flag is documented today as "intended for
-  webhook-driven spawn (pending)." Phase 2's no-first-session-wins
+  webhook-driven spawn (pending)." user identity's no-first-session-wins
   property depends on it. We need to know whether it will graduate from
   pending and whether the locked account must already have queued
   sessions, must belong to the pool's org, etc.
@@ -431,11 +449,11 @@ follow-ons and we want them captured.
 
 Coder's prebuilds primitive maintains N warm workspaces owned by a
 synthetic prebuilds service account. We use that as the inventory for
-Phase 1, but we hit a real limitation: **the prebuilds service account
+System identity, but we hit a real limitation: **the prebuilds service account
 cannot complete an OAuth flow**, so `coder_external_auth` resolves to
 nothing inside a prebuilt workspace.
 
-The workaround Phase 1 ships with is "deliver a bot PAT via a sensitive
+The workaround System identity ships with is "deliver a bot PAT via a sensitive
 template variable." That is fine for system identity, but it means we
 cannot use Coder's external-auth refresh story for the bot.
 
@@ -454,7 +472,7 @@ humans."
 
 ### First-class headless workspace pool primitive
 
-Phase 2's middleware reimplements a small queue manager around Coder's
+user identity's middleware reimplements a small queue manager around Coder's
 workspace API. A Coder primitive that knows how to spawn a workspace
 per external signal (webhook, queue event), lock it to a specific
 external identity, run it until drain, and reclaim it, would close
@@ -481,5 +499,5 @@ small Coder integration could surface those events alongside Coder's
 existing audit log. The plumbing is small once the hook contract exists
 on Anthropic's side.
 
-None of these Coder asks block Phase 1 or Phase 2. They are the
+None of these Coder asks block System identity or User identity. They are the
 follow-on product work that this docs effort makes possible to scope.
