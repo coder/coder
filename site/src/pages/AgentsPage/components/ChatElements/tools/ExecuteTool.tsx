@@ -68,7 +68,6 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 	output,
 	status,
 	isError,
-	exitCode,
 	durationMs,
 	isBackgrounded = false,
 	killedBySignal,
@@ -80,12 +79,6 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 	const outputToggleLabel = outputExpanded
 		? "Collapse command output"
 		: "Expand command output";
-	const statusLabel = shellStatusLabel({
-		isRunning,
-		isError,
-		exitCode,
-		killedBySignal,
-	});
 	const durationLabel = formatShellDurationMs(durationMs);
 
 	return (
@@ -137,7 +130,6 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 				<ShellOutputToggle
 					expanded={outputExpanded}
 					label={outputToggleLabel}
-					statusLabel={statusLabel}
 					durationLabel={durationLabel}
 					onToggle={() => setOutputExpanded((value) => !value)}
 				/>
@@ -152,10 +144,9 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 const ShellOutputToggle: React.FC<{
 	expanded: boolean;
 	label: string;
-	statusLabel: { text: string; className: string };
 	durationLabel: string;
 	onToggle: () => void;
-}> = ({ expanded, label, statusLabel, durationLabel, onToggle }) => {
+}> = ({ expanded, label, durationLabel, onToggle }) => {
 	return (
 		<button
 			type="button"
@@ -165,13 +156,7 @@ const ShellOutputToggle: React.FC<{
 			className="col-start-2 col-span-2 row-start-2 mt-1 flex min-w-0 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 font-mono text-xs leading-5 text-content-secondary hover:text-content-primary sm:col-start-4 sm:col-span-1 sm:row-start-1 sm:mt-0"
 		>
 			<span className="sm:hidden">output</span>
-			{durationLabel && (
-				<>
-					<span>{durationLabel}</span>
-					<ShellMetaSeparator />
-				</>
-			)}
-			<span className={statusLabel.className}>{statusLabel.text}</span>
+			{durationLabel && <span>{durationLabel}</span>}
 			<ChevronDownIcon
 				className={cn(
 					"size-3.5 shrink-0 transition-transform",
@@ -202,34 +187,6 @@ const ShellOutputBody: React.FC<{
 			</pre>
 		</ScrollArea>
 	);
-};
-
-const ShellMetaSeparator: React.FC = () => {
-	return <span className="text-content-disabled">|</span>;
-};
-
-const shellStatusLabel = ({
-	isRunning,
-	isError,
-	exitCode,
-	killedBySignal,
-}: {
-	isRunning: boolean;
-	isError: boolean;
-	exitCode?: number | null;
-	killedBySignal?: "kill" | "terminate";
-}): { text: string; className: string } => {
-	if (isRunning) {
-		return { text: "running", className: "text-content-link" };
-	}
-	if (killedBySignal) {
-		return { text: "terminated", className: "text-content-secondary" };
-	}
-	const code = exitCode ?? (isError ? 1 : 0);
-	return {
-		text: `exit ${code}`,
-		className: code === 0 ? "text-content-success" : "text-content-destructive",
-	};
 };
 
 const formatShellDurationMs = (durationMs: number | undefined): string => {

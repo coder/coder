@@ -60,7 +60,7 @@ export const ExecuteSuccess: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText(/From github\.com:coder\/coder/)).toBeVisible();
-		expect(canvas.getByText("exit 0")).toBeVisible();
+		expect(canvas.queryByText("exit 0")).not.toBeInTheDocument();
 		expect(canvas.getByText("47.2s")).toBeVisible();
 		expect(canvas.queryByText("2 lines")).not.toBeInTheDocument();
 	},
@@ -84,7 +84,7 @@ export const ExecuteError: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText("exit 1")).toBeVisible();
+		expect(canvas.queryByText("exit 1")).not.toBeInTheDocument();
 		expect(canvas.getByText("8.6s")).toBeVisible();
 		expect(canvas.queryByText("47 lines")).not.toBeInTheDocument();
 	},
@@ -103,7 +103,7 @@ export const ExecuteAlwaysCollapsed: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText(executeCommand)).toBeVisible();
-		expect(canvas.getByText("exit 0")).toBeVisible();
+		expect(canvas.queryByText("exit 0")).not.toBeInTheDocument();
 		expect(canvas.queryByText("2 lines")).not.toBeInTheDocument();
 		expect(
 			canvas.queryByText(/From github\.com:coder\/coder/),
@@ -139,7 +139,7 @@ export const ExecuteLongCommandCollapsed: Story = {
 		expect(
 			canvas.queryByRole("button", { name: longExecuteCommand }),
 		).not.toBeInTheDocument();
-		expect(canvas.getByText("exit 0")).toBeVisible();
+		expect(canvas.queryByText("exit 0")).not.toBeInTheDocument();
 		expect(canvas.getByText("47.2s")).toBeVisible();
 		expect(canvas.queryByText("61 lines")).not.toBeInTheDocument();
 	},
