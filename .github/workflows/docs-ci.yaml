@@ -4,16 +4,19 @@ on:
   push:
     branches:
       - main
+    # Intentionally only matches doc content. Edits to this workflow file
+    # alone would still trigger a run, but the `lint` and `fmt` steps gate
+    # on `tj-actions/changed-files` matching `docs/**` or `**.md`, so the
+    # job would no-op. The self-reference was wasted runner time. Removed
+    # per DOCS-129.
     paths:
       - "docs/**"
       - "**.md"
-      - ".github/workflows/docs-ci.yaml"
 
   pull_request:
     paths:
       - "docs/**"
       - "**.md"
-      - ".github/workflows/docs-ci.yaml"
 
 permissions:
   contents: read
