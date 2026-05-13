@@ -9,10 +9,19 @@ identity, fleet-wide.
 
 <img src="../../images/guides/claude-code-self-hosted-runners/system-identity-flow.svg" alt="Coder maintains a pool of warm prebuilt workspaces. When an Anthropic session arrives, the pool scheduler picks one and locks it to the developer. When work drains, the workspace deletes itself and the prebuild reconciler queues a replacement." />
 
-> [!NOTE]
-> System identity is the model documented on this page. For per-user
-> identity, see [User identity](./user-identity.md), which is on the
-> Coder + Anthropic roadmap.
+> [!TIP]
+> **System identity ships today.** Every primitive this guide uses is
+> already in Coder (templates, prebuilds, sensitive Terraform
+> variables, agent metadata, self-eviction via the Coder API). For a
+> scoped POC, a single bot identity over a small set of repos, or a
+> fleet that runs Claude Code as a build agent, system identity is
+> the recommended starting point and works on a Coder deployment now.
+>
+> [User identity](./user-identity.md) is the planned follow-on. It
+> reuses the template, image, and pool you publish here and layers a
+> routing component plus per-user external auth on top, so the same
+> recipe later becomes per-human attribution and per-human git push
+> without re-architecting.
 
 ## Limitations
 
@@ -35,7 +44,9 @@ Read these first; the rest of this page assumes they fit your team.
 - **Stalled sessions are dropped.** Once the runner's active session
   count hits zero it drains; half-finished working trees are lost.
   Park long-running interactive sessions in a regular Coder workspace
-  instead.
+  instead. The prebuild preset also recycles each warm runner after
+  `expiration_policy.ttl` (8 hours in the example below), so a runner
+  that locked but stayed idle is still reclaimed on schedule.
 - **`--capacity` is per-runner parallelism, not pool concurrency.**
   Each runner serves up to `--capacity` sessions for the one locked
   user. Cross-user concurrency is bounded by `instances`, not
