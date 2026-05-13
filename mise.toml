@@ -20,7 +20,7 @@ protoc = "23.4"
 protoc-gen-go = "1.30.0"
 
 # Go development tools.
-"go:github.com/golang-migrate/migrate/v4/cmd/migrate" = "v4.15.1"
+"go:github.com/golang-migrate/migrate/v4/cmd/migrate" = "v4.19.0"
 "go:github.com/goreleaser/nfpm/v2/cmd/nfpm" = "v2.35.1"
 "go:github.com/mikefarah/yq/v4" = "v4.44.3"
 "go:github.com/quasilyte/go-ruleguard/cmd/ruleguard" = "v0.3.13"
