@@ -21607,6 +21607,7 @@ const docTemplate = `{
                 "task",
                 "ai_seat",
                 "ai_provider",
+                "ai_provider_key",
                 "chat",
                 "user_secret"
             ],
@@ -21639,6 +21640,7 @@ const docTemplate = `{
                 "ResourceTypeTask",
                 "ResourceTypeAISeat",
                 "ResourceTypeAIProvider",
+                "ResourceTypeAIProviderKey",
                 "ResourceTypeChat",
                 "ResourceTypeUserSecret"
             ]

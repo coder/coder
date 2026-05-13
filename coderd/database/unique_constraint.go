@@ -8,6 +8,7 @@ type UniqueConstraint string
 const (
 	UniqueAgentStatsPkey                                      UniqueConstraint = "agent_stats_pkey"                                                // ALTER TABLE ONLY workspace_agent_stats ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);
 	UniqueAiModelPricesPkey                                   UniqueConstraint = "ai_model_prices_pkey"                                            // ALTER TABLE ONLY ai_model_prices ADD CONSTRAINT ai_model_prices_pkey PRIMARY KEY (provider, model);
+	UniqueAiProviderKeysPkey                                  UniqueConstraint = "ai_provider_keys_pkey"                                           // ALTER TABLE ONLY ai_provider_keys ADD CONSTRAINT ai_provider_keys_pkey PRIMARY KEY (id);
 	UniqueAiProvidersNameKey                                  UniqueConstraint = "ai_providers_name_key"                                           // ALTER TABLE ONLY ai_providers ADD CONSTRAINT ai_providers_name_key UNIQUE (name);
 	UniqueAiProvidersPkey                                     UniqueConstraint = "ai_providers_pkey"                                               // ALTER TABLE ONLY ai_providers ADD CONSTRAINT ai_providers_pkey PRIMARY KEY (id);
 	UniqueAiSeatStatePkey                                     UniqueConstraint = "ai_seat_state_pkey"                                              // ALTER TABLE ONLY ai_seat_state ADD CONSTRAINT ai_seat_state_pkey PRIMARY KEY (user_id);

@@ -30,6 +30,7 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"Task":            {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"AiSeatState":     {codersdk.AuditActionCreate},
 	"AiProvider":      {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"AiProviderKey":   {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
 	"Chat":            {codersdk.AuditActionCreate, codersdk.AuditActionWrite}, // chats get 'archived' by users, not deleted.
 	"UserSecret":      {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 }
@@ -376,12 +377,18 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"enabled":         ActionTrack,
 		"deleted":         ActionTrack,
 		"base_url":        ActionTrack,
-		"api_key":         ActionSecret, // Centralized provider key, never expose in audit diffs.
-		"api_key_key_id":  ActionIgnore, // dbcrypt key reference, derivable.
-		"settings":        ActionSecret, // Encrypted JSON blob may contain provider secrets (e.g. Bedrock access key secret).
+		"settings":        ActionSecret, // Encrypted JSON blob may contain provider secrets (e.g. Bedrock access key + secret).
 		"settings_key_id": ActionIgnore, // dbcrypt key reference, derivable.
 		"created_at":      ActionIgnore, // Implicit; not useful in a diff.
 		"updated_at":      ActionIgnore, // Changes; not useful in a diff.
+	},
+	&database.AiProviderKey{}: {
+		"id":             ActionTrack,
+		"provider_id":    ActionTrack,
+		"api_key":        ActionSecret, // Provider API key, never expose in audit diffs.
+		"api_key_key_id": ActionIgnore, // dbcrypt key reference, derivable.
+		"created_at":     ActionIgnore, // Implicit; not useful in a diff.
+		"updated_at":     ActionIgnore, // Changes; not useful in a diff.
 	},
 	&database.TaskTable{}: {
 		"id":                  ActionTrack,

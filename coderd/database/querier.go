@@ -99,6 +99,7 @@ type sqlcQuerier interface {
 	CountUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) (int64, error)
 	CreateUserSecret(ctx context.Context, arg CreateUserSecretParams) (UserSecret, error)
 	CustomRoles(ctx context.Context, arg CustomRolesParams) ([]CustomRole, error)
+	DeleteAIProviderKey(ctx context.Context, id uuid.UUID) (AiProviderKey, error)
 	DeleteAPIKeyByID(ctx context.Context, id string) error
 	DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
 	DeleteAllChatQueuedMessages(ctx context.Context, chatID uuid.UUID) error
@@ -249,10 +250,20 @@ type sqlcQuerier interface {
 	GetAIProviderByID(ctx context.Context, id uuid.UUID) (AiProvider, error)
 	GetAIProviderByName(ctx context.Context, name string) (AiProvider, error)
 	GetAIProviderByNameIncludeDeleted(ctx context.Context, name string) (AiProvider, error)
+	GetAIProviderKeyByID(ctx context.Context, id uuid.UUID) (AiProviderKey, error)
+	// Returns all keys for a provider, ordered by created_at ASC so the
+	// oldest key is returned first. AI Bridge currently uses the first
+	// key per provider; multiple keys are stored to support future
+	// failover and rotation flows.
+	GetAIProviderKeysByProviderID(ctx context.Context, providerID uuid.UUID) ([]AiProviderKey, error)
+	// Returns every AI provider key row, even those whose provider has
+	// been soft-deleted, so the dbcrypt key rotation utility can
+	// re-encrypt their api_key and clear references to retired keys.
+	GetAIProviderKeysForRotation(ctx context.Context) ([]AiProviderKey, error)
 	GetAIProviders(ctx context.Context) ([]AiProvider, error)
 	// Returns every AI provider row, including soft-deleted ones, so the
-	// dbcrypt key rotation utility can re-encrypt their secrets and clear
-	// references to retired keys.
+	// dbcrypt key rotation utility can re-encrypt their settings and
+	// clear references to retired keys.
 	GetAIProvidersForRotation(ctx context.Context) ([]AiProvider, error)
 	GetAPIKeyByID(ctx context.Context, id string) (APIKey, error)
 	// there is no unique constraint on empty token names
@@ -865,6 +876,11 @@ type sqlcQuerier interface {
 	InsertAIBridgeToolUsage(ctx context.Context, arg InsertAIBridgeToolUsageParams) (AIBridgeToolUsage, error)
 	InsertAIBridgeUserPrompt(ctx context.Context, arg InsertAIBridgeUserPromptParams) (AIBridgeUserPrompt, error)
 	InsertAIProvider(ctx context.Context, arg InsertAIProviderParams) (AiProvider, error)
+	// Optional created_at allows callers (e.g. env-driven seeding) to
+	// preserve insertion order across multiple rows in the same
+	// transaction, where the default NOW() would otherwise tie. When
+	// NULL the column falls back to its DEFAULT (NOW()).
+	InsertAIProviderKey(ctx context.Context, arg InsertAIProviderKeyParams) (AiProviderKey, error)
 	InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error)
 	// We use the organization_id as the id
 	// for simplicity since all users is
@@ -1098,11 +1114,15 @@ type sqlcQuerier interface {
 	UnsetDefaultChatModelConfigs(ctx context.Context) error
 	UpdateAIBridgeInterceptionEnded(ctx context.Context, arg UpdateAIBridgeInterceptionEndedParams) (AIBridgeInterception, error)
 	UpdateAIProvider(ctx context.Context, arg UpdateAIProviderParams) (AiProvider, error)
-	// Updates only the encrypted columns (api_key, api_key_key_id,
-	// settings, settings_key_id) and the updated_at timestamp on a row,
-	// regardless of its deleted flag. Used by the dbcrypt key rotation
-	// utility to re-encrypt or decrypt rows in place.
+	// Updates only the encrypted columns (settings, settings_key_id) and
+	// the updated_at timestamp on a row, regardless of its deleted flag.
+	// Used by the dbcrypt key rotation utility to re-encrypt or decrypt
+	// rows in place.
 	UpdateAIProviderEncryptedColumns(ctx context.Context, arg UpdateAIProviderEncryptedColumnsParams) (AiProvider, error)
+	// Updates only the encrypted columns (api_key, api_key_key_id) and
+	// the updated_at timestamp on a row. Used by the dbcrypt key
+	// rotation utility to re-encrypt or decrypt rows in place.
+	UpdateAIProviderKeyEncryptedColumns(ctx context.Context, arg UpdateAIProviderKeyEncryptedColumnsParams) (AiProviderKey, error)
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
 	UpdateChatBuildAgentBinding(ctx context.Context, arg UpdateChatBuildAgentBindingParams) (Chat, error)
 	UpdateChatByID(ctx context.Context, arg UpdateChatByIDParams) (Chat, error)

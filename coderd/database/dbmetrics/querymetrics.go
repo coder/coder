@@ -377,6 +377,14 @@ func (m queryMetricsStore) CustomRoles(ctx context.Context, arg database.CustomR
 	return r0, r1
 }
 
+func (m queryMetricsStore) DeleteAIProviderKey(ctx context.Context, id uuid.UUID) (database.AiProviderKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteAIProviderKey(ctx, id)
+	m.queryLatencies.WithLabelValues("DeleteAIProviderKey").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteAIProviderKey").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) DeleteAPIKeyByID(ctx context.Context, id string) error {
 	start := time.Now()
 	r0 := m.s.DeleteAPIKeyByID(ctx, id)
@@ -1006,6 +1014,30 @@ func (m queryMetricsStore) GetAIProviderByNameIncludeDeleted(ctx context.Context
 	r0, r1 := m.s.GetAIProviderByNameIncludeDeleted(ctx, name)
 	m.queryLatencies.WithLabelValues("GetAIProviderByNameIncludeDeleted").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIProviderByNameIncludeDeleted").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAIProviderKeyByID(ctx context.Context, id uuid.UUID) (database.AiProviderKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIProviderKeyByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetAIProviderKeyByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIProviderKeyByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAIProviderKeysByProviderID(ctx context.Context, providerID uuid.UUID) ([]database.AiProviderKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIProviderKeysByProviderID(ctx, providerID)
+	m.queryLatencies.WithLabelValues("GetAIProviderKeysByProviderID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIProviderKeysByProviderID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAIProviderKeysForRotation(ctx context.Context) ([]database.AiProviderKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIProviderKeysForRotation(ctx)
+	m.queryLatencies.WithLabelValues("GetAIProviderKeysForRotation").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIProviderKeysForRotation").Inc()
 	return r0, r1
 }
 
@@ -3601,6 +3633,14 @@ func (m queryMetricsStore) InsertAIProvider(ctx context.Context, arg database.In
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertAIProviderKey(ctx context.Context, arg database.InsertAIProviderKeyParams) (database.AiProviderKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertAIProviderKey(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertAIProviderKey").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAIProviderKey").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertAPIKey(ctx context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertAPIKey(ctx, arg)
@@ -4574,6 +4614,14 @@ func (m queryMetricsStore) UpdateAIProviderEncryptedColumns(ctx context.Context,
 	r0, r1 := m.s.UpdateAIProviderEncryptedColumns(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateAIProviderEncryptedColumns").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateAIProviderEncryptedColumns").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateAIProviderKeyEncryptedColumns(ctx context.Context, arg database.UpdateAIProviderKeyEncryptedColumnsParams) (database.AiProviderKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateAIProviderKeyEncryptedColumns(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateAIProviderKeyEncryptedColumns").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateAIProviderKeyEncryptedColumns").Inc()
 	return r0, r1
 }
 

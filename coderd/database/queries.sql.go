@@ -1787,9 +1787,233 @@ func (q *sqlQuerier) UpdateAIBridgeInterceptionEnded(ctx context.Context, arg Up
 	return i, err
 }
 
+const deleteAIProviderKey = `-- name: DeleteAIProviderKey :one
+DELETE FROM
+    ai_provider_keys
+WHERE
+    id = $1::uuid
+RETURNING
+    id, provider_id, api_key, api_key_key_id, created_at, updated_at
+`
+
+func (q *sqlQuerier) DeleteAIProviderKey(ctx context.Context, id uuid.UUID) (AiProviderKey, error) {
+	row := q.db.QueryRowContext(ctx, deleteAIProviderKey, id)
+	var i AiProviderKey
+	err := row.Scan(
+		&i.ID,
+		&i.ProviderID,
+		&i.APIKey,
+		&i.ApiKeyKeyID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getAIProviderKeyByID = `-- name: GetAIProviderKeyByID :one
+SELECT
+    id, provider_id, api_key, api_key_key_id, created_at, updated_at
+FROM
+    ai_provider_keys
+WHERE
+    id = $1::uuid
+`
+
+func (q *sqlQuerier) GetAIProviderKeyByID(ctx context.Context, id uuid.UUID) (AiProviderKey, error) {
+	row := q.db.QueryRowContext(ctx, getAIProviderKeyByID, id)
+	var i AiProviderKey
+	err := row.Scan(
+		&i.ID,
+		&i.ProviderID,
+		&i.APIKey,
+		&i.ApiKeyKeyID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getAIProviderKeysByProviderID = `-- name: GetAIProviderKeysByProviderID :many
+SELECT
+    id, provider_id, api_key, api_key_key_id, created_at, updated_at
+FROM
+    ai_provider_keys
+WHERE
+    provider_id = $1::uuid
+ORDER BY
+    created_at ASC,
+    id ASC
+`
+
+// Returns all keys for a provider, ordered by created_at ASC so the
+// oldest key is returned first. AI Bridge currently uses the first
+// key per provider; multiple keys are stored to support future
+// failover and rotation flows.
+func (q *sqlQuerier) GetAIProviderKeysByProviderID(ctx context.Context, providerID uuid.UUID) ([]AiProviderKey, error) {
+	rows, err := q.db.QueryContext(ctx, getAIProviderKeysByProviderID, providerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AiProviderKey
+	for rows.Next() {
+		var i AiProviderKey
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProviderID,
+			&i.APIKey,
+			&i.ApiKeyKeyID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAIProviderKeysForRotation = `-- name: GetAIProviderKeysForRotation :many
+SELECT
+    id, provider_id, api_key, api_key_key_id, created_at, updated_at
+FROM
+    ai_provider_keys
+ORDER BY
+    provider_id ASC,
+    created_at ASC,
+    id ASC
+`
+
+// Returns every AI provider key row, even those whose provider has
+// been soft-deleted, so the dbcrypt key rotation utility can
+// re-encrypt their api_key and clear references to retired keys.
+func (q *sqlQuerier) GetAIProviderKeysForRotation(ctx context.Context) ([]AiProviderKey, error) {
+	rows, err := q.db.QueryContext(ctx, getAIProviderKeysForRotation)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AiProviderKey
+	for rows.Next() {
+		var i AiProviderKey
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProviderID,
+			&i.APIKey,
+			&i.ApiKeyKeyID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertAIProviderKey = `-- name: InsertAIProviderKey :one
+INSERT INTO ai_provider_keys (
+    id,
+    provider_id,
+    api_key,
+    api_key_key_id,
+    created_at,
+    updated_at
+) VALUES (
+    $1::uuid,
+    $2::uuid,
+    $3::text,
+    $4::text,
+    COALESCE($5::timestamptz, NOW()),
+    COALESCE($5::timestamptz, NOW())
+)
+RETURNING
+    id, provider_id, api_key, api_key_key_id, created_at, updated_at
+`
+
+type InsertAIProviderKeyParams struct {
+	ID          uuid.UUID      `db:"id" json:"id"`
+	ProviderID  uuid.UUID      `db:"provider_id" json:"provider_id"`
+	APIKey      string         `db:"api_key" json:"api_key"`
+	ApiKeyKeyID sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
+	CreatedAt   sql.NullTime   `db:"created_at" json:"created_at"`
+}
+
+// Optional created_at allows callers (e.g. env-driven seeding) to
+// preserve insertion order across multiple rows in the same
+// transaction, where the default NOW() would otherwise tie. When
+// NULL the column falls back to its DEFAULT (NOW()).
+func (q *sqlQuerier) InsertAIProviderKey(ctx context.Context, arg InsertAIProviderKeyParams) (AiProviderKey, error) {
+	row := q.db.QueryRowContext(ctx, insertAIProviderKey,
+		arg.ID,
+		arg.ProviderID,
+		arg.APIKey,
+		arg.ApiKeyKeyID,
+		arg.CreatedAt,
+	)
+	var i AiProviderKey
+	err := row.Scan(
+		&i.ID,
+		&i.ProviderID,
+		&i.APIKey,
+		&i.ApiKeyKeyID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateAIProviderKeyEncryptedColumns = `-- name: UpdateAIProviderKeyEncryptedColumns :one
+UPDATE
+    ai_provider_keys
+SET
+    api_key = $1::text,
+    api_key_key_id = $2::text,
+    updated_at = NOW()
+WHERE
+    id = $3::uuid
+RETURNING
+    id, provider_id, api_key, api_key_key_id, created_at, updated_at
+`
+
+type UpdateAIProviderKeyEncryptedColumnsParams struct {
+	APIKey      string         `db:"api_key" json:"api_key"`
+	ApiKeyKeyID sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
+	ID          uuid.UUID      `db:"id" json:"id"`
+}
+
+// Updates only the encrypted columns (api_key, api_key_key_id) and
+// the updated_at timestamp on a row. Used by the dbcrypt key
+// rotation utility to re-encrypt or decrypt rows in place.
+func (q *sqlQuerier) UpdateAIProviderKeyEncryptedColumns(ctx context.Context, arg UpdateAIProviderKeyEncryptedColumnsParams) (AiProviderKey, error) {
+	row := q.db.QueryRowContext(ctx, updateAIProviderKeyEncryptedColumns, arg.APIKey, arg.ApiKeyKeyID, arg.ID)
+	var i AiProviderKey
+	err := row.Scan(
+		&i.ID,
+		&i.ProviderID,
+		&i.APIKey,
+		&i.ApiKeyKeyID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getAIProviderByID = `-- name: GetAIProviderByID :one
 SELECT
-    id, type, name, display_name, enabled, deleted, base_url, api_key, api_key_key_id, settings, settings_key_id, created_at, updated_at
+    id, type, name, display_name, enabled, deleted, base_url, settings, settings_key_id, created_at, updated_at
 FROM
     ai_providers
 WHERE
@@ -1807,8 +2031,6 @@ func (q *sqlQuerier) GetAIProviderByID(ctx context.Context, id uuid.UUID) (AiPro
 		&i.Enabled,
 		&i.Deleted,
 		&i.BaseUrl,
-		&i.APIKey,
-		&i.ApiKeyKeyID,
 		&i.Settings,
 		&i.SettingsKeyID,
 		&i.CreatedAt,
@@ -1819,7 +2041,7 @@ func (q *sqlQuerier) GetAIProviderByID(ctx context.Context, id uuid.UUID) (AiPro
 
 const getAIProviderByName = `-- name: GetAIProviderByName :one
 SELECT
-    id, type, name, display_name, enabled, deleted, base_url, api_key, api_key_key_id, settings, settings_key_id, created_at, updated_at
+    id, type, name, display_name, enabled, deleted, base_url, settings, settings_key_id, created_at, updated_at
 FROM
     ai_providers
 WHERE
@@ -1837,8 +2059,6 @@ func (q *sqlQuerier) GetAIProviderByName(ctx context.Context, name string) (AiPr
 		&i.Enabled,
 		&i.Deleted,
 		&i.BaseUrl,
-		&i.APIKey,
-		&i.ApiKeyKeyID,
 		&i.Settings,
 		&i.SettingsKeyID,
 		&i.CreatedAt,
@@ -1849,7 +2069,7 @@ func (q *sqlQuerier) GetAIProviderByName(ctx context.Context, name string) (AiPr
 
 const getAIProviderByNameIncludeDeleted = `-- name: GetAIProviderByNameIncludeDeleted :one
 SELECT
-    id, type, name, display_name, enabled, deleted, base_url, api_key, api_key_key_id, settings, settings_key_id, created_at, updated_at
+    id, type, name, display_name, enabled, deleted, base_url, settings, settings_key_id, created_at, updated_at
 FROM
     ai_providers
 WHERE
@@ -1867,8 +2087,6 @@ func (q *sqlQuerier) GetAIProviderByNameIncludeDeleted(ctx context.Context, name
 		&i.Enabled,
 		&i.Deleted,
 		&i.BaseUrl,
-		&i.APIKey,
-		&i.ApiKeyKeyID,
 		&i.Settings,
 		&i.SettingsKeyID,
 		&i.CreatedAt,
@@ -1879,7 +2097,7 @@ func (q *sqlQuerier) GetAIProviderByNameIncludeDeleted(ctx context.Context, name
 
 const getAIProviders = `-- name: GetAIProviders :many
 SELECT
-    id, type, name, display_name, enabled, deleted, base_url, api_key, api_key_key_id, settings, settings_key_id, created_at, updated_at
+    id, type, name, display_name, enabled, deleted, base_url, settings, settings_key_id, created_at, updated_at
 FROM
     ai_providers
 WHERE
@@ -1905,8 +2123,6 @@ func (q *sqlQuerier) GetAIProviders(ctx context.Context) ([]AiProvider, error) {
 			&i.Enabled,
 			&i.Deleted,
 			&i.BaseUrl,
-			&i.APIKey,
-			&i.ApiKeyKeyID,
 			&i.Settings,
 			&i.SettingsKeyID,
 			&i.CreatedAt,
@@ -1927,7 +2143,7 @@ func (q *sqlQuerier) GetAIProviders(ctx context.Context) ([]AiProvider, error) {
 
 const getAIProvidersForRotation = `-- name: GetAIProvidersForRotation :many
 SELECT
-    id, type, name, display_name, enabled, deleted, base_url, api_key, api_key_key_id, settings, settings_key_id, created_at, updated_at
+    id, type, name, display_name, enabled, deleted, base_url, settings, settings_key_id, created_at, updated_at
 FROM
     ai_providers
 ORDER BY
@@ -1935,8 +2151,8 @@ ORDER BY
 `
 
 // Returns every AI provider row, including soft-deleted ones, so the
-// dbcrypt key rotation utility can re-encrypt their secrets and clear
-// references to retired keys.
+// dbcrypt key rotation utility can re-encrypt their settings and
+// clear references to retired keys.
 func (q *sqlQuerier) GetAIProvidersForRotation(ctx context.Context) ([]AiProvider, error) {
 	rows, err := q.db.QueryContext(ctx, getAIProvidersForRotation)
 	if err != nil {
@@ -1954,8 +2170,6 @@ func (q *sqlQuerier) GetAIProvidersForRotation(ctx context.Context) ([]AiProvide
 			&i.Enabled,
 			&i.Deleted,
 			&i.BaseUrl,
-			&i.APIKey,
-			&i.ApiKeyKeyID,
 			&i.Settings,
 			&i.SettingsKeyID,
 			&i.CreatedAt,
@@ -1976,7 +2190,7 @@ func (q *sqlQuerier) GetAIProvidersForRotation(ctx context.Context) ([]AiProvide
 
 const getEnabledAIProviders = `-- name: GetEnabledAIProviders :many
 SELECT
-    id, type, name, display_name, enabled, deleted, base_url, api_key, api_key_key_id, settings, settings_key_id, created_at, updated_at
+    id, type, name, display_name, enabled, deleted, base_url, settings, settings_key_id, created_at, updated_at
 FROM
     ai_providers
 WHERE
@@ -2002,8 +2216,6 @@ func (q *sqlQuerier) GetEnabledAIProviders(ctx context.Context) ([]AiProvider, e
 			&i.Enabled,
 			&i.Deleted,
 			&i.BaseUrl,
-			&i.APIKey,
-			&i.ApiKeyKeyID,
 			&i.Settings,
 			&i.SettingsKeyID,
 			&i.CreatedAt,
@@ -2030,8 +2242,6 @@ INSERT INTO ai_providers (
     display_name,
     enabled,
     base_url,
-    api_key,
-    api_key_key_id,
     settings,
     settings_key_id
 ) VALUES (
@@ -2042,12 +2252,10 @@ INSERT INTO ai_providers (
     $5::boolean,
     $6::text,
     $7::text,
-    $8::text,
-    $9::text,
-    $10::text
+    $8::text
 )
 RETURNING
-    id, type, name, display_name, enabled, deleted, base_url, api_key, api_key_key_id, settings, settings_key_id, created_at, updated_at
+    id, type, name, display_name, enabled, deleted, base_url, settings, settings_key_id, created_at, updated_at
 `
 
 type InsertAIProviderParams struct {
@@ -2057,8 +2265,6 @@ type InsertAIProviderParams struct {
 	DisplayName   string         `db:"display_name" json:"display_name"`
 	Enabled       bool           `db:"enabled" json:"enabled"`
 	BaseUrl       string         `db:"base_url" json:"base_url"`
-	APIKey        string         `db:"api_key" json:"api_key"`
-	ApiKeyKeyID   sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
 	Settings      string         `db:"settings" json:"settings"`
 	SettingsKeyID sql.NullString `db:"settings_key_id" json:"settings_key_id"`
 }
@@ -2071,8 +2277,6 @@ func (q *sqlQuerier) InsertAIProvider(ctx context.Context, arg InsertAIProviderP
 		arg.DisplayName,
 		arg.Enabled,
 		arg.BaseUrl,
-		arg.APIKey,
-		arg.ApiKeyKeyID,
 		arg.Settings,
 		arg.SettingsKeyID,
 	)
@@ -2085,8 +2289,6 @@ func (q *sqlQuerier) InsertAIProvider(ctx context.Context, arg InsertAIProviderP
 		&i.Enabled,
 		&i.Deleted,
 		&i.BaseUrl,
-		&i.APIKey,
-		&i.ApiKeyKeyID,
 		&i.Settings,
 		&i.SettingsKeyID,
 		&i.CreatedAt,
@@ -2105,7 +2307,7 @@ SET
 WHERE
     id = $1::uuid AND deleted = FALSE
 RETURNING
-    id, type, name, display_name, enabled, deleted, base_url, api_key, api_key_key_id, settings, settings_key_id, created_at, updated_at
+    id, type, name, display_name, enabled, deleted, base_url, settings, settings_key_id, created_at, updated_at
 `
 
 func (q *sqlQuerier) SoftDeleteAIProviderByID(ctx context.Context, id uuid.UUID) (AiProvider, error) {
@@ -2119,8 +2321,6 @@ func (q *sqlQuerier) SoftDeleteAIProviderByID(ctx context.Context, id uuid.UUID)
 		&i.Enabled,
 		&i.Deleted,
 		&i.BaseUrl,
-		&i.APIKey,
-		&i.ApiKeyKeyID,
 		&i.Settings,
 		&i.SettingsKeyID,
 		&i.CreatedAt,
@@ -2136,23 +2336,19 @@ SET
     display_name = $1::text,
     enabled = $2::boolean,
     base_url = $3::text,
-    api_key = $4::text,
-    api_key_key_id = $5::text,
-    settings = $6::text,
-    settings_key_id = $7::text,
+    settings = $4::text,
+    settings_key_id = $5::text,
     updated_at = NOW()
 WHERE
-    id = $8::uuid AND deleted = FALSE
+    id = $6::uuid AND deleted = FALSE
 RETURNING
-    id, type, name, display_name, enabled, deleted, base_url, api_key, api_key_key_id, settings, settings_key_id, created_at, updated_at
+    id, type, name, display_name, enabled, deleted, base_url, settings, settings_key_id, created_at, updated_at
 `
 
 type UpdateAIProviderParams struct {
 	DisplayName   string         `db:"display_name" json:"display_name"`
 	Enabled       bool           `db:"enabled" json:"enabled"`
 	BaseUrl       string         `db:"base_url" json:"base_url"`
-	APIKey        string         `db:"api_key" json:"api_key"`
-	ApiKeyKeyID   sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
 	Settings      string         `db:"settings" json:"settings"`
 	SettingsKeyID sql.NullString `db:"settings_key_id" json:"settings_key_id"`
 	ID            uuid.UUID      `db:"id" json:"id"`
@@ -2163,8 +2359,6 @@ func (q *sqlQuerier) UpdateAIProvider(ctx context.Context, arg UpdateAIProviderP
 		arg.DisplayName,
 		arg.Enabled,
 		arg.BaseUrl,
-		arg.APIKey,
-		arg.ApiKeyKeyID,
 		arg.Settings,
 		arg.SettingsKeyID,
 		arg.ID,
@@ -2178,8 +2372,6 @@ func (q *sqlQuerier) UpdateAIProvider(ctx context.Context, arg UpdateAIProviderP
 		&i.Enabled,
 		&i.Deleted,
 		&i.BaseUrl,
-		&i.APIKey,
-		&i.ApiKeyKeyID,
 		&i.Settings,
 		&i.SettingsKeyID,
 		&i.CreatedAt,
@@ -2192,37 +2384,27 @@ const updateAIProviderEncryptedColumns = `-- name: UpdateAIProviderEncryptedColu
 UPDATE
     ai_providers
 SET
-    api_key = $1::text,
-    api_key_key_id = $2::text,
-    settings = $3::text,
-    settings_key_id = $4::text,
+    settings = $1::text,
+    settings_key_id = $2::text,
     updated_at = NOW()
 WHERE
-    id = $5::uuid
+    id = $3::uuid
 RETURNING
-    id, type, name, display_name, enabled, deleted, base_url, api_key, api_key_key_id, settings, settings_key_id, created_at, updated_at
+    id, type, name, display_name, enabled, deleted, base_url, settings, settings_key_id, created_at, updated_at
 `
 
 type UpdateAIProviderEncryptedColumnsParams struct {
-	APIKey        string         `db:"api_key" json:"api_key"`
-	ApiKeyKeyID   sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
 	Settings      string         `db:"settings" json:"settings"`
 	SettingsKeyID sql.NullString `db:"settings_key_id" json:"settings_key_id"`
 	ID            uuid.UUID      `db:"id" json:"id"`
 }
 
-// Updates only the encrypted columns (api_key, api_key_key_id,
-// settings, settings_key_id) and the updated_at timestamp on a row,
-// regardless of its deleted flag. Used by the dbcrypt key rotation
-// utility to re-encrypt or decrypt rows in place.
+// Updates only the encrypted columns (settings, settings_key_id) and
+// the updated_at timestamp on a row, regardless of its deleted flag.
+// Used by the dbcrypt key rotation utility to re-encrypt or decrypt
+// rows in place.
 func (q *sqlQuerier) UpdateAIProviderEncryptedColumns(ctx context.Context, arg UpdateAIProviderEncryptedColumnsParams) (AiProvider, error) {
-	row := q.db.QueryRowContext(ctx, updateAIProviderEncryptedColumns,
-		arg.APIKey,
-		arg.ApiKeyKeyID,
-		arg.Settings,
-		arg.SettingsKeyID,
-		arg.ID,
-	)
+	row := q.db.QueryRowContext(ctx, updateAIProviderEncryptedColumns, arg.Settings, arg.SettingsKeyID, arg.ID)
 	var i AiProvider
 	err := row.Scan(
 		&i.ID,
@@ -2232,8 +2414,6 @@ func (q *sqlQuerier) UpdateAIProviderEncryptedColumns(ctx context.Context, arg U
 		&i.Enabled,
 		&i.Deleted,
 		&i.BaseUrl,
-		&i.APIKey,
-		&i.ApiKeyKeyID,
 		&i.Settings,
 		&i.SettingsKeyID,
 		&i.CreatedAt,

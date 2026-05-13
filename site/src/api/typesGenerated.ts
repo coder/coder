@@ -6616,6 +6616,7 @@ export interface ResolveAutostartResponse {
 // From codersdk/audit.go
 export type ResourceType =
 	| "ai_provider"
+	| "ai_provider_key"
 	| "ai_seat"
 	| "api_key"
 	| "chat"
@@ -6648,6 +6649,7 @@ export type ResourceType =
 
 export const ResourceTypes: ResourceType[] = [
 	"ai_provider",
+	"ai_provider_key",
 	"ai_seat",
 	"api_key",
 	"chat",

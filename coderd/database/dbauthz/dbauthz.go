@@ -1851,6 +1851,13 @@ func (q *querier) CustomRoles(ctx context.Context, arg database.CustomRolesParam
 	return q.db.CustomRoles(ctx, arg)
 }
 
+func (q *querier) DeleteAIProviderKey(ctx context.Context, id uuid.UUID) (database.AiProviderKey, error) {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAibridgeProvider); err != nil {
+		return database.AiProviderKey{}, err
+	}
+	return q.db.DeleteAIProviderKey(ctx, id)
+}
+
 func (q *querier) DeleteAPIKeyByID(ctx context.Context, id string) error {
 	return deleteQ(q.log, q.auth, q.db.GetAPIKeyByID, q.db.DeleteAPIKeyByID)(ctx, id)
 }
@@ -2507,6 +2514,31 @@ func (q *querier) GetAIProviderByNameIncludeDeleted(ctx context.Context, name st
 		return database.AiProvider{}, err
 	}
 	return q.db.GetAIProviderByNameIncludeDeleted(ctx, name)
+}
+
+func (q *querier) GetAIProviderKeyByID(ctx context.Context, id uuid.UUID) (database.AiProviderKey, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAibridgeProvider); err != nil {
+		return database.AiProviderKey{}, err
+	}
+	return q.db.GetAIProviderKeyByID(ctx, id)
+}
+
+func (q *querier) GetAIProviderKeysByProviderID(ctx context.Context, providerID uuid.UUID) ([]database.AiProviderKey, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAibridgeProvider); err != nil {
+		return nil, err
+	}
+	return q.db.GetAIProviderKeysByProviderID(ctx, providerID)
+}
+
+func (q *querier) GetAIProviderKeysForRotation(ctx context.Context) ([]database.AiProviderKey, error) {
+	// This query intentionally returns every key row, including those
+	// whose provider has been soft-deleted, so the dbcrypt key rotation
+	// utility can re-encrypt every row that holds a foreign-key
+	// reference to dbcrypt_keys.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAibridgeProvider); err != nil {
+		return nil, err
+	}
+	return q.db.GetAIProviderKeysForRotation(ctx)
 }
 
 func (q *querier) GetAIProviders(ctx context.Context) ([]database.AiProvider, error) {
@@ -5225,6 +5257,13 @@ func (q *querier) InsertAIProvider(ctx context.Context, arg database.InsertAIPro
 	return q.db.InsertAIProvider(ctx, arg)
 }
 
+func (q *querier) InsertAIProviderKey(ctx context.Context, arg database.InsertAIProviderKeyParams) (database.AiProviderKey, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceAibridgeProvider); err != nil {
+		return database.AiProviderKey{}, err
+	}
+	return q.db.InsertAIProviderKey(ctx, arg)
+}
+
 func (q *querier) InsertAPIKey(ctx context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {
 	// TODO(Cian): ideally this would be encoded in the policy, but system users are just members and we
 	// don't currently have a capability to conditionally deny creating resources by owner ID in a role.
@@ -6313,6 +6352,17 @@ func (q *querier) UpdateAIProviderEncryptedColumns(ctx context.Context, arg data
 		return database.AiProvider{}, err
 	}
 	return q.db.UpdateAIProviderEncryptedColumns(ctx, arg)
+}
+
+func (q *querier) UpdateAIProviderKeyEncryptedColumns(ctx context.Context, arg database.UpdateAIProviderKeyEncryptedColumnsParams) (database.AiProviderKey, error) {
+	// Encrypted columns can be rewritten on any row, including those
+	// whose provider has been soft-deleted, so the dbcrypt rotation can
+	// move every FK reference to a new key digest before old keys are
+	// revoked.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAibridgeProvider); err != nil {
+		return database.AiProviderKey{}, err
+	}
+	return q.db.UpdateAIProviderKeyEncryptedColumns(ctx, arg)
 }
 
 func (q *querier) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKeyByIDParams) error {

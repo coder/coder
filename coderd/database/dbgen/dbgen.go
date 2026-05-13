@@ -186,8 +186,6 @@ func AIProvider(t testing.TB, db database.Store, seed database.AiProvider, munge
 		DisplayName:   seed.DisplayName,
 		Enabled:       takeFirst(seed.Enabled, true),
 		BaseUrl:       takeFirst(seed.BaseUrl, "https://api.example.com/"),
-		APIKey:        takeFirst(seed.APIKey, "test-key"),
-		ApiKeyKeyID:   seed.ApiKeyKeyID,
 		Settings:      seed.Settings,
 		SettingsKeyID: seed.SettingsKeyID,
 	}
@@ -197,6 +195,26 @@ func AIProvider(t testing.TB, db database.Store, seed database.AiProvider, munge
 	provider, err := db.InsertAIProvider(genCtx, params)
 	require.NoError(t, err, "insert ai provider")
 	return provider
+}
+
+func AIProviderKey(t testing.TB, db database.Store, seed database.AiProviderKey, munge ...func(*database.InsertAIProviderKeyParams)) database.AiProviderKey {
+	t.Helper()
+	id := seed.ID
+	if id == uuid.Nil {
+		id = uuid.New()
+	}
+	params := database.InsertAIProviderKeyParams{
+		ID:          id,
+		ProviderID:  seed.ProviderID,
+		APIKey:      takeFirst(seed.APIKey, "test-key"),
+		ApiKeyKeyID: seed.ApiKeyKeyID,
+	}
+	for _, fn := range munge {
+		fn(&params)
+	}
+	key, err := db.InsertAIProviderKey(genCtx, params)
+	require.NoError(t, err, "insert ai provider key")
+	return key
 }
 
 func ChatProvider(t testing.TB, db database.Store, seed database.ChatProvider, munge ...func(*database.InsertChatProviderParams)) database.ChatProvider {

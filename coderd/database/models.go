@@ -3299,6 +3299,7 @@ const (
 	ResourceTypeChat                        ResourceType = "chat"
 	ResourceTypeUserSecret                  ResourceType = "user_secret"
 	ResourceTypeAiProvider                  ResourceType = "ai_provider"
+	ResourceTypeAiProviderKey               ResourceType = "ai_provider_key"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3367,7 +3368,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeAiSeat,
 		ResourceTypeChat,
 		ResourceTypeUserSecret,
-		ResourceTypeAiProvider:
+		ResourceTypeAiProvider,
+		ResourceTypeAiProviderKey:
 		return true
 	}
 	return false
@@ -3405,6 +3407,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeChat,
 		ResourceTypeUserSecret,
 		ResourceTypeAiProvider,
+		ResourceTypeAiProviderKey,
 	}
 }
 
@@ -4414,16 +4417,24 @@ type AiProvider struct {
 	// Soft delete flag. Soft-deleted rows are preserved for audit and FK history; their names remain reserved.
 	Deleted bool   `db:"deleted" json:"deleted"`
 	BaseUrl string `db:"base_url" json:"base_url"`
-	// Centralized API key used to authenticate with the upstream AI provider. Encrypted at rest via dbcrypt when api_key_key_id is set.
-	APIKey string `db:"api_key" json:"api_key"`
-	// The ID of the key used to encrypt the provider API key. If this is NULL, the API key is not encrypted.
-	ApiKeyKeyID sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
-	// Encrypted JSON blob holding type-specific configuration (e.g. AWS Bedrock region, model). Plaintext is a JSON object. Empty string when no type-specific settings are required.
+	// Encrypted JSON blob holding type-specific configuration (e.g. AWS Bedrock region, model, access key secret). Plaintext is a JSON object. Empty string when no type-specific settings are required.
 	Settings string `db:"settings" json:"settings"`
 	// The ID of the key used to encrypt settings. If this is NULL, settings is not encrypted.
 	SettingsKeyID sql.NullString `db:"settings_key_id" json:"settings_key_id"`
 	CreatedAt     time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt     time.Time      `db:"updated_at" json:"updated_at"`
+}
+
+// API keys associated with AI Bridge providers. Bedrock providers have zero keys (they authenticate via settings). OpenAI and Anthropic providers have one or more keys for failover.
+type AiProviderKey struct {
+	ID         uuid.UUID `db:"id" json:"id"`
+	ProviderID uuid.UUID `db:"provider_id" json:"provider_id"`
+	// API key used to authenticate with the upstream AI provider. Encrypted at rest via dbcrypt when api_key_key_id is set.
+	APIKey string `db:"api_key" json:"api_key"`
+	// The ID of the key used to encrypt the provider API key. If this is NULL, the API key is not encrypted.
+	ApiKeyKeyID sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
+	CreatedAt   time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
 }
 
 type AiSeatState struct {

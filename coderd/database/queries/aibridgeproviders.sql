@@ -50,8 +50,6 @@ INSERT INTO ai_providers (
     display_name,
     enabled,
     base_url,
-    api_key,
-    api_key_key_id,
     settings,
     settings_key_id
 ) VALUES (
@@ -61,8 +59,6 @@ INSERT INTO ai_providers (
     @display_name::text,
     @enabled::boolean,
     @base_url::text,
-    @api_key::text,
-    sqlc.narg('api_key_key_id')::text,
     @settings::text,
     sqlc.narg('settings_key_id')::text
 )
@@ -76,8 +72,6 @@ SET
     display_name = @display_name::text,
     enabled = @enabled::boolean,
     base_url = @base_url::text,
-    api_key = @api_key::text,
-    api_key_key_id = sqlc.narg('api_key_key_id')::text,
     settings = @settings::text,
     settings_key_id = sqlc.narg('settings_key_id')::text,
     updated_at = NOW()
@@ -100,8 +94,8 @@ RETURNING
 
 -- name: GetAIProvidersForRotation :many
 -- Returns every AI provider row, including soft-deleted ones, so the
--- dbcrypt key rotation utility can re-encrypt their secrets and clear
--- references to retired keys.
+-- dbcrypt key rotation utility can re-encrypt their settings and
+-- clear references to retired keys.
 SELECT
     *
 FROM
@@ -110,15 +104,13 @@ ORDER BY
     name ASC;
 
 -- name: UpdateAIProviderEncryptedColumns :one
--- Updates only the encrypted columns (api_key, api_key_key_id,
--- settings, settings_key_id) and the updated_at timestamp on a row,
--- regardless of its deleted flag. Used by the dbcrypt key rotation
--- utility to re-encrypt or decrypt rows in place.
+-- Updates only the encrypted columns (settings, settings_key_id) and
+-- the updated_at timestamp on a row, regardless of its deleted flag.
+-- Used by the dbcrypt key rotation utility to re-encrypt or decrypt
+-- rows in place.
 UPDATE
     ai_providers
 SET
-    api_key = @api_key::text,
-    api_key_key_id = sqlc.narg('api_key_key_id')::text,
     settings = @settings::text,
     settings_key_id = sqlc.narg('settings_key_id')::text,
     updated_at = NOW()

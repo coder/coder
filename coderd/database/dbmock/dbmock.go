@@ -603,6 +603,21 @@ func (mr *MockStoreMockRecorder) CustomRoles(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CustomRoles", reflect.TypeOf((*MockStore)(nil).CustomRoles), ctx, arg)
 }
 
+// DeleteAIProviderKey mocks base method.
+func (m *MockStore) DeleteAIProviderKey(ctx context.Context, id uuid.UUID) (database.AiProviderKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteAIProviderKey", ctx, id)
+	ret0, _ := ret[0].(database.AiProviderKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteAIProviderKey indicates an expected call of DeleteAIProviderKey.
+func (mr *MockStoreMockRecorder) DeleteAIProviderKey(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAIProviderKey", reflect.TypeOf((*MockStore)(nil).DeleteAIProviderKey), ctx, id)
+}
+
 // DeleteAPIKeyByID mocks base method.
 func (m *MockStore) DeleteAPIKeyByID(ctx context.Context, id string) error {
 	m.ctrl.T.Helper()
@@ -1741,6 +1756,51 @@ func (m *MockStore) GetAIProviderByNameIncludeDeleted(ctx context.Context, name 
 func (mr *MockStoreMockRecorder) GetAIProviderByNameIncludeDeleted(ctx, name any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIProviderByNameIncludeDeleted", reflect.TypeOf((*MockStore)(nil).GetAIProviderByNameIncludeDeleted), ctx, name)
+}
+
+// GetAIProviderKeyByID mocks base method.
+func (m *MockStore) GetAIProviderKeyByID(ctx context.Context, id uuid.UUID) (database.AiProviderKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIProviderKeyByID", ctx, id)
+	ret0, _ := ret[0].(database.AiProviderKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIProviderKeyByID indicates an expected call of GetAIProviderKeyByID.
+func (mr *MockStoreMockRecorder) GetAIProviderKeyByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIProviderKeyByID", reflect.TypeOf((*MockStore)(nil).GetAIProviderKeyByID), ctx, id)
+}
+
+// GetAIProviderKeysByProviderID mocks base method.
+func (m *MockStore) GetAIProviderKeysByProviderID(ctx context.Context, providerID uuid.UUID) ([]database.AiProviderKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIProviderKeysByProviderID", ctx, providerID)
+	ret0, _ := ret[0].([]database.AiProviderKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIProviderKeysByProviderID indicates an expected call of GetAIProviderKeysByProviderID.
+func (mr *MockStoreMockRecorder) GetAIProviderKeysByProviderID(ctx, providerID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIProviderKeysByProviderID", reflect.TypeOf((*MockStore)(nil).GetAIProviderKeysByProviderID), ctx, providerID)
+}
+
+// GetAIProviderKeysForRotation mocks base method.
+func (m *MockStore) GetAIProviderKeysForRotation(ctx context.Context) ([]database.AiProviderKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIProviderKeysForRotation", ctx)
+	ret0, _ := ret[0].([]database.AiProviderKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIProviderKeysForRotation indicates an expected call of GetAIProviderKeysForRotation.
+func (mr *MockStoreMockRecorder) GetAIProviderKeysForRotation(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIProviderKeysForRotation", reflect.TypeOf((*MockStore)(nil).GetAIProviderKeysForRotation), ctx)
 }
 
 // GetAIProviders mocks base method.
@@ -6752,6 +6812,21 @@ func (mr *MockStoreMockRecorder) InsertAIProvider(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAIProvider", reflect.TypeOf((*MockStore)(nil).InsertAIProvider), ctx, arg)
 }
 
+// InsertAIProviderKey mocks base method.
+func (m *MockStore) InsertAIProviderKey(ctx context.Context, arg database.InsertAIProviderKeyParams) (database.AiProviderKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertAIProviderKey", ctx, arg)
+	ret0, _ := ret[0].(database.AiProviderKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertAIProviderKey indicates an expected call of InsertAIProviderKey.
+func (mr *MockStoreMockRecorder) InsertAIProviderKey(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAIProviderKey", reflect.TypeOf((*MockStore)(nil).InsertAIProviderKey), ctx, arg)
+}
+
 // InsertAPIKey mocks base method.
 func (m *MockStore) InsertAPIKey(ctx context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {
 	m.ctrl.T.Helper()
@@ -8657,6 +8732,21 @@ func (m *MockStore) UpdateAIProviderEncryptedColumns(ctx context.Context, arg da
 func (mr *MockStoreMockRecorder) UpdateAIProviderEncryptedColumns(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAIProviderEncryptedColumns", reflect.TypeOf((*MockStore)(nil).UpdateAIProviderEncryptedColumns), ctx, arg)
+}
+
+// UpdateAIProviderKeyEncryptedColumns mocks base method.
+func (m *MockStore) UpdateAIProviderKeyEncryptedColumns(ctx context.Context, arg database.UpdateAIProviderKeyEncryptedColumnsParams) (database.AiProviderKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateAIProviderKeyEncryptedColumns", ctx, arg)
+	ret0, _ := ret[0].(database.AiProviderKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateAIProviderKeyEncryptedColumns indicates an expected call of UpdateAIProviderKeyEncryptedColumns.
+func (mr *MockStoreMockRecorder) UpdateAIProviderKeyEncryptedColumns(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAIProviderKeyEncryptedColumns", reflect.TypeOf((*MockStore)(nil).UpdateAIProviderKeyEncryptedColumns), ctx, arg)
 }
 
 // UpdateAPIKeyByID mocks base method.

@@ -6222,7 +6222,6 @@ func (s *MethodTestSuite) TestAIBridge() {
 			Name:    "test-provider",
 			Enabled: true,
 			BaseUrl: "https://api.example.com/",
-			APIKey:  "test-key",
 		}
 		provider := testutil.Fake(s.T(), faker, database.AiProvider{ID: arg.ID, Name: arg.Name})
 		dbm.EXPECT().InsertAIProvider(gomock.Any(), arg).Return(provider, nil).AnyTimes()
@@ -6234,7 +6233,6 @@ func (s *MethodTestSuite) TestAIBridge() {
 			ID:      provider.ID,
 			Enabled: true,
 			BaseUrl: "https://api.example.com/",
-			APIKey:  "test-key",
 		}
 		dbm.EXPECT().UpdateAIProvider(gomock.Any(), arg).Return(provider, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceAibridgeProvider, policy.ActionUpdate).Returns(provider)
@@ -6254,11 +6252,53 @@ func (s *MethodTestSuite) TestAIBridge() {
 		provider := testutil.Fake(s.T(), faker, database.AiProvider{})
 		arg := database.UpdateAIProviderEncryptedColumnsParams{
 			ID:       provider.ID,
-			APIKey:   "encrypted-api-key",
 			Settings: "encrypted-settings",
 		}
 		dbm.EXPECT().UpdateAIProviderEncryptedColumns(gomock.Any(), arg).Return(provider, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceAibridgeProvider, policy.ActionUpdate).Returns(provider)
+	}))
+	s.Run("GetAIProviderKeyByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		key := testutil.Fake(s.T(), faker, database.AiProviderKey{})
+		dbm.EXPECT().GetAIProviderKeyByID(gomock.Any(), key.ID).Return(key, nil).AnyTimes()
+		check.Args(key.ID).Asserts(rbac.ResourceAibridgeProvider, policy.ActionRead).Returns(key)
+	}))
+	s.Run("GetAIProviderKeysByProviderID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		provider := testutil.Fake(s.T(), faker, database.AiProvider{})
+		keyA := testutil.Fake(s.T(), faker, database.AiProviderKey{ProviderID: provider.ID})
+		keyB := testutil.Fake(s.T(), faker, database.AiProviderKey{ProviderID: provider.ID})
+		dbm.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), provider.ID).Return([]database.AiProviderKey{keyA, keyB}, nil).AnyTimes()
+		check.Args(provider.ID).Asserts(rbac.ResourceAibridgeProvider, policy.ActionRead).Returns([]database.AiProviderKey{keyA, keyB})
+	}))
+	s.Run("GetAIProviderKeysForRotation", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		keyA := testutil.Fake(s.T(), faker, database.AiProviderKey{})
+		keyB := testutil.Fake(s.T(), faker, database.AiProviderKey{})
+		dbm.EXPECT().GetAIProviderKeysForRotation(gomock.Any()).Return([]database.AiProviderKey{keyA, keyB}, nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceAibridgeProvider, policy.ActionRead).Returns([]database.AiProviderKey{keyA, keyB})
+	}))
+	s.Run("InsertAIProviderKey", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		provider := testutil.Fake(s.T(), faker, database.AiProvider{})
+		arg := database.InsertAIProviderKeyParams{
+			ID:         uuid.New(),
+			ProviderID: provider.ID,
+			APIKey:     "test-key",
+		}
+		key := testutil.Fake(s.T(), faker, database.AiProviderKey{ID: arg.ID, ProviderID: arg.ProviderID})
+		dbm.EXPECT().InsertAIProviderKey(gomock.Any(), arg).Return(key, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAibridgeProvider, policy.ActionCreate).Returns(key)
+	}))
+	s.Run("DeleteAIProviderKey", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		key := testutil.Fake(s.T(), faker, database.AiProviderKey{})
+		dbm.EXPECT().DeleteAIProviderKey(gomock.Any(), key.ID).Return(key, nil).AnyTimes()
+		check.Args(key.ID).Asserts(rbac.ResourceAibridgeProvider, policy.ActionDelete).Returns(key)
+	}))
+	s.Run("UpdateAIProviderKeyEncryptedColumns", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		key := testutil.Fake(s.T(), faker, database.AiProviderKey{})
+		arg := database.UpdateAIProviderKeyEncryptedColumnsParams{
+			ID:     key.ID,
+			APIKey: "encrypted-api-key",
+		}
+		dbm.EXPECT().UpdateAIProviderKeyEncryptedColumns(gomock.Any(), arg).Return(key, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAibridgeProvider, policy.ActionUpdate).Returns(key)
 	}))
 }
 
