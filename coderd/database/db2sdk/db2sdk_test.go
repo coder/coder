@@ -930,6 +930,8 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 	input := database.Chat{
 		ID:                uuid.New(),
 		OwnerID:           uuid.New(),
+		OwnerUsername:     "owner-username",
+		OwnerName:         "Owner Name",
 		OrganizationID:    uuid.New(),
 		WorkspaceID:       uuid.NullUUID{UUID: uuid.New(), Valid: true},
 		BuildID:           uuid.NullUUID{UUID: uuid.New(), Valid: true},
@@ -986,15 +988,10 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 
 	v := reflect.ValueOf(got)
 	typ := v.Type()
-	// HasUnread and owner identity come from query-specific rows, not
-	// database.Chat. Warnings is a transient field populated by
-	// handlers. All are expected to remain zero here.
-	skip := map[string]bool{
-		"HasUnread":     true,
-		"OwnerName":     true,
-		"OwnerUsername": true,
-		"Warnings":      true,
-	}
+	// HasUnread comes from query-specific rows, not database.Chat.
+	// Warnings is a transient field populated by handlers. Both are
+	// expected to remain zero here.
+	skip := map[string]bool{"HasUnread": true, "Warnings": true}
 	for i := range typ.NumField() {
 		field := typ.Field(i)
 		if skip[field.Name] {
