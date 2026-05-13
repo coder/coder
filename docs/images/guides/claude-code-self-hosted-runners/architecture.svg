@@ -117,11 +117,11 @@
   <!-- Owner badge top-right of workspace header -->
   <rect class="owner-badge" x="752" y="206" width="200" height="34" rx="6"/>
   <text class="badge-label badge-coder-l" x="764" y="221">Coder workspace owner</text>
-  <text class="mono" x="764" y="234">@alice</text>
+  <text class="mono" x="764" y="234">prebuilds svc-account</text>
 
-  <text class="small" x="392" y="240">One workspace per Coder developer. Template defines image,</text>
-  <text class="small" x="392" y="256">parameters, env, secrets, networking. Pool secret is a Terraform</text>
-  <text class="small" x="392" y="272">variable: every workspace inherits the same value.</text>
+  <text class="small" x="392" y="240">One prebuilt workspace per slot in the pool. Anonymous until Anthropic</text>
+  <text class="small" x="392" y="256">routes a session here, then locked at the runner layer (not the Coder</text>
+  <text class="small" x="392" y="272">layer). Bot git identity baked into the image.</text>
 
   <!-- coder_script card -->
   <rect class="runner-card" x="400" y="290" width="544" height="74" rx="8"/>
@@ -140,7 +140,7 @@
   <text class="mono-sm" x="416" y="430">register, poll, refresh lease</text>
   <text class="mono-sm" x="416" y="448">spawn child claude per assigned session</text>
   <text class="mono-sm" x="416" y="466">stream events back to Anthropic</text>
-  <text class="small" x="416" y="484">In the basic flow, locked user = workspace owner.</text>
+  <text class="small" x="416" y="484">In Phase 1 the workspace is bot-owned; the runner picks up a real user only at first session.</text>
 
   <!-- Child sessions row label -->
   <text class="small" x="416" y="516">Child claude session processes (up to --capacity)</text>
@@ -177,7 +177,7 @@
   <text class="small" x="400" y="672">Why multiple sessions on one runner?</text>
   <text class="mono-sm" x="400" y="688">One locked user, several parallel work streams (web tabs, routines, agents, mobile) up to --capacity.</text>
   <text class="mono-sm" x="400" y="704">All sessions on this runner share the same creator: the locked user. Anthropic keeps it that way for the runner's lifetime.</text>
-  <text class="small" x="400" y="724">Basic flow: Coder owner = locked user = session creator (all @alice). Stage 6 fleet pools can split owner from locked user.</text>
+  <text class="small" x="400" y="724">Phase 1: Coder owner = prebuilds svc-account, locked Anthropic user = session creator (all @alice). Phase 2 middleware can claim the prebuild on behalf of @alice so all three match.</text>
 
   <!-- ====================================================== -->
   <!-- Zone 3: Your network                                    -->
@@ -219,7 +219,7 @@
   <!-- B. coderd (dashed) builds workspace: two short pillars with label between them. -->
   <line class="arrow-build" x1="500" y1="172" x2="500" y2="194" marker-end="url(#ah-build)"/>
   <line class="arrow-build" x1="844" y1="172" x2="844" y2="194" marker-end="url(#ah-build)"/>
-  <text class="arrow-label" x="620" y="188">workspace builds, owner = @alice</text>
+  <text class="arrow-label" x="620" y="188">workspace builds, owner = prebuilds svc-account</text>
 
   <!-- C. Runner <-> Anthropic control plane: two visibly separated parallel arrows. -->
   <!-- Outbound (runner -> Anthropic): upper band. -->
