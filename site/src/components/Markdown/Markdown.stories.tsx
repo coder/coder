@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { expect, within } from "storybook/test";
 import { Markdown } from "./Markdown";
 
 const meta: Meta<typeof Markdown> = {
@@ -103,5 +104,58 @@ export const GFMAlertWithInlineFormatting: Story = {
 > Larger **instances** cost more. Choose based on your workload.
 > Test line two
 			`,
+	},
+};
+
+export const GFMAlertWithListBlocks: Story = {
+	args: {
+		children: `
+> [!NOTE]
+> Check these items:
+>
+> - First item
+> - Second item
+			`,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const alert = canvas.getByText("Note").closest("aside");
+		expect(alert).toBeInTheDocument();
+		if (!alert) {
+			throw new Error("Expected note alert to render");
+		}
+
+		const alertCanvas = within(alert);
+		expect(alertCanvas.getByText("Check these items:")).toBeInTheDocument();
+		expect(alertCanvas.getByRole("list")).toBeInTheDocument();
+		const items = alertCanvas.getAllByRole("listitem");
+		expect(items).toHaveLength(2);
+		expect(items[0]).toHaveTextContent("First item");
+		expect(items[1]).toHaveTextContent("Second item");
+	},
+};
+
+export const GFMAlertWithCodeBlock: Story = {
+	args: {
+		children: `
+> [!WARNING]
+> Run this command:
+>
+> \`\`\`bash
+> coder version
+> \`\`\`
+			`,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const alert = canvas.getByText("Warning").closest("aside");
+		expect(alert).toBeInTheDocument();
+		if (!alert) {
+			throw new Error("Expected warning alert to render");
+		}
+
+		const alertCanvas = within(alert);
+		expect(alertCanvas.getByText("Run this command:")).toBeInTheDocument();
+		expect(alert).toHaveTextContent("coder version");
 	},
 };

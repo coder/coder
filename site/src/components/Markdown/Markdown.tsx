@@ -164,6 +164,13 @@ type AlertContent = Readonly<{
 	children: readonly ReactNode[];
 }>;
 
+function isSignificantAlertChild(el: ReactNode) {
+	if (isValidElement(el)) {
+		return true;
+	}
+	return typeof el === "string" && el !== "\n";
+}
+
 function parseChildrenAsAlertContent(
 	jsxChildren: ReactNode,
 ): AlertContent | null {
@@ -180,7 +187,7 @@ function parseChildrenAsAlertContent(
 	if (!isValidElement<PropsWithChildren>(mainParentNode)) {
 		return null;
 	}
-	let parentChildren = mainParentNode?.props.children;
+	let parentChildren = mainParentNode.props.children;
 	if (typeof parentChildren === "string") {
 		// Children will only be an array if the parsed text contains other
 		// content that can be turned into HTML. If there aren't any, you
@@ -193,12 +200,7 @@ function parseChildrenAsAlertContent(
 	}
 
 	const outputContent = parentChildren
-		.filter((el) => {
-			if (isValidElement(el)) {
-				return true;
-			}
-			return typeof el === "string" && el !== "\n";
-		})
+		.filter(isSignificantAlertChild)
 		.map((el) => {
 			if (!isValidElement(el)) {
 				return el;
@@ -265,12 +267,7 @@ function parseChildrenAsAlertContent(
 
 	const blockSiblingChildren = jsxChildren
 		.slice(mainParentNodeIndex + 1)
-		.filter((el) => {
-			if (isValidElement(el)) {
-				return true;
-			}
-			return typeof el === "string" && el !== "\n";
-		});
+		.filter(isSignificantAlertChild);
 
 	// GitHub's GFM alerts preserve line breaks within alert content,
 	// but the markdown parser treats them as soft wraps (spaces).
