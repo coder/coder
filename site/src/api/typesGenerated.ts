@@ -4323,12 +4323,7 @@ export interface Group {
 	readonly organization_display_name: string;
 }
 
-// From codersdk/aibudget.go
-/**
- * GroupAIBudget is the AI spend limit configured for a group. The limit is
- * per-user: every member of the group has their own running spend tracked
- * against this cap.
- */
+// From codersdk/aibridge.go
 export interface GroupAIBudget {
 	readonly group_id: string;
 	readonly spend_limit_micros: number;
@@ -8620,11 +8615,7 @@ export interface UpsertChatUsageLimitOverrideRequest {
 	readonly spend_limit_micros: number; // Must be greater than 0.
 }
 
-// From codersdk/aibudget.go
-/**
- * UpsertGroupAIBudgetRequest is the body for creating or updating a group's
- * AI budget. SpendLimitMicros must be greater than zero.
- */
+// From codersdk/aibridge.go
 export interface UpsertGroupAIBudgetRequest {
 	readonly spend_limit_micros: number;
 }
