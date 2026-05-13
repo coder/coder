@@ -6,12 +6,25 @@
 > runner build. This guide describes how to run those runners on Coder
 > workspaces.
 
-By default, Claude Code's remote sessions (web, mobile, scheduled
-routines, agents) run on Anthropic-managed compute. Self-hosted runners
-let you replace that compute with your own. The runner is a long-lived
-process that registers with a pool in your Anthropic organization,
-polls for assigned sessions, and spawns a Claude Code child process per
-session. All inbound is outbound HTTPS to `api.anthropic.com`.
+[Coder workspaces](../../user-guides/workspace-management.md) are
+reproducible development environments your developers work in. They
+are provisioned from [Terraform templates](../../admin/templates/index.md)
+that your platform team maintains, so the same image, secrets,
+networking, and lifecycle apply whether developers connect through an
+IDE, the web, or the CLI.
+
+Claude Code self-hosted runners let you run remote Claude Code
+sessions on infrastructure you control instead of on Anthropic-managed
+compute. A runner is a long-lived process that registers with a pool in
+your Anthropic organization, polls for assigned sessions, and spawns a
+Claude Code child process per session. Its only network requirement is
+outbound HTTPS to `api.anthropic.com`.
+
+A Coder workspace is a natural host for that process. The template
+that already defines your developers' workspaces (image, language
+toolchains, VPC placement, secrets, audit) defines the runner the
+same way, so the runner inherits the rest of your platform without
+any new orchestration.
 
 ## Architecture
 
