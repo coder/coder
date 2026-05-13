@@ -21557,6 +21557,10 @@ const docTemplate = `{
             "properties": {
                 "parameter_mismatch": {
                     "type": "boolean"
+                },
+                "secret_mismatch": {
+                    "description": "SecretMismatch is true when the active template version declares\n` + "`" + `coder_secret` + "`" + ` requirements that the workspace owner's secrets do not\nsatisfy.",
+                    "type": "boolean"
                 }
             }
         },
