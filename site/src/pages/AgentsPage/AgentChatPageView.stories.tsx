@@ -16,7 +16,7 @@ import {
 	withProxyProvider,
 	withWebSocket,
 } from "#/testHelpers/storybook";
-import { lastActiveSidebarTabStorageKeyPrefix } from "./AgentChatPage";
+import { lastActiveSidebarTabStorageKeyPrefix } from "./utils/sidebarTabStorage";
 import {
 	AgentChatPageLoadingView,
 	AgentChatPageNotFoundView,

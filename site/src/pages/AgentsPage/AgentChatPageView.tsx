@@ -21,7 +21,7 @@ import { pageTitle } from "#/utils/page";
 import {
 	getPersistedSidebarTabId,
 	savePersistedSidebarTabId,
-} from "./AgentChatPage";
+} from "./utils/sidebarTabStorage";
 import {
 	AgentChatInput,
 	type ChatMessageInputRef,

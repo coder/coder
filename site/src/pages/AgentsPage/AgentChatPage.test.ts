@@ -3,14 +3,10 @@ import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatQueuedMessage } from "#/api/typesGenerated";
 import {
-	clearPersistedSidebarTabId,
 	draftInputStorageKeyPrefix,
 	getPersistedDraftInputValue,
-	getPersistedSidebarTabId,
-	lastActiveSidebarTabStorageKeyPrefix,
 	restoreOptimisticRequestSnapshot,
 	runPromoteQueuedMessage,
-	savePersistedSidebarTabId,
 	submitEditAndScroll,
 	useConversationEditingState,
 	waitForPendingChatSettingsSyncs,
@@ -18,6 +14,12 @@ import {
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
 import { createChatStore } from "./components/ChatConversation/chatStore";
 import type { PendingAttachment } from "./components/ChatPageContent";
+import {
+	clearPersistedSidebarTabId,
+	getPersistedSidebarTabId,
+	lastActiveSidebarTabStorageKeyPrefix,
+	savePersistedSidebarTabId,
+} from "./utils/sidebarTabStorage";
 
 type MockChatInputHandle = {
 	handle: ChatMessageInputRef;

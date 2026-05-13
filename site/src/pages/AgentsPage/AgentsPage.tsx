@@ -40,8 +40,8 @@ import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog"
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
-import { clearPersistedSidebarTabId } from "./AgentChatPage";
 import { AgentsPageView } from "./AgentsPageView";
+import { clearPersistedSidebarTabId } from "./utils/sidebarTabStorage";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
