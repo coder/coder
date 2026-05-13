@@ -2,12 +2,16 @@ name: dogfood
 
 on:
   # Self-reference on `.github/workflows/dogfood.yaml` is intentional: a
-  # workflow-file edit runs the build job (image build, optionally push
-  # on main) and the `deploy_template` job. `terraform apply` against
-  # dev.coder.com is a no-op when neither dogfood/** nor the flake files
-  # change, so the effect is a runner-minute cost to validate the
-  # workflow itself end to end, not a production change of substance.
-  # See DOCS-129 for the broader workflow-self-reference audit.
+  # workflow-file edit runs both jobs: the matrix `build_image` (rebuilds
+  # and retags the rolling `:latest`, `:22.04`, `:26.04`, `:nix` tags on
+  # main) and `deploy_template` (which runs `terraform apply` and creates
+  # three new `coderd_template` versions on dev.coder.com whose `name`
+  # is the commit short SHA and whose content is unchanged). Workflow-
+  # only edits are not free, but they're idempotent and bounded: rolling
+  # tags get retagged, dev.coder.com gets cosmetic template-version
+  # entries, and nothing is published outside the dogfood environment.
+  # The runtime cost validates the workflow itself end to end. See
+  # DOCS-129 for the broader workflow-self-reference audit.
   push:
     branches:
       - main

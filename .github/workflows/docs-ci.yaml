@@ -4,16 +4,17 @@ on:
   push:
     branches:
       - main
-    # Intentionally only matches doc content. Edits to this workflow file
-    # alone would still trigger a run, but the `lint` and `fmt` steps gate
-    # on `tj-actions/changed-files` matching `docs/**` or `**.md`, so the
-    # job would no-op. The self-reference was wasted runner time. Removed
-    # per DOCS-129.
+    # Self-reference removed from both push and pull_request: the `lint`
+    # and `fmt` steps gate on `tj-actions/changed-files` matching
+    # `docs/**` or `**.md`, so a workflow-only edit produced an empty
+    # run. `actionlint` and `make lint/actions` catch YAML problems
+    # before merge regardless. See DOCS-129.
     paths:
       - "docs/**"
       - "**.md"
 
   pull_request:
+    # Self-reference removed; see comment under `push:` above.
     paths:
       - "docs/**"
       - "**.md"

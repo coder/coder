@@ -13,8 +13,9 @@ on:
     # workflow runs the build to verify the YAML is well-formed and the
     # base image still builds. Pushes are gated separately by
     # `push: ${{ github.event_name != 'pull_request' }}` on the
-    # depot/build-push-action below, so PR runs build but never publish.
-    # See DOCS-129 for the broader workflow-self-reference audit.
+    # depot/build-push-action below, so a PR builds the image but never
+    # publishes it. See DOCS-129 for the broader workflow-self-reference
+    # audit.
     paths:
       - scripts/Dockerfile.base
       - .github/workflows/docker-base.yaml
