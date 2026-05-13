@@ -154,12 +154,12 @@ const ShellCommandLine: React.FC<{
 }> = ({ command, durationLabel, expanded }) => {
 	return (
 		<>
-			<span className="shrink-0 text-[11px] text-content-success">$</span>
-			<span className="block min-w-0 truncate text-[11px] text-content-primary">
+			<span className="shrink-0 text-[13px] text-content-success">$</span>
+			<span className="block min-w-0 truncate text-[13px] text-content-primary">
 				{command}
 			</span>
 			{durationLabel && (
-				<span className="shrink-0 text-[11px] text-content-secondary">
+				<span className="shrink-0 text-[13px] text-content-secondary">
 					{durationLabel}
 				</span>
 			)}
