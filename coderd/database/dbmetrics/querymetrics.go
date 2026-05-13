@@ -521,12 +521,12 @@ func (m queryMetricsStore) DeleteExternalAuthLink(ctx context.Context, arg datab
 	return r0
 }
 
-func (m queryMetricsStore) DeleteGroupAIBudget(ctx context.Context, groupID uuid.UUID) error {
+func (m queryMetricsStore) DeleteGroupAIBudget(ctx context.Context, groupID uuid.UUID) (database.GroupAiBudget, error) {
 	start := time.Now()
-	r0 := m.s.DeleteGroupAIBudget(ctx, groupID)
+	r0, r1 := m.s.DeleteGroupAIBudget(ctx, groupID)
 	m.queryLatencies.WithLabelValues("DeleteGroupAIBudget").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteGroupAIBudget").Inc()
-	return r0
+	return r0, r1
 }
 
 func (m queryMetricsStore) DeleteGroupByID(ctx context.Context, id uuid.UUID) error {

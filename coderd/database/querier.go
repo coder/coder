@@ -129,7 +129,7 @@ type sqlcQuerier interface {
 	DeleteCustomRole(ctx context.Context, arg DeleteCustomRoleParams) error
 	DeleteExpiredAPIKeys(ctx context.Context, arg DeleteExpiredAPIKeysParams) (int64, error)
 	DeleteExternalAuthLink(ctx context.Context, arg DeleteExternalAuthLinkParams) error
-	DeleteGroupAIBudget(ctx context.Context, groupID uuid.UUID) error
+	DeleteGroupAIBudget(ctx context.Context, groupID uuid.UUID) (GroupAiBudget, error)
 	DeleteGroupByID(ctx context.Context, id uuid.UUID) error
 	DeleteGroupMemberFromGroup(ctx context.Context, arg DeleteGroupMemberFromGroupParams) error
 	DeleteLicense(ctx context.Context, id int32) (int32, error)

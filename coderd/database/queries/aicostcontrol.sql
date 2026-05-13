@@ -38,5 +38,5 @@ ON CONFLICT (group_id) DO UPDATE SET
 	updated_at  = NOW()
 RETURNING *;
 
--- name: DeleteGroupAIBudget :exec
-DELETE FROM group_ai_budgets WHERE group_id = @group_id;
+-- name: DeleteGroupAIBudget :one
+DELETE FROM group_ai_budgets WHERE group_id = @group_id RETURNING *;

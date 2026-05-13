@@ -2002,14 +2002,14 @@ func (q *querier) DeleteExternalAuthLink(ctx context.Context, arg database.Delet
 	}, q.db.DeleteExternalAuthLink)(ctx, arg)
 }
 
-func (q *querier) DeleteGroupAIBudget(ctx context.Context, groupID uuid.UUID) error {
+func (q *querier) DeleteGroupAIBudget(ctx context.Context, groupID uuid.UUID) (database.GroupAiBudget, error) {
 	// Removing a group's AI budget counts as updating the group.
 	group, err := q.db.GetGroupByID(ctx, groupID)
 	if err != nil {
-		return err
+		return database.GroupAiBudget{}, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, group); err != nil {
-		return err
+		return database.GroupAiBudget{}, err
 	}
 	return q.db.DeleteGroupAIBudget(ctx, groupID)
 }

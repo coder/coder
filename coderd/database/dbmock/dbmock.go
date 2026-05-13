@@ -861,11 +861,12 @@ func (mr *MockStoreMockRecorder) DeleteExternalAuthLink(ctx, arg any) *gomock.Ca
 }
 
 // DeleteGroupAIBudget mocks base method.
-func (m *MockStore) DeleteGroupAIBudget(ctx context.Context, groupID uuid.UUID) error {
+func (m *MockStore) DeleteGroupAIBudget(ctx context.Context, groupID uuid.UUID) (database.GroupAiBudget, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteGroupAIBudget", ctx, groupID)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(database.GroupAiBudget)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // DeleteGroupAIBudget indicates an expected call of DeleteGroupAIBudget.

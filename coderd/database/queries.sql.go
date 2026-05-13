@@ -1787,13 +1787,20 @@ func (q *sqlQuerier) UpdateAIBridgeInterceptionEnded(ctx context.Context, arg Up
 	return i, err
 }
 
-const deleteGroupAIBudget = `-- name: DeleteGroupAIBudget :exec
-DELETE FROM group_ai_budgets WHERE group_id = $1
+const deleteGroupAIBudget = `-- name: DeleteGroupAIBudget :one
+DELETE FROM group_ai_budgets WHERE group_id = $1 RETURNING group_id, spend_limit, created_at, updated_at
 `
 
-func (q *sqlQuerier) DeleteGroupAIBudget(ctx context.Context, groupID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteGroupAIBudget, groupID)
-	return err
+func (q *sqlQuerier) DeleteGroupAIBudget(ctx context.Context, groupID uuid.UUID) (GroupAiBudget, error) {
+	row := q.db.QueryRowContext(ctx, deleteGroupAIBudget, groupID)
+	var i GroupAiBudget
+	err := row.Scan(
+		&i.GroupID,
+		&i.SpendLimit,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const getAIModelPriceByProviderModel = `-- name: GetAIModelPriceByProviderModel :one
