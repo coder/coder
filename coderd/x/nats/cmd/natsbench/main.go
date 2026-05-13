@@ -58,7 +58,7 @@ func main() {
 type result struct {
 	setup      time.Duration
 	pubHot     time.Duration // publish loop start -> all publishers flushed
-	deliverHot time.Duration // publish loop start -> all subs received expected count
+	deliverHot time.Duration // end-to-end window: from publish start to last subscriber reaching its target count
 	published  int64
 	delivered  int64
 	subCount   int // number of subscribers in the run
@@ -137,9 +137,10 @@ func runLoopback(mode string, msgs, size int) (result, error) {
 		wg       sync.WaitGroup
 	)
 	wg.Add(1)
-	hotStart := time.Now()
+	start := make(chan struct{})
 	go func() {
 		defer wg.Done()
+		<-start
 		for i := 0; i < msgs; i++ {
 			if _, werr := w.Write(payload); werr != nil {
 				writeErr = werr
@@ -147,6 +148,8 @@ func runLoopback(mode string, msgs, size int) (result, error) {
 			}
 		}
 	}()
+	hotStart := time.Now()
+	close(start)
 
 	scratch := make([]byte, size)
 	var delivered int64
@@ -288,9 +291,9 @@ func runNative(inProcess bool, msgs, size, pubs, subs int, subj string, timeout 
 	}
 
 	perPub, rem := msgs/pubs, msgs%pubs
-	hotStart := time.Now()
 	var wg sync.WaitGroup
 	var publishErr atomic.Value // error
+	start := make(chan struct{})
 	for i := 0; i < pubs; i++ {
 		n := perPub
 		if i == 0 {
@@ -300,6 +303,7 @@ func runNative(inProcess bool, msgs, size, pubs, subs int, subj string, timeout 
 		wg.Add(1)
 		go func(nc *natsgo.Conn, n int) {
 			defer wg.Done()
+			<-start
 			for j := 0; j < n; j++ {
 				if err := nc.Publish(subj, payload); err != nil {
 					publishErr.Store(err)
@@ -311,6 +315,8 @@ func runNative(inProcess bool, msgs, size, pubs, subs int, subj string, timeout 
 			}
 		}(nc, n)
 	}
+	hotStart := time.Now()
+	close(start)
 	wg.Wait()
 	pubDone := time.Now()
 	if v := publishErr.Load(); v != nil {
@@ -405,9 +411,9 @@ func runCoder(inProcess bool, msgs, size, pubs, subs int, subj string, timeout t
 	}
 
 	perPub, rem := msgs/pubs, msgs%pubs
-	hotStart := time.Now()
 	var wg sync.WaitGroup
 	var publishErr atomic.Value
+	start := make(chan struct{})
 	for i := 0; i < pubs; i++ {
 		n := perPub
 		if i == 0 {
@@ -416,6 +422,7 @@ func runCoder(inProcess bool, msgs, size, pubs, subs int, subj string, timeout t
 		wg.Add(1)
 		go func(n int) {
 			defer wg.Done()
+			<-start
 			for j := 0; j < n; j++ {
 				if err := ps.Publish(subj, payload); err != nil {
 					publishErr.Store(err)
@@ -427,6 +434,8 @@ func runCoder(inProcess bool, msgs, size, pubs, subs int, subj string, timeout t
 			}
 		}(n)
 	}
+	hotStart := time.Now()
+	close(start)
 	wg.Wait()
 	pubDone := time.Now()
 	if v := publishErr.Load(); v != nil {
@@ -475,7 +484,7 @@ func printResult(mode string, r result, msgs, size, pubs, subs int) {
 	_, _ = fmt.Printf("setup: %s\n", r.setup)
 	_, _ = fmt.Printf("publish duration: %s\n", r.pubHot)
 	if subs > 0 {
-		_, _ = fmt.Printf("deliver duration: %s\n", r.deliverHot)
+		_, _ = fmt.Printf("end-to-end deliver duration: %s\n", r.deliverHot)
 	}
 	_, _ = fmt.Printf("total msgs published: %d\n", r.published)
 	if subs > 0 {
@@ -493,13 +502,12 @@ func printResult(mode string, r result, msgs, size, pubs, subs int) {
 	if subs > 0 {
 		delRate := float64(r.delivered) / delSecs
 		delBps := delRate * float64(size)
-		_, _ = fmt.Printf("delivery rate: %s msgs/s, %s/s\n", humanCount(delRate), humanBytes(delBps))
+		_, _ = fmt.Printf("end-to-end delivery rate: %s msgs/s, %s/s\n", humanCount(delRate), humanBytes(delBps))
 	}
-	// Aggregate matches upstream `nats bench`: total work counted is
-	// published once per publisher plus published once per subscriber,
-	// measured over the full publish+deliver window. When subs == 0,
-	// this collapses to the publish rate.
-	aggMsgs := r.published * int64(pubs+subs)
+	// Aggregate counts each message once on publish plus once per subscriber
+	// delivery, measured over the end-to-end window. When subs == 0,
+	// r.delivered == 0 and this collapses to the publish rate.
+	aggMsgs := r.published + r.delivered
 	aggRate := float64(aggMsgs) / delSecs
 	aggBps := aggRate * float64(size)
 	_, _ = fmt.Printf("aggregate rate: %s msgs/s, %s/s\n", humanCount(aggRate), humanBytes(aggBps))
