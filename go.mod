@@ -120,9 +120,8 @@ require (
 	github.com/fatih/structs v1.1.0
 	github.com/fatih/structtag v1.2.0
 	github.com/fergusstrange/embedded-postgres v1.31.0
-	github.com/fullsailor/pkcs7 v0.0.0-20190404230743-d7302db945fa
 	github.com/gen2brain/beeep v0.11.1
-	github.com/gliderlabs/ssh v0.3.4
+	github.com/gliderlabs/ssh v0.3.8
 	github.com/go-chi/chi/v5 v5.1.0
 	github.com/go-chi/cors v1.2.1
 	github.com/go-chi/httprate v0.15.0
@@ -187,7 +186,6 @@ require (
 	github.com/valyala/fasthttp v1.62.0
 	github.com/wagslane/go-password-validator v0.3.0
 	github.com/zclconf/go-cty-yaml v1.1.0
-	go.mozilla.org/pkcs7 v0.9.0
 	go.nhat.io/otelsql v0.16.0
 	go.opentelemetry.io/otel v1.43.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.43.0
@@ -407,7 +405,6 @@ require (
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/spf13/cast v1.8.0 // indirect
-	github.com/swaggo/files/v2 v2.0.0 // indirect
 	github.com/tadvi/systray v0.0.0-20190226123456-11a2b8fa57af // indirect
 	github.com/tailscale/certstore v0.1.1-0.20220316223106-78d6e1c49d8d // indirect
 	github.com/tailscale/golang-x-crypto v0.0.0-20230713185742-f0b76a10a08e // indirect
@@ -485,7 +482,8 @@ require (
 	github.com/coder/aisdk-go v0.0.9
 	github.com/coder/preview v1.0.1
 	github.com/fsnotify/fsnotify v1.9.0
-	github.com/mark3labs/mcp-go v0.32.0
+	github.com/mark3labs/mcp-go v0.38.0
+	github.com/smallstep/pkcs7 v0.2.1
 )
 
 require (
@@ -506,7 +504,9 @@ require (
 	github.com/aquasecurity/go-version v0.0.1 // indirect
 	github.com/aquasecurity/trivy v0.58.2 // indirect
 	github.com/aws/aws-sdk-go v1.55.7 // indirect
+	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/bgentry/go-netrc v0.0.0-20140422174119-9fd32a8b3d3d // indirect
+	github.com/buger/jsonparser v1.1.2 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/charmbracelet/x/exp/slice v0.0.0-20250327172914-2fdc97757edf // indirect
 	github.com/cncf/xds/go v0.0.0-20251210132809-ee656c7534f5 // indirect
@@ -514,20 +514,24 @@ require (
 	github.com/envoyproxy/go-control-plane/envoy v1.36.0 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.3.0 // indirect
 	github.com/esiqveland/notify v0.13.3 // indirect
+	github.com/go-git/go-git/v5 v5.19.0 // indirect
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674 // indirect
 	github.com/hashicorp/go-getter v1.7.8 // indirect
 	github.com/hashicorp/go-safetemp v1.0.0 // indirect
+	github.com/invopop/jsonschema v0.14.0 // indirect
 	github.com/jackmordaunt/icns/v3 v3.0.1 // indirect
-	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
+	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/moby/sys/user v0.4.0 // indirect
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646 // indirect
 	github.com/openai/openai-go v1.3.0 // indirect
+	github.com/pb33f/ordered-map/v2 v2.3.1 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/puzpuzpuz/xsync/v3 v3.5.1 // indirect
 	github.com/samber/lo v1.50.0 // indirect
 	github.com/sergeymakinen/go-bmp v1.0.0 // indirect
 	github.com/sergeymakinen/go-ico v1.0.0-beta.0 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.6.0 // indirect
+	github.com/swaggo/files/v2 v2.0.0 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/tmaxmax/go-sse v0.10.0 // indirect
 	github.com/ulikunitz/xz v0.5.12 // indirect
@@ -536,6 +540,7 @@ require (
 	go.opentelemetry.io/contrib/detectors/gcp v1.43.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.68.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.43.0 // indirect
+	go.yaml.in/yaml/v4 v4.0.0-rc.2 // indirect
 	google.golang.org/genai v1.10.0 // indirect
 	k8s.io/utils v0.0.0-20241210054802-24370beab758 // indirect
 )
