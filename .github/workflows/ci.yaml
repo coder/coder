@@ -186,7 +186,8 @@ jobs:
           dir=$(golangci-lint cache status | awk '/Dir/ { print $2 }')
           echo "LINT_CACHE_DIR=$dir" >> "$GITHUB_ENV"
 
-      - name: golangci-lint cache # zizmor: ignore[cache-poisoning] Keyed on the source go files hash — restored content is verified by golangci-lint's own cache validation.
+      - name: golangci-lint cache
+        # zizmor: ignore[cache-poisoning] Keyed on the source go files hash; restored content is verified by golangci-lint's own cache validation.
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: |
