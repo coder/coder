@@ -91,19 +91,31 @@ draining and exiting is the workspace deleting itself.
 
 ## Why run them on Coder
 
-The four reasons Anthropic ships this for, plus what Coder adds to each:
+Self-host the runner on a Coder workspace and the workspace primitives
+you already use carry over:
 
-| Anthropic capability                                                                  | What Coder adds                                                                                                                                  |
-|---------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Network access.** Sessions reach internal services, DBs, and registries privately.  | Workspaces run on your VPC, K8s cluster, or VM fleet. Your existing egress and DLP policy applies. No new network seam.                          |
-| **Custom tooling.** Pre-install compilers, SDKs, and internal CLIs in the image.      | Coder templates are first-class infrastructure as code. Image, language toolchains, attached S3 buckets, and per-team variants ship as one push. |
-| **Compliance.** Source code and build artifacts stay on infrastructure you control.   | Linux or macOS, Docker or VM or bare metal. Workspaces, agent logs, and Coder audit trails live in your tenancy with the rest of your SDLC.      |
-| **Scale and cost.** Bring your own compute, apply your autoscaling and cost controls. | Coder prebuilds keep a warm pool of runners ready, autoscales on the same infrastructure you already capacity-plan, and recycles on a TTL.       |
-
-Anthropic's managed runners give you a generic Linux image, Anthropic's
-network, and Anthropic's lifecycle. Self-hosted on Coder gives you your
-image, your network, and your lifecycle, with the rest of Coder
-(templates, prebuilds, observability, IDE access) along for the ride.
+- **Network access.** Sessions reach internal services, databases, and
+  registries privately. The workspace runs on your VPC, Kubernetes
+  cluster, or VM fleet, and your existing egress and DLP policy
+  applies to everything the child `claude` process touches.
+- **Custom tooling.** Pre-install compilers, SDKs, and internal CLIs
+  in the workspace image. The Coder template is your one source of
+  truth for image, language toolchains, attached S3 buckets, and
+  per-team variants; the runner picks all of that up for free.
+- **Compliance.** Source code and build artifacts stay on
+  infrastructure you control. Linux or macOS, Docker or VM or bare
+  metal: pick whichever your platform already runs. Workspaces, agent
+  logs, and Coder audit trails live in your tenancy alongside the
+  rest of your SDLC.
+- **Scale and cost.** Bring your own compute and apply your existing
+  autoscaling and cost controls. Coder prebuilds keep a warm pool of
+  runners ready, autoscale on the same infrastructure you already
+  capacity-plan, and recycle on a TTL.
+- **Day-2 ops.** Push the template once to ship a new runner image
+  fleet-wide. Use the workspace page, agent logs, and metadata
+  surfaces to see lock status, in-flight session count, and last poll
+  age. Attach an IDE to a workspace to debug what the runner is
+  doing.
 
 ## What this is and is not
 
