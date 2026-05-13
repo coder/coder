@@ -12,8 +12,9 @@ are all the same bot identity, fleet-wide.
 > need a `BYOC_VERSION` and tarball URL from your Anthropic account team
 > before you can complete this guide.
 >
-> System identity is shippable today. For per-user identity, see
-> [User identity](./user-identity.md), which is on the roadmap.
+> System identity is the model documented on this page. For per-user
+> identity, see [User identity](./user-identity.md), which is on the
+> Coder + Anthropic roadmap.
 
 ## What you build in this guide
 
@@ -573,8 +574,8 @@ parallel sessions.
 
 ## Where to next
 
-- [User identity](./user-identity.md): the user-identity follow-on,
-  on the roadmap.
+- [User identity](./user-identity.md): the user-identity follow-on.
+  On the Coder + Anthropic roadmap; not yet available.
 - [Implementation notes](./plan.md): the staged plan, the sub-stages
   within system identity (per-creator credentials, AI Gateway routing,
   custom checkout, tool allowlists), and the open questions tracked

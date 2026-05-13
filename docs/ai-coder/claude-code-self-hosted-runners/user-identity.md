@@ -1,4 +1,4 @@
-# User identity: per-developer attribution (coming soon)
+# User identity: per-developer attribution
 
 User identity will let Coder workspaces host Claude Code self-hosted
 runners on behalf of the **individual developer** who started the
@@ -8,9 +8,11 @@ authored by them, and Coder's audit log attributes runner activity to
 them.
 
 > [!NOTE]
-> User identity is on the roadmap. The runner protocol pieces it
-> depends on are still being finalized by Anthropic. In the meantime,
-> [System identity](./system-identity.md) is shippable today.
+> User identity is on the Coder + Anthropic roadmap and is not yet
+> available. The runner protocol pieces it depends on are still being
+> finalized by Anthropic. In the meantime,
+> [System identity](./system-identity.md) is the model documented for
+> today.
 
 ## What user identity gives you
 

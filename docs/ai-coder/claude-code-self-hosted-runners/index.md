@@ -62,15 +62,21 @@ same long-poll connection that delivers session assignments.
 
 ### What Coder primitives map to
 
+**Anthropic runner = Coder workspace.** Each runner is one workspace.
+A pool of N runners is N prebuilt workspaces; one user serving 4
+parallel sessions is 4 child processes inside one workspace; a runner
+draining and exiting is the workspace deleting itself.
+
 | Anthropic concept                   | Coder primitive                                                                |
 |-------------------------------------|--------------------------------------------------------------------------------|
+| One runner                          | **One workspace**                                                              |
+| Pool of N runners                   | **N prebuilt workspaces** maintained by a preset with `prebuilds { instances = N }` |
 | Runner image                        | Workspace template + image                                                     |
 | Runner process                      | A long-running command in `coder_script`                                       |
 | Pool secret                         | Sensitive Terraform variable                                                   |
-| Pool of warm runners                | A preset with `prebuilds { instances = N }`                                    |
 | "Orchestrator restarts the runner"  | `coder_script` + self-eviction via `coder delete` on runner exit               |
-| Runner locked to one user           | Anthropic-layer state; surfaced on the workspace page via metadata             |
-| Per-session checkout (`/workspace`) | Container filesystem, deliberately not persisted                               |
+| Runner locked to one Anthropic user | A per-workspace state, surfaced on that workspace's page via agent metadata    |
+| Per-session checkout (`/workspace`) | Container filesystem in that workspace, deliberately not persisted             |
 | Internal Git, registries, services  | Whatever the workspace can already reach                                       |
 | Wrapper scripts and lifecycle hooks | Files in the workspace image; pointed at via `--exec-path` or `--hooks-dir`    |
 
@@ -102,7 +108,7 @@ Coder supports running self-hosted runners under two different identity
 models. They share the same template, image, and pool; they differ in
 who owns the workspace and whose credentials the runner uses.
 
-### System identity (available today)
+### System identity
 
 Coder maintains N warm bot-owned workspaces via the prebuilds primitive.
 Anthropic's scheduler picks one when a session arrives and locks it to
@@ -117,7 +123,7 @@ signal in git history.
 See [System identity](./system-identity.md) for the copyable Terraform
 recipe and the known limitations.
 
-### User identity (coming soon)
+### User identity
 
 A routing component pre-binds each runner workspace to the developer
 who started the session. The workspace owner is the human, Coder
@@ -135,10 +141,9 @@ the same.
 ## Where to next
 
 - [System identity](./system-identity.md): the recipe for a self-healing
-  pool of bot runners, shippable today on Coder Premium and the
-  Anthropic EAP.
-- [User identity](./user-identity.md): per-developer attribution, on the
-  roadmap.
+  pool of bot runners that runs on Coder Premium and the Anthropic EAP.
+- [User identity](./user-identity.md): per-developer attribution. On
+  the Coder + Anthropic roadmap; not yet available.
 - [Implementation notes](./plan.md): the staged plan, the sub-stages
   within system identity (per-creator credentials via wrapper script,
   AI Gateway routing, custom checkout, tool allowlists), and the open
