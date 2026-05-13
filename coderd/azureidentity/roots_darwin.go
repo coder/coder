@@ -39,10 +39,10 @@ var rootCertPool = sync.OnceValues(func() (*x509.CertPool, error) {
 })
 
 // embeddedRoots are the root CAs that Azure instance-identity certificates
-// chain to. These are embedded so verification works deterministically on all
-// platforms, including macOS where the system verifier would otherwise be
-// used and may reject otherwise valid Azure certificates due to stricter
-// standards-compliance checks. See https://github.com/coder/coder/issues/12978.
+// chain to. These are embedded so verification works on macOS where the system
+// verifier would otherwise be used and may reject otherwise valid Azure
+// certificates due to stricter standards-compliance checks.
+// See https://github.com/coder/coder/issues/12978.
 var embeddedRoots = []string{
 	// DigiCert Global Root G2
 	`-----BEGIN CERTIFICATE-----

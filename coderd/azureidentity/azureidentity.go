@@ -184,7 +184,9 @@ type metadata struct {
 
 type Options struct {
 	// Roots is the trusted root certificate pool. If nil,
-	// the embedded root certificate pool is used.
+	// the default cert pool is used. On darwin, this is an
+	// embedded pool. On all other platforms it is the system
+	// pool.
 	Roots *x509.CertPool
 	// Intermediates are additional intermediate certificates to
 	// inject into the PKCS7 object for chain verification. Azure
