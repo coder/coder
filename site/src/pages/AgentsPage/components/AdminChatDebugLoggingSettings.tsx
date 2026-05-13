@@ -1,10 +1,12 @@
 import type { FC } from "react";
 import type { UseMutateFunction } from "react-query";
 import type * as TypesGen from "#/api/typesGenerated";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Switch } from "#/components/Switch/Switch";
 
 interface AdminChatDebugLoggingSettingsProps {
 	adminSettings: TypesGen.ChatDebugLoggingAdminSettings | undefined;
+	isLoadingAdminSetting: boolean;
 	onSaveAdminSetting: UseMutateFunction<
 		void,
 		Error,
@@ -19,6 +21,7 @@ export const AdminChatDebugLoggingSettings: FC<
 	AdminChatDebugLoggingSettingsProps
 > = ({
 	adminSettings,
+	isLoadingAdminSetting,
 	onSaveAdminSetting,
 	isSavingAdminSetting,
 	isSaveAdminSettingError,
@@ -48,14 +51,24 @@ export const AdminChatDebugLoggingSettings: FC<
 						</p>
 					)}
 				</div>
-				<Switch
-					checked={adminAllowsUsers}
-					onCheckedChange={(checked) =>
-						onSaveAdminSetting({ allow_users: checked })
-					}
-					aria-label="Allow users to enable chat debug logging"
-					disabled={forcedByDeployment || isSavingAdminSetting}
-				/>
+				<div className="flex items-center gap-2">
+					{isLoadingAdminSetting ? (
+						<Skeleton className="h-5 w-10 rounded-full" aria-hidden="true" />
+					) : (
+						<Switch
+							checked={adminAllowsUsers}
+							onCheckedChange={(checked) =>
+								onSaveAdminSetting({ allow_users: checked })
+							}
+							aria-label="Allow users to enable chat debug logging"
+							disabled={
+								forcedByDeployment ||
+								isSavingAdminSetting ||
+								isLoadingAdminSetting
+							}
+						/>
+					)}
+				</div>
 			</div>
 			{isSaveAdminSettingError && (
 				<p className="m-0 text-xs text-content-destructive">

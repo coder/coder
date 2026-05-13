@@ -184,6 +184,7 @@ const TemplateActions: FC<TemplateActionsProps> = ({
 			asChild
 			variant="outline"
 			size="sm"
+			className="transition-none group-hover:border-border-secondary"
 			title={`Create a workspace using the ${template.display_name} template`}
 			onClick={(e) => {
 				e.stopPropagation();
@@ -225,7 +226,7 @@ const TemplateRow: FC<TemplateRowProps> = ({
 			key={template.id}
 			data-testid={`template-${template.id}`}
 			{...clickableRow}
-			css={styles.tableRow}
+			className={cn("group", clickableRow.className)}
 		>
 			<TableCell>
 				<AvatarData
@@ -247,7 +248,7 @@ const TemplateRow: FC<TemplateRowProps> = ({
 				/>
 			</TableCell>
 
-			<TableCell css={styles.secondary}>
+			<TableCell className="text-content-secondary">
 				{showOrganizations ? (
 					<AvatarData
 						title={template.organization_display_name}
@@ -259,15 +260,15 @@ const TemplateRow: FC<TemplateRowProps> = ({
 				)}
 			</TableCell>
 
-			<TableCell css={styles.secondary}>
+			<TableCell className="text-content-secondary">
 				{formatTemplateBuildTime(template.build_time_stats.start.P50)}
 			</TableCell>
 
-			<TableCell data-chromatic="ignore" css={styles.secondary}>
+			<TableCell data-chromatic="ignore" className="text-content-secondary">
 				{createDayString(template.updated_at)}
 			</TableCell>
 
-			<TableCell css={styles.actionCell}>
+			<TableCell className="whitespace-nowrap">
 				<TemplateActions
 					template={template}
 					workspacePermissions={workspacePermissions}
@@ -442,41 +443,3 @@ const TableLoader: FC = () => {
 		</TableLoaderSkeleton>
 	);
 };
-
-const styles = {
-	templateIconWrapper: {
-		// Same size then the avatar component
-		width: 36,
-		height: 36,
-		padding: 2,
-
-		"& img": {
-			width: "100%",
-		},
-	},
-	actionCell: {
-		whiteSpace: "nowrap",
-	},
-	cellPrimaryLine: (theme) => ({
-		color: theme.palette.text.primary,
-		fontWeight: 600,
-	}),
-	cellSecondaryLine: (theme) => ({
-		fontSize: 13,
-		color: theme.palette.text.secondary,
-		lineHeight: "150%",
-	}),
-	secondary: (theme) => ({
-		color: theme.palette.text.secondary,
-	}),
-	tableRow: (theme) => ({
-		"&:hover .actionButton": {
-			color: theme.experimental.l2.hover.text,
-			borderColor: theme.experimental.l2.hover.outline,
-		},
-	}),
-	actionButton: (theme) => ({
-		transition: "none",
-		color: theme.palette.text.primary,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

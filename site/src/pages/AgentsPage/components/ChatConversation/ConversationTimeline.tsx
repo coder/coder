@@ -44,7 +44,7 @@ import {
 	AttachmentBlock,
 	type PreviewTextAttachment,
 } from "./AttachmentBlocks";
-import { ExpiredFileIdsProvider } from "./ExpiredFileIdsContext";
+import { FileProbeProvider } from "./FileProbeContext";
 import { deriveMessageDisplayState } from "./messageHelpers";
 import { getEditableUserMessagePayload } from "./messageParsing";
 import { useSmoothStreamingText } from "./SmoothText";
@@ -275,6 +275,8 @@ export const BlockList: FC<{
 	const prefQuery = useQuery(preferenceSettings());
 	const thinkingDisplayMode: ThinkingDisplayMode =
 		prefQuery.data?.thinking_display_mode || "auto";
+	const codeDiffDisplayMode: TypesGen.AgentDisplayMode =
+		prefQuery.data?.code_diff_display_mode || "auto";
 
 	const toolByID = new Map(tools.map((tool) => [tool.id, tool]));
 
@@ -365,6 +367,7 @@ export const BlockList: FC<{
 									name="Tool"
 									status="running"
 									isError={false}
+									codeDiffDisplayMode={codeDiffDisplayMode}
 									subagentTitles={subagentTitles}
 									subagentVariants={subagentVariants}
 									subagentStatusOverrides={subagentStatusOverrides}
@@ -381,6 +384,7 @@ export const BlockList: FC<{
 								status={tool.status}
 								isError={tool.isError}
 								killedBySignal={tool.killedBySignal}
+								codeDiffDisplayMode={codeDiffDisplayMode}
 								subagentTitles={subagentTitles}
 								subagentVariants={subagentVariants}
 								showDesktopPreviews={showDesktopPreviews}
@@ -436,6 +440,7 @@ export const BlockList: FC<{
 					status={tool.status}
 					isError={tool.isError}
 					killedBySignal={tool.killedBySignal}
+					codeDiffDisplayMode={codeDiffDisplayMode}
 					subagentTitles={subagentTitles}
 					subagentVariants={subagentVariants}
 					showDesktopPreviews={showDesktopPreviews}
@@ -474,6 +479,8 @@ const ChatMessageItem = memo<{
 	editingMessageId?: number | null;
 	isAfterEditingMessage?: boolean;
 	hideActions?: boolean;
+	hasActiveStream?: boolean;
+	isAwaitingFirstStreamChunk?: boolean;
 
 	// When true, renders a gradient overlay inside the bubble
 	// that fades text out toward the bottom. Used by the sticky
@@ -498,6 +505,8 @@ const ChatMessageItem = memo<{
 		editingMessageId,
 		isAfterEditingMessage = false,
 		hideActions = false,
+		hasActiveStream = false,
+		isAwaitingFirstStreamChunk = false,
 		fadeFromBottom = false,
 		onImplementPlan,
 		onSendAskUserQuestionResponse,
@@ -520,6 +529,8 @@ const ChatMessageItem = memo<{
 			message,
 			parsed,
 			hideActions,
+			hasActiveStream,
+			isAwaitingFirstStreamChunk,
 		});
 		if (displayState.shouldHide) {
 			return null;
@@ -592,7 +603,10 @@ const ChatMessageItem = memo<{
 					(displayState.hasCopyableContent ||
 						(isUser && onEditUserMessage)) && (
 						<div
-							className="mt-0.5 flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100"
+							className={cn(
+								"mt-0.5 flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100",
+								isUser && "w-full justify-end",
+							)}
 							data-testid="message-actions"
 						>
 							{displayState.hasCopyableContent && (
@@ -639,6 +653,7 @@ const ChatMessageItem = memo<{
 					<TextPreviewDialog
 						content={previewText.content}
 						fileName={previewText.fileName}
+						mediaType={previewText.mediaType}
 						onClose={() => setPreviewText(null)}
 					/>
 				)}
@@ -952,6 +967,8 @@ function computeLastInChainFlags(
 			message: entry.message,
 			parsed: entry.parsed,
 			hideActions: false,
+			hasActiveStream: false,
+			isAwaitingFirstStreamChunk: false,
 		});
 		if (entry.message.role !== "user") {
 			flags[i] = nextVisibleIsUser;
@@ -979,7 +996,8 @@ interface ConversationTimelineProps {
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	showDesktopPreviews?: boolean;
-	isTurnActive?: boolean;
+	hasActiveStream?: boolean;
+	isAwaitingFirstStreamChunk?: boolean;
 }
 
 export const ConversationTimeline = memo<ConversationTimelineProps>(
@@ -995,6 +1013,8 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		urlTransform,
 		mcpServers,
 		showDesktopPreviews,
+		hasActiveStream,
+		isAwaitingFirstStreamChunk,
 	}) => {
 		const lastInChainFlags = computeLastInChainFlags(parsedMessages);
 
@@ -1055,7 +1075,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				: undefined;
 
 		return (
-			<ExpiredFileIdsProvider>
+			<FileProbeProvider>
 				<div
 					data-testid="conversation-timeline"
 					className="flex flex-col gap-2"
@@ -1095,6 +1115,8 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								urlTransform={urlTransform}
 								isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
 								hideActions={!isLastInChain}
+								hasActiveStream={Boolean(hasActiveStream)}
+								isAwaitingFirstStreamChunk={Boolean(isAwaitingFirstStreamChunk)}
 								mcpServers={mcpServers}
 								subagentTitles={subagentTitles}
 								subagentVariants={subagentVariants}
@@ -1103,7 +1125,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 						);
 					})}
 				</div>
-			</ExpiredFileIdsProvider>
+			</FileProbeProvider>
 		);
 	},
 );

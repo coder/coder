@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import TextField from "@mui/material/TextField";
@@ -324,7 +323,7 @@ const PermissionCheckboxGroup: FC<PermissionCheckboxGroupProps> = ({
 	return (
 		<TableRow key={resourceKey}>
 			<TableCell className="pl-0.5" colSpan={2}>
-				<li key={resourceKey} css={styles.checkBoxes}>
+				<li key={resourceKey} className="m-0 list-none">
 					<Checkbox
 						size="small"
 						name={`${resourceKey}`}
@@ -344,10 +343,10 @@ const PermissionCheckboxGroup: FC<PermissionCheckboxGroupProps> = ({
 						}
 					/>
 					{resourceKey}
-					<ul css={styles.checkBoxes}>
+					<ul className="m-0 list-none">
 						{Object.entries(value).map(([actionKey, value]) => (
-							<li key={actionKey} css={styles.actionItem}>
-								<span css={styles.actionText}>
+							<li key={actionKey} className="grid grid-cols-[270px_1fr]">
+								<span className="text-content-primary">
 									<Checkbox
 										size="small"
 										name={`${resourceKey}:${actionKey}`}
@@ -358,7 +357,7 @@ const PermissionCheckboxGroup: FC<PermissionCheckboxGroupProps> = ({
 									/>
 									{actionKey}
 								</span>
-								<span css={styles.actionDescription}>{value}</span>
+								<span className="pt-1.5 text-content-secondary">{value}</span>
 							</li>
 						))}
 					</ul>
@@ -401,23 +400,5 @@ const ShowAllResourcesCheckbox: FC<ShowAllResourcesCheckboxProps> = ({
 		/>
 	);
 };
-
-const styles = {
-	checkBoxes: {
-		margin: 0,
-		listStyleType: "none",
-	},
-	actionText: (theme) => ({
-		color: theme.palette.text.primary,
-	}),
-	actionDescription: (theme) => ({
-		color: theme.palette.text.secondary,
-		paddingTop: 6,
-	}),
-	actionItem: {
-		display: "grid",
-		gridTemplateColumns: "270px 1fr",
-	},
-} satisfies Record<string, Interpolation<Theme>>;
 
 export default CreateEditRolePageView;

@@ -2,11 +2,13 @@ import { type FC, Profiler, type ReactNode, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
+import type { AgentChatSendShortcut } from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import { getChatFileURL } from "../utils/chatAttachments";
+import { getProviderForModelOption } from "../utils/modelOptions";
 import type { ChatDetailError } from "../utils/usageLimitMessage";
 import {
 	AgentChatInput,
@@ -20,6 +22,7 @@ import { getLatestContextUsage } from "./ChatConversation/chatHelpers";
 import {
 	selectChatStatus,
 	selectHasStreamState,
+	selectIsAwaitingFirstStreamChunk,
 	selectMessagesByID,
 	selectOrderedMessageIDs,
 	selectQueuedMessages,
@@ -73,6 +76,10 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
 	const chatStatus = useChatSelector(store, selectChatStatus);
 	const hasStream = useChatSelector(store, selectHasStreamState);
+	const isAwaitingFirstStreamChunk = useChatSelector(
+		store,
+		selectIsAwaitingFirstStreamChunk,
+	);
 	const isChatCompleted = !hasStream && chatStatus !== "pending";
 
 	const messages = orderedMessageIDs
@@ -116,6 +123,8 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					onImplementPlan={onImplementPlan}
 					onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
 					isChatCompleted={isChatCompleted}
+					hasActiveStream={hasStream}
+					isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
 					urlTransform={urlTransform}
 					mcpServers={mcpServers}
 					showDesktopPreviews={false}
@@ -149,6 +158,7 @@ interface ChatPageInputProps {
 		message: string,
 		attachments?: readonly PendingAttachment[],
 	) => Promise<void> | void;
+	sendShortcut: AgentChatSendShortcut;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	onPromoteQueuedMessage: (id: number) => Promise<void>;
 	onInterrupt: () => void;
@@ -161,6 +171,7 @@ interface ChatPageInputProps {
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
 	modelSelectorHelp?: ReactNode;
+	agentSetupNotice?: ReactNode;
 	planModeEnabled?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
 	isModelCatalogLoading?: boolean;
@@ -185,11 +196,6 @@ interface ChatPageInputProps {
 	onCancelQueueEdit: () => void;
 	isEditingHistoryMessage: boolean;
 	onCancelHistoryEdit: () => void;
-	onEditUserMessage: (
-		messageId: number,
-		text: string,
-		fileBlocks?: readonly TypesGen.ChatMessagePart[],
-	) => void;
 	// File parts from the message being edited, converted to
 	// File objects and pre-populated into attachments.
 	editingFileBlocks?: readonly TypesGen.ChatMessagePart[];
@@ -200,6 +206,7 @@ interface ChatPageInputProps {
 	onMCPAuthComplete?: (serverId: string) => void;
 	lastInjectedContext?: readonly TypesGen.ChatMessagePart[];
 	workspaceOptions: readonly TypesGen.Workspace[];
+	chatOrganizationId?: string;
 	selectedWorkspaceId: string | null;
 	onWorkspaceChange: (workspaceId: string | null) => void;
 	isWorkspaceLoading: boolean;
@@ -216,6 +223,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	store,
 	compressionThreshold,
 	onSend,
+	sendShortcut,
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
 	onInterrupt,
@@ -228,6 +236,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	modelOptions,
 	modelSelectorPlaceholder,
 	modelSelectorHelp,
+	agentSetupNotice,
 	planModeEnabled,
 	onPlanModeToggle,
 	isModelCatalogLoading = false,
@@ -242,7 +251,6 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	onCancelQueueEdit,
 	isEditingHistoryMessage,
 	onCancelHistoryEdit,
-	onEditUserMessage,
 	editingFileBlocks,
 	mcpServers,
 	selectedMCPServerIds,
@@ -250,6 +258,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	onMCPAuthComplete,
 	lastInjectedContext,
 	workspaceOptions,
+	chatOrganizationId,
 	selectedWorkspaceId,
 	onWorkspaceChange,
 	isWorkspaceLoading,
@@ -279,30 +288,32 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			return message;
 		})
 		.filter(isChatMessage);
-	let lastEditableUserMessage: TypesGen.ChatMessage | undefined;
-	for (let index = orderedMessageIDs.length - 1; index >= 0; index--) {
-		const message = messagesByID.get(orderedMessageIDs[index]);
-		if (message?.role === "user") {
-			lastEditableUserMessage = message;
-			break;
+	// Newest first. messages are in id-ascending order, so reverse
+	// iteration yields the most recent user prompts first. Store the
+	// original text untouched so cycling and re-sending reproduces what
+	// the user originally sent (boundary whitespace can be intentional).
+	const userPromptHistory: string[] = [];
+	for (let index = messages.length - 1; index >= 0; index--) {
+		const message = messages.at(index);
+		if (!message || message.role !== "user") {
+			continue;
+		}
+		const text = getEditableUserMessagePayload(message).text;
+		if (text.trim()) {
+			userPromptHistory.push(text);
 		}
 	}
-
-	const handleEditLastUserMessage = lastEditableUserMessage
-		? () => {
-				const { text, fileBlocks } = getEditableUserMessagePayload(
-					lastEditableUserMessage,
-				);
-				onEditUserMessage(lastEditableUserMessage.id, text, fileBlocks);
-			}
-		: undefined;
 
 	const rawUsage = getLatestContextUsage(messages);
 	const latestContextUsage = rawUsage
 		? { ...rawUsage, compressionThreshold, lastInjectedContext }
 		: rawUsage;
-	const composeAttachments = useChatDraftAttachments(organizationId, chatId);
-	const editAttachments = useFileAttachments(organizationId);
+	const composeAttachments = useChatDraftAttachments(organizationId, chatId, {
+		provider: getProviderForModelOption(modelOptions, selectedModel),
+	});
+	const editAttachments = useFileAttachments(organizationId, {
+		provider: getProviderForModelOption(modelOptions, selectedModel),
+	});
 	const {
 		setAttachments: setEditAttachments,
 		setPreviewUrls: setEditPreviewUrls,
@@ -393,6 +404,8 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	const isStreaming =
 		hasStreamState || chatStatus === "running" || chatStatus === "pending";
 
+	const [chatFullWidth] = useChatFullWidth();
+
 	const inputElement = (
 		<AgentChatInput
 			onSend={(message) => {
@@ -442,6 +455,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 					}
 				})();
 			}}
+			sendShortcut={sendShortcut}
 			attachments={attachments}
 			onAttach={handleAttach}
 			onRemoveAttachment={handleRemoveAttachment}
@@ -461,7 +475,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			onCancelQueueEdit={onCancelQueueEdit}
 			isEditingHistoryMessage={isEditingHistoryMessage}
 			onCancelHistoryEdit={onCancelHistoryEdit}
-			onEditLastUserMessage={handleEditLastUserMessage}
+			userPromptHistory={userPromptHistory}
 			isDisabled={isInputDisabled}
 			isLoading={isSendPending}
 			isStreaming={isStreaming}
@@ -477,6 +491,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			onPlanModeToggle={onPlanModeToggle}
 			isModelCatalogLoading={isModelCatalogLoading}
 			workspaceOptions={workspaceOptions}
+			chatOrganizationId={chatOrganizationId}
 			selectedWorkspaceId={selectedWorkspaceId}
 			onWorkspaceChange={onWorkspaceChange}
 			isWorkspaceLoading={isWorkspaceLoading}
@@ -493,12 +508,19 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		/>
 	);
 
-	if (!modelSelectorHelp) {
+	if (!agentSetupNotice && !modelSelectorHelp) {
 		return inputElement;
 	}
 
 	return (
 		<div>
+			{agentSetupNotice && (
+				<div
+					className={cn("mx-auto w-full pb-2", chatWidthClass(chatFullWidth))}
+				>
+					{agentSetupNotice}
+				</div>
+			)}
 			{inputElement}
 			{modelSelectorHelp && (
 				<div className="px-3 pt-1 text-2xs text-content-secondary">

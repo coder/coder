@@ -1,6 +1,6 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import type { FC } from "react";
 import { MemoizedMarkdown } from "#/components/Markdown/Markdown";
+import { cn } from "#/utils/cn";
 
 interface TemplateUpdateMessageProps {
 	children: string;
@@ -10,35 +10,16 @@ export const TemplateUpdateMessage: FC<TemplateUpdateMessageProps> = ({
 	children,
 }) => {
 	return (
-		<MemoizedMarkdown css={styles.versionMessage}>{children}</MemoizedMarkdown>
+		<MemoizedMarkdown
+			className={cn(
+				"text-sm leading-[1.2]",
+				"[&_h1]:mb-[0.75em] [&_h2]:mb-[0.75em] [&_h3]:mb-[0.75em]",
+				"[&_h4]:mb-[0.75em] [&_h5]:mb-[0.75em] [&_h6]:mb-[0.75em]",
+				"[&_h1]:text-[1.2em] [&_h2]:text-[1.15em] [&_h3]:text-[1.1em]",
+				"[&_h4]:text-[1.05em] [&_h5]:text-[1em] [&_h6]:text-[0.95em]",
+			)}
+		>
+			{children}
+		</MemoizedMarkdown>
 	);
 };
-
-const styles = {
-	versionMessage: {
-		fontSize: 14,
-		lineHeight: 1.2,
-
-		"& h1, & h2, & h3, & h4, & h5, & h6": {
-			margin: "0 0 0.75em",
-		},
-		"& h1": {
-			fontSize: "1.2em",
-		},
-		"& h2": {
-			fontSize: "1.15em",
-		},
-		"& h3": {
-			fontSize: "1.1em",
-		},
-		"& h4": {
-			fontSize: "1.05em",
-		},
-		"& h5": {
-			fontSize: "1em",
-		},
-		"& h6": {
-			fontSize: "0.95em",
-		},
-	},
-} satisfies Record<string, Interpolation<Theme>>;

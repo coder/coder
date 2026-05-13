@@ -6,8 +6,10 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/keypool"
 )
 
 var ErrUnknownRoute = xerrors.New("unknown route")
@@ -76,7 +78,12 @@ type Provider interface {
 	// token in.
 	AuthHeader() string
 	// InjectAuthHeader allows [Provider]s to set its authentication header.
+	// TODO(ssncferreira): remove. Auth is now applied per-attempt by
+	// KeyFailoverTransport (see [Provider.KeyFailoverConfig]).
 	InjectAuthHeader(*http.Header)
+	// KeyFailoverConfig returns the per-provider configuration for
+	// automatic key failover on passthrough routes.
+	KeyFailoverConfig(logger slog.Logger) keypool.KeyFailoverConfig
 
 	// CircuitBreakerConfig returns the circuit breaker configuration for the provider.
 	CircuitBreakerConfig() *config.CircuitBreaker

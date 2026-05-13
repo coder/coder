@@ -16,6 +16,7 @@ interface StartWorkspaceToolProps {
 	isError: boolean;
 	errorMessage?: string;
 	noBuild?: boolean;
+	labelOverride?: string;
 }
 
 export const StartWorkspaceTool: FC<StartWorkspaceToolProps> = ({
@@ -25,16 +26,19 @@ export const StartWorkspaceTool: FC<StartWorkspaceToolProps> = ({
 	isError,
 	errorMessage,
 	noBuild,
+	labelOverride,
 }) => {
 	const isRunning = status === "running";
 
 	const label = isRunning
 		? "Starting workspace…"
-		: isError
-			? `Failed to start ${workspaceName || "workspace"}`
-			: workspaceName
-				? `Started ${workspaceName}`
-				: "Started workspace";
+		: labelOverride
+			? labelOverride
+			: isError
+				? `Failed to start ${workspaceName || "workspace"}`
+				: workspaceName
+					? `Started ${workspaceName}`
+					: "Started workspace";
 
 	const header = (
 		<>

@@ -20,7 +20,6 @@ const meta: Meta<typeof NavbarView> = {
 	parameters: {
 		chromatic: chromaticWithTablet,
 		layout: "fullscreen",
-		experiments: ["agents"],
 		queries: [
 			{
 				key: ["tasks", tasksFilter],
@@ -85,6 +84,21 @@ export const ForOrgAdmin: Story = {
 	},
 };
 
+export const ForSingleOrgOSSAdmin: Story = {
+	args: {
+		canViewAuditLog: false,
+		canViewOrganizations: false,
+		canViewConnectionLog: false,
+		canViewAIBridge: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Admin settings" }),
+		);
+	},
+};
+
 export const ForMember: Story = {
 	args: {
 		user: MockUserMember,
@@ -104,12 +118,6 @@ export const ForMemberWithAgentsAccess: Story = {
 		canViewHealth: false,
 		canViewOrganizations: false,
 		canCreateChat: true,
-	},
-};
-
-export const CustomLogo: Story = {
-	args: {
-		logo_url: "/icon/github.svg",
 	},
 };
 

@@ -6,8 +6,10 @@ import (
 
 	"go.opentelemetry.io/otel/trace"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/keypool"
 )
 
 type MockProvider struct {
@@ -30,6 +32,10 @@ func (m *MockProvider) InjectAuthHeader(h *http.Header) {
 	if m.InjectAuthHeaderFunc != nil {
 		m.InjectAuthHeaderFunc(h)
 	}
+}
+
+func (*MockProvider) KeyFailoverConfig(_ slog.Logger) keypool.KeyFailoverConfig {
+	return keypool.KeyFailoverConfig{}
 }
 func (*MockProvider) CircuitBreakerConfig() *config.CircuitBreaker { return nil }
 func (*MockProvider) APIDumpDir() string                           { return "" }

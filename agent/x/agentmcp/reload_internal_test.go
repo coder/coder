@@ -220,7 +220,7 @@ func TestSnapshotChanged_MultipleConfigFiles(t *testing.T) {
 	require.NoError(t, err)
 
 	// Tools from both files should be present.
-	tools := m.Tools()
+	tools := m.cachedTools()
 	require.Len(t, tools, 2, "should have tools from both config files")
 	assert.Contains(t, tools[0].Name, "srv1",
 		"first tool should be from first config")
@@ -246,7 +246,7 @@ func TestReload(t *testing.T) {
 		err := m.Reload(ctx, []string{configPath})
 		require.NoError(t, err)
 
-		tools := m.Tools()
+		tools := m.cachedTools()
 		require.Len(t, tools, 1, "should have one tool from the fake server")
 		assert.Contains(t, tools[0].Name, "echo")
 
@@ -293,7 +293,7 @@ func TestReload(t *testing.T) {
 			assert.NoError(t, err, "caller %d should not fail", i)
 		}
 
-		tools := m.Tools()
+		tools := m.cachedTools()
 		require.Len(t, tools, 1)
 	})
 
@@ -302,9 +302,7 @@ func TestReload(t *testing.T) {
 		mgrCtx := testutil.Context(t, testutil.WaitLong)
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 		dir := t.TempDir()
-
-		_, entry := fakeMCPServerConfig(t, "srv")
-		configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
+		paths := []string{filepath.Join(dir, ".mcp.json")}
 
 		m := NewManager(mgrCtx, logger, agentexec.DefaultExecer, nil)
 		t.Cleanup(func() { _ = m.Close() })
@@ -313,11 +311,18 @@ func TestReload(t *testing.T) {
 		callerCtx, cancel := context.WithCancel(mgrCtx)
 		cancel() // Cancel immediately.
 
-		err := m.Reload(callerCtx, []string{configPath})
+		err := m.Reload(callerCtx, paths)
 		// The caller context is already canceled, so Reload should
-		// return the caller's context error.
+		// return the caller's context error after starting the sync.
 		require.Error(t, err)
 		assert.ErrorIs(t, err, context.Canceled)
+
+		testutil.Eventually(mgrCtx, t, func(context.Context) bool {
+			m.mu.RLock()
+			firstSyncSettled := m.firstSyncSettled
+			m.mu.RUnlock()
+			return firstSyncSettled && !m.SnapshotChanged(paths)
+		}, testutil.IntervalFast)
 	})
 
 	t.Run("SequentialReloadsDiffDetect", func(t *testing.T) {
@@ -335,7 +340,7 @@ func TestReload(t *testing.T) {
 		// First reload.
 		err := m.Reload(ctx, []string{configPath})
 		require.NoError(t, err)
-		tools1 := m.Tools()
+		tools1 := m.cachedTools()
 		require.Len(t, tools1, 1)
 		assert.Contains(t, tools1[0].Name, "srv1")
 
@@ -347,7 +352,7 @@ func TestReload(t *testing.T) {
 		assert.True(t, m.SnapshotChanged([]string{configPath}))
 		err = m.Reload(ctx, []string{configPath})
 		require.NoError(t, err)
-		tools2 := m.Tools()
+		tools2 := m.cachedTools()
 		require.Len(t, tools2, 1)
 		assert.Contains(t, tools2[0].Name, "srv2")
 	})
@@ -388,14 +393,14 @@ func TestReload(t *testing.T) {
 
 		err := m.Reload(ctx, []string{configPath})
 		require.NoError(t, err)
-		require.Len(t, m.Tools(), 1)
+		require.Len(t, m.cachedTools(), 1)
 
 		// Delete config file.
 		require.NoError(t, os.Remove(configPath))
 
 		err = m.Reload(ctx, []string{configPath})
 		require.NoError(t, err)
-		assert.Empty(t, m.Tools(), "tools should be empty after config deleted")
+		assert.Empty(t, m.cachedTools(), "tools should be empty after config deleted")
 
 		// Subsequent reload finds snapshot unchanged.
 		assert.False(t, m.SnapshotChanged([]string{configPath}))
@@ -446,7 +451,7 @@ func TestDifferentialReload(t *testing.T) {
 			"unchanged server should reuse client pointer")
 
 		// Both servers should have tools.
-		tools := m.Tools()
+		tools := m.cachedTools()
 		require.Len(t, tools, 2)
 	})
 
@@ -500,7 +505,7 @@ func TestDifferentialReload(t *testing.T) {
 
 		err := m.Reload(ctx, []string{configPath})
 		require.NoError(t, err)
-		require.Len(t, m.Tools(), 2)
+		require.Len(t, m.cachedTools(), 2)
 
 		// Capture srvB's client before removal.
 		m.mu.RLock()
@@ -514,7 +519,7 @@ func TestDifferentialReload(t *testing.T) {
 		err = m.Reload(ctx, []string{configPath})
 		require.NoError(t, err)
 
-		tools := m.Tools()
+		tools := m.cachedTools()
 		require.Len(t, tools, 1)
 		assert.Contains(t, tools[0].Name, "srvA")
 
@@ -540,7 +545,7 @@ func TestDifferentialReload(t *testing.T) {
 
 		err := m.Reload(ctx, []string{configPath})
 		require.NoError(t, err)
-		require.Len(t, m.Tools(), 1)
+		require.Len(t, m.cachedTools(), 1)
 
 		m.mu.RLock()
 		origClient := m.servers["srv"].client
@@ -563,7 +568,7 @@ func TestDifferentialReload(t *testing.T) {
 			"failed connect should retain old client")
 
 		// Tools should still work.
-		tools := m.Tools()
+		tools := m.cachedTools()
 		require.Len(t, tools, 1)
 	})
 
@@ -581,7 +586,7 @@ func TestDifferentialReload(t *testing.T) {
 
 		err := m.Reload(ctx, []string{configPath})
 		require.NoError(t, err)
-		tools := m.Tools()
+		tools := m.cachedTools()
 		require.Len(t, tools, 1)
 		toolName := tools[0].Name
 
@@ -632,7 +637,7 @@ func TestReload_FirstBootPath(t *testing.T) {
 	err := m.Reload(ctx, []string{configPath})
 	require.NoError(t, err)
 
-	tools := m.Tools()
+	tools := m.cachedTools()
 	require.Len(t, tools, 1)
 	assert.Contains(t, tools[0].Name, "echo")
 }
@@ -668,6 +673,11 @@ func TestReload_NoopWhenUnchanged(t *testing.T) {
 	err = m.Reload(ctx, []string{configPath})
 	require.NoError(t, err)
 
+	callerCtx, cancel := context.WithCancel(ctx)
+	cancel()
+	err = m.Reload(callerCtx, []string{configPath})
+	require.NoError(t, err)
+
 	m.mu.RLock()
 	sameClient := m.servers["srv"].client
 	m.mu.RUnlock()
@@ -699,7 +709,7 @@ func TestClose_SuppressesSubprocessExitError(t *testing.T) {
 
 	err := m.Reload(ctx, []string{configPath})
 	require.NoError(t, err)
-	require.Len(t, m.Tools(), 1, "server should be connected")
+	require.Len(t, m.cachedTools(), 1, "server should be connected")
 
 	// Close kills the subprocess. The ExitError guard should
 	// suppress the "signal: killed" error.

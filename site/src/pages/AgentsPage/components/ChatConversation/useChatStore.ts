@@ -12,6 +12,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import type { OneWayMessageEvent } from "#/utils/OneWayWebSocket";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import type { ChatDetailError } from "../../utils/usageLimitMessage";
+import { normalizeChatErrorPayload } from "./chatError";
 import {
 	type ChatStore,
 	type ChatStoreState,
@@ -22,24 +23,10 @@ import {
 } from "./chatStore";
 import type { RetryState } from "./types";
 
-const normalizeChatDetailError = (
-	error: TypesGen.ChatStreamError | undefined,
-): ChatDetailError => {
-	const detail = error?.detail?.trim();
-	return {
-		message: error?.message.trim() || "Chat processing failed.",
-		kind: error?.kind?.trim() || "generic",
-		provider: error?.provider?.trim() || undefined,
-		retryable: error?.retryable,
-		statusCode: error?.status_code,
-		...(detail ? { detail } : {}),
-	};
-};
-
 const normalizeRetryState = (retry: TypesGen.ChatStreamRetry): RetryState => ({
 	attempt: Math.max(1, retry.attempt),
 	error: retry.error.trim() || "Retrying request shortly.",
-	kind: retry.kind?.trim() || "generic",
+	kind: retry.kind ?? "generic",
 	provider: retry.provider?.trim() || undefined,
 	delayMs: retry.delay_ms,
 	retryingAt: retry.retrying_at.trim() || undefined,
@@ -250,6 +237,10 @@ export const useChatStore = (
 		wsQueueUpdateReceivedRef.current = false;
 		wsStatusReceivedRef.current = false;
 		store.setQueuedMessages([]);
+		// Suppression entries are scoped to the current chat; clear
+		// them on chat change so a stale promote suppression doesn't
+		// hide queued messages in another chat.
+		store.clearSuppressedQueuedMessageIDs();
 		if (!chatID) {
 			return;
 		}
@@ -271,7 +262,7 @@ export const useChatStore = (
 			return;
 		}
 		queuedMessagesHydratedChatIDRef.current = chatID;
-		store.setQueuedMessages(chatQueuedMessages);
+		store.applyAuthoritativeQueuedMessages(chatQueuedMessages);
 	}, [chatMessagesData, chatID, chatQueuedMessages, store]);
 
 	useEffect(() => {
@@ -486,7 +477,9 @@ export const useChatStore = (
 								continue;
 							}
 							wsQueueUpdateReceivedRef.current = true;
-							store.setQueuedMessages(streamEvent.queued_messages);
+							store.applyAuthoritativeQueuedMessages(
+								streamEvent.queued_messages,
+							);
 							updateChatQueuedMessages(streamEvent.queued_messages);
 							continue;
 						case "status": {
@@ -527,7 +520,10 @@ export const useChatStore = (
 							if (streamEvent.chat_id && streamEvent.chat_id !== chatID) {
 								continue;
 							}
-							const reason = normalizeChatDetailError(streamEvent.error);
+							const reason = normalizeChatErrorPayload(streamEvent.error) ?? {
+								kind: "generic",
+								message: "Chat processing failed.",
+							};
 							store.setChatStatus("error");
 							store.setStreamError(reason);
 							store.clearRetryState();

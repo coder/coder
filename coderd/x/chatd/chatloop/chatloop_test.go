@@ -339,6 +339,137 @@ func TestRun_ActiveToolsAllowsProviderRunnerExecution(t *testing.T) {
 		"persisted step should include the provider runner result")
 }
 
+func TestRun_ProviderToolResultProviderMetadata(t *testing.T) {
+	t.Parallel()
+
+	expectedMetadata := fantasy.ProviderMetadata{
+		"openai": &testProviderData{data: map[string]any{
+			"detail": "original",
+		}},
+	}
+
+	tests := []struct {
+		name     string
+		callback func(fantasy.ToolResponse) fantasy.ProviderMetadata
+		want     fantasy.ProviderMetadata
+	}{
+		{
+			name: "callback returns metadata",
+			callback: func(fantasy.ToolResponse) fantasy.ProviderMetadata {
+				return expectedMetadata
+			},
+			want: expectedMetadata,
+		},
+		{
+			name: "callback nil",
+			want: nil,
+		},
+		{
+			name: "callback returns nil",
+			callback: func(fantasy.ToolResponse) fantasy.ProviderMetadata {
+				return nil
+			},
+			want: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			providerRunnerName := "computer"
+			model := &chattest.FakeModel{
+				ProviderName: "fake",
+				StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+					return streamFromParts([]fantasy.StreamPart{
+						{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc-provider-runner", ToolCallName: providerRunnerName},
+						{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc-provider-runner", Delta: `{}`},
+						{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc-provider-runner"},
+						{
+							Type:          fantasy.StreamPartTypeToolCall,
+							ID:            "tc-provider-runner",
+							ToolCallName:  providerRunnerName,
+							ToolCallInput: `{}`,
+						},
+						{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
+					}), nil
+				},
+			}
+
+			runnerTool := fantasy.NewAgentTool(
+				providerRunnerName,
+				"provider runner",
+				func(context.Context, struct{}, fantasy.ToolCall) (fantasy.ToolResponse, error) {
+					return fantasy.ToolResponse{
+						Type:      "image",
+						Data:      []byte("image bytes"),
+						MediaType: "image/png",
+						Content:   "screenshot",
+					}, nil
+				},
+			)
+
+			var persistedStep PersistedStep
+			err := Run(context.Background(), RunOptions{
+				Model: model,
+				Messages: []fantasy.Message{
+					textMessage(fantasy.MessageRoleUser, "use the computer"),
+				},
+				ProviderTools: []ProviderTool{
+					{
+						Definition: fantasy.FunctionTool{
+							Name:        providerRunnerName,
+							Description: "provider runner",
+							InputSchema: map[string]any{
+								"type":       "object",
+								"properties": map[string]any{},
+							},
+						},
+						Runner:                 runnerTool,
+						ResultProviderMetadata: tt.callback,
+					},
+				},
+				MaxSteps: 1,
+				PersistStep: func(_ context.Context, step PersistedStep) error {
+					persistedStep = step
+					return nil
+				},
+			})
+			require.NoError(t, err)
+
+			var foundResult fantasy.ToolResultContent
+			for _, block := range persistedStep.Content {
+				toolResult, ok := fantasy.AsContentType[fantasy.ToolResultContent](block)
+				if !ok || toolResult.ToolName != providerRunnerName {
+					continue
+				}
+				foundResult = toolResult
+				break
+			}
+			require.NotEmpty(t, foundResult.ToolCallID,
+				"persisted step should include the provider runner result")
+
+			mediaResult, ok := foundResult.Result.(fantasy.ToolResultOutputContentMedia)
+			require.True(t, ok, "expected media result")
+			assert.Equal(t, "image/png", mediaResult.MediaType)
+			assert.Equal(t, tt.want, foundResult.ProviderMetadata)
+
+			if tt.want == nil {
+				return
+			}
+
+			messages := stepResult{content: persistedStep.Content}.toResponseMessages()
+			require.Len(t, messages, 2)
+			require.Equal(t, fantasy.MessageRoleTool, messages[1].Role)
+			require.Len(t, messages[1].Content, 1)
+
+			resultPart, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](messages[1].Content[0])
+			require.True(t, ok, "expected outbound tool result part")
+			assert.Equal(t, fantasy.ProviderOptions(tt.want), resultPart.ProviderOptions)
+		})
+	}
+}
+
 func TestProcessStepStream_AnthropicUsageMatchesFinalDelta(t *testing.T) {
 	t.Parallel()
 
@@ -440,12 +571,12 @@ func TestRun_OnRetryEnrichesProvider(t *testing.T) {
 	require.Equal(t, "received status 429 from upstream", records[0].errMsg)
 	require.Equal(t, chatretry.Delay(0), records[0].delay)
 	require.Equal(t, "openai", records[0].classified.Provider)
-	require.Equal(t, chaterror.KindRateLimit, records[0].classified.Kind)
+	require.Equal(t, codersdk.ChatErrorKindRateLimit, records[0].classified.Kind)
 	require.True(t, records[0].classified.Retryable)
 	require.Equal(t, 429, records[0].classified.StatusCode)
 	require.Equal(
 		t,
-		"OpenAI is rate limiting requests (HTTP 429).",
+		"OpenAI is rate limiting requests.",
 		records[0].classified.Message,
 	)
 }
@@ -502,7 +633,7 @@ func TestStartupGuard_DisarmPreservesPermanentError(t *testing.T) {
 		"openai",
 		xerrors.New("invalid model"),
 	))
-	require.Equal(t, chaterror.KindConfig, classified.Kind)
+	require.Equal(t, codersdk.ChatErrorKindConfig, classified.Kind)
 	require.False(t, classified.Retryable)
 	require.Nil(t, context.Cause(attemptCtx))
 }
@@ -569,7 +700,7 @@ func TestRun_RetriesStartupTimeoutWhileOpeningStream(t *testing.T) {
 	require.NoError(t, awaitRunResult(ctx, t, done))
 	require.Equal(t, 2, attempts)
 	require.Len(t, retries, 1)
-	require.Equal(t, chaterror.KindStartupTimeout, retries[0].Kind)
+	require.Equal(t, codersdk.ChatErrorKindStartupTimeout, retries[0].Kind)
 	require.True(t, retries[0].Retryable)
 	require.Equal(t, "openai", retries[0].Provider)
 	require.Equal(
@@ -657,7 +788,7 @@ func TestRun_HTTP2TransportErrorClassifiedAsRetryableTimeout(t *testing.T) {
 			require.NoError(t, awaitRunResult(ctx, t, done))
 			require.Equal(t, 2, attempts)
 			require.Len(t, retries, 1)
-			require.Equal(t, chaterror.KindTimeout, retries[0].Kind, "Kind")
+			require.Equal(t, codersdk.ChatErrorKindTimeout, retries[0].Kind, "Kind")
 			require.True(t, retries[0].Retryable, "Retryable")
 			require.Equal(t, provider, retries[0].Provider, "Provider")
 		})
@@ -731,7 +862,7 @@ func TestRun_RetriesStartupTimeoutBeforeFirstPart(t *testing.T) {
 	require.NoError(t, awaitRunResult(ctx, t, done))
 	require.Equal(t, 2, attempts)
 	require.Len(t, retries, 1)
-	require.Equal(t, chaterror.KindStartupTimeout, retries[0].Kind)
+	require.Equal(t, codersdk.ChatErrorKindStartupTimeout, retries[0].Kind)
 	require.True(t, retries[0].Retryable)
 	require.Equal(t, "openai", retries[0].Provider)
 	require.Equal(
@@ -946,7 +1077,7 @@ func TestRun_RetriesStartupTimeoutWhenStreamClosesSilently(t *testing.T) {
 	require.NoError(t, awaitRunResult(ctx, t, done))
 	require.Equal(t, 2, attempts)
 	require.Len(t, retries, 1)
-	require.Equal(t, chaterror.KindStartupTimeout, retries[0].Kind)
+	require.Equal(t, codersdk.ChatErrorKindStartupTimeout, retries[0].Kind)
 	require.True(t, retries[0].Retryable)
 	require.Equal(t, "openai", retries[0].Provider)
 	require.Equal(
@@ -3876,6 +4007,216 @@ func TestRun_PrepareMessagesOnlyFiresOnce(t *testing.T) {
 	require.Equal(t, 3, int(prepareCalls.Load()))
 }
 
+// TestRun_PrepareToolsInjectsToolMidLoop guards the regression where a
+// chat creating its workspace mid-turn (via create_workspace) saw the
+// workspace MCP tools only on the next turn. Before the fix, the tool
+// list was frozen at the top of the turn and the model could not call
+// any workspace MCP tools until turn 2. With the fix, PrepareTools is
+// invoked before every step and can inject tools that become available
+// mid-loop.
+func TestRun_PrepareToolsInjectsToolMidLoop(t *testing.T) {
+	t.Parallel()
+
+	const injectedToolName = "workspace_mcp__echo"
+
+	var mu sync.Mutex
+	var streamCalls int
+	var secondCallTools []fantasy.Tool
+
+	// Step 0 calls create_workspace. Step 1 should see the
+	// injected workspace MCP tool.
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+			mu.Lock()
+			step := streamCalls
+			streamCalls++
+			mu.Unlock()
+
+			switch step {
+			case 0:
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc-1", ToolCallName: "create_workspace"},
+					{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc-1", Delta: `{}`},
+					{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc-1"},
+					{
+						Type:          fantasy.StreamPartTypeToolCall,
+						ID:            "tc-1",
+						ToolCallName:  "create_workspace",
+						ToolCallInput: `{}`,
+					},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
+				}), nil
+			default:
+				mu.Lock()
+				secondCallTools = append([]fantasy.Tool(nil), call.Tools...)
+				mu.Unlock()
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "done"},
+					{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+				}), nil
+			}
+		},
+	}
+
+	var workspaceReady atomic.Bool
+	createWorkspaceTool := fantasy.NewAgentTool(
+		"create_workspace",
+		"create a workspace",
+		func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			workspaceReady.Store(true)
+			return fantasy.ToolResponse{}, nil
+		},
+	)
+
+	var prepareCalls atomic.Int32
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "create a workspace and use MCP"),
+		},
+		Tools:       []fantasy.AgentTool{createWorkspaceTool},
+		ActiveTools: []string{"create_workspace"},
+		MaxSteps:    5,
+		PersistStep: func(_ context.Context, _ PersistedStep) error {
+			return nil
+		},
+		PrepareTools: func(currentTools []fantasy.AgentTool) []fantasy.AgentTool {
+			prepareCalls.Add(1)
+			if !workspaceReady.Load() {
+				return nil
+			}
+			return append(currentTools, newNoopTool(injectedToolName))
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 2, streamCalls)
+	// PrepareTools is called before each of the 2 steps.
+	require.Equal(t, int32(2), prepareCalls.Load())
+
+	require.NotEmpty(t, secondCallTools)
+	var foundInjectedTool bool
+	for _, tool := range secondCallTools {
+		if tool.GetName() == injectedToolName {
+			foundInjectedTool = true
+			break
+		}
+	}
+	require.True(t, foundInjectedTool,
+		"step 1 prompt should advertise the workspace MCP tool injected by PrepareTools")
+}
+
+// TestRun_PrepareToolsAddsNewToolToActiveSet guards the contract that
+// when PrepareTools injects a tool, that tool is callable on the
+// next step even when opts.ActiveTools was non-empty (and would
+// otherwise filter the new tool out).
+func TestRun_PrepareToolsAddsNewToolToActiveSet(t *testing.T) {
+	t.Parallel()
+
+	const injectedToolName = "workspace_mcp__echo"
+
+	var mu sync.Mutex
+	var streamCalls int
+	var injectedToolRan atomic.Bool
+
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			mu.Lock()
+			step := streamCalls
+			streamCalls++
+			mu.Unlock()
+
+			switch step {
+			case 0:
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc-1", ToolCallName: "create_workspace"},
+					{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc-1", Delta: `{}`},
+					{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc-1"},
+					{
+						Type:          fantasy.StreamPartTypeToolCall,
+						ID:            "tc-1",
+						ToolCallName:  "create_workspace",
+						ToolCallInput: `{}`,
+					},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
+				}), nil
+			case 1:
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc-2", ToolCallName: injectedToolName},
+					{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc-2", Delta: `{}`},
+					{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc-2"},
+					{
+						Type:          fantasy.StreamPartTypeToolCall,
+						ID:            "tc-2",
+						ToolCallName:  injectedToolName,
+						ToolCallInput: `{}`,
+					},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
+				}), nil
+			default:
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "done"},
+					{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+				}), nil
+			}
+		},
+	}
+
+	var workspaceReady atomic.Bool
+	createWorkspaceTool := fantasy.NewAgentTool(
+		"create_workspace",
+		"create a workspace",
+		func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			workspaceReady.Store(true)
+			return fantasy.ToolResponse{}, nil
+		},
+	)
+
+	injectedTool := fantasy.NewAgentTool(
+		injectedToolName,
+		"injected workspace MCP tool",
+		func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			injectedToolRan.Store(true)
+			return fantasy.ToolResponse{}, nil
+		},
+	)
+
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "create a workspace and use MCP"),
+		},
+		Tools: []fantasy.AgentTool{createWorkspaceTool},
+		// Active list deliberately excludes the injected tool name;
+		// PrepareTools must add it so the tool is callable.
+		ActiveTools: []string{"create_workspace"},
+		MaxSteps:    5,
+		PersistStep: func(_ context.Context, _ PersistedStep) error {
+			return nil
+		},
+		PrepareTools: func(currentTools []fantasy.AgentTool) []fantasy.AgentTool {
+			if !workspaceReady.Load() {
+				return nil
+			}
+			for _, t := range currentTools {
+				if t.Info().Name == injectedToolName {
+					return nil
+				}
+			}
+			return append(currentTools, injectedTool)
+		},
+	})
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, streamCalls, 2)
+	require.True(t, injectedToolRan.Load(),
+		"injected tool must be callable on the step after PrepareTools adds it")
+}
+
 func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 	t.Parallel()
 
@@ -3917,6 +4258,7 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 			map[string]bool{},
 			[]string{"screenshot"},
 			map[string]struct{}{},
+			nil,
 		)
 
 		media, ok := result.Result.(fantasy.ToolResultOutputContentMedia)
@@ -3963,6 +4305,7 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 			map[string]bool{},
 			[]string{"screenshot"},
 			map[string]struct{}{},
+			nil,
 		)
 
 		media, ok := result.Result.(fantasy.ToolResultOutputContentMedia)
@@ -4004,6 +4347,7 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 			map[string]bool{},
 			[]string{"echo"},
 			map[string]struct{}{},
+			nil,
 		)
 
 		textOutput, ok := result.Result.(fantasy.ToolResultOutputContentText)

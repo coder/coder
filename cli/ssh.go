@@ -116,6 +116,7 @@ func retryWithInterval(ctx context.Context, logger slog.Logger, interval time.Du
 func (r *RootCmd) ssh() *serpent.Command {
 	var (
 		stdio               bool
+		tty                 bool
 		hostPrefix          string
 		hostnameSuffix      string
 		forceNewTunnel      bool
@@ -633,9 +634,15 @@ func (r *RootCmd) ssh() *serpent.Command {
 				}
 			}
 
+			// Command mode must not request a PTY by default. A PTY
+			// interposes line discipline on the remote stdin which would
+			// prevent EOF from propagating to commands that read until
+			// EOF (e.g. `cat`, `wc`, `tar`). Interactive shell sessions
+			// always need a PTY, and command mode can opt in via --tty.
+			requestPTY := command == "" || tty
 			stdinFile, validIn := inv.Stdin.(*os.File)
 			stdoutFile, validOut := inv.Stdout.(*os.File)
-			if validIn && validOut && isatty.IsTerminal(stdinFile.Fd()) && isatty.IsTerminal(stdoutFile.Fd()) {
+			if requestPTY && validIn && validOut && isatty.IsTerminal(stdinFile.Fd()) && isatty.IsTerminal(stdoutFile.Fd()) {
 				inState, err := pty.MakeInputRaw(stdinFile.Fd())
 				if err != nil {
 					return err
@@ -685,18 +692,29 @@ func (r *RootCmd) ssh() *serpent.Command {
 				}
 			}
 
-			err = sshSession.RequestPty("xterm-256color", 128, 128, gossh.TerminalModes{})
-			if err != nil {
-				return xerrors.Errorf("request pty: %w", err)
-			}
-
 			sshSession.Stdin = inv.Stdin
 			sshSession.Stdout = inv.Stdout
 			sshSession.Stderr = inv.Stderr
 
+			if requestPTY {
+				err = sshSession.RequestPty("xterm-256color", 128, 128, gossh.TerminalModes{})
+				if err != nil {
+					return xerrors.Errorf("request pty: %w", err)
+				}
+			}
+
 			if command != "" {
 				err := sshSession.Run(command)
 				if err != nil {
+					if exitErr := (&gossh.ExitError{}); errors.As(err, &exitErr) {
+						// Preserve the remote command's exit status as the CLI
+						// exit code, but clear the error since it's not useful
+						// beyond reporting status.
+						return ExitError(exitErr.ExitStatus(), nil)
+					}
+					if missingErr := (&gossh.ExitMissingError{}); errors.As(err, &missingErr) {
+						return ExitError(255, xerrors.New("SSH connection ended unexpectedly"))
+					}
 					return xerrors.Errorf("run command: %w", err)
 				}
 			} else {
@@ -728,7 +746,7 @@ func (r *RootCmd) ssh() *serpent.Command {
 					// If the connection drops unexpectedly, we get an
 					// ExitMissingError but no other error details, so try to at
 					// least give the user a better message
-					if errors.Is(err, &gossh.ExitMissingError{}) {
+					if missingErr := (&gossh.ExitMissingError{}); errors.As(err, &missingErr) {
 						return ExitError(255, xerrors.New("SSH connection ended unexpectedly"))
 					}
 					return xerrors.Errorf("session ended: %w", err)
@@ -750,6 +768,13 @@ func (r *RootCmd) ssh() *serpent.Command {
 			Env:         "CODER_SSH_STDIO",
 			Description: "Specifies whether to emit SSH output over stdin/stdout.",
 			Value:       serpent.BoolOf(&stdio),
+		},
+		{
+			Flag:          "tty",
+			FlagShorthand: "t",
+			Env:           "CODER_SSH_TTY",
+			Description:   "Request a pseudo-terminal for the SSH session. Interactive shell sessions request one by default; command sessions do not unless this flag is set.",
+			Value:         serpent.BoolOf(&tty),
 		},
 		{
 			Flag:        "ssh-host-prefix",

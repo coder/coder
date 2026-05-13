@@ -164,9 +164,9 @@ func TestRoot(t *testing.T) {
 		t.Parallel()
 
 		var url string
-		var called int64
+		var called atomic.Int64
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			atomic.AddInt64(&called, 1)
+			called.Add(1)
 			assert.Equal(t, "wow", r.Header.Get("X-Testing"))
 			assert.Equal(t, "Dean was Here!", r.Header.Get("Cool-Header"))
 			assert.Equal(t, "very-wow-"+url, r.Header.Get("X-Process-Testing"))
@@ -193,7 +193,7 @@ func TestRoot(t *testing.T) {
 		err := inv.Run()
 		require.Error(t, err)
 		require.ErrorContains(t, err, "unexpected status code 410")
-		require.EqualValues(t, 1, atomic.LoadInt64(&called), "called exactly once")
+		require.EqualValues(t, 1, called.Load(), "called exactly once")
 	})
 }
 
@@ -217,7 +217,7 @@ func TestDERPHeaders(t *testing.T) {
 	t.Cleanup(func() {
 		_ = provisionerCloser.Close()
 	})
-	client := codersdk.New(serverURL)
+	client := codersdk.New(serverURL, codersdk.WithHTTPClient(coderdtest.NewIsolatedHTTPClient(serverURL)))
 	t.Cleanup(func() {
 		cancelFunc()
 		_ = provisionerCloser.Close()
@@ -238,7 +238,7 @@ func TestDERPHeaders(t *testing.T) {
 			"Cool-Header":       "Dean was Here!",
 			"X-Process-Testing": "very-wow",
 		}
-		derpCalled int64
+		derpCalled atomic.Int64
 	)
 	setHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/derp") {
@@ -252,7 +252,7 @@ func TestDERPHeaders(t *testing.T) {
 			if ok {
 				// Only increment if all the headers are set, because the agent
 				// calls derp also.
-				atomic.AddInt64(&derpCalled, 1)
+				derpCalled.Add(1)
 			}
 		}
 
@@ -289,7 +289,7 @@ func TestDERPHeaders(t *testing.T) {
 	pty.ExpectMatch("pong from " + workspace.Name)
 	<-cmdDone
 
-	require.Greater(t, atomic.LoadInt64(&derpCalled), int64(0), "expected /derp to be called at least once")
+	require.Greater(t, derpCalled.Load(), int64(0), "expected /derp to be called at least once")
 }
 
 func TestHandlersOK(t *testing.T) {

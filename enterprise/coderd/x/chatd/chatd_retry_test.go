@@ -126,8 +126,8 @@ func TestRelayReconnectUsesExponentialBackoff(t *testing.T) {
 	subscriber := newTestServer(t, db, ps, subscriberID, dialer, mclk)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
-	chat := seedWaitingChat(ctx, t, db, org.ID, user, model, "relay-backoff")
+	user, org, model := seedChatDependencies(t, db)
+	chat := seedWaitingChat(t, db, org.ID, user, model, "relay-backoff")
 
 	_, events, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
 	require.True(t, ok)
@@ -214,8 +214,8 @@ func TestRelayRepeatedDropsHitCap(t *testing.T) {
 	subscriber := newTestServer(t, db, ps, subscriberID, dialer, mclk)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
-	chat := seedWaitingChat(ctx, t, db, org.ID, user, model, "relay-drops")
+	user, org, model := seedChatDependencies(t, db)
+	chat := seedWaitingChat(t, db, org.ID, user, model, "relay-drops")
 
 	_, events, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
 	require.True(t, ok)
@@ -305,8 +305,8 @@ func TestRelayStopsAfterIntermittentCap(t *testing.T) {
 	subscriber := newTestServer(t, db, ps, subscriberID, dialer, mclk)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
-	chat := seedWaitingChat(ctx, t, db, org.ID, user, model, "relay-cap")
+	user, org, model := seedChatDependencies(t, db)
+	chat := seedWaitingChat(t, db, org.ID, user, model, "relay-cap")
 
 	_, events, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
 	require.True(t, ok)
@@ -416,8 +416,8 @@ func TestRelayReconnectStopsAfterDBErrorCap(t *testing.T) {
 	failingDB.okRemain.Store(1)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, realDB)
-	chat := seedWaitingChat(ctx, t, realDB, org.ID, user, model, "relay-db-error")
+	user, org, model := seedChatDependencies(t, realDB)
+	chat := seedWaitingChat(t, realDB, org.ID, user, model, "relay-db-error")
 
 	subscriber := newTestServer(t, failingDB, ps, subscriberID, dialer, mclk)
 	_, events, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
@@ -509,8 +509,8 @@ func TestRelayStopsImmediatelyOnUnauthorized(t *testing.T) {
 			subscriber := newTestServer(t, db, ps, subscriberID, dialer, mclk)
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			user, org, model := seedChatDependencies(ctx, t, db)
-			chat := seedWaitingChat(ctx, t, db, org.ID, user, model,
+			user, org, model := seedChatDependencies(t, db)
+			chat := seedWaitingChat(t, db, org.ID, user, model,
 				"relay-unrec-"+tc.name)
 
 			_, events, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
@@ -584,8 +584,8 @@ func TestRelayBackoffResetsOnStatusChange(t *testing.T) {
 	subscriber := newTestServer(t, db, ps, subscriberID, dialer, mclk)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
-	chat := seedWaitingChat(ctx, t, db, org.ID, user, model, "relay-reset-on-status")
+	user, org, model := seedChatDependencies(t, db)
+	chat := seedWaitingChat(t, db, org.ID, user, model, "relay-reset-on-status")
 
 	_, _, cancel, ok := subscriber.Subscribe(ctx, chat.ID, nil, 0)
 	require.True(t, ok)
@@ -661,8 +661,8 @@ func TestRelayBackoffRespectsContextCancel(t *testing.T) {
 	subscriber := newTestServer(t, db, ps, subscriberID, dialer, mclk)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(ctx, t, db)
-	chat := seedWaitingChat(ctx, t, db, org.ID, user, model, "relay-cancel")
+	user, org, model := seedChatDependencies(t, db)
+	chat := seedWaitingChat(t, db, org.ID, user, model, "relay-cancel")
 
 	subCtx, subCancel := context.WithCancel(ctx)
 	_, events, cancel, ok := subscriber.Subscribe(subCtx, chat.ID, nil, 0)
@@ -740,11 +740,11 @@ func TestDialRelayReal401(t *testing.T) {
 	subscribeFn := entchatd.NewMultiReplicaSubscribeFn(cfg)
 
 	ctx := testutil.Context(t, testutil.WaitMedium)
-	user, org, model := seedChatDependencies(ctx, t, db)
+	user, org, model := seedChatDependencies(t, db)
 	// Seed a waiting chat - no sync dial - then push a running
 	// status notification to trigger the async dial via the real
 	// dialRelay path.
-	chat := seedWaitingChat(ctx, t, db, org.ID, user, model, "relay-real-401")
+	chat := seedWaitingChat(t, db, org.ID, user, model, "relay-real-401")
 
 	statusCh := make(chan osschatd.StatusNotification, 1)
 	evs := subscribeFn(ctx, osschatd.SubscribeFnParams{

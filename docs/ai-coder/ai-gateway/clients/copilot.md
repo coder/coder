@@ -1,5 +1,10 @@
 # GitHub Copilot
 
+> [!NOTE]
+> AI Gateway requires the [AI Governance Add-On](../../ai-governance.md).
+> As of Coder v2.32, deployments without the add-on will not be able to
+> access AI Gateway.
+
 [GitHub Copilot](https://github.com/features/copilot) is an AI coding assistant that doesn't support custom base URLs but does respect proxy configurations.
 This makes it compatible with [AI Gateway Proxy](../ai-gateway-proxy/index.md), which integrates with [AI Gateway](../index.md) for full access to auditing and governance features.
 To use Copilot with AI Gateway, make sure AI Gateway Proxy is properly configured, see [AI Gateway Proxy Setup](../ai-gateway-proxy/setup.md) for instructions.

@@ -2,6 +2,8 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 import type { WorkspaceApp } from "#/api/typesGenerated";
 import {
+	MockListeningPortsResponse,
+	MockSharedPortsResponse,
 	MockStoppedWorkspace,
 	MockWorkspace,
 	MockWorkspaceAgent,
@@ -62,7 +64,12 @@ const hiddenApp: WorkspaceApp = {
 
 const agentWithApps = {
 	...MockWorkspaceAgent,
-	display_apps: ["vscode", "vscode_insiders", "web_terminal"] as const,
+	display_apps: [
+		"vscode",
+		"vscode_insiders",
+		"web_terminal",
+		"port_forwarding_helper",
+	] as const,
 	apps: [externalApp, cursorApp],
 };
 
@@ -97,9 +104,20 @@ const agentWithHiddenApp = {
 const meta: Meta<typeof WorkspacePill> = {
 	title: "pages/AgentsPage/WorkspacePill",
 	component: WorkspacePill,
-	// useAppLink calls useProxy(), so we need the proxy provider for
-	// stories that render AppMenuItem.
-	decorators: [withProxyProvider()],
+	// useAppLink and useProxy are called inside sub-components, so we need the
+	// proxy provider for all stories. A non-empty wildcard hostname is required
+	// so the Ports sub-trigger renders (it is hidden when port-forwarding is not
+	// configured).
+	decorators: [
+		withProxyProvider({
+			proxy: {
+				proxy: undefined,
+				preferredPathAppURL: "",
+				preferredWildcardHostname: "*.coder.com",
+			},
+		}),
+	],
+
 	parameters: {
 		layout: "centered",
 		queries: [{ key: ["me", "apiKey"], data: { key: "mock-api-key" } }],
@@ -277,6 +295,141 @@ export const WithStoppedWorkspace: Story = {
 
 			// View Workspace link should still be accessible.
 			expect(body.getByText("View Workspace")).toBeInTheDocument();
+
+			// Ports sub-trigger should be disabled when workspace is stopped.
+			const portsItem = body.getByText("Ports").closest("[role=menuitem]");
+			expect(portsItem).toHaveAttribute("aria-disabled", "true");
+		});
+	},
+};
+
+export const WithListeningPorts: Story = {
+	args: {
+		...defaultProps,
+		workspace: MockWorkspace,
+		agent: MockWorkspaceAgent,
+	},
+	parameters: {
+		queries: [
+			{ key: ["me", "apiKey"], data: { key: "mock-api-key" } },
+			{
+				key: ["portForward", MockWorkspaceAgent.id],
+				data: MockListeningPortsResponse,
+			},
+			{
+				key: ["sharedPorts", MockWorkspace.id],
+				data: { shares: [] },
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const pill = canvas.getByText("Test-Workspace");
+		await userEvent.click(pill);
+
+		const body = within(document.body);
+		await waitFor(() => {
+			// The ports sub-trigger should show the count.
+			expect(body.getByText(/Ports \(\d+\)/)).toBeInTheDocument();
+		});
+
+		// Hover over the ports item to open the submenu.
+		await userEvent.hover(body.getByText(/Ports \(\d+\)/));
+
+		await waitFor(() => {
+			expect(body.getByText("Listening Ports")).toBeInTheDocument();
+			expect(body.getByText("8080")).toBeInTheDocument();
+			expect(body.getByText("gogo")).toBeInTheDocument();
+			expect(body.getByText("30000")).toBeInTheDocument();
+			expect(body.getByText("webb")).toBeInTheDocument();
+			expect(body.getByText("Manage sharing")).toBeInTheDocument();
+			// Port items render as anchor links.
+			const port8080Anchor = body.getByText("8080").closest("a");
+			expect(port8080Anchor).toHaveAttribute("href");
+		});
+	},
+};
+
+export const WithSharedPorts: Story = {
+	args: {
+		...defaultProps,
+		workspace: MockWorkspace,
+		agent: {
+			...MockWorkspaceAgent,
+			name: "a-workspace-agent",
+		},
+	},
+	parameters: {
+		queries: [
+			{ key: ["me", "apiKey"], data: { key: "mock-api-key" } },
+			{
+				key: ["portForward", MockWorkspaceAgent.id],
+				data: MockListeningPortsResponse,
+			},
+			{
+				key: ["sharedPorts", MockWorkspace.id],
+				data: MockSharedPortsResponse,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const pill = canvas.getByText("Test-Workspace");
+		await userEvent.click(pill);
+
+		const body = within(document.body);
+		await waitFor(() => {
+			expect(body.getByText(/Ports/)).toBeInTheDocument();
+		});
+
+		await userEvent.hover(body.getByText(/Ports/));
+
+		await waitFor(() => {
+			expect(body.getByText("Listening Ports")).toBeInTheDocument();
+			expect(body.getByText("Shared Ports")).toBeInTheDocument();
+			// Shared ports from MockSharedPortsResponse for this agent.
+			expect(body.getByText("4000")).toBeInTheDocument();
+			expect(body.getByText("Manage sharing")).toBeInTheDocument();
+			// Port 8081 is both listening and shared; deduplication ensures it
+			// appears only in the Shared Ports section, not in Listening Ports.
+			expect(body.getAllByText("8081")).toHaveLength(1);
+		});
+	},
+};
+
+export const EmptyPorts: Story = {
+	args: {
+		...defaultProps,
+		workspace: MockWorkspace,
+		agent: MockWorkspaceAgent,
+	},
+	parameters: {
+		queries: [
+			{ key: ["me", "apiKey"], data: { key: "mock-api-key" } },
+			{
+				key: ["portForward", MockWorkspaceAgent.id],
+				data: { ports: [] },
+			},
+			{
+				key: ["sharedPorts", MockWorkspace.id],
+				data: { shares: [] },
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const pill = canvas.getByText("Test-Workspace");
+		await userEvent.click(pill);
+
+		const body = within(document.body);
+		await waitFor(() => {
+			expect(body.getByText("Ports (0)")).toBeInTheDocument();
+		});
+
+		await userEvent.hover(body.getByText("Ports (0)"));
+
+		await waitFor(() => {
+			expect(body.getByText("No open ports detected.")).toBeInTheDocument();
 		});
 	},
 };

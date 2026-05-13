@@ -37,6 +37,8 @@ interface UseGitWatcherResult {
 	everDirty: ReadonlySet<string>;
 	/** Whether the WebSocket is currently connected. */
 	isConnected: boolean;
+	/** Whether the watcher has received repository state for this chat. */
+	hasReceivedChanges: boolean;
 	/** Send a refresh request. Returns true if sent, false if disconnected. */
 	refresh: () => boolean;
 }
@@ -52,6 +54,7 @@ export function useGitWatcher({
 		() => new Set(),
 	);
 	const [isConnected, setIsConnected] = useState(false);
+	const [hasReceivedChanges, setHasReceivedChanges] = useState(false);
 
 	const socketRef = useRef<WebSocket | null>(null);
 	// Chat-scoped state (everDirty) resets on chatId change but
@@ -104,6 +107,7 @@ export function useGitWatcher({
 					}
 
 					if (data.type === "changes") {
+						setHasReceivedChanges(true);
 						if (data.repositories) {
 							setRepositories((prev) => {
 								let changed = false;
@@ -159,6 +163,7 @@ export function useGitWatcher({
 
 			onDisconnect() {
 				setIsConnected(false);
+				setHasReceivedChanges(false);
 				socketRef.current = null;
 			},
 
@@ -172,10 +177,11 @@ export function useGitWatcher({
 			// chat-scoped and persists across reconnects.
 			dispose();
 			setIsConnected(false);
+			setHasReceivedChanges(false);
 			setRepositories(new Map());
 			socketRef.current = null;
 		};
 	}, [chatId, agentStatus]);
 
-	return { repositories, everDirty, isConnected, refresh };
+	return { repositories, everDirty, isConnected, hasReceivedChanges, refresh };
 }
