@@ -512,3 +512,457 @@ func runLeaf(b *testing.B, cfg leafCfg) {
 			deliveryPct, gotTotal, expectedTotal, strings.Join(shortfalls, "; "))
 	}
 }
+
+// ---------- high-cardinality thin fan-out benchmark ----------
+
+// BenchmarkPubsubHighCardinality stresses NATS's subject-routing table
+// rather than fan-out width. The matrix mirrors per-workspace /
+// per-agent / per-job subject patterns (e.g. workspace_owner:<uuid>,
+// agent-logs:<uuid>, chat:stream:<chat>): 1000 or 10000 distinct
+// subjects, each with exactly one subscriber. Publishers round-robin
+// through the entire subject ring, so every subject is exercised and
+// per-publish fan-out is exactly 1.
+//
+// Operator contract matches BenchmarkPubsub: requires -benchtime=Nx.
+func BenchmarkPubsubHighCardinality(b *testing.B) {
+	type hcCfg struct {
+		name     string
+		topology string
+		subjects int
+		payload  int
+		pubs     int
+	}
+	leaves := []hcCfg{}
+	for _, topo := range []string{"standalone", "cluster10"} {
+		for _, ns := range []int{1000, 10000} {
+			pubs := 1
+			if topo == "cluster10" {
+				pubs = 10
+			}
+			leaves = append(leaves, hcCfg{
+				name:     fmt.Sprintf("%s/subj%d/%s", topo, ns, iecBytes(8*1024)),
+				topology: topo,
+				subjects: ns,
+				payload:  8 * 1024,
+				pubs:     pubs,
+			})
+		}
+	}
+
+	for _, cfg := range leaves {
+		cfg := cfg
+		b.Run(cfg.name, func(b *testing.B) {
+			runHighCardinalityLeaf(b, cfg.topology, cfg.subjects, cfg.payload, cfg.pubs)
+		})
+	}
+}
+
+// runHighCardinalityLeaf wires N distinct subjects, one subscriber per
+// subject (round-robin across servers in cluster mode), and `pubs`
+// publishers that rotate through the full subject ring per publish.
+//
+// TODO: this duplicates ~70% of runLeaf. The two could share a common
+// core if a future refactor extracts subject/sub-distribution and
+// publisher-rotation as parameters. Keeping them split for now to avoid
+// destabilizing the existing capacity benchmark.
+func runHighCardinalityLeaf(b *testing.B, topology string, numSubjects, payloadBytes, numPubs int) {
+	requireIterBenchtime(b)
+
+	var servers []*natsserver.Server
+	switch topology {
+	case "standalone":
+		servers = []*natsserver.Server{startStandaloneServer(b)}
+	case "cluster10":
+		servers = startClusterServers(b, 10)
+	default:
+		b.Fatalf("unknown topology %q", topology)
+	}
+
+	var errored, disconnected atomic.Int64
+
+	subjects := make([]string, numSubjects)
+	for i := range subjects {
+		subjects[i] = fmt.Sprintf("bench.hc.subj.%d", i)
+	}
+
+	// One subscriber per subject, on its own connection, round-robin
+	// across servers. Each subject thus has exactly one subscriber and
+	// per-publish fan-out is 1.
+	delivered := make([]atomic.Int64, numSubjects)
+	subConns := make([]*natsgo.Conn, numSubjects)
+	for s := 0; s < numSubjects; s++ {
+		serverIdx := s % len(servers)
+		nc := benchConnect(b, servers[serverIdx].ClientURL(), &errored, &disconnected)
+		subConns[s] = nc
+		idx := s
+		sub, err := nc.Subscribe(subjects[s], func(_ *natsgo.Msg) {
+			delivered[idx].Add(1)
+		})
+		if err != nil {
+			b.Fatalf("subscribe: %v", err)
+		}
+		sub.SetPendingLimits(-1, -1)
+	}
+	for _, nc := range subConns {
+		if err := nc.Flush(); err != nil {
+			b.Fatalf("sub flush: %v", err)
+		}
+	}
+	if topology == "cluster10" {
+		// Allow route interest gossip to propagate for the full
+		// subject set. With 10k subjects this takes noticeably
+		// longer than the small-cardinality case.
+		deadline := time.Now().Add(30 * time.Second)
+		for time.Now().Before(deadline) {
+			ok := true
+			for _, ns := range servers {
+				if ns.NumSubscriptions() == 0 {
+					ok = false
+					break
+				}
+			}
+			if ok {
+				break
+			}
+			time.Sleep(50 * time.Millisecond)
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	pubConns := make([]*natsgo.Conn, numPubs)
+	for i := 0; i < numPubs; i++ {
+		serverIdx := i % len(servers)
+		pubConns[i] = benchConnect(b, servers[serverIdx].ClientURL(), &errored, &disconnected)
+	}
+
+	payload := make([]byte, payloadBytes)
+	for i := range payload {
+		payload[i] = byte(i)
+	}
+	// One reusable *nats.Msg per publisher; we mutate .Subject per
+	// iteration to rotate through the full subject ring.
+	pubMsgs := make([]*natsgo.Msg, numPubs)
+	for i := 0; i < numPubs; i++ {
+		pubMsgs[i] = &natsgo.Msg{Subject: subjects[0], Data: payload}
+	}
+
+	// Each work slot carries the subject index for that publish, so
+	// the dispatcher picks the subject and workers just publish.
+	type slot struct {
+		subjIdx int
+	}
+	work := make(chan slot, numPubs*8)
+	latencies := make([][]time.Duration, numPubs)
+	publishedPerPub := make([]int64, numPubs)
+	publishedPerSubject := make([]int64, numSubjects)
+	var publishedPerSubjectMu sync.Mutex
+	startBarrier := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(numPubs)
+	for i := 0; i < numPubs; i++ {
+		i := i
+		latencies[i] = make([]time.Duration, 0, 1024)
+		go func() {
+			defer wg.Done()
+			nc := pubConns[i]
+			msg := pubMsgs[i]
+			localCounts := make(map[int]int64)
+			<-startBarrier
+			for sl := range work {
+				msg.Subject = subjects[sl.subjIdx]
+				start := time.Now()
+				if err := nc.PublishMsg(msg); err != nil {
+					errored.Add(1)
+					continue
+				}
+				latencies[i] = append(latencies[i], time.Since(start))
+				publishedPerPub[i]++
+				localCounts[sl.subjIdx]++
+			}
+			publishedPerSubjectMu.Lock()
+			for k, v := range localCounts {
+				publishedPerSubject[k] += v
+			}
+			publishedPerSubjectMu.Unlock()
+		}()
+	}
+
+	b.ResetTimer()
+	windowStart := time.Now()
+	close(startBarrier)
+
+	loops := int64(0)
+	for b.Loop() {
+		work <- slot{subjIdx: int(loops % int64(numSubjects))}
+		loops++
+	}
+	close(work)
+	wg.Wait()
+	for _, nc := range pubConns {
+		if err := nc.Flush(); err != nil {
+			b.Fatalf("pub flush: %v", err)
+		}
+	}
+	windowElapsed := time.Since(windowStart)
+	b.StopTimer()
+
+	var totalPublished int64
+	for _, n := range publishedPerPub {
+		totalPublished += n
+	}
+	if totalPublished != loops {
+		b.Fatalf("published count mismatch: got %d, expected %d", totalPublished, loops)
+	}
+
+	// Fan-out is exactly 1 per publish, so expected delivery == total
+	// publishes. Per-subject expected = publishedPerSubject[s].
+	expectedTotal := totalPublished
+
+	settle := 30 * time.Second
+	if topology == "cluster10" {
+		settle = 90 * time.Second
+	}
+	deadline := time.Now().Add(settle)
+	for time.Now().Before(deadline) {
+		var got int64
+		for s := 0; s < numSubjects; s++ {
+			got += delivered[s].Load()
+		}
+		if got >= expectedTotal {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	var gotTotal int64
+	shortfalls := make([]string, 0)
+	for s := 0; s < numSubjects; s++ {
+		want := publishedPerSubject[s]
+		got := delivered[s].Load()
+		gotTotal += got
+		if got < want {
+			shortfalls = append(shortfalls,
+				fmt.Sprintf("subj=%s want=%d got=%d short=%d",
+					subjects[s], want, got, want-got))
+			if len(shortfalls) >= 10 {
+				shortfalls = append(shortfalls, "...(truncated)")
+				break
+			}
+		}
+	}
+
+	deliveryPct := 0.0
+	if expectedTotal > 0 {
+		deliveryPct = 100.0 * float64(gotTotal) / float64(expectedTotal)
+	}
+
+	var allLats []time.Duration
+	for _, ls := range latencies {
+		allLats = append(allLats, ls...)
+	}
+	sort.Slice(allLats, func(i, j int) bool { return allLats[i] < allLats[j] })
+
+	pubsPerSec := float64(totalPublished) / windowElapsed.Seconds()
+
+	b.ReportMetric(pubsPerSec, "pubs/s")
+	b.ReportMetric(deliveryPct, "delivery_pct")
+	b.ReportMetric(percentileMicros(allLats, 0.50), "pub_p50_us")
+	b.ReportMetric(percentileMicros(allLats, 0.99), "pub_p99_us")
+	b.ReportMetric(percentileMicros(allLats, 0.999), "pub_p999_us")
+	b.ReportMetric(0, "ns/op")
+
+	if errored.Load() > 0 || disconnected.Load() > 0 {
+		b.Logf("nats client events: errored=%d disconnected=%d",
+			errored.Load(), disconnected.Load())
+	}
+
+	if deliveryPct < 100.0 {
+		b.Fatalf("delivery shortfall: %.4f%% (got %d / want %d); %s",
+			deliveryPct, gotTotal, expectedTotal, strings.Join(shortfalls, "; "))
+	}
+}
+
+// ---------- hot-subject concentrated fan-out benchmark ----------
+
+// BenchmarkPubsubHotSubjectConcentrated stresses NATS's per-replica
+// outbound fan-out for one hot subject. This represents the
+// workspace_agent_metadata_batch worst case: one global subject with
+// many UI sessions all attached to a single replica, every batch
+// delivered to every subscriber. Standalone-only by design: the shape
+// is about concentration, not distribution.
+//
+// At 5000 subscribers / 512 KiB this leaf may approach NATS's default
+// MaxPending slow-consumer threshold; if it does, the delivery_pct
+// metric will reflect it and the leaf fails loudly rather than masking
+// the drop.
+func BenchmarkPubsubHotSubjectConcentrated(b *testing.B) {
+	type hsCfg struct {
+		name    string
+		subs    int
+		payload int
+	}
+	leaves := []hsCfg{}
+	for _, subs := range []int{1000, 5000} {
+		for _, pl := range []int{8 * 1024, 512 * 1024} {
+			leaves = append(leaves, hsCfg{
+				name:    fmt.Sprintf("standalone/subj1/subs%d/%s", subs, iecBytes(pl)),
+				subs:    subs,
+				payload: pl,
+			})
+		}
+	}
+	for _, cfg := range leaves {
+		cfg := cfg
+		b.Run(cfg.name, func(b *testing.B) {
+			runHotSubjectLeaf(b, cfg.subs, cfg.payload)
+		})
+	}
+}
+
+// runHotSubjectLeaf wires one global subject with `numSubs` subscribers
+// (each on its own connection, brought up in parallel) and a single
+// publisher, then publishes `b.N` messages. Per-publish fan-out is
+// numSubs.
+func runHotSubjectLeaf(b *testing.B, numSubs, payloadBytes int) {
+	requireIterBenchtime(b)
+
+	ns := startStandaloneServer(b)
+	clientURL := ns.ClientURL()
+
+	var errored, disconnected atomic.Int64
+
+	const subject = "bench.hot.subj"
+	var delivered atomic.Int64
+
+	// Bring subscriber connections up in parallel. 5000 sequential
+	// nats.Connect calls would burn ~5-10s of wall time before the
+	// publisher window opens.
+	subConns := make([]*natsgo.Conn, numSubs)
+	connectErrs := make([]error, numSubs)
+	var cwg sync.WaitGroup
+	cwg.Add(numSubs)
+	// Cap parallelism to keep file-descriptor pressure reasonable; the
+	// embedded server is single-process and accepts(2) serializes
+	// anyway. 256 in-flight handshakes is plenty.
+	sem := make(chan struct{}, 256)
+	for i := 0; i < numSubs; i++ {
+		i := i
+		sem <- struct{}{}
+		go func() {
+			defer cwg.Done()
+			defer func() { <-sem }()
+			nc, err := natsgo.Connect(clientURL,
+				natsgo.MaxReconnects(-1),
+				natsgo.IgnoreAuthErrorAbort(),
+				natsgo.ErrorHandler(func(_ *natsgo.Conn, _ *natsgo.Subscription, _ error) {
+					errored.Add(1)
+				}),
+				natsgo.DisconnectErrHandler(func(_ *natsgo.Conn, _ error) {
+					disconnected.Add(1)
+				}),
+			)
+			if err != nil {
+				connectErrs[i] = err
+				return
+			}
+			sub, err := nc.Subscribe(subject, func(_ *natsgo.Msg) {
+				delivered.Add(1)
+			})
+			if err != nil {
+				connectErrs[i] = err
+				nc.Close()
+				return
+			}
+			// Unbounded subscriber pending so we observe true server
+			// behavior rather than client-side slow-consumer drops.
+			// The server-side MaxPending is what we're probing.
+			sub.SetPendingLimits(-1, -1)
+			subConns[i] = nc
+		}()
+	}
+	cwg.Wait()
+	for i, err := range connectErrs {
+		if err != nil {
+			b.Fatalf("subscriber %d setup: %v", i, err)
+		}
+	}
+	for _, nc := range subConns {
+		b.Cleanup(func() { nc.Close() })
+	}
+	for _, nc := range subConns {
+		if err := nc.Flush(); err != nil {
+			b.Fatalf("sub flush: %v", err)
+		}
+	}
+
+	pubConn := benchConnect(b, clientURL, &errored, &disconnected)
+
+	payload := make([]byte, payloadBytes)
+	for i := range payload {
+		payload[i] = byte(i)
+	}
+	msg := &natsgo.Msg{Subject: subject, Data: payload}
+
+	latencies := make([]time.Duration, 0, 1024)
+
+	b.ResetTimer()
+	windowStart := time.Now()
+
+	var published int64
+	for b.Loop() {
+		start := time.Now()
+		if err := pubConn.PublishMsg(msg); err != nil {
+			errored.Add(1)
+			continue
+		}
+		latencies = append(latencies, time.Since(start))
+		published++
+	}
+	if err := pubConn.Flush(); err != nil {
+		b.Fatalf("pub flush: %v", err)
+	}
+	windowElapsed := time.Since(windowStart)
+	b.StopTimer()
+
+	expectedTotal := published * int64(numSubs)
+
+	// Generous settle: 512 KiB * 5000 subs = 2.5 GiB to push per
+	// publish. Even on loopback, large delivery windows take time.
+	settle := 60 * time.Second
+	if payloadBytes >= 512*1024 && numSubs >= 5000 {
+		settle = 180 * time.Second
+	}
+	deadline := time.Now().Add(settle)
+	for time.Now().Before(deadline) {
+		if delivered.Load() >= expectedTotal {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	gotTotal := delivered.Load()
+	deliveryPct := 0.0
+	if expectedTotal > 0 {
+		deliveryPct = 100.0 * float64(gotTotal) / float64(expectedTotal)
+	}
+
+	sort.Slice(latencies, func(i, j int) bool { return latencies[i] < latencies[j] })
+	pubsPerSec := float64(published) / windowElapsed.Seconds()
+
+	b.ReportMetric(pubsPerSec, "pubs/s")
+	b.ReportMetric(deliveryPct, "delivery_pct")
+	b.ReportMetric(percentileMicros(latencies, 0.50), "pub_p50_us")
+	b.ReportMetric(percentileMicros(latencies, 0.99), "pub_p99_us")
+	b.ReportMetric(percentileMicros(latencies, 0.999), "pub_p999_us")
+	b.ReportMetric(0, "ns/op")
+
+	if errored.Load() > 0 || disconnected.Load() > 0 {
+		b.Logf("nats client events: errored=%d disconnected=%d",
+			errored.Load(), disconnected.Load())
+	}
+
+	if deliveryPct < 100.0 {
+		b.Fatalf("delivery shortfall: %.4f%% (got %d / want %d); subs=%d payload=%s",
+			deliveryPct, gotTotal, expectedTotal, numSubs, iecBytes(payloadBytes))
+	}
+}
