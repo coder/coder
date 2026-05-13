@@ -1429,8 +1429,7 @@ func TestResolveExploreToolSnapshot(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 
-	ctx := chatdTestContext(t)
-	user, org, model := seedInternalChatDeps(t, db)
+	user, _, _ := seedInternalChatDeps(t, db)
 	approvedMCP := insertInternalMCPServerConfig(
 		t, db, user.ID, "approved-"+uuid.NewString(), true,
 	)
@@ -1438,42 +1437,33 @@ func TestResolveExploreToolSnapshot(t *testing.T) {
 		t, db, user.ID, "blocked-"+uuid.NewString(), false,
 	)
 
-	askParentRef, err := server.CreateChat(ctx, CreateOptions{
-		OrganizationID: org.ID,
-		OwnerID:        user.ID,
-		Title:          "ask-parent",
-		ModelConfigID:  model.ID,
-		MCPServerIDs:   []uuid.UUID{approvedMCP.ID, blockedMCP.ID},
-		InitialUserContent: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("hello"),
-		},
-	})
-	require.NoError(t, err)
-	askParent, err := db.GetChatByID(ctx, askParentRef.ID)
-	require.NoError(t, err)
-
-	planParentRef, err := server.CreateChat(ctx, CreateOptions{
-		OrganizationID: org.ID,
-		OwnerID:        user.ID,
-		Title:          "plan-parent",
-		ModelConfigID:  model.ID,
+	// Build parent chats in memory rather than via server.CreateChat.
+	// resolveExploreToolSnapshot only reads ID, MCPServerIDs, PlanMode,
+	// ParentChatID, and Mode from its parent argument, so persisting
+	// the chats is unnecessary. Skipping CreateChat avoids waking the
+	// background acquireLoop, which would otherwise try to dial the
+	// fake MCP URLs and call OpenAI with the dbgen test API key. Those
+	// side effects were the root cause of the flake tracked in
+	// CODAGT-367.
+	askParent := database.Chat{
+		ID:           uuid.New(),
+		MCPServerIDs: []uuid.UUID{approvedMCP.ID, blockedMCP.ID},
+	}
+	planParent := database.Chat{
+		ID: uuid.New(),
 		PlanMode: database.NullChatPlanMode{
 			ChatPlanMode: database.ChatPlanModePlan,
 			Valid:        true,
 		},
 		MCPServerIDs: []uuid.UUID{approvedMCP.ID, blockedMCP.ID},
-		InitialUserContent: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("hello"),
-		},
-	})
-	require.NoError(t, err)
-	planParent, err := db.GetChatByID(ctx, planParentRef.ID)
-	require.NoError(t, err)
+	}
 
 	subagentPlanParent := planParent
+	subagentPlanParent.ID = uuid.New()
 	subagentPlanParent.ParentChatID = uuid.NullUUID{UUID: uuid.New(), Valid: true}
 
 	exploreParent := askParent
+	exploreParent.ID = uuid.New()
 	exploreParent.Mode = database.NullChatMode{ChatMode: database.ChatModeExplore, Valid: true}
 	exploreParent.ParentChatID = uuid.NullUUID{UUID: uuid.New(), Valid: true}
 	exploreParent.MCPServerIDs = []uuid.UUID{approvedMCP.ID}
@@ -1510,6 +1500,7 @@ func TestResolveExploreToolSnapshot(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			ctx := chatdTestContext(t)
 			gotMCPServerIDs, err := server.resolveExploreToolSnapshot(
 				ctx,
 				tt.parent,
@@ -2076,6 +2067,7 @@ func TestSpawnAgent_BlankTypeReturnsValidOptions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			ctx := chatdTestContext(t)
 			resp := runSpawnAgentTool(ctx, t, server, parentChat, spawnAgentArgs{
 				Type:   tt.subagentType,
 				Prompt: "delegate work",
@@ -2294,6 +2286,7 @@ func TestSubagentLifecycleToolErrorsIncludePersistedSubagentType(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			ctx := chatdTestContext(t)
 			result := requireToolResponseMap(t, runSubagentTool(
 				ctx,
 				t,

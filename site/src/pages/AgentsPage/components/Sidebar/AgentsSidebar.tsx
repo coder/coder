@@ -27,8 +27,7 @@ import {
 	ChevronDownIcon,
 	ChevronRightIcon,
 	CoinsIcon,
-	EllipsisIcon,
-	FilterIcon,
+	EllipsisVerticalIcon,
 	FlaskConicalIcon,
 	GitMergeIcon,
 	GitPullRequestArrowIcon,
@@ -109,6 +108,7 @@ import { asNonEmptyString } from "../ChatConversation/blockUtils";
 import type { ModelSelectorOption } from "../ChatElements";
 import { asString } from "../ChatElements/runtimeTypeUtils";
 import { UsageIndicator } from "../UsageIndicator";
+import { FilterDropdown } from "./FilterDropdown";
 import { RenameChatDialog } from "./RenameChatDialog";
 
 type SidebarView =
@@ -500,7 +500,61 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 			? chatErrorReasons[chat.id] || chat.last_error?.message || undefined
 			: undefined;
 	const lastTurnSummary = asNonEmptyString(chat.last_turn_summary);
-	const subtitle = errorReason || lastTurnSummary || modelName;
+	// While a turn is in flight the cached last_turn_summary still holds
+	// the previous turn's text. Surface a live "{model} streaming…" label
+	// instead so the sidebar does not look stuck on the old status.
+	const isStreaming = chat.status === "running" || chat.status === "pending";
+	const streamingSubtitle = isStreaming ? `${modelName} streaming…` : undefined;
+	// Server-side, status flips to "waiting" synchronously when streaming
+	// ends, but the new last_turn_summary is written by an async finalizer
+	// (it calls the model to generate a label). For a beat after the stream
+	// stops, the chat row still carries the previous turn's summary text.
+	// Suppress that briefly-stale text: remember the cached summary observed
+	// while streaming, then hide an exact match on the post-stream renders
+	// until the new summary lands. A timeout-based release covers the rare
+	// case where the regenerated summary equals the previous one byte-for-
+	// byte (so the equality-based release would never fire). State is
+	// captured during render using the React "adjust state during render"
+	// pattern so the first post-stream paint already suppresses the stale
+	// string instead of flashing it for a frame.
+	const staleTurnSummaryReleaseMs = 10_000;
+	const [streamingSummary, setStreamingSummary] = useState<string | undefined>(
+		isStreaming ? lastTurnSummary : undefined,
+	);
+	const [suppressionExpired, setSuppressionExpired] = useState(false);
+	if (isStreaming) {
+		if (streamingSummary !== lastTurnSummary) {
+			setStreamingSummary(lastTurnSummary);
+		}
+		if (suppressionExpired) {
+			setSuppressionExpired(false);
+		}
+	} else if (
+		streamingSummary !== undefined &&
+		lastTurnSummary !== streamingSummary
+	) {
+		setStreamingSummary(undefined);
+		if (suppressionExpired) {
+			setSuppressionExpired(false);
+		}
+	}
+	const isStaleTurnSummary =
+		!isStreaming &&
+		lastTurnSummary !== undefined &&
+		!suppressionExpired &&
+		streamingSummary === lastTurnSummary;
+	useEffect(() => {
+		if (!isStaleTurnSummary) {
+			return;
+		}
+		const timeoutId = window.setTimeout(() => {
+			setSuppressionExpired(true);
+		}, staleTurnSummaryReleaseMs);
+		return () => window.clearTimeout(timeoutId);
+	}, [isStaleTurnSummary]);
+	const displayedTurnSummary = isStaleTurnSummary ? undefined : lastTurnSummary;
+	const subtitle =
+		errorReason || streamingSubtitle || displayedTurnSummary || modelName;
 	const diffStatus = getChatDiffStatus(chat);
 	const baseConfig = getStatusConfig(chat.status);
 	const prConfig =
@@ -726,7 +780,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 												className="absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
 												aria-label={`Open actions for ${chat.title}`}
 											>
-												<EllipsisIcon className="h-3.5 w-3.5" />
+												<EllipsisVerticalIcon className="h-3.5 w-3.5" />
 											</Button>
 										</DropdownMenuTrigger>
 										<DropdownMenuContent
@@ -809,6 +863,54 @@ const SortableChatTreeNode: FC<{
 	);
 };
 
+const PINNED_SECTION_KEY = "Pinned";
+
+const getSectionToggleTestId = (sectionKey: string) =>
+	`agents-section-toggle-${sectionKey.replaceAll(" ", "-")}`;
+
+interface ChatSectionHeaderProps {
+	readonly label: string;
+	readonly count: number;
+	readonly expanded: boolean;
+	readonly onToggle: () => void;
+	readonly testId: string;
+}
+
+const ChatSectionHeader: FC<ChatSectionHeaderProps> = ({
+	label,
+	count,
+	expanded,
+	onToggle,
+	testId,
+}) => {
+	const actionLabel = expanded ? "Collapse" : "Expand";
+	return (
+		<div className="group/header mb-1 ml-2.5 mr-2 flex h-7 items-center text-xs font-medium text-content-secondary">
+			<button
+				type="button"
+				className="flex h-7 min-w-0 flex-1 cursor-pointer appearance-none items-center rounded-md border-0 bg-transparent p-0 text-left font-sans text-xs font-medium text-current focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link [@media(hover:hover)]:group-hover/header:text-content-primary"
+				aria-expanded={expanded}
+				aria-label={`${actionLabel} ${label} section`}
+				data-testid={testId}
+				onClick={onToggle}
+			>
+				<span className="min-w-0 flex-1 truncate">
+					{label} ({count})
+				</span>
+				<span className="flex h-6 w-7 shrink-0 items-center justify-end">
+					<ChevronDownIcon
+						aria-hidden="true"
+						className={cn(
+							"h-3.5 w-3.5 text-current transition-transform",
+							expanded && "rotate-180",
+						)}
+					/>
+				</span>
+			</button>
+		</div>
+	);
+};
+
 export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const {
 		chats,
@@ -867,6 +969,9 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		isAdmin || isApiKeysSection || Boolean(providerConfigsQuery.data?.length);
 	const normalizedSearch = "";
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
+	const [collapsedSections, setCollapsedSections] = useState<
+		Record<string, boolean>
+	>({});
 	const [chatPendingRename, setChatPendingRename] = useState<Chat | null>(null);
 
 	const chatTree = buildChatTree(chats);
@@ -956,57 +1061,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		onReorderPinnedAgent?.(activeId, newIndex + 1);
 	};
 
-	// Attach the archived filter to the first visible section header.
-	// When the list is empty, fall back to contextual empty-state links
-	// instead of a floating standalone icon.
-	const showFilterOnPinned = pinnedChats.length > 0;
-	const firstNonEmptyGroup = showFilterOnPinned
-		? undefined
-		: TIME_GROUPS.find((group) =>
-				visibleRootIDs.some((id) => {
-					const chat = chatById.get(id);
-					return (
-						chat !== undefined &&
-						getTimeGroup(chat.updated_at) === group &&
-						chat.pin_order === 0
-					);
-				}),
-			);
-	const filterDropdown = (
-		<DropdownMenu>
-			<DropdownMenuTrigger asChild>
-				<Button
-					variant="subtle"
-					size="icon"
-					aria-label="Filter agents"
-					className={cn(
-						"h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary",
-						archivedFilter === "archived" && "text-content-primary",
-					)}
-				>
-					<FilterIcon />
-				</Button>
-			</DropdownMenuTrigger>
-			<DropdownMenuContent
-				align="end"
-				className="mobile-full-width-dropdown mobile-full-width-dropdown-top-below-header [&_[role=menuitem]]:text-[13px]"
-			>
-				<DropdownMenuItem onSelect={() => onArchivedFilterChange?.("active")}>
-					Active
-					{archivedFilter === "active" && (
-						<CheckIcon className="ml-auto h-3.5 w-3.5" />
-					)}
-				</DropdownMenuItem>
-				<DropdownMenuItem onSelect={() => onArchivedFilterChange?.("archived")}>
-					Archived
-					{archivedFilter === "archived" && (
-						<CheckIcon className="ml-auto h-3.5 w-3.5" />
-					)}
-				</DropdownMenuItem>
-			</DropdownMenuContent>
-		</DropdownMenu>
-	);
-
 	// Auto-expand ancestors of the active chat so it's always visible.
 	// Only runs when activeChatId changes, not on every parentById
 	// recalculation, so user-initiated collapse is preserved.
@@ -1042,6 +1096,12 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	}, [activeChatId]);
 	const toggleExpanded = (chatID: string) => {
 		setExpandedById((prev) => ({ ...prev, [chatID]: !prev[chatID] }));
+	};
+	const toggleSection = (sectionKey: string) => {
+		setCollapsedSections((prev) => ({
+			...prev,
+			[sectionKey]: !prev[sectionKey],
+		}));
 	};
 
 	const chatTreeCtx: ChatTreeContextValue = {
@@ -1085,7 +1145,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							<NavLink to="/workspaces" className="inline-flex">
 								<ProductLogo className="size-6" />
 							</NavLink>
-							<FeatureStageBadge contentType="beta" size="sm" />
+							<FeatureStageBadge contentType="beta" size="xs" />
 						</div>
 						<div className="flex items-center gap-0.5 -mr-1.5">
 							<Button
@@ -1199,35 +1259,52 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 										<div>
 											{visibleRootIDs.length > 0 && (
 												<div className="pb-2">
+													<div className="mb-2 flex h-5 justify-end pr-1.5">
+														<FilterDropdown
+															archivedFilter={archivedFilter}
+															onArchivedFilterChange={onArchivedFilterChange}
+														/>
+													</div>
 													{/* ── Pinned section ── */}
 													{pinnedChats.length > 0 && (
 														<div className="[&:not(:first-child)]:mt-3">
-															<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
-																<span>Pinned</span>
-																{showFilterOnPinned && filterDropdown}
-															</div>
-															<DndContext
-																sensors={sensors}
-																collisionDetection={closestCenter}
-																onDragEnd={handleDragEnd}
-															>
-																<SortableContext
-																	items={pinnedChatIds}
-																	strategy={verticalListSortingStrategy}
+															<ChatSectionHeader
+																label={PINNED_SECTION_KEY}
+																count={pinnedChats.length}
+																expanded={
+																	!collapsedSections[PINNED_SECTION_KEY]
+																}
+																onToggle={() =>
+																	toggleSection(PINNED_SECTION_KEY)
+																}
+																testId={getSectionToggleTestId(
+																	PINNED_SECTION_KEY,
+																)}
+															/>
+															{!collapsedSections[PINNED_SECTION_KEY] && (
+																<DndContext
+																	sensors={sensors}
+																	collisionDetection={closestCenter}
+																	onDragEnd={handleDragEnd}
 																>
-																	<div
-																		ref={pinnedContainerRef}
-																		className="flex flex-col gap-0.5"
+																	<SortableContext
+																		items={pinnedChatIds}
+																		strategy={verticalListSortingStrategy}
 																	>
-																		{sortedPinnedChats.map((chat) => (
-																			<SortableChatTreeNode
-																				key={chat.id}
-																				chat={chat}
-																			/>
-																		))}
-																	</div>
-																</SortableContext>
-															</DndContext>
+																		<div
+																			ref={pinnedContainerRef}
+																			className="flex flex-col gap-0.5"
+																		>
+																			{sortedPinnedChats.map((chat) => (
+																				<SortableChatTreeNode
+																					key={chat.id}
+																					chat={chat}
+																				/>
+																			))}
+																		</div>
+																	</SortableContext>
+																</DndContext>
+															)}
 														</div>
 													)}
 													{/* ── Time-grouped sections ── */}
@@ -1241,25 +1318,30 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																	chat.pin_order === 0,
 															);
 														if (groupChats.length === 0) return null;
+														const isGroupExpanded = !collapsedSections[group];
 														return (
 															<div
 																key={group}
 																className="[&:not(:first-child)]:mt-3"
 															>
-																<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
-																	<span>{group}</span>
-																	{group === firstNonEmptyGroup &&
-																		filterDropdown}
-																</div>
-																<div className="flex flex-col gap-0.5">
-																	{groupChats.map((chat) => (
-																		<ChatTreeNode
-																			key={chat.id}
-																			chat={chat}
-																			isChildNode={false}
-																		/>
-																	))}
-																</div>
+																<ChatSectionHeader
+																	label={group}
+																	count={groupChats.length}
+																	expanded={isGroupExpanded}
+																	onToggle={() => toggleSection(group)}
+																	testId={getSectionToggleTestId(group)}
+																/>
+																{isGroupExpanded && (
+																	<div className="flex flex-col gap-0.5">
+																		{groupChats.map((chat) => (
+																			<ChatTreeNode
+																				key={chat.id}
+																				chat={chat}
+																				isChildNode={false}
+																			/>
+																		))}
+																	</div>
+																)}
 															</div>
 														);
 													})}

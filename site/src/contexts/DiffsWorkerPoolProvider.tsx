@@ -22,8 +22,7 @@ const getPoolSize = (): number => {
 	return Math.min(Math.max(1, cores - 1), 3);
 };
 
-const hasWorkerSupport = (): boolean =>
-	typeof window !== "undefined" && typeof Worker !== "undefined";
+const hasWorkerSupport = (): boolean => typeof Worker !== "undefined";
 
 export const DiffsWorkerPoolProvider: FC<DiffsWorkerPoolProviderProps> = ({
 	children,

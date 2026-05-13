@@ -90,6 +90,8 @@ type StreamToolResult = {
 	result?: unknown;
 	resultRaw?: string;
 	isError: boolean;
+	/** True while result deltas are still accumulating before the final result. */
+	isStreaming?: boolean;
 	mcpServerConfigId?: string;
 };
 

@@ -33,6 +33,15 @@ const ChatCompactionThresholdKeyPrefix = "chat_compaction_threshold_pct:"
 // this limit than to lower it.
 const MaxChatFileIDs = 20
 
+// MaxChatFileSizeBytes is the upload-endpoint cap for chat
+// attachments.
+const MaxChatFileSizeBytes = 10 * 1024 * 1024
+
+// AnthropicInlineImageCapBytes is Anthropic's documented per-image
+// wire limit; the same cap applies to Bedrock-hosted Claude. Other
+// providers have no documented per-image cap.
+const AnthropicInlineImageCapBytes = 5 * 1024 * 1024
+
 // ChatAttachmentMediaType is a media type that is allowed for durable
 // chat file storage. The set is intentionally narrow; byte-level
 // classification and inline-render rules live alongside the enforcement
@@ -246,7 +255,8 @@ type ChatMessagePart struct {
 	Args              json.RawMessage     `json:"args,omitempty" variants:"tool-call?"`
 	ArgsDelta         string              `json:"args_delta,omitempty" variants:"tool-call?"`
 	Result            json.RawMessage     `json:"result,omitempty" variants:"tool-result?"`
-	ResultDelta       string              `json:"result_delta,omitempty"`
+	ResultDelta       string              `json:"result_delta,omitempty" variants:"tool-result?"`
+	ResultReset       bool                `json:"result_reset,omitempty" variants:"tool-result?"`
 	IsError           bool                `json:"is_error,omitempty" variants:"tool-result?"`
 	IsMedia           bool                `json:"is_media,omitempty" variants:"tool-result?"`
 	SourceID          string              `json:"source_id,omitempty" variants:"source?"`
@@ -318,9 +328,11 @@ type ChatMessagePart struct {
 // StripInternal removes internal-only fields that must not be
 // sent to API clients. Call before publishing via REST or SSE.
 //
-// Note: ArgsDelta and ResultDelta are intentionally preserved.
-// They are streaming-only fields consumed by the frontend via
-// SSE message_part events (see processStepStream in chatloop).
+// Note: ArgsDelta, ResultDelta, and ResultReset are intentionally preserved.
+// They are streaming-only fields consumed by the frontend via SSE
+// message_part events. ArgsDelta is produced by processStepStream in
+// chatloop; ResultDelta and ResultReset are produced by the advisor
+// streaming callbacks in chatd.
 func (p *ChatMessagePart) StripInternal() {
 	p.ProviderMetadata = nil
 	if p.FileID.Valid {
@@ -509,6 +521,10 @@ type CreateChatMessageRequest struct {
 // EditChatMessageRequest is the request to edit a user message in a chat.
 type EditChatMessageRequest struct {
 	Content []ChatInputPart `json:"content"`
+	// ModelConfigID, when set, overrides the model used for the
+	// replacement user message and the assistant turn that follows.
+	// When nil the original message's model is preserved.
+	ModelConfigID *uuid.UUID `json:"model_config_id,omitempty" format:"uuid"`
 }
 
 // CreateChatMessageResponse is the response from adding a message to a chat.
@@ -762,9 +778,6 @@ type AdvisorConfig struct {
 	// resolved (e.g. the referenced model config was soft-deleted or
 	// its provider was disabled after the admin saved this config).
 	ModelConfigID uuid.UUID `json:"model_config_id" format:"uuid"`
-	// ReasoningEffort overlays provider reasoning effort on the advisor
-	// call config when supported. Allowed: "", "low", "medium", "high".
-	ReasoningEffort string `json:"reasoning_effort"`
 }
 
 // UpdateAdvisorConfigRequest is the request body for updating advisor

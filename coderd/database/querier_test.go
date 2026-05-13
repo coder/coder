@@ -2168,6 +2168,41 @@ func TestInsertUserServiceAccountConstraints(t *testing.T) {
 	})
 }
 
+func TestGetActiveUserCount(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Seed users: 2 active humans, 1 active service account,
+	// 1 dormant, 1 deleted. Only the 2 active humans should
+	// be counted for license seat purposes.
+	_ = dbgen.User(t, db, database.User{
+		Status: database.UserStatusActive,
+	})
+	_ = dbgen.User(t, db, database.User{
+		Status: database.UserStatusActive,
+	})
+	_ = dbgen.User(t, db, database.User{
+		Status:           database.UserStatusActive,
+		IsServiceAccount: true,
+	})
+	_ = dbgen.User(t, db, database.User{
+		Status: database.UserStatusDormant,
+	})
+	_ = dbgen.User(t, db, database.User{
+		Status:  database.UserStatusActive,
+		Deleted: true,
+	})
+
+	count, err := db.GetActiveUserCount(ctx, false)
+	require.NoError(t, err)
+	require.Equal(t, int64(2), count)
+}
+
 func TestUserChangeLoginType(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -7187,6 +7222,103 @@ func markWorkspaceAgentDeleted(ctx context.Context, t *testing.T, sqlDB *sql.DB,
 	require.NoError(t, err)
 }
 
+type workspaceBuildAgentQueryFixture struct {
+	Workspace database.WorkspaceTable
+	Build     database.WorkspaceBuild
+	Agent     database.WorkspaceAgent
+}
+
+func setupWorkspaceBuildAgentQueryWorkspace(t testing.TB, db database.Store, deleted bool) database.WorkspaceTable {
+	t.Helper()
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	template := dbgen.Template(t, db, database.Template{
+		CreatedBy:      user.ID,
+		OrganizationID: org.ID,
+	})
+	return dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID:        user.ID,
+		OrganizationID: org.ID,
+		TemplateID:     template.ID,
+		Deleted:        deleted,
+	})
+}
+
+func setupWorkspaceBuildAgentQueryFixture(
+	t testing.TB,
+	db database.Store,
+	authInstanceID string,
+	name string,
+	createdAt time.Time,
+	workspace database.WorkspaceTable,
+) workspaceBuildAgentQueryFixture {
+	t.Helper()
+
+	if workspace.ID == uuid.Nil {
+		workspace = setupWorkspaceBuildAgentQueryWorkspace(t, db, false)
+	}
+	templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		TemplateID:     uuid.NullUUID{UUID: workspace.TemplateID, Valid: true},
+		OrganizationID: workspace.OrganizationID,
+		CreatedBy:      workspace.OwnerID,
+	})
+	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: workspace.OrganizationID,
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+	})
+	build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		WorkspaceID:       workspace.ID,
+		TemplateVersionID: templateVersion.ID,
+		JobID:             job.ID,
+	})
+	resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+		JobID: job.ID,
+	})
+	agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+		Name:       name,
+		ResourceID: resource.ID,
+		CreatedAt:  createdAt,
+		AuthInstanceID: sql.NullString{
+			String: authInstanceID,
+			Valid:  true,
+		},
+	})
+
+	return workspaceBuildAgentQueryFixture{
+		Workspace: workspace,
+		Build:     build,
+		Agent:     agent,
+	}
+}
+
+func setupProvisionerJobAgentQueryFixture(
+	t testing.TB,
+	db database.Store,
+	authInstanceID string,
+	name string,
+	createdAt time.Time,
+	jobType database.ProvisionerJobType,
+) database.WorkspaceAgent {
+	t.Helper()
+
+	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		Type: jobType,
+	})
+	resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+		JobID: job.ID,
+	})
+	return dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+		Name:       name,
+		ResourceID: resource.ID,
+		CreatedAt:  createdAt,
+		AuthInstanceID: sql.NullString{
+			String: authInstanceID,
+			Valid:  true,
+		},
+	})
+}
+
 func TestGetWorkspaceAgentsByInstanceID(t *testing.T) {
 	t.Parallel()
 
@@ -7301,6 +7433,90 @@ func TestGetWorkspaceAgentsByInstanceID(t *testing.T) {
 		require.Len(t, agents, 2)
 		assert.Equal(t, newerAgent.ID, agents[0].ID)
 		assert.Equal(t, olderAgent.ID, agents[1].ID)
+	})
+}
+
+func TestGetWorkspaceBuildAgentsByInstanceID(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ReturnsWorkspaceBuildRootAgentsNewestFirst", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		authInstanceID := fmt.Sprintf("instance-%s-%d", t.Name(), time.Now().UnixNano())
+		olderCreatedAt := dbtime.Now().Add(-time.Hour)
+		newerCreatedAt := dbtime.Now()
+
+		older := setupWorkspaceBuildAgentQueryFixture(t, db, authInstanceID, "older", olderCreatedAt, database.WorkspaceTable{})
+		newer := setupWorkspaceBuildAgentQueryFixture(t, db, authInstanceID, "newer", newerCreatedAt, database.WorkspaceTable{})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		agents, err := db.GetWorkspaceBuildAgentsByInstanceID(ctx, authInstanceID)
+		require.NoError(t, err)
+		require.Len(t, agents, 2)
+		assert.Equal(t, []uuid.UUID{newer.Agent.ID, older.Agent.ID}, []uuid.UUID{agents[0].WorkspaceAgent.ID, agents[1].WorkspaceAgent.ID})
+		assert.Equal(t, []uuid.UUID{newer.Build.ID, older.Build.ID}, []uuid.UUID{agents[0].WorkspaceBuildID, agents[1].WorkspaceBuildID})
+		assert.Equal(t, newer.Workspace.ID, agents[0].WorkspaceTable.ID)
+		assert.Equal(t, older.Workspace.ID, agents[1].WorkspaceTable.ID)
+		assert.Equal(t, newer.Workspace.OwnerID, agents[0].WorkspaceTable.OwnerID)
+		assert.Equal(t, older.Workspace.OwnerID, agents[1].WorkspaceTable.OwnerID)
+		assert.Equal(t, newer.Workspace.OrganizationID, agents[0].WorkspaceTable.OrganizationID)
+		assert.Equal(t, older.Workspace.OrganizationID, agents[1].WorkspaceTable.OrganizationID)
+		assert.False(t, agents[0].WorkspaceTable.Deleted)
+		assert.False(t, agents[1].WorkspaceTable.Deleted)
+	})
+
+	t.Run("ExcludesDeletedAgentsSubAgentsAndNonWorkspaceBuildJobs", func(t *testing.T) {
+		t.Parallel()
+
+		db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+		authInstanceID := fmt.Sprintf("instance-%s-%d", t.Name(), time.Now().UnixNano())
+		baseCreatedAt := dbtime.Now()
+
+		root := setupWorkspaceBuildAgentQueryFixture(t, db, authInstanceID, "root", baseCreatedAt.Add(-time.Hour), database.WorkspaceTable{})
+		_ = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ParentID:   uuid.NullUUID{UUID: root.Agent.ID, Valid: true},
+			Name:       "sub",
+			ResourceID: root.Agent.ResourceID,
+			CreatedAt:  baseCreatedAt.Add(time.Minute),
+			AuthInstanceID: sql.NullString{
+				String: authInstanceID,
+				Valid:  true,
+			},
+		})
+		deletedAgent := setupWorkspaceBuildAgentQueryFixture(t, db, authInstanceID, "deleted", baseCreatedAt.Add(2*time.Minute), database.WorkspaceTable{})
+		_ = setupProvisionerJobAgentQueryFixture(t, db, authInstanceID, "template-import", baseCreatedAt.Add(3*time.Minute), database.ProvisionerJobTypeTemplateVersionImport)
+		_ = setupProvisionerJobAgentQueryFixture(t, db, authInstanceID, "dry-run", baseCreatedAt.Add(4*time.Minute), database.ProvisionerJobTypeTemplateVersionDryRun)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		markWorkspaceAgentDeleted(ctx, t, sqlDB, deletedAgent.Agent.ID)
+
+		agents, err := db.GetWorkspaceBuildAgentsByInstanceID(ctx, authInstanceID)
+		require.NoError(t, err)
+		require.Len(t, agents, 1)
+		assert.Equal(t, root.Agent.ID, agents[0].WorkspaceAgent.ID)
+		assert.False(t, agents[0].WorkspaceAgent.ParentID.Valid)
+		assert.Equal(t, root.Build.ID, agents[0].WorkspaceBuildID)
+	})
+
+	t.Run("ExcludesDeletedWorkspaces", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		authInstanceID := fmt.Sprintf("instance-%s-%d", t.Name(), time.Now().UnixNano())
+		baseCreatedAt := dbtime.Now()
+		active := setupWorkspaceBuildAgentQueryFixture(t, db, authInstanceID, "active", baseCreatedAt, database.WorkspaceTable{})
+		deletedWorkspace := setupWorkspaceBuildAgentQueryWorkspace(t, db, true)
+		_ = setupWorkspaceBuildAgentQueryFixture(t, db, authInstanceID, "deleted-workspace", baseCreatedAt.Add(time.Minute), deletedWorkspace)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		agents, err := db.GetWorkspaceBuildAgentsByInstanceID(ctx, authInstanceID)
+		require.NoError(t, err)
+		require.Len(t, agents, 1)
+		assert.Equal(t, active.Agent.ID, agents[0].WorkspaceAgent.ID)
+		assert.Equal(t, active.Workspace.ID, agents[0].WorkspaceTable.ID)
 	})
 }
 
@@ -7555,6 +7771,249 @@ func TestUserSecretsCRUDOperations(t *testing.T) {
 			UserID: testUser.ID, Name: secret2.Name,
 		})
 		require.NoError(t, err)
+	})
+}
+
+// TestUserSecretsSoftDeleteTrigger verifies that a user's secrets
+// are deleted when the user is soft-deleted.
+func TestUserSecretsSoftDeleteTrigger(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	// userA will be soft-deleted.
+	userA := dbgen.User(t, db, database.User{})
+	secretA1 := dbgen.UserSecret(t, db, database.UserSecret{
+		UserID:   userA.ID,
+		Name:     "secret-a-1",
+		Value:    "value-a-1",
+		EnvName:  "SECRET_A_1",
+		FilePath: "/secrets/a/1",
+	})
+	secretA2 := dbgen.UserSecret(t, db, database.UserSecret{
+		UserID:   userA.ID,
+		Name:     "secret-a-2",
+		Value:    "value-a-2",
+		EnvName:  "SECRET_A_2",
+		FilePath: "/secrets/a/2",
+	})
+
+	// Sanity-check the existing trigger behavior. An API key for
+	// userA should also be wiped on soft-delete.
+	_, _ = dbgen.APIKey(t, db, database.APIKey{UserID: userA.ID})
+
+	userB := dbgen.User(t, db, database.User{})
+	secretB := dbgen.UserSecret(t, db, database.UserSecret{
+		UserID:   userB.ID,
+		Name:     "secret-b",
+		Value:    "value-b",
+		EnvName:  "SECRET_B",
+		FilePath: "/secrets/b",
+	})
+
+	require.NoError(t, db.UpdateUserDeletedByID(ctx, userA.ID))
+
+	// userA's secrets are removed after soft-deletion.
+	_, err := db.GetUserSecretByID(ctx, secretA1.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+	_, err = db.GetUserSecretByID(ctx, secretA2.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	// userA's API key is also removed.
+	apiKeysA, err := db.GetAPIKeysByUserID(ctx, database.GetAPIKeysByUserIDParams{
+		UserID:    userA.ID,
+		LoginType: userA.LoginType,
+	})
+	require.NoError(t, err)
+	require.Empty(t, apiKeysA)
+
+	// userB's secret is unaffected.
+	got, err := db.GetUserSecretByID(ctx, secretB.ID)
+	require.NoError(t, err)
+	require.Equal(t, secretB.ID, got.ID)
+
+	// Trying to insert a new secret for the soft-deleted userA must fail.
+	_, err = db.CreateUserSecret(ctx, database.CreateUserSecretParams{
+		ID:       uuid.New(),
+		UserID:   userA.ID,
+		Name:     "post-delete",
+		Value:    "value",
+		EnvName:  "POST_DELETE_ENV",
+		FilePath: "/secrets/post-delete",
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "Cannot create user_secret for deleted user")
+}
+
+// TestOrgMembersSoftDeleteTrigger verifies that a user's organization
+// memberships (and transitively their group memberships) are deleted
+// when the user is soft-deleted.
+func TestOrgMembersSoftDeleteTrigger(t *testing.T) {
+	t.Parallel()
+
+	// SingleOrg verifies the basic case: one org, one group, and a
+	// control user whose membership must survive.
+	t.Run("SingleOrg", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		org := dbgen.Organization(t, db, database.Organization{})
+
+		// userA will be soft-deleted.
+		userA := dbgen.User(t, db, database.User{})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: org.ID,
+			UserID:         userA.ID,
+		})
+
+		// Add userA to a group in the org (should be cleaned up transitively).
+		group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{
+			UserID:  userA.ID,
+			GroupID: group.ID,
+		})
+
+		// userB is a control; their membership must not be touched.
+		userB := dbgen.User(t, db, database.User{})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: org.ID,
+			UserID:         userB.ID,
+		})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{
+			UserID:  userB.ID,
+			GroupID: group.ID,
+		})
+
+		// Soft-delete userA.
+		require.NoError(t, db.UpdateUserDeletedByID(ctx, userA.ID))
+
+		// userA should no longer appear in the organization.
+		orgMembers, err := db.OrganizationMembers(ctx, database.OrganizationMembersParams{
+			OrganizationID: org.ID,
+		})
+		require.NoError(t, err)
+		var memberIDs []uuid.UUID
+		for _, m := range orgMembers {
+			memberIDs = append(memberIDs, m.OrganizationMember.UserID)
+		}
+		require.NotContains(t, memberIDs, userA.ID)
+		require.Contains(t, memberIDs, userB.ID)
+
+		// The raw org membership rows should also be gone (not just hidden).
+		rawOrgs, err := db.GetOrganizationIDsByMemberIDs(ctx, []uuid.UUID{userA.ID})
+		require.NoError(t, err)
+		require.Empty(t, rawOrgs, "zombie org membership rows should not exist after soft-delete")
+
+		// userA's group membership should also be removed by the cascading trigger.
+		groupMembers, err := db.GetGroupMembersByGroupID(ctx, database.GetGroupMembersByGroupIDParams{
+			GroupID:       group.ID,
+			IncludeSystem: true,
+		})
+		require.NoError(t, err)
+		var groupMemberIDs []uuid.UUID
+		for _, gm := range groupMembers {
+			groupMemberIDs = append(groupMemberIDs, gm.UserID)
+		}
+		require.NotContains(t, groupMemberIDs, userA.ID)
+		require.Contains(t, groupMemberIDs, userB.ID)
+	})
+
+	// MultipleOrgs verifies that memberships are cleaned up across
+	// every organization the deleted user belonged to.
+	t.Run("MultipleOrgs", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		org1 := dbgen.Organization(t, db, database.Organization{})
+		org2 := dbgen.Organization(t, db, database.Organization{})
+
+		// userA will be soft-deleted. They belong to both orgs.
+		userA := dbgen.User(t, db, database.User{})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: org1.ID,
+			UserID:         userA.ID,
+		})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: org2.ID,
+			UserID:         userA.ID,
+		})
+
+		// Add userA to a group in each org.
+		group1 := dbgen.Group(t, db, database.Group{OrganizationID: org1.ID})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{
+			UserID:  userA.ID,
+			GroupID: group1.ID,
+		})
+		group2 := dbgen.Group(t, db, database.Group{OrganizationID: org2.ID})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{
+			UserID:  userA.ID,
+			GroupID: group2.ID,
+		})
+
+		// userB stays in org1 as a control.
+		userB := dbgen.User(t, db, database.User{})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: org1.ID,
+			UserID:         userB.ID,
+		})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{
+			UserID:  userB.ID,
+			GroupID: group1.ID,
+		})
+
+		// Soft-delete userA.
+		require.NoError(t, db.UpdateUserDeletedByID(ctx, userA.ID))
+
+		// userA should be gone from both orgs.
+		for _, org := range []database.Organization{org1, org2} {
+			members, err := db.OrganizationMembers(ctx, database.OrganizationMembersParams{
+				OrganizationID: org.ID,
+			})
+			require.NoError(t, err)
+			for _, m := range members {
+				require.NotEqual(t, userA.ID, m.OrganizationMember.UserID,
+					"userA should not appear in org %s", org.ID)
+			}
+		}
+
+		// No raw org membership rows should remain.
+		rawOrgs, err := db.GetOrganizationIDsByMemberIDs(ctx, []uuid.UUID{userA.ID})
+		require.NoError(t, err)
+		require.Empty(t, rawOrgs, "zombie org membership rows should not exist after soft-delete")
+
+		// Group memberships in both orgs should be cleaned up.
+		for _, g := range []struct {
+			name    string
+			groupID uuid.UUID
+		}{
+			{"org1-group", group1.ID},
+			{"org2-group", group2.ID},
+		} {
+			groupMembers, err := db.GetGroupMembersByGroupID(ctx, database.GetGroupMembersByGroupIDParams{
+				GroupID:       g.groupID,
+				IncludeSystem: true,
+			})
+			require.NoError(t, err, g.name)
+			for _, gm := range groupMembers {
+				require.NotEqual(t, userA.ID, gm.UserID, g.name)
+			}
+		}
+
+		// userB's memberships are unaffected.
+		org1Members, err := db.OrganizationMembers(ctx, database.OrganizationMembersParams{
+			OrganizationID: org1.ID,
+		})
+		require.NoError(t, err)
+		var org1MemberIDs []uuid.UUID
+		for _, m := range org1Members {
+			org1MemberIDs = append(org1MemberIDs, m.OrganizationMember.UserID)
+		}
+		require.Contains(t, org1MemberIDs, userB.ID)
 	})
 }
 
@@ -11741,6 +12200,269 @@ func TestDeleteChatDebugDataAfterMessageIDIncludesTriggeredRuns(t *testing.T) {
 	require.Equal(t, unaffectedStep.ID, remainingSteps[0].ID)
 }
 
+// TestDeleteChatDebugDataAfterMessageIDStepLevelFieldBoundariesAndNulls
+// verifies that DeleteChatDebugDataAfterMessageID handles step-level
+// field boundaries and NULL combinations when run-level message IDs are
+// below the cutoff. This complements the triggered-runs test with extra
+// coverage for strict step-level comparisons and SQL NULL behavior.
+func TestDeleteChatDebugDataAfterMessageIDStepLevelFieldBoundariesAndNulls(t *testing.T) {
+	t.Parallel()
+
+	store, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	org := dbgen.Organization(t, store, database.Organization{})
+	user := dbgen.User(t, store, database.User{})
+
+	providerName := "openai"
+	modelName := "debug-model-step-boundaries-" + uuid.NewString()
+
+	_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:             providerName,
+		DisplayName:          "Debug Provider",
+		APIKey:               "test-key",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
+	})
+	require.NoError(t, err)
+
+	modelCfg, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             providerName,
+		Model:                modelName,
+		DisplayName:          "Debug Model",
+		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:              true,
+		IsDefault:            true,
+		ContextLimit:         128000,
+		CompressionThreshold: 80,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	chat, err := store.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "chat-debug-step-boundaries-" + uuid.NewString(),
+	})
+	require.NoError(t, err)
+
+	const cutoff int64 = 100
+
+	// insertRunBelowRunLevelCutoff creates a run whose run-level message
+	// IDs cannot match the deletion query. The step-level fields decide
+	// whether the run is deleted.
+	insertRunBelowRunLevelCutoff := func(t *testing.T) database.ChatDebugRun {
+		t.Helper()
+		run, runErr := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
+			ChatID:              chat.ID,
+			ModelConfigID:       uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
+			TriggerMessageID:    sql.NullInt64{Int64: cutoff - 10, Valid: true},
+			HistoryTipMessageID: sql.NullInt64{Int64: cutoff - 10, Valid: true},
+			Kind:                "chat_turn",
+			Status:              "in_progress",
+			Provider:            sql.NullString{String: providerName, Valid: true},
+			Model:               sql.NullString{String: modelName, Valid: true},
+		})
+		require.NoError(t, runErr)
+		return run
+	}
+
+	// assistantAboveWithNullHistoryTipRun is deleted only through the
+	// step.assistant_message_id clause.
+	assistantAboveWithNullHistoryTipRun := insertRunBelowRunLevelCutoff(t)
+	_, err = store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:              assistantAboveWithNullHistoryTipRun.ID,
+		ChatID:             chat.ID,
+		StepNumber:         1,
+		Operation:          "stream",
+		Status:             "completed",
+		AssistantMessageID: sql.NullInt64{Int64: cutoff + 5, Valid: true},
+		// HistoryTipMessageID intentionally omitted (NULL).
+	})
+	require.NoError(t, err)
+
+	// Add a nonmatching step to verify that one matching step is enough
+	// to delete the run and cascade all of its steps.
+	_, err = store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:              assistantAboveWithNullHistoryTipRun.ID,
+		ChatID:             chat.ID,
+		StepNumber:         2,
+		Operation:          "stream",
+		Status:             "completed",
+		AssistantMessageID: sql.NullInt64{Int64: cutoff - 5, Valid: true},
+		// HistoryTipMessageID intentionally omitted (NULL).
+	})
+	require.NoError(t, err)
+
+	// assistantAboveWithHistoryTipBelowRun is deleted through the
+	// step.assistant_message_id clause while the step history tip stays
+	// below the cutoff.
+	assistantAboveWithHistoryTipBelowRun := insertRunBelowRunLevelCutoff(t)
+	_, err = store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:               assistantAboveWithHistoryTipBelowRun.ID,
+		ChatID:              chat.ID,
+		StepNumber:          1,
+		Operation:           "stream",
+		Status:              "completed",
+		AssistantMessageID:  sql.NullInt64{Int64: cutoff + 20, Valid: true},
+		HistoryTipMessageID: sql.NullInt64{Int64: cutoff - 3, Valid: true},
+	})
+	require.NoError(t, err)
+
+	// assistantBelowWithNullHistoryTipRun survives because its step
+	// assistant_message_id is below the cutoff and step history tip is
+	// NULL.
+	assistantBelowWithNullHistoryTipRun := insertRunBelowRunLevelCutoff(t)
+	assistantBelowWithNullHistoryTipStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:              assistantBelowWithNullHistoryTipRun.ID,
+		ChatID:             chat.ID,
+		StepNumber:         1,
+		Operation:          "stream",
+		Status:             "completed",
+		AssistantMessageID: sql.NullInt64{Int64: cutoff - 3, Valid: true},
+	})
+	require.NoError(t, err)
+
+	// assistantAtBoundaryWithNullHistoryTipRun survives because the
+	// query uses strict greater-than, not greater-than-or-equal.
+	assistantAtBoundaryWithNullHistoryTipRun := insertRunBelowRunLevelCutoff(t)
+	assistantAtBoundaryWithNullHistoryTipStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:              assistantAtBoundaryWithNullHistoryTipRun.ID,
+		ChatID:             chat.ID,
+		StepNumber:         1,
+		Operation:          "stream",
+		Status:             "completed",
+		AssistantMessageID: sql.NullInt64{Int64: cutoff, Valid: true},
+	})
+	require.NoError(t, err)
+
+	// historyTipAboveWithNullAssistantRun is deleted through the
+	// step.history_tip_message_id clause while assistant_message_id is
+	// NULL.
+	historyTipAboveWithNullAssistantRun := insertRunBelowRunLevelCutoff(t)
+	_, err = store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:               historyTipAboveWithNullAssistantRun.ID,
+		ChatID:              chat.ID,
+		StepNumber:          1,
+		Operation:           "stream",
+		Status:              "completed",
+		HistoryTipMessageID: sql.NullInt64{Int64: cutoff + 2, Valid: true},
+		// AssistantMessageID intentionally omitted (NULL).
+	})
+	require.NoError(t, err)
+
+	// historyTipAtBoundaryWithNullAssistantRun survives because the
+	// step history tip uses strict greater-than, not greater-than-or-equal.
+	historyTipAtBoundaryWithNullAssistantRun := insertRunBelowRunLevelCutoff(t)
+	historyTipAtBoundaryWithNullAssistantStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:               historyTipAtBoundaryWithNullAssistantRun.ID,
+		ChatID:              chat.ID,
+		StepNumber:          1,
+		Operation:           "stream",
+		Status:              "completed",
+		HistoryTipMessageID: sql.NullInt64{Int64: cutoff, Valid: true},
+		// AssistantMessageID intentionally omitted (NULL).
+	})
+	require.NoError(t, err)
+
+	// bothStepMessageIDsNullRun survives because NULL > N evaluates to
+	// NULL, not TRUE, in SQL.
+	bothStepMessageIDsNullRun := insertRunBelowRunLevelCutoff(t)
+	bothStepMessageIDsNullStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
+		RunID:      bothStepMessageIDsNullRun.ID,
+		ChatID:     chat.ID,
+		StepNumber: 1,
+		Operation:  "stream",
+		Status:     "completed",
+		// Both message IDs intentionally omitted (NULL).
+	})
+	require.NoError(t, err)
+
+	deletedRows, err := store.DeleteChatDebugDataAfterMessageID(ctx, database.DeleteChatDebugDataAfterMessageIDParams{
+		ChatID:        chat.ID,
+		MessageID:     cutoff,
+		StartedBefore: time.Now().Add(time.Minute),
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 3, deletedRows)
+
+	_, err = store.GetChatDebugRunByID(ctx, assistantAboveWithNullHistoryTipRun.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows,
+		"assistant above cutoff with NULL history tip must be deleted")
+
+	_, err = store.GetChatDebugRunByID(ctx, assistantAboveWithHistoryTipBelowRun.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows,
+		"assistant above cutoff with history tip below cutoff must be deleted")
+
+	_, err = store.GetChatDebugRunByID(ctx, historyTipAboveWithNullAssistantRun.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows,
+		"NULL assistant with history tip above cutoff must be deleted")
+
+	for _, deletedRun := range []struct {
+		name string
+		id   uuid.UUID
+	}{
+		{name: "assistant above cutoff with NULL history tip", id: assistantAboveWithNullHistoryTipRun.ID},
+		{name: "assistant above cutoff with history tip below cutoff", id: assistantAboveWithHistoryTipBelowRun.ID},
+		{name: "NULL assistant with history tip above cutoff", id: historyTipAboveWithNullAssistantRun.ID},
+	} {
+		steps, stepsErr := store.GetChatDebugStepsByRunID(ctx, deletedRun.id)
+		require.NoError(t, stepsErr, "%s: get cascaded steps", deletedRun.name)
+		require.Empty(t, steps, "%s: deleted run steps must cascade", deletedRun.name)
+	}
+
+	remainingAssistantBelowRun, err := store.GetChatDebugRunByID(ctx, assistantBelowWithNullHistoryTipRun.ID)
+	require.NoError(t, err)
+	require.Equal(t, assistantBelowWithNullHistoryTipRun.ID, remainingAssistantBelowRun.ID,
+		"assistant below cutoff with NULL history tip must survive")
+
+	remainingAssistantAtBoundaryRun, err := store.GetChatDebugRunByID(ctx, assistantAtBoundaryWithNullHistoryTipRun.ID)
+	require.NoError(t, err)
+	require.Equal(t, assistantAtBoundaryWithNullHistoryTipRun.ID, remainingAssistantAtBoundaryRun.ID,
+		"assistant at cutoff boundary with NULL history tip must survive")
+
+	remainingHistoryTipAtBoundaryRun, err := store.GetChatDebugRunByID(ctx, historyTipAtBoundaryWithNullAssistantRun.ID)
+	require.NoError(t, err)
+	require.Equal(t, historyTipAtBoundaryWithNullAssistantRun.ID, remainingHistoryTipAtBoundaryRun.ID,
+		"history tip at cutoff boundary with NULL assistant must survive")
+
+	remainingBothStepMessageIDsNullRun, err := store.GetChatDebugRunByID(ctx, bothStepMessageIDsNullRun.ID)
+	require.NoError(t, err)
+	require.Equal(t, bothStepMessageIDsNullRun.ID, remainingBothStepMessageIDsNullRun.ID,
+		"both step message IDs NULL must survive")
+
+	assistantBelowSteps, err := store.GetChatDebugStepsByRunID(ctx, assistantBelowWithNullHistoryTipRun.ID)
+	require.NoError(t, err)
+	require.Len(t, assistantBelowSteps, 1)
+	require.Equal(t, assistantBelowWithNullHistoryTipStep.ID, assistantBelowSteps[0].ID)
+
+	assistantAtBoundarySteps, err := store.GetChatDebugStepsByRunID(ctx, assistantAtBoundaryWithNullHistoryTipRun.ID)
+	require.NoError(t, err)
+	require.Len(t, assistantAtBoundarySteps, 1)
+	require.Equal(t, assistantAtBoundaryWithNullHistoryTipStep.ID, assistantAtBoundarySteps[0].ID)
+
+	historyTipAtBoundarySteps, err := store.GetChatDebugStepsByRunID(ctx, historyTipAtBoundaryWithNullAssistantRun.ID)
+	require.NoError(t, err)
+	require.Len(t, historyTipAtBoundarySteps, 1)
+	require.Equal(t, historyTipAtBoundaryWithNullAssistantStep.ID, historyTipAtBoundarySteps[0].ID)
+
+	bothStepMessageIDsNullSteps, err := store.GetChatDebugStepsByRunID(ctx, bothStepMessageIDsNullRun.ID)
+	require.NoError(t, err)
+	require.Len(t, bothStepMessageIDsNullSteps, 1)
+	require.Equal(t, bothStepMessageIDsNullStep.ID, bothStepMessageIDsNullSteps[0].ID)
+
+	remaining, err := store.GetChatDebugRunsByChatID(ctx, database.GetChatDebugRunsByChatIDParams{
+		ChatID:   chat.ID,
+		LimitVal: 100,
+	})
+	require.NoError(t, err)
+	require.Len(t, remaining, 4)
+}
+
 func TestFinalizeStaleChatDebugRows(t *testing.T) {
 	t.Parallel()
 
@@ -11793,6 +12515,11 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 	staleTime := time.Now().Add(-2 * time.Hour)
 	staleThreshold := time.Now().Add(-1 * time.Hour)
 
+	// preExistingError is attached to staleStep so we can verify
+	// that finalization preserves pre-existing error JSON rather
+	// than clearing or overwriting it.
+	preExistingError := json.RawMessage(`{"code":"timeout","message":"upstream deadline exceeded"}`)
+
 	// --- staleRun: in_progress run with no finished_at --- should be
 	// finalized.
 	staleRun, err := store.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
@@ -11808,7 +12535,8 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// staleStep: in_progress step attached to staleRun.
+	// staleStep: in_progress step attached to staleRun with a
+	// pre-existing error JSON payload.
 	staleStep, err := store.InsertChatDebugStep(ctx, database.InsertChatDebugStepParams{
 		RunID:      staleRun.ID,
 		ChatID:     chat.ID,
@@ -11816,8 +12544,14 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 		Operation:  "stream",
 		Status:     "in_progress",
 		UpdatedAt:  sql.NullTime{Time: staleTime, Valid: true},
+		Error: pqtype.NullRawMessage{
+			RawMessage: preExistingError,
+			Valid:      true,
+		},
 	})
 	require.NoError(t, err)
+	require.True(t, staleStep.Error.Valid,
+		"precondition: error must be stored at insertion")
 
 	// --- orphanStep: in_progress step whose run is already completed ---
 	// Its own updated_at is old, so it should be finalized directly.
@@ -12021,8 +12755,11 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 	require.NoError(t, err)
 
 	// --- Execute the finalization sweep. ---
+	// Capture the @now timestamp so we can verify finalized rows
+	// received exactly this value for updated_at and finished_at.
+	nowParam := time.Now().Truncate(time.Microsecond)
 	result, err := store.FinalizeStaleChatDebugRows(ctx, database.FinalizeStaleChatDebugRowsParams{
-		Now:           time.Now(),
+		Now:           nowParam,
 		UpdatedBefore: staleThreshold,
 	})
 	require.NoError(t, err)
@@ -12037,14 +12774,20 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 	assert.EqualValues(t, 3, result.StepsFinalized,
 		"stale step + orphan step + cascade step should all be finalized")
 
-	// Verify the stale run was set to interrupted.
+	// Verify the stale run was set to interrupted with correct
+	// timestamps matching the @now parameter.
 	updatedStaleRun, err := store.GetChatDebugRunByID(ctx, staleRun.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "interrupted", updatedStaleRun.Status)
 	assert.True(t, updatedStaleRun.FinishedAt.Valid,
 		"finalized run should have a finished_at timestamp")
+	assert.WithinDuration(t, nowParam, updatedStaleRun.FinishedAt.Time, time.Microsecond,
+		"finished_at should match the @now parameter")
+	assert.WithinDuration(t, nowParam, updatedStaleRun.UpdatedAt, time.Microsecond,
+		"updated_at should match the @now parameter")
 
-	// Verify the stale step was set to interrupted.
+	// Verify the stale step was set to interrupted and its
+	// pre-existing error JSON was preserved.
 	staleSteps, err := store.GetChatDebugStepsByRunID(ctx, staleRun.ID)
 	require.NoError(t, err)
 	require.Len(t, staleSteps, 1)
@@ -12052,20 +12795,44 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 	assert.Equal(t, "interrupted", staleSteps[0].Status)
 	assert.True(t, staleSteps[0].FinishedAt.Valid,
 		"finalized step should have a finished_at timestamp")
+	assert.WithinDuration(t, nowParam, staleSteps[0].FinishedAt.Time, time.Microsecond,
+		"step finished_at should match the @now parameter")
+	assert.WithinDuration(t, nowParam, staleSteps[0].UpdatedAt, time.Microsecond,
+		"step updated_at should match the @now parameter")
+	// The error JSON that was set at insertion time must survive
+	// finalization. The query does not touch the error column, so
+	// this proves the JSONB payload is preserved.
+	assert.True(t, staleSteps[0].Error.Valid,
+		"pre-existing error JSON must be preserved after finalization")
+	assert.JSONEq(t, string(preExistingError), string(staleSteps[0].Error.RawMessage),
+		"error JSON content must match the value set at insertion")
 
-	// Verify the orphan step was also finalized.
+	// Verify the orphan step was also finalized with correct timestamps.
 	orphanSteps, err := store.GetChatDebugStepsByRunID(ctx, completedRun.ID)
 	require.NoError(t, err)
 	require.Len(t, orphanSteps, 1)
 	assert.Equal(t, orphanStep.ID, orphanSteps[0].ID)
 	assert.Equal(t, "interrupted", orphanSteps[0].Status)
+	assert.True(t, orphanSteps[0].FinishedAt.Valid,
+		"orphan step should have a finished_at timestamp")
+	assert.WithinDuration(t, nowParam, orphanSteps[0].FinishedAt.Time, time.Microsecond,
+		"orphan step finished_at should match the @now parameter")
+	assert.WithinDuration(t, nowParam, orphanSteps[0].UpdatedAt, time.Microsecond,
+		"orphan step updated_at should match the @now parameter")
+	// The orphan step had no error set; verify it remains null.
+	assert.False(t, orphanSteps[0].Error.Valid,
+		"step without pre-existing error should remain null after finalization")
 
-	// Verify the cascade run was finalized.
+	// Verify the cascade run was finalized with correct timestamps.
 	updatedCascadeRun, err := store.GetChatDebugRunByID(ctx, cascadeRun.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "interrupted", updatedCascadeRun.Status)
 	assert.True(t, updatedCascadeRun.FinishedAt.Valid,
 		"cascade run should have a finished_at timestamp")
+	assert.WithinDuration(t, nowParam, updatedCascadeRun.FinishedAt.Time, time.Microsecond,
+		"cascade run finished_at should match the @now parameter")
+	assert.WithinDuration(t, nowParam, updatedCascadeRun.UpdatedAt, time.Microsecond,
+		"cascade run updated_at should match the @now parameter")
 
 	// Verify the cascade step was finalized despite its recent
 	// updated_at, proving the cascade CTE clause is required.
@@ -12077,6 +12844,13 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 		"fresh step should be finalized via cascade, not age")
 	assert.True(t, cascadeSteps[0].FinishedAt.Valid,
 		"cascade step should have a finished_at timestamp")
+	assert.WithinDuration(t, nowParam, cascadeSteps[0].FinishedAt.Time, time.Microsecond,
+		"cascade step finished_at should match the @now parameter")
+	assert.WithinDuration(t, nowParam, cascadeSteps[0].UpdatedAt, time.Microsecond,
+		"cascade step updated_at should match the @now parameter")
+	// The cascade step also had no error set.
+	assert.False(t, cascadeSteps[0].Error.Valid,
+		"cascade step without pre-existing error should remain null")
 
 	// Verify the completed run/step are untouched.
 	unchangedRun, err := store.GetChatDebugRunByID(ctx, doneRun.ID)

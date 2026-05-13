@@ -14,6 +14,7 @@ import { getChatFileURL } from "../../utils/chatAttachments";
 import { encodeInlineTextAttachment } from "../../utils/fetchTextAttachment";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
+import type { ParsedMessageEntry } from "./types";
 
 // 1×1 solid coral (#FF6B6B) PNG encoded as base64.
 const TEST_PNG_B64 =
@@ -235,6 +236,13 @@ const buildStoryArgs = (...messages: TypesGen.ChatMessage[]) => ({
 	parsedMessages: buildMessages(messages),
 });
 
+const LONG_USER_MESSAGE = [
+	"This is a deliberately long user message that should stay pinned to the",
+	"right edge while the bubble stops short of filling the entire timeline",
+	"column. It gives the Storybook test enough content to exercise the",
+	"maximum width cap.",
+].join(" ");
+
 const findAttachmentTile = async (
 	canvas: ReturnType<typeof within>,
 	label: string,
@@ -242,6 +250,20 @@ const findAttachmentTile = async (
 	const tile = await canvas.findByRole("img", { name: label });
 	expect(canvas.getByText(label)).toBeInTheDocument();
 	return tile;
+};
+
+const expectNoCopyMessageButtonForElement = (element: HTMLElement) => {
+	const messageRow = element.closest(
+		'[data-role="user"], [data-role="assistant"]',
+	);
+	expect(messageRow).not.toBeNull();
+	const messageWrapper = messageRow?.parentElement;
+	expect(messageWrapper).not.toBeNull();
+	expect(
+		within(messageWrapper as HTMLElement).queryByRole("button", {
+			name: "Copy message",
+		}),
+	).not.toBeInTheDocument();
 };
 
 const hoverAndExpectTooltip = async (
@@ -291,6 +313,38 @@ const meta: Meta<typeof ConversationTimeline> = {
 export default meta;
 type Story = StoryObj<typeof ConversationTimeline>;
 
+/**
+ * User bubbles should stay right-aligned, shrink to fit short content,
+ * and cap long content so the timeline keeps some breathing room.
+ */
+export const UserMessageBubbleAlignment: Story = {
+	args: buildStoryArgs(
+		buildUserMessage({
+			text: LONG_USER_MESSAGE,
+		}),
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const messageText = canvas.getByText(/deliberately long user message/i);
+		const userRow = messageText.closest('[data-role="user"]');
+		expect(userRow).not.toBeNull();
+
+		const bubble = userRow?.firstElementChild;
+		expect(bubble).not.toBeNull();
+
+		await userEvent.hover(userRow?.parentElement as HTMLElement);
+		const actions = await canvas.findByTestId("message-actions");
+
+		const rowRect = (userRow as HTMLElement).getBoundingClientRect();
+		const bubbleRect = (bubble as HTMLElement).getBoundingClientRect();
+		const actionsRect = actions.getBoundingClientRect();
+
+		expect(bubbleRect.width).toBeLessThanOrEqual(rowRect.width * 0.81);
+		expect(Math.abs(rowRect.right - bubbleRect.right)).toBeLessThanOrEqual(2);
+		expect(Math.abs(rowRect.right - actionsRect.right)).toBeLessThanOrEqual(2);
+	},
+};
+
 /** Regression guard: a single image attachment must not be duplicated. */
 export const UserMessageWithSingleImage: Story = {
 	args: {
@@ -326,6 +380,7 @@ export const UserMessageWithSingleImage: Story = {
 		const canvas = within(canvasElement);
 		const images = canvas.getAllByRole("img", { name: "Attached image" });
 		expect(images).toHaveLength(1);
+		expectNoCopyMessageButtonForElement(images[0]);
 	},
 };
 
@@ -363,6 +418,7 @@ export const UserMessageWithMultipleImages: Story = {
 		const canvas = within(canvasElement);
 		const images = canvas.getAllByRole("img", { name: "Attached image" });
 		expect(images).toHaveLength(3);
+		expectNoCopyMessageButtonForElement(images[0]);
 	},
 };
 
@@ -383,6 +439,7 @@ export const UserMessageWithFileIdImage: Story = {
 			"src",
 			getChatFileURL("storybook-test-image"),
 		);
+		expectNoCopyMessageButtonForElement(images[0]);
 	},
 };
 
@@ -403,6 +460,7 @@ export const UserMessageWithExpiredImage: Story = {
 		expect(
 			canvas.queryByRole("button", { name: "View Attached image" }),
 		).not.toBeInTheDocument();
+		expectNoCopyMessageButtonForElement(expiredTile);
 
 		// The tooltip explains the retention policy generically so the
 		// copy survives any operator-chosen retention window.
@@ -442,6 +500,9 @@ export const UserMessageWithRepeatedExpiredImage: Story = {
 		expect(
 			canvas.queryByRole("button", { name: "View Attached image" }),
 		).not.toBeInTheDocument();
+		for (const tile of canvas.getAllByRole("img", { name: "Image expired" })) {
+			expectNoCopyMessageButtonForElement(tile);
+		}
 	},
 };
 
@@ -483,6 +544,7 @@ export const UserMessageWithRepeatedFailedImage: Story = {
 			return t;
 		});
 		for (const tile of tiles) {
+			expectNoCopyMessageButtonForElement(tile);
 			await hoverAndExpectTooltip(tile, FAILED_ATTACHMENT_API_MESSAGE);
 		}
 	},
@@ -500,11 +562,12 @@ export const UserMessageWithFailedRemoteImage: Story = {
 		const canvas = within(canvasElement);
 		const image = canvas.getByRole("img", { name: "Attached image" });
 		fireEvent.error(image);
-		await findAttachmentTile(canvas, "Image failed to load");
+		const failedTile = await findAttachmentTile(canvas, "Image failed to load");
 		expect(canvas.getByText("This image failed to load")).toBeInTheDocument();
 		expect(
 			canvas.queryByRole("button", { name: "View Attached image" }),
 		).not.toBeInTheDocument();
+		expectNoCopyMessageButtonForElement(failedTile);
 
 		// When the probe returns a structured error body, the tooltip
 		// surfaces the API's message so the viewer has something
@@ -532,7 +595,8 @@ export const UserMessageWithUndisplayableRemoteImage: Story = {
 		const canvas = within(canvasElement);
 		const image = canvas.getByRole("img", { name: "Attached image" });
 		fireEvent.error(image);
-		await findAttachmentTile(canvas, "Image failed to load");
+		const failedTile = await findAttachmentTile(canvas, "Image failed to load");
+		expectNoCopyMessageButtonForElement(failedTile);
 		await hoverAndExpectTooltip(
 			await waitForTooltipWrappedAttachmentTile(canvas, "Image failed to load"),
 			UNDISPLAYABLE_REMOTE_ATTACHMENT_MESSAGE,
@@ -552,13 +616,14 @@ export const UserMessageWithInvalidInlineImage: Story = {
 		const canvas = within(canvasElement);
 		const image = canvas.getByRole("img", { name: "Attached image" });
 		fireEvent.error(image);
-		await findAttachmentTile(canvas, "Image failed to load");
+		const failedTile = await findAttachmentTile(canvas, "Image failed to load");
 		expect(
 			canvas.getByText("Inline image data is corrupt"),
 		).toBeInTheDocument();
 		expect(
 			canvas.queryByRole("button", { name: "View Attached image" }),
 		).not.toBeInTheDocument();
+		expectNoCopyMessageButtonForElement(failedTile);
 	},
 };
 
@@ -576,6 +641,9 @@ export const UserMessageWithTextAttachment: Story = {
 		});
 		expect(textButton).toBeInTheDocument();
 		expect(textButton).toHaveTextContent(/Pasted text/i);
+		expect(
+			canvas.queryByRole("button", { name: "Copy message" }),
+		).not.toBeInTheDocument();
 		await userEvent.click(textButton);
 		expect(
 			await canvas.findByText(/Quarterly revenue increased 18%/i),
@@ -609,6 +677,9 @@ export const UserMessageWithJSONAttachment: Story = {
 			name: "View report.json",
 		});
 		expect(textButton).toHaveTextContent("report.json");
+		expect(
+			canvas.queryByRole("button", { name: "Copy message" }),
+		).not.toBeInTheDocument();
 		await userEvent.click(textButton);
 		expect(await canvas.findByText(/"status":"ok"/i)).toBeInTheDocument();
 	},
@@ -644,6 +715,9 @@ export const UserMessageWithDownloadableFile: Story = {
 			"/api/experimental/chats/files/storybook-user-deployment-report",
 		);
 		expect(canvas.getByText("deployment-report.pdf")).toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: "Copy message" }),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -665,6 +739,7 @@ export const UserMessageWithMultipleTextAttachments: Story = {
 			name: "View text attachment",
 		});
 		expect(textButtons).toHaveLength(3);
+		expectNoCopyMessageButtonForElement(textButtons[0]);
 	},
 };
 
@@ -680,6 +755,7 @@ export const UserMessageWithTextAttachmentOnly: Story = {
 			name: "View text attachment",
 		});
 		expect(textButton).toHaveTextContent(/Pasted text/i);
+		expectNoCopyMessageButtonForElement(textButton);
 		await userEvent.click(textButton);
 		expect(
 			await canvas.findByText(/Runbook note: restart the worker/i),
@@ -699,6 +775,7 @@ export const UserMessageWithExpiredTextAttachment: Story = {
 		const textButton = await canvas.findByRole("button", {
 			name: "View text attachment",
 		});
+		expectNoCopyMessageButtonForElement(textButton);
 		await userEvent.click(textButton);
 		const expiredTile = await findAttachmentTile(canvas, "Attachment expired");
 		expect(
@@ -727,6 +804,7 @@ export const UserMessageWithFailedTextAttachment: Story = {
 		const textButton = await canvas.findByRole("button", {
 			name: "View text attachment",
 		});
+		expectNoCopyMessageButtonForElement(textButton);
 		await userEvent.click(textButton);
 		await findAttachmentTile(canvas, "Attachment failed to load");
 		expect(
@@ -773,6 +851,7 @@ export const UserMessageWithInlineTextAttachment: Story = {
 			name: "View text attachment",
 		});
 		expect(textButton).toHaveTextContent(/Pasted text/i);
+		expectNoCopyMessageButtonForElement(textButton);
 		await userEvent.click(textButton);
 		expect(
 			await canvas.findByText(/Inline deployment note/i),
@@ -810,6 +889,7 @@ export const UserMessageWithFailedTextAttachmentNonJSONBody: Story = {
 		const textButton = await canvas.findByRole("button", {
 			name: "View preview.txt",
 		});
+		expectNoCopyMessageButtonForElement(textButton);
 		await userEvent.click(textButton);
 		await findAttachmentTile(canvas, "Attachment failed to load");
 		expect(
@@ -838,6 +918,7 @@ export const UserMessageWithMixedAttachments: Story = {
 			name: "View text attachment",
 		});
 		expect(textButtons).toHaveLength(1);
+		expectNoCopyMessageButtonForElement(images[0]);
 	},
 };
 
@@ -894,6 +975,9 @@ export const AssistantMessageWithImage: Story = {
 		expect(
 			canvas.queryByRole("link", { name: "Download generated-image.png" }),
 		).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: "Copy message" }),
+		).not.toBeInTheDocument();
 		const viewButton = canvas.getByRole("button", {
 			name: "View generated-image.png",
 		});
@@ -934,6 +1018,9 @@ export const AssistantMessageWithUnnamedDownloadableFile: Story = {
 		expect(downloadLink).toBeInTheDocument();
 		expect(downloadLink).toHaveAttribute("download", "attachment.pdf");
 		expect(canvas.getByText("Attached file")).toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: "Copy message" }),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -969,6 +1056,7 @@ export const UserMessageWithImagesAndFileRefs: Story = {
 		const images = canvas.getAllByRole("img", { name: "Attached image" });
 		expect(images).toHaveLength(1);
 		expect(canvas.getByText(/main\.go/)).toBeInTheDocument();
+		expectNoCopyMessageButtonForElement(images[0]);
 	},
 };
 
@@ -1714,6 +1802,79 @@ export const AssistantActionBarAfterHiddenMessages: Story = {
 	},
 };
 
+export const CodeDiffDisplayModeFromPreferences: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["me", "preferences"],
+				data: {
+					task_notification_alert_dismissed: false,
+					thinking_display_mode: "auto" as const,
+					code_diff_display_mode: "always_collapsed" as const,
+					agent_chat_send_shortcut: "enter" as const,
+				},
+			},
+		],
+	},
+	args: {
+		...defaultArgs,
+		parsedMessages: [
+			{
+				message: {
+					...baseMessage,
+					id: 1,
+					role: "assistant",
+					content: [],
+				},
+				parsed: {
+					markdown: "",
+					reasoning: "",
+					toolCalls: [],
+					toolResults: [],
+					tools: [
+						{
+							id: "edit-tool",
+							name: "edit_files",
+							args: {
+								files: [
+									{
+										path: "src/config.ts",
+										edits: [
+											{
+												search: "const timeout = 30;",
+												replace: "const timeout = 60;",
+											},
+										],
+									},
+								],
+							},
+							result: { ok: true },
+							isError: false,
+							status: "completed",
+						},
+					],
+					blocks: [{ type: "tool", id: "edit-tool" }],
+					sources: [],
+				},
+			},
+		] satisfies ParsedMessageEntry[],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Edited config\.ts/)).toBeVisible();
+		expect(canvas.queryAllByTestId("edit-file-diff")).toHaveLength(0);
+
+		const editFilesButton = canvas.getByRole("button", {
+			name: /Edited config\.ts/,
+		});
+		expect(editFilesButton).toHaveAttribute("aria-expanded", "false");
+		await userEvent.click(editFilesButton);
+		await waitFor(() => {
+			expect(canvas.getAllByTestId("edit-file-diff")).toHaveLength(1);
+		});
+	},
+};
+
 /**
  * A completed thinking block with always_expanded mode should show
  * its content without user interaction.
@@ -1726,6 +1887,8 @@ export const ThinkingBlockAlwaysExpanded: Story = {
 				data: {
 					task_notification_alert_dismissed: false,
 					thinking_display_mode: "always_expanded" as const,
+					code_diff_display_mode: "auto" as const,
+					agent_chat_send_shortcut: "enter" as const,
 				},
 			},
 		],
@@ -1773,6 +1936,8 @@ export const ThinkingBlockAlwaysCollapsed: Story = {
 				data: {
 					task_notification_alert_dismissed: false,
 					thinking_display_mode: "always_collapsed" as const,
+					code_diff_display_mode: "auto" as const,
+					agent_chat_send_shortcut: "enter" as const,
 				},
 			},
 		],
@@ -1821,6 +1986,8 @@ export const ThinkingBlockWithToolCall: Story = {
 				data: {
 					task_notification_alert_dismissed: false,
 					thinking_display_mode: "always_collapsed" as const,
+					code_diff_display_mode: "auto" as const,
+					agent_chat_send_shortcut: "enter" as const,
 				},
 			},
 		],
@@ -1882,6 +2049,8 @@ export const ThinkingBlockAutoMode: Story = {
 				data: {
 					task_notification_alert_dismissed: false,
 					thinking_display_mode: "auto" as const,
+					code_diff_display_mode: "auto" as const,
+					agent_chat_send_shortcut: "enter" as const,
 				},
 			},
 		],
@@ -1933,6 +2102,8 @@ export const ThinkingBlockPreviewMode: Story = {
 				data: {
 					task_notification_alert_dismissed: false,
 					thinking_display_mode: "preview" as const,
+					code_diff_display_mode: "auto" as const,
+					agent_chat_send_shortcut: "enter" as const,
 				},
 			},
 		],

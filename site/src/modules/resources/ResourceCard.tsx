@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import { Children, type FC, type JSX, useState } from "react";
 import type { WorkspaceAgent, WorkspaceResource } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
@@ -12,66 +11,6 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { ResourceAvatar } from "./ResourceAvatar";
 import { SensitiveValue } from "./SensitiveValue";
-
-const styles = {
-	resourceCard: (theme) => ({
-		border: `1px solid ${theme.palette.divider}`,
-		background: theme.palette.background.default,
-
-		"&:not(:last-child)": {
-			borderBottom: 0,
-		},
-
-		"&:first-of-type": {
-			borderTopLeftRadius: 8,
-			borderTopRightRadius: 8,
-		},
-
-		"&:last-child": {
-			borderBottomLeftRadius: 8,
-			borderBottomRightRadius: 8,
-		},
-	}),
-
-	resourceCardProfile: {
-		flexShrink: 0,
-		width: "fit-content",
-		minWidth: 220,
-	},
-
-	resourceCardHeader: (theme) => ({
-		padding: "24px 32px",
-		borderBottom: `1px solid ${theme.palette.divider}`,
-
-		"&:last-child": {
-			borderBottom: 0,
-		},
-
-		[theme.breakpoints.down("md")]: {
-			width: "100%",
-			overflow: "scroll",
-		},
-	}),
-
-	metadata: () => ({
-		lineHeight: "1.5",
-		fontSize: 14,
-	}),
-
-	metadataLabel: (theme) => ({
-		fontSize: 12,
-		color: theme.palette.text.secondary,
-		textOverflow: "ellipsis",
-		overflow: "hidden",
-		whiteSpace: "nowrap",
-	}),
-
-	metadataValue: () => ({
-		textOverflow: "ellipsis",
-		overflow: "hidden",
-		whiteSpace: "nowrap",
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
 
 interface ResourceCardProps {
 	resource: WorkspaceResource;
@@ -95,18 +34,22 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
 	const gridWidth = mLength === 1 ? 1 : 4;
 
 	return (
-		<div key={resource.id} css={styles.resourceCard} className="resource-card">
-			<div
-				className="flex flex-row items-start gap-20"
-				css={styles.resourceCardHeader}
-			>
-				<div className="flex flex-row gap-2" css={styles.resourceCardProfile}>
+		<div
+			key={resource.id}
+			className="resource-card border border-solid border-border bg-surface-primary [&:not(:last-child)]:border-b-0 first:rounded-t-[8px] last:rounded-b-[8px]"
+		>
+			<div className="flex flex-row items-start gap-20 border-0 border-b border-solid border-border px-8 py-6 last:border-b-0 max-md:w-full max-md:overflow-auto">
+				<div className="flex w-fit min-w-[220px] shrink-0 flex-row gap-2">
 					<div>
 						<ResourceAvatar resource={resource} />
 					</div>
-					<div css={styles.metadata}>
-						<div css={styles.metadataLabel}>{resource.type}</div>
-						<div css={styles.metadataValue}>{resource.name}</div>
+					<div className="font-normal text-sm leading-6">
+						<div className="overflow-hidden text-ellipsis whitespace-nowrap text-xs text-content-secondary">
+							{resource.type}
+						</div>
+						<div className="overflow-hidden text-ellipsis whitespace-nowrap">
+							{resource.name}
+						</div>
 					</div>
 				</div>
 
@@ -117,18 +60,22 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
 					}}
 				>
 					{resource.daily_cost > 0 && (
-						<div css={styles.metadata}>
-							<div css={styles.metadataLabel}>
+						<div className="font-normal text-sm leading-6">
+							<div className="overflow-hidden text-ellipsis whitespace-nowrap font-normal text-xs text-content-secondary">
 								<b>Daily cost</b>
 							</div>
-							<div css={styles.metadataValue}>{resource.daily_cost}</div>
+							<div className="overflow-hidden text-ellipsis whitespace-nowrap">
+								{resource.daily_cost}
+							</div>
 						</div>
 					)}
 					{visibleMetadata.map((meta) => {
 						return (
-							<div css={styles.metadata} key={meta.key}>
-								<div css={styles.metadataLabel}>{meta.key}</div>
-								<div css={styles.metadataValue}>
+							<div className="font-normal text-sm leading-6" key={meta.key}>
+								<div className="overflow-hidden text-ellipsis whitespace-nowrap font-normal text-xs text-content-secondary">
+									{meta.key}
+								</div>
+								<div className="overflow-hidden text-ellipsis whitespace-nowrap">
 									{meta.sensitive ? (
 										<SensitiveValue value={meta.value} />
 									) : (

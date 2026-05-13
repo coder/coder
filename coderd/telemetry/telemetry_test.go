@@ -2147,18 +2147,6 @@ func TestUserSecretsTelemetry(t *testing.T) {
 			p.FilePath = "/home/coder/active.file"
 		})
 
-		// Soft-deleted user. user_secrets has ON DELETE CASCADE on
-		// users, but Coder soft-deletes by setting users.deleted, so
-		// the secret row persists. The summary should ignore it.
-		deleted := dbgen.User(t, db, database.User{Deleted: true})
-		_ = dbgen.UserSecret(t, db, database.UserSecret{
-			UserID: deleted.ID,
-			Name:   "deleted-secret",
-		}, func(p *database.CreateUserSecretParams) {
-			p.EnvName = "DELETED_ENV"
-			p.FilePath = ""
-		})
-
 		// User secret owned by a dormant user should be excluded.
 		dormant := dbgen.User(t, db, database.User{Status: database.UserStatusDormant})
 		_ = dbgen.UserSecret(t, db, database.UserSecret{

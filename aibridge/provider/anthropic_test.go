@@ -13,6 +13,8 @@ import (
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
+	"github.com/coder/coder/v2/aibridge/keypool"
+	"github.com/coder/quartz"
 )
 
 func TestAnthropic_TypeAndName(t *testing.T) {
@@ -45,6 +47,70 @@ func TestAnthropic_TypeAndName(t *testing.T) {
 			p := NewAnthropic(tc.cfg, nil)
 			assert.Equal(t, tc.expectType, p.Type())
 			assert.Equal(t, tc.expectName, p.Name())
+		})
+	}
+}
+
+func TestNewAnthropic_KeyResolution(t *testing.T) {
+	t.Parallel()
+
+	pool, err := keypool.New([]string{"pool-key-0", "pool-key-1"}, quartz.NewMock(t))
+	require.NoError(t, err)
+
+	tests := []struct {
+		name         string
+		cfg          config.Anthropic
+		expectedKeys []string
+	}{
+		{
+			// Legacy single-key path: NewAnthropic builds a
+			// pool containing just that key.
+			name:         "key_creates_keypool",
+			cfg:          config.Anthropic{Key: "legacy-key"},
+			expectedKeys: []string{"legacy-key"},
+		},
+		{
+			// Caller supplies the pool directly.
+			name:         "keypool_passed_directly",
+			cfg:          config.Anthropic{KeyPool: pool},
+			expectedKeys: []string{"pool-key-0", "pool-key-1"},
+		},
+		{
+			// Both set: KeyPool wins, Key is ignored.
+			name:         "keypool_takes_precedence_over_key",
+			cfg:          config.Anthropic{Key: "legacy-key", KeyPool: pool},
+			expectedKeys: []string{"pool-key-0", "pool-key-1"},
+		},
+		{
+			// Neither set: no centralized auth available. BYOK
+			// auth is set per-request in CreateInterceptor.
+			name:         "neither_set_no_centralized_auth",
+			cfg:          config.Anthropic{},
+			expectedKeys: nil,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			p := NewAnthropic(tc.cfg, nil)
+
+			if tc.expectedKeys == nil {
+				assert.Nil(t, p.cfg.KeyPool, "expected no KeyPool")
+				return
+			}
+
+			require.NotNil(t, p.cfg.KeyPool)
+			walker := p.cfg.KeyPool.Walker()
+			var got []string
+			for {
+				key, err := walker.Next()
+				if err != nil {
+					break
+				}
+				got = append(got, key.Value())
+			}
+			assert.Equal(t, tc.expectedKeys, got)
 		})
 	}
 }

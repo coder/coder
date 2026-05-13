@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import LinearProgress from "./LinearProgress";
 
 const meta: Meta<typeof LinearProgress> = {
-	title: "Components/LinearProgress",
+	title: "components/LinearProgress",
 	component: LinearProgress,
 	args: {
 		variant: "determinate",

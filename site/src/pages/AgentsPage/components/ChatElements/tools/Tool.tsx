@@ -1,5 +1,5 @@
 import { useTheme } from "@emotion/react";
-import { FileDiff, File as FileViewer } from "@pierre/diffs/react";
+import { File as FileViewer } from "@pierre/diffs/react";
 import { LoaderIcon, TriangleAlertIcon } from "lucide-react";
 import { type ComponentPropsWithRef, type FC, memo } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -49,7 +49,6 @@ import {
 	buildEditDiff,
 	DIFFS_FONT_STYLE,
 	formatResultOutput,
-	getDiffViewerOptions,
 	getFileContentForViewer,
 	getFileViewerOptions,
 	getFileViewerOptionsNoHeader,
@@ -60,7 +59,6 @@ import {
 	parseEditFilesArgs,
 	parseServerEditDiffText,
 	parseServerEditResults,
-	stripNoNewline,
 	type ToolStatus,
 	toProviderLabel,
 } from "./utils";
@@ -94,6 +92,7 @@ interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	previousResponseText?: string;
 	/** Human-readable intent extracted from the model's tool-call args. */
 	modelIntent?: string;
+	codeDiffDisplayMode?: TypesGen.AgentDisplayMode;
 }
 
 // Props passed to each tool-specific renderer function. Each renderer
@@ -117,6 +116,7 @@ type ToolRendererProps = {
 	mcpServerConfigId?: string;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	modelIntent?: string;
+	codeDiffDisplayMode?: TypesGen.AgentDisplayMode;
 };
 
 // ---------------------------------------------------------------------------
@@ -166,6 +166,17 @@ const parseAskUserQuestions = (value: unknown): AskUserQuestion[] | null => {
 	}
 
 	return questions;
+};
+
+const insufficientQuotaErrorCode = "INSUFFICIENT_QUOTA";
+
+const getWorkspaceQuotaTitle = (
+	rec: Record<string, unknown> | null,
+): string | undefined => {
+	if (!rec || asString(rec.error_code) !== insufficientQuotaErrorCode) {
+		return undefined;
+	}
+	return asString(rec.title).trim() || "Workspace quota reached";
 };
 
 const parseAskUserQuestionResult = (
@@ -369,6 +380,7 @@ const WriteFileRenderer: FC<ToolRendererProps> = ({
 	args,
 	result,
 	isError,
+	codeDiffDisplayMode,
 }) => {
 	const parsedArgs = parseArgs(args);
 	const path = parsedArgs ? asString(parsedArgs.path).trim() : "";
@@ -382,6 +394,7 @@ const WriteFileRenderer: FC<ToolRendererProps> = ({
 			status={status}
 			isError={isError}
 			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
+			codeDiffDisplayMode={codeDiffDisplayMode}
 		/>
 	);
 };
@@ -391,6 +404,7 @@ const EditFilesRenderer: FC<ToolRendererProps> = ({
 	args,
 	result,
 	isError,
+	codeDiffDisplayMode,
 }) => {
 	const rec = asRecord(result);
 	const editFiles = parseEditFilesArgs(args);
@@ -413,6 +427,7 @@ const EditFilesRenderer: FC<ToolRendererProps> = ({
 			status={status}
 			isError={isError}
 			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
+			codeDiffDisplayMode={codeDiffDisplayMode}
 		/>
 	);
 };
@@ -430,6 +445,7 @@ const CreateWorkspaceRenderer: FC<ToolRendererProps> = ({
 	const resultJson = rec ? JSON.stringify(rec, null, 2) : "";
 	const hasErrorInResult = Boolean(rec?.error);
 	const created = rec?.created !== false;
+	const quotaTitle = getWorkspaceQuotaTitle(rec);
 
 	return (
 		<CreateWorkspaceTool
@@ -440,6 +456,7 @@ const CreateWorkspaceRenderer: FC<ToolRendererProps> = ({
 			errorMessage={rec ? asString(rec.error || rec.reason) : undefined}
 			buildId={buildId}
 			created={created}
+			labelOverride={quotaTitle}
 		/>
 	);
 };
@@ -814,8 +831,6 @@ const ComputerRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
-// Generic fallback renderer — only path that needs theme, diff
-// viewers, and file content helpers.
 const GenericToolRenderer: FC<ToolRendererProps> = ({
 	name,
 	status,
@@ -830,7 +845,6 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 	const isDark = theme.palette.mode === "dark";
 	const resultOutput = formatResultOutput(result);
 	const fileContent = getFileContentForViewer(name, args, result);
-	const writeFileDiff = getWriteFileDiff(name, args);
 	const fileViewerOpts = getFileViewerOptions(isDark);
 	const fileContentOptions = fileContent
 		? {
@@ -845,64 +859,49 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 		? mcpServers?.find((s) => s.id === mcpServerConfigId)
 		: undefined;
 
-	const hasContent = Boolean(writeFileDiff || fileContent || resultOutput);
+	const hasContent = Boolean(fileContent || resultOutput);
 	const isRunning = status === "running";
 	const rec = asRecord(result);
 	const errorMessage = rec ? asString(rec.error || rec.message) : "";
 
-	return (
-		<ToolCollapsible
-			hasContent={hasContent}
-			header={
-				<>
-					<ToolIcon
-						name={name}
-						isError={status === "error" || isError}
-						iconUrl={mcpServer?.icon_url}
-						isRunning={isRunning}
-						serverName={mcpServer?.display_name}
-					/>
-					{modelIntent ? (
-						<span className="truncate text-[13px]">
-							{modelIntent.charAt(0).toUpperCase() + modelIntent.slice(1)}
-						</span>
-					) : (
-						<ToolLabel
-							name={name}
-							args={args}
-							result={result}
-							mcpSlug={mcpServer?.slug}
-						/>
-					)}
-					{isError && (
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-current" />
-							</TooltipTrigger>
-							<TooltipContent>
-								{errorMessage || "Tool call failed"}
-							</TooltipContent>
-						</Tooltip>
-					)}
-					{isRunning && (
-						<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current" />
-					)}
-				</>
-			}
-		>
-			{writeFileDiff ? (
-				<ScrollArea
-					className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
-					viewportClassName="max-h-64"
-					scrollBarClassName="w-1.5"
-				>
-					<FileDiff
-						fileDiff={stripNoNewline(writeFileDiff)}
-						options={getDiffViewerOptions(isDark)}
-						style={DIFFS_FONT_STYLE}
-					/>
-				</ScrollArea>
-			) : fileContent ? (
+	const toolHeader = (
+		<>
+			<ToolIcon
+				name={name}
+				isError={status === "error" || isError}
+				iconUrl={mcpServer?.icon_url}
+				isRunning={isRunning}
+				serverName={mcpServer?.display_name}
+			/>
+			{modelIntent ? (
+				<span className="truncate text-[13px]">
+					{modelIntent.charAt(0).toUpperCase() + modelIntent.slice(1)}
+				</span>
+			) : (
+				<ToolLabel
+					name={name}
+					args={args}
+					result={result}
+					mcpSlug={mcpServer?.slug}
+				/>
+			)}
+			{isError && (
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-current" />
+					</TooltipTrigger>
+					<TooltipContent>{errorMessage || "Tool call failed"}</TooltipContent>
+				</Tooltip>
+			)}
+			{isRunning && (
+				<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current" />
+			)}
+		</>
+	);
+
+	const toolContent = (
+		<>
+			{fileContent ? (
 				<ScrollArea
 					className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
 					viewportClassName="max-h-64"
@@ -935,6 +934,12 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 					</ScrollArea>
 				)
 			)}
+		</>
+	);
+
+	return (
+		<ToolCollapsible hasContent={hasContent} header={toolHeader}>
+			{toolContent}
 		</ToolCollapsible>
 	);
 };
@@ -967,6 +972,7 @@ const StartWorkspaceRenderer: FC<ToolRendererProps> = ({
 	const buildId = rec ? asString(rec.build_id) : undefined;
 	const hasErrorInResult = Boolean(rec?.error);
 	const noBuild = Boolean(rec?.no_build);
+	const quotaTitle = getWorkspaceQuotaTitle(rec);
 
 	return (
 		<StartWorkspaceTool
@@ -976,6 +982,7 @@ const StartWorkspaceRenderer: FC<ToolRendererProps> = ({
 			isError={isError || hasErrorInResult}
 			errorMessage={rec ? asString(rec.error || rec.reason) : undefined}
 			noBuild={noBuild}
+			labelOverride={quotaTitle}
 		/>
 	);
 };
@@ -1030,6 +1037,7 @@ export const Tool = memo(
 		isLatestAskUserQuestion,
 		previousResponseText,
 		modelIntent,
+		codeDiffDisplayMode,
 		ref,
 		...props
 	}: ToolProps) => {
@@ -1076,6 +1084,7 @@ export const Tool = memo(
 					isLatestAskUserQuestion={isLatestAskUserQuestion}
 					previousResponseText={previousResponseText}
 					modelIntent={modelIntent}
+					codeDiffDisplayMode={codeDiffDisplayMode}
 				/>
 			</div>
 		);

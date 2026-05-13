@@ -11,13 +11,13 @@ import { useQueryClient } from "react-query";
 import type { UrlTransform } from "streamdown";
 import { chatDiffContentsKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
-import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
+import type {
+	AgentChatSendShortcut,
+	ChatDiffStatus,
+	ChatMessagePart,
+} from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
-import {
-	getPersistedSidebarTabId,
-	savePersistedSidebarTabId,
-} from "./AgentChatPage";
 import {
 	AgentChatInput,
 	type ChatMessageInputRef,
@@ -42,6 +42,10 @@ import { getWorkspaceStatus, StatusIcon } from "./components/StatusIcon";
 import { TerminalPanel } from "./components/TerminalPanel";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
 import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
+import {
+	getPersistedSidebarTabId,
+	savePersistedSidebarTabId,
+} from "./utils/sidebarTabStorage";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
@@ -82,6 +86,7 @@ interface EditingState {
 interface AgentChatPageViewProps {
 	// Chat data.
 	agentId: string;
+	sendShortcut: AgentChatSendShortcut;
 	organizationId: string | undefined;
 	chatTitle: string | undefined;
 	parentChat: TypesGen.Chat | undefined;
@@ -185,6 +190,7 @@ interface AgentChatPageViewProps {
 
 export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	agentId,
+	sendShortcut,
 	organizationId,
 	chatTitle,
 	parentChat,
@@ -521,6 +527,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 [scrollbar-gutter:stable] [scrollbar-width:thin]">
 							<ChatPageInput
 								organizationId={organizationId}
+								sendShortcut={sendShortcut}
 								store={store}
 								compressionThreshold={compressionThreshold}
 								onSend={editing.handleSendFromInput}
@@ -556,7 +563,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								onCancelQueueEdit={editing.handleCancelQueueEdit}
 								isEditingHistoryMessage={editing.editingMessageId !== null}
 								onCancelHistoryEdit={editing.handleCancelHistoryEdit}
-								onEditUserMessage={editing.handleEditUserMessage}
 								editingFileBlocks={editing.editingFileBlocks}
 								mcpServers={mcpServers}
 								selectedMCPServerIds={selectedMCPServerIds}
@@ -601,6 +607,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 };
 
 interface AgentChatPageLoadingViewProps {
+	sendShortcut: AgentChatSendShortcut;
 	titleElement: React.ReactNode;
 	isInputDisabled: boolean;
 	effectiveSelectedModel: string;
@@ -617,6 +624,7 @@ interface AgentChatPageLoadingViewProps {
 }
 
 export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
+	sendShortcut,
 	titleElement,
 	isInputDisabled,
 	effectiveSelectedModel,
@@ -669,6 +677,7 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 				<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 [scrollbar-gutter:stable] [scrollbar-width:thin]">
 					<AgentChatInput
 						onSend={() => {}}
+						sendShortcut={sendShortcut}
 						initialValue=""
 						isDisabled={isInputDisabled}
 						isLoading={false}

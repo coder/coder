@@ -23,6 +23,18 @@ Use the canonical docs for shared conventions and validation guidance:
 - Local validation commands and git hooks: `AGENTS.md` (Essential Commands and
   Git Hooks sections)
 
+## Body Formatting
+
+GitHub renders the PR description as Markdown and soft-wraps paragraphs to the
+viewport. Do not hard-wrap prose at 72 or 80 columns. Insert manual line
+breaks only where Markdown needs them: between paragraphs, around headings,
+lists, tables, code blocks, and blockquotes.
+
+The commit message body is not the PR body. Commit messages are typically
+hard-wrapped; PR bodies are not. When deriving the PR body from a commit
+message, unwrap each paragraph into a single line before passing it to
+`gh pr create --body` or `--body-file`.
+
 ## Lifecycle Rules
 
 1. **Check for an existing PR** before creating a new one:

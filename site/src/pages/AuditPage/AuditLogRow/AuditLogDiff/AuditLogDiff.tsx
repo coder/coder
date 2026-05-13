@@ -1,8 +1,5 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import type { FC } from "react";
 import type { AuditDiff } from "#/api/typesGenerated";
-import { MONOSPACE_FONT_FAMILY } from "#/theme/constants";
-import colors from "#/theme/tailwindColors";
 
 const getDiffValue = (value: unknown): string => {
 	if (typeof value === "string") {
@@ -50,29 +47,33 @@ export const AuditLogDiff: FC<AuditLogDiffProps> = ({ diff }) => {
 	const diffEntries = Object.entries(diff);
 
 	return (
-		<div css={styles.diff}>
-			<div css={[styles.diffColumn, styles.diffOld]}>
+		<div className="relative z-[2] flex items-start border-t border-border font-mono text-sm">
+			<div className="flex-1 self-stretch bg-red-950 pb-5 pr-4 pt-4 leading-[160%] text-red-50 [overflow-wrap:anywhere]">
 				{diffEntries.map(([attrName, valueDiff], index) => (
-					<div key={attrName} css={styles.diffRow}>
-						<div css={styles.diffLine}>{index + 1}</div>
-						<div css={styles.diffIcon}>-</div>
+					<div key={attrName} className="flex items-baseline">
+						<div className="w-12 shrink-0 text-right opacity-50">
+							{index + 1}
+						</div>
+						<div className="w-8 shrink-0 text-center text-base">-</div>
 						<div>
 							{attrName}:{" "}
-							<span css={[styles.diffValue, styles.diffValueOld]}>
+							<span className="rounded p-px bg-red-800">
 								{valueDiff.secret ? "••••••••" : getDiffValue(valueDiff.old)}
 							</span>
 						</div>
 					</div>
 				))}
 			</div>
-			<div css={[styles.diffColumn, styles.diffNew]}>
+			<div className="flex-1 self-stretch bg-green-950 pb-5 pr-4 pt-4 leading-[160%] text-green-50 [overflow-wrap:anywhere]">
 				{diffEntries.map(([attrName, valueDiff], index) => (
-					<div key={attrName} css={styles.diffRow}>
-						<div css={styles.diffLine}>{index + 1}</div>
-						<div css={styles.diffIcon}>+</div>
+					<div key={attrName} className="flex items-baseline">
+						<div className="w-12 shrink-0 text-right opacity-50">
+							{index + 1}
+						</div>
+						<div className="w-8 shrink-0 text-center text-base">+</div>
 						<div>
 							{attrName}:{" "}
-							<span css={[styles.diffValue, styles.diffValueNew]}>
+							<span className="rounded p-px bg-green-800">
 								{valueDiff.secret ? "••••••••" : getDiffValue(valueDiff.new)}
 							</span>
 						</div>
@@ -82,67 +83,3 @@ export const AuditLogDiff: FC<AuditLogDiffProps> = ({ diff }) => {
 		</div>
 	);
 };
-
-const styles = {
-	diff: (theme) => ({
-		display: "flex",
-		alignItems: "flex-start",
-		fontSize: theme.typography.body2.fontSize,
-		borderTop: `1px solid ${theme.palette.divider}`,
-		fontFamily: MONOSPACE_FONT_FAMILY,
-		position: "relative",
-		zIndex: 2,
-	}),
-
-	diffColumn: {
-		flex: 1,
-		paddingTop: 16,
-		paddingBottom: 20,
-		paddingRight: 16,
-		lineHeight: "160%",
-		alignSelf: "stretch",
-		overflowWrap: "anywhere",
-	},
-
-	diffOld: {
-		backgroundColor: colors.red[950],
-		color: colors.red[50],
-	},
-
-	diffRow: {
-		display: "flex",
-		alignItems: "baseline",
-	},
-
-	diffLine: {
-		opacity: 0.5,
-		width: 48,
-		textAlign: "right",
-		flexShrink: 0,
-	},
-
-	diffIcon: (theme) => ({
-		width: 32,
-		textAlign: "center",
-		fontSize: theme.typography.body1.fontSize,
-		flexShrink: 0,
-	}),
-
-	diffNew: {
-		backgroundColor: colors.green[950],
-		color: colors.green[50],
-	},
-
-	diffValue: {
-		padding: 1,
-		borderRadius: 4,
-	},
-
-	diffValueOld: {
-		backgroundColor: colors.red[800],
-	},
-
-	diffValueNew: {
-		backgroundColor: colors.green[800],
-	},
-} satisfies Record<string, Interpolation<Theme>>;

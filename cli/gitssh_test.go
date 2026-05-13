@@ -118,10 +118,10 @@ func TestGitSSH(t *testing.T) {
 
 		setupCtx := testutil.Context(t, testutil.WaitLong)
 		client, token, pubkey := prepareTestGitSSH(setupCtx, t)
-		var inc int64
+		var inc atomic.Int64
 		errC := make(chan error, 1)
 		addr := serveSSHForGitSSH(t, func(s ssh.Session) {
-			atomic.AddInt64(&inc, 1)
+			inc.Add(1)
 			t.Log("got authenticated session")
 			select {
 			case errC <- s.Exit(0):
@@ -146,7 +146,7 @@ func TestGitSSH(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitSuperLong)
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
-		require.EqualValues(t, 1, inc)
+		require.EqualValues(t, 1, inc.Load())
 
 		err = <-errC
 		require.NoError(t, err, "error in agent execute")

@@ -4,7 +4,10 @@ import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { regenerateUserSSHKey, userSSHKey } from "#/api/queries/sshKeys";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { Section } from "../Section";
+import {
+	SettingsHeader,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
 import { SSHKeysPageView } from "./SSHKeysPageView";
 
 const SSHKeysPage: FC = () => {
@@ -19,14 +22,15 @@ const SSHKeysPage: FC = () => {
 
 	return (
 		<>
-			<Section title="SSH keys">
-				<SSHKeysPageView
-					isLoading={userSSHKeyQuery.isLoading}
-					getSSHKeyError={userSSHKeyQuery.error}
-					sshKey={userSSHKeyQuery.data}
-					onRegenerateClick={() => setIsConfirmingRegeneration(true)}
-				/>
-			</Section>
+			<SettingsHeader>
+				<SettingsHeaderTitle>SSH keys</SettingsHeaderTitle>
+			</SettingsHeader>
+			<SSHKeysPageView
+				isLoading={userSSHKeyQuery.isLoading}
+				getSSHKeyError={userSSHKeyQuery.error}
+				sshKey={userSSHKeyQuery.data}
+				onRegenerateClick={() => setIsConfirmingRegeneration(true)}
+			/>
 
 			<ConfirmDialog
 				type="delete"
