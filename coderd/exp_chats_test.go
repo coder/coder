@@ -1409,6 +1409,136 @@ func TestListChats(t *testing.T) {
 			require.Len(t, c.Children, 2, "each root should embed its 2 children")
 		}
 	})
+
+	t.Run("DiffURLFilter", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		// Helper that creates a chat (root or child) with a diff status URL.
+		create := func(title, url string, parentID uuid.NullUUID) database.Chat {
+			rootID := parentID
+			chat := dbgen.Chat(t, db, database.Chat{
+				OrganizationID:    user.OrganizationID,
+				OwnerID:           user.UserID,
+				LastModelConfigID: modelConfig.ID,
+				Title:             title,
+				ParentChatID:      parentID,
+				RootChatID:        rootID,
+			})
+			if url != "" {
+				staleAt := time.Now().UTC().Add(time.Hour).Truncate(time.Second)
+				_, err := db.UpsertChatDiffStatusReference(
+					dbauthz.AsSystemRestricted(ctx),
+					database.UpsertChatDiffStatusReferenceParams{
+						ChatID:          chat.ID,
+						Url:             sql.NullString{String: url, Valid: true},
+						GitBranch:       "feature/test",
+						GitRemoteOrigin: "git@github.com:coder/coder.git",
+						StaleAt:         staleAt,
+					},
+				)
+				require.NoError(t, err)
+			}
+			return chat
+		}
+
+		// Root chat directly linked to the target PR.
+		rootWithPR := create("root with pr", "https://github.com/coder/coder/pull/1", uuid.NullUUID{})
+
+		// Root chat whose sub-agent owns the PR. The filter should still
+		// surface the parent because the URL lives on a descendant.
+		rootWithChildPR := create("root with child pr", "", uuid.NullUUID{})
+		_ = create(
+			"sub-agent with pr",
+			"https://github.com/coder/coder/pull/2",
+			uuid.NullUUID{UUID: rootWithChildPR.ID, Valid: true},
+		)
+
+		// Root chat with an unrelated PR; should not match either filter.
+		_ = create("unrelated pr", "https://github.com/coder/coder/pull/999", uuid.NullUUID{})
+
+		// Root chat with no diff status at all.
+		_ = create("no diff", "", uuid.NullUUID{})
+
+		// Archived root chat that points at the same URL as `rootWithPR`.
+		// Used to verify the archived filter and the diff_url filter
+		// compose at the SQL layer rather than ignoring each other.
+		archivedWithPR := create(
+			"archived with pr",
+			"https://github.com/coder/coder/pull/3",
+			uuid.NullUUID{},
+		)
+		require.NoError(t, client.UpdateChat(ctx, archivedWithPR.ID, codersdk.UpdateChatRequest{
+			Archived: ptr.Ref(true),
+		}))
+
+		t.Run("MatchesRoot", func(t *testing.T) {
+			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+				Query: `diff_url:"https://github.com/coder/coder/pull/1"`,
+			})
+			require.NoError(t, err)
+			require.Len(t, chats, 1)
+			require.Equal(t, rootWithPR.ID, chats[0].ID)
+		})
+
+		t.Run("MatchesViaSubAgent", func(t *testing.T) {
+			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+				Query: `diff_url:"https://github.com/coder/coder/pull/2"`,
+			})
+			require.NoError(t, err)
+			require.Len(t, chats, 1, "root chat should surface even when only a child has the PR")
+			require.Equal(t, rootWithChildPR.ID, chats[0].ID)
+		})
+
+		t.Run("CaseInsensitive", func(t *testing.T) {
+			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+				Query: `diff_url:"HTTPS://GITHUB.COM/CODER/CODER/PULL/1"`,
+			})
+			require.NoError(t, err)
+			require.Len(t, chats, 1)
+			require.Equal(t, rootWithPR.ID, chats[0].ID)
+		})
+
+		t.Run("NoMatch", func(t *testing.T) {
+			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+				Query: `diff_url:"https://github.com/coder/coder/pull/424242"`,
+			})
+			require.NoError(t, err)
+			require.Empty(t, chats)
+		})
+
+		t.Run("InvalidURL", func(t *testing.T) {
+			_, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+				Query: `diff_url:"ftp://example.com/x"`,
+			})
+			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+			require.NotEmpty(t, sdkErr.Validations, "expected validation error")
+			require.Equal(t, "diff_url", sdkErr.Validations[0].Field)
+		})
+
+		t.Run("ArchivedFilteredOut", func(t *testing.T) {
+			// Default archived filter is false, so an archived chat with
+			// a matching diff URL must not surface.
+			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+				Query: `diff_url:"https://github.com/coder/coder/pull/3"`,
+			})
+			require.NoError(t, err)
+			require.Empty(t, chats, "archived chat must not match the default filter")
+		})
+
+		t.Run("ArchivedTrueComposes", func(t *testing.T) {
+			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{
+				Query: `archived:true diff_url:"https://github.com/coder/coder/pull/3"`,
+			})
+			require.NoError(t, err)
+			require.Len(t, chats, 1)
+			require.Equal(t, archivedWithPR.ID, chats[0].ID)
+		})
+	})
 }
 
 func TestListChatModels(t *testing.T) {

@@ -108,6 +108,15 @@ Specifies whether or not to wait for the startup script to finish executing. Aut
 
 Disable starting the workspace automatically when connecting via SSH.
 
+### --force-unix-filepaths
+
+|             |                                              |
+|-------------|----------------------------------------------|
+| Type        | <code>bool</code>                            |
+| Environment | <code>$CODER_CONFIGSSH_UNIX_FILEPATHS</code> |
+
+By default, 'config-ssh' uses the os path separator when writing the ssh config. This might be an issue in Windows machine that use a unix-like shell. This flag forces the use of unix file paths (the forward slash '/').
+
 ### -y, --yes
 
 |      |                   |

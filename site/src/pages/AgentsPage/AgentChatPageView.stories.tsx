@@ -16,7 +16,6 @@ import {
 	withProxyProvider,
 	withWebSocket,
 } from "#/testHelpers/storybook";
-import { lastActiveSidebarTabStorageKeyPrefix } from "./AgentChatPage";
 import {
 	AgentChatPageLoadingView,
 	AgentChatPageNotFoundView,
@@ -28,6 +27,7 @@ import {
 	useChatSelector,
 } from "./components/ChatConversation/chatStore";
 import type { ModelSelectorOption } from "./components/ChatElements";
+import { lastActiveSidebarTabStorageKeyPrefix } from "./utils/sidebarTabStorage";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 // ---------------------------------------------------------------------------

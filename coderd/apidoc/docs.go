@@ -78,7 +78,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query",
+                        "description": "Search query. Supports archived:bool and diff_url:\u003curl\u003e terms (quote URLs).",
                         "name": "q",
                         "in": "query"
                     },
@@ -21683,6 +21683,10 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "parameter_mismatch": {
+                    "type": "boolean"
+                },
+                "secret_mismatch": {
+                    "description": "SecretMismatch is true when the active template version declares\n` + "`" + `coder_secret` + "`" + ` requirements that the workspace owner's secrets do not\nsatisfy.",
                     "type": "boolean"
                 }
             }

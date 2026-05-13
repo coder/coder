@@ -768,6 +768,12 @@ BEGIN
 		-- does not remove the users row so the FK cascade never fires.
 		DELETE FROM user_secrets
 		WHERE user_id = OLD.id;
+
+		-- Remove their organization memberships.
+		-- This also triggers group membership cleanup via
+		-- trigger_delete_group_members_on_org_member_delete.
+		DELETE FROM organization_members
+		WHERE user_id = OLD.id;
 	END IF;
 	RETURN NEW;
 END;
@@ -3857,6 +3863,8 @@ CREATE UNIQUE INDEX idx_chat_debug_steps_run_step ON chat_debug_steps USING btre
 CREATE INDEX idx_chat_debug_steps_stale ON chat_debug_steps USING btree (updated_at) WHERE (finished_at IS NULL);
 
 CREATE INDEX idx_chat_diff_statuses_stale_at ON chat_diff_statuses USING btree (stale_at);
+
+CREATE INDEX idx_chat_diff_statuses_url_lower ON chat_diff_statuses USING btree (lower(url)) WHERE ((url IS NOT NULL) AND (url <> ''::text));
 
 CREATE INDEX idx_chat_file_links_chat_id ON chat_file_links USING btree (chat_id);
 

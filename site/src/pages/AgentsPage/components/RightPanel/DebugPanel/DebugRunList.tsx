@@ -1,17 +1,20 @@
 import type { FC } from "react";
 import type { ChatDebugRunSummary } from "#/api/typesGenerated";
 import { DebugRunCard } from "./DebugRunCard";
+import type { DownloadDebugFile } from "./debugExport";
 
 interface DebugRunListProps {
 	runs: ChatDebugRunSummary[];
 	chatId: string;
 	isVisible: boolean;
+	download?: DownloadDebugFile;
 }
 
 export const DebugRunList: FC<DebugRunListProps> = ({
 	runs,
 	chatId,
 	isVisible,
+	download,
 }) => {
 	// Empty state is handled by DebugPanel before rendering this
 	// component. No guard here to avoid duplicated copy that drifts.
@@ -23,6 +26,7 @@ export const DebugRunList: FC<DebugRunListProps> = ({
 					run={run}
 					chatId={chatId}
 					isVisible={isVisible}
+					download={download}
 				/>
 			))}
 		</div>
