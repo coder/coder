@@ -1082,6 +1082,16 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				>
 					{parsedMessages.map(({ message, parsed }, msgIdx) => {
 						if (message.role === "user") {
+							const { shouldHide } = deriveMessageDisplayState({
+								message,
+								parsed,
+								hideActions: false,
+								hasActiveStream: false,
+								isAwaitingFirstStreamChunk: false,
+							});
+							if (shouldHide) {
+								return null;
+							}
 							return (
 								<StickyUserMessage
 									key={message.id}

@@ -1139,6 +1139,45 @@ export const UserMessageWithMultipleInlineFileRefs: Story = {
 	},
 };
 
+export const MetadataOnlyUserMessageDoesNotLeaveStickyGap: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "assistant",
+				content: [{ type: "text", text: "Before hidden metadata." }],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "user",
+				content: [
+					{
+						type: "context-file",
+						context_file_path: "/home/coder/coder/AGENTS.md",
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 3,
+				role: "assistant",
+				content: [{ type: "text", text: "After hidden metadata." }],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Before hidden metadata.")).toBeVisible();
+		expect(canvas.getByText("After hidden metadata.")).toBeVisible();
+		expect(canvasElement.querySelectorAll("[data-user-sentinel]")).toHaveLength(
+			0,
+		);
+	},
+};
+
 /**
  * Verifies the structural requirements for sticky user messages
  * in the flat (section-less) message list:
