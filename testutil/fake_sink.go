@@ -3,7 +3,6 @@ package testutil
 import (
 	"context"
 	"sync"
-	"sync/atomic"
 	"testing"
 
 	"cdr.dev/slog/v3"
@@ -16,14 +15,16 @@ type FakeSink struct {
 	t       testing.TB
 	mu      sync.RWMutex
 	entries []slog.SinkEntry
-	tDone   atomic.Bool
+	tDone   bool
 }
 
 // NewFakeSink returns a FakeSink ready for use.
 func NewFakeSink(t testing.TB) *FakeSink {
 	fs := &FakeSink{t: t}
 	t.Cleanup(func() {
-		fs.tDone.Store(true)
+		fs.mu.Lock()
+		fs.tDone = true
+		fs.mu.Unlock()
 	})
 	return fs
 }
@@ -32,9 +33,10 @@ func NewFakeSink(t testing.TB) *FakeSink {
 // internal slice.
 func (s *FakeSink) LogEntry(_ context.Context, e slog.SinkEntry) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.entries = append(s.entries, e)
-	if !s.tDone.Load() {
+	shouldLog := !s.tDone
+	s.mu.Unlock()
+	if shouldLog {
 		s.t.Log(e.Message, e.Fields)
 	}
 }
