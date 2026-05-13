@@ -31,16 +31,22 @@ Read these first; the rest of this page assumes they fit your team.
   Workspaces are owned by Coder's prebuilds service account, which
   cannot complete the per-user OAuth flow. The bot git credential ships
   as a sensitive Terraform variable instead.
-- **One runner serves one Anthropic user at a time.** If your pool size
-  is N and N+1 users arrive at once, the N+1th waits in Anthropic's
-  queue until a runner drains.
+- **One runner serves one Anthropic user at a time.** A runner is
+  locked to a single Anthropic user from its first session until drain.
+  Concurrent users need concurrent workspaces.
+- **Pool size is a warm-pool target, not a hard cap.** With
+  `instances = N`, Coder keeps N workspaces preheated. If `N+1` users
+  arrive at once, the `N+1`th still gets a workspace; the prebuilds
+  reconciler just builds it from cold, so the first session takes the
+  cold-start time of your template instead of being instant.
 - **Stalled sessions are dropped.** Once the runner's active session
   count hits zero it drains; half-finished working trees are lost. Do
   not park long interactive sessions in this mode; for that, open a
   regular Coder workspace and run Claude Code interactively.
-- **`--capacity` is per-user parallelism, not pool concurrency.**
-  `instances = 5, capacity = 4` gives 5 concurrent users, each up to 4
-  parallel sessions. Not 20 concurrent users.
+- **`--capacity` is per-runner parallelism for the locked user.**
+  Each runner serves up to `--capacity` sessions for the one Anthropic
+  user it locked to. Concurrency across users is bounded by how many
+  workspaces your deployment can run, not by `--capacity`.
 
 If any of these are blockers, wait for
 [User identity](./user-identity.md), which addresses the first three.
