@@ -179,7 +179,9 @@ jobs:
 
       - name: Get golangci-lint cache dir
         run: |
-          linter_ver=$(grep -Eo 'GOLANGCI_LINT_VERSION=\S+' dogfood/coder/ubuntu-26.04/Dockerfile | cut -d '=' -f 2)
+          # mise.toml is the source of truth for tool versions baked into
+          # the dogfood image; pull the same version for the lint job.
+          linter_ver=$(grep -Eo '^golangci-lint = "[^"]+"' mise.toml | sed -E 's/.*"([^"]+)"/\1/')
           ./.github/scripts/retry.sh -- go install "github.com/golangci/golangci-lint/cmd/golangci-lint@v$linter_ver"
           dir=$(golangci-lint cache status | awk '/Dir/ { print $2 }')
           echo "LINT_CACHE_DIR=$dir" >> "$GITHUB_ENV"
