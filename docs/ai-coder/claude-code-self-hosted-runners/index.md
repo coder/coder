@@ -24,19 +24,34 @@ your internal Git and registries), and a place to attach an IDE if you want a
 developer to debug what the runner is doing.
 
 This page describes the **basic flow** for running Claude Code self-hosted
-runners on Coder with no product changes. Subsequent pages describe more
-advanced variants and the longer-term plan.
+runners on Coder with no product changes. The full deployment lives in two
+phases:
+
+- [Phase 1](./plan.md#phase-1-system-identity-shippable-today): a
+  self-healing pool of bot-owned runners. Ships today on Coder Premium plus
+  the Anthropic EAP, with no Coder product changes. Identity is the bot;
+  the human-to-runner binding is set by Anthropic's pool scheduler. This is
+  what the [setup guide](./setup.md) walks you through.
+- [Phase 2](./plan.md#phase-2-user-identity-requires-middleware): a small
+  webhook receiver maps each `runner-needed` event from Anthropic to the
+  matching Coder user and claims a warm prebuild on their behalf. Identity
+  becomes the human, audit log attributes to them, and external auth
+  resolves to their tokens. Depends on Anthropic contracts that are not yet
+  finalized.
 
 ## What you get
 
 - Claude Code remote sessions execute inside your Coder workspaces, on the
   same network and image your developers already use.
-- Each Anthropic user is served by their own workspace, mirroring Anthropic's
-  "one runner is locked to one user at a time" model.
+- A pool of warm runners that the Anthropic scheduler can lock to any user
+  at session-arrival time, mirroring Anthropic's "one runner is locked to
+  one user at a time" model without you having to provision per-user
+  workspaces.
 - The runner can reach internal Git, package registries, databases, and
-  build tooling that the workspace can reach, with no extra network plumbing.
-- Existing Coder primitives (templates, parameters, schedules, RBAC, audit
-  log, autostop) govern the runner the same way they govern any other
+  build tooling that the workspace can reach, with no extra network
+  plumbing.
+- Existing Coder primitives (templates, parameters, prebuilds, RBAC, audit
+  log, TTL) govern the runner the same way they govern any other
   workload.
 
 ## What this is *not*
@@ -66,21 +81,20 @@ advanced variants and the longer-term plan.
   for an Anthropic-managed session. The fact that the compute is in Coder
   is transparent to them.
 
-## High-level user-facing flow
+## High-level Phase 1 flow
 
-This is the day-one flow we are documenting. It maps cleanly to roles your
-team already has.
+This is the day-one flow the [setup guide](./setup.md) walks you through.
+It maps cleanly to roles your team already has.
 
 ### Roles
 
-| Role                 | Responsibility                                                                                                                                                                                             |
-|----------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Anthropic org admin  | Creates and rotates self-hosted runner pools in `claude.ai`. Distributes the pool secret to the platform team.                                                                                             |
-| Coder template admin | Publishes a Coder template that bakes the runner binary, Git identity, and required toolchains into a workspace. Defines parameters for `--capacity`, repo allow-list, and so on.                          |
-| Coder developer      | Creates a workspace from the template, supplies their pool secret as a workspace parameter or env var, and starts the workspace. The runner registers with Anthropic and is ready to serve their sessions. |
-| Anthropic developer  | Starts sessions from `claude.ai/code`, mobile, or routines and picks the pool that targets Coder. They never need to log in to Coder.                                                                      |
+| Role                 | Responsibility                                                                                                                                                                                                                                                                              |
+|----------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Anthropic org admin  | Creates and rotates self-hosted runner pools in `claude.ai`. Distributes the pool secret to the platform team.                                                                                                                                                                              |
+| Coder template admin | Publishes a Coder template that bakes the runner binary and git identity into a workspace image, adds a `coder_workspace_preset` with `prebuilds { instances = N }`, and supplies three sensitive variables: the pool secret, a git bot credential, and a Coder service-account API token. |
+| Anthropic developer  | Starts sessions from `claude.ai/code`, mobile, or routines and picks the pool that targets Coder. They never need to log in to Coder.                                                                                                                                                       |
 
-In small teams the same person plays the first three roles.
+In small teams the first two roles are the same person.
 
 ### End-to-end flow
 
@@ -88,139 +102,54 @@ In small teams the same person plays the first three roles.
    Code > Self-hosted runner pools` and copies the pool secret. The secret
    is shown once.
 2. **Coder template admin** publishes a Coder template that bakes the
-   runner binary into a workspace image and starts the runner via
-   `coder_script`. Push credentials come from Coder external auth (the
-   agent wires `GIT_ASKPASS` automatically).
-3. **Developer** creates a workspace from the template and supplies the
-   pool secret (either pasted as a sensitive parameter or pre-injected
-   from your secrets platform).
-4. The workspace agent starts the runner. The runner dials out to
-   `api.anthropic.com`, registers with the pool, receives a runner token,
-   and begins polling for sessions.
-5. **Anthropic developer** starts a session at `claude.ai/code` (or from
+   runner binary into a workspace image, starts the runner via
+   `coder_script`, surfaces runner state via `coder_agent.metadata`, and
+   `coder delete`s the workspace from inside when the runner exits. The
+   template's preset declares `prebuilds { instances = N }`, so Coder
+   maintains N warm workspaces. Push credentials come from a bot PAT or
+   SSH deploy key shipped as a sensitive template variable.
+3. **Coder** continuously maintains N warm workspaces. Each one runs the
+   runner, which registers with Anthropic and starts polling. Workspace
+   owner is the prebuilds service account; the workspace is anonymous
+   from a human's perspective.
+4. **Anthropic developer** starts a session at `claude.ai/code` (or from
    mobile, a routine, etc.) and picks the pool that targets Coder.
-6. The runner claims the session, spawns a child `claude` process inside
-   the workspace, and streams events back to Anthropic. The developer
-   sees the session in the Anthropic UI exactly as if it were an
-   Anthropic-managed session.
+5. Anthropic's pool scheduler routes the session to one of the warm
+   runners. That runner locks to the developer's Anthropic account. The
+   Coder workspace's metadata now shows the locked Anthropic user and the
+   in-flight session count.
+6. The runner serves up to `--capacity` parallel sessions for that one
+   user. When the session queue drains to zero, the runner exits 0, the
+   workspace deletes itself, and Coder's prebuild reconciler queues a
+   replacement.
 
-## Basic recipe (no product changes)
+## Why Phase 1 works with prebuilds
 
-The rest of this section is the minimum viable setup. Each step uses an
-existing Coder feature. See the [setup guide](./setup.md) for copyable
-Terraform.
+Anthropic's runner model has two properties that map cleanly onto Coder
+prebuilds:
 
-### 1. Get the runner build from Anthropic
-
-Your Anthropic account team provides a `BYOC_VERSION` and a tarball URL on
-`storage.googleapis.com`. The tarball contains one subdirectory per supported
-platform (`linux-x64`, `linux-arm64`, `linux-x64-musl`, `linux-arm64-musl`,
-`darwin-x64`, `darwin-arm64`). On Linux x86_64 workspaces you will use the
-`linux-x64` binary.
-
-Bake the binary into your **workspace base image** (recommended) or download
-it from a `coder_script` on workspace start. Baking is recommended because it
-gives you a single artifact to scan, sign, and roll out.
-
-### 2. Create a pool in `claude.ai`
-
-In `claude.ai`, navigate to **Settings → Claude Code → Self-hosted runner
-pools** and create a pool. Copy the pool secret. It is shown once and cannot
-be retrieved later. Store it in your existing secrets system (Vault,
-1Password, AWS Secrets Manager, etc.).
-
-### 3. Publish a Coder template
-
-The template's job is to start a single workspace per user where the runner
-process runs. The template should:
-
-- Use a base image that includes `git`, `curl`, the Claude Code runner
-  binary, and any compilers/SDKs sessions will need.
-- Set a system-wide Git identity in the image (`/etc/gitconfig`) so the
-  child process can commit. Anthropic-managed sessions use
-  `Claude <noreply@anthropic.com>`; you can reuse that or use your own bot
-  identity.
-- Pre-configure Git push credentials (SSH key, `.netrc`, or
-  `git credential.helper`) for the repos sessions will push to. The runner
-  itself does not configure Git auth.
-- Accept the pool secret as a sensitive Coder parameter, or read it from a
-  pre-injected environment variable / mounted secret if your platform
-  already delivers per-user secrets.
-- Start the runner from a `coder_script` block. The runner inherits the
-  workspace's environment, network, and filesystem.
-
-A minimal `coder_script` looks like this:
-
-```hcl
-resource "coder_script" "claude_runner" {
-  agent_id     = coder_agent.main.id
-  display_name = "Start Claude Code self-hosted runner"
-  run_on_start = true
-  start_blocks_login = false
-
-  script = <<-EOT
-    set -euo pipefail
-
-    POOL_SECRET_FILE=/etc/claude/pool-secret
-    sudo install -d -m 0750 /etc/claude
-    printf '%s' "$CLAUDE_POOL_SECRET" | sudo tee "$POOL_SECRET_FILE" >/dev/null
-    sudo chmod 0400 "$POOL_SECRET_FILE"
-
-    exec /opt/claude/claude self-hosted-runner \
-      --pool-secret-file "$POOL_SECRET_FILE" \
-      --capacity "$CLAUDE_CAPACITY" \
-      --log-file "$HOME/.claude/runner.log"
-  EOT
-}
-```
-
-`CLAUDE_POOL_SECRET` and `CLAUDE_CAPACITY` come from Coder parameters or
-agent `env`. See [Setup](./setup.md) for the full template.
-
-### 4. Developer creates a workspace
-
-The developer creates one workspace from the template, supplies the pool
-secret (or relies on the template admin to inject it), and starts the
-workspace. Within a few seconds, the runner appears in the Anthropic admin
-UI under the pool, and the workspace is ready to serve Claude Code sessions
-for that user.
-
-The developer does not need to keep Coder open. Once the workspace is
-running, sessions flow in from Anthropic surfaces. They can also use the
-same workspace as a normal Coder workspace (IDE, terminal, port forwards)
-while the runner is active. The runner's child processes operate in their
-own checkout directories.
-
-### 5. Routing sessions to the Coder-backed pool
-
-From `claude.ai/code` (or any other Anthropic surface), the developer
-selects your pool from the environment picker when starting a session. The
-session is queued to the pool and the workspace's runner claims it.
-
-## Lifecycle and isolation
-
-Anthropic's runner model has two important properties that Coder cleanly
-matches:
-
-1. **One runner serves one user at a time.** Once a runner picks up its
-   first session it is locked to that user until their work drains, then
-   exits. In the Coder model, each developer has their own workspace, so
-   "one runner per user" maps to "one workspace per user." There is no
-   cross-user data leakage because there is no cross-workspace sharing.
+1. **One runner serves one user at a time, and it does not know who that
+   user is until the first session arrives.** The lock is set at
+   session-arrival time, not at runner-spawn time. That means you do not
+   have to provision per-user workspaces in advance; you just need a pool
+   of warm runners ready for the Anthropic scheduler to claim. Coder's
+   prebuilds primitive is exactly that pool.
 
 2. **The runner expects a fresh filesystem on restart.** Anthropic
-   recommends Kubernetes, ECS, or systemd as the orchestrator that restarts
-   the process on exit. In Coder, the workspace agent restarts
-   `coder_script` blocks on workspace start, and `coder stop` + `coder start`
-   gives you a clean filesystem (you can opt the runner working directory
-   out of persistent volumes by mounting it on an `emptyDir` or a tmpfs).
-   For the basic flow we recommend setting `coder_script.run_on_start =
-   true` and treating workspace restart as the restart boundary.
+   recommends Kubernetes, ECS, or systemd as the orchestrator that
+   restarts the process on exit. In Coder, the equivalent is: the runner
+   exits, the workspace `coder delete`s itself from the inside, and the
+   prebuild reconciler queues a replacement workspace with a fresh
+   container filesystem.
 
-For the basic flow we do not try to autoscale runners. One workspace per
-user is enough. See [Plan: advanced topics](./plan.md) for what changes when
-you scale to many concurrent users per workspace, fleet pools, or
-short-lived runner workspaces.
+The identity trade-off Phase 1 ships with: **every commit is the bot**,
+not the human. The Anthropic session URL appended as a commit trailer is
+your per-human audit signal in the git history. [Phase 2](./plan.md#phase-2-user-identity-requires-middleware)
+restores per-user identity via middleware that claims prebuilds on behalf
+of the matching Coder user.
+
+See the [setup guide](./setup.md) for the copyable Terraform that builds
+this.
 
 ## How it relates to Coder Agents and AI Gateway
 
