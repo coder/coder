@@ -1443,3 +1443,205 @@ func runThinFanoutLeaf(b *testing.B, payloadBytes int) {
 			deliveryPct, gotTotal, expectedTotal, strings.Join(shortfalls, "; "))
 	}
 }
+
+// BenchmarkPubsubAllRemote places every subscriber on a replica other
+// than the publisher's. A single publisher is bound to replica 0 (which
+// has zero local subscribers); N subscribers are distributed round-robin
+// across replicas 1-9. This isolates pure route-only fan-out: replica 0
+// does no local delivery work and merely forwards each message to its 9
+// route peers, which then fan out to their local subscribers.
+//
+// Contrast with BenchmarkPubsubHotSubjectConcentrated, where every
+// subscriber lives on the publisher's replica and the publisher pays the
+// full local fan-out cost (suspected appendBufs/WriteBufferSize=32KiB
+// bottleneck). If AllRemote's pub_throughput is dramatically higher for
+// the same (subs, payload) pair, local fan-out dominates; if similar,
+// the cost is elsewhere (e.g., per-publisher-conn flush behavior).
+//
+// Matrix (4 leaves): cluster10 only x subs={100,1000} x
+// payload={8KiB,512KiB} x -bench.type={native,coder}.
+func BenchmarkPubsubAllRemote(b *testing.B) {
+	type arCfg struct {
+		name    string
+		numSubs int
+		payload int
+	}
+	leaves := []arCfg{}
+	for _, ns := range []int{100, 1000} {
+		for _, pl := range []int{8 * 1024, 512 * 1024} {
+			leaves = append(leaves, arCfg{
+				name:    fmt.Sprintf("%s/cluster10/subj1/subs%d/%s", *benchType, ns, iecBytes(pl)),
+				numSubs: ns,
+				payload: pl,
+			})
+		}
+	}
+	for _, cfg := range leaves {
+		cfg := cfg
+		b.Run(cfg.name, func(b *testing.B) {
+			runAllRemoteLeaf(b, cfg.numSubs, cfg.payload)
+		})
+	}
+}
+
+// runAllRemoteLeaf wires a 10-replica cluster with one publisher on
+// replica 0 and numSubs subscribers distributed round-robin across
+// replicas 1-9 (replica 0 has zero subscribers). Every subscriber should
+// receive every published message via route delivery only.
+func runAllRemoteLeaf(b *testing.B, numSubs, payloadBytes int) {
+	requireIterBenchtime(b)
+
+	const numReplicas = 10
+	const numPubs = 1
+	const subjIdx = 0
+	const pubReplica = 0
+
+	// The native harness allocates one *nats.Conn per subscriber slot
+	// with slot s pinned to replica s%numReplicas. To place numSubs
+	// subscribers on replicas 1-9 we need at least
+	// ceil(numSubs/9) conns mapped to each remote replica; allocate
+	// perRemote*numReplicas slots so each replica (including the
+	// unused replica 0) has perRemote conns available.
+	perRemote := (numSubs + 8) / 9
+	harnessSubs := perRemote * numReplicas
+
+	h := newHarness(b, "cluster10", numPubs, harnessSubs)
+	if h.numReplicas != numReplicas {
+		b.Fatalf("harness numReplicas = %d; want %d", h.numReplicas, numReplicas)
+	}
+
+	var probe runtimeProbe
+	probe.captureBaseline()
+
+	// Per-replica delivery counters so a one-sided shortfall is
+	// visible. Replica 0 has no subscribers; its counter stays at 0.
+	delivered := make([]atomic.Int64, numReplicas)
+	subsPerReplica := make([]int, numReplicas)
+	for i := 0; i < numSubs; i++ {
+		r := 1 + (i % 9)
+		subsPerReplica[r]++
+		rr := r
+		if err := h.subscribe(rr, subjIdx, func() {
+			delivered[rr].Add(1)
+		}); err != nil {
+			b.Fatalf("subscribe replica %d (sub %d): %v", rr, i, err)
+		}
+	}
+	if err := h.flushPubs(); err != nil {
+		b.Fatalf("flush before publish window: %v", err)
+	}
+	// Settle for route interest gossip across all replicas.
+	time.Sleep(500 * time.Millisecond)
+
+	payload := make([]byte, payloadBytes)
+	for i := range payload {
+		payload[i] = byte(i)
+	}
+
+	work := make(chan struct{}, 8)
+	latencies := make([]time.Duration, 0, 1024)
+	var published int64
+	startBarrier := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		<-startBarrier
+		for range work {
+			start := time.Now()
+			if err := h.publish(pubReplica, subjIdx, payload); err != nil {
+				h.errored.Add(1)
+				continue
+			}
+			latencies = append(latencies, time.Since(start))
+			published++
+		}
+	}()
+
+	probe.captureAfterSetup()
+
+	b.ResetTimer()
+	pubStart := time.Now()
+	close(startBarrier)
+
+	loops := int64(0)
+	for b.Loop() {
+		work <- struct{}{}
+		loops++
+	}
+	close(work)
+	wg.Wait()
+	if err := h.flushPubs(); err != nil {
+		b.Fatalf("pub flush: %v", err)
+	}
+	pubEnd := time.Now()
+	b.StopTimer()
+
+	if published != loops {
+		b.Fatalf("published count mismatch: got %d, expected %d", published, loops)
+	}
+
+	// Each subscriber sees every published message; total = pub*numSubs.
+	expectedTotal := published * int64(numSubs)
+
+	settle := 30 * time.Second
+	deadline := time.Now().Add(settle)
+	deliveryEnd := time.Now()
+	for time.Now().Before(deadline) {
+		var got int64
+		for r := 0; r < numReplicas; r++ {
+			got += delivered[r].Load()
+		}
+		if got >= expectedTotal {
+			deliveryEnd = time.Now()
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	var gotTotal int64
+	shortfalls := make([]string, 0)
+	for r := 0; r < numReplicas; r++ {
+		got := delivered[r].Load()
+		gotTotal += got
+		want := int64(subsPerReplica[r]) * published
+		if got < want {
+			shortfalls = append(shortfalls,
+				fmt.Sprintf("replica=%d subs=%d want=%d got=%d short=%d",
+					r, subsPerReplica[r], want, got, want-got))
+		}
+	}
+
+	deliveryPct := 0.0
+	if expectedTotal > 0 {
+		deliveryPct = 100.0 * float64(gotTotal) / float64(expectedTotal)
+	}
+
+	sort.Slice(latencies, func(i, j int) bool { return latencies[i] < latencies[j] })
+
+	pubWindow := pubEnd.Sub(pubStart).Seconds()
+	deliveryWindow := deliveryEnd.Sub(pubStart).Seconds()
+	pubThroughput := float64(published) / pubWindow
+	deliveryThroughput := float64(gotTotal) / deliveryWindow
+	deliveryDrain := deliveryEnd.Sub(pubEnd).Seconds()
+
+	b.ReportMetric(pubThroughput, "pub_throughput_per_sec")
+	b.ReportMetric(deliveryThroughput, "delivery_throughput_per_sec")
+	b.ReportMetric(deliveryDrain, "delivery_drain_sec")
+	b.ReportMetric(deliveryPct, "delivery_pct")
+	b.ReportMetric(percentileMicros(latencies, 0.50), "pub_p50_us")
+	b.ReportMetric(percentileMicros(latencies, 0.99), "pub_p99_us")
+	b.ReportMetric(percentileMicros(latencies, 0.999), "pub_p999_us")
+	probe.report(b)
+	b.ReportMetric(0, "ns/op")
+
+	if h.errored.Load() > 0 || h.disconnected.Load() > 0 {
+		b.Logf("nats client events: errored=%d disconnected=%d",
+			h.errored.Load(), h.disconnected.Load())
+	}
+
+	if deliveryPct < 100.0 {
+		b.Fatalf("delivery shortfall: %.4f%% (got %d / want %d); %s",
+			deliveryPct, gotTotal, expectedTotal, strings.Join(shortfalls, "; "))
+	}
+}
