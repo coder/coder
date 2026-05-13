@@ -1,11 +1,11 @@
 # System identity: a pool of bot runners
 
-Learn how to publish a Coder template that runs a pool of Claude Code
-self-hosted runners under a **system (bot) identity**. Coder maintains
-warm runner workspaces; Anthropic's pool scheduler picks one when a
-session arrives and locks it to the developer who started the session.
-The workspace, the git push credential, and the commit author are all
-the same bot identity, fleet-wide.
+Publish a Coder template that runs a pool of Claude Code self-hosted
+runners under a **system (bot) identity**. Coder maintains warm runner
+workspaces; Anthropic's pool scheduler picks one when a session arrives
+and locks it to the developer who started the session. The workspace,
+the git push credential, and the commit author are all the same bot
+identity, fleet-wide.
 
 <img src="../../images/guides/claude-code-self-hosted-runners/system-identity-flow.svg" alt="Coder maintains a pool of warm prebuilt workspaces. When an Anthropic session arrives, the pool scheduler picks one and locks it to the developer. When work drains, the workspace deletes itself and the prebuild reconciler queues a replacement." />
 
@@ -17,6 +17,33 @@ the same bot identity, fleet-wide.
 > System identity is the model documented on this page. For per-user
 > identity, see [User identity](./user-identity.md), which is on the
 > Coder + Anthropic roadmap.
+
+## Limitations
+
+Read these first; the rest of this page assumes they fit your team.
+
+- **Every commit author is the bot.** Per-human attribution lives in the
+  Anthropic session URL trailer, not the git `Author` field.
+- **Coder audit log attributes to the prebuilds service account**, not
+  to the human who started the session. The human signal lives in
+  Anthropic's session log.
+- **Coder external auth is not available inside prebuilt workspaces.**
+  Workspaces are owned by Coder's prebuilds service account, which
+  cannot complete the per-user OAuth flow. The bot git credential ships
+  as a sensitive Terraform variable instead.
+- **One runner serves one Anthropic user at a time.** If your pool size
+  is N and N+1 users arrive at once, the N+1th waits in Anthropic's
+  queue until a runner drains.
+- **Stalled sessions are dropped.** Once the runner's active session
+  count hits zero it drains; half-finished working trees are lost. Do
+  not park long interactive sessions in this mode; for that, open a
+  regular Coder workspace and run Claude Code interactively.
+- **`--capacity` is per-user parallelism, not pool concurrency.**
+  `instances = 5, capacity = 4` gives 5 concurrent users, each up to 4
+  parallel sessions. Not 20 concurrent users.
+
+If any of these are blockers, wait for
+[User identity](./user-identity.md), which addresses the first three.
 
 ## What you build in this guide
 
@@ -143,22 +170,38 @@ The workspace uses a Coder API token to delete itself when the runner
 drains. Create a dedicated service account so that token's scope is
 explicit and rotatable.
 
-1. In Coder's admin UI, create a user (for example `svc-claude-pool`)
-   with a strong, machine-generated password. The user does not need to
-   be active; you only need its API token.
-2. Sign in as that user once (or use the admin "create token on behalf of"
-   flow) and generate a long-lived API token. Record it as
-   `CODER_DELETE_TOKEN`.
-3. Assign the user a custom role with the minimum permissions:
-   - `read:workspace` (so it can find the workspace by ID),
-   - `delete:workspace` (so it can delete itself).
-4. Store `CODER_DELETE_TOKEN` in your secrets store alongside the pool
-   secret.
+1. As a Coder admin, create the service account user:
+
+   ```bash
+   coder users create \
+     --email svc-claude-delete@coder.local \
+     --username svc-claude-delete \
+     --password "$(openssl rand -base64 24)"
+   ```
+
+2. Grant the user the minimum role that includes `delete:workspace` on
+   workspaces it does not own. The built-in `owner` role works for the
+   pilot; you can scope further with a custom role once you are
+   comfortable with the recipe:
+
+   ```bash
+   coder users edit-roles svc-claude-delete --roles owner
+   ```
+
+3. Mint a long-lived token for that user and store it as
+   `CODER_DELETE_TOKEN` in your secrets store:
+
+   ```bash
+   coder tokens create \
+     --user svc-claude-delete \
+     --name claude-self-eviction \
+     --lifetime 720h
+   ```
 
 > [!TIP]
 > Treat the delete token like the pool secret: rotate it on a schedule
-> by generating a new one, re-pushing the template, and revoking the
-> old one.
+> by minting a new one, re-pushing the template with the new value,
+> and revoking the old one.
 
 ## Step 4: Mint the bot git credential
 
@@ -183,6 +226,8 @@ The template defines:
   itself when the runner exits.
 - Three sensitive variables: `pool_secret`, `git_bot_token`, and
   `coder_delete_token`.
+- A `coder_workspace_preset` with `prebuilds { instances = N }` so Coder
+  keeps N warm runners ready for the Anthropic pool to claim.
 - `coder_agent.metadata` blocks that scrape the runner's `/healthz` and
   `/metrics` and surface the runner state on the workspace page.
 
@@ -235,6 +280,24 @@ data "coder_parameter" "capacity" {
   validation { min = 1, max = 16 }
 }
 
+# === Prebuild pool ===
+# Coder keeps `instances` warm runners alive. When one drains and
+# self-evicts, the reconciler queues a replacement so the pool stays at
+# this count. Size to your expected peak concurrent Anthropic users.
+
+data "coder_workspace_preset" "warm_runner" {
+  name = "Warm runner"
+  parameters = {
+    capacity = "4"
+  }
+  prebuilds {
+    instances = 5
+    expiration_policy {
+      ttl = 28800 # 8h: recycle warm runners past this even if unused.
+    }
+  }
+}
+
 # === Agent and runner ===
 
 resource "coder_agent" "main" {
@@ -247,6 +310,7 @@ resource "coder_agent" "main" {
     CLAUDE_CAPACITY    = tostring(data.coder_parameter.capacity.value)
     GIT_BOT_TOKEN      = var.git_bot_token
     CODER_DELETE_TOKEN = var.coder_delete_token
+    CODER_WORKSPACE_ID = data.coder_workspace.me.id
   }
 
   startup_script = <<-EOT
@@ -255,14 +319,26 @@ resource "coder_agent" "main" {
 
     # Wire git push credentials for the bot identity. GIT_ASKPASS is a
     # one-line script that prints the token whenever git needs a password.
-    install -d -m 0700 "$HOME/.git-creds"
-    cat > "$HOME/.git-creds/askpass.sh" <<'ASK'
-#!/bin/sh
-printf '%s' "$GIT_BOT_TOKEN"
-ASK
-    chmod 0500 "$HOME/.git-creds/askpass.sh"
-    git config --global core.askPass "$HOME/.git-creds/askpass.sh"
-    git config --global credential.helper ''
+    if [ -n "$${GIT_BOT_TOKEN:-}" ]; then
+      install -d -m 0700 "$HOME/.git-creds"
+      cat > "$HOME/.git-creds/askpass.sh" <<'ASK'
+    #!/bin/sh
+    printf '%s' "$GIT_BOT_TOKEN"
+    ASK
+      chmod 0500 "$HOME/.git-creds/askpass.sh"
+      git config --global core.askPass "$HOME/.git-creds/askpass.sh"
+      git config --global credential.helper ''
+    fi
+
+    # Symlink the agent-installed Coder CLI onto a stable path so the
+    # coder_script can call it on self-eviction without hunting for it
+    # under /tmp/coder.*. The agent installs the CLI before run_on_start
+    # fires.
+    install -d "$HOME/.local/bin"
+    coder_bin=$(find /tmp -maxdepth 2 -type f -name coder -executable 2>/dev/null | head -n1 || true)
+    if [ -n "$coder_bin" ]; then
+      ln -sf "$coder_bin" "$HOME/.local/bin/coder"
+    fi
   EOT
 
   metadata {
@@ -352,12 +428,23 @@ resource "coder_script" "claude_runner" {
 
     # Self-eviction. Uses the service-account token; the agent token
     # cannot delete its own workspace.
-    if command -v coder >/dev/null 2>&1; then
-      CODER_SESSION_TOKEN="$CODER_DELETE_TOKEN" \
-        coder delete --yes "$CODER_WORKSPACE_ID" || true
-    else
-      echo "coder CLI not on PATH; install it in the image to self-evict."
+    coder_cmd="$HOME/.local/bin/coder"
+    if [ ! -x "$coder_cmd" ]; then
+      coder_cmd=$(find /tmp -maxdepth 2 -type f -name coder -executable 2>/dev/null | head -n1 || true)
     fi
+    if [ -z "$coder_cmd" ] || [ ! -x "$coder_cmd" ]; then
+      echo "coder CLI not found in workspace; skipping self-eviction."
+      exit 0
+    fi
+
+    # CODER_URL must be set so the CLI knows which server to talk to;
+    # a freshly spawned workspace has no global Coder CLI config, so the
+    # CLI prints 'You are not logged in' and self-eviction silently
+    # no-ops without this line.
+    CODER_URL="$CODER_AGENT_URL" \
+      CODER_SESSION_TOKEN="$CODER_DELETE_TOKEN" \
+      "$coder_cmd" delete --yes "$CODER_WORKSPACE_ID" \
+      || echo "Self-eviction failed (continuing)."
   EOT
 }
 
@@ -394,27 +481,11 @@ resource "docker_container" "workspace" {
 > [!NOTE]
 > The `coder` CLI must be on PATH inside the workspace for self-eviction
 > to work. Coder's `enterprise-base` images include it; if you build
-> from a stock distribution base, add it explicitly in the `Dockerfile`.
+> from a stock distribution base, the agent downloads it on first start
+> and the `startup_script` symlinks it onto `~/.local/bin/coder` so the
+> `coder_script` can find it.
 
-## Step 6: Add a preset with prebuilds
-
-Coder's prebuilds primitive maintains N warm workspaces from a
-**preset**. Add this block to the template:
-
-```hcl
-data "coder_workspace_preset" "warm_runner" {
-  name       = "Warm runner"
-  parameters = {
-    capacity = "4"
-  }
-  prebuilds {
-    instances = 5  # how many warm runners to keep ready
-    expiration_policy {
-      ttl = 28800  # 8 hours; warm runners get recycled past this
-    }
-  }
-}
-```
+## Step 6: Push the template
 
 Push the template with all three variables set:
 
@@ -426,20 +497,21 @@ coder templates push claude-self-hosted-runner \
   --yes
 ```
 
-Within a few seconds, Coder spawns 5 prebuilt workspaces. Each one runs
-the runner, registers with the Anthropic pool, and starts polling.
+Within a few seconds, Coder spawns `instances` prebuilt workspaces. Each
+one runs the runner, registers with the Anthropic pool, and starts
+polling.
 
 ## Step 7: Verify
 
-1. In Coder's admin UI, open **Workspaces** and filter by "owned by the
-   prebuilds service account." You should see 5 workspaces named
+1. In Coder's admin UI, open **Workspaces > All** and filter by the
+   prebuilds owner. You should see `instances` workspaces named
    `prebuild-...`, each one running, with metadata showing:
    - `Locked Anthropic user: (unlocked, waiting for first session)`
    - `Active sessions: 0 / 4`
    - `Runner ID: ccrunner_...`
    - `Last Anthropic poll: ok (...ms ago)`
 2. In `claude.ai > Settings > Claude Code > Self-hosted runner pools`,
-   confirm 5 runners appear under the pool.
+   confirm the same number of runners appear under the pool.
 3. Start a session at `claude.ai/code` and select the pool. Within
    seconds, **one** of the Coder prebuilds flips its `Locked Anthropic
    user` metadata to your Anthropic email and the `Active sessions`
@@ -468,11 +540,11 @@ backlog at Anthropic; trim if warm runners sit idle for hours.
 
 ### Rotation
 
-| Secret               | Rotate by                                                                                                                                                                                                                                                                                                                  |
-|----------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `pool_secret`        | Create a new pool secret in `claude.ai`, re-push the template with `--variable pool_secret=...`, revoke the old one. Active runners holding the old secret exit on next token refresh and the pool reconciler replaces them.                                                                                              |
-| `git_bot_token`      | Mint a new PAT, re-push the template, revoke the old PAT. Already-running runners use the old token until they drain.                                                                                                                                                                                                      |
-| `coder_delete_token` | Generate a new token for the service account, re-push the template, delete the old token.                                                                                                                                                                                                                                  |
+| Secret               | Rotate by                                                                                                                                                                                                                |
+|----------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `pool_secret`        | Create a new pool secret in `claude.ai`, re-push the template with `--variable pool_secret=...`, revoke the old one. Active runners holding the old secret exit on next token refresh and the reconciler replaces them. |
+| `git_bot_token`      | Mint a new PAT, re-push the template, revoke the old PAT. Already-running runners use the old token until they drain.                                                                                                    |
+| `coder_delete_token` | Generate a new token for the service account, re-push the template, delete the old token.                                                                                                                                |
 
 ### Upgrade the runner binary
 
@@ -493,76 +565,6 @@ curl -s http://127.0.0.1:8080/metrics | grep claude_code_self_hosted
 tail -f ~/.claude/runner.log
 ```
 
-## Known limitations and workarounds
-
-System identity is the right model for most teams, but it has trade-offs
-worth knowing before you ship.
-
-### Bot author on every commit
-
-Every commit's `Author` is the bot from `/etc/gitconfig`, regardless of
-which human asked Claude to do the work. Your audit signal for the
-human is the **session URL** that Claude Code appends to each commit as
-a trailer.
-
-If your team requires per-human commit authorship (for example, for
-codeowner attribution, signed commits, or push-time policy checks that
-inspect the author), wait for [User identity](./user-identity.md).
-
-### Coder audit log attributes to the service account
-
-The workspace owner is the prebuilds service account, so Coder's audit
-log entries (workspace create, start, stop, delete) attribute to that
-account, not to the human who triggered the Claude session. The richer
-"alice asked Claude to do X" audit trail lives in Anthropic's session
-log.
-
-If you need a single pane of glass that attributes runner activity to
-human users in Coder's audit log, wait for
-[User identity](./user-identity.md).
-
-### Coder external auth is not available inside prebuilt workspaces
-
-The prebuilds primitive creates workspaces under a synthetic service
-account, which cannot complete the OAuth flow Coder uses for
-[external auth](../../admin/external-auth/index.md). That is why this
-recipe ships the bot git credential as a `git_bot_token` Terraform
-variable instead of using `coder_external_auth`.
-
-The trade-off: you rotate `git_bot_token` by re-pushing the template
-rather than getting automatic refresh from Coder. For a fleet-wide bot
-identity that is the right shape; for per-user tokens it would be
-wrong, which is one of the reasons User identity exists as a separate
-mode.
-
-### Capacity is bounded by the prebuild pool size
-
-If you run `instances = 5` and 6 Anthropic users send sessions at the
-same time, the 6th waits in Anthropic's queue until a runner drains or
-the reconciler spawns a replacement. Bump `instances` to your expected
-peak concurrency. Each warm runner is a running container, so this is a
-real cost decision; treat it like sizing a CI runner pool.
-
-### Sessions that stall indefinitely will eventually be dropped
-
-A Claude Code session that hits an unanswered permission prompt or
-otherwise idles past `--release-idle-session-min` will be released by
-the runner. Once the runner's active-session count drops to zero it
-drains and exits. **The half-finished working tree is lost.** Anthropic's
-runner protocol does not retain per-session state across drains.
-
-Avoid relying on long-running interactive Claude sessions in this mode.
-For tasks that need to be paused and resumed, fall back to opening a
-regular Coder workspace and using Claude Code there interactively.
-
-### Pool concurrency model
-
-Anthropic's runner protocol locks one runner to one Anthropic user at a
-time. `--capacity` controls parallelism for that one user, not across
-users. So `instances = 5, capacity = 4` does not give you 20 concurrent
-users; it gives you up to 5 concurrent users, each able to run 4
-parallel sessions.
-
 ## Common pitfalls
 
 | Symptom                                                          | Cause and fix                                                                                                                                                                                                                                                                              |
@@ -570,6 +572,7 @@ parallel sessions.
 | `EACCES: permission denied, mkdir '/workspace'`                  | The image is missing the `install -d -o coder -g coder /workspace` step. Sessions fail on first checkout. Fix in the `Dockerfile`, re-push the template, and let prebuilds replace warm runners.                                                                                           |
 | Prebuilds never come up                                          | Confirm your deployment is on **Coder Premium** (prebuilds is an enterprise feature). Check `coder server` logs for `prebuilds` errors.                                                                                                                                                    |
 | Runner appears in pool but sessions stay queued                  | The runner is locked to an Anthropic account that does not match the user trying to send a session. Each runner serves one Anthropic user at a time. Either wait for it to drain, add more `instances`, or wait for [User identity](./user-identity.md) which pre-locks per Anthropic user. |
+| Self-eviction logs `You are not logged in`                       | The `coder_script` is missing `CODER_URL=$CODER_AGENT_URL` on the `coder delete` line. A freshly spawned workspace has no global Coder CLI config, so the CLI cannot guess the server URL. Add the line and re-push the template.                                                          |
 | Workspace does not self-evict on drain                           | `CODER_DELETE_TOKEN` is wrong or the service account lacks `delete:workspace`. The workspace will sit idle until Coder's TTL reaps it. Fix the token or grant the role and re-push the template. As a backstop, set a workspace TTL on the template.                                       |
 | `git push` fails with 403 / Permission denied                    | `git_bot_token` is missing required repo scope, or the bot identity does not have push access to the repo the session is working in. Confirm the bot's permissions on the git host.                                                                                                        |
 | Metadata shows `?` for active sessions                           | The runner has not started yet, the `/healthz` port is firewalled inside the container, or `jq` is missing from the image. Check `tail -f ~/.claude/runner.log` and `apt list --installed jq`.                                                                                              |
