@@ -71,7 +71,6 @@ func (r *RootCmd) scaletestCmd() *serpent.Command {
 			r.scaletestPrebuilds(),
 			r.scaletestBridge(),
 			r.scaletestLLMMock(),
-			r.scaletestAgentFake(),
 		},
 	}
 
@@ -471,6 +470,11 @@ func (f *workspaceTargetFlags) getTargetedWorkspaces(ctx context.Context, client
 
 	// Return the sliced workspaces
 	return workspaces[targetStart:targetEnd], nil
+}
+
+// RequireAdmin is the exported form of requireAdmin for use by the enterprise CLI.
+func RequireAdmin(ctx context.Context, client *codersdk.Client) (codersdk.User, error) {
+	return requireAdmin(ctx, client)
 }
 
 func requireAdmin(ctx context.Context, client *codersdk.Client) (codersdk.User, error) {
