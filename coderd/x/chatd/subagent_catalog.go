@@ -305,9 +305,10 @@ func buildSpawnAgentDescription(
 			"\" is for non-mutating substantial investigation and planning support, " +
 			"and type=\"" + subagentTypeExplore +
 			"\" is for narrow repository-local lookup or tracing. Both may use " +
-			"shell commands for exploration, such as cloning repositories, searching " +
-			"code, and running inspection commands, but they must not implement " +
-			"changes or intentionally modify workspace files."
+			"shell commands for exploration and inspection, but only type=\"" +
+			subagentTypeGeneral +
+			"\" should be used for cloning repositories or non-local investigation. " +
+			"They must not implement changes or intentionally modify workspace files."
 	}
 	return description
 }

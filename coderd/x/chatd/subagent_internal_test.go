@@ -1857,6 +1857,8 @@ func TestSpawnAgent_PlanModeDescriptionOmitsComputerUse(t *testing.T) {
 	require.NotContains(t, description, subagentTypeComputerUse)
 	require.Contains(t, description, `type="general" is for non-mutating substantial investigation and planning support`)
 	require.Contains(t, description, `type="explore" is for narrow repository-local lookup or tracing`)
+	require.Contains(t, description, `only type="general" should be used for cloning repositories or non-local investigation`)
+	require.NotContains(t, description, "Both may use shell commands for exploration, such as cloning repositories")
 	require.Contains(t, description, "must not implement changes or intentionally modify workspace files")
 }
 
