@@ -338,21 +338,21 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		return nil, xerrors.Errorf("marshal plan: %w", err)
 	}
 
-	if reps := findAllResourceReplacements(plan); len(reps) > 0 {
-		// Prebuild claims log the full Terraform output so template
-		// admins can diagnose why claiming an already-provisioned
-		// workspace would replace resources. Other builds use compact
-		// replacement-path logs to avoid overwhelming users with the
-		// full plan output.
-		isPrebuildClaimAttempt := !destroy &&
-			metadata.GetPrebuiltWorkspaceBuildStage().IsPrebuiltWorkspaceClaim()
-
-		if isPrebuildClaimAttempt {
+	isPrebuildClaimAttempt := !destroy &&
+		metadata.GetPrebuiltWorkspaceBuildStage().IsPrebuiltWorkspaceClaim()
+	if isPrebuildClaimAttempt {
+		// When a prebuild claim attempt is made, log a warning if a
+		// resource is due to be replaced. This would obviate the
+		// point of prebuilding if the expensive resource is replaced
+		// once claimed!
+		if hasResourceReplacement(plan) {
 			// Lock held before calling (see top of method).
 			e.logDrift(ctx, killCtx, planfilePath, logr)
-		} else {
-			logResourceReplacements(reps, logr)
 		}
+	} else if reps := findAllResourceReplacements(plan); len(reps) > 0 {
+		// Non-prebuild-claim builds use compact replacement warnings
+		// to avoid overwhelming users with the full plan output.
+		logResourceReplacements(reps, logr)
 	}
 
 	state, err := ConvertPlanState(plan)
