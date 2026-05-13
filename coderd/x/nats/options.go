@@ -70,6 +70,16 @@ type Options struct {
 	// MaxPayload is the NATS max payload. Zero means server default.
 	MaxPayload int32
 
+	// MaxPending is the per-client outbound pending byte budget enforced
+	// by the embedded server. When a client's outbound queue exceeds
+	// this, the server treats the client as a slow consumer and
+	// disconnects it. Because the wrapper multiplexes all subscriptions
+	// on a single subConn, this budget bounds the burst headroom for
+	// wide local fan-out. Zero means DefaultMaxPending (1 GiB), well
+	// above the nats-server default of 64 MiB. Negative means use the
+	// server default.
+	MaxPending int64
+
 	// DrainTimeout bounds subscription and connection drains in Close.
 	// Zero means 30 seconds, matching the NATS Go client default.
 	DrainTimeout time.Duration
@@ -107,4 +117,10 @@ const (
 	DefaultSubjectPrefix = "coder.v1"
 	DefaultRoutePoolSize = 3
 	DefaultReadyTimeout  = 10 * time.Second
+	// DefaultMaxPending is the per-client outbound pending byte budget
+	// applied to the embedded server. Raised from the nats-server
+	// default of 64 MiB to 1 GiB so wide local fan-out on the shared
+	// subConn does not trip the server slow-consumer threshold on
+	// realistic bursts.
+	DefaultMaxPending int64 = 1 << 30
 )
