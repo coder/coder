@@ -136,6 +136,17 @@ RUN DOCKER_BUILDX_VERSION=$(curl -s "https://api.github.com/repos/docker/buildx/
 	curl -Lo /usr/local/lib/docker/cli-plugins/docker-buildx "https://github.com/docker/buildx/releases/download/${DOCKER_BUILDX_VERSION}/buildx-${DOCKER_BUILDX_VERSION}.linux-amd64" && \
 	chmod a+x /usr/local/lib/docker/cli-plugins/docker-buildx
 
+# Install the GitHub CLI from the upstream .deb. The image ships a
+# wrapper at /usr/local/bin/gh (see files/usr/local/bin/gh) that adds
+# `coder external-auth` fallback authentication; the wrapper assumes
+# the real binary is at /usr/bin/gh, which the deb provides.
+# See https://github.com/cli/cli/issues/6175#issuecomment-1235984381
+# for why we avoid the apt repository.
+RUN GH_CLI_VERSION=$(curl -s "https://api.github.com/repos/cli/cli/releases/latest" | grep '"tag_name":' |  sed -E 's/.*"v([^"]+)".*/\1/') && \
+	curl -L https://github.com/cli/cli/releases/download/v${GH_CLI_VERSION}/gh_${GH_CLI_VERSION}_linux_amd64.deb -o gh.deb && \
+	dpkg -i gh.deb && \
+	rm gh.deb
+
 # Ensure PostgreSQL binaries are in the users $PATH.
 RUN update-alternatives --install /usr/local/bin/initdb initdb /usr/lib/postgresql/18/bin/initdb 100 && \
 	update-alternatives --install /usr/local/bin/postgres postgres /usr/lib/postgresql/18/bin/postgres 100
@@ -221,14 +232,11 @@ COPY mise.toml /etc/mise/config.toml
 RUN --mount=type=secret,id=github_token,required=false \
 	gh_token="$(cat /run/secrets/github_token 2>/dev/null || true)" && \
 	sudo --user=coder env \
-		MISE_DATA_DIR=/opt/mise/data \
-		MISE_TRUSTED_CONFIG_PATHS=/home/coder:/etc/mise \
-		GITHUB_TOKEN="$gh_token" \
-		bash -c '\
-			set -euo pipefail; \
-			/usr/local/bin/mise install --yes \
-		' && \
-	PATH=/opt/mise/data/shims:$PATH pnpm dlx playwright@1.47.0 install --with-deps chromium && \
+		"MISE_DATA_DIR=$MISE_DATA_DIR" \
+		"MISE_TRUSTED_CONFIG_PATHS=$MISE_TRUSTED_CONFIG_PATHS" \
+		"GITHUB_TOKEN=$gh_token" \
+		/usr/local/bin/mise install --yes && \
+	PATH="$MISE_DATA_DIR/shims:$PATH" pnpm dlx playwright@1.47.0 install --with-deps chromium && \
 	apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install Homebrew as the coder user so the supported Linux prefix remains
