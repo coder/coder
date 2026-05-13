@@ -1,10 +1,10 @@
 # Claude Code Self-Hosted Runners on Coder
 
 > [!NOTE]
-> Claude Code self-hosted runners are in early access (EAP) from
-> Anthropic. Contact your Anthropic account team to request access and
-> obtain the runner build. This guide describes how to run those runners
-> on Coder workspaces.
+> Claude Code self-hosted runners are in early access from Anthropic.
+> Contact your Anthropic account team to request access and obtain the
+> runner build. This guide describes how to run those runners on Coder
+> workspaces.
 
 By default, Claude Code's remote sessions (web, mobile, scheduled
 routines, agents) run on Anthropic-managed compute. Self-hosted runners
@@ -12,22 +12,6 @@ let you replace that compute with your own. The runner is a long-lived
 process that registers with a pool in your Anthropic organization,
 polls for assigned sessions, and spawns a Claude Code child process per
 session. All inbound is outbound HTTPS to `api.anthropic.com`.
-
-## Why run them on Coder
-
-The four reasons Anthropic ships this for, plus what Coder adds to each:
-
-| Anthropic capability                                                                  | What Coder adds                                                                                                                                  |
-|---------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Network access.** Sessions reach internal services, DBs, and registries privately.  | Workspaces run on your VPC, K8s cluster, or VM fleet. Your existing egress and DLP policy applies. No new network seam.                          |
-| **Custom tooling.** Pre-install compilers, SDKs, and internal CLIs in the image.      | Coder templates are first-class infrastructure as code. Image, language toolchains, attached S3 buckets, and per-team variants ship as one push. |
-| **Compliance.** Source code and build artifacts stay on infrastructure you control.   | Linux or macOS, Docker or VM or bare metal. Workspaces, agent logs, and Coder audit trails live in your tenancy with the rest of your SDLC.      |
-| **Scale and cost.** Bring your own compute, apply your autoscaling and cost controls. | Coder prebuilds keep a warm pool of runners ready, autoscales on the same infrastructure you already capacity-plan, and recycles on a TTL.       |
-
-Anthropic's managed runners give you a generic Linux image, Anthropic's
-network, and Anthropic's lifecycle. Self-hosted on Coder gives you your
-image, your network, and your lifecycle, with the rest of Coder
-(templates, prebuilds, observability, IDE access) along for the ride.
 
 ## Architecture
 
@@ -92,6 +76,22 @@ draining and exiting is the workspace deleting itself.
 | Internal Git, registries, services  | Whatever the workspace can already reach                                       |
 | Wrapper scripts and lifecycle hooks | Files in the workspace image; pointed at via `--exec-path` or `--hooks-dir`    |
 
+## Why run them on Coder
+
+The four reasons Anthropic ships this for, plus what Coder adds to each:
+
+| Anthropic capability                                                                  | What Coder adds                                                                                                                                  |
+|---------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Network access.** Sessions reach internal services, DBs, and registries privately.  | Workspaces run on your VPC, K8s cluster, or VM fleet. Your existing egress and DLP policy applies. No new network seam.                          |
+| **Custom tooling.** Pre-install compilers, SDKs, and internal CLIs in the image.      | Coder templates are first-class infrastructure as code. Image, language toolchains, attached S3 buckets, and per-team variants ship as one push. |
+| **Compliance.** Source code and build artifacts stay on infrastructure you control.   | Linux or macOS, Docker or VM or bare metal. Workspaces, agent logs, and Coder audit trails live in your tenancy with the rest of your SDLC.      |
+| **Scale and cost.** Bring your own compute, apply your autoscaling and cost controls. | Coder prebuilds keep a warm pool of runners ready, autoscales on the same infrastructure you already capacity-plan, and recycles on a TTL.       |
+
+Anthropic's managed runners give you a generic Linux image, Anthropic's
+network, and Anthropic's lifecycle. Self-hosted on Coder gives you your
+image, your network, and your lifecycle, with the rest of Coder
+(templates, prebuilds, observability, IDE access) along for the ride.
+
 ## What this is and is not
 
 - This is **not a managed Anthropic integration**. Coder does not
@@ -102,9 +102,10 @@ draining and exiting is the workspace deleting itself.
   control-plane agent. AI Gateway is Coder's egress proxy for LLM
   traffic. Self-hosted runners are Anthropic's product running on your
   compute. The three are complementary and can be used together.
-- This is **EAP, not GA**. The runner binary version, the JWT claim
-  shape, and the scaling signal interfaces are all marked as subject to
-  change during the EAP. Pin your `BYOC_VERSION` and re-test on bumps.
+- This is **early access, not GA**. The runner binary version, the JWT
+  claim shape, and the scaling signal interfaces are all marked as
+  subject to change during early access. Pin your `BYOC_VERSION` and
+  re-test on bumps.
 
 ## How it relates to Coder Agents and AI Gateway
 
@@ -154,7 +155,8 @@ the same.
 ## Where to next
 
 - [System identity](./system-identity.md): the recipe for a self-healing
-  pool of bot runners that runs on Coder Premium and the Anthropic EAP.
+  pool of bot runners that runs on Coder Premium and the Anthropic
+  early-access runner.
 - [User identity](./user-identity.md): per-developer attribution. On
   the Coder + Anthropic roadmap; not yet available.
 - [Implementation notes](./plan.md): the staged plan, the sub-stages
