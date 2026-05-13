@@ -78,7 +78,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query",
+                        "description": "Search query. Supports archived:bool and diff_url:\u003curl\u003e terms (quote URLs).",
                         "name": "q",
                         "in": "query"
                     },
