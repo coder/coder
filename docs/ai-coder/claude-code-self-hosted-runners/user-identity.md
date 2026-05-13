@@ -36,6 +36,7 @@ restores the per-developer audit trail across the whole stack:
 | Git author on commits    | The bot                                                  | The bot in `Author` plus the human's session URL trailer (or per-user, depending on your image) |
 | Coder audit log          | Attributes to the bot service account                    | Attributes to the user, with the routing service account shown as on-behalf-of creator |
 | Routing                  | Anthropic picks any free runner; the runner locks on first session | The runner is pre-bound to the matching user before sessions arrive        |
+| Pool size / concurrency  | Fixed: at most `instances` concurrent Anthropic users, because every workspace is the same service account | Dynamic: one workspace per Anthropic user, spawned on demand; prebuilds are just a warm cache that hides cold-start time |
 | Failure if the user is missing in Coder | Not possible to detect: the workspace runs as the bot regardless | Pre-flight rejects with a friendly error so onboarding can complete first   |
 
 The single biggest practical win is that **per-developer git push,
