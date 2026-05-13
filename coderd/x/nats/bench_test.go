@@ -34,6 +34,7 @@ import (
 	"io"
 	"net"
 	"net/url"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -103,6 +104,49 @@ func requireIterBenchtime(b *testing.B) {
 // to pollute the benchmark output.
 func benchDiscardLogger() slog.Logger {
 	return slog.Make(sloghuman.Sink(io.Discard))
+}
+
+// ---------- runtime overhead instrumentation ----------
+
+// runtimeProbe captures process-wide goroutine count and HeapAlloc so a
+// benchmark leaf can report deltas attributable to "cost of N
+// subscriptions setup". Use captureBaseline before any subscriptions
+// are created and reportSubsCost just before the publisher window
+// starts. Calls runtime.GC to make HeapAlloc meaningful.
+type runtimeProbe struct {
+	baseGoroutines int
+	baseHeapAlloc  uint64
+	deltaGor       int
+	deltaHeapMB    float64
+}
+
+func (p *runtimeProbe) captureBaseline() {
+	runtime.GC() //nolint:revive // benchmark instrumentation needs deterministic heap snapshots
+	var ms runtime.MemStats
+	runtime.ReadMemStats(&ms)
+	p.baseGoroutines = runtime.NumGoroutine()
+	p.baseHeapAlloc = ms.HeapAlloc
+}
+
+// captureAfterSetup records the goroutine and heap delta attributable
+// to the subscription setup phase. Call after all Subscribe calls and
+// any flush/settle delay, just before the publisher window starts.
+func (p *runtimeProbe) captureAfterSetup() {
+	runtime.GC() //nolint:revive // benchmark instrumentation needs deterministic heap snapshots
+	var ms runtime.MemStats
+	runtime.ReadMemStats(&ms)
+	p.deltaGor = runtime.NumGoroutine() - p.baseGoroutines
+	// HeapAlloc is uint64 but in benchmarks always fits in int64; the
+	// subtraction may be negative if GC reclaimed more than we
+	// allocated (rare; e.g., NewFromConn child paths).
+	delta := int64(ms.HeapAlloc) - int64(p.baseHeapAlloc) //nolint:gosec // bounded by process heap
+	p.deltaHeapMB = float64(delta) / (1024 * 1024)
+}
+
+func (p *runtimeProbe) report(b *testing.B) {
+	b.Helper()
+	b.ReportMetric(float64(p.deltaGor), "goroutines_delta")
+	b.ReportMetric(p.deltaHeapMB, "heap_alloc_delta_mb")
 }
 
 // ---------- backend abstraction ----------
@@ -637,6 +681,12 @@ func runLeaf(b *testing.B, cfg leafCfg) {
 
 	h := newHarness(b, cfg.topology, cfg.pubs, cfg.subsTotal)
 
+	// Capture runtime baseline before any subscriptions are created.
+	// The delta reported below isolates "cost of N subscriptions" from
+	// "cost of publishing".
+	var probe runtimeProbe
+	probe.captureBaseline()
+
 	// --- subscriber wiring via the harness ---
 	// Distribute subscribers across replicas (round-robin), and across
 	// subjects (each subscriber listens on exactly one subject).
@@ -713,6 +763,10 @@ func runLeaf(b *testing.B, cfg leafCfg) {
 			}
 		}()
 	}
+
+	// All wiring done. Snapshot per-subscription runtime cost just
+	// before the publisher window opens.
+	probe.captureAfterSetup()
 
 	// All wiring done. Reset timer and start the publisher window.
 	b.ResetTimer()
@@ -805,6 +859,7 @@ func runLeaf(b *testing.B, cfg leafCfg) {
 	b.ReportMetric(percentileMicros(allLats, 0.50), "pub_p50_us")
 	b.ReportMetric(percentileMicros(allLats, 0.99), "pub_p99_us")
 	b.ReportMetric(percentileMicros(allLats, 0.999), "pub_p999_us")
+	probe.report(b)
 	// Suppress default ns/op which is misleading for this multi-worker design.
 	b.ReportMetric(0, "ns/op")
 
@@ -872,6 +927,9 @@ func runHighCardinalityLeaf(b *testing.B, topology string, numSubjects, payloadB
 	// One subscriber per subject => numSubs == numSubjects.
 	h := newHarness(b, topology, numPubs, numSubjects)
 
+	var probe runtimeProbe
+	probe.captureBaseline()
+
 	// One subscriber per subject, on its own subscription, round-robin
 	// across replicas. Each subject thus has exactly one subscriber and
 	// per-publish fan-out is 1.
@@ -936,6 +994,8 @@ func runHighCardinalityLeaf(b *testing.B, topology string, numSubjects, payloadB
 			publishedPerSubjectMu.Unlock()
 		}()
 	}
+
+	probe.captureAfterSetup()
 
 	b.ResetTimer()
 	windowStart := time.Now()
@@ -1017,6 +1077,7 @@ func runHighCardinalityLeaf(b *testing.B, topology string, numSubjects, payloadB
 	b.ReportMetric(percentileMicros(allLats, 0.50), "pub_p50_us")
 	b.ReportMetric(percentileMicros(allLats, 0.99), "pub_p99_us")
 	b.ReportMetric(percentileMicros(allLats, 0.999), "pub_p999_us")
+	probe.report(b)
 	b.ReportMetric(0, "ns/op")
 
 	if h.errored.Load() > 0 || h.disconnected.Load() > 0 {
@@ -1075,6 +1136,9 @@ func runHotSubjectLeaf(b *testing.B, numSubs, payloadBytes int) {
 
 	h := newHarness(b, "standalone", 1, numSubs)
 
+	var probe runtimeProbe
+	probe.captureBaseline()
+
 	var delivered atomic.Int64
 	for i := 0; i < numSubs; i++ {
 		if err := h.subscribe(0, 0, func() { delivered.Add(1) }); err != nil {
@@ -1091,6 +1155,8 @@ func runHotSubjectLeaf(b *testing.B, numSubs, payloadBytes int) {
 	}
 
 	latencies := make([]time.Duration, 0, 1024)
+
+	probe.captureAfterSetup()
 
 	b.ResetTimer()
 	windowStart := time.Now()
@@ -1141,6 +1207,7 @@ func runHotSubjectLeaf(b *testing.B, numSubs, payloadBytes int) {
 	b.ReportMetric(percentileMicros(latencies, 0.50), "pub_p50_us")
 	b.ReportMetric(percentileMicros(latencies, 0.99), "pub_p99_us")
 	b.ReportMetric(percentileMicros(latencies, 0.999), "pub_p999_us")
+	probe.report(b)
 	b.ReportMetric(0, "ns/op")
 
 	if h.errored.Load() > 0 || h.disconnected.Load() > 0 {
@@ -1207,6 +1274,9 @@ func runThinFanoutLeaf(b *testing.B, payloadBytes int) {
 		b.Fatalf("harness numReplicas = %d; want %d", h.numReplicas, numReplicas)
 	}
 
+	var probe runtimeProbe
+	probe.captureBaseline()
+
 	// Per-subscriber delivery counters so we can spot one-sided
 	// shortfalls.
 	delivered := make([]atomic.Int64, numReplicas)
@@ -1252,6 +1322,8 @@ func runThinFanoutLeaf(b *testing.B, payloadBytes int) {
 			}
 		}()
 	}
+
+	probe.captureAfterSetup()
 
 	b.ResetTimer()
 	windowStart := time.Now()
@@ -1326,6 +1398,7 @@ func runThinFanoutLeaf(b *testing.B, payloadBytes int) {
 	b.ReportMetric(percentileMicros(allLats, 0.50), "pub_p50_us")
 	b.ReportMetric(percentileMicros(allLats, 0.99), "pub_p99_us")
 	b.ReportMetric(percentileMicros(allLats, 0.999), "pub_p999_us")
+	probe.report(b)
 	b.ReportMetric(0, "ns/op")
 
 	if h.errored.Load() > 0 || h.disconnected.Load() > 0 {
