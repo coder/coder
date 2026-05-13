@@ -1,17 +1,20 @@
 package chattool
 
 import (
+	"context"
 	"encoding/json"
 	"unicode/utf8"
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
+
+	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/codersdk"
 )
 
-// toolResponse builds a fantasy.ToolResponse from a JSON-serializable
-// result map. The map constraint ensures all tool results serialize
-// to JSON objects so the frontend can safely parse them.
-func toolResponse(result map[string]any) fantasy.ToolResponse {
+func marshalToolResponse(result any) fantasy.ToolResponse {
 	data, err := json.Marshal(result)
 	if err != nil {
 		return fantasy.NewTextResponse("{}")
@@ -19,15 +22,99 @@ func toolResponse(result map[string]any) fantasy.ToolResponse {
 	return fantasy.NewTextResponse(string(data))
 }
 
+// toolResponse builds a fantasy.ToolResponse from a JSON-serializable
+// result map. The map constraint ensures all tool results serialize
+// to JSON objects so the frontend can safely parse them.
+func toolResponse(result map[string]any) fantasy.ToolResponse {
+	return marshalToolResponse(result)
+}
+
 // buildToolResponse marshals a buildErrorResult into a tool response.
 // Separate from toolResponse to keep the map[string]any constraint
 // on the general helper while allowing typed error structs.
 func buildToolResponse(r buildErrorResult) fantasy.ToolResponse {
-	data, err := json.Marshal(r)
-	if err != nil {
-		return fantasy.NewTextResponse("{}")
+	return marshalToolResponse(r)
+}
+
+// responseErrorResult converts a codersdk.Response into a structured
+// tool result. We return these via toolResponse rather than
+// NewTextErrorResponse because the fantasy/chatprompt pipeline flattens
+// IsError content into a single string and drops validation details.
+func responseErrorResult(resp codersdk.Response) map[string]any {
+	message := resp.Message
+	if message == "" {
+		message = "request failed"
 	}
-	return fantasy.NewTextResponse(string(data))
+
+	result := map[string]any{
+		"error": message,
+	}
+	if resp.Detail != "" {
+		result["detail"] = resp.Detail
+	}
+	if len(resp.Validations) > 0 {
+		result["validations"] = resp.Validations
+	}
+	return result
+}
+
+func latestWorkspaceBuildAndJob(
+	ctx context.Context,
+	db database.Store,
+	workspaceID uuid.UUID,
+) (database.WorkspaceBuild, database.ProvisionerJob, error) {
+	build, err := db.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspaceID)
+	if err != nil {
+		return database.WorkspaceBuild{}, database.ProvisionerJob{}, xerrors.Errorf("get latest build: %w", err)
+	}
+
+	job, err := db.GetProvisionerJobByID(ctx, build.JobID)
+	if err != nil {
+		return database.WorkspaceBuild{}, database.ProvisionerJob{}, xerrors.Errorf("get provisioner job: %w", err)
+	}
+	return build, job, nil
+}
+
+func publishBuildBinding(
+	ctx context.Context,
+	db database.Store,
+	logger slog.Logger,
+	chatID uuid.UUID,
+	workspaceID uuid.UUID,
+	buildID uuid.UUID,
+	onChatUpdated func(database.Chat),
+) {
+	updatedChat, bindErr := db.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
+		ID:          chatID,
+		WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
+		BuildID: uuid.NullUUID{
+			UUID:  buildID,
+			Valid: buildID != uuid.Nil,
+		},
+		AgentID: uuid.NullUUID{},
+	})
+	if bindErr != nil {
+		logger.Error(ctx, "failed to persist build ID on chat binding",
+			slog.F("chat_id", chatID),
+			slog.F("build_id", buildID),
+			slog.Error(bindErr),
+		)
+		return
+	}
+	if onChatUpdated != nil {
+		onChatUpdated(updatedChat)
+	}
+}
+
+func provisionerJobTerminal(status database.ProvisionerJobStatus) bool {
+	switch status {
+	case database.ProvisionerJobStatusSucceeded,
+		database.ProvisionerJobStatusFailed,
+		database.ProvisionerJobStatusCanceled:
+		return true
+	default:
+		return false
+	}
 }
 
 func truncateRunes(value string, maxLen int) string {

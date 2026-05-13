@@ -294,6 +294,13 @@ export const createTemplate = async (
 			mimeType: "application/x-tar",
 			name: "template.tar",
 		});
+		// setInputFiles triggers the upload API call through React's
+		// onChange handler, but the call is fire-and-forget (not awaited
+		// in the component chain). Wait for the upload to finish so
+		// uploadedFile.hash is available when the form submits.
+		await expect(
+			page.getByRole("button", { name: "Remove file" }),
+		).toBeVisible();
 	}
 
 	// If the organization picker is present on the page, select the default
@@ -1258,6 +1265,10 @@ export async function openTerminalWindow(
 		`/@${user.username}/${workspaceName}.${agentName}/terminal${commandQuery}`,
 	);
 
+	// The terminal command confirmation dialog requires explicit user
+	// approval before the command executes.
+	await terminal.getByRole("button", { name: "Run command" }).click();
+
 	return terminal;
 }
 
@@ -1321,11 +1332,12 @@ export async function createUser(
 	await expect(addedRow).toBeVisible();
 
 	// Give them a role
-	await addedRow.getByLabel("Edit user roles").click();
+	await addedRow.getByLabel("Open menu").click();
+	await page.getByText("Edit roles").click();
 	for (const role of roles) {
-		await page.getByRole("group").getByText(role, { exact: true }).click();
+		await page.getByRole("dialog").getByText(role, { exact: true }).click();
 	}
-	await page.mouse.click(10, 10); // close the popover by clicking outside of it
+	await page.getByText("Confirm").click();
 
 	await page.goto(returnTo, { waitUntil: "domcontentloaded" });
 	return { name, username, email, password, roles };

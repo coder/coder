@@ -8,12 +8,14 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/aibridge"
-	"github.com/coder/aibridge/config"
+	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/aibridged"
 	"github.com/coder/coder/v2/enterprise/coderd"
+	"github.com/coder/quartz"
 )
 
 func newAIBridgeDaemon(coderAPI *coderd.API, providers []aibridge.Provider) (*aibridged.Server, error) {
@@ -88,16 +90,24 @@ func buildProviders(cfg codersdk.AIBridgeConfig) ([]aibridge.Provider, error) {
 	}
 
 	// Add legacy Anthropic provider if configured. Bedrock credentials
-	// alone are sufficient — an Anthropic API key is not required when
+	// alone are sufficient, an Anthropic API key is not required when
 	// using AWS Bedrock.
 	if cfg.LegacyAnthropic.Key.String() != "" || getBedrockConfig(cfg.LegacyBedrock) != nil {
 		if _, conflict := usedNames[aibridge.ProviderAnthropic]; conflict {
 			return nil, xerrors.Errorf("legacy CODER_AIBRIDGE_ANTHROPIC_KEY conflicts with indexed provider named %q; remove one or the other", aibridge.ProviderAnthropic)
 		}
+		var pool *keypool.Pool
+		if key := cfg.LegacyAnthropic.Key.String(); key != "" {
+			var err error
+			pool, err = keypool.New([]string{key}, quartz.NewReal())
+			if err != nil {
+				return nil, xerrors.Errorf("create legacy anthropic key pool: %w", err)
+			}
+		}
 		providers = append(providers, aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{
 			Name:             aibridge.ProviderAnthropic,
 			BaseURL:          cfg.LegacyAnthropic.BaseURL.String(),
-			Key:              cfg.LegacyAnthropic.Key.String(),
+			KeyPool:          pool,
 			CircuitBreaker:   cbConfig,
 			SendActorHeaders: cfg.SendActorHeaders.Value(),
 		}, getBedrockConfig(cfg.LegacyBedrock)))
@@ -112,18 +122,36 @@ func buildProviders(cfg codersdk.AIBridgeConfig) ([]aibridge.Provider, error) {
 		}
 		switch p.Type {
 		case aibridge.ProviderOpenAI:
+			var pool *keypool.Pool
+			if len(p.Keys) > 0 {
+				var err error
+				pool, err = keypool.New(p.Keys, quartz.NewReal())
+				if err != nil {
+					return nil, xerrors.Errorf("create openai key pool for provider %q: %w", name, err)
+				}
+			}
 			providers = append(providers, aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{
 				Name:             name,
 				BaseURL:          p.BaseURL,
-				Key:              p.Key,
+				KeyPool:          pool,
+				APIDumpDir:       p.DumpDir,
 				CircuitBreaker:   cbConfig,
 				SendActorHeaders: cfg.SendActorHeaders.Value(),
 			}))
 		case aibridge.ProviderAnthropic:
+			var pool *keypool.Pool
+			if len(p.Keys) > 0 {
+				var err error
+				pool, err = keypool.New(p.Keys, quartz.NewReal())
+				if err != nil {
+					return nil, xerrors.Errorf("create anthropic key pool for provider %q: %w", name, err)
+				}
+			}
 			providers = append(providers, aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{
 				Name:             name,
 				BaseURL:          p.BaseURL,
-				Key:              p.Key,
+				KeyPool:          pool,
+				APIDumpDir:       p.DumpDir,
 				CircuitBreaker:   cbConfig,
 				SendActorHeaders: cfg.SendActorHeaders.Value(),
 			}, bedrockConfigFromProvider(p)))
@@ -131,6 +159,7 @@ func buildProviders(cfg codersdk.AIBridgeConfig) ([]aibridge.Provider, error) {
 			providers = append(providers, aibridge.NewCopilotProvider(aibridge.CopilotConfig{
 				Name:           name,
 				BaseURL:        p.BaseURL,
+				APIDumpDir:     p.DumpDir,
 				CircuitBreaker: cbConfig,
 			}))
 		default:
@@ -145,21 +174,34 @@ func buildProviders(cfg codersdk.AIBridgeConfig) ([]aibridge.Provider, error) {
 // AIBridgeProviderConfig into an aibridge AWSBedrockConfig.
 // Returns nil if no Bedrock fields are set.
 func bedrockConfigFromProvider(p codersdk.AIBridgeProviderConfig) *aibridge.AWSBedrockConfig {
-	if p.BedrockRegion == "" && p.BedrockBaseURL == "" && p.BedrockAccessKey == "" && p.BedrockAccessKeySecret == "" {
+	if p.BedrockRegion == "" && p.BedrockBaseURL == "" && len(p.BedrockAccessKeys) == 0 && len(p.BedrockAccessKeySecrets) == 0 {
 		return nil
+	}
+	// Currently, only the first key pair is used, if any.
+	// TODO(ssncferreira): pass a keypool.Pool instead.
+	var accessKey, accessKeySecret string
+	if len(p.BedrockAccessKeys) > 0 {
+		accessKey = p.BedrockAccessKeys[0]
+	}
+	if len(p.BedrockAccessKeySecrets) > 0 {
+		accessKeySecret = p.BedrockAccessKeySecrets[0]
 	}
 	return &aibridge.AWSBedrockConfig{
 		BaseURL:         p.BedrockBaseURL,
 		Region:          p.BedrockRegion,
-		AccessKey:       p.BedrockAccessKey,
-		AccessKeySecret: p.BedrockAccessKeySecret,
+		AccessKey:       accessKey,
+		AccessKeySecret: accessKeySecret,
 		Model:           p.BedrockModel,
 		SmallFastModel:  p.BedrockSmallFastModel,
 	}
 }
 
 func getBedrockConfig(cfg codersdk.AIBridgeBedrockConfig) *aibridge.AWSBedrockConfig {
-	if cfg.Region.String() == "" && cfg.BaseURL.String() == "" && cfg.AccessKey.String() == "" && cfg.AccessKeySecret.String() == "" {
+	// Bedrock is considered disabled when no region or base URL is configured.
+	// Static credentials are optional. When not provided, the AWS SDK default
+	// credential chain resolves credentials (environment variables, shared config,
+	// IAM roles, etc.).
+	if cfg.Region.String() == "" && cfg.BaseURL.String() == "" {
 		return nil
 	}
 

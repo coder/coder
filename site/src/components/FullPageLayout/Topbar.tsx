@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import {
 	cloneElement,
 	type FC,
@@ -51,10 +50,9 @@ export const TopbarData: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
 
 export const TopbarDivider: FC<
 	Omit<HTMLAttributes<HTMLSpanElement>, "children">
-> = (props) => {
-	const theme = useTheme();
+> = ({ className, ...props }) => {
 	return (
-		<span {...props} css={{ color: theme.palette.divider }}>
+		<span {...props} className={cn("text-border", className)}>
 			/
 		</span>
 	);

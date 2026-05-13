@@ -1,10 +1,10 @@
-import type { FC } from "react";
+import type { FC, ReactNode } from "react";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 
 interface AgentAlertProps {
 	title: string;
-	detail: string;
+	detail: ReactNode;
 	severity: "info" | "warning";
 	prominent: boolean;
 	troubleshootingURL?: string;

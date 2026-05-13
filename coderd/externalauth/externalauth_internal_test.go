@@ -1,9 +1,13 @@
 package externalauth
 
 import (
+	"net/http"
 	"testing"
+	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/oauth2"
 
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/codersdk"
@@ -120,6 +124,87 @@ func TestGitlabDefaults(t *testing.T) {
 				c.mutateExpected(&c.expected)
 			}
 			require.Equal(t, c.input, c.expected)
+		})
+	}
+}
+
+func TestIsFailedRefresh(t *testing.T) {
+	t.Parallel()
+
+	expiredToken := &oauth2.Token{
+		RefreshToken: "refresh-token",
+		// isFailedRefresh returns early at the existingToken.Valid()
+		// guard if the token is valid. Valid() requires
+		// AccessToken != "" AND not expired. This fixture has no
+		// AccessToken so Valid() is always false, but we set an
+		// expired time as a safety net in case someone later adds
+		// an AccessToken field.
+		Expiry: time.Now().Add(-time.Hour),
+	}
+
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{
+			name: "IncorrectClientCredentials_StatusOK",
+			err: &oauth2.RetrieveError{
+				Response:  &http.Response{StatusCode: http.StatusOK},
+				ErrorCode: "incorrect_client_credentials",
+			},
+			// StatusOK fallthrough also returns true, so this test
+			// documents the combined behavior. See the 403-status
+			// variant below for error-code-only isolation.
+			expected: true,
+		},
+		{
+			// Uses 403 status (excluded from the status code switch)
+			// so the only path to true is the error code switch.
+			name: "IncorrectClientCredentials_Status403",
+			err: &oauth2.RetrieveError{
+				Response:  &http.Response{StatusCode: http.StatusForbidden},
+				ErrorCode: "incorrect_client_credentials",
+			},
+			expected: true,
+		},
+		{
+			name: "InvalidClient_Status401",
+			err: &oauth2.RetrieveError{
+				Response:  &http.Response{StatusCode: http.StatusUnauthorized},
+				ErrorCode: "invalid_client",
+			},
+			// StatusUnauthorized fallthrough also returns true, so
+			// this test documents the combined behavior.
+			expected: true,
+		},
+		{
+			// Uses 403 status (excluded from the status code switch)
+			// so the only path to true is the error code switch.
+			name: "InvalidClient_Status403",
+			err: &oauth2.RetrieveError{
+				Response:  &http.Response{StatusCode: http.StatusForbidden},
+				ErrorCode: "invalid_client",
+			},
+			expected: true,
+		},
+		{
+			name: "UnknownErrorCode_Status403_Transient",
+			err: &oauth2.RetrieveError{
+				Response:  &http.Response{StatusCode: http.StatusForbidden},
+				ErrorCode: "unknown_code",
+			},
+			// 403 with unknown error code should be transient (safe
+			// default: retry rather than destroy the token).
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := isFailedRefresh(expiredToken, tt.err)
+			assert.Equal(t, tt.expected, got)
 		})
 	}
 }

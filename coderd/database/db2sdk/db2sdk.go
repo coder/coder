@@ -675,6 +675,27 @@ func WorkspaceAgentLog(log database.WorkspaceAgentLog) codersdk.WorkspaceAgentLo
 	}
 }
 
+func WorkspaceAgentScript(dbScript database.GetWorkspaceAgentScriptsByAgentIDsRow) codersdk.WorkspaceAgentScript {
+	script := codersdk.WorkspaceAgentScript{
+		ID:               dbScript.ID,
+		LogPath:          dbScript.LogPath,
+		LogSourceID:      dbScript.LogSourceID,
+		Script:           dbScript.Script,
+		Cron:             dbScript.Cron,
+		RunOnStart:       dbScript.RunOnStart,
+		RunOnStop:        dbScript.RunOnStop,
+		StartBlocksLogin: dbScript.StartBlocksLogin,
+		Timeout:          time.Duration(dbScript.TimeoutSeconds) * time.Second,
+		DisplayName:      dbScript.DisplayName,
+		ExitCode:         nullInt32Ptr(dbScript.ExitCode),
+	}
+	if dbScript.Status.Valid {
+		status := codersdk.WorkspaceAgentScriptStatus(dbScript.Status.WorkspaceAgentScriptTimingStatus)
+		script.Status = &status
+	}
+	return script
+}
+
 func ProvisionerDaemon(dbDaemon database.ProvisionerDaemon) codersdk.ProvisionerDaemon {
 	result := codersdk.ProvisionerDaemon{
 		ID:             dbDaemon.ID,
@@ -1038,11 +1059,12 @@ func AIBridgeSession(row database.ListAIBridgeSessionsRow) codersdk.AIBridgeSess
 			Name:      row.UserName,
 			AvatarURL: row.UserAvatarUrl,
 		}),
-		Providers: row.Providers,
-		Models:    row.Models,
-		Metadata:  jsonOrEmptyMap(pqtype.NullRawMessage{RawMessage: row.Metadata, Valid: len(row.Metadata) > 0}),
-		StartedAt: row.StartedAt,
-		Threads:   row.Threads,
+		Providers:    row.Providers,
+		Models:       row.Models,
+		Metadata:     jsonOrEmptyMap(pqtype.NullRawMessage{RawMessage: row.Metadata, Valid: len(row.Metadata) > 0}),
+		StartedAt:    row.StartedAt,
+		Threads:      row.Threads,
+		LastActiveAt: row.LastActiveAt,
 		TokenUsageSummary: codersdk.AIBridgeSessionTokenUsageSummary{
 			InputTokens:           row.InputTokens,
 			OutputTokens:          row.OutputTokens,
@@ -1516,10 +1538,11 @@ func ChatQueuedMessage(message database.ChatQueuedMessage) codersdk.ChatQueuedMe
 	}
 
 	return codersdk.ChatQueuedMessage{
-		ID:        message.ID,
-		ChatID:    message.ChatID,
-		Content:   parts,
-		CreatedAt: message.CreatedAt,
+		ID:            message.ID,
+		ChatID:        message.ChatID,
+		ModelConfigID: nullUUIDPtr(message.ModelConfigID),
+		Content:       parts,
+		CreatedAt:     message.CreatedAt,
 	}
 }
 
@@ -1545,12 +1568,27 @@ func chatMessageParts(m database.ChatMessage) ([]codersdk.ChatMessagePart, error
 	return parts, nil
 }
 
+func nullUUIDPtr(v uuid.NullUUID) *uuid.UUID {
+	if !v.Valid {
+		return nil
+	}
+	value := v.UUID
+	return &value
+}
+
 func nullInt64Ptr(v sql.NullInt64) *int64 {
 	if !v.Valid {
 		return nil
 	}
 	value := v.Int64
 	return &value
+}
+
+func nullInt32Ptr(n sql.NullInt32) *int32 {
+	if !n.Valid {
+		return nil
+	}
+	return &n.Int32
 }
 
 func nullStringPtr(v sql.NullString) *string {
@@ -1569,6 +1607,34 @@ func nullTimePtr(v sql.NullTime) *time.Time {
 	return &value
 }
 
+const fallbackChatLastErrorMessage = "The chat request failed unexpectedly."
+
+func decodeChatLastError(raw pqtype.NullRawMessage) *codersdk.ChatError {
+	if !raw.Valid {
+		return nil
+	}
+
+	var payload codersdk.ChatError
+	if err := json.Unmarshal(raw.RawMessage, &payload); err != nil {
+		return &codersdk.ChatError{
+			Message: fallbackChatLastErrorMessage,
+			Kind:    codersdk.ChatErrorKindGeneric,
+		}
+	}
+
+	payload.Message = strings.TrimSpace(payload.Message)
+	payload.Detail = strings.TrimSpace(payload.Detail)
+	payload.Kind = codersdk.ChatErrorKind(strings.TrimSpace(string(payload.Kind)))
+	payload.Provider = strings.TrimSpace(payload.Provider)
+	if payload.Kind == "" {
+		payload.Kind = codersdk.ChatErrorKindGeneric
+	}
+	if payload.Message == "" {
+		payload.Message = fallbackChatLastErrorMessage
+	}
+	return &payload
+}
+
 // Chat converts a database.Chat to a codersdk.Chat. It coalesces
 // nil slices and maps to empty values for JSON serialization and
 // derives RootChatID from the parent chain when not explicitly set.
@@ -1584,6 +1650,7 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 	if labels == nil {
 		labels = map[string]string{}
 	}
+	lastError := decodeChatLastError(c.LastError)
 	chat := codersdk.Chat{
 		ID:                c.ID,
 		OrganizationID:    c.OrganizationID,
@@ -1597,14 +1664,24 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 		UpdatedAt:         c.UpdatedAt,
 		MCPServerIDs:      mcpServerIDs,
 		Labels:            labels,
+		ClientType:        codersdk.ChatClientType(c.ClientType),
+		LastError:         lastError,
 	}
-	if c.LastError.Valid {
-		chat.LastError = &c.LastError.String
+	if c.LastTurnSummary.Valid {
+		chat.LastTurnSummary = &c.LastTurnSummary.String
+	}
+	if c.PlanMode.Valid {
+		chat.PlanMode = codersdk.ChatPlanMode(c.PlanMode.ChatPlanMode)
 	}
 	if c.ParentChatID.Valid {
 		parentChatID := c.ParentChatID.UUID
 		chat.ParentChatID = &parentChatID
 	}
+	// Always initialize Children to an empty slice so the JSON
+	// field serializes as [] rather than null. Root chats may
+	// later have children populated; child chats remain empty
+	// because nesting depth is capped at 1.
+	chat.Children = []codersdk.Chat{}
 	switch {
 	case c.RootChatID.Valid:
 		rootChatID := c.RootChatID.UUID
@@ -1752,24 +1829,90 @@ func ChatDebugStep(s database.ChatDebugStep) codersdk.ChatDebugStep {
 	}
 }
 
-// ChatRows converts a slice of database.GetChatsRow (which embeds
-// Chat plus HasUnread) to codersdk.Chat, looking up diff statuses
-// from the provided map. When diffStatusesByChatID is non-nil,
-// chats without an entry receive an empty DiffStatus.
-func ChatRows(rows []database.GetChatsRow, diffStatusesByChatID map[uuid.UUID]database.ChatDiffStatus) []codersdk.Chat {
-	result := make([]codersdk.Chat, len(rows))
-	for i, row := range rows {
-		diffStatus, ok := diffStatusesByChatID[row.Chat.ID]
+// ChatDebugRunDetail converts a database.ChatDebugRun and its steps
+// to a codersdk.ChatDebugRun.
+func ChatDebugRunDetail(r database.ChatDebugRun, steps []database.ChatDebugStep) codersdk.ChatDebugRun {
+	sdkSteps := make([]codersdk.ChatDebugStep, 0, len(steps))
+	for _, s := range steps {
+		sdkSteps = append(sdkSteps, ChatDebugStep(s))
+	}
+	return codersdk.ChatDebugRun{
+		ID:                  r.ID,
+		ChatID:              r.ChatID,
+		RootChatID:          nullUUIDPtr(r.RootChatID),
+		ParentChatID:        nullUUIDPtr(r.ParentChatID),
+		ModelConfigID:       nullUUIDPtr(r.ModelConfigID),
+		TriggerMessageID:    nullInt64Ptr(r.TriggerMessageID),
+		HistoryTipMessageID: nullInt64Ptr(r.HistoryTipMessageID),
+		Kind:                codersdk.ChatDebugRunKind(r.Kind),
+		Status:              codersdk.ChatDebugStatus(r.Status),
+		Provider:            nullStringPtr(r.Provider),
+		Model:               nullStringPtr(r.Model),
+		Summary:             rawJSONObject(r.Summary),
+		StartedAt:           r.StartedAt,
+		UpdatedAt:           r.UpdatedAt,
+		FinishedAt:          nullTimePtr(r.FinishedAt),
+		Steps:               sdkSteps,
+	}
+}
+
+// ChildChatRows converts child chat rows to codersdk.Chat values,
+// resolving diff statuses from the shared map. When diffStatuses
+// is non-nil, children without an entry receive an empty DiffStatus.
+func ChildChatRows(
+	children []database.GetChildChatsByParentIDsRow,
+	diffStatuses map[uuid.UUID]database.ChatDiffStatus,
+) []codersdk.Chat {
+	result := make([]codersdk.Chat, len(children))
+	for i, row := range children {
+		diffStatus, ok := diffStatuses[row.Chat.ID]
 		if ok {
 			result[i] = Chat(row.Chat, &diffStatus, nil)
 		} else {
 			result[i] = Chat(row.Chat, nil, nil)
-			if diffStatusesByChatID != nil {
+			if diffStatuses != nil {
 				emptyDiffStatus := ChatDiffStatus(row.Chat.ID, nil)
 				result[i].DiffStatus = &emptyDiffStatus
 			}
 		}
 		result[i].HasUnread = row.HasUnread
+	}
+	return result
+}
+
+// ChatRowsWithChildren converts root chat rows and their child rows
+// into codersdk.Chat values with children embedded under each parent.
+// Both root and child diff statuses are resolved from the shared map.
+func ChatRowsWithChildren(
+	roots []database.GetChatsRow,
+	children []database.GetChildChatsByParentIDsRow,
+	diffStatuses map[uuid.UUID]database.ChatDiffStatus,
+) []codersdk.Chat {
+	// Group children by parent ID.
+	childrenByParent := make(map[uuid.UUID][]database.GetChildChatsByParentIDsRow, len(children))
+	for _, row := range children {
+		parentID := row.Chat.ParentChatID.UUID
+		childrenByParent[parentID] = append(childrenByParent[parentID], row)
+	}
+
+	result := make([]codersdk.Chat, len(roots))
+	for i, row := range roots {
+		diffStatus, ok := diffStatuses[row.Chat.ID]
+		if ok {
+			result[i] = Chat(row.Chat, &diffStatus, nil)
+		} else {
+			result[i] = Chat(row.Chat, nil, nil)
+			if diffStatuses != nil {
+				emptyDiffStatus := ChatDiffStatus(row.Chat.ID, nil)
+				result[i].DiffStatus = &emptyDiffStatus
+			}
+		}
+		result[i].HasUnread = row.HasUnread
+
+		// Embed child chats.
+		if childRows, ok := childrenByParent[row.Chat.ID]; ok {
+			result[i].Children = ChildChatRows(childRows, diffStatuses)
+		}
 	}
 	return result
 }

@@ -65,7 +65,7 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
 					<TemplateFileTree
 						fileTree={fileTree}
 						onSelect={(path: string) => {
-							window.location.hash = path;
+							location.hash = path;
 							document.getElementById(path)?.scrollIntoView({
 								behavior: "smooth",
 								block: "start",
@@ -93,7 +93,7 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
 					{Object.keys(currentFiles)
 						.sort((a, b) => a.localeCompare(b))
 						.map((filename) => {
-							const TemplateFileIcon = getTemplateFileIcon(filename, false);
+							const TemplateFileIcon = getTemplateFileIcon(filename);
 							const info = fileInfo(filename);
 
 							return (

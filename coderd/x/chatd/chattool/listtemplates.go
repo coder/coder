@@ -27,15 +27,16 @@ type ListTemplatesOptions struct {
 }
 
 type listTemplatesArgs struct {
-	Query string `json:"query,omitempty"`
-	Page  int    `json:"page,omitempty"`
+	Query string `json:"query,omitempty" description:"Optional text to filter templates by name or description."`
+	Page  int    `json:"page,omitempty" description:"Page number for pagination (starts at 1). Each page returns up to 10 templates."`
 }
 
 // ListTemplates returns a tool that lists available workspace templates.
 // The agent uses this to discover templates before creating a workspace.
 // Results are ordered by number of active developers (most popular first)
 // and paginated at 10 per page.
-func ListTemplates(organizationID uuid.UUID, db database.Store, options ListTemplatesOptions) fantasy.AgentTool {
+// db must not be nil.
+func ListTemplates(db database.Store, organizationID uuid.UUID, options ListTemplatesOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"list_templates",
 		"List available workspace templates. Optionally filter by a "+
@@ -44,10 +45,6 @@ func ListTemplates(organizationID uuid.UUID, db database.Store, options ListTemp
 			"Results are ordered by number of active developers (most popular first). "+
 			"Returns 10 per page. Use the page parameter to paginate through results.",
 		func(ctx context.Context, args listTemplatesArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
-			if db == nil {
-				return fantasy.NewTextErrorResponse("database is not configured"), nil
-			}
-
 			ctx, err := asOwner(ctx, db, options.OwnerID)
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil

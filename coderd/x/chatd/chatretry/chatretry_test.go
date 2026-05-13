@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -27,6 +28,22 @@ func TestIsRetryableDelegatesToClassification(t *testing.T) {
 		{name: "Nil", err: nil, retryable: false},
 		{name: "RetryableExplicitStatus429", err: xerrors.New("received status 429 from upstream"), retryable: true},
 		{name: "RetryableTimeout", err: xerrors.New("service unavailable"), retryable: true},
+		{
+			name: "RetryableAnthropicMissingMessageStop",
+			err: xerrors.Errorf(
+				"anthropic stream closed before message_stop: %w",
+				io.EOF,
+			),
+			retryable: true,
+		},
+		{
+			name: "RetryableOpenAIResponsesMissingTerminalEvent",
+			err: xerrors.Errorf(
+				"openai responses stream closed before terminal event: %w",
+				io.EOF,
+			),
+			retryable: true,
+		},
 		{name: "NonRetryableAuth", err: xerrors.New("invalid api key"), retryable: false},
 		{name: "NonRetryableGeneric", err: xerrors.New("boom"), retryable: false},
 	}
@@ -316,4 +333,25 @@ func TestRetry_UsesRetryAfterAsDelayFloor(t *testing.T) {
 			require.Equal(t, tt.wantDelay, gotDelay)
 		})
 	}
+}
+
+// TestRetry_HTTP2TransportErrorKeepsRetrying proves a bare HTTP/2
+// transport error is treated as retryable, so Retry drives one more
+// attempt instead of returning on the first call.
+func TestRetry_HTTP2TransportErrorKeepsRetrying(t *testing.T) {
+	t.Parallel()
+
+	calls := 0
+	err := chatretry.Retry(context.Background(), func(_ context.Context) error {
+		calls++
+		if calls == 1 {
+			return xerrors.New(
+				"http2: client connection force closed via ClientConn.Close",
+			)
+		}
+		return nil
+	}, nil)
+
+	require.NoError(t, err)
+	require.Equal(t, 2, calls, "expected one retry after an HTTP/2 transport failure")
 }

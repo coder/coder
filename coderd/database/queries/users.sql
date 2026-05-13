@@ -241,6 +241,23 @@ END
 WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'chat_debug_logging_enabled';
 
+-- name: ListUserChatPersonalModelOverrides :many
+SELECT key, value FROM user_configs
+WHERE user_id = @user_id
+	AND key LIKE 'chat\_personal\_model\_override:%'
+ORDER BY key;
+
+-- name: GetUserChatPersonalModelOverride :one
+SELECT value AS personal_model_override FROM user_configs
+WHERE user_id = @user_id
+	AND key = @key;
+
+-- name: UpsertUserChatPersonalModelOverride :exec
+INSERT INTO user_configs (user_id, key, value)
+VALUES (@user_id::uuid, @key::text, @value::text)
+ON CONFLICT ON CONSTRAINT user_configs_pkey
+DO UPDATE SET value = @value::text;
+
 -- name: GetUserTaskNotificationAlertDismissed :one
 SELECT
 	value::boolean as task_notification_alert_dismissed
@@ -263,6 +280,76 @@ SET
 WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'preference_task_notification_alert_dismissed'
 RETURNING value::boolean AS task_notification_alert_dismissed;
+
+-- name: GetUserThinkingDisplayMode :one
+SELECT
+	value AS thinking_display_mode
+FROM
+	user_configs
+WHERE
+	user_id = @user_id
+	AND key = 'preference_thinking_display_mode';
+
+-- name: UpdateUserThinkingDisplayMode :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'preference_thinking_display_mode', @thinking_display_mode::text)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @thinking_display_mode
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'preference_thinking_display_mode'
+RETURNING value AS thinking_display_mode;
+
+
+-- name: GetUserCodeDiffDisplayMode :one
+SELECT
+	value AS code_diff_display_mode
+FROM
+	user_configs
+WHERE
+	user_id = @user_id
+	AND key = 'preference_code_diff_display_mode';
+
+-- name: UpdateUserCodeDiffDisplayMode :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'preference_code_diff_display_mode', @code_diff_display_mode::text)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @code_diff_display_mode
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'preference_code_diff_display_mode'
+RETURNING value AS code_diff_display_mode;
+
+-- name: GetUserAgentChatSendShortcut :one
+SELECT
+	value AS agent_chat_send_shortcut
+FROM
+	user_configs
+WHERE
+	user_id = @user_id
+	AND key = 'preference_agent_chat_send_shortcut';
+
+-- name: UpdateUserAgentChatSendShortcut :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'preference_agent_chat_send_shortcut', @agent_chat_send_shortcut::text)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @agent_chat_send_shortcut
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'preference_agent_chat_send_shortcut'
+RETURNING value AS agent_chat_send_shortcut;
 
 -- name: UpdateUserRoles :one
 UPDATE

@@ -350,7 +350,7 @@ const TaskPage = () => {
 					)}
 				</Panel>
 				<PanelResizeHandle>
-					<div className="w-1 bg-border h-full hover:bg-border-hover transition-all relative" />
+					<div className="w-1 bg-border h-full hover:bg-border-secondary transition-all relative" />
 				</PanelResizeHandle>
 				<Panel className="[&>*]:h-full">
 					<TaskApps task={task} workspace={workspace} />
@@ -747,7 +747,7 @@ const TaskPaused: FC<TaskPausedProps> = ({
 				open={apiError !== undefined}
 				error={apiError}
 				onClose={resumeMutation.reset}
-				showDetail={true}
+				showDetail
 				workspaceOwner={workspace.owner_name}
 				workspaceName={workspace.name}
 				templateVersionId={workspace.latest_build.template_version_id}

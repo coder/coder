@@ -266,6 +266,10 @@ WHERE
         WHEN @before_id::bigint > 0 THEN id < @before_id::bigint
         ELSE true
     END
+    AND CASE
+        WHEN @after_id::bigint > 0 THEN id > @after_id::bigint
+        ELSE true
+    END
     AND visibility IN ('user', 'both')
     AND deleted = false
 ORDER BY
@@ -373,6 +377,27 @@ WHERE
         WHEN sqlc.narg('label_filter')::jsonb IS NOT NULL THEN chats.labels @> sqlc.narg('label_filter')::jsonb
         ELSE true
     END
+    -- Match chats whose linked diff URL (e.g. a pull request URL)
+    -- equals the given value, case-insensitively. The URL may live on
+    -- a delegated sub-agent's diff status, so we surface the root chat
+    -- when any descendant matches.
+    AND CASE
+        WHEN sqlc.narg('diff_url')::text IS NOT NULL THEN EXISTS (
+            SELECT 1
+            FROM chat_diff_statuses cds
+            JOIN chats c2 ON c2.id = cds.chat_id
+            WHERE cds.url IS NOT NULL
+              AND cds.url <> ''
+              AND LOWER(cds.url) = LOWER(sqlc.narg('diff_url')::text)
+              AND (c2.id = chats.id OR c2.root_chat_id = chats.id)
+        )
+        ELSE true
+    END
+    -- Paginate over root chats only. Children are fetched
+    -- separately via GetChildChatsByParentIDs and embedded under
+    -- each parent. Other callers that need the full set should
+    -- use a narrower query (e.g. GetChatsByWorkspaceIDs).
+    AND chats.parent_chat_id IS NULL
     -- Authorize Filter clause will be injected below in GetAuthorizedChats
     -- @authorize_filter
 ORDER BY
@@ -390,6 +415,32 @@ LIMIT
     -- Default to 50 to prevent accidental excessively large queries.
     COALESCE(NULLIF(@limit_opt :: int, 0), 50);
 
+-- name: GetChildChatsByParentIDs :many
+-- Fetches child chats of the given parents, optionally filtered by
+-- archive state (NULL = all, true/false = match). The archive
+-- invariant (parent archived implies child archived) is enforced
+-- at write time, not here.
+SELECT
+    sqlc.embed(chats),
+    EXISTS (
+        SELECT 1 FROM chat_messages cm
+        WHERE cm.chat_id = chats.id
+            AND cm.role = 'assistant'
+            AND cm.deleted = false
+            AND cm.id > COALESCE(chats.last_read_message_id, 0)
+    ) AS has_unread
+FROM
+    chats
+WHERE
+    chats.parent_chat_id = ANY(@parent_ids :: uuid[])
+    AND CASE
+        WHEN sqlc.narg('archived') :: boolean IS NULL THEN true
+        ELSE chats.archived = sqlc.narg('archived') :: boolean
+    END
+ORDER BY
+    chats.created_at DESC,
+    chats.id DESC;
+
 -- name: InsertChat :one
 INSERT INTO chats (
     organization_id,
@@ -402,10 +453,12 @@ INSERT INTO chats (
     last_model_config_id,
     title,
     mode,
+    plan_mode,
     status,
     mcp_server_ids,
     labels,
-    dynamic_tools
+    dynamic_tools,
+    client_type
 ) VALUES (
     @organization_id::uuid,
     @owner_id::uuid,
@@ -417,10 +470,12 @@ INSERT INTO chats (
     @last_model_config_id::uuid,
     @title::text,
     sqlc.narg('mode')::chat_mode,
+    sqlc.narg('plan_mode')::chat_plan_mode,
     @status::chat_status,
     COALESCE(@mcp_server_ids::uuid[], '{}'::uuid[]),
     COALESCE(sqlc.narg('labels')::jsonb, '{}'::jsonb),
-    sqlc.narg('dynamic_tools')::jsonb
+    sqlc.narg('dynamic_tools')::jsonb,
+    @client_type::chat_client_type
 )
 RETURNING
     *;
@@ -518,6 +573,30 @@ WHERE
 RETURNING
     *;
 
+-- name: UpdateChatTitleByID :one
+UPDATE
+    chats
+SET
+    -- NOTE: updated_at is intentionally NOT touched here to avoid
+    -- changing list ordering when a user renames an older chat
+    -- out-of-band.
+    title = @title::text
+WHERE
+    id = @id::uuid
+RETURNING
+    *;
+
+-- name: UpdateChatPlanModeByID :one
+UPDATE
+    chats
+SET
+    -- NOTE: updated_at is intentionally NOT touched here to avoid changing list ordering.
+    plan_mode = sqlc.narg('plan_mode')::chat_plan_mode
+WHERE
+    id = @id::uuid
+RETURNING
+    *;
+
 -- name: UpdateChatLastModelConfigByID :one
 UPDATE
     chats
@@ -568,6 +647,25 @@ UPDATE chats SET
 WHERE
     id = @id::uuid
 RETURNING *;
+
+-- name: UpdateChatLastTurnSummary :execrows
+-- Updates the cached last completed turn summary for sidebar display.
+-- Empty or whitespace-only summaries are stored as NULL here so direct
+-- query callers cannot accidentally persist blank sidebar text.
+-- This intentionally preserves updated_at. The staleness guard relies on
+-- every new-turn query, such as UpdateChatStatus and AcquireChats, bumping
+-- updated_at. Future chat-field updates that do not bump updated_at can let
+-- stale summaries persist. If this query ever bumps updated_at, later
+-- goroutine summary writes will be rejected as stale.
+-- Two summary workers using the same freshness marker are last-write-wins.
+UPDATE chats
+SET
+    last_turn_summary = NULLIF(REGEXP_REPLACE(
+        sqlc.narg('last_turn_summary')::text, '^[[:space:]]+|[[:space:]]+$', '', 'g'
+    ), '')
+WHERE
+    id = @id::uuid
+    AND updated_at = @expected_updated_at::timestamptz;
 
 -- name: UpdateChatMCPServerIDs :one
 UPDATE
@@ -636,6 +734,7 @@ WHERE
             chats
         WHERE
             status = 'pending'::chat_status
+            AND archived = false
         ORDER BY
             updated_at ASC
         FOR UPDATE
@@ -654,7 +753,7 @@ SET
     worker_id = sqlc.narg('worker_id')::uuid,
     started_at = sqlc.narg('started_at')::timestamptz,
     heartbeat_at = sqlc.narg('heartbeat_at')::timestamptz,
-    last_error = sqlc.narg('last_error')::text,
+    last_error = sqlc.narg('last_error')::jsonb,
     updated_at = NOW()
 WHERE
     id = @id::uuid
@@ -669,7 +768,7 @@ SET
     worker_id = sqlc.narg('worker_id')::uuid,
     started_at = sqlc.narg('started_at')::timestamptz,
     heartbeat_at = sqlc.narg('heartbeat_at')::timestamptz,
-    last_error = sqlc.narg('last_error')::text,
+    last_error = sqlc.narg('last_error')::jsonb,
     updated_at = @updated_at::timestamptz
 WHERE
     id = @id::uuid
@@ -677,10 +776,13 @@ RETURNING
     *;
 
 -- name: GetStaleChats :many
--- Find chats that appear stuck and need recovery. This covers:
+-- Find chats that appear stuck and need recovery:
 --   1. Running chats whose heartbeat has expired (worker crash).
---   2. Chats awaiting client action (requires_action) past the
---      timeout threshold (client disappeared).
+--   2. requires_action chats past the timeout threshold (client
+--      disappeared).
+--   3. Waiting chats with a non-empty queue and stale updated_at
+--      (deferred-promote stranding when the worker dies before its
+--      post-cancel cleanup runs).
 SELECT
     *
 FROM
@@ -689,7 +791,13 @@ WHERE
     (status = 'running'::chat_status
         AND heartbeat_at < @stale_threshold::timestamptz)
     OR (status = 'requires_action'::chat_status
-        AND updated_at < @stale_threshold::timestamptz);
+        AND updated_at < @stale_threshold::timestamptz)
+    OR (status = 'waiting'::chat_status
+        AND updated_at < @stale_threshold::timestamptz
+        AND EXISTS (
+            SELECT 1 FROM chat_queued_messages cqm
+            WHERE cqm.chat_id = chats.id
+        ));
 
 -- name: UpdateChatHeartbeats :many
 -- Bumps the heartbeat timestamp for the given set of chat IDs,
@@ -822,14 +930,18 @@ RETURNING
     *;
 
 -- name: InsertChatQueuedMessage :one
-INSERT INTO chat_queued_messages (chat_id, content)
-VALUES (@chat_id, @content)
+INSERT INTO chat_queued_messages (chat_id, content, model_config_id)
+VALUES (
+    @chat_id,
+    @content,
+    sqlc.narg('model_config_id')::uuid
+)
 RETURNING *;
 
 -- name: GetChatQueuedMessages :many
 SELECT * FROM chat_queued_messages
 WHERE chat_id = @chat_id
-ORDER BY id ASC;
+ORDER BY created_at ASC, id ASC;
 
 -- name: DeleteChatQueuedMessage :exec
 DELETE FROM chat_queued_messages WHERE id = @id AND chat_id = @chat_id;
@@ -842,10 +954,21 @@ DELETE FROM chat_queued_messages
 WHERE id = (
     SELECT cqm.id FROM chat_queued_messages cqm
     WHERE cqm.chat_id = @chat_id
-    ORDER BY cqm.id ASC
+    ORDER BY cqm.created_at ASC, cqm.id ASC
     LIMIT 1
 )
 RETURNING *;
+
+-- name: ReorderChatQueuedMessageToFront :execrows
+-- Mutates only created_at on the target row; ids are unchanged so
+-- consumers can keep tracking queued messages by id.
+UPDATE chat_queued_messages AS target
+SET created_at = (
+    SELECT MIN(inner_cqm.created_at) - INTERVAL '1 microsecond'
+    FROM chat_queued_messages AS inner_cqm
+    WHERE inner_cqm.chat_id = @chat_id
+)
+WHERE target.id = @target_id AND target.chat_id = @chat_id;
 
 -- name: GetLastChatMessageByRole :one
 SELECT
@@ -918,6 +1041,28 @@ SET
     stale_at = @stale_at::timestamptz
 WHERE
     chat_id = @chat_id::uuid;
+
+-- name: GetChatDiffStatusSummary :one
+-- Returns aggregate PR counts across all agent chats for telemetry.
+-- Deduplicates by PR URL so forked chats referencing the same pull
+-- request are counted once (using the most recently refreshed state).
+-- Total is derived from the three recognized state buckets and
+-- always equals open + merged + closed; other non-NULL states are
+-- intentionally excluded from these aggregates.
+WITH deduped AS (
+    SELECT DISTINCT ON (COALESCE(NULLIF(cds.url, ''), c.id::text))
+        cds.pull_request_state
+    FROM chat_diff_statuses cds
+    JOIN chats c ON c.id = cds.chat_id
+    WHERE cds.pull_request_state IN ('open', 'merged', 'closed')
+    ORDER BY COALESCE(NULLIF(cds.url, ''), c.id::text), cds.updated_at DESC, c.id DESC
+)
+SELECT
+    COUNT(*)::bigint AS total,
+    COUNT(*) FILTER (WHERE pull_request_state = 'open')::bigint AS open,
+    COUNT(*) FILTER (WHERE pull_request_state = 'merged')::bigint AS merged,
+    COUNT(*) FILTER (WHERE pull_request_state = 'closed')::bigint AS closed
+FROM deduped;
 
 -- name: GetChatCostSummary :one
 -- Aggregate cost summary for a single user within a date range.
@@ -1283,12 +1428,14 @@ WHERE chats.id = deletable.id
 -- snapshot collection. Uses updated_at so that long-running chats
 -- still appear in each snapshot window while they are active.
 SELECT
-    id, owner_id, created_at, updated_at, status,
-    (parent_chat_id IS NOT NULL)::bool AS has_parent,
-    root_chat_id, workspace_id,
-    mode, archived, last_model_config_id
-FROM chats
-WHERE updated_at > @updated_after;
+    c.id, c.owner_id, c.created_at, c.updated_at, c.status,
+    (c.parent_chat_id IS NOT NULL)::bool AS has_parent,
+    c.root_chat_id, c.workspace_id,
+    c.mode, c.archived, c.last_model_config_id, c.client_type,
+    cds.pull_request_state
+FROM chats c
+LEFT JOIN chat_diff_statuses cds ON cds.chat_id = c.id
+WHERE c.updated_at > @updated_after;
 
 -- name: GetChatMessageSummariesPerChat :many
 -- Aggregates message-level metrics per chat for messages created
@@ -1343,3 +1490,57 @@ UPDATE chat_messages SET deleted = true
 WHERE chat_id = @chat_id::uuid
     AND deleted = false
     AND content::jsonb @> '[{"type": "context-file"}]';
+
+-- name: AutoArchiveInactiveChats :many
+-- Archives inactive root chats (pinned and already-archived chats skipped),
+-- cascading to children via root_chat_id. Limits apply to roots, not total
+-- rows. Used by dbpurge.
+WITH to_archive AS (
+    SELECT
+        c.id,
+        -- Activity = MAX(cm.created_at) across the family, or c.created_at
+        -- when the family has no non-deleted messages.
+        COALESCE(activity.last_activity_at, c.created_at) AS last_activity_at
+    FROM chats c
+    LEFT JOIN LATERAL (
+        SELECT MAX(cm.created_at) AS last_activity_at
+        FROM chat_messages cm
+        JOIN chats fc ON fc.id = cm.chat_id
+        WHERE (fc.id = c.id OR fc.root_chat_id = c.id)
+          AND cm.deleted = false
+    ) activity ON TRUE
+    WHERE c.archived = false
+      AND c.pin_order = 0
+      AND c.parent_chat_id IS NULL -- roots only
+      AND c.created_at < @archive_cutoff::timestamptz
+      -- New active statuses must be added here to prevent archiving.
+      AND c.status NOT IN ('running', 'pending', 'paused', 'requires_action')
+      AND COALESCE(activity.last_activity_at, c.created_at) < @archive_cutoff::timestamptz
+    -- Sorting by created_at lets Postgres drive the scan from the
+    -- partial index instead of evaluating every LATERAL subquery
+    -- before sorting. All candidates are past the cutoff, so the
+    -- archive order is immaterial once the backlog drains.
+    ORDER BY c.created_at ASC
+    LIMIT @limit_count
+),
+archived AS (
+    UPDATE chats c
+    SET archived = true, pin_order = 0, updated_at = NOW()
+    FROM to_archive t
+    WHERE (c.id = t.id OR c.root_chat_id = t.id) -- cascade to children
+      AND c.archived = false
+    RETURNING c.*
+)
+SELECT
+    a.*,
+    -- Children inherit their root's activity so last_activity_at is never null.
+    COALESCE(
+        t.last_activity_at,
+        (SELECT tr.last_activity_at FROM to_archive tr WHERE tr.id = a.root_chat_id),
+        a.created_at
+    )::timestamptz AS last_activity_at
+FROM archived a
+LEFT JOIN to_archive t ON t.id = a.id
+-- created_at ASC flows through to dbpurge's digest truncation; see
+-- buildDigestData in dbpurge.go for the tradeoff rationale.
+ORDER BY (a.root_chat_id IS NULL) DESC, a.owner_id ASC, a.created_at ASC, a.id ASC;

@@ -1,4 +1,4 @@
-import { Check } from "lucide-react";
+import { CheckIcon } from "lucide-react";
 import { type FC, useId, useState } from "react";
 import { Link } from "react-router";
 import { getErrorMessage } from "#/api/errors";
@@ -238,7 +238,9 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 														src={option.avatar_url}
 														imgFallbackText={option.name}
 													/>
-													{isSelected && <Check className="size-4 shrink-0" />}
+													{isSelected && (
+														<CheckIcon className="size-4 shrink-0" />
+													)}
 												</div>
 											)}
 											placeholder="Search groups..."
@@ -319,7 +321,7 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 						setPendingDeleteGroupId(null);
 					}}
 					isPending={deletePending}
-					open={true}
+					open
 					onOpenChange={(open) => !open && setPendingDeleteGroupId(null)}
 				/>
 			)}{" "}

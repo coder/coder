@@ -96,6 +96,19 @@ Replace `ghcr.io/coder/coder:latest` in the `docker run` command in the
 
 ## Troubleshooting
 
+### Cannot connect to the Docker daemon
+
+If you see an error like:
+
+```text
+Error: Error pinging Docker server: Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
+```
+
+Docker is not installed or not running on the host. Install Docker and start the
+daemon before creating a workspace from a Docker-based template. Refer to the
+[quickstart troubleshooting](../tutorials/quickstart.md#cannot-connect-to-the-docker-daemon)
+for platform-specific steps.
+
 ### Docker-based workspace is stuck in "Connecting..."
 
 Ensure you have an externally-reachable `CODER_ACCESS_URL` set. See
@@ -111,7 +124,7 @@ See Docker's official documentation to
 
 Coder runs as a non-root user, we use `--group-add` to ensure Coder has
 permissions to manage Docker via `docker.sock`. If the host systems
-`/var/run/docker.sock` is not group writeable or does not belong to the `docker`
+`/var/run/docker.sock` is not group writable or does not belong to the `docker`
 group, the above may not work as-is.
 
 ### I cannot add cloud-based templates

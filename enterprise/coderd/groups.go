@@ -29,7 +29,7 @@ import (
 // @Param request body codersdk.CreateGroupRequest true "Create group request"
 // @Param organization path string true "Organization ID"
 // @Success 201 {object} codersdk.Group
-// @Router /organizations/{organization}/groups [post]
+// @Router /api/v2/organizations/{organization}/groups [post]
 func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -98,7 +98,7 @@ func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request)
 // @Param group path string true "Group name"
 // @Param request body codersdk.PatchGroupRequest true "Patch group request"
 // @Success 200 {object} codersdk.Group
-// @Router /groups/{group} [patch]
+// @Router /api/v2/groups/{group} [patch]
 func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -332,7 +332,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 // @Tags Enterprise
 // @Param group path string true "Group name"
 // @Success 200 {object} codersdk.Group
-// @Router /groups/{group} [delete]
+// @Router /api/v2/groups/{group} [delete]
 func (api *API) deleteGroup(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -385,7 +385,7 @@ func (api *API) deleteGroup(rw http.ResponseWriter, r *http.Request) {
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param groupName path string true "Group name"
 // @Success 200 {object} codersdk.Group
-// @Router /organizations/{organization}/groups/{groupName} [get]
+// @Router /api/v2/organizations/{organization}/groups/{groupName} [get]
 func (api *API) groupByOrganization(rw http.ResponseWriter, r *http.Request) {
 	api.group(rw, r)
 }
@@ -398,7 +398,7 @@ func (api *API) groupByOrganization(rw http.ResponseWriter, r *http.Request) {
 // @Param group path string true "Group id"
 // @Param exclude_members query bool false "Exclude members from the response"
 // @Success 200 {object} codersdk.Group
-// @Router /groups/{group} [get]
+// @Router /api/v2/groups/{group} [get]
 func (api *API) group(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx   = r.Context()
@@ -452,7 +452,7 @@ func (api *API) group(rw http.ResponseWriter, r *http.Request) {
 // @Param limit query int false "Page limit"
 // @Param offset query int false "Page offset"
 // @Success 200 {object} codersdk.GroupMembersResponse
-// @Router /organizations/{organization}/groups/{groupName}/members [get]
+// @Router /api/v2/organizations/{organization}/groups/{groupName}/members [get]
 func (api *API) groupMembersByOrganization(rw http.ResponseWriter, r *http.Request) {
 	api.groupMembers(rw, r)
 }
@@ -468,7 +468,7 @@ func (api *API) groupMembersByOrganization(rw http.ResponseWriter, r *http.Reque
 // @Param limit query int false "Page limit"
 // @Param offset query int false "Page offset"
 // @Success 200 {object} codersdk.GroupMembersResponse
-// @Router /groups/{group}/members [get]
+// @Router /api/v2/groups/{group}/members [get]
 func (api *API) groupMembers(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx   = r.Context()
@@ -536,7 +536,7 @@ func (api *API) groupMembers(rw http.ResponseWriter, r *http.Request) {
 // @Tags Enterprise
 // @Param organization path string true "Organization ID" format(uuid)
 // @Success 200 {array} codersdk.Group
-// @Router /organizations/{organization}/groups [get]
+// @Router /api/v2/organizations/{organization}/groups [get]
 func (api *API) groupsByOrganization(rw http.ResponseWriter, r *http.Request) {
 	org := httpmw.OrganizationParam(r)
 
@@ -556,7 +556,7 @@ func (api *API) groupsByOrganization(rw http.ResponseWriter, r *http.Request) {
 // @Param has_member query string true "User ID or name"
 // @Param group_ids query string true "Comma separated list of group IDs"
 // @Success 200 {array} codersdk.Group
-// @Router /groups [get]
+// @Router /api/v2/groups [get]
 func (api *API) groups(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

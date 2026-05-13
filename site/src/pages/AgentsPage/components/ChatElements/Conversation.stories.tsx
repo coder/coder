@@ -27,7 +27,7 @@ export const ConversationWithMessages: Story = {
 		return (
 			<Conversation>
 				<ConversationItem {...userItemProps}>
-					<Message className="my-2 w-full max-w-none">
+					<Message className="my-2 w-fit max-w-[min(80vw,80%)]">
 						<MessageContent className="rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans shadow-sm">
 							Check why `git fetch` is failing in this workspace.
 						</MessageContent>

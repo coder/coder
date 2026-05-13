@@ -1,6 +1,6 @@
-import { type CSSObject, useTheme } from "@emotion/react";
 import type { FC, ReactNode } from "react";
 import { Avatar } from "#/components/Avatar/Avatar";
+import { cn } from "#/utils/cn";
 
 type AvatarCardProps = {
 	header: string;
@@ -15,20 +15,14 @@ export const AvatarCard: FC<AvatarCardProps> = ({
 	subtitle,
 	maxWidth = "none",
 }) => {
-	const theme = useTheme();
-
 	return (
 		<div
-			css={{
+			className={cn(
+				"flex flex-row flex-nowrap gap-4 items-center",
+				"border border-solid p-4 rounded-lg cursor-default",
+			)}
+			style={{
 				maxWidth: maxWidth === "none" ? undefined : `${maxWidth}px`,
-				display: "flex",
-				flexFlow: "row nowrap",
-				alignItems: "center",
-				border: `1px solid ${theme.palette.divider}`,
-				gap: "16px",
-				padding: "16px",
-				borderRadius: "8px",
-				cursor: "default",
 			}}
 		>
 			{/**
@@ -41,27 +35,13 @@ export const AvatarCard: FC<AvatarCardProps> = ({
 				<h3
 					// Lets users hover over truncated text to see whole thing
 					title={header}
-					css={[
-						theme.typography.body1 as CSSObject,
-						{
-							lineHeight: 1.4,
-							margin: 0,
-							overflow: "hidden",
-							whiteSpace: "nowrap",
-							textOverflow: "ellipsis",
-						},
-					]}
+					className="text-base leading-snug m-0 truncate"
 				>
 					{header}
 				</h3>
 
 				{subtitle && (
-					<div
-						css={[
-							theme.typography.body2 as CSSObject,
-							{ color: theme.palette.text.secondary },
-						]}
-					>
+					<div className="text-sm leading-relaxed text-content-secondary">
 						{subtitle}
 					</div>
 				)}

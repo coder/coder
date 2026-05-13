@@ -329,12 +329,19 @@ func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuild
 			}
 
 			parameterValue := tvp.DefaultValue
-			if v, ok := pr.richParametersDefaults[tvp.Name]; ok {
-				parameterValue = v
+			cliDefault, cliDefaultProvided := pr.richParametersDefaults[tvp.Name]
+			if cliDefaultProvided {
+				parameterValue = cliDefault
 			}
 
-			// Auto-accept the default if there is one.
-			if pr.useParameterDefaults && parameterValue != "" {
+			// Auto-accept the default value when one exists.
+			// A parameter has a usable default if a CLI
+			// default was provided via --parameter-default, or
+			// the template parameter is not required (meaning
+			// a default was set in Terraform, even if it is
+			// an empty string).
+			hasDefault := cliDefaultProvided || !tvp.Required
+			if pr.useParameterDefaults && hasDefault {
 				_, _ = fmt.Fprintf(inv.Stdout, "Using default value for %s: '%s'\n", name, parameterValue)
 			} else {
 				var err error

@@ -10,7 +10,7 @@ curl -X GET http://coder-server:8080/api/v2/ \
   -H 'Accept: application/json'
 ```
 
-`GET /`
+`GET /api/v2/`
 
 ### Example responses
 
@@ -45,7 +45,7 @@ curl -X GET http://coder-server:8080/api/v2/buildinfo \
   -H 'Accept: application/json'
 ```
 
-`GET /buildinfo`
+`GET /api/v2/buildinfo`
 
 ### Example responses
 
@@ -83,7 +83,7 @@ curl -X POST http://coder-server:8080/api/v2/csp/reports \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /csp/reports`
+`POST /api/v2/csp/reports`
 
 > Body parameter
 
@@ -118,7 +118,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /deployment/config`
+`GET /api/v2/deployment/config`
 
 ### Example responses
 
@@ -166,6 +166,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "allowed_private_cidrs": [
           "string"
         ],
+        "api_dump_dir": "string",
         "cert_file": "string",
         "domain_allowlist": [
           "string"
@@ -192,6 +193,8 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
           "region": "string",
           "small_fast_model": "string"
         },
+        "budget_period": "string",
+        "budget_policy": "string",
         "circuit_breaker_enabled": true,
         "circuit_breaker_failure_threshold": 0,
         "circuit_breaker_interval": 0,
@@ -210,6 +213,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
             "bedrock_model": "string",
             "bedrock_region": "string",
             "bedrock_small_fast_model": "string",
+            "dump_dir": "string",
             "name": "string",
             "type": "string"
           }
@@ -583,6 +587,10 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "user": {}
       }
     },
+    "template_builder": {
+      "disabled": true,
+      "registry_url": "string"
+    },
     "terms_of_service_url": "string",
     "tls": {
       "address": {
@@ -686,7 +694,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/ssh \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /deployment/ssh`
+`GET /api/v2/deployment/ssh`
 
 ### Example responses
 
@@ -722,7 +730,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/stats \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /deployment/stats`
+`GET /api/v2/deployment/stats`
 
 ### Example responses
 
@@ -774,7 +782,7 @@ curl -X GET http://coder-server:8080/api/v2/experiments \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /experiments`
+`GET /api/v2/experiments`
 
 ### Example responses
 
@@ -813,7 +821,7 @@ curl -X GET http://coder-server:8080/api/v2/experiments/available \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /experiments/available`
+`GET /api/v2/experiments/available`
 
 ### Example responses
 
@@ -851,7 +859,7 @@ curl -X GET http://coder-server:8080/api/v2/updatecheck \
   -H 'Accept: application/json'
 ```
 
-`GET /updatecheck`
+`GET /api/v2/updatecheck`
 
 ### Example responses
 
@@ -882,7 +890,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/keys/tokens/tokenconfig
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /users/{user}/keys/tokens/tokenconfig`
+`GET /api/v2/users/{user}/keys/tokens/tokenconfig`
 
 ### Parameters
 

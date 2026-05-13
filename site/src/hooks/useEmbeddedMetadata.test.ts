@@ -1,7 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import type { Region, User } from "#/api/typesGenerated";
 import {
-	MockAgentsTabVisible,
 	MockAppearanceConfig,
 	MockBuildInfo,
 	MockEntitlements,
@@ -46,7 +45,6 @@ const mockDataForTags = {
 	userAppearance: MockUserAppearanceSettings,
 	regions: MockRegions,
 	"tasks-tab-visible": MockTasksTabVisible,
-	"agents-tab-visible": MockAgentsTabVisible,
 	permissions: MockPermissions,
 	organizations: [MockOrganization],
 } as const satisfies Record<MetadataKey, MetadataValue>;
@@ -81,10 +79,6 @@ const emptyMetadata: RuntimeHtmlMetadata = {
 		value: undefined,
 	},
 	"tasks-tab-visible": {
-		available: false,
-		value: undefined,
-	},
-	"agents-tab-visible": {
 		available: false,
 		value: undefined,
 	},
@@ -130,10 +124,6 @@ const populatedMetadata: RuntimeHtmlMetadata = {
 	"tasks-tab-visible": {
 		available: true,
 		value: MockTasksTabVisible,
-	},
-	"agents-tab-visible": {
-		available: true,
-		value: MockAgentsTabVisible,
 	},
 	permissions: {
 		available: true,

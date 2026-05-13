@@ -1,5 +1,4 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import { EllipsisVertical, UserPlusIcon } from "lucide-react";
+import { EllipsisVerticalIcon, UserPlusIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { useOutletContext } from "react-router";
@@ -14,7 +13,12 @@ import type {
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";
-import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import {
+	Dialog,
+	DialogContent,
+	DialogFooter,
+	DialogTitle,
+} from "#/components/Dialog/Dialog";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -26,6 +30,7 @@ import { UsersFilter } from "#/components/Filter/UsersFilter";
 import { LastSeen } from "#/components/LastSeen/LastSeen";
 import { MultiMemberSelect } from "#/components/MultiUserSelect/MultiUserSelect";
 import { PaginationContainer } from "#/components/PaginationWidget/PaginationContainer";
+import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Table,
 	TableBody,
@@ -35,6 +40,7 @@ import {
 	TableRow,
 } from "#/components/Table/Table";
 import { isEveryoneGroup } from "#/modules/groups";
+import { cn } from "#/utils/cn";
 import type { GroupPageOutletContext } from "./GroupPage";
 
 const GroupMembersPage: FC = () => {
@@ -134,17 +140,33 @@ const AddUsersDialog: FC<AddUsersDialogProps> = ({
 	const [selected, setSelected] = useState<OrganizationMemberWithUserData[]>(
 		[],
 	);
+	const closeDialog = () => {
+		setAddUserDialogOpen(false);
+		setFilter("");
+		setSelected([]);
+	};
+
 	return (
 		<>
 			<Button size="lg" onClick={() => setAddUserDialogOpen(true)}>
 				<UserPlusIcon />
 				Add users
 			</Button>
-			<ConfirmDialog
+			<Dialog
 				open={addUserDialogOpen}
-				title="Add users"
-				disabled={submitting}
-				description={
+				onOpenChange={(open) => {
+					if (!open) {
+						closeDialog();
+					}
+				}}
+			>
+				<DialogContent
+					data-testid="dialog"
+					className="max-w-md gap-4 border-border-default bg-surface-primary p-8 text-content-primary"
+				>
+					<DialogTitle className="font-semibold text-content-primary">
+						Add user(s)
+					</DialogTitle>
 					<MultiMemberSelect
 						organizationId={organizationId}
 						filter={filter}
@@ -158,25 +180,39 @@ const AddUsersDialog: FC<AddUsersDialogProps> = ({
 						}}
 						selected={selected}
 					/>
-				}
-				hideCancel={false}
-				cancelText="Cancel"
-				confirmText="Add users"
-				onClose={() => setAddUserDialogOpen(false)}
-				onConfirm={async () => {
-					try {
-						setSubmitting(true);
-						await onSubmit(selected);
-						setAddUserDialogOpen(false);
-					} catch (error) {
-						toast.error(getErrorMessage(error, "Failed to add members."), {
-							description: getErrorDetail(error),
-						});
-					} finally {
-						setSubmitting(false);
-					}
-				}}
-			/>
+					<DialogFooter className="mt-4 flex-row justify-end gap-3">
+						<Button
+							variant="outline"
+							onClick={closeDialog}
+							disabled={submitting}
+						>
+							Cancel
+						</Button>
+						<Button
+							disabled={submitting || selected.length === 0}
+							onClick={async () => {
+								try {
+									setSubmitting(true);
+									await onSubmit(selected);
+									closeDialog();
+								} catch (error) {
+									toast.error(
+										getErrorMessage(error, "Failed to add members."),
+										{
+											description: getErrorDetail(error),
+										},
+									);
+								} finally {
+									setSubmitting(false);
+								}
+							}}
+						>
+							<Spinner loading={submitting} />
+							Add users
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</>
 	);
 };
@@ -213,7 +249,10 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 			</TableCell>
 			<TableCell
 				width="40%"
-				css={[styles.status, member.status === "suspended" && styles.suspended]}
+				className={cn(
+					"capitalize",
+					member.status === "suspended" ? "text-content-secondary" : "",
+				)}
 			>
 				<div>{member.status}</div>
 				<LastSeen at={member.last_seen_at} className="text-xs" />
@@ -223,7 +262,7 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
 							<Button size="icon-lg" variant="subtle" aria-label="Open menu">
-								<EllipsisVertical aria-hidden="true" />
+								<EllipsisVerticalIcon aria-hidden="true" />
 								<span className="sr-only">Open menu</span>
 							</Button>
 						</DropdownMenuTrigger>
@@ -242,14 +281,5 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 		</TableRow>
 	);
 };
-
-const styles = {
-	status: {
-		textTransform: "capitalize",
-	},
-	suspended: (theme) => ({
-		color: theme.palette.text.secondary,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
 
 export default GroupMembersPage;

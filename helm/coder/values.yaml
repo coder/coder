@@ -356,6 +356,13 @@ coder:
     #   value: "value"
     #   effect: "NoSchedule"
 
+  # coder.hostAliases -- extra entries for pod's /etc/hosts.
+  # See: https://kubernetes.io/docs/tasks/network/customize-hosts-file-for-pods/
+  hostAliases: []
+    # - hostnames:
+    #     - "some.host.name.com"
+    #   ip: 0.0.0.0
+
   # coder.nodeSelector -- Node labels for constraining coder pods to nodes.
   # See: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector
   nodeSelector: {}

@@ -11,7 +11,7 @@ curl -X GET http://coder-server:8080/api/v2/prebuilds/settings \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /prebuilds/settings`
+`GET /api/v2/prebuilds/settings`
 
 ### Example responses
 
@@ -43,7 +43,7 @@ curl -X PUT http://coder-server:8080/api/v2/prebuilds/settings \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /prebuilds/settings`
+`PUT /api/v2/prebuilds/settings`
 
 > Body parameter
 

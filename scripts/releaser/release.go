@@ -536,6 +536,28 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	}
 	fmt.Fprintln(w)
 
+	// --- Adjust changelog base for initial releases ---
+	// When the new version is a .0 release (e.g. v2.33.0) and
+	// prevVersion is an RC (e.g. v2.33.0-rc.3), the release
+	// notes should show all changes since the last stable
+	// release in the previous minor series (e.g. v2.32.X),
+	// not just the delta from the last RC.
+	if !onMain && newVersion.Patch == 0 && !newVersion.IsRC() && prevVersion != nil && prevVersion.IsRC() {
+		var lastStable *version
+		for _, t := range allTags {
+			if t.Pre == "" && t.Major == newVersion.Major && t.Minor < newVersion.Minor {
+				lastStable = &t
+				break
+			}
+		}
+		if lastStable != nil {
+			infof(w, "Changelog base: %s (last stable release before %s series).", lastStable, newVersion)
+			prevVersion = lastStable
+		} else {
+			warnf(w, "No previous stable release found; changelog will diff from RC %s.", prevVersion)
+		}
+	}
+
 	// --- Generate release notes ---
 	infof(w, "Generating release notes...")
 
@@ -631,9 +653,15 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 		fmt.Fprintln(&notes, "> [!NOTE]")
 		fmt.Fprintln(&notes, "> This is a **release candidate** (RC) for testing purposes. It is not recommended for production use. Please report any issues you encounter. Learn more about our [Release Schedule](https://coder.com/docs/install/releases).")
 	case "mainline":
-		fmt.Fprintln(&notes)
-		fmt.Fprintln(&notes, "> [!NOTE]")
-		fmt.Fprintln(&notes, "> This is a mainline Coder release. We advise enterprise customers without a staging environment to install our [latest stable release](https://github.com/coder/coder/releases/latest) while we refine this version. Learn more about our [Release Schedule](https://coder.com/docs/install/releases).")
+		// Only show the mainline blurb when the version is
+		// actually the current mainline series. Patches on
+		// older branches (e.g. ESR) are neither mainline nor
+		// stable, so we omit the note entirely.
+		if latestMainline != nil && newVersion.Minor == latestMainline.Minor {
+			fmt.Fprintln(&notes)
+			fmt.Fprintln(&notes, "> [!NOTE]")
+			fmt.Fprintln(&notes, "> This is a mainline Coder release. We advise enterprise customers without a staging environment to install our [latest stable release](https://github.com/coder/coder/releases/latest) while we refine this version. Learn more about our [Release Schedule](https://coder.com/docs/install/releases).")
+		}
 	}
 
 	hasContent := false

@@ -1,10 +1,18 @@
-import { type FC, useEffect, useEffectEvent, useRef, useState } from "react";
+import {
+	type FC,
+	type ReactNode,
+	useEffect,
+	useEffectEvent,
+	useRef,
+	useState,
+} from "react";
 import { useQuery } from "react-query";
 import { Link } from "react-router";
 import { toast } from "sonner";
 import { isApiError } from "#/api/errors";
 import { permittedOrganizations } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
+import type { AgentChatSendShortcut } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -15,12 +23,13 @@ import { useFileAttachments } from "../hooks/useFileAttachments";
 import { parseStoredDraft } from "../utils/draftStorage";
 import {
 	getModelSelectorPlaceholder,
+	getProviderForModelOption,
 	hasConfiguredModelsInCatalog,
 	hasUserFixableProviders,
 } from "../utils/modelOptions";
 import {
 	formatUsageLimitMessage,
-	isUsageLimitData,
+	isChatUsageLimitExceededResponse,
 } from "../utils/usageLimitMessage";
 import { AgentChatInput } from "./AgentChatInput";
 import { ChatAccessDeniedAlert } from "./ChatAccessDeniedAlert";
@@ -47,6 +56,7 @@ export type CreateChatOptions = {
 	model?: string;
 	mcpServerIds?: string[];
 	organizationId: string;
+	planMode?: TypesGen.ChatPlanMode;
 };
 
 /**
@@ -83,7 +93,7 @@ export function useEmptyStateDraft() {
 				try {
 					localStorage.setItem(emptyInputStorageKey, serializedEditorState);
 				} catch {
-					// QuotaExceededError — silently discard the draft.
+					// QuotaExceededError, silently discard the draft.
 				}
 			} else {
 				localStorage.removeItem(emptyInputStorageKey);
@@ -116,14 +126,18 @@ export function useEmptyStateDraft() {
 
 interface AgentCreateFormProps {
 	onCreateChat: (options: CreateChatOptions) => Promise<void>;
+	sendShortcut: AgentChatSendShortcut;
 	isCreating: boolean;
 	createError: unknown;
 	canCreateChat: boolean;
 	modelCatalog: TypesGen.ChatModelsResponse | null | undefined;
 	modelOptions: readonly ChatModelOption[];
+	agentSetupNotice?: ReactNode;
 	isModelCatalogLoading: boolean;
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
 	isModelConfigsLoading: boolean;
+	rootPersonalModelOverride?: TypesGen.ChatPersonalModelOverride;
+	isPersonalModelOverridesLoading?: boolean;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	onMCPAuthComplete?: (serverId: string) => void;
 	workspaceCount: number | undefined;
@@ -134,14 +148,18 @@ interface AgentCreateFormProps {
 
 export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	onCreateChat,
+	sendShortcut,
 	isCreating,
 	createError,
 	canCreateChat,
 	modelCatalog,
 	modelOptions,
+	agentSetupNotice,
 	modelConfigs,
 	isModelCatalogLoading,
 	isModelConfigsLoading,
+	rootPersonalModelOverride,
+	isPersonalModelOverridesLoading = false,
 	mcpServers,
 	onMCPAuthComplete,
 	workspaceCount: _workspaceCount,
@@ -160,6 +178,10 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const [initialLastModelConfigID] = useState(() => {
 		return localStorage.getItem(lastModelConfigIDStorageKey) ?? "";
 	});
+	/*
+	 * Model precedence: user click > root override (specific model) > root
+	 * override (chat_default, resolved) > last-used > default > first available.
+	 */
 	const lastUsedModelID =
 		initialLastModelConfigID &&
 		modelOptions.some((option) => option.id === initialLastModelConfigID)
@@ -176,17 +198,45 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			? defaultModelConfig.id
 			: "";
 	})();
-	const preferredModelID =
+	const isUsableRootPersonalOverride =
+		rootPersonalModelOverride?.is_set === true &&
+		!rootPersonalModelOverride.is_malformed;
+	const rootOverrideModelID =
+		isUsableRootPersonalOverride &&
+		rootPersonalModelOverride.mode === "model" &&
+		modelOptions.some(
+			(option) => option.id === rootPersonalModelOverride.model_config_id,
+		)
+			? rootPersonalModelOverride.model_config_id
+			: "";
+	const isRootOverrideChatDefault =
+		isUsableRootPersonalOverride &&
+		rootPersonalModelOverride.mode === "chat_default";
+	const rootOverrideDisplayModelID = isRootOverrideChatDefault
+		? defaultModelID || (modelOptions[0]?.id ?? "")
+		: rootOverrideModelID;
+	const fallbackModelID =
 		lastUsedModelID || defaultModelID || (modelOptions[0]?.id ?? "");
+	const preferredModelID = rootOverrideDisplayModelID || fallbackModelID;
 	const [userSelectedModel, setUserSelectedModel] = useState("");
 	const [hasUserSelectedModel, setHasUserSelectedModel] = useState(false);
+	const hasValidUserSelectedModel =
+		hasUserSelectedModel &&
+		modelOptions.some((modelOption) => modelOption.id === userSelectedModel);
 	// Derive the effective model every render so we never reference
 	// a stale model id and can honor fallback precedence.
-	const selectedModel =
-		hasUserSelectedModel &&
-		modelOptions.some((modelOption) => modelOption.id === userSelectedModel)
-			? userSelectedModel
-			: preferredModelID;
+	const selectedModel = hasValidUserSelectedModel
+		? userSelectedModel
+		: preferredModelID;
+	const submittedModel = (() => {
+		if (hasValidUserSelectedModel) {
+			return userSelectedModel;
+		}
+		if (rootOverrideModelID) {
+			return rootOverrideModelID;
+		}
+		return selectedModel || undefined;
+	})();
 	const initialOrg =
 		organizations.find((o) => o.is_default) ?? organizations[0];
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
@@ -225,6 +275,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const [pendingOrgChange, setPendingOrgChange] =
 		useState<TypesGen.Organization | null>(null);
 	const organizationId = selectedOrg?.id ?? "";
+	const [planModeEnabled, setPlanModeEnabled] = useState(false);
 	const hasModelOptions = modelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
 	const hasUserFixableModelProviders = hasUserFixableProviders(modelCatalog);
@@ -308,25 +359,24 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			? selectedWorkspaceId
 			: null;
 
-	const handleSend = useEffectEvent(
-		async (message: string, fileIDs?: string[]) => {
-			submitDraft();
-			await onCreateChat({
-				message,
-				fileIDs,
-				workspaceId: effectiveWorkspaceId ?? undefined,
-				model: selectedModel || undefined,
-				organizationId,
-				mcpServerIds:
-					effectiveMCPServerIds.length > 0
-						? [...effectiveMCPServerIds]
-						: undefined,
-			}).catch((err) => {
-				resetDraft();
-				throw err;
-			});
-		},
-	);
+	const handleSend = async (message: string, fileIDs?: string[]) => {
+		submitDraft();
+		await onCreateChat({
+			message,
+			fileIDs,
+			workspaceId: effectiveWorkspaceId ?? undefined,
+			model: submittedModel,
+			organizationId,
+			mcpServerIds:
+				effectiveMCPServerIds.length > 0
+					? [...effectiveMCPServerIds]
+					: undefined,
+			planMode: planModeEnabled ? "plan" : undefined,
+		}).catch((err) => {
+			resetDraft();
+			throw err;
+		});
+	};
 
 	const {
 		attachments,
@@ -336,7 +386,10 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		handleAttach,
 		handleRemoveAttachment,
 		resetAttachments,
-	} = useFileAttachments(organizationId || undefined, { persist: true });
+	} = useFileAttachments(organizationId || undefined, {
+		persist: true,
+		provider: getProviderForModelOption(modelOptions, selectedModel),
+	});
 
 	const handleSendWithAttachments = async (message: string) => {
 		const fileIds: string[] = [];
@@ -383,7 +436,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		setPrevPermittedOrgs(permittedOrgs);
 		if (selectedOrg && !permittedOrgs.some((o) => o.id === selectedOrg.id)) {
 			// Fall back through: first permitted org, then the
-			// dashboard default. Never null out selectedOrg —
+			// dashboard default. Never null out selectedOrg.
 			// organizationId must always be a valid UUID for the
 			// create-chat request.
 			const nextOrg = permittedOrgs[0] ?? initialOrg ?? null;
@@ -411,14 +464,14 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 
 	return (
 		<>
-			<div className="flex min-h-0 flex-1 items-start justify-center overflow-auto p-4 pt-12 md:h-full md:items-center md:pt-4">
-				<div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+			<div className="order-last flex min-h-0 flex-none items-end justify-center overflow-auto px-4 pb-4 sm:order-none sm:h-full sm:flex-1 sm:items-center">
+				<div className="mx-auto flex w-full max-w-3xl flex-col gap-2">
 					{isForbidden ? (
 						<ChatAccessDeniedAlert />
 					) : createError ? (
 						isApiError(createError) &&
 						createError.response?.status === 409 &&
-						isUsageLimitData(createError.response.data) ? (
+						isChatUsageLimitExceededResponse(createError.response.data) ? (
 							<Alert
 								severity="info"
 								actions={
@@ -456,10 +509,14 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							}}
 						/>
 					)}
+					{agentSetupNotice}
 					<AgentChatInput
 						onSend={handleSendWithAttachments}
+						sendShortcut={sendShortcut}
 						placeholder="Ask Coder to build, fix bugs, or explore your project..."
-						isDisabled={isCreating || isForbidden}
+						isDisabled={
+							isCreating || isForbidden || isPersonalModelOverridesLoading
+						}
 						isLoading={isCreating}
 						initialValue={initialInputValue}
 						initialEditorState={initialEditorState}
@@ -470,6 +527,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						modelSelectorPlaceholder={modelSelectorPlaceholder}
 						isModelCatalogLoading={isModelCatalogLoading}
 						hasModelOptions={hasModelOptions}
+						planModeEnabled={planModeEnabled}
+						onPlanModeToggle={setPlanModeEnabled}
 						attachments={attachments}
 						onAttach={handleAttach}
 						onRemoveAttachment={handleRemoveAttachment}
@@ -493,7 +552,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							{modelSelectorHelp}
 						</div>
 					) : null}
-					<p className="mt-1 text-center text-xs text-content-secondary/50">
+					<p className="text-center text-xs text-content-secondary/50">
 						<a
 							href={docs("/ai-coder/agents")}
 							target="_blank"

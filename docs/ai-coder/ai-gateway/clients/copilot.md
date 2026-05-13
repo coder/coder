@@ -1,5 +1,10 @@
 # GitHub Copilot
 
+> [!NOTE]
+> AI Gateway requires the [AI Governance Add-On](../../ai-governance.md).
+> As of Coder v2.32, deployments without the add-on will not be able to
+> access AI Gateway.
+
 [GitHub Copilot](https://github.com/features/copilot) is an AI coding assistant that doesn't support custom base URLs but does respect proxy configurations.
 This makes it compatible with [AI Gateway Proxy](../ai-gateway-proxy/index.md), which integrates with [AI Gateway](../index.md) for full access to auditing and governance features.
 To use Copilot with AI Gateway, make sure AI Gateway Proxy is properly configured, see [AI Gateway Proxy Setup](../ai-gateway-proxy/setup.md) for instructions.
@@ -12,32 +17,7 @@ For general information about GitHub Copilot, see the [GitHub Copilot documentat
 For general client configuration requirements, see [AI Gateway Proxy Client Configuration](../ai-gateway-proxy/setup.md#client-configuration).
 The sections below cover Copilot-specific setup for each client.
 
-## Provider configuration
-
-Configure a `copilot` provider using the
-[indexed provider format](../setup.md#multiple-instances-of-the-same-provider).
-Copilot providers use OAuth app installations for authentication rather than
-static API keys.
-
-```sh
-# GitHub Copilot (Individual)
-export CODER_AIBRIDGE_PROVIDER_0_TYPE=copilot
-export CODER_AIBRIDGE_PROVIDER_0_NAME=copilot
-
-# GitHub Copilot Business
-export CODER_AIBRIDGE_PROVIDER_1_TYPE=copilot
-export CODER_AIBRIDGE_PROVIDER_1_NAME=copilot-business
-export CODER_AIBRIDGE_PROVIDER_1_BASE_URL=https://api.business.githubcopilot.com
-
-# GitHub Copilot Enterprise
-export CODER_AIBRIDGE_PROVIDER_2_TYPE=copilot
-export CODER_AIBRIDGE_PROVIDER_2_NAME=copilot-enterprise
-export CODER_AIBRIDGE_PROVIDER_2_BASE_URL=https://api.enterprise.githubcopilot.com
-```
-
-The default base URL targets the individual Copilot API
-(`api.individual.githubcopilot.com`). Override `BASE_URL` for Business or
-Enterprise tiers as shown above.
+For provider configuration (admin), see [GitHub Copilot provider setup](../setup.md#github-copilot).
 
 ## Copilot CLI
 

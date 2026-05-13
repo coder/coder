@@ -213,7 +213,7 @@ export const ExecuteAuthRequiredTool: React.FC<{
 		<div className="w-full overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary">
 			<div className="flex flex-wrap items-center gap-2 px-3 py-2">
 				<CircleAlertIcon className="h-4 w-4 shrink-0 text-content-warning" />
-				<span className="text-sm text-content-primary">
+				<span className="text-[13px] text-content-primary">
 					Authenticate with {providerLabel} to continue this command.
 				</span>
 			</div>
@@ -302,7 +302,7 @@ export const WaitForExternalAuthTool: React.FC<{
 		<div className="w-full overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary px-3 py-2">
 			<div className="flex items-center gap-2">
 				{icon}
-				<span className="text-sm text-content-primary">{label}</span>
+				<span className="text-[13px] text-content-primary">{label}</span>
 			</div>
 		</div>
 	);

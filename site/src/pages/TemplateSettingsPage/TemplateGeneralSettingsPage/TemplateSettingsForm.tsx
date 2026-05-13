@@ -23,7 +23,6 @@ import {
 import { IconField } from "#/components/IconField/IconField";
 import { Link } from "#/components/Link/Link";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { Stack } from "#/components/Stack/Stack";
 import {
 	StackLabel,
 	StackLabelHelperText,
@@ -164,7 +163,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 				title="Operations"
 				description="Regulate actions allowed on workspaces created from this template."
 			>
-				<FormFields spacing={6}>
+				<FormFields className="gap-12">
 					<FormControlLabel
 						control={
 							<Checkbox
@@ -217,15 +216,10 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 									</span>
 
 									{!advancedSchedulingEnabled && (
-										<Stack
-											direction="row"
-											spacing={2}
-											alignItems="center"
-											className="mt-4"
-										>
+										<div className="flex flex-row gap-4 items-center mt-4">
 											<PremiumBadge />
 											<span>Premium license required to be enabled.</span>
-										</Stack>
+										</div>
 									)}
 								</StackLabelHelperText>
 							</StackLabel>
@@ -317,14 +311,14 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 						label="Deprecation Message"
 					/>
 					{!accessControlEnabled && (
-						<Stack direction="row" spacing={2} alignItems="center">
+						<div className="flex flex-row gap-4 items-center">
 							<PremiumBadge />
 							<FormHelperText>
 								Premium license required to deprecate templates.
 								{template.deprecated &&
 									" You cannot change the message, but you may remove it to mark this template as no longer deprecated."}
 							</FormHelperText>
-						</Stack>
+						</div>
 					)}
 				</FormFields>
 			</FormSection>
@@ -358,12 +352,12 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 						<MenuItem value="public">Public</MenuItem>
 					</TextField>
 					{!portSharingControlsEnabled && (
-						<Stack direction="row" spacing={2} alignItems="center">
+						<div className="flex flex-row gap-4 items-center">
 							<PremiumBadge />
 							<FormHelperText>
 								Premium license required to control max port sharing level.
 							</FormHelperText>
-						</Stack>
+						</div>
 					)}
 				</FormFields>
 			</FormSection>

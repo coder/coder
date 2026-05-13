@@ -29,8 +29,11 @@ const CreateTemplatePage: FC = () => {
 				onCreateVersion: setTemplateVersion,
 				onTemplateVersionChanges: setTemplateVersion,
 			});
+			// Ephemeral router state tells TemplateFilesPage to show a
+			// one-time banner with agent skill and docs links.
 			navigate(
 				`${getLink(linkToTemplate(options.organization, template.name))}/files`,
+				{ state: { justCreated: true } },
 			);
 		},
 		onOpenBuildLogsDrawer: () => setIsBuildLogsOpen(true),

@@ -3,6 +3,7 @@ package codersdk
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/cookiejar"
@@ -610,6 +611,53 @@ func (c *Client) WorkspaceByOwnerAndName(ctx context.Context, owner string, name
 
 	var workspace Workspace
 	return workspace, json.NewDecoder(res.Body).Decode(&workspace)
+}
+
+// SplitWorkspaceIdentifier splits an identifier into owner and
+// workspace name. A bare name defaults the owner to Me ("me"). An
+// "owner/name" pair is accepted, and identifiers with more than one
+// "/" are rejected.
+func SplitWorkspaceIdentifier(identifier string) (owner, name string, err error) {
+	owner, name, ok := strings.Cut(identifier, "/")
+	if !ok {
+		return Me, identifier, nil
+	}
+	if strings.Contains(name, "/") {
+		return "", "", xerrors.Errorf("invalid workspace identifier: %q", identifier)
+	}
+	return owner, name, nil
+}
+
+// ResolveWorkspace fetches a workspace by identifier, which may be a
+// UUID, a bare name (owned by the current user), or an "owner/name"
+// pair. When the identifier parses as a valid UUID but no workspace
+// exists with that ID, the function falls back to a name-based
+// lookup because workspace names can be valid UUID strings.
+func (c *Client) ResolveWorkspace(ctx context.Context, identifier string) (Workspace, error) {
+	if uid, err := uuid.Parse(identifier); err == nil {
+		ws, err := c.Workspace(ctx, uid)
+		if err == nil {
+			return ws, nil
+		}
+		// A workspace name might be a valid UUID string. If the
+		// ID-based lookup returned 404, fall through to name-based
+		// lookup below.
+		var sdkErr *Error
+		if !errors.As(err, &sdkErr) || sdkErr.StatusCode() != http.StatusNotFound {
+			return Workspace{}, err
+		}
+		// A standard dashed UUID (36 chars) cannot be a valid
+		// workspace name (max 32 chars). Skip the wasted
+		// name-based round-trip.
+		if err := NameValid(identifier); err != nil {
+			return Workspace{}, sdkErr
+		}
+	}
+	owner, name, err := SplitWorkspaceIdentifier(identifier)
+	if err != nil {
+		return Workspace{}, err
+	}
+	return c.WorkspaceByOwnerAndName(ctx, owner, name, WorkspaceOptions{})
 }
 
 type WorkspaceQuota struct {

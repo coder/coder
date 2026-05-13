@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import Link from "@mui/material/Link";
 import { ExternalLinkIcon, RotateCwIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
@@ -69,7 +68,7 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 				You&apos;ve authenticated with {externalAuth.display_name}!
 			</Welcome>
 
-			<p css={styles.text}>
+			<p className="m-0 text-center text-base leading-relaxed text-content-secondary">
 				{externalAuth.user?.login && `Hey @${externalAuth.user?.login}! 👋`}
 				{(!externalAuth.app_installable ||
 					externalAuth.installations.length > 0) &&
@@ -77,10 +76,7 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 			</p>
 
 			{externalAuth.installations.length > 0 && (
-				<div
-					css={styles.authorizedInstalls}
-					className="flex gap-2 items-center"
-				>
+				<div className="m-8 flex items-center gap-1 text-content-disabled">
 					{externalAuth.installations.map((install) => {
 						if (!install.account) {
 							return;
@@ -111,9 +107,9 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 				</div>
 			)}
 
-			<div css={styles.links}>
+			<div className="m-4 flex flex-col gap-1">
 				{!hasInstallations && externalAuth.app_installable && (
-					<Alert severity="warning" css={styles.installAlert}>
+					<Alert severity="warning" className="m-4">
 						You must {installTheApp} to clone private repositories. Accounts
 						will appear here once authorized.
 					</Alert>
@@ -126,7 +122,7 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 							href={externalAuth.app_install_url}
 							target="_blank"
 							rel="noreferrer"
-							css={styles.link}
+							className="flex items-center justify-center gap-2 text-base"
 						>
 							<ExternalLinkIcon className="size-icon-xs" />
 							{externalAuth.installations.length > 0 ? "Configure" : "Install"}{" "}
@@ -134,7 +130,7 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 						</Link>
 					)}
 				<Link
-					css={styles.link}
+					className="flex items-center justify-center gap-2 text-base"
 					href="#"
 					onClick={() => {
 						onReauthenticate();
@@ -148,39 +144,3 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 };
 
 export default ExternalAuthPageView;
-
-const styles = {
-	text: (theme) => ({
-		fontSize: 16,
-		color: theme.palette.text.secondary,
-		textAlign: "center",
-		lineHeight: "160%",
-		margin: 0,
-	}),
-
-	installAlert: {
-		margin: 16,
-	},
-
-	links: {
-		display: "flex",
-		gap: 4,
-		margin: 16,
-		flexDirection: "column",
-	},
-
-	link: {
-		display: "flex",
-		alignItems: "center",
-		justifyContent: "center",
-		fontSize: 16,
-		gap: 8,
-	},
-
-	authorizedInstalls: (theme) => ({
-		display: "flex",
-		gap: 4,
-		color: theme.palette.text.disabled,
-		margin: 32,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

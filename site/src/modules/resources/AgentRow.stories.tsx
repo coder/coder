@@ -159,7 +159,7 @@ export const Example: Story = {};
 export const BunchOfApps: Story = {
 	args: {
 		agent: {
-			...M.MockWorkspaceAgent,
+			...M.MockWorkspaceAgentReady,
 			apps: [
 				M.MockWorkspaceApp,
 				M.MockWorkspaceApp,
@@ -197,7 +197,10 @@ export const Timeout: Story = {
 
 export const Starting: Story = {
 	args: {
-		agent: M.MockWorkspaceAgentStarting,
+		agent: {
+			...M.MockWorkspaceAgentStarting,
+			logs_length: logs.length,
+		},
 	},
 };
 
@@ -226,6 +229,33 @@ export const StartTimeout: Story = {
 export const StartError: Story = {
 	args: {
 		agent: M.MockWorkspaceAgentStartError,
+	},
+	parameters: {
+		webSocket: [
+			{
+				event: "message",
+				data: JSON.stringify(
+					M.MockWorkspaceAgentStartError.log_sources.flatMap((l, i) => {
+						return [
+							{
+								id: i,
+								level: "info",
+								output: `running '${l.display_name}' script`,
+								source_id: l.id,
+								created_at: fixedLogTimestamp,
+							},
+							{
+								id: i + 100,
+								level: "error",
+								output: `stderr from '${l.display_name}' script`,
+								source_id: l.id,
+								created_at: fixedLogTimestamp,
+							},
+						];
+					}),
+				),
+			},
+		],
 	},
 };
 
@@ -296,7 +326,7 @@ export const Deprecated: Story = {
 export const HideApp: Story = {
 	args: {
 		agent: {
-			...M.MockWorkspaceAgent,
+			...M.MockWorkspaceAgentReady,
 			apps: [
 				{
 					...M.MockWorkspaceApp,
@@ -310,7 +340,7 @@ export const HideApp: Story = {
 export const GroupApp: Story = {
 	args: {
 		agent: {
-			...M.MockWorkspaceAgent,
+			...M.MockWorkspaceAgentReady,
 			apps: [
 				{
 					...M.MockWorkspaceApp,

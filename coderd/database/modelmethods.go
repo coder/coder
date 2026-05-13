@@ -182,6 +182,10 @@ func (r GetChatsRow) RBACObject() rbac.Object {
 	return r.Chat.RBACObject()
 }
 
+func (r GetChildChatsByParentIDsRow) RBACObject() rbac.Object {
+	return r.Chat.RBACObject()
+}
+
 func (c ChatFile) RBACObject() rbac.Object {
 	return rbac.ResourceChat.WithID(c.ID).WithOwner(c.OwnerID.String()).InOrg(c.OrganizationID)
 }
@@ -928,6 +932,11 @@ func (r GetWorkspaceAgentAndWorkspaceByIDRow) RBACObject() rbac.Object {
 	return r.WorkspaceTable.RBACObject()
 }
 
+// A workspace agent belongs to the owner of the associated workspace.
+func (r GetWorkspaceBuildAgentsByInstanceIDRow) RBACObject() rbac.Object {
+	return r.WorkspaceTable.RBACObject()
+}
+
 // UpsertConnectionLogParams contains the parameters for upserting a
 // connection log entry. This struct is hand-maintained (not generated
 // by sqlc) because the single-row UpsertConnectionLog query was
@@ -951,4 +960,8 @@ type UpsertConnectionLogParams struct {
 	DisconnectReason sql.NullString   `db:"disconnect_reason" json:"disconnect_reason"`
 	Time             time.Time        `db:"time" json:"time"`
 	ConnectionStatus ConnectionStatus `db:"connection_status" json:"connection_status"`
+}
+
+func (r GetLatestWorkspaceBuildWithStatusByWorkspaceIDRow) RBACObject() rbac.Object {
+	return r.WorkspaceTable.RBACObject()
 }

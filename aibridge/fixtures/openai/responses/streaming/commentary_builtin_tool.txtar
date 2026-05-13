@@ -1,0 +1,80 @@
+-- request --
+{
+  "input": [
+    {
+      "role": "user",
+      "content": "Is 3 + 5 a prime number? Use the add function to calculate the sum."
+    }
+  ],
+  "model": "gpt-5.4",
+  "stream": true,
+  "tools": [
+    {
+      "type": "function",
+      "name": "add",
+      "description": "Add two numbers together.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "a": {
+            "type": "number"
+          },
+          "b": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "a",
+          "b"
+        ]
+      }
+    }
+  ]
+}
+
+-- streaming --
+event: response.created
+data: {"type":"response.created","response":{"id":"resp_0aba2ac43dc240b30169b15720243c819ebb64977365d42cf5","object":"response","created_at":1773229856,"status":"in_progress","background":false,"completed_at":null,"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"max_tool_calls":null,"model":"gpt-5.4-2026-03-05","output":[],"parallel_tool_calls":true,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":null,"reasoning":{"effort":"xhigh","summary":null},"safety_identifier":null,"service_tier":"default","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"low"},"tool_choice":"auto","tools":[{"type":"function","description":"Add two numbers together.","name":"add","parameters":{"type":"object","properties":{"a":{"type":"number"},"b":{"type":"number"}},"required":["a","b"],"additionalProperties":false},"strict":true}],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":0}
+
+event: response.in_progress
+data: {"type":"response.in_progress","response":{"id":"resp_0aba2ac43dc240b30169b15720243c819ebb64977365d42cf5","object":"response","created_at":1773229856,"status":"in_progress","background":false,"completed_at":null,"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"max_tool_calls":null,"model":"gpt-5.4-2026-03-05","output":[],"parallel_tool_calls":true,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":null,"reasoning":{"effort":"xhigh","summary":null},"safety_identifier":null,"service_tier":"default","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"low"},"tool_choice":"auto","tools":[{"type":"function","description":"Add two numbers together.","name":"add","parameters":{"type":"object","properties":{"a":{"type":"number"},"b":{"type":"number"}},"required":["a","b"],"additionalProperties":false},"strict":true}],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":null,"user":null,"metadata":{}},"sequence_number":1}
+
+event: response.output_item.added
+data: {"type":"response.output_item.added","item":{"id":"rs_0aba2ac43dc240b30169b157208c88819e8238a91b5f7a919b","type":"reasoning","status":"in_progress","summary":[]},"output_index":0,"sequence_number":2}
+
+event: response.output_item.done
+data: {"type":"response.output_item.done","item":{"id":"rs_0aba2ac43dc240b30169b157208c88819e8238a91b5f7a919b","type":"reasoning","status":"completed","encrypted_content":"gAAAAA==","summary":[]},"output_index":0,"sequence_number":3}
+
+event: response.output_item.added
+data: {"type":"response.output_item.added","item":{"id":"msg_0aba2ac43dc240b30169b1572286d0819eb24b1d0f84c8fb3f","type":"message","status":"in_progress","content":[],"phase":"commentary","role":"assistant"},"output_index":1,"sequence_number":4}
+
+event: response.content_part.added
+data: {"type":"response.content_part.added","item_id":"msg_0aba2ac43dc240b30169b1572286d0819eb24b1d0f84c8fb3f","output_index":1,"content_index":0,"part":{"type":"output_text","text":"","annotations":[]},"sequence_number":5}
+
+event: response.output_text.delta
+data: {"type":"response.output_text.delta","item_id":"msg_0aba2ac43dc240b30169b1572286d0819eb24b1d0f84c8fb3f","output_index":1,"content_index":0,"delta":"Checking whether 3 + 5 is prime by calling the add function first.","sequence_number":6}
+
+event: response.output_text.done
+data: {"type":"response.output_text.done","item_id":"msg_0aba2ac43dc240b30169b1572286d0819eb24b1d0f84c8fb3f","output_index":1,"content_index":0,"text":"Checking whether 3 + 5 is prime by calling the add function first.","sequence_number":7}
+
+event: response.content_part.done
+data: {"type":"response.content_part.done","item_id":"msg_0aba2ac43dc240b30169b1572286d0819eb24b1d0f84c8fb3f","output_index":1,"content_index":0,"part":{"type":"output_text","text":"Checking whether 3 + 5 is prime by calling the add function first.","annotations":[]},"sequence_number":8}
+
+event: response.output_item.done
+data: {"type":"response.output_item.done","item":{"id":"msg_0aba2ac43dc240b30169b1572286d0819eb24b1d0f84c8fb3f","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"text":"Checking whether 3 + 5 is prime by calling the add function first."}],"phase":"commentary","role":"assistant"},"output_index":1,"sequence_number":9}
+
+event: response.output_item.added
+data: {"type":"response.output_item.added","item":{"id":"fc_0aba2ac43dc240b30169b157255604819e8a108124efc1635c","type":"function_call","status":"in_progress","arguments":"","call_id":"call_A8TkZmIcKtw2Zw952Wc5QVe7","name":"add"},"output_index":2,"sequence_number":10}
+
+event: response.function_call_arguments.delta
+data: {"type":"response.function_call_arguments.delta","delta":"{\"a\":3,\"b\":5}","item_id":"fc_0aba2ac43dc240b30169b157255604819e8a108124efc1635c","output_index":2,"sequence_number":11}
+
+event: response.function_call_arguments.done
+data: {"type":"response.function_call_arguments.done","arguments":"{\"a\":3,\"b\":5}","item_id":"fc_0aba2ac43dc240b30169b157255604819e8a108124efc1635c","output_index":2,"sequence_number":12}
+
+event: response.output_item.done
+data: {"type":"response.output_item.done","item":{"id":"fc_0aba2ac43dc240b30169b157255604819e8a108124efc1635c","type":"function_call","status":"completed","arguments":"{\"a\":3,\"b\":5}","call_id":"call_A8TkZmIcKtw2Zw952Wc5QVe7","name":"add"},"output_index":2,"sequence_number":13}
+
+event: response.completed
+data: {"type":"response.completed","response":{"id":"resp_0aba2ac43dc240b30169b15720243c819ebb64977365d42cf5","object":"response","created_at":1773229856,"status":"completed","background":false,"completed_at":1773229861,"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":null,"max_tool_calls":null,"model":"gpt-5.4-2026-03-05","output":[{"id":"rs_0aba2ac43dc240b30169b157208c88819e8238a91b5f7a919b","type":"reasoning","status":"completed","encrypted_content":"gAAAAA==","summary":[]},{"id":"msg_0aba2ac43dc240b30169b1572286d0819eb24b1d0f84c8fb3f","type":"message","status":"completed","content":[{"type":"output_text","annotations":[],"text":"Checking whether 3 + 5 is prime by calling the add function first."}],"phase":"commentary","role":"assistant"},{"id":"fc_0aba2ac43dc240b30169b157255604819e8a108124efc1635c","type":"function_call","status":"completed","arguments":"{\"a\":3,\"b\":5}","call_id":"call_A8TkZmIcKtw2Zw952Wc5QVe7","name":"add"}],"parallel_tool_calls":true,"previous_response_id":null,"prompt_cache_key":null,"prompt_cache_retention":null,"reasoning":{"effort":"xhigh","summary":null},"safety_identifier":null,"service_tier":"default","store":false,"temperature":1.0,"text":{"format":{"type":"text"},"verbosity":"low"},"tool_choice":"auto","tools":[{"type":"function","description":"Add two numbers together.","name":"add","parameters":{"type":"object","properties":{"a":{"type":"number"},"b":{"type":"number"}},"required":["a","b"],"additionalProperties":false},"strict":true}],"top_logprobs":0,"top_p":0.98,"truncation":"disabled","usage":{"input_tokens":58,"input_tokens_details":{"cached_tokens":0},"output_tokens":30,"output_tokens_details":{"reasoning_tokens":10},"total_tokens":88},"user":null,"metadata":{}},"sequence_number":14}
+

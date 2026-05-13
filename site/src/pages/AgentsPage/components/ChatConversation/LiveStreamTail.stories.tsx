@@ -4,6 +4,7 @@ import { LiveStreamTailContent } from "./LiveStreamTail";
 import {
 	buildLiveStatus,
 	buildReconnectState,
+	buildRetryState,
 	buildStreamRenderState,
 	FIXTURE_NOW,
 	textResponseStreamParts,
@@ -80,7 +81,7 @@ export const TerminalOverloadedError: Story = {
 		liveStatus: buildLiveStatus({
 			persistedError: {
 				kind: "overloaded",
-				message: "Anthropic is currently overloaded.",
+				message: "Anthropic is temporarily overloaded.",
 				provider: "anthropic",
 				retryable: true,
 				statusCode: 529,
@@ -93,13 +94,98 @@ export const TerminalOverloadedError: Story = {
 			canvas.getByRole("heading", { name: /service overloaded/i }),
 		).toBeVisible();
 		expect(
-			canvas.getByText(/anthropic is currently overloaded./i),
+			canvas.getByText(/anthropic is temporarily overloaded\./i),
 		).toBeVisible();
+		expect(canvas.getByText(/^HTTP 529$/)).toBeVisible();
 		expect(canvas.queryByText(/please try again/i)).not.toBeInTheDocument();
 		expect(canvas.queryByText(/^retryable$/i)).not.toBeInTheDocument();
-		expect(canvas.getByText(/http 529/i)).toBeVisible();
 		expect(canvas.getByRole("link", { name: /status/i })).toBeVisible();
 		expect(canvas.queryByText(/provider anthropic/i)).not.toBeInTheDocument();
+	},
+};
+
+/**
+ * Transport timeouts render the per-provider "temporarily
+ * unavailable" copy with a "Request timed out" heading rather than
+ * the generic "Request failed" fallback.
+ */
+export const TerminalTimeoutErrorAnthropic: Story = {
+	args: {
+		...defaultArgs,
+		liveStatus: buildLiveStatus({
+			streamError: {
+				kind: "timeout",
+				message: "Anthropic is temporarily unavailable.",
+				provider: "anthropic",
+				retryable: false,
+			},
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("heading", { name: /request timed out/i }),
+		).toBeVisible();
+		expect(
+			canvas.getByText(/anthropic is temporarily unavailable/i),
+		).toBeVisible();
+		// Guard against the pre-fix generic fallback.
+		expect(
+			canvas.queryByText(/the chat request failed unexpectedly/i),
+		).not.toBeInTheDocument();
+	},
+};
+
+/** Transport timeout with an unknown provider uses the generic subject. */
+export const TerminalTimeoutErrorUnknownProvider: Story = {
+	args: {
+		...defaultArgs,
+		liveStatus: buildLiveStatus({
+			streamError: {
+				kind: "timeout",
+				message: "The AI provider is temporarily unavailable.",
+				retryable: false,
+			},
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("heading", { name: /request timed out/i }),
+		).toBeVisible();
+		expect(
+			canvas.getByText(/the ai provider is temporarily unavailable/i),
+		).toBeVisible();
+	},
+};
+
+/** Retrying a transport timeout shows attempt + countdown. */
+export const RetryingTimeoutAnthropic: Story = {
+	args: {
+		...defaultArgs,
+		liveStatus: buildLiveStatus({
+			retryState: buildRetryState({
+				attempt: 2,
+				kind: "timeout",
+				error: "Anthropic is temporarily unavailable.",
+				provider: "anthropic",
+			}),
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("heading", { name: /request timed out/i }),
+		).toBeVisible();
+		expect(
+			canvas.getByText(/anthropic is temporarily unavailable/i),
+		).toBeVisible();
+		expect(canvas.getByText(/attempt 2/i)).toBeVisible();
+		// StatusCountdown renders label and seconds as separate text
+		// nodes, so match against the element's combined textContent.
+		await waitFor(() => {
+			expect(canvasElement).toHaveTextContent(/retrying in \d+s/i);
+		});
 	},
 };
 
@@ -159,6 +245,35 @@ export const GenericErrorDoesNotShowUsageAction: Story = {
 		expect(
 			canvas.queryByRole("link", { name: /status/i }),
 		).not.toBeInTheDocument();
+	},
+};
+
+/** Provider detail renders as a muted secondary line under the main error. */
+export const GenericErrorShowsProviderDetail: Story = {
+	args: {
+		...defaultArgs,
+		liveStatus: buildLiveStatus({
+			streamError: {
+				kind: "generic",
+				message: "Anthropic returned an unexpected error.",
+				detail:
+					"messages.0.content.1.image.source.base64: image exceeds 5 MB maximum.",
+				provider: "anthropic",
+				statusCode: 400,
+				retryable: false,
+			},
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("heading", { name: /request failed/i }),
+		).toBeVisible();
+		expect(
+			canvas.getByText(/anthropic returned an unexpected error\./i),
+		).toBeVisible();
+		expect(canvas.getByText(/^HTTP 400$/)).toBeVisible();
+		expect(canvas.getByText(/image exceeds 5 mb maximum/i)).toBeVisible();
 	},
 };
 

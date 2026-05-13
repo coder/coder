@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"runtime"
 	"strings"
 	"sync/atomic"
@@ -163,9 +164,9 @@ func TestRoot(t *testing.T) {
 		t.Parallel()
 
 		var url string
-		var called int64
+		var called atomic.Int64
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			atomic.AddInt64(&called, 1)
+			called.Add(1)
 			assert.Equal(t, "wow", r.Header.Get("X-Testing"))
 			assert.Equal(t, "Dean was Here!", r.Header.Get("Cool-Header"))
 			assert.Equal(t, "very-wow-"+url, r.Header.Get("X-Process-Testing"))
@@ -192,7 +193,7 @@ func TestRoot(t *testing.T) {
 		err := inv.Run()
 		require.Error(t, err)
 		require.ErrorContains(t, err, "unexpected status code 410")
-		require.EqualValues(t, 1, atomic.LoadInt64(&called), "called exactly once")
+		require.EqualValues(t, 1, called.Load(), "called exactly once")
 	})
 }
 
@@ -216,7 +217,7 @@ func TestDERPHeaders(t *testing.T) {
 	t.Cleanup(func() {
 		_ = provisionerCloser.Close()
 	})
-	client := codersdk.New(serverURL)
+	client := codersdk.New(serverURL, codersdk.WithHTTPClient(coderdtest.NewIsolatedHTTPClient(serverURL)))
 	t.Cleanup(func() {
 		cancelFunc()
 		_ = provisionerCloser.Close()
@@ -237,7 +238,7 @@ func TestDERPHeaders(t *testing.T) {
 			"Cool-Header":       "Dean was Here!",
 			"X-Process-Testing": "very-wow",
 		}
-		derpCalled int64
+		derpCalled atomic.Int64
 	)
 	setHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/derp") {
@@ -251,7 +252,7 @@ func TestDERPHeaders(t *testing.T) {
 			if ok {
 				// Only increment if all the headers are set, because the agent
 				// calls derp also.
-				atomic.AddInt64(&derpCalled, 1)
+				derpCalled.Add(1)
 			}
 		}
 
@@ -288,7 +289,7 @@ func TestDERPHeaders(t *testing.T) {
 	pty.ExpectMatch("pong from " + workspace.Name)
 	<-cmdDone
 
-	require.Greater(t, atomic.LoadInt64(&derpCalled), int64(0), "expected /derp to be called at least once")
+	require.Greater(t, derpCalled.Load(), int64(0), "expected /derp to be called at least once")
 }
 
 func TestHandlersOK(t *testing.T) {
@@ -344,6 +345,68 @@ func TestCreateAgentClient_Azure(t *testing.T) {
 	require.True(t, ok)
 	require.NotNil(t, provider.TokenExchanger)
 	require.IsType(t, &agentsdk.AzureSessionTokenExchanger{}, provider.TokenExchanger)
+}
+
+func TestCreateAgentClient_GoogleAgentName(t *testing.T) {
+	t.Parallel()
+
+	client := createAgentWithFlags(t,
+		"--auth", "google-instance-identity",
+		"--agent-url", "http://coder.fake",
+		"--agent-name", "google-agent")
+	requireInstanceIdentityAgentName(t, client, &agentsdk.GoogleSessionTokenExchanger{}, "google-agent")
+}
+
+func TestCreateAgentClient_AWSAgentName(t *testing.T) {
+	t.Parallel()
+
+	client := createAgentWithFlags(t,
+		"--auth", "aws-instance-identity",
+		"--agent-url", "http://coder.fake",
+		"--agent-name", "aws-agent")
+	requireInstanceIdentityAgentName(t, client, &agentsdk.AWSSessionTokenExchanger{}, "aws-agent")
+}
+
+func TestCreateAgentClient_AzureAgentName(t *testing.T) {
+	t.Parallel()
+
+	client := createAgentWithFlags(t,
+		"--auth", "azure-instance-identity",
+		"--agent-url", "http://coder.fake",
+		"--agent-name", "azure-agent")
+	requireInstanceIdentityAgentName(t, client, &agentsdk.AzureSessionTokenExchanger{}, "azure-agent")
+}
+
+func TestCreateAgentClient_GoogleAgentNameEnv(t *testing.T) {
+	t.Parallel()
+
+	r := &cli.RootCmd{}
+	var client *agentsdk.Client
+	subCmd := agentClientCommand(&client)
+	cmd, err := r.Command([]*serpent.Command{subCmd})
+	require.NoError(t, err)
+	inv, _ := clitest.NewWithCommand(t, cmd,
+		"agent-client",
+		"--auth", "google-instance-identity",
+		"--agent-url", "http://coder.fake")
+	inv.Environ.Set("CODER_AGENT_NAME", "env-agent")
+	err = inv.Run()
+	require.NoError(t, err)
+	require.NotNil(t, client)
+	requireInstanceIdentityAgentName(t, client, &agentsdk.GoogleSessionTokenExchanger{}, "env-agent")
+}
+
+func requireInstanceIdentityAgentName(t *testing.T, client *agentsdk.Client, expectedExchanger any, want string) {
+	t.Helper()
+
+	provider, ok := client.RefreshableSessionTokenProvider.(*agentsdk.InstanceIdentitySessionTokenProvider)
+	require.True(t, ok)
+	require.NotNil(t, provider.TokenExchanger)
+	require.IsType(t, expectedExchanger, provider.TokenExchanger)
+
+	agentNameField := reflect.ValueOf(provider.TokenExchanger).Elem().FieldByName("agentName")
+	require.True(t, agentNameField.IsValid())
+	require.Equal(t, want, agentNameField.String())
 }
 
 func createAgentWithFlags(t *testing.T, flags ...string) *agentsdk.Client {

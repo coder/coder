@@ -83,6 +83,23 @@ export const CustomPlaceholder: Story = {
 	},
 };
 
+export const InputBorderTreatment: Story = {
+	args: {
+		value: "openai/gpt-4o-mini",
+		className:
+			"h-10 border border-border border-solid bg-transparent px-3 shadow-sm",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const trigger = canvas.getByRole("combobox", { name: /gpt-4o mini/i });
+		const styles = getComputedStyle(trigger);
+
+		expect(styles.borderTopStyle).toBe("solid");
+		expect(styles.borderTopWidth).not.toBe("0px");
+		expect(styles.boxShadow).not.toBe("none");
+	},
+};
+
 export const Disabled: Story = {
 	args: {
 		disabled: true,

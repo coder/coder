@@ -268,6 +268,7 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 		ctx:   ctx,
 		t:     t,
 		store: store,
+		ps:    ps,
 		id:    uuid.New(),
 	}
 
@@ -281,6 +282,7 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 		ctx:   ctx,
 		t:     t,
 		store: store,
+		ps:    ps,
 		id:    uuid.New(),
 	}
 	fCoord3.heartbeat()
@@ -304,7 +306,6 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 	// one more heartbeat period will result in fCoord2 being expired, which should cause us to
 	// revert to the original agent mapping
 	mClock.Advance(tailnet.HeartbeatPeriod).MustWait(ctx)
-	// note that the timeout doesn't get reset because both fCoord2 and fCoord3 are expired
 	client.AssertEventuallyHasDERP(agent.ID, 10)
 
 	// send fCoord3 heartbeat, which should trigger us to consider that mapping valid again.
@@ -343,6 +344,7 @@ func TestPGCoordinatorSingle_MissedHeartbeats_NoDrop(t *testing.T) {
 		ctx:   ctx,
 		t:     t,
 		store: store,
+		ps:    ps,
 		id:    uuid.New(),
 	}
 	// simulate a single heartbeat, the coordinator is healthy
@@ -594,7 +596,7 @@ func TestPGCoordinator_Unhealthy(t *testing.T) {
 	mStore.EXPECT().GetTailnetTunnelPeerBindingsBatch(gomock.Any(), gomock.Any()).AnyTimes().Return(nil, nil)
 	mStore.EXPECT().DeleteTailnetPeer(gomock.Any(), gomock.Any()).
 		AnyTimes().Return(database.DeleteTailnetPeerRow{}, nil)
-	mStore.EXPECT().DeleteAllTailnetTunnels(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+	mStore.EXPECT().DeleteAllTailnetTunnels(gomock.Any(), gomock.Any()).AnyTimes().Return(nil, nil)
 	mStore.EXPECT().UpdateTailnetPeerStatusByCoordinator(gomock.Any(), gomock.Any())
 
 	uut, err := tailnet.NewPGCoord(ctx, logger, ps, mStore)
@@ -948,12 +950,15 @@ type fakeCoordinator struct {
 	ctx   context.Context
 	t     *testing.T
 	store database.Store
+	ps    pubsub.Pubsub
 	id    uuid.UUID
 }
 
 func (c *fakeCoordinator) heartbeat() {
 	c.t.Helper()
 	_, err := c.store.UpsertTailnetCoordinator(c.ctx, c.id)
+	require.NoError(c.t, err)
+	err = c.ps.Publish(tailnet.EventHeartbeats, []byte(c.id.String()))
 	require.NoError(c.t, err)
 }
 
@@ -969,5 +974,7 @@ func (c *fakeCoordinator) agentNode(agentID uuid.UUID, node *agpl.Node) {
 		Node:          nodeRaw,
 		Status:        database.TailnetStatusOk,
 	})
+	require.NoError(c.t, err)
+	err = c.ps.Publish("tailnet_peer_update", []byte(agentID.String()))
 	require.NoError(c.t, err)
 }

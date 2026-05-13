@@ -28,7 +28,7 @@ export const AgentExternal: FC<AgentExternalProps> = ({ agent, workspace }) => {
 	}
 
 	return (
-		<section className="text-base text-muted-foreground pb-2 leading-relaxed">
+		<section className="text-base text-content-secondary pb-2 leading-relaxed">
 			<p>
 				Please run the following command to attach an agent to the{" "}
 				{workspace.name} workspace:
@@ -38,7 +38,7 @@ export const AgentExternal: FC<AgentExternalProps> = ({ agent, workspace }) => {
 				secret={false}
 				redactPattern={/CODER_AGENT_TOKEN="([^"]+)"/g}
 				redactReplacement={`CODER_AGENT_TOKEN="********"`}
-				showRevealButton={true}
+				showRevealButton
 			/>
 		</section>
 	);

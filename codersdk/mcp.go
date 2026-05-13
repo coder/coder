@@ -42,7 +42,7 @@ type MCPServerConfig struct {
 	Transport string `json:"transport"` // "streamable_http" or "sse"
 	URL       string `json:"url"`
 
-	AuthType string `json:"auth_type"` // "none", "oauth2", "api_key", "custom_headers"
+	AuthType string `json:"auth_type"` // "none", "oauth2", "api_key", "custom_headers", "user_oidc"
 
 	// OAuth2 fields (only populated for admins).
 	OAuth2ClientID  string `json:"oauth2_client_id,omitempty"`
@@ -64,10 +64,18 @@ type MCPServerConfig struct {
 	// Availability policy set by admin.
 	Availability string `json:"availability"` // "force_on", "default_on", "default_off"
 
-	Enabled     bool      `json:"enabled"`
-	ModelIntent bool      `json:"model_intent"`
-	CreatedAt   time.Time `json:"created_at" format:"date-time"`
-	UpdatedAt   time.Time `json:"updated_at" format:"date-time"`
+	Enabled         bool `json:"enabled"`
+	ModelIntent     bool `json:"model_intent"`
+	AllowInPlanMode bool `json:"allow_in_plan_mode"`
+
+	// ForwardCoderHeaders forwards the same Coder identity headers we
+	// send to LLM providers (X-Coder-Owner-Id, X-Coder-Chat-Id, and the
+	// optional X-Coder-Subchat-Id and X-Coder-Workspace-Id) to this
+	// MCP server on every request. Off by default to avoid leaking
+	// chat identity to third-party servers.
+	ForwardCoderHeaders bool      `json:"forward_coder_headers"`
+	CreatedAt           time.Time `json:"created_at" format:"date-time"`
+	UpdatedAt           time.Time `json:"updated_at" format:"date-time"`
 
 	// Per-user state (populated for non-admin requests).
 	AuthConnected bool `json:"auth_connected"`
@@ -83,7 +91,7 @@ type CreateMCPServerConfigRequest struct {
 	Transport string `json:"transport" validate:"required,oneof=streamable_http sse"`
 	URL       string `json:"url" validate:"required,url"`
 
-	AuthType           string            `json:"auth_type" validate:"required,oneof=none oauth2 api_key custom_headers"`
+	AuthType           string            `json:"auth_type" validate:"required,oneof=none oauth2 api_key custom_headers user_oidc"`
 	OAuth2ClientID     string            `json:"oauth2_client_id,omitempty"`
 	OAuth2ClientSecret string            `json:"oauth2_client_secret,omitempty"`
 	OAuth2AuthURL      string            `json:"oauth2_auth_url,omitempty" validate:"omitempty,url"`
@@ -96,9 +104,14 @@ type CreateMCPServerConfigRequest struct {
 	ToolAllowList []string `json:"tool_allow_list,omitempty"`
 	ToolDenyList  []string `json:"tool_deny_list,omitempty"`
 
-	Availability string `json:"availability" validate:"required,oneof=force_on default_on default_off"`
-	Enabled      bool   `json:"enabled"`
-	ModelIntent  bool   `json:"model_intent"`
+	Availability    string `json:"availability" validate:"required,oneof=force_on default_on default_off"`
+	Enabled         bool   `json:"enabled"`
+	ModelIntent     bool   `json:"model_intent"`
+	AllowInPlanMode bool   `json:"allow_in_plan_mode"`
+
+	// ForwardCoderHeaders, when true, forwards Coder identity
+	// headers on every outgoing MCP request. See MCPServerConfig.
+	ForwardCoderHeaders bool `json:"forward_coder_headers"`
 }
 
 // UpdateMCPServerConfigRequest is the request to update an MCP server config.
@@ -111,7 +124,7 @@ type UpdateMCPServerConfigRequest struct {
 	Transport *string `json:"transport,omitempty" validate:"omitempty,oneof=streamable_http sse"`
 	URL       *string `json:"url,omitempty" validate:"omitempty,url"`
 
-	AuthType           *string            `json:"auth_type,omitempty" validate:"omitempty,oneof=none oauth2 api_key custom_headers"`
+	AuthType           *string            `json:"auth_type,omitempty" validate:"omitempty,oneof=none oauth2 api_key custom_headers user_oidc"`
 	OAuth2ClientID     *string            `json:"oauth2_client_id,omitempty"`
 	OAuth2ClientSecret *string            `json:"oauth2_client_secret,omitempty"`
 	OAuth2AuthURL      *string            `json:"oauth2_auth_url,omitempty" validate:"omitempty,url"`
@@ -124,9 +137,14 @@ type UpdateMCPServerConfigRequest struct {
 	ToolAllowList *[]string `json:"tool_allow_list,omitempty"`
 	ToolDenyList  *[]string `json:"tool_deny_list,omitempty"`
 
-	Availability *string `json:"availability,omitempty" validate:"omitempty,oneof=force_on default_on default_off"`
-	Enabled      *bool   `json:"enabled,omitempty"`
-	ModelIntent  *bool   `json:"model_intent,omitempty"`
+	Availability    *string `json:"availability,omitempty" validate:"omitempty,oneof=force_on default_on default_off"`
+	Enabled         *bool   `json:"enabled,omitempty"`
+	ModelIntent     *bool   `json:"model_intent,omitempty"`
+	AllowInPlanMode *bool   `json:"allow_in_plan_mode,omitempty"`
+
+	// ForwardCoderHeaders, when set, updates whether Coder identity
+	// headers are forwarded on every outgoing MCP request.
+	ForwardCoderHeaders *bool `json:"forward_coder_headers,omitempty"`
 }
 
 func (c *Client) MCPServerConfigs(ctx context.Context) ([]MCPServerConfig, error) {

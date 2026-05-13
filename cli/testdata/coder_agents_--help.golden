@@ -1,0 +1,16 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder agents [flags] [chat-id]
+
+  Interactive terminal UI for AI agents.
+
+OPTIONS:
+      --model string
+          Choose a model by ID, provider/model, or display name.
+
+      --workspace string
+          Associate the chat with a workspace by name, owner/name, or UUID.
+
+———
+Run `coder --help` for a list of global options.
