@@ -15,7 +15,6 @@ import (
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	openaicomputeruse "github.com/coder/coder/v2/coderd/x/chatd/chatopenai/computeruse"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -174,7 +173,7 @@ func TestComputerUseTool_Run_Screenshot(t *testing.T) {
 
 	tool := chattool.NewComputerUseTool(chattool.ComputerUseProviderAnthropic, geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
 		return mockConn, nil
-	}, nil, quartz.NewReal(), slogtest.Make(t, nil))
+	}, nil, quartz.NewReal(), testutil.Logger(t))
 
 	call := fantasy.ToolCall{
 		ID:    "test-1",
@@ -228,7 +227,7 @@ func TestComputerUseTool_Run_Screenshot_PersistsAttachment(t *testing.T) {
 			MediaType: storedType,
 			Name:      name,
 		}, nil
-	}, quartz.NewReal(), slogtest.Make(t, nil))
+	}, quartz.NewReal(), testutil.Logger(t))
 
 	resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 		ID: "test-screenshot-persist", Name: "computer", Input: `{"action":"screenshot"}`,
@@ -274,7 +273,7 @@ func TestComputerUseTool_Run_Screenshot_StoreErrorFallsBackToImage(t *testing.T)
 		return mockConn, nil
 	}, func(_ context.Context, _ string, _ string, _ []byte) (chattool.AttachmentMetadata, error) {
 		return chattool.AttachmentMetadata{}, xerrors.New("chat already has the maximum of 20 linked files")
-	}, quartz.NewReal(), slogtest.Make(t, nil))
+	}, quartz.NewReal(), testutil.Logger(t))
 
 	resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 		ID: "test-screenshot-store-error", Name: "computer", Input: `{"action":"screenshot"}`,
@@ -311,7 +310,7 @@ func TestComputerUseTool_Run_Screenshot_OversizedAttachmentFallsBackToImage(t *t
 	}, func(_ context.Context, _ string, _ string, _ []byte) (chattool.AttachmentMetadata, error) {
 		t.Fatal("storeFile should not be called for oversized screenshots")
 		return chattool.AttachmentMetadata{}, nil
-	}, quartz.NewReal(), slogtest.Make(t, nil))
+	}, quartz.NewReal(), testutil.Logger(t))
 
 	resp, err := tool.Run(context.Background(), fantasy.ToolCall{
 		ID: "test-screenshot-oversized", Name: "computer", Input: `{"action":"screenshot"}`,
@@ -371,7 +370,7 @@ func TestComputerUseTool_Run_LeftClick(t *testing.T) {
 	}, func(_ context.Context, _ string, _ string, _ []byte) (chattool.AttachmentMetadata, error) {
 		t.Fatal("storeFile should not be called for left_click follow-up screenshots")
 		return chattool.AttachmentMetadata{}, nil
-	}, quartz.NewReal(), slogtest.Make(t, nil))
+	}, quartz.NewReal(), testutil.Logger(t))
 
 	call := fantasy.ToolCall{
 		ID:    "test-2",
@@ -419,7 +418,7 @@ func TestComputerUseTool_Run_Wait(t *testing.T) {
 	}, func(_ context.Context, _ string, _ string, _ []byte) (chattool.AttachmentMetadata, error) {
 		t.Fatal("storeFile should not be called for wait screenshots")
 		return chattool.AttachmentMetadata{}, nil
-	}, quartz.NewReal(), slogtest.Make(t, nil))
+	}, quartz.NewReal(), testutil.Logger(t))
 
 	call := fantasy.ToolCall{
 		ID:    "test-3",
@@ -469,7 +468,7 @@ func TestComputerUseTool_Run_ScreenshotDataIsDecodedBinary(t *testing.T) {
 		},
 		nil,
 		quartz.NewReal(),
-		slogtest.Make(t, nil),
+		testutil.Logger(t),
 	)
 
 	call := fantasy.ToolCall{
@@ -505,7 +504,7 @@ func TestComputerUseTool_Run_ConnError(t *testing.T) {
 	geometry := workspacesdk.DefaultDesktopGeometry()
 	tool := chattool.NewComputerUseTool(chattool.ComputerUseProviderAnthropic, geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
 		return nil, xerrors.New("workspace not available")
-	}, nil, quartz.NewReal(), slogtest.Make(t, nil))
+	}, nil, quartz.NewReal(), testutil.Logger(t))
 
 	call := fantasy.ToolCall{
 		ID:    "test-4",
@@ -525,7 +524,7 @@ func TestComputerUseTool_Run_InvalidInput(t *testing.T) {
 	geometry := workspacesdk.DefaultDesktopGeometry()
 	tool := chattool.NewComputerUseTool(chattool.ComputerUseProviderAnthropic, geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
 		return nil, xerrors.New("should not be called")
-	}, nil, quartz.NewReal(), slogtest.Make(t, nil))
+	}, nil, quartz.NewReal(), testutil.Logger(t))
 
 	call := fantasy.ToolCall{
 		ID:    "test-5",
@@ -1007,7 +1006,7 @@ func newOpenAIComputerUseTool(
 		},
 		storeFile,
 		clock,
-		slogtest.Make(t, nil),
+		testutil.Logger(t),
 	)
 }
 

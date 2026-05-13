@@ -52,7 +52,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/archive"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/agentapi/metadatabatcher"
@@ -245,7 +244,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		options = &Options{}
 	}
 	if options.Logger == nil {
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug).Named("coderd")
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug).Named("coderd")
 		options.Logger = &logger
 	}
 	if options.GoogleTokenValidator == nil {

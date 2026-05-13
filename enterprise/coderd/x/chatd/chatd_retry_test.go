@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
@@ -754,7 +753,7 @@ func TestDialRelayReal401(t *testing.T) {
 		StatusNotifications: statusCh,
 		RequestHeader:       http.Header{codersdk.SessionTokenHeader: {"test-token"}},
 		DB:                  db,
-		Logger:              slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		Logger:              testutil.Logger(t, testutil.WithIgnoreErrors()),
 	})
 
 	statusCh <- osschatd.StatusNotification{

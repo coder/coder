@@ -7,7 +7,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/pty/ptytest"
@@ -26,7 +25,7 @@ func TestScaleTestCreateWorkspaces(t *testing.T) {
 	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancelFunc()
 
-	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	log := testutil.Logger(t, testutil.WithIgnoreErrors())
 	client := coderdtest.New(t, &coderdtest.Options{
 		// We are not including any provisioner daemons because we do not actually
 		// build any workspaces here.
@@ -76,7 +75,7 @@ func TestScaleTestWorkspaceTraffic(t *testing.T) {
 	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancelFunc()
 
-	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	log := testutil.Logger(t, testutil.WithIgnoreErrors())
 	client := coderdtest.New(t, &coderdtest.Options{
 		Logger: &log,
 	})
@@ -110,7 +109,7 @@ func TestScaleTestWorkspaceTraffic_Template(t *testing.T) {
 	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancelFunc()
 
-	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	log := testutil.Logger(t, testutil.WithIgnoreErrors())
 	client := coderdtest.New(t, &coderdtest.Options{
 		Logger: &log,
 	})
@@ -139,7 +138,7 @@ func TestScaleTestWorkspaceTraffic_TargetWorkspaces(t *testing.T) {
 	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancelFunc()
 
-	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	log := testutil.Logger(t, testutil.WithIgnoreErrors())
 	client := coderdtest.New(t, &coderdtest.Options{
 		Logger: &log,
 	})
@@ -168,7 +167,7 @@ func TestScaleTestCleanup_Template(t *testing.T) {
 	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancelFunc()
 
-	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	log := testutil.Logger(t, testutil.WithIgnoreErrors())
 	client := coderdtest.New(t, &coderdtest.Options{
 		Logger: &log,
 	})
@@ -198,7 +197,7 @@ func TestScaleTestDashboard(t *testing.T) {
 		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancelFunc()
 
-		log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		log := testutil.Logger(t, testutil.WithIgnoreErrors())
 		client := coderdtest.New(t, &coderdtest.Options{
 			Logger: &log,
 		})
@@ -221,7 +220,7 @@ func TestScaleTestDashboard(t *testing.T) {
 		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancelFunc()
 
-		log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		log := testutil.Logger(t, testutil.WithIgnoreErrors())
 		client := coderdtest.New(t, &coderdtest.Options{
 			Logger: &log,
 		})
@@ -245,7 +244,7 @@ func TestScaleTestDashboard(t *testing.T) {
 		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitMedium)
 		defer cancelFunc()
 
-		log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		log := testutil.Logger(t, testutil.WithIgnoreErrors())
 		client := coderdtest.New(t, &coderdtest.Options{
 			Logger: &log,
 		})
@@ -273,7 +272,7 @@ func TestScaleTestDashboard(t *testing.T) {
 		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitMedium)
 		defer cancelFunc()
 
-		log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		log := testutil.Logger(t, testutil.WithIgnoreErrors())
 		client := coderdtest.New(t, &coderdtest.Options{
 			Logger: &log,
 		})

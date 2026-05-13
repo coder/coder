@@ -13,7 +13,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/testutil"
@@ -235,7 +234,7 @@ func Test_batcherFlush(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
-		log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		log := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 		ctrl := gomock.NewController(t)
 		store := dbmock.NewMockStore(ctrl)
 		clock := quartz.NewMock(t)
@@ -266,7 +265,7 @@ func Test_batcherFlush(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
-		log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		log := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 		ctrl := gomock.NewController(t)
 		store := dbmock.NewMockStore(ctrl)
 		clock := quartz.NewMock(t)
@@ -295,7 +294,7 @@ func Test_batcherFlush(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
-		log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		log := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 		ctrl := gomock.NewController(t)
 		store := dbmock.NewMockStore(ctrl)
 		clock := quartz.NewMock(t)
@@ -323,7 +322,7 @@ func Test_batcherFlush(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
-		log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		log := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 		ctrl := gomock.NewController(t)
 		store := dbmock.NewMockStore(ctrl)
 		clock := quartz.NewMock(t)
@@ -350,7 +349,7 @@ func Test_batcherFlush(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
-		log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		log := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 		ctrl := gomock.NewController(t)
 		store := dbmock.NewMockStore(ctrl)
 		clock := quartz.NewMock(t)
@@ -401,7 +400,7 @@ func Test_batcherFlush(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
-		log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		log := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 		ctrl := gomock.NewController(t)
 		store := dbmock.NewMockStore(ctrl)
 		clock := quartz.NewMock(t)

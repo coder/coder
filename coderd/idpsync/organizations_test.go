@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -94,7 +93,7 @@ func TestParseOrganizationClaims(t *testing.T) {
 		t.Parallel()
 
 		// AGPL has limited behavior
-		s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}),
+		s := idpsync.NewAGPLSync(testutil.Logger(t),
 			runtimeconfig.NewManager(),
 			idpsync.DeploymentSyncSettings{
 				OrganizationField: "orgs",
@@ -143,7 +142,7 @@ func TestSyncOrganizations(t *testing.T) {
 
 		// Now sync the user to the deleted organization
 		s := idpsync.NewAGPLSync(
-			slogtest.Make(t, &slogtest.Options{}),
+			testutil.Logger(t),
 			runtimeconfig.NewManager(),
 			idpsync.DeploymentSyncSettings{
 				OrganizationField: "orgs",
@@ -190,7 +189,7 @@ func TestSyncOrganizations(t *testing.T) {
 
 		// Now sync the user to the deleted organization
 		s := idpsync.NewAGPLSync(
-			slogtest.Make(t, &slogtest.Options{}),
+			testutil.Logger(t),
 			runtimeconfig.NewManager(),
 			idpsync.DeploymentSyncSettings{
 				OrganizationField: "orgs",

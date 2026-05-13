@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/updatecheck"
 	"github.com/coder/coder/v2/testutil"
@@ -49,7 +48,7 @@ func TestChecker_Notify(t *testing.T) {
 	defer srv.Close()
 
 	db, _ := dbtestutil.NewDB(t)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named(t.Name())
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Named(t.Name())
 	notify := make(chan updatecheck.Result, len(wantVersion))
 	c := updatecheck.New(db, logger, updatecheck.Options{
 		Interval: 1 * time.Nanosecond, // Zero means unset.
@@ -130,7 +129,7 @@ func TestChecker_Latest(t *testing.T) {
 			defer srv.Close()
 
 			db, _ := dbtestutil.NewDB(t)
-			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named(t.Name())
+			logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Named(t.Name())
 			c := updatecheck.New(db, logger, updatecheck.Options{
 				URL: srv.URL,
 			})

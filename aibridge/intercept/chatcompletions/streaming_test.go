@@ -16,13 +16,13 @@ import (
 	"go.opentelemetry.io/otel"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/utils"
+	codertestutil "github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
 
@@ -97,7 +97,7 @@ func TestStreamingInterception_RelaysUpstreamErrorToClient(t *testing.T) {
 			tracer := otel.Tracer("test")
 			interceptor := NewStreamingInterceptor(uuid.New(), req, config.ProviderOpenAI, cfg, httpReq.Header, "Authorization", tracer, intercept.CredentialInfo{})
 
-			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
+			logger := codertestutil.Logger(t).Leveled(slog.LevelDebug)
 			interceptor.Setup(logger, &testutil.MockRecorder{}, nil)
 
 			// Process the request

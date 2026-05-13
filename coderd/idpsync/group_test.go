@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -31,7 +30,7 @@ func TestParseGroupClaims(t *testing.T) {
 	t.Run("EmptyConfig", func(t *testing.T) {
 		t.Parallel()
 
-		s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}),
+		s := idpsync.NewAGPLSync(testutil.Logger(t),
 			runtimeconfig.NewManager(),
 			idpsync.DeploymentSyncSettings{})
 
@@ -46,7 +45,7 @@ func TestParseGroupClaims(t *testing.T) {
 	t.Run("NotInAllowList", func(t *testing.T) {
 		t.Parallel()
 
-		s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}),
+		s := idpsync.NewAGPLSync(testutil.Logger(t),
 			runtimeconfig.NewManager(),
 			idpsync.DeploymentSyncSettings{
 				GroupField: "groups",
@@ -73,7 +72,7 @@ func TestParseGroupClaims(t *testing.T) {
 	t.Run("InAllowList", func(t *testing.T) {
 		t.Parallel()
 
-		s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}),
+		s := idpsync.NewAGPLSync(testutil.Logger(t),
 			runtimeconfig.NewManager(),
 			idpsync.DeploymentSyncSettings{
 				GroupField: "groups",
@@ -278,7 +277,7 @@ func TestGroupSyncTable(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			db, _ := dbtestutil.NewDB(t)
 			manager := runtimeconfig.NewManager()
-			s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}),
+			s := idpsync.NewAGPLSync(testutil.Logger(t),
 				manager,
 				idpsync.DeploymentSyncSettings{
 					GroupField: "groups",
@@ -318,7 +317,7 @@ func TestGroupSyncTable(t *testing.T) {
 	t.Run("AllTogether", func(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 		manager := runtimeconfig.NewManager()
-		s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}),
+		s := idpsync.NewAGPLSync(testutil.Logger(t),
 			manager,
 			// Also sync the default org!
 			idpsync.DeploymentSyncSettings{
@@ -400,7 +399,7 @@ func TestSyncDisabled(t *testing.T) {
 
 	db, _ := dbtestutil.NewDB(t)
 	manager := runtimeconfig.NewManager()
-	s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}),
+	s := idpsync.NewAGPLSync(testutil.Logger(t),
 		manager,
 		idpsync.DeploymentSyncSettings{},
 	)
@@ -578,7 +577,7 @@ func TestApplyGroupDifference(t *testing.T) {
 				}
 			}
 
-			s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}), mgr, idpsync.FromDeploymentValues(coderdtest.DeploymentValues(t)))
+			s := idpsync.NewAGPLSync(testutil.Logger(t), mgr, idpsync.FromDeploymentValues(coderdtest.DeploymentValues(t)))
 			err = s.ApplyGroupDifference(context.Background(), db, user, tc.Add, tc.Remove)
 			require.NoError(t, err)
 

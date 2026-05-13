@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -17,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestBatchStats(t *testing.T) {
@@ -25,7 +25,7 @@ func TestBatchStats(t *testing.T) {
 	// Given: a fresh batcher with no data
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	log := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	store, ps := dbtestutil.NewDB(t)
 
 	// Set up some test dependencies.

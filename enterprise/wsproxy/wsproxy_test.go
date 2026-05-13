@@ -23,7 +23,6 @@ import (
 	"tailscale.com/types/key"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -436,9 +435,7 @@ resourceLoop:
 	// Connect to the workspace agent.
 	conn, err := workspacesdk.New(client).
 		DialAgent(ctx, agentID, &workspacesdk.DialAgentOptions{
-			Logger: slogtest.Make(t, &slogtest.Options{
-				IgnoreErrors: true,
-			}).Named("client").Leveled(slog.LevelDebug),
+			Logger: testutil.Logger(t, testutil.WithIgnoreErrors()).Named("client").Leveled(slog.LevelDebug),
 			// Force DERP.
 			BlockEndpoints: true,
 		})

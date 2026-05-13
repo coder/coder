@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -33,7 +32,7 @@ import (
 func TestCollectInsights(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	db, ps := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
 
 	options := &coderdtest.Options{

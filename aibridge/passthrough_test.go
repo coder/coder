@@ -17,11 +17,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/provider"
+	codertestutil "github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
 
@@ -106,7 +106,7 @@ func TestPassthroughRoutes(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			logger := slogtest.Make(t, nil)
+			logger := codertestutil.Logger(t)
 
 			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				assert.Equal(t, tc.expectRequestPath, r.URL.Path)
@@ -273,7 +273,7 @@ func TestPassthroughRouterReusesProxyInstance(t *testing.T) {
 	upstream.Start()
 	t.Cleanup(upstream.Close)
 
-	logger := slogtest.Make(t, nil)
+	logger := codertestutil.Logger(t)
 	prov := &testutil.MockProvider{URL: upstream.URL}
 	handler := newPassthroughRouter(prov, logger, nil, testTracer)
 
@@ -551,7 +551,7 @@ func TestPassthrough_KeyFailover(t *testing.T) {
 				// IgnoreErrors: MarkKey logs at ERROR level when a
 				// key is marked permanent (401/403); slogtest would
 				// otherwise fail those scenarios.
-				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+				logger := codertestutil.Logger(t, codertestutil.WithIgnoreErrors())
 				handler := newPassthroughRouter(p, logger, nil, testTracer)
 
 				req := httptest.NewRequest(http.MethodGet, "/v1/models", nil)

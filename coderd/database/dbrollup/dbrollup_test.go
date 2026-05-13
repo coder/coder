@@ -11,7 +11,6 @@ import (
 	"go.uber.org/goleak"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbrollup"
@@ -136,7 +135,7 @@ func TestRollupTemplateUsageStats(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 
 	anHourAgo := dbtime.Now().Add(-time.Hour).Truncate(time.Hour).UTC()
 	anHourAndSixMonthsAgo := anHourAgo.AddDate(0, -6, 0).UTC()

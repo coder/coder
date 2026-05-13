@@ -11,7 +11,6 @@ import (
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -418,7 +417,7 @@ func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
 	)
 	message.ID = 1
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	generated := &generatedChatTitle{}
 	server := &Server{db: db}
 	server.maybeGenerateChatTitle(

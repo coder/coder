@@ -10,10 +10,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestAuditLogIsResourceDeleted(t *testing.T) {
@@ -38,7 +38,7 @@ func TestAuditLogIsResourceDeleted(t *testing.T) {
 			db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(database.Chat{}, tc.err)
 
 			api := &API{
-				Options: &Options{Database: db, Logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})},
+				Options: &Options{Database: db, Logger: testutil.Logger(t, testutil.WithIgnoreErrors())},
 			}
 
 			deleted := api.auditLogIsResourceDeleted(context.Background(), database.GetAuditLogsOffsetRow{

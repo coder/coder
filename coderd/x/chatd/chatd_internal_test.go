@@ -16,7 +16,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
@@ -170,7 +169,7 @@ func TestAppendComputerUseProviderTool(t *testing.T) {
 		computerUseProviderToolOptions{
 			provider:      chattool.ComputerUseProviderOpenAI,
 			isComputerUse: true,
-			logger:        slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+			logger:        testutil.Logger(t, testutil.WithIgnoreErrors()),
 		},
 	)
 	require.NoError(t, err)
@@ -234,7 +233,7 @@ func TestAppendComputerUseProviderTool_AnthropicHasNoResultMetadata(t *testing.T
 		computerUseProviderToolOptions{
 			provider:      chattool.ComputerUseProviderAnthropic,
 			isComputerUse: true,
-			logger:        slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+			logger:        testutil.Logger(t, testutil.WithIgnoreErrors()),
 		},
 	)
 	require.NoError(t, err)
@@ -666,7 +665,7 @@ func TestRenameChatTitle(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 		chatID := uuid.New()
 		workerID := uuid.New()
@@ -700,7 +699,7 @@ func TestRenameChatTitle(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 		chatID := uuid.New()
 		workerID := uuid.New()
@@ -735,7 +734,7 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	lockTx := dbmock.NewMockStore(ctrl)
 	usageTx := dbmock.NewMockStore(ctrl)
 	unlockTx := dbmock.NewMockStore(ctrl)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	pubsub := dbpubsub.NewInMemory()
 	clock := quartz.NewReal()
 
@@ -895,7 +894,7 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 	lockTx := dbmock.NewMockStore(ctrl)
 	usageTx := dbmock.NewMockStore(ctrl)
 	unlockTx := dbmock.NewMockStore(ctrl)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	pubsub := dbpubsub.NewInMemory()
 	clock := quartz.NewReal()
 
@@ -1299,7 +1298,7 @@ func TestPersistInstructionFilesIncludesAgentMetadata(t *testing.T) {
 			ContextFileContent: "# Project instructions",
 		}},
 	}, nil).AnyTimes()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	server := &Server{
 		db:                             db,
 		logger:                         logger,
@@ -1350,7 +1349,7 @@ func TestPersistInstructionFilesSkipsSentinelWhenWorkspaceUnavailable(t *testing
 	}
 	server := &Server{
 		db:     db,
-		logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		logger: testutil.Logger(t, testutil.WithIgnoreErrors()),
 	}
 
 	instruction, _, err := server.persistInstructionFiles(
@@ -1467,7 +1466,7 @@ func TestPersistInstructionFilesSentinelWithSkills(t *testing.T) {
 			SkillDir:         "/home/coder/project/.agents/skills/my-skill",
 		}},
 	}, nil).AnyTimes()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	server := &Server{
 		db:                             db,
 		logger:                         logger,
@@ -1555,7 +1554,7 @@ func TestPersistInstructionFilesSentinelNoSkillsClearsColumn(t *testing.T) {
 		// Agent returns pre-read content: no files, no skills.
 		Parts: []codersdk.ChatMessagePart{},
 	}, nil).AnyTimes()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	server := &Server{
 		db:                             db,
 		logger:                         logger,
@@ -2600,7 +2599,7 @@ func newSubscribeTestServer(t *testing.T, db database.Store) *Server {
 
 	return &Server{
 		db:     db,
-		logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		logger: testutil.Logger(t, testutil.WithIgnoreErrors()),
 		pubsub: dbpubsub.NewInMemory(),
 	}
 }
@@ -3430,7 +3429,7 @@ func TestProcessChat_IgnoresStaleControlNotification(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
 	ps := dbpubsub.NewInMemory()
@@ -3529,7 +3528,7 @@ func TestShouldPublishFinishedChatState(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
 	chatID := uuid.New()
@@ -3568,7 +3567,7 @@ func TestShouldPublishFinishedChatState_DBErrorPublishes(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
 	chatID := uuid.New()
@@ -3597,7 +3596,7 @@ func TestHeartbeatTick_StolenChatIsInterrupted(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
 	clock := quartz.NewMock(t)
@@ -3680,7 +3679,7 @@ func TestHeartbeatTick_DBErrorDoesNotInterruptChats(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
 	clock := quartz.NewMock(t)
@@ -3724,7 +3723,7 @@ func TestHeartbeatTick_DBErrorDoesNotInterruptChats(t *testing.T) {
 func TestSubscribeCancelDuringGrace_ReapedBySweep(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	mClock := quartz.NewMock(t)
 
 	server := &Server{
@@ -3781,7 +3780,7 @@ func TestSweepIdleStreams_ReapsStaleRetainedBuffer(t *testing.T) {
 
 	mClock := quartz.NewMock(t)
 	server := &Server{
-		logger: slogtest.Make(t, nil),
+		logger: testutil.Logger(t),
 		clock:  mClock,
 	}
 
@@ -3813,7 +3812,7 @@ func TestSweepIdleStreams_DoesNotReapActiveBuffering(t *testing.T) {
 
 	mClock := quartz.NewMock(t)
 	server := &Server{
-		logger: slogtest.Make(t, nil),
+		logger: testutil.Logger(t),
 		clock:  mClock,
 	}
 
@@ -3844,7 +3843,7 @@ func TestSweepIdleStreams_DoesNotReapWithSubscribers(t *testing.T) {
 
 	mClock := quartz.NewMock(t)
 	server := &Server{
-		logger: slogtest.Make(t, nil),
+		logger: testutil.Logger(t),
 		clock:  mClock,
 	}
 
@@ -3878,7 +3877,7 @@ func TestSweepIdleStreams_DefersDuringGracePeriod(t *testing.T) {
 
 	mClock := quartz.NewMock(t)
 	server := &Server{
-		logger: slogtest.Make(t, nil),
+		logger: testutil.Logger(t),
 		clock:  mClock,
 	}
 
@@ -3918,7 +3917,7 @@ func TestPublishToStream_DropZeroesBackingSlot(t *testing.T) {
 
 	mClock := quartz.NewMock(t)
 	server := &Server{
-		logger: slogtest.Make(t, nil),
+		logger: testutil.Logger(t),
 		clock:  mClock,
 	}
 
@@ -3988,7 +3987,7 @@ func TestCleanupStreamIfIdle_StalePointerDoesNotDeleteFreshEntry(t *testing.T) {
 
 	mClock := quartz.NewMock(t)
 	server := &Server{
-		logger: slogtest.Make(t, nil),
+		logger: testutil.Logger(t),
 		clock:  mClock,
 	}
 
@@ -4034,7 +4033,7 @@ func TestSafeSweepIdleStreams_RecoversFromPanic(t *testing.T) {
 	t.Parallel()
 
 	server := &Server{
-		logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		logger: testutil.Logger(t, testutil.WithIgnoreErrors()),
 		clock:  quartz.NewMock(t),
 	}
 
@@ -4134,7 +4133,7 @@ func TestGetWorkspaceConn_StaleAgentRecovery(t *testing.T) {
 
 	server := &Server{
 		db:                             db,
-		logger:                         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		logger:                         testutil.Logger(t, testutil.WithIgnoreErrors()),
 		clock:                          quartz.NewReal(),
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		dialTimeout:                    defaultDialTimeout,
@@ -4229,7 +4228,7 @@ func TestGetWorkspaceConn_SameBuildAgentCrash(t *testing.T) {
 	dialErr := xerrors.New("agent is not connected")
 	server := &Server{
 		db:                             db,
-		logger:                         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		logger:                         testutil.Logger(t, testutil.WithIgnoreErrors()),
 		clock:                          quartz.NewReal(),
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		dialTimeout:                    defaultDialTimeout,
@@ -4379,7 +4378,7 @@ func TestGetWorkspaceConn_StatusCheck(t *testing.T) {
 
 			server := &Server{
 				db:                             db,
-				logger:                         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+				logger:                         testutil.Logger(t, testutil.WithIgnoreErrors()),
 				clock:                          clock,
 				agentInactiveDisconnectTimeout: 30 * time.Second,
 				dialTimeout:                    defaultDialTimeout,
@@ -4491,7 +4490,7 @@ func TestGetWorkspaceConn_DialTimeoutDisconnectedRecoveryThreshold(t *testing.T)
 
 			server := &Server{
 				db:                             db,
-				logger:                         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+				logger:                         testutil.Logger(t, testutil.WithIgnoreErrors()),
 				clock:                          clock,
 				agentInactiveDisconnectTimeout: 30 * time.Second,
 				dialTimeout:                    10 * time.Millisecond,
@@ -4569,7 +4568,7 @@ func TestGetWorkspaceConn_DisconnectedStatusDialSuccessDoesNotEscalate(t *testin
 
 	server := &Server{
 		db:                             db,
-		logger:                         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		logger:                         testutil.Logger(t, testutil.WithIgnoreErrors()),
 		clock:                          quartz.NewReal(),
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		dialTimeout:                    10 * time.Millisecond,
@@ -4638,7 +4637,7 @@ func TestGetWorkspaceConn_CacheHitDisconnectedRetriesDialBeforeEscalating(t *tes
 
 	server := &Server{
 		db:                             db,
-		logger:                         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		logger:                         testutil.Logger(t, testutil.WithIgnoreErrors()),
 		clock:                          quartz.NewReal(),
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		dialTimeout:                    10 * time.Millisecond,
@@ -4942,7 +4941,7 @@ func TestGetWorkspaceConn_PreflightExternalAgentTimedOut(t *testing.T) {
 
 	server := &Server{
 		db:                             db,
-		logger:                         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		logger:                         testutil.Logger(t, testutil.WithIgnoreErrors()),
 		clock:                          quartz.NewReal(),
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		dialTimeout:                    defaultDialTimeout,
@@ -5011,7 +5010,7 @@ func TestGetWorkspaceConn_PreflightExternalAgentConnectingDials(t *testing.T) {
 	dialed := false
 	server := &Server{
 		db:                             db,
-		logger:                         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		logger:                         testutil.Logger(t, testutil.WithIgnoreErrors()),
 		clock:                          quartz.NewReal(),
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		dialTimeout:                    defaultDialTimeout,
@@ -5140,7 +5139,7 @@ func TestAutoPromote_InsertFailureRollsBackTransaction(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
 	tx := dbmock.NewMockStore(ctrl)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	ps := dbpubsub.NewInMemory()
 	clock := quartz.NewReal()
 
@@ -5220,7 +5219,7 @@ func TestAutoPromote_InsertFailureSkipsStatusUpdate(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
 	tx := dbmock.NewMockStore(ctrl)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	ps := dbpubsub.NewInMemory()
 	clock := quartz.NewReal()
 
@@ -5474,7 +5473,7 @@ func TestPublishToStream_AppendsAsInProgress(t *testing.T) {
 
 	mClock := quartz.NewMock(t)
 	server := &Server{
-		logger: slogtest.Make(t, nil),
+		logger: testutil.Logger(t),
 		clock:  mClock,
 	}
 
@@ -5516,7 +5515,7 @@ func TestClaimCommittedParts(t *testing.T) {
 		t.Parallel()
 
 		server := &Server{
-			logger: slogtest.Make(t, nil),
+			logger: testutil.Logger(t),
 			clock:  quartz.NewMock(t),
 		}
 		chatID := uuid.New()
@@ -5548,7 +5547,7 @@ func TestClaimCommittedParts(t *testing.T) {
 		t.Parallel()
 
 		server := &Server{
-			logger: slogtest.Make(t, nil),
+			logger: testutil.Logger(t),
 			clock:  quartz.NewMock(t),
 		}
 		chatID := uuid.New()
@@ -5577,7 +5576,7 @@ func TestClaimCommittedParts(t *testing.T) {
 		t.Parallel()
 
 		server := &Server{
-			logger: slogtest.Make(t, nil),
+			logger: testutil.Logger(t),
 			clock:  quartz.NewMock(t),
 		}
 		chatID := uuid.New()
@@ -5603,7 +5602,7 @@ func TestClaimCommittedParts(t *testing.T) {
 		t.Parallel()
 
 		server := &Server{
-			logger: slogtest.Make(t, nil),
+			logger: testutil.Logger(t),
 			clock:  quartz.NewMock(t),
 		}
 		chatID := uuid.New()
@@ -5633,7 +5632,7 @@ func TestSubscribeToStream_FiltersBufferedParts_Integration(t *testing.T) {
 
 	mClock := quartz.NewMock(t)
 	server := &Server{
-		logger: slogtest.Make(t, nil),
+		logger: testutil.Logger(t),
 		clock:  mClock,
 	}
 	chatID := uuid.New()

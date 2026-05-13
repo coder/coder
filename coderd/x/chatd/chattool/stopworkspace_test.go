@@ -13,7 +13,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -270,7 +269,7 @@ func TestStopWorkspace(t *testing.T) {
 				return codersdk.WorkspaceBuild{ID: buildResp.Build.ID}, nil
 			},
 			WorkspaceMu:   &sync.Mutex{},
-			Logger:        slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+			Logger:        testutil.Logger(t, testutil.WithIgnoreErrors()),
 			OnChatUpdated: func(_ database.Chat) { onChatUpdatedCalled.Store(true) },
 		})
 
@@ -412,7 +411,7 @@ func TestStopWorkspace(t *testing.T) {
 			OwnerID:     user.ID,
 			StopFn:      stopFn,
 			WorkspaceMu: &sync.Mutex{},
-			Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+			Logger:      testutil.Logger(t, testutil.WithIgnoreErrors()),
 		})
 
 		type toolResult struct {

@@ -20,7 +20,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -120,7 +119,7 @@ func TestGetDeploymentWorkspaceAgentUsageStats(t *testing.T) {
 
 		db, _ := dbtestutil.NewDB(t)
 		authz := rbac.NewAuthorizer(prometheus.NewRegistry())
-		db = dbauthz.New(db, authz, slogtest.Make(t, &slogtest.Options{}), coderdtest.AccessControlStorePointer())
+		db = dbauthz.New(db, authz, testutil.Logger(t), coderdtest.AccessControlStorePointer())
 		ctx := context.Background()
 		agentID := uuid.New()
 		// Since the queries exclude the current minute
@@ -192,7 +191,7 @@ func TestGetDeploymentWorkspaceAgentUsageStats(t *testing.T) {
 
 		db, _ := dbtestutil.NewDB(t)
 		authz := rbac.NewAuthorizer(prometheus.NewRegistry())
-		db = dbauthz.New(db, authz, slogtest.Make(t, &slogtest.Options{}), coderdtest.AccessControlStorePointer())
+		db = dbauthz.New(db, authz, testutil.Logger(t), coderdtest.AccessControlStorePointer())
 		ctx := context.Background()
 		agentID := uuid.New()
 		// Since the queries exclude the current minute
@@ -715,7 +714,7 @@ func TestGetWorkspaceAgentUsageStats(t *testing.T) {
 
 		db, _ := dbtestutil.NewDB(t)
 		authz := rbac.NewAuthorizer(prometheus.NewRegistry())
-		db = dbauthz.New(db, authz, slogtest.Make(t, &slogtest.Options{}), coderdtest.AccessControlStorePointer())
+		db = dbauthz.New(db, authz, testutil.Logger(t), coderdtest.AccessControlStorePointer())
 		ctx := context.Background()
 		// Since the queries exclude the current minute
 		insertTime := dbtime.Now().Add(-time.Minute)
@@ -857,7 +856,7 @@ func TestGetWorkspaceAgentUsageStats(t *testing.T) {
 
 		db, _ := dbtestutil.NewDB(t)
 		authz := rbac.NewAuthorizer(prometheus.NewRegistry())
-		db = dbauthz.New(db, authz, slogtest.Make(t, &slogtest.Options{}), coderdtest.AccessControlStorePointer())
+		db = dbauthz.New(db, authz, testutil.Logger(t), coderdtest.AccessControlStorePointer())
 		ctx := context.Background()
 		// Since the queries exclude the current minute
 		insertTime := dbtime.Now().Add(-time.Minute)
@@ -1215,7 +1214,7 @@ func TestGetAuthorizedWorkspacesAndAgentsByOwnerID(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
-		authzdb := dbauthz.New(db, authorizer, slogtest.Make(t, &slogtest.Options{}), coderdtest.AccessControlStorePointer())
+		authzdb := dbauthz.New(db, authorizer, testutil.Logger(t), coderdtest.AccessControlStorePointer())
 
 		userSubject, _, err := httpmw.UserRBACSubject(ctx, authzdb, user.ID, rbac.ExpandableScope(rbac.ScopeAll))
 		require.NoError(t, err)
@@ -1381,7 +1380,7 @@ func TestGetAuthorizedChats(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
-		authzdb := dbauthz.New(db, authorizer, slogtest.Make(t, &slogtest.Options{}), coderdtest.AccessControlStorePointer())
+		authzdb := dbauthz.New(db, authorizer, testutil.Logger(t), coderdtest.AccessControlStorePointer())
 
 		// As member: should see only own 2 chats.
 		memberSubject, _, err := httpmw.UserRBACSubject(ctx, authzdb, member.ID, rbac.ExpandableScope(rbac.ScopeAll))
@@ -2869,7 +2868,7 @@ func TestAuthorizedAuditLogs(t *testing.T) {
 	var allLogs []database.AuditLog
 	db, _ := dbtestutil.NewDB(t)
 	authz := rbac.NewAuthorizer(prometheus.NewRegistry())
-	db = dbauthz.New(db, authz, slogtest.Make(t, &slogtest.Options{}), coderdtest.AccessControlStorePointer())
+	db = dbauthz.New(db, authz, testutil.Logger(t), coderdtest.AccessControlStorePointer())
 
 	siteWideIDs := []uuid.UUID{uuid.New(), uuid.New()}
 	for _, id := range siteWideIDs {
@@ -3059,7 +3058,7 @@ func TestGetAuthorizedConnectionLogsOffset(t *testing.T) {
 	var allLogs []database.ConnectionLog
 	db, _ := dbtestutil.NewDB(t)
 	authz := rbac.NewAuthorizer(prometheus.NewRegistry())
-	authDb := dbauthz.New(db, authz, slogtest.Make(t, &slogtest.Options{}), coderdtest.AccessControlStorePointer())
+	authDb := dbauthz.New(db, authz, testutil.Logger(t), coderdtest.AccessControlStorePointer())
 
 	orgA := dbfake.Organization(t, db).Do()
 	orgB := dbfake.Organization(t, db).Do()
@@ -7988,7 +7987,7 @@ func TestUserSecretsAuthorization(t *testing.T) {
 	// Use raw database and wrap with dbauthz for authorization testing
 	db, _ := dbtestutil.NewDB(t)
 	authorizer := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
-	authDB := dbauthz.New(db, authorizer, slogtest.Make(t, &slogtest.Options{}), coderdtest.AccessControlStorePointer())
+	authDB := dbauthz.New(db, authorizer, testutil.Logger(t), coderdtest.AccessControlStorePointer())
 
 	// Create test users
 	user1 := dbgen.User(t, db, database.User{})

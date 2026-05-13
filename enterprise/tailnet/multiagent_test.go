@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/enterprise/tailnet"
 	agpl "github.com/coder/coder/v2/tailnet"
@@ -24,7 +23,7 @@ import (
 func TestPGCoordinator_MultiAgent(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
@@ -58,7 +57,7 @@ func TestPGCoordinator_MultiAgent(t *testing.T) {
 func TestPGCoordinator_MultiAgent_CoordClose(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
@@ -85,7 +84,7 @@ func TestPGCoordinator_MultiAgent_CoordClose(t *testing.T) {
 func TestPGCoordinator_MultiAgent_UnsubscribeRace(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancel()
@@ -127,7 +126,7 @@ func TestPGCoordinator_MultiAgent_UnsubscribeRace(t *testing.T) {
 func TestPGCoordinator_MultiAgent_Unsubscribe(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
@@ -186,7 +185,7 @@ func TestPGCoordinator_MultiAgent_Unsubscribe(t *testing.T) {
 func TestPGCoordinator_MultiAgent_MultiCoordinator(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancel()
@@ -233,7 +232,7 @@ func TestPGCoordinator_MultiAgent_MultiCoordinator(t *testing.T) {
 func TestPGCoordinator_MultiAgent_MultiCoordinator_UpdateBeforeSubscribe(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancel()
@@ -282,7 +281,7 @@ func TestPGCoordinator_MultiAgent_MultiCoordinator_UpdateBeforeSubscribe(t *test
 func TestPGCoordinator_MultiAgent_TwoAgents(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancel()

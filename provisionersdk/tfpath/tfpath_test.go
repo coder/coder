@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/provisionersdk/tfpath"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -38,9 +37,7 @@ func TestCleanStaleSessions(t *testing.T) {
 
 		future := time.Now().Add(time.Hour * 24 * 120)
 		l := tfpath.Session(parentDir, "sess1")
-		err = l.CleanStaleSessions(ctx, slogtest.Make(t, &slogtest.Options{
-			IgnoreErrors: true,
-		}), failingFs, future)
+		err = l.CleanStaleSessions(ctx, testutil.Logger(t, testutil.WithIgnoreErrors()), failingFs, future)
 		require.NoError(t, err)
 		require.True(t, called)
 	})
@@ -68,9 +65,7 @@ func TestCleanStaleSessions(t *testing.T) {
 		}
 
 		future := time.Now().Add(time.Hour * 24 * 120)
-		err = staleSession.CleanStaleSessions(ctx, slogtest.Make(t, &slogtest.Options{
-			IgnoreErrors: true,
-		}), failingFs, future)
+		err = staleSession.CleanStaleSessions(ctx, testutil.Logger(t, testutil.WithIgnoreErrors()), failingFs, future)
 		require.ErrorContains(t, err, "constant failure")
 		require.True(t, called)
 	})

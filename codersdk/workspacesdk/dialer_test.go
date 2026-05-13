@@ -16,7 +16,6 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/apiversion"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
@@ -31,9 +30,7 @@ import (
 func TestWebsocketDialer_TokenController(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitMedium)
-	logger := slogtest.Make(t, &slogtest.Options{
-		IgnoreErrors: true,
-	}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 
 	fTokenProv := newFakeTokenController(ctx, t)
 	fCoord := tailnettest.NewFakeCoordinator()
@@ -114,9 +111,7 @@ func TestWebsocketDialer_TokenController(t *testing.T) {
 func TestWebsocketDialer_NoTokenController(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, &slogtest.Options{
-		IgnoreErrors: true,
-	}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 
 	fCoord := tailnettest.NewFakeCoordinator()
 	var coord tailnet.Coordinator = fCoord
@@ -175,9 +170,7 @@ func TestWebsocketDialer_NoTokenController(t *testing.T) {
 func TestWebsocketDialer_ResumeTokenFailure(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, &slogtest.Options{
-		IgnoreErrors: true,
-	}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 
 	fTokenProv := newFakeTokenController(ctx, t)
 	fCoord := tailnettest.NewFakeCoordinator()
@@ -273,9 +266,7 @@ func TestWebsocketDialer_ResumeTokenFailure(t *testing.T) {
 func TestWebsocketDialer_UnauthenticatedFailFast(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, &slogtest.Options{
-		IgnoreErrors: true,
-	}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 
 	svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, w, http.StatusUnauthorized, codersdk.Response{})
@@ -293,9 +284,7 @@ func TestWebsocketDialer_UnauthenticatedFailFast(t *testing.T) {
 func TestWebsocketDialer_UnauthorizedFailFast(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, &slogtest.Options{
-		IgnoreErrors: true,
-	}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 
 	svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		httpapi.Write(ctx, w, http.StatusUnauthorized, codersdk.Response{})
@@ -313,7 +302,7 @@ func TestWebsocketDialer_UnauthorizedFailFast(t *testing.T) {
 func TestWebsocketDialer_UplevelVersion(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 
 	svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sVer := apiversion.New(2, 2)
@@ -356,9 +345,7 @@ func TestWebsocketDialer_UplevelVersion(t *testing.T) {
 func TestWebsocketDialer_WorkspaceUpdates(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, &slogtest.Options{
-		IgnoreErrors: true,
-	}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 
 	fCoord := tailnettest.NewFakeCoordinator()
 	var coord tailnet.Coordinator = fCoord

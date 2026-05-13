@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/healthcheck"
@@ -99,7 +98,7 @@ func TestDebugHealth(t *testing.T) {
 
 		var (
 			// Need to ignore errors due to ctx timeout
-			logger      = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+			logger      = testutil.Logger(t, testutil.WithIgnoreErrors())
 			ctx, cancel = context.WithTimeout(context.Background(), testutil.WaitShort)
 			done        = make(chan struct{})
 			client      = coderdtest.New(t, &coderdtest.Options{

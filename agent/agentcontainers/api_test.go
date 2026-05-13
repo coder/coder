@@ -29,7 +29,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentcontainers/acmock"
 	"github.com/coder/coder/v2/agent/agentcontainers/watcher"
@@ -522,7 +521,7 @@ func TestAPI(t *testing.T) {
 		var (
 			ctx        = testutil.Context(t, testutil.WaitShort)
 			logbuf     strings.Builder
-			logger     = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug).AppendSinks(sloghuman.Sink(&logbuf))
+			logger     = testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug).AppendSinks(sloghuman.Sink(&logbuf))
 			mClock     = quartz.NewMock(t)
 			tickerTrap = mClock.Trap().TickerFunc("updaterLoop")
 			firstErr   = xerrors.New("first error")
@@ -715,7 +714,7 @@ func TestAPI(t *testing.T) {
 			updaterTickerTrap = mClock.Trap().TickerFunc("updaterLoop")
 			mCtrl             = gomock.NewController(t)
 			mLister           = acmock.NewMockContainerCLI(mCtrl)
-			logger            = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+			logger            = testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 		)
 
 		// Set up initial state for immediate send on connection
@@ -872,7 +871,7 @@ func TestAPI(t *testing.T) {
 					tickerTrap = mClock.Trap().TickerFunc("updaterLoop")
 					mCtrl      = gomock.NewController(t)
 					mLister    = acmock.NewMockContainerCLI(mCtrl)
-					logger     = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+					logger     = testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 					r          = chi.NewRouter()
 				)
 
@@ -1081,7 +1080,7 @@ func TestAPI(t *testing.T) {
 
 				ctx := testutil.Context(t, testutil.WaitShort)
 
-				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+				logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 				mClock := quartz.NewMock(t)
 				mClock.Set(time.Now()).MustWait(ctx)
 				tickerTrap := mClock.Trap().TickerFunc("updaterLoop")
@@ -1434,7 +1433,7 @@ func TestAPI(t *testing.T) {
 
 				var (
 					ctx          = testutil.Context(t, testutil.WaitShort)
-					logger       = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+					logger       = testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 					mClock       = quartz.NewMock(t)
 					withSubAgent = tt.wantSubAgentDeleted
 				)
@@ -1847,7 +1846,7 @@ func TestAPI(t *testing.T) {
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
 
-				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+				logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 
 				mClock := quartz.NewMock(t)
 				mClock.Set(time.Now()).MustWait(testutil.Context(t, testutil.WaitShort))
@@ -1964,7 +1963,7 @@ func TestAPI(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 		fLister := &fakeContainerCLI{
 			containers: codersdk.WorkspaceAgentListContainersResponse{
 				Containers: []codersdk.WorkspaceAgentContainer{container},
@@ -2072,7 +2071,7 @@ func TestAPI(t *testing.T) {
 		}
 		fDCCLI := &fakeDevcontainerCLI{}
 
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 		api := agentcontainers.NewAPI(
 			logger,
 			agentcontainers.WithDevcontainerCLI(fDCCLI),
@@ -2194,7 +2193,7 @@ func TestAPI(t *testing.T) {
 		tickerTrap := mClock.Trap().TickerFunc("updaterLoop")
 
 		api := agentcontainers.NewAPI(
-			slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+			testutil.Logger(t).Leveled(slog.LevelDebug),
 			agentcontainers.WithContainerCLI(fLister),
 			agentcontainers.WithWatcher(fWatcher),
 			agentcontainers.WithClock(mClock),
@@ -2247,7 +2246,7 @@ func TestAPI(t *testing.T) {
 		var (
 			ctx                     = testutil.Context(t, testutil.WaitMedium)
 			errTestTermination      = xerrors.New("test termination")
-			logger                  = slogtest.Make(t, &slogtest.Options{IgnoredErrorIs: []error{errTestTermination}}).Leveled(slog.LevelDebug)
+			logger                  = testutil.Logger(t, testutil.WithIgnoredErrorIs(errTestTermination)).Leveled(slog.LevelDebug)
 			mClock                  = quartz.NewMock(t)
 			mCCLI                   = acmock.NewMockContainerCLI(gomock.NewController(t))
 			fakeSAC, cleanupSAC     = newFakeSubAgentClient(t, logger.Named("fakeSubAgentClient"))
@@ -2611,7 +2610,7 @@ func TestAPI(t *testing.T) {
 		}
 
 		var (
-			logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+			logger = testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 			mCtrl  = gomock.NewController(t)
 
 			// Given: A terraform-defined devcontainer with a pre-assigned subagent ID.
@@ -2726,7 +2725,7 @@ func TestAPI(t *testing.T) {
 
 		var (
 			ctx    = testutil.Context(t, testutil.WaitMedium)
-			logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+			logger = testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 			mCtrl  = gomock.NewController(t)
 
 			terraformAgentID = uuid.New()
@@ -2879,7 +2878,7 @@ func TestAPI(t *testing.T) {
 
 		var (
 			ctx    = testutil.Context(t, testutil.WaitMedium)
-			logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+			logger = testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 			mCtrl  = gomock.NewController(t)
 
 			terraformAgentID = uuid.New()
@@ -2994,7 +2993,7 @@ func TestAPI(t *testing.T) {
 
 			var (
 				ctx    = testutil.Context(t, testutil.WaitMedium)
-				logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+				logger = testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 				mClock = quartz.NewMock(t)
 				fCCLI  = &fakeContainerCLI{arch: "<none>"}
 				fDCCLI = &fakeDevcontainerCLI{
@@ -3119,7 +3118,7 @@ func TestAPI(t *testing.T) {
 
 			var (
 				ctx    = testutil.Context(t, testutil.WaitMedium)
-				logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+				logger = testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 				mClock = quartz.NewMock(t)
 
 				testContainer = codersdk.WorkspaceAgentContainer{
@@ -3230,7 +3229,7 @@ func TestAPI(t *testing.T) {
 
 			var (
 				ctx    = testutil.Context(t, testutil.WaitMedium)
-				logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+				logger = testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 				mClock = quartz.NewMock(t)
 				mCCLI  = acmock.NewMockContainerCLI(gomock.NewController(t))
 				fDCCLI = &fakeDevcontainerCLI{}
@@ -3892,7 +3891,7 @@ func TestAPI(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 
 		// Create fake execer to track execution details.
 		fakeExec := &fakeExecer{}
@@ -3984,14 +3983,14 @@ func TestAPI(t *testing.T) {
 			},
 		}
 
-		fakeSAC, cleanupSAC := newFakeSubAgentClient(t, slogtest.Make(t, nil).Named("fakeSubAgentClient"))
+		fakeSAC, cleanupSAC := newFakeSubAgentClient(t, testutil.Logger(t).Named("fakeSubAgentClient"))
 		defer cleanupSAC()
 
 		mClock := quartz.NewMock(t)
 		mClock.Set(startTime)
 		fWatcher := newFakeWatcher(t)
 
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 		api := agentcontainers.NewAPI(
 			logger,
 			agentcontainers.WithDevcontainerCLI(fDCCLI),

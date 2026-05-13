@@ -15,11 +15,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/externalauth/gitprovider"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
+	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
 
@@ -133,7 +133,7 @@ func TestRefresher_WithPRURL(t *testing.T) {
 		return ptr.Ref("test-token"), nil
 	}
 
-	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), quartz.NewReal())
+	r := gitsync.NewRefresher(providers, tokens, testutil.Logger(t), quartz.NewReal())
 
 	chatID := uuid.New()
 	row := database.ChatDiffStatus{
@@ -189,7 +189,7 @@ func TestRefresher_BranchResolvesToPR(t *testing.T) {
 		return ptr.Ref("test-token"), nil
 	}
 
-	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), quartz.NewReal())
+	r := gitsync.NewRefresher(providers, tokens, testutil.Logger(t), quartz.NewReal())
 
 	row := database.ChatDiffStatus{
 		ChatID:          uuid.New(),
@@ -231,7 +231,7 @@ func TestRefresher_BranchNoPRYet(t *testing.T) {
 		return ptr.Ref("test-token"), nil
 	}
 
-	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), quartz.NewReal())
+	r := gitsync.NewRefresher(providers, tokens, testutil.Logger(t), quartz.NewReal())
 
 	row := database.ChatDiffStatus{
 		ChatID:          uuid.New(),
@@ -260,7 +260,7 @@ func TestRefresher_NoProviderForOrigin(t *testing.T) {
 		return ptr.Ref("test-token"), nil
 	}
 
-	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), quartz.NewReal())
+	r := gitsync.NewRefresher(providers, tokens, testutil.Logger(t), quartz.NewReal())
 
 	row := database.ChatDiffStatus{
 		ChatID:          uuid.New(),
@@ -301,7 +301,7 @@ func TestRefresher_TokenResolutionFails(t *testing.T) {
 		return nil, errors.New("token lookup failed")
 	}
 
-	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), quartz.NewReal())
+	r := gitsync.NewRefresher(providers, tokens, testutil.Logger(t), quartz.NewReal())
 
 	row := database.ChatDiffStatus{
 		ChatID:          uuid.New(),
@@ -333,7 +333,7 @@ func TestRefresher_EmptyToken(t *testing.T) {
 		return ptr.Ref(""), nil
 	}
 
-	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), quartz.NewReal())
+	r := gitsync.NewRefresher(providers, tokens, testutil.Logger(t), quartz.NewReal())
 
 	row := database.ChatDiffStatus{
 		ChatID:          uuid.New(),
@@ -371,7 +371,7 @@ func TestRefresher_ProviderFetchFails(t *testing.T) {
 		return ptr.Ref("test-token"), nil
 	}
 
-	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), quartz.NewReal())
+	r := gitsync.NewRefresher(providers, tokens, testutil.Logger(t), quartz.NewReal())
 
 	row := database.ChatDiffStatus{
 		ChatID:          uuid.New(),
@@ -407,7 +407,7 @@ func TestRefresher_PRURLParseFailure(t *testing.T) {
 		return ptr.Ref("test-token"), nil
 	}
 
-	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), quartz.NewReal())
+	r := gitsync.NewRefresher(providers, tokens, testutil.Logger(t), quartz.NewReal())
 
 	row := database.ChatDiffStatus{
 		ChatID:          uuid.New(),
@@ -448,7 +448,7 @@ func TestRefresher_BatchGroupsByOwnerAndOrigin(t *testing.T) {
 		return ptr.Ref("test-token"), nil
 	}
 
-	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), quartz.NewReal())
+	r := gitsync.NewRefresher(providers, tokens, testutil.Logger(t), quartz.NewReal())
 
 	ownerID := uuid.New()
 	originA := "https://github.com/org/repo"
@@ -527,7 +527,7 @@ func TestRefresher_UsesInjectedClock(t *testing.T) {
 		return ptr.Ref("test-token"), nil
 	}
 
-	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), mClock)
+	r := gitsync.NewRefresher(providers, tokens, testutil.Logger(t), mClock)
 
 	chatID := uuid.New()
 	row := database.ChatDiffStatus{
@@ -581,7 +581,7 @@ func TestRefresher_RateLimitSkipsRemainingInGroup(t *testing.T) {
 
 	// Concurrency=1 ensures sequential semaphore acquisition so
 	// the rate-limit flag is always visible to later goroutines.
-	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), quartz.NewReal(), gitsync.WithConcurrency(1))
+	r := gitsync.NewRefresher(providers, tokens, testutil.Logger(t), quartz.NewReal(), gitsync.WithConcurrency(1))
 
 	ownerID := uuid.New()
 	origin := "https://github.com/org/repo"
@@ -697,7 +697,7 @@ func TestRefresher_CorrectTokenPerOrigin(t *testing.T) {
 
 	providers := func(_ string) gitprovider.Provider { return mp }
 
-	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), quartz.NewReal())
+	r := gitsync.NewRefresher(providers, tokens, testutil.Logger(t), quartz.NewReal())
 
 	ownerID := uuid.New()
 
@@ -787,7 +787,7 @@ func TestRefresher_ConcurrentProcessing(t *testing.T) {
 
 	// Concurrency must be >= numRows so all goroutines can enter
 	// simultaneously.
-	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), quartz.NewReal(), gitsync.WithConcurrency(numRows))
+	r := gitsync.NewRefresher(providers, tokens, testutil.Logger(t), quartz.NewReal(), gitsync.WithConcurrency(numRows))
 
 	ownerID := uuid.New()
 	origin := "https://github.com/org/repo"

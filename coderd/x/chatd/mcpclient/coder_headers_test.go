@@ -14,10 +14,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
+	"github.com/coder/coder/v2/testutil"
 )
 
 // newHeaderRecordingServer creates a streamable HTTP MCP server with a
@@ -51,7 +51,7 @@ func newHeaderRecordingServer(t *testing.T) (*httptest.Server, *sync.Mutex, *[]h
 func TestConnectAll_ForwardCoderHeaders_DefaultOff(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	ts, mu, recorded := newHeaderRecordingServer(t)
 
@@ -93,7 +93,7 @@ func TestConnectAll_ForwardCoderHeaders_DefaultOff(t *testing.T) {
 func TestConnectAll_ForwardCoderHeaders_Enabled(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	ts, mu, recorded := newHeaderRecordingServer(t)
 
@@ -142,7 +142,7 @@ func TestConnectAll_ForwardCoderHeaders_Enabled(t *testing.T) {
 func TestConnectAll_ForwardCoderHeaders_RootChat(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	ts, mu, recorded := newHeaderRecordingServer(t)
 
@@ -185,7 +185,7 @@ func TestConnectAll_ForwardCoderHeaders_RootChat(t *testing.T) {
 func TestConnectAll_ForwardCoderHeaders_WithAPIKeyAuth(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	ts, mu, recorded := newHeaderRecordingServer(t)
 
@@ -230,7 +230,7 @@ func TestConnectAll_ForwardCoderHeaders_WithAPIKeyAuth(t *testing.T) {
 func TestConnectAll_ForwardCoderHeaders_WithOAuth2(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	ts, mu, recorded := newHeaderRecordingServer(t)
 
@@ -285,7 +285,7 @@ func TestConnectAll_ForwardCoderHeaders_WithOAuth2(t *testing.T) {
 func TestConnectAll_ForwardCoderHeaders_WithCustomHeaders(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	ts, mu, recorded := newHeaderRecordingServer(t)
 

@@ -7,7 +7,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
@@ -20,7 +19,7 @@ import (
 // can influence other tests in the same package.
 // nolint:paralleltest
 func TestScaleTestWorkspaceTraffic_UseHostLogin(t *testing.T) {
-	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	log := testutil.Logger(t, testutil.WithIgnoreErrors())
 	client := coderdtest.New(t, &coderdtest.Options{
 		Logger:                   &log,
 		IncludeProvisionerDaemon: true,

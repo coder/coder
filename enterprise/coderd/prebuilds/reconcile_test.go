@@ -19,7 +19,6 @@ import (
 	"tailscale.com/types/ptr"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
@@ -392,9 +391,7 @@ func (tc testCase) run(t *testing.T) {
 		clock := quartz.NewMock(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 		cfg := codersdk.PrebuildsConfig{}
-		logger := slogtest.Make(
-			t, &slogtest.Options{IgnoreErrors: true},
-		).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 		db, pubSub := dbtestutil.NewDB(t)
 
 		ownerID := uuid.New()
@@ -548,9 +545,7 @@ func TestMultiplePresetsPerTemplateVersion(t *testing.T) {
 	clock := quartz.NewMock(t)
 	ctx := testutil.Context(t, testutil.WaitShort)
 	cfg := codersdk.PrebuildsConfig{}
-	logger := slogtest.Make(
-		t, &slogtest.Options{IgnoreErrors: true},
-	).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	db, pubSub := dbtestutil.NewDB(t)
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 	controller := prebuilds.NewStoreReconciler(
@@ -680,9 +675,7 @@ func TestPrebuildScheduling(t *testing.T) {
 			clock.Set(tc.now)
 			ctx := testutil.Context(t, testutil.WaitShort)
 			cfg := codersdk.PrebuildsConfig{}
-			logger := slogtest.Make(
-				t, &slogtest.Options{IgnoreErrors: true},
-			).Leveled(slog.LevelDebug)
+			logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 			db, pubSub := dbtestutil.NewDB(t)
 			cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 			controller := prebuilds.NewStoreReconciler(
@@ -790,9 +783,7 @@ func TestInvalidPreset(t *testing.T) {
 	clock := quartz.NewMock(t)
 	ctx := testutil.Context(t, testutil.WaitShort)
 	cfg := codersdk.PrebuildsConfig{}
-	logger := slogtest.Make(
-		t, &slogtest.Options{IgnoreErrors: true},
-	).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	db, pubSub := dbtestutil.NewDB(t)
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 	controller := prebuilds.NewStoreReconciler(
@@ -861,9 +852,7 @@ func TestDeletionOfPrebuiltWorkspaceWithInvalidPreset(t *testing.T) {
 	clock := quartz.NewMock(t)
 	ctx := testutil.Context(t, testutil.WaitShort)
 	cfg := codersdk.PrebuildsConfig{}
-	logger := slogtest.Make(
-		t, &slogtest.Options{IgnoreErrors: true},
-	).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	db, pubSub := dbtestutil.NewDB(t)
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 	controller := prebuilds.NewStoreReconciler(
@@ -962,9 +951,7 @@ func TestSkippingHardLimitedPresets(t *testing.T) {
 				FailureHardLimit:              serpent.Int64(tc.hardLimit),
 				ReconciliationBackoffInterval: 0,
 			}
-			logger := slogtest.Make(
-				t, &slogtest.Options{IgnoreErrors: true},
-			).Leveled(slog.LevelDebug)
+			logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 			db, pubSub := dbtestutil.NewDB(t)
 			fakeEnqueuer := newFakeEnqueuer()
 			registry := prometheus.NewRegistry()
@@ -1093,9 +1080,7 @@ func TestValidationFailedPresets(t *testing.T) {
 	clock := quartz.NewMock(t)
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	cfg := codersdk.PrebuildsConfig{}
-	logger := slogtest.Make(
-		t, &slogtest.Options{IgnoreErrors: true},
-	).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	db, pubSub := dbtestutil.NewDB(t)
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 	registry := prometheus.NewRegistry()
@@ -1281,9 +1266,7 @@ func TestValidationFailedPresetResets(t *testing.T) {
 	clock := quartz.NewMock(t)
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	cfg := codersdk.PrebuildsConfig{}
-	logger := slogtest.Make(
-		t, &slogtest.Options{IgnoreErrors: true},
-	).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	db, pubSub := dbtestutil.NewDB(t)
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 	registry := prometheus.NewRegistry()
@@ -1464,9 +1447,7 @@ func TestHardLimitedPresetShouldNotBlockDeletion(t *testing.T) {
 				FailureHardLimit:              serpent.Int64(tc.hardLimit),
 				ReconciliationBackoffInterval: 0,
 			}
-			logger := slogtest.Make(
-				t, &slogtest.Options{IgnoreErrors: true},
-			).Leveled(slog.LevelDebug)
+			logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 			db, pubSub := dbtestutil.NewDB(t)
 			fakeEnqueuer := newFakeEnqueuer()
 			registry := prometheus.NewRegistry()
@@ -1670,7 +1651,7 @@ func TestRunLoop(t *testing.T) {
 		ReconciliationInterval:        serpent.Duration(time.Second),
 	}
 	// Do not ignore errors as we want a graceful stop
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 	db, pubSub := dbtestutil.NewDB(t)
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 	reconciler := prebuilds.NewStoreReconciler(
@@ -1851,9 +1832,7 @@ func TestFailedBuildBackoff(t *testing.T) {
 		ReconciliationBackoffInterval: serpent.Duration(backoffInterval),
 		ReconciliationInterval:        serpent.Duration(time.Second),
 	}
-	logger := slogtest.Make(
-		t, &slogtest.Options{IgnoreErrors: true},
-	).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	db, ps := dbtestutil.NewDB(t)
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 	reconciler := prebuilds.NewStoreReconciler(
@@ -1968,7 +1947,7 @@ func TestReconciliationLock(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	db, ps := dbtestutil.NewDB(t)
 
 	wg := sync.WaitGroup{}
@@ -1983,7 +1962,7 @@ func TestReconciliationLock(t *testing.T) {
 				ps,
 				cache,
 				codersdk.PrebuildsConfig{},
-				slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug),
+				testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug),
 				quartz.NewMock(t),
 				prometheus.NewRegistry(),
 				newNoopEnqueuer(),
@@ -2014,7 +1993,7 @@ func TestTrackResourceReplacement(t *testing.T) {
 
 	// Setup.
 	clock := quartz.NewMock(t)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 	db, ps := dbtestutil.NewDB(t)
 
 	fakeEnqueuer := newFakeEnqueuer()
@@ -2174,9 +2153,7 @@ func TestExpiredPrebuildsMultipleActions(t *testing.T) {
 			clock := quartz.NewMock(t)
 			ctx := testutil.Context(t, testutil.WaitLong)
 			cfg := codersdk.PrebuildsConfig{}
-			logger := slogtest.Make(
-				t, &slogtest.Options{IgnoreErrors: true},
-			).Leveled(slog.LevelDebug)
+			logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 			db, pubSub := dbtestutil.NewDB(t)
 			fakeEnqueuer := newFakeEnqueuer()
 			registry := prometheus.NewRegistry()
@@ -2646,7 +2623,7 @@ func TestCancelPendingPrebuilds(t *testing.T) {
 				fakeEnqueuer := newFakeEnqueuer()
 				registry := prometheus.NewRegistry()
 				cache := files.New(registry, &coderdtest.FakeAuthorizer{})
-				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
+				logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 				reconciler := prebuilds.NewStoreReconciler(
 					db, ps, cache, codersdk.PrebuildsConfig{}, logger,
 					clock,
@@ -2892,7 +2869,7 @@ func TestCancelPendingPrebuilds(t *testing.T) {
 		fakeEnqueuer := newFakeEnqueuer()
 		registry := prometheus.NewRegistry()
 		cache := files.New(registry, &coderdtest.FakeAuthorizer{})
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 		reconciler := prebuilds.NewStoreReconciler(
 			db, ps, cache, codersdk.PrebuildsConfig{}, logger,
 			clock,
@@ -2966,7 +2943,7 @@ func TestReconciliationStats(t *testing.T) {
 	fakeEnqueuer := newFakeEnqueuer()
 	registry := prometheus.NewRegistry()
 	cache := files.New(registry, &coderdtest.FakeAuthorizer{})
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 	reconciler := prebuilds.NewStoreReconciler(
 		db, ps, cache, codersdk.PrebuildsConfig{}, logger,
 		clock,
@@ -3563,7 +3540,7 @@ func BenchmarkReconcileAll_NoOps(b *testing.B) {
 			cfg := codersdk.PrebuildsConfig{
 				ReconciliationInterval: serpent.Duration(testutil.WaitLong),
 			}
-			prebuildsLogger := slogtest.Make(b, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelError)
+			prebuildsLogger := testutil.Logger(b).Leveled(slog.LevelError)
 			cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 			controller := prebuilds.NewStoreReconciler(
 				db, ps, cache, cfg, prebuildsLogger,
@@ -3675,7 +3652,7 @@ func BenchmarkReconcileAll_ConnectionContention(b *testing.B) {
 				cfg := codersdk.PrebuildsConfig{
 					ReconciliationInterval: serpent.Duration(testutil.WaitLong),
 				}
-				prebuildsLogger := slogtest.Make(b, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelError)
+				prebuildsLogger := testutil.Logger(b).Leveled(slog.LevelError)
 				cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 				controller := prebuilds.NewStoreReconciler(
 					db, ps, cache, cfg, prebuildsLogger,
@@ -3795,7 +3772,7 @@ func BenchmarkReconcileAll_Mix(b *testing.B) {
 				cfg := codersdk.PrebuildsConfig{
 					ReconciliationInterval: serpent.Duration(testutil.WaitLong),
 				}
-				prebuildsLogger := slogtest.Make(b, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelError)
+				prebuildsLogger := testutil.Logger(b).Leveled(slog.LevelError)
 				cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 				controller := prebuilds.NewStoreReconciler(
 					db, ps, cache, cfg, prebuildsLogger,

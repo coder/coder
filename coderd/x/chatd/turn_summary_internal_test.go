@@ -12,7 +12,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -66,7 +65,7 @@ func TestUpdateLastTurnSummaryRejectsStaleWrites(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	server := &Server{db: db}
 	server.updateLastTurnSummary(ctx, chat, chat.UpdatedAt, "fresh summary", logger)
 
@@ -151,7 +150,7 @@ func TestPendingChatPersistsSummaryButSkipsWebPush(t *testing.T) {
 	}
 
 	dispatcher := &recordingWebpushDispatcher{}
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	server := &Server{db: db, webpushDispatcher: dispatcher}
 	server.maybeFinalizeTurnStatusLabelAndPush(
 		context.WithoutCancel(ctx),

@@ -15,7 +15,6 @@ import (
 	"golang.org/x/xerrors"
 	"storj.io/drpc"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
@@ -29,7 +28,7 @@ import (
 func newTestServer(t *testing.T) (*aibridged.Server, *mock.MockDRPCClient, *mock.MockPooler) {
 	t.Helper()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	ctrl := gomock.NewController(t)
 	client := mock.NewMockDRPCClient(ctrl)
 	pool := mock.NewMockPooler(ctrl)
@@ -408,7 +407,7 @@ func TestServeHTTP_ActorHeaders(t *testing.T) {
 			t.Cleanup(upstreamSrv.Close)
 
 			// Setup with SendActorHeaders enabled.
-			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+			logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 			ctrl := gomock.NewController(t)
 			client := mock.NewMockDRPCClient(ctrl)
 
@@ -518,7 +517,7 @@ func TestRouting(t *testing.T) {
 			t.Cleanup(antSrv.Close)
 
 			// Setup.
-			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+			logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 			ctrl := gomock.NewController(t)
 			client := mock.NewMockDRPCClient(ctrl)
 

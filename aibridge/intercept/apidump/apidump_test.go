@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
 
@@ -32,7 +32,7 @@ func TestBridgedMiddleware_RedactsSensitiveRequestHeaders(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 	clk := quartz.NewMock(t)
 	interceptionID := uuid.New()
 
@@ -90,7 +90,7 @@ func TestBridgedMiddleware_RedactsSensitiveResponseHeaders(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 	clk := quartz.NewMock(t)
 	interceptionID := uuid.New()
 
@@ -151,7 +151,7 @@ func TestBridgedMiddleware_WritesErrorFile_WhenNextFails(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 	clk := quartz.NewMock(t)
 	interceptionID := uuid.New()
 
@@ -178,7 +178,7 @@ func TestBridgedMiddleware_WritesErrorFile_WhenNextFails(t *testing.T) {
 func TestBridgedMiddleware_EmptyBaseDir_ReturnsNil(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 	middleware := NewBridgeMiddleware("", "openai", "gpt-4", uuid.New(), logger, quartz.NewMock(t))
 	require.Nil(t, middleware)
 }
@@ -187,7 +187,7 @@ func TestBridgedMiddleware_PreservesRequestBody(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 	clk := quartz.NewMock(t)
 	interceptionID := uuid.New()
 
@@ -221,7 +221,7 @@ func TestBridgedMiddleware_ModelWithSlash(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 	clk := quartz.NewMock(t)
 	interceptionID := uuid.New()
 
@@ -302,7 +302,7 @@ func TestBridgedMiddleware_AllSensitiveRequestHeaders(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 	clk := quartz.NewMock(t)
 	interceptionID := uuid.New()
 
@@ -365,7 +365,7 @@ func TestPassthroughMiddleware(t *testing.T) {
 
 	t.Run("empty_base_dir_returns_original_transport", func(t *testing.T) {
 		t.Parallel()
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 		inner := http.DefaultTransport
 		rt := NewPassthroughMiddleware(inner, "", "openai", logger, quartz.NewMock(t))
 		require.Equal(t, inner, rt)
@@ -375,7 +375,7 @@ func TestPassthroughMiddleware(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 		clk := quartz.NewMock(t)
 
 		innerErr := io.ErrUnexpectedEOF
@@ -405,7 +405,7 @@ func TestPassthroughMiddleware(t *testing.T) {
 		t.Parallel()
 
 		tmpDir := t.TempDir()
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 		clk := quartz.NewMock(t)
 
 		req1Body := `first request`

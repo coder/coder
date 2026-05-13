@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -324,7 +323,7 @@ func TestReadAIBridgeProvidersFromEnv(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			providers, err := ReadAIBridgeProvidersFromEnv(slogtest.Make(t, nil), tt.env)
+			providers, err := ReadAIBridgeProvidersFromEnv(testutil.Logger(t), tt.env)
 			if tt.errContains != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errContains)
@@ -355,7 +354,7 @@ func TestReadAIBridgeProvidersFromEnv(t *testing.T) {
 				Keys: []string{fmt.Sprintf("sk-%d", i)},
 			})
 		}
-		providers, err := ReadAIBridgeProvidersFromEnv(slogtest.Make(t, nil), env)
+		providers, err := ReadAIBridgeProvidersFromEnv(testutil.Logger(t), env)
 		require.NoError(t, err)
 		require.Equal(t, expected, providers)
 	})

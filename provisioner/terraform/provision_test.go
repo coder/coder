@@ -21,7 +21,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/provisioner/terraform"
 	"github.com/coder/coder/v2/provisionersdk"
@@ -194,7 +193,7 @@ func TestProvision_Cancel(t *testing.T) {
 			require.NoError(t, err)
 			t.Logf("wrote fake terraform script to %s", binPath)
 
-			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).
+			logger := testutil.Logger(t, testutil.WithIgnoreErrors()).
 				With(slog.F("source", "provisioner")).
 				Leveled(slog.LevelDebug)
 
@@ -360,7 +359,7 @@ func TestProvision_TextFileBusy(t *testing.T) {
 		srvErr <- srv.Serve(l)
 	}()
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	ctx, api := setupProvisioner(t, &provisionerServeOptions{
 		binaryPath:  binPath,
 		exitTimeout: time.Second,

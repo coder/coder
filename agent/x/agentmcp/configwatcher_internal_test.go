@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
@@ -63,7 +62,7 @@ func TestWatcher_LateFileTriggersReload(t *testing.T) {
 	}
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, ".mcp.json")
 
@@ -102,7 +101,7 @@ func TestWatcher_RewriteTriggersReload(t *testing.T) {
 	}
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 	dir := t.TempDir()
 
 	_, entry := fakeMCPServerConfig(t, "srv")
@@ -141,7 +140,7 @@ func TestWatcher_RemovalTransitionsToEmpty(t *testing.T) {
 	}
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 	dir := t.TempDir()
 
 	_, entry := fakeMCPServerConfig(t, "srv")
@@ -172,7 +171,7 @@ func TestWatcher_RemovalTransitionsToEmpty(t *testing.T) {
 func TestWatcher_DebouncesBurst(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 	mClock := quartz.NewMock(t)
 
 	var fires atomic.Int64
@@ -242,7 +241,7 @@ func TestWatcher_CloseStopsGoroutine(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, ".mcp.json")
 
@@ -277,7 +276,7 @@ func TestWatcher_DualAgentHTTPNoStall(t *testing.T) {
 	}
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, ".mcp.json")
 
@@ -334,7 +333,7 @@ func TestWatcher_LateParentDirTriggersReload(t *testing.T) {
 	}
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 	root := t.TempDir()
 	// Parent directory does not exist yet: armAncestorLocked
 	// will watch root instead.
@@ -378,7 +377,7 @@ func TestWatcher_SharedParentRefcount(t *testing.T) {
 	}
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 	dir := t.TempDir()
 	pathA := filepath.Join(dir, "a.mcp.json")
 	pathB := filepath.Join(dir, "b.mcp.json")
@@ -454,7 +453,7 @@ func TestWatcher_CloseDoesNotStallOnInFlightReload(t *testing.T) {
 	}
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, ".mcp.json")
 

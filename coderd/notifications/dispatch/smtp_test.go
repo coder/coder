@@ -15,7 +15,6 @@ import (
 	"go.uber.org/goleak"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch/smtptest"
 	"github.com/coder/coder/v2/coderd/notifications/types"
@@ -49,7 +48,7 @@ func TestSMTP(t *testing.T) {
 		keyFile  = "smtptest/fixtures/server.key"
 	)
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true, IgnoredErrorIs: []error{}}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	tests := []struct {
 		name             string
 		cfg              codersdk.NotificationsEmailConfig
@@ -566,7 +565,7 @@ func TestSMTPEnvelopeAndHeaders(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitShort)
-			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+			logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 
 			cfg := codersdk.NotificationsEmailConfig{
 				Hello: serpent.String(hello),

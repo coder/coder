@@ -16,7 +16,6 @@ import (
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -42,7 +41,7 @@ func TestIntegration(t *testing.T) {
 	const eventCount = 3
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	log := slogtest.Make(t, nil)
+	log := testutil.Logger(t)
 	db, _ := dbtestutil.NewDB(t)
 
 	clock := quartz.NewMock(t)
@@ -200,7 +199,7 @@ func TestIntegration(t *testing.T) {
 func TestPublisherNoEligibleLicenses(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
-	log := slogtest.Make(t, nil)
+	log := testutil.Logger(t)
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
 	clock := quartz.NewMock(t)
@@ -276,7 +275,7 @@ func TestPublisherNoEligibleLicenses(t *testing.T) {
 func TestPublisherClaimExpiry(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
-	log := slogtest.Make(t, nil)
+	log := testutil.Logger(t)
 	db, _ := dbtestutil.NewDB(t)
 	clock := quartz.NewMock(t)
 	deploymentID, licenseJWT := configureDeployment(ctx, t, db)
@@ -354,7 +353,7 @@ func TestPublisherClaimExpiry(t *testing.T) {
 func TestPublisherMissingEvents(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
-	log := slogtest.Make(t, nil)
+	log := testutil.Logger(t)
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
 	deploymentID, licenseJWT := configureMockDeployment(t, db)
@@ -428,7 +427,7 @@ func TestPublisherMissingEvents(t *testing.T) {
 func TestPublisherLicenseSelection(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
-	log := slogtest.Make(t, nil)
+	log := testutil.Logger(t)
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
 	clock := quartz.NewMock(t)
@@ -563,7 +562,7 @@ func TestPublisherLicenseSelection(t *testing.T) {
 func TestPublisherTallymanError(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
-	log := slogtest.Make(t, nil)
+	log := testutil.Logger(t)
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
 	clock := quartz.NewMock(t)

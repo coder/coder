@@ -21,7 +21,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
@@ -110,7 +109,7 @@ func runWatchChatGitWorkspaceLookupTest(t *testing.T, workspaceErr error, wantSt
 
 	var (
 		ctx    = testutil.Context(t, testutil.WaitShort)
-		logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug).Named("coderd")
+		logger = testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug).Named("coderd")
 
 		mCtrl = gomock.NewController(t)
 		mDB   = dbmock.NewMockStore(mCtrl)
@@ -171,7 +170,7 @@ func TestWatchChatGit(t *testing.T) {
 
 		var (
 			ctx    = testutil.Context(t, testutil.WaitShort)
-			logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug).Named("coderd")
+			logger = testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug).Named("coderd")
 
 			mCtrl = gomock.NewController(t)
 			mDB   = dbmock.NewMockStore(mCtrl)
@@ -245,7 +244,7 @@ func TestWatchChatGit(t *testing.T) {
 
 		var (
 			ctx    = testutil.Context(t, testutil.WaitShort)
-			logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug).Named("coderd")
+			logger = testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug).Named("coderd")
 
 			mCtrl = gomock.NewController(t)
 			mDB   = dbmock.NewMockStore(mCtrl)
@@ -301,7 +300,7 @@ func TestWatchChatGit(t *testing.T) {
 
 		var (
 			ctx    = testutil.Context(t, testutil.WaitShort)
-			logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug).Named("coderd")
+			logger = testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug).Named("coderd")
 
 			mCtrl        = gomock.NewController(t)
 			mDB          = dbmock.NewMockStore(mCtrl)
@@ -389,7 +388,7 @@ func TestWatchChatGit(t *testing.T) {
 
 		var (
 			ctx    = testutil.Context(t, testutil.WaitLong)
-			logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug).Named("coderd")
+			logger = testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug).Named("coderd")
 
 			mCtrl        = gomock.NewController(t)
 			mDB          = dbmock.NewMockStore(mCtrl)
@@ -567,7 +566,7 @@ func TestWatchChatGit(t *testing.T) {
 
 		var (
 			ctx    = testutil.Context(t, testutil.WaitLong)
-			logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug).Named("coderd")
+			logger = testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug).Named("coderd")
 
 			mCtrl        = gomock.NewController(t)
 			mDB          = dbmock.NewMockStore(mCtrl)
@@ -739,7 +738,7 @@ func TestWatchAgentContainers(t *testing.T) {
 
 		var (
 			ctx    = testutil.Context(t, testutil.WaitLong)
-			logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug).Named("coderd")
+			logger = testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug).Named("coderd")
 
 			mCtrl        = gomock.NewController(t)
 			mDB          = dbmock.NewMockStore(mCtrl)
@@ -856,7 +855,7 @@ func TestWatchAgentContainers(t *testing.T) {
 
 		var (
 			ctx    = testutil.Context(t, testutil.WaitShort)
-			logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug).Named("coderd")
+			logger = testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug).Named("coderd")
 
 			mCtrl        = gomock.NewController(t)
 			mDB          = dbmock.NewMockStore(mCtrl)

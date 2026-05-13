@@ -18,9 +18,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
+	"github.com/coder/coder/v2/testutil"
 )
 
 // newTestMCPServer creates a streamable HTTP MCP server with the
@@ -91,7 +91,7 @@ func makeConfig(slug, url string) database.MCPServerConfig {
 func TestConnectAll_DiscoverTools(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	ts := newTestMCPServer(t, echoTool(), greetTool())
 
@@ -116,7 +116,7 @@ func TestConnectAll_DiscoverTools(t *testing.T) {
 func TestConnectAll_CallTool(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	ts := newTestMCPServer(t, echoTool())
 
@@ -139,7 +139,7 @@ func TestConnectAll_CallTool(t *testing.T) {
 func TestConnectAll_ToolAllowList(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	ts := newTestMCPServer(t, echoTool(), greetTool())
 
@@ -157,7 +157,7 @@ func TestConnectAll_ToolAllowList(t *testing.T) {
 func TestConnectAll_ToolDenyList(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	ts := newTestMCPServer(t, echoTool(), greetTool())
 
@@ -175,7 +175,7 @@ func TestConnectAll_ToolDenyList(t *testing.T) {
 func TestConnectAll_ConnectionFailure(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	cfg := makeConfig("bad", "http://127.0.0.1:0/does-not-exist")
 
@@ -188,7 +188,7 @@ func TestConnectAll_ConnectionFailure(t *testing.T) {
 func TestConnectAll_MultipleServers(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	ts1 := newTestMCPServer(t, echoTool())
 	ts2 := newTestMCPServer(t, greetTool())
@@ -215,7 +215,7 @@ func TestConnectAll_MultipleServers(t *testing.T) {
 func TestConnectAll_NoToolsAfterFiltering(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	ts := newTestMCPServer(t, echoTool())
 
@@ -241,7 +241,7 @@ func TestConnectAll_DeterministicOrder(t *testing.T) {
 	t.Run("AcrossServers", func(t *testing.T) {
 		t.Parallel()
 		ctx := context.Background()
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 		ts1 := newTestMCPServer(t, makeTool("zebra"))
 		ts2 := newTestMCPServer(t, makeTool("alpha"))
@@ -273,7 +273,7 @@ func TestConnectAll_DeterministicOrder(t *testing.T) {
 	t.Run("WithMultiToolServer", func(t *testing.T) {
 		t.Parallel()
 		ctx := context.Background()
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 		multi := newTestMCPServer(t, makeTool("zeta"), makeTool("beta"))
 		other := newTestMCPServer(t, makeTool("gamma"))
@@ -301,7 +301,7 @@ func TestConnectAll_DeterministicOrder(t *testing.T) {
 	t.Run("TiebreakByConfigID", func(t *testing.T) {
 		t.Parallel()
 		ctx := context.Background()
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 		ts1 := newTestMCPServer(t, makeTool("b__z"))
 		ts2 := newTestMCPServer(t, makeTool("z"))
@@ -338,7 +338,7 @@ func TestConnectAll_DeterministicOrder(t *testing.T) {
 func TestConnectAll_AuthHeaders(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	// Create a server whose tool handler records the Authorization
 	// header it receives on each request.
@@ -434,7 +434,7 @@ func findTool(tools []fantasy.AgentTool, name string) fantasy.AgentTool {
 func TestConnectAll_DisabledServer(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	ts := newTestMCPServer(t, echoTool())
 
@@ -451,7 +451,7 @@ func TestConnectAll_DisabledServer(t *testing.T) {
 func TestConnectAll_CallToolInvalidInput(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	ts := newTestMCPServer(t, echoTool())
 
@@ -476,7 +476,7 @@ func TestConnectAll_CallToolInvalidInput(t *testing.T) {
 func TestConnectAll_ToolInfoParameters(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	ts := newTestMCPServer(t, echoTool())
 
@@ -508,7 +508,7 @@ func TestConnectAll_ToolInfoParameters(t *testing.T) {
 func TestConnectAll_NilRequiredBecomesEmptySlice(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	// noRequiredTool defines a tool with no required parameters.
 	noRequiredTool := mcpserver.ServerTool{
@@ -543,7 +543,7 @@ func TestConnectAll_NilRequiredBecomesEmptySlice(t *testing.T) {
 func TestConnectAll_APIKeyAuth(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	var (
 		mu          sync.Mutex
@@ -602,7 +602,7 @@ func TestConnectAll_APIKeyAuth(t *testing.T) {
 func TestConnectAll_CustomHeadersAuth(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	var (
 		mu          sync.Mutex
@@ -661,7 +661,7 @@ func TestConnectAll_CustomHeadersAuth(t *testing.T) {
 func TestConnectAll_CustomHeadersInvalidJSON(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	ts := newTestMCPServer(t, echoTool())
 
@@ -699,7 +699,7 @@ func (s staticOIDCSource) OIDCAccessToken(_ context.Context, _ uuid.UUID) (strin
 func TestConnectAll_UserOIDCAuth(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	var (
 		mu          sync.Mutex
@@ -759,7 +759,7 @@ func TestConnectAll_UserOIDCAuth(t *testing.T) {
 func TestConnectAll_UserOIDCAuth_NoLink(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	var (
 		mu          sync.Mutex
@@ -817,7 +817,7 @@ func TestConnectAll_UserOIDCAuth_NoLink(t *testing.T) {
 func TestConnectAll_UserOIDCAuth_NilSource(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	ts := newTestMCPServer(t, echoTool())
 
@@ -840,7 +840,7 @@ func TestConnectAll_UserOIDCAuth_NilSource(t *testing.T) {
 func TestConnectAll_ParallelConnections(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	ts1 := newTestMCPServer(t, echoTool())
 	ts2 := newTestMCPServer(t, greetTool())
@@ -894,7 +894,7 @@ func TestRedactURL(t *testing.T) {
 func TestConnectAll_ExpiredToken(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	ts := newTestMCPServer(t, echoTool())
 
@@ -928,7 +928,7 @@ func TestConnectAll_ExpiredToken(t *testing.T) {
 func TestConnectAll_EmptyAccessToken(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	ts := newTestMCPServer(t, echoTool())
 
@@ -964,7 +964,7 @@ func TestConnectAll_EmptyAccessToken(t *testing.T) {
 func TestConnectAll_MCPToolIdentifier(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	ts := newTestMCPServer(t, echoTool())
 
@@ -995,7 +995,7 @@ func TestConnectAll_MCPToolIdentifier(t *testing.T) {
 func TestConnectAll_MCPToolIdentifier_MultipleServers(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	ts1 := newTestMCPServer(t, echoTool())
 	ts2 := newTestMCPServer(t, greetTool())
@@ -1051,7 +1051,7 @@ func TestConnectAll_MCPToolIdentifier_MultipleServers(t *testing.T) {
 func TestConnectAll_EmbeddedResourceText(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	srv := mcpserver.NewMCPServer("embedded-text-server", "1.0.0")
 	srv.AddTools(mcpserver.ServerTool{
@@ -1119,7 +1119,7 @@ func TestConnectAll_EmbeddedResourceBlob(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := context.Background()
-			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+			logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 			blobData := base64.StdEncoding.EncodeToString([]byte("binary-content"))
 			mime := tt.mimeType
@@ -1210,7 +1210,7 @@ func TestConnectAll_ResourceLink(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := context.Background()
-			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+			logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 			link := tt.link
 			srv := mcpserver.NewMCPServer("resource-link-server", "1.0.0")
@@ -1254,7 +1254,7 @@ func TestConnectAll_ResourceLink(t *testing.T) {
 func TestConnectAll_CallToolError(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	// Server with a tool that always returns an error result.
 	srv := mcpserver.NewMCPServer("error-server", "1.0.0")
@@ -1291,7 +1291,7 @@ func TestConnectAll_CallToolError(t *testing.T) {
 func TestModelIntent_Info_WrapsSchema(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	ts := newTestMCPServer(t, echoTool())
 
@@ -1327,7 +1327,7 @@ func TestModelIntent_Info_WrapsSchema(t *testing.T) {
 func TestModelIntent_Info_NoWrapWhenDisabled(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	ts := newTestMCPServer(t, echoTool())
 
@@ -1350,7 +1350,7 @@ func TestModelIntent_Info_NoWrapWhenDisabled(t *testing.T) {
 func TestModelIntent_Run_UnwrapsProperties(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	ts := newTestMCPServer(t, echoTool())
 
@@ -1375,7 +1375,7 @@ func TestModelIntent_Run_UnwrapsProperties(t *testing.T) {
 func TestModelIntent_Run_UnwrapsFlat(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	ts := newTestMCPServer(t, echoTool())
 
@@ -1400,7 +1400,7 @@ func TestModelIntent_Run_UnwrapsFlat(t *testing.T) {
 func TestModelIntent_Run_PassthroughWhenDisabled(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	ts := newTestMCPServer(t, echoTool())
 
@@ -1425,7 +1425,7 @@ func TestModelIntent_Run_PassthroughWhenDisabled(t *testing.T) {
 func TestModelIntent_Run_FallbackOnBadJSON(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	ts := newTestMCPServer(t, echoTool())
 

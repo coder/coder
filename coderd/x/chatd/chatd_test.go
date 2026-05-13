@@ -28,7 +28,6 @@ import (
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentcontextconfig"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -3588,7 +3587,7 @@ func TestRecoverStaleChatsPeriodically(t *testing.T) {
 	// Start a new replica. Its startup recovery will reset the
 	// chat (since the heartbeat is old), but the key point is that
 	// the periodic loop also recovers newly-stale chats.
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	server := chatd.New(chatd.Config{
 		Logger:                     logger,
 		Database:                   db,
@@ -3677,7 +3676,7 @@ func TestRecoverStaleRequiresActionChat(t *testing.T) {
 		time.Now().Add(-time.Hour), chat.ID)
 	require.NoError(t, err)
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	server := chatd.New(chatd.Config{
 		Logger:                     logger,
 		Database:                   db,
@@ -3771,7 +3770,7 @@ func TestWaitingChatsAreNotRecoveredAsStale(t *testing.T) {
 	})
 
 	// Start a replica with a short stale threshold.
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	server := chatd.New(chatd.Config{
 		Logger:                     logger,
 		Database:                   db,
@@ -4082,7 +4081,7 @@ func TestRequiresActionChatPersistsWaitingStatusLabel(t *testing.T) {
 	})
 
 	mockPush := &mockWebpushDispatcher{}
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	server := chatd.New(chatd.Config{
 		Logger:                     logger,
 		Database:                   db,
@@ -5458,15 +5457,15 @@ func TestHeartbeatBumpsWorkspaceUsage(t *testing.T) {
 	flushDone := make(chan int, 1)
 	tracker := workspacestats.NewTracker(db,
 		workspacestats.TrackerWithTickFlush(flushTick, flushDone),
-		workspacestats.TrackerWithLogger(slogtest.Make(t, nil)),
+		workspacestats.TrackerWithLogger(testutil.Logger(t)),
 	)
 	t.Cleanup(func() { tracker.Close() })
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	// Wrap the database with dbauthz so the chatd server's
 	// AsChatd context is enforced on every query, matching
 	// production behavior.
-	authzDB := dbauthz.New(db, rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()), slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+	authzDB := dbauthz.New(db, rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()), testutil.Logger(t), coderdtest.AccessControlStorePointer())
 	server := chatd.New(chatd.Config{
 		Logger:                     logger,
 		Database:                   authzDB,
@@ -5588,11 +5587,11 @@ func TestHeartbeatNoWorkspaceNoBump(t *testing.T) {
 	flushCh := make(chan int, 1)
 	tracker := workspacestats.NewTracker(db,
 		workspacestats.TrackerWithTickFlush(usageTickCh, flushCh),
-		workspacestats.TrackerWithLogger(slogtest.Make(t, nil)),
+		workspacestats.TrackerWithLogger(testutil.Logger(t)),
 	)
 	t.Cleanup(func() { tracker.Close() })
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	server := chatd.New(chatd.Config{
 		Logger:                     logger,
 		Database:                   db,
@@ -5680,7 +5679,7 @@ func newTestServer(
 ) *chatd.Server {
 	t.Helper()
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	server := chatd.New(chatd.Config{
 		Logger:                     logger,
 		Database:                   db,
@@ -5730,7 +5729,7 @@ func newStartedTestServer(
 ) *chatd.Server {
 	t.Helper()
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	server := chatd.New(chatd.Config{
 		Logger:                     logger,
 		Database:                   db,
@@ -5758,7 +5757,7 @@ func newDebugEnabledTestServer(
 ) *chatd.Server {
 	t.Helper()
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	server := chatd.New(chatd.Config{
 		Logger:                     logger,
 		Database:                   db,
@@ -5785,7 +5784,7 @@ func newActiveTestServer(
 ) *chatd.Server {
 	t.Helper()
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	cfg := chatd.Config{
 		Logger:                     logger,
 		Database:                   db,
@@ -5869,7 +5868,7 @@ func TestProposeChatTitle_DebugRun(t *testing.T) {
 				openAIURL,
 			)
 			server := chatd.New(chatd.Config{
-				Logger:                     slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+				Logger:                     testutil.Logger(t, testutil.WithIgnoreErrors()),
 				Database:                   db,
 				ReplicaID:                  uuid.New(),
 				Pubsub:                     ps,
@@ -6233,7 +6232,7 @@ func TestInterruptChatDoesNotSendWebPushNotification(t *testing.T) {
 	// Mock webpush dispatcher that records calls.
 	mockPush := &mockWebpushDispatcher{}
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	server := chatd.New(chatd.Config{
 		Logger:                     logger,
 		Database:                   db,
@@ -6354,7 +6353,7 @@ func TestSuccessfulChatSendsWebPushWithNavigationData(t *testing.T) {
 	// Mock webpush dispatcher that captures the dispatched message.
 	mockPush := &mockWebpushDispatcher{}
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	server := chatd.New(chatd.Config{
 		Logger:                     logger,
 		Database:                   db,
@@ -6441,7 +6440,7 @@ func TestCloseDuringShutdownContextCanceledShouldRetryOnNewReplica(t *testing.T)
 		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("retry", " complete")...)
 	})
 
-	loggerA := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	loggerA := testutil.Logger(t, testutil.WithIgnoreErrors())
 	serverA := chatd.New(chatd.Config{
 		Logger:                     loggerA,
 		Database:                   db,
@@ -6496,7 +6495,7 @@ func TestCloseDuringShutdownContextCanceledShouldRetryOnNewReplica(t *testing.T)
 			!fromDB.LastError.Valid
 	}, testutil.WaitMedium, testutil.IntervalFast)
 
-	loggerB := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	loggerB := testutil.Logger(t, testutil.WithIgnoreErrors())
 	serverB := chatd.New(chatd.Config{
 		Logger:                     loggerB,
 		Database:                   db,
@@ -6550,7 +6549,7 @@ func TestSuccessfulChatSendsWebPushWithSummary(t *testing.T) {
 
 	mockPush := &mockWebpushDispatcher{}
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	server := chatd.New(chatd.Config{
 		Logger:                     logger,
 		Database:                   db,
@@ -6668,7 +6667,7 @@ func TestSuccessfulChatSendsWebPushFallbackWithoutSummaryForEmptyAssistantText(t
 
 	mockPush := &mockWebpushDispatcher{}
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	server := chatd.New(chatd.Config{
 		Logger:                     logger,
 		Database:                   db,
@@ -6728,7 +6727,7 @@ func TestErroredChatClearsLastTurnSummaryAndSendsWebPush(t *testing.T) {
 
 	mockPush := &mockWebpushDispatcher{}
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	server := chatd.New(chatd.Config{
 		Logger:                     logger,
 		Database:                   db,
@@ -7121,7 +7120,7 @@ func TestInterruptChatPersistsPartialResponse(t *testing.T) {
 		return chattest.OpenAIResponse{StreamingChunks: chunks}
 	})
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	server := chatd.New(chatd.Config{
 		Logger:                     logger,
 		Database:                   db,
@@ -10775,7 +10774,7 @@ func TestPromoteQueuedFallsThroughOnStaleHeartbeat(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	staleAfter := 100 * time.Millisecond
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	server := chatd.New(chatd.Config{
 		Logger:                     logger,
 		Database:                   db,
@@ -10849,7 +10848,7 @@ func TestRecoverStaleChatsRecoversWaitingWithQueue(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	staleAfter := 100 * time.Millisecond
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	server := chatd.New(chatd.Config{
 		Logger:                     logger,
 		Database:                   db,
@@ -10934,7 +10933,7 @@ func TestRecoverStaleChatsWaitingWithUnresolvedToolCallInsertsSyntheticResults(t
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	staleAfter := 100 * time.Millisecond
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	server := chatd.New(chatd.Config{
 		Logger:                     logger,
 		Database:                   db,
@@ -11286,7 +11285,7 @@ func TestRecoverStaleChatsWaitingPropagatesSynthError(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	staleAfter := 100 * time.Millisecond
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	server := chatd.New(chatd.Config{
 		Logger:                     logger,
 		Database:                   db,

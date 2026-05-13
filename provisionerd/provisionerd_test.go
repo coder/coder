@@ -21,7 +21,6 @@ import (
 	"storj.io/drpc/drpcserver"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/provisionerd"
 	"github.com/coder/coder/v2/provisionerd/proto"
@@ -1081,7 +1080,7 @@ func TestProvisionerd(t *testing.T) {
 		t.Cleanup(func() {
 			close(done)
 		})
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 		m := sync.Mutex{}
 		var ops []string
 		completeChan := make(chan struct{})
@@ -1182,7 +1181,7 @@ func TestProvisionerd(t *testing.T) {
 // Creates a provisionerd implementation with the provided dialer and provisioners.
 func createProvisionerd(t *testing.T, dialer provisionerd.Dialer, connector provisionerd.LocalProvisioners) *provisionerd.Server {
 	server := provisionerd.New(dialer, &provisionerd.Options{
-		Logger:         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named("provisionerd").Leveled(slog.LevelDebug),
+		Logger:         testutil.Logger(t, testutil.WithIgnoreErrors()).Named("provisionerd").Leveled(slog.LevelDebug),
 		UpdateInterval: 50 * time.Millisecond,
 		Connector:      connector,
 	})
@@ -1404,7 +1403,7 @@ func (a *acquireOne) acquireWithCancel(stream proto.DRPCProvisionerDaemon_Acquir
 }
 
 func extractInit(t *testing.T) func(s *provisionersdk.Session, r *provisionersdk.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	return func(s *provisionersdk.Session, r *provisionersdk.InitRequest, canceledOrComplete <-chan struct{}) *sdkproto.InitComplete {
 		err := s.Files.ExtractArchive(s.Context(), logger, afero.NewOsFs(), r.TemplateSourceArchive, nil)
 		if err != nil {

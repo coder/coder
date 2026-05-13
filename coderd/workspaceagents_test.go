@@ -30,7 +30,6 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentcontainers/acmock"
@@ -117,7 +116,7 @@ func TestWorkspaceAgent(t *testing.T) {
 	t.Run("Timeout", func(t *testing.T) {
 		t.Parallel()
 		// timeouts can cause error logs to be dropped on shutdown
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 			Logger: &logger,
 		})
@@ -1511,7 +1510,7 @@ func TestWorkspaceAgentContainers(t *testing.T) {
 				ctrl := gomock.NewController(t)
 				mcl := acmock.NewMockContainerCLI(ctrl)
 				expected, expectedErr := tc.setupMock(mcl)
-				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+				logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 				client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 					Logger: &logger,
 				})
@@ -1561,7 +1560,7 @@ func TestWatchWorkspaceAgentDevcontainers(t *testing.T) {
 
 		var (
 			ctx               = testutil.Context(t, testutil.WaitLong)
-			logger            = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+			logger            = testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 			mClock            = quartz.NewMock(t)
 			updaterTickerTrap = mClock.Trap().TickerFunc("updaterLoop")
 			mCtrl             = gomock.NewController(t)
@@ -1809,7 +1808,7 @@ func TestWorkspaceAgentRecreateDevcontainer(t *testing.T) {
 					mCtrl      = gomock.NewController(t)
 					mCCLI      = acmock.NewMockContainerCLI(mCtrl)
 					mDCCLI     = acmock.NewMockDevcontainerCLI(mCtrl)
-					logger     = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+					logger     = testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 					client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
 						Logger: &logger,
 					})
@@ -1968,7 +1967,7 @@ func TestWorkspaceAgentDeleteDevcontainer(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+			logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 			client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 				Logger: &logger,
 			})
@@ -2511,7 +2510,7 @@ func TestWorkspaceAgent_Metadata_CatchMemoryLeak(t *testing.T) {
 
 	store, psub := dbtestutil.NewDB(t)
 	db := &testWAMErrorStore{Store: store}
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named("coderd").Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Named("coderd").Leveled(slog.LevelDebug)
 	client := coderdtest.New(t, &coderdtest.Options{
 		Database:                 db,
 		Pubsub:                   psub,

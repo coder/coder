@@ -8,7 +8,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -16,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/rolestore"
+	"github.com/coder/coder/v2/testutil"
 )
 
 // nolint:tparallel
@@ -24,9 +24,7 @@ func TestGroupsAuth(t *testing.T) {
 
 	authz := rbac.NewAuthorizer(prometheus.NewRegistry())
 	store, _ := dbtestutil.NewDB(t)
-	db := dbauthz.New(store, authz, slogtest.Make(t, &slogtest.Options{
-		IgnoreErrors: true,
-	}), coderdtest.AccessControlStorePointer())
+	db := dbauthz.New(store, authz, testutil.Logger(t, testutil.WithIgnoreErrors()), coderdtest.AccessControlStorePointer())
 
 	ownerCtx := dbauthz.As(context.Background(), rbac.Subject{
 		ID:     "owner",

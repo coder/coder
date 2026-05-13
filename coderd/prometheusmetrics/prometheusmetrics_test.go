@@ -19,7 +19,6 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentmetrics"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -583,9 +582,7 @@ func TestAgents(t *testing.T) {
 	defer cancelFunc()
 
 	// when
-	closeFunc, err := prometheusmetrics.Agents(ctx, slogtest.Make(t, &slogtest.Options{
-		IgnoreErrors: true,
-	}), registry, db, &coordinatorPtr, derpMapFn, agentInactiveDisconnectTimeout, 50*time.Millisecond)
+	closeFunc, err := prometheusmetrics.Agents(ctx, testutil.Logger(t, testutil.WithIgnoreErrors()), registry, db, &coordinatorPtr, derpMapFn, agentInactiveDisconnectTimeout, 50*time.Millisecond)
 	require.NoError(t, err)
 	t.Cleanup(closeFunc)
 
@@ -723,9 +720,7 @@ func TestAgentStats(t *testing.T) {
 	//
 	// Set initialCreateAfter to some time in the past, so that AgentStats would include all above PostStats,
 	// and it doesn't depend on the real time.
-	closeFunc, err := prometheusmetrics.AgentStats(ctx, slogtest.Make(t, &slogtest.Options{
-		IgnoreErrors: true,
-	}), registry, db, time.Now().Add(-time.Minute), time.Millisecond, agentmetrics.LabelAll, false)
+	closeFunc, err := prometheusmetrics.AgentStats(ctx, testutil.Logger(t, testutil.WithIgnoreErrors()), registry, db, time.Now().Add(-time.Minute), time.Millisecond, agentmetrics.LabelAll, false)
 	require.NoError(t, err)
 	t.Cleanup(closeFunc)
 

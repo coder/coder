@@ -8,7 +8,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	agplaiseats "github.com/coder/coder/v2/coderd/aiseats"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -29,7 +28,7 @@ func authzSetup(t *testing.T) (rawDB database.Store, authzDB database.Store) {
 	t.Helper()
 	rawDB, _ = dbtestutil.NewDB(t)
 	authz := rbac.NewStrictAuthorizer(prometheus.NewRegistry())
-	authzDB = dbauthz.New(rawDB, authz, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+	authzDB = dbauthz.New(rawDB, authz, testutil.Logger(t), coderdtest.AccessControlStorePointer())
 	return rawDB, authzDB
 }
 
@@ -62,7 +61,7 @@ func TestSeatTrackerDB(t *testing.T) {
 
 		rawDB, _ := dbtestutil.NewDB(t)
 		authz := rbac.NewStrictAuthorizer(prometheus.NewRegistry())
-		authzDB := dbauthz.New(rawDB, authz, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+		authzDB := dbauthz.New(rawDB, authz, testutil.Logger(t), coderdtest.AccessControlStorePointer())
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 		clock := quartz.NewMock(t)

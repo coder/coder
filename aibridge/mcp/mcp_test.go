@@ -17,9 +17,9 @@ import (
 	"go.uber.org/goleak"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/mcp"
+	codertestutil "github.com/coder/coder/v2/testutil"
 )
 
 func TestMain(m *testing.M) {
@@ -298,7 +298,7 @@ func TestToolInjectionOrder(t *testing.T) {
 	t.Parallel()
 
 	// Setup.
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
+	logger := codertestutil.Logger(t).Leveled(slog.LevelDebug)
 	ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
 	t.Cleanup(cancel)
 

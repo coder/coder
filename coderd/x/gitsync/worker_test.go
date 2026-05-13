@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
@@ -87,7 +86,7 @@ func newTestRefresher(t *testing.T, clk quartz.Clock, opts ...testRefresherOpt) 
 		return ptr.Ref("tok"), nil
 	}
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	return gitsync.NewRefresher(providers, tokens, logger, clk, cfg.refresherOpts...)
 }
 
@@ -165,7 +164,7 @@ func TestWorker_SkipsFreshRows(t *testing.T) {
 		})
 
 	mClock := quartz.NewMock(t)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	refresher := newTestRefresher(t, mClock)
 	worker := gitsync.NewWorker(store, refresher, nil, mClock, logger)
 
@@ -209,7 +208,7 @@ func TestWorker_LimitsToNRows(t *testing.T) {
 	}
 
 	mClock := quartz.NewMock(t)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	refresher := newTestRefresher(t, mClock)
 	worker := gitsync.NewWorker(store, refresher, pub, mClock, logger)
 
@@ -253,7 +252,7 @@ func TestWorker_NoPR_RecentMarkStale_BacksOffShort(t *testing.T) {
 			return nil
 		})
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	// ResolveBranchPullRequest returns nil → Refresher returns
 	// (nil, nil).
@@ -293,7 +292,7 @@ func TestWorker_NoPR_OldRow_Skips(t *testing.T) {
 		Return([]database.AcquireStaleChatDiffStatusesRow{row}, nil)
 	// BackoffChatDiffStatus should NOT be called.
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	refresher := newTestRefresher(t, mClock, withResolveBranchPR(
 		func(context.Context, string, gitprovider.BranchRef) (*gitprovider.PRRef, error) {
@@ -332,7 +331,7 @@ func TestWorker_NoPR_BoundaryExactWindow_Skips(t *testing.T) {
 		Return([]database.AcquireStaleChatDiffStatusesRow{row}, nil)
 	// BackoffChatDiffStatus should NOT be called.
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	refresher := newTestRefresher(t, mClock, withResolveBranchPR(
 		func(context.Context, string, gitprovider.BranchRef) (*gitprovider.PRRef, error) {
@@ -386,7 +385,7 @@ func TestWorker_NoPR_BackoffError_ContinuesNextRow(t *testing.T) {
 			return nil
 		}).Times(2)
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	refresher := newTestRefresher(t, mClock, withResolveBranchPR(
 		func(context.Context, string, gitprovider.BranchRef) (*gitprovider.PRRef, error) {
@@ -459,7 +458,7 @@ func TestWorker_RefresherError_BacksOffRow(t *testing.T) {
 		return nil
 	}
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	// Fail ResolveBranchPullRequest based on the branch name
 	// so the behavior is deterministic regardless of execution
@@ -549,7 +548,7 @@ func TestWorker_UpsertError_ContinuesNextRow(t *testing.T) {
 	}
 
 	mClock := quartz.NewMock(t)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	refresher := newTestRefresher(t, mClock)
 	worker := gitsync.NewWorker(store, refresher, pub, mClock, logger)
 
@@ -573,7 +572,7 @@ func TestWorker_RespectsShutdown(t *testing.T) {
 		Return(nil, nil).AnyTimes()
 
 	mClock := quartz.NewMock(t)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	refresher := newTestRefresher(t, mClock)
 	worker := gitsync.NewWorker(store, refresher, nil, mClock, logger)
 
@@ -637,7 +636,7 @@ func TestWorker_MarkStale_UpsertAndPublish(t *testing.T) {
 
 	mClock := quartz.NewMock(t)
 	now := mClock.Now()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	refresher := newTestRefresher(t, mClock)
 	worker := gitsync.NewWorker(store, refresher, pub, mClock, logger)
 
@@ -676,7 +675,7 @@ func TestWorker_MarkStale_NoMatchingChats(t *testing.T) {
 		Return(nil, nil)
 
 	mClock := quartz.NewMock(t)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	refresher := newTestRefresher(t, mClock)
 	worker := gitsync.NewWorker(store, refresher, nil, mClock, logger)
 
@@ -720,7 +719,7 @@ func TestWorker_MarkStale_UpsertFails_ContinuesNext(t *testing.T) {
 	}
 
 	mClock := quartz.NewMock(t)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	refresher := newTestRefresher(t, mClock)
 	worker := gitsync.NewWorker(store, refresher, pub, mClock, logger)
 
@@ -744,7 +743,7 @@ func TestWorker_MarkStale_GetChatsByWorkspaceIDsFails(t *testing.T) {
 		Return(nil, fmt.Errorf("db error"))
 
 	mClock := quartz.NewMock(t)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	refresher := newTestRefresher(t, mClock)
 	worker := gitsync.NewWorker(store, refresher, nil, mClock, logger)
 
@@ -771,7 +770,7 @@ func TestWorker_TickStoreError(t *testing.T) {
 		})
 
 	mClock := quartz.NewMock(t)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	refresher := newTestRefresher(t, mClock)
 	worker := gitsync.NewWorker(store, refresher, nil, mClock, logger)
 
@@ -800,7 +799,7 @@ func TestWorker_MarkStale_EmptyBranchOrOrigin(t *testing.T) {
 			store := dbmock.NewMockStore(ctrl)
 
 			mClock := quartz.NewMock(t)
-			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+			logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 			refresher := newTestRefresher(t, mClock)
 			worker := gitsync.NewWorker(store, refresher, nil, mClock, logger)
 
@@ -844,7 +843,7 @@ func TestWorker_MarkStale_WithChatID(t *testing.T) {
 
 	mClock := quartz.NewMock(t)
 	now := mClock.Now()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	refresher := newTestRefresher(t, mClock)
 	worker := gitsync.NewWorker(store, refresher, pub, mClock, logger)
 
@@ -908,7 +907,7 @@ func TestWorker_MarkStale_NilChatID_Broadcasts(t *testing.T) {
 	}
 
 	mClock := quartz.NewMock(t)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	refresher := newTestRefresher(t, mClock)
 	worker := gitsync.NewWorker(store, refresher, pub, mClock, logger)
 
@@ -985,7 +984,7 @@ func TestWorker(t *testing.T) {
 	}
 
 	// 7. Create and run the worker for one tick.
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	worker := gitsync.NewWorker(db, refresher, pub, mClock, logger)
 
 	tickOnce(ctx, t, mClock, worker, tickDone)
@@ -1049,7 +1048,7 @@ func TestRefreshChat_Success(t *testing.T) {
 	}
 
 	mClock := quartz.NewMock(t)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	refresher := newTestRefresher(t, mClock)
 	worker := gitsync.NewWorker(store, refresher, pub, mClock, logger)
 
@@ -1085,7 +1084,7 @@ func TestRefreshChat_NoPR(t *testing.T) {
 	}
 
 	mClock := quartz.NewMock(t)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	// ResolveBranchPullRequest returns nil → no PR exists yet.
 	refresher := newTestRefresher(t, mClock, withResolveBranchPR(
@@ -1126,7 +1125,7 @@ func TestRefreshChat_RefreshError(t *testing.T) {
 	}
 
 	mClock := quartz.NewMock(t)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	refresher := gitsync.NewRefresher(providers, tokens, logger, mClock)
 	worker := gitsync.NewWorker(store, refresher, nil, mClock, logger)
 
@@ -1162,7 +1161,7 @@ func TestRefreshChat_UpsertError(t *testing.T) {
 	}
 
 	mClock := quartz.NewMock(t)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	refresher := newTestRefresher(t, mClock)
 	worker := gitsync.NewWorker(store, refresher, pub, mClock, logger)
 
@@ -1210,7 +1209,7 @@ func TestWorker_NoTokenBackoff(t *testing.T) {
 		return ptr.Ref(""), nil
 	}
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	refresher := gitsync.NewRefresher(providers, tokens, logger, mClock)
 	worker := gitsync.NewWorker(store, refresher, nil, mClock, logger)
 

@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -54,7 +53,7 @@ func convertMessagesWithoutFiles(t *testing.T, messages []database.ChatMessage) 
 		context.Background(),
 		messages,
 		nil,
-		slogtest.Make(t, nil),
+		testutil.Logger(t),
 	)
 	require.NoError(t, err)
 	return prompt
@@ -193,7 +192,7 @@ func TestConvertMessagesWithFiles_ResolvesFileData(t *testing.T) {
 			},
 		},
 		resolver,
-		slogtest.Make(t, nil),
+		testutil.Logger(t),
 	)
 	require.NoError(t, err)
 	require.Len(t, prompt, 1)
@@ -251,7 +250,7 @@ func TestConvertMessagesWithFiles_MissingFileBackedAttachmentBecomesTextPart(t *
 					Content:    pqtype.NullRawMessage{RawMessage: rawContent, Valid: true},
 				}},
 				resolver,
-				slogtest.Make(t, nil),
+				testutil.Logger(t),
 			)
 			require.NoError(t, err)
 			require.Len(t, prompt, 1)
@@ -298,7 +297,7 @@ func TestConvertMessagesWithFiles_ResolvedZeroByteFileIsDropped(t *testing.T) {
 			Content:    pqtype.NullRawMessage{RawMessage: rawContent, Valid: true},
 		}},
 		resolver,
-		slogtest.Make(t, nil),
+		testutil.Logger(t),
 	)
 	require.NoError(t, err)
 	require.Empty(t, prompt)
@@ -350,7 +349,7 @@ func TestConvertMessagesWithFiles_MixedResolvedAndMissingFilePartsInSingleMessag
 			Content:    pqtype.NullRawMessage{RawMessage: rawContent, Valid: true},
 		}},
 		resolver,
-		slogtest.Make(t, nil),
+		testutil.Logger(t),
 	)
 	require.NoError(t, err)
 	require.Len(t, prompt, 1)
@@ -415,7 +414,7 @@ func TestConvertMessagesWithFiles_BackwardCompat(t *testing.T) {
 			},
 		},
 		resolver,
-		slogtest.Make(t, nil),
+		testutil.Logger(t),
 	)
 	require.NoError(t, err)
 	require.Len(t, prompt, 1)
@@ -1340,7 +1339,7 @@ func TestProviderMetadataRoundTrip(t *testing.T) {
 			Content:    legacyContent,
 		}},
 		nil,
-		slogtest.Make(t, nil),
+		testutil.Logger(t),
 	)
 	require.NoError(t, err)
 	require.Len(t, prompt, 1)
@@ -1388,7 +1387,7 @@ func TestFileReferencePreservation(t *testing.T) {
 			Content:    raw,
 		}},
 		nil,
-		slogtest.Make(t, nil),
+		testutil.Logger(t),
 	)
 	require.NoError(t, err)
 	require.Len(t, prompt, 1)
@@ -1443,7 +1442,7 @@ func TestAssistantWriteRoundTrip(t *testing.T) {
 			Content:    raw,
 		}},
 		nil,
-		slogtest.Make(t, nil),
+		testutil.Logger(t),
 	)
 	require.NoError(t, err)
 	require.Len(t, prompt, 1)
@@ -1587,7 +1586,7 @@ func TestMixedFormatConversation(t *testing.T) {
 	}
 
 	prompt, err := chatprompt.ConvertMessagesWithFiles(
-		context.Background(), messages, resolver, slogtest.Make(t, nil),
+		context.Background(), messages, resolver, testutil.Logger(t),
 	)
 	require.NoError(t, err)
 	require.Len(t, prompt, 6, "all 6 messages should produce prompt entries")
@@ -1707,7 +1706,7 @@ func TestQueuedMessageRoundTrip(t *testing.T) {
 			Content:    pqtype.NullRawMessage{RawMessage: raw.RawMessage, Valid: true},
 		}},
 		nil,
-		slogtest.Make(t, nil),
+		testutil.Logger(t),
 	)
 	require.NoError(t, err)
 	require.Len(t, prompt, 1)
@@ -2022,7 +2021,7 @@ func TestConvertMessagesWithFiles_FiltersEmptyTextAndReasoningParts(t *testing.T
 			context.Background(),
 			[]database.ChatMessage{makeMsg(t, database.ChatMessageRoleUser, parts)},
 			nil,
-			slogtest.Make(t, nil),
+			testutil.Logger(t),
 		)
 		require.NoError(t, err)
 		require.Len(t, prompt, 1)
@@ -2068,7 +2067,7 @@ func TestConvertMessagesWithFiles_FiltersEmptyTextAndReasoningParts(t *testing.T
 			context.Background(),
 			[]database.ChatMessage{makeMsg(t, database.ChatMessageRoleAssistant, parts)},
 			nil,
-			slogtest.Make(t, nil),
+			testutil.Logger(t),
 		)
 		require.NoError(t, err)
 		// 2 messages: assistant + synthetic tool result injected
@@ -2102,7 +2101,7 @@ func TestConvertMessagesWithFiles_FiltersEmptyTextAndReasoningParts(t *testing.T
 			context.Background(),
 			[]database.ChatMessage{makeMsg(t, database.ChatMessageRoleAssistant, parts)},
 			nil,
-			slogtest.Make(t, nil),
+			testutil.Logger(t),
 		)
 		require.NoError(t, err)
 		require.Empty(t, prompt, "all-empty message should be dropped entirely")
@@ -2280,7 +2279,7 @@ func TestConvertMessagesWithFiles_AssistantAttachmentIsNotReplayed(t *testing.T)
 			},
 		},
 		resolver,
-		slogtest.Make(t, nil),
+		testutil.Logger(t),
 	)
 	require.NoError(t, err)
 	require.Len(t, resolverCalls, 1)
@@ -2333,7 +2332,7 @@ func convertSingleResolvedFileMessage(t *testing.T, fileID uuid.UUID, fileData c
 			Content:    pqtype.NullRawMessage{RawMessage: rawContent, Valid: true},
 		}},
 		resolver,
-		slogtest.Make(t, nil),
+		testutil.Logger(t),
 	)
 	require.NoError(t, err)
 	return prompt
@@ -2422,7 +2421,7 @@ func TestMediaToolResultRoundTrip(t *testing.T) {
 		dbMsgs, loadErr := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
 		require.NoError(t, loadErr)
 		prompt, convErr := chatprompt.ConvertMessagesWithFiles(
-			ctx, dbMsgs, nil, slogtest.Make(t, nil),
+			ctx, dbMsgs, nil, testutil.Logger(t),
 		)
 		require.NoError(t, convErr)
 		return prompt
@@ -2869,7 +2868,7 @@ func TestPartFromContent_CreatedAtNotStamped(t *testing.T) {
 
 func TestToolResultAntivenom(t *testing.T) {
 	t.Parallel()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	t.Run("PoisonedTextResultSanitized", func(t *testing.T) {
 		t.Parallel()
@@ -3034,7 +3033,7 @@ func TestToolResultAntivenom(t *testing.T) {
 
 func TestToolResultContentToPart_UTF8Sanitization(t *testing.T) {
 	t.Parallel()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	t.Run("TextWithInvalidUTF8", func(t *testing.T) {
 		t.Parallel()

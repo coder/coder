@@ -20,7 +20,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -133,7 +132,7 @@ func TestCloserStack_Context(t *testing.T) {
 func TestCloserStack_PushAfterClose(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	uut := newCloserStack(ctx, logger, quartz.NewMock(t))
 	closes := new([]*fakeCloser)
 	fc0 := &fakeCloser{closes: closes}
@@ -156,7 +155,7 @@ func TestCloserStack_CloseAfterContext(t *testing.T) {
 	testCtx := testutil.Context(t, testutil.WaitShort)
 	ctx, cancel := context.WithCancel(testCtx)
 	defer cancel()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	uut := newCloserStack(ctx, logger, quartz.NewMock(t))
 	ac := newAsyncCloser(testCtx, t)
 	defer ac.unblock()
@@ -187,7 +186,7 @@ func TestCloserStack_CloseAfterContext(t *testing.T) {
 func TestCloserStack_Timeout(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	mClock := quartz.NewMock(t)
 	trap := mClock.Trap().TickerFunc("closerStack")
 	defer trap.Close()
@@ -231,7 +230,7 @@ func TestCloserStack_Timeout(t *testing.T) {
 func TestCloserStack_PushAfterClose_ConnClosed(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	uut := newCloserStack(ctx, logger, quartz.NewMock(t))
 
 	uut.close(xerrors.New("canceled"))
@@ -267,7 +266,7 @@ func TestCoderConnectStdio(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 	stack := newCloserStack(ctx, logger, quartz.NewMock(t))
 
 	clientOutput, clientInput := io.Pipe()
@@ -542,7 +541,7 @@ func TestRetryWithInterval(t *testing.T) {
 	const maxAttempts = 3
 
 	dnsErr := &net.DNSError{Err: "no such host", Name: "example.com", IsNotFound: true}
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 
 	t.Run("Succeeds_FirstTry", func(t *testing.T) {
 		t.Parallel()

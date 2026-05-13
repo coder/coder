@@ -11,7 +11,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -20,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestAuditLogs(t *testing.T) {
@@ -146,9 +146,7 @@ func TestAuditLogs(t *testing.T) {
 	t.Run("Organization", func(t *testing.T) {
 		t.Parallel()
 
-		logger := slogtest.Make(t, &slogtest.Options{
-			IgnoreErrors: true,
-		})
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 		ctx := context.Background()
 		client := coderdtest.New(t, &coderdtest.Options{
 			Logger: &logger,
@@ -206,9 +204,7 @@ func TestAuditLogs(t *testing.T) {
 	t.Run("Organization404", func(t *testing.T) {
 		t.Parallel()
 
-		logger := slogtest.Make(t, &slogtest.Options{
-			IgnoreErrors: true,
-		})
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 		ctx := context.Background()
 		client := coderdtest.New(t, &coderdtest.Options{
 			Logger: &logger,

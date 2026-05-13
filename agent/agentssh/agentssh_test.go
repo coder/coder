@@ -25,7 +25,6 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/pty/ptytest"
@@ -152,7 +151,7 @@ func TestNewServer_CloseActiveConnections(t *testing.T) {
 
 	prepare := func(ctx context.Context, t *testing.T) (*agentssh.Server, func()) {
 		t.Helper()
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 		s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), agentexec.DefaultExecer, nil)
 		require.NoError(t, err)
 		t.Cleanup(func() {

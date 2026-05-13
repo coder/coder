@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -57,7 +56,7 @@ func TestDBBackendIntegration(t *testing.T) {
 
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
-		log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		log := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 		clock := quartz.NewMock(t)
 
 		ws := createWorkspace(t, db)
@@ -103,7 +102,7 @@ func TestDBBackendIntegration(t *testing.T) {
 
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
-		log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		log := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 		clock := quartz.NewMock(t)
 
 		ws := createWorkspace(t, db)
@@ -174,7 +173,7 @@ func TestDBBackendIntegration(t *testing.T) {
 
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
-		log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		log := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 		clock := quartz.NewMock(t)
 
 		ws := createWorkspace(t, db)
@@ -241,7 +240,7 @@ func TestDBBackendIntegration(t *testing.T) {
 
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
-		log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		log := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 		clock := quartz.NewMock(t)
 
 		ws := createWorkspace(t, db)
@@ -286,7 +285,7 @@ func TestDBBackendIntegration(t *testing.T) {
 
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
-		log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		log := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 		clock := quartz.NewMock(t)
 
 		ws := createWorkspace(t, db)
@@ -331,7 +330,7 @@ func TestDBBackendIntegration(t *testing.T) {
 
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
-		log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		log := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 		clock := quartz.NewMock(t)
 
 		ws := createWorkspace(t, db)

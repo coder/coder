@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/tailnet/test"
@@ -41,7 +40,7 @@ func TestCoordinator(t *testing.T) {
 
 	t.Run("ClientWithoutAgent_InvalidIPBits", func(t *testing.T) {
 		t.Parallel()
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 		ctx := testutil.Context(t, testutil.WaitShort)
 		coordinator := tailnet.NewCoordinator(logger)
 		defer func() {
@@ -87,7 +86,7 @@ func TestCoordinator(t *testing.T) {
 
 	t.Run("AgentWithoutClients_InvalidIP", func(t *testing.T) {
 		t.Parallel()
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 		ctx := testutil.Context(t, testutil.WaitShort)
 		coordinator := tailnet.NewCoordinator(logger)
 		defer func() {
@@ -107,7 +106,7 @@ func TestCoordinator(t *testing.T) {
 
 	t.Run("AgentWithoutClients_InvalidBits", func(t *testing.T) {
 		t.Parallel()
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 		ctx := testutil.Context(t, testutil.WaitShort)
 		coordinator := tailnet.NewCoordinator(logger)
 		defer func() {

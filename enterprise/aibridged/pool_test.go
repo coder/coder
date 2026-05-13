@@ -11,11 +11,11 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/mock/gomock"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/mcpmock"
 	"github.com/coder/coder/v2/enterprise/aibridged"
 	mock "github.com/coder/coder/v2/enterprise/aibridged/aibridgedmock"
+	"github.com/coder/coder/v2/testutil"
 )
 
 // TestPool validates the published behavior of [aibridged.CachedBridgePool].
@@ -24,7 +24,7 @@ import (
 func TestPool(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 
 	ctrl := gomock.NewController(t)
 	client := mock.NewMockDRPCClient(ctrl)
@@ -111,7 +111,7 @@ func TestPool_Expiry(t *testing.T) {
 	t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 		ctrl := gomock.NewController(t)
 		client := mock.NewMockDRPCClient(ctrl)
 		mcpProxy := mcpmock.NewMockServerProxier(ctrl)

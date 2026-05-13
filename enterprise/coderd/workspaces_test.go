@@ -21,7 +21,6 @@ import (
 	"go.opentelemetry.io/otel/trace/noop"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -605,11 +604,8 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		var (
 			ticker = make(chan time.Time)
 			statCh = make(chan autobuild.Stats)
-			logger = slogtest.Make(t, &slogtest.Options{
-				// We ignore errors here since we expect to fail
-				// builds.
-				IgnoreErrors: true,
-			})
+			// We ignore errors here since we expect to fail builds.
+			logger     = testutil.Logger(t, testutil.WithIgnoreErrors())
 			failureTTL = time.Minute
 		)
 
@@ -659,11 +655,8 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		var (
 			ticker = make(chan time.Time)
 			statCh = make(chan autobuild.Stats)
-			logger = slogtest.Make(t, &slogtest.Options{
-				// We ignore errors here since we expect to fail
-				// builds.
-				IgnoreErrors: true,
-			})
+			// We ignore errors here since we expect to fail builds.
+			logger     = testutil.Logger(t, testutil.WithIgnoreErrors())
 			failureTTL = time.Minute
 		)
 
@@ -713,11 +706,8 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		var (
 			ticker = make(chan time.Time)
 			statCh = make(chan autobuild.Stats)
-			logger = slogtest.Make(t, &slogtest.Options{
-				// We ignore errors here since we expect to fail
-				// builds.
-				IgnoreErrors: true,
-			})
+			// We ignore errors here since we expect to fail builds.
+			logger = testutil.Logger(t, testutil.WithIgnoreErrors())
 		)
 
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
@@ -763,7 +753,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			auditRecorder = audit.NewMock()
 		)
 
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 
 		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
@@ -845,7 +835,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			ticker      = make(chan time.Time)
 			statCh      = make(chan autobuild.Stats)
 			inactiveTTL = time.Minute
-			logger      = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+			logger      = testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 		)
 
 		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
@@ -929,7 +919,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		// another connection from within a transaction.
 		sdb.SetMaxOpenConns(maxConns)
 		auditor := entaudit.NewAuditor(db, entaudit.DefaultFilter, backends.NewPostgres(db, true))
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
@@ -992,7 +982,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			inactiveTTL = time.Minute
 		)
 
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				AutobuildTicker:          ticker,
@@ -1035,7 +1025,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			autoDeleteTTL = time.Minute
 		)
 
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				AutobuildTicker:          ticker,
@@ -1078,7 +1068,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			inactiveTTL = time.Minute
 		)
 
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				AutobuildTicker:          ticker,
@@ -1136,7 +1126,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			transitionTTL = time.Minute
 		)
 
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				AutobuildTicker:          ticker,
@@ -1214,7 +1204,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			dormantTTL = time.Minute
 		)
 
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				AutobuildTicker:          ticker,
@@ -1283,7 +1273,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			inactiveTTL = time.Minute
 		)
 
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				AutobuildTicker:          tickCh,
@@ -1370,7 +1360,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			transitionTTL = time.Minute
 		)
 
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				AutobuildTicker:          ticker,
@@ -1469,7 +1459,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			statsCh = make(chan autobuild.Stats)
 		)
 
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				AutobuildTicker:          tickCh,
@@ -1575,7 +1565,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 		clock.Set(dbtime.Now())
 
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				AutobuildTicker:          tickCh,
@@ -1666,7 +1656,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		// this test deterministic.
 		clock.Set(time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC))
 
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 		templateScheduleStore := schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore(), notifications.NewNoopEnqueuer(), logger, nil)
 		templateScheduleStore.Clock = clock
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
@@ -1728,7 +1718,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			statsCh = make(chan autobuild.Stats)
 		)
 
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				AutobuildTicker:          tickCh,
@@ -1805,7 +1795,7 @@ func TestTemplateDoesNotAllowUserAutostop(t *testing.T) {
 
 	t.Run("TTLSetByTemplate", func(t *testing.T) {
 		t.Parallel()
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 			TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore(), notifications.NewNoopEnqueuer(), logger, nil),
@@ -3146,7 +3136,7 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 	tfCliConfigPath := downloadProviders(t, mainTfTemplate)
 	t.Setenv("TF_CLI_CONFIG_FILE", tfCliConfigPath)
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false})
+	logger := testutil.Logger(t)
 	dv := coderdtest.DeploymentValues(t)
 
 	client, owner := coderdenttest.New(t, &coderdenttest.Options{
@@ -3562,7 +3552,7 @@ func TestExecutorAutostartBlocked(t *testing.T) {
 		tickCh  = make(chan time.Time)
 		statsCh = make(chan autobuild.Stats)
 
-		logger        = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		logger        = testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 		client, owner = coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				AutobuildTicker:          tickCh,
@@ -3608,7 +3598,7 @@ func TestWorkspacesFiltering(t *testing.T) {
 	t.Run("Dormant", func(t *testing.T) {
 		t.Parallel()
 
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 		client, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				TemplateScheduleStore: schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore(), notifications.NewNoopEnqueuer(), logger, nil),

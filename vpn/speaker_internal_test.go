@@ -14,7 +14,6 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -95,7 +94,7 @@ func TestSpeaker_HandshakeRWFailure(t *testing.T) {
 	// immediately close the pipe, so we'll get read & write failures on handshake
 	_ = mp.Close()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 
 	var tun *speaker[*TunnelMessage, *ManagerMessage, ManagerMessage]
 	errCh := make(chan error, 1)
@@ -118,7 +117,7 @@ func TestSpeaker_HandshakeCtxDone(t *testing.T) {
 	defer tp.Close()
 	testCtx := testutil.Context(t, testutil.WaitShort)
 	ctx, cancel := context.WithCancel(testCtx)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 
 	var tun *speaker[*TunnelMessage, *ManagerMessage, ManagerMessage]
 	errCh := make(chan error, 1)
@@ -147,7 +146,7 @@ func TestSpeaker_OversizeHandshake(t *testing.T) {
 	require.NoError(t, err)
 	err = mp.SetWriteDeadline(time.Now().Add(testutil.WaitShort))
 	require.NoError(t, err)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	var tun *speaker[*TunnelMessage, *ManagerMessage, ManagerMessage]
 	errCh := make(chan error, 1)
 	go func() {
@@ -195,7 +194,7 @@ func TestSpeaker_HandshakeInvalid(t *testing.T) {
 			require.NoError(t, err)
 			err = mp.SetWriteDeadline(time.Now().Add(testutil.WaitShort))
 			require.NoError(t, err)
-			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+			logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 			var tun *speaker[*TunnelMessage, *ManagerMessage, ManagerMessage]
 			errCh := make(chan error, 1)
 			go func() {
@@ -235,7 +234,7 @@ func TestSpeaker_CorruptMessage(t *testing.T) {
 	require.NoError(t, err)
 	err = mp.SetWriteDeadline(time.Now().Add(testutil.WaitShort))
 	require.NoError(t, err)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	var tun *speaker[*TunnelMessage, *ManagerMessage, ManagerMessage]
 	errCh := make(chan error, 1)
 	go func() {

@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -25,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/provisionersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/testutil"
 )
 
 var ownerCtx = dbauthz.As(context.Background(), rbac.Subject{
@@ -124,7 +124,7 @@ func WithJobErrorCode(code string) BuilderOption {
 func WorkspaceBuild(t testing.TB, db database.Store, ws database.WorkspaceTable) WorkspaceBuildBuilder {
 	return WorkspaceBuildBuilder{
 		t: t, db: db, ws: ws,
-		logger: slogtest.Make(t, &slogtest.Options{}).Named("dbfake").Leveled(slog.LevelDebug),
+		logger: testutil.Logger(t).Named("dbfake").Leveled(slog.LevelDebug),
 	}
 }
 
@@ -596,7 +596,7 @@ func ProvisionerJobResources(
 ) ProvisionerJobResourcesBuilder {
 	return ProvisionerJobResourcesBuilder{
 		t:          t,
-		logger:     slogtest.Make(t, &slogtest.Options{}).Named("dbfake").Leveled(slog.LevelDebug).With(slog.F("job_id", jobID)),
+		logger:     testutil.Logger(t).Named("dbfake").Leveled(slog.LevelDebug).With(slog.F("job_id", jobID)),
 		db:         db,
 		jobID:      jobID,
 		transition: transition,
@@ -647,7 +647,7 @@ type TemplateVersionBuilder struct {
 func TemplateVersion(t testing.TB, db database.Store) TemplateVersionBuilder {
 	return TemplateVersionBuilder{
 		t:                  t,
-		logger:             slogtest.Make(t, &slogtest.Options{}).Named("dbfake").Leveled(slog.LevelDebug),
+		logger:             testutil.Logger(t).Named("dbfake").Leveled(slog.LevelDebug),
 		db:                 db,
 		promote:            true,
 		autoCreateTemplate: true,

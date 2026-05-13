@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
@@ -192,9 +191,7 @@ func TestRoleSyncTable(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			db, _ := dbtestutil.NewDB(t)
 			manager := runtimeconfig.NewManager()
-			s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{
-				IgnoreErrors: true,
-			}),
+			s := idpsync.NewAGPLSync(testutil.Logger(t, testutil.WithIgnoreErrors()),
 				manager,
 				idpsync.DeploymentSyncSettings{
 					SiteRoleField: "roles",
@@ -226,9 +223,7 @@ func TestRoleSyncTable(t *testing.T) {
 	t.Run("AllTogether", func(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 		manager := runtimeconfig.NewManager()
-		s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{
-			IgnoreErrors: true,
-		}),
+		s := idpsync.NewAGPLSync(testutil.Logger(t, testutil.WithIgnoreErrors()),
 			manager,
 			// Also sync some site wide roles
 			idpsync.DeploymentSyncSettings{
@@ -300,7 +295,7 @@ func TestNoopNoDiff(t *testing.T) {
 	mDB := dbmock.NewMockStore(ctrl)
 
 	mgr := runtimeconfig.NewManager()
-	s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}), mgr, idpsync.DeploymentSyncSettings{
+	s := idpsync.NewAGPLSync(testutil.Logger(t), mgr, idpsync.DeploymentSyncSettings{
 		SiteRoleField:    "",
 		SiteRoleMapping:  nil,
 		SiteDefaultRoles: nil,

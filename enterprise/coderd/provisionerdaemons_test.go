@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/apiversion"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -76,7 +75,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		// WebSocket protocol violation. This just means the pre-flight checks have passed though.
 
 		// Sending a HTTP request triggers an error log, which would otherwise fail the test.
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -129,7 +128,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		// version header that should cause provisionerd to refuse to serve us, so no websocket for you!
 
 		// Sending a HTTP request triggers an error log, which would otherwise fail the test.
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{

@@ -8,11 +8,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/enterprise/coderd/dormancy"
+	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
 
@@ -24,7 +24,7 @@ func TestCheckInactiveUsers(t *testing.T) {
 	dormancyPeriod := 90 * 24 * time.Hour
 
 	// Add some dormant accounts
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	db, _ := dbtestutil.NewDB(t)
 
 	ctx, cancelFunc := context.WithCancel(context.Background())

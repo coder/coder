@@ -18,7 +18,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/codersdk"
@@ -85,7 +84,7 @@ func setupInvocation(t testing.TB, cmd *serpent.Command, args ...string,
 ) *serpent.Invocation {
 	// I really would like to fail test on error logs, but realistically, turning on by default
 	// in all our CLI tests is going to create a lot of flaky noise.
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).
 		Leveled(slog.LevelDebug).
 		Named("cli")
 	i := &serpent.Invocation{

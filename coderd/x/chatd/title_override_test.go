@@ -13,7 +13,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
@@ -32,7 +31,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideUnset(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 		chat, messages := titleOverrideTestChatAndMessages(t)
 		wantTitle := "Preferred title"
 
@@ -83,7 +82,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideUnset(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 		chat, messages := titleOverrideTestChatAndMessages(t)
 		wantTitle := "Fallback title"
 
@@ -131,7 +130,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideReadDBError(t *testing.T)
 	ctx := testutil.Context(t, testutil.WaitShort)
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	chat, messages := titleOverrideTestChatAndMessages(t)
 	wantTitle := "Fallback title"
 
@@ -178,7 +177,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideMalformedFallsThrough(t *
 	ctx := testutil.Context(t, testutil.WaitShort)
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	chat, messages := titleOverrideTestChatAndMessages(t)
 	wantTitle := "Fallback title"
 
@@ -225,7 +224,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideSetUsable(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	chat, messages := titleOverrideTestChatAndMessages(t)
 	overrideConfig := titleOverrideModelConfig("gpt-4.1", true)
 	wantTitle := "Override title"
@@ -279,7 +278,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideSetUnusableSkips(t *testi
 	ctx := testutil.Context(t, testutil.WaitShort)
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	chat, messages := titleOverrideTestChatAndMessages(t)
 	overrideConfig := titleOverrideModelConfig("gpt-4.1", false)
 	fallbackModel := &chattest.FakeModel{
@@ -317,7 +316,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideCallFailureSkipsFallback(
 	ctx := testutil.Context(t, testutil.WaitShort)
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	chat, messages := titleOverrideTestChatAndMessages(t)
 	overrideConfig := titleOverrideModelConfig("gpt-4.1", true)
 
@@ -365,7 +364,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideUnset(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	chat, _ := titleOverrideTestChatAndMessages(t)
 	preferredConfig := database.ChatModelConfig{
 		ID:       uuid.New(),
@@ -398,7 +397,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideReadDBError(t *testing.T
 	ctx := testutil.Context(t, testutil.WaitShort)
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	chat, _ := titleOverrideTestChatAndMessages(t)
 	preferredConfig := database.ChatModelConfig{
 		ID:       uuid.New(),
@@ -431,7 +430,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideSetUsable(t *testing.T) 
 	ctx := testutil.Context(t, testutil.WaitShort)
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	chat, _ := titleOverrideTestChatAndMessages(t)
 	overrideConfig := titleOverrideModelConfig("gpt-4.1", true)
 
@@ -457,7 +456,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideMissingCredentials(t *te
 	ctx := testutil.Context(t, testutil.WaitShort)
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	chat, _ := titleOverrideTestChatAndMessages(t)
 	overrideConfig := titleOverrideModelConfig("gpt-4.1", true)
 
@@ -485,7 +484,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideSetUnusable(t *testing.T
 	ctx := testutil.Context(t, testutil.WaitShort)
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	chat, _ := titleOverrideTestChatAndMessages(t)
 	overrideConfig := titleOverrideModelConfig("gpt-4.1", false)
 

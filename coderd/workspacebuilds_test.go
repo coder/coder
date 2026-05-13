@@ -21,7 +21,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
@@ -604,7 +603,7 @@ func TestPatchCancelWorkspaceBuild(t *testing.T) {
 
 		// need to include our own logger because the provisioner (rightly) drops error logs when we shut down the
 		// test with a build in progress.
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Logger: &logger})
 		owner := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
@@ -1958,7 +1957,7 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		// Given: a workspace that has already been deleted
 		var (
 			ctx             = testutil.Context(t, testutil.WaitShort)
-			logger          = slogtest.Make(t, &slogtest.Options{}).Leveled(slog.LevelError)
+			logger          = testutil.Logger(t).Leveled(slog.LevelError)
 			adminClient, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
 				Logger: &logger,
 			})

@@ -14,7 +14,6 @@ import (
 	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/provisioner/terraform"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -62,7 +61,7 @@ func TestConvertStateGolden(t *testing.T) {
 				dotFile := filepath.Join(testDirectoryPath, testFiles[dotIdx].Name())
 
 				ctx := testutil.Context(t, testutil.WaitMedium)
-				logger := slogtest.Make(t, nil)
+				logger := testutil.Logger(t)
 
 				// Gather plan
 				tfStepRaw, err := os.ReadFile(planFile)
@@ -167,7 +166,7 @@ func TestConvertStateDeterministic(t *testing.T) {
 				dotFile := filepath.Join(testDirectoryPath, testFiles[dotIdx].Name())
 
 				ctx := testutil.Context(t, testutil.WaitMedium)
-				logger := slogtest.Make(t, nil)
+				logger := testutil.Logger(t)
 
 				tfStepRaw, err := os.ReadFile(planFile)
 				require.NoError(t, err)

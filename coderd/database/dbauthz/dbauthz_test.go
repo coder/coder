@@ -20,7 +20,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -5893,7 +5892,7 @@ func TestInsertAPIKey_AsPrebuildsUser(t *testing.T) {
 	}
 	ctx := dbauthz.As(testutil.Context(t, testutil.WaitShort), prebuildsSubj)
 	mDB := dbmock.NewMockStore(gomock.NewController(t))
-	log := slogtest.Make(t, nil)
+	log := testutil.Logger(t)
 	mDB.EXPECT().Wrappers().Times(1).Return([]string{})
 	dbz := dbauthz.New(mDB, nil, log, nil)
 	faker := gofakeit.New(0)
@@ -6235,7 +6234,7 @@ func TestGetLatestWorkspaceBuildByWorkspaceID_FastPath(t *testing.T) {
 		dbm.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspace.ID).Return(build, nil).AnyTimes()
 		dbm.EXPECT().Wrappers().Return([]string{})
 
-		q := dbauthz.New(dbm, authorizer, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+		q := dbauthz.New(dbm, authorizer, testutil.Logger(t), coderdtest.AccessControlStorePointer())
 
 		result, err := q.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
 		require.NoError(t, err)
@@ -6252,7 +6251,7 @@ func TestGetLatestWorkspaceBuildByWorkspaceID_FastPath(t *testing.T) {
 		dbm.EXPECT().GetLatestWorkspaceBuildByWorkspaceID(gomock.Any(), workspace.ID).Return(build, nil).AnyTimes()
 		dbm.EXPECT().Wrappers().Return([]string{})
 
-		q := dbauthz.New(dbm, authorizer, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+		q := dbauthz.New(dbm, authorizer, testutil.Logger(t), coderdtest.AccessControlStorePointer())
 
 		result, err := q.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
 		require.NoError(t, err)
@@ -6311,7 +6310,7 @@ func TestGetWorkspaceAgentByID_FastPath(t *testing.T) {
 		// GetWorkspaceByAgentID should NOT be called
 		mockDB.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).Return(agent, nil)
 
-		q := dbauthz.New(mockDB, authorizer, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+		q := dbauthz.New(mockDB, authorizer, testutil.Logger(t), coderdtest.AccessControlStorePointer())
 
 		result, err := q.GetWorkspaceAgentByID(ctx, agentID)
 		require.NoError(t, err)
@@ -6330,7 +6329,7 @@ func TestGetWorkspaceAgentByID_FastPath(t *testing.T) {
 		mockDB.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agentID).Return(workspace, nil)
 		mockDB.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).Return(agent, nil)
 
-		q := dbauthz.New(mockDB, authorizer, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+		q := dbauthz.New(mockDB, authorizer, testutil.Logger(t), coderdtest.AccessControlStorePointer())
 
 		result, err := q.GetWorkspaceAgentByID(ctx, agentID)
 		require.NoError(t, err)
@@ -6367,7 +6366,7 @@ func TestAuthorizeProvisionerJob_SystemFastPath(t *testing.T) {
 		// the test if either is invoked.
 		mockDB.EXPECT().GetProvisionerJobByID(gomock.Any(), jobID).Return(job, nil)
 
-		q := dbauthz.New(mockDB, authorizer, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+		q := dbauthz.New(mockDB, authorizer, testutil.Logger(t), coderdtest.AccessControlStorePointer())
 		ctx := dbauthz.AsSystemRestricted(context.Background())
 
 		got, err := q.GetProvisionerJobByID(ctx, jobID)
@@ -6393,7 +6392,7 @@ func TestAuthorizeProvisionerJob_SystemFastPath(t *testing.T) {
 		mockDB.EXPECT().Wrappers().Return([]string{})
 		mockDB.EXPECT().GetProvisionerJobByID(gomock.Any(), tvJobID).Return(tvJob, nil)
 
-		q := dbauthz.New(mockDB, authorizer, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+		q := dbauthz.New(mockDB, authorizer, testutil.Logger(t), coderdtest.AccessControlStorePointer())
 		ctx := dbauthz.AsSystemRestricted(context.Background())
 
 		got, err := q.GetProvisionerJobByID(ctx, tvJobID)
@@ -6436,7 +6435,7 @@ func TestAuthorizeProvisionerJob_SystemFastPath(t *testing.T) {
 		mockDB.EXPECT().GetWorkspaceBuildByJobID(gomock.Any(), jobID).Return(build, nil)
 		mockDB.EXPECT().GetWorkspaceByID(gomock.Any(), wsID).Return(workspace, nil)
 
-		q := dbauthz.New(mockDB, authorizer, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+		q := dbauthz.New(mockDB, authorizer, testutil.Logger(t), coderdtest.AccessControlStorePointer())
 		ctx := dbauthz.As(context.Background(), auditor)
 
 		_, err := q.GetProvisionerJobByID(ctx, jobID)

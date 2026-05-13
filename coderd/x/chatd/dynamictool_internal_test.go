@@ -6,8 +6,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestDynamicToolsFromSDK(t *testing.T) {
@@ -15,14 +15,14 @@ func TestDynamicToolsFromSDK(t *testing.T) {
 
 	t.Run("EmptySlice", func(t *testing.T) {
 		t.Parallel()
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 		result := dynamicToolsFromSDK(logger, nil)
 		require.Nil(t, result)
 	})
 
 	t.Run("ValidToolWithSchema", func(t *testing.T) {
 		t.Parallel()
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 		tools := []codersdk.DynamicTool{
 			{
 				Name:        "my_tool",
@@ -43,7 +43,7 @@ func TestDynamicToolsFromSDK(t *testing.T) {
 
 	t.Run("ToolWithoutSchema", func(t *testing.T) {
 		t.Parallel()
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 		tools := []codersdk.DynamicTool{
 			{
 				Name:        "no_schema",
@@ -61,7 +61,7 @@ func TestDynamicToolsFromSDK(t *testing.T) {
 
 	t.Run("MalformedSchema", func(t *testing.T) {
 		t.Parallel()
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 		tools := []codersdk.DynamicTool{
 			{
 				Name:        "bad_schema",
@@ -80,7 +80,7 @@ func TestDynamicToolsFromSDK(t *testing.T) {
 
 	t.Run("MultipleTools", func(t *testing.T) {
 		t.Parallel()
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 		tools := []codersdk.DynamicTool{
 			{Name: "first", Description: "First tool"},
 			{Name: "second", Description: "Second tool"},
@@ -95,7 +95,7 @@ func TestDynamicToolsFromSDK(t *testing.T) {
 
 	t.Run("SchemaWithoutProperties", func(t *testing.T) {
 		t.Parallel()
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 		tools := []codersdk.DynamicTool{
 			{
 				Name:        "bare_schema",

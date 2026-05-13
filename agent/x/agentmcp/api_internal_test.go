@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
@@ -65,7 +64,7 @@ func TestHandleListTools_ReloadOnChange(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitLong)
-			logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+			logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 			dir := t.TempDir()
 
 			configPath := writeMCPConfig(t, dir, tc.entries(t))
@@ -106,7 +105,7 @@ func TestHandleListTools_ReloadOnChange(t *testing.T) {
 	t.Run("ConfigChangeTriggersReload", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 		dir := t.TempDir()
 
 		_, entry1 := fakeMCPServerConfig(t, "srv1")
@@ -163,7 +162,7 @@ func TestHandleListTools_ReloadsAfterStartupSettled(t *testing.T) {
 	}
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 	dir := t.TempDir()
 
 	_, entry := fakeMCPServerConfig(t, "srv")
@@ -200,7 +199,7 @@ func TestHandleListTools_WaitsForStartupSettled(t *testing.T) {
 	}
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, ".mcp.json")
 

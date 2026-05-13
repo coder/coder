@@ -22,7 +22,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest/promhelp"
 	"github.com/coder/coder/v2/coderd/database"
@@ -80,7 +79,7 @@ func TestMetrics(t *testing.T) {
 		clk.Set(now).MustWait(ctx)
 
 		db, _ := dbtestutil.NewDB(t)
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 		user := dbgen.User(t, db, database.User{})
 
 		oldExpiredKey, _ := dbgen.APIKey(t, db, database.APIKey{
@@ -173,7 +172,7 @@ func TestMetrics(t *testing.T) {
 				return f(mDB)
 			}).MinTimes(1)
 
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 		done := awaitDoTick(ctx, t, clk)
 		closer := dbpurge.New(ctx, logger, mDB, &codersdk.DeploymentValues{}, reg, nopAuditorPtr(t), dbpurge.WithClock(clk))
@@ -210,7 +209,7 @@ func TestMetrics(t *testing.T) {
 			Return(xerrors.New("simulated database error")).
 			MinTimes(1)
 
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 		done := awaitDoTick(ctx, t, clk)
 		closer := dbpurge.New(ctx, logger, mDB, &codersdk.DeploymentValues{}, reg, nopAuditorPtr(t), dbpurge.WithClock(clk))
@@ -265,7 +264,7 @@ func TestMetrics(t *testing.T) {
 				return f(mDB)
 			}).MinTimes(1)
 
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 		done := awaitDoTick(ctx, t, clk)
 		closer := dbpurge.New(ctx, logger, mDB, &codersdk.DeploymentValues{}, reg, nopAuditorPtr(t), dbpurge.WithClock(clk))
@@ -309,7 +308,7 @@ func TestMetrics(t *testing.T) {
 		mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).
 			Return(nil).MinTimes(1)
 
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 		done := awaitDoTick(ctx, t, clk)
 		closer := dbpurge.New(ctx, logger, mDB, &codersdk.DeploymentValues{}, reg, nopAuditorPtr(t), dbpurge.WithClock(clk))
@@ -362,7 +361,7 @@ func TestMetrics(t *testing.T) {
 				return f(mDB)
 			}).MinTimes(1)
 
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 		done := awaitDoTick(ctx, t, clk)
 		closer := dbpurge.New(ctx, logger, mDB, &codersdk.DeploymentValues{}, reg, nopAuditorPtr(t), dbpurge.WithClock(clk))
@@ -393,7 +392,7 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 	//       before using quarts.NewMock()
 	clk := quartz.NewReal()
 	db, _ := dbtestutil.NewDB(t)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 
 	defer func() {
 		if t.Failed() {
@@ -520,7 +519,7 @@ func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
 	tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{OrganizationID: org.ID, CreatedBy: user.ID})
 	tmpl := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, ActiveVersionID: tv.ID, CreatedBy: user.ID})
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	// Given the following:
 
@@ -829,7 +828,7 @@ func TestDeleteOldWorkspaceAgentLogsRetention(t *testing.T) {
 			oldTime := now.Add(-tc.logsAge)
 
 			db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
-			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+			logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 			org := dbgen.Organization(t, db, database.Organization{})
 			user := dbgen.User(t, db, database.User{})
 			_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
@@ -871,7 +870,7 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 	clk := quartz.NewReal()
 	db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
 	defaultOrg := dbgen.Organization(t, db, database.Organization{})
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
@@ -981,7 +980,7 @@ func TestDeleteOldAuditLogConnectionEvents(t *testing.T) {
 	clk.Set(now).MustWait(ctx)
 
 	db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	user := dbgen.User(t, db, database.User{})
 	org := dbgen.Organization(t, db, database.Organization{})
 
@@ -1184,7 +1183,7 @@ func TestDeleteOldTelemetryHeartbeats(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	clk := quartz.NewMock(t)
 	now := clk.Now().UTC()
 
@@ -1278,7 +1277,7 @@ func TestDeleteOldConnectionLogs(t *testing.T) {
 			clk.Set(now).MustWait(ctx)
 
 			db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
-			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+			logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 			// Setup test fixtures.
 			user := dbgen.User(t, db, database.User{})
@@ -1467,7 +1466,7 @@ func TestDeleteOldAIBridgeRecords(t *testing.T) {
 			clk.Set(now).MustWait(ctx)
 
 			db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
-			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+			logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 			user := dbgen.User(t, db, database.User{})
 
 			// Create old AI Bridge interception (should be deleted when retention enabled).
@@ -1637,7 +1636,7 @@ func TestDeleteOldAuditLogs(t *testing.T) {
 			clk.Set(now).MustWait(ctx)
 
 			db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
-			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+			logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 			// Setup test fixtures.
 			user := dbgen.User(t, db, database.User{})
@@ -1706,7 +1705,7 @@ func TestDeleteOldAuditLogs(t *testing.T) {
 		clk.Set(now).MustWait(ctx)
 
 		db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 		user := dbgen.User(t, db, database.User{})
 		org := dbgen.Organization(t, db, database.Organization{})
 
@@ -1844,7 +1843,7 @@ func TestDeleteExpiredAPIKeys(t *testing.T) {
 			clk.Set(now).MustWait(ctx)
 
 			db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
-			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+			logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 			user := dbgen.User(t, db, database.User{})
 
 			// Create API key that expired long ago.
@@ -2030,7 +2029,7 @@ func TestPurgeChatDebugRuns(t *testing.T) {
 				clk.Set(now).MustWait(ctx)
 
 				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
-				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+				logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 				reg := prometheus.NewRegistry()
 				deps := setupChatDebugDeps(t, db)
 				require.NoError(t, db.UpsertChatDebugRetentionDays(ctx, int32(7)))
@@ -2071,7 +2070,7 @@ func TestPurgeChatDebugRuns(t *testing.T) {
 				clk.Set(now).MustWait(ctx)
 
 				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
-				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+				logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 				deps := setupChatDebugDeps(t, db)
 				require.NoError(t, db.UpsertChatDebugRetentionDays(ctx, int32(0)))
 
@@ -2096,7 +2095,7 @@ func TestPurgeChatDebugRuns(t *testing.T) {
 				clk.Set(now).MustWait(ctx)
 
 				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
-				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+				logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 				deps := setupChatDebugDeps(t, db)
 				require.NoError(t, db.UpsertChatRetentionDays(ctx, int32(30)))
 				require.NoError(t, db.UpsertChatDebugRetentionDays(ctx, int32(0)))
@@ -2199,7 +2198,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				clk.Set(now).MustWait(ctx)
 
 				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
-				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+				logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 				deps := setupChatDeps(t, db)
 
 				// Disable retention.
@@ -2230,7 +2229,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				clk.Set(now).MustWait(ctx)
 
 				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
-				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+				logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 				deps := setupChatDeps(t, db)
 
 				err := db.UpsertChatRetentionDays(ctx, int32(30))
@@ -2284,7 +2283,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				clk.Set(now).MustWait(ctx)
 
 				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
-				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+				logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 				deps := setupChatDeps(t, db)
 
 				err := db.UpsertChatRetentionDays(ctx, int32(30))
@@ -2335,7 +2334,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				clk.Set(now).MustWait(ctx)
 
 				db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
-				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+				logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 				deps := setupChatDeps(t, db)
 
 				err := db.UpsertChatRetentionDays(ctx, int32(30))
@@ -2630,7 +2629,7 @@ func newArchiveHarness(t *testing.T, now time.Time) *archiveHarness {
 	clk := quartz.NewMock(t)
 	clk.Set(now).MustWait(ctx)
 	db, _, rawDB := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithDumpOnFailure())
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	return &archiveHarness{
 		ctx:    ctx,
 		clk:    clk,

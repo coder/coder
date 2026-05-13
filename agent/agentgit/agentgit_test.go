@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentgit"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/wsjson"
@@ -69,7 +68,7 @@ func TestSubscribeBulkPathsAndDedupes(t *testing.T) {
 	t.Parallel()
 
 	repoDir := initTestRepo(t)
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 
 	h := agentgit.NewHandler(logger)
 
@@ -88,7 +87,7 @@ func TestSubscribeBulkPathsAndDedupes(t *testing.T) {
 func TestSubscribeNonGitPathsIgnored(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	h := agentgit.NewHandler(logger)
 
 	nonGitDir := t.TempDir()
@@ -99,7 +98,7 @@ func TestSubscribeNonGitPathsIgnored(t *testing.T) {
 func TestSubscribeRelativePathsIgnored(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	h := agentgit.NewHandler(logger)
 
 	added := h.Subscribe([]string{"relative/path.go"})
@@ -109,7 +108,7 @@ func TestSubscribeRelativePathsIgnored(t *testing.T) {
 func TestSubscribeEmptyPaths(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	h := agentgit.NewHandler(logger)
 
 	added := h.Subscribe([]string{})
@@ -127,7 +126,7 @@ func TestScanReturnsRepoChanges(t *testing.T) {
 	t.Parallel()
 
 	repoDir := initTestRepo(t)
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 
 	h := agentgit.NewHandler(logger)
 
@@ -155,7 +154,7 @@ func TestScanRespectsGitignore(t *testing.T) {
 	t.Parallel()
 
 	repoDir := initTestRepo(t)
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 
 	// Add a .gitignore that ignores *.log files and the build/ directory.
 	require.NoError(t, os.WriteFile(filepath.Join(repoDir, ".gitignore"), []byte("*.log\nbuild/\n"), 0o600))
@@ -193,7 +192,7 @@ func TestScanRespectsGitignoreNestedNegation(t *testing.T) {
 	t.Parallel()
 
 	repoDir := initTestRepo(t)
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 
 	// Add a .gitignore that ignores node_modules/.
 	require.NoError(t, os.WriteFile(filepath.Join(repoDir, ".gitignore"), []byte("node_modules/\n"), 0o600))
@@ -237,7 +236,7 @@ func TestScanDeltaEmission(t *testing.T) {
 	t.Parallel()
 
 	repoDir := initTestRepo(t)
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 
 	h := agentgit.NewHandler(logger)
 
@@ -282,7 +281,7 @@ func TestScanHeartbeatOnCleanRepo(t *testing.T) {
 	t.Parallel()
 
 	repoDir := initTestRepo(t)
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 
 	h := agentgit.NewHandler(logger)
 	require.True(t, h.Subscribe([]string{repoDir}))
@@ -319,7 +318,7 @@ func TestScanHeartbeatOnCleanRepo(t *testing.T) {
 func TestScanNoHeartbeatWithoutSubscribedRoots(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	h := agentgit.NewHandler(logger)
 
 	msg := h.Scan(context.Background())
@@ -330,7 +329,7 @@ func TestScanDeltaDetectsContentChanges(t *testing.T) {
 	t.Parallel()
 
 	repoDir := initTestRepo(t)
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 
 	h := agentgit.NewHandler(logger)
 
@@ -394,7 +393,7 @@ func TestScanRateLimiting(t *testing.T) {
 	t.Parallel()
 
 	repoDir := initTestRepo(t)
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 
 	h := agentgit.NewHandler(logger)
 
@@ -418,7 +417,7 @@ func TestSubscribeDeeplyNestedFile(t *testing.T) {
 	t.Parallel()
 
 	repoDir := initTestRepo(t)
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 
 	// Create a deeply nested directory structure inside the repo.
 	nestedDir := filepath.Join(repoDir, "a", "b", "c")
@@ -464,7 +463,7 @@ func TestSubscribeNestedGitRepos(t *testing.T) {
 	dirtyFile := filepath.Join(innerDir, "dirty.go")
 	require.NoError(t, os.WriteFile(dirtyFile, []byte("package inner\n"), 0o600))
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	h := agentgit.NewHandler(logger)
 
 	// Subscribe with the path inside the inner repo.
@@ -484,7 +483,7 @@ func TestScanDeletedRepoEmitsRemoved(t *testing.T) {
 	t.Parallel()
 
 	repoDir := initTestRepo(t)
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 
 	h := agentgit.NewHandler(logger)
 
@@ -527,7 +526,7 @@ func TestScanDeletedGitDirEmitsRemoved(t *testing.T) {
 	t.Parallel()
 
 	repoDir := initTestRepo(t)
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 
 	h := agentgit.NewHandler(logger)
 
@@ -567,7 +566,7 @@ func TestScanDeletedWorktreeGitdirEmitsRemoved(t *testing.T) {
 	gitCmd(t, mainRepoDir, "branch", "worktree-branch")
 	gitCmd(t, mainRepoDir, "worktree", "add", worktreeDir, "worktree-branch")
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	h := agentgit.NewHandler(logger)
 
 	// Create a dirty file so the initial scan has something to report.
@@ -610,7 +609,7 @@ func TestScanTransientErrorDoesNotRemoveRepo(t *testing.T) {
 	t.Parallel()
 
 	repoDir := initTestRepo(t)
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 
 	h := agentgit.NewHandler(logger)
 
@@ -670,7 +669,7 @@ func dialGitWatch(t *testing.T, opts ...agentgit.Option) *wsjson.Stream[
 	codersdk.WorkspaceAgentGitClientMessage,
 ] {
 	t.Helper()
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	api := agentgit.NewAPI(logger, nil, opts...)
 	srv := httptest.NewServer(api.Routes())
 	t.Cleanup(srv.Close)
@@ -700,7 +699,7 @@ func dialGitWatchWithPathStore(
 	codersdk.WorkspaceAgentGitClientMessage,
 ] {
 	t.Helper()
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	api := agentgit.NewAPI(logger, ps, opts...)
 	srv := httptest.NewServer(api.Routes())
 	t.Cleanup(srv.Close)
@@ -884,7 +883,7 @@ func TestGetRepoChangesStagedModifiedDeleted(t *testing.T) {
 	t.Parallel()
 
 	repoDir := initTestRepo(t)
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 
 	h := agentgit.NewHandler(logger)
 
@@ -966,7 +965,7 @@ func TestMultipleConcurrentConnections(t *testing.T) {
 	chatID := uuid.New()
 	ps.AddPaths([]uuid.UUID{chatID}, []string{filepath.Join(repoDir, "c.go")})
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	api := agentgit.NewAPI(logger, ps)
 	srv := httptest.NewServer(api.Routes())
 	t.Cleanup(srv.Close)
@@ -1008,7 +1007,7 @@ func TestScanLargeFileTooLargeToDiff(t *testing.T) {
 	t.Parallel()
 
 	repoDir := initTestRepo(t)
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 
 	h := agentgit.NewHandler(logger)
 
@@ -1042,7 +1041,7 @@ func TestScanLargeFileDeltaTracking(t *testing.T) {
 	t.Parallel()
 
 	repoDir := initTestRepo(t)
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 
 	h := agentgit.NewHandler(logger)
 
@@ -1079,7 +1078,7 @@ func TestScanTotalDiffTooLargeForWire(t *testing.T) {
 	t.Parallel()
 
 	repoDir := initTestRepo(t)
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 
 	h := agentgit.NewHandler(logger)
 
@@ -1123,7 +1122,7 @@ func TestScanBinaryFileDiff(t *testing.T) {
 	t.Parallel()
 
 	repoDir := initTestRepo(t)
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 
 	h := agentgit.NewHandler(logger)
 
@@ -1170,7 +1169,7 @@ func TestScanBinaryFileModifiedDiff(t *testing.T) {
 	// Modify the binary file in the worktree.
 	require.NoError(t, os.WriteFile(binPath, []byte("v2\x00\x03\x04\x05"), 0o600))
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	h := agentgit.NewHandler(logger)
 	h.Subscribe([]string{binPath})
 
@@ -1194,7 +1193,7 @@ func TestScanFileDiffTooLargeForWire(t *testing.T) {
 	t.Parallel()
 
 	repoDir := initTestRepo(t)
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 
 	h := agentgit.NewHandler(logger)
 
@@ -1491,7 +1490,7 @@ func TestE2E_RepoDeletionEmitsRemoved(t *testing.T) {
 func TestRunLoopExitsPromptlyOnCancel_DuringPoll(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	mClock := quartz.NewMock(t)
 	h := agentgit.NewHandler(logger, agentgit.WithClock(mClock))
 
@@ -1534,7 +1533,7 @@ func TestRunLoopExitsPromptlyOnCancel_DuringCooldown(t *testing.T) {
 	t.Parallel()
 
 	repoDir := initTestRepo(t)
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	mClock := quartz.NewMock(t)
 	h := agentgit.NewHandler(logger, agentgit.WithClock(mClock))
 

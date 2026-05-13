@@ -24,10 +24,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/x/agentdesktop"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
 
@@ -279,7 +279,7 @@ func (f *oversizedFakeDesktop) StopRecording(ctx context.Context, recordingID st
 func TestHandleDesktopVNC_StartError(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	fake := &fakeDesktop{startErr: xerrors.New("no desktop")}
 	api := agentdesktop.NewAPI(logger, fake, nil)
 	defer api.Close()
@@ -301,7 +301,7 @@ func TestHandleDesktopVNC_StartError(t *testing.T) {
 func TestHandleAction_CallsRecordActivity(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	fake := &fakeDesktop{
 		startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
 	}
@@ -332,7 +332,7 @@ func TestHandleAction_CallsRecordActivity(t *testing.T) {
 func TestHandleAction_Screenshot(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	geometry := workspacesdk.DefaultDesktopGeometry()
 	fake := &fakeDesktop{
 		startCfg: agentdesktop.DisplayConfig{
@@ -373,7 +373,7 @@ func TestHandleAction_Screenshot(t *testing.T) {
 func TestHandleAction_ScreenshotUsesDeclaredDimensionsFromRequest(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	fake := &fakeDesktop{
 		startCfg:      agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
 		screenshotRes: agentdesktop.ScreenshotResult{Data: "base64data"},
@@ -411,7 +411,7 @@ func TestHandleAction_ScreenshotUsesDeclaredDimensionsFromRequest(t *testing.T) 
 func TestHandleAction_LeftClick(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	fake := &fakeDesktop{
 		startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
 	}
@@ -444,7 +444,7 @@ func TestHandleAction_LeftClick(t *testing.T) {
 func TestHandleAction_UnknownAction(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	fake := &fakeDesktop{
 		startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
 	}
@@ -468,7 +468,7 @@ func TestHandleAction_UnknownAction(t *testing.T) {
 func TestHandleAction_KeyAction(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	fake := &fakeDesktop{
 		startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
 	}
@@ -497,7 +497,7 @@ func TestHandleAction_KeyAction(t *testing.T) {
 func TestHandleAction_TypeAction(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	fake := &fakeDesktop{
 		startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
 	}
@@ -539,7 +539,7 @@ func TestHandleAction_KeyDownAndUp(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			logger := slogtest.Make(t, nil)
+			logger := testutil.Logger(t)
 			fake := &fakeDesktop{
 				startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
 			}
@@ -579,7 +579,7 @@ func TestHandleAction_KeyDownAndUp(t *testing.T) {
 func TestHandleAction_HoldKey(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	fake := &fakeDesktop{
 		startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
 	}
@@ -629,7 +629,7 @@ func TestHandleAction_HoldKey(t *testing.T) {
 func TestHandleAction_HoldKeyMissingText(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	fake := &fakeDesktop{
 		startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
 	}
@@ -658,7 +658,7 @@ func TestHandleAction_HoldKeyMissingText(t *testing.T) {
 func TestHandleAction_ScrollDown(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	fake := &fakeDesktop{
 		startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
 	}
@@ -690,7 +690,7 @@ func TestHandleAction_ScrollDown(t *testing.T) {
 func TestHandleAction_CoordinateScaling(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	fake := &fakeDesktop{
 		startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
 	}
@@ -723,7 +723,7 @@ func TestHandleAction_CoordinateScaling(t *testing.T) {
 func TestHandleAction_CoordinateScalingClampsToLastPixel(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	fake := &fakeDesktop{
 		startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
 	}
@@ -756,7 +756,7 @@ func TestHandleAction_CoordinateScalingClampsToLastPixel(t *testing.T) {
 func TestClose_DelegatesToDesktop(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	fake := &fakeDesktop{}
 	api := agentdesktop.NewAPI(logger, fake, nil)
 
@@ -768,7 +768,7 @@ func TestClose_DelegatesToDesktop(t *testing.T) {
 func TestClose_PreventsNewSessions(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	fake := &fakeDesktop{}
 	api := agentdesktop.NewAPI(logger, fake, nil)
 
@@ -789,7 +789,7 @@ func TestClose_PreventsNewSessions(t *testing.T) {
 func TestHandleAction_CursorPositionReturnsDeclaredCoordinates(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	fake := &fakeDesktop{
 		startCfg:  agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
 		cursorPos: [2]int{960, 540},
@@ -826,7 +826,7 @@ func TestHandleAction_CursorPositionReturnsDeclaredCoordinates(t *testing.T) {
 func TestRecordingStartStop(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	fake := &fakeDesktop{
 		startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
 	}
@@ -857,7 +857,7 @@ func TestRecordingStartStop(t *testing.T) {
 func TestRecordingStartFails(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	fake := &failStartRecordingDesktop{
 		fakeDesktop: fakeDesktop{
 			startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
@@ -886,7 +886,7 @@ func TestRecordingStartFails(t *testing.T) {
 func TestRecordingStartIdempotent(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	fake := &fakeDesktop{
 		startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
 	}
@@ -919,7 +919,7 @@ func TestRecordingStartIdempotent(t *testing.T) {
 func TestRecordingStopIdempotent(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	fake := &fakeDesktop{
 		startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
 	}
@@ -954,7 +954,7 @@ func TestRecordingStopIdempotent(t *testing.T) {
 func TestRecordingStopInvalidIDFormat(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	fake := &fakeDesktop{
 		startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
 	}
@@ -974,7 +974,7 @@ func TestRecordingStopInvalidIDFormat(t *testing.T) {
 func TestRecordingStopUnknownRecording(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	fake := &fakeDesktop{
 		startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
 	}
@@ -1001,7 +1001,7 @@ func TestRecordingStopUnknownRecording(t *testing.T) {
 func TestRecordingStopOversizedFile(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	fake := &oversizedFakeDesktop{
 		fakeDesktop: fakeDesktop{
 			startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
@@ -1038,7 +1038,7 @@ func TestRecordingStopOversizedFile(t *testing.T) {
 func TestRecordingMultipleSimultaneous(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	fake := &fakeDesktop{
 		startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
 	}
@@ -1077,7 +1077,7 @@ func TestRecordingMultipleSimultaneous(t *testing.T) {
 func TestRecordingStartMalformedBody(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	fake := &fakeDesktop{
 		startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
 	}
@@ -1095,7 +1095,7 @@ func TestRecordingStartMalformedBody(t *testing.T) {
 func TestRecordingStartEmptyID(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	fake := &fakeDesktop{
 		startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
 	}
@@ -1115,7 +1115,7 @@ func TestRecordingStartEmptyID(t *testing.T) {
 func TestRecordingStopEmptyID(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	fake := &fakeDesktop{
 		startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
 	}
@@ -1135,7 +1135,7 @@ func TestRecordingStopEmptyID(t *testing.T) {
 func TestRecordingStopMalformedBody(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	fake := &fakeDesktop{
 		startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
 	}
@@ -1153,7 +1153,7 @@ func TestRecordingStopMalformedBody(t *testing.T) {
 func TestRecordingStartAfterCompleted(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	fake := &fakeDesktop{
 		startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
 	}
@@ -1206,7 +1206,7 @@ func TestRecordingStartAfterCompleted(t *testing.T) {
 func TestRecordingStartAfterClose(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	fake := &fakeDesktop{
 		startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
 	}
@@ -1234,7 +1234,7 @@ func TestRecordingStartAfterClose(t *testing.T) {
 func TestRecordingStartDesktopClosed(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	// StartRecording returns ErrDesktopClosed to simulate a race
 	// where the desktop is closed between the API-level check and
 	// the desktop-level StartRecording call.
@@ -1266,7 +1266,7 @@ func TestRecordingStartDesktopClosed(t *testing.T) {
 func TestRecordingStopCorrupted(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	fake := &corruptedStopDesktop{
 		fakeDesktop: fakeDesktop{
 			startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
@@ -1328,7 +1328,7 @@ func parseMultipartParts(t *testing.T, contentType string, body []byte) map[stri
 func TestHandleRecordingStop_WithThumbnail(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	// Create a fake JPEG header: 0xFF 0xD8 0xFF followed by 509 zero bytes.
 	thumbnail := make([]byte, 512)
 	thumbnail[0] = 0xff
@@ -1378,7 +1378,7 @@ func TestHandleRecordingStop_WithThumbnail(t *testing.T) {
 func TestHandleRecordingStop_NoThumbnail(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	fake := &fakeDesktop{
 		startCfg: agentdesktop.DisplayConfig{Width: 1920, Height: 1080},
 	}
@@ -1419,7 +1419,7 @@ func TestHandleRecordingStop_NoThumbnail(t *testing.T) {
 func TestHandleRecordingStop_OversizedThumbnail(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	// Create thumbnail data that exceeds MaxThumbnailSize.
 	oversizedThumb := make([]byte, workspacesdk.MaxThumbnailSize+1)
 	oversizedThumb[0] = 0xff

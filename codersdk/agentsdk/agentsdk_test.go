@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"tailscale.com/tailcfg"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -35,7 +34,7 @@ func TestStreamAgentReinitEvents(t *testing.T) {
 		transmitCtx := testutil.Context(t, testutil.WaitShort)
 		transmitErrCh := make(chan error, 1)
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			transmitter := agentsdk.NewSSEAgentReinitTransmitter(slogtest.Make(t, nil), w, r)
+			transmitter := agentsdk.NewSSEAgentReinitTransmitter(testutil.Logger(t), w, r)
 			transmitErrCh <- transmitter.Transmit(transmitCtx, events)
 		}))
 		defer srv.Close()
@@ -70,7 +69,7 @@ func TestStreamAgentReinitEvents(t *testing.T) {
 		cancelTransmit()
 		transmitErrCh := make(chan error, 1)
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			transmitter := agentsdk.NewSSEAgentReinitTransmitter(slogtest.Make(t, nil), w, r)
+			transmitter := agentsdk.NewSSEAgentReinitTransmitter(testutil.Logger(t), w, r)
 			transmitErrCh <- transmitter.Transmit(transmitCtx, events)
 		}))
 
@@ -105,7 +104,7 @@ func TestStreamAgentReinitEvents(t *testing.T) {
 		transmitCtx := testutil.Context(t, testutil.WaitShort)
 		transmitErrCh := make(chan error, 1)
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			transmitter := agentsdk.NewSSEAgentReinitTransmitter(slogtest.Make(t, nil), w, r)
+			transmitter := agentsdk.NewSSEAgentReinitTransmitter(testutil.Logger(t), w, r)
 			transmitErrCh <- transmitter.Transmit(transmitCtx, events)
 		}))
 		defer srv.Close()

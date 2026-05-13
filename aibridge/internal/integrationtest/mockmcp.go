@@ -17,9 +17,9 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/mcp"
+	codertestutil "github.com/coder/coder/v2/testutil"
 )
 
 // mockToolName is the primary mock tool name used in MCP tests.
@@ -55,7 +55,7 @@ func setupMCPForTestWithName(t *testing.T, name string, tracer trace.Tracer) *mo
 	mcpSrv := httptest.NewServer(srv)
 	t.Cleanup(mcpSrv.Close) // FIRST registered → runs LAST (LIFO)
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
+	logger := codertestutil.Logger(t).Leveled(slog.LevelDebug)
 	// Use a dedicated HTTP client so MCP mocks don't use http.DefaultTransport,
 	// which can break when httptest.Server calls CloseIdleConnections in parallel
 	// resulting in error `init MCP client: failed to send initialized notification: failed to send request: failed to send request: Post "http://127.0.0.1:43843": net/http: HTTP/1.x transport connection broken: http: CloseIdleConnections called`

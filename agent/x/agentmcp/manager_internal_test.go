@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
@@ -254,7 +253,7 @@ func TestManager_WaitReloadTimeout(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 	clock := quartz.NewMock(t)
 	timerTrap := clock.Trap().NewTimer("agentmcp", "tools_reload")
 	defer timerTrap.Close()
@@ -290,7 +289,7 @@ func TestManager_ToolsStartupGate(t *testing.T) {
 	t.Run("MissingBeforeStartupCanAppearBeforeSettlement", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 		dir := t.TempDir()
 		configPath := filepath.Join(dir, ".mcp.json")
 
@@ -324,7 +323,7 @@ func TestManager_ToolsStartupGate(t *testing.T) {
 	t.Run("MissingAfterStartupReturnsEmptyAndMarksFirstSync", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 		dir := t.TempDir()
 		configPath := filepath.Join(dir, ".mcp.json")
 
@@ -345,7 +344,7 @@ func TestManager_ToolsStartupGate(t *testing.T) {
 	t.Run("ConfigAppearsAfterEmptySyncReloads", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 		dir := t.TempDir()
 		configPath := filepath.Join(dir, ".mcp.json")
 
@@ -369,7 +368,7 @@ func TestManager_ToolsStartupGate(t *testing.T) {
 	t.Run("ConcurrentFirstListToolsCallsAllSucceed", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 		dir := t.TempDir()
 		_, entry := fakeMCPServerConfig(t, "srv")
 		configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
@@ -400,7 +399,7 @@ func TestManager_ToolsStartupGate(t *testing.T) {
 	t.Run("CloseUnblocksStartupWait", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 		dir := t.TempDir()
 		configPath := filepath.Join(dir, ".mcp.json")
 
@@ -425,7 +424,7 @@ func TestManager_ToolsStartupGate(t *testing.T) {
 	t.Run("CallerCanceledBeforeStartupReturnsNoTools", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 		dir := t.TempDir()
 		configPath := filepath.Join(dir, ".mcp.json")
 
@@ -443,7 +442,7 @@ func TestManager_ToolsStartupGate(t *testing.T) {
 	t.Run("ManagerCanceledBeforeStartupReturnsNoTools", func(t *testing.T) {
 		t.Parallel()
 		ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitLong))
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 		dir := t.TempDir()
 		configPath := filepath.Join(dir, ".mcp.json")
 
@@ -460,7 +459,7 @@ func TestManager_ToolsStartupGate(t *testing.T) {
 	t.Run("ClosedBeforeFirstSyncReturnsNoTools", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 		dir := t.TempDir()
 		configPath := filepath.Join(dir, ".mcp.json")
 
@@ -477,7 +476,7 @@ func TestManager_ToolsStartupGate(t *testing.T) {
 	t.Run("CanceledBeforeFirstSyncStillStartsReload", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 		dir := t.TempDir()
 		configPath := filepath.Join(dir, ".mcp.json")
 		paths := []string{configPath}
@@ -508,7 +507,7 @@ func TestManager_ToolsStartupGate(t *testing.T) {
 	t.Run("CanceledAfterFirstSyncNoopReturnsCachedTools", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 		dir := t.TempDir()
 		_, entry := fakeMCPServerConfig(t, "srv")
 		configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
@@ -532,7 +531,7 @@ func TestManager_ToolsStartupGate(t *testing.T) {
 	t.Run("ManagerCanceledAfterFirstSyncReturnsCachedTools", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 		dir := t.TempDir()
 		_, entry := fakeMCPServerConfig(t, "srv")
 		configPath := writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})

@@ -13,7 +13,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/scaletest/smtpmock"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -27,7 +26,7 @@ func TestServer_StartStop(t *testing.T) {
 		HostAddress: "127.0.0.1",
 		SMTPPort:    0,
 		APIPort:     0,
-		Logger:      slogtest.Make(t, nil),
+		Logger:      testutil.Logger(t),
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, srv.SMTPAddress())
@@ -46,7 +45,7 @@ func TestServer_SendAndReceiveEmail(t *testing.T) {
 		HostAddress: "127.0.0.1",
 		SMTPPort:    0,
 		APIPort:     0,
-		Logger:      slogtest.Make(t, nil),
+		Logger:      testutil.Logger(t),
 	})
 	require.NoError(t, err)
 	defer srv.Stop()
@@ -84,7 +83,7 @@ func TestServer_FilterByEmail(t *testing.T) {
 		HostAddress: "127.0.0.1",
 		SMTPPort:    0,
 		APIPort:     0,
-		Logger:      slogtest.Make(t, nil),
+		Logger:      testutil.Logger(t),
 	})
 	require.NoError(t, err)
 	defer srv.Stop()
@@ -123,7 +122,7 @@ func TestServer_NotificationTemplateID(t *testing.T) {
 		HostAddress: "127.0.0.1",
 		SMTPPort:    0,
 		APIPort:     0,
-		Logger:      slogtest.Make(t, nil),
+		Logger:      testutil.Logger(t),
 	})
 	require.NoError(t, err)
 	defer srv.Stop()
@@ -162,7 +161,7 @@ func TestServer_Purge(t *testing.T) {
 		HostAddress: "127.0.0.1",
 		SMTPPort:    0,
 		APIPort:     0,
-		Logger:      slogtest.Make(t, nil),
+		Logger:      testutil.Logger(t),
 	})
 	require.NoError(t, err)
 	defer srv.Stop()

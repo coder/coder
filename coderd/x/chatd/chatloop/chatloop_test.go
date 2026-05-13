@@ -21,7 +21,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
@@ -3634,7 +3633,7 @@ func TestRun_AnthropicProviderToolPreRequestGuard(t *testing.T) {
 
 		guarded := chatsanitize.ApplyAnthropicProviderToolGuard(
 			context.Background(),
-			slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+			testutil.Logger(t, testutil.WithIgnoreErrors()),
 			fantasyanthropic.Name,
 			"claude-test",
 			[]fantasy.Message{
@@ -3672,7 +3671,7 @@ func TestRun_AnthropicProviderToolPreRequestGuard(t *testing.T) {
 		content = append(content, providerPair("ws-two")...)
 		guarded := chatsanitize.ApplyAnthropicProviderToolGuard(
 			context.Background(),
-			slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+			testutil.Logger(t, testutil.WithIgnoreErrors()),
 			fantasyanthropic.Name,
 			"claude-test",
 			[]fantasy.Message{{Role: fantasy.MessageRoleAssistant, Content: content}},
@@ -3698,7 +3697,7 @@ func TestRun_AnthropicProviderToolPreRequestGuard(t *testing.T) {
 		}
 		guarded := chatsanitize.ApplyAnthropicProviderToolGuard(
 			context.Background(),
-			slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+			testutil.Logger(t, testutil.WithIgnoreErrors()),
 			"fake",
 			"fake-model",
 			prompt,

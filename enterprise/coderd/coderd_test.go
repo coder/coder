@@ -24,7 +24,6 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
 	agplcoderd "github.com/coder/coder/v2/coderd"
@@ -1105,7 +1104,7 @@ func TestConn_CoordinatorRollingRestart(t *testing.T) {
 			dv := coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
 				dv.DERP.Config.BlockDirect = serpent.Bool(!direct)
 			})
-			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+			logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 
 			// Create two restartable test servers with the same database.
 			client1, user, s1 := newRestartableTestServer(t, &coderdenttest.Options{

@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -531,7 +530,7 @@ func setupPushTest(ctx context.Context, t *testing.T, handlerFunc func(w http.Re
 
 func setupPushTestWithOptions(ctx context.Context, t *testing.T, db database.Store, handlerFunc func(w http.ResponseWriter, r *http.Request), opts ...webpush.Option) (webpush.Dispatcher, database.Store, string) {
 	t.Helper()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 
 	server := httptest.NewServer(http.HandlerFunc(handlerFunc))
 	t.Cleanup(server.Close)
@@ -584,7 +583,7 @@ func TestSSRFPrevention(t *testing.T) {
 	// Create a dispatcher via New() WITHOUT WithHTTPClient so it
 	// uses the default SSRF-safe client that blocks loopback.
 	db, _ := dbtestutil.NewDB(t)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	manager, err := webpush.New(ctx, &logger, db, "http://example.com")
 	require.NoError(t, err)
 

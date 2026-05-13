@@ -43,7 +43,6 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentssh"
@@ -80,11 +79,9 @@ func TestAgent_ImmediateClose(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	logger := slogtest.Make(t, &slogtest.Options{
-		// Agent can drop errors when shutting down, and some, like the
-		// fasthttplistener connection closed error, are unexported.
-		IgnoreErrors: true,
-	}).Leveled(slog.LevelDebug)
+	// Agent can drop errors when shutting down, and some, like the
+	// fasthttplistener connection closed error, are unexported.
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	manifest := agentsdk.Manifest{
 		AgentID:       uuid.New(),
 		AgentName:     "test-agent",
@@ -3293,7 +3290,7 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 func TestAgent_Speedtest(t *testing.T) {
 	t.Parallel()
 	t.Skip("This test is relatively flakey because of Tailscale's speedtest code...")
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
@@ -3750,11 +3747,9 @@ func setupAgentWithSecrets(t testing.TB, metadata agentsdk.Manifest, secrets []a
 	afero.Fs,
 	agent.Agent,
 ) {
-	logger := slogtest.Make(t, &slogtest.Options{
-		// Agent can drop errors when shutting down, and some, like the
-		// fasthttplistener connection closed error, are unexported.
-		IgnoreErrors: true,
-	}).Leveled(slog.LevelDebug)
+	// Agent can drop errors when shutting down, and some, like the
+	// fasthttplistener connection closed error, are unexported.
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	if metadata.DERPMap == nil {
 		metadata.DERPMap, _ = tailnettest.RunDERPAndSTUN(t)
 	}

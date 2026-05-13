@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
@@ -141,7 +140,7 @@ func Test_Runner(t *testing.T) {
 				agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(authToken))
 				agentCloser := agent.New(agent.Options{
 					Client: agentClient,
-					Logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).
+					Logger: testutil.Logger(t, testutil.WithIgnoreErrors()).
 						Named(fmt.Sprintf("agent%d", i)).
 						Leveled(slog.LevelWarn),
 				})
@@ -195,7 +194,7 @@ func Test_Runner(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 			Logger:                   &logger,
@@ -241,7 +240,7 @@ func Test_Runner(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 			Logger:                   &logger,

@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -23,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
 
@@ -554,7 +554,7 @@ func setup(t *testing.T) (context.Context, slog.Logger, database.Store, pubsub.P
 	t.Helper()
 
 	ctx := dbauthz.AsSystemRestricted(context.Background())
-	logger := slogtest.Make(t, &slogtest.Options{})
+	logger := testutil.Logger(t)
 	db, ps := dbtestutil.NewDB(t)
 	notifyEnq := &notificationstest.FakeEnqueuer{}
 	clk := quartz.NewMock(t)

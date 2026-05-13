@@ -31,7 +31,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/enterprise/aibridgeproxyd"
@@ -272,7 +271,7 @@ func newTestProxy(t *testing.T, opts ...testProxyOption) *aibridgeproxyd.Server 
 	}
 
 	mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 
 	aibridgeOpts := aibridgeproxyd.Options{
 		ListenAddr:               cfg.listenAddr,
@@ -433,7 +432,7 @@ func TestNew(t *testing.T) {
 		t.Parallel()
 
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			CoderAccessURL:  "http://localhost:3000",
@@ -449,7 +448,7 @@ func TestNew(t *testing.T) {
 		t.Parallel()
 
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			ListenAddr:      "",
@@ -466,7 +465,7 @@ func TestNew(t *testing.T) {
 		t.Parallel()
 
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			ListenAddr:      "127.0.0.1:0",
@@ -484,7 +483,7 @@ func TestNew(t *testing.T) {
 		t.Parallel()
 
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			ListenAddr:      "127.0.0.1:0",
@@ -502,7 +501,7 @@ func TestNew(t *testing.T) {
 		t.Parallel()
 
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			ListenAddr:               "127.0.0.1:0",
@@ -522,7 +521,7 @@ func TestNew(t *testing.T) {
 		t.Parallel()
 
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			ListenAddr:      "127.0.0.1:0",
@@ -538,7 +537,7 @@ func TestNew(t *testing.T) {
 		t.Parallel()
 
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			ListenAddr:      "127.0.0.1:0",
@@ -555,7 +554,7 @@ func TestNew(t *testing.T) {
 		t.Parallel()
 
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			ListenAddr:      "127.0.0.1:0",
@@ -572,7 +571,7 @@ func TestNew(t *testing.T) {
 		t.Parallel()
 
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			ListenAddr:               "127.0.0.1:0",
@@ -591,7 +590,7 @@ func TestNew(t *testing.T) {
 		t.Parallel()
 
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			ListenAddr:               "127.0.0.1:0",
@@ -610,7 +609,7 @@ func TestNew(t *testing.T) {
 		t.Parallel()
 
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			ListenAddr:               "127.0.0.1:0",
@@ -628,7 +627,7 @@ func TestNew(t *testing.T) {
 	t.Run("MissingCertFile", func(t *testing.T) {
 		t.Parallel()
 
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			ListenAddr:      ":0",
@@ -643,7 +642,7 @@ func TestNew(t *testing.T) {
 	t.Run("MissingKeyFile", func(t *testing.T) {
 		t.Parallel()
 
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			ListenAddr:      ":0",
@@ -658,7 +657,7 @@ func TestNew(t *testing.T) {
 	t.Run("InvalidCertFile", func(t *testing.T) {
 		t.Parallel()
 
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			ListenAddr:               ":0",
@@ -676,7 +675,7 @@ func TestNew(t *testing.T) {
 		t.Parallel()
 
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			ListenAddr:     ":0",
@@ -692,7 +691,7 @@ func TestNew(t *testing.T) {
 		t.Parallel()
 
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			ListenAddr:      ":0",
@@ -709,7 +708,7 @@ func TestNew(t *testing.T) {
 		t.Parallel()
 
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			ListenAddr:      "127.0.0.1:0",
@@ -726,7 +725,7 @@ func TestNew(t *testing.T) {
 		t.Parallel()
 
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			ListenAddr:      "127.0.0.1:0",
@@ -743,7 +742,7 @@ func TestNew(t *testing.T) {
 		t.Parallel()
 
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			ListenAddr:               "127.0.0.1:0",
@@ -761,7 +760,7 @@ func TestNew(t *testing.T) {
 		t.Parallel()
 
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			ListenAddr:               "127.0.0.1:0",
@@ -780,7 +779,7 @@ func TestNew(t *testing.T) {
 		t.Parallel()
 
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			ListenAddr:               "127.0.0.1:0",
@@ -800,7 +799,7 @@ func TestNew(t *testing.T) {
 		t.Parallel()
 
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			ListenAddr:               "127.0.0.1:0",
@@ -819,7 +818,7 @@ func TestNew(t *testing.T) {
 		t.Parallel()
 
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			ListenAddr:               "127.0.0.1:0",
@@ -838,7 +837,7 @@ func TestNew(t *testing.T) {
 		t.Parallel()
 
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			ListenAddr:               "127.0.0.1:0",
@@ -857,7 +856,7 @@ func TestNew(t *testing.T) {
 
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
 		listenerCertFile, listenerKeyFile := generateListenerCert(t)
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			ListenAddr:               "127.0.0.1:0",
@@ -877,7 +876,7 @@ func TestNew(t *testing.T) {
 		t.Parallel()
 
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			ListenAddr:               "127.0.0.1:0",
@@ -896,7 +895,7 @@ func TestNew(t *testing.T) {
 		t.Parallel()
 
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		// Use the shared MITM certificate as the upstream proxy CA (it's a valid PEM cert)
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
@@ -917,7 +916,7 @@ func TestNew(t *testing.T) {
 		t.Parallel()
 
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			ListenAddr:               "127.0.0.1:0",
@@ -936,7 +935,7 @@ func TestNew(t *testing.T) {
 		t.Parallel()
 
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			ListenAddr:               "127.0.0.1:0",
@@ -955,7 +954,7 @@ func TestNew(t *testing.T) {
 		t.Parallel()
 
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		// Username only (no colon) should also succeed (password is optional)
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
@@ -975,7 +974,7 @@ func TestNew(t *testing.T) {
 		t.Parallel()
 
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			ListenAddr:               "127.0.0.1:0",
@@ -994,7 +993,7 @@ func TestNew(t *testing.T) {
 		t.Parallel()
 
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		// Create metrics instance to verify it can be passed and stored.
 		reg := prometheus.NewRegistry()
@@ -1017,7 +1016,7 @@ func TestNew(t *testing.T) {
 		t.Parallel()
 
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			ListenAddr:               "127.0.0.1:0",
@@ -1040,7 +1039,7 @@ func TestClose(t *testing.T) {
 		t.Parallel()
 
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 			ListenAddr:               "127.0.0.1:0",
@@ -1064,7 +1063,7 @@ func TestClose(t *testing.T) {
 		t.Parallel()
 
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		// Create metrics instance to verify Close() properly unregisters them.
 		reg := prometheus.NewRegistry()
@@ -1778,7 +1777,7 @@ func TestServeCACert_CompoundPEM(t *testing.T) {
 	err = os.WriteFile(compoundCertFile, compoundPEM, 0o600)
 	require.NoError(t, err)
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 
 	srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
 		ListenAddr:      "127.0.0.1:0",

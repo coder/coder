@@ -26,7 +26,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"storj.io/drpc"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
@@ -5264,13 +5263,17 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 		db = ov.wrapDB(db)
 	}
 	serverDB := dbauthz.New(db, authorizer, logger, coderdtest.AccessControlStorePointer())
+	var serverLoggerOpts []testutil.LoggerOption
+	if ignoreLogErrors {
+		serverLoggerOpts = append(serverLoggerOpts, testutil.WithIgnoreErrors())
+	}
 	srv, err := provisionerdserver.NewServer(
 		ov.ctx,
 		proto.CurrentVersion.String(),
 		&url.URL{},
 		daemon.ID,
 		defOrg.ID,
-		slogtest.Make(t, &slogtest.Options{IgnoreErrors: ignoreLogErrors}),
+		testutil.Logger(t, serverLoggerOpts...),
 		[]database.ProvisionerType{database.ProvisionerTypeEcho},
 		provisionerdserver.Tags(daemon.Tags),
 		serverDB,

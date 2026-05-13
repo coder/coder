@@ -7,7 +7,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentmetrics"
 	"github.com/coder/coder/v2/testutil"
@@ -33,7 +32,7 @@ func TestDescCache_DescExpire(t *testing.T) {
 
 	// given
 	registry := prometheus.NewRegistry()
-	ma, err := NewMetricsAggregator(slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), registry, time.Millisecond, agentmetrics.LabelAll)
+	ma, err := NewMetricsAggregator(testutil.Logger(t, testutil.WithIgnoreErrors()), registry, time.Millisecond, agentmetrics.LabelAll)
 	require.NoError(t, err)
 
 	given := []*agentproto.Stats_Metric{
@@ -65,7 +64,7 @@ func TestDescCacheTimestampUpdate(t *testing.T) {
 
 	mClock := quartz.NewMock(t)
 	registry := prometheus.NewRegistry()
-	ma, err := NewMetricsAggregator(slogtest.Make(t, nil), registry, time.Hour, nil, WithClock(mClock))
+	ma, err := NewMetricsAggregator(testutil.Logger(t), registry, time.Hour, nil, WithClock(mClock))
 	require.NoError(t, err)
 
 	baseLabelNames := []string{"label1", "label2"}

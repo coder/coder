@@ -9,7 +9,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -107,12 +106,9 @@ func TestCanSubscribeUserSecretEventsRequiresSecretRead(t *testing.T) {
 		t.Parallel()
 
 		auth := &recordingAuthorizer{}
-		logger := slogtest.Make(t, &slogtest.Options{
-			IgnoredErrorIs: []error{},
-			IgnoreErrorFn: func(entry slog.SinkEntry) bool {
-				return entry.Message == "no authorization actor for user secret event subscription"
-			},
-		})
+		logger := testutil.Logger(t, testutil.WithIgnoreErrorFn(func(entry slog.SinkEntry) bool {
+			return entry.Message == "no authorization actor for user secret event subscription"
+		}))
 		api := &API{
 			Options: &Options{
 				Logger: logger,

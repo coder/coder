@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -62,7 +61,7 @@ func newTestServer(
 	clock quartz.Clock,
 ) *osschatd.Server {
 	t.Helper()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	server := osschatd.New(osschatd.Config{
 		Logger:                     logger,
 		Database:                   db,
@@ -85,7 +84,7 @@ func newActiveWorkerServer(
 	replicaID uuid.UUID,
 ) *osschatd.Server {
 	t.Helper()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	server := osschatd.New(osschatd.Config{
 		Logger:                     logger,
 		Database:                   db,
@@ -1299,7 +1298,7 @@ func TestSubscribeRelayDialCanceledOnFastCompletion(t *testing.T) {
 
 	// Worker server with a 1-hour acquire interval so it only processes
 	// when explicitly woken by SendMessage's signalWake.
-	workerLogger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	workerLogger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	worker := osschatd.New(osschatd.Config{
 		Logger:                     workerLogger,
 		Database:                   db,
@@ -1459,7 +1458,7 @@ func TestSubscribeRelayEstablishedMidStream(t *testing.T) {
 	// trigger is signalWake() from SendMessage, but under heavy
 	// CI load the wake goroutine may be delayed. A short poll
 	// ensures the worker always picks up the pending chat.
-	workerLogger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	workerLogger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	worker := osschatd.New(osschatd.Config{
 		Logger:                     workerLogger,
 		Database:                   db,

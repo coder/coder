@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentmetrics"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
@@ -41,7 +40,7 @@ func TestUpdateMetrics_MetricsDoNotExpire(t *testing.T) {
 
 	// given
 	registry := prometheus.NewRegistry()
-	metricsAggregator, err := prometheusmetrics.NewMetricsAggregator(slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), registry, time.Hour, nil) // time.Hour, so metrics won't expire
+	metricsAggregator, err := prometheusmetrics.NewMetricsAggregator(testutil.Logger(t, testutil.WithIgnoreErrors()), registry, time.Hour, nil) // time.Hour, so metrics won't expire
 	require.NoError(t, err)
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
@@ -269,7 +268,7 @@ func TestUpdateMetrics_MetricsExpire(t *testing.T) {
 
 	// given
 	registry := prometheus.NewRegistry()
-	metricsAggregator, err := prometheusmetrics.NewMetricsAggregator(slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), registry, time.Millisecond, agentmetrics.LabelAll)
+	metricsAggregator, err := prometheusmetrics.NewMetricsAggregator(testutil.Logger(t, testutil.WithIgnoreErrors()), registry, time.Millisecond, agentmetrics.LabelAll)
 	require.NoError(t, err)
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
@@ -595,7 +594,7 @@ func TestLabelsAggregation(t *testing.T) {
 
 			// given
 			registry := prometheus.NewRegistry()
-			metricsAggregator, err := prometheusmetrics.NewMetricsAggregator(slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), registry, time.Hour, tc.aggregateOn) // time.Hour, so metrics won't expire
+			metricsAggregator, err := prometheusmetrics.NewMetricsAggregator(testutil.Logger(t, testutil.WithIgnoreErrors()), registry, time.Hour, tc.aggregateOn) // time.Hour, so metrics won't expire
 			require.NoError(t, err)
 
 			ctx, cancelFunc := context.WithCancel(context.Background())
@@ -652,7 +651,7 @@ func benchmarkRunner(b *testing.B, aggregateByLabels []string) {
 
 	// given
 	registry := prometheus.NewRegistry()
-	metricsAggregator := must(prometheusmetrics.NewMetricsAggregator(slogtest.Make(b, &slogtest.Options{IgnoreErrors: true}), registry, time.Hour, aggregateByLabels))
+	metricsAggregator := must(prometheusmetrics.NewMetricsAggregator(testutil.Logger(b, testutil.WithIgnoreErrors()), registry, time.Hour, aggregateByLabels))
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	b.Cleanup(cancelFunc)

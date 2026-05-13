@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentcontextconfig"
 	"github.com/coder/coder/v2/agent/proto"
 	agentsdk "github.com/coder/coder/v2/codersdk/agentsdk"
@@ -31,7 +30,7 @@ func platformAbsPath(parts ...string) string {
 func TestReportConnectionEmpty(t *testing.T) {
 	t.Parallel()
 	connID := uuid.UUID{1}
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	ctx := testutil.Context(t, testutil.WaitShort)
 
 	uut := &agent{

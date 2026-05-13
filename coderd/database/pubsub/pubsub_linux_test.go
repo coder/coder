@@ -17,7 +17,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/database/pubsub/psmock"
@@ -170,7 +169,7 @@ func TestPubsub_Disconnect(t *testing.T) {
 
 	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancelFunc()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	ps, err := pubsub.New(ctx, logger, db, connectionURL)
 	require.NoError(t, err)
 	defer ps.Close()
@@ -355,7 +354,7 @@ func TestMeasureLatency(t *testing.T) {
 		t.Parallel()
 
 		var buf bytes.Buffer
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 		logger = logger.AppendSinks(sloghuman.Sink(&buf))
 
 		lm := pubsub.NewLatencyMeasurer(logger)

@@ -6,7 +6,6 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
@@ -29,7 +28,7 @@ func TestEnterpriseParseGroupClaims(t *testing.T) {
 	t.Run("NoEntitlements", func(t *testing.T) {
 		t.Parallel()
 
-		s := enidpsync.NewSync(slogtest.Make(t, &slogtest.Options{}),
+		s := enidpsync.NewSync(testutil.Logger(t),
 			runtimeconfig.NewManager(),
 			entitlements.New(),
 			idpsync.DeploymentSyncSettings{})
@@ -45,7 +44,7 @@ func TestEnterpriseParseGroupClaims(t *testing.T) {
 	t.Run("NotInAllowList", func(t *testing.T) {
 		t.Parallel()
 
-		s := enidpsync.NewSync(slogtest.Make(t, &slogtest.Options{}),
+		s := enidpsync.NewSync(testutil.Logger(t),
 			runtimeconfig.NewManager(),
 			entitled,
 			idpsync.DeploymentSyncSettings{
@@ -73,7 +72,7 @@ func TestEnterpriseParseGroupClaims(t *testing.T) {
 	t.Run("InAllowList", func(t *testing.T) {
 		t.Parallel()
 
-		s := enidpsync.NewSync(slogtest.Make(t, &slogtest.Options{}),
+		s := enidpsync.NewSync(testutil.Logger(t),
 			runtimeconfig.NewManager(),
 			entitled,
 			idpsync.DeploymentSyncSettings{

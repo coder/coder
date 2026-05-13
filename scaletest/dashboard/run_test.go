@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/scaletest/dashboard"
 	"github.com/coder/coder/v2/testutil"
@@ -45,9 +44,7 @@ func Test_Run(t *testing.T) {
 	client := coderdtest.New(t, nil)
 	_ = coderdtest.CreateFirstUser(t, client)
 
-	log := slogtest.Make(t, &slogtest.Options{
-		IgnoreErrors: true,
-	})
+	log := testutil.Logger(t, testutil.WithIgnoreErrors())
 	m := &testMetrics{}
 	var (
 		waitLoadedCalled atomic.Bool

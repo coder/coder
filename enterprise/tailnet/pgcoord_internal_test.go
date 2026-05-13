@@ -18,7 +18,6 @@ import (
 	gProto "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -378,7 +377,7 @@ func TestGetDebug(t *testing.T) {
 func TestPGCoordinatorUnhealthy(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 
 	ctrl := gomock.NewController(t)
 	mStore := dbmock.NewMockStore(ctrl)

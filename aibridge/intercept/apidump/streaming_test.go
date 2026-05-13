@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
 
@@ -21,7 +21,7 @@ func TestMiddleware_StreamingResponse(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 	clk := quartz.NewMock(t)
 	interceptionID := uuid.New()
 
@@ -99,7 +99,7 @@ func TestMiddleware_PreservesResponseBody(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 	clk := quartz.NewMock(t)
 	interceptionID := uuid.New()
 

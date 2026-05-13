@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge/keypool"
+	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
 
@@ -108,7 +108,7 @@ func TestMarkKeyOnStatus(t *testing.T) {
 				resp,
 				// 401 and 403 cases legitimately log at error
 				// level when marking a key permanent.
-				slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+				testutil.Logger(t, testutil.WithIgnoreErrors()),
 				"test",
 			)
 

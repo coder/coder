@@ -10,14 +10,14 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/provisionersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestTar(t *testing.T) {
 	t.Parallel()
 
-	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	log := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 	t.Run("NoFollowSymlink", func(t *testing.T) {
 		t.Parallel()
@@ -187,7 +187,7 @@ func TestUntar(t *testing.T) {
 	t.Run("Basic", func(t *testing.T) {
 		t.Parallel()
 
-		log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		log := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 		dir := t.TempDir()
 		file, err := os.CreateTemp(dir, "*.tf")
@@ -209,7 +209,7 @@ func TestUntar(t *testing.T) {
 	t.Run("Overwrite", func(t *testing.T) {
 		t.Parallel()
 
-		log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		log := testutil.Logger(t, testutil.WithIgnoreErrors())
 
 		dir1 := t.TempDir()
 		dir2 := t.TempDir()

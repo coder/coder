@@ -28,7 +28,6 @@ import (
 	"tailscale.com/util/dnsname"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
@@ -998,12 +997,8 @@ func TestController_Disconnects(t *testing.T) {
 	t.Parallel()
 	testCtx := testutil.Context(t, testutil.WaitShort)
 	ctx, cancel := context.WithCancel(testCtx)
-	logger := slogtest.Make(t, &slogtest.Options{
-		IgnoredErrorIs: append(slogtest.DefaultIgnoredErrorIs,
-			io.EOF,                   // we get EOF when we simulate a DERPMap error
-			yamux.ErrSessionShutdown, // coordination can throw these when DERP error tears down session
-		),
-	}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoredErrorIs(io.EOF,
+		yamux.ErrSessionShutdown)).Leveled(slog.LevelDebug)
 	agentID := uuid.UUID{0x55}
 	clientID := uuid.UUID{0x66}
 	fCoord := tailnettest.NewFakeCoordinator()
@@ -1220,9 +1215,7 @@ func TestController_WorkspaceUpdates(t *testing.T) {
 	theError := xerrors.New("a bad thing happened")
 	testCtx := testutil.Context(t, testutil.WaitShort)
 	ctx, cancel := context.WithCancel(testCtx)
-	logger := slogtest.Make(t, &slogtest.Options{
-		IgnoredErrorIs: append(slogtest.DefaultIgnoredErrorIs, theError),
-	}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoredErrorIs(theError)).Leveled(slog.LevelDebug)
 
 	fClient := newFakeWorkspaceUpdateClient(testCtx, t)
 	dialer := &fakeWorkspaceUpdatesDialer{
@@ -1863,8 +1856,7 @@ func TestTunnelAllWorkspaceUpdatesController_DNSError(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	dnsError := xerrors.New("a bad thing happened")
-	logger := slogtest.Make(t,
-		&slogtest.Options{IgnoredErrorIs: []error{dnsError}}).
+	logger := testutil.Logger(t, testutil.WithIgnoredErrorIs(dnsError)).
 		Leveled(slog.LevelDebug)
 
 	fDNS := newFakeDNSSetter(ctx, t)
@@ -2004,7 +1996,7 @@ func TestTunnelAllWorkspaceUpdatesController_HandleErrors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitShort)
-			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+			logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 
 			fConn := &fakeCoordinatee{}
 			tsc := tailnet.NewTunnelSrcCoordController(logger, fConn)
@@ -2236,7 +2228,7 @@ func TestTunnelAllWorkspaceUpdatesController_SnapshotClearsInheritedState(t *tes
 func TestBasicDERPController_RewriteDERPMap(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 
 	testDERPMap := &tailcfg.DERPMap{
 		Regions: map[int]*tailcfg.DERPRegion{

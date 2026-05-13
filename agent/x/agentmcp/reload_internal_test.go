@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
@@ -151,7 +150,7 @@ func TestSnapshotChanged(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitLong)
-			logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+			logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 			dir := t.TempDir()
 
 			paths := tc.setup(t, dir)
@@ -186,7 +185,7 @@ func TestSnapshotChanged_MultipleConfigFiles(t *testing.T) {
 	}
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 
 	dir1 := t.TempDir()
 	dir2 := t.TempDir()
@@ -234,7 +233,7 @@ func TestReload(t *testing.T) {
 	t.Run("SingleReloadUpdatesSnapshot", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 		dir := t.TempDir()
 
 		_, entry := fakeMCPServerConfig(t, "srv")
@@ -257,7 +256,7 @@ func TestReload(t *testing.T) {
 	t.Run("ReloadAfterClose", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 
 		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
 		require.NoError(t, m.Close())
@@ -269,7 +268,7 @@ func TestReload(t *testing.T) {
 	t.Run("ConcurrentReloadsCoalesce", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 		dir := t.TempDir()
 
 		_, entry := fakeMCPServerConfig(t, "srv")
@@ -300,7 +299,7 @@ func TestReload(t *testing.T) {
 	t.Run("CallerContextCanceled", func(t *testing.T) {
 		t.Parallel()
 		mgrCtx := testutil.Context(t, testutil.WaitLong)
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 		dir := t.TempDir()
 		paths := []string{filepath.Join(dir, ".mcp.json")}
 
@@ -328,7 +327,7 @@ func TestReload(t *testing.T) {
 	t.Run("SequentialReloadsDiffDetect", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 		dir := t.TempDir()
 
 		_, entry1 := fakeMCPServerConfig(t, "srv1")
@@ -360,7 +359,7 @@ func TestReload(t *testing.T) {
 	t.Run("PerServerConnectFailureUpdatesSnapshot", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 		dir := t.TempDir()
 
 		// Config with a nonexistent binary: connect will fail.
@@ -382,7 +381,7 @@ func TestReload(t *testing.T) {
 	t.Run("EmptyConfigClosesServers", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 		dir := t.TempDir()
 
 		_, entry := fakeMCPServerConfig(t, "srv")
@@ -417,7 +416,7 @@ func TestDifferentialReload(t *testing.T) {
 	t.Run("UnchangedServerReusesClient", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 		dir := t.TempDir()
 
 		_, entry := fakeMCPServerConfig(t, "srv")
@@ -458,7 +457,7 @@ func TestDifferentialReload(t *testing.T) {
 	t.Run("ChangedServerGetsNewClient", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 		dir := t.TempDir()
 
 		_, entry := fakeMCPServerConfig(t, "srv")
@@ -491,7 +490,7 @@ func TestDifferentialReload(t *testing.T) {
 	t.Run("RemovedServerIsClosed", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 		dir := t.TempDir()
 
 		_, entryA := fakeMCPServerConfig(t, "srvA")
@@ -534,7 +533,7 @@ func TestDifferentialReload(t *testing.T) {
 	t.Run("ConnectFailureRetainsOldClient", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 		dir := t.TempDir()
 
 		_, entry := fakeMCPServerConfig(t, "srv")
@@ -575,7 +574,7 @@ func TestDifferentialReload(t *testing.T) {
 	t.Run("PostReloadToolCallReachesKeptServer", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 		dir := t.TempDir()
 
 		_, entry := fakeMCPServerConfig(t, "srv")
@@ -624,7 +623,7 @@ func TestReload_FirstBootPath(t *testing.T) {
 	}
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 	dir := t.TempDir()
 
 	_, entry := fakeMCPServerConfig(t, "srv")
@@ -653,7 +652,7 @@ func TestReload_NoopWhenUnchanged(t *testing.T) {
 	}
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 	dir := t.TempDir()
 
 	_, entry := fakeMCPServerConfig(t, "srv")
@@ -698,7 +697,7 @@ func TestClose_SuppressesSubprocessExitError(t *testing.T) {
 	}
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 	dir := t.TempDir()
 
 	_, entry := fakeMCPServerConfig(t, "srv")

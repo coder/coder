@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -198,7 +197,7 @@ func Test_Runner(t *testing.T) {
 
 		// need to include our own logger because the provisioner (rightly) drops error logs when we shut down the
 		// test with a build in progress.
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 			Logger:                   &logger,
@@ -472,7 +471,7 @@ func Test_Runner(t *testing.T) {
 	t.Run("FailedBuild", func(t *testing.T) {
 		t.Parallel()
 
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
 			Logger:                   &logger,
@@ -559,7 +558,7 @@ func goEventuallyStartFakeAgent(ctx context.Context, t *testing.T, client *coder
 		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(agentToken))
 		agentCloser := agent.New(agent.Options{
 			Client: agentClient,
-			Logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).
+			Logger: testutil.Logger(t, testutil.WithIgnoreErrors()).
 				Named("agent").Leveled(slog.LevelWarn),
 		})
 		resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)

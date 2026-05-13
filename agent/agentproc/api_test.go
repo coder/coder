@@ -19,7 +19,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentchat"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentgit"
@@ -133,9 +132,7 @@ func newTestAPIWithUpdateEnv(t *testing.T, updateEnv func([]string) ([]string, e
 func newTestAPIWithOptions(t *testing.T, updateEnv func([]string) ([]string, error), workingDir func() string) http.Handler {
 	t.Helper()
 
-	logger := slogtest.Make(t, &slogtest.Options{
-		IgnoreErrors: true,
-	}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	api := agentproc.NewAPI(logger, agentexec.DefaultExecer, updateEnv, nil, workingDir)
 	t.Cleanup(func() {
 		_ = api.Close()
@@ -1083,7 +1080,7 @@ func TestHandleStartProcess_ChatHeaders_EmptyWorkDir_StillNotifies(t *testing.T)
 	ch, unsub := pathStore.Subscribe(chatID)
 	defer unsub()
 
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 	api := agentproc.NewAPI(logger, agentexec.DefaultExecer, func(current []string) ([]string, error) {
 		return current, nil
 	}, pathStore, nil)

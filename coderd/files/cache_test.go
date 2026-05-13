@@ -14,7 +14,6 @@ import (
 	"go.uber.org/mock/gomock"
 	"golang.org/x/sync/errgroup"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/promhelp"
 	"github.com/coder/coder/v2/coderd/database"
@@ -340,7 +339,7 @@ func TestRelease(t *testing.T) {
 func cacheAuthzSetup(t *testing.T) (database.Store, *files.Cache, *coderdtest.RecordingAuthorizer) {
 	t.Helper()
 
-	logger := slogtest.Make(t, &slogtest.Options{})
+	logger := testutil.Logger(t)
 	reg := prometheus.NewRegistry()
 
 	db, _ := dbtestutil.NewDB(t)

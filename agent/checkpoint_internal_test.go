@@ -6,7 +6,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -23,7 +22,7 @@ func TestCheckpoint_CompleteWait(t *testing.T) {
 
 func TestCheckpoint_CompleteTwice(t *testing.T) {
 	t.Parallel()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	ctx := testutil.Context(t, testutil.WaitShort)
 	uut := newCheckpoint(logger)
 	err := xerrors.New("test")

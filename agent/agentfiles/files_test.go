@@ -23,7 +23,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentchat"
 	"github.com/coder/coder/v2/agent/agentfiles"
 	"github.com/coder/coder/v2/agent/agentgit"
@@ -115,7 +114,7 @@ func TestReadFile(t *testing.T) {
 	tmpdir := os.TempDir()
 	noPermsFilePath := filepath.Join(tmpdir, "no-perms")
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	fs := newTestFs(afero.NewMemMapFs(), func(call, file string) error {
 		if file == noPermsFilePath {
 			return os.ErrPermission
@@ -295,7 +294,7 @@ func TestWriteFile(t *testing.T) {
 	tmpdir := os.TempDir()
 	noPermsFilePath := filepath.Join(tmpdir, "no-perms-file")
 	noPermsDirPath := filepath.Join(tmpdir, "no-perms-dir")
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	fs := newTestFs(afero.NewMemMapFs(), func(call, file string) error {
 		if file == noPermsFilePath || file == noPermsDirPath {
 			return os.ErrPermission
@@ -404,7 +403,7 @@ func TestWriteFile(t *testing.T) {
 func TestWriteFile_ReportsIOError(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	fs := afero.NewMemMapFs()
 	api := agentfiles.NewAPI(logger, fs, nil)
 
@@ -445,7 +444,7 @@ func TestWriteFile_PreservesPermissions(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 	osFs := afero.NewOsFs()
 	api := agentfiles.NewAPI(logger, osFs, nil)
 
@@ -484,7 +483,7 @@ func TestEditFiles(t *testing.T) {
 	tmpdir := os.TempDir()
 	noPermsFilePath := filepath.Join(tmpdir, "no-perms-file")
 	failRenameFilePath := filepath.Join(tmpdir, "fail-rename")
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	fs := newTestFs(afero.NewMemMapFs(), func(call, file string) error {
 		if file == noPermsFilePath {
 			return &os.PathError{
@@ -1083,7 +1082,7 @@ func TestEditFiles_PreservesPermissions(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 	osFs := afero.NewOsFs()
 	api := agentfiles.NewAPI(logger, osFs, nil)
 
@@ -1140,7 +1139,7 @@ func TestHandleWriteFile_ChatHeaders_UpdatesPathStore(t *testing.T) {
 	t.Parallel()
 
 	pathStore := agentgit.NewPathStore()
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	fs := afero.NewMemMapFs()
 	api := agentfiles.NewAPI(logger, fs, pathStore)
 
@@ -1174,7 +1173,7 @@ func TestHandleWriteFile_NoChatHeaders_NoPathStoreUpdate(t *testing.T) {
 	t.Parallel()
 
 	pathStore := agentgit.NewPathStore()
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	fs := afero.NewMemMapFs()
 	api := agentfiles.NewAPI(logger, fs, pathStore)
 
@@ -1198,7 +1197,7 @@ func TestHandleWriteFile_Failure_NoPathStoreUpdate(t *testing.T) {
 	t.Parallel()
 
 	pathStore := agentgit.NewPathStore()
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	fs := afero.NewMemMapFs()
 	api := agentfiles.NewAPI(logger, fs, pathStore)
 
@@ -1225,7 +1224,7 @@ func TestHandleEditFiles_ChatHeaders_UpdatesPathStore(t *testing.T) {
 	t.Parallel()
 
 	pathStore := agentgit.NewPathStore()
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	fs := afero.NewMemMapFs()
 	api := agentfiles.NewAPI(logger, fs, pathStore)
 
@@ -1265,7 +1264,7 @@ func TestHandleEditFiles_Failure_NoPathStoreUpdate(t *testing.T) {
 	t.Parallel()
 
 	pathStore := agentgit.NewPathStore()
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	fs := afero.NewMemMapFs()
 	api := agentfiles.NewAPI(logger, fs, pathStore)
 
@@ -1305,7 +1304,7 @@ func TestReadFileLines(t *testing.T) {
 	tmpdir := os.TempDir()
 	noPermsFilePath := filepath.Join(tmpdir, "no-perms-lines")
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	fs := newTestFs(afero.NewMemMapFs(), func(call, file string) error {
 		if file == noPermsFilePath {
 			return os.ErrPermission
@@ -1492,7 +1491,7 @@ func TestWriteFile_FollowsSymlinks(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 	osFs := afero.NewOsFs()
 	api := agentfiles.NewAPI(logger, osFs, nil)
 
@@ -1535,7 +1534,7 @@ func TestEditFiles_FollowsSymlinks(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 	osFs := afero.NewOsFs()
 	api := agentfiles.NewAPI(logger, osFs, nil)
 
@@ -1590,7 +1589,7 @@ func TestEditFiles_FileResults(t *testing.T) {
 	t.Parallel()
 
 	tmpdir := os.TempDir()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t).Leveled(slog.LevelDebug)
 
 	t.Run("DiffRequestedSingleFile", func(t *testing.T) {
 		t.Parallel()
@@ -1816,7 +1815,7 @@ func TestFuzzyReplace_EndingAndWhitespace(t *testing.T) {
 	t.Parallel()
 
 	tmpdir := os.TempDir()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 
 	type edit struct {
 		search, replace string
@@ -2085,7 +2084,7 @@ func TestFuzzyReplace_EndingNormalization(t *testing.T) {
 	t.Parallel()
 
 	tmpdir := os.TempDir()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 
 	type edit struct {
 		search, replace string
@@ -2230,7 +2229,7 @@ func TestFuzzyReplace_FuzzyCollapse_PreservesNextLine(t *testing.T) {
 	t.Parallel()
 
 	tmpdir := os.TempDir()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 
 	type edit struct {
 		search, replace string
@@ -2333,7 +2332,7 @@ func TestEditFiles_WhitespaceAndLineEndings(t *testing.T) {
 	t.Parallel()
 
 	tmpdir := os.TempDir()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 
 	cases := []struct {
 		name            string
@@ -2504,7 +2503,7 @@ func TestFuzzyReplace_Rejects(t *testing.T) {
 	t.Parallel()
 
 	tmpdir := os.TempDir()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 
 	type edit struct {
 		search, replace string
@@ -2630,7 +2629,7 @@ func TestEditFiles_DuplicatePath_Rejects(t *testing.T) {
 	t.Parallel()
 
 	tmpdir := os.TempDir()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	fs := afero.NewMemMapFs()
 	api := agentfiles.NewAPI(logger, fs, nil)
 	path := filepath.Join(tmpdir, "dup-path")
@@ -2676,7 +2675,7 @@ func TestEditFiles_DuplicatePath_SymlinkAliasRejects(t *testing.T) {
 		t.Skip("symlinks are not reliably supported on Windows")
 	}
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	dir := t.TempDir()
 	osFs := afero.NewOsFs()
 	api := agentfiles.NewAPI(logger, osFs, nil)
@@ -2733,7 +2732,7 @@ func TestEditFiles_ReplaceAll_FuzzyIndentGap(t *testing.T) {
 	t.Parallel()
 
 	tmpdir := os.TempDir()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	fs := afero.NewMemMapFs()
 	api := agentfiles.NewAPI(logger, fs, nil)
 	path := filepath.Join(tmpdir, "replaceall-fuzzyindent-gap")
@@ -2801,7 +2800,7 @@ func TestEditFiles_FuzzyIndent_InsertionLevelAware(t *testing.T) {
 	t.Parallel()
 
 	tmpdir := os.TempDir()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 
 	type edit struct {
 		search, replace string
@@ -3126,7 +3125,7 @@ func TestFuzzyReplace_Expansion_PreservesFileIndent(t *testing.T) {
 	t.Parallel()
 
 	tmpdir := os.TempDir()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	fs := afero.NewMemMapFs()
 	api := agentfiles.NewAPI(logger, fs, nil)
 	path := filepath.Join(tmpdir, "fuzzy-expansion-gap")
@@ -3200,7 +3199,7 @@ func TestFuzzyReplace_Hints(t *testing.T) {
 	t.Parallel()
 
 	tmpdir := os.TempDir()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 
 	type edit struct {
 		search, replace string

@@ -18,7 +18,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -263,7 +262,7 @@ func TestOneWayWebSocketEventSender(t *testing.T) {
 			req.Proto = p.proto
 
 			writer := newOneWayWriter(t)
-			_, _, err := httpapi.OneWayWebSocketEventSender(slogtest.Make(t, nil))(writer, req)
+			_, _, err := httpapi.OneWayWebSocketEventSender(testutil.Logger(t))(writer, req)
 			require.ErrorContains(t, err, p.proto)
 		}
 	})
@@ -274,7 +273,7 @@ func TestOneWayWebSocketEventSender(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		req := newBaseRequest(ctx)
 		writer := newOneWayWriter(t)
-		send, _, err := httpapi.OneWayWebSocketEventSender(slogtest.Make(t, nil))(writer, req)
+		send, _, err := httpapi.OneWayWebSocketEventSender(testutil.Logger(t))(writer, req)
 		require.NoError(t, err)
 
 		serverPayload := codersdk.ServerSentEvent{
@@ -300,7 +299,7 @@ func TestOneWayWebSocketEventSender(t *testing.T) {
 		ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitShort))
 		req := newBaseRequest(ctx)
 		writer := newOneWayWriter(t)
-		_, done, err := httpapi.OneWayWebSocketEventSender(slogtest.Make(t, nil))(writer, req)
+		_, done, err := httpapi.OneWayWebSocketEventSender(testutil.Logger(t))(writer, req)
 		require.NoError(t, err)
 
 		successC := make(chan bool)
@@ -324,7 +323,7 @@ func TestOneWayWebSocketEventSender(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		req := newBaseRequest(ctx)
 		writer := newOneWayWriter(t)
-		_, done, err := httpapi.OneWayWebSocketEventSender(slogtest.Make(t, nil))(writer, req)
+		_, done, err := httpapi.OneWayWebSocketEventSender(testutil.Logger(t))(writer, req)
 		require.NoError(t, err)
 
 		successC := make(chan bool)
@@ -354,7 +353,7 @@ func TestOneWayWebSocketEventSender(t *testing.T) {
 		ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitShort))
 		req := newBaseRequest(ctx)
 		writer := newOneWayWriter(t)
-		send, done, err := httpapi.OneWayWebSocketEventSender(slogtest.Make(t, nil))(writer, req)
+		send, done, err := httpapi.OneWayWebSocketEventSender(testutil.Logger(t))(writer, req)
 		require.NoError(t, err)
 
 		successC := make(chan bool)
@@ -395,7 +394,7 @@ func TestOneWayWebSocketEventSender(t *testing.T) {
 		ctx := testutil.Context(t, timeout)
 		req := newBaseRequest(ctx)
 		writer := newOneWayWriter(t)
-		_, _, err := httpapi.OneWayWebSocketEventSender(slogtest.Make(t, nil))(writer, req)
+		_, _, err := httpapi.OneWayWebSocketEventSender(testutil.Logger(t))(writer, req)
 		require.NoError(t, err)
 
 		type Result struct {

@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -78,7 +77,7 @@ func newInternalTestServer(
 		db,
 		ps,
 		keys,
-		slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		testutil.Logger(t, testutil.WithIgnoreErrors()),
 		nil,
 	)
 }
@@ -95,7 +94,7 @@ func newInternalTestServerWithClock(
 		db,
 		ps,
 		keys,
-		slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		testutil.Logger(t, testutil.WithIgnoreErrors()),
 		clk,
 	)
 }
@@ -910,7 +909,7 @@ func TestSpawnAgent_GeneralOverrideLogsAndFallsBackWhenCredentialsUnavailable(t 
 
 	db, ps := dbtestutil.NewDB(t)
 	logSink := &subagentTestLogSink{}
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).AppendSinks(logSink)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).AppendSinks(logSink)
 	server := newInternalTestServerWithLogger(t, db, ps, chatprovider.ProviderAPIKeys{}, logger)
 
 	ctx := chatdTestContext(t)
@@ -968,7 +967,7 @@ func TestSpawnAgent_GeneralOverrideLogsAndFallsBackWhenProviderDisabled(t *testi
 
 	db, ps := dbtestutil.NewDB(t)
 	logSink := &subagentTestLogSink{}
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).AppendSinks(logSink)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).AppendSinks(logSink)
 	server := newInternalTestServerWithLogger(
 		t,
 		db,
@@ -1038,7 +1037,7 @@ func TestResolveConfiguredModelOverride_AcceptsAmbientCredentialsProvider(
 	t.Parallel()
 
 	logSink := &subagentTestLogSink{}
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).AppendSinks(logSink)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).AppendSinks(logSink)
 	server := &Server{logger: logger}
 	ctx := chatdTestContext(t)
 	ownerID := uuid.New()
@@ -1995,7 +1994,7 @@ func TestSpawnAgent_ComputerUseRejectsInvalidConfiguredProviderWithStableReason(
 	require.NoError(t, db.UpsertChatDesktopEnabled(ctx, true))
 	require.NoError(t, db.UpsertChatComputerUseProvider(ctx, "bogus"))
 	logSink := &subagentTestLogSink{}
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).AppendSinks(logSink)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).AppendSinks(logSink)
 	server := newInternalTestServerWithLogger(t, db, ps, chatprovider.ProviderAPIKeys{}, logger)
 
 	user, org, model := seedInternalChatDeps(t, db)

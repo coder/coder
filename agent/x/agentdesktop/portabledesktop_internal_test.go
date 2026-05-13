@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/pty"
 	"github.com/coder/coder/v2/testutil"
@@ -76,7 +75,7 @@ func (r *recordedExecer) PTYCommandContext(ctx context.Context, cmd string, args
 func TestPortableDesktop_Start_ParsesOutput(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 
 	// The "up" script prints the JSON line then sleeps until
 	// the context is canceled (simulating a long-running process).
@@ -110,7 +109,7 @@ func TestPortableDesktop_Start_ParsesOutput(t *testing.T) {
 func TestPortableDesktop_Start_Idempotent(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 
 	rec := &recordedExecer{
 		scripts: map[string]string{
@@ -153,7 +152,7 @@ func TestPortableDesktop_Start_Idempotent(t *testing.T) {
 func TestPortableDesktop_Screenshot(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 
 	rec := &recordedExecer{
 		scripts: map[string]string{
@@ -179,7 +178,7 @@ func TestPortableDesktop_Screenshot(t *testing.T) {
 func TestPortableDesktop_Screenshot_WithTargetDimensions(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 
 	rec := &recordedExecer{
 		scripts: map[string]string{
@@ -279,7 +278,7 @@ func TestPortableDesktop_MouseMethods(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			logger := slogtest.Make(t, nil)
+			logger := testutil.Logger(t)
 			rec := &recordedExecer{
 				scripts: map[string]string{
 					"mouse": `echo ok`,
@@ -364,7 +363,7 @@ func TestPortableDesktop_KeyboardMethods(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			logger := slogtest.Make(t, nil)
+			logger := testutil.Logger(t)
 			rec := &recordedExecer{
 				scripts: map[string]string{
 					"keyboard": `echo ok`,
@@ -397,7 +396,7 @@ func TestPortableDesktop_KeyboardMethods(t *testing.T) {
 func TestPortableDesktop_CursorPosition(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	rec := &recordedExecer{
 		scripts: map[string]string{
 			"cursor": `echo '{"x":100,"y":200}'`,
@@ -420,7 +419,7 @@ func TestPortableDesktop_CursorPosition(t *testing.T) {
 func TestPortableDesktop_Close(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 
 	rec := &recordedExecer{
 		scripts: map[string]string{
@@ -466,7 +465,7 @@ func TestEnsureBinary_UsesCachedBinPath(t *testing.T) {
 
 	// When binPath is already set, ensureBinary should return
 	// immediately without doing any work.
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	pd := &portableDesktop{
 		logger:       logger,
 		execer:       agentexec.DefaultExecer,
@@ -488,7 +487,7 @@ func TestEnsureBinary_UsesScriptBinDir(t *testing.T) {
 	require.NoError(t, os.WriteFile(binPath, []byte("#!/bin/sh\n"), 0o600))
 	require.NoError(t, os.Chmod(binPath, 0o755))
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	pd := &portableDesktop{
 		logger:       logger,
 		execer:       agentexec.DefaultExecer,
@@ -516,7 +515,7 @@ func TestEnsureBinary_ScriptBinDirNotExecutable(t *testing.T) {
 	require.NoError(t, os.WriteFile(binPath, []byte("#!/bin/sh\n"), 0o600))
 	_ = binPath
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	pd := &portableDesktop{
 		logger:       logger,
 		execer:       agentexec.DefaultExecer,
@@ -535,7 +534,7 @@ func TestEnsureBinary_NotFound(t *testing.T) {
 	// Cannot use t.Parallel because t.Setenv modifies the process
 	// environment.
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	pd := &portableDesktop{
 		logger:       logger,
 		execer:       agentexec.DefaultExecer,
@@ -553,7 +552,7 @@ func TestEnsureBinary_NotFound(t *testing.T) {
 func TestPortableDesktop_StartRecording(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	rec := &recordedExecer{
 		scripts: map[string]string{
 			"record": `trap 'exit 0' INT; sleep 120 & wait`,
@@ -597,7 +596,7 @@ func TestPortableDesktop_StartRecording(t *testing.T) {
 func TestPortableDesktop_StartRecording_ConcurrentLimit(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	rec := &recordedExecer{
 		scripts: map[string]string{
 			"record": `trap 'exit 0' INT; sleep 120 & wait`,
@@ -633,7 +632,7 @@ func TestPortableDesktop_StartRecording_ConcurrentLimit(t *testing.T) {
 func TestPortableDesktop_StopRecording_ReturnsArtifact(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	rec := &recordedExecer{
 		scripts: map[string]string{
 			// Use exec so SIGINT is delivered directly to sleep
@@ -679,7 +678,7 @@ func TestPortableDesktop_StopRecording_ReturnsArtifact(t *testing.T) {
 func TestPortableDesktop_StopRecording_WithThumbnail(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	rec := &recordedExecer{
 		scripts: map[string]string{
 			// See TestPortableDesktop_StopRecording_ReturnsArtifact
@@ -738,7 +737,7 @@ func TestPortableDesktop_StopRecording_WithThumbnail(t *testing.T) {
 func TestPortableDesktop_StopRecording_UnknownID(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	rec := &recordedExecer{
 		scripts: map[string]string{
 			"record": `trap 'exit 0' INT; sleep 120 & wait`,
@@ -771,7 +770,7 @@ var _ Desktop = (*portableDesktop)(nil)
 func TestPortableDesktop_IdleTimeout_StopsRecordings(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	rec := &recordedExecer{
 		scripts: map[string]string{
 			"record": `trap 'exit 0' INT; sleep 120 & wait`,
@@ -842,7 +841,7 @@ func TestPortableDesktop_IdleTimeout_StopsRecordings(t *testing.T) {
 func TestPortableDesktop_IdleTimeout_ActivityResetsTimer(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	rec := &recordedExecer{
 		scripts: map[string]string{
 			"record": `trap 'exit 0' INT; sleep 120 & wait`,
@@ -906,7 +905,7 @@ func TestPortableDesktop_IdleTimeout_ActivityResetsTimer(t *testing.T) {
 func TestPortableDesktop_IdleTimeout_MultipleRecordings(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	rec := &recordedExecer{
 		scripts: map[string]string{
 			"record": `trap 'exit 0' INT; sleep 120 & wait`,
@@ -977,7 +976,7 @@ func TestPortableDesktop_IdleTimeout_MultipleRecordings(t *testing.T) {
 func TestPortableDesktop_StartRecording_ReturnsErrDesktopClosed(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	rec := &recordedExecer{
 		scripts: map[string]string{
 			"up": `printf '{"vncPort":5901,"geometry":"1920x1080"}\n' && sleep 120`,
@@ -1009,7 +1008,7 @@ func TestPortableDesktop_StartRecording_ReturnsErrDesktopClosed(t *testing.T) {
 func TestPortableDesktop_Start_ReturnsErrDesktopClosed(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	rec := &recordedExecer{
 		scripts: map[string]string{
 			"up": `printf '{"vncPort":5901,"geometry":"1920x1080"}\n' && sleep 120`,

@@ -15,7 +15,6 @@ import (
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
@@ -23,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func newCreateWorkspaceMockStore(ctrl *gomock.Controller) *dbmock.MockStore {
@@ -300,7 +300,7 @@ func TestCreateWorkspace_PrefersChatSuffixAgent(t *testing.T) {
 		CreateFn:    createFn,
 		AgentConnFn: agentConnFn,
 		WorkspaceMu: &sync.Mutex{},
-		Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		Logger:      testutil.Logger(t, testutil.WithIgnoreErrors()),
 	})
 
 	input := fmt.Sprintf(`{"template_id":%q,"name":"test-chat-agent"}`, templateID.String())
@@ -402,7 +402,7 @@ func TestCreateWorkspace_ReturnsSelectionErrorImmediately(t *testing.T) {
 			return nil, nil, xerrors.New("unexpected agent dial")
 		},
 		WorkspaceMu: &sync.Mutex{},
-		Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		Logger:      testutil.Logger(t, testutil.WithIgnoreErrors()),
 	})
 
 	input := fmt.Sprintf(`{"template_id":%q,"name":"test-selection-error"}`, templateID.String())
@@ -498,7 +498,7 @@ func TestCreateWorkspace_PostCreationBuildFailure(t *testing.T) {
 
 		CreateFn:    createFn,
 		WorkspaceMu: &sync.Mutex{},
-		Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		Logger:      testutil.Logger(t, testutil.WithIgnoreErrors()),
 	})
 
 	input := fmt.Sprintf(`{"template_id":%q,"name":"test-build-fail"}`, templateID.String())
@@ -611,7 +611,7 @@ func TestCreateWorkspace_PostCreationQuotaFailure(t *testing.T) {
 		OwnerID:     ownerID,
 		CreateFn:    createFn,
 		WorkspaceMu: &sync.Mutex{},
-		Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		Logger:      testutil.Logger(t, testutil.WithIgnoreErrors()),
 	})
 
 	input := fmt.Sprintf(`{"template_id":%q,"name":"test-quota-fail"}`, templateID.String())
@@ -742,7 +742,7 @@ func TestCreateWorkspace_ExistingBuildQuotaFailure(t *testing.T) {
 			return codersdk.Workspace{}, nil
 		},
 		WorkspaceMu: &sync.Mutex{},
-		Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		Logger:      testutil.Logger(t, testutil.WithIgnoreErrors()),
 	})
 
 	input := fmt.Sprintf(`{"template_id":%q,"name":"test-existing-quota-fail"}`, templateID.String())
@@ -816,7 +816,7 @@ func TestCreateWorkspace_ResponderErrorPreservesStructuredFields(t *testing.T) {
 			})
 		},
 		WorkspaceMu: &sync.Mutex{},
-		Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		Logger:      testutil.Logger(t, testutil.WithIgnoreErrors()),
 	})
 
 	input := fmt.Sprintf(`{"template_id":%q,"name":"test-structured-error"}`, templateID.String())
@@ -952,7 +952,7 @@ func TestCreateWorkspace_GlobalTTL(t *testing.T) {
 
 				CreateFn:    createFn,
 				WorkspaceMu: &sync.Mutex{},
-				Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+				Logger:      testutil.Logger(t, testutil.WithIgnoreErrors()),
 			})
 
 			input := fmt.Sprintf(`{"template_id":%q,"name":"test-ws-%s"}`, templateID.String(), tc.name)
@@ -1025,7 +1025,7 @@ func TestCreateWorkspace_RejectsCrossOrgTemplate(t *testing.T) {
 			return codersdk.Workspace{}, nil
 		},
 		WorkspaceMu: &sync.Mutex{},
-		Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		Logger:      testutil.Logger(t, testutil.WithIgnoreErrors()),
 	})
 
 	input := fmt.Sprintf(`{"template_id":%q}`, templateID.String())
@@ -1087,7 +1087,7 @@ func TestCreateWorkspace_BlocksExternalTemplate(t *testing.T) {
 			return codersdk.Workspace{}, nil
 		},
 		WorkspaceMu: &sync.Mutex{},
-		Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		Logger:      testutil.Logger(t, testutil.WithIgnoreErrors()),
 	})
 
 	input := fmt.Sprintf(`{"template_id":%q}`, templateID.String())
@@ -1514,7 +1514,7 @@ func TestWaitForBuild_CanceledJob(t *testing.T) {
 
 		CreateFn:    createFn,
 		WorkspaceMu: &sync.Mutex{},
-		Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		Logger:      testutil.Logger(t, testutil.WithIgnoreErrors()),
 	})
 
 	input := fmt.Sprintf(`{"template_id":%q,"name":"test-build-cancel"}`, templateID.String())
@@ -1755,7 +1755,7 @@ func TestCreateWorkspace_OnChatUpdatedFiresAfterBuild(t *testing.T) {
 
 		CreateFn:    createFn,
 		WorkspaceMu: &sync.Mutex{},
-		Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		Logger:      testutil.Logger(t, testutil.WithIgnoreErrors()),
 		OnChatUpdated: func(chat database.Chat) {
 			mu.Lock()
 			callbackChats = append(callbackChats, chat)
@@ -1914,7 +1914,7 @@ func TestCreateWorkspace_WithPresetID(t *testing.T) {
 		CreateFn:    createFn,
 		AgentConnFn: agentConnFn,
 		WorkspaceMu: &sync.Mutex{},
-		Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		Logger:      testutil.Logger(t, testutil.WithIgnoreErrors()),
 	})
 
 	input := fmt.Sprintf(
@@ -1947,7 +1947,7 @@ func TestCreateWorkspace_InvalidPresetID(t *testing.T) {
 			return codersdk.Workspace{}, nil
 		},
 		WorkspaceMu: &sync.Mutex{},
-		Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		Logger:      testutil.Logger(t, testutil.WithIgnoreErrors()),
 	})
 
 	input := fmt.Sprintf(
@@ -1995,7 +1995,7 @@ func TestCreateWorkspace_WithPresetAndParams(t *testing.T) {
 		CreateFn:    createFn,
 		AgentConnFn: agentConnFn,
 		WorkspaceMu: &sync.Mutex{},
-		Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		Logger:      testutil.Logger(t, testutil.WithIgnoreErrors()),
 	})
 
 	input := fmt.Sprintf(

@@ -14,7 +14,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
@@ -668,7 +667,7 @@ func TestStartWorkspace(t *testing.T) {
 				return codersdk.WorkspaceBuild{}, nil
 			},
 			WorkspaceMu:   &sync.Mutex{},
-			Logger:        slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+			Logger:        testutil.Logger(t, testutil.WithIgnoreErrors()),
 			OnChatUpdated: func(_ database.Chat) { onChatUpdatedCalled.Store(true) },
 		})
 
@@ -743,7 +742,7 @@ func TestStartWorkspace(t *testing.T) {
 		authzDB := dbauthz.New(
 			db,
 			rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()),
-			slogtest.Make(t, nil),
+			testutil.Logger(t),
 			testAccessControlStorePointer(),
 		)
 		jobRead := make(chan struct{}, 1)
@@ -759,7 +758,7 @@ func TestStartWorkspace(t *testing.T) {
 				return codersdk.WorkspaceBuild{}, nil
 			},
 			WorkspaceMu: &sync.Mutex{},
-			Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+			Logger:      testutil.Logger(t, testutil.WithIgnoreErrors()),
 		})
 
 		type toolResult struct {
@@ -862,7 +861,7 @@ func TestStartWorkspace(t *testing.T) {
 				return nil, func() {}, nil
 			},
 			WorkspaceMu: &sync.Mutex{},
-			Logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+			Logger:      testutil.Logger(t, testutil.WithIgnoreErrors()),
 		})
 
 		type toolResult struct {

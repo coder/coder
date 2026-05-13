@@ -14,8 +14,8 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge/intercept/eventstream"
+	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
 
@@ -41,7 +41,7 @@ func TestEventStream_LogsWarning_WhenFlushIsSlow(t *testing.T) {
 	t.Parallel()
 
 	var buf strings.Builder
-	logger := slogtest.Make(t, nil).AppendSinks(sloghuman.Sink(&buf)).Leveled(slog.LevelWarn)
+	logger := testutil.Logger(t).AppendSinks(sloghuman.Sink(&buf)).Leveled(slog.LevelWarn)
 	ctx := context.Background()
 	clk := quartz.NewMock(t)
 
@@ -79,7 +79,7 @@ func TestEventStream_NoWarning_WhenFlushIsFast(t *testing.T) {
 	t.Parallel()
 
 	var buf strings.Builder
-	logger := slogtest.Make(t, nil).AppendSinks(sloghuman.Sink(&buf)).Leveled(slog.LevelWarn)
+	logger := testutil.Logger(t).AppendSinks(sloghuman.Sink(&buf)).Leveled(slog.LevelWarn)
 	ctx := context.Background()
 	clk := quartz.NewMock(t)
 

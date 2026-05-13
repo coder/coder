@@ -6,7 +6,6 @@ import (
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -18,7 +17,7 @@ func TestWriteSecretFiles(t *testing.T) {
 		t.Parallel()
 		fs := afero.NewMemMapFs()
 		ctx := testutil.Context(t, testutil.WaitShort)
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		writeSecretFiles(ctx, logger, fs, "/home/coder", []agentsdk.WorkspaceSecret{
 			{FilePath: "/etc/myapp/config.json", Value: []byte(`{"key":"val"}`)},
@@ -41,7 +40,7 @@ func TestWriteSecretFiles(t *testing.T) {
 		t.Parallel()
 		fs := afero.NewMemMapFs()
 		ctx := testutil.Context(t, testutil.WaitShort)
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		writeSecretFiles(ctx, logger, fs, "/home/coder", []agentsdk.WorkspaceSecret{
 			{FilePath: "~/.ssh/id_rsa", Value: []byte("private-key")},
@@ -64,7 +63,7 @@ func TestWriteSecretFiles(t *testing.T) {
 		t.Parallel()
 		fs := afero.NewMemMapFs()
 		ctx := testutil.Context(t, testutil.WaitShort)
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		writeSecretFiles(ctx, logger, fs, "", []agentsdk.WorkspaceSecret{
 			{FilePath: "~/.config/token", Value: []byte("token")},
@@ -79,7 +78,7 @@ func TestWriteSecretFiles(t *testing.T) {
 		t.Parallel()
 		fs := afero.NewMemMapFs()
 		ctx := testutil.Context(t, testutil.WaitShort)
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		writeSecretFiles(ctx, logger, fs, "/home/coder", []agentsdk.WorkspaceSecret{
 			{EnvName: "MY_TOKEN", Value: []byte("token")},
@@ -95,7 +94,7 @@ func TestWriteSecretFiles(t *testing.T) {
 		t.Parallel()
 		fs := afero.NewMemMapFs()
 		ctx := testutil.Context(t, testutil.WaitShort)
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		writeSecretFiles(ctx, logger, fs, "/home/coder", []agentsdk.WorkspaceSecret{
 			{FilePath: "/etc/secret-a", Value: []byte("aaa")},
@@ -116,7 +115,7 @@ func TestWriteSecretFiles(t *testing.T) {
 		t.Parallel()
 		fs := afero.NewMemMapFs()
 		ctx := testutil.Context(t, testutil.WaitShort)
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		require.NoError(t, afero.WriteFile(fs, "/secret", []byte("old"), 0o644))
 
@@ -140,7 +139,7 @@ func TestWriteSecretFiles(t *testing.T) {
 		t.Parallel()
 		fs := afero.NewMemMapFs()
 		ctx := testutil.Context(t, testutil.WaitShort)
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		// "~/collide" and "/home/coder/collide" resolve to the same
 		// absolute path. The later secret should win.
@@ -158,7 +157,7 @@ func TestWriteSecretFiles(t *testing.T) {
 		t.Parallel()
 		fs := afero.NewMemMapFs()
 		ctx := testutil.Context(t, testutil.WaitShort)
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		writeSecretFiles(ctx, logger, fs, "/home/coder", nil)
 
@@ -171,7 +170,7 @@ func TestWriteSecretFiles(t *testing.T) {
 		t.Parallel()
 		fs := afero.NewMemMapFs()
 		ctx := testutil.Context(t, testutil.WaitShort)
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 
 		binaryData := []byte{0x00, 0x01, 0x02, 0xFF, 0xFE, 0xFD}
 		writeSecretFiles(ctx, logger, fs, "", []agentsdk.WorkspaceSecret{

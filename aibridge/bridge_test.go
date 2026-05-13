@@ -9,11 +9,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/provider"
+	codertestutil "github.com/coder/coder/v2/testutil"
 )
 
 var bridgeTestTracer = otel.Tracer("bridge_test")
@@ -21,7 +21,7 @@ var bridgeTestTracer = otel.Tracer("bridge_test")
 func TestValidateProviders(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil)
+	logger := codertestutil.Logger(t)
 
 	tests := []struct {
 		name      string
@@ -182,7 +182,7 @@ func TestPassthroughRoutesForProviders(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			logger := slogtest.Make(t, nil)
+			logger := codertestutil.Logger(t)
 
 			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				assert.Equal(t, tc.expectPath, r.URL.Path)

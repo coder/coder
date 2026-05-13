@@ -16,7 +16,6 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/pubsub/psmock"
@@ -180,7 +179,7 @@ func TestMetadataBatcher(t *testing.T) {
 
 	// Given: a fresh batcher with no data
 	ctx := testutil.Context(t, testutil.WaitShort)
-	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	log := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	ctrl := gomock.NewController(t)
 	store := dbmock.NewMockStore(ctrl)
 	ps := psmock.NewMockPubsub(ctrl)
@@ -410,7 +409,7 @@ func TestMetadataBatcher_DropsWhenFull(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
-	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	log := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 
 	ctrl := gomock.NewController(t)
 	store := dbmock.NewMockStore(ctrl)
@@ -550,7 +549,7 @@ func TestMetadataBatcher_Deduplication(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitShort)
-			log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+			log := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 			ctrl := gomock.NewController(t)
 			store := dbmock.NewMockStore(ctrl)
 			ps := psmock.NewMockPubsub(ctrl)
@@ -673,7 +672,7 @@ func TestMetadataBatcher_TimestampOrdering(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
-	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	log := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	ctrl := gomock.NewController(t)
 	store := dbmock.NewMockStore(ctrl)
 	ps := psmock.NewMockPubsub(ctrl)
@@ -760,7 +759,7 @@ func TestMetadataBatcher_PubsubChunking(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
-	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	log := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	ctrl := gomock.NewController(t)
 	store := dbmock.NewMockStore(ctrl)
 	ps := psmock.NewMockPubsub(ctrl)
@@ -909,7 +908,7 @@ func TestMetadataBatcher_ConcurrentAddsToSameAgent(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
-	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	log := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	ctrl := gomock.NewController(t)
 	store := dbmock.NewMockStore(ctrl)
 	ps := psmock.NewMockPubsub(ctrl)

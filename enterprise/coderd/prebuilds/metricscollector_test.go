@@ -12,7 +12,6 @@ import (
 	"go.opentelemetry.io/otel/trace/noop"
 	"tailscale.com/types/ptr"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -182,7 +181,7 @@ func TestMetricsCollector(t *testing.T) {
 								t.Run(fmt.Sprintf("%v/transition:%s/jobStatus:%s", test.name, transition, jobStatus), func(t *testing.T) {
 									t.Parallel()
 
-									logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+									logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 									t.Cleanup(func() {
 										if t.Failed() {
 											t.Logf("failed to run test: %s", test.name)
@@ -333,7 +332,7 @@ func TestMetricsCollector_DuplicateTemplateNames(t *testing.T) {
 		eligible: true,
 	}
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 	clock := quartz.NewMock(t)
 	db, pubsub := dbtestutil.NewDB(t)
 	cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
@@ -492,7 +491,7 @@ func TestMetricsCollector_ReconciliationPausedMetric(t *testing.T) {
 	t.Run("reconciliation_not_paused", func(t *testing.T) {
 		t.Parallel()
 
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 		db, pubsub := dbtestutil.NewDB(t)
 		cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 		registry := prometheus.NewPedanticRegistry()
@@ -530,7 +529,7 @@ func TestMetricsCollector_ReconciliationPausedMetric(t *testing.T) {
 		t.Parallel()
 
 		// Create isolated collector and registry for this test
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 		db, pubsub := dbtestutil.NewDB(t)
 		cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 		registry := prometheus.NewPedanticRegistry()
@@ -568,7 +567,7 @@ func TestMetricsCollector_ReconciliationPausedMetric(t *testing.T) {
 		t.Parallel()
 
 		// Create isolated collector and registry for this test
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors())
 		db, pubsub := dbtestutil.NewDB(t)
 		cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 		registry := prometheus.NewPedanticRegistry()

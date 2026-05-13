@@ -11,11 +11,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestUpdateAgentChatLastInjectedContextFromMessagesUsesMessageIDTieBreaker(t *testing.T) {
@@ -80,7 +80,7 @@ func TestUpdateAgentChatLastInjectedContextFromMessagesUsesMessageIDTieBreaker(t
 
 	err = updateAgentChatLastInjectedContextFromMessages(
 		context.Background(),
-		slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		testutil.Logger(t, testutil.WithIgnoreErrors()),
 		db,
 		chatID,
 	)

@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/prebuilds"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -69,7 +68,7 @@ func TestPubsubWorkspaceClaimListener(t *testing.T) {
 		t.Parallel()
 
 		ps := pubsub.NewInMemory()
-		listener := prebuilds.NewPubsubWorkspaceClaimListener(ps, slogtest.Make(t, nil))
+		listener := prebuilds.NewPubsubWorkspaceClaimListener(ps, testutil.Logger(t))
 
 		workspaceID := uuid.New()
 		events, cancelFunc, err := listener.ListenForWorkspaceClaims(context.Background(), workspaceID)
@@ -94,7 +93,7 @@ func TestPubsubWorkspaceClaimListener(t *testing.T) {
 		t.Parallel()
 
 		ps := pubsub.NewInMemory()
-		listener := prebuilds.NewPubsubWorkspaceClaimListener(ps, slogtest.Make(t, nil))
+		listener := prebuilds.NewPubsubWorkspaceClaimListener(ps, testutil.Logger(t))
 
 		workspaceID := uuid.New()
 		otherWorkspaceID := uuid.New()
@@ -120,7 +119,7 @@ func TestPubsubWorkspaceClaimListener(t *testing.T) {
 		t.Parallel()
 
 		ps := &brokenPubsub{}
-		listener := prebuilds.NewPubsubWorkspaceClaimListener(ps, slogtest.Make(t, nil))
+		listener := prebuilds.NewPubsubWorkspaceClaimListener(ps, testutil.Logger(t))
 
 		_, _, err := listener.ListenForWorkspaceClaims(context.Background(), uuid.New())
 		require.ErrorContains(t, err, "failed to subscribe to prebuild claimed channel")

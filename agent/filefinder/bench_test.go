@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/filefinder"
+	"github.com/coder/coder/v2/testutil"
 )
 
 var (
@@ -166,7 +166,7 @@ func BenchmarkSearch_ConcurrentReads(b *testing.B) {
 	dir := b.TempDir()
 	generateFileTree(b, dir, 10_000, 42)
 
-	logger := slogtest.Make(b, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelError)
+	logger := testutil.Logger(b, testutil.WithIgnoreErrors()).Leveled(slog.LevelError)
 	ctx := context.Background()
 	eng := filefinder.NewEngine(logger)
 	require.NoError(b, eng.AddRoot(ctx, dir))

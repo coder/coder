@@ -13,7 +13,6 @@ import (
 	"go.uber.org/goleak"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -197,13 +196,17 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+			var loggerOpts []testutil.LoggerOption
+			if !tc.expectStart {
+				loggerOpts = append(loggerOpts, testutil.WithIgnoreErrors())
+			}
 			var (
 				sched      = mustSchedule(t, "CRON_TZ=UTC 0 * * * *")
 				ctx        = context.Background()
 				err        error
 				tickCh     = make(chan time.Time)
 				statsCh    = make(chan autobuild.Stats)
-				logger     = slogtest.Make(t, &slogtest.Options{IgnoreErrors: !tc.expectStart}).Leveled(slog.LevelDebug)
+				logger     = testutil.Logger(t, loggerOpts...).Leveled(slog.LevelDebug)
 				enqueuer   = notificationstest.FakeEnqueuer{}
 				client, db = coderdtest.NewWithDatabase(t, &coderdtest.Options{
 					AutobuildTicker:          tickCh,
@@ -1177,11 +1180,8 @@ func TestExecutorFailedWorkspace(t *testing.T) {
 		var (
 			ticker = make(chan time.Time)
 			statCh = make(chan autobuild.Stats)
-			logger = slogtest.Make(t, &slogtest.Options{
-				// We ignore errors here since we expect to fail
-				// builds.
-				IgnoreErrors: true,
-			})
+			// We ignore errors here since we expect to fail builds.
+			logger     = testutil.Logger(t, testutil.WithIgnoreErrors())
 			failureTTL = time.Millisecond
 
 			client = coderdtest.New(t, &coderdtest.Options{
@@ -1229,11 +1229,8 @@ func TestExecutorInactiveWorkspace(t *testing.T) {
 		var (
 			ticker = make(chan time.Time)
 			statCh = make(chan autobuild.Stats)
-			logger = slogtest.Make(t, &slogtest.Options{
-				// We ignore errors here since we expect to fail
-				// builds.
-				IgnoreErrors: true,
-			})
+			// We ignore errors here since we expect to fail builds.
+			logger      = testutil.Logger(t, testutil.WithIgnoreErrors())
 			inactiveTTL = time.Millisecond
 
 			client = coderdtest.New(t, &coderdtest.Options{

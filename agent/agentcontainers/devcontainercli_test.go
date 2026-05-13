@@ -22,7 +22,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/codersdk"
@@ -36,7 +35,7 @@ func TestDevcontainerCLI_ArgsAndParsing(t *testing.T) {
 	testExePath, err := os.Executable()
 	require.NoError(t, err, "get test executable path")
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 
 	t.Run("Up", func(t *testing.T) {
 		t.Parallel()
@@ -383,7 +382,7 @@ func TestDevcontainerCLI_WithOutput(t *testing.T) {
 			wantError:   false,
 			logFile:     filepath.Join("testdata", "devcontainercli", "parse", "up.log"),
 		}
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 		dccli := agentcontainers.NewDevcontainerCLI(logger, testExecer)
 
 		// Call Up with WithUpOutput to capture CLI logs.
@@ -424,7 +423,7 @@ func TestDevcontainerCLI_WithOutput(t *testing.T) {
 			wantError:   false,
 			logFile:     logFile,
 		}
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 		dccli := agentcontainers.NewDevcontainerCLI(logger, testExecer)
 
 		// Call Exec with WithExecOutput and WithContainerID to capture any command output.
@@ -561,7 +560,7 @@ func TestDockerDevcontainerCLI(t *testing.T) {
 
 		// Use a long timeout because container operations are slow.
 		ctx := testutil.Context(t, testutil.WaitLong)
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 
 		// Create the devcontainer CLI under test.
 		dccli := agentcontainers.NewDevcontainerCLI(logger, agentexec.DefaultExecer)

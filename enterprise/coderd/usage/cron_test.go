@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -46,7 +45,7 @@ func TestCron(t *testing.T) {
 			}).AnyTimes()
 
 		inserter := usage.NewDBInserter(usage.InserterWithClock(clock))
-		cron := usage.NewCron(clock, slogtest.Make(t, nil), db, inserter)
+		cron := usage.NewCron(clock, testutil.Logger(t), db, inserter)
 		require.NoError(t, cron.Register(usage.CronJob{
 			Name:      "test-job",
 			Interval:  5 * time.Minute,
@@ -94,7 +93,7 @@ func TestAISeatsHeartbeat(t *testing.T) {
 	db.EXPECT().GetActiveAISeatCount(gomock.Any()).Return(int64(42), nil)
 
 	authz := rbac.NewStrictAuthorizer(prometheus.NewRegistry())
-	authzDB := dbauthz.New(db, authz, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+	authzDB := dbauthz.New(db, authz, testutil.Logger(t), coderdtest.AccessControlStorePointer())
 
 	// AISeatsHeartbeat internally uses AsUsagePublisher, which must
 	// have ResourceAiSeat.ActionRead to pass the dbauthz check.

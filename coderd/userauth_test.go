@@ -28,7 +28,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -1543,7 +1542,7 @@ func TestUserOIDC(t *testing.T) {
 			})
 
 			auditor := audit.NewMock()
-			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+			logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 			owner := coderdtest.New(t, &coderdtest.Options{
 				Auditor:    auditor,
 				OIDCConfig: cfg,
@@ -1595,7 +1594,7 @@ func TestUserOIDC(t *testing.T) {
 			cfg.AllowSignups = true
 		})
 
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 		owner, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 			Auditor:    auditor,
 			OIDCConfig: cfg,

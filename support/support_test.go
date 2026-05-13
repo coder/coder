@@ -17,7 +17,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -124,7 +123,7 @@ func TestRun(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, client)
 		bun, err := support.Run(ctx, &support.Deps{
 			Client: client,
-			Log:    slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named("bundle").Leveled(slog.LevelDebug),
+			Log:    testutil.Logger(t, testutil.WithIgnoreErrors()).Named("bundle").Leveled(slog.LevelDebug),
 		})
 		require.NoError(t, err)
 		assertNotNilNotEmpty(t, bun, "bundle should be present")
@@ -159,7 +158,7 @@ func TestRun(t *testing.T) {
 		})
 		bun, err := support.Run(ctx, &support.Deps{
 			Client: client,
-			Log:    slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named("bundle").Leveled(slog.LevelDebug),
+			Log:    testutil.Logger(t, testutil.WithIgnoreErrors()).Named("bundle").Leveled(slog.LevelDebug),
 		})
 		var sdkErr *codersdk.Error
 		require.Nil(t, bun)
@@ -177,7 +176,7 @@ func TestRun(t *testing.T) {
 		memberClient, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 		bun, err := support.Run(ctx, &support.Deps{
 			Client: memberClient,
-			Log:    slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named("bundle").Leveled(slog.LevelDebug),
+			Log:    testutil.Logger(t, testutil.WithIgnoreErrors()).Named("bundle").Leveled(slog.LevelDebug),
 		})
 		require.NoError(t, err)
 		require.NotNil(t, bun)

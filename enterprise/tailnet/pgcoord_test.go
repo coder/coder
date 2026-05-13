@@ -17,7 +17,6 @@ import (
 	gProto "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -570,7 +569,7 @@ func TestPGCoordinator_Unhealthy(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mStore := dbmock.NewMockStore(ctrl)
 	ps := pubsub.NewInMemory()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 
 	calls := make(chan struct{})
 	// first call succeeds, so that our Agent will successfully connect.
@@ -779,7 +778,7 @@ func TestPGCoordinatorDual_FailedHeartbeat(t *testing.T) {
 
 	// We do this to avoid failing due errors related to the
 	// database connection being close.
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 
 	// Create two coordinators, 1 for each peer.
 	c1, err := tailnet.NewPGCoord(ctx, logger, ps1, store1)

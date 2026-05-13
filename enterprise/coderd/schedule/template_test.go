@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
@@ -273,7 +272,7 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			wsBuild, err := db.GetWorkspaceBuildByID(ctx, buildResp.Build.ID)
 			require.NoError(t, err)
 
-			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+			logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 
 			userQuietHoursStore, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(userQuietHoursSchedule, true)
 			require.NoError(t, err)
@@ -567,7 +566,7 @@ func TestTemplateUpdateBuildDeadlinesSkip(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 
 	userQuietHoursStore, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(userQuietHoursSchedule, true)
 	require.NoError(t, err)
@@ -682,7 +681,7 @@ func TestNotifications(t *testing.T) {
 
 		// Setup dependencies
 		notifyEnq := notificationstest.FakeEnqueuer{}
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 		const userQuietHoursSchedule = "CRON_TZ=UTC 0 0 * * *" // midnight UTC
 		userQuietHoursStore, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(userQuietHoursSchedule, true)
 		require.NoError(t, err)
@@ -780,7 +779,7 @@ func TestNotifications(t *testing.T) {
 
 		// Setup dependencies
 		notifyEnq := notificationstest.NewFakeEnqueuer()
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 		const userQuietHoursSchedule = "CRON_TZ=UTC 0 0 * * *" // midnight UTC
 		userQuietHoursStore, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(userQuietHoursSchedule, true)
 		require.NoError(t, err)
@@ -871,7 +870,7 @@ func TestNotifications(t *testing.T) {
 
 		// Setup dependencies
 		notifyEnq := notificationstest.NewFakeEnqueuer()
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 		const userQuietHoursSchedule = "CRON_TZ=UTC 0 0 * * *" // midnight UTC
 		userQuietHoursStore, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(userQuietHoursSchedule, true)
 		require.NoError(t, err)
@@ -970,7 +969,7 @@ func TestTemplateTTL(t *testing.T) {
 			t.Parallel()
 
 			var (
-				logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+				logger = testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 				db, _  = dbtestutil.NewDB(t)
 				ctx    = testutil.Context(t, testutil.WaitLong)
 				user   = dbgen.User(t, db, database.User{})
@@ -1076,7 +1075,7 @@ func TestTemplateTTL(t *testing.T) {
 		t.Parallel()
 
 		var (
-			logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+			logger = testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 			db, _  = dbtestutil.NewDB(t)
 			ctx    = testutil.Context(t, testutil.WaitLong)
 			user   = dbgen.User(t, db, database.User{})
@@ -1291,7 +1290,7 @@ func TestTemplateUpdatePrebuilds(t *testing.T) {
 
 			// Setup
 			var (
-				logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+				logger = testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 				db, _  = dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
 				ctx    = testutil.Context(t, testutil.WaitLong)
 				user   = dbgen.User(t, db, database.User{})

@@ -10,14 +10,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/filefinder"
 	"github.com/coder/coder/v2/testutil"
 )
 
 func newTestEngine(t *testing.T) (*filefinder.Engine, context.Context) {
 	t.Helper()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	eng := filefinder.NewEngine(logger)
 	t.Cleanup(func() { _ = eng.Close() })
 	return eng, context.Background()
@@ -157,7 +156,7 @@ func TestEngine_CloseIsClean(t *testing.T) {
 	dir := t.TempDir()
 	createFile(t, dir, "file.txt", "data")
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t, testutil.WithIgnoreErrors()).Leveled(slog.LevelDebug)
 	ctx := context.Background()
 	eng := filefinder.NewEngine(logger)
 	require.NoError(t, eng.AddRoot(ctx, dir))
