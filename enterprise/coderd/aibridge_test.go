@@ -2610,11 +2610,11 @@ func TestGroupAIBudget(t *testing.T) {
 	t.Run("UpsertCreatesThenUpdates", func(t *testing.T) {
 		t.Parallel()
 
-		client, admin, group := setupGroupAIBudgetTest(t)
+		adminClient, group := setupGroupAIBudgetTest(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// PUT (create).
-		created, err := client.UpsertGroupAIBudget(ctx, group.ID, codersdk.UpsertGroupAIBudgetRequest{
+		created, err := adminClient.UpsertGroupAIBudget(ctx, group.ID, codersdk.UpsertGroupAIBudgetRequest{
 			SpendLimitMicros: 500_000_000,
 		})
 		require.NoError(t, err)
@@ -2623,7 +2623,7 @@ func TestGroupAIBudget(t *testing.T) {
 		require.False(t, created.CreatedAt.IsZero())
 
 		// PUT (update existing).
-		updated, err := client.UpsertGroupAIBudget(ctx, group.ID, codersdk.UpsertGroupAIBudgetRequest{
+		updated, err := adminClient.UpsertGroupAIBudget(ctx, group.ID, codersdk.UpsertGroupAIBudgetRequest{
 			SpendLimitMicros: 1_000_000_000,
 		})
 		require.NoError(t, err)
@@ -2631,20 +2631,18 @@ func TestGroupAIBudget(t *testing.T) {
 		require.True(t, updated.UpdatedAt.After(created.UpdatedAt) || updated.UpdatedAt.Equal(created.UpdatedAt))
 
 		// GET reflects the latest value.
-		got, err := client.GroupAIBudget(ctx, group.ID)
+		got, err := adminClient.GroupAIBudget(ctx, group.ID)
 		require.NoError(t, err)
 		require.EqualValues(t, 1_000_000_000, got.SpendLimitMicros)
-
-		_ = admin
 	})
 
 	t.Run("GetWhenAbsent_404", func(t *testing.T) {
 		t.Parallel()
 
-		client, _, group := setupGroupAIBudgetTest(t)
+		adminClient, group := setupGroupAIBudgetTest(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		_, err := client.GroupAIBudget(ctx, group.ID)
+		_, err := adminClient.GroupAIBudget(ctx, group.ID)
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
@@ -2653,10 +2651,10 @@ func TestGroupAIBudget(t *testing.T) {
 	t.Run("DeleteWhenAbsent_404", func(t *testing.T) {
 		t.Parallel()
 
-		client, _, group := setupGroupAIBudgetTest(t)
+		adminClient, group := setupGroupAIBudgetTest(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		err := client.DeleteGroupAIBudget(ctx, group.ID)
+		err := adminClient.DeleteGroupAIBudget(ctx, group.ID)
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
@@ -2665,17 +2663,17 @@ func TestGroupAIBudget(t *testing.T) {
 	t.Run("DeleteWhenPresent", func(t *testing.T) {
 		t.Parallel()
 
-		client, _, group := setupGroupAIBudgetTest(t)
+		adminClient, group := setupGroupAIBudgetTest(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		_, err := client.UpsertGroupAIBudget(ctx, group.ID, codersdk.UpsertGroupAIBudgetRequest{
+		_, err := adminClient.UpsertGroupAIBudget(ctx, group.ID, codersdk.UpsertGroupAIBudgetRequest{
 			SpendLimitMicros: 500_000_000,
 		})
 		require.NoError(t, err)
 
-		require.NoError(t, client.DeleteGroupAIBudget(ctx, group.ID))
+		require.NoError(t, adminClient.DeleteGroupAIBudget(ctx, group.ID))
 
-		_, err = client.GroupAIBudget(ctx, group.ID)
+		_, err = adminClient.GroupAIBudget(ctx, group.ID)
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
@@ -2684,11 +2682,11 @@ func TestGroupAIBudget(t *testing.T) {
 	t.Run("RejectsNonPositiveSpendLimit", func(t *testing.T) {
 		t.Parallel()
 
-		client, _, group := setupGroupAIBudgetTest(t)
+		adminClient, group := setupGroupAIBudgetTest(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		for _, spend := range []int64{0, -1} {
-			_, err := client.UpsertGroupAIBudget(ctx, group.ID, codersdk.UpsertGroupAIBudgetRequest{
+			_, err := adminClient.UpsertGroupAIBudget(ctx, group.ID, codersdk.UpsertGroupAIBudgetRequest{
 				SpendLimitMicros: spend,
 			})
 			var sdkErr *codersdk.Error
@@ -2700,10 +2698,10 @@ func TestGroupAIBudget(t *testing.T) {
 	t.Run("UnknownGroup_404", func(t *testing.T) {
 		t.Parallel()
 
-		client, _, _ := setupGroupAIBudgetTest(t)
+		adminClient, _ := setupGroupAIBudgetTest(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		_, err := client.GroupAIBudget(ctx, uuid.New())
+		_, err := adminClient.GroupAIBudget(ctx, uuid.New())
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
@@ -2741,9 +2739,8 @@ func TestGroupAIBudget(t *testing.T) {
 }
 
 // setupGroupAIBudgetTest returns a UserAdmin client for the test org along
-// with a freshly-created group inside it. The owner identity is also
-// returned for callers that need it.
-func setupGroupAIBudgetTest(t *testing.T) (admin *codersdk.Client, owner codersdk.CreateFirstUserResponse, group codersdk.Group) {
+// with a freshly-created group inside it.
+func setupGroupAIBudgetTest(t *testing.T) (adminClient *codersdk.Client, group codersdk.Group) {
 	t.Helper()
 
 	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
@@ -2751,12 +2748,12 @@ func setupGroupAIBudgetTest(t *testing.T) (admin *codersdk.Client, owner codersd
 			Features: license.Features{codersdk.FeatureTemplateRBAC: 1},
 		},
 	})
-	admin, _ = coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
+	adminClient, _ = coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	g, err := admin.CreateGroup(ctx, owner.OrganizationID, codersdk.CreateGroupRequest{
+	g, err := adminClient.CreateGroup(ctx, owner.OrganizationID, codersdk.CreateGroupRequest{
 		Name: "budget-test-group",
 	})
 	require.NoError(t, err)
-	return admin, owner, g
+	return adminClient, g
 }
