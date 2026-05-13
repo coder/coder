@@ -11,6 +11,7 @@ const storyFiles = [
 const paths = {
 	actual: "test-results/storybook-snapshots",
 	baseline: "visual-baselines/storybook-poc",
+	expected: "test-results/visual-regression-poc/expected",
 	diff: "test-results/visual-regression-poc/diff",
 	json: "test-results/visual-regression-poc/reg.json",
 	report: "test-results/visual-regression-poc/report.html",
@@ -78,7 +79,7 @@ const summarize = (result) => {
 		`| Total | ${total} |`,
 		"",
 		`HTML report artifact path: \`${reportPath}\``,
-		"Download the uploaded visual regression artifact to inspect the HTML report, actual snapshots, and diffs.",
+		"Download the uploaded visual regression artifact to inspect the HTML report, baseline snapshots, actual snapshots, and diffs.",
 		"",
 		...(imageRows.length > 0
 			? [
@@ -120,7 +121,7 @@ const compareSnapshots = () => {
 		const comparison = compareImages({
 			actualDir: paths.actual,
 			diffDir: paths.diff,
-			expectedDir: paths.baseline,
+			expectedDir: paths.expected,
 			extendedErrors: true,
 			json: paths.json,
 			report: paths.report,
@@ -142,7 +143,8 @@ const compare = async () => {
 		throw new Error(`Missing actual directory: ${paths.actual}`);
 	}
 	clean(path.dirname(paths.diff));
-	mkdirSync(path.dirname(paths.json), { recursive: true });
+	mkdirSync(path.dirname(paths.expected), { recursive: true });
+	cpSync(paths.baseline, paths.expected, { recursive: true });
 
 	const result = await compareSnapshots();
 	const { added, changed, deleted } = summarize(result);
