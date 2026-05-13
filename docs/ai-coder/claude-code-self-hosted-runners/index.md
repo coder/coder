@@ -6,7 +6,7 @@
 > obtain the runner build. This guide describes how to run those runners
 > on Coder workspaces.
 
-[Claude Code self-hosted runners](https://docs.claude.com/en/docs/claude-code/self-hosted-runners)
+Claude Code self-hosted runners
 let you execute Claude Code remote sessions on infrastructure you
 control. A runner is a long-lived process that registers with a pool in
 your Anthropic organization, polls for assigned sessions, spawns a
@@ -108,7 +108,7 @@ Coder supports running self-hosted runners under two different identity
 models. They share the same template, image, and pool; they differ in
 who owns the workspace and whose credentials the runner uses.
 
-### System identity
+### System identity (Works Today)
 
 Coder maintains N warm bot-owned workspaces via the prebuilds primitive.
 Anthropic's scheduler picks one when a session arrives and locks it to
@@ -123,7 +123,7 @@ signal in git history.
 See [System identity](./system-identity.md) for the copyable Terraform
 recipe and the known limitations.
 
-### User identity
+### User identity (Planned)
 
 A routing component pre-binds each runner workspace to the developer
 who started the session. The workspace owner is the human, Coder

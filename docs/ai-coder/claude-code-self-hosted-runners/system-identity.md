@@ -1,11 +1,11 @@
 # System identity: a pool of bot runners
 
-This page is the copy-and-go recipe for running Claude Code self-hosted
-runners on Coder under a **system (bot) identity**. Coder maintains a
-pool of warm runner workspaces; Anthropic's pool scheduler picks one
-when a session arrives and locks it to the developer who started the
-session. The workspace, the git push credential, and the commit author
-are all the same bot identity, fleet-wide.
+Learn how to publish a Coder template that runs a pool of Claude Code
+self-hosted runners under a **system (bot) identity**. Coder maintains
+warm runner workspaces; Anthropic's pool scheduler picks one when a
+session arrives and locks it to the developer who started the session.
+The workspace, the git push credential, and the commit author are all
+the same bot identity, fleet-wide.
 
 > [!NOTE]
 > Self-hosted runners are in early access (EAP) from Anthropic. You will
