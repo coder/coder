@@ -56,11 +56,12 @@ func main() {
 }
 
 type result struct {
-	setup     time.Duration
-	hot       time.Duration
-	published int64
-	delivered int64
-	subCount  int // number of subscribers in the run
+	setup      time.Duration
+	pubHot     time.Duration // publish loop start -> all publishers flushed
+	deliverHot time.Duration // publish loop start -> all subs received expected count
+	published  int64
+	delivered  int64
+	subCount   int // number of subscribers in the run
 }
 
 func run(mode string, msgs, size, pubs, subs int, subj string, timeout time.Duration) error {
@@ -161,11 +162,12 @@ func runLoopback(mode string, msgs, size int) (result, error) {
 	}
 	hot := time.Since(hotStart)
 	return result{
-		setup:     setup,
-		hot:       hot,
-		published: int64(msgs),
-		delivered: delivered,
-		subCount:  1,
+		setup:      setup,
+		pubHot:     hot,
+		deliverHot: hot,
+		published:  int64(msgs),
+		delivered:  delivered,
+		subCount:   1,
 	}, nil
 }
 
@@ -310,6 +312,7 @@ func runNative(inProcess bool, msgs, size, pubs, subs int, subj string, timeout 
 		}(nc, n)
 	}
 	wg.Wait()
+	pubDone := time.Now()
 	if v := publishErr.Load(); v != nil {
 		perr, _ := v.(error)
 		return result{}, xerrors.Errorf("publish: %w", perr)
@@ -328,7 +331,12 @@ func runNative(inProcess bool, msgs, size, pubs, subs int, subj string, timeout 
 			return result{}, xerrors.Errorf("timeout: delivered %d of %d (subs=%d)", delivered, int64(msgs)*int64(subs), subs)
 		}
 	}
-	hot := time.Since(hotStart)
+	subDone := time.Now()
+	pubHot := pubDone.Sub(hotStart)
+	deliverHot := subDone.Sub(hotStart)
+	if subs == 0 {
+		deliverHot = pubHot
+	}
 
 	var delivered int64
 	for _, st := range subStates {
@@ -339,11 +347,12 @@ func runNative(inProcess bool, msgs, size, pubs, subs int, subj string, timeout 
 		nc.Close()
 	}
 	return result{
-		setup:     setup,
-		hot:       hot,
-		published: int64(msgs),
-		delivered: delivered,
-		subCount:  subs,
+		setup:      setup,
+		pubHot:     pubHot,
+		deliverHot: deliverHot,
+		published:  int64(msgs),
+		delivered:  delivered,
+		subCount:   subs,
 	}, nil
 }
 
@@ -413,9 +422,13 @@ func runCoder(inProcess bool, msgs, size, pubs, subs int, subj string, timeout t
 					return
 				}
 			}
+			if err := ps.Flush(); err != nil {
+				publishErr.Store(err)
+			}
 		}(n)
 	}
 	wg.Wait()
+	pubDone := time.Now()
 	if v := publishErr.Load(); v != nil {
 		perr, _ := v.(error)
 		return result{}, xerrors.Errorf("publish: %w", perr)
@@ -434,7 +447,12 @@ func runCoder(inProcess bool, msgs, size, pubs, subs int, subj string, timeout t
 			return result{}, xerrors.Errorf("timeout: delivered %d of %d (subs=%d)", delivered, int64(msgs)*int64(subs), subs)
 		}
 	}
-	hot := time.Since(hotStart)
+	subDone := time.Now()
+	pubHot := pubDone.Sub(hotStart)
+	deliverHot := subDone.Sub(hotStart)
+	if subs == 0 {
+		deliverHot = pubHot
+	}
 
 	var delivered int64
 	for _, st := range subStates {
@@ -442,11 +460,12 @@ func runCoder(inProcess bool, msgs, size, pubs, subs int, subj string, timeout t
 		st.cancel()
 	}
 	return result{
-		setup:     setup,
-		hot:       hot,
-		published: int64(msgs),
-		delivered: delivered,
-		subCount:  subs,
+		setup:      setup,
+		pubHot:     pubHot,
+		deliverHot: deliverHot,
+		published:  int64(msgs),
+		delivered:  delivered,
+		subCount:   subs,
 	}, nil
 }
 
@@ -454,29 +473,34 @@ func printResult(mode string, r result, msgs, size, pubs, subs int) {
 	_ = mode
 	_ = pubs
 	_, _ = fmt.Printf("setup: %s\n", r.setup)
-	_, _ = fmt.Printf("publish+deliver: %s\n", r.hot)
+	_, _ = fmt.Printf("publish duration: %s\n", r.pubHot)
+	if subs > 0 {
+		_, _ = fmt.Printf("deliver duration: %s\n", r.deliverHot)
+	}
 	_, _ = fmt.Printf("total msgs published: %d\n", r.published)
 	if subs > 0 {
 		_, _ = fmt.Printf("total msgs delivered: %d (%d subs x %d)\n", r.delivered, r.subCount, msgs)
 	}
-	secs := r.hot.Seconds()
-	if secs <= 0 {
+	pubSecs := r.pubHot.Seconds()
+	delSecs := r.deliverHot.Seconds()
+	if pubSecs <= 0 || delSecs <= 0 {
 		_, _ = fmt.Println("hot duration <= 0, skipping rate")
 		return
 	}
-	pubRate := float64(r.published) / secs
+	pubRate := float64(r.published) / pubSecs
 	pubBps := pubRate * float64(size)
 	_, _ = fmt.Printf("publish rate: %s msgs/s, %s/s\n", humanCount(pubRate), humanBytes(pubBps))
 	if subs > 0 {
-		delRate := float64(r.delivered) / secs
+		delRate := float64(r.delivered) / delSecs
 		delBps := delRate * float64(size)
 		_, _ = fmt.Printf("delivery rate: %s msgs/s, %s/s\n", humanCount(delRate), humanBytes(delBps))
 	}
 	// Aggregate matches upstream `nats bench`: total work counted is
-	// msgs once per publisher plus msgs once per subscriber. When
-	// subs == 0, this collapses to the publish rate.
-	aggMsgs := int64(msgs) * int64(pubs+subs)
-	aggRate := float64(aggMsgs) / secs
+	// published once per publisher plus published once per subscriber,
+	// measured over the full publish+deliver window. When subs == 0,
+	// this collapses to the publish rate.
+	aggMsgs := r.published * int64(pubs+subs)
+	aggRate := float64(aggMsgs) / delSecs
 	aggBps := aggRate * float64(size)
 	_, _ = fmt.Printf("aggregate rate: %s msgs/s, %s/s\n", humanCount(aggRate), humanBytes(aggBps))
 }
