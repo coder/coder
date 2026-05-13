@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -599,9 +600,11 @@ func TestLabelsAggregation(t *testing.T) {
 			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 			logger = logger.Leveled(slog.LevelDebug)
 
-			// updateWatch is how we know the update was processed before we collect
-			var updateWatch bytes.Buffer
-			logger = logger.AppendSinks(sloghuman.Sink(&updateWatch))
+			// updateWatch is how we know the update was processed before we collect.
+			// We wrap it in a syncBuffer because the aggregator goroutine writes
+			// via the logger while the test reads via String().
+			updateWatch := &syncBuffer{}
+			logger = logger.AppendSinks(sloghuman.Sink(updateWatch))
 
 			metricsAggregator, err := prometheusmetrics.NewMetricsAggregator(logger, registry, time.Hour, tc.aggregateOn) // time.Hour, so metrics won't expire
 			require.NoError(t, err)
@@ -623,7 +626,7 @@ func TestLabelsAggregation(t *testing.T) {
 			//
 			// This is not ideal as the code relies on implementation details (the log message),
 			require.Eventually(t, func() bool {
-				return strings.Count(updateWatch.String(), "update metrics") == len(tc.given)
+				return strings.Count(updateWatch.string(), "update metrics") == len(tc.given)
 			}, testutil.WaitMedium, testutil.IntervalFast)
 
 			// then
@@ -739,4 +742,23 @@ func must[T any](t T, err error) T {
 		panic(err)
 	}
 	return t
+}
+
+// syncBuffer is a bytes.Buffer protected by a mutex so it can be
+// written by a logger goroutine and read by the test goroutine.
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (sb *syncBuffer) Write(p []byte) (int, error) {
+	sb.mu.Lock()
+	defer sb.mu.Unlock()
+	return sb.buf.Write(p)
+}
+
+func (sb *syncBuffer) string() string {
+	sb.mu.Lock()
+	defer sb.mu.Unlock()
+	return sb.buf.String()
 }
