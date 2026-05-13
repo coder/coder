@@ -770,7 +770,7 @@ func runLeaf(b *testing.B, cfg leafCfg) {
 
 	// All wiring done. Reset timer and start the publisher window.
 	b.ResetTimer()
-	windowStart := time.Now()
+	pubStart := time.Now()
 	close(startBarrier)
 
 	loops := int64(0)
@@ -785,7 +785,7 @@ func runLeaf(b *testing.B, cfg leafCfg) {
 	if err := h.flushPubs(); err != nil {
 		b.Fatalf("pub flush: %v", err)
 	}
-	windowElapsed := time.Since(windowStart)
+	pubEnd := time.Now()
 	b.StopTimer()
 
 	// --- verify total publishes ---
@@ -815,12 +815,14 @@ func runLeaf(b *testing.B, cfg leafCfg) {
 		settle = 60 * time.Second
 	}
 	deadline := time.Now().Add(settle)
+	deliveryEnd := time.Now()
 	for time.Now().Before(deadline) {
 		var got int64
 		for s := 0; s < cfg.subjects; s++ {
 			got += delivered[s].Load()
 		}
 		if got >= expectedTotal {
+			deliveryEnd = time.Now()
 			break
 		}
 		time.Sleep(50 * time.Millisecond)
@@ -852,9 +854,15 @@ func runLeaf(b *testing.B, cfg leafCfg) {
 	}
 	sort.Slice(allLats, func(i, j int) bool { return allLats[i] < allLats[j] })
 
-	pubsPerSec := float64(totalPublished) / windowElapsed.Seconds()
+	pubWindow := pubEnd.Sub(pubStart).Seconds()
+	deliveryWindow := deliveryEnd.Sub(pubStart).Seconds()
+	pubThroughput := float64(totalPublished) / pubWindow
+	deliveryThroughput := float64(gotTotal) / deliveryWindow
+	deliveryDrain := deliveryEnd.Sub(pubEnd).Seconds()
 
-	b.ReportMetric(pubsPerSec, "pubs/s")
+	b.ReportMetric(pubThroughput, "pub_throughput_per_sec")
+	b.ReportMetric(deliveryThroughput, "delivery_throughput_per_sec")
+	b.ReportMetric(deliveryDrain, "delivery_drain_sec")
 	b.ReportMetric(deliveryPct, "delivery_pct")
 	b.ReportMetric(percentileMicros(allLats, 0.50), "pub_p50_us")
 	b.ReportMetric(percentileMicros(allLats, 0.99), "pub_p99_us")
@@ -998,7 +1006,7 @@ func runHighCardinalityLeaf(b *testing.B, topology string, numSubjects, payloadB
 	probe.captureAfterSetup()
 
 	b.ResetTimer()
-	windowStart := time.Now()
+	pubStart := time.Now()
 	close(startBarrier)
 
 	loops := int64(0)
@@ -1011,7 +1019,7 @@ func runHighCardinalityLeaf(b *testing.B, topology string, numSubjects, payloadB
 	if err := h.flushPubs(); err != nil {
 		b.Fatalf("pub flush: %v", err)
 	}
-	windowElapsed := time.Since(windowStart)
+	pubEnd := time.Now()
 	b.StopTimer()
 
 	var totalPublished int64
@@ -1031,12 +1039,14 @@ func runHighCardinalityLeaf(b *testing.B, topology string, numSubjects, payloadB
 		settle = 90 * time.Second
 	}
 	deadline := time.Now().Add(settle)
+	deliveryEnd := time.Now()
 	for time.Now().Before(deadline) {
 		var got int64
 		for s := 0; s < numSubjects; s++ {
 			got += delivered[s].Load()
 		}
 		if got >= expectedTotal {
+			deliveryEnd = time.Now()
 			break
 		}
 		time.Sleep(50 * time.Millisecond)
@@ -1070,9 +1080,15 @@ func runHighCardinalityLeaf(b *testing.B, topology string, numSubjects, payloadB
 	}
 	sort.Slice(allLats, func(i, j int) bool { return allLats[i] < allLats[j] })
 
-	pubsPerSec := float64(totalPublished) / windowElapsed.Seconds()
+	pubWindow := pubEnd.Sub(pubStart).Seconds()
+	deliveryWindow := deliveryEnd.Sub(pubStart).Seconds()
+	pubThroughput := float64(totalPublished) / pubWindow
+	deliveryThroughput := float64(gotTotal) / deliveryWindow
+	deliveryDrain := deliveryEnd.Sub(pubEnd).Seconds()
 
-	b.ReportMetric(pubsPerSec, "pubs/s")
+	b.ReportMetric(pubThroughput, "pub_throughput_per_sec")
+	b.ReportMetric(deliveryThroughput, "delivery_throughput_per_sec")
+	b.ReportMetric(deliveryDrain, "delivery_drain_sec")
 	b.ReportMetric(deliveryPct, "delivery_pct")
 	b.ReportMetric(percentileMicros(allLats, 0.50), "pub_p50_us")
 	b.ReportMetric(percentileMicros(allLats, 0.99), "pub_p99_us")
@@ -1159,7 +1175,7 @@ func runHotSubjectLeaf(b *testing.B, numSubs, payloadBytes int) {
 	probe.captureAfterSetup()
 
 	b.ResetTimer()
-	windowStart := time.Now()
+	pubStart := time.Now()
 
 	var published int64
 	for b.Loop() {
@@ -1174,7 +1190,7 @@ func runHotSubjectLeaf(b *testing.B, numSubs, payloadBytes int) {
 	if err := h.flushPubs(); err != nil {
 		b.Fatalf("pub flush: %v", err)
 	}
-	windowElapsed := time.Since(windowStart)
+	pubEnd := time.Now()
 	b.StopTimer()
 
 	expectedTotal := published * int64(numSubs)
@@ -1186,8 +1202,10 @@ func runHotSubjectLeaf(b *testing.B, numSubs, payloadBytes int) {
 		settle = 180 * time.Second
 	}
 	deadline := time.Now().Add(settle)
+	deliveryEnd := time.Now()
 	for time.Now().Before(deadline) {
 		if delivered.Load() >= expectedTotal {
+			deliveryEnd = time.Now()
 			break
 		}
 		time.Sleep(50 * time.Millisecond)
@@ -1200,9 +1218,15 @@ func runHotSubjectLeaf(b *testing.B, numSubs, payloadBytes int) {
 	}
 
 	sort.Slice(latencies, func(i, j int) bool { return latencies[i] < latencies[j] })
-	pubsPerSec := float64(published) / windowElapsed.Seconds()
+	pubWindow := pubEnd.Sub(pubStart).Seconds()
+	deliveryWindow := deliveryEnd.Sub(pubStart).Seconds()
+	pubThroughput := float64(published) / pubWindow
+	deliveryThroughput := float64(gotTotal) / deliveryWindow
+	deliveryDrain := deliveryEnd.Sub(pubEnd).Seconds()
 
-	b.ReportMetric(pubsPerSec, "pubs/s")
+	b.ReportMetric(pubThroughput, "pub_throughput_per_sec")
+	b.ReportMetric(deliveryThroughput, "delivery_throughput_per_sec")
+	b.ReportMetric(deliveryDrain, "delivery_drain_sec")
 	b.ReportMetric(deliveryPct, "delivery_pct")
 	b.ReportMetric(percentileMicros(latencies, 0.50), "pub_p50_us")
 	b.ReportMetric(percentileMicros(latencies, 0.99), "pub_p99_us")
@@ -1326,7 +1350,7 @@ func runThinFanoutLeaf(b *testing.B, payloadBytes int) {
 	probe.captureAfterSetup()
 
 	b.ResetTimer()
-	windowStart := time.Now()
+	pubStart := time.Now()
 	close(startBarrier)
 
 	loops := int64(0)
@@ -1339,7 +1363,7 @@ func runThinFanoutLeaf(b *testing.B, payloadBytes int) {
 	if err := h.flushPubs(); err != nil {
 		b.Fatalf("pub flush: %v", err)
 	}
-	windowElapsed := time.Since(windowStart)
+	pubEnd := time.Now()
 	b.StopTimer()
 
 	var totalPublished int64
@@ -1357,12 +1381,14 @@ func runThinFanoutLeaf(b *testing.B, payloadBytes int) {
 
 	settle := 60 * time.Second
 	deadline := time.Now().Add(settle)
+	deliveryEnd := time.Now()
 	for time.Now().Before(deadline) {
 		var got int64
 		for r := 0; r < numReplicas; r++ {
 			got += delivered[r].Load()
 		}
 		if got >= expectedTotal {
+			deliveryEnd = time.Now()
 			break
 		}
 		time.Sleep(50 * time.Millisecond)
@@ -1391,9 +1417,15 @@ func runThinFanoutLeaf(b *testing.B, payloadBytes int) {
 	}
 	sort.Slice(allLats, func(i, j int) bool { return allLats[i] < allLats[j] })
 
-	pubsPerSec := float64(totalPublished) / windowElapsed.Seconds()
+	pubWindow := pubEnd.Sub(pubStart).Seconds()
+	deliveryWindow := deliveryEnd.Sub(pubStart).Seconds()
+	pubThroughput := float64(totalPublished) / pubWindow
+	deliveryThroughput := float64(gotTotal) / deliveryWindow
+	deliveryDrain := deliveryEnd.Sub(pubEnd).Seconds()
 
-	b.ReportMetric(pubsPerSec, "pubs/s")
+	b.ReportMetric(pubThroughput, "pub_throughput_per_sec")
+	b.ReportMetric(deliveryThroughput, "delivery_throughput_per_sec")
+	b.ReportMetric(deliveryDrain, "delivery_drain_sec")
 	b.ReportMetric(deliveryPct, "delivery_pct")
 	b.ReportMetric(percentileMicros(allLats, 0.50), "pub_p50_us")
 	b.ReportMetric(percentileMicros(allLats, 0.99), "pub_p99_us")
