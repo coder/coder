@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"cdr.dev/slog/v3"
+	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/awsidentity"
 	"github.com/coder/coder/v2/coderd/azureidentity"
 	"github.com/coder/coder/v2/coderd/database"
