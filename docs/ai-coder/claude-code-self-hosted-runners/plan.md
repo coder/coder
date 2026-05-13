@@ -245,6 +245,90 @@ so readers do not assume they exist.
   boundary," but a stricter deployment may want an `emptyDir` checkout
   path. Document both.
 
+## Open question for Anthropic: stateful vs. ephemeral runners
+
+The runner protocol today is explicitly ephemeral. Lock to the first
+session's account, serve until drain, `exit 0`, let the orchestrator
+hand the next process a fresh disk. From the PDF:
+
+> "This model isolates each user's checked-out code and build artifacts
+> without requiring the runner to scrub disk state between users."
+
+That is the right design for fleet pools where many users share
+machines. It is not a natural fit for a Coder workspace, which is
+durable, single-user, and stateful by design. A Coder workspace
+already keeps `$HOME`, dotfiles, branch state, IDE state, and
+dependency caches across `coder stop` / `coder start`. The workspace
+itself is the persistence boundary.
+
+The concrete user scenario this creates friction for:
+
+1. Developer opens `claude.ai/code`, sends "work on issue 1234" at 10am.
+2. Child claude makes progress, hits a permission prompt at 10:15am, and
+   stalls waiting for input.
+3. Developer closes the laptop, goes to lunch.
+4. Developer comes back at 1pm. Today the session is gone:
+   `--release-idle-session-min` released the slot, the runner drained
+   to zero, `exit 0`, fresh disk, new runner ID. The pending prompt,
+   the half-finished working tree, the in-flight tool output are all
+   discarded.
+5. The developer's mental model says "I'll pick up where I left off."
+   The runner contract says they cannot.
+
+We would like to ask Anthropic: **is the ephemeral, drain-and-respawn
+contract a permanent design decision, or is there room for a second
+mode for runners that are contractually single-user?**
+
+What we mean by "stateful single-user mode":
+
+- **Sticky lock that outlives the process.** When a runner exits 0 on
+  drain today, the lock evaporates with it. For a Coder workspace
+  where the operator can guarantee one Anthropic user per workspace,
+  the lock could be a property of the workspace identity, not the
+  runner process. `--lock-to-account` already exists for webhook spawn;
+  expose it as something the workspace itself asserts on startup, so
+  there's no first-session-wins race.
+- **Doesn't leave when the chat stops or stalls.** A "warm pause"
+  state where the child claude and its working tree stick around long
+  enough for the user to come back and resume the same `cse_id` in
+  place. The runner already supports `--drain-grace-sec` for the
+  warm-reuse window between sessions; the question is whether the
+  same idea can apply to a single session that's idle but not
+  abandoned.
+- **`/workspace` survives `exit 0`.** This only makes sense if the
+  runner is contractually single-user, because today disposal is how
+  Anthropic guarantees no cross-user leakage. If the operator can
+  prove single-user (Coder workspaces can), the runner could opt out
+  of the fresh-disk requirement and let interrupted edits survive a
+  respawn.
+- **Per-user runner identity.** Today `ccrunner_01...` rotates on
+  every spawn. For audit and dashboards, a stable identity tied to
+  the Coder workspace rather than the process lifecycle would be more
+  useful.
+
+We are not asking Anthropic to throw out the ephemeral model. It is
+the right shape for fleet pools and the right answer for "isolation by
+disposal." The question is whether there is room for a **second mode**
+that opts into "this runner is single-user; please give us state
+continuity in exchange for that guarantee."
+
+If the answer is "no, runners are always ephemeral":
+
+- We document `/workspace` as strictly transient and never persist it.
+- "The user's Claude session on their workspace" is a transient
+  relationship the workspace cannot make durable. The docs say so
+  plainly.
+- Stage 6 fleet pools become the only correct deployment shape for
+  multi-user scenarios. Stage 1's "one workspace per user" is
+  syntactic sugar for "one ephemeral runner with `$HOME`-flavored
+  caching," not a deeper integration.
+
+Either answer is fine to plan against. The risk is shipping docs and
+templates that imply continuity the runner doesn't actually provide.
+This question is worth resolving with Anthropic before Stage 2,
+because the wrapper-script docs need a clear story for how identity
+flows across drain boundaries.
+
 ## What changes if we do allow product work later
 
 This section is a parking lot, not a commitment. It lists things that
