@@ -7,6 +7,8 @@ developer's, their git push credential is used, their commits are
 authored by them, and Coder's audit log attributes runner activity to
 them.
 
+<img src="../../images/guides/claude-code-self-hosted-runners/user-identity-flow.svg" alt="When an Anthropic session is queued, a routing component maps the Anthropic user to their Coder user and claims a warm prebuild on their behalf. The workspace owner flips to the human, Coder external auth wires their git push token, and the runner is born locked to their Anthropic account. User identity is planned and not yet available." />
+
 > [!NOTE]
 > User identity is on the Coder + Anthropic roadmap and is not yet
 > available. The runner protocol pieces it depends on are still being
