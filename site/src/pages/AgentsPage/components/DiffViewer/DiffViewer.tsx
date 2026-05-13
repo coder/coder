@@ -120,6 +120,9 @@ const STICKY_HEADER_CSS = [
 	"}",
 ].join(" ");
 
+// The library reserves a 6px horizontal scrollbar track via
+// overflow: scroll clip. In wrap mode, lines never overflow, so
+// hide the track to remove the phantom gap.
 const WRAP_MODE_SCROLLBAR_HIDING_CSS = [
 	"[data-code] {",
 	"  scrollbar-width: none !important;",
@@ -544,8 +547,8 @@ export const DiffViewer: FC<DiffViewerProps> = ({
 	const diffOptions = {
 		...base,
 		diffStyle,
-		// Extend the base CSS to make file headers sticky so they
-		// remain visible while scrolling through long diffs.
+		// Extend the base CSS to keep file headers visible and
+		// remove the phantom scrollbar gap in wrap mode.
 		unsafeCSS: `${base.unsafeCSS ?? ""} ${STICKY_HEADER_CSS} ${WRAP_MODE_SCROLLBAR_HIDING_CSS}`,
 	};
 
