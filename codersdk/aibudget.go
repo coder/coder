@@ -11,9 +11,6 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// GroupAIBudget is the AI spend limit configured for a group. The limit is
-// per-user: every member of the group has their own running spend tracked
-// against this cap.
 type GroupAIBudget struct {
 	GroupID          uuid.UUID `json:"group_id" format:"uuid"`
 	SpendLimitMicros int64     `json:"spend_limit_micros"`
@@ -21,8 +18,6 @@ type GroupAIBudget struct {
 	UpdatedAt        time.Time `json:"updated_at" format:"date-time"`
 }
 
-// UpsertGroupAIBudgetRequest is the body for creating or updating a group's
-// AI budget. SpendLimitMicros must be greater than zero.
 type UpsertGroupAIBudgetRequest struct {
 	SpendLimitMicros int64 `json:"spend_limit_micros" validate:"required,gt=0"`
 }
