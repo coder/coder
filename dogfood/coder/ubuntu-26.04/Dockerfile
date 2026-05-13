@@ -136,12 +136,9 @@ RUN DOCKER_BUILDX_VERSION=$(curl -s "https://api.github.com/repos/docker/buildx/
 	curl -Lo /usr/local/lib/docker/cli-plugins/docker-buildx "https://github.com/docker/buildx/releases/download/${DOCKER_BUILDX_VERSION}/buildx-${DOCKER_BUILDX_VERSION}.linux-amd64" && \
 	chmod a+x /usr/local/lib/docker/cli-plugins/docker-buildx
 
-# Install the GitHub CLI from the upstream .deb. The image ships a
-# wrapper at /usr/local/bin/gh (see files/usr/local/bin/gh) that adds
-# `coder external-auth` fallback authentication; the wrapper assumes
-# the real binary is at /usr/bin/gh, which the deb provides.
-# See https://github.com/cli/cli/issues/6175#issuecomment-1235984381
-# for why we avoid the apt repository.
+# GitHub CLI to /usr/bin/gh — the wrapper at files/usr/local/bin/gh
+# execs this for coder external-auth fallback. Apt repo is unreliable:
+# https://github.com/cli/cli/issues/6175#issuecomment-1235984381
 RUN GH_CLI_VERSION=$(curl -s "https://api.github.com/repos/cli/cli/releases/latest" | grep '"tag_name":' |  sed -E 's/.*"v([^"]+)".*/\1/') && \
 	curl -L https://github.com/cli/cli/releases/download/v${GH_CLI_VERSION}/gh_${GH_CLI_VERSION}_linux_amd64.deb -o gh.deb && \
 	dpkg -i gh.deb && \
@@ -178,15 +175,14 @@ RUN userdel -r ubuntu && \
 	--uid=1000 \
 	--user-group
 
-# Install mise. The binary lives outside /home/coder so it survives
-# the persistent home volume mount; the data directory at
-# /opt/mise/data is image-owned for the same reason, so image-baked
-# tool versions reach every workspace on recreate.
+# Install mise. Binary at /opt/mise/bin so it survives the home
+# volume mount; data dir under ~/.local/share/mise so installs ride
+# along on the per-workspace home volume — matches Homebrew's pattern
+# (see /home/linuxbrew volume in main.tf).
 ARG MISE_VERSION=v2026.4.19 \
 	MISE_SHA256=6b58ff5f1e1ce98ed2b7e5372c344ea48182c460e5b6df12d9e0def35aad4438 \
 	MISE_INSTALL_DIR=/opt/mise/bin
 RUN install --directory --owner=coder --group=coder --mode=0755 "${MISE_INSTALL_DIR}" && \
-	install --directory --owner=coder --group=coder --mode=0755 /opt/mise/data && \
 	curl --silent --show-error --location --fail \
 		"https://github.com/jdx/mise/releases/download/${MISE_VERSION}/mise-${MISE_VERSION}-linux-x64" \
 		--output "${MISE_INSTALL_DIR}/mise" && \
@@ -197,38 +193,20 @@ RUN install --directory --owner=coder --group=coder --mode=0755 "${MISE_INSTALL_
 	test -x /usr/local/bin/mise && \
 	sudo --login --user=coder /bin/bash -lc 'set -euo pipefail && mise_bin="$(readlink --canonicalize /usr/local/bin/mise)" && test -w "$(dirname "$mise_bin")" && /usr/local/bin/mise --version && /usr/local/bin/mise self-update --help >/dev/null && /usr/local/bin/mise upgrade --help >/dev/null'
 
-# Mise configuration that persists into the final image:
-# - MISE_DATA_DIR points at the image-owned install location.
-# - MISE_TRUSTED_CONFIG_PATHS pre-trusts the baked-in system config
-#   and any project mise.toml under /home/coder, so no `mise trust`
-#   prompt fires for users who clone the coder repo into their
-#   workspace home.
-ENV MISE_DATA_DIR=/opt/mise/data \
+# Trusted paths skip mise's per-config trust prompt for the baked-in
+# system config and any project mise.toml under /home/coder.
+ENV MISE_DATA_DIR=/home/coder/.local/share/mise \
 	MISE_TRUSTED_CONFIG_PATHS=/home/coder:/etc/mise
 
-# The repo's root mise.toml is the single source of truth for image
-# tool versions. We bake it in as mise's system-wide config so every
-# listed tool resolves everywhere in the workspace, including scripts
-# that run outside the cloned coder repo (for instance the workspace
-# startup script that invokes `gh` from /home/coder). When the user
-# clones the coder repo and runs `mise install`, mise layers that
-# project's mise.toml on top; newer versions take precedence inside
-# the repo.
-#
-# CGO_ENABLED=1 is declared in [env] so sqlc's CGO build works during
-# `mise install`.
+# /etc/mise/config.toml is mise's system-wide config. Tools listed
+# here resolve everywhere in the workspace; the cloned coder repo's
+# mise.toml layers on top inside the repo.
 COPY mise.toml /etc/mise/config.toml
 
-# Install every tool listed in /etc/mise/config.toml. sudo loses most
-# environment variables, so the relevant MISE_* values are re-exported
-# via `env` after the privilege drop. Mise's aqua backend hits the
-# GitHub releases API and exhausts the unauthenticated 60/hr quota
-# quickly, so when a github_token build secret is supplied we pass
-# it through as GITHUB_TOKEN; the secret is optional so unconfigured
-# builds still work (just at higher rate-limit risk). Playwright then
-# runs as root with the mise shim dir prepended to PATH so pnpm
-# resolves; the --with-deps flag installs apt packages and requires
-# root.
+# Pre-install image tools as coder so they land on the home volume
+# layer. Sudo drops env vars, so MISE_* are re-exported via `env`.
+# github_token (optional build secret) authenticates aqua's API
+# calls; without it builds may hit GitHub's 60/hr unauth limit.
 RUN --mount=type=secret,id=github_token,required=false \
 	gh_token="$(cat /run/secrets/github_token 2>/dev/null || true)" && \
 	sudo --user=coder env \
@@ -252,11 +230,8 @@ RUN echo "PermitUserEnvironment yes" >>/etc/ssh/sshd_config && \
 
 USER coder
 
-# Configure Homebrew and mise for the coder user. mise shims must stay
-# first so `command -v` and `mise doctor` resolve mise-managed tools
-# ahead of Homebrew and system binaries. Note that no go bins are
-# installed in this docker file, as they'd be mounted over by the
-# persistent home volume.
+# mise shims must lead so `command -v` and `mise doctor` resolve
+# mise-managed tools ahead of Homebrew and system binaries.
 ENV HOMEBREW_PREFIX="/home/linuxbrew/.linuxbrew" \
 	HOMEBREW_CELLAR="/home/linuxbrew/.linuxbrew/Cellar" \
 	HOMEBREW_REPOSITORY="/home/linuxbrew/.linuxbrew/Homebrew"

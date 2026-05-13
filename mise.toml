@@ -7,37 +7,37 @@ CGO_ENABLED = "1"
 
 [tools]
 # Languages and runtimes.
+bun = "1.2.15"
 go = "1.26.2"
 node = "22.19.0"
 pnpm = "10.33.2"
-bun = "1.2.15"
 
 # Codegen and proto toolchain.
-protoc = "23.4"
-protoc-gen-go = "1.30.0"
-"go:storj.io/drpc/cmd/protoc-gen-go-drpc" = "v0.0.34"
 "go:github.com/coder/sqlc/cmd/sqlc" = "337309bfb9524f38466a5090e310040fc7af0203"
 "go:go.uber.org/mock/mockgen" = "v0.6.0"
+"go:storj.io/drpc/cmd/protoc-gen-go-drpc" = "v0.0.34"
+protoc = "23.4"
+protoc-gen-go = "1.30.0"
 
 # Go development tools.
-"go:github.com/swaggo/swag/cmd/swag" = "v1.16.2"
-"go:golang.org/x/tools/cmd/goimports" = "v0.41.0"
 "go:github.com/golang-migrate/migrate/v4/cmd/migrate" = "v4.15.1"
-"go:golang.org/x/tools/gopls" = "v0.21.0"
-"go:gotest.tools/gotestsum" = "v1.9.0"
-"go:github.com/quasilyte/go-ruleguard/cmd/ruleguard" = "v0.3.13"
-"go:mvdan.cc/sh/v3/cmd/shfmt" = "v3.12.0"
 "go:github.com/goreleaser/nfpm/v2/cmd/nfpm" = "v2.35.1"
 "go:github.com/mikefarah/yq/v4" = "v4.44.3"
+"go:github.com/quasilyte/go-ruleguard/cmd/ruleguard" = "v0.3.13"
+"go:github.com/swaggo/swag/cmd/swag" = "v1.16.2"
+"go:golang.org/x/tools/cmd/goimports" = "v0.41.0"
+"go:golang.org/x/tools/gopls" = "v0.21.0"
+"go:gotest.tools/gotestsum" = "v1.9.0"
+"go:mvdan.cc/sh/v3/cmd/shfmt" = "v3.12.0"
 
 # Infrastructure, release, and lint CLIs.
-terraform = "1.15.2"
+"aqua:ahmetb/kubectx/kubens" = "0.9.4"
+cosign = "2.4.3"
 golangci-lint = "1.64.8"
 helm = "3.12.0"
 kubectx = "0.9.4"
-"aqua:ahmetb/kubectx/kubens" = "0.9.4"
 syft = "1.20.0"
-cosign = "2.4.3"
+terraform = "1.15.2"
 
 # Developer-environment niceties for the dogfood image. Non-dogfood
 # users who run `mise install` here will pull these too; they are
@@ -48,8 +48,8 @@ cosign = "2.4.3"
 # image ships a wrapper at /usr/local/bin/gh that bridges
 # `coder external-auth` into `gh`, and a mise shim earlier in
 # PATH would bypass it.
-lazygit = "latest"
-doctl = "latest"
-"aqua:jj-vcs/jj" = "latest"
 "aqua:crate-ci/typos" = "latest"
+"aqua:jj-vcs/jj" = "latest"
 "aqua:watchexec/watchexec" = "latest"
+doctl = "latest"
+lazygit = "latest"
