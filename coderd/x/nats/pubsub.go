@@ -334,6 +334,24 @@ func (p *Pubsub) Publish(event string, message []byte) error {
 	return nil
 }
 
+// Flush blocks until the publish connection has flushed all buffered
+// publishes to the embedded server. Mirrors nats.Conn.Flush. Useful in
+// benchmarks and tests where the caller needs to know that all preceding
+// Publish calls have reached the server.
+func (p *Pubsub) Flush() error {
+	p.mu.Lock()
+	if p.closed {
+		p.mu.Unlock()
+		return xerrors.New("nats pubsub: closed")
+	}
+	p.mu.Unlock()
+
+	if err := p.pubConn.Flush(); err != nil {
+		return xerrors.Errorf("flush: %w", err)
+	}
+	return nil
+}
+
 // Subscribe subscribes a Listener to the given legacy event name. Errors
 // such as ErrDroppedMessages are silently ignored, mirroring the legacy
 // pubsub Listener semantics.
