@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 460" width="1000" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="concepts-title concepts-desc">
   <title id="concepts-title">Workspace, runner, session, and who manages each</title>
-  <desc id="concepts-desc">A Coder workspace is the outer container or VM, built from a template; Coder manages it. Inside the workspace runs the Claude Code self-hosted runner, a long-lived process that registers with your Anthropic pool and polls for work; Anthropic manages it. The runner spawns one child claude process per assigned session, up to the runner's capacity in parallel, all serving the same Anthropic user the runner is locked to. The workspace reaches out to Anthropic (developer surfaces, control plane, model API) and to your network (internal Git, package registries, internal services); nothing on the outside reaches in.</desc>
+  <desc id="concepts-desc">A Coder workspace is the outer container or VM, built from a template; Coder manages it. Inside the workspace runs the Claude Code self-hosted runner, a long-lived process that Anthropic manages. From its first session until drain, the runner is locked to one Anthropic user; every session the runner serves belongs to that same user. The runner spawns one child claude process per assigned session, each in its own subtree under /workspace/_sessions/, up to the runner's capacity in parallel. The workspace reaches out to Anthropic (developer surfaces, control plane, model API) and to your network (internal Git, package registries, internal services); nothing on the outside reaches in.</desc>
 
   <defs>
     <style>
@@ -19,22 +19,24 @@
 
       .badge-coder      { fill: #ede9fe; stroke: #7c3aed; stroke-width: 1; }
       .badge-anthropic  { fill: #fef3c7; stroke: #b45309; stroke-width: 1; }
+      .badge-locked     { fill: #fee2e2; stroke: #b91c1c; stroke-width: 1; }
       .badge-coder-l    { fill: #6d28d9; }
       .badge-anthropic-l{ fill: #b45309; }
+      .badge-locked-l   { fill: #b91c1c; }
 
-      .zone-label       { font-size: 18px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+      .zone-label       { font-size: 16px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
       .zone-label-a     { fill: #b45309; }
       .zone-label-n     { fill: #0e7490; }
 
-      .layer-title      { font-size: 30px; font-weight: 700; fill: #111827; }
-      .layer-def        { font-size: 17px; fill: #374151; }
-      .session-title    { font-size: 17px; font-weight: 700; fill: #111827; }
-      .session-mono     { font-family: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace; font-size: 15px; fill: #1f2937; }
-      .side-title       { font-size: 19px; font-weight: 700; fill: #111827; }
-      .side-line        { font-size: 16px; fill: #374151; }
-      .side-mono        { font-family: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace; font-size: 14px; fill: #1f2937; }
-      .badge-label      { font-size: 14px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
-      .footnote         { font-size: 16px; fill: #4b5563; font-style: italic; }
+      .layer-title      { font-size: 26px; font-weight: 700; fill: #111827; }
+      .layer-def        { font-size: 14px; fill: #374151; }
+      .session-title    { font-size: 14px; font-weight: 700; fill: #111827; }
+      .session-mono     { font-family: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace; font-size: 11px; fill: #1f2937; }
+      .side-title       { font-size: 15px; font-weight: 700; fill: #111827; }
+      .side-line        { font-size: 13px; fill: #374151; }
+      .side-mono        { font-family: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace; font-size: 11px; fill: #1f2937; }
+      .badge-label      { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+      .footnote         { font-size: 13px; fill: #4b5563; font-style: italic; }
     </style>
   </defs>
 
@@ -44,88 +46,95 @@
   <!-- Left column: Anthropic                                       -->
   <!-- =========================================================== -->
   <rect class="anthropic-zone" x="16" y="30" width="172" height="390" rx="14"/>
-  <text class="zone-label zone-label-a" x="32" y="62">Anthropic</text>
+  <text class="zone-label zone-label-a" x="32" y="58">Anthropic</text>
 
-  <rect class="side-card side-card-a" x="30" y="80" width="144" height="90" rx="8"/>
-  <text class="side-title" x="44" y="108">Developer</text>
-  <text class="side-title" x="44" y="128">surfaces</text>
-  <text class="side-line"  x="44" y="152">claude.ai/code,</text>
-  <text class="side-line"  x="44" y="168">mobile, API</text>
+  <rect class="side-card side-card-a" x="30" y="76" width="144" height="86" rx="8"/>
+  <text class="side-title" x="44" y="100">Developer surfaces</text>
+  <text class="side-line"  x="44" y="124">claude.ai/code,</text>
+  <text class="side-line"  x="44" y="142">mobile, API</text>
 
-  <rect class="side-card side-card-a" x="30" y="184" width="144" height="106" rx="8"/>
-  <text class="side-title" x="44" y="210">Control plane</text>
-  <text class="side-mono"  x="44" y="234">api.anthropic.com</text>
-  <text class="side-line"  x="44" y="258">Session queue,</text>
-  <text class="side-line"  x="44" y="276">runner tokens.</text>
+  <rect class="side-card side-card-a" x="30" y="176" width="144" height="106" rx="8"/>
+  <text class="side-title" x="44" y="200">Control plane</text>
+  <text class="side-mono"  x="44" y="222">api.anthropic.com</text>
+  <text class="side-line"  x="44" y="246">Session queue,</text>
+  <text class="side-line"  x="44" y="264">runner tokens.</text>
 
-  <rect class="side-card side-card-a" x="30" y="304" width="144" height="90" rx="8"/>
-  <text class="side-title" x="44" y="332">Claude API</text>
-  <text class="side-line"  x="44" y="356">Inference for</text>
-  <text class="side-line"  x="44" y="374">each session.</text>
+  <rect class="side-card side-card-a" x="30" y="296" width="144" height="98" rx="8"/>
+  <text class="side-title" x="44" y="320">Claude API</text>
+  <text class="side-line"  x="44" y="344">Inference for</text>
+  <text class="side-line"  x="44" y="362">each session.</text>
 
   <!-- =========================================================== -->
   <!-- Right column: Your network                                   -->
   <!-- =========================================================== -->
   <rect class="network-zone" x="812" y="30" width="172" height="390" rx="14"/>
-  <text class="zone-label zone-label-n" x="828" y="62">Your network</text>
+  <text class="zone-label zone-label-n" x="828" y="58">Your network</text>
 
-  <rect class="side-card side-card-n" x="826" y="80" width="144" height="90" rx="8"/>
-  <text class="side-title" x="840" y="108">Internal Git</text>
-  <text class="side-line"  x="840" y="132">github, gitlab,</text>
-  <text class="side-line"  x="840" y="150">gitea over SSH</text>
-  <text class="side-line"  x="840" y="168">or HTTPS.</text>
+  <rect class="side-card side-card-n" x="826" y="76" width="144" height="86" rx="8"/>
+  <text class="side-title" x="840" y="100">Internal Git</text>
+  <text class="side-line"  x="840" y="124">github, gitlab,</text>
+  <text class="side-line"  x="840" y="142">SSH or HTTPS.</text>
 
-  <rect class="side-card side-card-n" x="826" y="184" width="144" height="106" rx="8"/>
-  <text class="side-title" x="840" y="210">Package</text>
-  <text class="side-title" x="840" y="230">registries</text>
-  <text class="side-line"  x="840" y="256">artifactory,</text>
-  <text class="side-line"  x="840" y="274">npm, pypi.</text>
+  <rect class="side-card side-card-n" x="826" y="176" width="144" height="106" rx="8"/>
+  <text class="side-title" x="840" y="200">Package registries</text>
+  <text class="side-line"  x="840" y="224">artifactory,</text>
+  <text class="side-line"  x="840" y="242">npm, pypi,</text>
+  <text class="side-line"  x="840" y="260">internal proxy.</text>
 
-  <rect class="side-card side-card-n" x="826" y="304" width="144" height="90" rx="8"/>
-  <text class="side-title" x="840" y="332">Internal</text>
-  <text class="side-title" x="840" y="352">services</text>
-  <text class="side-line"  x="840" y="378">DBs, build, APIs.</text>
+  <rect class="side-card side-card-n" x="826" y="296" width="144" height="98" rx="8"/>
+  <text class="side-title" x="840" y="320">Internal services</text>
+  <text class="side-line"  x="840" y="344">Databases, build</text>
+  <text class="side-line"  x="840" y="362">systems, APIs.</text>
 
   <!-- =========================================================== -->
   <!-- Middle: Coder workspace                                      -->
   <!-- =========================================================== -->
   <rect class="workspace-box" x="204" y="30" width="592" height="390" rx="16"/>
-  <text class="layer-title" x="228" y="76">Coder workspace</text>
-  <text class="layer-def"   x="228" y="104">A container or VM built from a Coder template.</text>
-  <text class="layer-def"   x="228" y="126">Provides image, credentials, networking, lifecycle.</text>
+  <text class="layer-title" x="228" y="72">Coder workspace</text>
+  <text class="layer-def"   x="228" y="96">A container or VM built from a Coder template.</text>
+  <text class="layer-def"   x="228" y="114">Provides image, credentials, networking, lifecycle.</text>
 
-  <rect class="badge-coder" x="600" y="44" width="180" height="30" rx="6"/>
-  <text class="badge-label badge-coder-l" x="618" y="64">Managed by Coder</text>
+  <rect class="badge-coder" x="624" y="44" width="156" height="26" rx="6"/>
+  <text class="badge-label badge-coder-l" x="640" y="62">Managed by Coder</text>
 
   <!-- Middle: Runner -->
-  <rect class="runner-box" x="228" y="148" width="544" height="252" rx="14"/>
-  <text class="layer-title" x="252" y="190">Runner</text>
-  <text class="layer-def"   x="252" y="218">Long-lived process; registers with your Anthropic</text>
-  <text class="layer-def"   x="252" y="240">pool and polls for work. One per workspace.</text>
+  <rect class="runner-box" x="228" y="138" width="544" height="270" rx="14"/>
+  <text class="layer-title" x="252" y="178">Runner</text>
 
-  <rect class="badge-anthropic" x="556" y="160" width="204" height="30" rx="6"/>
-  <text class="badge-label badge-anthropic-l" x="574" y="180">Managed by Anthropic</text>
+  <!-- 1-user lock pill, inline next to the Runner title -->
+  <rect class="badge-locked" x="358" y="160" width="148" height="24" rx="6"/>
+  <text class="badge-label badge-locked-l" x="372" y="176">Locked to 1 user</text>
+
+  <!-- Managed by Anthropic, right-aligned on the same row -->
+  <rect class="badge-anthropic" x="586" y="160" width="172" height="24" rx="6"/>
+  <text class="badge-label badge-anthropic-l" x="600" y="176">Managed by Anthropic</text>
+
+  <text class="layer-def" x="252" y="204">Long-lived process. From its first session until drain,</text>
+  <text class="layer-def" x="252" y="222">all sessions serve the same Anthropic user.</text>
 
   <!-- Middle: Sessions -->
-  <rect class="session-card" x="248" y="266" width="156" height="100" rx="10"/>
-  <text class="session-title" x="264" y="290">Session 1</text>
-  <text class="session-mono"  x="264" y="314">child claude</text>
-  <text class="session-mono"  x="264" y="332">cwd: /workspace</text>
-  <text class="session-mono"  x="264" y="350">Claude API call</text>
+  <rect class="session-card" x="248" y="248" width="156" height="116" rx="10"/>
+  <text class="session-title" x="264" y="270">Session 1</text>
+  <text class="session-mono"  x="264" y="290">child claude</text>
+  <text class="session-mono"  x="264" y="308">cwd: /workspace/</text>
+  <text class="session-mono"  x="264" y="324">_sessions/cse_01ST</text>
+  <text class="session-mono"  x="264" y="342">Claude API call</text>
 
-  <rect class="session-card" x="422" y="266" width="156" height="100" rx="10"/>
-  <text class="session-title" x="438" y="290">Session 2</text>
-  <text class="session-mono"  x="438" y="314">child claude</text>
-  <text class="session-mono"  x="438" y="332">cwd: /workspace</text>
-  <text class="session-mono"  x="438" y="350">Claude API call</text>
+  <rect class="session-card" x="422" y="248" width="156" height="116" rx="10"/>
+  <text class="session-title" x="438" y="270">Session 2</text>
+  <text class="session-mono"  x="438" y="290">child claude</text>
+  <text class="session-mono"  x="438" y="308">cwd: /workspace/</text>
+  <text class="session-mono"  x="438" y="324">_sessions/cse_a4Bf</text>
+  <text class="session-mono"  x="438" y="342">Claude API call</text>
 
-  <rect class="session-card" x="596" y="266" width="156" height="100" rx="10"/>
-  <text class="session-title" x="612" y="290">Session 3</text>
-  <text class="session-mono"  x="612" y="314">child claude</text>
-  <text class="session-mono"  x="612" y="332">cwd: /workspace</text>
-  <text class="session-mono"  x="612" y="350">Claude API call</text>
+  <rect class="session-card" x="596" y="248" width="156" height="116" rx="10"/>
+  <text class="session-title" x="612" y="270">Session 3</text>
+  <text class="session-mono"  x="612" y="290">child claude</text>
+  <text class="session-mono"  x="612" y="308">cwd: /workspace/</text>
+  <text class="session-mono"  x="612" y="324">_sessions/cse_9pXk</text>
+  <text class="session-mono"  x="612" y="342">Claude API call</text>
 
-  <text class="layer-def" x="252" y="388">Anthropic's unit of work. Up to `--capacity` in parallel, all serving the locked user.</text>
+  <text class="layer-def" x="252" y="390">Up to `--capacity` sessions in parallel, each in its own subtree, all for the locked user.</text>
 
   <!-- Footnote -->
   <text class="footnote" x="20" y="446">Each layer's outer box is managed by the team named in the badge. The workspace reaches out to both sides; nothing reaches in.</text>
