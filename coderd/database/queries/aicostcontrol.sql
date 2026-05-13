@@ -24,3 +24,19 @@ ON CONFLICT (provider, model) DO UPDATE SET
 SELECT *
 FROM ai_model_prices
 WHERE provider = @provider AND model = @model;
+
+-- name: GetGroupAIBudget :one
+SELECT *
+FROM group_ai_budgets
+WHERE group_id = @group_id;
+
+-- name: UpsertGroupAIBudget :one
+INSERT INTO group_ai_budgets (group_id, spend_limit)
+VALUES (@group_id, @spend_limit)
+ON CONFLICT (group_id) DO UPDATE SET
+	spend_limit = EXCLUDED.spend_limit,
+	updated_at  = NOW()
+RETURNING *;
+
+-- name: DeleteGroupAIBudget :exec
+DELETE FROM group_ai_budgets WHERE group_id = @group_id;

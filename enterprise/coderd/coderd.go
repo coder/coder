@@ -549,6 +549,11 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				r.Patch("/", api.patchGroup)
 				r.Delete("/", api.deleteGroup)
 				r.Get("/members", api.groupMembers)
+				r.Route("/ai/budget", func(r chi.Router) {
+					r.Get("/", api.groupAIBudget)
+					r.Put("/", api.upsertGroupAIBudget)
+					r.Delete("/", api.deleteGroupAIBudget)
+				})
 			})
 		})
 		r.Route("/workspace-quota", func(r chi.Router) {
