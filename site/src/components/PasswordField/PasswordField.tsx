@@ -37,7 +37,7 @@ export const PasswordField: FC<PasswordFieldProps> = ({
 		: field.helperText;
 
 	return (
-		<div className="flex flex-col items-start gap-4">
+		<div className="flex flex-col items-start gap-6">
 			<Label htmlFor={field.id}>{label}</Label>
 			<Input
 				id={field.id}
