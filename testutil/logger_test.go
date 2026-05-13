@@ -486,3 +486,83 @@ func TestLogger_WithNoFilter_WithFilter_KeepsCustomOnly(t *testing.T) {
 		t.Fatalf("expected my.pkg debug to drop via custom filter, got %d log lines", rec.logCount())
 	}
 }
+
+func TestLogger_WithIgnoreErrors_DowngradesErrorToLog(t *testing.T) {
+	t.Parallel()
+	rec := newRecorderTB(t.Name())
+	log := testutil.Logger(rec, testutil.WithIgnoreErrors())
+	log.Named("coderd").Error(context.Background(), "boom", slog.Error(xerrors.New("kaboom")))
+	rec.runCleanups()
+	if rec.errorCount() != 0 {
+		t.Fatalf("expected WithIgnoreErrors to suppress tb.Errorf, got %d errors", rec.errorCount())
+	}
+	if rec.logCount() != 1 {
+		t.Fatalf("expected error to still appear via tb.Log, got %d log lines", rec.logCount())
+	}
+	if rec.Failed() {
+		t.Fatalf("expected recorder.Failed() to be false")
+	}
+}
+
+func TestLogger_WithIgnoredErrorIs_MatchedErrorDowngraded(t *testing.T) {
+	t.Parallel()
+	target := xerrors.New("expected during test teardown")
+	rec := newRecorderTB(t.Name())
+	log := testutil.Logger(rec, testutil.WithIgnoredErrorIs(target))
+	// Wrap so xerrors.Is finds it.
+	log.Named("coderd").Error(context.Background(), "shutting down",
+		slog.Error(xerrors.Errorf("wrapped: %w", target)))
+	rec.runCleanups()
+	if rec.errorCount() != 0 {
+		t.Fatalf("expected wrapped target error to be downgraded, got %d tb.Errorf calls", rec.errorCount())
+	}
+	if rec.logCount() != 1 {
+		t.Fatalf("expected error to still appear via tb.Log, got %d log lines", rec.logCount())
+	}
+}
+
+func TestLogger_WithIgnoredErrorIs_UnmatchedErrorFailsTest(t *testing.T) {
+	t.Parallel()
+	target := xerrors.New("expected")
+	other := xerrors.New("something else")
+	rec := newRecorderTB(t.Name())
+	log := testutil.Logger(rec, testutil.WithIgnoredErrorIs(target))
+	log.Named("coderd").Error(context.Background(), "real failure", slog.Error(other))
+	rec.runCleanups()
+	if rec.errorCount() != 1 {
+		t.Fatalf("expected non-matching error to fail test, got %d tb.Errorf calls", rec.errorCount())
+	}
+	if !rec.Failed() {
+		t.Fatalf("expected recorder.Failed() to be true")
+	}
+}
+
+func TestLogger_WithIgnoredErrorIs_AdditiveAcrossCalls(t *testing.T) {
+	t.Parallel()
+	a := xerrors.New("a")
+	b := xerrors.New("b")
+	for _, target := range []error{a, b} {
+		rec := newRecorderTB(t.Name())
+		log := testutil.Logger(rec, testutil.WithIgnoredErrorIs(a), testutil.WithIgnoredErrorIs(b))
+		log.Named("coderd").Error(context.Background(), "msg", slog.Error(target))
+		rec.runCleanups()
+		if rec.errorCount() != 0 {
+			t.Fatalf("expected %v to be downgraded, got %d tb.Errorf calls", target, rec.errorCount())
+		}
+	}
+}
+
+func TestLogger_WithIgnoredErrorIs_PreservesDefaultIgnoreList(t *testing.T) {
+	t.Parallel()
+	// Even when WithIgnoredErrorIs adds custom targets, the default ignore
+	// list (context.Canceled etc.) must still apply.
+	target := xerrors.New("custom")
+	rec := newRecorderTB(t.Name())
+	log := testutil.Logger(rec, testutil.WithIgnoredErrorIs(target))
+	log.Named("coderd").Error(context.Background(), "canceled",
+		slog.Error(context.Canceled))
+	rec.runCleanups()
+	if rec.errorCount() != 0 {
+		t.Fatalf("expected context.Canceled to remain ignored, got %d tb.Errorf calls", rec.errorCount())
+	}
+}

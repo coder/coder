@@ -34,7 +34,10 @@ func Logger(t testing.TB, opts ...LoggerOption) slog.Logger {
 		o(&cfg)
 	}
 
-	inner := newTestSink(t)
+	inner := newTestSink(t, sinkOptions{
+		ignoreAllErrors:  cfg.ignoreAllErrors,
+		extraIgnoredErrs: cfg.extraIgnoredErrs,
+	})
 	drop := buildDropFn(cfg)
 	return slog.Make(&filteringSink{inner: inner, drop: drop}).Leveled(slog.LevelDebug)
 }
@@ -43,8 +46,10 @@ func Logger(t testing.TB, opts ...LoggerOption) slog.Logger {
 type LoggerOption func(*loggerConfig)
 
 type loggerConfig struct {
-	applyDefaults bool
-	extra         []func(slog.SinkEntry) bool
+	applyDefaults    bool
+	extra            []func(slog.SinkEntry) bool
+	ignoreAllErrors  bool
+	extraIgnoredErrs []error
 }
 
 // WithNoFilter disables the default deny-list. The returned logger will emit
@@ -72,6 +77,32 @@ func WithFilter(fn func(slog.SinkEntry) bool) LoggerOption {
 		if fn != nil {
 			cfg.extra = append(cfg.extra, fn)
 		}
+	}
+}
+
+// WithIgnoreErrors causes the logger to never fail the test on error or
+// critical log entries. Such entries are still emitted via t.Log; they are
+// just downgraded so that they do not call t.Errorf.
+//
+// This mirrors slogtest.Options.IgnoreErrors and exists to ease migration of
+// call sites that previously used slogtest.Make directly.
+func WithIgnoreErrors() LoggerOption {
+	return func(cfg *loggerConfig) {
+		cfg.ignoreAllErrors = true
+	}
+}
+
+// WithIgnoredErrorIs adds errors that should not fail the test when they
+// appear in a log entry's "error" field. Matching uses xerrors.Is.
+//
+// This is additive to the built-in ignore list (yamux session shutdown,
+// context.Canceled / context.DeadlineExceeded, query-canceled errors) and to
+// any previous WithIgnoredErrorIs options.
+//
+// This mirrors slogtest.Options.IgnoredErrorIs.
+func WithIgnoredErrorIs(errs ...error) LoggerOption {
+	return func(cfg *loggerConfig) {
+		cfg.extraIgnoredErrs = append(cfg.extraIgnoredErrs, errs...)
 	}
 }
 
@@ -185,7 +216,8 @@ func (f *filteringSink) Sync() { f.inner.Sync() }
 // We own this sink so that we can wrap it in filteringSink. Going through
 // slogtest.Make directly would not give us access to the underlying sink.
 type testSink struct {
-	tb testing.TB
+	tb   testing.TB
+	opts sinkOptions
 
 	mu       sync.RWMutex
 	testDone bool
@@ -197,10 +229,16 @@ type testSink struct {
 	fmtSink slog.Sink
 }
 
-func newTestSink(tb testing.TB) *testSink {
+type sinkOptions struct {
+	ignoreAllErrors  bool
+	extraIgnoredErrs []error
+}
+
+func newTestSink(tb testing.TB, opts sinkOptions) *testSink {
 	buf := &lineBuffer{}
 	s := &testSink{
 		tb:      tb,
+		opts:    opts,
 		fmtBuf:  buf,
 		fmtSink: sloghuman.Sink(buf),
 	}
@@ -244,7 +282,7 @@ func (s *testSink) LogEntry(ctx context.Context, ent slog.SinkEntry) {
 	case slog.LevelDebug, slog.LevelInfo, slog.LevelWarn:
 		s.tb.Log(formatted)
 	case slog.LevelError, slog.LevelCritical:
-		if IgnoreLoggedError(ent) {
+		if s.shouldIgnoreError(ent) {
 			s.tb.Log(formatted)
 		} else {
 			s.tb.Errorf("%s\n *** slogtest: log detected at level %s; TEST FAILURE ***",
@@ -253,6 +291,28 @@ func (s *testSink) LogEntry(ctx context.Context, ent slog.SinkEntry) {
 	case slog.LevelFatal:
 		s.tb.Fatal(fmt.Sprintf("%s\n *** slogtest: FATAL log detected; TEST FAILURE ***", formatted))
 	}
+}
+
+func (s *testSink) shouldIgnoreError(ent slog.SinkEntry) bool {
+	if s.opts.ignoreAllErrors {
+		return true
+	}
+	if IgnoreLoggedError(ent) {
+		return true
+	}
+	if len(s.opts.extraIgnoredErrs) == 0 {
+		return false
+	}
+	err, ok := findFirstError(ent)
+	if !ok {
+		return false
+	}
+	for _, ig := range s.opts.extraIgnoredErrs {
+		if xerrors.Is(err, ig) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *testSink) format(ctx context.Context, ent slog.SinkEntry) string {
