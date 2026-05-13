@@ -27,6 +27,7 @@ import {
 	useChatSelector,
 } from "./components/ChatConversation/chatStore";
 import type { ModelSelectorOption } from "./components/ChatElements";
+import { getBottomGap } from "./components/chatViewportUtils";
 import { lastActiveSidebarTabStorageKeyPrefix } from "./utils/sidebarTabStorage";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
 
@@ -434,7 +435,7 @@ export const SidebarCollapsed: Story = {
 	render: () => <StoryAgentChatPageView isSidebarCollapsed />,
 };
 
-/** No model options available — shows a disabled status message. */
+/** No model options available. Shows a disabled status message. */
 export const NoModelOptions: Story = {
 	render: () => (
 		<StoryAgentChatPageView
@@ -622,7 +623,7 @@ export const Loading: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
 			sendShortcut="enter"
-			titleElement={<title>Loading — Agents</title>}
+			titleElement={<title>Loading | Agents</title>}
 			isInputDisabled
 			effectiveSelectedModel={defaultModelConfigID}
 			setSelectedModel={fn()}
@@ -641,7 +642,7 @@ export const LoadingWithModelOptions: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
 			sendShortcut="enter"
-			titleElement={<title>Loading — Agents</title>}
+			titleElement={<title>Loading | Agents</title>}
 			isInputDisabled={false}
 			effectiveSelectedModel={defaultModelConfigID}
 			setSelectedModel={fn()}
@@ -659,7 +660,7 @@ export const LoadingWithRightPanel: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
 			sendShortcut="enter"
-			titleElement={<title>Loading — Agents</title>}
+			titleElement={<title>Loading | Agents</title>}
 			isInputDisabled
 			effectiveSelectedModel={defaultModelConfigID}
 			setSelectedModel={fn()}
@@ -678,7 +679,7 @@ export const LoadingSidebarCollapsed: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
 			sendShortcut="enter"
-			titleElement={<title>Loading — Agents</title>}
+			titleElement={<title>Loading | Agents</title>}
 			isInputDisabled
 			effectiveSelectedModel={defaultModelConfigID}
 			setSelectedModel={fn()}
@@ -734,7 +735,7 @@ const editingMessages = [
 	buildMessage(5, "user", "That was terrible, try again"),
 ];
 
-/** Editing a message in the middle of the conversation — shows the warning
+/** Editing a message in the middle of the conversation. Shows the warning
  *  border on the edited message, faded subsequent messages, and the editing
  *  banner + outline on the chat input. */
 export const EditingMessage: Story = {
@@ -757,7 +758,7 @@ export const EditingMessage: Story = {
 export const NotFound: Story = {
 	render: () => (
 		<AgentChatPageNotFoundView
-			titleElement={<title>Not Found — Agents</title>}
+			titleElement={<title>Not Found | Agents</title>}
 			isSidebarCollapsed={false}
 			onToggleSidebarCollapsed={fn()}
 		/>
@@ -768,7 +769,7 @@ export const NotFound: Story = {
 export const NotFoundSidebarCollapsed: Story = {
 	render: () => (
 		<AgentChatPageNotFoundView
-			titleElement={<title>Not Found — Agents</title>}
+			titleElement={<title>Not Found | Agents</title>}
 			isSidebarCollapsed
 			onToggleSidebarCollapsed={fn()}
 		/>
@@ -818,14 +819,49 @@ const waitForScrollOverflow = async (scrollContainer: HTMLElement) => {
 };
 
 const scrollToHistoryTop = (scrollContainer: HTMLElement) => {
-	// In the library's documented column-reverse layout, older history is
-	// reached by driving the scroll offset toward the negative extreme.
-	scrollContainer.scrollTop = -scrollContainer.scrollHeight;
+	scrollContainer.dispatchEvent(new WheelEvent("wheel", { deltaY: -1 }));
+	scrollContainer.scrollTop = 0;
 	scrollContainer.dispatchEvent(new Event("scroll"));
 };
 
 const scrollToLatestMessages = (scrollContainer: HTMLElement) => {
-	scrollContainer.scrollTop = 0;
+	scrollContainer.scrollTop = scrollContainer.scrollHeight;
+	scrollContainer.dispatchEvent(new Event("scroll"));
+};
+
+const getBottomGapForStory = (scrollContainer: HTMLElement) =>
+	getBottomGap(scrollContainer);
+
+const getChatAnchor = (
+	scrollContainer: HTMLElement,
+	anchorId: string,
+): HTMLElement => {
+	const anchor = scrollContainer.querySelector<HTMLElement>(
+		`[data-chat-anchor-id="${anchorId}"]`,
+	);
+	if (!anchor) {
+		throw new Error(`Expected chat anchor ${anchorId} to exist.`);
+	}
+	return anchor;
+};
+
+const getAnchorOffset = (
+	scrollContainer: HTMLElement,
+	anchor: HTMLElement,
+): number =>
+	anchor.getBoundingClientRect().top -
+	scrollContainer.getBoundingClientRect().top;
+
+const scrollAnchorNearTop = (
+	scrollContainer: HTMLElement,
+	anchor: HTMLElement,
+) => {
+	scrollContainer.dispatchEvent(new WheelEvent("wheel", { deltaY: -1 }));
+	const offset = getAnchorOffset(scrollContainer, anchor);
+	scrollContainer.scrollTop = Math.max(
+		0,
+		scrollContainer.scrollTop + offset - 80,
+	);
 	scrollContainer.dispatchEvent(new Event("scroll"));
 };
 
@@ -884,6 +920,18 @@ const getStoreMessages = (
 	return messages;
 };
 
+const appendNewestMessage = (
+	store: ReturnType<typeof createChatStore>,
+	text: string,
+) => {
+	const existing = getStoreMessages(store);
+	const newestID = existing.at(-1)?.id ?? 0;
+	store.replaceMessages([
+		...existing,
+		buildMessage(newestID + 1, "assistant", text),
+	]);
+};
+
 const prependOlderMessages = (
 	store: ReturnType<typeof createChatStore>,
 	count: number,
@@ -905,45 +953,40 @@ const prependOlderMessages = (
 
 const resetScrollStoryStore = (
 	store: ReturnType<typeof createChatStore>,
-	// Default to a transcript long enough to overflow the 600px decorator so the
-	// inverse-scroll stories exercise the fetch threshold immediately.
 	count = 80,
 ) => {
 	store.replaceMessages(buildLongConversation(count));
 	store.setChatStatus("completed");
 };
 
-const inverseScrollStore = buildStoreWithMessages(buildLongConversation(80));
-const inverseScrollFetchSpy = fn(() => {
-	prependOlderMessages(inverseScrollStore, 10);
+const historyLoadStore = buildStoreWithMessages(buildLongConversation(80));
+const historyLoadFetchSpy = fn(() => {
+	prependOlderMessages(historyLoadStore, 10);
 });
 
-/**
- * Scrolling upward in the library's inverse mode loads older messages into the
- * top of the transcript.
- */
-export const InverseScrollLoadsOlderMessages: Story = {
+export const ScrollLoadsOlderMessages: Story = {
 	parameters: { chromatic: { disableSnapshot: true } },
 	decorators: scrollStoryDecorators,
 	render: () => (
 		<StoryAgentChatPageView
-			store={inverseScrollStore}
+			store={historyLoadStore}
 			hasMoreMessages
-			onFetchMoreMessages={inverseScrollFetchSpy}
+			onFetchMoreMessages={historyLoadFetchSpy}
 		/>
 	),
 	play: async ({ canvasElement }) => {
-		resetScrollStoryStore(inverseScrollStore);
-		inverseScrollFetchSpy.mockClear();
+		resetScrollStoryStore(historyLoadStore);
+		historyLoadFetchSpy.mockClear();
 		const canvas = within(canvasElement);
 		const scrollContainer = canvas.getByTestId("scroll-container");
 
 		await waitForScrollOverflow(scrollContainer);
-		expect(inverseScrollFetchSpy).not.toHaveBeenCalled();
+		expect(historyLoadFetchSpy).not.toHaveBeenCalled();
 
 		scrollToHistoryTop(scrollContainer);
+		await waitForIntersectionObserverTick();
 
-		await waitForFetchCount(inverseScrollFetchSpy, 1);
+		await waitForFetchCount(historyLoadFetchSpy, 1);
 		await waitForVisibleText(canvas, "Older question 9.");
 	},
 };
@@ -953,11 +996,7 @@ const multiPageFetchSpy = fn(() => {
 	prependOlderMessages(multiPageScrollStore, 10);
 });
 
-/**
- * The library resets its one-shot load guard when dataLength changes, so a
- * second upward reveal can load another page.
- */
-export const InverseScrollCanLoadMultiplePages: Story = {
+export const ScrollCanLoadMultiplePages: Story = {
 	parameters: { chromatic: { disableSnapshot: true } },
 	decorators: scrollStoryDecorators,
 	render: () => (
@@ -976,18 +1015,58 @@ export const InverseScrollCanLoadMultiplePages: Story = {
 		await waitForScrollOverflow(scrollContainer);
 
 		scrollToHistoryTop(scrollContainer);
+		await waitForIntersectionObserverTick();
 		await waitForFetchCount(multiPageFetchSpy, 1);
 		await waitForVisibleText(canvas, "Older question 9.");
 
 		scrollToLatestMessages(scrollContainer);
 		await waitFor(() => {
-			expect(scrollContainer.scrollTop).toBe(0);
+			expect(getBottomGapForStory(scrollContainer)).toBeLessThanOrEqual(2);
 		});
 		await waitForIntersectionObserverTick();
 		scrollToHistoryTop(scrollContainer);
+		await waitForIntersectionObserverTick();
 
 		await waitForFetchCount(multiPageFetchSpy, 2);
 		await waitForVisibleText(canvas, "Older answer 10.");
+	},
+};
+
+const historyPrependStore = buildStoreWithMessages(buildLongConversation(80));
+const historyPrependFetchSpy = fn(() => {
+	prependOlderMessages(historyPrependStore, 10);
+});
+
+export const HistoryPrependPreservesViewport: Story = {
+	parameters: { chromatic: { disableSnapshot: true } },
+	decorators: scrollStoryDecorators,
+	render: () => (
+		<StoryAgentChatPageView
+			store={historyPrependStore}
+			hasMoreMessages
+			onFetchMoreMessages={historyPrependFetchSpy}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		resetScrollStoryStore(historyPrependStore);
+		historyPrependFetchSpy.mockClear();
+		const canvas = within(canvasElement);
+		const scrollContainer = canvas.getByTestId("scroll-container");
+
+		await waitForScrollOverflow(scrollContainer);
+		scrollToHistoryTop(scrollContainer);
+		await waitForIntersectionObserverTick();
+
+		const anchor = getChatAnchor(scrollContainer, "message-2");
+		const beforeOffset = getAnchorOffset(scrollContainer, anchor);
+
+		await waitForFetchCount(historyPrependFetchSpy, 1);
+		await waitForVisibleText(canvas, "Older question 9.");
+		await waitFor(() => {
+			expect(
+				Math.abs(getAnchorOffset(scrollContainer, anchor) - beforeOffset),
+			).toBeLessThanOrEqual(2);
+		});
 	},
 };
 
@@ -995,11 +1074,7 @@ const scrollToBottomButtonStoryStore = buildStoreWithMessages(
 	buildLongConversation(80),
 );
 
-/**
- * The replacement container should keep the floating affordance that returns a
- * user from older history to the newest messages.
- */
-export const ScrollToBottomButtonWorksWithInverseScroll: Story = {
+export const ScrollToBottomButtonUsesNormalFlow: Story = {
 	parameters: { chromatic: { disableSnapshot: true } },
 	decorators: scrollStoryDecorators,
 	render: () => (
@@ -1011,9 +1086,12 @@ export const ScrollToBottomButtonWorksWithInverseScroll: Story = {
 		const scrollContainer = canvas.getByTestId("scroll-container");
 
 		await waitForScrollOverflow(scrollContainer);
-		expect(
-			canvas.queryByRole("button", { name: /scroll to bottom/i }),
-		).toBeNull();
+		await waitFor(() => {
+			expect(getBottomGapForStory(scrollContainer)).toBeLessThanOrEqual(2);
+			expect(
+				canvas.queryByRole("button", { name: /scroll to bottom/i }),
+			).toBeNull();
+		});
 
 		scrollToHistoryTop(scrollContainer);
 
@@ -1028,7 +1106,71 @@ export const ScrollToBottomButtonWorksWithInverseScroll: Story = {
 		);
 
 		await waitFor(() => {
-			expect(scrollContainer.scrollTop).toBe(0);
+			expect(getBottomGapForStory(scrollContainer)).toBeLessThanOrEqual(2);
+			expect(
+				canvas.queryByRole("button", { name: /scroll to bottom/i }),
+			).toBeNull();
+		});
+	},
+};
+
+const detachedNewContentStore = buildStoreWithMessages(
+	buildLongConversation(80),
+);
+
+export const ScrollPositionPreservedOnNewContent: Story = {
+	parameters: { chromatic: { disableSnapshot: true } },
+	decorators: scrollStoryDecorators,
+	render: () => <StoryAgentChatPageView store={detachedNewContentStore} />,
+	play: async ({ canvasElement }) => {
+		resetScrollStoryStore(detachedNewContentStore);
+		const canvas = within(canvasElement);
+		const scrollContainer = canvas.getByTestId("scroll-container");
+
+		await waitForScrollOverflow(scrollContainer);
+		const anchor = getChatAnchor(scrollContainer, "message-40");
+		scrollAnchorNearTop(scrollContainer, anchor);
+		await waitFor(() => {
+			expect(getBottomGapForStory(scrollContainer)).toBeGreaterThan(100);
+		});
+		const beforeOffset = getAnchorOffset(scrollContainer, anchor);
+
+		appendNewestMessage(
+			detachedNewContentStore,
+			"Newest appended while detached.",
+		);
+		await waitForVisibleText(canvas, "Newest appended while detached.");
+
+		await waitFor(() => {
+			expect(
+				Math.abs(getAnchorOffset(scrollContainer, anchor) - beforeOffset),
+			).toBeLessThanOrEqual(2);
+		});
+	},
+};
+
+const pinnedNewContentStore = buildStoreWithMessages(buildLongConversation(80));
+
+export const ScrollPinnedToBottomOnNewContent: Story = {
+	parameters: { chromatic: { disableSnapshot: true } },
+	decorators: scrollStoryDecorators,
+	render: () => <StoryAgentChatPageView store={pinnedNewContentStore} />,
+	play: async ({ canvasElement }) => {
+		resetScrollStoryStore(pinnedNewContentStore);
+		const canvas = within(canvasElement);
+		const scrollContainer = canvas.getByTestId("scroll-container");
+
+		await waitForScrollOverflow(scrollContainer);
+		scrollToLatestMessages(scrollContainer);
+		await waitFor(() => {
+			expect(getBottomGapForStory(scrollContainer)).toBeLessThanOrEqual(2);
+		});
+
+		appendNewestMessage(pinnedNewContentStore, "Newest appended while pinned.");
+		await waitForVisibleText(canvas, "Newest appended while pinned.");
+
+		await waitFor(() => {
+			expect(getBottomGapForStory(scrollContainer)).toBeLessThanOrEqual(2);
 			expect(
 				canvas.queryByRole("button", { name: /scroll to bottom/i }),
 			).toBeNull();
@@ -1045,10 +1187,6 @@ const scrollToBottomStoryRef: { current: (() => void) | null } = {
 	current: null,
 };
 
-/**
- * Page-level send and edit flows still rely on an imperative scroll-to-bottom
- * hook, so the replacement container must keep that contract working.
- */
 export const ScrollToBottomRefStillWorks: Story = {
 	parameters: { chromatic: { disableSnapshot: true } },
 	decorators: scrollStoryDecorators,
@@ -1067,7 +1205,7 @@ export const ScrollToBottomRefStillWorks: Story = {
 		scrollToHistoryTop(scrollContainer);
 
 		await waitFor(() => {
-			expect(scrollContainer.scrollTop).toBeLessThan(0);
+			expect(scrollContainer.scrollTop).toBeLessThanOrEqual(2);
 			expect(typeof scrollToBottomStoryRef.current).toBe("function");
 		});
 
@@ -1078,7 +1216,7 @@ export const ScrollToBottomRefStillWorks: Story = {
 		scrollToBottom();
 
 		await waitFor(() => {
-			expect(scrollContainer.scrollTop).toBe(0);
+			expect(getBottomGapForStory(scrollContainer)).toBeLessThanOrEqual(2);
 		});
 	},
 };
@@ -1090,9 +1228,6 @@ const messageOrderStore = buildStoreWithMessages([
 	buildMessage(4, "assistant", "Newest reply"),
 ]);
 
-/**
- * The reversed container layout must not invert the transcript's visible order.
- */
 export const MessageOrderIsStillCorrect: Story = {
 	parameters: { chromatic: { disableSnapshot: true } },
 	decorators: scrollStoryDecorators,
@@ -1112,20 +1247,6 @@ export const MessageOrderIsStillCorrect: Story = {
 
 const stickyPinningStore = buildStoreWithMessages(buildLongConversation(40));
 
-/**
- * Regression guard for the StickyUserMessage push-up logic.
- *
- * `react-infinite-scroll-component` renders two wrapper divs between the
- * scroll container and the message tree. The library applies `overflow:
- * auto` to its inner wrapper, which used to make `position: sticky` on a
- * user message resolve against that wrapper instead of the actual scroller.
- * The fix forces both wrappers to `display: contents` so the sticky
- * container's nearest scrolling ancestor is once again the
- * `.overflow-y-auto` element.
- *
- * This story scrolls past the most recent user message and asserts the
- * message is pinned within a few pixels of the scroll container's top.
- */
 export const StickyUserMessagePinsOnScroll: Story = {
 	parameters: { chromatic: { disableSnapshot: true } },
 	decorators: scrollStoryDecorators,
@@ -1136,11 +1257,11 @@ export const StickyUserMessagePinsOnScroll: Story = {
 		const scrollContainer = canvas.getByTestId("scroll-container");
 
 		await waitForScrollOverflow(scrollContainer);
+		scrollToLatestMessages(scrollContainer);
+		await waitFor(() => {
+			expect(getBottomGapForStory(scrollContainer)).toBeLessThanOrEqual(2);
+		});
 
-		// Each sticky user message is the element immediately following its
-		// `data-user-sentinel` marker. The push-up logic depends on the
-		// sticky container resolving against the real scroll container,
-		// which is the regression this story guards against.
 		const sentinels = scrollContainer.querySelectorAll("[data-user-sentinel]");
 		expect(sentinels.length).toBeGreaterThan(0);
 		for (const sentinel of sentinels) {
@@ -1154,18 +1275,7 @@ export const StickyUserMessagePinsOnScroll: Story = {
 			);
 		}
 
-		// At the default `scrollTop = 0`, the inverse layout shows the
-		// newest messages at the bottom of the viewport. Older user
-		// messages whose sentinels have already scrolled above the
-		// scroller's top edge should be pinned by `position: sticky`. Pick
-		// a sentinel that is comfortably above the top edge so a tiny
-		// scroll offset cannot flip it on or off the boundary.
 		const scrollerRect = scrollContainer.getBoundingClientRect();
-		// Walk the sentinels in reverse DOM order so we land on the
-		// most recent user message whose sentinel has scrolled above
-		// the scroll container's top edge. That is the message the
-		// push-up logic actively pins at the top; earlier pinned
-		// messages will have been pushed out of view by it.
 		const pinnedSentinel = Array.from(sentinels)
 			.reverse()
 			.find(
@@ -1177,13 +1287,6 @@ export const StickyUserMessagePinsOnScroll: Story = {
 			return;
 		}
 		const pinnedContainer = pinnedSentinel.nextElementSibling as HTMLElement;
-
-		// `position: sticky` should pin the user message container near
-		// the scroll container's top edge while the assistant response
-		// below it is on screen. Before the fix, the sticky container
-		// resolved against the InfiniteScroll wrapper rather than the
-		// real scroll container, so it scrolled out with its sentinel
-		// and ended up far above the viewport.
 		const pinnedRect = pinnedContainer.getBoundingClientRect();
 		expect(window.getComputedStyle(pinnedContainer).position).toBe("sticky");
 		expect(pinnedRect.top - scrollerRect.top).toBeGreaterThanOrEqual(-1);

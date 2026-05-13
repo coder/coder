@@ -208,7 +208,7 @@ const ReasoningDisclosure = memo<{
 );
 
 // Wrapper that runs the smooth-streaming jitter buffer on a single
-// response block. Only used during live streaming — historical
+// response block. Only used during live streaming. Historical
 // messages render through <Response> directly.
 const SmoothedResponse = memo<{
 	text: string;
@@ -719,9 +719,8 @@ const StickyUserMessage = memo<{
 			const sentinel = sentinelRef.current;
 			const container = containerRef.current;
 			if (!sentinel || !container) return;
-			const scroller = sentinel.closest(
-				".overflow-y-auto",
-			) as HTMLElement | null;
+			const scroller = (sentinel.closest('[data-testid="scroll-container"]') ??
+				sentinel.closest(".overflow-y-auto")) as HTMLElement | null;
 			if (!scroller) return;
 
 			const MIN_HEIGHT = 72;
@@ -733,9 +732,8 @@ const StickyUserMessage = memo<{
 			const update = () => {
 				const fullHeight = container.offsetHeight;
 
-				// Skip sticky behavior for messages that take up
-				// most of the visible area — accounting for the
-				// chat input and some breathing room.
+				// Avoid pinning messages that would cover most of the viewport.
+				// They need to remain scrollable for reading and editing.
 				const tooTall = fullHeight > scrollerHeight * 0.75;
 				setIsTooTall(tooTall);
 				if (tooTall) {
@@ -768,10 +766,8 @@ const StickyUserMessage = memo<{
 					Math.min((MIN_HEIGHT + FADE_RANGE - visible) / FADE_RANGE, 1),
 				);
 				container.style.setProperty("--fade-opacity", String(fade));
-				// Push-up effect: when the next user message's sentinel
-				// approaches the bottom of this sticky container, shift
-				// this container upward so it slides out of view — the
-				// same visual as the old section-boundary behavior.
+				// Adjacent sticky user messages should not overlap while one
+				// hands off to the next.
 				let nextSentinel: Element | null = sentinel.nextElementSibling;
 				while (nextSentinel) {
 					if (nextSentinel.hasAttribute("data-user-sentinel")) {
@@ -805,11 +801,8 @@ const StickyUserMessage = memo<{
 				});
 			};
 
-			// Re-run the visual update when the scrollable content height
-			// changes (e.g. streaming responses growing the transcript).
-			// In flex-col-reverse, scrollTop stays at 0 when pinned to
-			// bottom so no scroll event fires — but the content wrapper
-			// resizes and this observer catches that.
+			// Streaming can resize content without a matching scroll event,
+			// so recompute sticky geometry when the content wrapper changes.
 			const contentEl = scroller.firstElementChild as HTMLElement | null;
 			let contentRafId: number | null = null;
 			const contentObserver = contentEl
@@ -826,9 +819,7 @@ const StickyUserMessage = memo<{
 			scroller.addEventListener("scroll", onScroll, { passive: true });
 			window.addEventListener("resize", onResize);
 			update();
-			// Set immediately — both --clip-h and --overlay-ready are
-			// applied before the browser paints since we're in a
-			// useLayoutEffect.
+			// Set immediately so the first sticky paint uses measured geometry.
 			container.style.setProperty("--overlay-ready", "1");
 			return () => {
 				scroller.removeEventListener("scroll", onScroll);
@@ -860,21 +851,27 @@ const StickyUserMessage = memo<{
 					requestAnimationFrame(() => {
 						const sentinel = sentinelRef.current;
 						if (!sentinel) return;
-						const scroller = sentinel.closest(
-							".overflow-y-auto",
-						) as HTMLElement | null;
+						const scroller = (sentinel.closest(
+							'[data-testid="scroll-container"]',
+						) ?? sentinel.closest(".overflow-y-auto")) as HTMLElement | null;
 						if (!scroller) return;
 						const offset =
 							sentinel.getBoundingClientRect().top -
 							scroller.getBoundingClientRect().top;
-						scroller.scrollBy({ top: offset, behavior: "smooth" });
+						scroller.scrollTop = Math.max(0, scroller.scrollTop + offset);
 					});
 				}
 			: undefined;
 
 		return (
 			<>
-				<div ref={sentinelRef} className="h-0" data-user-sentinel />
+				<div
+					ref={sentinelRef}
+					className="h-0"
+					data-user-sentinel
+					data-chat-anchor="true"
+					data-chat-anchor-id={`message-${message.id}`}
+				/>
 				<div
 					ref={containerRef}
 					className={cn(
@@ -912,6 +909,7 @@ const StickyUserMessage = memo<{
 				    scroll handler sets on the container. */}
 					{isStuck && !isTooTall && (
 						<div
+							data-chat-anchor-ignore="true"
 							className="absolute inset-0"
 							style={{
 								opacity: "var(--overlay-ready, 0)",
@@ -1098,30 +1096,37 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 						// precomputed in a single reverse pass above.
 						const isLastInChain = lastInChainFlags[msgIdx];
 						return (
-							<ChatMessageItem
+							<div
 								key={message.id}
-								message={message}
-								parsed={parsed}
-								onImplementPlan={onImplementPlan}
-								onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
-								isChatCompleted={isChatCompleted}
-								latestAskUserQuestionToolId={latestAskUserQuestionToolId}
-								askUserQuestionResponseTextByToolId={
-									historicalAskUserQuestionResponseTextByToolId
-								}
-								hasUserResponseAfterAskQuestion={
-									hasUserResponseAfterAskQuestion
-								}
-								urlTransform={urlTransform}
-								isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
-								hideActions={!isLastInChain}
-								hasActiveStream={Boolean(hasActiveStream)}
-								isAwaitingFirstStreamChunk={Boolean(isAwaitingFirstStreamChunk)}
-								mcpServers={mcpServers}
-								subagentTitles={subagentTitles}
-								subagentVariants={subagentVariants}
-								showDesktopPreviews={showDesktopPreviews}
-							/>
+								data-chat-anchor="true"
+								data-chat-anchor-id={`message-${message.id}`}
+							>
+								<ChatMessageItem
+									message={message}
+									parsed={parsed}
+									onImplementPlan={onImplementPlan}
+									onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
+									isChatCompleted={isChatCompleted}
+									latestAskUserQuestionToolId={latestAskUserQuestionToolId}
+									askUserQuestionResponseTextByToolId={
+										historicalAskUserQuestionResponseTextByToolId
+									}
+									hasUserResponseAfterAskQuestion={
+										hasUserResponseAfterAskQuestion
+									}
+									urlTransform={urlTransform}
+									isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
+									hideActions={!isLastInChain}
+									hasActiveStream={Boolean(hasActiveStream)}
+									isAwaitingFirstStreamChunk={Boolean(
+										isAwaitingFirstStreamChunk,
+									)}
+									mcpServers={mcpServers}
+									subagentTitles={subagentTitles}
+									subagentVariants={subagentVariants}
+									showDesktopPreviews={showDesktopPreviews}
+								/>
+							</div>
 						);
 					})}
 				</div>

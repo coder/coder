@@ -5,6 +5,7 @@ import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import type { ChatDetailError } from "../../utils/usageLimitMessage";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
+import { LIVE_STREAM_TAIL_ANCHOR_ID } from "../chatViewportUtils";
 import { ChatStatusCallout } from "./ChatStatusCallout";
 import {
 	selectIsAwaitingFirstStreamChunk,
@@ -71,7 +72,11 @@ export const LiveStreamTailContent = ({
 	}
 
 	return (
-		<div className="flex flex-col gap-2">
+		<div
+			data-chat-anchor="true"
+			data-chat-anchor-id={LIVE_STREAM_TAIL_ANCHOR_ID}
+			className="flex flex-col gap-2"
+		>
 			{shouldRenderEmptyState && (
 				<div className="py-12 text-center text-content-secondary">
 					<p className="text-sm">Start a conversation with your agent.</p>
