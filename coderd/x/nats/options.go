@@ -107,6 +107,13 @@ type Options struct {
 	// default. Negative means retry forever, following nats.go semantics.
 	MaxReconnects int
 
+	// InProcess, when true, causes New to construct its pubConn and
+	// subConn via nats.InProcessServer instead of dialing the embedded
+	// server's TCP loopback listener. This skips the kernel socket
+	// layer and is intended for benchmarks and tests that want to
+	// measure the in-process path. Default false (TCP loopback).
+	InProcess bool
+
 	// NoServerLog disables routing embedded server logs into logger.
 	NoServerLog bool
 }

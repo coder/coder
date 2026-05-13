@@ -219,7 +219,14 @@ func connectClient(ns *natsserver.Server, opts Options, handlers connHandlers, c
 	if handlers.errH != nil {
 		connOpts = append(connOpts, natsgo.ErrorHandler(handlers.errH))
 	}
-	nc, err := natsgo.Connect(ns.ClientURL(), connOpts...)
+	url := ns.ClientURL()
+	if opts.InProcess {
+		// InProcessServer overrides the URL dial with a net.Pipe
+		// directly into the server. The url argument to Connect is
+		// ignored in that case but must still be syntactically valid.
+		connOpts = append(connOpts, natsgo.InProcessServer(ns))
+	}
+	nc, err := natsgo.Connect(url, connOpts...)
 	if err != nil {
 		return nil, xerrors.Errorf("connect client: %w", err)
 	}
