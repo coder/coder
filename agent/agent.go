@@ -2299,16 +2299,16 @@ lifecycleWaitLoop:
 	select {
 	case <-a.hardCtx.Done():
 		a.logger.Warn(context.Background(), "timed out waiting for Coordinator RPC disconnect",
-			slog.F("disconnect_reason", codersdk.DisconnectReasonServerShutdown),
-			slog.F("disconnect_initiator", codersdk.DisconnectInitiatorAgent),
-			slog.F("disconnect_expected", codersdk.DisconnectReasonServerShutdown.Expected()),
-			slog.F("disconnect_detail", "timed out waiting for coordinator RPC to disconnect"),
+			codersdk.DisconnectReasonServerShutdown.SlogField(),
+			codersdk.DisconnectReasonServerShutdown.SlogExpectedField(),
+			codersdk.DisconnectInitiatorAgent.SlogField(),
+			codersdk.SlogDisconnectDetail("timed out waiting for coordinator RPC to disconnect"),
 		)
 	case <-coordDisconnected:
 		a.logger.Debug(context.Background(), "coordinator RPC disconnected",
-			slog.F("disconnect_reason", codersdk.DisconnectReasonServerShutdown),
-			slog.F("disconnect_initiator", codersdk.DisconnectInitiatorAgent),
-			slog.F("disconnect_expected", codersdk.DisconnectReasonServerShutdown.Expected()),
+			codersdk.DisconnectReasonServerShutdown.SlogField(),
+			codersdk.DisconnectReasonServerShutdown.SlogExpectedField(),
+			codersdk.DisconnectInitiatorAgent.SlogField(),
 		)
 	}
 
