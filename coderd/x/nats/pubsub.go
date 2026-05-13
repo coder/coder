@@ -45,11 +45,17 @@ type Pubsub struct {
 	ownsSubConn bool
 
 	mu          sync.Mutex
-	closed      bool
 	subs        map[*subscription]struct{}
 	subsByNATS  map[*natsgo.Subscription]*subscription
 	eventCounts map[string]int
 	closeOnce   sync.Once
+
+	// ctx is canceled by Close to signal the hot path (Publish, Flush,
+	// SubscribeWithErr, RefreshPeers) without taking p.mu. Close cancels
+	// it before acquiring p.mu so racing callers bail before touching
+	// the underlying *natsgo.Conn.
+	ctx    context.Context
+	cancel context.CancelFunc
 
 	// provider is captured at construction time so RefreshPeers can
 	// re-query peer membership at runtime. Nil for NewFromConn or for
@@ -95,12 +101,15 @@ var _ pubsub.Pubsub = (*Pubsub)(nil)
 
 // newPubsub allocates a *Pubsub with maps initialized.
 func newPubsub(logger slog.Logger, opts Options) *Pubsub {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &Pubsub{
 		logger:      logger,
 		opts:        opts,
 		subs:        make(map[*subscription]struct{}),
 		subsByNATS:  make(map[*natsgo.Subscription]*subscription),
 		eventCounts: make(map[string]int),
+		ctx:         ctx,
+		cancel:      cancel,
 	}
 }
 
@@ -229,12 +238,9 @@ func NewFromConn(logger slog.Logger, nc *natsgo.Conn) (*Pubsub, error) {
 // RefreshPeers is safe to call concurrently with publish/subscribe
 // traffic. Concurrent RefreshPeers calls are serialized internally.
 func (p *Pubsub) RefreshPeers(ctx context.Context) error {
-	p.mu.Lock()
-	if p.closed {
-		p.mu.Unlock()
+	if p.ctx.Err() != nil {
 		return xerrors.New("nats pubsub: closed")
 	}
-	p.mu.Unlock()
 
 	if p.ns == nil {
 		return ErrNoEmbeddedServer
@@ -268,7 +274,7 @@ func (p *Pubsub) RefreshPeers(ctx context.Context) error {
 
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if p.closed {
+	if p.ctx.Err() != nil {
 		return xerrors.New("nats pubsub: closed")
 	}
 
@@ -317,12 +323,9 @@ func (p *Pubsub) dropSelfRoutes(in []*url.URL) []*url.URL {
 
 // Publish publishes a message under the given legacy event name.
 func (p *Pubsub) Publish(event string, message []byte) error {
-	p.mu.Lock()
-	if p.closed {
-		p.mu.Unlock()
+	if p.ctx.Err() != nil {
 		return xerrors.New("nats pubsub: closed")
 	}
-	p.mu.Unlock()
 
 	subj, err := LegacyEventSubject(event)
 	if err != nil {
@@ -339,12 +342,9 @@ func (p *Pubsub) Publish(event string, message []byte) error {
 // benchmarks and tests where the caller needs to know that all preceding
 // Publish calls have reached the server.
 func (p *Pubsub) Flush() error {
-	p.mu.Lock()
-	if p.closed {
-		p.mu.Unlock()
+	if p.ctx.Err() != nil {
 		return xerrors.New("nats pubsub: closed")
 	}
-	p.mu.Unlock()
 
 	if err := p.pubConn.Flush(); err != nil {
 		return xerrors.Errorf("flush: %w", err)
@@ -368,12 +368,9 @@ func (p *Pubsub) Subscribe(event string, listener pubsub.Listener) (cancel func(
 // name. The listener also receives error deliveries such as
 // pubsub.ErrDroppedMessages.
 func (p *Pubsub) SubscribeWithErr(event string, listener pubsub.ListenerWithErr) (cancel func(), err error) {
-	p.mu.Lock()
-	if p.closed {
-		p.mu.Unlock()
+	if p.ctx.Err() != nil {
 		return nil, xerrors.New("nats pubsub: closed")
 	}
-	p.mu.Unlock()
 
 	subj, err := LegacyEventSubject(event)
 	if err != nil {
@@ -501,8 +498,10 @@ func (p *Pubsub) handleSlowConsumer(s *subscription) {
 func (p *Pubsub) Close() error {
 	var errs []error
 	p.closeOnce.Do(func() {
+		// Signal the hot path before taking p.mu so racing Publish /
+		// Flush / Subscribe calls bail before touching pubConn/subConn.
+		p.cancel()
 		p.mu.Lock()
-		p.closed = true
 		subs := make([]*subscription, 0, len(p.subs))
 		for s := range p.subs {
 			subs = append(subs, s)
