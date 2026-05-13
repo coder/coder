@@ -4030,9 +4030,8 @@ type GraphComplete struct {
 	Parameters            []*RichParameter                `protobuf:"bytes,4,rep,name=parameters,proto3" json:"parameters,omitempty"`
 	ExternalAuthProviders []*ExternalAuthProviderResource `protobuf:"bytes,5,rep,name=external_auth_providers,json=externalAuthProviders,proto3" json:"external_auth_providers,omitempty"`
 	Presets               []*Preset                       `protobuf:"bytes,6,rep,name=presets,proto3" json:"presets,omitempty"`
-	// Whether the plan or state contains any `coder_ai_task` resource instances.
-	// This is true only when at least one `coder_ai_task` resource has count > 0
-	// and appears in the converted state.
+	// Whether actual `coder_ai_task` resource instances exist.
+	// Resources defined with count = 0 do not set this flag.
 	HasAiTasks        bool      `protobuf:"varint,7,opt,name=has_ai_tasks,json=hasAiTasks,proto3" json:"has_ai_tasks,omitempty"`
 	AiTasks           []*AITask `protobuf:"bytes,8,rep,name=ai_tasks,json=aiTasks,proto3" json:"ai_tasks,omitempty"`
 	HasExternalAgents bool      `protobuf:"varint,9,opt,name=has_external_agents,json=hasExternalAgents,proto3" json:"has_external_agents,omitempty"`

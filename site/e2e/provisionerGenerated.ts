@@ -562,9 +562,8 @@ export interface GraphComplete {
   externalAuthProviders: ExternalAuthProviderResource[];
   presets: Preset[];
   /**
-   * Whether the plan or state contains any `coder_ai_task` resource instances.
-   * This is true only when at least one `coder_ai_task` resource has count > 0
-   * and appears in the converted state.
+   * Whether actual `coder_ai_task` resource instances exist.
+   * Resources defined with count = 0 do not set this flag.
    */
   hasAiTasks: boolean;
   aiTasks: AITask[];
