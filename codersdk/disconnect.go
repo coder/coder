@@ -163,6 +163,32 @@ func (i DisconnectInitiator) Valid() bool {
 	}
 }
 
+// ConnectionDirection identifies which layer a disconnect log belongs to.
+// It tells operators at a glance whether a log is about the control plane
+// (server to agent) or the data plane (agent to client).
+type ConnectionDirection string
+
+func (d ConnectionDirection) SlogField() slog.Field {
+	return slog.F("connect_type", d)
+}
+
+const (
+	// ConnectionDirectionServerToAgent is the control-plane connection
+	// between coderd and the workspace agent (coordination RPC, DERP map
+	// subscriber, agent runLoop).
+	ConnectionDirectionServerToAgent ConnectionDirection = "server_to_agent"
+
+	// ConnectionDirectionAgentToClient is a data-plane session between
+	// the workspace agent and a user's client (SSH, reconnecting PTY,
+	// JetBrains port-forwarding).
+	ConnectionDirectionAgentToClient ConnectionDirection = "agent_to_client"
+
+	// ConnectionDirectionClientToServer is a connection from a user's
+	// client to coderd (e.g. the CLI's WebSocket to the coordinator).
+	// Not yet instrumented.
+	ConnectionDirectionClientToServer ConnectionDirection = "client_to_server"
+)
+
 // ConnectionMethod describes the network path a workspace connection
 // took at the moment a disconnect log was emitted. It is intended for
 // observability only; do not switch behavior on it.

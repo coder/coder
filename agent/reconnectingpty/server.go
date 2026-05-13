@@ -97,6 +97,7 @@ func (s *Server) Serve(ctx, hardCtx context.Context, l net.Listener) (retErr err
 			case <-closed:
 			case <-hardCtx.Done():
 				clog.Info(hardCtx, "reconnecting pty closed",
+					codersdk.ConnectionDirectionAgentToClient.SlogField(),
 					codersdk.DisconnectReasonServerShutdown.SlogField(),
 					codersdk.DisconnectReasonServerShutdown.SlogExpectedField(),
 				)
@@ -124,6 +125,7 @@ func (s *Server) Serve(ctx, hardCtx context.Context, l net.Listener) (retErr err
 				reason = codersdk.DisconnectReasonGraceful
 			}
 			clog.Info(ctx, "reconnecting pty closed",
+				codersdk.ConnectionDirectionAgentToClient.SlogField(),
 				reason.SlogField(),
 				reason.SlogExpectedField(),
 				codersdk.SlogDisconnectDetail(detail),

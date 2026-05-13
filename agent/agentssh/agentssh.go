@@ -462,7 +462,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		logger.Warn(ctx, "invalid magic ssh session type specified", slog.F("raw_type", magicTypeRaw))
 	}
 
-	closeCause := func(reason string) {}
+	closeCause := func(_ string) {}
 	if reportSession {
 		var reason codersdk.DisconnectReason
 		closeCause = func(r string) { reason = codersdk.DisconnectReason(r) }
@@ -473,6 +473,7 @@ func (s *Server) sessionHandler(session ssh.Session) {
 		disconnected := s.config.ReportConnection(id, magicType, remoteAddrString)
 		defer func() {
 			logger.Info(ctx, "ssh session closed",
+				codersdk.ConnectionDirectionAgentToClient.SlogField(),
 				reason.SlogField(),
 				reason.SlogExpectedField(),
 				slog.F("exit_code", scr.exitCode()),

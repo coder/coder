@@ -2808,6 +2808,18 @@ export interface ChatWorkspaceTTLResponse {
  */
 export const CoderDesktopTelemetryHeader = "Coder-Desktop-Telemetry";
 
+// From codersdk/disconnect.go
+export type ConnectionDirection =
+	| "agent_to_client"
+	| "client_to_server"
+	| "server_to_agent";
+
+export const ConnectionDirections: ConnectionDirection[] = [
+	"agent_to_client",
+	"client_to_server",
+	"server_to_agent",
+];
+
 // From codersdk/insights.go
 /**
  * ConnectionLatency shows the latency for a connection.
@@ -2901,12 +2913,6 @@ export interface ConnectionLogsRequest extends Pagination {
 
 // From codersdk/disconnect.go
 export type ConnectionMethod = "derp" | "direct" | "";
-
-// From codersdk/disconnect.go
-/**
- * ConnectionMethodField is the slog key for ConnectionMethod values.
- */
-export const ConnectionMethodField = "connection_method";
 
 export const ConnectionMethods: ConnectionMethod[] = ["derp", "direct", ""];
 
@@ -3825,34 +3831,12 @@ export const DiagnosticSeverityStrings: DiagnosticSeverityString[] = [
 ];
 
 // From codersdk/disconnect.go
-/**
- * DisconnectDetailField is the slog key for the free-form, human-readable
- * detail string that supplements the structured reason. Use it for
- * "exited with code 137" style information that does not fit a category.
- */
-export const DisconnectDetailField = "disconnect_detail";
-
-// From codersdk/disconnect.go
-/**
- * DisconnectExpectedField is the slog key for the boolean derived from
- * DisconnectReason.Expected. Operators can filter on this without
- * enumerating every reason value.
- */
-export const DisconnectExpectedField = "disconnect_expected";
-
-// From codersdk/disconnect.go
 export type DisconnectInitiator =
 	| "agent"
 	| "client"
 	| "network"
 	| "server"
 	| "";
-
-// From codersdk/disconnect.go
-/**
- * DisconnectInitiatorField is the slog key for DisconnectInitiator values.
- */
-export const DisconnectInitiatorField = "disconnect_initiator";
 
 export const DisconnectInitiators: DisconnectInitiator[] = [
 	"agent",
@@ -3872,12 +3856,6 @@ export type DisconnectReason =
 	| "server_shutdown"
 	| ""
 	| "workspace_stopped";
-
-// From codersdk/disconnect.go
-/**
- * DisconnectReasonField is the slog key for DisconnectReason values.
- */
-export const DisconnectReasonField = "disconnect_reason";
 
 export const DisconnectReasons: DisconnectReason[] = [
 	"client_closed",

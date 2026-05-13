@@ -530,6 +530,7 @@ func NewMultiAgentController(ctx context.Context, logger slog.Logger, tracer tra
 			Coordinatee: coordinatee,
 			SendAcks:    false, // we are a client, connecting to multiple agents
 			Initiator:   codersdk.DisconnectInitiatorServer,
+			Direction:   codersdk.ConnectionDirectionServerToAgent,
 		},
 		logger:              logger,
 		tracer:              tracer,

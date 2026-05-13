@@ -515,6 +515,7 @@ func (a *agent) runLoop() {
 		}
 		if errors.Is(err, io.EOF) {
 			a.logger.Info(ctx, "disconnected from coderd",
+				codersdk.ConnectionDirectionServerToAgent.SlogField(),
 				slog.F("disconnect_reason", codersdk.DisconnectReasonNetworkError),
 				slog.F("disconnect_initiator", codersdk.DisconnectInitiatorNetwork),
 				slog.F("disconnect_expected", codersdk.DisconnectReasonNetworkError.Expected()),
@@ -1912,6 +1913,7 @@ func (a *agent) runCoordinator(ctx context.Context, tClient tailnetproto.DRPCTai
 	defer func() {
 		reason, initiator := classifyCoordinatorRPCExit(ctx, retErr)
 		a.logger.Debug(ctx, "disconnected from coordination RPC",
+			codersdk.ConnectionDirectionServerToAgent.SlogField(),
 			slog.F("disconnect_reason", reason),
 			slog.F("disconnect_initiator", initiator),
 			slog.F("disconnect_expected", reason.Expected()),
@@ -1980,6 +1982,7 @@ func (a *agent) runDERPMapSubscriber(ctx context.Context, tClient tailnetproto.D
 
 		reason, initiator := classifyCoordinatorRPCExit(ctx, retErr)
 		a.logger.Debug(ctx, "disconnected from derp map RPC",
+			codersdk.ConnectionDirectionServerToAgent.SlogField(),
 			slog.F("disconnect_reason", reason),
 			slog.F("disconnect_initiator", initiator),
 			slog.F("disconnect_expected", reason.Expected()),
@@ -2298,6 +2301,7 @@ lifecycleWaitLoop:
 	select {
 	case <-a.hardCtx.Done():
 		a.logger.Warn(context.Background(), "timed out waiting for Coordinator RPC disconnect",
+			codersdk.ConnectionDirectionServerToAgent.SlogField(),
 			codersdk.DisconnectReasonServerShutdown.SlogField(),
 			codersdk.DisconnectReasonServerShutdown.SlogExpectedField(),
 			codersdk.DisconnectInitiatorAgent.SlogField(),
@@ -2305,6 +2309,7 @@ lifecycleWaitLoop:
 		)
 	case <-coordDisconnected:
 		a.logger.Debug(context.Background(), "coordinator RPC disconnected",
+			codersdk.ConnectionDirectionServerToAgent.SlogField(),
 			codersdk.DisconnectReasonServerShutdown.SlogField(),
 			codersdk.DisconnectReasonServerShutdown.SlogExpectedField(),
 			codersdk.DisconnectInitiatorAgent.SlogField(),

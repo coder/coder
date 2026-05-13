@@ -11,6 +11,7 @@ import (
 	gossh "golang.org/x/crypto/ssh"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // localForwardChannelData is copied from the ssh package.
@@ -88,6 +89,7 @@ func (w *JetbrainsChannelWatcher) Accept() (gossh.Channel, <-chan *gossh.Request
 			disconnected(0, "normal close")
 			// nolint: gocritic // JetBrains is a proper noun and should be capitalized
 			w.logger.Debug(context.Background(), "JetBrains channel closed",
+				codersdk.ConnectionDirectionAgentToClient.SlogField(),
 				slog.F("disconnect_reason", "normal close"),
 			)
 		},
