@@ -44,8 +44,8 @@ func main() {
 		flag.Usage()
 		os.Exit(2)
 	}
-	if *msgs <= 0 || *size <= 0 || *pubs <= 0 || *subs <= 0 {
-		_, _ = fmt.Fprintln(os.Stderr, "natsbench: -msgs/-size/-pubs/-subs must be > 0")
+	if *msgs <= 0 || *size <= 0 || *pubs <= 0 || *subs < 0 {
+		_, _ = fmt.Fprintln(os.Stderr, "natsbench: -msgs/-size/-pubs must be > 0 and -subs must be >= 0")
 		os.Exit(2)
 	}
 
@@ -74,7 +74,7 @@ func run(mode string, msgs, size, pubs, subs int, subj string, timeout time.Dura
 		if err != nil {
 			return err
 		}
-		printResult(mode, res, msgs, size, 0, 0)
+		printResult(mode, res, msgs, size, 1, 1)
 		return nil
 	}
 
@@ -458,8 +458,6 @@ func printResult(mode string, r result, msgs, size, pubs, subs int) {
 	_, _ = fmt.Printf("total msgs published: %d\n", r.published)
 	if subs > 0 {
 		_, _ = fmt.Printf("total msgs delivered: %d (%d subs x %d)\n", r.delivered, r.subCount, msgs)
-	} else {
-		_, _ = fmt.Printf("total msgs delivered: %d\n", r.delivered)
 	}
 	secs := r.hot.Seconds()
 	if secs <= 0 {
@@ -468,10 +466,19 @@ func printResult(mode string, r result, msgs, size, pubs, subs int) {
 	}
 	pubRate := float64(r.published) / secs
 	pubBps := pubRate * float64(size)
-	delRate := float64(r.delivered) / secs
-	delBps := delRate * float64(size)
 	_, _ = fmt.Printf("publish rate: %s msgs/s, %s/s\n", humanCount(pubRate), humanBytes(pubBps))
-	_, _ = fmt.Printf("delivery rate: %s msgs/s, %s/s\n", humanCount(delRate), humanBytes(delBps))
+	if subs > 0 {
+		delRate := float64(r.delivered) / secs
+		delBps := delRate * float64(size)
+		_, _ = fmt.Printf("delivery rate: %s msgs/s, %s/s\n", humanCount(delRate), humanBytes(delBps))
+	}
+	// Aggregate matches upstream `nats bench`: total work counted is
+	// msgs once per publisher plus msgs once per subscriber. When
+	// subs == 0, this collapses to the publish rate.
+	aggMsgs := int64(msgs) * int64(pubs+subs)
+	aggRate := float64(aggMsgs) / secs
+	aggBps := aggRate * float64(size)
+	_, _ = fmt.Printf("aggregate rate: %s msgs/s, %s/s\n", humanCount(aggRate), humanBytes(aggBps))
 }
 
 // humanCount renders a count rate with thousands separators (best-effort).
