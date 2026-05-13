@@ -6,7 +6,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
-	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -15,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"go.mozilla.org/pkcs7"
+	"github.com/smallstep/pkcs7"
 	"golang.org/x/xerrors"
 )
 
@@ -184,12 +183,31 @@ type metadata struct {
 }
 
 type Options struct {
-	x509.VerifyOptions
+	// Roots is the trusted root certificate pool. If nil,
+	// the embedded root certificate pool is used.
+	Roots *x509.CertPool
+	// Intermediates are additional intermediate certificates to
+	// inject into the PKCS7 object for chain verification. Azure
+	// PKCS7 envelopes typically only contain the signing cert, so
+	// intermediates must be supplied externally. When nil, the
+	// hardcoded Azure intermediate certificates are used.
+	Intermediates []*x509.Certificate
+	// CurrentTime, if non-zero, overrides the verification
+	// timestamp for certificate chain validation.
+	CurrentTime time.Time
+	// Offline disables fetching of issuing certificates when
+	// chain verification fails.
 	Offline bool
 }
 
 // Validate ensures the signature was signed by an Azure certificate.
 // It returns the associated VM ID if successful.
+//
+// Verification has two parts, both handled by VerifyWithChainAtTime:
+//  1. PKCS7 signature check: proves the content was signed by the
+//     private key corresponding to the certificate in the envelope.
+//  2. Certificate chain check: proves the signing certificate
+//     chains to a trusted root through known intermediates.
 func Validate(ctx context.Context, signature string, options Options) (string, error) {
 	data, err := base64.StdEncoding.DecodeString(signature)
 	if err != nil {
@@ -208,30 +226,48 @@ func Validate(ctx context.Context, signature string, options Options) (string, e
 	if !allowedSigners.MatchString(signer.Subject.CommonName) {
 		return "", xerrors.Errorf("unmatched common name of signer: %q", signer.Subject.CommonName)
 	}
-	if options.Intermediates == nil {
-		options.Intermediates = x509.NewCertPool()
-		for _, cert := range Certificates {
-			block, rest := pem.Decode([]byte(cert))
-			if len(rest) != 0 {
-				return "", xerrors.Errorf("invalid certificate. %d bytes remain", len(rest))
-			}
-			cert, err := x509.ParseCertificate(block.Bytes)
-			if err != nil {
-				return "", xerrors.Errorf("parse certificate: %w", err)
-			}
-			options.Intermediates.AddCert(cert)
+	// Azure PKCS7 envelopes typically contain only the signing
+	// certificate. Inject intermediate certificates so the
+	// library can build a chain from signer to trusted root.
+	intermediates := options.Intermediates
+	if intermediates == nil {
+		intermediates, err = ParseCertificates()
+		if err != nil {
+			return "", xerrors.Errorf("parse hardcoded certificates: %w", err)
 		}
 	}
 
-	_, err = signer.Verify(options.VerifyOptions)
-	if err != nil {
-		if !errors.As(err, &x509.UnknownAuthorityError{}) {
-			return "", xerrors.Errorf("verify signature: %w", err)
+	pkcs7Data.Certificates = append(pkcs7Data.Certificates, intermediates...)
+	// Resolve root trust store. VerifyWithChainAtTime skips
+	// chain verification when the trust store is nil, so we
+	// must always provide one.
+	roots := options.Roots
+	if roots == nil {
+		roots, err = x509.SystemCertPool()
+		if err != nil {
+			return "", xerrors.Errorf("load roots: %w", err)
 		}
+	}
+
+	currentTime := options.CurrentTime
+	if currentTime.IsZero() {
+		currentTime = time.Now()
+	}
+
+	// VerifyWithChainAtTime validates both the PKCS7 signature
+	// (proving the content was signed by the certificate's
+	// private key) and the certificate chain (proving the signer
+	// chains to a trusted root).
+	err = pkcs7Data.VerifyWithChainAtTime(roots, currentTime)
+	if err != nil {
 		if options.Offline {
-			return "", xerrors.Errorf("certificate from %v is not cached: %w", signer.IssuingCertificateURL, err)
+			return "", xerrors.Errorf("verify pkcs7: %w", err)
 		}
 
+		// The chain verification may fail when the signing
+		// certificate was issued by an intermediate not yet in
+		// our hardcoded list. Fetch the issuing certificates
+		// and retry.
 		ctx, cancelFunc := context.WithTimeout(ctx, 5*time.Second)
 		defer cancelFunc()
 		for _, certURL := range signer.IssuingCertificateURL {
@@ -247,17 +283,17 @@ func Validate(ctx context.Context, signature string, options Options) (string, e
 				return "", xerrors.New("certificate fetch unsuccessful")
 			}
 			limited := io.LimitReader(res.Body, maxCertResponseBytes+1)
-			data, err := io.ReadAll(limited)
+			certData, err := io.ReadAll(limited)
 			_ = res.Body.Close()
 			if err != nil {
 				return "", xerrors.New("read certificate response body")
 			}
-			if int64(len(data)) > maxCertResponseBytes {
+			if int64(len(certData)) > maxCertResponseBytes {
 				return "", xerrors.New(
 					"certificate response exceeds maximum size",
 				)
 			}
-			cert, err := x509.ParseCertificate(data)
+			cert, err := x509.ParseCertificate(certData)
 			if err != nil {
 				// Do not wrap the parse error; it may contain
 				// fragments of the HTTP response body, which
@@ -266,9 +302,9 @@ func Validate(ctx context.Context, signature string, options Options) (string, e
 					"fetched data is not a valid certificate",
 				)
 			}
-			options.Intermediates.AddCert(cert)
+			pkcs7Data.Certificates = append(pkcs7Data.Certificates, cert)
 		}
-		_, err = signer.Verify(options.VerifyOptions)
+		err = pkcs7Data.VerifyWithChainAtTime(roots, currentTime)
 		if err != nil {
 			return "", xerrors.New("signature verification failed after fetching issuing certificates")
 		}
@@ -280,6 +316,24 @@ func Validate(ctx context.Context, signature string, options Options) (string, e
 		return "", xerrors.Errorf("unmarshal metadata: %w", err)
 	}
 	return metadata.VMID, nil
+}
+
+// ParseCertificates parses the hardcoded Azure intermediate
+// certificates and returns them as x509.Certificate values.
+func ParseCertificates() ([]*x509.Certificate, error) {
+	var certs []*x509.Certificate
+	for _, certPEM := range Certificates {
+		block, rest := pem.Decode([]byte(certPEM))
+		if len(rest) != 0 {
+			return nil, xerrors.Errorf("invalid certificate. %d bytes remain", len(rest))
+		}
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, xerrors.Errorf("parse certificate: %w", err)
+		}
+		certs = append(certs, cert)
+	}
+	return certs, nil
 }
 
 // Certificates are manually downloaded from Azure, then processed with OpenSSL

@@ -36,9 +36,7 @@ func (api *API) postWorkspaceAuthAzureInstanceIdentity(rw http.ResponseWriter, r
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	instanceID, err := azureidentity.Validate(r.Context(), req.Signature, azureidentity.Options{
-		VerifyOptions: api.AzureCertificates,
-	})
+	instanceID, err := azureidentity.Validate(r.Context(), req.Signature, api.AzureCertificates)
 	if err != nil {
 		// Log the full error for operators but return only a
 		// generic message to the caller. Errors from the
