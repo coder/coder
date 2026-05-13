@@ -1,6 +1,6 @@
 ARG BASE_REGISTRY=registry1.dso.mil
-ARG BASE_IMAGE=ironbank/redhat/ubi/ubi8-minimal
-ARG BASE_TAG=8.7
+ARG BASE_IMAGE=ironbank/redhat/ubi/ubi9-minimal
+ARG BASE_TAG=9.6
 
 FROM ${BASE_REGISTRY}/${BASE_IMAGE}:${BASE_TAG}
 
@@ -70,6 +70,9 @@ COPY "$TERRAFORM_CODER_PROVIDER_ZIP" "${TERRAFORM_PLUGINS_DIR}/registry.terrafor
 # Configure Terraform to use plugins from this dir.
 COPY terraform-filesystem-mirror.tfrc /opt/terraform/config.tfrc
 ENV TF_CLI_CONFIG_FILE=/opt/terraform/config.tfrc
+
+# Remove python3-urllib3 to address CVE-2026-44431.
+RUN rpm -e --nodeps python3-urllib3 2>/dev/null || true
 
 # Uninstall the build dependencies.
 RUN microdnf remove --assumeyes \
