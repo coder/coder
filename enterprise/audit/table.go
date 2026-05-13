@@ -29,8 +29,8 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"License":         {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
 	"Task":            {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"AiSeatState":     {codersdk.AuditActionCreate},
-	"AiProvider":      {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"AiProviderKey":   {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
+	"AIProvider":      {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"AIProviderKey":   {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
 	"Chat":            {codersdk.AuditActionCreate, codersdk.AuditActionWrite}, // chats get 'archived' by users, not deleted.
 	"UserSecret":      {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 }
