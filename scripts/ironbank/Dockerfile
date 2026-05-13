@@ -16,6 +16,12 @@ RUN microdnf update --assumeyes && \
       shadow-utils \
       tar \
       unzip && \
+    # Explicitly update packages with known CVEs to ensure patched versions
+    # even when the base image layer is cached (ENT-71):
+    #   python3-urllib3: CVE-2026-44431
+    #   tar:            CVE-2026-26960, CVE-2026-5704
+    #   util-linux:     CVE-2026-27456
+    microdnf update --assumeyes python3-urllib3 tar util-linux || true && \
     microdnf clean all
 
 # Configure the cryptography policy manually. These policies likely
