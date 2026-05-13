@@ -7440,13 +7440,13 @@ func TestPatchChatMessage(t *testing.T) {
 		// processes it asynchronously; editing while that first round
 		// is still running can race with message insertions that
 		// overwrite last_model_config_id.
-		testutil.Eventually(ctx, t, func(_ context.Context) bool {
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			c, getErr := client.GetChat(ctx, chat.ID)
 			if getErr != nil {
 				return false
 			}
-			return c.Status == codersdk.ChatStatusWaiting ||
-				c.Status == codersdk.ChatStatusError
+			return c.Status != codersdk.ChatStatusPending &&
+				c.Status != codersdk.ChatStatusRunning
 		}, testutil.IntervalFast, "initial chat processing did not finish")
 
 		messagesResult, err := client.GetChatMessages(ctx, chat.ID, nil)
@@ -7477,13 +7477,13 @@ func TestPatchChatMessage(t *testing.T) {
 		// edit) to complete, then verify last_model_config_id.
 		// Reading immediately after EditChatMessage can race with the
 		// daemon re-processing the now-pending chat.
-		testutil.Eventually(ctx, t, func(_ context.Context) bool {
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			c, getErr := client.GetChat(ctx, chat.ID)
 			if getErr != nil {
 				return false
 			}
-			return c.Status == codersdk.ChatStatusWaiting ||
-				c.Status == codersdk.ChatStatusError
+			return c.Status != codersdk.ChatStatusPending &&
+				c.Status != codersdk.ChatStatusRunning
 		}, testutil.IntervalFast, "post-edit chat processing did not finish")
 
 		updatedChat, err := client.GetChat(ctx, chat.ID)
