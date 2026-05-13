@@ -35,9 +35,16 @@ func freeBenchPort() (int, error) {
 // cluster using bare natsserver options. Mirrors the pattern used by
 // the bench tests in coderd/x/nats/bench_test.go. The caller is
 // responsible for shutting each returned server down.
-func startNativeCluster(n int) ([]*natsserver.Server, error) {
+// maxPending is the per-client outbound pending byte budget for each
+// replica. Pass 0 to keep the existing default (1 GiB); pass a positive
+// value to override (e.g., 128 MiB for the symmetric cluster modes that
+// bound worst-case in-flight bytes in fan-out scenarios).
+func startNativeCluster(n int, maxPending int64) ([]*natsserver.Server, error) {
 	if n < 1 {
 		return nil, xerrors.Errorf("native cluster requires n >= 1, got %d", n)
+	}
+	if maxPending <= 0 {
+		maxPending = 1 << 30
 	}
 	ports := make([]int, n)
 	routes := make([]string, n)
@@ -86,7 +93,7 @@ func startNativeCluster(n int) ([]*natsserver.Server, error) {
 			NoSigs:     true,
 			ServerName: fmt.Sprintf("natsbench-cluster-%d-%d", i, time.Now().UnixNano()),
 			MaxPayload: 64 * 1024 * 1024,
-			MaxPending: 1 << 30,
+			MaxPending: maxPending,
 			Cluster: natsserver.ClusterOpts{
 				Name: "natsbench-cluster",
 				Host: "127.0.0.1",
@@ -133,7 +140,10 @@ func startNativeCluster(n int) ([]*natsserver.Server, error) {
 // small sleep to allow route gossip to settle. The bench harness's
 // delivery completeness check (per-subscriber target count) is what
 // actually proves messages traversed routes.
-func startCoderCluster(ctx context.Context, logger slog.Logger, n int) ([]*codernats.Pubsub, error) {
+// maxPending is the per-client outbound pending byte budget plumbed
+// into each replica's codernats.Options. Pass 0 to use the package
+// default (1 GiB); pass a positive value to override.
+func startCoderCluster(ctx context.Context, logger slog.Logger, n int, maxPending int64) ([]*codernats.Pubsub, error) {
 	if n < 1 {
 		return nil, xerrors.Errorf("coder cluster requires n >= 1, got %d", n)
 	}
@@ -175,6 +185,7 @@ func startCoderCluster(ctx context.Context, logger slog.Logger, n int) ([]*coder
 			ClusterAdvertise: net.JoinHostPort("127.0.0.1", strconv.Itoa(ports[i])),
 			PeerProvider:     codernats.StaticPeerProvider(peers),
 			ReadyTimeout:     30 * time.Second,
+			MaxPending:       maxPending,
 			PendingLimits: codernats.PendingLimits{
 				Msgs:  -1,
 				Bytes: -1,

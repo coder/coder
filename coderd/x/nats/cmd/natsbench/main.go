@@ -637,7 +637,7 @@ func printRuntimeStats(rs runtimeStats, msgs, subs int) {
 // runNative shape but preserves the cluster-mode flag plumbing.
 func runNativeCluster(msgs, size, pubs, subs int, subj string, timeout time.Duration, replicas int) (result, error) {
 	t0 := time.Now()
-	servers, err := startNativeCluster(replicas)
+	servers, err := startNativeCluster(replicas, 0)
 	if err != nil {
 		return result{}, xerrors.Errorf("start native cluster: %w", err)
 	}
@@ -798,7 +798,7 @@ func runNativeCluster(msgs, size, pubs, subs int, subj string, timeout time.Dura
 func runCoderCluster(msgs, size, pubs, subs int, subj string, timeout time.Duration, replicas int) (result, error) {
 	t0 := time.Now()
 	logger := slog.Make() // discard
-	pubsubs, err := startCoderCluster(context.Background(), logger, replicas)
+	pubsubs, err := startCoderCluster(context.Background(), logger, replicas, 0)
 	if err != nil {
 		return result{}, xerrors.Errorf("start coder cluster: %w", err)
 	}
