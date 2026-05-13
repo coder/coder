@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/usershell"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
@@ -96,7 +97,8 @@ func (s *Server) Serve(ctx, hardCtx context.Context, l net.Listener) (retErr err
 			case <-closed:
 			case <-hardCtx.Done():
 				clog.Info(hardCtx, "reconnecting pty closed",
-					slog.F("disconnect_reason", "server shut down"),
+					codersdk.DisconnectReasonServerShutdown.SlogField(),
+					codersdk.DisconnectReasonServerShutdown.SlogExpectedField(),
 				)
 				disconnected(1, "server shut down")
 				_ = conn.Close()
@@ -107,23 +109,27 @@ func (s *Server) Serve(ctx, hardCtx context.Context, l net.Listener) (retErr err
 			defer close(closed)
 			defer wg.Done()
 			err := s.handleConn(ctx, clog, conn)
-			var reason string
+			var reason codersdk.DisconnectReason
 			var code int
+			var detail string
 			switch {
 			case err != nil && ctx.Err() != nil:
-				reason = "server shutting down"
+				reason = codersdk.DisconnectReasonServerShutdown
 				code = 1
 			case err != nil:
-				reason = err.Error()
+				reason = codersdk.DisconnectReasonNetworkError
+				detail = err.Error()
 				code = 1
 			default:
-				reason = "normal exit"
+				reason = codersdk.DisconnectReasonGraceful
 			}
 			clog.Info(ctx, "reconnecting pty closed",
-				slog.F("disconnect_reason", reason),
+				reason.SlogField(),
+				reason.SlogExpectedField(),
+				codersdk.SlogDisconnectDetail(detail),
 				slog.F("exit_code", code),
 			)
-			disconnected(code, reason)
+			disconnected(code, string(reason))
 		}()
 	}
 	wg.Wait()
