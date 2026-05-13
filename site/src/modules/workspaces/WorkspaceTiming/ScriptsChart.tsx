@@ -161,5 +161,12 @@ function getLegendsByStatus(
 				stroke: theme.roles.warning.outline,
 			},
 		},
+		pipes_left_open: {
+			label: "pipes left open",
+			colors: {
+				fill: theme.roles.warning.background,
+				stroke: theme.roles.warning.outline,
+			},
+		},
 	};
 }

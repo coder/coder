@@ -77,6 +77,51 @@ export const FailedScript: Story = {
 	},
 };
 
+export const ScriptStatusLegends: Story = {
+	parameters: {
+		chromatic: { disableSnapshot: true },
+	},
+	args: {
+		agentScriptTimings: [
+			{
+				...WorkspaceTimingsResponse.agent_script_timings[0],
+				display_name: "wait for service",
+				status: "timed_out",
+				exit_code: 124,
+				started_at: "2024-01-01T00:00:00Z",
+				ended_at: "2024-01-01T00:00:03Z",
+			},
+			{
+				...WorkspaceTimingsResponse.agent_script_timings[0],
+				display_name: "pipe watcher",
+				status: "pipes_left_open",
+				exit_code: 0,
+				started_at: "2024-01-01T00:00:03Z",
+				ended_at: "2024-01-01T00:00:04Z",
+			},
+			{
+				...WorkspaceTimingsResponse.agent_script_timings[0],
+				display_name: "new status script",
+				status: "cancelled_by_user",
+				exit_code: 1,
+				started_at: "2024-01-01T00:00:04Z",
+				ended_at: "2024-01-01T00:00:05Z",
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		const detailsButton = canvas.getByRole("button", {
+			name: "View run startup scripts details",
+		});
+		await user.click(detailsButton);
+		await canvas.findByText("timed out");
+		await canvas.findByText("pipes left open");
+		await canvas.findByText("cancelled_by_user");
+	},
+};
+
 // Navigate into a provisioning stage
 export const NavigateToPlanStage: Story = {
 	play: async ({ canvasElement }) => {
