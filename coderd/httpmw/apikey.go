@@ -16,6 +16,7 @@ import (
 	"golang.org/x/net/idna"
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
+	"tailscale.com/util/singleflight"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/apikey"
@@ -118,6 +119,16 @@ func UserAuthorization(ctx context.Context) rbac.Subject {
 type OAuth2Configs struct {
 	Github promoauth.OAuth2Config
 	OIDC   promoauth.OAuth2Config
+
+	// RefreshGroup deduplicates concurrent OAuth refresh attempts inside a
+	// single coderd process. Multiple parallel HTTP requests from the same
+	// user that hit ValidateAPIKey after the OAuth access token has expired
+	// would otherwise each independently call the IdP with the same
+	// single-use refresh token; only one would win and the rest would fail
+	// with invalid_grant. The singleflight key is "<userID>:<loginType>" so
+	// refreshes for different users do not block each other. The zero value
+	// is ready to use.
+	RefreshGroup singleflight.Group[string, database.UserLink]
 }
 
 func (c *OAuth2Configs) IsZero() bool {
@@ -356,53 +367,30 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 				}
 			}
 
-			// We have a refresh token, so let's try it.
-			token, err := oauthConfig.TokenSource(r.Context(), &oauth2.Token{
-				AccessToken:  link.OAuthAccessToken,
-				RefreshToken: link.OAuthRefreshToken,
-				Expiry:       link.OAuthExpiry,
-			}).Token()
-			// Hard error: we actively tried to refresh and the
-			// provider rejected it — surface even on optional-auth
-			// routes.
-			if err != nil {
-				return nil, &ValidateAPIKeyError{
-					Code: http.StatusUnauthorized,
-					Response: codersdk.Response{
-						Message: fmt.Sprintf(
-							"Could not refresh expired %s token. Try re-authenticating to resolve this issue.",
-							friendlyName),
-						Detail: err.Error(),
-					},
-					Hard: true,
+			// Deduplicate concurrent refreshes for the same user. The
+			// closure either refreshes against the IdP or returns the
+			// link that another caller already refreshed.
+			refreshed, sfErr, _ := cfg.OAuth2Configs.RefreshGroup.Do(
+				key.UserID.String()+":"+string(key.LoginType),
+				func() (database.UserLink, error) {
+					return refreshOAuthLink(ctx, cfg.DB, oauthConfig, friendlyName, link)
+				},
+			)
+			if sfErr != nil {
+				var vErr *ValidateAPIKeyError
+				if errors.As(sfErr, &vErr) {
+					return nil, vErr
 				}
-			}
-			link.OAuthAccessToken = token.AccessToken
-			link.OAuthRefreshToken = token.RefreshToken
-			link.OAuthExpiry = token.Expiry
-			//nolint:gocritic // system needs to update user link
-			link, err = cfg.DB.UpdateUserLink(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLinkParams{
-				UserID:                 link.UserID,
-				LoginType:              link.LoginType,
-				OAuthAccessToken:       link.OAuthAccessToken,
-				OAuthAccessTokenKeyID:  sql.NullString{}, // dbcrypt will update as required
-				OAuthRefreshToken:      link.OAuthRefreshToken,
-				OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
-				OAuthExpiry:            link.OAuthExpiry,
-				// Refresh should keep the same debug context because we use
-				// the original claims for the group/role sync.
-				Claims: link.Claims,
-			})
-			if err != nil {
 				return nil, &ValidateAPIKeyError{
 					Code: http.StatusInternalServerError,
 					Response: codersdk.Response{
 						Message: internalErrorMessage,
-						Detail:  fmt.Sprintf("update user_link: %s.", err.Error()),
+						Detail:  fmt.Sprintf("refresh user_link: %s.", sfErr.Error()),
 					},
 					Hard: true,
 				}
 			}
+			link = refreshed
 		}
 	}
 
@@ -1022,6 +1010,131 @@ func RedirectToLogin(rw http.ResponseWriter, r *http.Request, dashboardURL *url.
 	// See other forces a GET request rather than keeping the current method
 	// (like temporary redirect does).
 	http.Redirect(rw, r, u.String(), http.StatusSeeOther)
+}
+
+// refreshOAuthLink performs a single OIDC/GitHub access-token refresh for
+// the given user link. It is intended to be invoked from inside
+// OAuth2Configs.RefreshGroup.Do so concurrent callers for the same user
+// share the result. The function:
+//
+//  1. Opens a transaction and takes a postgres advisory lock keyed on
+//     (user_id, login_type). The lock serializes refreshes for one user
+//     across coderd replicas. Only one replica at a time enters the
+//     critical section, while peers block on AcquireLock and observe the
+//     winner's fresh token on re-read.
+//  2. Re-reads the user_link row inside the lock so the goroutine that
+//     wins the singleflight (or the advisory lock from another replica)
+//     sees the latest tokens.
+//  3. Skips the IdP call if the freshly read link is no longer expired.
+//  4. Otherwise refreshes against the OAuth2 provider and persists the
+//     new tokens via UpdateUserLinkRefreshToken. The optimistic-lock
+//     predicate in that query is defense-in-depth against unexpected
+//     concurrent writers; under normal operation the advisory lock makes
+//     the update single-writer.
+//
+// Errors that should surface as user-visible HTTP responses are wrapped in
+// *ValidateAPIKeyError so the caller can return them verbatim.
+func refreshOAuthLink(
+	ctx context.Context,
+	db database.Store,
+	oauthConfig promoauth.OAuth2Config,
+	friendlyName string,
+	original database.UserLink,
+) (database.UserLink, error) {
+	var result database.UserLink
+	//nolint:gocritic // system needs to refresh user_link
+	txErr := db.InTx(func(tx database.Store) error {
+		lockID := database.GenLockID(fmt.Sprintf("oauth-refresh:%s:%s", original.UserID, original.LoginType))
+		if err := tx.AcquireLock(dbauthz.AsSystemRestricted(ctx), lockID); err != nil {
+			return &ValidateAPIKeyError{
+				Code: http.StatusInternalServerError,
+				Response: codersdk.Response{
+					Message: internalErrorMessage,
+					Detail:  fmt.Sprintf("acquire oauth-refresh advisory lock: %s", err.Error()),
+				},
+				Hard: true,
+			}
+		}
+
+		link, err := tx.GetUserLinkByUserIDLoginType(dbauthz.AsSystemRestricted(ctx), database.GetUserLinkByUserIDLoginTypeParams{
+			UserID:    original.UserID,
+			LoginType: original.LoginType,
+		})
+		if err != nil {
+			return &ValidateAPIKeyError{
+				Code: http.StatusInternalServerError,
+				Response: codersdk.Response{
+					Message: "A database error occurred",
+					Detail:  fmt.Sprintf("re-read user_link for refresh: %s", err.Error()),
+				},
+				Hard: true,
+			}
+		}
+		// Another goroutine or replica already refreshed; reuse its result.
+		if !link.OAuthExpiry.IsZero() && link.OAuthExpiry.After(dbtime.Now()) {
+			result = link
+			return nil
+		}
+
+		token, err := oauthConfig.TokenSource(ctx, &oauth2.Token{
+			AccessToken:  link.OAuthAccessToken,
+			RefreshToken: link.OAuthRefreshToken,
+			Expiry:       link.OAuthExpiry,
+		}).Token()
+		if err != nil {
+			return &ValidateAPIKeyError{
+				Code: http.StatusUnauthorized,
+				Response: codersdk.Response{
+					Message: fmt.Sprintf(
+						"Could not refresh expired %s token. Try re-authenticating to resolve this issue.",
+						friendlyName),
+					Detail: err.Error(),
+				},
+				Hard: true,
+			}
+		}
+
+		updated, err := tx.UpdateUserLinkRefreshToken(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLinkRefreshTokenParams{
+			UserID:                 link.UserID,
+			LoginType:              link.LoginType,
+			OAuthAccessToken:       token.AccessToken,
+			OAuthAccessTokenKeyID:  sql.NullString{}, // dbcrypt will update as required
+			OAuthRefreshToken:      token.RefreshToken,
+			OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
+			OAuthExpiry:            token.Expiry,
+			// Refresh should keep the same debug context because we use
+			// the original claims for the group/role sync.
+			Claims:               link.Claims,
+			OldOauthRefreshToken: link.OAuthRefreshToken,
+		})
+		if err != nil {
+			return &ValidateAPIKeyError{
+				Code: http.StatusInternalServerError,
+				Response: codersdk.Response{
+					Message: internalErrorMessage,
+					Detail:  fmt.Sprintf("update user_link: %s.", err.Error()),
+				},
+				Hard: true,
+			}
+		}
+		result = updated
+		return nil
+	}, nil)
+	if txErr != nil {
+		var vErr *ValidateAPIKeyError
+		if errors.As(txErr, &vErr) {
+			return database.UserLink{}, vErr
+		}
+		return database.UserLink{}, &ValidateAPIKeyError{
+			Code: http.StatusInternalServerError,
+			Response: codersdk.Response{
+				Message: internalErrorMessage,
+				Detail:  fmt.Sprintf("refresh user_link transaction: %s", txErr.Error()),
+			},
+			Hard: true,
+		}
+	}
+	return result, nil
 }
 
 // CustomRedirectToLogin redirects the user to the login page with the `message` and
