@@ -6,14 +6,13 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
-	"errors"
 	"io"
 	"net/http"
 	"regexp"
 	"sync"
 	"time"
 
-	"go.mozilla.org/pkcs7"
+	"github.com/smallstep/pkcs7"
 	"golang.org/x/xerrors"
 )
 
@@ -25,17 +24,42 @@ var allowedSigners = regexp.MustCompile(`^(.*\.)?metadata\.(azure\.(com|us|cn)|m
 // each time a parse occurs.
 var pkcs7Mutex sync.Mutex
 
+// maxCertResponseBytes is the maximum size of a certificate
+// response body we will read. Azure intermediate certificates
+// are typically under 4 KiB; 1 MiB is a generous upper bound
+// that prevents memory exhaustion from malicious responses.
+const maxCertResponseBytes = 1 << 20 // 1 MiB
+
 type metadata struct {
 	VMID string `json:"vmId"`
 }
 
 type Options struct {
-	x509.VerifyOptions
+	// Roots is the trusted root certificate pool. If nil,
+	// the embedded root certificate pool is used.
+	Roots *x509.CertPool
+	// Intermediates are additional intermediate certificates to
+	// inject into the PKCS7 object for chain verification. Azure
+	// PKCS7 envelopes typically only contain the signing cert, so
+	// intermediates must be supplied externally. When nil, the
+	// hardcoded Azure intermediate certificates are used.
+	Intermediates []*x509.Certificate
+	// CurrentTime, if non-zero, overrides the verification
+	// timestamp for certificate chain validation.
+	CurrentTime time.Time
+	// Offline disables fetching of issuing certificates when
+	// chain verification fails.
 	Offline bool
 }
 
 // Validate ensures the signature was signed by an Azure certificate.
 // It returns the associated VM ID if successful.
+//
+// Verification has two parts, both handled by VerifyWithChainAtTime:
+//  1. PKCS7 signature check: proves the content was signed by the
+//     private key corresponding to the certificate in the envelope.
+//  2. Certificate chain check: proves the signing certificate
+//     chains to a trusted root through known intermediates.
 func Validate(ctx context.Context, signature string, options Options) (string, error) {
 	data, err := base64.StdEncoding.DecodeString(signature)
 	if err != nil {
@@ -54,30 +78,48 @@ func Validate(ctx context.Context, signature string, options Options) (string, e
 	if !allowedSigners.MatchString(signer.Subject.CommonName) {
 		return "", xerrors.Errorf("unmatched common name of signer: %q", signer.Subject.CommonName)
 	}
-	if options.Intermediates == nil {
-		options.Intermediates = x509.NewCertPool()
-		for _, cert := range Certificates {
-			block, rest := pem.Decode([]byte(cert))
-			if len(rest) != 0 {
-				return "", xerrors.Errorf("invalid certificate. %d bytes remain", len(rest))
-			}
-			cert, err := x509.ParseCertificate(block.Bytes)
-			if err != nil {
-				return "", xerrors.Errorf("parse certificate: %w", err)
-			}
-			options.Intermediates.AddCert(cert)
+	// Azure PKCS7 envelopes typically contain only the signing
+	// certificate. Inject intermediate certificates so the
+	// library can build a chain from signer to trusted root.
+	intermediates := options.Intermediates
+	if intermediates == nil {
+		intermediates, err = ParseCertificates()
+		if err != nil {
+			return "", xerrors.Errorf("parse hardcoded certificates: %w", err)
 		}
 	}
 
-	_, err = signer.Verify(options.VerifyOptions)
-	if err != nil {
-		if !errors.As(err, &x509.UnknownAuthorityError{}) {
-			return "", xerrors.Errorf("verify signature: %w", err)
+	pkcs7Data.Certificates = append(pkcs7Data.Certificates, intermediates...)
+	// Resolve root trust store. VerifyWithChainAtTime skips
+	// chain verification when the trust store is nil, so we
+	// must always provide one.
+	roots := options.Roots
+	if roots == nil {
+		roots, err = rootCertPool()
+		if err != nil {
+			return "", xerrors.Errorf("load roots: %w", err)
 		}
+	}
+
+	currentTime := options.CurrentTime
+	if currentTime.IsZero() {
+		currentTime = time.Now()
+	}
+
+	// VerifyWithChainAtTime validates both the PKCS7 signature
+	// (proving the content was signed by the certificate's
+	// private key) and the certificate chain (proving the signer
+	// chains to a trusted root).
+	err = pkcs7Data.VerifyWithChainAtTime(roots, currentTime)
+	if err != nil {
 		if options.Offline {
-			return "", xerrors.Errorf("certificate from %v is not cached: %w", signer.IssuingCertificateURL, err)
+			return "", xerrors.Errorf("verify pkcs7: %w", err)
 		}
 
+		// The chain verification may fail when the signing
+		// certificate was issued by an intermediate not yet in
+		// our hardcoded list. Fetch the issuing certificates
+		// and retry.
 		ctx, cancelFunc := context.WithTimeout(ctx, 5*time.Second)
 		defer cancelFunc()
 		for _, certURL := range signer.IssuingCertificateURL {
@@ -89,19 +131,24 @@ func Validate(ctx context.Context, signature string, options Options) (string, e
 			if err != nil {
 				return "", xerrors.Errorf("no cached certificate for %q found. error fetching: %w", certURL, err)
 			}
-			data, err := io.ReadAll(res.Body)
-			if err != nil {
-				_ = res.Body.Close()
-				return "", xerrors.Errorf("read body %q: %w", certURL, err)
-			}
+			limited := io.LimitReader(res.Body, maxCertResponseBytes+1)
+			certData, err := io.ReadAll(limited)
 			_ = res.Body.Close()
-			cert, err := x509.ParseCertificate(data)
+			if err != nil {
+				return "", xerrors.New("read certificate response body")
+			}
+			if int64(len(certData)) > maxCertResponseBytes {
+				return "", xerrors.New(
+					"certificate response exceeds maximum size",
+				)
+			}
+			cert, err := x509.ParseCertificate(certData)
 			if err != nil {
 				return "", xerrors.Errorf("parse certificate %q: %w", certURL, err)
 			}
-			options.Intermediates.AddCert(cert)
+			pkcs7Data.Certificates = append(pkcs7Data.Certificates, cert)
 		}
-		_, err = signer.Verify(options.VerifyOptions)
+		err = pkcs7Data.VerifyWithChainAtTime(roots, currentTime)
 		if err != nil {
 			return "", err
 		}
@@ -114,6 +161,123 @@ func Validate(ctx context.Context, signature string, options Options) (string, e
 	}
 	return metadata.VMID, nil
 }
+
+
+// ParseCertificates parses the hardcoded Azure intermediate
+// certificates and returns them as x509.Certificate values.
+func ParseCertificates() ([]*x509.Certificate, error) {
+	var certs []*x509.Certificate
+	for _, certPEM := range Certificates {
+		block, rest := pem.Decode([]byte(certPEM))
+		if len(rest) != 0 {
+			return nil, xerrors.Errorf("invalid certificate. %d bytes remain", len(rest))
+		}
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, xerrors.Errorf("parse certificate: %w", err)
+		}
+		certs = append(certs, cert)
+	}
+	return certs, nil
+}
+
+// Roots are the root CAs that Azure instance-identity certificates chain to.
+// These are embedded so verification works deterministically on all
+// platforms, including macOS where the system verifier would otherwise be
+// used and may reject otherwise valid Azure certificates due to stricter
+// standards-compliance checks. See https://github.com/coder/coder/issues/12978.
+var Roots = []string{
+	// DigiCert Global Root G2
+	`-----BEGIN CERTIFICATE-----
+MIIDjjCCAnagAwIBAgIQAzrx5qcRqaC7KGSxHQn65TANBgkqhkiG9w0BAQsFADBh
+MQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3
+d3cuZGlnaWNlcnQuY29tMSAwHgYDVQQDExdEaWdpQ2VydCBHbG9iYWwgUm9vdCBH
+MjAeFw0xMzA4MDExMjAwMDBaFw0zODAxMTUxMjAwMDBaMGExCzAJBgNVBAYTAlVT
+MRUwEwYDVQQKEwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5j
+b20xIDAeBgNVBAMTF0RpZ2lDZXJ0IEdsb2JhbCBSb290IEcyMIIBIjANBgkqhkiG
+9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuzfNNNx7a8myaJCtSnX/RrohCgiN9RlUyfuI
+2/Ou8jqJkTx65qsGGmvPrC3oXgkkRLpimn7Wo6h+4FR1IAWsULecYxpsMNzaHxmx
+1x7e/dfgy5SDN67sH0NO3Xss0r0upS/kqbitOtSZpLYl6ZtrAGCSYP9PIUkY92eQ
+q2EGnI/yuum06ZIya7XzV+hdG82MHauVBJVJ8zUtluNJbd134/tJS7SsVQepj5Wz
+tCO7TG1F8PapspUwtP1MVYwnSlcUfIKdzXOS0xZKBgyMUNGPHgm+F6HmIcr9g+UQ
+vIOlCsRnKPZzFBQ9RnbDhxSJITRNrw9FDKZJobq7nMWxM4MphQIDAQABo0IwQDAP
+BgNVHRMBAf8EBTADAQH/MA4GA1UdDwEB/wQEAwIBhjAdBgNVHQ4EFgQUTiJUIBiV
+5uNu5g/6+rkS7QYXjzkwDQYJKoZIhvcNAQELBQADggEBAGBnKJRvDkhj6zHd6mcY
+1Yl9PMWLSn/pvtsrF9+wX3N3KjITOYFnQoQj8kVnNeyIv/iPsGEMNKSuIEyExtv4
+NeF22d+mQrvHRAiGfzZ0JFrabA0UWTW98kndth/Jsw1HKj2ZL7tcu7XUIOGZX1NG
+Fdtom/DzMNU+MeKNhJ7jitralj41E6Vf8PlwUHBHQRFXGU7Aj64GxJUTFy8bJZ91
+8rGOmaFvE7FBcf6IKshPECBV1/MUReXgRPTqh5Uykw7+U0b6LJ3/iyK5S9kJRaTe
+pLiaWN0bfVKfjllDiIGknibVb63dDcY3fe0Dkhvld1927jyNxF1WW6LZZm6zNTfl
+MrY=
+-----END CERTIFICATE-----`,
+	// DigiCert Global Root G3
+	`-----BEGIN CERTIFICATE-----
+MIICPzCCAcWgAwIBAgIQBVVWvPJepDU1w6QP1atFcjAKBggqhkjOPQQDAzBhMQsw
+CQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3d3cu
+ZGlnaWNlcnQuY29tMSAwHgYDVQQDExdEaWdpQ2VydCBHbG9iYWwgUm9vdCBHMzAe
+Fw0xMzA4MDExMjAwMDBaFw0zODAxMTUxMjAwMDBaMGExCzAJBgNVBAYTAlVTMRUw
+EwYDVQQKEwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20x
+IDAeBgNVBAMTF0RpZ2lDZXJ0IEdsb2JhbCBSb290IEczMHYwEAYHKoZIzj0CAQYF
+K4EEACIDYgAE3afZu4q4C/sLfyHS8L6+c/MzXRq8NOrexpu80JX28MzQC7phW1FG
+fp4tn+6OYwwX7Adw9c+ELkCDnOg/QW07rdOkFFk2eJ0DQ+4QE2xy3q6Ip6FrtUPO
+Z9wj/wMco+I+o0IwQDAPBgNVHRMBAf8EBTADAQH/MA4GA1UdDwEB/wQEAwIBhjAd
+BgNVHQ4EFgQUs9tIpPmhxdiuNkHMEWNpYim8S8YwCgYIKoZIzj0EAwMDaAAwZQIx
+AK288mw/EkrRLTnDCgmXc/SINoyIJ7vmiI1Qhadj+Z4y3maTD/HMsQmP3Wyr+mt/
+oAIwOWZbwmSNuJ5Q3KjVSaLtx9zRSX8XAbjIho9OjIgrqJqpisXRAL34VOKa5Vt8
+sycX
+-----END CERTIFICATE-----`,
+	// Baltimore CyberTrust Root.
+	// Required for chains rooted here, e.g. "Microsoft RSA TLS CA 01/02".
+	// Expired 2025-05-12 but kept so callers that pass a CurrentTime
+	// before the expiry can still verify historical signatures.
+	`-----BEGIN CERTIFICATE-----
+MIIDdzCCAl+gAwIBAgIEAgAAuTANBgkqhkiG9w0BAQUFADBaMQswCQYDVQQGEwJJ
+RTESMBAGA1UEChMJQmFsdGltb3JlMRMwEQYDVQQLEwpDeWJlclRydXN0MSIwIAYD
+VQQDExlCYWx0aW1vcmUgQ3liZXJUcnVzdCBSb290MB4XDTAwMDUxMjE4NDYwMFoX
+DTI1MDUxMjIzNTkwMFowWjELMAkGA1UEBhMCSUUxEjAQBgNVBAoTCUJhbHRpbW9y
+ZTETMBEGA1UECxMKQ3liZXJUcnVzdDEiMCAGA1UEAxMZQmFsdGltb3JlIEN5YmVy
+VHJ1c3QgUm9vdDCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAKMEuyKr
+mD1X6CZymrV51Cni4eiVgLGw41uOKymaZN+hXe2wCQVt2yguzmKiYv60iNoS6zjr
+IZ3AQSsBUnuId9Mcj8e6uYi1agnnc+gRQKfRzMpijS3ljwumUNKoUMMo6vWrJYeK
+mpYcqWe4PwzV9/lSEy/CG9VwcPCPwBLKBsua4dnKM3p31vjsufFoREJIE9LAwqSu
+XmD+tqYF/LTdB1kC1FkYmGP1pWPgkAx9XbIGevOF6uvUA65ehD5f/xXtabz5OTZy
+dc93Uk3zyZAsuT3lySNTPx8kmCFcB5kpvcY67Oduhjprl3RjM71oGDHweI12v/ye
+jl0qhqdNkNwnGjkCAwEAAaNFMEMwHQYDVR0OBBYEFOWdWTCCR1jMrPoIVDaGezq1
+BE3wMBIGA1UdEwEB/wQIMAYBAf8CAQMwDgYDVR0PAQH/BAQDAgEGMA0GCSqGSIb3
+DQEBBQUAA4IBAQCFDF2O5G9RaEIFoN27TyclhAO992T9Ldcw46QQF+vaKSm2eT92
+9hkTI7gQCvlYpNRhcL0EYWoSihfVCr3FvDB81ukMJY2GQE/szKN+OMY3EU/t3Wgx
+jkzSswF07r51XgdIGn9w/xZchMB5hbgF/X++ZRGjD8ACtPhSNzkE1akxehi/oCr0
+Epn3o0WC4zxe9Z2etciefC7IpJ5OCBRLbf1wbWsaY71k5h+3zvDyny67G7fyUIhz
+ksLi4xaNmjICq44Y3ekQEe5+NauQrz4wlHrQMz2nZQ/1/I6eYs9HRCwBXbsdtTLS
+R9I4LtD+gdwyah617jzV/OeBHRnDJELqYzmp
+-----END CERTIFICATE-----`,
+}
+
+// rootCertPool returns a CertPool containing the root CAs that Azure
+// instance-identity certificates ultimately chain to. We embed these so
+// callers do not have to populate Roots themselves, and so we never
+// implicitly fall back to the platform's system verifier (notably Apple's
+// Security framework on macOS/iOS) which enforces stricter standards-
+// compliance checks than Go's pure-Go verifier and rejects some otherwise
+// valid Azure leaf certificates.
+var rootCertPool = sync.OnceValues(func() (*x509.CertPool, error) {
+	pool := x509.NewCertPool()
+	for _, pemCert := range Roots {
+		block, rest := pem.Decode([]byte(pemCert))
+		if block == nil {
+			return nil, xerrors.New("root: failed to decode PEM block")
+		}
+		if len(rest) != 0 {
+			return nil, xerrors.Errorf("root: invalid certificate, %d bytes remain", len(rest))
+		}
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, xerrors.Errorf("root: parse certificate: %w", err)
+		}
+		pool.AddCert(cert)
+	}
+	return pool, nil
+})
 
 // Certificates are manually downloaded from Azure, then processed with OpenSSL
 // and added here. See: https://learn.microsoft.com/en-us/azure/security/fundamentals/azure-ca-details
