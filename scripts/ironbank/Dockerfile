@@ -53,6 +53,13 @@ RUN mkdir -p /opt && \
 ENV PATH="/opt:${PATH}"
 
 # Copy and extract Terraform binary from zip file.
+#
+# VAT justification for GHSA-pjcq-xvwq-hhpj (CVE-2026-32952):
+# The bundled Terraform binary includes github.com/Azure/go-ntlmssp as a
+# transitive dependency. This package can panic on malformed NTLM challenge
+# payloads. Coder does not use NTLM authentication and never invokes the
+# vulnerable code path at runtime. The dependency is not present in Coder's
+# own go.mod. Monitoring upstream Terraform for a patched release.
 ARG TERRAFORM_BIN_DIR=/opt/terraform
 ARG TERRAFORM_BIN_ZIP=terraform.zip
 COPY "$TERRAFORM_BIN_ZIP" /tmp/terraform.zip
