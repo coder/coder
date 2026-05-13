@@ -143,7 +143,6 @@ require (
 	github.com/fatih/structs v1.1.0
 	github.com/fatih/structtag v1.2.0
 	github.com/fergusstrange/embedded-postgres v1.34.0
-	github.com/fullsailor/pkcs7 v0.0.0-20190404230743-d7302db945fa
 	github.com/gen2brain/beeep v0.11.1
 	github.com/gliderlabs/ssh v0.3.8
 	github.com/go-chi/chi/v5 v5.2.4
@@ -209,7 +208,6 @@ require (
 	github.com/valyala/fasthttp v1.70.0
 	github.com/wagslane/go-password-validator v0.3.0
 	github.com/zclconf/go-cty-yaml v1.2.0
-	go.mozilla.org/pkcs7 v0.9.0
 	go.nhat.io/otelsql v0.16.0
 	go.opentelemetry.io/otel v1.43.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.40.0
@@ -507,6 +505,7 @@ require (
 	github.com/go-git/go-git/v5 v5.19.0
 	github.com/mark3labs/mcp-go v0.38.0
 	github.com/shopspring/decimal v1.4.0
+	github.com/smallstep/pkcs7 v0.2.1
 	gonum.org/v1/gonum v0.17.0
 )
 
@@ -612,7 +611,7 @@ require (
 	github.com/segmentio/asm v1.2.1 // indirect
 	github.com/sergeymakinen/go-bmp v1.0.0 // indirect
 	github.com/sergeymakinen/go-ico v1.0.0-beta.0 // indirect
-	github.com/sony/gobreaker/v2 v2.3.0 // indirect
+	github.com/sony/gobreaker/v2 v2.4.0 // indirect
 	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.6.0 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
