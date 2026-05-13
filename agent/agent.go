@@ -1973,6 +1973,11 @@ func (a *agent) runDERPMapSubscriber(ctx context.Context, tClient tailnetproto.D
 		return xerrors.Errorf("stream DERP Maps: %w", err)
 	}
 	defer func() {
+		cErr := stream.Close()
+		if cErr != nil {
+			a.logger.Debug(ctx, "error closing DERPMap stream", slog.Error(err))
+		}
+
 		reason, initiator := classifyCoordinatorRPCExit(ctx, retErr)
 		a.logger.Debug(ctx, "disconnected from derp map RPC",
 			slog.F("disconnect_reason", reason),
@@ -1980,12 +1985,6 @@ func (a *agent) runDERPMapSubscriber(ctx context.Context, tClient tailnetproto.D
 			slog.F("disconnect_expected", reason.Expected()),
 			slog.Error(retErr),
 		)
-	}()
-	defer func() {
-		cErr := stream.Close()
-		if cErr != nil {
-			a.logger.Debug(ctx, "error closing DERPMap stream", slog.Error(err))
-		}
 	}()
 	a.logger.Info(ctx, "connected to derp map RPC")
 	for {
