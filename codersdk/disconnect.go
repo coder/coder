@@ -1,5 +1,14 @@
 package codersdk
 
+import "cdr.dev/slog/v3"
+
+// SlogDisconnectDetail is the slog field for the free-form, human-readable
+// detail string that supplements the structured reason. Use it for
+// "exited with code 137" style information that does not fit a category.
+func SlogDisconnectDetail(detail string) slog.Field {
+	return slog.F("disconnect_detail", detail)
+}
+
 // DisconnectReason categorizes why a workspace connection ended. It is
 // emitted as a slog field at every disconnect log site so operators can
 // filter and aggregate disconnects without parsing free-form reason
@@ -10,6 +19,14 @@ package codersdk
 // constant here (and update its godoc) when a new disconnect class is
 // genuinely distinct from the existing ones.
 type DisconnectReason string
+
+func (r DisconnectReason) SlogField() slog.Field {
+	return slog.F("disconnect_reason", r)
+}
+
+func (r DisconnectReason) SlogExpectedField() slog.Field {
+	return slog.F("disconnect_expected", r.Expected())
+}
 
 const (
 	// DisconnectReasonUnknown is the zero value. Use it when the disconnect
@@ -128,6 +145,10 @@ const (
 	DisconnectInitiatorNetwork DisconnectInitiator = "network"
 )
 
+func (i DisconnectInitiator) SlogField() slog.Field {
+	return slog.F("disconnect_initiator", i)
+}
+
 // Valid reports whether i is a known DisconnectInitiator.
 func (i DisconnectInitiator) Valid() bool {
 	switch i {
@@ -146,6 +167,10 @@ func (i DisconnectInitiator) Valid() bool {
 // took at the moment a disconnect log was emitted. It is intended for
 // observability only; do not switch behavior on it.
 type ConnectionMethod string
+
+func (m ConnectionMethod) SlogField() slog.Field {
+	return slog.F("connection_method", m)
+}
 
 const (
 	// ConnectionMethodUnknown means the disconnect site does not have
@@ -172,30 +197,3 @@ func (m ConnectionMethod) Valid() bool {
 		return false
 	}
 }
-
-// Stable slog field keys for disconnect attribution. Use these constants
-// (not raw strings) when emitting slog fields so operators can rely on
-// consistent key names across the codebase.
-//
-// New disconnect log sites should always include DisconnectReasonField
-// and DisconnectInitiatorField, and should include ConnectionMethodField
-// when the information is available.
-
-// DisconnectReasonField is the slog key for DisconnectReason values.
-const DisconnectReasonField = "disconnect_reason"
-
-// DisconnectInitiatorField is the slog key for DisconnectInitiator values.
-const DisconnectInitiatorField = "disconnect_initiator"
-
-// DisconnectExpectedField is the slog key for the boolean derived from
-// DisconnectReason.Expected. Operators can filter on this without
-// enumerating every reason value.
-const DisconnectExpectedField = "disconnect_expected"
-
-// ConnectionMethodField is the slog key for ConnectionMethod values.
-const ConnectionMethodField = "connection_method"
-
-// DisconnectDetailField is the slog key for the free-form, human-readable
-// detail string that supplements the structured reason. Use it for
-// "exited with code 137" style information that does not fit a category.
-const DisconnectDetailField = "disconnect_detail"
