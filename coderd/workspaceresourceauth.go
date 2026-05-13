@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/mitchellh/mapstructure"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/awsidentity"
 	"github.com/coder/coder/v2/coderd/azureidentity"
 	"github.com/coder/coder/v2/coderd/database"
@@ -42,9 +43,17 @@ func (api *API) postWorkspaceAuthAzureInstanceIdentity(rw http.ResponseWriter, r
 		VerifyOptions: api.AzureCertificates,
 	})
 	if err != nil {
+		// Log the full error for operators but return only a
+		// generic message to the caller. Errors from the
+		// certificate fetch path may contain fragments of
+		// internal HTTP responses, so exposing them would be
+		// an information disclosure risk.
+		api.Logger.Warn(ctx, "azure identity validation failed",
+			slog.Error(err),
+		)
 		httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
 			Message: "Invalid Azure identity.",
-			Detail:  err.Error(),
+			Detail:  "Signature verification failed.",
 		})
 		return
 	}
