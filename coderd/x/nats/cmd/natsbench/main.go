@@ -155,11 +155,11 @@ func runLoopback(mode string, msgs, size int) (result, error) {
 		}
 		delivered++
 	}
-	hot := time.Since(hotStart)
 	wg.Wait()
 	if writeErr != nil {
 		return result{}, xerrors.Errorf("write: %w", writeErr)
 	}
+	hot := time.Since(hotStart)
 	return result{
 		setup:     setup,
 		hot:       hot,
