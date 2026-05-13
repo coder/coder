@@ -8,7 +8,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
-
+	"encoding/pem"
 	"math/big"
 	"runtime"
 	"testing"
@@ -22,10 +22,6 @@ import (
 
 func TestValidate(t *testing.T) {
 	t.Parallel()
-	if runtime.GOOS == "darwin" {
-		// This test fails on MacOS for some reason. See https://github.com/coder/coder/issues/12978
-		t.Skip()
-	}
 
 	mustTime := func(layout string, value string) time.Time {
 		ti, err := time.Parse(layout, value)
@@ -66,6 +62,40 @@ func TestValidate(t *testing.T) {
 	}
 }
 
+// TestEmbeddedRoots ensures the package's embedded root certificates parse
+// successfully. The Roots are used by Validate to avoid falling back to the
+// platform's system verifier (notably Apple's Security framework on macOS),
+// which previously caused TestValidate/regular to fail on macOS with
+// `x509: "metadata.azure.com" certificate is not standards compliant`.
+// See https://github.com/coder/coder/issues/12978.
+func TestEmbeddedRoots(t *testing.T) {
+	t.Parallel()
+	require.NotEmpty(t, azureidentity.Roots, "embedded roots must not be empty")
+	seen := map[string]bool{}
+	for _, pemCert := range azureidentity.Roots {
+		block, rest := pem.Decode([]byte(pemCert))
+		require.NotNil(t, block, "PEM block should decode")
+		require.Zero(t, len(rest), "no trailing data after PEM block")
+		cert, err := x509.ParseCertificate(block.Bytes)
+		require.NoError(t, err)
+		// Each root must be self-signed (issuer == subject).
+		require.Equal(t, cert.Issuer.String(), cert.Subject.String(),
+			"root certificate must be self-signed: %s", cert.Subject.CommonName)
+		require.False(t, seen[cert.Subject.CommonName],
+			"duplicate embedded root: %s", cert.Subject.CommonName)
+		seen[cert.Subject.CommonName] = true
+	}
+	// Verify the three roots Azure instance-identity chains ultimately
+	// terminate at are all present.
+	for _, name := range []string{
+		"DigiCert Global Root G2",
+		"DigiCert Global Root G3",
+		"Baltimore CyberTrust Root",
+	} {
+		require.True(t, seen[name], "missing embedded root %q", name)
+	}
+}
+
 func TestExpiresSoon(t *testing.T) {
 	t.Parallel()
 	// TODO (@kylecarbs): It's unknown why Microsoft does not have new certificates live...
@@ -88,6 +118,40 @@ func TestExpiresSoon(t *testing.T) {
 			}
 			t.Logf("certificate %q doesn't expire for a while (%s)", cert.Subject.CommonName, url)
 		}
+	}
+}
+
+func TestIsAllowedCertificateURL(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		url     string
+		allowed bool
+	}{
+		{"microsoft http", "http://www.microsoft.com/pki/mscorp/cert.crt", true},
+		{"microsoft https", "https://www.microsoft.com/pkiops/certs/cert.crt", true},
+		{"digicert http", "http://cacerts.digicert.com/DigiCertGlobalRootG2.crt", true},
+		{"digicert https", "https://cacerts.digicert.com/DigiCertGlobalRootG3.crt", true},
+		{"evil domain", "http://evil.example.com/cert.crt", false},
+		{"metadata endpoint", "http://169.254.169.254/latest/meta-data/", false},
+		{"localhost", "http://localhost/secret", false},
+		{"subdomain trick", "http://www.microsoft.com.evil.com/cert.crt", false},
+		{"empty string", "", false},
+		{"ftp scheme", "ftp://www.microsoft.com/cert.crt", false},
+		{"no scheme", "www.microsoft.com/cert.crt", false},
+		{"javascript scheme", "javascript:alert(1)", false},
+		{"microsoft with path", "http://www.microsoft.com/pkiops/certs/cert.crt", true},
+		{"microsoft explicit port 80", "http://www.microsoft.com:80/cert.crt", true},
+		{"microsoft explicit port 443", "https://www.microsoft.com:443/cert.crt", true},
+		{"microsoft non-standard port", "http://www.microsoft.com:8080/cert.crt", false},
+		{"microsoft port 22", "http://www.microsoft.com:22/cert.crt", false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			result := azureidentity.IsAllowedCertificateURL(tc.url)
+			require.Equal(t, tc.allowed, result, "URL: %s", tc.url)
+		})
 	}
 }
 
