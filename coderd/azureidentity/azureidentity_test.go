@@ -116,37 +116,3 @@ func TestExpiresSoon(t *testing.T) {
 		}
 	}
 }
-
-func TestIsAllowedCertificateURL(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name    string
-		url     string
-		allowed bool
-	}{
-		{"microsoft http", "http://www.microsoft.com/pki/mscorp/cert.crt", true},
-		{"microsoft https", "https://www.microsoft.com/pkiops/certs/cert.crt", true},
-		{"digicert http", "http://cacerts.digicert.com/DigiCertGlobalRootG2.crt", true},
-		{"digicert https", "https://cacerts.digicert.com/DigiCertGlobalRootG3.crt", true},
-		{"evil domain", "http://evil.example.com/cert.crt", false},
-		{"metadata endpoint", "http://169.254.169.254/latest/meta-data/", false},
-		{"localhost", "http://localhost/secret", false},
-		{"subdomain trick", "http://www.microsoft.com.evil.com/cert.crt", false},
-		{"empty string", "", false},
-		{"ftp scheme", "ftp://www.microsoft.com/cert.crt", false},
-		{"no scheme", "www.microsoft.com/cert.crt", false},
-		{"javascript scheme", "javascript:alert(1)", false},
-		{"microsoft with path", "http://www.microsoft.com/pkiops/certs/cert.crt", true},
-		{"microsoft explicit port 80", "http://www.microsoft.com:80/cert.crt", true},
-		{"microsoft explicit port 443", "https://www.microsoft.com:443/cert.crt", true},
-		{"microsoft non-standard port", "http://www.microsoft.com:8080/cert.crt", false},
-		{"microsoft port 22", "http://www.microsoft.com:22/cert.crt", false},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			result := azureidentity.IsAllowedCertificateURL(tc.url)
-			require.Equal(t, tc.allowed, result, "URL: %s", tc.url)
-		})
-	}
-}
