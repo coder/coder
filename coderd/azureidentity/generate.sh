@@ -12,6 +12,18 @@ declare -a CERTIFICATES=(
 	"Microsoft Azure TLS Issuing CA 02=https://www.microsoft.com/pki/certs/Microsoft%20Azure%20TLS%20Issuing%20CA%2002.cer"
 	"Microsoft Azure TLS Issuing CA 05=https://www.microsoft.com/pki/certs/Microsoft%20Azure%20TLS%20Issuing%20CA%2005.cer"
 	"Microsoft Azure TLS Issuing CA 06=https://www.microsoft.com/pki/certs/Microsoft%20Azure%20TLS%20Issuing%20CA%2006.cer"
+
+	# Azure IMDS G2 attested data chains can use the cross-signed
+	# Microsoft TLS RSA Root G2 to sign these OCSP intermediates.
+	"Microsoft TLS RSA Root G2=https://www.microsoft.com/pkiops/certs/Microsoft%20TLS%20RSA%20Root%20G2%20-%20xsign.crt"
+	"Microsoft TLS G2 RSA CA OCSP 02=https://www.microsoft.com/pkiops/certs/Microsoft%20TLS%20G2%20RSA%20CA%20OCSP%2002.crt"
+	"Microsoft TLS G2 RSA CA OCSP 04=https://www.microsoft.com/pkiops/certs/Microsoft%20TLS%20G2%20RSA%20CA%20OCSP%2004.crt"
+	"Microsoft TLS G2 RSA CA OCSP 06=https://www.microsoft.com/pkiops/certs/Microsoft%20TLS%20G2%20RSA%20CA%20OCSP%2006.crt"
+	"Microsoft TLS G2 RSA CA OCSP 08=https://www.microsoft.com/pkiops/certs/Microsoft%20TLS%20G2%20RSA%20CA%20OCSP%2008.crt"
+	"Microsoft TLS G2 RSA CA OCSP 10=https://www.microsoft.com/pkiops/certs/Microsoft%20TLS%20G2%20RSA%20CA%20OCSP%2010.crt"
+	"Microsoft TLS G2 RSA CA OCSP 12=https://www.microsoft.com/pkiops/certs/Microsoft%20TLS%20G2%20RSA%20CA%20OCSP%2012.crt"
+	"Microsoft TLS G2 RSA CA OCSP 14=https://www.microsoft.com/pkiops/certs/Microsoft%20TLS%20G2%20RSA%20CA%20OCSP%2014.crt"
+	"Microsoft TLS G2 RSA CA OCSP 16=https://www.microsoft.com/pkiops/certs/Microsoft%20TLS%20G2%20RSA%20CA%20OCSP%2016.crt"
 )
 
 CONTENT="var Certificates = []string{"
