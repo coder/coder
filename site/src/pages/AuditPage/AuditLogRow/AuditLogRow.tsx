@@ -124,7 +124,7 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 									</div>
 
 									<div className="flex flex-row items-center gap-4">
-										<StatusPill isHttpCode={true} code={auditLog.status_code} />
+										<StatusPill isHttpCode code={auditLog.status_code} />
 
 										{/* With multi-org, there is not enough space so show
                       everything in a tooltip. */}

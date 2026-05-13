@@ -377,6 +377,22 @@ WHERE
         WHEN sqlc.narg('label_filter')::jsonb IS NOT NULL THEN chats.labels @> sqlc.narg('label_filter')::jsonb
         ELSE true
     END
+    -- Match chats whose linked diff URL (e.g. a pull request URL)
+    -- equals the given value, case-insensitively. The URL may live on
+    -- a delegated sub-agent's diff status, so we surface the root chat
+    -- when any descendant matches.
+    AND CASE
+        WHEN sqlc.narg('diff_url')::text IS NOT NULL THEN EXISTS (
+            SELECT 1
+            FROM chat_diff_statuses cds
+            JOIN chats c2 ON c2.id = cds.chat_id
+            WHERE cds.url IS NOT NULL
+              AND cds.url <> ''
+              AND LOWER(cds.url) = LOWER(sqlc.narg('diff_url')::text)
+              AND (c2.id = chats.id OR c2.root_chat_id = chats.id)
+        )
+        ELSE true
+    END
     -- Paginate over root chats only. Children are fetched
     -- separately via GetChildChatsByParentIDs and embedded under
     -- each parent. Other callers that need the full set should

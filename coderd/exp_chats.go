@@ -312,7 +312,7 @@ func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
-// @Param q query string false "Search query"
+// @Param q query string false "Search query. Supports archived:bool and diff_url:<url> terms (quote URLs)."
 // @Param label query string false "Filter by label as key:value. Repeat for multiple (AND logic)."
 // @Success 200 {array} codersdk.Chat
 // @Router /api/experimental/chats [get]
@@ -368,6 +368,7 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		Archived:    searchParams.Archived,
 		AfterID:     paginationParams.AfterID,
 		LabelFilter: labelFilter,
+		DiffURL:     searchParams.DiffURL,
 		// #nosec G115 - Pagination offsets are small and fit in int32
 		OffsetOpt: int32(paginationParams.Offset),
 		// #nosec G115 - Pagination limits are small and fit in int32
@@ -3060,11 +3061,17 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	editModelConfigID := uuid.Nil
+	if req.ModelConfigID != nil {
+		editModelConfigID = *req.ModelConfigID
+	}
+
 	editResult, editErr := api.chatDaemon.EditMessage(ctx, chatd.EditMessageOptions{
 		ChatID:          chat.ID,
 		CreatedBy:       apiKey.UserID,
 		EditedMessageID: messageID,
 		Content:         contentBlocks,
+		ModelConfigID:   editModelConfigID,
 	})
 	if editErr != nil {
 		if maybeWriteLimitErr(ctx, rw, editErr) {
@@ -3084,6 +3091,10 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		case xerrors.Is(editErr, chatd.ErrEditedMessageNotUser):
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Only user messages can be edited.",
+			})
+		case xerrors.Is(editErr, chatd.ErrInvalidModelConfigID):
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid model config ID.",
 			})
 		default:
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

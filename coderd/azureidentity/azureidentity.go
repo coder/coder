@@ -6,14 +6,15 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
-	"errors"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"regexp"
 	"sync"
 	"time"
 
-	"go.mozilla.org/pkcs7"
+	"github.com/smallstep/pkcs7"
 	"golang.org/x/xerrors"
 )
 
@@ -25,17 +26,188 @@ var allowedSigners = regexp.MustCompile(`^(.*\.)?metadata\.(azure\.(com|us|cn)|m
 // each time a parse occurs.
 var pkcs7Mutex sync.Mutex
 
+// allowedCertHosts contains the hosts Azure intermediate
+// certificates are served from. Only these hosts are permitted
+// when fetching issuing certificates referenced in the signer
+// certificate. This prevents SSRF via crafted
+// IssuingCertificateURL values.
+//
+// Source: https://learn.microsoft.com/en-us/azure/security/fundamentals/azure-ca-details
+var allowedCertHosts = map[string]bool{
+	"www.microsoft.com":    true,
+	"cacerts.digicert.com": true,
+}
+
+// maxCertResponseBytes is the maximum size of a certificate
+// response body we will read. Azure intermediate certificates
+// are typically under 4 KiB; 1 MiB is a generous upper bound
+// that prevents memory exhaustion from malicious responses.
+const maxCertResponseBytes = 1 << 20 // 1 MiB
+
+// extraBlockedNetworks lists special-use CIDR ranges that the
+// stdlib classification methods (IsLoopback, IsPrivate, etc.) do
+// not cover. Blocking these prevents SSRF against carrier-grade
+// NAT, network-benchmarking, documentation, discard-only, and
+// the all-zeros "this network" range.
+//
+// IPv6 ranges already handled by stdlib:
+//   - ::1/128        (IsLoopback)
+//   - fc00::/7       (IsPrivate, ULA)
+//   - fe80::/10      (IsLinkLocalUnicast)
+//   - ff00::/8       (IsMulticast)
+//   - ::/128         (IsUnspecified)
+var extraBlockedNetworks []*net.IPNet
+
+func init() {
+	for _, cidr := range []string{
+		// IPv4 special-use ranges.
+		"0.0.0.0/8",     // RFC 1122 "this network".
+		"100.64.0.0/10", // RFC 6598 carrier-grade NAT.
+		"198.18.0.0/15", // RFC 2544 benchmarking.
+
+		// IPv6 special-use ranges not covered by stdlib.
+		"64:ff9b:1::/48", // RFC 8215 IPv4/IPv6 translation.
+		"100::/64",       // RFC 6666 discard-only.
+		"2001:2::/48",    // RFC 5180 benchmarking.
+		"2001:db8::/32",  // RFC 3849 documentation.
+	} {
+		_, network, _ := net.ParseCIDR(cidr)
+		extraBlockedNetworks = append(extraBlockedNetworks, network)
+	}
+}
+
+// isPrivateIP reports whether the IP is on a network that must
+// not be reachable when fetching certificates. IPv4-mapped IPv6
+// addresses are canonicalized to IPv4 first so a literal like
+// ::ffff:169.254.169.254 cannot bypass the IPv4 ranges.
+func isPrivateIP(ip net.IP) bool {
+	if v4 := ip.To4(); v4 != nil {
+		ip = v4
+	}
+	if ip.IsLoopback() ||
+		ip.IsPrivate() ||
+		ip.IsLinkLocalUnicast() ||
+		ip.IsLinkLocalMulticast() ||
+		ip.IsMulticast() ||
+		ip.IsUnspecified() ||
+		ip.IsInterfaceLocalMulticast() {
+		return true
+	}
+	for _, network := range extraBlockedNetworks {
+		if network.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+// certFetchClient is an HTTP client that refuses to connect
+// to private or link-local IP addresses. This provides
+// defense-in-depth against SSRF even if the host allowlist is
+// somehow bypassed (e.g. via DNS rebinding).
+var certFetchClient = &http.Client{
+	Timeout: 5 * time.Second,
+	Transport: &http.Transport{
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			host, port, err := net.SplitHostPort(addr)
+			if err != nil {
+				return nil, xerrors.Errorf("split host/port: %w", err)
+			}
+			ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+			if err != nil {
+				return nil, xerrors.Errorf("resolve host: %w", err)
+			}
+			if len(ips) == 0 {
+				return nil, xerrors.Errorf("no addresses for %q", host)
+			}
+			// Reject up front so a single tainted answer
+			// short-circuits the dial rather than racing it.
+			for _, ip := range ips {
+				if isPrivateIP(ip.IP) {
+					return nil, xerrors.Errorf(
+						"certificate fetch blocked: %q resolved to private IP %s",
+						host, ip.IP,
+					)
+				}
+			}
+			// Dial the validated IP directly. If we dialed by
+			// hostname here, Go's stdlib would re-resolve and a
+			// hostile resolver could swap in a private IP after
+			// validation (DNS rebinding). TLS verification still
+			// uses the URL host via the Transport's TLS config.
+			var d net.Dialer
+			var firstErr error
+			for _, ip := range ips {
+				conn, derr := d.DialContext(ctx, network, net.JoinHostPort(ip.IP.String(), port))
+				if derr == nil {
+					return conn, nil
+				}
+				if firstErr == nil {
+					firstErr = derr
+				}
+			}
+			return nil, firstErr
+		},
+	},
+}
+
+// IsAllowedCertificateURL reports whether rawURL points to a
+// host on the allowlist, uses http or https, and targets a
+// standard PKI distribution port. Microsoft and DigiCert serve
+// these artifacts on 80/443 only; any other port is rejected to
+// keep the SSRF surface as narrow as the hostname itself.
+func IsAllowedCertificateURL(rawURL string) bool {
+	if rawURL == "" {
+		return false
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return false
+	}
+	if !allowedCertHosts[u.Hostname()] {
+		return false
+	}
+	switch u.Port() {
+	case "", "80", "443":
+		return true
+	default:
+		return false
+	}
+}
+
 type metadata struct {
 	VMID string `json:"vmId"`
 }
 
 type Options struct {
-	x509.VerifyOptions
+	// Roots is the trusted root certificate pool. If nil,
+	// the embedded root certificate pool is used.
+	Roots *x509.CertPool
+	// Intermediates are additional intermediate certificates to
+	// inject into the PKCS7 object for chain verification. Azure
+	// PKCS7 envelopes typically only contain the signing cert, so
+	// intermediates must be supplied externally. When nil, the
+	// hardcoded Azure intermediate certificates are used.
+	Intermediates []*x509.Certificate
+	// CurrentTime, if non-zero, overrides the verification
+	// timestamp for certificate chain validation.
+	CurrentTime time.Time
+	// Offline disables fetching of issuing certificates when
+	// chain verification fails.
 	Offline bool
 }
 
 // Validate ensures the signature was signed by an Azure certificate.
 // It returns the associated VM ID if successful.
+//
+// Verification has two parts, both handled by VerifyWithChainAtTime:
+//  1. PKCS7 signature check: proves the content was signed by the
+//     private key corresponding to the certificate in the envelope.
+//  2. Certificate chain check: proves the signing certificate
+//     chains to a trusted root through known intermediates.
 func Validate(ctx context.Context, signature string, options Options) (string, error) {
 	data, err := base64.StdEncoding.DecodeString(signature)
 	if err != nil {
@@ -54,70 +226,86 @@ func Validate(ctx context.Context, signature string, options Options) (string, e
 	if !allowedSigners.MatchString(signer.Subject.CommonName) {
 		return "", xerrors.Errorf("unmatched common name of signer: %q", signer.Subject.CommonName)
 	}
-	if options.Intermediates == nil {
-		options.Intermediates = x509.NewCertPool()
-		for _, cert := range Certificates {
-			block, rest := pem.Decode([]byte(cert))
-			if len(rest) != 0 {
-				return "", xerrors.Errorf("invalid certificate. %d bytes remain", len(rest))
-			}
-			cert, err := x509.ParseCertificate(block.Bytes)
-			if err != nil {
-				return "", xerrors.Errorf("parse certificate: %w", err)
-			}
-			options.Intermediates.AddCert(cert)
+	// Azure PKCS7 envelopes typically contain only the signing
+	// certificate. Inject intermediate certificates so the
+	// library can build a chain from signer to trusted root.
+	intermediates := options.Intermediates
+	if intermediates == nil {
+		intermediates, err = ParseCertificates()
+		if err != nil {
+			return "", xerrors.Errorf("parse hardcoded certificates: %w", err)
 		}
 	}
-	// Set Roots explicitly so we never fall back to the platform's system
-	// verifier (notably Apple's Security framework on macOS/iOS), which
-	// enforces stricter standards-compliance checks than Go's pure-Go
-	// verifier and rejects some otherwise valid Azure leaf certificates
-	// with errors like:
-	//   x509: "metadata.azure.com" certificate is not standards compliant
-	// See https://github.com/coder/coder/issues/12978.
-	if options.Roots == nil {
-		roots, err := rootCertPool()
+	pkcs7Data.Certificates = append(pkcs7Data.Certificates, intermediates...)
+	// Resolve root trust store. VerifyWithChainAtTime skips
+	// chain verification when the trust store is nil, so we
+	// must always provide one.
+	roots := options.Roots
+	if roots == nil {
+		roots, err = rootCertPool()
 		if err != nil {
 			return "", xerrors.Errorf("load roots: %w", err)
 		}
-		options.Roots = roots
 	}
 
-	_, err = signer.Verify(options.VerifyOptions)
+	currentTime := options.CurrentTime
+	if currentTime.IsZero() {
+		currentTime = time.Now()
+	}
+
+	// VerifyWithChainAtTime validates both the PKCS7 signature
+	// (proving the content was signed by the certificate's
+	// private key) and the certificate chain (proving the signer
+	// chains to a trusted root).
+	err = pkcs7Data.VerifyWithChainAtTime(roots, currentTime)
 	if err != nil {
-		if !errors.As(err, &x509.UnknownAuthorityError{}) {
-			return "", xerrors.Errorf("verify signature: %w", err)
-		}
 		if options.Offline {
-			return "", xerrors.Errorf("certificate from %v is not cached: %w", signer.IssuingCertificateURL, err)
+			return "", xerrors.Errorf("verify pkcs7: %w", err)
 		}
 
+		// The chain verification may fail when the signing
+		// certificate was issued by an intermediate not yet in
+		// our hardcoded list. Fetch the issuing certificates
+		// and retry.
 		ctx, cancelFunc := context.WithTimeout(ctx, 5*time.Second)
 		defer cancelFunc()
 		for _, certURL := range signer.IssuingCertificateURL {
+			if !IsAllowedCertificateURL(certURL) {
+				return "", xerrors.New("issuing certificate URL not on allowlist")
+			}
 			req, err := http.NewRequestWithContext(ctx, "GET", certURL, nil)
 			if err != nil {
-				return "", xerrors.Errorf("new request %q: %w", certURL, err)
+				return "", xerrors.New("construct certificate request")
 			}
-			res, err := http.DefaultClient.Do(req)
+			res, err := certFetchClient.Do(req)
 			if err != nil {
-				return "", xerrors.Errorf("no cached certificate for %q found. error fetching: %w", certURL, err)
+				return "", xerrors.New("certificate fetch unsuccessful")
 			}
-			data, err := io.ReadAll(res.Body)
-			if err != nil {
-				_ = res.Body.Close()
-				return "", xerrors.Errorf("read body %q: %w", certURL, err)
-			}
+			limited := io.LimitReader(res.Body, maxCertResponseBytes+1)
+			certData, err := io.ReadAll(limited)
 			_ = res.Body.Close()
-			cert, err := x509.ParseCertificate(data)
 			if err != nil {
-				return "", xerrors.Errorf("parse certificate %q: %w", certURL, err)
+				return "", xerrors.New("read certificate response body")
 			}
-			options.Intermediates.AddCert(cert)
+			if int64(len(certData)) > maxCertResponseBytes {
+				return "", xerrors.New(
+					"certificate response exceeds maximum size",
+				)
+			}
+			cert, err := x509.ParseCertificate(certData)
+			if err != nil {
+				// Do not wrap the parse error; it may contain
+				// fragments of the HTTP response body, which
+				// could leak internal data to the caller.
+				return "", xerrors.New(
+					"fetched data is not a valid certificate",
+				)
+			}
+			pkcs7Data.Certificates = append(pkcs7Data.Certificates, cert)
 		}
-		_, err = signer.Verify(options.VerifyOptions)
+		err = pkcs7Data.VerifyWithChainAtTime(roots, currentTime)
 		if err != nil {
-			return "", err
+			return "", xerrors.New("signature verification failed after fetching issuing certificates")
 		}
 	}
 
@@ -127,6 +315,24 @@ func Validate(ctx context.Context, signature string, options Options) (string, e
 		return "", xerrors.Errorf("unmarshal metadata: %w", err)
 	}
 	return metadata.VMID, nil
+}
+
+// ParseCertificates parses the hardcoded Azure intermediate
+// certificates and returns them as x509.Certificate values.
+func ParseCertificates() ([]*x509.Certificate, error) {
+	var certs []*x509.Certificate
+	for _, certPEM := range Certificates {
+		block, rest := pem.Decode([]byte(certPEM))
+		if len(rest) != 0 {
+			return nil, xerrors.Errorf("invalid certificate. %d bytes remain", len(rest))
+		}
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, xerrors.Errorf("parse certificate: %w", err)
+		}
+		certs = append(certs, cert)
+	}
+	return certs, nil
 }
 
 // Roots are the root CAs that Azure instance-identity certificates chain to.
@@ -455,6 +661,399 @@ ixFJEOcAMKKR55mSC5W4nQ6jDfp7Qy/504MQpdjJflk90RHsIZGXVPw/JdbBp0w6
 pDb4o5CqydmZqZMrEvbGk1p8kegFkBekp/5WVfd86BdH2xs+GKO3hyiA8iBrBCGJ
 fqrijbRnZm7q5+ydXF3jhJDJWfxW5EBYZBJrUz/a+8K/78BjwI8z2VYJpG4t6r4o
 tOGB5sEyDPDwqx00Rouu8g==
+-----END CERTIFICATE-----`,
+	// Microsoft TLS RSA Root G2
+	`-----BEGIN CERTIFICATE-----
+MIIFiTCCBHGgAwIBAgIQCwxrLEZpF7BHc8ZH1K/AyDANBgkqhkiG9w0BAQwFADBh
+MQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3
+d3cuZGlnaWNlcnQuY29tMSAwHgYDVQQDExdEaWdpQ2VydCBHbG9iYWwgUm9vdCBH
+MjAeFw0yNTA1MjEwMDAwMDBaFw0yOTA2MTkyMzU5NTlaMFExCzAJBgNVBAYTAlVT
+MR4wHAYDVQQKExVNaWNyb3NvZnQgQ29ycG9yYXRpb24xIjAgBgNVBAMTGU1pY3Jv
+c29mdCBUTFMgUlNBIFJvb3QgRzIwggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIK
+AoICAQDf6oufR+EoEHGvQdYZ25JX3mur5i7erTpgg7cTmKxbuTILe+ufcidrXUCr
+vhgGk7IN0hLtuHT1fy/qqBeU9jMWV4reIHwh3bfarN5OZLBazUt18+8CZE3tUtqj
+jwTokfjX+z8Z/U5FOV7oKcPW8mevswCUwY3h8EoYmDn6wAmEM0EFAwWr9HXhU6Uh
+klxETOZgV6SQApfH1diTBDJK7YVR7dbFuqA/Noovb0w5qARpIoQ7dRT32T60qdAH
+QTiBfkZIHegZ5nC4oKoY3XK/fn21bE4ZcBGEBBOB1GL9nGvxHN3/7Kfg5seNMUu/
+8mszzNGMtv6xG6NKqF8OfzF2OD8HR2wBqKylFNqCsF8fbLyJGsASKst7lx8oLjEW
+ilNMdWb5fQHWwmCqZY8xnnLLzJst5UQZk1erbo7C2S5lsHIt56HDoX5JHVln1gnU
+GBJtwJVFeMnxYGrk9u4GJDtzSloRwj6XYcB47u8TpzDiSjgt7lgXEyC3NirfCzK0
+wjixkd0SsEW2fMCxHWKhnd1xEhWWAZ0KCfWx3bPZ4DhCNPZptsOvFnP+1EP4Q+RY
++U+z8+zWPZQ6QDgVqwyG0GTOGmPohJRVCVq2BLbRPpoVx2QRgNAbgg5N/0WesmUH
+JR/bmsjG7NZbhVAEnxzLXSCCZ5554t/o8uhvxCByMIblnXUnNQIDAQABo4IBSzCC
+AUcwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQU3pGGSLehMVkx8UtfB6nciHna
+qHYwHwYDVR0jBBgwFoAUTiJUIBiV5uNu5g/6+rkS7QYXjzkwDgYDVR0PAQH/BAQD
+AgGGMBMGA1UdJQQMMAoGCCsGAQUFBwMBMHYGCCsGAQUFBwEBBGowaDAkBggrBgEF
+BQcwAYYYaHR0cDovL29jc3AuZGlnaWNlcnQuY29tMEAGCCsGAQUFBzAChjRodHRw
+Oi8vY2FjZXJ0cy5kaWdpY2VydC5jb20vRGlnaUNlcnRHbG9iYWxSb290RzIuY3J0
+MEIGA1UdHwQ7MDkwN6A1oDOGMWh0dHA6Ly9jcmwzLmRpZ2ljZXJ0LmNvbS9EaWdp
+Q2VydEdsb2JhbFJvb3RHMi5jcmwwEwYDVR0gBAwwCjAIBgZngQwBAgIwDQYJKoZI
+hvcNAQEMBQADggEBAAu8tCs3dMVLpzYCNsav4RPMipqXG/zjRIzuVADl5EEaRvAL
+djT/mVViNaqtipwMWmLMQ8DL6kodvWsdr7EZJWac93luWyWAJIGFx3ktNV9CCXjt
+n+Jl1cQgUIIQj2o67RiOSImrpgn44YD8BnUWJyVaj7g6cGwYR/Bj9FMO2RU1IPOR
+PRMBoOL6JAhFVnfRZ6kxQtBX/xomvsVD2FepY/+v8zrY9ntLEKKXoc9mvmdnCfm1
+TOerGSu/Ij193sb372M4LN1WxPkJUtrf44hv1W1r9whBL44+hjGf8XxK9dZhpEZG
+KO9XurBvktjSdyXte6YpzjtyeRHU4KdUbTUrpHo=
+-----END CERTIFICATE-----`,
+	// Microsoft TLS G2 RSA CA OCSP 02
+	`-----BEGIN CERTIFICATE-----
+MIIHuDCCBaCgAwIBAgITMwAAAAxJZKFvRCA7IgAAAAAADDANBgkqhkiG9w0BAQwF
+ADBRMQswCQYDVQQGEwJVUzEeMBwGA1UEChMVTWljcm9zb2Z0IENvcnBvcmF0aW9u
+MSIwIAYDVQQDExlNaWNyb3NvZnQgVExTIFJTQSBSb290IEcyMB4XDTI1MDgwMTIw
+MDMwMFoXDTI5MDYwMzIwMDMwMFowVzELMAkGA1UEBhMCVVMxHjAcBgNVBAoTFU1p
+Y3Jvc29mdCBDb3Jwb3JhdGlvbjEoMCYGA1UEAxMfTWljcm9zb2Z0IFRMUyBHMiBS
+U0EgQ0EgT0NTUCAwMjCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBALFf
+yY9swhGdLUa31wstRz9z5Kg7nDbxaCBFQF5wYUrMSZceyBaSsy13mG08dhwgisMv
+DGOfv69rBwYah+MKkNaUAN7gHXT1xc44NZMg+QhaZqjbsyA0nUOFRRIIF3ClrguD
+qttEyOtoR1WahF3ZqRjCUoahH2JAZa7U81468pFe21rbtaROBWKY7N0Voa+FJ8ZL
+rDKswmimzMnSfTdrxhCQBXkivGPm2X7ZwxCMknFtfeJ2FD0Ki8sjYBC4GBl2xOKh
+dtoBzYO9Ae3YGK9XQu4Nha6pkhh5ywEzxk6CbETWKfTPxlF+4ZFi+Iyo6tr5QKBY
+yHhumjrUQOdQGMmZHupCPme+dwWLnBsIthM85cE8p4yir0mhkUVlMZgDwPUhu8QP
+3x4DFqW+OHlq2puE5aOXX4d3ypb/u1H47yEkwuK1fDl7ROViyRaIHNsTIuz4trEc
+AFVOPpZ63AwFHI3jXiMALVv/4lWAQYU2lTD1mZO3buY0RbwzlYZzCimVwZdX1dbu
+n8F0w8WgYj530r1tEONpi36oUbDYSsNBvqhP2mrDWCUWHFk8rQ113LE/VRzRdguI
+56IxJQN7UUxZKzf+lSRUQqu6J1874QcvdqDAy8t2kR6dpuf9SkDi1I+hPbqGRJ1p
+2Bkji1+hg+VlV4tN1nykYypkQ1RHhS8EsKrBL0o/AgMBAAGjggKBMIICfTAOBgNV
+HQ8BAf8EBAMCAYYwEAYJKwYBBAGCNxUBBAMCAQAwHQYDVR0OBBYEFLgvM6Z8UU9/
+Hy3VyBVCOKSyDo8vMBMGA1UdIAQMMAowCAYGZ4EMAQICMBMGA1UdJQQMMAoGCCsG
+AQUFBwMBMBkGCSsGAQQBgjcUAgQMHgoAUwB1AGIAQwBBMBIGA1UdEwEB/wQIMAYB
+Af8CAQAwHwYDVR0jBBgwFoAU3pGGSLehMVkx8UtfB6nciHnaqHYwgasGA1UdHwSB
+ozCBoDCBnaCBmqCBl4ZJaHR0cDovL3d3dy5taWNyb3NvZnQuY29tL3BraW9wcy9j
+cmwvTWljcm9zb2Z0JTIwVExTJTIwUlNBJTIwUm9vdCUyMEcyLmNybIZKaHR0cDov
+L2NybDIubWljcm9zb2Z0LmNvbS9wa2lvcHMvY3JsL01pY3Jvc29mdCUyMFRMUyUy
+MFJTQSUyMFJvb3QlMjBHMi5jcmwwggEQBggrBgEFBQcBAQSCAQIwgf8wYwYIKwYB
+BQUHMAKGV2h0dHA6Ly93d3cubWljcm9zb2Z0LmNvbS9wa2lvcHMvY2VydHMvTWlj
+cm9zb2Z0JTIwVExTJTIwUlNBJTIwUm9vdCUyMEcyJTIwLSUyMHhzaWduLmNydDBp
+BggrBgEFBQcwAoZdaHR0cDovL2NhaXNzdWVycy5taWNyb3NvZnQuY29tL3BraW9w
+cy9jZXJ0cy9NaWNyb3NvZnQlMjBUTFMlMjBSU0ElMjBSb290JTIwRzIlMjAtJTIw
+eHNpZ24uY3J0MC0GCCsGAQUFBzABhiFodHRwOi8vb25lb2NzcC5taWNyb3NvZnQu
+Y29tL29jc3AwDQYJKoZIhvcNAQEMBQADggIBACGusqgM8zXYTiHTNvrDXqobFI9g
+GF1dNgkZIizyNNI8EMiG/fq7bhDwbokxZH2xDIfoNgtGI8r88DX8dQV3aUm07IKW
+lu/qV9VJO8gF5/GyxHrgxCvW/IXBoJNnHGLyCWH6rJjuwG3cGIPYplNMUfRnyGCk
+SYR1qcRW0Dx5OTh/JlrXAy7/UJIBU9COSAlKv1APr49CYz4iYl25la+tEonWkVE2
+qZHrnRuCxyOR7mYlQWKIzdkQVnChmsvzjEjgkW3qv4dHGvanfUeKlou+t0tm4MB7
+rm2wmTV4ydACIEzKDnV40wNz7JFHAgJ6KtGDk8KfhIk1Nn2iRPxzo34EIBWL9uuU
+E6C3le07w3Z1LoABEJ2vYMKPFVUwG7v4A1+Y5QQtGrGs9NrpHA6QGOkOypPIyHp/
+hoZ2Gp3WkyN5UXNDKJIGmE/clGQt86/K3MqZ9RiwwnHYM0+IO/KTinNTSbW+ZhMg
+Fxki/Ug55kLA33b4T+cT6HUXWr5yM9iLAW3oyxTIhld1nD5esMt70bNF7WgLW0AA
+txkxhDYDmKQ3oyHrrGPZWLz4N7wxHCZbyHbDgjCyiPYujpqsQ6fxthalQtkV6ycu
+GLP2sZhSv89myfSgfHkwtcr7bRL0my0R94CXneQhqcXG3undRwlgikU9gfiuTaZG
+h8VmoQHGVMiqVtXE
+-----END CERTIFICATE-----`,
+	// Microsoft TLS G2 RSA CA OCSP 04
+	`-----BEGIN CERTIFICATE-----
+MIIHuDCCBaCgAwIBAgITMwAAAAsT5WZ9SptVgAAAAAAACzANBgkqhkiG9w0BAQwF
+ADBRMQswCQYDVQQGEwJVUzEeMBwGA1UEChMVTWljcm9zb2Z0IENvcnBvcmF0aW9u
+MSIwIAYDVQQDExlNaWNyb3NvZnQgVExTIFJTQSBSb290IEcyMB4XDTI1MDgwMTIw
+MDI1OVoXDTI5MDYwMzIwMDI1OVowVzELMAkGA1UEBhMCVVMxHjAcBgNVBAoTFU1p
+Y3Jvc29mdCBDb3Jwb3JhdGlvbjEoMCYGA1UEAxMfTWljcm9zb2Z0IFRMUyBHMiBS
+U0EgQ0EgT0NTUCAwNDCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAJw6
+JAhaGJLyntVgzeLm+4BH20SuK91tEHAhFUUpqtLH3ObEQrGgjVLgT1w5VQY2TRfB
+WGY04oVSn+Kk/sbewsI7hr/KrYcpBusdSR1fgdu3pKxWGtYSh/1fQEnioAxqhMZO
+b98kuJqVdFpZf63pPBMVeEDM7NrviDZKkN7qYweUw4NqGq6Y5vFkgFopZwToVvQh
+psVGjcjdAqu8BvBsR3gjuziwu/tNcbDfIsN/Gn75napBKtHeaN2VdCU4ZskWEcVZ
+PSqxaLmTO2boPOH8p/8sa1DgwLnIcXOTsXe/7apNDgpV2xOccuBprYFM2iP5Bss/
+7UKKhowN0gwVJdCGaOt4VqouXAizTTOATu41PC/Den3BZnJgaJD06/YI7BPXiZJf
+XFL0h5V4sTbhs0JTbjo3NwfIc3Ueu11uZ8mafMtK88bN8E71hvsUNRlGPZeGcmTd
+Qzbv1FeCACIMozrts2VwZfmCpbq40urAaIo1N6BA9f4CiWaoMPiUR2JXR7J7m4zH
+lbzrmvbGjESJ2xbmHv3nifyBNTUw6i99iWRSs0YZNOM7V08KGCAx78X9ubEn9pdZ
+NfsKwkTW0LLtVU0dV0h1EtfymGAWnsQGnNSufi5lx1PkIiUYMGNqkFfFlLT35U1M
+DVTHH6k9TQpGCWLQIyJR4443TMX0AUCZBYLTorBTAgMBAAGjggKBMIICfTAOBgNV
+HQ8BAf8EBAMCAYYwEAYJKwYBBAGCNxUBBAMCAQAwHQYDVR0OBBYEFFQMvOwY933x
+A+KEvjRkRGfPdR9lMBMGA1UdIAQMMAowCAYGZ4EMAQICMBMGA1UdJQQMMAoGCCsG
+AQUFBwMBMBkGCSsGAQQBgjcUAgQMHgoAUwB1AGIAQwBBMBIGA1UdEwEB/wQIMAYB
+Af8CAQAwHwYDVR0jBBgwFoAU3pGGSLehMVkx8UtfB6nciHnaqHYwgasGA1UdHwSB
+ozCBoDCBnaCBmqCBl4ZJaHR0cDovL3d3dy5taWNyb3NvZnQuY29tL3BraW9wcy9j
+cmwvTWljcm9zb2Z0JTIwVExTJTIwUlNBJTIwUm9vdCUyMEcyLmNybIZKaHR0cDov
+L2NybDIubWljcm9zb2Z0LmNvbS9wa2lvcHMvY3JsL01pY3Jvc29mdCUyMFRMUyUy
+MFJTQSUyMFJvb3QlMjBHMi5jcmwwggEQBggrBgEFBQcBAQSCAQIwgf8wYwYIKwYB
+BQUHMAKGV2h0dHA6Ly93d3cubWljcm9zb2Z0LmNvbS9wa2lvcHMvY2VydHMvTWlj
+cm9zb2Z0JTIwVExTJTIwUlNBJTIwUm9vdCUyMEcyJTIwLSUyMHhzaWduLmNydDBp
+BggrBgEFBQcwAoZdaHR0cDovL2NhaXNzdWVycy5taWNyb3NvZnQuY29tL3BraW9w
+cy9jZXJ0cy9NaWNyb3NvZnQlMjBUTFMlMjBSU0ElMjBSb290JTIwRzIlMjAtJTIw
+eHNpZ24uY3J0MC0GCCsGAQUFBzABhiFodHRwOi8vb25lb2NzcC5taWNyb3NvZnQu
+Y29tL29jc3AwDQYJKoZIhvcNAQEMBQADggIBAHxIccK2wEWrdA/GP0ni/A/Wdf3N
+UNHgS7Oz0aiZX/5dNQ1sC93QrWFgGIk44vC3NdK1IToMDliZOHzU190CTdTc9e6Q
+43tnk6is1BtQu8VP5tPxtR7w/5m8IzOwyKimJ9bRW+1vFN5LBxoMUP0O377rT7KY
+EMsiKuYd10unrhXRATYJC4ZDT07nxX5co2uDLkk+lIiZi1LTlj9xmCQvN4L6bHTy
+vNsGIbu4UGdwJBW2CyKP97kn5AN8hJW3ZgSpklXCvRHHIQpyf2XAYKZQSen2I0gg
+Oo6SJqgXjJivFKc9zkytwI6MPETxf/sT+RTXezM9EF5k5yc9DEzicddmzq73TrZk
+ulQrt/0D15hnmDeyCmMg5bD72KSNOi5CIpoi9CZVgzAVx6JCs7/QNsU2UqdzZ3pz
+blSsvOmJ2KXrH22sJ1DEyOvUHFQpTbu23qvXx/EfFGS6f0cxZe95fRTE8BnkgHbn
+OygAm0RvJFf1B9yOWrQAWJdWsQv6CHVx3htTyO698KsiTL1rul2KRFk8JGuqvOl9
+i19KTdeMVLCrdpuAKE1FdGUQYCH5jnlf2pL7F4QA28SuglmBPCd3nlb3B8i9vj2R
+xZeK5pwPWRZYSGx9pBYy7RbJLaeW9eT9xc9lpN3XAOjJDvSdsqQCgMwb8CjrsDF3
+NJ7DzNfImza7xSXi
+-----END CERTIFICATE-----`,
+	// Microsoft TLS G2 RSA CA OCSP 06
+	`-----BEGIN CERTIFICATE-----
+MIIHuDCCBaCgAwIBAgITMwAAAA3vac0tciNzVgAAAAAADTANBgkqhkiG9w0BAQwF
+ADBRMQswCQYDVQQGEwJVUzEeMBwGA1UEChMVTWljcm9zb2Z0IENvcnBvcmF0aW9u
+MSIwIAYDVQQDExlNaWNyb3NvZnQgVExTIFJTQSBSb290IEcyMB4XDTI1MDgwMTIw
+MDMwMVoXDTI5MDYwMzIwMDMwMVowVzELMAkGA1UEBhMCVVMxHjAcBgNVBAoTFU1p
+Y3Jvc29mdCBDb3Jwb3JhdGlvbjEoMCYGA1UEAxMfTWljcm9zb2Z0IFRMUyBHMiBS
+U0EgQ0EgT0NTUCAwNjCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAMA6
+3O0lAmKs1KFQsHRLSvpoHnItA3OBYhuwcRTjN+/jZp2gCThyItWRknozQ1z2e3ku
+VknTIZzBVzgMAbMC5vGd1WNYEatYL2jU+9MtrLUKJyVpCEkGFavOSHJh/7y0wNJd
+MdGceI32eNhzOjJjg7BuvwRreP7wop6GJOQ0qMX/aFwgk63E9AbzyEwqaBMR3GjJ
+eTvmzs6k6TgXpT0nxP6mtVkK6bL+AmR5pm+6SKwr0dFJszzpn18qFsep36B1IaPD
+jf9/vnjnCplS96Yni2wPSLmEAgSnIw677sQKlwjcWZw9Hsr/h3KUn3EewxdQItrq
+5Ss1hYNd/ILa7oGzwkf6Z0KyK2UvYxjWTNzdun3nvfXhqWOKUqde1S3nIh46tCQz
+m3jlEKKQd/YBBziZfHABUYrs2X859cEihTJENpRXJcwOnr5/fz78ZntgsCGpzepk
+inb9QoxGwiU4fhAEZ1sjPnILE64/6mbRfH79nkl1runTkuDJfRMUGtWtKUI+8Rkr
+Ji5x7sACp2nPYY/d631rda0pmRzmSbqPuma5thB96714U3d28epdz8Pu6xudP31c
+YX0WF6UGuxocZtUZtrbzoQ9m0dBtdC3tD/pnbO6Kk1oJ1AlwKjLNWhj77HkauWon
+Ah1b6vznIL614ukB0lg3xXOjNcwxaUqKa5te1Ea9AgMBAAGjggKBMIICfTAOBgNV
+HQ8BAf8EBAMCAYYwEAYJKwYBBAGCNxUBBAMCAQAwHQYDVR0OBBYEFAxda81KNAFg
+NDQkAeA/UAWD66hFMBMGA1UdIAQMMAowCAYGZ4EMAQICMBMGA1UdJQQMMAoGCCsG
+AQUFBwMBMBkGCSsGAQQBgjcUAgQMHgoAUwB1AGIAQwBBMBIGA1UdEwEB/wQIMAYB
+Af8CAQAwHwYDVR0jBBgwFoAU3pGGSLehMVkx8UtfB6nciHnaqHYwgasGA1UdHwSB
+ozCBoDCBnaCBmqCBl4ZJaHR0cDovL3d3dy5taWNyb3NvZnQuY29tL3BraW9wcy9j
+cmwvTWljcm9zb2Z0JTIwVExTJTIwUlNBJTIwUm9vdCUyMEcyLmNybIZKaHR0cDov
+L2NybDIubWljcm9zb2Z0LmNvbS9wa2lvcHMvY3JsL01pY3Jvc29mdCUyMFRMUyUy
+MFJTQSUyMFJvb3QlMjBHMi5jcmwwggEQBggrBgEFBQcBAQSCAQIwgf8wYwYIKwYB
+BQUHMAKGV2h0dHA6Ly93d3cubWljcm9zb2Z0LmNvbS9wa2lvcHMvY2VydHMvTWlj
+cm9zb2Z0JTIwVExTJTIwUlNBJTIwUm9vdCUyMEcyJTIwLSUyMHhzaWduLmNydDBp
+BggrBgEFBQcwAoZdaHR0cDovL2NhaXNzdWVycy5taWNyb3NvZnQuY29tL3BraW9w
+cy9jZXJ0cy9NaWNyb3NvZnQlMjBUTFMlMjBSU0ElMjBSb290JTIwRzIlMjAtJTIw
+eHNpZ24uY3J0MC0GCCsGAQUFBzABhiFodHRwOi8vb25lb2NzcC5taWNyb3NvZnQu
+Y29tL29jc3AwDQYJKoZIhvcNAQEMBQADggIBAMN7IRVg4E0mXAS3hbmC1eXyI7Vc
+ZEHqZawlEK8DD8wM8pQnws+95Pd7kRhqie7pyibPRXbGtdHtScqOkE7bbjmrGKe+
+GdG6wLUP8TD02NaPmho9pqumBRz2PoXwyNztvgooOywDxDXAxtGVV0vKc7tPYCbb
+3KAHZJkJM6Kuee9DWVwEmhsiXryZjsGwBD7fEoXcC8BOtwekpZiu9SWM5ETTFRyr
+tIUgy2S2IYSI6yxgska7/NTJuc6yjfs71c6QO8KJ+Bz1yoepefpVuZ4t269mej8k
+jE1ri+3tKa4iNlCBVpLk9moe0Jtir267WQk46CjJd5VuUw79Q+rkupbTM0hoIIdA
+GUeWhPBooyuE6CP6vpmyhGQooYCeUk3CGG8zkv+yhGjyoM/sCu54OfqxoMukmeut
+eMn9FRVD5FyltEZ5FZ2p7p+aGqjsg5poy5fLyl4qfAEDhKdM7ZLqy6D4Is6POqof
+fdRfQ+r3VVvXI9dHr4o49zMQVgUUV/la+kOWk+WqNZrh+aONK09gs2fReMK8xExF
+ntTP6qV5mbRsgKxea/w+jLWTYyHLdPOsA1OaifWGVBNIzlaH5wrWhyoRwRKb+1I0
+2sBzhfNVJf8gDI/lxJEpPTgIjMTm97Q+KW8C1QMprzVbUWVisUMp0Azxm+ZE4PoM
+KWDfAOw0TwsQ6jyn
+-----END CERTIFICATE-----`,
+	// Microsoft TLS G2 RSA CA OCSP 08
+	`-----BEGIN CERTIFICATE-----
+MIIHuDCCBaCgAwIBAgITMwAAABHxAKfrBeuhAAAAAAAAETANBgkqhkiG9w0BAQwF
+ADBRMQswCQYDVQQGEwJVUzEeMBwGA1UEChMVTWljcm9zb2Z0IENvcnBvcmF0aW9u
+MSIwIAYDVQQDExlNaWNyb3NvZnQgVExTIFJTQSBSb290IEcyMB4XDTI1MDgxNDIz
+MDM0MFoXDTI5MDYwMzIzMDM0MFowVzELMAkGA1UEBhMCVVMxHjAcBgNVBAoTFU1p
+Y3Jvc29mdCBDb3Jwb3JhdGlvbjEoMCYGA1UEAxMfTWljcm9zb2Z0IFRMUyBHMiBS
+U0EgQ0EgT0NTUCAwODCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAOdW
+tSZphPC6ib4yyTEHy9WgBJ0sdgI+X31mtN8N9QouoqaVVKURKVPbfJnmmZMuD/n4
+hedo1DDxuO5qc1bEfF1hWbiltLwGE+cttQqPyzgu4KYhnj8buvoj4kVElrXgc+9n
+qTJ5LeHIdeMCGKMbAgmjVlNrw8mq5PX1n3iWg9dZIcBe/wDsEcG7h+MFxsrZ4Ebu
+sNZuxBGjo8O2xIkJi76spN1iTDG4jhrTOQU7viUCzVAWAPnV0/AQbRXCtgz0hozA
+46d0+vdh99UDO3MAaqtHU60TQzFovz3HJJ6eGVRh11oIT4JFchuYPZcAF8JfiF6W
+PaW8ihg4lXRGbijiy+OnT9Cs26Mga6PyfyiIW3MQ5MKwN9zL5q1J0gZjhTqd8h+5
++/QlptCMhuoVkc/UGsvVOVtlKbdn5cp5QK3xVN40z+o+Yh5Qh2RHizK1aXFkU6E7
+K6yGLtIevJCaQjAoTrGj4JnphmqU7k4Fx1MwxV/gpvkJh3bml5SUck+F6QHZc44K
+lTFgJB4a94tTD7LbbysFNXtnBFlD9/rOJB9lj1wL2yzPRe7kcgUay0Is+ZAa22bK
+7y0JhD7sN8K+DqmU/Q8NliECD65IDH0MzPyhleKes5zDL1TC79p7NGoMZk/uKlcL
+VKETn1u878Zjj5YwFLyiQT76L4zI887/da70Q2cBAgMBAAGjggKBMIICfTAOBgNV
+HQ8BAf8EBAMCAYYwEAYJKwYBBAGCNxUBBAMCAQAwHQYDVR0OBBYEFA+yMoDtf4qc
+AIQ45tjX9nCFd+16MBMGA1UdIAQMMAowCAYGZ4EMAQICMBMGA1UdJQQMMAoGCCsG
+AQUFBwMBMBkGCSsGAQQBgjcUAgQMHgoAUwB1AGIAQwBBMBIGA1UdEwEB/wQIMAYB
+Af8CAQAwHwYDVR0jBBgwFoAU3pGGSLehMVkx8UtfB6nciHnaqHYwgasGA1UdHwSB
+ozCBoDCBnaCBmqCBl4ZJaHR0cDovL3d3dy5taWNyb3NvZnQuY29tL3BraW9wcy9j
+cmwvTWljcm9zb2Z0JTIwVExTJTIwUlNBJTIwUm9vdCUyMEcyLmNybIZKaHR0cDov
+L2NybDIubWljcm9zb2Z0LmNvbS9wa2lvcHMvY3JsL01pY3Jvc29mdCUyMFRMUyUy
+MFJTQSUyMFJvb3QlMjBHMi5jcmwwggEQBggrBgEFBQcBAQSCAQIwgf8wYwYIKwYB
+BQUHMAKGV2h0dHA6Ly93d3cubWljcm9zb2Z0LmNvbS9wa2lvcHMvY2VydHMvTWlj
+cm9zb2Z0JTIwVExTJTIwUlNBJTIwUm9vdCUyMEcyJTIwLSUyMHhzaWduLmNydDBp
+BggrBgEFBQcwAoZdaHR0cDovL2NhaXNzdWVycy5taWNyb3NvZnQuY29tL3BraW9w
+cy9jZXJ0cy9NaWNyb3NvZnQlMjBUTFMlMjBSU0ElMjBSb290JTIwRzIlMjAtJTIw
+eHNpZ24uY3J0MC0GCCsGAQUFBzABhiFodHRwOi8vb25lb2NzcC5taWNyb3NvZnQu
+Y29tL29jc3AwDQYJKoZIhvcNAQEMBQADggIBALH1cTiVRvY627z2zjtZPaftzKA5
+tsGFiJF2d9OJZv6EHbZzPq9z5lcSX9YgzWfHecgBO1xNCfP/tmgt4gGWC31L42Hm
+AwjXsYB6kZsumOjCEsaVff4o+6dvsVUwjrEmC3Bd3Szmyl5++1ZVIV53mxSLxBOJ
+QvpYuwzdC/r7+JO/mB8OmkUPzpXM0MSWtElZE/e6gpcNBnI/y2EU00OhsB+zzQ0H
+Kc0Dzk/Qc+P3B1A/xD5ER97Tj14NUz+KfMIIiY5QK6QnoqcrXHdXcXbGCUFixztD
+rcVFsc4nazkf8I8QXba4hBm6xetE/7/KIoV0bLEjiP0GtHOEh/u3OSUaVUerdsog
+rFnTLeBDyQ6GuTDOl8m/01f8ZRDDnayFpjT8JxfxeKhCXGW/avXsEr3orIzGr720
+WtESmCwsBdPcXwCo6kqzkMNfDk/MGEffOR8w0tHK4IjBYIB2Whh82HX412gslYYc
+GfzRoQCQ++/ZZuEeog+c0mWCb59zaAm1772pxD7C0DRtUrCp/lrFWMmga9561S7G
+8duFJgbXoOQhfKVE8mrfesrsr5S5hKIVABr1Mgi7XeJePfcEV4qv5+ZHcW8sdFrB
+o00ACacNAf4Ys3p/x756lhnDffgY8WA9vST4dIn9WPfBLxE8odWUOUASpReiKbB6
+y/9qbWptUU9CiA3R
+-----END CERTIFICATE-----`,
+	// Microsoft TLS G2 RSA CA OCSP 10
+	`-----BEGIN CERTIFICATE-----
+MIIHuDCCBaCgAwIBAgITMwAAAA8zIGU37kKuTwAAAAAADzANBgkqhkiG9w0BAQwF
+ADBRMQswCQYDVQQGEwJVUzEeMBwGA1UEChMVTWljcm9zb2Z0IENvcnBvcmF0aW9u
+MSIwIAYDVQQDExlNaWNyb3NvZnQgVExTIFJTQSBSb290IEcyMB4XDTI1MDgwMTIw
+MDMwM1oXDTI5MDYwMzIwMDMwM1owVzELMAkGA1UEBhMCVVMxHjAcBgNVBAoTFU1p
+Y3Jvc29mdCBDb3Jwb3JhdGlvbjEoMCYGA1UEAxMfTWljcm9zb2Z0IFRMUyBHMiBS
+U0EgQ0EgT0NTUCAxMDCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAPAM
+T1tf/EIctM4/9QcrpoN+yZ15z/bprKV3wzep+vcH9S2Y+BFm60IqDtLRBhn2dxNf
+hOzWUZNsIeMOhab/0uz9JIK9BPnvjePhxd110ASaThQ2GfstEqMVwPNvakTVcWzx
+S5gbeTD3nBe/fTIJOVs2jKAIu0AslinufL0O+OxtzsFOdsFYLk4ymsd8y8e/t133
+NVR4zLGHugXFNQFwBMPoXfixtN9HzUxmmuhn1J4eoCEfM0cFO0QIz2uIUlkyePVB
+jiUu0AINAc929y005GedaLGAtk1SsyCXK6VTjHeVtXOAzYj/2pc24+dvMqB18bu/
++jxlqzYRv3b9R/9sh2C+DOXqlvULojcnANHnAjAB1YABwpDO77Pr03hgvgo/+2zG
+wtGrJxcXCYR5kUKOdmg3EZvOx3Ypv9Vc4nwNX2dS/W05+lEt37KIA/FhIKr4tLKf
+0/oosLWn44O6+kQ7d9yiLCvo4lOImvsMIN6ie06AkHEbfJfU2/w9msGh3urnrkzl
+rq92rIfNZLyiNBrTZsNrYXyb9eZZefuADhZrwPEp9O2dl446xCmTBzT/4r+tmlkl
+m4YdQ37LbpX1juCpi1eATgvmYH3ASdUEvCDKBNJc6j+MSX8dubpgbde0ZLNcNOo4
+8/nB+KkLfrr10fx6G3/bCGV9w5cF7K8vx94M+rI/AgMBAAGjggKBMIICfTAOBgNV
+HQ8BAf8EBAMCAYYwEAYJKwYBBAGCNxUBBAMCAQAwHQYDVR0OBBYEFNBMg9GOcS49
+NLH/m3ksjnTU4ngGMBMGA1UdIAQMMAowCAYGZ4EMAQICMBMGA1UdJQQMMAoGCCsG
+AQUFBwMBMBkGCSsGAQQBgjcUAgQMHgoAUwB1AGIAQwBBMBIGA1UdEwEB/wQIMAYB
+Af8CAQAwHwYDVR0jBBgwFoAU3pGGSLehMVkx8UtfB6nciHnaqHYwgasGA1UdHwSB
+ozCBoDCBnaCBmqCBl4ZJaHR0cDovL3d3dy5taWNyb3NvZnQuY29tL3BraW9wcy9j
+cmwvTWljcm9zb2Z0JTIwVExTJTIwUlNBJTIwUm9vdCUyMEcyLmNybIZKaHR0cDov
+L2NybDIubWljcm9zb2Z0LmNvbS9wa2lvcHMvY3JsL01pY3Jvc29mdCUyMFRMUyUy
+MFJTQSUyMFJvb3QlMjBHMi5jcmwwggEQBggrBgEFBQcBAQSCAQIwgf8wYwYIKwYB
+BQUHMAKGV2h0dHA6Ly93d3cubWljcm9zb2Z0LmNvbS9wa2lvcHMvY2VydHMvTWlj
+cm9zb2Z0JTIwVExTJTIwUlNBJTIwUm9vdCUyMEcyJTIwLSUyMHhzaWduLmNydDBp
+BggrBgEFBQcwAoZdaHR0cDovL2NhaXNzdWVycy5taWNyb3NvZnQuY29tL3BraW9w
+cy9jZXJ0cy9NaWNyb3NvZnQlMjBUTFMlMjBSU0ElMjBSb290JTIwRzIlMjAtJTIw
+eHNpZ24uY3J0MC0GCCsGAQUFBzABhiFodHRwOi8vb25lb2NzcC5taWNyb3NvZnQu
+Y29tL29jc3AwDQYJKoZIhvcNAQEMBQADggIBADUZyumodeHYyv0lwTtS4eeeK5Ti
+9DrST9oGIlIaARjjorq3txwkMnUNZ0R9nUqCS/rjROlG9gBFCcJS6Wcll8e3i1p3
+fEAelOO8jG04KbwnfRISPcvL5MRG4qUBwBDRIPoOA+RD2yaHJazIoLMEal7wQz8P
+e/XOI8O3yb773pt9k7OHPt/G2z3J9KxxANKkZYE2WZ8cNuWJ0XqZSntVS8LVjNB5
+AXmVDzlDi7MKe5LVWhAYdukdDW8yMfS90RbxqKNn8g6acAzjlq8D9G29FHlqNsPx
+tnO7xgvVJkaIVEVwqswfPYtv4+QXpoEA+32DWIDi8jw7oxhiEzZn/0/i5W9qZ+bo
+WmQ6oEWdPxcMZofwgSc0ILA1JGQodkN6dJjiK4AJCrywuQdHKSgufeB3QaSMNni6
+Mx1WjtkQNYlZgwBpzrd4ve2vgj/OyIkymFkIXeEBlljEZRl9JoWdEJbllcURzoJv
+FwZxFQ8svzcyUhVotJWOU12X7ePbEz7BMbF5k3N9cjsbTE8GSRWEc/MdWlEspNRY
+4Bm/NUgpYJmr6ntCA76cPRn3R1sLrIJXqg29/yJgMN8sT1fTJdXa/Y4GUU4FNXiY
+OKMnMW8xmqmqTaw6RGhgcGj0U2vNsi2uJhiH34xXtfhSwVbnwLFNXwpVaxQrVPs9
+qca9YAf4sPRL4+6r
+-----END CERTIFICATE-----`,
+	// Microsoft TLS G2 RSA CA OCSP 12
+	`-----BEGIN CERTIFICATE-----
+MIIHuDCCBaCgAwIBAgITMwAAABB9WYYP1k1yQwAAAAAAEDANBgkqhkiG9w0BAQwF
+ADBRMQswCQYDVQQGEwJVUzEeMBwGA1UEChMVTWljcm9zb2Z0IENvcnBvcmF0aW9u
+MSIwIAYDVQQDExlNaWNyb3NvZnQgVExTIFJTQSBSb290IEcyMB4XDTI1MDgxNDIz
+MDMzOVoXDTI5MDYwMzIzMDMzOVowVzELMAkGA1UEBhMCVVMxHjAcBgNVBAoTFU1p
+Y3Jvc29mdCBDb3Jwb3JhdGlvbjEoMCYGA1UEAxMfTWljcm9zb2Z0IFRMUyBHMiBS
+U0EgQ0EgT0NTUCAxMjCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAKHG
+TgBCMs4LbHALHnm618HNCEhlXTLmoRK/un/49LlfpuKidaPMdQ0mNb4pl6iWKnUo
+TTRCk638rRcUAemUhpTO9pdPfzX/uaaseB6h88hlBVGQV5UyrE7hGeH3zCMXBVjZ
+ghGwt4DKvgO/a3YO43xMupzkFJfx1SddBW4oR160OYgr6FLRELEboaASwYsuoYl8
+wLo0O1SqBxz++ZNEfsspAamx3so6+XLVtpeMME/mOYdwebrBrtzS4nmE/9qknWFT
+SLo//8NRd7PQ49pzLGf6CyVCiRZIvG7y2+jesPhICU+s9vJ3qBr2go1jU1h5Rpvv
+TPHQGsmNTWpepQKcfBfK5rt8YzF9NHBaaLIAcCe90bIYKENMutS5Z6BVn69ZYyMi
+3DklCE3V7uozYYkIei5zoI2NIfdjGQaXaEImqA12cwknJfqkWhA1bErK6n4Gx0Y+
+MqIgIE0wpRBuwrk46ncEAX4NKiRQd1XOpUwKfI/O/I7kdVjrq+Ghd86HJtuSqwUF
+WgV3JbUArAqZtgC5LjFoIjf2lCGzuD2uDBSKM9d8dLhcJRWeJDy7pheaQxsDQcxz
+cPz0XOdW5KgdZIrkSWjRChpWY5LcCo5O9SEqvJCtmeIo4TUzW5CTxYG6fkEgSSA0
+wiciw/x8SE7YVqxKybryGpZ3y3WxGd2mxktUEhufAgMBAAGjggKBMIICfTAOBgNV
+HQ8BAf8EBAMCAYYwEAYJKwYBBAGCNxUBBAMCAQAwHQYDVR0OBBYEFDGlpYlD78es
+MRU+SHrjBsbp7bwqMBMGA1UdIAQMMAowCAYGZ4EMAQICMBMGA1UdJQQMMAoGCCsG
+AQUFBwMBMBkGCSsGAQQBgjcUAgQMHgoAUwB1AGIAQwBBMBIGA1UdEwEB/wQIMAYB
+Af8CAQAwHwYDVR0jBBgwFoAU3pGGSLehMVkx8UtfB6nciHnaqHYwgasGA1UdHwSB
+ozCBoDCBnaCBmqCBl4ZJaHR0cDovL3d3dy5taWNyb3NvZnQuY29tL3BraW9wcy9j
+cmwvTWljcm9zb2Z0JTIwVExTJTIwUlNBJTIwUm9vdCUyMEcyLmNybIZKaHR0cDov
+L2NybDIubWljcm9zb2Z0LmNvbS9wa2lvcHMvY3JsL01pY3Jvc29mdCUyMFRMUyUy
+MFJTQSUyMFJvb3QlMjBHMi5jcmwwggEQBggrBgEFBQcBAQSCAQIwgf8wYwYIKwYB
+BQUHMAKGV2h0dHA6Ly93d3cubWljcm9zb2Z0LmNvbS9wa2lvcHMvY2VydHMvTWlj
+cm9zb2Z0JTIwVExTJTIwUlNBJTIwUm9vdCUyMEcyJTIwLSUyMHhzaWduLmNydDBp
+BggrBgEFBQcwAoZdaHR0cDovL2NhaXNzdWVycy5taWNyb3NvZnQuY29tL3BraW9w
+cy9jZXJ0cy9NaWNyb3NvZnQlMjBUTFMlMjBSU0ElMjBSb290JTIwRzIlMjAtJTIw
+eHNpZ24uY3J0MC0GCCsGAQUFBzABhiFodHRwOi8vb25lb2NzcC5taWNyb3NvZnQu
+Y29tL29jc3AwDQYJKoZIhvcNAQEMBQADggIBAIvpSERgLgnzdc+XVB99zGCGNpur
+hIXJ2S+lopZDMMP/lqi4uwX3RSlmjGNKCwfHmMy3KjTMMPqiurxuX3vP6Yx7h3g0
+p0+1m7F3PYBgCibUcMJfwtZbKu/Oot19mHsAsHu01BDZTlPbowPpVD8qNtpsiDl4
+PjOe9/EW5M/HbrKrZg0ZvLm8ezsePgP0CezXoa2SQSlLssUOWUn6iKxdi0d65jXv
+FPYRfOSmWKcQ/SBGWeUjsSuctga3DNzExktOHySKjskO3JTYo/hm7hnMdxLeVGHI
+poenawCSZH4kxZCkO8SXrqV4gvh88CHlZ12mBvNw2kskEGYTgRdfpfGLudwxdvV+
+AOGu60olNg8VosFWJMcZYPFTAFoZTwdBSprBnt93sBUGXDPwWQNxpSvO50DR+r/u
+sdY3/zfFSfQUC5X2/BOuwSUgDdJ2lf/ettl/+TGAVVmNR7PfuwHl5obG3LR964JV
+jPLmFw8Vc4CU8YuUStyGwQxse9CPrp9YpcPsztiJB2ugB6/FhxM7UDYfpvdr2nxh
+spxBAlg9L1a/mJjzgS0l4kRnmq0zxIMRrMchgi/a7GfwhYq2meVkNd5ectf7SdM5
+O9HIQ5cE3PcHH62mEZW2Y+A09CQ9FQoK1bxf67CbYfFcEy6htrbirmjXVoThyo1P
+XoXm1+8l+n5NKWWC
+-----END CERTIFICATE-----`,
+	// Microsoft TLS G2 RSA CA OCSP 14
+	`-----BEGIN CERTIFICATE-----
+MIIHuDCCBaCgAwIBAgITMwAAABJ+c5NH51vhoQAAAAAAEjANBgkqhkiG9w0BAQwF
+ADBRMQswCQYDVQQGEwJVUzEeMBwGA1UEChMVTWljcm9zb2Z0IENvcnBvcmF0aW9u
+MSIwIAYDVQQDExlNaWNyb3NvZnQgVExTIFJTQSBSb290IEcyMB4XDTI1MDgxNDIz
+MDM0MVoXDTI5MDYwMzIzMDM0MVowVzELMAkGA1UEBhMCVVMxHjAcBgNVBAoTFU1p
+Y3Jvc29mdCBDb3Jwb3JhdGlvbjEoMCYGA1UEAxMfTWljcm9zb2Z0IFRMUyBHMiBS
+U0EgQ0EgT0NTUCAxNDCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBALQ0
+O5HV7D0M0P5XR9tDj3H/ASlro7t5dRQHJwq8g9plX9RsHSqmsqA28+gFlKjEMc5F
+8cJCovAXh51G1mCU+jzzcH/UWEOIEXj5WrEVjigNT3MwnxkWE981eGAxmkFwBiDF
+DsnQkRxgHGA3B8RxfsaFcMM5NSm+/EjQ3TaYXFbjn2smJMp9WbdMixVHbS3vNNyQ
+0UtnWVBzBTLwrUSaT+e0qC8oUilP2MShMGJ91UZmzvLeYoUfDGHcXIWkFCqkCch4
+6S28IlWc1wagx/uzq+zt1nalPrb54BLUcX07iHXnGOtrJ5sp72g0VrQoWFefhajG
+BL9+zQvF+Tzi8isM6WKTe80PC7jmTi/2ze59IkFSnDw2pD36KucFrx0WwwK923MZ
+oet9r0JsO6IBBfKWS1BHMfbwsV4MJtnvQaFOdNl/TLfTlgOUFrlggPnLRsFx5hno
+UEH3jnhzZcKwrENaEDyijneNs7qrqUf4lJdZe3bV1LoguppP4N0WLu5Jh1TjceLa
+6pM9wsGaN4XMxdeyxQHa+W1eLBrjFKSIEUukA97x77XGd3XSRxQnq6F4Y5K98Cqn
+aGDWZWZ0IptnXSS5FkK7A9qXVRjnC5waqwWISwi/wliIEJq4Y/Vf7sN3NgrvfYPg
+HC39Qo5Fbs/MpwXe+FgPyjUPWpWkE7VL1GX0KucpAgMBAAGjggKBMIICfTAOBgNV
+HQ8BAf8EBAMCAYYwEAYJKwYBBAGCNxUBBAMCAQAwHQYDVR0OBBYEFFJo9PoSVuP2
+2EKvMAtAuDkj9fcrMBMGA1UdIAQMMAowCAYGZ4EMAQICMBMGA1UdJQQMMAoGCCsG
+AQUFBwMBMBkGCSsGAQQBgjcUAgQMHgoAUwB1AGIAQwBBMBIGA1UdEwEB/wQIMAYB
+Af8CAQAwHwYDVR0jBBgwFoAU3pGGSLehMVkx8UtfB6nciHnaqHYwgasGA1UdHwSB
+ozCBoDCBnaCBmqCBl4ZJaHR0cDovL3d3dy5taWNyb3NvZnQuY29tL3BraW9wcy9j
+cmwvTWljcm9zb2Z0JTIwVExTJTIwUlNBJTIwUm9vdCUyMEcyLmNybIZKaHR0cDov
+L2NybDIubWljcm9zb2Z0LmNvbS9wa2lvcHMvY3JsL01pY3Jvc29mdCUyMFRMUyUy
+MFJTQSUyMFJvb3QlMjBHMi5jcmwwggEQBggrBgEFBQcBAQSCAQIwgf8wYwYIKwYB
+BQUHMAKGV2h0dHA6Ly93d3cubWljcm9zb2Z0LmNvbS9wa2lvcHMvY2VydHMvTWlj
+cm9zb2Z0JTIwVExTJTIwUlNBJTIwUm9vdCUyMEcyJTIwLSUyMHhzaWduLmNydDBp
+BggrBgEFBQcwAoZdaHR0cDovL2NhaXNzdWVycy5taWNyb3NvZnQuY29tL3BraW9w
+cy9jZXJ0cy9NaWNyb3NvZnQlMjBUTFMlMjBSU0ElMjBSb290JTIwRzIlMjAtJTIw
+eHNpZ24uY3J0MC0GCCsGAQUFBzABhiFodHRwOi8vb25lb2NzcC5taWNyb3NvZnQu
+Y29tL29jc3AwDQYJKoZIhvcNAQEMBQADggIBAFAy7Y42/cuUwX522YzqhW3Cks15
+m7hqbu3yszkCcAcdOZjPLxXWHp8oPm98u27+yoXreavUQ0bZlMzWsAcw7g6kCjWm
+BVh78k1uKxQzlFrHznpMlsEtbgIzuatjCtP70NO2/pe64JzWNRuADvTM/RSKeEnG
+WpU3U09YZzc/qEcvzfsLtqN88GX8/may9tDctPDI8Kkx8jdQYLG9bM+Gnm5b0RQH
+Ja65N7W50zo16Jjy3jv1zxm+UOvjt27atgcm+EmocqAzUtws7dxdnrdaBmgqndMC
+Jg1tNrQ5UxJfXhCgoVurdC/UYMSCxkPMZ0PI1D7yvmJAFzfUTDXGZw+l3V9JwEOg
+u+0/a/QcEVDdXLM4cFM+KvmM6NBGFX+ktBvk8IIq8gld7IdTGohZQ9EmpBa32ZT4
+XKU6Atst09IFJYmlr/6X/FaNDeM22Kh7TSlTdjuDA8ybygSVwPjpgKFWho4gAQrX
+BhGwff3pRgb2RGDS/Fw91FgLW3NePKcLC6a7u7reXhc/NIBPWoovCE+imo9p9Oem
+VTHFF0qvux5MQ78kbeZrxv7x+EU5OK56+jIGpWZFfsdB5La4cwgEkVL7vYfoaRET
+T85pMUZup9ZRlYcuqDSfH2r5cokDcwCKjarG8YrjKiQ9i3hLzRs2sQEG3wjf2lrb
+B99kBMBp4Ylf6v3t
+-----END CERTIFICATE-----`,
+	// Microsoft TLS G2 RSA CA OCSP 16
+	`-----BEGIN CERTIFICATE-----
+MIIHuDCCBaCgAwIBAgITMwAAAA5Ck48l3FGpmwAAAAAADjANBgkqhkiG9w0BAQwF
+ADBRMQswCQYDVQQGEwJVUzEeMBwGA1UEChMVTWljcm9zb2Z0IENvcnBvcmF0aW9u
+MSIwIAYDVQQDExlNaWNyb3NvZnQgVExTIFJTQSBSb290IEcyMB4XDTI1MDgwMTIw
+MDMwMloXDTI5MDYwMzIwMDMwMlowVzELMAkGA1UEBhMCVVMxHjAcBgNVBAoTFU1p
+Y3Jvc29mdCBDb3Jwb3JhdGlvbjEoMCYGA1UEAxMfTWljcm9zb2Z0IFRMUyBHMiBS
+U0EgQ0EgT0NTUCAxNjCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAJNy
+X7D8oHoR3W/OE5vzT0QuP+ym4r+vL8gHmczj1YdNWzOn5VlHxR2Ue+hTR6PxfOQi
+pbhH/gAeXr1wd5YE1XZX/IOzeVFX9CQUTXlJmrfcR5L2PKY1KtG2b18b1mC+0YKi
+bzeF5WokVOeIh/A+1wBe2ufVNOMOr+HU+HdaVdRnE/dBSF9PLGB1KAGos1pwhcdY
+hQbfoUwroVfZqWy6HIa6AfbQFBoF+Isx5ZXyMTfVEaKYnT/vci9REEBe4uMbQpYG
+N2gF5Pq41VRdHuGU2vJRo+Q+e77DrqVBQhY9kdqQvQitSirIRRgwLlD3yqZHw+8D
+z0o9fmx8sqe5RhonEpqZEkyiK1ql5aO7ocrOcu9HY7C+c0lHzsKp1US0QY3zRzfM
+bAdjHNiWguQ/bnZTZJ3c+MIzrovLWxR0QC0ICE+g8gOUz4LH4jOIUKkf0sF6UCwh
+xs3AYjG2/tEC5lOksVJ5lu5lWTnR26I0owa+IWrima4tKugtCDqQWojn8AGp69AE
+xCFpDz3Jpn7xvzlygpCXOEy27yV+YfL/DL71ve19R3VW+PbzqOFtgzLIUV/9JpKB
+38iUFDKAlq6mCd5M12QokTJaJ5JpZIRKoR68xBG7FVUd0IynFmcgR0RaZ2wYugHe
+lDzagm1XcVRDbPLKvM27gBdVztl7jC2dUE/27+iHAgMBAAGjggKBMIICfTAOBgNV
+HQ8BAf8EBAMCAYYwEAYJKwYBBAGCNxUBBAMCAQAwHQYDVR0OBBYEFAY58FbR7ZDI
+NqOgD5T+YpSn5vw3MBMGA1UdIAQMMAowCAYGZ4EMAQICMBMGA1UdJQQMMAoGCCsG
+AQUFBwMBMBkGCSsGAQQBgjcUAgQMHgoAUwB1AGIAQwBBMBIGA1UdEwEB/wQIMAYB
+Af8CAQAwHwYDVR0jBBgwFoAU3pGGSLehMVkx8UtfB6nciHnaqHYwgasGA1UdHwSB
+ozCBoDCBnaCBmqCBl4ZJaHR0cDovL3d3dy5taWNyb3NvZnQuY29tL3BraW9wcy9j
+cmwvTWljcm9zb2Z0JTIwVExTJTIwUlNBJTIwUm9vdCUyMEcyLmNybIZKaHR0cDov
+L2NybDIubWljcm9zb2Z0LmNvbS9wa2lvcHMvY3JsL01pY3Jvc29mdCUyMFRMUyUy
+MFJTQSUyMFJvb3QlMjBHMi5jcmwwggEQBggrBgEFBQcBAQSCAQIwgf8wYwYIKwYB
+BQUHMAKGV2h0dHA6Ly93d3cubWljcm9zb2Z0LmNvbS9wa2lvcHMvY2VydHMvTWlj
+cm9zb2Z0JTIwVExTJTIwUlNBJTIwUm9vdCUyMEcyJTIwLSUyMHhzaWduLmNydDBp
+BggrBgEFBQcwAoZdaHR0cDovL2NhaXNzdWVycy5taWNyb3NvZnQuY29tL3BraW9w
+cy9jZXJ0cy9NaWNyb3NvZnQlMjBUTFMlMjBSU0ElMjBSb290JTIwRzIlMjAtJTIw
+eHNpZ24uY3J0MC0GCCsGAQUFBzABhiFodHRwOi8vb25lb2NzcC5taWNyb3NvZnQu
+Y29tL29jc3AwDQYJKoZIhvcNAQEMBQADggIBAIGGI1JWs93TO6gypc7n3H7V5Qim
+hS8nVFE3Y3ZNdG7utJvyrxAgO1d7q52kBgwLZ1M8lcluTDmrfCIZu+vs+UyNmZ6J
+h+kAJgGwmTKPCqTihbJ/h10jiSoW4JftFu5QMljZdJ14UlLrQTwwfYGxrd0QVnqz
+r4S8Q/rP/2DTBQSQj/uLauKBaVKoPQL10IxIkcuIj83C0aMqPUDZWjXgy8dBEej8
+tMKgBlK3O5nN5ZkXAPkXjI1FIZRL03QD8besLM+Vb4tlcvb2k8XdQpEv0RK8bjeY
+66I+Q2anOq0kQI6oiJ4c/QFEoFLVcJiCTY86hZmTSw1i4Tsnxhwy5N7UtK7SGJ3m
+JAJwhdwy3lrMPgShw2yzLlbbODGYqwa7BzpDPQEtEHVdbK78Qv03TWH/w6KQGv2I
+FtqjVibfJnsQEgjms0mr6hRODs4G0LIfBqDs4JC2o5AnDc/N2/CDhnVdfHbMrvbc
+2fqNxx/4TQevSBliM5pN5s3nQR166CCTmavh92N49ykEb3Q+iHY6hBkI76e/Db4b
+daeq7IdaXEMYURG5kj3kn70K4SY3cUCHoRNdkQQzNXB7OIW5jgG65HL9F1uSh9B7
+KmJjEVz9Kzh/Kx9y3KEmb4eRyi4tc9CtEkFY3CmW0gbpBXhwmzEGHQ6T08YoSoiR
+DpR9auXiVitH82FI
 -----END CERTIFICATE-----`,
 	// Microsoft RSA TLS CA 01
 	`-----BEGIN CERTIFICATE-----

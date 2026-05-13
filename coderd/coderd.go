@@ -3,7 +3,6 @@ package coderd
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"database/sql"
 	_ "embed"
 	"errors"
@@ -52,6 +51,7 @@ import (
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/awsidentity"
+	"github.com/coder/coder/v2/coderd/azureidentity"
 	"github.com/coder/coder/v2/coderd/boundaryusage"
 	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
@@ -95,6 +95,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/x/chatd"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/codersdk"
@@ -172,7 +173,7 @@ type Options struct {
 	ChatdInstructionLookupTimeout  time.Duration
 	AWSCertificates                awsidentity.Certificates
 	Authorizer                     rbac.Authorizer
-	AzureCertificates              x509.VerifyOptions
+	AzureCertificates              azureidentity.Options
 	GoogleTokenValidator           *idtoken.Validator
 	GithubOAuth2Config             *GithubOAuth2Config
 	OIDCConfig                     *OIDCConfig
@@ -248,6 +249,9 @@ type Options struct {
 	// ChatSubscribeFn provides cross-replica subscription merging.
 	// Set by enterprise for HA deployments. Nil in AGPL single-replica.
 	ChatSubscribeFn chatd.SubscribeFn
+	// ChatProviderAPIKeys overrides deployment-derived provider keys.
+	// Test harnesses use this to route chat models to local providers.
+	ChatProviderAPIKeys *chatprovider.ProviderAPIKeys
 
 	UpdateAgentMetrics func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 	StatsBatcher       workspacestats.Batcher
@@ -792,13 +796,18 @@ func New(options *Options) *API {
 				options.Logger.Named("mcp-user-oidc"),
 			)
 		}
+		providerAPIKeys := ChatProviderAPIKeysFromDeploymentValues(options.DeploymentValues)
+		if options.ChatProviderAPIKeys != nil {
+			providerAPIKeys = *options.ChatProviderAPIKeys
+		}
+
 		api.chatDaemon = chatd.New(chatd.Config{
 			Logger:                         options.Logger.Named("chatd"),
 			Database:                       options.Database,
 			ReplicaID:                      api.ID,
 			SubscribeFn:                    options.ChatSubscribeFn,
 			MaxChatsPerAcquire:             int32(maxChatsPerAcquire), //nolint:gosec // maxChatsPerAcquire is clamped to int32 range above.
-			ProviderAPIKeys:                ChatProviderAPIKeysFromDeploymentValues(options.DeploymentValues),
+			ProviderAPIKeys:                providerAPIKeys,
 			AlwaysEnableDebugLogs:          options.DeploymentValues.AI.Chat.DebugLoggingEnabled.Value(),
 			AgentConn:                      api.agentProvider.AgentConn,
 			AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,

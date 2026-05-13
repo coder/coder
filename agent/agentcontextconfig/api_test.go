@@ -461,6 +461,37 @@ func TestResolve(t *testing.T) {
 		require.Len(t, skillParts, 1)
 		require.Equal(t, "from skills1", skillParts[0].SkillDescription)
 	})
+
+	//nolint:paralleltest // Uses t.Setenv to mutate HOME.
+	t.Run("DefaultDiscoversHomeAndProjectSkillsHomeWins", func(t *testing.T) {
+		fakeHome := t.TempDir()
+		t.Setenv("HOME", fakeHome)
+		t.Setenv("USERPROFILE", fakeHome)
+		workDir := t.TempDir()
+
+		homeSkills := filepath.Join(fakeHome, ".coder", "skills")
+		writeSkillMetaFileInRoot(t, homeSkills, "home-only", "home only")
+		writeSkillMetaFileInRoot(t, homeSkills, "shared", "from home")
+		writeSkillMetaFile(t, workDir, "project-only", "project only")
+		writeSkillMetaFile(t, workDir, "shared", "from project")
+
+		// Construct the Config directly with the package defaults
+		// to verify the default skills list (and only the defaults).
+		cfg, _ := agentcontextconfig.Resolve(workDir, agentcontextconfig.Config{
+			SkillsDirs:    agentcontextconfig.DefaultSkillsDir,
+			SkillMetaFile: agentcontextconfig.DefaultSkillMetaFile,
+		})
+
+		got := map[string]string{}
+		for _, p := range filterParts(cfg.Parts, codersdk.ChatMessagePartTypeSkill) {
+			got[p.SkillName] = p.SkillDescription
+		}
+		require.Equal(t, map[string]string{
+			"home-only":    "home only",
+			"project-only": "project only",
+			"shared":       "from home",
+		}, got)
+	})
 }
 
 func TestNewAPI_LazyDirectory(t *testing.T) {
