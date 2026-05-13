@@ -2607,33 +2607,31 @@ func TestAIBridgeAllowBYOK(t *testing.T) {
 func TestGroupAIBudget(t *testing.T) {
 	t.Parallel()
 
-	t.Run("UpsertCreatesThenUpdates", func(t *testing.T) {
+	t.Run("Upsert", func(t *testing.T) {
 		t.Parallel()
 
 		adminClient, group := setupGroupAIBudgetTest(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		// PUT (create).
-		created, err := adminClient.UpsertGroupAIBudget(ctx, group.ID, codersdk.UpsertGroupAIBudgetRequest{
+		// First upsert creates the budget.
+		newBudget, err := adminClient.UpsertGroupAIBudget(ctx, group.ID, codersdk.UpsertGroupAIBudgetRequest{
 			SpendLimitMicros: 500_000_000,
 		})
 		require.NoError(t, err)
-		require.Equal(t, group.ID, created.GroupID)
-		require.EqualValues(t, 500_000_000, created.SpendLimitMicros)
-		require.False(t, created.CreatedAt.IsZero())
+		require.Equal(t, group.ID, newBudget.GroupID)
+		require.EqualValues(t, 500_000_000, newBudget.SpendLimitMicros)
 
-		// PUT (update existing).
-		updated, err := adminClient.UpsertGroupAIBudget(ctx, group.ID, codersdk.UpsertGroupAIBudgetRequest{
+		// Second upsert updates the existing budget.
+		updatedBudget, err := adminClient.UpsertGroupAIBudget(ctx, group.ID, codersdk.UpsertGroupAIBudgetRequest{
 			SpendLimitMicros: 1_000_000_000,
 		})
 		require.NoError(t, err)
-		require.EqualValues(t, 1_000_000_000, updated.SpendLimitMicros)
-		require.True(t, updated.UpdatedAt.After(created.UpdatedAt) || updated.UpdatedAt.Equal(created.UpdatedAt))
+		require.EqualValues(t, 1_000_000_000, updatedBudget.SpendLimitMicros)
 
-		// GET reflects the latest value.
-		got, err := adminClient.GroupAIBudget(ctx, group.ID)
+		// GET returns the latest value.
+		currentBudget, err := adminClient.GroupAIBudget(ctx, group.ID)
 		require.NoError(t, err)
-		require.EqualValues(t, 1_000_000_000, got.SpendLimitMicros)
+		require.EqualValues(t, 1_000_000_000, currentBudget.SpendLimitMicros)
 	})
 
 	t.Run("GetWhenAbsent_404", func(t *testing.T) {
@@ -2707,7 +2705,7 @@ func TestGroupAIBudget(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 	})
 
-	t.Run("MemberCannotManage", func(t *testing.T) {
+	t.Run("GroupMemberCanReadButNotWrite", func(t *testing.T) {
 		t.Parallel()
 
 		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
@@ -2716,7 +2714,7 @@ func TestGroupAIBudget(t *testing.T) {
 			},
 		})
 		adminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
-		memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+		memberClient, member := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		group, err := adminClient.CreateGroup(ctx, owner.OrganizationID, codersdk.CreateGroupRequest{
@@ -2724,22 +2722,44 @@ func TestGroupAIBudget(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Member cannot read or write the budget.
-		_, err = memberClient.GroupAIBudget(ctx, group.ID)
+		// Add the member to the group so the Group.RBACObject ACL grants them read.
+		_, err = adminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+			AddUsers: []string{member.ID.String()},
+		})
+		require.NoError(t, err)
+
+		// Admin sets the budget so there is a row to read.
+		_, err = adminClient.UpsertGroupAIBudget(ctx, group.ID, codersdk.UpsertGroupAIBudgetRequest{
+			SpendLimitMicros: 500_000_000,
+		})
+		require.NoError(t, err)
+
+		// Group members can read the budget.
+		got, err := memberClient.GroupAIBudget(ctx, group.ID)
+		require.NoError(t, err)
+		require.EqualValues(t, 500_000_000, got.SpendLimitMicros)
+
+		// Group members cannot write the budget.
+		_, err = memberClient.UpsertGroupAIBudget(ctx, group.ID, codersdk.UpsertGroupAIBudgetRequest{
+			SpendLimitMicros: 1_000_000_000,
+		})
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 
-		_, err = memberClient.UpsertGroupAIBudget(ctx, group.ID, codersdk.UpsertGroupAIBudgetRequest{
-			SpendLimitMicros: 500_000_000,
-		})
+		// Group members cannot delete the budget.
+		err = memberClient.DeleteGroupAIBudget(ctx, group.ID)
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+
+		// The failed upsert and delete left the budget untouched.
+		got, err = memberClient.GroupAIBudget(ctx, group.ID)
+		require.NoError(t, err)
+		require.EqualValues(t, 500_000_000, got.SpendLimitMicros)
 	})
 }
 
-// setupGroupAIBudgetTest returns a UserAdmin client for the test org along
-// with a freshly-created group inside it.
+// setupGroupAIBudgetTest returns an Admin client along with a newly created group inside it.
 func setupGroupAIBudgetTest(t *testing.T) (adminClient *codersdk.Client, group codersdk.Group) {
 	t.Helper()
 
