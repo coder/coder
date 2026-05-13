@@ -136,7 +136,7 @@ RUN DOCKER_BUILDX_VERSION=$(curl -s "https://api.github.com/repos/docker/buildx/
 	curl -Lo /usr/local/lib/docker/cli-plugins/docker-buildx "https://github.com/docker/buildx/releases/download/${DOCKER_BUILDX_VERSION}/buildx-${DOCKER_BUILDX_VERSION}.linux-amd64" && \
 	chmod a+x /usr/local/lib/docker/cli-plugins/docker-buildx
 
-# GitHub CLI to /usr/bin/gh — the wrapper at files/usr/local/bin/gh
+# GitHub CLI to /usr/bin/gh. The wrapper at files/usr/local/bin/gh
 # execs this for coder external-auth fallback. Apt repo is unreliable:
 # https://github.com/cli/cli/issues/6175#issuecomment-1235984381
 RUN GH_CLI_VERSION=$(curl -s "https://api.github.com/repos/cli/cli/releases/latest" | grep '"tag_name":' |  sed -E 's/.*"v([^"]+)".*/\1/') && \
@@ -177,7 +177,7 @@ RUN userdel -r ubuntu && \
 
 # Install mise. Binary at /opt/mise/bin so it survives the home
 # volume mount; data dir under ~/.local/share/mise so installs ride
-# along on the per-workspace home volume — matches Homebrew's pattern
+# along on the per-workspace home volume, matching Homebrew's pattern
 # (see /home/linuxbrew volume in main.tf).
 ARG MISE_VERSION=v2026.4.19 \
 	MISE_SHA256=6b58ff5f1e1ce98ed2b7e5372c344ea48182c460e5b6df12d9e0def35aad4438 \
