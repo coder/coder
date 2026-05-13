@@ -6,14 +6,15 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
-	"errors"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"regexp"
 	"sync"
 	"time"
 
-	"go.mozilla.org/pkcs7"
+	"github.com/smallstep/pkcs7"
 	"golang.org/x/xerrors"
 )
 
@@ -25,17 +26,188 @@ var allowedSigners = regexp.MustCompile(`^(.*\.)?metadata\.(azure\.(com|us|cn)|m
 // each time a parse occurs.
 var pkcs7Mutex sync.Mutex
 
+// allowedCertHosts contains the hosts Azure intermediate
+// certificates are served from. Only these hosts are permitted
+// when fetching issuing certificates referenced in the signer
+// certificate. This prevents SSRF via crafted
+// IssuingCertificateURL values.
+//
+// Source: https://learn.microsoft.com/en-us/azure/security/fundamentals/azure-ca-details
+var allowedCertHosts = map[string]bool{
+	"www.microsoft.com":    true,
+	"cacerts.digicert.com": true,
+}
+
+// maxCertResponseBytes is the maximum size of a certificate
+// response body we will read. Azure intermediate certificates
+// are typically under 4 KiB; 1 MiB is a generous upper bound
+// that prevents memory exhaustion from malicious responses.
+const maxCertResponseBytes = 1 << 20 // 1 MiB
+
+// extraBlockedNetworks lists special-use CIDR ranges that the
+// stdlib classification methods (IsLoopback, IsPrivate, etc.) do
+// not cover. Blocking these prevents SSRF against carrier-grade
+// NAT, network-benchmarking, documentation, discard-only, and
+// the all-zeros "this network" range.
+//
+// IPv6 ranges already handled by stdlib:
+//   - ::1/128        (IsLoopback)
+//   - fc00::/7       (IsPrivate, ULA)
+//   - fe80::/10      (IsLinkLocalUnicast)
+//   - ff00::/8       (IsMulticast)
+//   - ::/128         (IsUnspecified)
+var extraBlockedNetworks []*net.IPNet
+
+func init() {
+	for _, cidr := range []string{
+		// IPv4 special-use ranges.
+		"0.0.0.0/8",     // RFC 1122 "this network".
+		"100.64.0.0/10", // RFC 6598 carrier-grade NAT.
+		"198.18.0.0/15", // RFC 2544 benchmarking.
+
+		// IPv6 special-use ranges not covered by stdlib.
+		"64:ff9b:1::/48", // RFC 8215 IPv4/IPv6 translation.
+		"100::/64",       // RFC 6666 discard-only.
+		"2001:2::/48",    // RFC 5180 benchmarking.
+		"2001:db8::/32",  // RFC 3849 documentation.
+	} {
+		_, network, _ := net.ParseCIDR(cidr)
+		extraBlockedNetworks = append(extraBlockedNetworks, network)
+	}
+}
+
+// isPrivateIP reports whether the IP is on a network that must
+// not be reachable when fetching certificates. IPv4-mapped IPv6
+// addresses are canonicalized to IPv4 first so a literal like
+// ::ffff:169.254.169.254 cannot bypass the IPv4 ranges.
+func isPrivateIP(ip net.IP) bool {
+	if v4 := ip.To4(); v4 != nil {
+		ip = v4
+	}
+	if ip.IsLoopback() ||
+		ip.IsPrivate() ||
+		ip.IsLinkLocalUnicast() ||
+		ip.IsLinkLocalMulticast() ||
+		ip.IsMulticast() ||
+		ip.IsUnspecified() ||
+		ip.IsInterfaceLocalMulticast() {
+		return true
+	}
+	for _, network := range extraBlockedNetworks {
+		if network.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+// certFetchClient is an HTTP client that refuses to connect
+// to private or link-local IP addresses. This provides
+// defense-in-depth against SSRF even if the host allowlist is
+// somehow bypassed (e.g. via DNS rebinding).
+var certFetchClient = &http.Client{
+	Timeout: 5 * time.Second,
+	Transport: &http.Transport{
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			host, port, err := net.SplitHostPort(addr)
+			if err != nil {
+				return nil, xerrors.Errorf("split host/port: %w", err)
+			}
+			ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+			if err != nil {
+				return nil, xerrors.Errorf("resolve host: %w", err)
+			}
+			if len(ips) == 0 {
+				return nil, xerrors.Errorf("no addresses for %q", host)
+			}
+			// Reject up front so a single tainted answer
+			// short-circuits the dial rather than racing it.
+			for _, ip := range ips {
+				if isPrivateIP(ip.IP) {
+					return nil, xerrors.Errorf(
+						"certificate fetch blocked: %q resolved to private IP %s",
+						host, ip.IP,
+					)
+				}
+			}
+			// Dial the validated IP directly. If we dialed by
+			// hostname here, Go's stdlib would re-resolve and a
+			// hostile resolver could swap in a private IP after
+			// validation (DNS rebinding). TLS verification still
+			// uses the URL host via the Transport's TLS config.
+			var d net.Dialer
+			var firstErr error
+			for _, ip := range ips {
+				conn, derr := d.DialContext(ctx, network, net.JoinHostPort(ip.IP.String(), port))
+				if derr == nil {
+					return conn, nil
+				}
+				if firstErr == nil {
+					firstErr = derr
+				}
+			}
+			return nil, firstErr
+		},
+	},
+}
+
+// IsAllowedCertificateURL reports whether rawURL points to a
+// host on the allowlist, uses http or https, and targets a
+// standard PKI distribution port. Microsoft and DigiCert serve
+// these artifacts on 80/443 only; any other port is rejected to
+// keep the SSRF surface as narrow as the hostname itself.
+func IsAllowedCertificateURL(rawURL string) bool {
+	if rawURL == "" {
+		return false
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return false
+	}
+	if !allowedCertHosts[u.Hostname()] {
+		return false
+	}
+	switch u.Port() {
+	case "", "80", "443":
+		return true
+	default:
+		return false
+	}
+}
+
 type metadata struct {
 	VMID string `json:"vmId"`
 }
 
 type Options struct {
-	x509.VerifyOptions
+	// Roots is the trusted root certificate pool. If nil,
+	// the embedded root certificate pool is used.
+	Roots *x509.CertPool
+	// Intermediates are additional intermediate certificates to
+	// inject into the PKCS7 object for chain verification. Azure
+	// PKCS7 envelopes typically only contain the signing cert, so
+	// intermediates must be supplied externally. When nil, the
+	// hardcoded Azure intermediate certificates are used.
+	Intermediates []*x509.Certificate
+	// CurrentTime, if non-zero, overrides the verification
+	// timestamp for certificate chain validation.
+	CurrentTime time.Time
+	// Offline disables fetching of issuing certificates when
+	// chain verification fails.
 	Offline bool
 }
 
 // Validate ensures the signature was signed by an Azure certificate.
 // It returns the associated VM ID if successful.
+//
+// Verification has two parts, both handled by VerifyWithChainAtTime:
+//  1. PKCS7 signature check: proves the content was signed by the
+//     private key corresponding to the certificate in the envelope.
+//  2. Certificate chain check: proves the signing certificate
+//     chains to a trusted root through known intermediates.
 func Validate(ctx context.Context, signature string, options Options) (string, error) {
 	data, err := base64.StdEncoding.DecodeString(signature)
 	if err != nil {
@@ -54,56 +226,86 @@ func Validate(ctx context.Context, signature string, options Options) (string, e
 	if !allowedSigners.MatchString(signer.Subject.CommonName) {
 		return "", xerrors.Errorf("unmatched common name of signer: %q", signer.Subject.CommonName)
 	}
-	if options.Intermediates == nil {
-		options.Intermediates = x509.NewCertPool()
-		for _, cert := range Certificates {
-			block, rest := pem.Decode([]byte(cert))
-			if len(rest) != 0 {
-				return "", xerrors.Errorf("invalid certificate. %d bytes remain", len(rest))
-			}
-			cert, err := x509.ParseCertificate(block.Bytes)
-			if err != nil {
-				return "", xerrors.Errorf("parse certificate: %w", err)
-			}
-			options.Intermediates.AddCert(cert)
+	// Azure PKCS7 envelopes typically contain only the signing
+	// certificate. Inject intermediate certificates so the
+	// library can build a chain from signer to trusted root.
+	intermediates := options.Intermediates
+	if intermediates == nil {
+		intermediates, err = ParseCertificates()
+		if err != nil {
+			return "", xerrors.Errorf("parse hardcoded certificates: %w", err)
+		}
+	}
+	pkcs7Data.Certificates = append(pkcs7Data.Certificates, intermediates...)
+	// Resolve root trust store. VerifyWithChainAtTime skips
+	// chain verification when the trust store is nil, so we
+	// must always provide one.
+	roots := options.Roots
+	if roots == nil {
+		roots, err = rootCertPool()
+		if err != nil {
+			return "", xerrors.Errorf("load roots: %w", err)
 		}
 	}
 
-	_, err = signer.Verify(options.VerifyOptions)
+	currentTime := options.CurrentTime
+	if currentTime.IsZero() {
+		currentTime = time.Now()
+	}
+
+	// VerifyWithChainAtTime validates both the PKCS7 signature
+	// (proving the content was signed by the certificate's
+	// private key) and the certificate chain (proving the signer
+	// chains to a trusted root).
+	err = pkcs7Data.VerifyWithChainAtTime(roots, currentTime)
 	if err != nil {
-		if !errors.As(err, &x509.UnknownAuthorityError{}) {
-			return "", xerrors.Errorf("verify signature: %w", err)
-		}
 		if options.Offline {
-			return "", xerrors.Errorf("certificate from %v is not cached: %w", signer.IssuingCertificateURL, err)
+			return "", xerrors.Errorf("verify pkcs7: %w", err)
 		}
 
+		// The chain verification may fail when the signing
+		// certificate was issued by an intermediate not yet in
+		// our hardcoded list. Fetch the issuing certificates
+		// and retry.
 		ctx, cancelFunc := context.WithTimeout(ctx, 5*time.Second)
 		defer cancelFunc()
 		for _, certURL := range signer.IssuingCertificateURL {
+			if !IsAllowedCertificateURL(certURL) {
+				return "", xerrors.New("issuing certificate URL not on allowlist")
+			}
 			req, err := http.NewRequestWithContext(ctx, "GET", certURL, nil)
 			if err != nil {
-				return "", xerrors.Errorf("new request %q: %w", certURL, err)
+				return "", xerrors.New("construct certificate request")
 			}
-			res, err := http.DefaultClient.Do(req)
+			res, err := certFetchClient.Do(req)
 			if err != nil {
-				return "", xerrors.Errorf("no cached certificate for %q found. error fetching: %w", certURL, err)
+				return "", xerrors.New("certificate fetch unsuccessful")
 			}
-			data, err := io.ReadAll(res.Body)
-			if err != nil {
-				_ = res.Body.Close()
-				return "", xerrors.Errorf("read body %q: %w", certURL, err)
-			}
+			limited := io.LimitReader(res.Body, maxCertResponseBytes+1)
+			certData, err := io.ReadAll(limited)
 			_ = res.Body.Close()
-			cert, err := x509.ParseCertificate(data)
 			if err != nil {
-				return "", xerrors.Errorf("parse certificate %q: %w", certURL, err)
+				return "", xerrors.New("read certificate response body")
 			}
-			options.Intermediates.AddCert(cert)
+			if int64(len(certData)) > maxCertResponseBytes {
+				return "", xerrors.New(
+					"certificate response exceeds maximum size",
+				)
+			}
+			cert, err := x509.ParseCertificate(certData)
+			if err != nil {
+				// Do not wrap the parse error; it may contain
+				// fragments of the HTTP response body, which
+				// could leak internal data to the caller.
+				return "", xerrors.New(
+					"fetched data is not a valid certificate",
+				)
+			}
+			pkcs7Data.Certificates = append(pkcs7Data.Certificates, cert)
 		}
-		_, err = signer.Verify(options.VerifyOptions)
+		err = pkcs7Data.VerifyWithChainAtTime(roots, currentTime)
 		if err != nil {
-			return "", err
+			return "", xerrors.New("signature verification failed after fetching issuing certificates")
 		}
 	}
 
@@ -115,6 +317,122 @@ func Validate(ctx context.Context, signature string, options Options) (string, e
 	return metadata.VMID, nil
 }
 
+// ParseCertificates parses the hardcoded Azure intermediate
+// certificates and returns them as x509.Certificate values.
+func ParseCertificates() ([]*x509.Certificate, error) {
+	var certs []*x509.Certificate
+	for _, certPEM := range Certificates {
+		block, rest := pem.Decode([]byte(certPEM))
+		if len(rest) != 0 {
+			return nil, xerrors.Errorf("invalid certificate. %d bytes remain", len(rest))
+		}
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, xerrors.Errorf("parse certificate: %w", err)
+		}
+		certs = append(certs, cert)
+	}
+	return certs, nil
+}
+
+// Roots are the root CAs that Azure instance-identity certificates chain to.
+// These are embedded so verification works deterministically on all
+// platforms, including macOS where the system verifier would otherwise be
+// used and may reject otherwise valid Azure certificates due to stricter
+// standards-compliance checks. See https://github.com/coder/coder/issues/12978.
+var Roots = []string{
+	// DigiCert Global Root G2
+	`-----BEGIN CERTIFICATE-----
+MIIDjjCCAnagAwIBAgIQAzrx5qcRqaC7KGSxHQn65TANBgkqhkiG9w0BAQsFADBh
+MQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3
+d3cuZGlnaWNlcnQuY29tMSAwHgYDVQQDExdEaWdpQ2VydCBHbG9iYWwgUm9vdCBH
+MjAeFw0xMzA4MDExMjAwMDBaFw0zODAxMTUxMjAwMDBaMGExCzAJBgNVBAYTAlVT
+MRUwEwYDVQQKEwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5j
+b20xIDAeBgNVBAMTF0RpZ2lDZXJ0IEdsb2JhbCBSb290IEcyMIIBIjANBgkqhkiG
+9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuzfNNNx7a8myaJCtSnX/RrohCgiN9RlUyfuI
+2/Ou8jqJkTx65qsGGmvPrC3oXgkkRLpimn7Wo6h+4FR1IAWsULecYxpsMNzaHxmx
+1x7e/dfgy5SDN67sH0NO3Xss0r0upS/kqbitOtSZpLYl6ZtrAGCSYP9PIUkY92eQ
+q2EGnI/yuum06ZIya7XzV+hdG82MHauVBJVJ8zUtluNJbd134/tJS7SsVQepj5Wz
+tCO7TG1F8PapspUwtP1MVYwnSlcUfIKdzXOS0xZKBgyMUNGPHgm+F6HmIcr9g+UQ
+vIOlCsRnKPZzFBQ9RnbDhxSJITRNrw9FDKZJobq7nMWxM4MphQIDAQABo0IwQDAP
+BgNVHRMBAf8EBTADAQH/MA4GA1UdDwEB/wQEAwIBhjAdBgNVHQ4EFgQUTiJUIBiV
+5uNu5g/6+rkS7QYXjzkwDQYJKoZIhvcNAQELBQADggEBAGBnKJRvDkhj6zHd6mcY
+1Yl9PMWLSn/pvtsrF9+wX3N3KjITOYFnQoQj8kVnNeyIv/iPsGEMNKSuIEyExtv4
+NeF22d+mQrvHRAiGfzZ0JFrabA0UWTW98kndth/Jsw1HKj2ZL7tcu7XUIOGZX1NG
+Fdtom/DzMNU+MeKNhJ7jitralj41E6Vf8PlwUHBHQRFXGU7Aj64GxJUTFy8bJZ91
+8rGOmaFvE7FBcf6IKshPECBV1/MUReXgRPTqh5Uykw7+U0b6LJ3/iyK5S9kJRaTe
+pLiaWN0bfVKfjllDiIGknibVb63dDcY3fe0Dkhvld1927jyNxF1WW6LZZm6zNTfl
+MrY=
+-----END CERTIFICATE-----`,
+	// DigiCert Global Root G3
+	`-----BEGIN CERTIFICATE-----
+MIICPzCCAcWgAwIBAgIQBVVWvPJepDU1w6QP1atFcjAKBggqhkjOPQQDAzBhMQsw
+CQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3d3cu
+ZGlnaWNlcnQuY29tMSAwHgYDVQQDExdEaWdpQ2VydCBHbG9iYWwgUm9vdCBHMzAe
+Fw0xMzA4MDExMjAwMDBaFw0zODAxMTUxMjAwMDBaMGExCzAJBgNVBAYTAlVTMRUw
+EwYDVQQKEwxEaWdpQ2VydCBJbmMxGTAXBgNVBAsTEHd3dy5kaWdpY2VydC5jb20x
+IDAeBgNVBAMTF0RpZ2lDZXJ0IEdsb2JhbCBSb290IEczMHYwEAYHKoZIzj0CAQYF
+K4EEACIDYgAE3afZu4q4C/sLfyHS8L6+c/MzXRq8NOrexpu80JX28MzQC7phW1FG
+fp4tn+6OYwwX7Adw9c+ELkCDnOg/QW07rdOkFFk2eJ0DQ+4QE2xy3q6Ip6FrtUPO
+Z9wj/wMco+I+o0IwQDAPBgNVHRMBAf8EBTADAQH/MA4GA1UdDwEB/wQEAwIBhjAd
+BgNVHQ4EFgQUs9tIpPmhxdiuNkHMEWNpYim8S8YwCgYIKoZIzj0EAwMDaAAwZQIx
+AK288mw/EkrRLTnDCgmXc/SINoyIJ7vmiI1Qhadj+Z4y3maTD/HMsQmP3Wyr+mt/
+oAIwOWZbwmSNuJ5Q3KjVSaLtx9zRSX8XAbjIho9OjIgrqJqpisXRAL34VOKa5Vt8
+sycX
+-----END CERTIFICATE-----`,
+	// Baltimore CyberTrust Root.
+	// Required for chains rooted here, e.g. "Microsoft RSA TLS CA 01/02".
+	// Expired 2025-05-12 but kept so callers that pass a CurrentTime
+	// before the expiry can still verify historical signatures.
+	`-----BEGIN CERTIFICATE-----
+MIIDdzCCAl+gAwIBAgIEAgAAuTANBgkqhkiG9w0BAQUFADBaMQswCQYDVQQGEwJJ
+RTESMBAGA1UEChMJQmFsdGltb3JlMRMwEQYDVQQLEwpDeWJlclRydXN0MSIwIAYD
+VQQDExlCYWx0aW1vcmUgQ3liZXJUcnVzdCBSb290MB4XDTAwMDUxMjE4NDYwMFoX
+DTI1MDUxMjIzNTkwMFowWjELMAkGA1UEBhMCSUUxEjAQBgNVBAoTCUJhbHRpbW9y
+ZTETMBEGA1UECxMKQ3liZXJUcnVzdDEiMCAGA1UEAxMZQmFsdGltb3JlIEN5YmVy
+VHJ1c3QgUm9vdDCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAKMEuyKr
+mD1X6CZymrV51Cni4eiVgLGw41uOKymaZN+hXe2wCQVt2yguzmKiYv60iNoS6zjr
+IZ3AQSsBUnuId9Mcj8e6uYi1agnnc+gRQKfRzMpijS3ljwumUNKoUMMo6vWrJYeK
+mpYcqWe4PwzV9/lSEy/CG9VwcPCPwBLKBsua4dnKM3p31vjsufFoREJIE9LAwqSu
+XmD+tqYF/LTdB1kC1FkYmGP1pWPgkAx9XbIGevOF6uvUA65ehD5f/xXtabz5OTZy
+dc93Uk3zyZAsuT3lySNTPx8kmCFcB5kpvcY67Oduhjprl3RjM71oGDHweI12v/ye
+jl0qhqdNkNwnGjkCAwEAAaNFMEMwHQYDVR0OBBYEFOWdWTCCR1jMrPoIVDaGezq1
+BE3wMBIGA1UdEwEB/wQIMAYBAf8CAQMwDgYDVR0PAQH/BAQDAgEGMA0GCSqGSIb3
+DQEBBQUAA4IBAQCFDF2O5G9RaEIFoN27TyclhAO992T9Ldcw46QQF+vaKSm2eT92
+9hkTI7gQCvlYpNRhcL0EYWoSihfVCr3FvDB81ukMJY2GQE/szKN+OMY3EU/t3Wgx
+jkzSswF07r51XgdIGn9w/xZchMB5hbgF/X++ZRGjD8ACtPhSNzkE1akxehi/oCr0
+Epn3o0WC4zxe9Z2etciefC7IpJ5OCBRLbf1wbWsaY71k5h+3zvDyny67G7fyUIhz
+ksLi4xaNmjICq44Y3ekQEe5+NauQrz4wlHrQMz2nZQ/1/I6eYs9HRCwBXbsdtTLS
+R9I4LtD+gdwyah617jzV/OeBHRnDJELqYzmp
+-----END CERTIFICATE-----`,
+}
+
+// rootCertPool returns a CertPool containing the root CAs that Azure
+// instance-identity certificates ultimately chain to. We embed these so
+// callers do not have to populate Roots themselves, and so we never
+// implicitly fall back to the platform's system verifier (notably Apple's
+// Security framework on macOS/iOS) which enforces stricter standards-
+// compliance checks than Go's pure-Go verifier and rejects some otherwise
+// valid Azure leaf certificates.
+var rootCertPool = sync.OnceValues(func() (*x509.CertPool, error) {
+	pool := x509.NewCertPool()
+	for _, pemCert := range Roots {
+		block, rest := pem.Decode([]byte(pemCert))
+		if block == nil {
+			return nil, xerrors.New("root: failed to decode PEM block")
+		}
+		if len(rest) != 0 {
+			return nil, xerrors.Errorf("root: invalid certificate, %d bytes remain", len(rest))
+		}
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, xerrors.Errorf("root: parse certificate: %w", err)
+		}
+		pool.AddCert(cert)
+	}
+	return pool, nil
+})
+
 // Certificates are manually downloaded from Azure, then processed with OpenSSL
 // and added here. See: https://learn.microsoft.com/en-us/azure/security/fundamentals/azure-ca-details
 //
@@ -122,69 +440,91 @@ func Validate(ctx context.Context, signature string, options Options) (string, e
 // 2. Convert to PEM format: `openssl x509 -in cert.pem -text`
 // 3. Paste the contents into the array below
 var Certificates = []string{
-	// Microsoft RSA TLS CA 01
+	// Microsoft Azure ECC TLS Issuing CA 03
 	`-----BEGIN CERTIFICATE-----
-MIIFWjCCBEKgAwIBAgIQDxSWXyAgaZlP1ceseIlB4jANBgkqhkiG9w0BAQsFADBa
-MQswCQYDVQQGEwJJRTESMBAGA1UEChMJQmFsdGltb3JlMRMwEQYDVQQLEwpDeWJl
-clRydXN0MSIwIAYDVQQDExlCYWx0aW1vcmUgQ3liZXJUcnVzdCBSb290MB4XDTIw
-MDcyMTIzMDAwMFoXDTI0MTAwODA3MDAwMFowTzELMAkGA1UEBhMCVVMxHjAcBgNV
-BAoTFU1pY3Jvc29mdCBDb3Jwb3JhdGlvbjEgMB4GA1UEAxMXTWljcm9zb2Z0IFJT
-QSBUTFMgQ0EgMDEwggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIKAoICAQCqYnfP
-mmOyBoTzkDb0mfMUUavqlQo7Rgb9EUEf/lsGWMk4bgj8T0RIzTqk970eouKVuL5R
-IMW/snBjXXgMQ8ApzWRJCZbar879BV8rKpHoAW4uGJssnNABf2n17j9TiFy6BWy+
-IhVnFILyLNK+W2M3zK9gheiWa2uACKhuvgCca5Vw/OQYErEdG7LBEzFnMzTmJcli
-W1iCdXby/vI/OxbfqkKD4zJtm45DJvC9Dh+hpzqvLMiK5uo/+aXSJY+SqhoIEpz+
-rErHw+uAlKuHFtEjSeeku8eR3+Z5ND9BSqc6JtLqb0bjOHPm5dSRrgt4nnil75bj
-c9j3lWXpBb9PXP9Sp/nPCK+nTQmZwHGjUnqlO9ebAVQD47ZisFonnDAmjrZNVqEX
-F3p7laEHrFMxttYuD81BdOzxAbL9Rb/8MeFGQjE2Qx65qgVfhH+RsYuuD9dUw/3w
-ZAhq05yO6nk07AM9c+AbNtRoEcdZcLCHfMDcbkXKNs5DJncCqXAN6LhXVERCw/us
-G2MmCMLSIx9/kwt8bwhUmitOXc6fpT7SmFvRAtvxg84wUkg4Y/Gx++0j0z6StSeN
-0EJz150jaHG6WV4HUqaWTb98Tm90IgXAU4AW2GBOlzFPiU5IY9jt+eXC2Q6yC/Zp
-TL1LAcnL3Qa/OgLrHN0wiw1KFGD51WRPQ0Sh7QIDAQABo4IBJTCCASEwHQYDVR0O
-BBYEFLV2DDARzseSQk1Mx1wsyKkM6AtkMB8GA1UdIwQYMBaAFOWdWTCCR1jMrPoI
-VDaGezq1BE3wMA4GA1UdDwEB/wQEAwIBhjAdBgNVHSUEFjAUBggrBgEFBQcDAQYI
-KwYBBQUHAwIwEgYDVR0TAQH/BAgwBgEB/wIBADA0BggrBgEFBQcBAQQoMCYwJAYI
-KwYBBQUHMAGGGGh0dHA6Ly9vY3NwLmRpZ2ljZXJ0LmNvbTA6BgNVHR8EMzAxMC+g
-LaArhilodHRwOi8vY3JsMy5kaWdpY2VydC5jb20vT21uaXJvb3QyMDI1LmNybDAq
-BgNVHSAEIzAhMAgGBmeBDAECATAIBgZngQwBAgIwCwYJKwYBBAGCNyoBMA0GCSqG
-SIb3DQEBCwUAA4IBAQCfK76SZ1vae4qt6P+dTQUO7bYNFUHR5hXcA2D59CJWnEj5
-na7aKzyowKvQupW4yMH9fGNxtsh6iJswRqOOfZYC4/giBO/gNsBvwr8uDW7t1nYo
-DYGHPpvnpxCM2mYfQFHq576/TmeYu1RZY29C4w8xYBlkAA8mDJfRhMCmehk7cN5F
-JtyWRj2cZj/hOoI45TYDBChXpOlLZKIYiG1giY16vhCRi6zmPzEwv+tk156N6cGS
-Vm44jTQ/rs1sa0JSYjzUaYngoFdZC4OfxnIkQvUIA4TOFmPzNPEFdjcZsgbeEz4T
-cGHTBPK4R28F44qIMCtHRV55VMX53ev6P3hRddJb
+MIIDXTCCAuOgAwIBAgIQAVKe6DaPC11yukM+LY6mLTAKBggqhkjOPQQDAzBhMQsw
+CQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3d3cu
+ZGlnaWNlcnQuY29tMSAwHgYDVQQDExdEaWdpQ2VydCBHbG9iYWwgUm9vdCBHMzAe
+Fw0yMzA2MDgwMDAwMDBaFw0yNjA4MjUyMzU5NTlaMF0xCzAJBgNVBAYTAlVTMR4w
+HAYDVQQKExVNaWNyb3NvZnQgQ29ycG9yYXRpb24xLjAsBgNVBAMTJU1pY3Jvc29m
+dCBBenVyZSBFQ0MgVExTIElzc3VpbmcgQ0EgMDMwdjAQBgcqhkjOPQIBBgUrgQQA
+IgNiAASWQZj7wTifz52AAaZuhd5vnHlA6omsawVbdr1pX7FP6cPvZ8ABw/JX24u1
+0nk6VWg7aC2Ey3cwi4mcSJWG4MOcb/ymon7q0iHlnLFjB3wKOZDbNafqe6E3fyAy
+f2QcREijggFiMIIBXjASBgNVHRMBAf8ECDAGAQH/AgEAMB0GA1UdDgQWBBRy4Jah
+UeowDFi19RmrmnzNl1UQLjAfBgNVHSMEGDAWgBSz20ik+aHF2K42QcwRY2liKbxL
+xjAOBgNVHQ8BAf8EBAMCAYYwHQYDVR0lBBYwFAYIKwYBBQUHAwEGCCsGAQUFBwMC
+MHYGCCsGAQUFBwEBBGowaDAkBggrBgEFBQcwAYYYaHR0cDovL29jc3AuZGlnaWNl
+cnQuY29tMEAGCCsGAQUFBzAChjRodHRwOi8vY2FjZXJ0cy5kaWdpY2VydC5jb20v
+RGlnaUNlcnRHbG9iYWxSb290RzMuY3J0MEIGA1UdHwQ7MDkwN6A1oDOGMWh0dHA6
+Ly9jcmwzLmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydEdsb2JhbFJvb3RHMy5jcmwwHQYD
+VR0gBBYwFDAIBgZngQwBAgEwCAYGZ4EMAQICMAoGCCqGSM49BAMDA2gAMGUCMQC2
+v2Br7lTZJSweZMFP38SguGYcoFeKFb9TA3KAxeuGbAk5BnKY0DohnJiFncj8GFkC
+MGHYkSqHik6yPbKi1OaJkVl9grldr+Y+z+jgUwWIaJ6ljXXj8cPXpyFgz3UEDnip
+Eg==
 -----END CERTIFICATE-----`,
-	// Microsoft RSA TLS CA 02
+	// Microsoft Azure ECC TLS Issuing CA 04
 	`-----BEGIN CERTIFICATE-----
-MIIFWjCCBEKgAwIBAgIQD6dHIsU9iMgPWJ77H51KOjANBgkqhkiG9w0BAQsFADBa
-MQswCQYDVQQGEwJJRTESMBAGA1UEChMJQmFsdGltb3JlMRMwEQYDVQQLEwpDeWJl
-clRydXN0MSIwIAYDVQQDExlCYWx0aW1vcmUgQ3liZXJUcnVzdCBSb290MB4XDTIw
-MDcyMTIzMDAwMFoXDTI0MTAwODA3MDAwMFowTzELMAkGA1UEBhMCVVMxHjAcBgNV
-BAoTFU1pY3Jvc29mdCBDb3Jwb3JhdGlvbjEgMB4GA1UEAxMXTWljcm9zb2Z0IFJT
-QSBUTFMgQ0EgMDIwggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIKAoICAQD0wBlZ
-qiokfAYhMdHuEvWBapTj9tFKL+NdsS4pFDi8zJVdKQfR+F039CDXtD9YOnqS7o88
-+isKcgOeQNTri472mPnn8N3vPCX0bDOEVk+nkZNIBA3zApvGGg/40Thv78kAlxib
-MipsKahdbuoHByOB4ZlYotcBhf/ObUf65kCRfXMRQqOKWkZLkilPPn3zkYM5GHxe
-I4MNZ1SoKBEoHa2E/uDwBQVxadY4SRZWFxMd7ARyI4Cz1ik4N2Z6ALD3MfjAgEED
-woknyw9TGvr4PubAZdqU511zNLBoavar2OAVTl0Tddj+RAhbnX1/zypqk+ifv+d3
-CgiDa8Mbvo1u2Q8nuUBrKVUmR6EjkV/dDrIsUaU643v/Wp/uE7xLDdhC5rplK9si
-NlYohMTMKLAkjxVeWBWbQj7REickISpc+yowi3yUrO5lCgNAKrCNYw+wAfAvhFkO
-eqPm6kP41IHVXVtGNC/UogcdiKUiR/N59IfYB+o2v54GMW+ubSC3BohLFbho/oZZ
-5XyulIZK75pwTHmauCIeE5clU9ivpLwPTx9b0Vno9+ApElrFgdY0/YKZ46GfjOC9
-ta4G25VJ1WKsMmWLtzyrfgwbYopquZd724fFdpvsxfIvMG5m3VFkThOqzsOttDcU
-fyMTqM2pan4txG58uxNJ0MjR03UCEULRU+qMnwIDAQABo4IBJTCCASEwHQYDVR0O
-BBYEFP8vf+EG9DjzLe0ljZjC/g72bPz6MB8GA1UdIwQYMBaAFOWdWTCCR1jMrPoI
-VDaGezq1BE3wMA4GA1UdDwEB/wQEAwIBhjAdBgNVHSUEFjAUBggrBgEFBQcDAQYI
-KwYBBQUHAwIwEgYDVR0TAQH/BAgwBgEB/wIBADA0BggrBgEFBQcBAQQoMCYwJAYI
-KwYBBQUHMAGGGGh0dHA6Ly9vY3NwLmRpZ2ljZXJ0LmNvbTA6BgNVHR8EMzAxMC+g
-LaArhilodHRwOi8vY3JsMy5kaWdpY2VydC5jb20vT21uaXJvb3QyMDI1LmNybDAq
-BgNVHSAEIzAhMAgGBmeBDAECATAIBgZngQwBAgIwCwYJKwYBBAGCNyoBMA0GCSqG
-SIb3DQEBCwUAA4IBAQCg2d165dQ1tHS0IN83uOi4S5heLhsx+zXIOwtxnvwCWdOJ
-3wFLQaFDcgaMtN79UjMIFVIUedDZBsvalKnx+6l2tM/VH4YAyNPx+u1LFR0joPYp
-QYLbNYkedkNuhRmEBesPqj4aDz68ZDI6fJ92sj2q18QvJUJ5Qz728AvtFOat+Ajg
-K0PFqPYEAviUKr162NB1XZJxf6uyIjUlnG4UEdHfUqdhl0R84mMtrYINksTzQ2sH
-YM8fEhqICtTlcRLr/FErUaPUe9648nziSnA0qKH7rUZqP/Ifmbo+WNZSZG1BbgOh
-lk+521W+Ncih3HRbvRBE0LWYT8vWKnfjgZKxwHwJ
+MIIDXDCCAuOgAwIBAgIQAjk9SNcCQlp8tBwACw7XyjAKBggqhkjOPQQDAzBhMQsw
+CQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3d3cu
+ZGlnaWNlcnQuY29tMSAwHgYDVQQDExdEaWdpQ2VydCBHbG9iYWwgUm9vdCBHMzAe
+Fw0yMzA2MDgwMDAwMDBaFw0yNjA4MjUyMzU5NTlaMF0xCzAJBgNVBAYTAlVTMR4w
+HAYDVQQKExVNaWNyb3NvZnQgQ29ycG9yYXRpb24xLjAsBgNVBAMTJU1pY3Jvc29m
+dCBBenVyZSBFQ0MgVExTIElzc3VpbmcgQ0EgMDQwdjAQBgcqhkjOPQIBBgUrgQQA
+IgNiAARPTjQp1si15xHY4NHuaYml1SVS2WNRqzy5Pe5cjp4gxINQbtjyKSJL2Kkn
+PFcl+Q657jLtO7gW5Oo2U4SrPf0KryBIzmpxdIWFv7OIRW/DsNpBY27x1kkcLfMa
+VlD41KejggFiMIIBXjASBgNVHRMBAf8ECDAGAQH/AgEAMB0GA1UdDgQWBBQ18ecR
+MmjmssjaceZw8+g8uA4HGzAfBgNVHSMEGDAWgBSz20ik+aHF2K42QcwRY2liKbxL
+xjAOBgNVHQ8BAf8EBAMCAYYwHQYDVR0lBBYwFAYIKwYBBQUHAwEGCCsGAQUFBwMC
+MHYGCCsGAQUFBwEBBGowaDAkBggrBgEFBQcwAYYYaHR0cDovL29jc3AuZGlnaWNl
+cnQuY29tMEAGCCsGAQUFBzAChjRodHRwOi8vY2FjZXJ0cy5kaWdpY2VydC5jb20v
+RGlnaUNlcnRHbG9iYWxSb290RzMuY3J0MEIGA1UdHwQ7MDkwN6A1oDOGMWh0dHA6
+Ly9jcmwzLmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydEdsb2JhbFJvb3RHMy5jcmwwHQYD
+VR0gBBYwFDAIBgZngQwBAgEwCAYGZ4EMAQICMAoGCCqGSM49BAMDA2cAMGQCMFrb
+S3clttzDrBUuwHuTyZPgSxVR4ShEvcjfJFFzv8n4TRORvsHt730s9ki6IB37+AIw
+IT4LyBa6AKnYLFZZG7vGPF+exAK0qvyQ1Vw60KLBatMs+QpGXXWErmWRerrVGsYi
+-----END CERTIFICATE-----`,
+	// Microsoft Azure ECC TLS Issuing CA 07
+	`-----BEGIN CERTIFICATE-----
+MIIDXTCCAuOgAwIBAgIQDx8VdYLNzTNzS9xfzZQaMzAKBggqhkjOPQQDAzBhMQsw
+CQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3d3cu
+ZGlnaWNlcnQuY29tMSAwHgYDVQQDExdEaWdpQ2VydCBHbG9iYWwgUm9vdCBHMzAe
+Fw0yMzA2MDgwMDAwMDBaFw0yNjA4MjUyMzU5NTlaMF0xCzAJBgNVBAYTAlVTMR4w
+HAYDVQQKExVNaWNyb3NvZnQgQ29ycG9yYXRpb24xLjAsBgNVBAMTJU1pY3Jvc29m
+dCBBenVyZSBFQ0MgVExTIElzc3VpbmcgQ0EgMDcwdjAQBgcqhkjOPQIBBgUrgQQA
+IgNiAATokm9hNnECQj2lbZM9is6plTI2rgjbWOkOLqclsWYe7hly1d9YsaivU9rw
+QAhByBfxuBIAOuvgcUoYhihMsGuzwe8REVxJzkNIvQMi6cyUZL4bSMkZa/9R8qt9
+eAlQ2XKjggFiMIIBXjASBgNVHRMBAf8ECDAGAQH/AgEAMB0GA1UdDgQWBBTDXqxA
+dsAGTeMrlJkwYHM0mCnGUTAfBgNVHSMEGDAWgBSz20ik+aHF2K42QcwRY2liKbxL
+xjAOBgNVHQ8BAf8EBAMCAYYwHQYDVR0lBBYwFAYIKwYBBQUHAwEGCCsGAQUFBwMC
+MHYGCCsGAQUFBwEBBGowaDAkBggrBgEFBQcwAYYYaHR0cDovL29jc3AuZGlnaWNl
+cnQuY29tMEAGCCsGAQUFBzAChjRodHRwOi8vY2FjZXJ0cy5kaWdpY2VydC5jb20v
+RGlnaUNlcnRHbG9iYWxSb290RzMuY3J0MEIGA1UdHwQ7MDkwN6A1oDOGMWh0dHA6
+Ly9jcmwzLmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydEdsb2JhbFJvb3RHMy5jcmwwHQYD
+VR0gBBYwFDAIBgZngQwBAgEwCAYGZ4EMAQICMAoGCCqGSM49BAMDA2gAMGUCMQD4
+NlZZatULuw0uN/yBMq9WikJwL8IHljJyU1EyPmv3XOKab+TbGSFWK/x6QeCH4lkC
+MGnBJi1rXgd9ieBW4PSmq1v0Jd5YrBptoNMGk5J+dDOj7L3ItN16Lyjk9coSKgZS
+zw==
+-----END CERTIFICATE-----`,
+	// Microsoft Azure ECC TLS Issuing CA 08
+	`-----BEGIN CERTIFICATE-----
+MIIDXDCCAuOgAwIBAgIQDvLl2DaBUgJV6Sxgj7wv9DAKBggqhkjOPQQDAzBhMQsw
+CQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3d3cu
+ZGlnaWNlcnQuY29tMSAwHgYDVQQDExdEaWdpQ2VydCBHbG9iYWwgUm9vdCBHMzAe
+Fw0yMzA2MDgwMDAwMDBaFw0yNjA4MjUyMzU5NTlaMF0xCzAJBgNVBAYTAlVTMR4w
+HAYDVQQKExVNaWNyb3NvZnQgQ29ycG9yYXRpb24xLjAsBgNVBAMTJU1pY3Jvc29m
+dCBBenVyZSBFQ0MgVExTIElzc3VpbmcgQ0EgMDgwdjAQBgcqhkjOPQIBBgUrgQQA
+IgNiAATlQzoKIJQIe8bd4sX2x9XBtFvoh5m7Neph3MYORvv/rg2Ew7Cfb00eZ+zS
+njUosyOUCspenehe0PyKtmq6pPshLu5Ww/hLEoQT3drwxZ5PaYHmGEGoy2aPBeXa
+23k5ruijggFiMIIBXjASBgNVHRMBAf8ECDAGAQH/AgEAMB0GA1UdDgQWBBStVB0D
+VHHGL17WWxhYzm4kxdaiCjAfBgNVHSMEGDAWgBSz20ik+aHF2K42QcwRY2liKbxL
+xjAOBgNVHQ8BAf8EBAMCAYYwHQYDVR0lBBYwFAYIKwYBBQUHAwEGCCsGAQUFBwMC
+MHYGCCsGAQUFBwEBBGowaDAkBggrBgEFBQcwAYYYaHR0cDovL29jc3AuZGlnaWNl
+cnQuY29tMEAGCCsGAQUFBzAChjRodHRwOi8vY2FjZXJ0cy5kaWdpY2VydC5jb20v
+RGlnaUNlcnRHbG9iYWxSb290RzMuY3J0MEIGA1UdHwQ7MDkwN6A1oDOGMWh0dHA6
+Ly9jcmwzLmRpZ2ljZXJ0LmNvbS9EaWdpQ2VydEdsb2JhbFJvb3RHMy5jcmwwHQYD
+VR0gBBYwFDAIBgZngQwBAgEwCAYGZ4EMAQICMAoGCCqGSM49BAMDA2cAMGQCMD+q
+5Uq1fSGZSKRhrnWKKXlp4DvfZCEU/MF3rbdwAaXI/KVM65YRO9HvRbfDpV3x1wIw
+CHvqqpg/8YJPDn8NJIS/Rg+lYraOseXeuNYzkjeY6RLxIDB+nLVDs9QJ3/co89Cd
 -----END CERTIFICATE-----`,
 	// Microsoft Azure RSA TLS Issuing CA 03
 	`-----BEGIN CERTIFICATE-----
@@ -321,6 +661,70 @@ ixFJEOcAMKKR55mSC5W4nQ6jDfp7Qy/504MQpdjJflk90RHsIZGXVPw/JdbBp0w6
 pDb4o5CqydmZqZMrEvbGk1p8kegFkBekp/5WVfd86BdH2xs+GKO3hyiA8iBrBCGJ
 fqrijbRnZm7q5+ydXF3jhJDJWfxW5EBYZBJrUz/a+8K/78BjwI8z2VYJpG4t6r4o
 tOGB5sEyDPDwqx00Rouu8g==
+-----END CERTIFICATE-----`,
+	// Microsoft RSA TLS CA 01
+	`-----BEGIN CERTIFICATE-----
+MIIFWjCCBEKgAwIBAgIQDxSWXyAgaZlP1ceseIlB4jANBgkqhkiG9w0BAQsFADBa
+MQswCQYDVQQGEwJJRTESMBAGA1UEChMJQmFsdGltb3JlMRMwEQYDVQQLEwpDeWJl
+clRydXN0MSIwIAYDVQQDExlCYWx0aW1vcmUgQ3liZXJUcnVzdCBSb290MB4XDTIw
+MDcyMTIzMDAwMFoXDTI0MTAwODA3MDAwMFowTzELMAkGA1UEBhMCVVMxHjAcBgNV
+BAoTFU1pY3Jvc29mdCBDb3Jwb3JhdGlvbjEgMB4GA1UEAxMXTWljcm9zb2Z0IFJT
+QSBUTFMgQ0EgMDEwggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIKAoICAQCqYnfP
+mmOyBoTzkDb0mfMUUavqlQo7Rgb9EUEf/lsGWMk4bgj8T0RIzTqk970eouKVuL5R
+IMW/snBjXXgMQ8ApzWRJCZbar879BV8rKpHoAW4uGJssnNABf2n17j9TiFy6BWy+
+IhVnFILyLNK+W2M3zK9gheiWa2uACKhuvgCca5Vw/OQYErEdG7LBEzFnMzTmJcli
+W1iCdXby/vI/OxbfqkKD4zJtm45DJvC9Dh+hpzqvLMiK5uo/+aXSJY+SqhoIEpz+
+rErHw+uAlKuHFtEjSeeku8eR3+Z5ND9BSqc6JtLqb0bjOHPm5dSRrgt4nnil75bj
+c9j3lWXpBb9PXP9Sp/nPCK+nTQmZwHGjUnqlO9ebAVQD47ZisFonnDAmjrZNVqEX
+F3p7laEHrFMxttYuD81BdOzxAbL9Rb/8MeFGQjE2Qx65qgVfhH+RsYuuD9dUw/3w
+ZAhq05yO6nk07AM9c+AbNtRoEcdZcLCHfMDcbkXKNs5DJncCqXAN6LhXVERCw/us
+G2MmCMLSIx9/kwt8bwhUmitOXc6fpT7SmFvRAtvxg84wUkg4Y/Gx++0j0z6StSeN
+0EJz150jaHG6WV4HUqaWTb98Tm90IgXAU4AW2GBOlzFPiU5IY9jt+eXC2Q6yC/Zp
+TL1LAcnL3Qa/OgLrHN0wiw1KFGD51WRPQ0Sh7QIDAQABo4IBJTCCASEwHQYDVR0O
+BBYEFLV2DDARzseSQk1Mx1wsyKkM6AtkMB8GA1UdIwQYMBaAFOWdWTCCR1jMrPoI
+VDaGezq1BE3wMA4GA1UdDwEB/wQEAwIBhjAdBgNVHSUEFjAUBggrBgEFBQcDAQYI
+KwYBBQUHAwIwEgYDVR0TAQH/BAgwBgEB/wIBADA0BggrBgEFBQcBAQQoMCYwJAYI
+KwYBBQUHMAGGGGh0dHA6Ly9vY3NwLmRpZ2ljZXJ0LmNvbTA6BgNVHR8EMzAxMC+g
+LaArhilodHRwOi8vY3JsMy5kaWdpY2VydC5jb20vT21uaXJvb3QyMDI1LmNybDAq
+BgNVHSAEIzAhMAgGBmeBDAECATAIBgZngQwBAgIwCwYJKwYBBAGCNyoBMA0GCSqG
+SIb3DQEBCwUAA4IBAQCfK76SZ1vae4qt6P+dTQUO7bYNFUHR5hXcA2D59CJWnEj5
+na7aKzyowKvQupW4yMH9fGNxtsh6iJswRqOOfZYC4/giBO/gNsBvwr8uDW7t1nYo
+DYGHPpvnpxCM2mYfQFHq576/TmeYu1RZY29C4w8xYBlkAA8mDJfRhMCmehk7cN5F
+JtyWRj2cZj/hOoI45TYDBChXpOlLZKIYiG1giY16vhCRi6zmPzEwv+tk156N6cGS
+Vm44jTQ/rs1sa0JSYjzUaYngoFdZC4OfxnIkQvUIA4TOFmPzNPEFdjcZsgbeEz4T
+cGHTBPK4R28F44qIMCtHRV55VMX53ev6P3hRddJb
+-----END CERTIFICATE-----`,
+	// Microsoft RSA TLS CA 02
+	`-----BEGIN CERTIFICATE-----
+MIIFWjCCBEKgAwIBAgIQD6dHIsU9iMgPWJ77H51KOjANBgkqhkiG9w0BAQsFADBa
+MQswCQYDVQQGEwJJRTESMBAGA1UEChMJQmFsdGltb3JlMRMwEQYDVQQLEwpDeWJl
+clRydXN0MSIwIAYDVQQDExlCYWx0aW1vcmUgQ3liZXJUcnVzdCBSb290MB4XDTIw
+MDcyMTIzMDAwMFoXDTI0MTAwODA3MDAwMFowTzELMAkGA1UEBhMCVVMxHjAcBgNV
+BAoTFU1pY3Jvc29mdCBDb3Jwb3JhdGlvbjEgMB4GA1UEAxMXTWljcm9zb2Z0IFJT
+QSBUTFMgQ0EgMDIwggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIKAoICAQD0wBlZ
+qiokfAYhMdHuEvWBapTj9tFKL+NdsS4pFDi8zJVdKQfR+F039CDXtD9YOnqS7o88
++isKcgOeQNTri472mPnn8N3vPCX0bDOEVk+nkZNIBA3zApvGGg/40Thv78kAlxib
+MipsKahdbuoHByOB4ZlYotcBhf/ObUf65kCRfXMRQqOKWkZLkilPPn3zkYM5GHxe
+I4MNZ1SoKBEoHa2E/uDwBQVxadY4SRZWFxMd7ARyI4Cz1ik4N2Z6ALD3MfjAgEED
+woknyw9TGvr4PubAZdqU511zNLBoavar2OAVTl0Tddj+RAhbnX1/zypqk+ifv+d3
+CgiDa8Mbvo1u2Q8nuUBrKVUmR6EjkV/dDrIsUaU643v/Wp/uE7xLDdhC5rplK9si
+NlYohMTMKLAkjxVeWBWbQj7REickISpc+yowi3yUrO5lCgNAKrCNYw+wAfAvhFkO
+eqPm6kP41IHVXVtGNC/UogcdiKUiR/N59IfYB+o2v54GMW+ubSC3BohLFbho/oZZ
+5XyulIZK75pwTHmauCIeE5clU9ivpLwPTx9b0Vno9+ApElrFgdY0/YKZ46GfjOC9
+ta4G25VJ1WKsMmWLtzyrfgwbYopquZd724fFdpvsxfIvMG5m3VFkThOqzsOttDcU
+fyMTqM2pan4txG58uxNJ0MjR03UCEULRU+qMnwIDAQABo4IBJTCCASEwHQYDVR0O
+BBYEFP8vf+EG9DjzLe0ljZjC/g72bPz6MB8GA1UdIwQYMBaAFOWdWTCCR1jMrPoI
+VDaGezq1BE3wMA4GA1UdDwEB/wQEAwIBhjAdBgNVHSUEFjAUBggrBgEFBQcDAQYI
+KwYBBQUHAwIwEgYDVR0TAQH/BAgwBgEB/wIBADA0BggrBgEFBQcBAQQoMCYwJAYI
+KwYBBQUHMAGGGGh0dHA6Ly9vY3NwLmRpZ2ljZXJ0LmNvbTA6BgNVHR8EMzAxMC+g
+LaArhilodHRwOi8vY3JsMy5kaWdpY2VydC5jb20vT21uaXJvb3QyMDI1LmNybDAq
+BgNVHSAEIzAhMAgGBmeBDAECATAIBgZngQwBAgIwCwYJKwYBBAGCNyoBMA0GCSqG
+SIb3DQEBCwUAA4IBAQCg2d165dQ1tHS0IN83uOi4S5heLhsx+zXIOwtxnvwCWdOJ
+3wFLQaFDcgaMtN79UjMIFVIUedDZBsvalKnx+6l2tM/VH4YAyNPx+u1LFR0joPYp
+QYLbNYkedkNuhRmEBesPqj4aDz68ZDI6fJ92sj2q18QvJUJ5Qz728AvtFOat+Ajg
+K0PFqPYEAviUKr162NB1XZJxf6uyIjUlnG4UEdHfUqdhl0R84mMtrYINksTzQ2sH
+YM8fEhqICtTlcRLr/FErUaPUe9648nziSnA0qKH7rUZqP/Ifmbo+WNZSZG1BbgOh
+lk+521W+Ncih3HRbvRBE0LWYT8vWKnfjgZKxwHwJ
 -----END CERTIFICATE-----`,
 	// Microsoft Azure TLS Issuing CA 01
 	`-----BEGIN CERTIFICATE-----
