@@ -162,7 +162,6 @@ func Validate(ctx context.Context, signature string, options Options) (string, e
 	return metadata.VMID, nil
 }
 
-
 // ParseCertificates parses the hardcoded Azure intermediate
 // certificates and returns them as x509.Certificate values.
 func ParseCertificates() ([]*x509.Certificate, error) {

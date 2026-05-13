@@ -91,7 +91,6 @@ func TestExpiresSoon(t *testing.T) {
 	}
 }
 
-
 // testCertChain holds a three-level certificate hierarchy (Root CA,
 // Intermediate CA, Signing/leaf) together with their private keys.
 type testCertChain struct {
