@@ -30,29 +30,31 @@ jobs:
       - name: Setup Node
         uses: ./.github/actions/setup-node
 
-      # Only collect Markdown files. The `lint` and `fmt` steps below only
-      # handle Markdown, but `docs/**` previously matched binary assets such
-      # as PNGs and MP4s, which `markdownlint-cli2` would then parse as text.
+      # Per-tool changed-files filters. Each downstream tool gets its own
+      # `changed-files` step scoped to the files that tool can process, so the
+      # workflow-level `paths:` triggers stay broad and a new tool (e.g. an
+      # image linter) can be added by appending another `changed-*` step and a
+      # step that consumes its output, without changing the existing filters.
       - uses: tj-actions/changed-files@22103cc46bda19c2b464ffe86db46df6922fd323 # v45.0.7
-        id: changed-files
+        id: changed-md
         with:
           files: |
             **.md
           separator: ","
 
       - name: lint
-        if: steps.changed-files.outputs.any_changed == 'true'
+        if: steps.changed-md.outputs.any_changed == 'true'
         run: |
           # shellcheck disable=SC2086
           pnpm exec markdownlint-cli2 $ALL_CHANGED_FILES
         env:
-          ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
+          ALL_CHANGED_FILES: ${{ steps.changed-md.outputs.all_changed_files }}
 
       - name: fmt
-        if: steps.changed-files.outputs.any_changed == 'true'
+        if: steps.changed-md.outputs.any_changed == 'true'
         run: |
           # markdown-table-formatter requires a space separated list of files
           # shellcheck disable=SC2086
           echo $ALL_CHANGED_FILES | tr ',' '\n' | pnpm exec markdown-table-formatter --check
         env:
-          ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
+          ALL_CHANGED_FILES: ${{ steps.changed-md.outputs.all_changed_files }}
