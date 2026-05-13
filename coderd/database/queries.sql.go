@@ -1796,9 +1796,9 @@ RETURNING
     id, provider_id, api_key, api_key_key_id, created_at, updated_at
 `
 
-func (q *sqlQuerier) DeleteAIProviderKey(ctx context.Context, id uuid.UUID) (AiProviderKey, error) {
+func (q *sqlQuerier) DeleteAIProviderKey(ctx context.Context, id uuid.UUID) (AIProviderKey, error) {
 	row := q.db.QueryRowContext(ctx, deleteAIProviderKey, id)
-	var i AiProviderKey
+	var i AIProviderKey
 	err := row.Scan(
 		&i.ID,
 		&i.ProviderID,
@@ -1819,9 +1819,9 @@ WHERE
     id = $1::uuid
 `
 
-func (q *sqlQuerier) GetAIProviderKeyByID(ctx context.Context, id uuid.UUID) (AiProviderKey, error) {
+func (q *sqlQuerier) GetAIProviderKeyByID(ctx context.Context, id uuid.UUID) (AIProviderKey, error) {
 	row := q.db.QueryRowContext(ctx, getAIProviderKeyByID, id)
-	var i AiProviderKey
+	var i AIProviderKey
 	err := row.Scan(
 		&i.ID,
 		&i.ProviderID,
@@ -1847,15 +1847,15 @@ ORDER BY
 // Returns every AI provider key row, including those belonging to a
 // soft-deleted provider, so the dbcrypt key rotation utility can
 // re-encrypt their api_key and clear references to retired keys.
-func (q *sqlQuerier) GetAIProviderKeys(ctx context.Context) ([]AiProviderKey, error) {
+func (q *sqlQuerier) GetAIProviderKeys(ctx context.Context) ([]AIProviderKey, error) {
 	rows, err := q.db.QueryContext(ctx, getAIProviderKeys)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []AiProviderKey
+	var items []AIProviderKey
 	for rows.Next() {
-		var i AiProviderKey
+		var i AIProviderKey
 		if err := rows.Scan(
 			&i.ID,
 			&i.ProviderID,
@@ -1893,15 +1893,15 @@ ORDER BY
 // oldest key is returned first. AI Bridge currently uses the first
 // key per provider; multiple keys are stored to support future
 // failover and rotation flows.
-func (q *sqlQuerier) GetAIProviderKeysByProviderID(ctx context.Context, providerID uuid.UUID) ([]AiProviderKey, error) {
+func (q *sqlQuerier) GetAIProviderKeysByProviderID(ctx context.Context, providerID uuid.UUID) ([]AIProviderKey, error) {
 	rows, err := q.db.QueryContext(ctx, getAIProviderKeysByProviderID, providerID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []AiProviderKey
+	var items []AIProviderKey
 	for rows.Next() {
-		var i AiProviderKey
+		var i AIProviderKey
 		if err := rows.Scan(
 			&i.ID,
 			&i.ProviderID,
@@ -1955,7 +1955,7 @@ type InsertAIProviderKeyParams struct {
 // preserve insertion order across multiple rows in the same
 // transaction, where the default NOW() would otherwise tie. When
 // NULL the column falls back to its DEFAULT (NOW()).
-func (q *sqlQuerier) InsertAIProviderKey(ctx context.Context, arg InsertAIProviderKeyParams) (AiProviderKey, error) {
+func (q *sqlQuerier) InsertAIProviderKey(ctx context.Context, arg InsertAIProviderKeyParams) (AIProviderKey, error) {
 	row := q.db.QueryRowContext(ctx, insertAIProviderKey,
 		arg.ID,
 		arg.ProviderID,
@@ -1963,7 +1963,7 @@ func (q *sqlQuerier) InsertAIProviderKey(ctx context.Context, arg InsertAIProvid
 		arg.ApiKeyKeyID,
 		arg.CreatedAt,
 	)
-	var i AiProviderKey
+	var i AIProviderKey
 	err := row.Scan(
 		&i.ID,
 		&i.ProviderID,
@@ -1997,9 +1997,9 @@ type UpdateEncryptedAIProviderKeyParams struct {
 // Updates only the encrypted columns (api_key, api_key_key_id) and
 // the updated_at timestamp on a row. Used by the dbcrypt key
 // rotation utility to re-encrypt or decrypt rows in place.
-func (q *sqlQuerier) UpdateEncryptedAIProviderKey(ctx context.Context, arg UpdateEncryptedAIProviderKeyParams) (AiProviderKey, error) {
+func (q *sqlQuerier) UpdateEncryptedAIProviderKey(ctx context.Context, arg UpdateEncryptedAIProviderKeyParams) (AIProviderKey, error) {
 	row := q.db.QueryRowContext(ctx, updateEncryptedAIProviderKey, arg.APIKey, arg.ApiKeyKeyID, arg.ID)
-	var i AiProviderKey
+	var i AIProviderKey
 	err := row.Scan(
 		&i.ID,
 		&i.ProviderID,
@@ -2024,9 +2024,9 @@ RETURNING
     id, type, name, display_name, enabled, deleted, base_url, settings, settings_key_id, created_at, updated_at
 `
 
-func (q *sqlQuerier) DeleteAIProviderByID(ctx context.Context, id uuid.UUID) (AiProvider, error) {
+func (q *sqlQuerier) DeleteAIProviderByID(ctx context.Context, id uuid.UUID) (AIProvider, error) {
 	row := q.db.QueryRowContext(ctx, deleteAIProviderByID, id)
-	var i AiProvider
+	var i AIProvider
 	err := row.Scan(
 		&i.ID,
 		&i.Type,
@@ -2052,9 +2052,9 @@ WHERE
     id = $1::uuid AND deleted = FALSE
 `
 
-func (q *sqlQuerier) GetAIProviderByID(ctx context.Context, id uuid.UUID) (AiProvider, error) {
+func (q *sqlQuerier) GetAIProviderByID(ctx context.Context, id uuid.UUID) (AIProvider, error) {
 	row := q.db.QueryRowContext(ctx, getAIProviderByID, id)
-	var i AiProvider
+	var i AIProvider
 	err := row.Scan(
 		&i.ID,
 		&i.Type,
@@ -2080,9 +2080,9 @@ WHERE
     name = $1::text AND deleted = FALSE
 `
 
-func (q *sqlQuerier) GetAIProviderByName(ctx context.Context, name string) (AiProvider, error) {
+func (q *sqlQuerier) GetAIProviderByName(ctx context.Context, name string) (AIProvider, error) {
 	row := q.db.QueryRowContext(ctx, getAIProviderByName, name)
-	var i AiProvider
+	var i AIProvider
 	err := row.Scan(
 		&i.ID,
 		&i.Type,
@@ -2126,15 +2126,15 @@ type GetAIProvidersParams struct {
 // deleted flags. Pass NULL for either flag to skip that filter; the
 // dbcrypt key rotation utility relies on this to iterate every row,
 // including soft-deleted ones.
-func (q *sqlQuerier) GetAIProviders(ctx context.Context, arg GetAIProvidersParams) ([]AiProvider, error) {
+func (q *sqlQuerier) GetAIProviders(ctx context.Context, arg GetAIProvidersParams) ([]AIProvider, error) {
 	rows, err := q.db.QueryContext(ctx, getAIProviders, arg.Enabled, arg.Deleted)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []AiProvider
+	var items []AIProvider
 	for rows.Next() {
-		var i AiProvider
+		var i AIProvider
 		if err := rows.Scan(
 			&i.ID,
 			&i.Type,
@@ -2187,7 +2187,7 @@ RETURNING
 
 type InsertAIProviderParams struct {
 	ID            uuid.UUID      `db:"id" json:"id"`
-	Type          AiProviderType `db:"type" json:"type"`
+	Type          AIProviderType `db:"type" json:"type"`
 	Name          string         `db:"name" json:"name"`
 	DisplayName   string         `db:"display_name" json:"display_name"`
 	Enabled       bool           `db:"enabled" json:"enabled"`
@@ -2196,7 +2196,7 @@ type InsertAIProviderParams struct {
 	SettingsKeyID sql.NullString `db:"settings_key_id" json:"settings_key_id"`
 }
 
-func (q *sqlQuerier) InsertAIProvider(ctx context.Context, arg InsertAIProviderParams) (AiProvider, error) {
+func (q *sqlQuerier) InsertAIProvider(ctx context.Context, arg InsertAIProviderParams) (AIProvider, error) {
 	row := q.db.QueryRowContext(ctx, insertAIProvider,
 		arg.ID,
 		arg.Type,
@@ -2207,7 +2207,7 @@ func (q *sqlQuerier) InsertAIProvider(ctx context.Context, arg InsertAIProviderP
 		arg.Settings,
 		arg.SettingsKeyID,
 	)
-	var i AiProvider
+	var i AIProvider
 	err := row.Scan(
 		&i.ID,
 		&i.Type,
@@ -2249,7 +2249,7 @@ type UpdateAIProviderParams struct {
 	ID            uuid.UUID      `db:"id" json:"id"`
 }
 
-func (q *sqlQuerier) UpdateAIProvider(ctx context.Context, arg UpdateAIProviderParams) (AiProvider, error) {
+func (q *sqlQuerier) UpdateAIProvider(ctx context.Context, arg UpdateAIProviderParams) (AIProvider, error) {
 	row := q.db.QueryRowContext(ctx, updateAIProvider,
 		arg.DisplayName,
 		arg.Enabled,
@@ -2258,7 +2258,7 @@ func (q *sqlQuerier) UpdateAIProvider(ctx context.Context, arg UpdateAIProviderP
 		arg.SettingsKeyID,
 		arg.ID,
 	)
-	var i AiProvider
+	var i AIProvider
 	err := row.Scan(
 		&i.ID,
 		&i.Type,
@@ -2298,9 +2298,9 @@ type UpdateAIProviderSettingsParams struct {
 // the updated_at timestamp on a row, regardless of its deleted flag.
 // Used by the dbcrypt key rotation utility to re-encrypt or decrypt
 // rows in place.
-func (q *sqlQuerier) UpdateAIProviderSettings(ctx context.Context, arg UpdateAIProviderSettingsParams) (AiProvider, error) {
+func (q *sqlQuerier) UpdateAIProviderSettings(ctx context.Context, arg UpdateAIProviderSettingsParams) (AIProvider, error) {
 	row := q.db.QueryRowContext(ctx, updateAIProviderSettings, arg.Settings, arg.SettingsKeyID, arg.ID)
-	var i AiProvider
+	var i AIProvider
 	err := row.Scan(
 		&i.ID,
 		&i.Type,

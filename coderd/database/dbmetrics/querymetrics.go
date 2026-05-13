@@ -377,7 +377,7 @@ func (m queryMetricsStore) CustomRoles(ctx context.Context, arg database.CustomR
 	return r0, r1
 }
 
-func (m queryMetricsStore) DeleteAIProviderByID(ctx context.Context, id uuid.UUID) (database.AiProvider, error) {
+func (m queryMetricsStore) DeleteAIProviderByID(ctx context.Context, id uuid.UUID) (database.AIProvider, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteAIProviderByID(ctx, id)
 	m.queryLatencies.WithLabelValues("DeleteAIProviderByID").Observe(time.Since(start).Seconds())
@@ -385,7 +385,7 @@ func (m queryMetricsStore) DeleteAIProviderByID(ctx context.Context, id uuid.UUI
 	return r0, r1
 }
 
-func (m queryMetricsStore) DeleteAIProviderKey(ctx context.Context, id uuid.UUID) (database.AiProviderKey, error) {
+func (m queryMetricsStore) DeleteAIProviderKey(ctx context.Context, id uuid.UUID) (database.AIProviderKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteAIProviderKey(ctx, id)
 	m.queryLatencies.WithLabelValues("DeleteAIProviderKey").Observe(time.Since(start).Seconds())
@@ -1001,7 +1001,7 @@ func (m queryMetricsStore) GetAIModelPriceByProviderModel(ctx context.Context, a
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetAIProviderByID(ctx context.Context, id uuid.UUID) (database.AiProvider, error) {
+func (m queryMetricsStore) GetAIProviderByID(ctx context.Context, id uuid.UUID) (database.AIProvider, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAIProviderByID(ctx, id)
 	m.queryLatencies.WithLabelValues("GetAIProviderByID").Observe(time.Since(start).Seconds())
@@ -1009,7 +1009,7 @@ func (m queryMetricsStore) GetAIProviderByID(ctx context.Context, id uuid.UUID) 
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetAIProviderByName(ctx context.Context, name string) (database.AiProvider, error) {
+func (m queryMetricsStore) GetAIProviderByName(ctx context.Context, name string) (database.AIProvider, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAIProviderByName(ctx, name)
 	m.queryLatencies.WithLabelValues("GetAIProviderByName").Observe(time.Since(start).Seconds())
@@ -1017,7 +1017,7 @@ func (m queryMetricsStore) GetAIProviderByName(ctx context.Context, name string)
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetAIProviderKeyByID(ctx context.Context, id uuid.UUID) (database.AiProviderKey, error) {
+func (m queryMetricsStore) GetAIProviderKeyByID(ctx context.Context, id uuid.UUID) (database.AIProviderKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAIProviderKeyByID(ctx, id)
 	m.queryLatencies.WithLabelValues("GetAIProviderKeyByID").Observe(time.Since(start).Seconds())
@@ -1025,7 +1025,7 @@ func (m queryMetricsStore) GetAIProviderKeyByID(ctx context.Context, id uuid.UUI
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetAIProviderKeys(ctx context.Context) ([]database.AiProviderKey, error) {
+func (m queryMetricsStore) GetAIProviderKeys(ctx context.Context) ([]database.AIProviderKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAIProviderKeys(ctx)
 	m.queryLatencies.WithLabelValues("GetAIProviderKeys").Observe(time.Since(start).Seconds())
@@ -1033,7 +1033,7 @@ func (m queryMetricsStore) GetAIProviderKeys(ctx context.Context) ([]database.Ai
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetAIProviderKeysByProviderID(ctx context.Context, providerID uuid.UUID) ([]database.AiProviderKey, error) {
+func (m queryMetricsStore) GetAIProviderKeysByProviderID(ctx context.Context, providerID uuid.UUID) ([]database.AIProviderKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAIProviderKeysByProviderID(ctx, providerID)
 	m.queryLatencies.WithLabelValues("GetAIProviderKeysByProviderID").Observe(time.Since(start).Seconds())
@@ -1041,7 +1041,7 @@ func (m queryMetricsStore) GetAIProviderKeysByProviderID(ctx context.Context, pr
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetAIProviders(ctx context.Context, arg database.GetAIProvidersParams) ([]database.AiProvider, error) {
+func (m queryMetricsStore) GetAIProviders(ctx context.Context, arg database.GetAIProvidersParams) ([]database.AIProvider, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAIProviders(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetAIProviders").Observe(time.Since(start).Seconds())
@@ -3609,7 +3609,7 @@ func (m queryMetricsStore) InsertAIBridgeUserPrompt(ctx context.Context, arg dat
 	return r0, r1
 }
 
-func (m queryMetricsStore) InsertAIProvider(ctx context.Context, arg database.InsertAIProviderParams) (database.AiProvider, error) {
+func (m queryMetricsStore) InsertAIProvider(ctx context.Context, arg database.InsertAIProviderParams) (database.AIProvider, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertAIProvider(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertAIProvider").Observe(time.Since(start).Seconds())
@@ -3617,7 +3617,7 @@ func (m queryMetricsStore) InsertAIProvider(ctx context.Context, arg database.In
 	return r0, r1
 }
 
-func (m queryMetricsStore) InsertAIProviderKey(ctx context.Context, arg database.InsertAIProviderKeyParams) (database.AiProviderKey, error) {
+func (m queryMetricsStore) InsertAIProviderKey(ctx context.Context, arg database.InsertAIProviderKeyParams) (database.AIProviderKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertAIProviderKey(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertAIProviderKey").Observe(time.Since(start).Seconds())
@@ -4577,7 +4577,7 @@ func (m queryMetricsStore) UpdateAIBridgeInterceptionEnded(ctx context.Context, 
 	return r0, r1
 }
 
-func (m queryMetricsStore) UpdateAIProvider(ctx context.Context, arg database.UpdateAIProviderParams) (database.AiProvider, error) {
+func (m queryMetricsStore) UpdateAIProvider(ctx context.Context, arg database.UpdateAIProviderParams) (database.AIProvider, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateAIProvider(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateAIProvider").Observe(time.Since(start).Seconds())
@@ -4585,7 +4585,7 @@ func (m queryMetricsStore) UpdateAIProvider(ctx context.Context, arg database.Up
 	return r0, r1
 }
 
-func (m queryMetricsStore) UpdateAIProviderSettings(ctx context.Context, arg database.UpdateAIProviderSettingsParams) (database.AiProvider, error) {
+func (m queryMetricsStore) UpdateAIProviderSettings(ctx context.Context, arg database.UpdateAIProviderSettingsParams) (database.AIProvider, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateAIProviderSettings(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateAIProviderSettings").Observe(time.Since(start).Seconds())
@@ -4777,7 +4777,7 @@ func (m queryMetricsStore) UpdateCustomRole(ctx context.Context, arg database.Up
 	return r0, r1
 }
 
-func (m queryMetricsStore) UpdateEncryptedAIProviderKey(ctx context.Context, arg database.UpdateEncryptedAIProviderKeyParams) (database.AiProviderKey, error) {
+func (m queryMetricsStore) UpdateEncryptedAIProviderKey(ctx context.Context, arg database.UpdateEncryptedAIProviderKeyParams) (database.AIProviderKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateEncryptedAIProviderKey(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateEncryptedAIProviderKey").Observe(time.Since(start).Seconds())

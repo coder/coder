@@ -369,7 +369,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"last_used_at": ActionIgnore,
 		"updated_at":   ActionIgnore,
 	},
-	&database.AiProvider{}: {
+	&database.AIProvider{}: {
 		"id":              ActionTrack,
 		"type":            ActionTrack,
 		"name":            ActionTrack,
@@ -382,7 +382,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"created_at":      ActionIgnore, // Implicit; not useful in a diff.
 		"updated_at":      ActionIgnore, // Changes; not useful in a diff.
 	},
-	&database.AiProviderKey{}: {
+	&database.AIProviderKey{}: {
 		"id":             ActionTrack,
 		"provider_id":    ActionTrack,
 		"api_key":        ActionSecret, // Provider API key, never expose in audit diffs.

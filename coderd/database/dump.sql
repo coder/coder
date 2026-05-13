@@ -232,11 +232,11 @@ CREATE TYPE api_key_scope AS ENUM (
     'ai_model_price:*',
     'ai_model_price:read',
     'ai_model_price:update',
-    'aibridge_provider:*',
-    'aibridge_provider:create',
-    'aibridge_provider:delete',
-    'aibridge_provider:read',
-    'aibridge_provider:update'
+    'ai_provider:*',
+    'ai_provider:create',
+    'ai_provider:delete',
+    'ai_provider:read',
+    'ai_provider:update'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -1129,7 +1129,7 @@ CREATE TABLE ai_provider_keys (
     updated_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
-COMMENT ON TABLE ai_provider_keys IS 'API keys associated with AI Bridge providers. Bedrock providers have zero keys (they authenticate via settings). OpenAI and Anthropic providers have one or more keys for failover.';
+COMMENT ON TABLE ai_provider_keys IS 'API keys associated with AI providers. Bedrock providers have zero keys (they authenticate via settings). OpenAI and Anthropic providers have one or more keys for failover.';
 
 COMMENT ON COLUMN ai_provider_keys.api_key IS 'API key used to authenticate with the upstream AI provider. Encrypted at rest via dbcrypt when api_key_key_id is set.';
 
@@ -1150,7 +1150,7 @@ CREATE TABLE ai_providers (
     CONSTRAINT ai_providers_name_check CHECK ((name ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text))
 );
 
-COMMENT ON TABLE ai_providers IS 'Runtime configuration for AI Bridge providers. Authoritative source for the provider set served by aibridged. Replaces deployment-time CODER_AIBRIDGE_* environment variables.';
+COMMENT ON TABLE ai_providers IS 'Runtime configuration for AI providers. Authoritative source for the provider set served by aibridged. Replaces deployment-time CODER_AIBRIDGE_* environment variables.';
 
 COMMENT ON COLUMN ai_providers.deleted IS 'Soft delete flag. Soft-deleted rows are preserved for audit and FK history; their names remain reserved.';
 

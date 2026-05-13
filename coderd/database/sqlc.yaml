@@ -240,6 +240,9 @@ sql:
           aibridge_token_usage: AIBridgeTokenUsage
           aibridge_user_prompt: AIBridgeUserPrompt
           aibridge_model_thought: AIBridgeModelThought
+          ai_provider: AIProvider
+          ai_provider_key: AIProviderKey
+          ai_provider_type: AIProviderType
           mcp_server_config: MCPServerConfig
           mcp_server_configs: MCPServerConfigs
           mcp_server_user_token: MCPServerUserToken

@@ -19,7 +19,7 @@ CREATE TABLE ai_providers (
     updated_at      timestamp with time zone NOT NULL DEFAULT NOW()
 );
 
-COMMENT ON TABLE ai_providers IS 'Runtime configuration for AI Bridge providers. Authoritative source for the provider set served by aibridged. Replaces deployment-time CODER_AIBRIDGE_* environment variables.';
+COMMENT ON TABLE ai_providers IS 'Runtime configuration for AI providers. Authoritative source for the provider set served by aibridged. Replaces deployment-time CODER_AIBRIDGE_* environment variables.';
 
 COMMENT ON COLUMN ai_providers.settings IS 'Encrypted JSON blob holding type-specific configuration (e.g. AWS Bedrock region, model, access key secret). Plaintext is a JSON object. NULL when no type-specific settings are required.';
 
@@ -38,7 +38,7 @@ CREATE TABLE ai_provider_keys (
     updated_at     timestamp with time zone NOT NULL DEFAULT NOW()
 );
 
-COMMENT ON TABLE ai_provider_keys IS 'API keys associated with AI Bridge providers. Bedrock providers have zero keys (they authenticate via settings). OpenAI and Anthropic providers have one or more keys for failover.';
+COMMENT ON TABLE ai_provider_keys IS 'API keys associated with AI providers. Bedrock providers have zero keys (they authenticate via settings). OpenAI and Anthropic providers have one or more keys for failover.';
 
 COMMENT ON COLUMN ai_provider_keys.api_key IS 'API key used to authenticate with the upstream AI provider. Encrypted at rest via dbcrypt when api_key_key_id is set.';
 
@@ -52,8 +52,8 @@ ALTER TYPE resource_type ADD VALUE IF NOT EXISTS 'ai_provider';
 ALTER TYPE resource_type ADD VALUE IF NOT EXISTS 'ai_provider_key';
 
 -- API key scopes for ai_provider resources.
-ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'aibridge_provider:*';
-ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'aibridge_provider:create';
-ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'aibridge_provider:delete';
-ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'aibridge_provider:read';
-ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'aibridge_provider:update';
+ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'ai_provider:*';
+ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'ai_provider:create';
+ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'ai_provider:delete';
+ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'ai_provider:read';
+ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'ai_provider:update';

@@ -169,7 +169,7 @@ func ChatModelConfig(t testing.TB, db database.Store, seed database.ChatModelCon
 	return cfg
 }
 
-func AIProvider(t testing.TB, db database.Store, seed database.AiProvider, munge ...func(*database.InsertAIProviderParams)) database.AiProvider {
+func AIProvider(t testing.TB, db database.Store, seed database.AIProvider, munge ...func(*database.InsertAIProviderParams)) database.AIProvider {
 	t.Helper()
 	id := seed.ID
 	if id == uuid.Nil {
@@ -197,7 +197,7 @@ func AIProvider(t testing.TB, db database.Store, seed database.AiProvider, munge
 	return provider
 }
 
-func AIProviderKey(t testing.TB, db database.Store, seed database.AiProviderKey, munge ...func(*database.InsertAIProviderKeyParams)) database.AiProviderKey {
+func AIProviderKey(t testing.TB, db database.Store, seed database.AIProviderKey, munge ...func(*database.InsertAIProviderKeyParams)) database.AIProviderKey {
 	t.Helper()
 	id := seed.ID
 	if id == uuid.Nil {

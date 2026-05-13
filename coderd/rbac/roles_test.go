@@ -1106,13 +1106,13 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
-			// Only owners can manage AI Bridge providers. Provider
+			// Only owners can manage AI providers. Provider
 			// configuration is workspace-wide and includes secret
 			// material (api_key, settings) so it is not exposed to
 			// org admins or auditors.
-			Name:     "AIBridgeProviders",
+			Name:     "AIProviders",
 			Actions:  crud,
-			Resource: rbac.ResourceAibridgeProvider,
+			Resource: rbac.ResourceAIProvider,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true: {owner},
 				false: {

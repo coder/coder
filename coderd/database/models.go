@@ -16,6 +16,64 @@ import (
 	"github.com/sqlc-dev/pqtype"
 )
 
+type AIProviderType string
+
+const (
+	AiProviderTypeOpenai    AIProviderType = "openai"
+	AiProviderTypeAnthropic AIProviderType = "anthropic"
+)
+
+func (e *AIProviderType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AIProviderType(s)
+	case string:
+		*e = AIProviderType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AIProviderType: %T", src)
+	}
+	return nil
+}
+
+type NullAIProviderType struct {
+	AIProviderType AIProviderType `json:"ai_provider_type"`
+	Valid          bool           `json:"valid"` // Valid is true if AIProviderType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAIProviderType) Scan(value interface{}) error {
+	if value == nil {
+		ns.AIProviderType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AIProviderType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAIProviderType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AIProviderType), nil
+}
+
+func (e AIProviderType) Valid() bool {
+	switch e {
+	case AiProviderTypeOpenai,
+		AiProviderTypeAnthropic:
+		return true
+	}
+	return false
+}
+
+func AllAIProviderTypeValues() []AIProviderType {
+	return []AIProviderType{
+		AiProviderTypeOpenai,
+		AiProviderTypeAnthropic,
+	}
+}
+
 type APIKeyScope string
 
 const (
@@ -230,11 +288,11 @@ const (
 	ApiKeyScopeAiModelPrice                        APIKeyScope = "ai_model_price:*"
 	ApiKeyScopeAiModelPriceRead                    APIKeyScope = "ai_model_price:read"
 	ApiKeyScopeAiModelPriceUpdate                  APIKeyScope = "ai_model_price:update"
-	ApiKeyScopeAibridgeProvider                    APIKeyScope = "aibridge_provider:*"
-	ApiKeyScopeAibridgeProviderCreate              APIKeyScope = "aibridge_provider:create"
-	ApiKeyScopeAibridgeProviderDelete              APIKeyScope = "aibridge_provider:delete"
-	ApiKeyScopeAibridgeProviderRead                APIKeyScope = "aibridge_provider:read"
-	ApiKeyScopeAibridgeProviderUpdate              APIKeyScope = "aibridge_provider:update"
+	ApiKeyScopeAiProvider                          APIKeyScope = "ai_provider:*"
+	ApiKeyScopeAiProviderCreate                    APIKeyScope = "ai_provider:create"
+	ApiKeyScopeAiProviderDelete                    APIKeyScope = "ai_provider:delete"
+	ApiKeyScopeAiProviderRead                      APIKeyScope = "ai_provider:read"
+	ApiKeyScopeAiProviderUpdate                    APIKeyScope = "ai_provider:update"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -485,11 +543,11 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeAiModelPrice,
 		ApiKeyScopeAiModelPriceRead,
 		ApiKeyScopeAiModelPriceUpdate,
-		ApiKeyScopeAibridgeProvider,
-		ApiKeyScopeAibridgeProviderCreate,
-		ApiKeyScopeAibridgeProviderDelete,
-		ApiKeyScopeAibridgeProviderRead,
-		ApiKeyScopeAibridgeProviderUpdate:
+		ApiKeyScopeAiProvider,
+		ApiKeyScopeAiProviderCreate,
+		ApiKeyScopeAiProviderDelete,
+		ApiKeyScopeAiProviderRead,
+		ApiKeyScopeAiProviderUpdate:
 		return true
 	}
 	return false
@@ -708,11 +766,11 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeAiModelPrice,
 		ApiKeyScopeAiModelPriceRead,
 		ApiKeyScopeAiModelPriceUpdate,
-		ApiKeyScopeAibridgeProvider,
-		ApiKeyScopeAibridgeProviderCreate,
-		ApiKeyScopeAibridgeProviderDelete,
-		ApiKeyScopeAibridgeProviderRead,
-		ApiKeyScopeAibridgeProviderUpdate,
+		ApiKeyScopeAiProvider,
+		ApiKeyScopeAiProviderCreate,
+		ApiKeyScopeAiProviderDelete,
+		ApiKeyScopeAiProviderRead,
+		ApiKeyScopeAiProviderUpdate,
 	}
 }
 
@@ -771,64 +829,6 @@ func AllAgentKeyScopeEnumValues() []AgentKeyScopeEnum {
 	return []AgentKeyScopeEnum{
 		AgentKeyScopeEnumAll,
 		AgentKeyScopeEnumNoUserData,
-	}
-}
-
-type AiProviderType string
-
-const (
-	AiProviderTypeOpenai    AiProviderType = "openai"
-	AiProviderTypeAnthropic AiProviderType = "anthropic"
-)
-
-func (e *AiProviderType) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = AiProviderType(s)
-	case string:
-		*e = AiProviderType(s)
-	default:
-		return fmt.Errorf("unsupported scan type for AiProviderType: %T", src)
-	}
-	return nil
-}
-
-type NullAiProviderType struct {
-	AiProviderType AiProviderType `json:"ai_provider_type"`
-	Valid          bool           `json:"valid"` // Valid is true if AiProviderType is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullAiProviderType) Scan(value interface{}) error {
-	if value == nil {
-		ns.AiProviderType, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.AiProviderType.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullAiProviderType) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.AiProviderType), nil
-}
-
-func (e AiProviderType) Valid() bool {
-	switch e {
-	case AiProviderTypeOpenai,
-		AiProviderTypeAnthropic:
-		return true
-	}
-	return false
-}
-
-func AllAiProviderTypeValues() []AiProviderType {
-	return []AiProviderType{
-		AiProviderTypeOpenai,
-		AiProviderTypeAnthropic,
 	}
 }
 
@@ -4378,6 +4378,36 @@ type AIBridgeUserPrompt struct {
 	CreatedAt          time.Time             `db:"created_at" json:"created_at"`
 }
 
+// Runtime configuration for AI providers. Authoritative source for the provider set served by aibridged. Replaces deployment-time CODER_AIBRIDGE_* environment variables.
+type AIProvider struct {
+	ID          uuid.UUID      `db:"id" json:"id"`
+	Type        AIProviderType `db:"type" json:"type"`
+	Name        string         `db:"name" json:"name"`
+	DisplayName string         `db:"display_name" json:"display_name"`
+	Enabled     bool           `db:"enabled" json:"enabled"`
+	// Soft delete flag. Soft-deleted rows are preserved for audit and FK history; their names remain reserved.
+	Deleted bool   `db:"deleted" json:"deleted"`
+	BaseUrl string `db:"base_url" json:"base_url"`
+	// Encrypted JSON blob holding type-specific configuration (e.g. AWS Bedrock region, model, access key secret). Plaintext is a JSON object. NULL when no type-specific settings are required.
+	Settings sql.NullString `db:"settings" json:"settings"`
+	// The ID of the key used to encrypt settings. If this is NULL, settings is not encrypted.
+	SettingsKeyID sql.NullString `db:"settings_key_id" json:"settings_key_id"`
+	CreatedAt     time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt     time.Time      `db:"updated_at" json:"updated_at"`
+}
+
+// API keys associated with AI providers. Bedrock providers have zero keys (they authenticate via settings). OpenAI and Anthropic providers have one or more keys for failover.
+type AIProviderKey struct {
+	ID         uuid.UUID `db:"id" json:"id"`
+	ProviderID uuid.UUID `db:"provider_id" json:"provider_id"`
+	// API key used to authenticate with the upstream AI provider. Encrypted at rest via dbcrypt when api_key_key_id is set.
+	APIKey string `db:"api_key" json:"api_key"`
+	// The ID of the key used to encrypt the provider API key. If this is NULL, the API key is not encrypted.
+	ApiKeyKeyID sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
+	CreatedAt   time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
+}
+
 type APIKey struct {
 	ID string `db:"id" json:"id"`
 	// hashed_secret contains a SHA256 hash of the key secret. This is considered a secret and MUST NOT be returned from the API as it is used for API key encryption in app proxying code.
@@ -4405,36 +4435,6 @@ type AiModelPrice struct {
 	CacheWritePrice sql.NullInt64 `db:"cache_write_price" json:"cache_write_price"`
 	CreatedAt       time.Time     `db:"created_at" json:"created_at"`
 	UpdatedAt       time.Time     `db:"updated_at" json:"updated_at"`
-}
-
-// Runtime configuration for AI Bridge providers. Authoritative source for the provider set served by aibridged. Replaces deployment-time CODER_AIBRIDGE_* environment variables.
-type AiProvider struct {
-	ID          uuid.UUID      `db:"id" json:"id"`
-	Type        AiProviderType `db:"type" json:"type"`
-	Name        string         `db:"name" json:"name"`
-	DisplayName string         `db:"display_name" json:"display_name"`
-	Enabled     bool           `db:"enabled" json:"enabled"`
-	// Soft delete flag. Soft-deleted rows are preserved for audit and FK history; their names remain reserved.
-	Deleted bool   `db:"deleted" json:"deleted"`
-	BaseUrl string `db:"base_url" json:"base_url"`
-	// Encrypted JSON blob holding type-specific configuration (e.g. AWS Bedrock region, model, access key secret). Plaintext is a JSON object. NULL when no type-specific settings are required.
-	Settings sql.NullString `db:"settings" json:"settings"`
-	// The ID of the key used to encrypt settings. If this is NULL, settings is not encrypted.
-	SettingsKeyID sql.NullString `db:"settings_key_id" json:"settings_key_id"`
-	CreatedAt     time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt     time.Time      `db:"updated_at" json:"updated_at"`
-}
-
-// API keys associated with AI Bridge providers. Bedrock providers have zero keys (they authenticate via settings). OpenAI and Anthropic providers have one or more keys for failover.
-type AiProviderKey struct {
-	ID         uuid.UUID `db:"id" json:"id"`
-	ProviderID uuid.UUID `db:"provider_id" json:"provider_id"`
-	// API key used to authenticate with the upstream AI provider. Encrypted at rest via dbcrypt when api_key_key_id is set.
-	APIKey string `db:"api_key" json:"api_key"`
-	// The ID of the key used to encrypt the provider API key. If this is NULL, the API key is not encrypted.
-	ApiKeyKeyID sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
-	CreatedAt   time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
 }
 
 type AiSeatState struct {

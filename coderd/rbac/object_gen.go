@@ -23,6 +23,16 @@ var (
 		Type: "ai_model_price",
 	}
 
+	// ResourceAIProvider
+	// Valid Actions
+	//  - "ActionCreate" :: create an AI provider
+	//  - "ActionDelete" :: delete an AI provider
+	//  - "ActionRead" :: read AI provider configuration
+	//  - "ActionUpdate" :: update an AI provider
+	ResourceAIProvider = Object{
+		Type: "ai_provider",
+	}
+
 	// ResourceAiSeat
 	// Valid Actions
 	//  - "ActionCreate" :: record AI seat usage
@@ -38,16 +48,6 @@ var (
 	//  - "ActionUpdate" :: update aibridge interceptions & related records
 	ResourceAibridgeInterception = Object{
 		Type: "aibridge_interception",
-	}
-
-	// ResourceAibridgeProvider
-	// Valid Actions
-	//  - "ActionCreate" :: create an AI Bridge provider
-	//  - "ActionDelete" :: delete an AI Bridge provider
-	//  - "ActionRead" :: read AI Bridge provider configuration
-	//  - "ActionUpdate" :: update an AI Bridge provider
-	ResourceAibridgeProvider = Object{
-		Type: "aibridge_provider",
 	}
 
 	// ResourceApiKey
@@ -460,9 +460,9 @@ func AllResources() []Objecter {
 	return []Objecter{
 		ResourceWildcard,
 		ResourceAiModelPrice,
+		ResourceAIProvider,
 		ResourceAiSeat,
 		ResourceAibridgeInterception,
-		ResourceAibridgeProvider,
 		ResourceApiKey,
 		ResourceAssignOrgRole,
 		ResourceAssignRole,
