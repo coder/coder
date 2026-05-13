@@ -1070,6 +1070,118 @@ export const HistoryPrependPreservesViewport: Story = {
 	},
 };
 
+const asyncHistoryPrependStore = buildStoreWithMessages(
+	buildLongConversation(80),
+);
+const asyncHistoryPrependController: { resolve: (() => void) | null } = {
+	resolve: null,
+};
+const asyncHistoryPrependFetchSpy = fn(() => {
+	asyncHistoryPrependController.resolve = () => {
+		prependOlderMessages(asyncHistoryPrependStore, 10);
+		asyncHistoryPrependController.resolve = null;
+	};
+});
+
+export const AsyncHistoryPrependPreservesViewport: Story = {
+	parameters: { chromatic: { disableSnapshot: true } },
+	decorators: scrollStoryDecorators,
+	render: () => (
+		<StoryAgentChatPageView
+			store={asyncHistoryPrependStore}
+			hasMoreMessages
+			onFetchMoreMessages={asyncHistoryPrependFetchSpy}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		resetScrollStoryStore(asyncHistoryPrependStore);
+		asyncHistoryPrependFetchSpy.mockClear();
+		asyncHistoryPrependController.resolve = null;
+		const canvas = within(canvasElement);
+		const scrollContainer = canvas.getByTestId("scroll-container");
+
+		await waitForScrollOverflow(scrollContainer);
+		scrollToHistoryTop(scrollContainer);
+		await waitForIntersectionObserverTick();
+		await waitForFetchCount(asyncHistoryPrependFetchSpy, 1);
+
+		const anchor = getChatAnchor(scrollContainer, "message-2");
+		const beforeOffset = getAnchorOffset(scrollContainer, anchor);
+		const resolvePrepend = asyncHistoryPrependController.resolve as
+			| (() => void)
+			| null;
+		if (!resolvePrepend) {
+			throw new Error("Expected async history prepend to be pending.");
+		}
+		resolvePrepend();
+		await waitForVisibleText(canvas, "Older question 9.");
+
+		await waitFor(() => {
+			expect(
+				Math.abs(getAnchorOffset(scrollContainer, anchor) - beforeOffset),
+			).toBeLessThanOrEqual(2);
+		});
+	},
+};
+
+const asyncHistoryUserScrollStore = buildStoreWithMessages(
+	buildLongConversation(80),
+);
+const asyncHistoryUserScrollController: { resolve: (() => void) | null } = {
+	resolve: null,
+};
+const asyncHistoryUserScrollFetchSpy = fn(() => {
+	asyncHistoryUserScrollController.resolve = () => {
+		prependOlderMessages(asyncHistoryUserScrollStore, 10);
+		asyncHistoryUserScrollController.resolve = null;
+	};
+});
+
+export const AsyncHistoryPrependPreservesUserScroll: Story = {
+	parameters: { chromatic: { disableSnapshot: true } },
+	decorators: scrollStoryDecorators,
+	render: () => (
+		<StoryAgentChatPageView
+			store={asyncHistoryUserScrollStore}
+			hasMoreMessages
+			onFetchMoreMessages={asyncHistoryUserScrollFetchSpy}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		resetScrollStoryStore(asyncHistoryUserScrollStore);
+		asyncHistoryUserScrollFetchSpy.mockClear();
+		asyncHistoryUserScrollController.resolve = null;
+		const canvas = within(canvasElement);
+		const scrollContainer = canvas.getByTestId("scroll-container");
+
+		await waitForScrollOverflow(scrollContainer);
+		scrollToHistoryTop(scrollContainer);
+		await waitForIntersectionObserverTick();
+		await waitForFetchCount(asyncHistoryUserScrollFetchSpy, 1);
+
+		const anchor = getChatAnchor(scrollContainer, "message-20");
+		scrollAnchorNearTop(scrollContainer, anchor);
+		await waitFor(() => {
+			expect(getBottomGapForStory(scrollContainer)).toBeGreaterThan(100);
+		});
+		const beforeOffset = getAnchorOffset(scrollContainer, anchor);
+		const resolvePrepend = asyncHistoryUserScrollController.resolve as
+			| (() => void)
+			| null;
+		if (!resolvePrepend) {
+			throw new Error("Expected async history prepend to be pending.");
+		}
+		resolvePrepend();
+		await waitForVisibleText(canvas, "Older question 9.");
+
+		await waitFor(() => {
+			expect(
+				Math.abs(getAnchorOffset(scrollContainer, anchor) - beforeOffset),
+			).toBeLessThanOrEqual(2);
+		});
+	},
+};
+
 const scrollToBottomButtonStoryStore = buildStoreWithMessages(
 	buildLongConversation(80),
 );

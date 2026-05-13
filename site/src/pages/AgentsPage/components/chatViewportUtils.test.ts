@@ -11,6 +11,7 @@ import {
 	PINNED_PREVIEW_MIN_HEIGHT_PX,
 	resolveAnchorTarget,
 	restoreAnchorScrollTop,
+	restorePrependScrollTop,
 } from "./chatViewportUtils";
 
 const setScrollMetrics = (
@@ -119,6 +120,39 @@ describe("chatViewportUtils", () => {
 		};
 
 		expect(restoreAnchorScrollTop(scrollContainer, anchor, snapshot)).toBe(210);
+	});
+
+	it("preserves viewport across history prepends with scroll height delta", () => {
+		const scrollContainer = document.createElement("div");
+		setScrollMetrics(scrollContainer, {
+			scrollHeight: 1400,
+			clientHeight: 400,
+			scrollTop: 120,
+		});
+
+		expect(restorePrependScrollTop(scrollContainer, 1000, 120)).toBe(520);
+	});
+
+	it("clamps history prepend restoration to the available scroll range", () => {
+		const scrollContainer = document.createElement("div");
+		setScrollMetrics(scrollContainer, {
+			scrollHeight: 900,
+			clientHeight: 400,
+			scrollTop: 480,
+		});
+
+		expect(restorePrependScrollTop(scrollContainer, 600, 480)).toBe(500);
+	});
+
+	it("ignores negative scroll height deltas for history prepend restoration", () => {
+		const scrollContainer = document.createElement("div");
+		setScrollMetrics(scrollContainer, {
+			scrollHeight: 900,
+			clientHeight: 400,
+			scrollTop: 120,
+		});
+
+		expect(restorePrependScrollTop(scrollContainer, 1000, 120)).toBe(120);
 	});
 
 	it("resolves exact anchor matches", () => {

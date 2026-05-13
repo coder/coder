@@ -75,6 +75,22 @@ export const restoreAnchorScrollTop = (
 	return clamp(nextScrollTop, 0, getMaxScrollTop(scrollContainer));
 };
 
+export const restorePrependScrollTop = (
+	scrollContainer: HTMLElement,
+	previousScrollHeight: number,
+	previousScrollTop: number,
+): number => {
+	const scrollHeightDelta = Math.max(
+		scrollContainer.scrollHeight - previousScrollHeight,
+		0,
+	);
+	return clamp(
+		previousScrollTop + scrollHeightDelta,
+		0,
+		getMaxScrollTop(scrollContainer),
+	);
+};
+
 export const resolveAnchorTarget = (
 	scrollContainer: HTMLElement,
 	snapshot: AnchorSnapshot,

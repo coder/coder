@@ -20,6 +20,7 @@ import {
 	getScrollMode,
 	resolveAnchorTarget,
 	restoreAnchorScrollTop,
+	restorePrependScrollTop,
 	type ScrollDirection,
 	type ScrollMode,
 } from "./chatViewportUtils";
@@ -98,6 +99,12 @@ const findAnchorSnapshot = (
 const getDirectionFromWheel = (deltaY: number): ScrollDirection =>
 	deltaY < 0 ? "up" : "down";
 
+interface HistoryScrollSnapshot {
+	anchor: AnchorSnapshot | null;
+	scrollHeight: number;
+	scrollTop: number;
+}
+
 const ChatScrollContainer: FC<{
 	scrollContainerRef: RefObject<HTMLDivElement | null>;
 	scrollToBottomRef: RefObject<(() => void) | null>;
@@ -121,9 +128,11 @@ const ChatScrollContainer: FC<{
 	const [mode, setMode] = useState<ScrollMode>("following-latest");
 	const modeRef = useRef<ScrollMode>("following-latest");
 	const anchorRef = useRef<AnchorSnapshot | null>(null);
+	const pendingHistoryScrollRef = useRef<HistoryScrollSnapshot | null>(null);
 	const previousMessageCountRef = useRef(messageCount);
 	const isFetchingHistoryRef = useRef(isFetchingMoreMessages);
 	const isProgrammaticScrollRef = useRef(false);
+	const hasUserScrollIntentRef = useRef(false);
 	const isPointerDownRef = useRef(false);
 	const activeTouchCountRef = useRef(0);
 	const scrollFrameRef = useRef<number | null>(null);
@@ -172,13 +181,15 @@ const ChatScrollContainer: FC<{
 		},
 	);
 
-	const captureAnchor = useEffectEvent(() => {
+	const captureAnchor = useEffectEvent((): AnchorSnapshot | null => {
 		const scrollElement = scrollElementRef.current;
 		const contentElement = contentElementRef.current;
 		if (!scrollElement || !contentElement) {
-			return;
+			return null;
 		}
-		anchorRef.current = findAnchorSnapshot(scrollElement, contentElement);
+		const snapshot = findAnchorSnapshot(scrollElement, contentElement);
+		anchorRef.current = snapshot;
+		return snapshot;
 	});
 
 	const restoreAnchor = useEffectEvent(() => {
@@ -204,6 +215,34 @@ const ChatScrollContainer: FC<{
 		scrollElement.scrollTop = nextScrollTop;
 	});
 
+	const restorePendingHistoryScroll = useEffectEvent((): boolean => {
+		const scrollElement = scrollElementRef.current;
+		const snapshot = pendingHistoryScrollRef.current;
+		if (!scrollElement || !snapshot) {
+			return false;
+		}
+		pendingHistoryScrollRef.current = null;
+
+		const nextScrollTop = restorePrependScrollTop(
+			scrollElement,
+			snapshot.scrollHeight,
+			snapshot.scrollTop,
+		);
+		if (Math.abs(nextScrollTop - scrollElement.scrollTop) > 1) {
+			isProgrammaticScrollRef.current = true;
+			scrollElement.scrollTop = nextScrollTop;
+		}
+
+		anchorRef.current = snapshot.anchor;
+		if (snapshot.anchor) {
+			restoreAnchor();
+		} else {
+			captureAnchor();
+		}
+
+		return true;
+	});
+
 	const requestHistoryFetch = useEffectEvent(() => {
 		const scrollElement = scrollElementRef.current;
 		if (
@@ -223,10 +262,17 @@ const ChatScrollContainer: FC<{
 			return;
 		}
 		if (isDetached) {
+			clearDeferredPin();
 			if (modeRef.current !== "detached") {
 				syncMode("detached");
 			}
-			captureAnchor();
+			pendingHistoryScrollRef.current = {
+				anchor: captureAnchor(),
+				scrollHeight: scrollElement.scrollHeight,
+				scrollTop: scrollElement.scrollTop,
+			};
+		} else {
+			pendingHistoryScrollRef.current = null;
 		}
 		isFetchingHistoryRef.current = true;
 		onFetchMoreMessages();
@@ -303,6 +349,7 @@ const ChatScrollContainer: FC<{
 			return;
 		}
 		anchorRef.current = null;
+		pendingHistoryScrollRef.current = null;
 		isProgrammaticScrollRef.current = true;
 		syncMode("following-latest");
 		pinToLatest();
@@ -348,6 +395,15 @@ const ChatScrollContainer: FC<{
 		}
 
 		const handleScroll = () => {
+			const isUserScroll =
+				!isProgrammaticScrollRef.current || hasUserScrollIntentRef.current;
+			if (isUserScroll) {
+				pendingHistoryScrollRef.current = null;
+				if (modeRef.current === "detached") {
+					captureAnchor();
+				}
+			}
+			hasUserScrollIntentRef.current = false;
 			if (getBottomGap(scrollElement) > FOLLOW_THRESHOLD_PX) {
 				clearDeferredPin();
 				if (modeRef.current === "following-latest") {
@@ -358,6 +414,8 @@ const ChatScrollContainer: FC<{
 			scheduleScrollModeUpdate();
 		};
 		const handleWheel = (event: WheelEvent) => {
+			hasUserScrollIntentRef.current = true;
+			pendingHistoryScrollRef.current = null;
 			const direction = getDirectionFromWheel(event.deltaY);
 			if (direction === "up") {
 				clearDeferredPin();
@@ -366,6 +424,8 @@ const ChatScrollContainer: FC<{
 		const handlePointerDown = (event: PointerEvent) => {
 			isPointerDownRef.current = event.target === scrollElement;
 			if (isPointerDownRef.current) {
+				hasUserScrollIntentRef.current = true;
+				pendingHistoryScrollRef.current = null;
 				clearDeferredPin();
 			}
 		};
@@ -374,6 +434,8 @@ const ChatScrollContainer: FC<{
 		};
 		const handleTouchStart = (event: TouchEvent) => {
 			activeTouchCountRef.current += Math.max(1, event.changedTouches.length);
+			hasUserScrollIntentRef.current = true;
+			pendingHistoryScrollRef.current = null;
 			clearDeferredPin();
 		};
 		const handleTouchEnd = (event: TouchEvent) => {
@@ -418,6 +480,18 @@ const ChatScrollContainer: FC<{
 	}, []);
 
 	useLayoutEffect(() => {
+		const previousMessageCount = previousMessageCountRef.current;
+		if (previousMessageCount !== messageCount) {
+			previousMessageCountRef.current = messageCount;
+			isFetchingHistoryRef.current = isFetchingMoreMessages;
+			if (
+				messageCount > previousMessageCount &&
+				modeRef.current === "detached" &&
+				restorePendingHistoryScroll()
+			) {
+				return;
+			}
+		}
 		syncViewportToMode();
 	});
 
@@ -467,19 +541,6 @@ const ChatScrollContainer: FC<{
 		observer.observe(topSentinelElement);
 		return () => observer.disconnect();
 	}, [hasMoreMessages]);
-
-	useEffect(() => {
-		if (previousMessageCountRef.current === messageCount) {
-			return;
-		}
-		previousMessageCountRef.current = messageCount;
-		isFetchingHistoryRef.current = isFetchingMoreMessages;
-		if (modeRef.current === "following-latest") {
-			scheduleDeferredPin();
-			return;
-		}
-		scheduleViewportSync();
-	});
 
 	return (
 		<div className="relative flex min-h-0 flex-1 flex-col">
