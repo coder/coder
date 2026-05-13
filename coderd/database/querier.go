@@ -1207,6 +1207,13 @@ type sqlcQuerier interface {
 	UpdateUserHashedPassword(ctx context.Context, arg UpdateUserHashedPasswordParams) error
 	UpdateUserLastSeenAt(ctx context.Context, arg UpdateUserLastSeenAtParams) (User, error)
 	UpdateUserLink(ctx context.Context, arg UpdateUserLinkParams) (UserLink, error)
+	// Optimistic lock: only update the row if the refresh token in the database
+	// still matches the one we read before attempting the refresh. This prevents
+	// a concurrent caller that lost a token-refresh race (across replicas, where
+	// in-process deduplication via singleflight cannot reach) from overwriting a
+	// valid token stored by the winner. Callers should treat sql.ErrNoRows as
+	// "another caller refreshed first" and re-read the row rather than erroring.
+	UpdateUserLinkRefreshToken(ctx context.Context, arg UpdateUserLinkRefreshTokenParams) (UserLink, error)
 	UpdateUserLoginType(ctx context.Context, arg UpdateUserLoginTypeParams) (User, error)
 	UpdateUserNotificationPreferences(ctx context.Context, arg UpdateUserNotificationPreferencesParams) (int64, error)
 	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error)

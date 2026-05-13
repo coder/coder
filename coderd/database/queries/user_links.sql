@@ -50,6 +50,30 @@ SET
 WHERE
 	user_id = $7 AND login_type = $8 RETURNING *;
 
+-- name: UpdateUserLinkRefreshToken :one
+-- Optimistic lock: only update the row if the refresh token in the database
+-- still matches the one we read before attempting the refresh. This prevents
+-- a concurrent caller that lost a token-refresh race (across replicas, where
+-- in-process deduplication via singleflight cannot reach) from overwriting a
+-- valid token stored by the winner. Callers should treat sql.ErrNoRows as
+-- "another caller refreshed first" and re-read the row rather than erroring.
+UPDATE
+	user_links
+SET
+	oauth_access_token = @oauth_access_token,
+	oauth_access_token_key_id = @oauth_access_token_key_id,
+	oauth_refresh_token = @oauth_refresh_token,
+	oauth_refresh_token_key_id = @oauth_refresh_token_key_id,
+	oauth_expiry = @oauth_expiry,
+	claims = @claims
+WHERE
+	user_id = @user_id
+AND
+	login_type = @login_type
+AND
+	oauth_refresh_token = @old_oauth_refresh_token
+RETURNING *;
+
 -- name: OIDCClaimFields :many
 -- OIDCClaimFields returns a list of distinct keys in the the merged_claims fields.
 -- This query is used to generate the list of available sync fields for idp sync settings.

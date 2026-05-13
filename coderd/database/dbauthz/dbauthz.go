@@ -7137,6 +7137,16 @@ func (q *querier) UpdateUserLink(ctx context.Context, arg database.UpdateUserLin
 	return fetchAndQuery(q.log, q.auth, policy.ActionUpdatePersonal, fetch, q.db.UpdateUserLink)(ctx, arg)
 }
 
+func (q *querier) UpdateUserLinkRefreshToken(ctx context.Context, arg database.UpdateUserLinkRefreshTokenParams) (database.UserLink, error) {
+	fetch := func(ctx context.Context, arg database.UpdateUserLinkRefreshTokenParams) (database.UserLink, error) {
+		return q.db.GetUserLinkByUserIDLoginType(ctx, database.GetUserLinkByUserIDLoginTypeParams{
+			UserID:    arg.UserID,
+			LoginType: arg.LoginType,
+		})
+	}
+	return fetchAndQuery(q.log, q.auth, policy.ActionUpdatePersonal, fetch, q.db.UpdateUserLinkRefreshToken)(ctx, arg)
+}
+
 func (q *querier) UpdateUserLoginType(ctx context.Context, arg database.UpdateUserLoginTypeParams) (database.User, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return database.User{}, err

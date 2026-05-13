@@ -2976,6 +2976,21 @@ func (s *MethodTestSuite) TestUser() {
 		dbm.EXPECT().UpdateUserLink(gomock.Any(), arg).Return(link, nil).AnyTimes()
 		check.Args(arg).Asserts(link, policy.ActionUpdatePersonal).Returns(link)
 	}))
+	s.Run("UpdateUserLinkRefreshToken", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		link := testutil.Fake(s.T(), faker, database.UserLink{})
+		arg := database.UpdateUserLinkRefreshTokenParams{
+			OAuthAccessToken:     link.OAuthAccessToken,
+			OAuthRefreshToken:    link.OAuthRefreshToken,
+			OAuthExpiry:          link.OAuthExpiry,
+			UserID:               link.UserID,
+			LoginType:            link.LoginType,
+			Claims:               database.UserLinkClaims{},
+			OldOauthRefreshToken: link.OAuthRefreshToken,
+		}
+		dbm.EXPECT().GetUserLinkByUserIDLoginType(gomock.Any(), database.GetUserLinkByUserIDLoginTypeParams{UserID: link.UserID, LoginType: link.LoginType}).Return(link, nil).AnyTimes()
+		dbm.EXPECT().UpdateUserLinkRefreshToken(gomock.Any(), arg).Return(link, nil).AnyTimes()
+		check.Args(arg).Asserts(link, policy.ActionUpdatePersonal).Returns(link)
+	}))
 	s.Run("UpdateUserRoles", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{RBACRoles: []string{codersdk.RoleTemplateAdmin}})
 		o := u

@@ -9603,6 +9603,21 @@ func (mr *MockStoreMockRecorder) UpdateUserLink(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserLink", reflect.TypeOf((*MockStore)(nil).UpdateUserLink), ctx, arg)
 }
 
+// UpdateUserLinkRefreshToken mocks base method.
+func (m *MockStore) UpdateUserLinkRefreshToken(ctx context.Context, arg database.UpdateUserLinkRefreshTokenParams) (database.UserLink, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateUserLinkRefreshToken", ctx, arg)
+	ret0, _ := ret[0].(database.UserLink)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateUserLinkRefreshToken indicates an expected call of UpdateUserLinkRefreshToken.
+func (mr *MockStoreMockRecorder) UpdateUserLinkRefreshToken(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserLinkRefreshToken", reflect.TypeOf((*MockStore)(nil).UpdateUserLinkRefreshToken), ctx, arg)
+}
+
 // UpdateUserLoginType mocks base method.
 func (m *MockStore) UpdateUserLoginType(ctx context.Context, arg database.UpdateUserLoginTypeParams) (database.User, error) {
 	m.ctrl.T.Helper()

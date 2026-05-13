@@ -5097,6 +5097,14 @@ func (m queryMetricsStore) UpdateUserLink(ctx context.Context, arg database.Upda
 	return r0, r1
 }
 
+func (m queryMetricsStore) UpdateUserLinkRefreshToken(ctx context.Context, arg database.UpdateUserLinkRefreshTokenParams) (database.UserLink, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateUserLinkRefreshToken(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateUserLinkRefreshToken").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUserLinkRefreshToken").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpdateUserLoginType(ctx context.Context, arg database.UpdateUserLoginTypeParams) (database.User, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateUserLoginType(ctx, arg)

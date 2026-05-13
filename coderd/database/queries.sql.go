@@ -24991,6 +24991,70 @@ func (q *sqlQuerier) UpdateUserLink(ctx context.Context, arg UpdateUserLinkParam
 	return i, err
 }
 
+const updateUserLinkRefreshToken = `-- name: UpdateUserLinkRefreshToken :one
+UPDATE
+	user_links
+SET
+	oauth_access_token = $1,
+	oauth_access_token_key_id = $2,
+	oauth_refresh_token = $3,
+	oauth_refresh_token_key_id = $4,
+	oauth_expiry = $5,
+	claims = $6
+WHERE
+	user_id = $7
+AND
+	login_type = $8
+AND
+	oauth_refresh_token = $9
+RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, claims
+`
+
+type UpdateUserLinkRefreshTokenParams struct {
+	OAuthAccessToken       string         `db:"oauth_access_token" json:"oauth_access_token"`
+	OAuthAccessTokenKeyID  sql.NullString `db:"oauth_access_token_key_id" json:"oauth_access_token_key_id"`
+	OAuthRefreshToken      string         `db:"oauth_refresh_token" json:"oauth_refresh_token"`
+	OAuthRefreshTokenKeyID sql.NullString `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
+	OAuthExpiry            time.Time      `db:"oauth_expiry" json:"oauth_expiry"`
+	Claims                 UserLinkClaims `db:"claims" json:"claims"`
+	UserID                 uuid.UUID      `db:"user_id" json:"user_id"`
+	LoginType              LoginType      `db:"login_type" json:"login_type"`
+	OldOauthRefreshToken   string         `db:"old_oauth_refresh_token" json:"old_oauth_refresh_token"`
+}
+
+// Optimistic lock: only update the row if the refresh token in the database
+// still matches the one we read before attempting the refresh. This prevents
+// a concurrent caller that lost a token-refresh race (across replicas, where
+// in-process deduplication via singleflight cannot reach) from overwriting a
+// valid token stored by the winner. Callers should treat sql.ErrNoRows as
+// "another caller refreshed first" and re-read the row rather than erroring.
+func (q *sqlQuerier) UpdateUserLinkRefreshToken(ctx context.Context, arg UpdateUserLinkRefreshTokenParams) (UserLink, error) {
+	row := q.db.QueryRowContext(ctx, updateUserLinkRefreshToken,
+		arg.OAuthAccessToken,
+		arg.OAuthAccessTokenKeyID,
+		arg.OAuthRefreshToken,
+		arg.OAuthRefreshTokenKeyID,
+		arg.OAuthExpiry,
+		arg.Claims,
+		arg.UserID,
+		arg.LoginType,
+		arg.OldOauthRefreshToken,
+	)
+	var i UserLink
+	err := row.Scan(
+		&i.UserID,
+		&i.LoginType,
+		&i.LinkedID,
+		&i.OAuthAccessToken,
+		&i.OAuthRefreshToken,
+		&i.OAuthExpiry,
+		&i.OAuthAccessTokenKeyID,
+		&i.OAuthRefreshTokenKeyID,
+		&i.Claims,
+	)
+	return i, err
+}
+
 const createUserSecret = `-- name: CreateUserSecret :one
 INSERT INTO user_secrets (
     id,
