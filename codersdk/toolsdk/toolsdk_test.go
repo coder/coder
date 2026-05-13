@@ -741,10 +741,21 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("GetWorkspaceAgentLogs", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitShort)
 		tb, err := toolsdk.NewDeps(memberClient)
 		require.NoError(t, err)
+
+		// Re-fetch the workspace to get the current agent ID. Prior
+		// sub-tests may have created new builds which soft-delete
+		// agents from earlier builds (SoftDeletePriorWorkspaceAgents).
+		latestWS, err := client.Workspace(ctx, r.Workspace.ID)
+		require.NoError(t, err)
+		require.NotEmpty(t, latestWS.LatestBuild.Resources)
+		require.NotEmpty(t, latestWS.LatestBuild.Resources[0].Agents)
+		currentAgentID := latestWS.LatestBuild.Resources[0].Agents[0].ID
+
 		logs, err := testTool(t, toolsdk.GetWorkspaceAgentLogs, tb, toolsdk.GetWorkspaceAgentLogsArgs{
-			WorkspaceAgentID: agentID.String(),
+			WorkspaceAgentID: currentAgentID.String(),
 		})
 
 		require.NoError(t, err)
