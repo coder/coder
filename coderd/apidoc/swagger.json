@@ -21985,11 +21985,11 @@
 					"$ref": "#/definitions/codersdk.TerminalFontName"
 				},
 				"theme_dark": {
-					"description": "ThemeDark is the theme applied when the OS color scheme is dark\nand ThemeMode is \"sync\". Ignored in \"single\" mode but still stored.",
+					"description": "Ignored when ThemeMode is \"single\"",
 					"type": "string"
 				},
 				"theme_light": {
-					"description": "ThemeLight is the theme applied when the OS color scheme is light\nand ThemeMode is \"sync\". Ignored in \"single\" mode but still stored\nso switching modes preserves the slot value.",
+					"description": "Ignored when ThemeMode is \"single\"",
 					"type": "string"
 				},
 				"theme_mode": {
