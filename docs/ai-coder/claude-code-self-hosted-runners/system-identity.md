@@ -18,38 +18,31 @@ identity, fleet-wide.
 
 Read these first; the rest of this page assumes they fit your team.
 
-- **Every commit author is the bot.** Per-human attribution lives in the
-  Anthropic session URL trailer, not the git `Author` field.
-- **Coder audit log attributes to the prebuilds service account**, not
-  to the human who started the session. The human signal lives in
-  Anthropic's session log.
-- **Coder external auth is not available inside prebuilt workspaces.**
-  Workspaces are owned by Coder's prebuilds service account, which
-  cannot complete the per-user OAuth flow. The bot git credential ships
-  as a sensitive Terraform variable instead.
-- **One runner serves one Anthropic user at a time.** A runner is
-  locked to a single Anthropic user from its first session until drain.
-  Concurrent users need concurrent workspaces.
-- **Pool size is a hard cap on concurrent Anthropic users.** With
-  `instances = N`, Coder keeps N service-account-owned workspaces, each
-  one a runner that locks 1:1 to whichever Anthropic user it first
-  serves. If `N+1` Anthropic users send sessions at once, the `N+1`th
-  waits in Anthropic's queue until a runner drains. Bumping `instances`
-  is the only knob; you cannot spawn another workspace on demand under
-  this identity model because every workspace is the same service
-  account, not the human. [User identity](./user-identity.md) is what
-  lifts this cap by spawning a workspace per Anthropic user on demand.
+- **Fixed pool size, one Anthropic user per workspace.** Coder keeps
+  exactly `instances = N` service-account-owned workspaces; each runner
+  locks 1:1 to whichever Anthropic user it first serves. The
+  `N+1`th concurrent user waits in Anthropic's queue. Bumping
+  `instances` is the only lever, because every workspace is the same
+  service account, not the human. [User identity](./user-identity.md)
+  is what lifts this by spawning a workspace per Anthropic user on
+  demand.
+- **Bot identity end to end.** Commit author, git push token, workspace
+  owner, and Coder audit log entries are all the prebuilds service
+  account. The per-human signal is the Anthropic session URL appended
+  to each commit as a trailer; the rest lives in Anthropic's session
+  log. Coder external auth is unavailable inside prebuilt workspaces,
+  so the bot git credential ships as a Terraform variable.
 - **Stalled sessions are dropped.** Once the runner's active session
-  count hits zero it drains; half-finished working trees are lost. Do
-  not park long interactive sessions in this mode; for that, open a
-  regular Coder workspace and run Claude Code interactively.
-- **`--capacity` is per-runner parallelism for the locked user.**
-  Each runner serves up to `--capacity` sessions for the one Anthropic
-  user it locked to. Concurrency across users is bounded by how many
-  workspaces your deployment can run, not by `--capacity`.
+  count hits zero it drains; half-finished working trees are lost.
+  Park long-running interactive sessions in a regular Coder workspace
+  instead.
+- **`--capacity` is per-runner parallelism, not pool concurrency.**
+  Each runner serves up to `--capacity` sessions for the one locked
+  user. Cross-user concurrency is bounded by `instances`, not
+  `--capacity`.
 
-If any of these are blockers, wait for
-[User identity](./user-identity.md), which addresses the first three.
+If the first two are blockers for your team, wait for
+[User identity](./user-identity.md).
 
 ## What you build in this guide
 
