@@ -13,6 +13,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/quartz"
 )
 
 const (
@@ -40,16 +41,35 @@ type Agent struct {
 	coderURL *url.URL
 	token    string
 	logger   slog.Logger
+	clock    quartz.Clock
 
 	cancel context.CancelFunc
 }
 
-func NewAgent(coderURL *url.URL, token string, logger slog.Logger) *Agent {
-	return &Agent{
+// Option configures an Agent.
+type Option func(*Agent)
+
+// WithClock injects a clock for time-based operations. Defaults to
+// quartz.NewReal(). Tests pass a *quartz.Mock to drive the metadata
+// loop deterministically. The clock is per-agent so a future caller
+// can give different agents slightly different cadences.
+func WithClock(c quartz.Clock) Option {
+	return func(a *Agent) {
+		a.clock = c
+	}
+}
+
+func NewAgent(coderURL *url.URL, token string, logger slog.Logger, opts ...Option) *Agent {
+	a := &Agent{
 		coderURL: coderURL,
 		token:    token,
 		logger:   logger,
+		clock:    quartz.NewReal(),
 	}
+	for _, opt := range opts {
+		opt(a)
+	}
+	return a
 }
 
 // Run opens a dRPC websocket to coderd as the "agent" role and keeps it open until ctx is canceled or Close is called.
@@ -72,10 +92,12 @@ func (a *Agent) Run(ctx context.Context) error {
 			a.logger.Warn(runCtx, "fake agent dRPC stream ended; reconnecting",
 				slog.Error(err))
 		}
+		timer := a.clock.NewTimer(reconnectBackoff, "agentfake", "reconnect")
 		select {
 		case <-runCtx.Done():
+			timer.Stop()
 			return nil
-		case <-time.After(reconnectBackoff):
+		case <-timer.C:
 		}
 	}
 }
@@ -146,7 +168,7 @@ func (a *Agent) runMetadata(ctx context.Context, rpc proto.DRPCAgentClient28, de
 	// the first tick fires every description.
 	intervals := make([]time.Duration, len(descs))
 	nextDue := make([]time.Time, len(descs))
-	now := time.Now()
+	now := a.clock.Now()
 	for i, d := range descs {
 		// The Interval field on the proto is a durationpb.Duration but
 		// carries the raw int64 seconds value cast through time.Duration
@@ -164,10 +186,10 @@ func (a *Agent) runMetadata(ctx context.Context, rpc proto.DRPCAgentClient28, de
 
 	// Per-agent RNG so we don't contend on the global math/rand mutex
 	// when many fake agents run in the same process.
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	rng := rand.New(rand.NewSource(a.clock.Now().UnixNano()))
 	buf := make([]byte, metadataValueBytes)
 
-	ticker := time.NewTicker(metadataTickInterval)
+	ticker := a.clock.NewTicker(metadataTickInterval, "agentfake", "runMetadata")
 	defer ticker.Stop()
 
 	for {

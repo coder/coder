@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -114,7 +113,7 @@ func TestAgent_SendsMetadata(t *testing.T) {
 	agentID := workspaceAgentID(t, ctx, client, r.Workspace.ID)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	a := agentfake.NewAgent(client.URL, r.AgentToken, logger)
-	t.Cleanup(func() { _ = a.Close() })
+	t.Cleanup(func() { a.Close() })
 
 	runCtx, cancel := context.WithCancel(ctx)
 	t.Cleanup(cancel)
@@ -137,13 +136,11 @@ func TestAgent_SendsMetadata(t *testing.T) {
 	mdChan, mdErrChan := client.WatchWorkspaceAgentMetadata(watchCtx, agentID)
 
 	wantKeys := map[string]bool{"01_meta": false, "02_meta": false}
-	deadline := time.NewTimer(testutil.WaitLong)
-	defer deadline.Stop()
 waitLoop:
 	for {
 		select {
-		case <-deadline.C:
-			t.Fatalf("timeout waiting for metadata; remaining keys: %v", wantKeys)
+		case <-ctx.Done():
+			t.Fatalf("timeout waiting for metadata; remaining keys: %v (%v)", wantKeys, ctx.Err())
 		case err := <-mdErrChan:
 			require.NoError(t, err, "metadata watcher errored")
 		case md := <-mdChan:
