@@ -331,6 +331,25 @@ Docker-based template.
 
 </div>
 
+### Workspace agent is unreachable on Apple Silicon
+
+On Apple Silicon Macs, Docker Desktop with Rosetta enabled can report an
+`amd64` architecture while Docker starts an `arm64` container. If the Docker
+quickstart template installs an `amd64` Coder agent in an `arm64` container,
+the workspace can start but SSH, apps, and the web terminal may not connect.
+
+If this happens, edit your template and pin the Coder agent architecture to
+`arm64`:
+
+```tf
+resource "coder_agent" "main" {
+  arch = "arm64"
+  os   = "linux"
+}
+```
+
+Update the template, then recreate the workspace.
+
 ### Can't start Coder server: Address already in use
 
 ```shell

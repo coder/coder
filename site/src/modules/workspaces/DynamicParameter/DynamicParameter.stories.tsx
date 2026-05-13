@@ -102,6 +102,41 @@ export const Dropdown: Story = {
 	},
 };
 
+export const EmptyStringDropdown: Story = {
+	args: {
+		parameter: {
+			...MockPreviewParameter,
+			form_type: "dropdown",
+			type: "string",
+			value: { valid: true, value: "" },
+			options: [
+				{
+					name: "Jupyter Lab",
+					value: { valid: true, value: "lab" },
+					description: "Open Jupyter Lab.",
+					icon: "",
+				},
+				{
+					name: "Jupyter Notebook",
+					value: { valid: true, value: "notebook" },
+					description: "Open Jupyter Notebook.",
+					icon: "",
+				},
+				{
+					name: "None",
+					value: { valid: true, value: "" },
+					description: "Do not open Jupyter.",
+					icon: "",
+				},
+			],
+			styling: {
+				placeholder: "Select an IDE",
+			},
+		},
+		value: "",
+	},
+};
+
 export const MultiSelect: Story = {
 	args: {
 		parameter: {

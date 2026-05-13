@@ -243,6 +243,18 @@ interface ParameterFieldProps {
 	id: string;
 }
 
+const emptyDropdownOptionValuePrefix = "__coder_empty_dropdown_option__";
+
+const getEmptyDropdownOptionValue = (
+	options: readonly PreviewParameterOption[],
+) => {
+	let emptyOptionValue = emptyDropdownOptionValuePrefix;
+	while (options.some((option) => option.value.value === emptyOptionValue)) {
+		emptyOptionValue = `${emptyOptionValue}_`;
+	}
+	return emptyOptionValue;
+};
+
 const ParameterField: FC<ParameterFieldProps> = ({
 	parameter,
 	value,
@@ -333,10 +345,21 @@ const ParameterField: FC<ParameterFieldProps> = ({
 		}
 
 		case "dropdown": {
+			const hasEmptyOption = parameter.options.some(
+				(option) => option.value.value === "",
+			);
+			const emptyOptionValue = hasEmptyOption
+				? getEmptyDropdownOptionValue(parameter.options)
+				: "";
+			const selectValue =
+				value === "" && hasEmptyOption ? emptyOptionValue : value;
+
 			return (
 				<Select
-					value={value}
-					onValueChange={(newValue) => onChange(newValue ?? "")}
+					value={selectValue}
+					onValueChange={(newValue) => {
+						onChange(newValue === emptyOptionValue ? "" : newValue);
+					}}
 					disabled={disabled}
 				>
 					<SelectTrigger>
@@ -345,11 +368,18 @@ const ParameterField: FC<ParameterFieldProps> = ({
 						/>
 					</SelectTrigger>
 					<SelectContent>
-						{parameter.options.map((option) => (
-							<SelectItem key={option.value.value} value={option.value.value}>
-								{option.name}
-							</SelectItem>
-						))}
+						{parameter.options.map((option) => {
+							const optionValue =
+								option.value.value === ""
+									? emptyOptionValue
+									: option.value.value;
+
+							return (
+								<SelectItem key={optionValue} value={optionValue}>
+									{option.name}
+								</SelectItem>
+							);
+						})}
 					</SelectContent>
 				</Select>
 			);

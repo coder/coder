@@ -1,4 +1,10 @@
-import { CloudIcon, PlayIcon, SquareIcon, TrashIcon } from "lucide-react";
+import {
+	BanIcon,
+	CloudIcon,
+	PlayIcon,
+	SquareIcon,
+	TrashIcon,
+} from "lucide-react";
 import type { FC } from "react";
 import type { UseQueryResult } from "react-query";
 import { hasError, isApiValidationError } from "#/api/errors";
@@ -44,7 +50,9 @@ interface WorkspacesPageViewProps {
 	onPageChange: (page: number) => void;
 	onCheckChange: (checkedWorkspaces: readonly Workspace[]) => void;
 	isRunningBatchAction: boolean;
+	canCancelSelectedWorkspaces: boolean;
 	onBatchDeleteTransition: () => void;
+	onBatchCancelTransition: () => void;
 	onBatchUpdateTransition: () => void;
 	onBatchStartTransition: () => void;
 	onBatchStopTransition: () => void;
@@ -68,10 +76,12 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 	checkedWorkspaces,
 	onCheckChange,
 	onBatchDeleteTransition,
+	onBatchCancelTransition,
 	onBatchUpdateTransition,
 	onBatchStopTransition,
 	onBatchStartTransition,
 	isRunningBatchAction,
+	canCancelSelectedWorkspaces,
 	templates,
 	templatesFetchStatus,
 	canCreateTemplate,
@@ -165,6 +175,11 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 								>
 									<SquareIcon /> Stop
 								</DropdownMenuItem>
+								{canCancelSelectedWorkspaces && (
+									<DropdownMenuItem onClick={onBatchCancelTransition}>
+										<BanIcon /> Cancel
+									</DropdownMenuItem>
+								)}
 								<DropdownMenuSeparator />
 								<DropdownMenuItem onClick={onBatchUpdateTransition}>
 									<CloudIcon

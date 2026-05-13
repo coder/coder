@@ -223,6 +223,73 @@ describe("DynamicParameter", () => {
 
 			expect(mockOnChange).toHaveBeenCalledWith("option2");
 		});
+
+		it("renders an empty string option", async () => {
+			const mockParameterWithEmptyOption = createMockParameter({
+				...mockSelectParameter,
+				default_value: { value: "", valid: true },
+				value: { value: "", valid: true },
+				options: [
+					...mockSelectParameter.options,
+					{
+						name: "None",
+						description: "No value",
+						value: { value: "", valid: true },
+						icon: "",
+					},
+				],
+			});
+
+			render(
+				<DynamicParameter
+					parameter={mockParameterWithEmptyOption}
+					value=""
+					onChange={mockOnChange}
+				/>,
+			);
+
+			expect(screen.getByText("None")).toBeInTheDocument();
+			const select = screen.getByRole("combobox");
+			await waitFor(async () => {
+				await userEvent.click(select);
+			});
+			expect(screen.getAllByText("None")).toHaveLength(2);
+		});
+
+		it("calls onChange with an empty string when selected", async () => {
+			const mockParameterWithEmptyOption = createMockParameter({
+				...mockSelectParameter,
+				options: [
+					...mockSelectParameter.options,
+					{
+						name: "None",
+						description: "No value",
+						value: { value: "", valid: true },
+						icon: "",
+					},
+				],
+			});
+
+			render(
+				<DynamicParameter
+					parameter={mockParameterWithEmptyOption}
+					value="option1"
+					onChange={mockOnChange}
+				/>,
+			);
+
+			const select = screen.getByRole("combobox");
+			await waitFor(async () => {
+				await userEvent.click(select);
+			});
+
+			const noneOption = screen.getByText("None");
+			await waitFor(async () => {
+				await userEvent.click(noneOption);
+			});
+
+			expect(mockOnChange).toHaveBeenCalledWith("");
+		});
 	});
 
 	describe("Radio Parameter", () => {

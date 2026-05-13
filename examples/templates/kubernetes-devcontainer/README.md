@@ -27,7 +27,7 @@ This template authenticates using a `~/.kube/config`, if present on the server, 
 
 ## Architecture
 
-Coder supports devcontainers with [envbuilder](https://github.com/coder/envbuilder), an open source project. Read more about this in [Coder's documentation](https://coder.com/docs/templates/dev-containers).
+Coder supports devcontainers with [envbuilder](https://github.com/coder/envbuilder), an open source project. Read more about this in [Coder's documentation](https://coder.com/docs/admin/templates/extending-templates/devcontainers).
 
 This template provisions the following resources:
 

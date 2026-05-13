@@ -108,21 +108,9 @@ func (r *RootCmd) vscodeSSH() *serpent.Command {
 			}
 
 			// Select the startup script behavior based on template configuration or flags.
-			var wait bool
-			switch waitEnum {
-			case "yes":
-				wait = true
-			case "no":
-				wait = false
-			case "auto":
-				for _, script := range workspaceAgent.Scripts {
-					if script.StartBlocksLogin {
-						wait = true
-						break
-					}
-				}
-			default:
-				return xerrors.Errorf("unknown wait value %q", waitEnum)
+			wait, err := shouldWaitForStartupScripts(waitEnum, workspaceAgent.Scripts)
+			if err != nil {
+				return err
 			}
 
 			appearanceCfg, err := client.Appearance(ctx)

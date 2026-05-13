@@ -38,9 +38,9 @@ The following environment variables can be used to configure various aspects of 
 
 ## Migrating Existing Envbox Templates
 
-Due to the [deprecation and removal of legacy parameters](https://coder.com/docs/templates/parameters#legacy)
+Due to the [deprecation and removal of legacy parameters](https://coder.com/docs/admin/templates/extending-templates/parameters)
 it may be necessary to migrate existing envbox templates on newer versions of
-Coder. Consult the [migration](https://coder.com/docs/templates/parameters#migration)
+Coder. Consult the [migration](https://coder.com/docs/admin/templates/extending-templates/parameters)
 documentation for details on how to do so.
 
 To supply values to existing existing Terraform variables you can specify the

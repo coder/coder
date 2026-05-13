@@ -263,6 +263,78 @@ describe("WorkspacesPage", () => {
 		expect(stopWorkspace).toHaveBeenCalledWith(workspaces[1].id);
 	});
 
+	it("cancels only the selected workspaces with cancellable builds", async () => {
+		const workspaces: readonly Workspace[] = [
+			{
+				...MockWorkspace,
+				id: "1",
+				template_allow_user_cancel_workspace_jobs: true,
+				latest_build: {
+					...MockWorkspace.latest_build,
+					id: "build-1",
+					status: "starting",
+				},
+			},
+			{ ...MockWorkspace, id: "2" },
+			{
+				...MockWorkspace,
+				id: "3",
+				template_allow_user_cancel_workspace_jobs: true,
+				latest_build: {
+					...MockWorkspace.latest_build,
+					id: "build-3",
+					status: "stopping",
+				},
+			},
+		];
+		vi.spyOn(API, "getWorkspaces").mockResolvedValue({
+			workspaces,
+			count: workspaces.length,
+		});
+		const cancelWorkspaceBuild = vi
+			.spyOn(API, "cancelWorkspaceBuild")
+			.mockResolvedValue({ message: "Workspace build canceled." });
+		const user = userEvent.setup();
+		renderWithAuth(<WorkspacesPage />);
+		await waitForLoaderToBeRemoved();
+
+		for (const workspace of workspaces) {
+			await user.click(getWorkspaceCheckbox(workspace));
+		}
+		await user.click(screen.getByRole("button", { name: /bulk actions/i }));
+		const cancelButton = await screen.findByRole("menuitem", {
+			name: /cancel/i,
+		});
+		await user.click(cancelButton);
+
+		await waitFor(() => {
+			expect(cancelWorkspaceBuild).toHaveBeenCalledTimes(2);
+		});
+		expect(cancelWorkspaceBuild).toHaveBeenCalledWith("build-1", undefined);
+		expect(cancelWorkspaceBuild).toHaveBeenCalledWith("build-3", undefined);
+	});
+
+	it("hides bulk cancel when selected workspaces cannot be canceled", async () => {
+		const workspaces = [
+			{ ...MockWorkspace, id: "1" },
+			{ ...MockWorkspace, id: "2" },
+		];
+		vi.spyOn(API, "getWorkspaces").mockResolvedValue({
+			workspaces,
+			count: workspaces.length,
+		});
+		const user = userEvent.setup();
+		renderWithAuth(<WorkspacesPage />);
+		await waitForLoaderToBeRemoved();
+
+		await user.click(getWorkspaceCheckbox(workspaces[0]));
+		await user.click(screen.getByRole("button", { name: /bulk actions/i }));
+
+		expect(
+			screen.queryByRole("menuitem", { name: /cancel/i }),
+		).not.toBeInTheDocument();
+	});
+
 	it("starts only the stopped and selected workspaces", async () => {
 		const workspaces = [
 			{ ...MockStoppedWorkspace, id: "1" },

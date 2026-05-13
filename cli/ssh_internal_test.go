@@ -73,6 +73,86 @@ func TestBuildWorkspaceLink(t *testing.T) {
 	assert.Equal(t, workspaceLink.String(), fakeServerURL+"/@"+fakeOwnerName+"/"+fakeWorkspaceName)
 }
 
+func TestShouldWaitForStartupScripts(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		wait    string
+		scripts []codersdk.WorkspaceAgentScript
+		want    bool
+		wantErr bool
+	}{
+		{
+			name: "yes",
+			wait: "yes",
+			want: true,
+		},
+		{
+			name: "no",
+			wait: "no",
+			want: false,
+		},
+		{
+			name: "auto without scripts",
+			wait: "auto",
+			want: false,
+		},
+		{
+			name: "auto skips non-blocking startup script",
+			wait: "auto",
+			scripts: []codersdk.WorkspaceAgentScript{
+				{
+					RunOnStart:       true,
+					StartBlocksLogin: false,
+				},
+			},
+			want: false,
+		},
+		{
+			name: "auto skips blocking script that does not run on start",
+			wait: "auto",
+			scripts: []codersdk.WorkspaceAgentScript{
+				{
+					RunOnStart:       false,
+					StartBlocksLogin: true,
+				},
+			},
+			want: false,
+		},
+		{
+			name: "auto waits for blocking startup script",
+			wait: "auto",
+			scripts: []codersdk.WorkspaceAgentScript{
+				{
+					RunOnStart:       true,
+					StartBlocksLogin: true,
+				},
+			},
+			want: true,
+		},
+		{
+			name:    "invalid wait value",
+			wait:    "maybe",
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := shouldWaitForStartupScripts(tc.wait, tc.scripts)
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.want, got)
+		})
+	}
+}
+
 func TestCloserStack_Mainline(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)

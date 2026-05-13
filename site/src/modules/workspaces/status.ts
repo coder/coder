@@ -12,3 +12,10 @@ export const ACTIVE_BUILD_STATUSES: readonly WorkspaceStatus[] = [
 	"starting",
 	"stopping",
 ];
+
+export const CANCELLABLE_BUILD_STATUSES: readonly WorkspaceStatus[] = [
+	"deleting",
+	"pending",
+	"starting",
+	"stopping",
+];

@@ -20,6 +20,7 @@ import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePagination } from "#/hooks/usePagination";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useOrganizationsFilterMenu } from "#/modules/tableFiltering/options";
+import { abilitiesByWorkspaceStatus } from "#/modules/workspaces/actions";
 import { ACTIVE_BUILD_STATUSES } from "#/modules/workspaces/status";
 import { pageTitle } from "#/utils/page";
 import { BatchDeleteConfirmation } from "./BatchDeleteConfirmation";
@@ -162,6 +163,14 @@ const WorkspacesPage: FC = () => {
 
 	const checkedWorkspaces =
 		data?.workspaces.filter((w) => checkedWorkspaceIds.has(w.id)) ?? [];
+	const isOwner = me.roles.some((role) => role.name === "owner");
+	const cancellableCheckedWorkspaces = checkedWorkspaces.filter(
+		(workspace) =>
+			abilitiesByWorkspaceStatus(workspace, {
+				canDebug: false,
+				isOwner,
+			}).canCancel,
+	);
 
 	return (
 		<>
@@ -194,7 +203,11 @@ const WorkspacesPage: FC = () => {
 				onPageChange={pagination.goToPage}
 				filterState={filterState}
 				isRunningBatchAction={batchActions.isProcessing}
+				canCancelSelectedWorkspaces={cancellableCheckedWorkspaces.length > 0}
 				onBatchDeleteTransition={() => setActiveBatchAction("delete")}
+				onBatchCancelTransition={() =>
+					batchActions.cancel(cancellableCheckedWorkspaces)
+				}
 				onBatchStartTransition={() => batchActions.start(checkedWorkspaces)}
 				onBatchStopTransition={() => batchActions.stop(checkedWorkspaces)}
 				onBatchUpdateTransition={() => {

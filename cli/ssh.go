@@ -113,6 +113,25 @@ func retryWithInterval(ctx context.Context, logger slog.Logger, interval time.Du
 	return ctx.Err()
 }
 
+func shouldWaitForStartupScripts(waitEnum string, scripts []codersdk.WorkspaceAgentScript) (bool, error) {
+	switch waitEnum {
+	case "yes":
+		return true, nil
+	case "no":
+		return false, nil
+	case "auto":
+		// Only scripts that run during workspace startup can block the login path.
+		for _, script := range scripts {
+			if script.RunOnStart && script.StartBlocksLogin {
+				return true, nil
+			}
+		}
+		return false, nil
+	default:
+		return false, xerrors.Errorf("unknown wait value %q", waitEnum)
+	}
+}
+
 func (r *RootCmd) ssh() *serpent.Command {
 	var (
 		stdio               bool
@@ -344,21 +363,9 @@ func (r *RootCmd) ssh() *serpent.Command {
 			}
 
 			// Select the startup script behavior based on template configuration or flags.
-			var wait bool
-			switch waitEnum {
-			case "yes":
-				wait = true
-			case "no":
-				wait = false
-			case "auto":
-				for _, script := range workspaceAgent.Scripts {
-					if script.StartBlocksLogin {
-						wait = true
-						break
-					}
-				}
-			default:
-				return xerrors.Errorf("unknown wait value %q", waitEnum)
+			wait, err := shouldWaitForStartupScripts(waitEnum, workspaceAgent.Scripts)
+			if err != nil {
+				return err
 			}
 			// The `--no-wait` flag is deprecated, but for now, check it.
 			if noWait {
