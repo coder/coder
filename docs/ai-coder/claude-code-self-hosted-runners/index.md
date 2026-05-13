@@ -94,28 +94,30 @@ draining and exiting is the workspace deleting itself.
 Self-host the runner on a Coder workspace and the workspace primitives
 you already use carry over:
 
-- **Network access.** Sessions reach internal services, databases, and
-  registries privately. The workspace runs on your VPC, Kubernetes
-  cluster, or VM fleet, and your existing egress and DLP policy
-  applies to everything the child `claude` process touches.
-- **Custom tooling.** Pre-install compilers, SDKs, and internal CLIs
-  in the workspace image. The Coder template is your one source of
-  truth for image, language toolchains, attached S3 buckets, and
-  per-team variants; the runner picks all of that up for free.
-- **Compliance.** Source code and build artifacts stay on
-  infrastructure you control. Linux or macOS, Docker or VM or bare
-  metal: pick whichever your platform already runs. Workspaces, agent
-  logs, and Coder audit trails live in your tenancy alongside the
+- **Reproducible workspaces as code.** Coder defines a workspace in
+  Terraform: pick a container, VM, or bare-metal host on AWS, GCP,
+  Azure, vSphere, Kubernetes, Nomad, or your own provider; bake the
+  runner binary, language toolchains, and internal CLIs into the
+  image; ship the whole thing with one `coder templates push`. Every
+  runner in the fleet is the same code path.
+- **Network you already control.** The workspace runs wherever your
+  template places it: your VPC, your private subnet, your peered
+  on-prem segment. Outbound to `api.anthropic.com` is the only thing
+  Anthropic needs; reaching internal Git, registries, databases, and
+  build systems uses the routes that workspace already has.
+- **Compute you already capacity-plan.** Same accounts, same nodes,
+  same autoscaler your developer workspaces run on. Coder prebuilds
+  keep a warm pool of runners ready, recycle them on a TTL, and let
+  you size the pool the way you size any other internal service.
+- **Compliance.** Source code, build artifacts, and the runner's
+  working directories stay on infrastructure you own. Workspaces,
+  agent logs, and Coder audit trails live in your tenancy with the
   rest of your SDLC.
-- **Scale and cost.** Bring your own compute and apply your existing
-  autoscaling and cost controls. Coder prebuilds keep a warm pool of
-  runners ready, autoscale on the same infrastructure you already
-  capacity-plan, and recycle on a TTL.
 - **Day-2 ops.** Push the template once to ship a new runner image
   fleet-wide. Use the workspace page, agent logs, and metadata
-  surfaces to see lock status, in-flight session count, and last poll
-  age. Attach an IDE to a workspace to debug what the runner is
-  doing.
+  surfaces to see lock status, in-flight session count, and last
+  poll age. Attach an IDE to a workspace when you need to debug what
+  a runner is doing.
 
 ## What this is and is not
 
