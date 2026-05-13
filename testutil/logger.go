@@ -35,8 +35,9 @@ func Logger(t testing.TB, opts ...LoggerOption) slog.Logger {
 	}
 
 	inner := newTestSink(t, sinkOptions{
-		ignoreAllErrors:  cfg.ignoreAllErrors,
-		extraIgnoredErrs: cfg.extraIgnoredErrs,
+		ignoreAllErrors:     cfg.ignoreAllErrors,
+		extraIgnoredErrs:    cfg.extraIgnoredErrs,
+		extraIgnoreErrorFns: cfg.extraIgnoreErrorFns,
 	})
 	drop := buildDropFn(cfg)
 	return slog.Make(&filteringSink{inner: inner, drop: drop}).Leveled(slog.LevelDebug)
@@ -46,10 +47,11 @@ func Logger(t testing.TB, opts ...LoggerOption) slog.Logger {
 type LoggerOption func(*loggerConfig)
 
 type loggerConfig struct {
-	applyDefaults    bool
-	extra            []func(slog.SinkEntry) bool
-	ignoreAllErrors  bool
-	extraIgnoredErrs []error
+	applyDefaults       bool
+	extra               []func(slog.SinkEntry) bool
+	ignoreAllErrors     bool
+	extraIgnoredErrs    []error
+	extraIgnoreErrorFns []func(slog.SinkEntry) bool
 }
 
 // WithNoFilter disables the default deny-list. The returned logger will emit
@@ -103,6 +105,22 @@ func WithIgnoreErrors() LoggerOption {
 func WithIgnoredErrorIs(errs ...error) LoggerOption {
 	return func(cfg *loggerConfig) {
 		cfg.extraIgnoredErrs = append(cfg.extraIgnoredErrs, errs...)
+	}
+}
+
+// WithIgnoreErrorFn registers an additional predicate consulted when deciding
+// whether an error or critical entry should fail the test. If the predicate
+// returns true, the entry is downgraded to t.Log instead of t.Errorf.
+//
+// This composes additively with the built-in ignore list, WithIgnoreErrors,
+// WithIgnoredErrorIs, and any previous WithIgnoreErrorFn options.
+//
+// This mirrors slogtest.Options.IgnoreErrorFn.
+func WithIgnoreErrorFn(fn func(slog.SinkEntry) bool) LoggerOption {
+	return func(cfg *loggerConfig) {
+		if fn != nil {
+			cfg.extraIgnoreErrorFns = append(cfg.extraIgnoreErrorFns, fn)
+		}
 	}
 }
 
@@ -230,8 +248,9 @@ type testSink struct {
 }
 
 type sinkOptions struct {
-	ignoreAllErrors  bool
-	extraIgnoredErrs []error
+	ignoreAllErrors     bool
+	extraIgnoredErrs    []error
+	extraIgnoreErrorFns []func(slog.SinkEntry) bool
 }
 
 func newTestSink(tb testing.TB, opts sinkOptions) *testSink {
@@ -300,15 +319,15 @@ func (s *testSink) shouldIgnoreError(ent slog.SinkEntry) bool {
 	if IgnoreLoggedError(ent) {
 		return true
 	}
-	if len(s.opts.extraIgnoredErrs) == 0 {
-		return false
+	if err, ok := findFirstError(ent); ok {
+		for _, ig := range s.opts.extraIgnoredErrs {
+			if xerrors.Is(err, ig) {
+				return true
+			}
+		}
 	}
-	err, ok := findFirstError(ent)
-	if !ok {
-		return false
-	}
-	for _, ig := range s.opts.extraIgnoredErrs {
-		if xerrors.Is(err, ig) {
+	for _, fn := range s.opts.extraIgnoreErrorFns {
+		if fn(ent) {
 			return true
 		}
 	}

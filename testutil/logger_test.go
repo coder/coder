@@ -566,3 +566,36 @@ func TestLogger_WithIgnoredErrorIs_PreservesDefaultIgnoreList(t *testing.T) {
 		t.Fatalf("expected context.Canceled to remain ignored, got %d tb.Errorf calls", rec.errorCount())
 	}
 }
+
+func TestLogger_WithIgnoreErrorFn_DowngradesMatchingErrors(t *testing.T) {
+	t.Parallel()
+	rec := newRecorderTB(t.Name())
+	predicate := func(ent slog.SinkEntry) bool {
+		return ent.Message == "noisy benign error"
+	}
+	log := testutil.Logger(rec, testutil.WithIgnoreErrorFn(predicate))
+	log.Named("coderd").Error(context.Background(), "noisy benign error",
+		slog.Error(xerrors.New("any")))
+	rec.runCleanups()
+	if rec.errorCount() != 0 {
+		t.Fatalf("expected predicate match to downgrade, got %d tb.Errorf calls", rec.errorCount())
+	}
+	if rec.logCount() != 1 {
+		t.Fatalf("expected error to appear via tb.Log, got %d log lines", rec.logCount())
+	}
+}
+
+func TestLogger_WithIgnoreErrorFn_UnmatchedFailsTest(t *testing.T) {
+	t.Parallel()
+	rec := newRecorderTB(t.Name())
+	predicate := func(ent slog.SinkEntry) bool {
+		return ent.Message == "specific msg"
+	}
+	log := testutil.Logger(rec, testutil.WithIgnoreErrorFn(predicate))
+	log.Named("coderd").Error(context.Background(), "other msg",
+		slog.Error(xerrors.New("any")))
+	rec.runCleanups()
+	if rec.errorCount() != 1 {
+		t.Fatalf("expected non-matching error to fail test, got %d tb.Errorf calls", rec.errorCount())
+	}
+}
