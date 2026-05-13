@@ -1546,12 +1546,8 @@ func (q *querier) authorizeProvisionerJob(ctx context.Context, job database.Prov
 	return nil
 }
 
-func (q *querier) canReadLinkedChat(ctx context.Context, fileID uuid.UUID) (bool, error) {
-	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceChat.Type)
-	if err != nil {
-		return false, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
-	}
-	chats, err := q.db.GetAuthorizedChatsByChatFileID(ctx, fileID, prep)
+func (q *querier) canReadLinkedChat(ctx context.Context, fileID uuid.UUID, prepared rbac.PreparedAuthorized) (bool, error) {
+	chats, err := q.db.GetAuthorizedChatsByChatFileID(ctx, fileID, prepared)
 	if err != nil {
 		return false, err
 	}
@@ -2912,7 +2908,11 @@ func (q *querier) GetChatFileByID(ctx context.Context, id uuid.UUID) (database.C
 		return file, nil
 	}
 
-	linked, err := q.canReadLinkedChat(ctx, id)
+	prepared, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceChat.Type)
+	if err != nil {
+		return database.ChatFile{}, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
+	}
+	linked, err := q.canReadLinkedChat(ctx, id, prepared)
 	if err != nil {
 		return database.ChatFile{}, err
 	}
@@ -2934,12 +2934,19 @@ func (q *querier) GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]dat
 	if err != nil {
 		return nil, err
 	}
+	var prepared rbac.PreparedAuthorized
 	for _, f := range files {
 		fileAuthErr := q.authorizeContext(ctx, policy.ActionRead, f)
 		if fileAuthErr == nil {
 			continue
 		}
-		linked, err := q.canReadLinkedChat(ctx, f.ID)
+		if prepared == nil {
+			prepared, err = prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceChat.Type)
+			if err != nil {
+				return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
+			}
+		}
+		linked, err := q.canReadLinkedChat(ctx, f.ID, prepared)
 		if err != nil {
 			return nil, err
 		}

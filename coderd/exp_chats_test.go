@@ -14376,6 +14376,62 @@ func TestChatReadOnlySharedWriteHandlers(t *testing.T) {
 		requireSDKError(t, err, http.StatusForbidden)
 	})
 
+	t.Run("PostChatMessages", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, _, sharedClient, chat, _ := setup(t)
+		_, err := sharedClient.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{
+				Type: codersdk.ChatInputPartTypeText,
+				Text: "read only user cannot send messages",
+			}},
+		})
+
+		requireSDKError(t, err, http.StatusForbidden)
+	})
+
+	t.Run("PromoteChatQueuedMessage", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, _, sharedClient, chat, db := setup(t)
+		queuedContent, err := json.Marshal([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("queued"),
+		})
+		require.NoError(t, err)
+		queuedMessage, err := db.InsertChatQueuedMessage(
+			dbauthz.AsSystemRestricted(ctx),
+			database.InsertChatQueuedMessageParams{
+				ChatID:  chat.ID,
+				Content: queuedContent,
+			},
+		)
+		require.NoError(t, err)
+
+		res, err := sharedClient.Request(
+			ctx,
+			http.MethodPost,
+			fmt.Sprintf("/api/experimental/chats/%s/queue/%d/promote", chat.ID, queuedMessage.ID),
+			nil,
+		)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusForbidden, res.StatusCode)
+	})
+
+	t.Run("PostChatToolResults", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, _, sharedClient, chat, _ := setup(t)
+		err := sharedClient.SubmitToolResults(ctx, chat.ID, codersdk.SubmitToolResultsRequest{
+			Results: []codersdk.ToolResult{{
+				ToolCallID: "call_read_only",
+				Output:     json.RawMessage(`"forbidden"`),
+			}},
+		})
+
+		requireSDKError(t, err, http.StatusForbidden)
+	})
+
 	t.Run("DeleteChatQueuedMessage", func(t *testing.T) {
 		t.Parallel()
 
