@@ -6,14 +6,15 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
-	"errors"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"regexp"
 	"sync"
 	"time"
 
-	"go.mozilla.org/pkcs7"
+	"github.com/smallstep/pkcs7"
 	"golang.org/x/xerrors"
 )
 
@@ -25,17 +26,188 @@ var allowedSigners = regexp.MustCompile(`^(.*\.)?metadata\.(azure\.(com|us|cn)|m
 // each time a parse occurs.
 var pkcs7Mutex sync.Mutex
 
+// allowedCertHosts contains the hosts Azure intermediate
+// certificates are served from. Only these hosts are permitted
+// when fetching issuing certificates referenced in the signer
+// certificate. This prevents SSRF via crafted
+// IssuingCertificateURL values.
+//
+// Source: https://learn.microsoft.com/en-us/azure/security/fundamentals/azure-ca-details
+var allowedCertHosts = map[string]bool{
+	"www.microsoft.com":    true,
+	"cacerts.digicert.com": true,
+}
+
+// maxCertResponseBytes is the maximum size of a certificate
+// response body we will read. Azure intermediate certificates
+// are typically under 4 KiB; 1 MiB is a generous upper bound
+// that prevents memory exhaustion from malicious responses.
+const maxCertResponseBytes = 1 << 20 // 1 MiB
+
+// extraBlockedNetworks lists special-use CIDR ranges that the
+// stdlib classification methods (IsLoopback, IsPrivate, etc.) do
+// not cover. Blocking these prevents SSRF against carrier-grade
+// NAT, network-benchmarking, documentation, discard-only, and
+// the all-zeros "this network" range.
+//
+// IPv6 ranges already handled by stdlib:
+//   - ::1/128        (IsLoopback)
+//   - fc00::/7       (IsPrivate, ULA)
+//   - fe80::/10      (IsLinkLocalUnicast)
+//   - ff00::/8       (IsMulticast)
+//   - ::/128         (IsUnspecified)
+var extraBlockedNetworks []*net.IPNet
+
+func init() {
+	for _, cidr := range []string{
+		// IPv4 special-use ranges.
+		"0.0.0.0/8",     // RFC 1122 "this network".
+		"100.64.0.0/10", // RFC 6598 carrier-grade NAT.
+		"198.18.0.0/15", // RFC 2544 benchmarking.
+
+		// IPv6 special-use ranges not covered by stdlib.
+		"64:ff9b:1::/48", // RFC 8215 IPv4/IPv6 translation.
+		"100::/64",       // RFC 6666 discard-only.
+		"2001:2::/48",    // RFC 5180 benchmarking.
+		"2001:db8::/32",  // RFC 3849 documentation.
+	} {
+		_, network, _ := net.ParseCIDR(cidr)
+		extraBlockedNetworks = append(extraBlockedNetworks, network)
+	}
+}
+
+// isPrivateIP reports whether the IP is on a network that must
+// not be reachable when fetching certificates. IPv4-mapped IPv6
+// addresses are canonicalized to IPv4 first so a literal like
+// ::ffff:169.254.169.254 cannot bypass the IPv4 ranges.
+func isPrivateIP(ip net.IP) bool {
+	if v4 := ip.To4(); v4 != nil {
+		ip = v4
+	}
+	if ip.IsLoopback() ||
+		ip.IsPrivate() ||
+		ip.IsLinkLocalUnicast() ||
+		ip.IsLinkLocalMulticast() ||
+		ip.IsMulticast() ||
+		ip.IsUnspecified() ||
+		ip.IsInterfaceLocalMulticast() {
+		return true
+	}
+	for _, network := range extraBlockedNetworks {
+		if network.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+// certFetchClient is an HTTP client that refuses to connect
+// to private or link-local IP addresses. This provides
+// defense-in-depth against SSRF even if the host allowlist is
+// somehow bypassed (e.g. via DNS rebinding).
+var certFetchClient = &http.Client{
+	Timeout: 5 * time.Second,
+	Transport: &http.Transport{
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			host, port, err := net.SplitHostPort(addr)
+			if err != nil {
+				return nil, xerrors.Errorf("split host/port: %w", err)
+			}
+			ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+			if err != nil {
+				return nil, xerrors.Errorf("resolve host: %w", err)
+			}
+			if len(ips) == 0 {
+				return nil, xerrors.Errorf("no addresses for %q", host)
+			}
+			// Reject up front so a single tainted answer
+			// short-circuits the dial rather than racing it.
+			for _, ip := range ips {
+				if isPrivateIP(ip.IP) {
+					return nil, xerrors.Errorf(
+						"certificate fetch blocked: %q resolved to private IP %s",
+						host, ip.IP,
+					)
+				}
+			}
+			// Dial the validated IP directly. If we dialed by
+			// hostname here, Go's stdlib would re-resolve and a
+			// hostile resolver could swap in a private IP after
+			// validation (DNS rebinding). TLS verification still
+			// uses the URL host via the Transport's TLS config.
+			var d net.Dialer
+			var firstErr error
+			for _, ip := range ips {
+				conn, derr := d.DialContext(ctx, network, net.JoinHostPort(ip.IP.String(), port))
+				if derr == nil {
+					return conn, nil
+				}
+				if firstErr == nil {
+					firstErr = derr
+				}
+			}
+			return nil, firstErr
+		},
+	},
+}
+
+// IsAllowedCertificateURL reports whether rawURL points to a
+// host on the allowlist, uses http or https, and targets a
+// standard PKI distribution port. Microsoft and DigiCert serve
+// these artifacts on 80/443 only; any other port is rejected to
+// keep the SSRF surface as narrow as the hostname itself.
+func IsAllowedCertificateURL(rawURL string) bool {
+	if rawURL == "" {
+		return false
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return false
+	}
+	if !allowedCertHosts[u.Hostname()] {
+		return false
+	}
+	switch u.Port() {
+	case "", "80", "443":
+		return true
+	default:
+		return false
+	}
+}
+
 type metadata struct {
 	VMID string `json:"vmId"`
 }
 
 type Options struct {
-	x509.VerifyOptions
+	// Roots is the trusted root certificate pool. If nil,
+	// the embedded root certificate pool is used.
+	Roots *x509.CertPool
+	// Intermediates are additional intermediate certificates to
+	// inject into the PKCS7 object for chain verification. Azure
+	// PKCS7 envelopes typically only contain the signing cert, so
+	// intermediates must be supplied externally. When nil, the
+	// hardcoded Azure intermediate certificates are used.
+	Intermediates []*x509.Certificate
+	// CurrentTime, if non-zero, overrides the verification
+	// timestamp for certificate chain validation.
+	CurrentTime time.Time
+	// Offline disables fetching of issuing certificates when
+	// chain verification fails.
 	Offline bool
 }
 
 // Validate ensures the signature was signed by an Azure certificate.
 // It returns the associated VM ID if successful.
+//
+// Verification has two parts, both handled by VerifyWithChainAtTime:
+//  1. PKCS7 signature check: proves the content was signed by the
+//     private key corresponding to the certificate in the envelope.
+//  2. Certificate chain check: proves the signing certificate
+//     chains to a trusted root through known intermediates.
 func Validate(ctx context.Context, signature string, options Options) (string, error) {
 	data, err := base64.StdEncoding.DecodeString(signature)
 	if err != nil {
@@ -54,70 +226,86 @@ func Validate(ctx context.Context, signature string, options Options) (string, e
 	if !allowedSigners.MatchString(signer.Subject.CommonName) {
 		return "", xerrors.Errorf("unmatched common name of signer: %q", signer.Subject.CommonName)
 	}
-	if options.Intermediates == nil {
-		options.Intermediates = x509.NewCertPool()
-		for _, cert := range Certificates {
-			block, rest := pem.Decode([]byte(cert))
-			if len(rest) != 0 {
-				return "", xerrors.Errorf("invalid certificate. %d bytes remain", len(rest))
-			}
-			cert, err := x509.ParseCertificate(block.Bytes)
-			if err != nil {
-				return "", xerrors.Errorf("parse certificate: %w", err)
-			}
-			options.Intermediates.AddCert(cert)
+	// Azure PKCS7 envelopes typically contain only the signing
+	// certificate. Inject intermediate certificates so the
+	// library can build a chain from signer to trusted root.
+	intermediates := options.Intermediates
+	if intermediates == nil {
+		intermediates, err = ParseCertificates()
+		if err != nil {
+			return "", xerrors.Errorf("parse hardcoded certificates: %w", err)
 		}
 	}
-	// Set Roots explicitly so we never fall back to the platform's system
-	// verifier (notably Apple's Security framework on macOS/iOS), which
-	// enforces stricter standards-compliance checks than Go's pure-Go
-	// verifier and rejects some otherwise valid Azure leaf certificates
-	// with errors like:
-	//   x509: "metadata.azure.com" certificate is not standards compliant
-	// See https://github.com/coder/coder/issues/12978.
-	if options.Roots == nil {
-		roots, err := rootCertPool()
+	pkcs7Data.Certificates = append(pkcs7Data.Certificates, intermediates...)
+	// Resolve root trust store. VerifyWithChainAtTime skips
+	// chain verification when the trust store is nil, so we
+	// must always provide one.
+	roots := options.Roots
+	if roots == nil {
+		roots, err = rootCertPool()
 		if err != nil {
 			return "", xerrors.Errorf("load roots: %w", err)
 		}
-		options.Roots = roots
 	}
 
-	_, err = signer.Verify(options.VerifyOptions)
+	currentTime := options.CurrentTime
+	if currentTime.IsZero() {
+		currentTime = time.Now()
+	}
+
+	// VerifyWithChainAtTime validates both the PKCS7 signature
+	// (proving the content was signed by the certificate's
+	// private key) and the certificate chain (proving the signer
+	// chains to a trusted root).
+	err = pkcs7Data.VerifyWithChainAtTime(roots, currentTime)
 	if err != nil {
-		if !errors.As(err, &x509.UnknownAuthorityError{}) {
-			return "", xerrors.Errorf("verify signature: %w", err)
-		}
 		if options.Offline {
-			return "", xerrors.Errorf("certificate from %v is not cached: %w", signer.IssuingCertificateURL, err)
+			return "", xerrors.Errorf("verify pkcs7: %w", err)
 		}
 
+		// The chain verification may fail when the signing
+		// certificate was issued by an intermediate not yet in
+		// our hardcoded list. Fetch the issuing certificates
+		// and retry.
 		ctx, cancelFunc := context.WithTimeout(ctx, 5*time.Second)
 		defer cancelFunc()
 		for _, certURL := range signer.IssuingCertificateURL {
+			if !IsAllowedCertificateURL(certURL) {
+				return "", xerrors.New("issuing certificate URL not on allowlist")
+			}
 			req, err := http.NewRequestWithContext(ctx, "GET", certURL, nil)
 			if err != nil {
-				return "", xerrors.Errorf("new request %q: %w", certURL, err)
+				return "", xerrors.New("construct certificate request")
 			}
-			res, err := http.DefaultClient.Do(req)
+			res, err := certFetchClient.Do(req)
 			if err != nil {
-				return "", xerrors.Errorf("no cached certificate for %q found. error fetching: %w", certURL, err)
+				return "", xerrors.New("certificate fetch unsuccessful")
 			}
-			data, err := io.ReadAll(res.Body)
-			if err != nil {
-				_ = res.Body.Close()
-				return "", xerrors.Errorf("read body %q: %w", certURL, err)
-			}
+			limited := io.LimitReader(res.Body, maxCertResponseBytes+1)
+			certData, err := io.ReadAll(limited)
 			_ = res.Body.Close()
-			cert, err := x509.ParseCertificate(data)
 			if err != nil {
-				return "", xerrors.Errorf("parse certificate %q: %w", certURL, err)
+				return "", xerrors.New("read certificate response body")
 			}
-			options.Intermediates.AddCert(cert)
+			if int64(len(certData)) > maxCertResponseBytes {
+				return "", xerrors.New(
+					"certificate response exceeds maximum size",
+				)
+			}
+			cert, err := x509.ParseCertificate(certData)
+			if err != nil {
+				// Do not wrap the parse error; it may contain
+				// fragments of the HTTP response body, which
+				// could leak internal data to the caller.
+				return "", xerrors.New(
+					"fetched data is not a valid certificate",
+				)
+			}
+			pkcs7Data.Certificates = append(pkcs7Data.Certificates, cert)
 		}
-		_, err = signer.Verify(options.VerifyOptions)
+		err = pkcs7Data.VerifyWithChainAtTime(roots, currentTime)
 		if err != nil {
-			return "", err
+			return "", xerrors.New("signature verification failed after fetching issuing certificates")
 		}
 	}
 
@@ -127,6 +315,24 @@ func Validate(ctx context.Context, signature string, options Options) (string, e
 		return "", xerrors.Errorf("unmarshal metadata: %w", err)
 	}
 	return metadata.VMID, nil
+}
+
+// ParseCertificates parses the hardcoded Azure intermediate
+// certificates and returns them as x509.Certificate values.
+func ParseCertificates() ([]*x509.Certificate, error) {
+	var certs []*x509.Certificate
+	for _, certPEM := range Certificates {
+		block, rest := pem.Decode([]byte(certPEM))
+		if len(rest) != 0 {
+			return nil, xerrors.Errorf("invalid certificate. %d bytes remain", len(rest))
+		}
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
+			return nil, xerrors.Errorf("parse certificate: %w", err)
+		}
+		certs = append(certs, cert)
+	}
+	return certs, nil
 }
 
 // Roots are the root CAs that Azure instance-identity certificates chain to.
