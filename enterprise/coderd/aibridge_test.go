@@ -2708,9 +2708,15 @@ func TestGroupAIBudget(t *testing.T) {
 	t.Run("GroupMemberCanReadButNotWrite", func(t *testing.T) {
 		t.Parallel()
 
+		dv := coderdtest.DeploymentValues(t)
+		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
 		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{DeploymentValues: dv},
 			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{codersdk.FeatureTemplateRBAC: 1},
+				Features: license.Features{
+					codersdk.FeatureTemplateRBAC: 1,
+					codersdk.FeatureAIBridge:     1,
+				},
 			},
 		})
 		adminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
@@ -2763,9 +2769,15 @@ func TestGroupAIBudget(t *testing.T) {
 func setupGroupAIBudgetTest(t *testing.T) (adminClient *codersdk.Client, group codersdk.Group) {
 	t.Helper()
 
+	dv := coderdtest.DeploymentValues(t)
+	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
 	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{DeploymentValues: dv},
 		LicenseOptions: &coderdenttest.LicenseOptions{
-			Features: license.Features{codersdk.FeatureTemplateRBAC: 1},
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+				codersdk.FeatureAIBridge:     1,
+			},
 		},
 	})
 	adminClient, _ = coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())

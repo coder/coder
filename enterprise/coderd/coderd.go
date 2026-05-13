@@ -550,6 +550,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				r.Delete("/", api.deleteGroup)
 				r.Get("/members", api.groupMembers)
 				r.Route("/ai/budget", func(r chi.Router) {
+					r.Use(api.RequireFeatureMW(codersdk.FeatureAIBridge))
 					r.Get("/", api.groupAIBudget)
 					r.Put("/", api.upsertGroupAIBudget)
 					r.Delete("/", api.deleteGroupAIBudget)
