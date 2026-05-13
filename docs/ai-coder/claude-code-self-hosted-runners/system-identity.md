@@ -53,6 +53,16 @@ Read these first; the rest of this page assumes they fit your team.
   Each runner serves up to `--capacity` sessions for the one locked
   user. Cross-user concurrency is bounded by `instances`, not
   `--capacity`.
+- **No webhook-driven autoscaling yet.** Anthropic's EAP guide
+  describes a `runner-needed` webhook (and a CLI poll fallback) that
+  would let an operator spawn a runner on demand for each queued
+  session, but both interfaces are marked pending and the wire format
+  is not finalized. There is no destination URL to configure in
+  `claude.ai` or in the runner today. Until those ship, scaling is
+  static: pick `instances = N` for expected concurrency and bump the
+  number when Anthropic's queue depth shows backlog. Send your
+  requirements (auth shape, payload fields you need) to your
+  Anthropic account team.
 
 If the first two are blockers for your team, wait for
 [User identity](./user-identity.md).
@@ -158,6 +168,19 @@ RUN set -eux; \
       | tar -xz -C /opt/claude --strip-components=1 linux-x64; \
     ln -sf /opt/claude/claude /usr/local/bin/claude; \
     /usr/local/bin/claude --version
+
+# Per-session wrapper script. The runner execs this once per session
+# right before starting Claude Code, appending its server-computed
+# flags. Claude Code's flag parser is last-occurrence-wins, so anything
+# we append after "$@" overrides the server. We force
+# --permission-mode bypassPermissions so the runner never stalls on a
+# tool-approval prompt (sessions have no terminal attached). The
+# runner picks this up via --exec-path in the coder_script below.
+RUN printf '%s\n' \
+    '#!/bin/bash' \
+    'exec /opt/claude/claude "$@" --permission-mode bypassPermissions' \
+    > /opt/claude/wrapper.sh \
+  && chmod 0755 /opt/claude/wrapper.sh
 
 # Repository checkout root used by the self-hosted runner. The runner
 # defaults to `--base-dir /workspace` and will `mkdir` it on the first
@@ -499,7 +522,8 @@ resource "coder_script" "claude_runner" {
     /usr/local/bin/claude self-hosted-runner \
       --pool-secret-file "$POOL_SECRET_FILE" \
       --capacity        "$${CLAUDE_CAPACITY:-1}" \
-      --log-file        "$HOME/.claude/runner.log"
+      --log-file        "$HOME/.claude/runner.log" \
+      --exec-path       /opt/claude/wrapper.sh
     echo "[supervisor] runner exited rc=\$? \$(date -Is)"
 
     if [ -z "$${CODER_SELF_TOKEN:-}" ]; then
