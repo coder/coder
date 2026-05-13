@@ -1,0 +1,100 @@
+<!--
+  SVG diagram template for Coder docs pages.
+
+  Conventions baked in:
+    - viewBox sized for the ~657 CSS-pixel docs column.
+    - preserveAspectRatio="xMidYMid meet" and width attribute set.
+    - <title> and <desc> wired up via aria-labelledby.
+    - Arrow labels use paint-order:stroke + white halo for readability.
+    - Locked badge class shown.
+
+  See SKILL.md for the full ruleset and test loop.
+-->
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 1000 460"
+     width="1000"
+     preserveAspectRatio="xMidYMid meet"
+     role="img"
+     aria-labelledby="diag-title diag-desc">
+  <title id="diag-title">Short, factual diagram title</title>
+  <desc id="diag-desc">One or two sentences fully describing the diagram for screen readers and search indexes.</desc>
+
+  <defs>
+    <style>
+      svg { font-family: -apple-system, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif; }
+      .bg               { fill: #ffffff; }
+
+      /* Zones (outer containers, one per managing party). */
+      .zone-coder       { fill: #f5f3ff; stroke: #7c3aed; stroke-width: 2; }
+      .zone-anthropic   { fill: #fff7ed; stroke: #f59e0b; stroke-width: 1.75; }
+      .zone-network     { fill: #ecfeff; stroke: #0e7490; stroke-width: 1.5; }
+
+      /* Cards inside zones. */
+      .card             { fill: #ffffff; stroke-width: 1.25; }
+      .card-coder       { stroke: #a78bfa; }
+      .card-anthropic   { stroke: #fbbf24; }
+      .card-network     { stroke: #67e8f9; }
+
+      /* Badges. */
+      .badge-coder      { fill: #ede9fe; stroke: #7c3aed; stroke-width: 1; }
+      .badge-anthropic  { fill: #fef3c7; stroke: #b45309; stroke-width: 1; }
+      .badge-locked     { fill: #fee2e2; stroke: #b91c1c; stroke-width: 1; }
+
+      .badge-coder-l    { fill: #6d28d9; }
+      .badge-anthropic-l{ fill: #b45309; }
+      .badge-locked-l   { fill: #b91c1c; }
+
+      /* Type. Sizes target the docs column width; see SKILL.md. */
+      .zone-label       { font-size: 16px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+      .layer-title      { font-size: 26px; font-weight: 700; fill: #111827; }
+      .layer-def        { font-size: 14px; fill: #374151; }
+      .card-title       { font-size: 15px; font-weight: 700; fill: #111827; }
+      .card-line        { font-size: 13px; fill: #374151; }
+      .mono             { font-family: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace; font-size: 11px; fill: #1f2937; }
+      .badge-label      { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+      .footnote         { font-size: 13px; fill: #4b5563; font-style: italic; }
+
+      /* Arrows. The white halo on labels keeps them readable. */
+      .arrow            { fill: none; stroke: #374151; stroke-width: 1.4; }
+      .arrow-label      {
+        font-size: 11.5px;
+        font-weight: 600;
+        fill: #111827;
+        paint-order: stroke;
+        stroke: #ffffff;
+        stroke-width: 3px;
+        stroke-linejoin: round;
+      }
+    </style>
+
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5"
+            markerWidth="6" markerHeight="6"
+            orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#374151"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" width="1000" height="460"/>
+
+  <!-- Example zone -->
+  <rect class="zone-coder" x="200" y="40" width="600" height="380" rx="16"/>
+  <text class="zone-label" x="224" y="68" fill="#6d28d9">Coder</text>
+
+  <!-- Example card with locked badge -->
+  <rect class="card card-coder" x="220" y="96" width="560" height="140" rx="10"/>
+  <text class="card-title" x="240" y="124">Card title</text>
+  <text class="card-line"  x="240" y="146">Body line one.</text>
+  <text class="card-line"  x="240" y="164">Body line two.</text>
+
+  <rect class="badge-locked" x="620" y="106" width="148" height="22" rx="6"/>
+  <text class="badge-label badge-locked-l" x="634" y="121">Locked to 1 user</text>
+
+  <!-- Example arrow with halo label -->
+  <path class="arrow"
+        d="M 220 300 C 360 240, 540 240, 780 300"
+        marker-end="url(#ah)"/>
+  <text class="arrow-label" x="420" y="244">arrow label stays readable</text>
+
+  <!-- Footnote -->
+  <text class="footnote" x="20" y="446">Brief footnote summarizing what the diagram is and is not.</text>
+</svg>
