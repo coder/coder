@@ -301,9 +301,10 @@ data "coder_workspace_preset" "warm_runner" {
 # === Agent and runner ===
 
 resource "coder_agent" "main" {
-  arch = data.coder_provisioner.me.arch
-  os   = "linux"
-  dir  = "/home/coder"
+  arch                    = data.coder_provisioner.me.arch
+  os                      = "linux"
+  dir                     = "/home/coder"
+  startup_script_behavior = "non-blocking"
 
   env = {
     CLAUDE_POOL_SECRET = var.pool_secret
@@ -342,15 +343,20 @@ resource "coder_agent" "main" {
   EOT
 
   metadata {
-    display_name = "Locked Anthropic user"
-    key          = "0_locked_user"
+    display_name = "Lock status"
+    key          = "0_lock_status"
     interval     = 10
     timeout      = 5
+    # The runner exposes `claude_code_self_hosted_runner_locked_account` as
+    # a bare gauge (no labels), so we can only tell locked from unlocked,
+    # not which user the runner is locked to. The locked user is visible
+    # in `claude.ai > Self-hosted runner pools` and in Anthropic's session
+    # log.
     script       = <<-EOT
-      email=$(curl -fsS http://127.0.0.1:8080/metrics 2>/dev/null \
-        | awk -F'"' '/^claude_code_self_hosted_runner_locked_account/ {print $2; exit}')
-      if [ -n "$email" ]; then printf '%s' "$email"
-      else printf '(unlocked, waiting for first session)'; fi
+      val=$(curl -fsS http://127.0.0.1:8080/metrics 2>/dev/null \
+        | awk '/^claude_code_self_hosted_runner_locked_account[[:space:]]/ {print $2; exit}')
+      if [ "$val" = "1" ]; then printf 'locked'
+      else printf 'unlocked'; fi
     EOT
   }
 
@@ -484,6 +490,12 @@ resource "docker_container" "workspace" {
 > from a stock distribution base, the agent downloads it on first start
 > and the `startup_script` symlinks it onto `~/.local/bin/coder` so the
 > `coder_script` can find it.
+>
+> `startup_script_behavior = "non-blocking"` on the agent is important.
+> The runner is intentionally long-lived: it runs in the foreground for
+> the entire lifetime of the workspace and only exits on drain. Without
+> non-blocking, Coder shows the workspace as "starting" forever and the
+> workspace page banner says "startup scripts are still running."
 
 ## Step 6: Push the template
 
@@ -506,16 +518,19 @@ polling.
 1. In Coder's admin UI, open **Workspaces > All** and filter by the
    prebuilds owner. You should see `instances` workspaces named
    `prebuild-...`, each one running, with metadata showing:
-   - `Locked Anthropic user: (unlocked, waiting for first session)`
+   - `Lock status: unlocked`
    - `Active sessions: 0 / 4`
    - `Runner ID: ccrunner_...`
    - `Last Anthropic poll: ok (...ms ago)`
 2. In `claude.ai > Settings > Claude Code > Self-hosted runner pools`,
    confirm the same number of runners appear under the pool.
 3. Start a session at `claude.ai/code` and select the pool. Within
-   seconds, **one** of the Coder prebuilds flips its `Locked Anthropic
-   user` metadata to your Anthropic email and the `Active sessions`
-   metadata bumps to `1 / 4`.
+   seconds, **one** of the Coder prebuilds flips its `Lock status`
+   metadata to `locked` and `Active sessions` bumps to `1 / 4`. The
+   Anthropic user the runner is locked to is visible in
+   `claude.ai > Self-hosted runner pools`, not on the Coder workspace
+   page (the runner does not expose the locked user's email over its
+   local `/metrics` endpoint).
 4. Send a few more messages or open additional sessions. Watch the
    active-session count climb (up to `--capacity`).
 5. Let all sessions finish. The runner drains, the workspace
@@ -575,6 +590,8 @@ tail -f ~/.claude/runner.log
 | Self-eviction logs `You are not logged in`                       | The `coder_script` is missing `CODER_URL=$CODER_AGENT_URL` on the `coder delete` line. A freshly spawned workspace has no global Coder CLI config, so the CLI cannot guess the server URL. Add the line and re-push the template.                                                          |
 | Workspace does not self-evict on drain                           | `CODER_DELETE_TOKEN` is wrong or the service account lacks `delete:workspace`. The workspace will sit idle until Coder's TTL reaps it. Fix the token or grant the role and re-push the template. As a backstop, set a workspace TTL on the template.                                       |
 | `git push` fails with 403 / Permission denied                    | `git_bot_token` is missing required repo scope, or the bot identity does not have push access to the repo the session is working in. Confirm the bot's permissions on the git host.                                                                                                        |
+| Workspace page shows "startup scripts are still running" forever | Expected. The runner is the foreground process; it runs for the lifetime of the workspace. Set `startup_script_behavior = "non-blocking"` on the agent so the workspace UI flips to "ready" once the agent is up, even while `coder_script` continues to run.                              |
+| Lock status shows `unlocked` but Active sessions shows `1 / 4`   | Expected with current Anthropic BYOC versions: the `claude_code_self_hosted_runner_locked_account` metric is a bare gauge with no labels, and the runner does not expose the locked user's email over its local endpoints. The locked user is visible only in `claude.ai > Self-hosted runner pools` and in Anthropic's session log. |
 | Metadata shows `?` for active sessions                           | The runner has not started yet, the `/healthz` port is firewalled inside the container, or `jq` is missing from the image. Check `tail -f ~/.claude/runner.log` and `apt list --installed jq`.                                                                                              |
 
 ## Where to next
