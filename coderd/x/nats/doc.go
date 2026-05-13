@@ -7,18 +7,17 @@
 // Experimental. Nothing in this package is currently imported by
 // production code. Do not depend on its exported surface remaining
 // backwards compatible. The v1 iteration covers standalone and
-// clustered modes, TLS for routes, slow-consumer accounting, and
-// Prometheus metrics. Migrating existing call sites is an explicit
-// non-goal of v1.
+// clustered modes, TLS for routes, and slow-consumer accounting.
+// Migrating existing call sites is an explicit non-goal of v1.
 //
 // # What it provides
 //
 // New starts an embedded NATS server (github.com/nats-io/nats-server)
 // and a colocated client (github.com/nats-io/nats.go) connected
 // in-process to that server. The returned *Pubsub satisfies
-// pubsub.Pubsub and prometheus.Collector. Owned servers and
-// connections are shut down by Close. NewFromConn wraps an externally
-// owned connection without taking ownership of it.
+// pubsub.Pubsub. Owned servers and connections are shut down by
+// Close. NewFromConn wraps an externally owned connection without
+// taking ownership of it.
 //
 // # Modes
 //
@@ -44,8 +43,7 @@
 // Legacy event names of the form "event:foo:bar" are mapped to
 // dot-separated NATS subjects under a fixed prefix, for example
 // "coder.v1.pubsub.event.foo.bar". See subject.go for the full
-// mapping rules and validation. The mapping is internal and never
-// surfaces in metrics labels.
+// mapping rules and validation.
 //
 // # Slow-consumer behavior
 //
@@ -53,9 +51,7 @@
 // subscription, that subscription's listener receives a single
 // callback with err set to pubsub.ErrDroppedMessages, matching the
 // existing pubsub semantics. Reconnect events alone do not synthesize
-// dropped-message callbacks; only NATS-reported drops do. The cluster
-// connection's reconnect and disconnect counters are exported as
-// metrics.
+// dropped-message callbacks; only NATS-reported drops do.
 //
 // # Echo
 //
@@ -93,13 +89,4 @@
 // nil, routes are plaintext and protected only by ClusterToken. v1
 // does not provision certificates; supply a *tls.Config built from
 // material managed elsewhere.
-//
-// # Metrics cardinality
-//
-// Metrics in this package never label by subject, event name, UUID,
-// or peer identity. Counters that need a dimension use bounded label
-// sets (for example success "true"/"false", or size "normal"/
-// "colossal"). Gauges aggregate across the server and are emitted
-// without per-subject labels. This contract keeps the package safe
-// to scrape in clusters with thousands of distinct event names.
 package nats

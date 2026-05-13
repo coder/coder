@@ -278,8 +278,4 @@ drain:
 	case <-time.After(testutil.IntervalSlow):
 		// good: nothing delivered
 	}
-
-	// But slowConsumersTotal should have incremented again.
-	// (We can't easily read counter here without reflection; covered in
-	// metrics tests via direct registry gather.)
 }

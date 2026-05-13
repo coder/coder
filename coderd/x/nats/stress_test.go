@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -19,34 +18,10 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// gaugeValue gathers metric family `name` from reg and returns the value
-// of the first metric (no labels expected). Returns false when the
-// family or metric is missing.
-func gaugeValue(t *testing.T, reg *prometheus.Registry, name string) (float64, bool) {
-	t.Helper()
-	mfs, err := reg.Gather()
-	require.NoError(t, err)
-	for _, mf := range mfs {
-		if mf.GetName() != name {
-			continue
-		}
-		for _, m := range mf.Metric {
-			switch {
-			case m.Gauge != nil:
-				return m.GetGauge().GetValue(), true
-			case m.Counter != nil:
-				return m.GetCounter().GetValue(), true
-			}
-		}
-	}
-	return 0, false
-}
-
 // TestStress_ConcurrentSubscribePublishCancel exercises many goroutines
 // that subscribe, publish, and cancel concurrently against a single
-// standalone Pubsub. It verifies no panic, no deadlock, that Close
-// returns within DrainTimeout, and that the current_subscribers gauge
-// returns to 0 after cleanup.
+// standalone Pubsub. It verifies no panic, no deadlock, and that Close
+// returns within DrainTimeout.
 func TestStress_ConcurrentSubscribePublishCancel(t *testing.T) {
 	t.Parallel()
 
@@ -59,9 +34,6 @@ func TestStress_ConcurrentSubscribePublishCancel(t *testing.T) {
 		DrainTimeout: drainTimeout,
 	})
 	require.NoError(t, err)
-
-	reg := prometheus.NewRegistry()
-	require.NoError(t, reg.Register(ps))
 
 	const (
 		numWorkers = 20
@@ -132,15 +104,6 @@ func TestStress_ConcurrentSubscribePublishCancel(t *testing.T) {
 		t.Fatalf("Close did not return within %s", drainTimeout+2*time.Second)
 	}
 	t.Logf("close took %s, dropped errors observed: %d", time.Since(closeStart), dropped.Load())
-
-	// After Close, current_subscribers should be 0.
-	v, ok := gaugeValue(t, reg, "coder_pubsub_current_subscribers")
-	require.True(t, ok, "expected coder_pubsub_current_subscribers to be present")
-	assert.Equal(t, float64(0), v, "subscribers gauge should be 0 after Close")
-
-	v, ok = gaugeValue(t, reg, "coder_pubsub_current_events")
-	require.True(t, ok)
-	assert.Equal(t, float64(0), v, "events gauge should be 0 after Close")
 }
 
 // TestStress_ManySubscribersOneEvent verifies that with many

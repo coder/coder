@@ -100,27 +100,9 @@ coder_pubsub_latency_measure_errs_total 0
 # HELP coder_pubsub_latency_measures_total The number of pubsub latency measurements
 # TYPE coder_pubsub_latency_measures_total counter
 coder_pubsub_latency_measures_total 0
-# HELP coder_pubsub_messages_total Total number of messages published, labeled by size class
+# HELP coder_pubsub_messages_total Total number of messages received from postgres
 # TYPE coder_pubsub_messages_total counter
 coder_pubsub_messages_total{size=""} 0
-# HELP coder_pubsub_nats_disconnects_total Total number of NATS client disconnect events
-# TYPE coder_pubsub_nats_disconnects_total counter
-coder_pubsub_nats_disconnects_total 0
-# HELP coder_pubsub_nats_dropped_msgs_total Total number of messages dropped by NATS slow-consumer protection
-# TYPE coder_pubsub_nats_dropped_msgs_total counter
-coder_pubsub_nats_dropped_msgs_total 0
-# HELP coder_pubsub_nats_pending_bytes Sum of NATS per-subscription pending bytes across active subscriptions
-# TYPE coder_pubsub_nats_pending_bytes gauge
-coder_pubsub_nats_pending_bytes 0
-# HELP coder_pubsub_nats_pending_msgs Sum of NATS per-subscription pending messages across active subscriptions
-# TYPE coder_pubsub_nats_pending_msgs gauge
-coder_pubsub_nats_pending_msgs 0
-# HELP coder_pubsub_nats_reconnects_total Total number of NATS client reconnect events
-# TYPE coder_pubsub_nats_reconnects_total counter
-coder_pubsub_nats_reconnects_total 0
-# HELP coder_pubsub_nats_slow_consumers_total Total number of NATS slow-consumer signals observed
-# TYPE coder_pubsub_nats_slow_consumers_total counter
-coder_pubsub_nats_slow_consumers_total 0
 # HELP coder_pubsub_published_bytes_total Total number of bytes successfully published across all publishes
 # TYPE coder_pubsub_published_bytes_total counter
 coder_pubsub_published_bytes_total 0
