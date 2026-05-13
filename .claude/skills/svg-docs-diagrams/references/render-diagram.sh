@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# render-diagram.sh — capture a docs page rendering for SVG diagram review.
+# render-diagram.sh: capture a docs page rendering for SVG diagram review.
 #
 # Usage:
 #   render-diagram.sh <docs-url> <output-png> [viewport-width] [page-height]

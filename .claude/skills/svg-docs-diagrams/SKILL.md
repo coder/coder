@@ -170,7 +170,62 @@ screen readers announce and what search indexes pick up.
 Treat diagrams like code: change, render, eyeball, repeat. The docs
 dev server is the source of truth, not native SVG rendering.
 
-### Render the diagram inside the actual docs page
+Two layers, in order:
+
+1. **Programmatic overlap check** with `check-svg-overlaps.js`. Runs
+   in under a second, catches the recurring failure modes (text
+   overflow past a card, two cards intersecting, an arrow label on
+   top of a card title, two texts colliding). Run this after every
+   edit; the eyeball pass is a backup, not the primary check.
+2. **Eyeball pass** at the actual docs page width, plus the
+   click-through full-size view.
+
+### 1. Run the programmatic checker after every edit
+
+```bash
+node .claude/skills/svg-docs-diagrams/references/check-svg-overlaps.js \
+  docs/images/guides/<guide>/<diagram>.svg
+```
+
+Exit code 0 = no overlaps or overflows. Non-zero = errors. The script
+reports each finding with element coordinates and the rule it
+violated, so you can fix it without screenshotting.
+
+Loop it while iterating:
+
+```bash
+while inotifywait -e modify docs/images/guides/<guide>/<diagram>.svg; do
+  node .claude/skills/svg-docs-diagrams/references/check-svg-overlaps.js \
+    docs/images/guides/<guide>/<diagram>.svg
+done
+```
+
+The checker uses Chrome's real text metrics via `getBBox()`, so its
+verdict matches what readers see. If your diagram uses unusual class
+names for nested containers, pass `--allow-nesting child>parent` to
+teach the checker that the nesting is intentional.
+
+What it catches:
+
+- **text-overflow**: a text element extends past the bounding box of
+  its smallest enclosing container rect, or pokes outside a container
+  that vertically contains it.
+- **rect-collision**: two container rects partially overlap (allowed
+  nesting is configurable).
+- **rect-stacking**: two rects of the same class fully overlap, which
+  usually means a stale duplicate.
+- **text-text-collision**: two text elements' bboxes intersect.
+- **arrow-label-on-card**: an arrow label sits on top of a card or
+  badge it doesn't logically belong to.
+
+What it does NOT catch (use the eyeball pass for):
+
+- Visual hierarchy and "feels crowded".
+- Color contrast and readability against tinted backgrounds.
+- Whether the diagram is actually accurate to the system.
+- Whether the click-through full-size view looks right.
+
+### 2. Render the diagram inside the actual docs page
 
 Start the docs dev server (see the project's existing dev instructions;
 in this repo it's coder.com running on port 4001 with `DOCS_ROOT`
@@ -186,7 +241,7 @@ bash .claude/skills/svg-docs-diagrams/references/render-diagram.sh \
   /tmp/svg-preview/page.png
 ```
 
-### Click into the full-size view
+### 3. Click into the full-size view
 
 The docs frontend lets the reader click the inline image to view it at
 its natural size. Verify both:
@@ -197,7 +252,7 @@ its natural size. Verify both:
 If only the inline version has problems, the viewBox is too wide. If
 only the full-size has problems, individual elements are mispositioned.
 
-### Use a `computer_use` subagent for the click-through
+### 4. Use a `computer_use` subagent for the click-through
 
 Headless Chrome can capture the inline rendering, but verifying the
 clicked-open full-size view and the overall feel is best done with a
@@ -219,7 +274,7 @@ Do not trust the subagent's "looks good" if it reuses an old
 screenshot path. Verify the screenshot's `md5sum` changes when you
 edit the SVG.
 
-### Cache busting
+### 5. Cache busting
 
 Next.js dev servers cache static assets. If a fresh screenshot shows
 your old SVG:
@@ -284,6 +339,7 @@ Add to `.gitignore` if you accidentally `git add -A` them in.
 
 Before you commit an SVG change:
 
+- [ ] `node check-svg-overlaps.js` reports 0 errors.
 - [ ] `viewBox` is no wider than 1280 (target 960 to 1180).
 - [ ] On-page font sizes hit the targets above.
 - [ ] Arrow labels use the white halo via `paint-order: stroke`.
@@ -298,8 +354,12 @@ Before you commit an SVG change:
 
 ## Related files
 
-- `references/render-diagram.sh` — copy-pastable headless Chrome
+- `references/check-svg-overlaps.js`: Node script that loads the
+  SVG in headless Chrome, measures every `<text>` and `<rect>` via
+  `getBBox()`, and reports overflows and collisions. Run after every
+  edit.
+- `references/render-diagram.sh`: copy-pastable headless Chrome
   rendering script.
-- `references/template.svg` — minimal SVG template with the
+- `references/template.svg`: minimal SVG template with the
   conventions baked in (viewBox, arrow-label halo, title and desc,
   badge classes).
