@@ -57,7 +57,6 @@
   <!-- Coder zone -->
   <rect class="zone-coder" x="280" y="40" width="656" height="280" rx="12"/>
   <text class="zone-label zone-coder-l" x="296" y="64">Coder</text>
-  <text class="small" x="296" y="80">Prebuilds preset maintains N warm workspaces</text>
 
   <!-- Pool of warm workspaces (3 visible + ellipsis) -->
   <rect class="workspace-warm" x="304" y="100" width="132" height="96" rx="8"/>
