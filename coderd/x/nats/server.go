@@ -51,10 +51,22 @@ func buildServerOptions(opts Options, peers []Peer) (*natsserver.Options, string
 		maxPayload = natsserver.MAX_PAYLOAD_SIZE
 	}
 
+	// MaxPending: zero means use DefaultMaxPending (1 GiB). Negative
+	// means use the nats-server default by leaving the field at zero
+	// (the server fills in 64 MiB during processOptions).
+	maxPending := opts.MaxPending
+	switch {
+	case maxPending == 0:
+		maxPending = DefaultMaxPending
+	case maxPending < 0:
+		maxPending = 0
+	}
+
 	sopts := &natsserver.Options{
 		JetStream:  false,
 		ServerName: serverName,
 		MaxPayload: maxPayload,
+		MaxPending: maxPending,
 		NoLog:      true,
 		NoSigs:     true,
 	}
