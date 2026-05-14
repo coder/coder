@@ -363,6 +363,7 @@ type UpsertGroupAIBudgetRequest struct {
 	SpendLimitMicros int64 `json:"spend_limit_micros" validate:"required,gt=0"`
 }
 
+// GroupAIBudget returns the AI spend budget configured for the given group.
 func (c *Client) GroupAIBudget(ctx context.Context, group uuid.UUID) (GroupAIBudget, error) {
 	res, err := c.Request(ctx, http.MethodGet,
 		fmt.Sprintf("/api/v2/groups/%s/ai/budget", group.String()),
@@ -380,6 +381,7 @@ func (c *Client) GroupAIBudget(ctx context.Context, group uuid.UUID) (GroupAIBud
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
+// UpsertGroupAIBudget creates or updates the AI spend budget for the given group.
 func (c *Client) UpsertGroupAIBudget(ctx context.Context, group uuid.UUID, req UpsertGroupAIBudgetRequest) (GroupAIBudget, error) {
 	res, err := c.Request(ctx, http.MethodPut,
 		fmt.Sprintf("/api/v2/groups/%s/ai/budget", group.String()),
@@ -397,6 +399,7 @@ func (c *Client) UpsertGroupAIBudget(ctx context.Context, group uuid.UUID, req U
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
+// DeleteGroupAIBudget removes the AI spend budget for the given group.
 func (c *Client) DeleteGroupAIBudget(ctx context.Context, group uuid.UUID) error {
 	res, err := c.Request(ctx, http.MethodDelete,
 		fmt.Sprintf("/api/v2/groups/%s/ai/budget", group.String()),
