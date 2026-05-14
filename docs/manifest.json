@@ -1078,6 +1078,32 @@
 					]
 				},
 				{
+					"title": "Cursor Self-Hosted Workers",
+					"description": "Run Cursor private workers on Coder workspaces",
+					"path": "./ai-coder/cursor-self-hosted-workers/index.md",
+					"state": ["early access"],
+					"children": [
+						{
+							"title": "System Identity",
+							"description": "A self-healing pool of bot-owned Cursor workers. Each worker is one Coder workspace bound to one repo.",
+							"path": "./ai-coder/cursor-self-hosted-workers/system-identity.md",
+							"state": ["early access"]
+						},
+						{
+							"title": "User Identity",
+							"description": "Per-developer attribution for Cursor workers on Coder. Not yet available.",
+							"path": "./ai-coder/cursor-self-hosted-workers/user-identity.md",
+							"state": ["early access"]
+						},
+						{
+							"title": "Implementation Notes",
+							"description": "Design history, sub-stages, and open questions tracked alongside the delivery.",
+							"path": "./ai-coder/cursor-self-hosted-workers/plan.md",
+							"state": ["early access"]
+						}
+					]
+				},
+				{
 					"title": "AI Governance Add-On",
 					"description": "Features around managing agents at scale",
 					"path": "./ai-coder/ai-governance.md",

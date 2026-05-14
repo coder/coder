@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 460" width="1000" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="diag-title diag-desc">
+  <title id="diag-title">Cursor self-hosted workers: nested concepts</title>
+  <desc id="diag-desc">Placeholder diagram. A Coder workspace is the outer container, managed by Coder. Inside the workspace runs the Cursor private worker, a long-lived process managed by Cursor. The worker is bound to one git repository and serves one Cursor session at a time, also managed by Cursor.</desc>
+  <style>
+    .layer { fill: none; stroke: #94a3b8; stroke-width: 1.5; rx: 10; }
+    .layer-title { font-family: ui-sans-serif, system-ui, sans-serif; font-size: 18px; font-weight: 600; fill: #0f172a; }
+    .layer-sub { font-family: ui-sans-serif, system-ui, sans-serif; font-size: 13px; fill: #475569; }
+    .layer-1 { fill: #eef2ff; }
+    .layer-2 { fill: #e0e7ff; }
+    .layer-3 { fill: #c7d2fe; }
+  </style>
+  <rect class="layer layer-1" x="40"  y="40"  width="920" height="380" rx="14"/>
+  <text class="layer-title" x="64" y="76">Coder workspace</text>
+  <text class="layer-sub"   x="64" y="96">Managed by Coder. Image, network, lifecycle from a template.</text>
+  <rect class="layer layer-2" x="100" y="120" width="800" height="280" rx="12"/>
+  <text class="layer-title" x="124" y="156">Cursor private worker (cursor-agent worker)</text>
+  <text class="layer-sub"   x="124" y="176">Managed by Cursor. Bound to one repo at startup.</text>
+  <rect class="layer layer-3" x="180" y="200" width="640" height="180" rx="10"/>
+  <text class="layer-title" x="204" y="236">One Cursor Background Agent session</text>
+  <text class="layer-sub"   x="204" y="256">Managed by Cursor. activeBcId identifies it in the fleet API.</text>
+</svg>
