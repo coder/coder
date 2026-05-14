@@ -1,3 +1,0 @@
-# Store external auth user identity on external auth links
-
-External auth user identity is stored on the external auth link because the identity exists only as part of a Coder user connecting an external provider. We considered a separate identity table and Linear-specific user fields, but chose generic identity fields on the link so provider ID and external user ID form the mapping boundary without adding a new table or a provider-specific schema path. This keeps Linear actor mapping deterministic while leaving future first-class external auth providers room to reuse the same model deliberately.
