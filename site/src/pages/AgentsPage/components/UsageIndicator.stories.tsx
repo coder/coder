@@ -5,7 +5,11 @@ import { expect, userEvent, within } from "storybook/test";
 import { chatUsageLimitStatusKey } from "#/api/queries/chats";
 import { getWorkspaceQuotaQueryKey } from "#/api/queries/workspaceQuota";
 import { workspacesKey } from "#/api/queries/workspaces";
-import type { WorkspaceQuota, WorkspacesResponse } from "#/api/typesGenerated";
+import type {
+	ChatUsageLimitStatus,
+	WorkspaceQuota,
+	WorkspacesResponse,
+} from "#/api/typesGenerated";
 import {
 	MockDefaultOrganization,
 	MockPermissions,
@@ -17,20 +21,11 @@ import {
 } from "#/testHelpers/storybook";
 import { UsageIndicator } from "./UsageIndicator";
 
-const withUsageLimitStatus =
-	(status: {
-		is_limited: boolean;
-		period?: "day" | "week" | "month";
-		spend_limit_micros?: number;
-		current_spend: number;
-		period_start?: string;
-		period_end?: string;
-	}) =>
-	(Story: FC) => {
-		const queryClient = useQueryClient();
-		queryClient.setQueryData(chatUsageLimitStatusKey, status);
-		return <Story />;
-	};
+const withUsageLimitStatus = (status: ChatUsageLimitStatus) => (Story: FC) => {
+	const queryClient = useQueryClient();
+	queryClient.setQueryData(chatUsageLimitStatusKey, status);
+	return <Story />;
+};
 
 const withWorkspaceQuota = (quota: WorkspaceQuota) => (Story: FC) => {
 	const queryClient = useQueryClient();
@@ -73,8 +68,23 @@ const openUsageMenu = async (canvasElement: HTMLElement) => {
 	await userEvent.click(canvas.getByRole("button"));
 };
 
-const periodStart = new Date().toISOString();
-const periodEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+const limitedUsageStatus = (
+	overrides: Partial<ChatUsageLimitStatus> = {},
+): ChatUsageLimitStatus => ({
+	is_limited: true,
+	period: "month",
+	spend_limit_micros: 50_000_000,
+	current_spend: 12_500_000,
+	period_start: "2026-02-10T00:00:00Z",
+	period_end: "2026-03-12T00:00:00Z",
+	...overrides,
+});
+
+const unlimitedUsageStatus = {
+	is_limited: false,
+	current_spend: 0,
+} satisfies ChatUsageLimitStatus;
+
 const userWorkspacesRequest = {
 	q: `owner:me organization:${MockDefaultOrganization.name}`,
 	limit: 0,
@@ -107,66 +117,52 @@ type Story = StoryObj<typeof UsageIndicator>;
 
 export const LowUsage: Story = {
 	decorators: [
-		withUsageLimitStatus({
-			is_limited: true,
-			period: "month",
-			spend_limit_micros: 50_000_000,
-			current_spend: 12_500_000,
-			period_start: periodStart,
-			period_end: periodEnd,
-		}),
+		withUsageLimitStatus(limitedUsageStatus()),
 		withWorkspaceQuota(noWorkspaceQuota),
 	],
 };
 
 export const MediumUsage: Story = {
 	decorators: [
-		withUsageLimitStatus({
-			is_limited: true,
-			period: "week",
-			spend_limit_micros: 20_000_000,
-			current_spend: 16_000_000,
-			period_start: periodStart,
-			period_end: periodEnd,
-		}),
+		withUsageLimitStatus(
+			limitedUsageStatus({
+				period: "week",
+				spend_limit_micros: 20_000_000,
+				current_spend: 16_000_000,
+			}),
+		),
 		withWorkspaceQuota(noWorkspaceQuota),
 	],
 };
 
 export const HighUsage: Story = {
 	decorators: [
-		withUsageLimitStatus({
-			is_limited: true,
-			period: "day",
-			spend_limit_micros: 10_000_000,
-			current_spend: 9_500_000,
-			period_start: periodStart,
-			period_end: periodEnd,
-		}),
+		withUsageLimitStatus(
+			limitedUsageStatus({
+				period: "day",
+				spend_limit_micros: 10_000_000,
+				current_spend: 9_500_000,
+			}),
+		),
 		withWorkspaceQuota(noWorkspaceQuota),
 	],
 };
 
 export const LimitExceeded: Story = {
 	decorators: [
-		withUsageLimitStatus({
-			is_limited: true,
-			period: "month",
-			spend_limit_micros: 30_000_000,
-			current_spend: 32_000_000,
-			period_start: periodStart,
-			period_end: periodEnd,
-		}),
+		withUsageLimitStatus(
+			limitedUsageStatus({
+				spend_limit_micros: 30_000_000,
+				current_spend: 32_000_000,
+			}),
+		),
 		withWorkspaceQuota(noWorkspaceQuota),
 	],
 };
 
 export const WorkspaceQuotaOnly: Story = {
 	decorators: [
-		withUsageLimitStatus({
-			is_limited: false,
-			current_spend: 0,
-		}),
+		withUsageLimitStatus(unlimitedUsageStatus),
 		withWorkspaceQuota(defaultWorkspaceQuota),
 		withWorkspaceCount(3),
 	],
@@ -177,14 +173,7 @@ export const WorkspaceQuotaOnly: Story = {
 
 export const UsageAndWorkspaceQuota: Story = {
 	decorators: [
-		withUsageLimitStatus({
-			is_limited: true,
-			period: "month",
-			spend_limit_micros: 50_000_000,
-			current_spend: 12_500_000,
-			period_start: periodStart,
-			period_end: periodEnd,
-		}),
+		withUsageLimitStatus(limitedUsageStatus()),
 		withWorkspaceQuota(defaultWorkspaceQuota),
 		withWorkspaceCount(3),
 	],
@@ -203,10 +192,7 @@ export const UsageAndWorkspaceQuota: Story = {
 
 export const WorkspaceQuotaUnused: Story = {
 	decorators: [
-		withUsageLimitStatus({
-			is_limited: false,
-			current_spend: 0,
-		}),
+		withUsageLimitStatus(unlimitedUsageStatus),
 		withWorkspaceQuota({
 			credits_consumed: 0,
 			budget: 100,
@@ -221,10 +207,7 @@ export const WorkspaceQuotaUnused: Story = {
 
 export const WorkspaceQuotaWithoutBudget: Story = {
 	decorators: [
-		withUsageLimitStatus({
-			is_limited: false,
-			current_spend: 0,
-		}),
+		withUsageLimitStatus(unlimitedUsageStatus),
 		withWorkspaceQuota({
 			credits_consumed: 20,
 			budget: 0,
@@ -250,10 +233,7 @@ export const WorkspaceQuotaWithoutBudget: Story = {
 
 export const WorkspaceQuotaExceeded: Story = {
 	decorators: [
-		withUsageLimitStatus({
-			is_limited: false,
-			current_spend: 0,
-		}),
+		withUsageLimitStatus(unlimitedUsageStatus),
 		withWorkspaceQuota({
 			credits_consumed: 125,
 			budget: 100,
@@ -267,10 +247,7 @@ export const WorkspaceQuotaExceeded: Story = {
 
 export const WorkspaceQuotaWithoutWorkspaceCount: Story = {
 	decorators: [
-		withUsageLimitStatus({
-			is_limited: false,
-			current_spend: 0,
-		}),
+		withUsageLimitStatus(unlimitedUsageStatus),
 		withWorkspaceQuota(defaultWorkspaceQuota),
 		withUnavailableWorkspaceCount,
 	],
@@ -281,10 +258,7 @@ export const WorkspaceQuotaWithoutWorkspaceCount: Story = {
 
 export const NotLimited: Story = {
 	decorators: [
-		withUsageLimitStatus({
-			is_limited: false,
-			current_spend: 0,
-		}),
+		withUsageLimitStatus(unlimitedUsageStatus),
 		withWorkspaceQuota(noWorkspaceQuota),
 	],
 };
