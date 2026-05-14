@@ -361,6 +361,109 @@ func TestRequestPayloadConvertAdaptiveThinkingForBedrock(t *testing.T) {
 	}
 }
 
+func TestRequestPayloadConvertEnabledThinkingForBedrock(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+
+		requestBody string
+
+		expectedThinkingType string
+		expectedEffort       string
+	}{
+		{
+			name:        "no_thinking_field_is_no_op",
+			requestBody: `{"model":"claude-opus-4-7","max_tokens":10000,"messages":[]}`,
+		},
+		{
+			name:                 "adaptive_thinking_is_no_op",
+			requestBody:          `{"model":"claude-opus-4-7","max_tokens":10000,"thinking":{"type":"adaptive"},"messages":[]}`,
+			expectedThinkingType: "adaptive",
+		},
+		{
+			name:                 "disabled_thinking_is_no_op",
+			requestBody:          `{"model":"claude-opus-4-7","max_tokens":10000,"thinking":{"type":"disabled"},"messages":[]}`,
+			expectedThinkingType: "disabled",
+		},
+		{
+			name:                 "enabled_with_low_ratio_maps_to_low_effort",
+			requestBody:          `{"model":"claude-opus-4-7","max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":2000},"messages":[]}`,
+			expectedThinkingType: "adaptive",
+			expectedEffort:       "low",
+		},
+		{
+			name:                 "enabled_with_medium_ratio_maps_to_medium_effort",
+			requestBody:          `{"model":"claude-opus-4-7","max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":5000},"messages":[]}`,
+			expectedThinkingType: "adaptive",
+			expectedEffort:       "medium",
+		},
+		{
+			name:                 "enabled_with_high_ratio_maps_to_high_effort",
+			requestBody:          `{"model":"claude-opus-4-7","max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":8000},"messages":[]}`,
+			expectedThinkingType: "adaptive",
+			expectedEffort:       "high",
+		},
+		{
+			name:                 "enabled_with_max_ratio_maps_to_max_effort",
+			requestBody:          `{"model":"claude-opus-4-7","max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":9500},"messages":[]}`,
+			expectedThinkingType: "adaptive",
+			expectedEffort:       "max",
+		},
+		{
+			name:                 "enabled_at_low_medium_boundary_maps_to_medium",
+			requestBody:          `{"model":"claude-opus-4-7","max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":3500},"messages":[]}`,
+			expectedThinkingType: "adaptive",
+			expectedEffort:       "medium", // 0.35 boundary lands in medium
+		},
+		{
+			name:                 "enabled_without_budget_falls_back_to_high_effort",
+			requestBody:          `{"model":"claude-opus-4-7","max_tokens":10000,"thinking":{"type":"enabled"},"messages":[]}`,
+			expectedThinkingType: "adaptive",
+			expectedEffort:       "high",
+		},
+		{
+			name:                 "enabled_without_max_tokens_falls_back_to_high_effort",
+			requestBody:          `{"model":"claude-opus-4-7","thinking":{"type":"enabled","budget_tokens":5000},"messages":[]}`,
+			expectedThinkingType: "adaptive",
+			expectedEffort:       "high",
+		},
+		{
+			name:                 "enabled_preserves_explicit_effort",
+			requestBody:          `{"model":"claude-opus-4-7","max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":2000},"output_config":{"effort":"max"},"messages":[]}`,
+			expectedThinkingType: "adaptive",
+			expectedEffort:       "max", // ratio would say "low", but explicit "max" wins
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			payload := mustMessagesPayload(t, tc.requestBody)
+			updatedPayload, err := payload.convertEnabledThinkingForBedrock()
+			require.NoError(t, err)
+
+			thinking := gjson.GetBytes(updatedPayload, messagesReqPathThinking)
+			require.NotEqual(t, tc.expectedThinkingType == "", thinking.Exists(), "thinking should not be set")
+			require.Equal(t, tc.expectedThinkingType, gjson.GetBytes(updatedPayload, messagesReqPathThinkingType).String())
+
+			// budget_tokens must always be absent after a successful conversion.
+			budgetTokens := gjson.GetBytes(updatedPayload, messagesReqPathThinkingBudgetTokens)
+			if tc.expectedThinkingType == "adaptive" {
+				require.False(t, budgetTokens.Exists(), "budget_tokens should be removed after conversion")
+			}
+
+			effort := gjson.GetBytes(updatedPayload, messagesReqPathOutputConfigEffort)
+			if tc.expectedEffort == "" {
+				// Effort is only set when we converted an "enabled" payload.
+				return
+			}
+			require.Equal(t, tc.expectedEffort, effort.String())
+		})
+	}
+}
+
 func TestRequestPayloadDisableParallelToolCalls(t *testing.T) {
 	t.Parallel()
 

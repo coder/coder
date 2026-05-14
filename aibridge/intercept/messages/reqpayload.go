@@ -74,6 +74,9 @@ var (
 	// If the beta flag is present in the (already-filtered) Anthropic-Beta header,
 	// the field is kept; otherwise it is stripped. Model-specific beta flags must
 	// be removed from the header before this check (see filterBedrockBetaFlags).
+	// Adaptive-only models (Opus 4.7+) are exempt for output_config since they
+	// support it natively without a beta flag, see
+	// bedrockModelRequiresAdaptiveThinking.
 	bedrockBetaGatedFields = map[string]string{
 		// output_config requires the effort beta (Opus 4.5 only).
 		messagesReqPathOutputConfig: "effort-2025-11-24",
@@ -372,12 +375,72 @@ func (p RequestPayload) convertAdaptiveThinkingForBedrock() (RequestPayload, err
 	})
 }
 
+// convertEnabledThinkingForBedrock converts thinking.type "enabled" with a
+// budget_tokens budget to the "adaptive" thinking type plus an output_config.effort
+// derived from the budget_tokens / max_tokens ratio. The conversion is needed for
+// Bedrock models that only support the "adaptive" thinking.type (Opus 4.7+).
+//
+// See https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-opus-4-7.html
+// and https://docs.aws.amazon.com/bedrock/latest/userguide/claude-messages-adaptive-thinking.html
+//
+// This is the symmetric counterpart to convertAdaptiveThinkingForBedrock; the
+// ratio thresholds are the midpoints between the forward mapping's anchor
+// ratios (low=0.2, medium=0.5, high=0.8, max=0.95), so a payload that
+// round-trips through both conversions lands on the same effort level it
+// started with.
+//
+// An explicit output_config.effort already present in the request is preserved.
+func (p RequestPayload) convertEnabledThinkingForBedrock() (RequestPayload, error) {
+	thinkingType := gjson.GetBytes(p, messagesReqPathThinkingType)
+	if thinkingType.String() != constEnabled {
+		return p, nil
+	}
+
+	// Derive effort from budget_tokens / max_tokens. If either is missing or
+	// unusable, fall back to "high" so the resulting request matches the
+	// default effort assumption in convertAdaptiveThinkingForBedrock.
+	derivedEffort := "high"
+	budgetTokens := gjson.GetBytes(p, messagesReqPathThinkingBudgetTokens).Int()
+	maxTokens := gjson.GetBytes(p, messagesReqPathMaxTokens).Int()
+	if budgetTokens > 0 && maxTokens > 0 {
+		ratio := float64(budgetTokens) / float64(maxTokens)
+		switch {
+		case ratio < 0.35: // midpoint of low (0.2) and medium (0.5)
+			derivedEffort = "low"
+		case ratio < 0.65: // midpoint of medium (0.5) and high (0.8)
+			derivedEffort = "medium"
+		case ratio < 0.875: // midpoint of high (0.8) and max (0.95)
+			derivedEffort = "high"
+		default:
+			derivedEffort = "max"
+		}
+	}
+
+	updated, err := p.set(messagesReqPathThinking, map[string]string{"type": constAdaptive})
+	if err != nil {
+		return p, xerrors.Errorf("set thinking: %w", err)
+	}
+
+	// Preserve an explicit output_config.effort if the caller set one. Only
+	// inject the derived value when the field is absent, so we don't override
+	// intent.
+	if gjson.GetBytes(updated, messagesReqPathOutputConfigEffort).String() != "" {
+		return updated, nil
+	}
+	return updated.set(messagesReqPathOutputConfigEffort, derivedEffort)
+}
+
 // removeUnsupportedBedrockFields strips top-level fields that Bedrock does not
 // support from the payload. Fields that are gated behind a beta flag are only
 // removed when the corresponding flag is absent from the Anthropic-Beta header.
 // Model-specific beta flags must already be filtered from the header before
 // calling this method (see filterBedrockBetaFlags).
-func (p RequestPayload) removeUnsupportedBedrockFields(headers http.Header) (RequestPayload, error) {
+//
+// Fields exempted by exemptFields are always kept regardless of beta flag
+// state. Adaptive-only Bedrock models (Opus 4.7+) require output_config
+// without a beta flag, so callers pass the field through this set to bypass
+// the effort-2025-11-24 gate.
+func (p RequestPayload) removeUnsupportedBedrockFields(headers http.Header, exemptFields ...string) (RequestPayload, error) {
 	var payloadMap map[string]any
 	if err := json.Unmarshal(p, &payloadMap); err != nil {
 		return p, xerrors.Errorf("failed to unmarshal request payload when removing unsupported Bedrock fields: %w", err)
@@ -388,9 +451,13 @@ func (p RequestPayload) removeUnsupportedBedrockFields(headers http.Header) (Req
 		delete(payloadMap, field)
 	}
 
-	// Strip beta-gated fields only when their beta flag is missing.
+	// Strip beta-gated fields only when their beta flag is missing and the
+	// caller has not exempted them for the current model.
 	betaValues := headers.Values("Anthropic-Beta")
 	for field, requiredFlag := range bedrockBetaGatedFields {
+		if slices.Contains(exemptFields, field) {
+			continue
+		}
 		if !slices.Contains(betaValues, requiredFlag) {
 			delete(payloadMap, field)
 		}
