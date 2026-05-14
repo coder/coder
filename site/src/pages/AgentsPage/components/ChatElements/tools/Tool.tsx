@@ -214,14 +214,19 @@ const parseAskUserQuestionResult = (
 	return null;
 };
 
-const ExecuteRenderer: FC<ToolRendererProps> = ({
-	status,
-	args,
-	result,
-	isError,
-	killedBySignal,
-	shellToolDisplayMode,
-}) => {
+type ExecuteRenderData = {
+	command: string;
+	output: string;
+	durationMs?: number;
+	isBackgrounded: boolean;
+	authenticateURL: string;
+	providerLabel: string;
+};
+
+const getExecuteRenderData = (
+	args: unknown,
+	result: unknown,
+): ExecuteRenderData => {
 	const parsedArgs = parseArgs(args);
 	const command = parsedArgs ? asString(parsedArgs.command) : "";
 	const rec = asRecord(result);
@@ -233,32 +238,61 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 	const isBackgrounded = Boolean(
 		rec && asString(rec.background_process_id).trim(),
 	);
-	const authRequired = rec ? Boolean(rec.auth_required) : false;
-	const authenticateURL = rec ? asString(rec.authenticate_url).trim() : "";
+	const authenticateURL = rec?.auth_required
+		? asString(rec.authenticate_url).trim()
+		: "";
 	const providerLabel = toProviderLabel(
 		rec ? asString(rec.provider_display_name).trim() : "",
 		rec ? asString(rec.provider_id).trim() : "",
 		rec ? asString(rec.provider_type).trim() : "",
 	);
 
-	if (authRequired && authenticateURL) {
+	return {
+		command,
+		output,
+		durationMs,
+		isBackgrounded,
+		authenticateURL,
+		providerLabel,
+	};
+};
+
+const shouldHideExecuteTool = (data: ExecuteRenderData): boolean => {
+	return data.command.trim().length === 0 && !data.authenticateURL;
+};
+
+const ExecuteRenderer: FC<ToolRendererProps> = ({
+	status,
+	args,
+	result,
+	isError,
+	killedBySignal,
+	shellToolDisplayMode,
+}) => {
+	const data = getExecuteRenderData(args, result);
+
+	if (shouldHideExecuteTool(data)) {
+		return null;
+	}
+
+	if (data.authenticateURL) {
 		return (
 			<ExecuteAuthRequiredTool
-				command={command}
-				output={output}
-				authenticateURL={authenticateURL}
-				providerLabel={providerLabel}
+				command={data.command}
+				output={data.output}
+				authenticateURL={data.authenticateURL}
+				providerLabel={data.providerLabel}
 			/>
 		);
 	}
 	return (
 		<ExecuteToolComponent
-			command={command}
-			output={output}
+			command={data.command}
+			output={data.output}
 			status={status}
 			isError={isError}
-			durationMs={durationMs}
-			isBackgrounded={isBackgrounded}
+			durationMs={data.durationMs}
+			isBackgrounded={data.isBackgrounded}
 			killedBySignal={killedBySignal}
 			shellToolDisplayMode={shellToolDisplayMode}
 		/>
@@ -1059,6 +1093,12 @@ export const Tool = memo(
 			? SubagentRenderer
 			: (toolRenderers[name] ?? GenericToolRenderer);
 		const isShellTool = name === "execute" || name === "process_output";
+		if (
+			name === "execute" &&
+			shouldHideExecuteTool(getExecuteRenderData(args, result))
+		) {
+			return null;
+		}
 
 		return (
 			<div

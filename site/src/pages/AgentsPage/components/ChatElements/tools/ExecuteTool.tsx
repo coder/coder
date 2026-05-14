@@ -77,6 +77,7 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 	killedBySignal,
 	outputInitiallyOpen,
 }) => {
+	const hasCommand = command.trim().length > 0;
 	const hasOutput = output.length > 0;
 	const isRunning = status === "running";
 	const showFailureIndicator = isError && !isRunning;
@@ -86,8 +87,12 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 		: "Expand command output";
 	const durationLabel = formatShellDurationMs(durationMs);
 
+	if (!hasCommand) {
+		return null;
+	}
+
 	return (
-		<div className="group/exec grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 rounded-md bg-surface-primary font-mono text-xs leading-5">
+		<div className="group/exec grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 rounded-md bg-surface-primary font-mono font-normal text-xs leading-5">
 			<Tooltip delayDuration={300}>
 				<TooltipTrigger asChild>
 					{hasOutput ? (
@@ -96,7 +101,7 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 							aria-expanded={outputOpen}
 							aria-label={outputToggleLabel}
 							onClick={() => setOutputOpen((value) => !value)}
-							className="col-start-1 row-start-1 m-0 flex w-full min-w-0 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-left font-[inherit] text-[inherit] text-content-secondary transition-colors hover:text-content-primary"
+							className="col-start-1 row-start-1 m-0 flex w-full min-w-0 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-left font-[inherit] font-normal text-[inherit] text-content-secondary transition-colors hover:text-content-primary"
 						>
 							<ShellCommandLine
 								command={command}
@@ -105,7 +110,7 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 							/>
 						</button>
 					) : (
-						<div className="col-start-1 row-start-1 flex min-w-0 items-center gap-2 text-content-secondary">
+						<div className="col-start-1 row-start-1 flex min-w-0 items-center gap-2 font-normal text-content-secondary">
 							<ShellCommandLine
 								command={command}
 								durationLabel={durationLabel}
@@ -113,7 +118,7 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 						</div>
 					)}
 				</TooltipTrigger>
-				<TooltipContent className="max-w-xl whitespace-pre-wrap break-all font-mono">
+				<TooltipContent className="max-w-xl whitespace-pre-wrap break-all font-mono font-normal">
 					{command}
 				</TooltipContent>
 			</Tooltip>
@@ -182,12 +187,14 @@ const ShellCommandLine: React.FC<{
 }> = ({ command, durationLabel, expanded }) => {
 	return (
 		<>
-			<span className="shrink-0 text-[13px] text-content-success">$</span>
-			<span className="block min-w-0 truncate text-[13px] text-content-primary">
+			<span className="shrink-0 text-[13px] font-normal text-content-success">
+				$
+			</span>
+			<span className="block min-w-0 truncate text-[13px] font-normal text-content-primary">
 				{command}
 			</span>
 			{durationLabel && (
-				<span className="shrink-0 text-[13px] text-content-secondary">
+				<span className="shrink-0 text-[13px] font-normal text-content-secondary">
 					{durationLabel}
 				</span>
 			)}
