@@ -6,9 +6,13 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
+	"sync"
+	"syscall"
 
 	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
 	"golang.org/x/xerrors"
@@ -46,10 +50,26 @@ func (*mockTB) TempDir() string {
 
 func main() {
 	t := &mockTB{}
-	defer func() {
-		for _, f := range t.cleanup {
-			f()
-		}
+
+	// Ensure cleanups run on both normal exit and SIGINT/SIGTERM.
+	// Go's default signal handlers call os.Exit, which skips deferred
+	// funcs and would leave an embedded-postgres daemon orphaned.
+	var cleanupOnce sync.Once
+	runCleanup := func() {
+		cleanupOnce.Do(func() {
+			for _, f := range t.cleanup {
+				f()
+			}
+		})
+	}
+	defer runCleanup()
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-sigCh
+		runCleanup()
+		os.Exit(130)
 	}()
 
 	connection := os.Getenv("DB_DUMP_CONNECTION_URL")
@@ -64,7 +84,7 @@ func main() {
 				panic(err)
 			}
 		}
-		defer cleanup()
+		t.Cleanup(cleanup)
 	}
 
 	db, err := sql.Open("postgres", connection)
@@ -82,7 +102,7 @@ func main() {
 
 	dumpBytes, err := dbtestutil.PGDumpSchemaOnly(connection)
 	if err != nil {
-		if _, lookErr := exec.LookPath("pg_dump"); lookErr != nil {
+		if !pgDumpUsable() {
 			_, _ = fmt.Fprintf(os.Stderr,
 				"\nThis step needs pg_dump (PostgreSQL v13 or later) on PATH OR a Docker-compatible daemon.\n"+
 					"Install pg_dump locally to avoid Docker:\n"+
@@ -103,6 +123,32 @@ func main() {
 		err = xerrors.Errorf("write dump failed: %w", err)
 		panic(err)
 	}
+}
+
+// pgDumpUsable mirrors PGDumpSchemaOnly's requirement (pg_dump on PATH at
+// v13 or later). PGDumpSchemaOnly silently falls back to `docker run` when
+// either condition fails, so we only show the install hint here when the
+// local pg_dump is genuinely unusable. Otherwise an old pg_dump would
+// produce a misleading Docker-not-found message.
+func pgDumpUsable() bool {
+	path, err := exec.LookPath("pg_dump")
+	if err != nil {
+		return false
+	}
+	out, err := exec.Command(path, "--version").Output()
+	if err != nil {
+		return false
+	}
+	// Output format: "pg_dump (PostgreSQL) 14.5 ..."
+	parts := strings.Fields(string(out))
+	if len(parts) < 3 {
+		return false
+	}
+	major, err := strconv.Atoi(strings.SplitN(parts[2], ".", 2)[0])
+	if err != nil {
+		return false
+	}
+	return major >= 13
 }
 
 func openEmbeddedPostgres() (string, func(), error) {
