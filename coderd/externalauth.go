@@ -86,10 +86,14 @@ func (api *API) externalAuthByID(w http.ResponseWriter, r *http.Request) {
 		case err != nil:
 			status := http.StatusBadGateway
 			message := "Failed to fetch external auth identity."
-			if errors.Is(err, errExternalAuthIdentityChanged) {
+			switch {
+			case errors.Is(err, errExternalAuthIdentityChanged):
 				status = http.StatusBadRequest
 				message = "External auth identity changed. Unlink and reconnect the provider."
-			} else if errors.Is(err, errExternalAuthIdentityUpdate) {
+			case errors.Is(err, errExternalAuthIdentityAlreadyLinked):
+				status = http.StatusBadRequest
+				message = "This external account is already linked to another Coder user."
+			case errors.Is(err, errExternalAuthIdentityUpdate):
 				status = http.StatusInternalServerError
 				message = "Failed to update external auth identity."
 			}
@@ -266,8 +270,9 @@ func (api *API) postExternalAuthDeviceByID(rw http.ResponseWriter, r *http.Reque
 }
 
 var (
-	errExternalAuthIdentityChanged = xerrors.New("external auth identity changed")
-	errExternalAuthIdentityUpdate  = xerrors.New("update external auth identity")
+	errExternalAuthIdentityChanged       = xerrors.New("external auth identity changed")
+	errExternalAuthIdentityUpdate        = xerrors.New("update external auth identity")
+	errExternalAuthIdentityAlreadyLinked = xerrors.New("external auth identity already linked")
 )
 
 // @Summary Get external auth device by ID.
@@ -337,6 +342,9 @@ func (api *API) refreshExternalAuthIdentity(ctx context.Context, config *externa
 		ExternalUserAvatarUrl: identity.AvatarURL,
 	})
 	if err != nil {
+		if database.IsUniqueViolation(err, database.UniqueExternalAuthLinksProviderExternalUserIDIndex) {
+			return link, nil, xerrors.Errorf("%w for provider %q external user %q: %w", errExternalAuthIdentityAlreadyLinked, config.ID, identity.ID, err)
+		}
 		return link, nil, xerrors.Errorf("%w: %w", errExternalAuthIdentityUpdate, err)
 	}
 	return updated, identity, nil

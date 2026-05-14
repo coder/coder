@@ -62,6 +62,24 @@ func TestLinearExternalAuthIdentity(t *testing.T) {
 		require.Equal(t, "https://example.com/avatar.png", identity.AvatarURL)
 	})
 
+	t.Run("NameFallback", func(t *testing.T) {
+		t.Parallel()
+		server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
+			rw.Header().Set("Content-Type", "application/json")
+			_, _ = rw.Write([]byte(`{"data":{"viewer":{"id":"linear-user-1","name":"Ada"}}}`))
+		}))
+		t.Cleanup(server.Close)
+		config := &externalauth.Config{
+			InstrumentedOAuth2Config: &testutil.OAuth2Config{},
+			Type:                     codersdk.EnhancedExternalAuthProviderLinear.String(),
+			APIBaseURL:               server.URL,
+		}
+
+		identity, err := config.ExternalAuthIdentity(context.Background(), "token")
+		require.NoError(t, err)
+		require.Equal(t, "Ada", identity.Name)
+	})
+
 	t.Run("GraphQLError", func(t *testing.T) {
 		t.Parallel()
 		server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
@@ -101,6 +119,12 @@ func TestLinearExternalAuthIdentityFailures(t *testing.T) {
 			status:  http.StatusOK,
 			body:    `{"data":{"viewer":{"id":""}}}`,
 			wantErr: "linear viewer query returned empty user ID",
+		},
+		{
+			name:    "TransientServerError",
+			status:  http.StatusServiceUnavailable,
+			body:    "unavailable",
+			wantErr: "linear external auth identity",
 		},
 		{
 			name:         "Unauthorized",

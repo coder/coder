@@ -385,6 +385,50 @@ func TestExternalAuthManagement(t *testing.T) {
 		require.False(t, auth.Authenticated)
 	})
 
+	t.Run("LinearLazyIdentityAlreadyLinked", func(t *testing.T) {
+		t.Parallel()
+		const providerID = "linear"
+
+		var failIdentity atomic.Bool
+		linear := oidctest.NewFakeIDP(t, oidctest.WithServing())
+		routes := (&oidctest.ExternalAuthConfigOptions{}).AddRoute("/graphql", func(_ string, rw http.ResponseWriter, r *http.Request) {
+			require.Equal(t, http.MethodPost, r.Method)
+			if failIdentity.Load() {
+				http.Error(rw, "try again", http.StatusServiceUnavailable)
+				return
+			}
+			httpapi.Write(r.Context(), rw, http.StatusOK, map[string]any{
+				"data": map[string]any{
+					"viewer": map[string]any{
+						"id":          "linear-user-1",
+						"displayName": "Ada Lovelace",
+					},
+				},
+			})
+		})
+		owner := coderdtest.New(t, &coderdtest.Options{
+			ExternalAuthConfigs: []*externalauth.Config{
+				linear.ExternalAuthConfig(t, providerID, routes, func(cfg *externalauth.Config) {
+					cfg.Type = codersdk.EnhancedExternalAuthProviderLinear.String()
+					cfg.APIBaseURL = strings.TrimRight(cfg.ValidateURL, "/")
+					cfg.ValidateURL = ""
+				}),
+			},
+		})
+		ownerUser := coderdtest.CreateFirstUser(t, owner)
+		clientA, _ := coderdtest.CreateAnotherUser(t, owner, ownerUser.OrganizationID)
+		clientB, _ := coderdtest.CreateAnotherUser(t, owner, ownerUser.OrganizationID)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		linear.ExternalLogin(t, clientA)
+		failIdentity.Store(true)
+		linear.ExternalLogin(t, clientB)
+		failIdentity.Store(false)
+
+		_, err := clientB.ExternalAuthByID(ctx, providerID)
+		require.ErrorContains(t, err, "This external account is already linked to another Coder user")
+	})
+
 	t.Run("LinearCallbackIdentityFailureStoresLink", func(t *testing.T) {
 		t.Parallel()
 		const providerID = "linear"
