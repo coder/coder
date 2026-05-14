@@ -721,7 +721,7 @@ func (api *API) groupAIBudget(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, groupAIBudgetToSDK(budget))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.GroupAIBudget(budget))
 }
 
 // @Summary Upsert group AI budget
@@ -757,7 +757,7 @@ func (api *API) upsertGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, groupAIBudgetToSDK(budget))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.GroupAIBudget(budget))
 }
 
 // @Summary Delete group AI budget
@@ -783,13 +783,4 @@ func (api *API) deleteGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	rw.WriteHeader(http.StatusNoContent)
-}
-
-func groupAIBudgetToSDK(b database.GroupAiBudget) codersdk.GroupAIBudget {
-	return codersdk.GroupAIBudget{
-		GroupID:          b.GroupID,
-		SpendLimitMicros: b.SpendLimitMicros,
-		CreatedAt:        b.CreatedAt,
-		UpdatedAt:        b.UpdatedAt,
-	}
 }
