@@ -1139,7 +1139,7 @@ CREATE TABLE ai_providers (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     type ai_provider_type NOT NULL,
     name text NOT NULL,
-    display_name text DEFAULT ''::text NOT NULL,
+    display_name text,
     enabled boolean DEFAULT true NOT NULL,
     deleted boolean DEFAULT false NOT NULL,
     base_url text NOT NULL,
@@ -1151,6 +1151,8 @@ CREATE TABLE ai_providers (
 );
 
 COMMENT ON TABLE ai_providers IS 'Runtime configuration for AI providers. Authoritative source for the provider set served by aibridged. Replaces deployment-time CODER_AIBRIDGE_* environment variables.';
+
+COMMENT ON COLUMN ai_providers.display_name IS 'Optional human-readable label. When NULL, callers should fall back to name.';
 
 COMMENT ON COLUMN ai_providers.deleted IS 'Soft delete flag. Soft-deleted rows are preserved for audit and FK history; their names remain reserved.';
 

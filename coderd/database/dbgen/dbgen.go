@@ -179,11 +179,16 @@ func AIProvider(t testing.TB, db database.Store, seed database.AIProvider, munge
 	if provType == "" {
 		provType = database.AiProviderTypeOpenai
 	}
+	name := takeFirst(seed.Name, testutil.GetRandomNameHyphenated(t))
+	displayName := seed.DisplayName
+	if !displayName.Valid {
+		displayName = sql.NullString{String: name, Valid: true}
+	}
 	params := database.InsertAIProviderParams{
 		ID:            id,
 		Type:          provType,
-		Name:          takeFirst(seed.Name, testutil.GetRandomNameHyphenated(t)),
-		DisplayName:   seed.DisplayName,
+		Name:          name,
+		DisplayName:   displayName,
 		Enabled:       takeFirst(seed.Enabled, true),
 		BaseUrl:       takeFirst(seed.BaseUrl, "https://api.example.com/"),
 		Settings:      seed.Settings,

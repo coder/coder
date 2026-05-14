@@ -4380,10 +4380,11 @@ type AIBridgeUserPrompt struct {
 
 // Runtime configuration for AI providers. Authoritative source for the provider set served by aibridged. Replaces deployment-time CODER_AIBRIDGE_* environment variables.
 type AIProvider struct {
-	ID          uuid.UUID      `db:"id" json:"id"`
-	Type        AIProviderType `db:"type" json:"type"`
-	Name        string         `db:"name" json:"name"`
-	DisplayName string         `db:"display_name" json:"display_name"`
+	ID   uuid.UUID      `db:"id" json:"id"`
+	Type AIProviderType `db:"type" json:"type"`
+	Name string         `db:"name" json:"name"`
+	// Optional human-readable label. When NULL, callers should fall back to name.
+	DisplayName sql.NullString `db:"display_name" json:"display_name"`
 	Enabled     bool           `db:"enabled" json:"enabled"`
 	// Soft delete flag. Soft-deleted rows are preserved for audit and FK history; their names remain reserved.
 	Deleted bool   `db:"deleted" json:"deleted"`

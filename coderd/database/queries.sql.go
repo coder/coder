@@ -480,7 +480,7 @@ type InsertAIProviderParams struct {
 	ID            uuid.UUID      `db:"id" json:"id"`
 	Type          AIProviderType `db:"type" json:"type"`
 	Name          string         `db:"name" json:"name"`
-	DisplayName   string         `db:"display_name" json:"display_name"`
+	DisplayName   sql.NullString `db:"display_name" json:"display_name"`
 	Enabled       bool           `db:"enabled" json:"enabled"`
 	BaseUrl       string         `db:"base_url" json:"base_url"`
 	Settings      sql.NullString `db:"settings" json:"settings"`
@@ -532,7 +532,7 @@ RETURNING
 `
 
 type UpdateAIProviderParams struct {
-	DisplayName   string         `db:"display_name" json:"display_name"`
+	DisplayName   sql.NullString `db:"display_name" json:"display_name"`
 	Enabled       bool           `db:"enabled" json:"enabled"`
 	BaseUrl       string         `db:"base_url" json:"base_url"`
 	Settings      sql.NullString `db:"settings" json:"settings"`

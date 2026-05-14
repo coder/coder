@@ -45,7 +45,7 @@ INSERT INTO ai_providers (
     @id::uuid,
     @type::ai_provider_type,
     @name::text,
-    @display_name::text,
+    sqlc.narg('display_name')::text,
     @enabled::boolean,
     @base_url::text,
     sqlc.narg('settings')::text,
@@ -58,7 +58,7 @@ RETURNING
 UPDATE
     ai_providers
 SET
-    display_name = @display_name::text,
+    display_name = sqlc.narg('display_name')::text,
     enabled = @enabled::boolean,
     base_url = @base_url::text,
     settings = sqlc.narg('settings')::text,

@@ -9,7 +9,7 @@ CREATE TABLE ai_providers (
     name            text NOT NULL UNIQUE
                         CONSTRAINT ai_providers_name_check
                         CHECK (name ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
-    display_name    text NOT NULL DEFAULT '',
+    display_name    text,
     enabled         boolean NOT NULL DEFAULT TRUE,
     deleted         boolean NOT NULL DEFAULT FALSE,
     base_url        text NOT NULL,
@@ -26,6 +26,8 @@ COMMENT ON COLUMN ai_providers.settings IS 'Encrypted JSON blob holding type-spe
 COMMENT ON COLUMN ai_providers.settings_key_id IS 'The ID of the key used to encrypt settings. If this is NULL, settings is not encrypted.';
 
 COMMENT ON COLUMN ai_providers.deleted IS 'Soft delete flag. Soft-deleted rows are preserved for audit and FK history; their names remain reserved.';
+
+COMMENT ON COLUMN ai_providers.display_name IS 'Optional human-readable label. When NULL, callers should fall back to name.';
 
 CREATE INDEX idx_ai_providers_enabled ON ai_providers (enabled) WHERE deleted = FALSE;
 
