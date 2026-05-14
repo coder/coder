@@ -604,12 +604,11 @@ func (mr *MockStoreMockRecorder) CustomRoles(ctx, arg any) *gomock.Call {
 }
 
 // DeleteAIProviderByID mocks base method.
-func (m *MockStore) DeleteAIProviderByID(ctx context.Context, id uuid.UUID) (database.AIProvider, error) {
+func (m *MockStore) DeleteAIProviderByID(ctx context.Context, id uuid.UUID) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteAIProviderByID", ctx, id)
-	ret0, _ := ret[0].(database.AIProvider)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // DeleteAIProviderByID indicates an expected call of DeleteAIProviderByID.
@@ -619,12 +618,11 @@ func (mr *MockStoreMockRecorder) DeleteAIProviderByID(ctx, id any) *gomock.Call 
 }
 
 // DeleteAIProviderKey mocks base method.
-func (m *MockStore) DeleteAIProviderKey(ctx context.Context, id uuid.UUID) (database.AIProviderKey, error) {
+func (m *MockStore) DeleteAIProviderKey(ctx context.Context, id uuid.UUID) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteAIProviderKey", ctx, id)
-	ret0, _ := ret[0].(database.AIProviderKey)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // DeleteAIProviderKey indicates an expected call of DeleteAIProviderKey.
@@ -1756,21 +1754,6 @@ func (m *MockStore) GetAIProviderByName(ctx context.Context, name string) (datab
 func (mr *MockStoreMockRecorder) GetAIProviderByName(ctx, name any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIProviderByName", reflect.TypeOf((*MockStore)(nil).GetAIProviderByName), ctx, name)
-}
-
-// GetAIProviderByNameIncludeDeleted mocks base method.
-func (m *MockStore) GetAIProviderByNameIncludeDeleted(ctx context.Context, name string) (database.AIProvider, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAIProviderByNameIncludeDeleted", ctx, name)
-	ret0, _ := ret[0].(database.AIProvider)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetAIProviderByNameIncludeDeleted indicates an expected call of GetAIProviderByNameIncludeDeleted.
-func (mr *MockStoreMockRecorder) GetAIProviderByNameIncludeDeleted(ctx, name any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIProviderByNameIncludeDeleted", reflect.TypeOf((*MockStore)(nil).GetAIProviderByNameIncludeDeleted), ctx, name)
 }
 
 // GetAIProviderKeyByID mocks base method.

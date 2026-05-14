@@ -14,35 +14,20 @@ FROM
 WHERE
     name = @name::text AND deleted = FALSE;
 
--- name: GetAIProviderByNameIncludeDeleted :one
--- Returns an AI provider row by name regardless of its deleted flag.
--- The env seeder uses this to distinguish "never existed" from
--- "operator soft-deleted; do not re-create from env".
-SELECT
-    *
-FROM
-    ai_providers
-WHERE
-    name = @name::text;
-
 -- name: GetAIProviders :many
--- Returns AI provider rows, optionally filtered by enabled and/or
--- deleted flags. Pass NULL for either flag to skip that filter; the
--- dbcrypt key rotation utility relies on this to iterate every row,
--- including soft-deleted ones.
+-- Returns AI provider rows. Soft-deleted and/or disabled rows are
+-- excluded by default; callers pass include_deleted=true to also see
+-- soft-deleted rows (the env seeder uses this to distinguish "never
+-- existed" from "operator soft-deleted; do not re-create from env")
+-- and include_disabled=true to also see rows the operator has marked
+-- disabled.
 SELECT
     *
 FROM
     ai_providers
 WHERE
-    CASE
-        WHEN sqlc.narg('enabled')::boolean IS NULL THEN TRUE
-        ELSE enabled = sqlc.narg('enabled')::boolean
-    END
-    AND CASE
-        WHEN sqlc.narg('deleted')::boolean IS NULL THEN TRUE
-        ELSE deleted = sqlc.narg('deleted')::boolean
-    END
+    (@include_deleted::boolean OR NOT deleted)
+    AND (@include_disabled::boolean OR enabled)
 ORDER BY
     name ASC;
 
@@ -84,7 +69,7 @@ WHERE
 RETURNING
     *;
 
--- name: DeleteAIProviderByID :one
+-- name: DeleteAIProviderByID :exec
 UPDATE
     ai_providers
 SET
@@ -92,9 +77,7 @@ SET
     enabled = FALSE,
     updated_at = NOW()
 WHERE
-    id = @id::uuid AND deleted = FALSE
-RETURNING
-    *;
+    id = @id::uuid AND deleted = FALSE;
 
 -- name: UpdateAIProviderSettings :one
 -- Updates only the settings columns (settings, settings_key_id) and

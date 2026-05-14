@@ -377,20 +377,20 @@ func (m queryMetricsStore) CustomRoles(ctx context.Context, arg database.CustomR
 	return r0, r1
 }
 
-func (m queryMetricsStore) DeleteAIProviderByID(ctx context.Context, id uuid.UUID) (database.AIProvider, error) {
+func (m queryMetricsStore) DeleteAIProviderByID(ctx context.Context, id uuid.UUID) error {
 	start := time.Now()
-	r0, r1 := m.s.DeleteAIProviderByID(ctx, id)
+	r0 := m.s.DeleteAIProviderByID(ctx, id)
 	m.queryLatencies.WithLabelValues("DeleteAIProviderByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteAIProviderByID").Inc()
-	return r0, r1
+	return r0
 }
 
-func (m queryMetricsStore) DeleteAIProviderKey(ctx context.Context, id uuid.UUID) (database.AIProviderKey, error) {
+func (m queryMetricsStore) DeleteAIProviderKey(ctx context.Context, id uuid.UUID) error {
 	start := time.Now()
-	r0, r1 := m.s.DeleteAIProviderKey(ctx, id)
+	r0 := m.s.DeleteAIProviderKey(ctx, id)
 	m.queryLatencies.WithLabelValues("DeleteAIProviderKey").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteAIProviderKey").Inc()
-	return r0, r1
+	return r0
 }
 
 func (m queryMetricsStore) DeleteAPIKeyByID(ctx context.Context, id string) error {
@@ -1014,14 +1014,6 @@ func (m queryMetricsStore) GetAIProviderByName(ctx context.Context, name string)
 	r0, r1 := m.s.GetAIProviderByName(ctx, name)
 	m.queryLatencies.WithLabelValues("GetAIProviderByName").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIProviderByName").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetAIProviderByNameIncludeDeleted(ctx context.Context, name string) (database.AIProvider, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetAIProviderByNameIncludeDeleted(ctx, name)
-	m.queryLatencies.WithLabelValues("GetAIProviderByNameIncludeDeleted").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIProviderByNameIncludeDeleted").Inc()
 	return r0, r1
 }
 

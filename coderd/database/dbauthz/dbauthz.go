@@ -1851,16 +1851,16 @@ func (q *querier) CustomRoles(ctx context.Context, arg database.CustomRolesParam
 	return q.db.CustomRoles(ctx, arg)
 }
 
-func (q *querier) DeleteAIProviderByID(ctx context.Context, id uuid.UUID) (database.AIProvider, error) {
+func (q *querier) DeleteAIProviderByID(ctx context.Context, id uuid.UUID) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAIProvider); err != nil {
-		return database.AIProvider{}, err
+		return err
 	}
 	return q.db.DeleteAIProviderByID(ctx, id)
 }
 
-func (q *querier) DeleteAIProviderKey(ctx context.Context, id uuid.UUID) (database.AIProviderKey, error) {
+func (q *querier) DeleteAIProviderKey(ctx context.Context, id uuid.UUID) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAIProvider); err != nil {
-		return database.AIProviderKey{}, err
+		return err
 	}
 	return q.db.DeleteAIProviderKey(ctx, id)
 }
@@ -2514,13 +2514,6 @@ func (q *querier) GetAIProviderByName(ctx context.Context, name string) (databas
 		return database.AIProvider{}, err
 	}
 	return q.db.GetAIProviderByName(ctx, name)
-}
-
-func (q *querier) GetAIProviderByNameIncludeDeleted(ctx context.Context, name string) (database.AIProvider, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIProvider); err != nil {
-		return database.AIProvider{}, err
-	}
-	return q.db.GetAIProviderByNameIncludeDeleted(ctx, name)
 }
 
 func (q *querier) GetAIProviderKeyByID(ctx context.Context, id uuid.UUID) (database.AIProviderKey, error) {

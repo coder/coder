@@ -111,27 +111,16 @@ func (q *sqlQuerier) ActivityBumpWorkspace(ctx context.Context, arg ActivityBump
 	return err
 }
 
-const deleteAIProviderKey = `-- name: DeleteAIProviderKey :one
+const deleteAIProviderKey = `-- name: DeleteAIProviderKey :exec
 DELETE FROM
     ai_provider_keys
 WHERE
     id = $1::uuid
-RETURNING
-    id, provider_id, api_key, api_key_key_id, created_at, updated_at
 `
 
-func (q *sqlQuerier) DeleteAIProviderKey(ctx context.Context, id uuid.UUID) (AIProviderKey, error) {
-	row := q.db.QueryRowContext(ctx, deleteAIProviderKey, id)
-	var i AIProviderKey
-	err := row.Scan(
-		&i.ID,
-		&i.ProviderID,
-		&i.APIKey,
-		&i.ApiKeyKeyID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
+func (q *sqlQuerier) DeleteAIProviderKey(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteAIProviderKey, id)
+	return err
 }
 
 const getAIProviderKeyByID = `-- name: GetAIProviderKeyByID :one
@@ -260,8 +249,8 @@ INSERT INTO ai_provider_keys (
     $2::uuid,
     $3::text,
     $4::text,
-    COALESCE($5::timestamptz, NOW()),
-    COALESCE($5::timestamptz, NOW())
+    $5::timestamptz,
+    $6::timestamptz
 )
 RETURNING
     id, provider_id, api_key, api_key_key_id, created_at, updated_at
@@ -272,13 +261,10 @@ type InsertAIProviderKeyParams struct {
 	ProviderID  uuid.UUID      `db:"provider_id" json:"provider_id"`
 	APIKey      string         `db:"api_key" json:"api_key"`
 	ApiKeyKeyID sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
-	CreatedAt   sql.NullTime   `db:"created_at" json:"created_at"`
+	CreatedAt   time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
 }
 
-// Optional created_at allows callers (e.g. env-driven seeding) to
-// preserve insertion order across multiple rows in the same
-// transaction, where the default NOW() would otherwise tie. When
-// NULL the column falls back to its DEFAULT (NOW()).
 func (q *sqlQuerier) InsertAIProviderKey(ctx context.Context, arg InsertAIProviderKeyParams) (AIProviderKey, error) {
 	row := q.db.QueryRowContext(ctx, insertAIProviderKey,
 		arg.ID,
@@ -286,6 +272,7 @@ func (q *sqlQuerier) InsertAIProviderKey(ctx context.Context, arg InsertAIProvid
 		arg.APIKey,
 		arg.ApiKeyKeyID,
 		arg.CreatedAt,
+		arg.UpdatedAt,
 	)
 	var i AIProviderKey
 	err := row.Scan(
@@ -335,7 +322,7 @@ func (q *sqlQuerier) UpdateEncryptedAIProviderKey(ctx context.Context, arg Updat
 	return i, err
 }
 
-const deleteAIProviderByID = `-- name: DeleteAIProviderByID :one
+const deleteAIProviderByID = `-- name: DeleteAIProviderByID :exec
 UPDATE
     ai_providers
 SET
@@ -344,27 +331,11 @@ SET
     updated_at = NOW()
 WHERE
     id = $1::uuid AND deleted = FALSE
-RETURNING
-    id, type, name, display_name, enabled, deleted, base_url, settings, settings_key_id, created_at, updated_at
 `
 
-func (q *sqlQuerier) DeleteAIProviderByID(ctx context.Context, id uuid.UUID) (AIProvider, error) {
-	row := q.db.QueryRowContext(ctx, deleteAIProviderByID, id)
-	var i AIProvider
-	err := row.Scan(
-		&i.ID,
-		&i.Type,
-		&i.Name,
-		&i.DisplayName,
-		&i.Enabled,
-		&i.Deleted,
-		&i.BaseUrl,
-		&i.Settings,
-		&i.SettingsKeyID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
+func (q *sqlQuerier) DeleteAIProviderByID(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteAIProviderByID, id)
+	return err
 }
 
 const getAIProviderByID = `-- name: GetAIProviderByID :one
@@ -423,66 +394,31 @@ func (q *sqlQuerier) GetAIProviderByName(ctx context.Context, name string) (AIPr
 	return i, err
 }
 
-const getAIProviderByNameIncludeDeleted = `-- name: GetAIProviderByNameIncludeDeleted :one
-SELECT
-    id, type, name, display_name, enabled, deleted, base_url, settings, settings_key_id, created_at, updated_at
-FROM
-    ai_providers
-WHERE
-    name = $1::text
-`
-
-// Returns an AI provider row by name regardless of its deleted flag.
-// The env seeder uses this to distinguish "never existed" from
-// "operator soft-deleted; do not re-create from env".
-func (q *sqlQuerier) GetAIProviderByNameIncludeDeleted(ctx context.Context, name string) (AIProvider, error) {
-	row := q.db.QueryRowContext(ctx, getAIProviderByNameIncludeDeleted, name)
-	var i AIProvider
-	err := row.Scan(
-		&i.ID,
-		&i.Type,
-		&i.Name,
-		&i.DisplayName,
-		&i.Enabled,
-		&i.Deleted,
-		&i.BaseUrl,
-		&i.Settings,
-		&i.SettingsKeyID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
 const getAIProviders = `-- name: GetAIProviders :many
 SELECT
     id, type, name, display_name, enabled, deleted, base_url, settings, settings_key_id, created_at, updated_at
 FROM
     ai_providers
 WHERE
-    CASE
-        WHEN $1::boolean IS NULL THEN TRUE
-        ELSE enabled = $1::boolean
-    END
-    AND CASE
-        WHEN $2::boolean IS NULL THEN TRUE
-        ELSE deleted = $2::boolean
-    END
+    ($1::boolean OR NOT deleted)
+    AND ($2::boolean OR enabled)
 ORDER BY
     name ASC
 `
 
 type GetAIProvidersParams struct {
-	Enabled sql.NullBool `db:"enabled" json:"enabled"`
-	Deleted sql.NullBool `db:"deleted" json:"deleted"`
+	IncludeDeleted  bool `db:"include_deleted" json:"include_deleted"`
+	IncludeDisabled bool `db:"include_disabled" json:"include_disabled"`
 }
 
-// Returns AI provider rows, optionally filtered by enabled and/or
-// deleted flags. Pass NULL for either flag to skip that filter; the
-// dbcrypt key rotation utility relies on this to iterate every row,
-// including soft-deleted ones.
+// Returns AI provider rows. Soft-deleted and/or disabled rows are
+// excluded by default; callers pass include_deleted=true to also see
+// soft-deleted rows (the env seeder uses this to distinguish "never
+// existed" from "operator soft-deleted; do not re-create from env")
+// and include_disabled=true to also see rows the operator has marked
+// disabled.
 func (q *sqlQuerier) GetAIProviders(ctx context.Context, arg GetAIProvidersParams) ([]AIProvider, error) {
-	rows, err := q.db.QueryContext(ctx, getAIProviders, arg.Enabled, arg.Deleted)
+	rows, err := q.db.QueryContext(ctx, getAIProviders, arg.IncludeDeleted, arg.IncludeDisabled)
 	if err != nil {
 		return nil, err
 	}

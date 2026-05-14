@@ -35,10 +35,6 @@ ORDER BY
     id ASC;
 
 -- name: InsertAIProviderKey :one
--- Optional created_at allows callers (e.g. env-driven seeding) to
--- preserve insertion order across multiple rows in the same
--- transaction, where the default NOW() would otherwise tie. When
--- NULL the column falls back to its DEFAULT (NOW()).
 INSERT INTO ai_provider_keys (
     id,
     provider_id,
@@ -51,19 +47,17 @@ INSERT INTO ai_provider_keys (
     @provider_id::uuid,
     @api_key::text,
     sqlc.narg('api_key_key_id')::text,
-    COALESCE(sqlc.narg('created_at')::timestamptz, NOW()),
-    COALESCE(sqlc.narg('created_at')::timestamptz, NOW())
+    @created_at::timestamptz,
+    @updated_at::timestamptz
 )
 RETURNING
     *;
 
--- name: DeleteAIProviderKey :one
+-- name: DeleteAIProviderKey :exec
 DELETE FROM
     ai_provider_keys
 WHERE
-    id = @id::uuid
-RETURNING
-    *;
+    id = @id::uuid;
 
 -- name: UpdateEncryptedAIProviderKey :one
 -- Updates only the encrypted columns (api_key, api_key_key_id) and

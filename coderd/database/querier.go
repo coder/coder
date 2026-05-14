@@ -99,8 +99,8 @@ type sqlcQuerier interface {
 	CountUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) (int64, error)
 	CreateUserSecret(ctx context.Context, arg CreateUserSecretParams) (UserSecret, error)
 	CustomRoles(ctx context.Context, arg CustomRolesParams) ([]CustomRole, error)
-	DeleteAIProviderByID(ctx context.Context, id uuid.UUID) (AIProvider, error)
-	DeleteAIProviderKey(ctx context.Context, id uuid.UUID) (AIProviderKey, error)
+	DeleteAIProviderByID(ctx context.Context, id uuid.UUID) error
+	DeleteAIProviderKey(ctx context.Context, id uuid.UUID) error
 	DeleteAPIKeyByID(ctx context.Context, id string) error
 	DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
 	DeleteAllChatQueuedMessages(ctx context.Context, chatID uuid.UUID) error
@@ -250,10 +250,6 @@ type sqlcQuerier interface {
 	GetAIModelPriceByProviderModel(ctx context.Context, arg GetAIModelPriceByProviderModelParams) (AiModelPrice, error)
 	GetAIProviderByID(ctx context.Context, id uuid.UUID) (AIProvider, error)
 	GetAIProviderByName(ctx context.Context, name string) (AIProvider, error)
-	// Returns an AI provider row by name regardless of its deleted flag.
-	// The env seeder uses this to distinguish "never existed" from
-	// "operator soft-deleted; do not re-create from env".
-	GetAIProviderByNameIncludeDeleted(ctx context.Context, name string) (AIProvider, error)
 	GetAIProviderKeyByID(ctx context.Context, id uuid.UUID) (AIProviderKey, error)
 	// Returns every AI provider key row, including those belonging to a
 	// soft-deleted provider, so the dbcrypt key rotation utility can
@@ -264,10 +260,12 @@ type sqlcQuerier interface {
 	// key per provider; multiple keys are stored to support future
 	// failover and rotation flows.
 	GetAIProviderKeysByProviderID(ctx context.Context, providerID uuid.UUID) ([]AIProviderKey, error)
-	// Returns AI provider rows, optionally filtered by enabled and/or
-	// deleted flags. Pass NULL for either flag to skip that filter; the
-	// dbcrypt key rotation utility relies on this to iterate every row,
-	// including soft-deleted ones.
+	// Returns AI provider rows. Soft-deleted and/or disabled rows are
+	// excluded by default; callers pass include_deleted=true to also see
+	// soft-deleted rows (the env seeder uses this to distinguish "never
+	// existed" from "operator soft-deleted; do not re-create from env")
+	// and include_disabled=true to also see rows the operator has marked
+	// disabled.
 	GetAIProviders(ctx context.Context, arg GetAIProvidersParams) ([]AIProvider, error)
 	GetAPIKeyByID(ctx context.Context, id string) (APIKey, error)
 	// there is no unique constraint on empty token names
@@ -879,10 +877,6 @@ type sqlcQuerier interface {
 	InsertAIBridgeToolUsage(ctx context.Context, arg InsertAIBridgeToolUsageParams) (AIBridgeToolUsage, error)
 	InsertAIBridgeUserPrompt(ctx context.Context, arg InsertAIBridgeUserPromptParams) (AIBridgeUserPrompt, error)
 	InsertAIProvider(ctx context.Context, arg InsertAIProviderParams) (AIProvider, error)
-	// Optional created_at allows callers (e.g. env-driven seeding) to
-	// preserve insertion order across multiple rows in the same
-	// transaction, where the default NOW() would otherwise tie. When
-	// NULL the column falls back to its DEFAULT (NOW()).
 	InsertAIProviderKey(ctx context.Context, arg InsertAIProviderKeyParams) (AIProviderKey, error)
 	InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error)
 	// We use the organization_id as the id

@@ -203,12 +203,14 @@ func AIProviderKey(t testing.TB, db database.Store, seed database.AIProviderKey,
 	if id == uuid.Nil {
 		id = uuid.New()
 	}
+	now := dbtime.Now()
 	params := database.InsertAIProviderKeyParams{
 		ID:          id,
 		ProviderID:  seed.ProviderID,
 		APIKey:      takeFirst(seed.APIKey, "test-key"),
 		ApiKeyKeyID: seed.ApiKeyKeyID,
-		CreatedAt:   sql.NullTime{Time: seed.CreatedAt, Valid: !seed.CreatedAt.IsZero()},
+		CreatedAt:   takeFirst(seed.CreatedAt, now),
+		UpdatedAt:   takeFirst(seed.UpdatedAt, now),
 	}
 	for _, fn := range munge {
 		fn(&params)
