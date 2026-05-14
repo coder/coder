@@ -234,23 +234,35 @@ Docs page will include:
 
 ### Stage C: Route the child model traffic through AI Gateway
 
-The worker process itself must talk to `api.cursor.com` for pool
-registration and polling. The model calls the session makes can be
-routed through Coder's [AI Gateway](../ai-gateway/index.md) by
-configuring the appropriate base URL and auth headers in the wrapper
-script.
+This stage is **not shippable today**. The structural reason is
+documented separately in
+[AI Governance integration (notes)](./ai-governance.md): Cursor's
+worker process does not make model-provider API calls. The agent
+loop runs in Cursor's cloud and sends tool calls down to the worker
+over an outbound HTTPS connection to `api2.cursor.sh`. AI Gateway
+does not sit on a path the worker traverses, so there is nothing for
+a wrapper script to redirect.
 
-This is interesting because it gives platform admins audit and policy
-coverage over the *model traffic* the worker generates, without
-changing how Cursor dispatches the session.
+For the page to become shippable, one of the following Cursor-side
+changes has to land:
 
-Docs page will cover:
+- A session-level wrapper hook on the worker that mediates model calls
+  with operator-supplied provider config (analogous to Claude Code's
+  `--exec-path`).
+- A first-party gateway feature on Cursor's side that an enterprise
+  can point at an internal endpoint.
 
-- Which env vars to set in the wrapper and where they map in the
-  existing AI Gateway docs.
+Until then, the linked addendum is the canonical answer when a reader
+asks about AI Gateway coverage. The desktop Cursor client is also not
+supported by AI Gateway today, for an unrelated upstream reason. Both
+are tracked in the addendum.
+
+When this stage becomes shippable, the page will cover:
+
+- The Cursor-side hook contract and which env vars or config it accepts.
 - How AI Governance Add-on entitlements interact with the worker.
-- A clear note that this is opt-in. The worker's own outbound
-  traffic to `api.cursor.com` is unaffected.
+- A clear note that this is opt-in. The worker's own outbound traffic
+  to `api2.cursor.sh` is unaffected.
 
 ### Stage D: Pin permissions and tool allowlists in the image
 
@@ -274,7 +286,7 @@ This is purely an image and settings exercise; no product work.
 | System identity   | overview, system-identity, plan        | docs, AI team, platform-eng | Ship as a single PR. Don't gate on User identity. Includes the prebuilds primary path and the daemon alternative. |
 | Stage A           | per-creator credentials page           | infra, security             | Pair with a reference wrapper script.                                |
 | Stage B           | lifecycle hooks page                   | infra, source-control       | Pair with a Coder template that demonstrates the cache volume layout. |
-| Stage C           | AI Gateway integration page            | AI Gateway maintainers      | Behind AI Governance Add-on entitlement.                             |
+| Stage C           | AI Gateway integration page            | AI Gateway maintainers      | Behind AI Governance Add-on entitlement. Blocked on Cursor exposing a worker-side hook that mediates model calls. See [AI Governance integration (notes)](./ai-governance.md).            |
 | Stage D           | permissions and allowlists page        | security, AI team           | Cribs from the Cursor docs + existing settings content.              |
 | User identity     | middleware reference, plan diff        | platform-eng, AI team       | Depends on Cursor publishing `agent:*` and stable pending-requests; either middleware or in-tree `coderd` integration on Coder's side. |
 
@@ -380,6 +392,25 @@ unlock:
 
 This is a smaller and more concrete ask than the user-identity work
 and would be easy to land in EAP.
+
+### Worker-side hook that mediates session model calls
+
+The Cursor self-hosted worker doesn't make any model-provider calls
+from inside the workspace; the agent loop runs in Cursor's cloud and
+sends tool calls down to the worker over `api2.cursor.sh`. That means
+there is no traffic for Coder's AI Gateway (or any other internal
+proxy) to apply policy to from the workspace side.
+
+A worker-side hook that lets the operator mediate model calls (route
+them through an internal proxy, swap providers, redact prompts before
+they leave the workspace, etc.) would close this gap. Claude Code
+exposes the equivalent via `--exec-path` on the `claude` CLI, which is
+what the [Claude Code AI Gateway client preset](../ai-gateway/clients/claude-code.md)
+relies on.
+
+Full treatment of why AI Gateway is structurally unreachable today is
+in [AI Governance integration (notes)](./ai-governance.md). This is the
+open question that unblocks Stage C above.
 
 ## Open questions for Coder
 
