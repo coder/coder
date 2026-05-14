@@ -1,6 +1,7 @@
 import type { FC } from "react";
 import type {
 	Group,
+	TemplateACL,
 	Workspace,
 	WorkspaceACL,
 	WorkspaceGroup,
@@ -14,6 +15,7 @@ import { WorkspaceSharingForm } from "#/modules/workspaces/WorkspaceSharingForm/
 interface WorkspaceSharingPageViewProps {
 	workspace: Workspace;
 	workspaceACL: WorkspaceACL | undefined;
+	templateACL?: TemplateACL;
 	canUpdatePermissions: boolean;
 	error: unknown;
 	onAddUser: (
@@ -36,6 +38,7 @@ interface WorkspaceSharingPageViewProps {
 export const WorkspaceSharingPageView: FC<WorkspaceSharingPageViewProps> = ({
 	workspace,
 	workspaceACL,
+	templateACL,
 	canUpdatePermissions,
 	error,
 	onAddUser,
@@ -54,6 +57,7 @@ export const WorkspaceSharingPageView: FC<WorkspaceSharingPageViewProps> = ({
 		<WorkspaceSharingForm
 			organizationId={workspace.organization_id}
 			workspaceACL={workspaceACL}
+			templateACL={templateACL}
 			canUpdatePermissions={canUpdatePermissions}
 			error={error}
 			updatingUserId={updatingUserId}

@@ -40,6 +40,7 @@ export const ShareButton: FC<ShareButtonProps> = ({
 				<WorkspaceSharingForm
 					organizationId={workspace.organization_id}
 					workspaceACL={sharing.workspaceACL}
+					templateACL={sharing.templateACL}
 					canUpdatePermissions={canUpdatePermissions}
 					error={sharing.error ?? sharing.mutationError}
 					updatingUserId={sharing.updatingUserId}

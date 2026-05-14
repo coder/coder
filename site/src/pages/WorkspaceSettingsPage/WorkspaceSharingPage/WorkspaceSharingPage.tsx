@@ -42,6 +42,7 @@ const WorkspaceSharingPage: FC = () => {
 			<WorkspaceSharingPageView
 				workspace={workspace}
 				workspaceACL={sharing.workspaceACL}
+				templateACL={sharing.templateACL}
 				canUpdatePermissions={canUpdatePermissions}
 				error={error}
 				onAddUser={sharing.addUser}

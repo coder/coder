@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
+import { templateACL as templateACLQuery } from "#/api/queries/templates";
 import {
 	setWorkspaceGroupRole,
 	setWorkspaceUserRole,
@@ -24,6 +25,14 @@ export function useWorkspaceSharing(workspace: Workspace) {
 	const [hasRemovedMember, setHasRemovedMember] = useState(false);
 
 	const workspaceACLQuery = useQuery(workspaceACL(workspace.id));
+
+	// Fetch template ACL to determine if shared users/groups can actually
+	// access the workspace's template. If this query fails (e.g. the caller
+	// lacks permission to read template ACLs), warnings are silently skipped.
+	const templateACLResult = useQuery({
+		...templateACLQuery(workspace.template_id),
+		retry: false,
+	});
 
 	const addUserMutation = useMutation(setWorkspaceUserRole(queryClient));
 	const updateUserMutation = useMutation(setWorkspaceUserRole(queryClient));
@@ -113,6 +122,7 @@ export function useWorkspaceSharing(workspace: Workspace) {
 
 	return {
 		workspaceACL: workspaceACLQuery.data,
+		templateACL: templateACLResult.data,
 		isLoading: workspaceACLQuery.isLoading,
 		error: workspaceACLQuery.error,
 		mutationError,

@@ -1,9 +1,14 @@
-import { EllipsisVerticalIcon, UserPlusIcon } from "lucide-react";
+import {
+	EllipsisVerticalIcon,
+	TriangleAlertIcon,
+	UserPlusIcon,
+} from "lucide-react";
 import type { FC, ReactNode } from "react";
 import { useQuery } from "react-query";
 import { workspaceSharingSettings } from "#/api/queries/organizations";
 import type {
 	Group,
+	TemplateACL,
 	WorkspaceACL,
 	WorkspaceGroup,
 	WorkspaceRole,
@@ -38,7 +43,62 @@ import {
 	TableRow,
 } from "#/components/Table/Table";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { getGroupSubtitle } from "#/modules/groups";
+
+/**
+ * Checks whether a user or group has access to a template based on its ACL.
+ * Returns true (assumes access) when template ACL data is unavailable.
+ */
+function hasTemplateAccess(
+	entityId: string,
+	entityType: "user" | "group",
+	tplACL: TemplateACL | undefined,
+	organizationId: string,
+): boolean {
+	// No template ACL data available (still loading, or the caller lacks
+	// permission to read it). Assume access so we do not show false warnings.
+	if (!tplACL) {
+		return true;
+	}
+
+	// The "everyone" group has the same ID as the organization. When it
+	// appears in the template's group ACL, every org member has access.
+	const everyoneHasAccess = tplACL.group.some((g) => g.id === organizationId);
+	if (everyoneHasAccess) {
+		return true;
+	}
+
+	if (entityType === "group") {
+		return tplACL.group.some((g) => g.id === entityId);
+	}
+
+	// For users, check direct user ACL. This does not cover indirect access
+	// through group membership; the warning text accounts for that.
+	return tplACL.users.some((u) => u.id === entityId);
+}
+
+const NoTemplateAccessIcon: FC = () => {
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<TriangleAlertIcon
+					className="size-4 text-content-warning shrink-0"
+					aria-label="No template access"
+				/>
+			</TooltipTrigger>
+			<TooltipContent className="max-w-xs">
+				This member may not have access to this workspace's template. They will
+				not be able to view or use this workspace until a template admin grants
+				them access.
+			</TooltipContent>
+		</Tooltip>
+	);
+};
 
 interface RoleSelectProps {
 	value: WorkspaceRole;
@@ -143,6 +203,7 @@ export const RoleSelectField: FC<RoleSelectFieldProps> = ({
 interface WorkspaceSharingFormProps {
 	organizationId: string;
 	workspaceACL: WorkspaceACL | undefined;
+	templateACL?: TemplateACL;
 	canUpdatePermissions: boolean;
 	error: unknown;
 	onUpdateUser: (user: WorkspaceUser, role: WorkspaceRole) => void;
@@ -159,6 +220,7 @@ interface WorkspaceSharingFormProps {
 export const WorkspaceSharingForm: FC<WorkspaceSharingFormProps> = ({
 	organizationId,
 	workspaceACL,
+	templateACL,
 	canUpdatePermissions,
 	error,
 	updatingUserId,
@@ -217,6 +279,23 @@ export const WorkspaceSharingForm: FC<WorkspaceSharingFormProps> = ({
 			workspaceACL.group.length === 0,
 	);
 
+	// Determine which members lack template access so we can show warnings.
+	const usersWithoutAccess = workspaceACL
+		? workspaceACL.users.filter(
+				(u) => !hasTemplateAccess(u.id, "user", templateACL, organizationId),
+			)
+		: [];
+	const groupsWithoutAccess = workspaceACL
+		? workspaceACL.group.filter(
+				(g) => !hasTemplateAccess(g.id, "group", templateACL, organizationId),
+			)
+		: [];
+	const hasAccessWarnings =
+		usersWithoutAccess.length > 0 || groupsWithoutAccess.length > 0;
+
+	const userLacksAccess = new Set(usersWithoutAccess.map((u) => u.id));
+	const groupLacksAccess = new Set(groupsWithoutAccess.map((g) => g.id));
+
 	const tableHeader = (
 		<TableHeader>
 			<TableRow>
@@ -246,17 +325,20 @@ export const WorkspaceSharingForm: FC<WorkspaceSharingFormProps> = ({
 					{workspaceACL.group.map((group) => (
 						<TableRow key={group.id}>
 							<TableCell className="py-2 w-[50%]">
-								<AvatarData
-									avatar={
-										<Avatar
-											size="lg"
-											fallback={group.display_name || group.name}
-											src={group.avatar_url}
-										/>
-									}
-									title={group.display_name || group.name}
-									subtitle={getGroupSubtitle(group)}
-								/>
+								<div className="flex items-center gap-2">
+									<AvatarData
+										avatar={
+											<Avatar
+												size="lg"
+												fallback={group.display_name || group.name}
+												src={group.avatar_url}
+											/>
+										}
+										title={group.display_name || group.name}
+										subtitle={getGroupSubtitle(group)}
+									/>
+									{groupLacksAccess.has(group.id) && <NoTemplateAccessIcon />}
+								</div>
 							</TableCell>
 							<TableCell className="py-2 w-[40%]">
 								{canUpdatePermissions ? (
@@ -300,11 +382,14 @@ export const WorkspaceSharingForm: FC<WorkspaceSharingFormProps> = ({
 					{workspaceACL.users.map((user) => (
 						<TableRow key={user.id}>
 							<TableCell className="py-2 w-[50%]">
-								<AvatarData
-									title={user.username}
-									subtitle={user.name}
-									src={user.avatar_url}
-								/>
+								<div className="flex items-center gap-2">
+									<AvatarData
+										title={user.username}
+										subtitle={user.name}
+										src={user.avatar_url}
+									/>
+									{userLacksAccess.has(user.id) && <NoTemplateAccessIcon />}
+								</div>
 							</TableCell>
 							<TableCell className="py-2 w-[40%]">
 								{canUpdatePermissions ? (
@@ -349,6 +434,18 @@ export const WorkspaceSharingForm: FC<WorkspaceSharingFormProps> = ({
 		</TableBody>
 	);
 
+	const warnings = (
+		<>
+			{hasAccessWarnings && (
+				<Alert severity="warning">
+					Some shared members may not have access to this workspace's template
+					and will not be able to view or use this workspace until a template
+					admin grants them access.
+				</Alert>
+			)}
+		</>
+	);
+
 	if (isCompact) {
 		return (
 			<div className="flex flex-col gap-4">
@@ -359,6 +456,7 @@ export const WorkspaceSharingForm: FC<WorkspaceSharingFormProps> = ({
 						Workspace restart required for the removal to take effect.
 					</Alert>
 				)}
+				{warnings}
 				<div>
 					<Table>{tableHeader}</Table>
 					<div className="max-h-60 overflow-y-auto">
@@ -378,6 +476,7 @@ export const WorkspaceSharingForm: FC<WorkspaceSharingFormProps> = ({
 					Workspace restart required for the removal to take effect.
 				</Alert>
 			)}
+			{warnings}
 			<Table>
 				{tableHeader}
 				{tableBody}
