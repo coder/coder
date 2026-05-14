@@ -138,20 +138,20 @@ pins to a specific `BYOC_VERSION`, installs the runner system-wide at
 runner, and creates `/workspace` owned by the workspace user.
 
 ```dockerfile
-# Base on whatever your workspaces normally use.
-FROM ghcr.io/your-org/base:latest
+# Use whatever Coder workspace base your developers already use. The
+# only requirements are a `coder` user that owns /home/coder, sudo (or
+# root build steps below), and outbound network to Anthropic's release
+# bucket. The example below uses codercom/oss-dogfood:latest, the
+# dogfood image Coder employees use as their everyday workspace, which
+# already ships ca-certificates, curl, git, jq, openssh-client, sudo,
+# gh, docker, language toolchains, and a `coder` user with sudo
+# NOPASSWD at uid 1000.
+FROM codercom/oss-dogfood:latest
 
 ARG BYOC_VERSION=2.1.97-byoc.9
 ENV BYOC_VERSION=${BYOC_VERSION}
 
 USER root
-
-# Minimum runtime dependencies. Add language toolchains your sessions
-# need (node, go, python, java, etc.). The Coder CLI is downloaded at
-# workspace start by coder_script.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates curl git jq tini openssh-client \
-    && rm -rf /var/lib/apt/lists/*
 
 # Anthropic-managed sessions use this identity. You can use your own bot
 # identity instead; just keep it system-wide so it applies regardless of
