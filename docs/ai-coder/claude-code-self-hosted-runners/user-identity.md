@@ -102,31 +102,23 @@ this page will be replaced with a copy-and-go recipe.
 
 ## Where this depends on Coder
 
-Once Anthropic publishes the webhook contract, two implementation
-paths get you to per-user workspaces:
+Once Anthropic publishes the webhook contract, **one of two**
+architectures gets you to per-user workspaces. Pick one:
 
-- **A small middleware service in front of Coder.** Receives the
-  Anthropic webhook, maps the session creator's identity to a Coder
-  user, calls `POST /api/v2/users/{user}/workspaces` on the user's
-  behalf with the runner pre-locked to that user, and reports back to
-  Anthropic. A few hundred lines of Go or Node, authenticated to
-  Coder as a dedicated service account with a scoped admin-like
-  token. This is what we expect most early adopters to deploy because
-  it can ship the day Anthropic's webhook ships, on top of Coder
-  primitives that already exist.
-- **A first-class integration inside `coderd`.** Coder's server
-  natively consumes the Anthropic webhook, with the user-mapping
-  rules, the on-behalf-of spawn, and the audit-log wiring built in.
-  The webhook receiver collapses from "a service you write" to "a
-  config block in the template." This is the better long-term shape
-  for any team that doesn't want to operate a separate service, and
-  it is the natural follow-on once we have learned from middleware
-  deployments what the right defaults are.
+- **Middleware in front of Coder.** A small service (a few hundred
+  lines of Go or Node) receives the Anthropic webhook, looks up the
+  Coder user, and calls Coder's API to spawn the workspace on their
+  behalf with the runner pre-locked. Fastest to ship: lands the day
+  Anthropic's webhook ships, on top of Coder primitives that exist
+  today.
+- **Built into `coderd`.** Coder's server consumes the Anthropic
+  webhook directly. No separate service to run, no extra token to
+  rotate. The integration is a config block in the template instead
+  of a deployment you operate. Better long-term shape, but a larger
+  product change.
 
-The two paths are not mutually exclusive: middleware lets us iterate
-on the integration shape before committing to anything in the
-product, and the in-tree integration absorbs whatever middleware
-teaches us once the patterns are clear.
+We expect early adopters to start with middleware and, once the
+integration shape settles, fold it into `coderd`.
 
 ## What to do today
 
