@@ -45,6 +45,7 @@ const (
 	ResourceUsageEvent                    RBACResource = "usage_event"
 	ResourceUser                          RBACResource = "user"
 	ResourceUserSecret                    RBACResource = "user_secret"
+	ResourceUserSkill                     RBACResource = "user_skill"
 	ResourceWebpushSubscription           RBACResource = "webpush_subscription"
 	ResourceWorkspace                     RBACResource = "workspace"
 	ResourceWorkspaceAgentDevcontainers   RBACResource = "workspace_agent_devcontainers"
@@ -120,6 +121,7 @@ var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceUsageEvent:                    {ActionCreate, ActionRead, ActionUpdate},
 	ResourceUser:                          {ActionCreate, ActionDelete, ActionRead, ActionReadPersonal, ActionUpdate, ActionUpdatePersonal},
 	ResourceUserSecret:                    {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
+	ResourceUserSkill:                     {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceWebpushSubscription:           {ActionCreate, ActionDelete, ActionRead},
 	ResourceWorkspace:                     {ActionApplicationConnect, ActionCreate, ActionCreateAgent, ActionDelete, ActionDeleteAgent, ActionRead, ActionShare, ActionSSH, ActionWorkspaceStart, ActionWorkspaceStop, ActionUpdate, ActionUpdateAgent},
 	ResourceWorkspaceAgentDevcontainers:   {ActionCreate},

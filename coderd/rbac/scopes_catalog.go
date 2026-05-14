@@ -53,6 +53,13 @@ var externalLowLevel = map[ScopeName]struct{}{
 	"user_secret:delete": {},
 	"user_secret:*":      {},
 
+	// User skills
+	"user_skill:read":   {},
+	"user_skill:create": {},
+	"user_skill:update": {},
+	"user_skill:delete": {},
+	"user_skill:*":      {},
+
 	// Tasks
 	"task:create": {},
 	"task:read":   {},

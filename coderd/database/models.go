@@ -293,6 +293,11 @@ const (
 	ApiKeyScopeAiProviderDelete                    APIKeyScope = "ai_provider:delete"
 	ApiKeyScopeAiProviderRead                      APIKeyScope = "ai_provider:read"
 	ApiKeyScopeAiProviderUpdate                    APIKeyScope = "ai_provider:update"
+	ApiKeyScopeUserSkillCreate                     APIKeyScope = "user_skill:create"
+	ApiKeyScopeUserSkillRead                       APIKeyScope = "user_skill:read"
+	ApiKeyScopeUserSkillUpdate                     APIKeyScope = "user_skill:update"
+	ApiKeyScopeUserSkillDelete                     APIKeyScope = "user_skill:delete"
+	ApiKeyScopeUserSkill                           APIKeyScope = "user_skill:*"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -547,7 +552,12 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeAiProviderCreate,
 		ApiKeyScopeAiProviderDelete,
 		ApiKeyScopeAiProviderRead,
-		ApiKeyScopeAiProviderUpdate:
+		ApiKeyScopeAiProviderUpdate,
+		ApiKeyScopeUserSkillCreate,
+		ApiKeyScopeUserSkillRead,
+		ApiKeyScopeUserSkillUpdate,
+		ApiKeyScopeUserSkillDelete,
+		ApiKeyScopeUserSkill:
 		return true
 	}
 	return false
@@ -771,6 +781,11 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeAiProviderDelete,
 		ApiKeyScopeAiProviderRead,
 		ApiKeyScopeAiProviderUpdate,
+		ApiKeyScopeUserSkillCreate,
+		ApiKeyScopeUserSkillRead,
+		ApiKeyScopeUserSkillUpdate,
+		ApiKeyScopeUserSkillDelete,
+		ApiKeyScopeUserSkill,
 	}
 }
 
@@ -3300,6 +3315,7 @@ const (
 	ResourceTypeUserSecret                  ResourceType = "user_secret"
 	ResourceTypeAiProvider                  ResourceType = "ai_provider"
 	ResourceTypeAiProviderKey               ResourceType = "ai_provider_key"
+	ResourceTypeUserSkill                   ResourceType = "user_skill"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3369,7 +3385,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeChat,
 		ResourceTypeUserSecret,
 		ResourceTypeAiProvider,
-		ResourceTypeAiProviderKey:
+		ResourceTypeAiProviderKey,
+		ResourceTypeUserSkill:
 		return true
 	}
 	return false
@@ -3408,6 +3425,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeUserSecret,
 		ResourceTypeAiProvider,
 		ResourceTypeAiProviderKey,
+		ResourceTypeUserSkill,
 	}
 }
 
@@ -5695,6 +5713,16 @@ type UserSecret struct {
 	CreatedAt   time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
 	ValueKeyID  sql.NullString `db:"value_key_id" json:"value_key_id"`
+}
+
+type UserSkill struct {
+	ID          uuid.UUID `db:"id" json:"id"`
+	UserID      uuid.UUID `db:"user_id" json:"user_id"`
+	Name        string    `db:"name" json:"name"`
+	Description string    `db:"description" json:"description"`
+	Content     string    `db:"content" json:"content"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
 }
 
 // Tracks the history of user status changes

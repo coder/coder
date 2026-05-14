@@ -50,6 +50,7 @@ const (
 	ResourceTypeAIProviderKey ResourceType = "ai_provider_key"
 	ResourceTypeChat          ResourceType = "chat"
 	ResourceTypeUserSecret    ResourceType = "user_secret"
+	ResourceTypeUserSkill     ResourceType = "user_skill"
 )
 
 func (r ResourceType) FriendlyString() string {
@@ -118,6 +119,8 @@ func (r ResourceType) FriendlyString() string {
 		return "chat"
 	case ResourceTypeUserSecret:
 		return "user secret"
+	case ResourceTypeUserSkill:
+		return "user skill"
 	default:
 		return "unknown"
 	}

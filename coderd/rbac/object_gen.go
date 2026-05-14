@@ -384,6 +384,16 @@ var (
 		Type: "user_secret",
 	}
 
+	// ResourceUserSkill
+	// Valid Actions
+	//  - "ActionCreate" :: create a user skill
+	//  - "ActionDelete" :: delete a user skill
+	//  - "ActionRead" :: read user skill metadata and content
+	//  - "ActionUpdate" :: update user skill metadata and content
+	ResourceUserSkill = Object{
+		Type: "user_skill",
+	}
+
 	// ResourceWebpushSubscription
 	// Valid Actions
 	//  - "ActionCreate" :: create webpush subscriptions
@@ -499,6 +509,7 @@ func AllResources() []Objecter {
 		ResourceUsageEvent,
 		ResourceUser,
 		ResourceUserSecret,
+		ResourceUserSkill,
 		ResourceWebpushSubscription,
 		ResourceWorkspace,
 		ResourceWorkspaceAgentDevcontainers,

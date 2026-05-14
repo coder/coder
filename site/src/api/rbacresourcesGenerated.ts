@@ -214,6 +214,12 @@ export const RBACResourceActions: Partial<
 		read: "read user secret metadata and value",
 		update: "update user secret metadata and value",
 	},
+	user_skill: {
+		create: "create a user skill",
+		delete: "delete a user skill",
+		read: "read user skill metadata and content",
+		update: "update user skill metadata and content",
+	},
 	webpush_subscription: {
 		create: "create webpush subscriptions",
 		delete: "delete webpush subscriptions",
