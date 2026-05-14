@@ -72,7 +72,19 @@ const (
 	// cold-start agent's first MCP reload can settle before
 	// chatd gives up.
 	workspaceMCPDiscoveryTimeout = 35 * time.Second
-	turnStatusLabelWriteTimeout  = 5 * time.Second
+	// workspaceMCPPrimeMaxWait bounds the additional time the
+	// create_workspace / start_workspace post-ready cache primer
+	// spends waiting for the agent's MCP setup to register tools
+	// after the agent itself is already reachable. Empty results
+	// usually mean the agent's MCP Connect is still racing with
+	// agent startup. The agent-side budget is
+	// agent/x/agentmcp.connectTimeout (30s).
+	workspaceMCPPrimeMaxWait = 30 * time.Second
+	// workspaceMCPPrimeRetryInterval is the short backoff between
+	// re-attempts inside the primer when ListMCPTools returns an
+	// empty list without error.
+	workspaceMCPPrimeRetryInterval = 2 * time.Second
+	turnStatusLabelWriteTimeout    = 5 * time.Second
 	// defaultDialTimeout matches the timeout used by ~8 other
 	// server-side AgentConn callers.
 	defaultDialTimeout = 30 * time.Second
@@ -566,6 +578,61 @@ func (p *Server) discoverWorkspaceMCPTools(
 		tools = append(tools, chattool.NewWorkspaceMCPTool(t, workspaceCtx.getWorkspaceConn, invalidate))
 	}
 	return tools
+}
+
+// primeWorkspaceMCPCache populates workspaceMCPToolsCache after the
+// create_workspace or start_workspace tool finishes waiting for the
+// workspace agent to become reachable. By the time it runs the agent
+// is already Ready, so a single ListMCPTools call usually succeeds.
+// When the agent's MCP server is still racing with agent startup,
+// ListMCPTools may return an empty list (no error) on the first call;
+// the primer retries with a short backoff up to
+// workspaceMCPPrimeMaxWait so the LLM step that follows the tool call
+// sees the workspace MCP tools in the cache and PrepareTools does not
+// need to dial again.
+//
+// Returns silently on every failure mode. The chat continues without
+// workspace MCP tools when the agent does not advertise any within
+// the budget. The next user turn re-runs top-of-turn discovery from
+// scratch.
+func (p *Server) primeWorkspaceMCPCache(
+	ctx context.Context,
+	logger slog.Logger,
+	chatID uuid.UUID,
+	workspaceCtx *turnWorkspaceContext,
+) {
+	deadline := p.clock.Now().Add(workspaceMCPPrimeMaxWait)
+	attempt := 0
+	for {
+		attempt++
+		tools := p.discoverWorkspaceMCPTools(ctx, logger, chatID, workspaceCtx)
+		if len(tools) > 0 {
+			logger.Debug(ctx, "primed workspace MCP cache",
+				slog.F("chat_id", chatID),
+				slog.F("tool_count", len(tools)),
+				slog.F("attempts", attempt),
+			)
+			return
+		}
+		if ctx.Err() != nil {
+			return
+		}
+		if !p.clock.Now().Before(deadline) {
+			logger.Debug(ctx,
+				"workspace MCP cache primer gave up waiting for tools",
+				slog.F("chat_id", chatID),
+				slog.F("attempts", attempt),
+			)
+			return
+		}
+		timer := p.clock.NewTimer(workspaceMCPPrimeRetryInterval, "chatd", "workspace-mcp-prime")
+		select {
+		case <-timer.C:
+		case <-ctx.Done():
+			timer.Stop()
+			return
+		}
+	}
 }
 
 type turnWorkspaceContext struct {
@@ -6520,6 +6587,36 @@ func (p *Server) appendRootChatTools(
 				}
 			}
 		}
+
+		// Prime the workspace MCP tools cache while the create_workspace
+		// or start_workspace tool is still running. The tool only fires
+		// this callback after waitForAgentReady returns, so the agent is
+		// reachable. ListMCPTools may still return an empty list on the
+		// first try when the agent's MCP Connect is racing with agent
+		// startup; primeWorkspaceMCPCache retries with a short backoff up
+		// to workspaceMCPPrimeMaxWait. Priming here lets the next LLM
+		// step's PrepareTools hit the cache instead of dialing again on a
+		// separate timeout budget.
+		//
+		// Run asynchronously: the tool itself must not block on the
+		// primer because the agent may not advertise any MCP tools at
+		// all (e.g. minimal templates), in which case the primer waits
+		// the full budget before giving up. PrepareTools on the next
+		// step covers the cache miss path; the primer is purely an
+		// optimization that warms the cache while the LLM is thinking.
+		// The primer shares the chat ctx (not a detached one) so it is
+		// canceled along with the chat: the workspaceCtx that backs the
+		// agent conn is freed by runChat's deferred close, and a
+		// dangling primer would re-dial and leak that conn. inflight
+		// tracking ensures server shutdown still waits for any in
+		// progress primer.
+		if updatedChat.WorkspaceID.Valid {
+			p.inflight.Add(1)
+			go func() {
+				defer p.inflight.Done()
+				p.primeWorkspaceMCPCache(ctx, p.logger, updatedChat.ID, opts.workspaceCtx)
+			}()
+		}
 	}
 
 	tools = append(tools,
@@ -7766,11 +7863,17 @@ func (p *Server) runChat(
 		},
 		PrepareTools: func(currentTools []fantasy.AgentTool) []fantasy.AgentTool {
 			// Mid-turn workspace MCP discovery for chats that bind a
-			// workspace via create_workspace or start_workspace
-			// after the turn has already started. The top-of-turn
-			// discovery path is gated on chat.WorkspaceID.Valid; this
-			// callback bridges the gap so the LLM sees workspace MCP
-			// tools on the very next step instead of the turn after.
+			// workspace via create_workspace or start_workspace after the
+			// turn has already started. The top-of-turn discovery path is
+			// gated on chat.WorkspaceID.Valid; this callback bridges the
+			// gap so the LLM sees workspace MCP tools on the very next
+			// step instead of the turn after.
+			//
+			// create_workspace and start_workspace prime
+			// workspaceMCPToolsCache via onChatUpdated after
+			// waitForAgentReady returns, so the call below is almost
+			// always a cache hit. The primer's bounded wait means the
+			// dial fallback here only runs when priming itself failed.
 			if workspaceMCPDiscovered || isExploreSubagent {
 				return nil
 			}
@@ -7778,13 +7881,17 @@ func (p *Server) runChat(
 			if !snapshot.WorkspaceID.Valid {
 				return nil
 			}
-			workspaceMCPDiscovered = true
 			discovered := p.discoverWorkspaceMCPTools(
 				ctx, loopLogger, chat.ID, &workspaceCtx,
 			)
 			if len(discovered) == 0 {
+				// Leave workspaceMCPDiscovered false so a
+				// subsequent step retries discovery. The primer
+				// already enforces an upper bound on time spent
+				// trying.
 				return nil
 			}
+			workspaceMCPDiscovered = true
 			return append(slices.Clone(currentTools), discovered...)
 		},
 		PrepareMessages: func(msgs []fantasy.Message) []fantasy.Message {
