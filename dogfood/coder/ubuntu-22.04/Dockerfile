@@ -186,14 +186,14 @@ RUN install --directory --owner=coder --group=coder --mode=0755 "${MISE_INSTALL_
 # Trusted paths skip mise's per-config trust prompt for the baked-in
 # system config and the coder repo when cloned at the canonical
 # /home/coder/coder location. Other repos a user clones still get
-# the one-time `mise trust` prompt — pre-trusting all of /home/coder
+# the one-time `mise trust` prompt; pre-trusting all of /home/coder
 # would let any mise.toml under the home dir auto-run [hooks]/[tasks].
 ENV MISE_DATA_DIR=/home/coder/.local/share/mise \
 	MISE_TRUSTED_CONFIG_PATHS=/home/coder/coder:/etc/mise
 
 # Bake the project manifest in as mise's system config and ship
 # the lockfile alongside it so mise verifies download checksums
-# during install. We do NOT override MISE_GLOBAL_CONFIG_FILE — that
+# during install. We do NOT override MISE_GLOBAL_CONFIG_FILE; that
 # would re-target `mise use --global` away from the user's
 # ~/.config/mise/config.toml (on the home volume) into this
 # image-only path, breaking the workflow.
