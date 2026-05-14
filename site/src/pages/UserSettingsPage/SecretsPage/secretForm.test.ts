@@ -66,6 +66,15 @@ describe("createSecretValidationSchema", () => {
 	});
 
 	it.each([
+		" github",
+		"github ",
+	])("rejects leading/trailing whitespace secret name %j", (name) => {
+		expect(validateUserSecretName(name)).toBe(
+			"Name must not have leading or trailing whitespace.",
+		);
+	});
+
+	it.each([
 		"GITHUB_TOKEN",
 		"ANTHROPIC_API_KEY",
 		"_EXAMPLE_TOKEN",
@@ -226,7 +235,7 @@ describe("getDuplicateSecretFieldErrors", () => {
 		});
 	});
 
-	it("ignores the current secret when editing", () => {
+	it("ignores the current secret by id when editing", () => {
 		expect(
 			getDuplicateSecretFieldErrors(
 				existingSecrets,
@@ -235,7 +244,7 @@ describe("getDuplicateSecretFieldErrors", () => {
 					env_name: "GITHUB_TOKEN",
 					file_path: "",
 				},
-				"github",
+				existingSecrets[0].id,
 			),
 		).toEqual({});
 	});

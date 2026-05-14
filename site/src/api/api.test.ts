@@ -330,6 +330,7 @@ describe("api.ts", () => {
 	describe("user secrets endpoints", () => {
 		const userId = "me";
 		const secretName = "EXAMPLE_TOKEN";
+		const secretNameWithPathChars = "foo%2Fbar value";
 		const userSecret: TypesGen.UserSecret = {
 			id: "00000000-0000-0000-0000-000000000001",
 			name: secretName,
@@ -358,10 +359,10 @@ describe("api.ts", () => {
 			});
 			axiosInstance.get = axiosMockGet;
 
-			const result = await API.getUserSecret(userId, secretName);
+			const result = await API.getUserSecret(userId, secretNameWithPathChars);
 
 			expect(axiosMockGet).toHaveBeenCalledWith(
-				"/api/v2/users/me/secrets/EXAMPLE_TOKEN",
+				"/api/v2/users/me/secrets/foo%252Fbar%20value",
 			);
 			expect(result).toStrictEqual(userSecret);
 		});
@@ -401,10 +402,14 @@ describe("api.ts", () => {
 			});
 			axiosInstance.patch = axiosMockPatch;
 
-			const result = await API.updateUserSecret(userId, secretName, request);
+			const result = await API.updateUserSecret(
+				userId,
+				secretNameWithPathChars,
+				request,
+			);
 
 			expect(axiosMockPatch).toHaveBeenCalledWith(
-				"/api/v2/users/me/secrets/EXAMPLE_TOKEN",
+				"/api/v2/users/me/secrets/foo%252Fbar%20value",
 				request,
 			);
 			expect(result).toStrictEqual(updatedSecret);
@@ -414,10 +419,10 @@ describe("api.ts", () => {
 			const axiosMockDelete = vi.fn().mockResolvedValueOnce(undefined);
 			axiosInstance.delete = axiosMockDelete;
 
-			await API.deleteUserSecret(userId, secretName);
+			await API.deleteUserSecret(userId, secretNameWithPathChars);
 
 			expect(axiosMockDelete).toHaveBeenCalledWith(
-				"/api/v2/users/me/secrets/EXAMPLE_TOKEN",
+				"/api/v2/users/me/secrets/foo%252Fbar%20value",
 			);
 		});
 	});

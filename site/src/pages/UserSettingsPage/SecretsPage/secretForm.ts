@@ -73,6 +73,10 @@ export const validateUserSecretName = (name: string): string | undefined => {
 		return "Name is required.";
 	}
 
+	if (name.trim() !== name) {
+		return "Name must not have leading or trailing whitespace.";
+	}
+
 	if (routeUnsafeSecretNameRegex.test(name)) {
 		return "Name must not contain /, ?, or #.";
 	}
@@ -263,9 +267,9 @@ export const mapSecretApiErrorToFormErrors = (
 export const getDuplicateSecretFieldErrors = (
 	secrets: readonly UserSecret[],
 	values: Pick<SecretFormValues, "name" | "env_name" | "file_path">,
-	currentName?: string,
+	currentSecretID?: string,
 ): SecretFieldErrors => {
-	const candidates = secrets.filter((secret) => secret.name !== currentName);
+	const candidates = secrets.filter((secret) => secret.id !== currentSecretID);
 	const errors: SecretFieldErrors = {};
 
 	if (

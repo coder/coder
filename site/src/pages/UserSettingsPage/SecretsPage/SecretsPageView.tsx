@@ -15,7 +15,8 @@ import {
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { SecretDialog } from "./SecretDialog";
+import { docs } from "#/utils/docs";
+import { type CreateSecretOptions, SecretDialog } from "./SecretDialog";
 import { SecretsTable } from "./SecretsTable";
 
 type SecretsPageViewProps = {
@@ -30,6 +31,7 @@ type SecretsPageViewProps = {
 	onRefresh: () => void;
 	onCreateSecret: (
 		request: CreateUserSecretRequest,
+		options?: CreateSecretOptions,
 	) => Promise<unknown> | unknown;
 	onUpdateSecret: (
 		name: string,
@@ -82,7 +84,7 @@ export const SecretsPageView: FC<SecretsPageViewProps> = ({
 					When multiple secrets share the same environment variable or file
 					path, you'll choose which one to use during workspace creation.{" "}
 					<Link
-						href="https://coder.com/docs/user-guides/user-secrets"
+						href={docs("/user-guides/user-secrets")}
 						target="_blank"
 						rel="noreferrer"
 						showExternalIcon={false}

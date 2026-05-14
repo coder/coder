@@ -14,6 +14,7 @@ import type {
 	UserSecret,
 } from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import type { CreateSecretOptions } from "./SecretDialog";
 import { SecretsPageView } from "./SecretsPageView";
 
 const SecretsPage: FC = () => {
@@ -41,15 +42,20 @@ const SecretsPage: FC = () => {
 	);
 
 	const onCreateSecret = useCallback(
-		(request: CreateUserSecretRequest) => {
+		(request: CreateUserSecretRequest, options?: CreateSecretOptions) => {
+			const showToast = options?.showToast ?? true;
 			return new Promise<UserSecret>((resolve, reject) => {
 				createSecretMutation.mutate(request, {
 					onError: (error) => {
-						onMutationError(error, "Failed to create secret.");
+						if (showToast) {
+							onMutationError(error, "Failed to create secret.");
+						}
 						reject(error);
 					},
 					onSuccess: (secret) => {
-						toast.success("Secret created successfully.");
+						if (showToast) {
+							toast.success("Secret created successfully.");
+						}
 						resolve(secret);
 					},
 				});
@@ -96,7 +102,7 @@ const SecretsPage: FC = () => {
 	return (
 		<SecretsPageView
 			secrets={secretsQuery.data}
-			isLoading={secretsQuery.isFetching}
+			isLoading={!secretsQuery.isFetched && secretsQuery.isFetching}
 			hasLoaded={secretsQuery.isFetched}
 			isRefreshing={secretsQuery.isFetching && secretsQuery.isFetched}
 			isCreating={createSecretMutation.isPending}

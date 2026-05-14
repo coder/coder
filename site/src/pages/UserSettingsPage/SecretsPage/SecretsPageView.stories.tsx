@@ -97,10 +97,16 @@ export const Loaded: Story = {
 		await expect(
 			canvas.getByRole("table", { name: "User secrets" }),
 		).toBeInTheDocument();
-		await expect(canvas.getByText("env")).toBeInTheDocument();
+		await expect(canvas.getByText(".env")).toBeInTheDocument();
 		await expect(canvas.getByText("file")).toBeInTheDocument();
-		await expect(canvas.getByText("env + file")).toBeInTheDocument();
+		await expect(canvas.getByText(".env + file")).toBeInTheDocument();
 		await expect(canvas.getByText("not injected")).toBeInTheDocument();
+
+		const docsLink = canvas.getByRole("link", { name: "View docs" });
+		await expect(docsLink).toHaveAttribute(
+			"href",
+			expect.stringContaining("/user-guides/user-secrets"),
+		);
 	},
 };
 
@@ -115,6 +121,23 @@ export const Loading: Story = {
 		secrets: [],
 		isLoading: true,
 		hasLoaded: false,
+	},
+};
+
+export const RefreshingWithRows: Story = {
+	args: {
+		secrets: visibleSecrets,
+		isLoading: false,
+		hasLoaded: true,
+		isRefreshing: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(canvas.getAllByText(visibleSecrets[0].name)[0]).toBeVisible();
+		await expect(
+			canvas.getByRole("button", { name: /Refresh/ }),
+		).toBeDisabled();
 	},
 };
 

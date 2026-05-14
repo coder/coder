@@ -1762,7 +1762,7 @@ class ApiMethods {
 
 	getUserSecrets = async (userId: string): Promise<TypesGen.UserSecret[]> => {
 		const response = await this.axios.get<TypesGen.UserSecret[]>(
-			`/api/v2/users/${userId}/secrets`,
+			`/api/v2/users/${encodeURIComponent(userId)}/secrets`,
 		);
 
 		return response.data;
@@ -1773,7 +1773,7 @@ class ApiMethods {
 		name: string,
 	): Promise<TypesGen.UserSecret> => {
 		const response = await this.axios.get<TypesGen.UserSecret>(
-			`/api/v2/users/${userId}/secrets/${name}`,
+			`/api/v2/users/${encodeURIComponent(userId)}/secrets/${encodeURIComponent(name)}`,
 		);
 
 		return response.data;
@@ -1784,7 +1784,7 @@ class ApiMethods {
 		request: TypesGen.CreateUserSecretRequest,
 	): Promise<TypesGen.UserSecret> => {
 		const response = await this.axios.post<TypesGen.UserSecret>(
-			`/api/v2/users/${userId}/secrets`,
+			`/api/v2/users/${encodeURIComponent(userId)}/secrets`,
 			request,
 		);
 
@@ -1797,7 +1797,7 @@ class ApiMethods {
 		request: TypesGen.UpdateUserSecretRequest,
 	): Promise<TypesGen.UserSecret> => {
 		const response = await this.axios.patch<TypesGen.UserSecret>(
-			`/api/v2/users/${userId}/secrets/${name}`,
+			`/api/v2/users/${encodeURIComponent(userId)}/secrets/${encodeURIComponent(name)}`,
 			request,
 		);
 
@@ -1805,7 +1805,9 @@ class ApiMethods {
 	};
 
 	deleteUserSecret = async (userId: string, name: string): Promise<void> => {
-		await this.axios.delete(`/api/v2/users/${userId}/secrets/${name}`);
+		await this.axios.delete(
+			`/api/v2/users/${encodeURIComponent(userId)}/secrets/${encodeURIComponent(name)}`,
+		);
 	};
 
 	getWorkspaceBuilds = async (

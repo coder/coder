@@ -26,7 +26,8 @@ type FeatureStageBadgeProps = Readonly<
 >;
 
 const badgeColorClasses = {
-	early_access: "border-[#8FE8F5] bg-[#07343F] text-[#9FEAF2]",
+	early_access:
+		"border-border-early-access bg-surface-early-access text-content-early-access",
 	beta: "bg-surface-sky text-highlight-sky",
 } as const;
 

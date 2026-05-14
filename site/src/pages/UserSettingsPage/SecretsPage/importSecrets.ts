@@ -2,6 +2,8 @@ import { parse as parseYaml } from "yaml";
 import type { CreateUserSecretRequest, UserSecret } from "#/api/typesGenerated";
 import {
 	buildCreateUserSecretRequest,
+	validateUserSecretEnvName,
+	validateUserSecretFilePath,
 	validateUserSecretName,
 } from "./secretForm";
 
@@ -27,13 +29,13 @@ export const parseSecretImport = (
 ): CreateUserSecretRequest[] => {
 	const lowerFileName = fileName.toLowerCase();
 	if (lowerFileName.endsWith(".env")) {
-		return parseEnvFile(content);
+		return validateImportedSecretRequests(parseEnvFile(content));
 	}
 	if (lowerFileName.endsWith(".json")) {
-		return parseJsonFile(content);
+		return validateImportedSecretRequests(parseJsonFile(content));
 	}
 	if (lowerFileName.endsWith(".yaml") || lowerFileName.endsWith(".yml")) {
-		return parseYamlFile(content);
+		return validateImportedSecretRequests(parseYamlFile(content));
 	}
 
 	throw new Error("Unsupported secret import file type.");
@@ -75,17 +77,13 @@ function parseEnvFile(content: string): CreateUserSecretRequest[] {
 			continue;
 		}
 
-		const separatorIndex = line.indexOf("=");
+		const separatorIndex = rawLine.indexOf("=");
 		if (separatorIndex <= 0) {
 			throw new Error(`Invalid .env entry on line ${index + 1}.`);
 		}
 
-		const name = line.slice(0, separatorIndex).trim();
-		const nameError = validateUserSecretName(name);
-		if (nameError) {
-			throw new Error(`Invalid .env entry on line ${index + 1}.`);
-		}
-		const value = line.slice(separatorIndex + 1);
+		const name = rawLine.slice(0, separatorIndex).trim();
+		const value = parseEnvValue(rawLine.slice(separatorIndex + 1));
 
 		requests.push({
 			name,
@@ -95,6 +93,36 @@ function parseEnvFile(content: string): CreateUserSecretRequest[] {
 	}
 
 	return requests;
+}
+
+function parseEnvValue(rawValue: string): string {
+	const value = rawValue.trim();
+	if (value.length < 2) {
+		return rawValue;
+	}
+
+	const quote = value[0];
+	const isQuoted =
+		(quote === '"' || quote === "'") && value[value.length - 1] === quote;
+	if (!isQuoted) {
+		return rawValue;
+	}
+
+	const unquoted = value.slice(1, -1);
+	if (quote !== '"') {
+		return unquoted;
+	}
+
+	const escapeMap: Record<string, string> = {
+		n: "\n",
+		r: "\r",
+		t: "\t",
+		'"': '"',
+		"\\": "\\",
+	};
+	return unquoted.replace(/\\([nrt"\\])/g, (_, escaped: string) => {
+		return escapeMap[escaped] ?? escaped;
+	});
 }
 
 function parseJsonFile(content: string): CreateUserSecretRequest[] {
@@ -119,12 +147,8 @@ function parseStructuredSecretImport(
 
 	if (isRecord(parsed)) {
 		return Object.entries(parsed).map(([name, value]) => {
-			const nameError = validateUserSecretName(name);
-			if (nameError) {
-				throw new Error(`Invalid ${formatName} secret name for ${name}.`);
-			}
 			if (typeof value !== "string") {
-				throw new Error(`Invalid ${formatName} secret value for ${name}.`);
+				throw new Error(formatSecretValueError(formatName, name, value));
 			}
 
 			return {
@@ -150,11 +174,11 @@ function parseStructuredSecretRequest(
 	}
 
 	const { name, value } = item;
-	if (typeof name !== "string" || validateUserSecretName(name)) {
+	if (typeof name !== "string") {
 		throw new Error(`Invalid ${formatName} secret name at index ${index}.`);
 	}
 	if (typeof value !== "string") {
-		throw new Error(`Invalid ${formatName} secret value for ${name}.`);
+		throw new Error(formatSecretValueError(formatName, name, value, index));
 	}
 
 	return buildCreateUserSecretRequest({
@@ -164,6 +188,70 @@ function parseStructuredSecretRequest(
 		env_name: getOptionalString(item.env_name),
 		file_path: getOptionalString(item.file_path),
 	});
+}
+
+function validateImportedSecretRequests(
+	requests: CreateUserSecretRequest[],
+): CreateUserSecretRequest[] {
+	const errors = requests.flatMap((request) => {
+		const requestErrors: string[] = [];
+		const nameError = validateUserSecretName(request.name);
+		if (nameError) {
+			requestErrors.push(
+				formatImportFieldError(request.name, "name", nameError),
+			);
+		}
+
+		const envNameError = validateUserSecretEnvName(request.env_name ?? "");
+		if (envNameError) {
+			requestErrors.push(
+				formatImportFieldError(request.name, "env var", envNameError),
+			);
+		}
+
+		const filePathError = validateUserSecretFilePath(request.file_path ?? "");
+		if (filePathError) {
+			requestErrors.push(
+				formatImportFieldError(request.name, "file path", filePathError),
+			);
+		}
+
+		return requestErrors;
+	});
+
+	if (errors.length > 0) {
+		throw new Error(`Invalid secret import. ${errors.join(" ")}`);
+	}
+
+	return requests;
+}
+
+function formatImportFieldError(
+	name: string,
+	field: string,
+	message: string,
+): string {
+	return `${name || "Secret"} ${field}: ${message}`;
+}
+
+function formatSecretValueError(
+	formatName: "JSON" | "YAML",
+	name: string,
+	value: unknown,
+	index?: number,
+): string {
+	const location = index === undefined ? "" : ` at index ${index}`;
+	return `${formatName} secret value for ${name}${location} must be a string, got ${valueType(value)}.`;
+}
+
+function valueType(value: unknown): string {
+	if (value === null) {
+		return "null";
+	}
+	if (Array.isArray(value)) {
+		return "array";
+	}
+	return typeof value;
 }
 
 function getOptionalString(value: unknown): string {
