@@ -23882,12 +23882,10 @@ const docTemplate = `{
         },
         "codersdk.UpsertGroupAIBudgetRequest": {
             "type": "object",
-            "required": [
-                "spend_limit_micros"
-            ],
             "properties": {
                 "spend_limit_micros": {
-                    "type": "integer"
+                    "type": "integer",
+                    "minimum": 0
                 }
             }
         },

@@ -2677,20 +2677,32 @@ func TestGroupAIBudget(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 	})
 
-	t.Run("RejectsNonPositiveSpendLimit", func(t *testing.T) {
+	t.Run("RejectsNegativeSpendLimit", func(t *testing.T) {
 		t.Parallel()
 
 		adminClient, group := setupGroupAIBudgetTest(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		for _, spend := range []int64{0, -1} {
-			_, err := adminClient.UpsertGroupAIBudget(ctx, group.ID, codersdk.UpsertGroupAIBudgetRequest{
-				SpendLimitMicros: spend,
-			})
-			var sdkErr *codersdk.Error
-			require.ErrorAs(t, err, &sdkErr)
-			require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-		}
+		_, err := adminClient.UpsertGroupAIBudget(ctx, group.ID, codersdk.UpsertGroupAIBudgetRequest{
+			SpendLimitMicros: -1,
+		})
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+
+	t.Run("AcceptsZeroSpendLimitToBlock", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient, group := setupGroupAIBudgetTest(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// 0 is a valid value: it blocks all spend for the group's members.
+		budget, err := adminClient.UpsertGroupAIBudget(ctx, group.ID, codersdk.UpsertGroupAIBudgetRequest{
+			SpendLimitMicros: 0,
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 0, budget.SpendLimitMicros)
 	})
 
 	t.Run("UnknownGroup_404", func(t *testing.T) {

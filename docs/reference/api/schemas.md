@@ -13220,7 +13220,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 | Name                 | Type    | Required | Restrictions | Description |
 |----------------------|---------|----------|--------------|-------------|
-| `spend_limit_micros` | integer | true     |              |             |
+| `spend_limit_micros` | integer | false    |              |             |
 
 ## codersdk.UpsertWorkspaceAgentPortShareRequest
 

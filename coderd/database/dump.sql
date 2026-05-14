@@ -1770,7 +1770,7 @@ CREATE TABLE group_ai_budgets (
     spend_limit_micros bigint NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT group_ai_budgets_spend_limit_micros_check CHECK ((spend_limit_micros > 0))
+    CONSTRAINT group_ai_budgets_spend_limit_micros_check CHECK ((spend_limit_micros >= 0))
 );
 
 COMMENT ON TABLE group_ai_budgets IS 'Per-group AI spend limit applied to each member of the group. No row means no budget is enforced.';

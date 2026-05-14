@@ -360,7 +360,7 @@ type GroupAIBudget struct {
 }
 
 type UpsertGroupAIBudgetRequest struct {
-	SpendLimitMicros int64 `json:"spend_limit_micros" validate:"required,gt=0"`
+	SpendLimitMicros int64 `json:"spend_limit_micros" validate:"gte=0"`
 }
 
 // GroupAIBudget returns the AI spend budget configured for the given group.
