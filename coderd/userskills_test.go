@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/x/skills"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -327,6 +329,42 @@ func TestUserSkillAuthorization(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "Admin update", updated.Description)
 	require.NoError(t, admin.DeleteUserSkill(ctx, targetUser, "auth-skill"))
+}
+
+func TestUserSkillSoftDeleteCleanup(t *testing.T) {
+	t.Parallel()
+
+	adminClient, _, api := coderdtest.NewWithAPI(t, nil)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+	ownerClient, ownerUser := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+	owner := codersdk.NewExperimentalClient(ownerClient)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	_, err := owner.CreateUserSkill(ctx, codersdk.Me, codersdk.CreateUserSkillRequest{
+		Content: userSkillMarkdown("soft-delete-skill", "Soft delete", "Body."),
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, adminClient.DeleteUser(ctx, ownerUser.ID))
+	_, err = api.Database.GetUserSkillByUserIDAndName(
+		dbauthz.AsSystemRestricted(ctx),
+		database.GetUserSkillByUserIDAndNameParams{
+			UserID: ownerUser.ID,
+			Name:   "soft-delete-skill",
+		},
+	)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	_, err = api.Database.InsertUserSkill(
+		dbauthz.AsSystemRestricted(ctx),
+		database.InsertUserSkillParams{
+			UserID:      ownerUser.ID,
+			Name:        "after-soft-delete",
+			Description: "Soft delete",
+			Content:     userSkillMarkdown("after-soft-delete", "Soft delete", "Body."),
+		},
+	)
+	require.ErrorContains(t, err, "Cannot create user_skill for deleted user")
 }
 
 //nolint:paralleltest,tparallel // Subtests share one auditor and run sequentially.
