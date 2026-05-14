@@ -26,6 +26,19 @@ When investigating or editing TypeScript/React code, always use the TypeScript l
 - `pnpm playwright:test` - Run playwright e2e tests. When running e2e tests, remind the user that a license is required to run all the tests
 - `pnpm format` - Format frontend code. Always run before creating a PR
 
+## Storybook MCP
+
+The `.mcp.json` at the repo root includes a Storybook MCP server
+(`http://localhost:6006/mcp`). It provides tools for searching components,
+reading stories, and capturing screenshots directly from Storybook.
+
+Because it is an HTTP-type MCP server, Storybook must already be running
+before the MCP client can connect. Start it first:
+
+```sh
+pnpm storybook --no-open
+```
+
 ## Failure artifacts
 
 Playwright writes per-test failure artifacts to `site/test-results/` when
