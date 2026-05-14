@@ -2823,6 +2823,21 @@ func (mr *MockStoreMockRecorder) GetChatUsageLimitUserOverride(ctx, userID any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatUsageLimitUserOverride", reflect.TypeOf((*MockStore)(nil).GetChatUsageLimitUserOverride), ctx, userID)
 }
 
+// GetChatUserPromptsByChatID mocks base method.
+func (m *MockStore) GetChatUserPromptsByChatID(ctx context.Context, arg database.GetChatUserPromptsByChatIDParams) ([]database.GetChatUserPromptsByChatIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatUserPromptsByChatID", ctx, arg)
+	ret0, _ := ret[0].([]database.GetChatUserPromptsByChatIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatUserPromptsByChatID indicates an expected call of GetChatUserPromptsByChatID.
+func (mr *MockStoreMockRecorder) GetChatUserPromptsByChatID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatUserPromptsByChatID", reflect.TypeOf((*MockStore)(nil).GetChatUserPromptsByChatID), ctx, arg)
+}
+
 // GetChatWorkspaceTTL mocks base method.
 func (m *MockStore) GetChatWorkspaceTTL(ctx context.Context) (string, error) {
 	m.ctrl.T.Helper()

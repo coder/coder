@@ -3145,6 +3145,41 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |----------|
 | `plan`   |
 
+## codersdk.ChatPrompt
+
+```json
+{
+  "id": 0,
+  "text": "string"
+}
+```
+
+### Properties
+
+| Name   | Type    | Required | Restrictions | Description |
+|--------|---------|----------|--------------|-------------|
+| `id`   | integer | false    |              |             |
+| `text` | string  | false    |              |             |
+
+## codersdk.ChatPromptsResponse
+
+```json
+{
+  "prompts": [
+    {
+      "id": 0,
+      "text": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name      | Type                                                | Required | Restrictions | Description |
+|-----------|-----------------------------------------------------|----------|--------------|-------------|
+| `prompts` | array of [codersdk.ChatPrompt](#codersdkchatprompt) | false    |              |             |
+
 ## codersdk.ChatQueuedMessage
 
 ```json

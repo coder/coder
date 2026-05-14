@@ -1529,6 +1529,14 @@ func (m queryMetricsStore) GetChatUsageLimitUserOverride(ctx context.Context, us
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatUserPromptsByChatID(ctx context.Context, arg database.GetChatUserPromptsByChatIDParams) ([]database.GetChatUserPromptsByChatIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatUserPromptsByChatID(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatUserPromptsByChatID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatUserPromptsByChatID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatWorkspaceTTL(ctx context.Context) (string, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatWorkspaceTTL(ctx)
