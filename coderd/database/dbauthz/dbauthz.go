@@ -1546,14 +1546,6 @@ func (q *querier) authorizeProvisionerJob(ctx context.Context, job database.Prov
 	return nil
 }
 
-func (q *querier) canReadLinkedChat(ctx context.Context, fileID uuid.UUID, prepared rbac.PreparedAuthorized) (bool, error) {
-	chats, err := q.db.GetAuthorizedChatsByChatFileID(ctx, fileID, prepared)
-	if err != nil {
-		return false, err
-	}
-	return len(chats) > 0, nil
-}
-
 func (q *querier) AcquireChats(ctx context.Context, arg database.AcquireChatsParams) ([]database.Chat, error) {
 	// AcquireChats is a system-level operation used by the chat processor.
 	// Authorization is done at the system level, not per-user.
@@ -2912,14 +2904,14 @@ func (q *querier) GetChatFileByID(ctx context.Context, id uuid.UUID) (database.C
 	if err != nil {
 		return database.ChatFile{}, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
 	}
-	linked, err := q.canReadLinkedChat(ctx, id, prepared)
+	chats, err := q.db.GetAuthorizedChatsByChatFileID(ctx, id, prepared)
 	if err != nil {
 		return database.ChatFile{}, err
 	}
-	if linked {
-		return file, nil
+	if len(chats) == 0 {
+		return database.ChatFile{}, fileAuthErr
 	}
-	return database.ChatFile{}, fileAuthErr
+	return file, nil
 }
 
 func (q *querier) GetChatFileMetadataByChatID(ctx context.Context, chatID uuid.UUID) ([]database.GetChatFileMetadataByChatIDRow, error) {
@@ -2946,11 +2938,11 @@ func (q *querier) GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]dat
 				return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
 			}
 		}
-		linked, err := q.canReadLinkedChat(ctx, f.ID, prepared)
+		chats, err := q.db.GetAuthorizedChatsByChatFileID(ctx, f.ID, prepared)
 		if err != nil {
 			return nil, err
 		}
-		if !linked {
+		if len(chats) == 0 {
 			return nil, fileAuthErr
 		}
 	}
