@@ -255,7 +255,7 @@ func TestRefreshToken(t *testing.T) {
 			OAuthRefreshToken:     "refresh-token",
 			OAuthExpiry:           expired,
 			ExternalUserID:        "linear-user-1",
-			ExternalUserLogin:     "",
+			ExternalUserLogin:     "ada",
 			ExternalUserName:      "Ada Lovelace",
 			ExternalUserEmail:     "ada@example.com",
 			ExternalUserAvatarUrl: "https://example.com/avatar.png",
@@ -278,6 +278,7 @@ func TestRefreshToken(t *testing.T) {
 				arg.UserID == link.UserID &&
 				arg.OAuthAccessToken == "new-access-token" &&
 				arg.ExternalUserID == link.ExternalUserID &&
+				arg.ExternalUserLogin == link.ExternalUserLogin &&
 				arg.ExternalUserName == link.ExternalUserName &&
 				arg.ExternalUserEmail == link.ExternalUserEmail &&
 				arg.ExternalUserAvatarUrl == link.ExternalUserAvatarUrl

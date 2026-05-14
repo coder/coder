@@ -433,9 +433,24 @@ func TestExternalAuthManagement(t *testing.T) {
 		t.Parallel()
 		const providerID = "linear"
 
+		var failIdentity atomic.Bool
+		failIdentity.Store(true)
 		linear := oidctest.NewFakeIDP(t, oidctest.WithServing())
-		routes := (&oidctest.ExternalAuthConfigOptions{}).AddRoute("/graphql", func(_ string, rw http.ResponseWriter, _ *http.Request) {
-			http.Error(rw, "try again", http.StatusServiceUnavailable)
+		routes := (&oidctest.ExternalAuthConfigOptions{}).AddRoute("/graphql", func(_ string, rw http.ResponseWriter, r *http.Request) {
+			if failIdentity.Load() {
+				http.Error(rw, "try again", http.StatusServiceUnavailable)
+				return
+			}
+			httpapi.Write(r.Context(), rw, http.StatusOK, map[string]any{
+				"data": map[string]any{
+					"viewer": map[string]any{
+						"id":          "linear-user-1",
+						"displayName": "Ada Lovelace",
+						"email":       "ada@example.com",
+						"avatarUrl":   "https://example.com/avatar.png",
+					},
+				},
+			})
 		})
 		owner := coderdtest.New(t, &coderdtest.Options{
 			ExternalAuthConfigs: []*externalauth.Config{
@@ -456,6 +471,22 @@ func TestExternalAuthManagement(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, list.Links, 1)
 		require.Nil(t, list.Links[0].Identity)
+
+		failIdentity.Store(false)
+		auth, err := client.ExternalAuthByID(ctx, providerID)
+		require.NoError(t, err)
+		require.True(t, auth.Authenticated)
+		require.NotNil(t, auth.Identity)
+		require.Equal(t, "linear-user-1", auth.Identity.ID)
+		require.Equal(t, "Ada Lovelace", auth.Identity.Name)
+		require.Equal(t, "ada@example.com", auth.Identity.Email)
+		require.Equal(t, "https://example.com/avatar.png", auth.Identity.AvatarURL)
+
+		list, err = client.ListExternalAuths(ctx)
+		require.NoError(t, err)
+		require.Len(t, list.Links, 1)
+		require.NotNil(t, list.Links[0].Identity)
+		require.Equal(t, "linear-user-1", list.Links[0].Identity.ID)
 	})
 
 	t.Run("RefreshAllProviders", func(t *testing.T) {
