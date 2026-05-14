@@ -1546,6 +1546,16 @@ func (q *querier) authorizeProvisionerJob(ctx context.Context, job database.Prov
 	return nil
 }
 
+func (q *querier) UpdateEncryptedAIProviderSettings(ctx context.Context, arg database.UpdateEncryptedAIProviderSettingsParams) (database.AIProvider, error) {
+	// Settings can be rewritten on any row, including soft-deleted ones,
+	// so the dbcrypt rotation can move every FK reference to a new key
+	// digest before old keys are revoked.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAIProvider); err != nil {
+		return database.AIProvider{}, err
+	}
+	return q.db.UpdateEncryptedAIProviderSettings(ctx, arg)
+}
+
 func (q *querier) AcquireChats(ctx context.Context, arg database.AcquireChatsParams) ([]database.Chat, error) {
 	// AcquireChats is a system-level operation used by the chat processor.
 	// Authorization is done at the system level, not per-user.
@@ -6318,16 +6328,6 @@ func (q *querier) UpdateAIProvider(ctx context.Context, arg database.UpdateAIPro
 		return database.AIProvider{}, err
 	}
 	return q.db.UpdateAIProvider(ctx, arg)
-}
-
-func (q *querier) UpdateAIProviderSettings(ctx context.Context, arg database.UpdateAIProviderSettingsParams) (database.AIProvider, error) {
-	// Settings can be rewritten on any row, including soft-deleted ones,
-	// so the dbcrypt rotation can move every FK reference to a new key
-	// digest before old keys are revoked.
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAIProvider); err != nil {
-		return database.AIProvider{}, err
-	}
-	return q.db.UpdateAIProviderSettings(ctx, arg)
 }
 
 func (q *querier) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKeyByIDParams) error {

@@ -4585,14 +4585,6 @@ func (m queryMetricsStore) UpdateAIProvider(ctx context.Context, arg database.Up
 	return r0, r1
 }
 
-func (m queryMetricsStore) UpdateAIProviderSettings(ctx context.Context, arg database.UpdateAIProviderSettingsParams) (database.AIProvider, error) {
-	start := time.Now()
-	r0, r1 := m.s.UpdateAIProviderSettings(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateAIProviderSettings").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateAIProviderSettings").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKeyByIDParams) error {
 	start := time.Now()
 	r0 := m.s.UpdateAPIKeyByID(ctx, arg)
@@ -4782,6 +4774,14 @@ func (m queryMetricsStore) UpdateEncryptedAIProviderKey(ctx context.Context, arg
 	r0, r1 := m.s.UpdateEncryptedAIProviderKey(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateEncryptedAIProviderKey").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateEncryptedAIProviderKey").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateEncryptedAIProviderSettings(ctx context.Context, arg database.UpdateEncryptedAIProviderSettingsParams) (database.AIProvider, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateEncryptedAIProviderSettings(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateEncryptedAIProviderSettings").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateEncryptedAIProviderSettings").Inc()
 	return r0, r1
 }
 

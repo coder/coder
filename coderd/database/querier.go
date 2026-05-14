@@ -1110,11 +1110,6 @@ type sqlcQuerier interface {
 	UnsetDefaultChatModelConfigs(ctx context.Context) error
 	UpdateAIBridgeInterceptionEnded(ctx context.Context, arg UpdateAIBridgeInterceptionEndedParams) (AIBridgeInterception, error)
 	UpdateAIProvider(ctx context.Context, arg UpdateAIProviderParams) (AIProvider, error)
-	// Updates only the settings columns (settings, settings_key_id) and
-	// the updated_at timestamp on a row, regardless of its deleted flag.
-	// Used by the dbcrypt key rotation utility to re-encrypt or decrypt
-	// rows in place.
-	UpdateAIProviderSettings(ctx context.Context, arg UpdateAIProviderSettingsParams) (AIProvider, error)
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
 	UpdateChatBuildAgentBinding(ctx context.Context, arg UpdateChatBuildAgentBindingParams) (Chat, error)
 	UpdateChatByID(ctx context.Context, arg UpdateChatByIDParams) (Chat, error)
@@ -1181,6 +1176,11 @@ type sqlcQuerier interface {
 	// the updated_at timestamp on a row. Used by the dbcrypt key
 	// rotation utility to re-encrypt or decrypt rows in place.
 	UpdateEncryptedAIProviderKey(ctx context.Context, arg UpdateEncryptedAIProviderKeyParams) (AIProviderKey, error)
+	// Updates only the encrypted columns (settings, settings_key_id) and
+	// the updated_at timestamp on a row, regardless of its deleted flag.
+	// Used by the dbcrypt key rotation utility to re-encrypt or decrypt
+	// rows in place.
+	UpdateEncryptedAIProviderSettings(ctx context.Context, arg UpdateEncryptedAIProviderSettingsParams) (AIProvider, error)
 	UpdateExternalAuthLink(ctx context.Context, arg UpdateExternalAuthLinkParams) (ExternalAuthLink, error)
 	// Optimistic lock: only update the row if the refresh token in the database
 	// still matches the one we read before attempting the refresh. This prevents

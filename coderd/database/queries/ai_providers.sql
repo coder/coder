@@ -79,8 +79,8 @@ SET
 WHERE
     id = @id::uuid AND deleted = FALSE;
 
--- name: UpdateAIProviderSettings :one
--- Updates only the settings columns (settings, settings_key_id) and
+-- name: UpdateEncryptedAIProviderSettings :one
+-- Updates only the encrypted columns (settings, settings_key_id) and
 -- the updated_at timestamp on a row, regardless of its deleted flag.
 -- Used by the dbcrypt key rotation utility to re-encrypt or decrypt
 -- rows in place.

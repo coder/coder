@@ -6232,13 +6232,13 @@ func (s *MethodTestSuite) TestAIBridge() {
 		dbm.EXPECT().DeleteAIProviderByID(gomock.Any(), provider.ID).Return(nil).AnyTimes()
 		check.Args(provider.ID).Asserts(rbac.ResourceAIProvider, policy.ActionDelete).Returns()
 	}))
-	s.Run("UpdateAIProviderSettings", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+	s.Run("UpdateEncryptedAIProviderSettings", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		provider := testutil.Fake(s.T(), faker, database.AIProvider{})
-		arg := database.UpdateAIProviderSettingsParams{
+		arg := database.UpdateEncryptedAIProviderSettingsParams{
 			ID:       provider.ID,
 			Settings: sql.NullString{String: "encrypted-settings", Valid: true},
 		}
-		dbm.EXPECT().UpdateAIProviderSettings(gomock.Any(), arg).Return(provider, nil).AnyTimes()
+		dbm.EXPECT().UpdateEncryptedAIProviderSettings(gomock.Any(), arg).Return(provider, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceAIProvider, policy.ActionUpdate).Returns(provider)
 	}))
 	s.Run("GetAIProviderKeyByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {

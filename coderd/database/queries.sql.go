@@ -566,7 +566,7 @@ func (q *sqlQuerier) UpdateAIProvider(ctx context.Context, arg UpdateAIProviderP
 	return i, err
 }
 
-const updateAIProviderSettings = `-- name: UpdateAIProviderSettings :one
+const updateEncryptedAIProviderSettings = `-- name: UpdateEncryptedAIProviderSettings :one
 UPDATE
     ai_providers
 SET
@@ -579,18 +579,18 @@ RETURNING
     id, type, name, display_name, enabled, deleted, base_url, settings, settings_key_id, created_at, updated_at
 `
 
-type UpdateAIProviderSettingsParams struct {
+type UpdateEncryptedAIProviderSettingsParams struct {
 	Settings      sql.NullString `db:"settings" json:"settings"`
 	SettingsKeyID sql.NullString `db:"settings_key_id" json:"settings_key_id"`
 	ID            uuid.UUID      `db:"id" json:"id"`
 }
 
-// Updates only the settings columns (settings, settings_key_id) and
+// Updates only the encrypted columns (settings, settings_key_id) and
 // the updated_at timestamp on a row, regardless of its deleted flag.
 // Used by the dbcrypt key rotation utility to re-encrypt or decrypt
 // rows in place.
-func (q *sqlQuerier) UpdateAIProviderSettings(ctx context.Context, arg UpdateAIProviderSettingsParams) (AIProvider, error) {
-	row := q.db.QueryRowContext(ctx, updateAIProviderSettings, arg.Settings, arg.SettingsKeyID, arg.ID)
+func (q *sqlQuerier) UpdateEncryptedAIProviderSettings(ctx context.Context, arg UpdateEncryptedAIProviderSettingsParams) (AIProvider, error) {
+	row := q.db.QueryRowContext(ctx, updateEncryptedAIProviderSettings, arg.Settings, arg.SettingsKeyID, arg.ID)
 	var i AIProvider
 	err := row.Scan(
 		&i.ID,

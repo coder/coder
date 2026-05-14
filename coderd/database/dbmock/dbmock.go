@@ -8672,21 +8672,6 @@ func (mr *MockStoreMockRecorder) UpdateAIProvider(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAIProvider", reflect.TypeOf((*MockStore)(nil).UpdateAIProvider), ctx, arg)
 }
 
-// UpdateAIProviderSettings mocks base method.
-func (m *MockStore) UpdateAIProviderSettings(ctx context.Context, arg database.UpdateAIProviderSettingsParams) (database.AIProvider, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateAIProviderSettings", ctx, arg)
-	ret0, _ := ret[0].(database.AIProvider)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// UpdateAIProviderSettings indicates an expected call of UpdateAIProviderSettings.
-func (mr *MockStoreMockRecorder) UpdateAIProviderSettings(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAIProviderSettings", reflect.TypeOf((*MockStore)(nil).UpdateAIProviderSettings), ctx, arg)
-}
-
 // UpdateAPIKeyByID mocks base method.
 func (m *MockStore) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKeyByIDParams) error {
 	m.ctrl.T.Helper()
@@ -9042,6 +9027,21 @@ func (m *MockStore) UpdateEncryptedAIProviderKey(ctx context.Context, arg databa
 func (mr *MockStoreMockRecorder) UpdateEncryptedAIProviderKey(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateEncryptedAIProviderKey", reflect.TypeOf((*MockStore)(nil).UpdateEncryptedAIProviderKey), ctx, arg)
+}
+
+// UpdateEncryptedAIProviderSettings mocks base method.
+func (m *MockStore) UpdateEncryptedAIProviderSettings(ctx context.Context, arg database.UpdateEncryptedAIProviderSettingsParams) (database.AIProvider, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateEncryptedAIProviderSettings", ctx, arg)
+	ret0, _ := ret[0].(database.AIProvider)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateEncryptedAIProviderSettings indicates an expected call of UpdateEncryptedAIProviderSettings.
+func (mr *MockStoreMockRecorder) UpdateEncryptedAIProviderSettings(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateEncryptedAIProviderSettings", reflect.TypeOf((*MockStore)(nil).UpdateEncryptedAIProviderSettings), ctx, arg)
 }
 
 // UpdateExternalAuthLink mocks base method.
