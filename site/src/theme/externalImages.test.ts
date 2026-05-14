@@ -29,6 +29,20 @@ describe("externalImage parameters", () => {
 		expect(someoneElsesWidgetsStyles).toBeUndefined();
 	});
 
+	test("Linear uses the light logo in dark themes", () => {
+		const darkThemeStyles = getExternalImageStylesFromUrl(
+			forDarkThemes,
+			"/icon/linear.svg",
+		);
+		expect(darkThemeStyles).toBe(forDarkThemes.blackWithColor);
+
+		const lightThemeStyles = getExternalImageStylesFromUrl(
+			forLightThemes,
+			"/icon/linear.svg",
+		);
+		expect(lightThemeStyles).toBeUndefined();
+	});
+
 	test("blackWithColor brightness", () => {
 		const tryCase = (params: string) =>
 			parseImageParameters(forDarkThemes, params);
