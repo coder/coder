@@ -21,13 +21,13 @@ const (
 	CheckChatUsageLimitConfigSingletonCheck          CheckConstraint = "chat_usage_limit_config_singleton_check"            // chat_usage_limit_config
 	CheckChatsPinOrderArchivedCheck                  CheckConstraint = "chats_pin_order_archived_check"                     // chats
 	CheckChatsPinOrderParentCheck                    CheckConstraint = "chats_pin_order_parent_check"                       // chats
-	CheckOrganizationIDNotZero                       CheckConstraint = "organization_id_not_zero"                           // custom_roles
-	CheckGroupsChatSpendLimitMicrosCheck             CheckConstraint = "groups_chat_spend_limit_micros_check"               // groups
 	CheckOneTimePasscodeSet                          CheckConstraint = "one_time_passcode_set"                              // users
 	CheckUsersChatSpendLimitMicrosCheck              CheckConstraint = "users_chat_spend_limit_micros_check"                // users
 	CheckUsersEmailNotEmpty                          CheckConstraint = "users_email_not_empty"                              // users
 	CheckUsersServiceAccountLoginType                CheckConstraint = "users_service_account_login_type"                   // users
 	CheckUsersUsernameMinLength                      CheckConstraint = "users_username_min_length"                          // users
+	CheckOrganizationIDNotZero                       CheckConstraint = "organization_id_not_zero"                           // custom_roles
+	CheckGroupsChatSpendLimitMicrosCheck             CheckConstraint = "groups_chat_spend_limit_micros_check"               // groups
 	CheckMcpServerConfigsAuthTypeCheck               CheckConstraint = "mcp_server_configs_auth_type_check"                 // mcp_server_configs
 	CheckMcpServerConfigsAvailabilityCheck           CheckConstraint = "mcp_server_configs_availability_check"              // mcp_server_configs
 	CheckMcpServerConfigsTransportCheck              CheckConstraint = "mcp_server_configs_transport_check"                 // mcp_server_configs
