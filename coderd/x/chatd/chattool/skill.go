@@ -11,6 +11,8 @@ import (
 	"charm.land/fantasy"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
+	skillspkg "github.com/coder/coder/v2/coderd/x/skills"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
@@ -45,11 +47,46 @@ type SkillContent struct {
 	Files []string
 }
 
-// FormatSkillIndex renders an XML block listing all discovered
-// skills. This block is injected into the system prompt so the
-// model knows which skills are available and how to load them.
-func FormatSkillIndex(skills []SkillMeta) string {
-	if len(skills) == 0 {
+// FormatResolvedSkillIndex renders an XML block listing all source-aware
+// skills. Aliases are the names the model should pass to the skill tools.
+func FormatResolvedSkillIndex(resolved []skillspkg.ResolvedSkill) string {
+	if len(resolved) == 0 {
+		return ""
+	}
+
+	entries := make([]skillIndexEntry, 0, len(resolved))
+	hasQualifiedAlias := false
+	hasWorkspaceSkill := false
+	for _, s := range resolved {
+		entries = append(entries, skillIndexEntry{
+			Alias:       s.Alias,
+			Description: s.Description,
+		})
+		if s.Source == skillspkg.SourceWorkspace {
+			hasWorkspaceSkill = true
+		}
+		if s.Alias == skillspkg.QualifiedAlias(s.Source, s.Name) {
+			hasQualifiedAlias = true
+		}
+	}
+	return renderSkillIndex(entries, skillIndexFormatOptions{
+		includeQualifiedAliasInstruction: hasQualifiedAlias,
+		includeReadSkillFileInstruction:  hasWorkspaceSkill,
+	})
+}
+
+type skillIndexEntry struct {
+	Alias       string
+	Description string
+}
+
+type skillIndexFormatOptions struct {
+	includeQualifiedAliasInstruction bool
+	includeReadSkillFileInstruction  bool
+}
+
+func renderSkillIndex(entries []skillIndexEntry, opts skillIndexFormatOptions) string {
+	if len(entries) == 0 {
 		return ""
 	}
 
@@ -57,13 +94,24 @@ func FormatSkillIndex(skills []SkillMeta) string {
 	_, _ = b.WriteString("<available-skills>\n")
 	_, _ = b.WriteString(
 		"Use read_skill to load a skill's full instructions " +
-			"before following them.\n" +
-			"Use read_skill_file to read supporting files " +
-			"referenced by a skill.\n\n",
+			"before following them.\n",
 	)
-	for _, s := range skills {
+	if opts.includeReadSkillFileInstruction {
+		_, _ = b.WriteString(
+			"Use read_skill_file to read supporting files " +
+				"referenced by a workspace skill.\n",
+		)
+	}
+	if opts.includeQualifiedAliasInstruction {
+		_, _ = b.WriteString(
+			"When a skill is listed as personal/name or workspace/name, " +
+				"pass that qualified alias to read_skill.\n",
+		)
+	}
+	_, _ = b.WriteString("\n")
+	for _, s := range entries {
 		_, _ = b.WriteString("- ")
-		_, _ = b.WriteString(s.Name)
+		_, _ = b.WriteString(s.Alias)
 		if s.Description != "" {
 			_, _ = b.WriteString(": ")
 			_, _ = b.WriteString(s.Description)
@@ -216,6 +264,10 @@ const DefaultSkillMetaFile = "SKILL.md"
 type ReadSkillOptions struct {
 	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
 	GetSkills        func() []SkillMeta
+
+	Logger                slog.Logger
+	ResolveAlias          func(string) (skillspkg.ResolvedSkill, error)
+	LoadPersonalSkillBody func(context.Context, string) (skillspkg.ParsedSkill, error)
 }
 
 // ReadSkillArgs are the parameters accepted by read_skill.
@@ -234,44 +286,53 @@ func ReadSkill(options ReadSkillOptions) fantasy.AgentTool {
 			"supporting files. Use read_skill before "+
 			"following a skill's instructions.",
 		func(ctx context.Context, args ReadSkillArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
-			if options.GetWorkspaceConn == nil {
-				return fantasy.NewTextErrorResponse(
-					"workspace connection resolver is not configured",
-				), nil
-			}
 			if args.Name == "" {
 				return fantasy.NewTextErrorResponse(
 					"name is required",
 				), nil
 			}
 
-			skill, ok := findSkill(options.GetSkills, args.Name)
-			if !ok {
-				return fantasy.NewTextErrorResponse(
-					fmt.Sprintf("skill %q not found", args.Name),
-				), nil
+			resolved, err := resolveSkillAlias(options, args.Name)
+			if err != nil {
+				return skillNotFoundResponse(args.Name), nil
 			}
 
-			conn, err := options.GetWorkspaceConn(ctx)
-			if err != nil {
-				return fantasy.NewTextErrorResponse(
-					err.Error(),
-				), nil
+			switch resolved.Source {
+			case skillspkg.SourcePersonal:
+				if options.LoadPersonalSkillBody == nil {
+					return fantasy.NewTextErrorResponse(
+						"personal skill loader is not configured",
+					), nil
+				}
+				content, err := options.LoadPersonalSkillBody(ctx, resolved.Name)
+				if err != nil {
+					if xerrors.Is(err, skillspkg.ErrSkillNotFound) {
+						return skillNotFoundResponse(args.Name), nil
+					}
+					options.Logger.Error(ctx, "failed to load personal skill",
+						slog.F("name", resolved.Name),
+						slog.Error(err),
+					)
+					return fantasy.NewTextErrorResponse("failed to load personal skill"), nil
+				}
+				return toolResponse(map[string]any{
+					"name":  args.Name,
+					"body":  content.Body,
+					"files": []string{},
+				}), nil
+			case skillspkg.SourceWorkspace:
+				content, response := readWorkspaceSkillBody(ctx, options, args.Name, resolved.Name)
+				if response != nil {
+					return *response, nil
+				}
+				return toolResponse(map[string]any{
+					"name":  args.Name,
+					"body":  content.Body,
+					"files": content.Files,
+				}), nil
+			default:
+				return skillNotFoundResponse(args.Name), nil
 			}
-
-			// Load the skill body from the workspace agent,
-			// respecting a custom meta file name if set.
-			content, err := LoadSkillBody(ctx, conn, skill, cmp.Or(skill.MetaFile, DefaultSkillMetaFile))
-			if err != nil {
-				return fantasy.NewTextErrorResponse(
-					err.Error(),
-				), nil
-			}
-			return toolResponse(map[string]any{
-				"name":  content.Name,
-				"body":  content.Body,
-				"files": content.Files,
-			}), nil
 		},
 	)
 }
@@ -291,11 +352,6 @@ func ReadSkillFile(options ReadSkillOptions) fantasy.AgentTool {
 		"Read a supporting file from a skill's directory "+
 			"(e.g. roles/security-reviewer.md).",
 		func(ctx context.Context, args ReadSkillFileArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
-			if options.GetWorkspaceConn == nil {
-				return fantasy.NewTextErrorResponse(
-					"workspace connection resolver is not configured",
-				), nil
-			}
 			if args.Name == "" {
 				return fantasy.NewTextErrorResponse(
 					"name is required",
@@ -307,11 +363,22 @@ func ReadSkillFile(options ReadSkillOptions) fantasy.AgentTool {
 				), nil
 			}
 
-			skill, ok := findSkill(options.GetSkills, args.Name)
-			if !ok {
+			resolved, err := resolveSkillAlias(options, args.Name)
+			if err != nil {
+				return skillNotFoundResponse(args.Name), nil
+			}
+			if resolved.Source == skillspkg.SourcePersonal {
 				return fantasy.NewTextErrorResponse(
-					fmt.Sprintf("skill %q not found", args.Name),
+					"read_skill_file is not supported for personal skills (no supporting files)",
 				), nil
+			}
+			if resolved.Source != skillspkg.SourceWorkspace {
+				return skillNotFoundResponse(args.Name), nil
+			}
+
+			skill, ok := findSkill(options.GetSkills, resolved.Name)
+			if !ok {
+				return skillNotFoundResponse(args.Name), nil
 			}
 
 			// Validate the path early so we reject bad
@@ -322,6 +389,11 @@ func ReadSkillFile(options ReadSkillOptions) fantasy.AgentTool {
 				), nil
 			}
 
+			if options.GetWorkspaceConn == nil {
+				return fantasy.NewTextErrorResponse(
+					"workspace connection resolver is not configured",
+				), nil
+			}
 			conn, err := options.GetWorkspaceConn(ctx)
 			if err != nil {
 				return fantasy.NewTextErrorResponse(
@@ -342,6 +414,67 @@ func ReadSkillFile(options ReadSkillOptions) fantasy.AgentTool {
 				"content": content,
 			}), nil
 		},
+	)
+}
+
+func resolveSkillAlias(options ReadSkillOptions, name string) (skillspkg.ResolvedSkill, error) {
+	if options.ResolveAlias != nil {
+		resolved, err := options.ResolveAlias(name)
+		if err != nil {
+			return skillspkg.ResolvedSkill{}, err
+		}
+		return resolved, nil
+	}
+
+	skill, ok := findSkill(options.GetSkills, name)
+	if !ok {
+		return skillspkg.ResolvedSkill{}, skillspkg.ErrSkillNotFound
+	}
+	return skillspkg.ResolvedSkill{
+		Skill: skillspkg.Skill{
+			Name:        skill.Name,
+			Description: skill.Description,
+			Source:      skillspkg.SourceWorkspace,
+		},
+		Alias: skill.Name,
+	}, nil
+}
+
+func readWorkspaceSkillBody(
+	ctx context.Context,
+	options ReadSkillOptions,
+	requestedName string,
+	canonicalName string,
+) (SkillContent, *fantasy.ToolResponse) {
+	skill, ok := findSkill(options.GetSkills, canonicalName)
+	if !ok {
+		response := skillNotFoundResponse(requestedName)
+		return SkillContent{}, &response
+	}
+	if options.GetWorkspaceConn == nil {
+		response := fantasy.NewTextErrorResponse(
+			"workspace connection resolver is not configured",
+		)
+		return SkillContent{}, &response
+	}
+
+	conn, err := options.GetWorkspaceConn(ctx)
+	if err != nil {
+		response := fantasy.NewTextErrorResponse(err.Error())
+		return SkillContent{}, &response
+	}
+
+	content, err := LoadSkillBody(ctx, conn, skill, cmp.Or(skill.MetaFile, DefaultSkillMetaFile))
+	if err != nil {
+		response := fantasy.NewTextErrorResponse(err.Error())
+		return SkillContent{}, &response
+	}
+	return content, nil
+}
+
+func skillNotFoundResponse(name string) fantasy.ToolResponse {
+	return fantasy.NewTextErrorResponse(
+		fmt.Sprintf("skill %q not found", name),
 	)
 }
 
