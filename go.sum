@@ -332,8 +332,6 @@ github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136 h1:0RgB61LcNs
 github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136/go.mod h1:VkD1P761nykiq75dz+4iFqIQIZka189tx1BQLOp0Skc=
 github.com/coder/guts v1.7.0 h1:TaZ/PR9wgN8dlbcckaWV1MxkkuEFZRwSRwBBEm8dYXs=
 github.com/coder/guts v1.7.0/go.mod h1:30SShdvpmsauNlsNjECRB5AppScjYk08rf2ZVpH3MFg=
-github.com/coder/paralleltestctx v0.0.1 h1:eauyehej1XYTGwgzGWMTjeRIVgOpU6XLPNVb2oi6kDs=
-github.com/coder/paralleltestctx v0.0.1/go.mod h1:q/wi6cmlBOhrJKjUtouTn4J9xZlRhK0MbgHvJNdGW3w=
 github.com/coder/paralleltestctx v0.0.2 h1:0akzA1oSV0LOl7loR8Mmoq/mu7qGDaFV8DpojotmXiE=
 github.com/coder/paralleltestctx v0.0.2/go.mod h1:q/wi6cmlBOhrJKjUtouTn4J9xZlRhK0MbgHvJNdGW3w=
 github.com/coder/pq v1.10.5-0.20250807075151-6ad9b0a25151 h1:YAxwg3lraGNRwoQ18H7R7n+wsCqNve7Brdvj0F1rDnU=
