@@ -200,7 +200,6 @@ func TestTools(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, ws.LatestBuild.Resources)
 	require.NotEmpty(t, ws.LatestBuild.Resources[0].Agents)
-	agentID := ws.LatestBuild.Resources[0].Agents[0].ID
 
 	// Given: the workspace agent has written logs.
 	agentClient.PatchLogs(setupCtx, agentsdk.PatchLogs{
