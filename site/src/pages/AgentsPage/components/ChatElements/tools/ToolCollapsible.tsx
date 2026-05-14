@@ -29,13 +29,6 @@ interface AgentDisplayModeToolCollapsibleProps
 	autoDisplayState: AgentDisplayState;
 }
 
-const resolveAriaLabel = (
-	ariaLabel: ToolCollapsibleAriaLabel | undefined,
-	expanded: boolean,
-): string | undefined => {
-	return typeof ariaLabel === "function" ? ariaLabel(expanded) : ariaLabel;
-};
-
 export const AgentDisplayModeToolCollapsible: FC<
 	AgentDisplayModeToolCollapsibleProps
 > = ({ displayMode, autoDisplayState, ...props }) => {
@@ -67,7 +60,9 @@ export const ToolCollapsible: FC<ToolCollapsibleProps> = ({
 		<button
 			type="button"
 			aria-expanded={expanded}
-			aria-label={resolveAriaLabel(ariaLabel, expanded)}
+			aria-label={
+				typeof ariaLabel === "function" ? ariaLabel(expanded) : ariaLabel
+			}
 			onClick={() => setExpanded(!expanded)}
 			className={cn(
 				"border-0 bg-transparent p-0 m-0 font-[inherit] text-[inherit] text-left",
