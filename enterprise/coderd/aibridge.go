@@ -716,6 +716,7 @@ func (api *API) groupAIBudget(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
+		api.Logger.Error(ctx, "get group AI budget", slog.Error(err))
 		httpapi.InternalServerError(rw, err)
 		return
 	}
@@ -751,6 +752,7 @@ func (api *API) upsertGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
+		api.Logger.Error(ctx, "upsert group AI budget", slog.Error(err))
 		httpapi.InternalServerError(rw, err)
 		return
 	}
@@ -774,6 +776,7 @@ func (api *API) deleteGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
 			httpapi.ResourceNotFound(rw)
 			return
 		}
+		api.Logger.Error(ctx, "delete group AI budget", slog.Error(err))
 		httpapi.InternalServerError(rw, err)
 		return
 	}
