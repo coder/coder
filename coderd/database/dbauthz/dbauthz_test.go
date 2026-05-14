@@ -6174,7 +6174,7 @@ func (s *MethodTestSuite) TestAIBridge() {
 	s.Run("UpsertGroupAIBudget", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		g := testutil.Fake(s.T(), faker, database.Group{})
 		b := testutil.Fake(s.T(), faker, database.GroupAiBudget{GroupID: g.ID})
-		arg := database.UpsertGroupAIBudgetParams{GroupID: g.ID, SpendLimit: b.SpendLimit}
+		arg := database.UpsertGroupAIBudgetParams{GroupID: g.ID, SpendLimitMicros: b.SpendLimitMicros}
 		dbm.EXPECT().GetGroupByID(gomock.Any(), g.ID).Return(g, nil).AnyTimes()
 		dbm.EXPECT().UpsertGroupAIBudget(gomock.Any(), arg).Return(b, nil).AnyTimes()
 		check.Args(arg).Asserts(g, policy.ActionUpdate).Returns(b)

@@ -31,10 +31,10 @@ FROM group_ai_budgets
 WHERE group_id = @group_id;
 
 -- name: UpsertGroupAIBudget :one
-INSERT INTO group_ai_budgets (group_id, spend_limit)
-VALUES (@group_id, @spend_limit)
+INSERT INTO group_ai_budgets (group_id, spend_limit_micros)
+VALUES (@group_id, @spend_limit_micros)
 ON CONFLICT (group_id) DO UPDATE SET
-	spend_limit = EXCLUDED.spend_limit,
+	spend_limit_micros = EXCLUDED.spend_limit_micros,
 	updated_at  = NOW()
 RETURNING *;
 

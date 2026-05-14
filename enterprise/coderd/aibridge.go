@@ -743,8 +743,8 @@ func (api *API) upsertGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	budget, err := api.Database.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{
-		GroupID:    group.ID,
-		SpendLimit: req.SpendLimitMicros,
+		GroupID:          group.ID,
+		SpendLimitMicros: req.SpendLimitMicros,
 	})
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
@@ -784,7 +784,7 @@ func (api *API) deleteGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
 func groupAIBudgetToSDK(b database.GroupAiBudget) codersdk.GroupAIBudget {
 	return codersdk.GroupAIBudget{
 		GroupID:          b.GroupID,
-		SpendLimitMicros: b.SpendLimit,
+		SpendLimitMicros: b.SpendLimitMicros,
 		CreatedAt:        b.CreatedAt,
 		UpdatedAt:        b.UpdatedAt,
 	}
