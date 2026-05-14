@@ -475,6 +475,34 @@ question and would be easy to land in EAP. The hook directory contract
 already exists; this would add two hook names (`on_lock`, `on_drain`)
 that fire once each per runner lifecycle.
 
+### Session assignment latency
+
+With a healthy warm pool, Coder has runners registered, polling, and
+ready before a session is queued, yet sessions take roughly **10 to 15
+seconds** to land on a runner after they're sent from `claude.ai`.
+That lag is end-user-visible: developers wait for the session to
+start even when the inventory is sitting there idle. It also dilutes
+the value proposition of prebuilds for this use case, since the
+user-perceived cold start isn't "workspace spin-up" (we've already
+paid that) but "Anthropic-side scheduling."
+
+The ask is twofold:
+
+- **Investigation.** Is the delay polling-interval-bound on the
+  runner side, scheduler-side queuing on Anthropic's side, both, or
+  something else (DNS, TLS handshake, control-plane round trips)? A
+  short note on where the seconds go would let operators reason
+  about the budget and tune what they control.
+- **Reduction target.** Can session-to-runner assignment land in
+  sub-second for the warm-pool case? The runner is already locally
+  polling; the worst-case shouldn't be a multi-second wait when an
+  eligible runner is sitting on the pool right now.
+
+This is independent of the webhook-driven scaling work above. Even
+with webhook spawn, the steady-state "warm runner is already there"
+path should be the fast one, because that's the common case once a
+pool is sized correctly.
+
 ## Open questions for Coder
 
 These are things that *would* require a Coder product change. They are
