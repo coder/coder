@@ -243,7 +243,12 @@ CREATE TYPE api_key_scope AS ENUM (
     'ai_provider:delete',
     'ai_provider:read',
     'ai_provider:update',
-    'chat:share'
+    'chat:share',
+    'user_skill:create',
+    'user_skill:read',
+    'user_skill:update',
+    'user_skill:delete',
+    'user_skill:*'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -553,7 +558,8 @@ CREATE TYPE resource_type AS ENUM (
     'user_secret',
     'ai_provider',
     'ai_provider_key',
-    'group_ai_budget'
+    'group_ai_budget',
+    'user_skill'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (
@@ -771,31 +777,37 @@ CREATE FUNCTION delete_deleted_user_resources() RETURNS trigger
     AS $$
 DECLARE
 BEGIN
-	IF (NEW.deleted) THEN
-		-- Remove their api_keys
-		DELETE FROM api_keys
-		WHERE user_id = OLD.id;
+    IF (NEW.deleted) THEN
+        -- Remove their api_keys.
+        DELETE FROM api_keys
+        WHERE user_id = OLD.id;
 
-		-- Remove their user_links
-		-- Their login_type is preserved in the users table.
-		-- Matching this user back to the link can still be done by their
-		-- email if the account is undeleted. Although that is not a guarantee.
-		DELETE FROM user_links
-		WHERE user_id = OLD.id;
+        -- Remove their user_links.
+        -- Their login_type is preserved in the users table.
+        -- Matching this user back to the link can still be done by their
+        -- email if the account is undeleted. Although that is not a guarantee.
+        DELETE FROM user_links
+        WHERE user_id = OLD.id;
 
-		-- Remove their user_secrets.
-		-- user_secrets.user_id has ON DELETE CASCADE, but soft-delete
-		-- does not remove the users row so the FK cascade never fires.
-		DELETE FROM user_secrets
-		WHERE user_id = OLD.id;
+        -- Remove their user_secrets.
+        -- user_secrets.user_id has ON DELETE CASCADE, but soft-delete
+        -- does not remove the users row so the FK cascade never fires.
+        DELETE FROM user_secrets
+        WHERE user_id = OLD.id;
 
-		-- Remove their organization memberships.
-		-- This also triggers group membership cleanup via
-		-- trigger_delete_group_members_on_org_member_delete.
-		DELETE FROM organization_members
-		WHERE user_id = OLD.id;
-	END IF;
-	RETURN NEW;
+        -- Remove their organization memberships.
+        -- This also triggers group membership cleanup via
+        -- trigger_delete_group_members_on_org_member_delete.
+        DELETE FROM organization_members
+        WHERE user_id = OLD.id;
+
+        -- Remove their user_skills.
+        -- user_skills.user_id has ON DELETE CASCADE, but soft-delete
+        -- does not remove the users row so the FK cascade never fires.
+        DELETE FROM user_skills
+        WHERE user_id = OLD.id;
+    END IF;
+    RETURN NEW;
 END;
 $$;
 
@@ -815,6 +827,32 @@ BEGIN
 			WHERE organization_id = OLD.organization_id
 		);
 	RETURN OLD;
+END;
+$$;
+
+CREATE FUNCTION enforce_user_skills_per_user_limit() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    skill_count int;
+    skill_limit constant int := 100;
+BEGIN
+    -- Serialize skill-cap checks per user so concurrent inserts cannot all
+    -- observe the same pre-insert count and exceed the hard limit.
+    PERFORM 1
+    FROM users
+    WHERE id = NEW.user_id
+    FOR UPDATE;
+
+    SELECT count(*) INTO skill_count
+    FROM user_skills
+    WHERE user_id = NEW.user_id;
+    IF skill_count >= skill_limit THEN
+        RAISE EXCEPTION 'user has reached the personal skill limit'
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'user_skills_per_user_limit';
+    END IF;
+    RETURN NEW;
 END;
 $$;
 
@@ -932,6 +970,26 @@ BEGIN
 		END IF;
 	END IF;
 	RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION insert_user_skill_fail_if_user_deleted() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+
+DECLARE
+    user_deleted boolean;
+BEGIN
+    IF (NEW.user_id IS NOT NULL) THEN
+        SELECT deleted INTO user_deleted
+        FROM users
+        WHERE id = NEW.user_id
+        FOR UPDATE;
+        IF user_deleted THEN
+            RAISE EXCEPTION 'Cannot create user_skill for deleted user';
+        END IF;
+    END IF;
+    RETURN NEW;
 END;
 $$;
 
@@ -3015,6 +3073,16 @@ CREATE TABLE user_secrets (
     value_key_id text
 );
 
+CREATE TABLE user_skills (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    name text NOT NULL,
+    description text DEFAULT ''::text NOT NULL,
+    content text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
 CREATE TABLE user_status_changes (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid NOT NULL,
@@ -3806,6 +3874,9 @@ ALTER TABLE ONLY user_links
 ALTER TABLE ONLY user_secrets
     ADD CONSTRAINT user_secrets_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY user_skills
+    ADD CONSTRAINT user_skills_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY user_status_changes
     ADD CONSTRAINT user_status_changes_pkey PRIMARY KEY (id);
 
@@ -4142,6 +4213,8 @@ CREATE UNIQUE INDEX user_secrets_user_file_path_idx ON user_secrets USING btree 
 
 CREATE UNIQUE INDEX user_secrets_user_name_idx ON user_secrets USING btree (user_id, name);
 
+CREATE UNIQUE INDEX user_skills_user_id_name_idx ON user_skills USING btree (user_id, name);
+
 CREATE UNIQUE INDEX users_email_lower_idx ON users USING btree (lower(email)) WHERE ((deleted = false) AND (email <> ''::text));
 
 CREATE UNIQUE INDEX users_username_lower_idx ON users USING btree (lower(username)) WHERE (deleted = false);
@@ -4265,6 +4338,10 @@ CREATE TRIGGER trigger_update_users AFTER INSERT OR UPDATE ON users FOR EACH ROW
 CREATE TRIGGER trigger_upsert_user_links BEFORE INSERT OR UPDATE ON user_links FOR EACH ROW EXECUTE FUNCTION insert_user_links_fail_if_user_deleted();
 
 CREATE TRIGGER trigger_upsert_user_secrets BEFORE INSERT OR UPDATE ON user_secrets FOR EACH ROW EXECUTE FUNCTION insert_user_secret_fail_if_user_deleted();
+
+CREATE TRIGGER trigger_upsert_user_skills BEFORE INSERT OR UPDATE ON user_skills FOR EACH ROW EXECUTE FUNCTION insert_user_skill_fail_if_user_deleted();
+
+CREATE TRIGGER trigger_user_skills_per_user_limit BEFORE INSERT ON user_skills FOR EACH ROW EXECUTE FUNCTION enforce_user_skills_per_user_limit();
 
 CREATE TRIGGER update_notification_message_dedupe_hash BEFORE INSERT OR UPDATE ON notification_messages FOR EACH ROW EXECUTE FUNCTION compute_notification_message_dedupe_hash();
 
@@ -4590,6 +4667,9 @@ ALTER TABLE ONLY user_secrets
 
 ALTER TABLE ONLY user_secrets
     ADD CONSTRAINT user_secrets_value_key_id_fkey FOREIGN KEY (value_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY user_skills
+    ADD CONSTRAINT user_skills_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY user_status_changes
     ADD CONSTRAINT user_status_changes_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);
