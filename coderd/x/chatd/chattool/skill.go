@@ -56,17 +56,22 @@ func FormatResolvedSkillIndex(resolved []skillspkg.ResolvedSkill) string {
 
 	entries := make([]skillIndexEntry, 0, len(resolved))
 	hasQualifiedAlias := false
+	hasWorkspaceSkill := false
 	for _, s := range resolved {
 		entries = append(entries, skillIndexEntry{
 			Alias:       s.Alias,
 			Description: s.Description,
 		})
+		if s.Source == skillspkg.SourceWorkspace {
+			hasWorkspaceSkill = true
+		}
 		if s.Alias == skillspkg.QualifiedAlias(s.Source, s.Name) {
 			hasQualifiedAlias = true
 		}
 	}
 	return renderSkillIndex(entries, skillIndexFormatOptions{
 		includeQualifiedAliasInstruction: hasQualifiedAlias,
+		includeReadSkillFileInstruction:  hasWorkspaceSkill,
 	})
 }
 
@@ -77,6 +82,7 @@ type skillIndexEntry struct {
 
 type skillIndexFormatOptions struct {
 	includeQualifiedAliasInstruction bool
+	includeReadSkillFileInstruction  bool
 }
 
 func renderSkillIndex(entries []skillIndexEntry, opts skillIndexFormatOptions) string {
@@ -88,10 +94,14 @@ func renderSkillIndex(entries []skillIndexEntry, opts skillIndexFormatOptions) s
 	_, _ = b.WriteString("<available-skills>\n")
 	_, _ = b.WriteString(
 		"Use read_skill to load a skill's full instructions " +
-			"before following them.\n" +
-			"Use read_skill_file to read supporting files " +
-			"referenced by a skill.\n",
+			"before following them.\n",
 	)
+	if opts.includeReadSkillFileInstruction {
+		_, _ = b.WriteString(
+			"Use read_skill_file to read supporting files " +
+				"referenced by a workspace skill.\n",
+		)
+	}
 	if opts.includeQualifiedAliasInstruction {
 		_, _ = b.WriteString(
 			"When a skill is listed as personal/name or workspace/name, " +

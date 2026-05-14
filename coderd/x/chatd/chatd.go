@@ -7562,10 +7562,10 @@ func (p *Server) runChat(
 				return p.loadPersonalSkillBody(ctx, chat.OwnerID, name)
 			},
 		}
-		tools = append(tools,
-			chattool.ReadSkill(skillOpts),
-			chattool.ReadSkillFile(skillOpts),
-		)
+		tools = append(tools, chattool.ReadSkill(skillOpts))
+		if len(workspaceSkills) > 0 {
+			tools = append(tools, chattool.ReadSkillFile(skillOpts))
+		}
 	}
 	if advisorRuntime != nil {
 		tools = append(tools, chatadvisor.Tool(chatadvisor.ToolOptions{

@@ -57,6 +57,7 @@ func TestFormatResolvedSkillIndex(t *testing.T) {
 			Alias: "personal-review",
 		}})
 		assert.Contains(t, idx, "- personal-review: Personal review process")
+		assert.NotContains(t, idx, "read_skill_file")
 		assert.NotContains(t, idx, "qualified alias")
 	})
 
@@ -74,7 +75,7 @@ func TestFormatResolvedSkillIndex(t *testing.T) {
 		assert.Equal(t,
 			"<available-skills>\n"+
 				"Use read_skill to load a skill's full instructions before following them.\n"+
-				"Use read_skill_file to read supporting files referenced by a skill.\n"+
+				"Use read_skill_file to read supporting files referenced by a workspace skill.\n"+
 				"\n"+
 				"- deep-review: Review\n"+
 				"</available-skills>",
@@ -105,6 +106,7 @@ func TestFormatResolvedSkillIndex(t *testing.T) {
 		})
 		assert.Contains(t, idx, "- personal-review: Personal review process")
 		assert.Contains(t, idx, "- deep-review: Workspace review process")
+		assert.Contains(t, idx, "read_skill_file")
 		assert.NotContains(t, idx, "personal/personal-review")
 		assert.NotContains(t, idx, "workspace/deep-review")
 	})
