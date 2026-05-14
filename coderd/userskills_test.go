@@ -346,8 +346,9 @@ func TestUserSkillSoftDeleteCleanup(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, adminClient.DeleteUser(ctx, ownerUser.ID))
+	authzCtx := dbauthz.As(ctx, coderdtest.AuthzUserSubject(ownerUser))
 	_, err = api.Database.GetUserSkillByUserIDAndName(
-		dbauthz.AsSystemRestricted(ctx),
+		authzCtx,
 		database.GetUserSkillByUserIDAndNameParams{
 			UserID: ownerUser.ID,
 			Name:   "soft-delete-skill",
@@ -356,7 +357,7 @@ func TestUserSkillSoftDeleteCleanup(t *testing.T) {
 	require.ErrorIs(t, err, sql.ErrNoRows)
 
 	_, err = api.Database.InsertUserSkill(
-		dbauthz.AsSystemRestricted(ctx),
+		authzCtx,
 		database.InsertUserSkillParams{
 			UserID:      ownerUser.ID,
 			Name:        "after-soft-delete",
