@@ -8,8 +8,8 @@ on:
   #
   # Effects vary by event:
   #
-  #   PRs: `build_image` builds the three image variants but never
-  #   pushes (each `depot/build-push-action` step's `push:` and the
+  #   PRs: `build_image` builds the image variants but never pushes
+  #   (each `depot/build-push-action` step's `push:` and the
   #   `Push Nix image` step are gated on `github.ref ==
   #   'refs/heads/main'`). `deploy_template` runs `terraform init` +
   #   `validate` only; the apply step and SHA/title gathering are
