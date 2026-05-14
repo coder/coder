@@ -11,6 +11,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { scrollToUserSentinel } from "./scrollToUserSentinel";
 
 export interface PromptHistoryEntry {
 	/** The message ID used to locate the sentinel in the DOM. */
@@ -19,6 +20,10 @@ export interface PromptHistoryEntry {
 	index: number;
 	/** Plain-text preview of the user message. */
 	text: string;
+	/** ID of the previous user message, undefined if first. */
+	prevId?: number;
+	/** ID of the next user message, undefined if last. */
+	nextId?: number;
 }
 
 interface PromptHistoryPopoverProps {
@@ -55,52 +60,8 @@ export const PromptHistoryPopover: FC<PromptHistoryPopoverProps> = ({
 	};
 
 	const scrollToMessage = (messageId: number) => {
-		const sentinel = document.querySelector(
-			`[data-user-sentinel][data-message-id="${messageId}"]`,
-		);
-		if (!sentinel) return;
-
-		const scroller = sentinel.closest(
-			'[data-testid="scroll-container"]',
-		) as HTMLElement | null;
-		if (!scroller) return;
-
 		handleOpenChange(false);
-
-		setTimeout(() => {
-			scroller.style.overflowAnchor = "none";
-			scroller.setAttribute("data-scroll-lock", "");
-
-			const offset =
-				sentinel.getBoundingClientRect().top -
-				scroller.getBoundingClientRect().top -
-				scroller.clientHeight / 2;
-
-			// Animate with direct scrollTop assignments (synchronous,
-			// can't be cancelled by layout changes).
-			const start = scroller.scrollTop;
-			const duration = 450;
-			const t0 = performance.now();
-
-			// Ease-in-out cubic for a gentle start and gentle stop.
-			const ease = (t: number) =>
-				t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2;
-
-			const step = (now: number) => {
-				const p = Math.min((now - t0) / duration, 1);
-				scroller.scrollTop = start + offset * ease(p);
-				if (p < 1) {
-					requestAnimationFrame(step);
-				} else {
-					scroller.style.overflowAnchor = "";
-					scroller.removeAttribute("data-scroll-lock");
-					// Kick all sticky handlers so they recalculate
-					// visibility after the jump.
-					scroller.dispatchEvent(new Event("scroll"));
-				}
-			};
-			requestAnimationFrame(step);
-		}, 80);
+		setTimeout(() => scrollToUserSentinel(messageId), 80);
 	};
 
 	// Don't render anything if there are fewer than 2 user messages.
