@@ -7136,11 +7136,12 @@ func (p *Server) runChat(
 	resolveSkillAlias := func(alias string) (skillspkg.ResolvedSkill, error) {
 		return skillspkg.Lookup(resolvedSkillsFor(workspaceSkills), alias)
 	}
+	initialResolvedSkills := resolvedSkillsFor(workspaceSkills)
 	prompt = buildSystemPrompt(
 		prompt,
 		subagentInstruction,
 		instruction,
-		resolvedSkillsFor(workspaceSkills),
+		initialResolvedSkills,
 		resolvedUserPrompt,
 		systemPromptBehaviorContext{
 			planMode:             currentPlanMode,
@@ -7168,6 +7169,7 @@ func (p *Server) runChat(
 	}
 
 	instructionInjected := instruction != ""
+	skillIndexInjected := len(initialResolvedSkills) > 0
 	// workspaceMCPDiscovered tracks whether workspace MCP discovery
 	// has already been attempted for this turn. The top-of-turn
 	// discovery path above only fires when chat.WorkspaceID is
@@ -7917,8 +7919,11 @@ func (p *Server) runChat(
 			}
 			instructionInjected = true
 			result := chatprompt.InsertSystem(msgs, instruction)
-			if skillIndex := chattool.FormatResolvedSkillIndex(resolvedSkillsFor(workspaceSkills)); skillIndex != "" {
-				result = chatprompt.InsertSystem(result, skillIndex)
+			if !skillIndexInjected {
+				if skillIndex := chattool.FormatResolvedSkillIndex(resolvedSkillsFor(workspaceSkills)); skillIndex != "" {
+					result = chatprompt.InsertSystem(result, skillIndex)
+					skillIndexInjected = true
+				}
 			}
 			if !chainModeActive {
 				setAdvisorPromptSnapshot(result)

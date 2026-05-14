@@ -1,7 +1,6 @@
 package skills_test
 
 import (
-	"errors"
 	"strings"
 	"testing"
 
@@ -281,7 +280,6 @@ func TestLookup(t *testing.T) {
 		_, err := skills.Lookup(nil, "missing-skill")
 
 		require.ErrorIs(t, err, skills.ErrSkillNotFound)
-		require.True(t, errors.Is(err, skills.ErrSkillNotFound))
 		require.ErrorContains(t, err, "missing-skill")
 	})
 }

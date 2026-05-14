@@ -104,9 +104,14 @@ CREATE FUNCTION insert_user_skill_fail_if_user_deleted() RETURNS trigger
 AS $$
 
 DECLARE
+    user_deleted boolean;
 BEGIN
     IF (NEW.user_id IS NOT NULL) THEN
-        IF (SELECT deleted FROM users WHERE id = NEW.user_id LIMIT 1) THEN
+        SELECT deleted INTO user_deleted
+        FROM users
+        WHERE id = NEW.user_id
+        FOR UPDATE;
+        IF user_deleted THEN
             RAISE EXCEPTION 'Cannot create user_skill for deleted user';
         END IF;
     END IF;
