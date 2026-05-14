@@ -6061,3 +6061,103 @@ Loop:
 	require.False(t, ok,
 		"primer must not cache an empty result; PrepareTools needs to retry on the next step")
 }
+
+// TestPrimeWorkspaceMCPCache_ExitsOnContextCancel verifies the
+// primer's context.Done() branch: the retry loop must exit promptly
+// when the chat ctx is canceled (runChat cancels its primerCtx
+// before workspaceCtx.close runs to prevent a primer from re-dialing
+// the freed conn).
+func TestPrimeWorkspaceMCPCache_ExitsOnContextCancel(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	workspaceID := uuid.New()
+	agentID := uuid.New()
+	chat := database.Chat{
+		ID: uuid.New(),
+		WorkspaceID: uuid.NullUUID{
+			UUID:  workspaceID,
+			Valid: true,
+		},
+		AgentID: uuid.NullUUID{
+			UUID:  agentID,
+			Valid: true,
+		},
+	}
+	now := time.Now()
+	workspaceAgent := database.WorkspaceAgent{
+		ID: agentID,
+		FirstConnectedAt: sql.NullTime{
+			Time:  now.Add(-time.Minute),
+			Valid: true,
+		},
+		LastConnectedAt: sql.NullTime{
+			Time:  now,
+			Valid: true,
+		},
+	}
+
+	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
+		Return(workspaceAgent, nil).AnyTimes()
+	db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
+		Return([]database.WorkspaceAgent{workspaceAgent}, nil).AnyTimes()
+
+	conn := agentconnmock.NewMockAgentConn(ctrl)
+	conn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
+	conn.EXPECT().ListMCPTools(gomock.Any()).
+		Return(workspacesdk.ListMCPToolsResponse{}, nil).AnyTimes()
+
+	mockClock := quartz.NewMock(t)
+	timerTrap := mockClock.Trap().NewTimer("chatd", "workspace-mcp-prime")
+	t.Cleanup(timerTrap.Close)
+
+	server := &Server{
+		db:                             db,
+		logger:                         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		clock:                          mockClock,
+		agentInactiveDisconnectTimeout: 30 * time.Second,
+		dialTimeout:                    time.Second,
+		agentConnFn: func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			return conn, func() {}, nil
+		},
+	}
+
+	chatStateMu := &sync.Mutex{}
+	currentChat := chat
+	workspaceCtx := turnWorkspaceContext{
+		server:           server,
+		chatStateMu:      chatStateMu,
+		currentChat:      &currentChat,
+		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return chat, nil },
+	}
+	t.Cleanup(workspaceCtx.close)
+
+	primerCtx, primerCancel := context.WithCancel(ctx)
+	t.Cleanup(primerCancel)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		server.primeWorkspaceMCPCache(primerCtx, server.logger, chat.ID, &workspaceCtx)
+	}()
+
+	// Let the primer arm at least one retry timer so we know it is
+	// blocked in the select. Canceling before this would race with
+	// the loop entering the retry path.
+	call := timerTrap.MustWait(ctx)
+	call.MustRelease(ctx)
+
+	primerCancel()
+
+	select {
+	case <-done:
+	case <-ctx.Done():
+		t.Fatal("primer did not exit after context cancellation")
+	}
+
+	_, ok := server.workspaceMCPToolsCache.Load(chat.ID)
+	require.False(t, ok, "primer must not cache anything when canceled")
+}

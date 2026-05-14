@@ -72,13 +72,16 @@ const (
 	// cold-start agent's first MCP reload can settle before
 	// chatd gives up.
 	workspaceMCPDiscoveryTimeout = 35 * time.Second
-	// workspaceMCPPrimeMaxWait bounds the additional time the
+	// workspaceMCPPrimeMaxWait bounds the deadline used by the
 	// create_workspace / start_workspace post-ready cache primer
-	// spends waiting for the agent's MCP setup to register tools
-	// after the agent itself is already reachable. Empty results
-	// usually mean the agent's MCP Connect is still racing with
-	// agent startup. The agent-side budget is
-	// agent/x/agentmcp.connectTimeout (30s).
+	// loop. The primer checks the deadline only after each
+	// discoverWorkspaceMCPTools call returns, so total wall-clock
+	// time can exceed this by one such call (dialTimeout +
+	// workspaceMCPDiscoveryTimeout in the worst case). The constant
+	// caps when new retries can start, not when an in-flight call
+	// must finish. Empty results usually mean the agent's MCP
+	// Connect is still racing with agent startup. The agent-side
+	// budget is agent/x/agentmcp.connectTimeout (30s).
 	workspaceMCPPrimeMaxWait = 30 * time.Second
 	// workspaceMCPPrimeRetryInterval is the short backoff between
 	// re-attempts inside the primer when ListMCPTools returns an
@@ -6524,6 +6527,11 @@ type rootChatToolsOptions struct {
 	resolvePlanPath func(context.Context) (string, string, error)
 	storeFile       chattool.StoreFileFunc
 	isPlanModeTurn  bool
+	// primerCtx scopes the workspace MCP cache primer goroutines
+	// that onChatUpdated launches. runChat cancels it before
+	// workspaceCtx.close() so an in-flight primer cannot dial a
+	// fresh conn after the cached one was released.
+	primerCtx context.Context
 }
 
 func (p *Server) loadPlanModeInstructions(
@@ -6604,17 +6612,21 @@ func (p *Server) appendRootChatTools(
 		// the full budget before giving up. PrepareTools on the next
 		// step covers the cache miss path; the primer is purely an
 		// optimization that warms the cache while the LLM is thinking.
-		// The primer shares the chat ctx (not a detached one) so it is
-		// canceled along with the chat: the workspaceCtx that backs the
-		// agent conn is freed by runChat's deferred close, and a
-		// dangling primer would re-dial and leak that conn. inflight
-		// tracking ensures server shutdown still waits for any in
-		// progress primer.
-		if updatedChat.WorkspaceID.Valid {
+		// inflight tracking ensures server shutdown still waits for any
+		// in-progress primer.
+		//
+		// Guard on both WorkspaceID and AgentID being valid:
+		// create_workspace fires onChatUpdated three times (binding,
+		// build, and post-ready) and stop_workspace fires it once with a
+		// nil agent. Only the post-ready callback has a live AgentID, so
+		// pre-build and stop-side firings would otherwise spawn a primer
+		// goroutine that dials a missing or dying agent and burns the
+		// full budget for nothing.
+		if updatedChat.WorkspaceID.Valid && updatedChat.AgentID.Valid {
 			p.inflight.Add(1)
 			go func() {
 				defer p.inflight.Done()
-				p.primeWorkspaceMCPCache(ctx, p.logger, updatedChat.ID, opts.workspaceCtx)
+				p.primeWorkspaceMCPCache(opts.primerCtx, p.logger, updatedChat.ID, opts.workspaceCtx)
 			}()
 		}
 	}
@@ -6949,7 +6961,16 @@ func (p *Server) runChat(
 		currentChat:      &currentChat,
 		loadChatSnapshot: loadChatSnapshot,
 	}
-	defer workspaceCtx.close()
+	// primerCtx scopes the workspace MCP cache primer goroutines that
+	// onChatUpdated launches. We cancel it before workspaceCtx.close()
+	// so an in-flight primer cannot wake from its retry backoff,
+	// observe a cleared cached conn, dial a fresh one, and leak it
+	// when no subsequent close() runs.
+	primerCtx, primerCancel := context.WithCancel(ctx)
+	defer func() {
+		primerCancel()
+		workspaceCtx.close()
+	}()
 
 	planPathFn := func(ctx context.Context) (string, string, error) {
 		conn, err := workspaceCtx.getWorkspaceConn(ctx)
@@ -7532,6 +7553,7 @@ func (p *Server) runChat(
 			resolvePlanPath: resolvePlanPathForTools,
 			storeFile:       storeChatAttachment,
 			isPlanModeTurn:  isPlanModeTurn,
+			primerCtx:       primerCtx,
 		})
 	}
 
@@ -7885,10 +7907,14 @@ func (p *Server) runChat(
 				ctx, loopLogger, chat.ID, &workspaceCtx,
 			)
 			if len(discovered) == 0 {
-				// Leave workspaceMCPDiscovered false so a
-				// subsequent step retries discovery. The primer
-				// already enforces an upper bound on time spent
-				// trying.
+				// Leave workspaceMCPDiscovered false so a subsequent
+				// step retries discovery. PrepareTools fires once per
+				// LLM step, so retries are unbounded for the rest of
+				// the turn. Per-step cost is one
+				// GetWorkspaceAgentsInLatestBuildByWorkspaceID query
+				// plus one ListMCPTools RPC, both fast against a live
+				// conn. The primer's 30s budget applies to its own
+				// loop only.
 				return nil
 			}
 			workspaceMCPDiscovered = true
