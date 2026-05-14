@@ -412,6 +412,28 @@ for other non-claim use cases (background data processing, scheduled
 maintenance) where "we want N workspaces owned by a bot to do work"
 is the actual goal.
 
+### Configurable workspace naming format for prebuilds
+
+Prebuilt workspaces are named `prebuild-{8-char-random}` and owned
+by the synthetic `prebuilds` user. Cursor's worker picker shows that
+name verbatim (we pass `--name coder-${owner}-${workspace_name}` to
+`cursor-agent worker start`), so the user-facing label becomes
+`coder-prebuilds-prebuild-zb5n4qrnrheurty`. Functional, unreadable.
+
+The Cursor template can work around this by overriding `--name` to
+something shorter inside the agent startup script (the daemon path's
+`cursor-worker-{unix-timestamp}` is in the same shape), but the
+underlying issue is that operators have no control over how Coder
+names prebuilt workspaces.
+
+The product change: a template-level
+`prebuilds { name_format = "..." }` or a deployment-level setting
+that lets operators substitute a different template. Useful here,
+useful for any prebuilds use case where the workspace name surfaces
+in a third-party UI.
+
+Low priority. The template-side workaround is one line.
+
 ### First-class headless workspace pool primitive
 
 User identity's router reimplements a small queue manager around

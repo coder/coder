@@ -463,9 +463,12 @@ The Terraform template is the same as above with two differences:
 
 - Drop the `coder_workspace_preset` blocks. The daemon creates
   workspaces directly via the Coder API; presets are not needed.
-- Keep one template per repo, since the daemon's `--template name=N`
-  flag is keyed on template name. The daemon's `--template` flag is
-  repeatable, so one daemon can manage pools across many templates.
+- The daemon's `--template name=N` flag is keyed on template name, so
+  pools are sized per **template**, not per preset. The simplest shape
+  is one template per repo and one `--template` flag per pool; if you
+  want a single template, you can pass the repo to the daemon via
+  `rich_parameter_values` on workspace create. The flag is repeatable,
+  so one daemon can manage many pools.
 
 Run the daemon as a long-lived process next to your Coder deployment:
 

@@ -19,21 +19,24 @@ uses to ship developer environments can ship workers.
 
 ## Architecture
 
-<img src="../../images/guides/cursor-self-hosted-workers/concepts.svg" alt="A Coder workspace is the outer container, managed by Coder. Inside the workspace runs the Cursor private worker, a long-lived process managed by Cursor. The worker is bound to one git repository and serves one Cursor session at a time, also managed by Cursor. Each layer is nested inside the layer above it." />
+<img src="../../images/guides/cursor-self-hosted-workers/concepts.svg" alt="A Coder workspace contains exactly one Cursor private worker, which serves exactly one Cursor Background Agent session at a time. One to one to one. Coder manages the workspace; Cursor manages the worker and the session." />
 
-Three nested concepts, three levels of management:
+The relationship is one to one to one: **one Coder workspace contains
+exactly one `cursor-agent worker` process, which serves exactly one
+Cursor Background Agent session at a time.** That is the unit you size,
+name, and recycle.
 
 - **A Coder workspace** is the outer container: a VM or container built
   from a Coder template, with the image, credentials, and networking
   the worker needs. **Coder manages workspaces.**
 - **A worker** is the long-lived `cursor-agent worker` process that
   lives inside one workspace, registers with your Cursor team, and
-  polls for work. One worker per workspace. The worker is bound to one
-  repository at startup and serves one session at a time. **Cursor
-  manages workers.**
-- **A session** is a single Cursor Background Agent conversation,
-  routed to a free worker by Cursor's scheduler. **Cursor manages
-  sessions.**
+  polls for work. The worker is bound to one repository at startup
+  (`--worker-dir`). **Cursor manages workers.**
+- **A session** is a single Cursor Background Agent conversation. While
+  a session is active, the worker is unavailable to anyone else; when
+  it ends, the same worker can serve the next session in line.
+  **Cursor manages sessions.**
 
 All traffic from the worker to Cursor is **outbound HTTPS** to
 `api.cursor.com`. There is no inbound connectivity from Cursor into
@@ -68,8 +71,8 @@ workspaces of the same shape; a second repo is a second pool.
 | Cursor concept                       | Coder primitive                                                                     |
 |--------------------------------------|-------------------------------------------------------------------------------------|
 | One worker                           | **One workspace**                                                                   |
-| Pool of N workers for one repo       | **N workspaces** of one template (or one preset, on Premium)                        |
-| Multiple pools across repos          | **One template per repo** (or one preset per repo, on Premium)                      |
+| Pool of N workers for one repo       | **N workspaces** with a shared template and one preset (per repo)                   |
+| Multiple pools across repos          | **Multiple presets on one template**, one per repo                                  |
 | Worker image                         | Workspace template + image                                                          |
 | Worker process                       | `cursor-agent worker start` under `coder_agent.startup_script`                      |
 | Service-account API key              | Sensitive Terraform variable                                                        |
