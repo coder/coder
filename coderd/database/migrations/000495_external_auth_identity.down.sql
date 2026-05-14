@@ -29,6 +29,12 @@ BEGIN
 		-- does not remove the users row so the FK cascade never fires.
 		DELETE FROM user_secrets
 		WHERE user_id = OLD.id;
+
+		-- Remove their organization memberships.
+		-- This also triggers group membership cleanup via
+		-- trigger_delete_group_members_on_org_member_delete.
+		DELETE FROM organization_members
+		WHERE user_id = OLD.id;
 	END IF;
 	RETURN NEW;
 END;

@@ -1,8 +1,8 @@
-<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="24" height="24" rx="6" fill="#5E6AD2"/>
-  <path d="M6 17.25L17.25 6" stroke="white" stroke-width="2" stroke-linecap="round"/>
-  <path d="M6 12.75L12.75 6" stroke="white" stroke-width="2" stroke-linecap="round" opacity="0.82"/>
-  <path d="M11.25 18L18 11.25" stroke="white" stroke-width="2" stroke-linecap="round" opacity="0.82"/>
-  <path d="M6 8.25L8.25 6" stroke="white" stroke-width="2" stroke-linecap="round" opacity="0.64"/>
-  <path d="M15.75 18L18 15.75" stroke="white" stroke-width="2" stroke-linecap="round" opacity="0.64"/>
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="256" height="256" rx="64" fill="#5E6AD2"/>
+  <path d="M64 184L184 64" stroke="white" stroke-width="21.333" stroke-linecap="round"/>
+  <path d="M64 136L136 64" stroke="white" stroke-width="21.333" stroke-linecap="round" opacity="0.82"/>
+  <path d="M120 192L192 120" stroke="white" stroke-width="21.333" stroke-linecap="round" opacity="0.82"/>
+  <path d="M64 88L88 64" stroke="white" stroke-width="21.333" stroke-linecap="round" opacity="0.64"/>
+  <path d="M168 192L192 168" stroke="white" stroke-width="21.333" stroke-linecap="round" opacity="0.64"/>
 </svg>
