@@ -53,11 +53,6 @@ var invisibleRunePattern = regexp.MustCompile(
 		"\ufff0-\ufff8]",
 )
 
-// skillNamePattern validates kebab-case skill names.
-var skillNamePattern = regexp.MustCompile(
-	`^[a-z0-9]+(-[a-z0-9]+)*$`,
-)
-
 // Default values for agent-internal configuration. These are
 // used when the corresponding env vars are unset.
 //
@@ -357,7 +352,7 @@ func discoverSkills(skillsDirs []string, metaFile string) []codersdk.ChatMessage
 			if name != entry.Name() {
 				continue
 			}
-			if !skillNamePattern.MatchString(name) {
+			if !workspacesdk.SkillNamePattern.MatchString(name) {
 				continue
 			}
 
