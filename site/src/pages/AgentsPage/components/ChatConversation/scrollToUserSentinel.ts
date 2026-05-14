@@ -23,6 +23,19 @@ export function scrollToUserSentinel(messageId: number): void {
 		scroller.getBoundingClientRect().top -
 		scroller.clientHeight / 2;
 
+	// Respect prefers-reduced-motion: jump instantly.
+	const prefersReduced = window.matchMedia(
+		"(prefers-reduced-motion: reduce)",
+	).matches;
+
+	if (prefersReduced) {
+		scroller.scrollTop += offset;
+		scroller.style.overflowAnchor = "";
+		scroller.removeAttribute("data-scroll-lock");
+		scroller.dispatchEvent(new Event("scroll"));
+		return;
+	}
+
 	const start = scroller.scrollTop;
 	const duration = 450;
 	const t0 = performance.now();
