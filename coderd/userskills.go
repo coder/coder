@@ -16,6 +16,10 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// maxPersonalSkillRequestBytes allows worst-case JSON string escaping for
+// otherwise valid raw skill content.
+const maxPersonalSkillRequestBytes = skills.MaxPersonalSkillSizeBytes*6 + 1024
+
 // @Summary Create a user skill
 // @ID create-a-user-skill
 // @Security CoderSessionToken
@@ -41,7 +45,7 @@ func (api *API) postUserSkill(rw http.ResponseWriter, r *http.Request) {
 	)
 	defer commitAudit()
 
-	r.Body = http.MaxBytesReader(rw, r.Body, skills.MaxPersonalSkillSizeBytes+1024)
+	r.Body = http.MaxBytesReader(rw, r.Body, maxPersonalSkillRequestBytes)
 
 	var req codersdk.CreateUserSkillRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
@@ -161,7 +165,7 @@ func (api *API) patchUserSkill(rw http.ResponseWriter, r *http.Request) {
 	)
 	defer commitAudit()
 
-	r.Body = http.MaxBytesReader(rw, r.Body, skills.MaxPersonalSkillSizeBytes+1024)
+	r.Body = http.MaxBytesReader(rw, r.Body, maxPersonalSkillRequestBytes)
 
 	var req codersdk.UpdateUserSkillRequest
 	if !httpapi.Read(ctx, rw, r, &req) {

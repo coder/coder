@@ -811,6 +811,13 @@ DECLARE
     skill_count int;
     skill_limit constant int := 100;
 BEGIN
+    -- Serialize skill-cap checks per user so concurrent inserts cannot all
+    -- observe the same pre-insert count and exceed the hard limit.
+    PERFORM 1
+    FROM users
+    WHERE id = NEW.user_id
+    FOR UPDATE;
+
     SELECT count(*) INTO skill_count
     FROM user_skills
     WHERE user_id = NEW.user_id;

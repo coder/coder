@@ -174,6 +174,81 @@ func TestUserSkillLimit(t *testing.T) {
 	)
 }
 
+func TestUserSkillLimitConcurrentCreates(t *testing.T) {
+	t.Parallel()
+
+	adminClient := coderdtest.New(t, nil)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+	ownerClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+	owner := codersdk.NewExperimentalClient(ownerClient)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	for i := 0; i < skills.MaxPersonalSkillsPerUser-1; i++ {
+		name := fmt.Sprintf("concurrent-limit-skill-%03d", i)
+		_, err := owner.CreateUserSkill(ctx, codersdk.Me, codersdk.CreateUserSkillRequest{
+			Content: userSkillMarkdown(name, "Limit", "Body."),
+		})
+		require.NoError(t, err)
+	}
+
+	const attempts = 8
+	start := make(chan struct{})
+	results := make(chan error, attempts)
+	for i := range attempts {
+		go func() {
+			<-start
+			name := fmt.Sprintf("concurrent-limit-overflow-%03d", i)
+			_, err := owner.CreateUserSkill(ctx, codersdk.Me, codersdk.CreateUserSkillRequest{
+				Content: userSkillMarkdown(name, "Limit", "Body."),
+			})
+			results <- err
+		}()
+	}
+	close(start)
+
+	successes := 0
+	for range attempts {
+		err := <-results
+		if err == nil {
+			successes++
+			continue
+		}
+		requireSDKErrorStatus(t, err, http.StatusForbidden)
+	}
+	assert.Equal(t, 1, successes)
+
+	list, err := owner.UserSkills(ctx, codersdk.Me)
+	require.NoError(t, err)
+	assert.Len(t, list, skills.MaxPersonalSkillsPerUser)
+}
+
+func TestUserSkillRequestAllowsEscapedMaxSizeContent(t *testing.T) {
+	t.Parallel()
+
+	adminClient := coderdtest.New(t, nil)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+	ownerClient, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+	owner := codersdk.NewExperimentalClient(ownerClient)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	prefix := "---\nname: escaped-limit-skill\ndescription: Escaped\n---\n\n"
+	suffix := "\n"
+	bodyLen := skills.MaxPersonalSkillSizeBytes - len(prefix) - len(suffix)
+	require.Positive(t, bodyLen)
+	content := prefix + strings.Repeat(`"`, bodyLen) + suffix
+	require.Len(t, []byte(content), skills.MaxPersonalSkillSizeBytes)
+
+	raw, err := json.Marshal(codersdk.CreateUserSkillRequest{Content: content})
+	require.NoError(t, err)
+	require.Greater(t, len(raw), skills.MaxPersonalSkillSizeBytes+1024)
+
+	created, err := owner.CreateUserSkill(ctx, codersdk.Me, codersdk.CreateUserSkillRequest{
+		Content: content,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "escaped-limit-skill", created.Name)
+}
+
 func TestUserSkillMissingAndUpdateMismatch(t *testing.T) {
 	t.Parallel()
 
