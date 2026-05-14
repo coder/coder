@@ -40,12 +40,18 @@ jobs:
             **.md
           separator: ","
 
+      # Both downstream tools take file paths as argv. `tj-actions/changed-files`
+      # joins paths with `separator: ","`, which the shell does not split on, so
+      # run the output through `tr ',' '\n' | xargs -d '\n'` to hand each path to
+      # the tool as a distinct argument. This tolerates filenames containing
+      # spaces and prevents silent fallbacks: `markdownlint-cli2` would treat a
+      # comma-joined string as a single non-matching glob, and
+      # `markdown-table-formatter` would fall back to scanning every `.md` in
+      # the working tree when invoked with no positional args.
+
       - name: lint
         if: steps.changed-md.outputs.any_changed == 'true'
         run: |
-          # `separator: ","` joins paths with commas, but markdownlint-cli2
-          # takes files as argv. Split on the comma boundary with xargs (the
-          # same shape `fmt` uses) so filenames containing spaces survive.
           echo "$ALL_CHANGED_FILES" | tr ',' '\n' | xargs -d '\n' pnpm exec markdownlint-cli2
         env:
           ALL_CHANGED_FILES: ${{ steps.changed-md.outputs.all_changed_files }}
@@ -53,7 +59,6 @@ jobs:
       - name: fmt
         if: steps.changed-md.outputs.any_changed == 'true'
         run: |
-          # markdown-table-formatter reads newline-separated paths from stdin.
-          echo "$ALL_CHANGED_FILES" | tr ',' '\n' | pnpm exec markdown-table-formatter --check
+          echo "$ALL_CHANGED_FILES" | tr ',' '\n' | xargs -d '\n' pnpm exec markdown-table-formatter --check
         env:
           ALL_CHANGED_FILES: ${{ steps.changed-md.outputs.all_changed_files }}
