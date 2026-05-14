@@ -2578,7 +2578,7 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	chat := httpmw.ChatParam(r)
 
 	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
-		httpapi.Forbidden(rw)
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -2897,7 +2897,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	// Sending a message triggers LLM inference, requiring update
 	// permission on the org-scoped chat resource.
 	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
-		httpapi.Forbidden(rw)
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -3092,7 +3092,7 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 	chat := httpmw.ChatParam(r)
 
 	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
-		httpapi.Forbidden(rw)
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -3211,7 +3211,7 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 	chatID := chat.ID
 
 	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
-		httpapi.Forbidden(rw)
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -3254,7 +3254,7 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 	// Promoting a queued message triggers LLM inference,
 	// requiring update permission on the org-scoped chat resource.
 	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
-		httpapi.Forbidden(rw)
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -3518,7 +3518,7 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 	logger := api.Logger.Named("chat_interrupt").With(slog.F("chat_id", chatID))
 
 	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
-		httpapi.Forbidden(rw)
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -3566,7 +3566,7 @@ func (api *API) regenerateChatTitle(rw http.ResponseWriter, r *http.Request) {
 	chat := httpmw.ChatParam(r)
 
 	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
-		httpapi.Forbidden(rw)
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -3619,7 +3619,7 @@ func (api *API) proposeChatTitle(rw http.ResponseWriter, r *http.Request) {
 	chat := httpmw.ChatParam(r)
 
 	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
-		httpapi.Forbidden(rw)
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -8136,7 +8136,7 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 	// Submitting tool results resumes LLM inference,
 	// requiring update permission on the org-scoped chat resource.
 	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
-		httpapi.Forbidden(rw)
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 

@@ -8066,7 +8066,7 @@ func TestRegenerateChatTitle(t *testing.T) {
 		})
 
 		_, err := client.RegenerateChatTitle(ctx, chat.ID)
-		requireSDKError(t, err, http.StatusForbidden)
+		requireSDKError(t, err, http.StatusNotFound)
 	})
 
 	t.Run("NotFoundForDifferentUser", func(t *testing.T) {
@@ -8336,7 +8336,7 @@ func TestProposeChatTitle(t *testing.T) {
 
 		_, err := client.ProposeChatTitle(ctx, chat.ID)
 
-		requireSDKError(t, err, http.StatusForbidden)
+		requireSDKError(t, err, http.StatusNotFound)
 	})
 
 	t.Run("DoesNotPersistTitleOrBumpUpdatedAt", func(t *testing.T) {
@@ -14348,7 +14348,7 @@ func TestChatReadOnlySharedWriteHandlers(t *testing.T) {
 			Archived: ptr.Ref(true),
 		})
 
-		requireSDKError(t, err, http.StatusForbidden)
+		requireSDKError(t, err, http.StatusNotFound)
 	})
 
 	t.Run("PatchChatMessage", func(t *testing.T) {
@@ -14373,7 +14373,7 @@ func TestChatReadOnlySharedWriteHandlers(t *testing.T) {
 			}},
 		})
 
-		requireSDKError(t, err, http.StatusForbidden)
+		requireSDKError(t, err, http.StatusNotFound)
 	})
 
 	t.Run("PostChatMessages", func(t *testing.T) {
@@ -14387,7 +14387,7 @@ func TestChatReadOnlySharedWriteHandlers(t *testing.T) {
 			}},
 		})
 
-		requireSDKError(t, err, http.StatusForbidden)
+		requireSDKError(t, err, http.StatusNotFound)
 	})
 
 	t.Run("PromoteChatQueuedMessage", func(t *testing.T) {
@@ -14415,7 +14415,7 @@ func TestChatReadOnlySharedWriteHandlers(t *testing.T) {
 		)
 		require.NoError(t, err)
 		defer res.Body.Close()
-		require.Equal(t, http.StatusForbidden, res.StatusCode)
+		require.Equal(t, http.StatusNotFound, res.StatusCode)
 	})
 
 	t.Run("PostChatToolResults", func(t *testing.T) {
@@ -14429,7 +14429,7 @@ func TestChatReadOnlySharedWriteHandlers(t *testing.T) {
 			}},
 		})
 
-		requireSDKError(t, err, http.StatusForbidden)
+		requireSDKError(t, err, http.StatusNotFound)
 	})
 
 	t.Run("DeleteChatQueuedMessage", func(t *testing.T) {
@@ -14457,7 +14457,7 @@ func TestChatReadOnlySharedWriteHandlers(t *testing.T) {
 		)
 		require.NoError(t, err)
 		defer res.Body.Close()
-		require.Equal(t, http.StatusForbidden, res.StatusCode)
+		require.Equal(t, http.StatusNotFound, res.StatusCode)
 	})
 
 	t.Run("InterruptChat", func(t *testing.T) {
@@ -14466,7 +14466,7 @@ func TestChatReadOnlySharedWriteHandlers(t *testing.T) {
 		ctx, _, sharedClient, chat, _ := setup(t)
 		_, err := sharedClient.InterruptChat(ctx, chat.ID)
 
-		requireSDKError(t, err, http.StatusForbidden)
+		requireSDKError(t, err, http.StatusNotFound)
 	})
 
 	t.Run("RegenerateChatTitle", func(t *testing.T) {
@@ -14475,7 +14475,7 @@ func TestChatReadOnlySharedWriteHandlers(t *testing.T) {
 		ctx, _, sharedClient, chat, _ := setup(t)
 		_, err := sharedClient.RegenerateChatTitle(ctx, chat.ID)
 
-		requireSDKError(t, err, http.StatusForbidden)
+		requireSDKError(t, err, http.StatusNotFound)
 	})
 
 	t.Run("ProposeChatTitle", func(t *testing.T) {
@@ -14484,7 +14484,7 @@ func TestChatReadOnlySharedWriteHandlers(t *testing.T) {
 		ctx, _, sharedClient, chat, _ := setup(t)
 		_, err := sharedClient.ProposeChatTitle(ctx, chat.ID)
 
-		requireSDKError(t, err, http.StatusForbidden)
+		requireSDKError(t, err, http.StatusNotFound)
 	})
 }
 
