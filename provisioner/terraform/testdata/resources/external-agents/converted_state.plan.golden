@@ -31,5 +31,5 @@
   "AITasks": [],
   "HasAITasks": false,
   "HasExternalAgents": true,
-  "DLPPolicies": []
+  "DLPPolicy": null
 }

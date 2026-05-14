@@ -1814,12 +1814,11 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 			return xerrors.Errorf("insert workspace presets and parameters: %w", err)
 		}
 
-		// Persist DLP policies declared in the template. All declared policies
-		// are recorded (including ones unreferenced by any agent) so the
-		// `(template_version_id, name)` UNIQUE constraint surfaces duplicate
-		// declarations as an import-time error.
-		if err := InsertTemplateVersionDLPPolicies(ctx, s.Logger, db, jobID, input.TemplateVersionID, jobType.TemplateImport.DlpPolicies, now); err != nil {
-			return xerrors.Errorf("insert template version dlp policies: %w", err)
+		// Persist the template's single coder_dlp_policy, if any. The policy
+		// applies uniformly to every agent in workspaces built from this
+		// template version.
+		if err := InsertTemplateVersionDLPPolicy(ctx, s.Logger, db, jobID, input.TemplateVersionID, jobType.TemplateImport.DlpPolicy, now); err != nil {
+			return xerrors.Errorf("insert template version dlp policy: %w", err)
 		}
 
 		// Process external auth providers
@@ -2146,9 +2145,6 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 				// Ensure that the agent IDs we set previously
 				// are written to the database.
 				InsertWorkspaceResourceWithAgentIDsFromProto(),
-				// Resolve each agent's `dlp_policy` reference against this
-				// build's template version.
-				InsertWorkspaceResourceWithTemplateVersionID(workspaceBuild.TemplateVersionID),
 			)
 			if err != nil {
 				return xerrors.Errorf("insert provisioner job: %w", err)
@@ -2693,31 +2689,32 @@ func InsertWorkspaceModule(ctx context.Context, db database.Store, jobID uuid.UU
 	return nil
 }
 
-// InsertTemplateVersionDLPPolicies persists every coder_dlp_policy declared
-// in the template version. The DB row id is freshly generated; the proto
-// `id` is build-scoped and ignored.
-func InsertTemplateVersionDLPPolicies(ctx context.Context, logger slog.Logger, db database.Store, jobID uuid.UUID, templateVersionID uuid.UUID, protoPolicies []*sdkproto.DLPPolicy, t time.Time) error {
-	for _, p := range protoPolicies {
-		logger.Info(ctx, "inserting template import job dlp policy",
-			slog.F("job_id", jobID.String()),
-			slog.F("policy_name", p.Name),
-		)
-		_, err := db.InsertTemplateVersionDLPPolicy(ctx, database.InsertTemplateVersionDLPPolicyParams{
-			ID:                   uuid.New(),
-			TemplateVersionID:    templateVersionID,
-			Name:                 p.Name,
-			SshAccess:            p.SshAccess,
-			WebTerminalAccess:    p.WebTerminalAccess,
-			PortForwardingAccess: p.PortForwardingAccess,
-			DesktopAccess:        p.DesktopAccess,
-			ClipboardAccess:      p.ClipboardAccess,
-			AllowedApplications:  p.AllowedApplications,
-			DisplayName:          "",
-			CreatedAt:            t,
-		})
-		if err != nil {
-			return xerrors.Errorf("insert template version dlp policy %q: %w", p.Name, err)
-		}
+// InsertTemplateVersionDLPPolicy persists the template's single
+// coder_dlp_policy declaration, if any. The DB row id is freshly generated;
+// the proto `id` is build-scoped and ignored.
+func InsertTemplateVersionDLPPolicy(ctx context.Context, logger slog.Logger, db database.Store, jobID uuid.UUID, templateVersionID uuid.UUID, p *sdkproto.DLPPolicy, t time.Time) error {
+	if p == nil {
+		return nil
+	}
+	logger.Info(ctx, "inserting template import job dlp policy",
+		slog.F("job_id", jobID.String()),
+		slog.F("policy_name", p.Name),
+	)
+	_, err := db.InsertTemplateVersionDLPPolicy(ctx, database.InsertTemplateVersionDLPPolicyParams{
+		ID:                   uuid.New(),
+		TemplateVersionID:    templateVersionID,
+		Name:                 p.Name,
+		SshAccess:            p.SshAccess,
+		WebTerminalAccess:    p.WebTerminalAccess,
+		PortForwardingAccess: p.PortForwardingAccess,
+		DesktopAccess:        p.DesktopAccess,
+		ClipboardAccess:      p.ClipboardAccess,
+		AllowedApplications:  p.AllowedApplications,
+		DisplayName:          "",
+		CreatedAt:            t,
+	})
+	if err != nil {
+		return xerrors.Errorf("insert template version dlp policy %q: %w", p.Name, err)
 	}
 	return nil
 }
@@ -2817,7 +2814,6 @@ func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, 
 
 type insertWorkspaceResourceOptions struct {
 	useAgentIDsFromProto bool
-	templateVersionID    uuid.UUID
 }
 
 // InsertWorkspaceResourceOption represents a functional option for
@@ -2829,16 +2825,6 @@ type InsertWorkspaceResourceOption func(*insertWorkspaceResourceOptions)
 func InsertWorkspaceResourceWithAgentIDsFromProto() InsertWorkspaceResourceOption {
 	return func(opts *insertWorkspaceResourceOptions) {
 		opts.useAgentIDsFromProto = true
-	}
-}
-
-// InsertWorkspaceResourceWithTemplateVersionID enables resolving each agent's
-// `dlp_policy` reference into the template-version-scoped row id and storing
-// it on `workspace_agents.dlp_policy_id`. Only real workspace builds need
-// this; template-import and dry-run callers omit it and leave the FK null.
-func InsertWorkspaceResourceWithTemplateVersionID(id uuid.UUID) InsertWorkspaceResourceOption {
-	return func(opts *insertWorkspaceResourceOptions) {
-		opts.templateVersionID = id
 	}
 }
 
@@ -2949,21 +2935,6 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				return xerrors.Errorf("invalid agent ID format; must be uuid: %w", err)
 			}
 		}
-		// Resolve the agent's DLP policy reference to the template-version-
-		// scoped row id (if a templateVersionID was provided by the caller).
-		// At template-import and dry-run time we don't have a usable template
-		// version yet, so the FK stays null.
-		var dlpPolicyID uuid.NullUUID
-		if prAgent.DlpPolicy != nil && opts.templateVersionID != uuid.Nil {
-			row, err := db.GetTemplateVersionDLPPolicyByVersionAndName(ctx, database.GetTemplateVersionDLPPolicyByVersionAndNameParams{
-				TemplateVersionID: opts.templateVersionID,
-				Name:              prAgent.DlpPolicy.Name,
-			})
-			if err != nil {
-				return xerrors.Errorf("resolve dlp_policy %q for agent %q: %w", prAgent.DlpPolicy.Name, prAgent.Name, err)
-			}
-			dlpPolicyID = uuid.NullUUID{UUID: row.ID, Valid: true}
-		}
 		dbAgent, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
 			ID:                       agentID,
 			ParentID:                 uuid.NullUUID{},
@@ -2986,7 +2957,6 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			// #nosec G115 - Order represents a display order value that's always small and fits in int32
 			DisplayOrder: int32(prAgent.Order),
 			APIKeyScope:  apiKeyScope,
-			DlpPolicyID:  dlpPolicyID,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert agent: %w", err)
@@ -3508,7 +3478,6 @@ func insertDevcontainerSubagent(
 		DisplayApps:              []database.DisplayApp{},
 		DisplayOrder:             0,
 		APIKeyScope:              parentAgent.APIKeyScope,
-		DlpPolicyID:              uuid.NullUUID{},
 	})
 	if err != nil {
 		return uuid.UUID{}, xerrors.Errorf("insert subagent: %w", err)

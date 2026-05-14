@@ -244,7 +244,6 @@ export interface Agent {
   resourcesMonitoring: ResourcesMonitoring | undefined;
   devcontainers: Devcontainer[];
   apiKeyScope: string;
-  dlpPolicy?: DLPPolicy | undefined;
 }
 
 export interface Agent_Metadata {
@@ -401,11 +400,11 @@ export interface AITask {
 
 /**
  * DLPPolicy is a template-version-scoped data loss prevention policy
- * declared via a `coder_dlp_policy` resource. Agents reference a policy by
- * id via `coder_agent.dlp_policy`. The `name` field is the HCL resource
- * name (e.g. `strict` from `resource "coder_dlp_policy" "strict"`) and is
- * the durable join key used to look up the persisted row at workspace
- * build time.
+ * declared via a `coder_dlp_policy` resource. A template may declare at most
+ * one policy; it applies uniformly to every agent in the resulting
+ * workspace. The `name` field is the HCL resource name (e.g. `strict` from
+ * `resource "coder_dlp_policy" "strict"`) and is surfaced in denial reasons
+ * to identify which policy fired.
  */
 export interface DLPPolicy {
   id: string;
@@ -590,7 +589,12 @@ export interface GraphComplete {
   hasAiTasks: boolean;
   aiTasks: AITask[];
   hasExternalAgents: boolean;
-  dlpPolicies: DLPPolicy[];
+  /**
+   * A template may declare at most one coder_dlp_policy resource. The
+   * policy, if any, applies to every agent in any workspace built from this
+   * template version.
+   */
+  dlpPolicy?: DLPPolicy | undefined;
 }
 
 export interface Timing {
@@ -1005,9 +1009,6 @@ export const Agent = {
     }
     if (message.apiKeyScope !== "") {
       writer.uint32(210).string(message.apiKeyScope);
-    }
-    if (message.dlpPolicy !== undefined) {
-      DLPPolicy.encode(message.dlpPolicy, writer.uint32(218).fork()).ldelim();
     }
     return writer;
   },
@@ -1702,8 +1703,8 @@ export const GraphComplete = {
     if (message.hasExternalAgents !== false) {
       writer.uint32(72).bool(message.hasExternalAgents);
     }
-    for (const v of message.dlpPolicies) {
-      DLPPolicy.encode(v!, writer.uint32(82).fork()).ldelim();
+    if (message.dlpPolicy !== undefined) {
+      DLPPolicy.encode(message.dlpPolicy, writer.uint32(82).fork()).ldelim();
     }
     return writer;
   },

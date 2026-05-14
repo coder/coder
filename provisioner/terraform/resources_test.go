@@ -1846,17 +1846,6 @@ func TestDLPPolicy(t *testing.T) {
 		return &state
 	}
 
-	findAgentResource := func(t *testing.T, s *tfjson.State) *tfjson.StateResource {
-		t.Helper()
-		for _, r := range s.Values.RootModule.Resources {
-			if r.Type == "coder_agent" {
-				return r
-			}
-		}
-		t.Fatal("no coder_agent in fixture")
-		return nil
-	}
-
 	newDLPResource := func(name, id string, extra map[string]interface{}) *tfjson.StateResource {
 		attrs := map[string]interface{}{
 			"id":                     id,
@@ -1878,98 +1867,53 @@ func TestDLPPolicy(t *testing.T) {
 		}
 	}
 
-	findAgent := func(t *testing.T, state *terraform.State, name string) *proto.Agent {
-		t.Helper()
-		for _, res := range state.Resources {
-			for _, a := range res.Agents {
-				if a.Name == name {
-					return a
-				}
-			}
-		}
-		t.Fatalf("agent %q not found", name)
-		return nil
-	}
-
 	t.Run("NoPolicy", func(t *testing.T) {
 		t.Parallel()
 		tfState := loadState(t)
 		state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfState.Values.RootModule}, string(graphRaw), logger)
 		require.NoError(t, err)
-		require.Nil(t, findAgent(t, state, "dev1").DlpPolicy)
+		require.Nil(t, state.DLPPolicy)
 	})
 
-	t.Run("AgentReferencesPolicy", func(t *testing.T) {
+	t.Run("SinglePolicy", func(t *testing.T) {
 		t.Parallel()
 		const policyID = "d0c3f5a1-0000-4000-8000-000000000001"
 		tfState := loadState(t)
-		findAgentResource(t, tfState).AttributeValues["dlp_policy"] = policyID
 		tfState.Values.RootModule.Resources = append(tfState.Values.RootModule.Resources,
 			newDLPResource("strict", policyID, map[string]interface{}{
 				"ssh_access":             true,
 				"web_terminal_access":    false,
 				"port_forwarding_access": true,
 				"desktop_access":         true,
+				"clipboard_access":       false,
 				"allowed_applications":   []interface{}{"code-server", "vscode-desktop"},
 			}),
 		)
 
 		state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfState.Values.RootModule}, string(graphRaw), logger)
 		require.NoError(t, err)
-		policy := findAgent(t, state, "dev1").DlpPolicy
+		policy := state.DLPPolicy
 		require.NotNil(t, policy)
 		require.Equal(t, policyID, policy.Id)
+		require.Equal(t, "strict", policy.Name)
 		require.True(t, policy.SshAccess)
 		require.False(t, policy.WebTerminalAccess)
 		require.True(t, policy.PortForwardingAccess)
 		require.True(t, policy.DesktopAccess)
+		require.False(t, policy.ClipboardAccess)
 		require.Equal(t, []string{"code-server", "vscode-desktop"}, policy.AllowedApplications)
 	})
 
-	t.Run("UnreferencedPolicyIsAllowed", func(t *testing.T) {
+	t.Run("MultiplePoliciesRejected", func(t *testing.T) {
 		t.Parallel()
-		// Defining a policy resource without any agent referencing it is a
-		// no-op for agent attachment, but it still appears on
-		// `state.DLPPolicies` so it can be persisted and the unique-name
-		// constraint enforced at template-import time.
 		tfState := loadState(t)
 		tfState.Values.RootModule.Resources = append(tfState.Values.RootModule.Resources,
-			newDLPResource("orphan", "d0c3f5a1-0000-4000-8000-000000000099", nil),
+			newDLPResource("strict", "d0c3f5a1-0000-4000-8000-000000000001", nil),
+			newDLPResource("permissive", "d0c3f5a1-0000-4000-8000-000000000002", nil),
 		)
-
-		state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfState.Values.RootModule}, string(graphRaw), logger)
-		require.NoError(t, err)
-		require.Nil(t, findAgent(t, state, "dev1").DlpPolicy)
-
-		require.Len(t, state.DLPPolicies, 1)
-		require.Equal(t, "orphan", state.DLPPolicies[0].Name)
-	})
-
-	t.Run("StatePoliciesIncludeReferencedAndUnreferenced", func(t *testing.T) {
-		t.Parallel()
-		const referencedID = "d0c3f5a1-0000-4000-8000-000000000001"
-		const orphanID = "d0c3f5a1-0000-4000-8000-000000000002"
-		tfState := loadState(t)
-		findAgentResource(t, tfState).AttributeValues["dlp_policy"] = referencedID
-		tfState.Values.RootModule.Resources = append(tfState.Values.RootModule.Resources,
-			newDLPResource("strict", referencedID, nil),
-			newDLPResource("orphan", orphanID, nil),
-		)
-
-		state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfState.Values.RootModule}, string(graphRaw), logger)
-		require.NoError(t, err)
-		require.Len(t, state.DLPPolicies, 2)
-		names := []string{state.DLPPolicies[0].Name, state.DLPPolicies[1].Name}
-		require.ElementsMatch(t, []string{"strict", "orphan"}, names)
-	})
-
-	t.Run("MissingPolicyRejected", func(t *testing.T) {
-		t.Parallel()
-		tfState := loadState(t)
-		findAgentResource(t, tfState).AttributeValues["dlp_policy"] = "00000000-0000-0000-0000-000000000000"
 
 		_, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfState.Values.RootModule}, string(graphRaw), logger)
-		require.ErrorContains(t, err, "does not match any coder_dlp_policy")
+		require.ErrorContains(t, err, "at most one coder_dlp_policy may be declared")
 	})
 }
 

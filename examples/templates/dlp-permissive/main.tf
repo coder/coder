@@ -1,6 +1,7 @@
-// DLP-permissive template. Every gate on `coder_dlp_policy` is allowed.
-// Pair this with `examples/templates/dlp-strict` to compare baseline,
-// "fully open" behavior against the locked-down variant.
+// DLP-permissive template. Declares a single `coder_dlp_policy` stanza that
+// applies to every agent in any workspace built from this template, with
+// every gate on. Pair this with `examples/templates/dlp-strict` to compare
+// baseline, "fully open" behavior against the locked-down variant.
 //
 // Requires coder/coder built from the scott/x/dlp-prototype branch and a
 // terraform-provider-coder binary that exposes `coder_dlp_policy`. Configure
@@ -41,9 +42,8 @@ resource "coder_dlp_policy" "policy" {
 }
 
 resource "coder_agent" "main" {
-  arch       = data.coder_provisioner.me.arch
-  os         = "linux"
-  dlp_policy = coder_dlp_policy.policy.id
+  arch = data.coder_provisioner.me.arch
+  os   = "linux"
 
   startup_script = <<-EOT
     set -e

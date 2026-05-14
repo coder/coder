@@ -695,9 +695,8 @@ type sqlcQuerier interface {
 	GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (TemplateVersion, error)
 	GetTemplateVersionByJobID(ctx context.Context, jobID uuid.UUID) (TemplateVersion, error)
 	GetTemplateVersionByTemplateIDAndName(ctx context.Context, arg GetTemplateVersionByTemplateIDAndNameParams) (TemplateVersion, error)
-	GetTemplateVersionDLPPoliciesByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionDlpPolicy, error)
-	GetTemplateVersionDLPPolicyByAgentID(ctx context.Context, agentID uuid.UUID) (TemplateVersionDlpPolicy, error)
-	GetTemplateVersionDLPPolicyByVersionAndName(ctx context.Context, arg GetTemplateVersionDLPPolicyByVersionAndNameParams) (TemplateVersionDlpPolicy, error)
+	GetTemplateVersionDLPPolicyByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) (TemplateVersionDlpPolicy, error)
+	GetTemplateVersionDLPPolicyByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (TemplateVersionDlpPolicy, error)
 	GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionParameter, error)
 	GetTemplateVersionTerraformValues(ctx context.Context, templateVersionID uuid.UUID) (TemplateVersionTerraformValue, error)
 	GetTemplateVersionVariables(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionVariable, error)
@@ -1270,10 +1269,6 @@ type sqlcQuerier interface {
 	UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams) (WorkspaceTable, error)
 	UpdateWorkspaceACLByID(ctx context.Context, arg UpdateWorkspaceACLByIDParams) error
 	UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg UpdateWorkspaceAgentConnectionByIDParams) error
-	// UpdateWorkspaceAgentDLPPolicyByID is intended for tests and admin-tooling
-	// only. In normal operation `dlp_policy_id` is set at agent insert time and
-	// not modified afterwards.
-	UpdateWorkspaceAgentDLPPolicyByID(ctx context.Context, arg UpdateWorkspaceAgentDLPPolicyByIDParams) error
 	UpdateWorkspaceAgentDirectoryByID(ctx context.Context, arg UpdateWorkspaceAgentDirectoryByIDParams) error
 	UpdateWorkspaceAgentDisplayAppsByID(ctx context.Context, arg UpdateWorkspaceAgentDisplayAppsByIDParams) error
 	UpdateWorkspaceAgentLifecycleStateByID(ctx context.Context, arg UpdateWorkspaceAgentLifecycleStateByIDParams) error

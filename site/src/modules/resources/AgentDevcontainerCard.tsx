@@ -264,7 +264,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 
 					{showDevcontainerControls && displayApps.includes("ssh_helper") && (
 						<DLPGate
-							reason={dlpDenialReason(subAgent.dlp_policy, "ssh_access")}
+							reason={dlpDenialReason(workspace.dlp_policy, "ssh_access")}
 						>
 							<AgentSSHButton
 								workspaceName={workspace.name}
@@ -278,7 +278,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 						proxy.preferredWildcardHostname !== "" && (
 							<DLPGate
 								reason={dlpDenialReason(
-									subAgent.dlp_policy,
+									workspace.dlp_policy,
 									"port_forwarding_access",
 								)}
 							>
@@ -325,7 +325,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 						<section className={appsClasses}>
 							{showVSCode && (
 								<DLPGate
-									reason={dlpDenialReason(subAgent?.dlp_policy, "ssh_access")}
+									reason={dlpDenialReason(workspace.dlp_policy, "ssh_access")}
 								>
 									<VSCodeDevContainerButton
 										userName={workspace.owner_name}
@@ -351,7 +351,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 							{displayApps.includes("web_terminal") && (
 								<DLPGate
 									reason={dlpDenialReason(
-										subAgent.dlp_policy,
+										workspace.dlp_policy,
 										"web_terminal_access",
 									)}
 								>
@@ -366,7 +366,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 							{displayApps.includes("desktop") && (
 								<DLPGate
 									reason={dlpDenialReason(
-										subAgent.dlp_policy,
+										workspace.dlp_policy,
 										"desktop_access",
 									)}
 								>
@@ -402,7 +402,7 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 										<DLPGate
 											key={portLabel}
 											reason={dlpDenialReason(
-												subAgent.dlp_policy,
+												workspace.dlp_policy,
 												"port_forwarding_access",
 											)}
 										>

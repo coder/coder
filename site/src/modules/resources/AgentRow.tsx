@@ -399,7 +399,9 @@ export const AgentRow: FC<AgentRowProps> = ({
 					)}
 
 					{!browser_only && agent.display_apps.includes("ssh_helper") && (
-						<DLPGate reason={dlpDenialReason(agent.dlp_policy, "ssh_access")}>
+						<DLPGate
+							reason={dlpDenialReason(workspace.dlp_policy, "ssh_access")}
+						>
 							<AgentSSHButton
 								workspaceName={workspace.name}
 								agentName={agent.name}
@@ -411,7 +413,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 						agent.display_apps.includes("port_forwarding_helper") && (
 							<DLPGate
 								reason={dlpDenialReason(
-									agent.dlp_policy,
+									workspace.dlp_policy,
 									"port_forwarding_access",
 								)}
 							>
@@ -453,7 +455,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 							<>
 								{showVSCode && (
 									<DLPGate
-										reason={dlpDenialReason(agent.dlp_policy, "ssh_access")}
+										reason={dlpDenialReason(workspace.dlp_policy, "ssh_access")}
 									>
 										<VSCodeDesktopButton
 											userName={workspace.owner_name}
@@ -478,7 +480,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 						{agent.display_apps.includes("web_terminal") && (
 							<DLPGate
 								reason={dlpDenialReason(
-									agent.dlp_policy,
+									workspace.dlp_policy,
 									"web_terminal_access",
 								)}
 							>
@@ -491,7 +493,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 						)}
 						{agent.display_apps.includes("desktop") && (
 							<DLPGate
-								reason={dlpDenialReason(agent.dlp_policy, "desktop_access")}
+								reason={dlpDenialReason(workspace.dlp_policy, "desktop_access")}
 							>
 								<DesktopLink
 									workspaceName={workspace.name}

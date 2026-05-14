@@ -1,8 +1,9 @@
-// DLP-strict template. Every gate on `coder_dlp_policy` is denied except for
-// the "code-server" coder_app slug, which remains in `allowed_applications`
-// so workspace users still have one usable entry point. Pair this with
-// `examples/templates/dlp-permissive` to compare locked-down vs baseline
-// behavior.
+// DLP-strict template. Declares a single `coder_dlp_policy` stanza that
+// applies to every agent in any workspace built from this template. Every
+// gate is denied except for the "code-server" coder_app slug, which remains
+// in `allowed_applications` so workspace users still have one usable entry
+// point. Pair this with `examples/templates/dlp-permissive` to compare
+// locked-down vs baseline behavior.
 //
 // Expected denials when accessing a workspace built on this template:
 //   - `coder ssh` / `coder port-forward`: 403 from
@@ -59,9 +60,8 @@ resource "coder_dlp_policy" "policy" {
 }
 
 resource "coder_agent" "main" {
-  arch       = data.coder_provisioner.me.arch
-  os         = "linux"
-  dlp_policy = coder_dlp_policy.policy.id
+  arch = data.coder_provisioner.me.arch
+  os   = "linux"
 
   startup_script = <<-EOT
     set -e

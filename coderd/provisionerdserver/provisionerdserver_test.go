@@ -5330,7 +5330,7 @@ func newFakeStream(ctx context.Context) *fakeStream {
 	}
 }
 
-func TestInsertTemplateVersionDLPPolicies(t *testing.T) {
+func TestInsertTemplateVersionDLPPolicy(t *testing.T) {
 	t.Parallel()
 
 	logger := testutil.Logger(t)
@@ -5338,7 +5338,7 @@ func TestInsertTemplateVersionDLPPolicies(t *testing.T) {
 	org := dbgen.Organization(t, db, database.Organization{})
 	user := dbgen.User(t, db, database.User{})
 
-	t.Run("InsertsAllAndDistinguishesByName", func(t *testing.T) {
+	t.Run("InsertsPolicy", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -5352,54 +5352,30 @@ func TestInsertTemplateVersionDLPPolicies(t *testing.T) {
 			CreatedBy:      user.ID,
 		})
 
-		policies := []*sdkproto.DLPPolicy{
-			{
-				Name:                 "strict",
-				SshAccess:            true,
-				WebTerminalAccess:    false,
-				PortForwardingAccess: true,
-				DesktopAccess:        false,
-				AllowedApplications:  []string{"code-server", "vscode-desktop"},
-			},
-			{
-				Name:                 "lax",
-				SshAccess:            true,
-				WebTerminalAccess:    true,
-				PortForwardingAccess: true,
-				DesktopAccess:        true,
-				AllowedApplications:  nil,
-			},
+		policy := &sdkproto.DLPPolicy{
+			Name:                 "strict",
+			SshAccess:            true,
+			WebTerminalAccess:    false,
+			PortForwardingAccess: true,
+			DesktopAccess:        false,
+			AllowedApplications:  []string{"code-server", "vscode-desktop"},
 		}
 
-		err := provisionerdserver.InsertTemplateVersionDLPPolicies(ctx, logger, db, job.ID, templateVersion.ID, policies, time.Now())
+		err := provisionerdserver.InsertTemplateVersionDLPPolicy(ctx, logger, db, job.ID, templateVersion.ID, policy, time.Now())
 		require.NoError(t, err)
 
-		got, err := db.GetTemplateVersionDLPPoliciesByTemplateVersionID(ctx, templateVersion.ID)
+		got, err := db.GetTemplateVersionDLPPolicyByTemplateVersionID(ctx, templateVersion.ID)
 		require.NoError(t, err)
-		require.Len(t, got, 2)
-
-		byName := map[string]database.TemplateVersionDlpPolicy{}
-		for _, p := range got {
-			byName[p.Name] = p
-		}
-
-		strict := byName["strict"]
-		require.Equal(t, templateVersion.ID, strict.TemplateVersionID)
-		require.True(t, strict.SshAccess)
-		require.False(t, strict.WebTerminalAccess)
-		require.True(t, strict.PortForwardingAccess)
-		require.False(t, strict.DesktopAccess)
-		require.Equal(t, []string{"code-server", "vscode-desktop"}, strict.AllowedApplications)
-
-		lax := byName["lax"]
-		require.True(t, lax.SshAccess)
-		require.True(t, lax.WebTerminalAccess)
-		require.True(t, lax.PortForwardingAccess)
-		require.True(t, lax.DesktopAccess)
-		require.Empty(t, lax.AllowedApplications)
+		require.Equal(t, templateVersion.ID, got.TemplateVersionID)
+		require.Equal(t, "strict", got.Name)
+		require.True(t, got.SshAccess)
+		require.False(t, got.WebTerminalAccess)
+		require.True(t, got.PortForwardingAccess)
+		require.False(t, got.DesktopAccess)
+		require.Equal(t, []string{"code-server", "vscode-desktop"}, got.AllowedApplications)
 	})
 
-	t.Run("RejectsDuplicateNames", func(t *testing.T) {
+	t.Run("NilIsNoOp", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -5413,13 +5389,10 @@ func TestInsertTemplateVersionDLPPolicies(t *testing.T) {
 			CreatedBy:      user.ID,
 		})
 
-		policies := []*sdkproto.DLPPolicy{
-			{Name: "shared"},
-			{Name: "shared"},
-		}
-		err := provisionerdserver.InsertTemplateVersionDLPPolicies(ctx, logger, db, job.ID, templateVersion.ID, policies, time.Now())
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "shared")
+		require.NoError(t, provisionerdserver.InsertTemplateVersionDLPPolicy(ctx, logger, db, job.ID, templateVersion.ID, nil, time.Now()))
+
+		_, err := db.GetTemplateVersionDLPPolicyByTemplateVersionID(ctx, templateVersion.ID)
+		require.ErrorIs(t, err, sql.ErrNoRows)
 	})
 }
 

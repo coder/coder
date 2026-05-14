@@ -500,17 +500,6 @@ curl -X POST http://coder-server:8080/api/v2/tasks/{user}/{task}/pause \
             "display_apps": [
               "vscode"
             ],
-            "dlp_policy": {
-              "allowed_applications": [
-                "string"
-              ],
-              "clipboard_access": true,
-              "desktop_access": true,
-              "name": "string",
-              "port_forwarding_access": true,
-              "ssh_access": true,
-              "web_terminal_access": true
-            },
             "environment_variables": {
               "property1": "string",
               "property2": "string"
@@ -757,17 +746,6 @@ curl -X POST http://coder-server:8080/api/v2/tasks/{user}/{task}/resume \
             "display_apps": [
               "vscode"
             ],
-            "dlp_policy": {
-              "allowed_applications": [
-                "string"
-              ],
-              "clipboard_access": true,
-              "desktop_access": true,
-              "name": "string",
-              "port_forwarding_access": true,
-              "ssh_access": true,
-              "web_terminal_access": true
-            },
             "environment_variables": {
               "property1": "string",
               "property2": "string"

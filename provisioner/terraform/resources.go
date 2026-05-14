@@ -44,7 +44,6 @@ type agentAttributes struct {
 	ID              string            `mapstructure:"id"`
 	Token           string            `mapstructure:"token"`
 	APIKeyScope     string            `mapstructure:"api_key_scope"`
-	DLPPolicyID     string            `mapstructure:"dlp_policy"`
 	Env             map[string]string `mapstructure:"env"`
 	// Deprecated: but remains here for backwards compatibility.
 	StartupScript                string `mapstructure:"startup_script"`
@@ -171,11 +170,10 @@ type State struct {
 	AITasks               []*proto.AITask
 	HasAITasks            bool
 	HasExternalAgents     bool
-	// DLPPolicies is every `coder_dlp_policy` resource declared in the
-	// template, including ones not referenced by an agent. The unique
-	// `(template_version_id, name)` constraint at persist time relies on
-	// every declaration reaching coderd.
-	DLPPolicies []*proto.DLPPolicy
+	// DLPPolicy is the workspace-scoped data loss prevention policy declared
+	// by the template's single `coder_dlp_policy` resource, if any. Nil when
+	// no policy is declared (default-permissive).
+	DLPPolicy *proto.DLPPolicy
 }
 
 var ErrInvalidTerraformAddr = xerrors.New("invalid terraform address")
@@ -252,9 +250,6 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 
 	// Find all agents!
 	agentNames := map[string]struct{}{}
-	// Captures each agent's `dlp_policy` attribute so it can be resolved
-	// against `coder_dlp_policy` resources after agents are assembled.
-	agentDLPPolicyID := map[*proto.Agent]string{}
 	for _, tfResource := range sortedResources["coder_agent"] {
 		var attrs agentAttributes
 		err = mapstructure.Decode(tfResource.AttributeValues, &attrs)
@@ -361,9 +356,6 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			DisplayApps:              displayApps,
 			Order:                    attrs.Order,
 			ApiKeyScope:              attrs.APIKeyScope,
-		}
-		if attrs.DLPPolicyID != "" {
-			agentDLPPolicyID[agent] = attrs.DLPPolicyID
 		}
 		// Support the legacy script attributes in the agent!
 		if attrs.StartupScript != "" {
@@ -693,17 +685,25 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		}
 	}
 
-	// Resolve coder_dlp_policy references on agents. Each policy resource
-	// produces one entry in this map; agents look up their referenced id and
-	// attach the resolved policy. Multiple agents may share one policy.
-	dlpPoliciesByID := map[string]*proto.DLPPolicy{}
-	dlpPolicies := make([]*proto.DLPPolicy, 0, len(sortedResources["coder_dlp_policy"]))
-	for _, resource := range sortedResources["coder_dlp_policy"] {
+	// A template may declare at most one coder_dlp_policy. The policy is
+	// workspace-scoped: it applies uniformly to every agent in the resulting
+	// workspace, so there is no per-agent reference to resolve here.
+	var dlpPolicy *proto.DLPPolicy
+	dlpResources := sortedResources["coder_dlp_policy"]
+	if len(dlpResources) > 1 {
+		names := make([]string, 0, len(dlpResources))
+		for _, r := range dlpResources {
+			names = append(names, r.Name)
+		}
+		return nil, xerrors.Errorf("at most one coder_dlp_policy may be declared per template, found %d: %v", len(dlpResources), names)
+	}
+	if len(dlpResources) == 1 {
+		resource := dlpResources[0]
 		var attrs provider.DLPPolicy
 		if err := mapstructure.Decode(resource.AttributeValues, &attrs); err != nil {
 			return nil, xerrors.Errorf("decode coder_dlp_policy attributes: %w", err)
 		}
-		policy := &proto.DLPPolicy{
+		dlpPolicy = &proto.DLPPolicy{
 			Id:                   attrs.ID,
 			Name:                 resource.Name,
 			SshAccess:            attrs.SSHAccess,
@@ -712,21 +712,6 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			DesktopAccess:        attrs.DesktopAccess,
 			ClipboardAccess:      attrs.ClipboardAccess,
 			AllowedApplications:  attrs.AllowedApplications,
-		}
-		dlpPoliciesByID[attrs.ID] = policy
-		dlpPolicies = append(dlpPolicies, policy)
-	}
-	for _, agents := range resourceAgents {
-		for _, agent := range agents {
-			policyID := agentDLPPolicyID[agent]
-			if policyID == "" {
-				continue
-			}
-			policy, ok := dlpPoliciesByID[policyID]
-			if !ok {
-				return nil, xerrors.Errorf("coder_agent %q references dlp_policy %q which does not match any coder_dlp_policy", agent.Name, policyID)
-			}
-			agent.DlpPolicy = policy
 		}
 	}
 
@@ -1124,7 +1109,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 		HasAITasks:            len(aiTasks) > 0,
 		AITasks:               aiTasks,
 		HasExternalAgents:     hasExternalAgentResources(graph),
-		DLPPolicies:           dlpPolicies,
+		DLPPolicy:             dlpPolicy,
 	}, nil
 }
 

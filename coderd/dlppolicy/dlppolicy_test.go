@@ -15,16 +15,20 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestForAgent(t *testing.T) {
+func TestForWorkspace(t *testing.T) {
 	t.Parallel()
 
-	t.Run("AgentWithPolicy", func(t *testing.T) {
+	t.Run("WorkspaceWithPolicy", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
 		db, _ := dbtestutil.NewDB(t)
 		org := dbgen.Organization(t, db, database.Organization{})
 		user := dbgen.User(t, db, database.User{})
+		tpl := dbgen.Template(t, db, database.Template{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
 		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 			Type:           database.ProvisionerJobTypeTemplateVersionImport,
 			OrganizationID: org.ID,
@@ -32,12 +36,12 @@ func TestForAgent(t *testing.T) {
 		tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
 			JobID:          job.ID,
 			OrganizationID: org.ID,
+			TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
 			CreatedBy:      user.ID,
 		})
 
-		policyID := uuid.New()
 		_, err := db.InsertTemplateVersionDLPPolicy(ctx, database.InsertTemplateVersionDLPPolicyParams{
-			ID:                   policyID,
+			ID:                   uuid.New(),
 			TemplateVersionID:    tv.ID,
 			Name:                 "strict",
 			SshAccess:            true,
@@ -48,13 +52,23 @@ func TestForAgent(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: job.ID})
-		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-			ResourceID:  res.ID,
-			DlpPolicyID: uuid.NullUUID{UUID: policyID, Valid: true},
+		ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+			OrganizationID: org.ID,
+			OwnerID:        user.ID,
+			TemplateID:     tpl.ID,
+		})
+		buildJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			OrganizationID: org.ID,
+		})
+		dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			WorkspaceID:       ws.ID,
+			TemplateVersionID: tv.ID,
+			BuildNumber:       1,
+			JobID:             buildJob.ID,
 		})
 
-		got, err := dlppolicy.ForAgent(context.Background(), db, agent.ID)
+		got, err := dlppolicy.ForWorkspace(context.Background(), db, ws.ID)
 		require.NoError(t, err)
 		require.NotNil(t, got)
 		require.Equal(t, "strict", got.Name)
@@ -62,31 +76,53 @@ func TestForAgent(t *testing.T) {
 		require.False(t, got.WebTerminalAccess)
 	})
 
-	t.Run("AgentWithoutPolicy", func(t *testing.T) {
+	t.Run("WorkspaceWithoutPolicy", func(t *testing.T) {
 		t.Parallel()
 
 		db, _ := dbtestutil.NewDB(t)
 		org := dbgen.Organization(t, db, database.Organization{})
+		user := dbgen.User(t, db, database.User{})
+		tpl := dbgen.Template(t, db, database.Template{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
 		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 			Type:           database.ProvisionerJobTypeWorkspaceBuild,
 			OrganizationID: org.ID,
 		})
-		res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: job.ID})
-		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-			ResourceID: res.ID,
+		tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			JobID:          job.ID,
+			OrganizationID: org.ID,
+			TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
+			CreatedBy:      user.ID,
+		})
+		ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+			OrganizationID: org.ID,
+			OwnerID:        user.ID,
+			TemplateID:     tpl.ID,
+		})
+		buildJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			OrganizationID: org.ID,
+		})
+		dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			WorkspaceID:       ws.ID,
+			TemplateVersionID: tv.ID,
+			BuildNumber:       1,
+			JobID:             buildJob.ID,
 		})
 
-		got, err := dlppolicy.ForAgent(context.Background(), db, agent.ID)
+		got, err := dlppolicy.ForWorkspace(context.Background(), db, ws.ID)
 		require.NoError(t, err)
 		require.Nil(t, got)
 	})
 
-	t.Run("AgentNotFound", func(t *testing.T) {
+	t.Run("WorkspaceNotFound", func(t *testing.T) {
 		t.Parallel()
 
 		db, _ := dbtestutil.NewDB(t)
 
-		got, err := dlppolicy.ForAgent(context.Background(), db, uuid.New())
+		got, err := dlppolicy.ForWorkspace(context.Background(), db, uuid.New())
 		require.NoError(t, err)
 		require.Nil(t, got)
 	})
