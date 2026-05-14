@@ -1352,29 +1352,21 @@ export const UserMessageJumpArrows: Story = {
 		expect(nextButtons[2]).toBeDisabled();
 
 		// Clicking Next on the first prompt scrolls the second user
-		// prompt's sentinel to (approximately) the scroller's top.
-		const scroller =
-			canvasElement.querySelector<HTMLElement>(".overflow-y-auto");
-		expect(scroller).not.toBeNull();
-		if (!scroller) return;
-		// Chromium's native smooth-scroll is asynchronous; apply
-		// the requested offset synchronously for deterministic assertions.
-		scroller.scrollBy = ((options?: ScrollToOptions) => {
-			if (options && typeof options.top === "number") {
-				scroller.scrollTop += options.top;
-			}
-		}) as typeof scroller.scrollBy;
+		// prompt's sentinel into view via its registered ref.
+		const sentinels = Array.from(
+			canvasElement.querySelectorAll<HTMLElement>("[data-user-sentinel]"),
+		);
+		expect(sentinels).toHaveLength(3);
+		const targetSpy = spyOn(sentinels[1], "scrollIntoView");
 
 		await userEvent.click(nextButtons[0]);
 
 		await waitFor(() => {
-			const sentinels = canvasElement.querySelectorAll<HTMLElement>(
-				'[data-user-sentinel][data-user-message-id="3"]',
-			);
-			expect(sentinels.length).toBeGreaterThan(0);
-			const sentinelTop = sentinels[0].getBoundingClientRect().top;
-			const scrollerTop = scroller.getBoundingClientRect().top;
-			expect(Math.abs(sentinelTop - scrollerTop)).toBeLessThan(4);
+			expect(targetSpy).toHaveBeenCalledTimes(1);
+		});
+		expect(targetSpy).toHaveBeenCalledWith({
+			behavior: "smooth",
+			block: "start",
 		});
 	},
 };

@@ -8,6 +8,7 @@ import {
 	type FC,
 	Fragment,
 	memo,
+	useCallback,
 	useLayoutEffect,
 	useRef,
 	useState,
@@ -60,18 +61,6 @@ import type {
 	RenderBlock,
 } from "./types";
 import { UserMessageContent } from "./UserMessageContent";
-
-const jumpToUserMessage = (targetId: number, anchor: HTMLElement) => {
-	const scroller = anchor.closest<HTMLElement>(".overflow-y-auto");
-	if (!scroller) return;
-	const sentinel = scroller.querySelector<HTMLElement>(
-		`[data-user-sentinel][data-user-message-id="${targetId}"]`,
-	);
-	if (!sentinel) return;
-	const offset =
-		sentinel.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
-	scroller.scrollBy({ top: offset, behavior: "smooth" });
-};
 
 const getChatMessageTextContent = (
 	content: readonly TypesGen.ChatMessagePart[] | undefined,
@@ -516,7 +505,7 @@ const ChatMessageItem = memo<{
 	hasUserResponseAfterAskQuestion?: boolean;
 	prevUserMessageId?: number;
 	nextUserMessageId?: number;
-	onJumpToUserMessage?: (messageId: number, anchor: HTMLElement) => void;
+	onJumpToUserMessage?: (messageId: number) => void;
 }>(
 	({
 		message,
@@ -678,12 +667,9 @@ const ChatMessageItem = memo<{
 													className="size-6"
 													aria-label="Jump to previous user message"
 													disabled={prevUserMessageId === undefined}
-													onClick={(event) => {
+													onClick={() => {
 														if (prevUserMessageId !== undefined) {
-															onJumpToUserMessage(
-																prevUserMessageId,
-																event.currentTarget,
-															);
+															onJumpToUserMessage(prevUserMessageId);
 														}
 													}}
 												>
@@ -705,12 +691,9 @@ const ChatMessageItem = memo<{
 													className="size-6"
 													aria-label="Jump to next user message"
 													disabled={nextUserMessageId === undefined}
-													onClick={(event) => {
+													onClick={() => {
 														if (nextUserMessageId !== undefined) {
-															onJumpToUserMessage(
-																nextUserMessageId,
-																event.currentTarget,
-															);
+															onJumpToUserMessage(nextUserMessageId);
 														}
 													}}
 												>
@@ -762,7 +745,8 @@ const StickyUserMessage = memo<{
 	isAfterEditingMessage?: boolean;
 	prevUserMessageId?: number;
 	nextUserMessageId?: number;
-	onJumpToUserMessage?: (messageId: number, anchor: HTMLElement) => void;
+	onJumpToUserMessage?: (messageId: number) => void;
+	registerSentinel?: (messageId: number, el: HTMLDivElement | null) => void;
 }>(
 	({
 		message,
@@ -773,11 +757,20 @@ const StickyUserMessage = memo<{
 		prevUserMessageId,
 		nextUserMessageId,
 		onJumpToUserMessage,
+		registerSentinel,
 	}) => {
 		const [isStuck, setIsStuck] = useState(false);
 		const [isReady, setIsReady] = useState(false);
 		const [isTooTall, setIsTooTall] = useState(false);
 		const sentinelRef = useRef<HTMLDivElement>(null);
+		const messageId = message.id;
+		const setSentinelRef = useCallback(
+			(el: HTMLDivElement | null) => {
+				sentinelRef.current = el;
+				registerSentinel?.(messageId, el);
+			},
+			[messageId, registerSentinel],
+		);
 		const containerRef = useRef<HTMLDivElement>(null);
 		const updateFnRef = useRef<(() => void) | null>(null);
 
@@ -968,12 +961,7 @@ const StickyUserMessage = memo<{
 
 		return (
 			<>
-				<div
-					ref={sentinelRef}
-					className="h-0"
-					data-user-sentinel
-					data-user-message-id={message.id}
-				/>
+				<div ref={setSentinelRef} className="h-0" data-user-sentinel />
 				<div
 					ref={containerRef}
 					className={cn(
@@ -1121,6 +1109,24 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		hasActiveStream,
 		isAwaitingFirstStreamChunk,
 	}) => {
+		const sentinelsRef = useRef<Map<number, HTMLDivElement>>(new Map());
+		const registerSentinel = useCallback(
+			(messageId: number, el: HTMLDivElement | null) => {
+				if (el) {
+					sentinelsRef.current.set(messageId, el);
+				} else {
+					sentinelsRef.current.delete(messageId);
+				}
+			},
+			[],
+		);
+		const jumpToUserMessage = useCallback((messageId: number) => {
+			sentinelsRef.current.get(messageId)?.scrollIntoView({
+				behavior: "smooth",
+				block: "start",
+			});
+		}, []);
+
 		const lastInChainFlags = computeLastInChainFlags(parsedMessages);
 
 		if (parsedMessages.length === 0) {
@@ -1236,6 +1242,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 									prevUserMessageId={userNeighborsById.get(message.id)?.prevId}
 									nextUserMessageId={userNeighborsById.get(message.id)?.nextId}
 									onJumpToUserMessage={jumpToUserMessage}
+									registerSentinel={registerSentinel}
 								/>
 							);
 						}
