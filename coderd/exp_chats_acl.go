@@ -115,8 +115,18 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req.UserRoles = canonicalChatACLKeys(req.UserRoles)
-	req.GroupRoles = canonicalChatACLKeys(req.GroupRoles)
+	var validErrs []codersdk.ValidationError
+	req.UserRoles, validErrs = canonicalChatACLKeys(req.UserRoles, "user_roles")
+	var canonicalErrs []codersdk.ValidationError
+	req.GroupRoles, canonicalErrs = canonicalChatACLKeys(req.GroupRoles, "group_roles")
+	validErrs = append(validErrs, canonicalErrs...)
+	if len(validErrs) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid request to update chat ACL.",
+			Validations: validErrs,
+		})
+		return
+	}
 
 	apiKey := httpmw.APIKey(r)
 	if _, ok := req.UserRoles[apiKey.UserID.String()]; ok {
@@ -126,7 +136,7 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	validErrs := acl.Validate(ctx, api.Database, ChatACLUpdateValidator(req))
+	validErrs = acl.Validate(ctx, api.Database, ChatACLUpdateValidator(req))
 	if len(validErrs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid request to update chat ACL.",
@@ -324,19 +334,31 @@ func convertToChatRole(actions []policy.Action) codersdk.ChatRole {
 }
 
 // UUIDs can arrive with non-canonical casing from clients. Normalizing
-// keys avoids duplicate logical ACL entries and keeps audit comparisons
-// stable.
-func canonicalChatACLKeys(entries map[string]codersdk.ChatRole) map[string]codersdk.ChatRole {
+// keys keeps audit comparisons stable, but collided inputs are ambiguous
+// and must fail validation.
+func canonicalChatACLKeys(entries map[string]codersdk.ChatRole, field string) (map[string]codersdk.ChatRole, []codersdk.ValidationError) {
 	if len(entries) == 0 {
-		return entries
+		return entries, nil
 	}
 	out := make(map[string]codersdk.ChatRole, len(entries))
+	duplicateKeys := make(map[string]struct{})
+	validErrs := make([]codersdk.ValidationError, 0)
 	for id, role := range entries {
 		key := id
 		if parsed, err := uuid.Parse(id); err == nil {
 			key = parsed.String()
+			if _, ok := out[key]; ok {
+				if _, reported := duplicateKeys[key]; !reported {
+					validErrs = append(validErrs, codersdk.ValidationError{
+						Field:  field,
+						Detail: "duplicate UUID " + key + " after canonicalization",
+					})
+					duplicateKeys[key] = struct{}{}
+				}
+				continue
+			}
 		}
 		out[key] = role
 	}
-	return out
+	return out, validErrs
 }
