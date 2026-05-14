@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 460" width="1000" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="concepts-title concepts-desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 480" width="1000" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="concepts-title concepts-desc">
   <title id="concepts-title">Workspace, runner, session, and who manages each</title>
   <desc id="concepts-desc">A Coder workspace is the outer container or VM, built from a template; Coder manages it. Inside the workspace runs the Claude Code self-hosted runner, a long-lived process that Anthropic manages. From its first session until drain, the runner is locked to one Anthropic user; every session the runner serves belongs to that same user. The runner spawns one child claude process per assigned session, each in its own subtree under /workspace/_sessions/, up to the runner's capacity in parallel. The workspace reaches out to Anthropic (developer surfaces, control plane, model API) and to your network (internal Git, package registries, internal services); nothing on the outside reaches in.</desc>
 
@@ -139,5 +139,5 @@
   <text class="layer-def" x="252" y="390">Up to `--capacity` sessions in parallel, each in its own subtree, all for the locked user.</text>
 
   <!-- Footnote -->
-  <text class="footnote" x="20" y="446">Each layer's outer box is managed by the team named in the badge. The workspace reaches out to both sides; nothing reaches in.</text>
+  <text class="footnote" x="20" y="466">Each layer's outer box is managed by the team named in the badge. The workspace reaches out to both sides; nothing reaches in.</text>
 </svg>
