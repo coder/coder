@@ -1343,6 +1343,10 @@ export const UserMessageJumpArrows: Story = {
 		expect(prevButtons[0]).toBeDisabled();
 		expect(nextButtons[0]).toBeEnabled();
 
+		// Middle user prompt: both directions enabled.
+		expect(prevButtons[1]).toBeEnabled();
+		expect(nextButtons[1]).toBeEnabled();
+
 		// Last user prompt: previous enabled, next disabled.
 		expect(prevButtons[2]).toBeEnabled();
 		expect(nextButtons[2]).toBeDisabled();
@@ -1353,8 +1357,8 @@ export const UserMessageJumpArrows: Story = {
 			canvasElement.querySelector<HTMLElement>(".overflow-y-auto");
 		expect(scroller).not.toBeNull();
 		if (!scroller) return;
-		// JSDOM doesn't animate smooth scroll, so synchronously apply
-		// the requested offset to scrollTop and skip any deltaX.
+		// Chromium's native smooth-scroll is asynchronous; apply
+		// the requested offset synchronously for deterministic assertions.
 		scroller.scrollBy = ((options?: ScrollToOptions) => {
 			if (options && typeof options.top === "number") {
 				scroller.scrollTop += options.top;

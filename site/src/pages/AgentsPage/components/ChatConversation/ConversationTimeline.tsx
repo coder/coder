@@ -61,6 +61,18 @@ import type {
 } from "./types";
 import { UserMessageContent } from "./UserMessageContent";
 
+const jumpToUserMessage = (targetId: number, anchor: HTMLElement) => {
+	const scroller = anchor.closest<HTMLElement>(".overflow-y-auto");
+	if (!scroller) return;
+	const sentinel = scroller.querySelector<HTMLElement>(
+		`[data-user-sentinel][data-user-message-id="${targetId}"]`,
+	);
+	if (!sentinel) return;
+	const offset =
+		sentinel.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+	scroller.scrollBy({ top: offset, behavior: "smooth" });
+};
+
 const getChatMessageTextContent = (
 	content: readonly TypesGen.ChatMessagePart[] | undefined,
 ): string | undefined => {
@@ -504,7 +516,7 @@ const ChatMessageItem = memo<{
 	hasUserResponseAfterAskQuestion?: boolean;
 	prevUserMessageId?: number;
 	nextUserMessageId?: number;
-	onJumpToUserMessage?: (messageId: number) => void;
+	onJumpToUserMessage?: (messageId: number, anchor: HTMLElement) => void;
 }>(
 	({
 		message,
@@ -613,7 +625,10 @@ const ChatMessageItem = memo<{
 				{!hideActions &&
 					(displayState.hasCopyableContent ||
 						(isUser && onEditUserMessage) ||
-						(isUser && onJumpToUserMessage)) && (
+						(isUser &&
+							onJumpToUserMessage &&
+							(prevUserMessageId !== undefined ||
+								nextUserMessageId !== undefined))) && (
 						<div
 							className={cn(
 								"mt-0.5 flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100",
@@ -650,58 +665,67 @@ const ChatMessageItem = memo<{
 									<TooltipContent side="bottom">Edit message</TooltipContent>
 								</Tooltip>
 							)}
-							{isUser && onJumpToUserMessage && (
-								<>
-									<Tooltip>
-										<TooltipTrigger asChild>
-											<Button
-												size="icon"
-												variant="subtle"
-												className="size-6"
-												aria-label="Jump to previous user message"
-												disabled={prevUserMessageId === undefined}
-												onClick={() => {
-													if (prevUserMessageId !== undefined) {
-														onJumpToUserMessage(prevUserMessageId);
-													}
-												}}
-											>
-												<ChevronLeftIcon />
-												<span className="sr-only">
-													Jump to previous user message
-												</span>
-											</Button>
-										</TooltipTrigger>
-										<TooltipContent side="bottom">
-											Previous user message
-										</TooltipContent>
-									</Tooltip>
-									<Tooltip>
-										<TooltipTrigger asChild>
-											<Button
-												size="icon"
-												variant="subtle"
-												className="size-6"
-												aria-label="Jump to next user message"
-												disabled={nextUserMessageId === undefined}
-												onClick={() => {
-													if (nextUserMessageId !== undefined) {
-														onJumpToUserMessage(nextUserMessageId);
-													}
-												}}
-											>
-												<ChevronRightIcon />
-												<span className="sr-only">
-													Jump to next user message
-												</span>
-											</Button>
-										</TooltipTrigger>
-										<TooltipContent side="bottom">
-											Next user message
-										</TooltipContent>
-									</Tooltip>
-								</>
-							)}
+							{isUser &&
+								onJumpToUserMessage &&
+								(prevUserMessageId !== undefined ||
+									nextUserMessageId !== undefined) && (
+									<>
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<Button
+													size="icon"
+													variant="subtle"
+													className="size-6"
+													aria-label="Jump to previous user message"
+													disabled={prevUserMessageId === undefined}
+													onClick={(event) => {
+														if (prevUserMessageId !== undefined) {
+															onJumpToUserMessage(
+																prevUserMessageId,
+																event.currentTarget,
+															);
+														}
+													}}
+												>
+													<ChevronLeftIcon />
+													<span className="sr-only">
+														Jump to previous user message
+													</span>
+												</Button>
+											</TooltipTrigger>
+											<TooltipContent side="bottom">
+												Jump to previous user message
+											</TooltipContent>
+										</Tooltip>
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<Button
+													size="icon"
+													variant="subtle"
+													className="size-6"
+													aria-label="Jump to next user message"
+													disabled={nextUserMessageId === undefined}
+													onClick={(event) => {
+														if (nextUserMessageId !== undefined) {
+															onJumpToUserMessage(
+																nextUserMessageId,
+																event.currentTarget,
+															);
+														}
+													}}
+												>
+													<ChevronRightIcon />
+													<span className="sr-only">
+														Jump to next user message
+													</span>
+												</Button>
+											</TooltipTrigger>
+											<TooltipContent side="bottom">
+												Jump to next user message
+											</TooltipContent>
+										</Tooltip>
+									</>
+								)}
 						</div>
 					)}
 				{displayState.needsAssistantBottomSpacer && (
@@ -738,7 +762,7 @@ const StickyUserMessage = memo<{
 	isAfterEditingMessage?: boolean;
 	prevUserMessageId?: number;
 	nextUserMessageId?: number;
-	onJumpToUserMessage?: (messageId: number) => void;
+	onJumpToUserMessage?: (messageId: number, anchor: HTMLElement) => void;
 }>(
 	({
 		message,
@@ -1147,19 +1171,6 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 						: undefined,
 			});
 		}
-		const handleJumpToUserMessage = (targetId: number) => {
-			const sentinel = document.querySelector<HTMLElement>(
-				`[data-user-sentinel][data-user-message-id="${targetId}"]`,
-			);
-			if (!sentinel) return;
-			const scroller = sentinel.closest<HTMLElement>(".overflow-y-auto");
-			if (!scroller) return;
-			const offset =
-				sentinel.getBoundingClientRect().top -
-				scroller.getBoundingClientRect().top;
-			scroller.scrollBy({ top: offset, behavior: "smooth" });
-		};
-
 		let latestAskUserQuestionToolId: string | undefined;
 		let hasUserResponseAfterAskQuestion = false;
 		const askUserQuestionResponseTextByToolId = new Map<string, string>();
@@ -1224,7 +1235,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 									isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
 									prevUserMessageId={userNeighborsById.get(message.id)?.prevId}
 									nextUserMessageId={userNeighborsById.get(message.id)?.nextId}
-									onJumpToUserMessage={handleJumpToUserMessage}
+									onJumpToUserMessage={jumpToUserMessage}
 								/>
 							);
 						}
