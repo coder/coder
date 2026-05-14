@@ -31,6 +31,7 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"AiSeatState":     {codersdk.AuditActionCreate},
 	"AIProvider":      {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"AIProviderKey":   {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
+	"GroupAiBudget":   {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"Chat":            {codersdk.AuditActionCreate, codersdk.AuditActionWrite}, // chats get 'archived' by users, not deleted.
 	"UserSecret":      {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 }
@@ -219,6 +220,12 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"members":                 ActionTrack,
 		"source":                  ActionIgnore,
 		"chat_spend_limit_micros": ActionTrack,
+	},
+	&database.GroupAiBudget{}: {
+		"group_id":           ActionTrack,
+		"spend_limit_micros": ActionTrack,
+		"created_at":         ActionIgnore, // Redundant with the audit log's own timestamp.
+		"updated_at":         ActionIgnore, // Redundant with the audit log's own timestamp.
 	},
 	&database.APIKey{}: {
 		"id":               ActionIgnore,

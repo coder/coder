@@ -16,6 +16,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -735,15 +736,36 @@ func (api *API) groupAIBudget(rw http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} codersdk.GroupAIBudget
 // @Router /api/v2/groups/{group}/ai/budget [put]
 func (api *API) upsertGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	group := httpmw.GroupParam(r)
+	var (
+		ctx               = r.Context()
+		group             = httpmw.GroupParam(r)
+		auditor           = api.AGPL.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.GroupAiBudget](rw, &audit.RequestParams{
+			Audit:          *auditor,
+			Log:            api.Logger,
+			Request:        r,
+			Action:         database.AuditActionWrite,
+			OrganizationID: group.OrganizationID,
+		})
+	)
+	defer commitAudit()
 
 	var req codersdk.UpsertGroupAIBudgetRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
 
-	budget, err := api.Database.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{
+	// Capture the existing budget (if any) so the audit log records the
+	// before-state. An absent row leaves aReq.Old as the zero value.
+	oldBudget, err := api.Database.GetGroupAIBudget(ctx, group.ID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		api.Logger.Error(ctx, "fetch existing group AI budget for audit", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	aReq.Old = oldBudget
+
+	newBudget, err := api.Database.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{
 		GroupID:          group.ID,
 		SpendLimitMicros: req.SpendLimitMicros,
 	})
@@ -756,8 +778,9 @@ func (api *API) upsertGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
+	aReq.New = newBudget
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.GroupAIBudget(budget))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.GroupAIBudget(newBudget))
 }
 
 // @Summary Delete group AI budget
@@ -768,10 +791,21 @@ func (api *API) upsertGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
 // @Success 204
 // @Router /api/v2/groups/{group}/ai/budget [delete]
 func (api *API) deleteGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	group := httpmw.GroupParam(r)
+	var (
+		ctx               = r.Context()
+		group             = httpmw.GroupParam(r)
+		auditor           = api.AGPL.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.GroupAiBudget](rw, &audit.RequestParams{
+			Audit:          *auditor,
+			Log:            api.Logger,
+			Request:        r,
+			Action:         database.AuditActionDelete,
+			OrganizationID: group.OrganizationID,
+		})
+	)
+	defer commitAudit()
 
-	_, err := api.Database.DeleteGroupAIBudget(ctx, group.ID)
+	deleted, err := api.Database.DeleteGroupAIBudget(ctx, group.ID)
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -781,6 +815,7 @@ func (api *API) deleteGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
+	aReq.Old = deleted
 
 	rw.WriteHeader(http.StatusNoContent)
 }

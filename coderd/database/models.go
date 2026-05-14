@@ -3300,6 +3300,7 @@ const (
 	ResourceTypeUserSecret                  ResourceType = "user_secret"
 	ResourceTypeAiProvider                  ResourceType = "ai_provider"
 	ResourceTypeAiProviderKey               ResourceType = "ai_provider_key"
+	ResourceTypeGroupAiBudget               ResourceType = "group_ai_budget"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3369,7 +3370,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeChat,
 		ResourceTypeUserSecret,
 		ResourceTypeAiProvider,
-		ResourceTypeAiProviderKey:
+		ResourceTypeAiProviderKey,
+		ResourceTypeGroupAiBudget:
 		return true
 	}
 	return false
@@ -3408,6 +3410,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeUserSecret,
 		ResourceTypeAiProvider,
 		ResourceTypeAiProviderKey,
+		ResourceTypeGroupAiBudget,
 	}
 }
 
