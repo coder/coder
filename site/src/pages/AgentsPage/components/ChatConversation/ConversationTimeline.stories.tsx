@@ -1252,6 +1252,129 @@ export const StickyUserMessageStructure: Story = {
 	},
 };
 
+/**
+ * Each user message exposes left/right chevron buttons in its
+ * action row so users can jump the transcript between user prompts.
+ * Disabled at the ends of the conversation; otherwise the click
+ * smooth-scrolls the bubble's `data-user-sentinel` to the top of
+ * the scroller.
+ */
+export const UserMessageJumpArrows: Story = {
+	decorators: [
+		(Story) => (
+			<div
+				className="overflow-y-auto mx-auto w-full max-w-3xl"
+				style={{ height: 320 }}
+			>
+				<Story />
+			</div>
+		),
+	],
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [{ type: "text", text: "First prompt" }],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "assistant",
+				content: [
+					{
+						type: "text",
+						text: "a".repeat(800),
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 3,
+				role: "user",
+				content: [{ type: "text", text: "Second prompt" }],
+			},
+			{
+				...baseMessage,
+				id: 4,
+				role: "assistant",
+				content: [
+					{
+						type: "text",
+						text: "b".repeat(800),
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 5,
+				role: "user",
+				content: [{ type: "text", text: "Third prompt" }],
+			},
+		]),
+		onEditUserMessage: fn(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// Reveal the hover-only action rows so we can interact with
+		// the chevron buttons without dispatching real hover events.
+		for (const el of canvasElement.querySelectorAll("[class]")) {
+			if (
+				el instanceof HTMLElement &&
+				el.className.includes("group-hover/msg:opacity-100")
+			) {
+				el.style.opacity = "1";
+			}
+		}
+
+		const prevButtons = canvas.getAllByRole("button", {
+			name: "Jump to previous user message",
+		});
+		const nextButtons = canvas.getAllByRole("button", {
+			name: "Jump to next user message",
+		});
+		expect(prevButtons).toHaveLength(3);
+		expect(nextButtons).toHaveLength(3);
+
+		// First user prompt: previous disabled, next enabled.
+		expect(prevButtons[0]).toBeDisabled();
+		expect(nextButtons[0]).toBeEnabled();
+
+		// Last user prompt: previous enabled, next disabled.
+		expect(prevButtons[2]).toBeEnabled();
+		expect(nextButtons[2]).toBeDisabled();
+
+		// Clicking Next on the first prompt scrolls the second user
+		// prompt's sentinel to (approximately) the scroller's top.
+		const scroller =
+			canvasElement.querySelector<HTMLElement>(".overflow-y-auto");
+		expect(scroller).not.toBeNull();
+		if (!scroller) return;
+		// JSDOM doesn't animate smooth scroll, so synchronously apply
+		// the requested offset to scrollTop and skip any deltaX.
+		scroller.scrollBy = ((options?: ScrollToOptions) => {
+			if (options && typeof options.top === "number") {
+				scroller.scrollTop += options.top;
+			}
+		}) as typeof scroller.scrollBy;
+
+		await userEvent.click(nextButtons[0]);
+
+		await waitFor(() => {
+			const sentinels = canvasElement.querySelectorAll<HTMLElement>(
+				'[data-user-sentinel][data-user-message-id="3"]',
+			);
+			expect(sentinels.length).toBeGreaterThan(0);
+			const sentinelTop = sentinels[0].getBoundingClientRect().top;
+			const scrollerTop = scroller.getBoundingClientRect().top;
+			expect(Math.abs(sentinelTop - scrollerTop)).toBeLessThan(4);
+		});
+	},
+};
+
 /** Copy + edit actions appear below user messages on hover. */
 export const UserMessageCopyButton: Story = {
 	args: {

@@ -1,4 +1,9 @@
-import { ChevronDownIcon, PencilIcon } from "lucide-react";
+import {
+	ChevronDownIcon,
+	ChevronLeftIcon,
+	ChevronRightIcon,
+	PencilIcon,
+} from "lucide-react";
 import {
 	type FC,
 	Fragment,
@@ -497,6 +502,9 @@ const ChatMessageItem = memo<{
 	latestAskUserQuestionToolId?: string;
 	askUserQuestionResponseTextByToolId?: ReadonlyMap<string, string>;
 	hasUserResponseAfterAskQuestion?: boolean;
+	prevUserMessageId?: number;
+	nextUserMessageId?: number;
+	onJumpToUserMessage?: (messageId: number) => void;
 }>(
 	({
 		message,
@@ -514,6 +522,9 @@ const ChatMessageItem = memo<{
 		latestAskUserQuestionToolId,
 		askUserQuestionResponseTextByToolId,
 		hasUserResponseAfterAskQuestion = false,
+		prevUserMessageId,
+		nextUserMessageId,
+		onJumpToUserMessage,
 
 		urlTransform,
 		mcpServers,
@@ -601,7 +612,8 @@ const ChatMessageItem = memo<{
 				</ConversationItem>
 				{!hideActions &&
 					(displayState.hasCopyableContent ||
-						(isUser && onEditUserMessage)) && (
+						(isUser && onEditUserMessage) ||
+						(isUser && onJumpToUserMessage)) && (
 						<div
 							className={cn(
 								"mt-0.5 flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100",
@@ -638,6 +650,58 @@ const ChatMessageItem = memo<{
 									<TooltipContent side="bottom">Edit message</TooltipContent>
 								</Tooltip>
 							)}
+							{isUser && onJumpToUserMessage && (
+								<>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<Button
+												size="icon"
+												variant="subtle"
+												className="size-6"
+												aria-label="Jump to previous user message"
+												disabled={prevUserMessageId === undefined}
+												onClick={() => {
+													if (prevUserMessageId !== undefined) {
+														onJumpToUserMessage(prevUserMessageId);
+													}
+												}}
+											>
+												<ChevronLeftIcon />
+												<span className="sr-only">
+													Jump to previous user message
+												</span>
+											</Button>
+										</TooltipTrigger>
+										<TooltipContent side="bottom">
+											Previous user message
+										</TooltipContent>
+									</Tooltip>
+									<Tooltip>
+										<TooltipTrigger asChild>
+											<Button
+												size="icon"
+												variant="subtle"
+												className="size-6"
+												aria-label="Jump to next user message"
+												disabled={nextUserMessageId === undefined}
+												onClick={() => {
+													if (nextUserMessageId !== undefined) {
+														onJumpToUserMessage(nextUserMessageId);
+													}
+												}}
+											>
+												<ChevronRightIcon />
+												<span className="sr-only">
+													Jump to next user message
+												</span>
+											</Button>
+										</TooltipTrigger>
+										<TooltipContent side="bottom">
+											Next user message
+										</TooltipContent>
+									</Tooltip>
+								</>
+							)}
 						</div>
 					)}
 				{displayState.needsAssistantBottomSpacer && (
@@ -672,6 +736,9 @@ const StickyUserMessage = memo<{
 	) => void;
 	editingMessageId?: number | null;
 	isAfterEditingMessage?: boolean;
+	prevUserMessageId?: number;
+	nextUserMessageId?: number;
+	onJumpToUserMessage?: (messageId: number) => void;
 }>(
 	({
 		message,
@@ -679,6 +746,9 @@ const StickyUserMessage = memo<{
 		onEditUserMessage,
 		editingMessageId,
 		isAfterEditingMessage = false,
+		prevUserMessageId,
+		nextUserMessageId,
+		onJumpToUserMessage,
 	}) => {
 		const [isStuck, setIsStuck] = useState(false);
 		const [isReady, setIsReady] = useState(false);
@@ -874,7 +944,12 @@ const StickyUserMessage = memo<{
 
 		return (
 			<>
-				<div ref={sentinelRef} className="h-0" data-user-sentinel />
+				<div
+					ref={sentinelRef}
+					className="h-0"
+					data-user-sentinel
+					data-user-message-id={message.id}
+				/>
 				<div
 					ref={containerRef}
 					className={cn(
@@ -903,6 +978,9 @@ const StickyUserMessage = memo<{
 							onEditUserMessage={handleEditUserMessage}
 							editingMessageId={editingMessageId}
 							isAfterEditingMessage={isAfterEditingMessage}
+							prevUserMessageId={prevUserMessageId}
+							nextUserMessageId={nextUserMessageId}
+							onJumpToUserMessage={onJumpToUserMessage}
 						/>
 					</div>
 
@@ -945,6 +1023,9 @@ const StickyUserMessage = memo<{
 									onEditUserMessage={handleEditUserMessage}
 									editingMessageId={editingMessageId}
 									isAfterEditingMessage={isAfterEditingMessage}
+									prevUserMessageId={prevUserMessageId}
+									nextUserMessageId={nextUserMessageId}
+									onJumpToUserMessage={onJumpToUserMessage}
 									fadeFromBottom
 								/>
 							</div>
@@ -1038,6 +1119,47 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			}
 		}
 
+		// Ordered list of visible user message IDs, used to drive the
+		// per-bubble prev/next arrow buttons that jump the transcript
+		// to the neighbouring user prompt.
+		const visibleUserMessageIds: number[] = [];
+		for (const { message, parsed } of parsedMessages) {
+			if (message.role !== "user") continue;
+			const { shouldHide } = deriveMessageDisplayState({
+				message,
+				parsed,
+				hideActions: false,
+				hasActiveStream: false,
+				isAwaitingFirstStreamChunk: false,
+			});
+			if (!shouldHide) visibleUserMessageIds.push(message.id);
+		}
+		const userNeighborsById = new Map<
+			number,
+			{ prevId?: number; nextId?: number }
+		>();
+		for (let i = 0; i < visibleUserMessageIds.length; i++) {
+			userNeighborsById.set(visibleUserMessageIds[i], {
+				prevId: i > 0 ? visibleUserMessageIds[i - 1] : undefined,
+				nextId:
+					i < visibleUserMessageIds.length - 1
+						? visibleUserMessageIds[i + 1]
+						: undefined,
+			});
+		}
+		const handleJumpToUserMessage = (targetId: number) => {
+			const sentinel = document.querySelector<HTMLElement>(
+				`[data-user-sentinel][data-user-message-id="${targetId}"]`,
+			);
+			if (!sentinel) return;
+			const scroller = sentinel.closest<HTMLElement>(".overflow-y-auto");
+			if (!scroller) return;
+			const offset =
+				sentinel.getBoundingClientRect().top -
+				scroller.getBoundingClientRect().top;
+			scroller.scrollBy({ top: offset, behavior: "smooth" });
+		};
+
 		let latestAskUserQuestionToolId: string | undefined;
 		let hasUserResponseAfterAskQuestion = false;
 		const askUserQuestionResponseTextByToolId = new Map<string, string>();
@@ -1100,6 +1222,9 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 									onEditUserMessage={onEditUserMessage}
 									editingMessageId={editingMessageId}
 									isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
+									prevUserMessageId={userNeighborsById.get(message.id)?.prevId}
+									nextUserMessageId={userNeighborsById.get(message.id)?.nextId}
+									onJumpToUserMessage={handleJumpToUserMessage}
 								/>
 							);
 						}
