@@ -343,9 +343,11 @@ func (api *API) refreshExternalAuthIdentity(ctx context.Context, config *externa
 	})
 	if err != nil {
 		if database.IsUniqueViolation(err, database.UniqueExternalAuthLinksProviderExternalUserIDIndex) {
-			return link, nil, xerrors.Errorf("%w for provider %q external user %q: %w", errExternalAuthIdentityAlreadyLinked, config.ID, identity.ID, err)
+			//nolint:gocritic // fmt.Errorf preserves both wrapped errors for errors.Is.
+			return link, nil, fmt.Errorf("%w for provider %q external user %q: %w", errExternalAuthIdentityAlreadyLinked, config.ID, identity.ID, err)
 		}
-		return link, nil, xerrors.Errorf("%w: %w", errExternalAuthIdentityUpdate, err)
+		//nolint:gocritic // fmt.Errorf preserves both wrapped errors for errors.Is.
+		return link, nil, fmt.Errorf("%w: %w", errExternalAuthIdentityUpdate, err)
 	}
 	return updated, identity, nil
 }
