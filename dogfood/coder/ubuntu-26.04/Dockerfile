@@ -194,9 +194,12 @@ RUN install --directory --owner=coder --group=coder --mode=0755 "${MISE_INSTALL_
 	sudo --login --user=coder /bin/bash -lc 'set -euo pipefail && mise_bin="$(readlink --canonicalize /usr/local/bin/mise)" && test -w "$(dirname "$mise_bin")" && /usr/local/bin/mise --version && /usr/local/bin/mise self-update --help >/dev/null && /usr/local/bin/mise upgrade --help >/dev/null'
 
 # Trusted paths skip mise's per-config trust prompt for the baked-in
-# system config and any project mise.toml under /home/coder.
+# system config and the coder repo when cloned at the canonical
+# /home/coder/coder location. Other repos a user clones still get
+# the one-time `mise trust` prompt — pre-trusting all of /home/coder
+# would let any mise.toml under the home dir auto-run [hooks]/[tasks].
 ENV MISE_DATA_DIR=/home/coder/.local/share/mise \
-	MISE_TRUSTED_CONFIG_PATHS=/home/coder:/etc/mise
+	MISE_TRUSTED_CONFIG_PATHS=/home/coder/coder:/etc/mise
 
 # /etc/mise/config.toml is mise's system-wide config. Tools listed
 # here resolve everywhere in the workspace; the cloned coder repo's

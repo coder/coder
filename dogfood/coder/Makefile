@@ -17,7 +17,7 @@ REPO_ROOT := $(shell git rev-parse --show-toplevel)
 #   GITHUB_TOKEN_FILE=/path     - read the token from a file
 # If neither is set the build still runs but may hit 403s.
 ifneq ($(GITHUB_TOKEN_FILE),)
-docker_secret_arg := --secret id=github_token,src=$(GITHUB_TOKEN_FILE)
+docker_secret_arg := --secret id=github_token,src="$(GITHUB_TOKEN_FILE)"
 else ifneq ($(GITHUB_TOKEN),)
 docker_secret_arg := --secret id=github_token,env=GITHUB_TOKEN
 endif

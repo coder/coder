@@ -1,3 +1,6 @@
+[settings]
+lockfile = true
+
 [env]
 # Required for sqlc (coder fork) to compile against its sqlite dependency.
 # Mise applies [env] during `mise install`, but also at runtime when a
@@ -48,8 +51,8 @@ terraform = "1.15.2"
 # image ships a wrapper at /usr/local/bin/gh that bridges
 # `coder external-auth` into `gh`, and a mise shim earlier in
 # PATH would bypass it.
-"aqua:crate-ci/typos" = "latest"
-"aqua:jj-vcs/jj" = "latest"
-"aqua:watchexec/watchexec" = "latest"
-doctl = "latest"
-lazygit = "latest"
+"aqua:crate-ci/typos" = "1.46.1"
+"aqua:jj-vcs/jj" = "0.41.0"
+"aqua:watchexec/watchexec" = "2.5.1"
+doctl = "1.158.0"
+lazygit = "0.61.1"
