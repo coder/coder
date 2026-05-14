@@ -4369,6 +4369,14 @@ export interface Group {
 	readonly organization_display_name: string;
 }
 
+// From codersdk/aibridge.go
+export interface GroupAIBudget {
+	readonly group_id: string;
+	readonly spend_limit_micros: number;
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
 // From codersdk/groups.go
 export interface GroupArguments {
 	/**
@@ -8691,6 +8699,11 @@ export interface UpsertChatUsageLimitGroupOverrideRequest {
  */
 export interface UpsertChatUsageLimitOverrideRequest {
 	readonly spend_limit_micros: number; // Must be greater than 0.
+}
+
+// From codersdk/aibridge.go
+export interface UpsertGroupAIBudgetRequest {
+	readonly spend_limit_micros: number;
 }
 
 // From codersdk/workspaceagentportshare.go

@@ -2280,6 +2280,22 @@ func (q *sqlQuerier) UpdateAIBridgeInterceptionEnded(ctx context.Context, arg Up
 	return i, err
 }
 
+const deleteGroupAIBudget = `-- name: DeleteGroupAIBudget :one
+DELETE FROM group_ai_budgets WHERE group_id = $1 RETURNING group_id, spend_limit_micros, created_at, updated_at
+`
+
+func (q *sqlQuerier) DeleteGroupAIBudget(ctx context.Context, groupID uuid.UUID) (GroupAiBudget, error) {
+	row := q.db.QueryRowContext(ctx, deleteGroupAIBudget, groupID)
+	var i GroupAiBudget
+	err := row.Scan(
+		&i.GroupID,
+		&i.SpendLimitMicros,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getAIModelPriceByProviderModel = `-- name: GetAIModelPriceByProviderModel :one
 SELECT provider, model, input_price, output_price, cache_read_price, cache_write_price, created_at, updated_at
 FROM ai_model_prices
@@ -2301,6 +2317,24 @@ func (q *sqlQuerier) GetAIModelPriceByProviderModel(ctx context.Context, arg Get
 		&i.OutputPrice,
 		&i.CacheReadPrice,
 		&i.CacheWritePrice,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getGroupAIBudget = `-- name: GetGroupAIBudget :one
+SELECT group_id, spend_limit_micros, created_at, updated_at
+FROM group_ai_budgets
+WHERE group_id = $1
+`
+
+func (q *sqlQuerier) GetGroupAIBudget(ctx context.Context, groupID uuid.UUID) (GroupAiBudget, error) {
+	row := q.db.QueryRowContext(ctx, getGroupAIBudget, groupID)
+	var i GroupAiBudget
+	err := row.Scan(
+		&i.GroupID,
+		&i.SpendLimitMicros,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -2333,6 +2367,32 @@ ON CONFLICT (provider, model) DO UPDATE SET
 func (q *sqlQuerier) UpsertAIModelPrices(ctx context.Context, seed json.RawMessage) error {
 	_, err := q.db.ExecContext(ctx, upsertAIModelPrices, seed)
 	return err
+}
+
+const upsertGroupAIBudget = `-- name: UpsertGroupAIBudget :one
+INSERT INTO group_ai_budgets (group_id, spend_limit_micros)
+VALUES ($1, $2)
+ON CONFLICT (group_id) DO UPDATE SET
+	spend_limit_micros = EXCLUDED.spend_limit_micros,
+	updated_at  = NOW()
+RETURNING group_id, spend_limit_micros, created_at, updated_at
+`
+
+type UpsertGroupAIBudgetParams struct {
+	GroupID          uuid.UUID `db:"group_id" json:"group_id"`
+	SpendLimitMicros int64     `db:"spend_limit_micros" json:"spend_limit_micros"`
+}
+
+func (q *sqlQuerier) UpsertGroupAIBudget(ctx context.Context, arg UpsertGroupAIBudgetParams) (GroupAiBudget, error) {
+	row := q.db.QueryRowContext(ctx, upsertGroupAIBudget, arg.GroupID, arg.SpendLimitMicros)
+	var i GroupAiBudget
+	err := row.Scan(
+		&i.GroupID,
+		&i.SpendLimitMicros,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const getActiveAISeatCount = `-- name: GetActiveAISeatCount :one

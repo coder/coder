@@ -27,6 +27,7 @@ const (
 	CheckUsersServiceAccountLoginType                CheckConstraint = "users_service_account_login_type"                   // users
 	CheckUsersUsernameMinLength                      CheckConstraint = "users_username_min_length"                          // users
 	CheckOrganizationIDNotZero                       CheckConstraint = "organization_id_not_zero"                           // custom_roles
+	CheckGroupAiBudgetsSpendLimitMicrosCheck         CheckConstraint = "group_ai_budgets_spend_limit_micros_check"          // group_ai_budgets
 	CheckGroupsChatSpendLimitMicrosCheck             CheckConstraint = "groups_chat_spend_limit_micros_check"               // groups
 	CheckMcpServerConfigsAuthTypeCheck               CheckConstraint = "mcp_server_configs_auth_type_check"                 // mcp_server_configs
 	CheckMcpServerConfigsAvailabilityCheck           CheckConstraint = "mcp_server_configs_availability_check"              // mcp_server_configs

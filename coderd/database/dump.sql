@@ -1765,6 +1765,16 @@ CREATE TABLE gitsshkeys (
     public_key text NOT NULL
 );
 
+CREATE TABLE group_ai_budgets (
+    group_id uuid NOT NULL,
+    spend_limit_micros bigint NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT group_ai_budgets_spend_limit_micros_check CHECK ((spend_limit_micros >= 0))
+);
+
+COMMENT ON TABLE group_ai_budgets IS 'Per-group AI spend limit applied to each member of the group. No row means no budget is enforced.';
+
 CREATE TABLE group_members (
     user_id uuid NOT NULL,
     group_id uuid NOT NULL
@@ -3594,6 +3604,9 @@ ALTER TABLE ONLY external_auth_links
 ALTER TABLE ONLY gitsshkeys
     ADD CONSTRAINT gitsshkeys_pkey PRIMARY KEY (user_id);
 
+ALTER TABLE ONLY group_ai_budgets
+    ADD CONSTRAINT group_ai_budgets_pkey PRIMARY KEY (group_id);
+
 ALTER TABLE ONLY group_members
     ADD CONSTRAINT group_members_user_id_group_id_key UNIQUE (user_id, group_id);
 
@@ -4357,6 +4370,9 @@ ALTER TABLE ONLY external_auth_links
 
 ALTER TABLE ONLY gitsshkeys
     ADD CONSTRAINT gitsshkeys_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);
+
+ALTER TABLE ONLY group_ai_budgets
+    ADD CONSTRAINT group_ai_budgets_group_id_fkey FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY group_members
     ADD CONSTRAINT group_members_group_id_fkey FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE;
