@@ -10,10 +10,15 @@ import (
 	"charm.land/fantasy"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func Test_extractManualTitleTurns(t *testing.T) {
@@ -354,6 +359,95 @@ func Test_renderManualTitlePrompt(t *testing.T) {
 	}
 }
 
+func TestMaybeGenerateChatTitlePreservesUpdatedAt(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	owner := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         owner.ID,
+		OrganizationID: org.ID,
+	})
+	dbgen.ChatProvider(t, db, database.ChatProvider{
+		Provider:             "openai",
+		DisplayName:          "OpenAI",
+		APIKey:               "test-key",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
+	})
+	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Provider: "openai",
+		Model:    "test-model",
+	})
+
+	userPrompt := "summarize failed workspace build logs"
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           owner.ID,
+		LastModelConfigID: modelConfig.ID,
+		Title:             fallbackChatTitle(userPrompt),
+		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
+	})
+
+	expectedUpdatedAt := time.Date(2024, time.January, 2, 3, 4, 5, 0, time.UTC)
+	chat, err := db.UpdateChatStatusPreserveUpdatedAt(ctx, database.UpdateChatStatusPreserveUpdatedAtParams{
+		ID:        chat.ID,
+		Status:    chat.Status,
+		UpdatedAt: expectedUpdatedAt,
+	})
+	require.NoError(t, err)
+
+	const wantTitle = "Failed workspace logs"
+	model := &chattest.FakeModel{
+		GenerateObjectFn: func(_ context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+			require.Equal(t, "propose_title", call.SchemaName)
+			return &fantasy.ObjectResponse{
+				Object: map[string]any{"title": wantTitle},
+			}, nil
+		},
+	}
+
+	message := mustChatMessage(
+		t,
+		database.ChatMessageRoleUser,
+		database.ChatMessageVisibilityBoth,
+		codersdk.ChatMessageText(userPrompt),
+	)
+	message.ID = 1
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	generated := &generatedChatTitle{}
+	server := &Server{db: db}
+	server.maybeGenerateChatTitle(
+		ctx,
+		chat,
+		[]database.ChatMessage{message},
+		"openai",
+		"test-model",
+		model,
+		chatprovider.ProviderAPIKeys{},
+		generated,
+		logger,
+		nil,
+	)
+
+	fetched, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, wantTitle, fetched.Title)
+	require.True(t, fetched.UpdatedAt.Equal(expectedUpdatedAt),
+		"updated_at = %s, want same instant as %s",
+		fetched.UpdatedAt,
+		expectedUpdatedAt,
+	)
+
+	gotTitle, ok := generated.Load()
+	require.True(t, ok)
+	require.Equal(t, wantTitle, gotTitle)
+}
+
 func Test_titleGenerationPrompt_UsesSlimRules(t *testing.T) {
 	t.Parallel()
 
@@ -375,8 +469,8 @@ func Test_generateManualTitle_UsesTimeout(t *testing.T) {
 		),
 	}
 
-	model := &stubModel{
-		generateObjectFn: func(ctx context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+	model := &chattest.FakeModel{
+		GenerateObjectFn: func(ctx context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
 			deadline, ok := ctx.Deadline()
 			require.True(t, ok, "manual title generation should set a deadline")
 			require.WithinDuration(
@@ -413,8 +507,8 @@ func Test_generateManualTitle_TruncatesFirstUserInput(t *testing.T) {
 		),
 	}
 
-	model := &stubModel{
-		generateObjectFn: func(_ context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+	model := &chattest.FakeModel{
+		GenerateObjectFn: func(_ context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
 			require.Len(t, call.Prompt, 2)
 			systemText, ok := call.Prompt[0].Content[0].(fantasy.TextPart)
 			require.True(t, ok)
@@ -447,8 +541,8 @@ func Test_generateManualTitle_ReturnsUsageForEmptyNormalizedTitle(t *testing.T) 
 		),
 	}
 
-	model := &stubModel{
-		generateObjectFn: func(_ context.Context, _ fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+	model := &chattest.FakeModel{
+		GenerateObjectFn: func(_ context.Context, _ fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
 			return &fantasy.ObjectResponse{
 				Object: map[string]any{"title": "\"\""},
 				Usage: fantasy.Usage{
@@ -501,70 +595,108 @@ func Test_selectPreferredConfiguredShortTextModelConfig(t *testing.T) {
 	})
 }
 
-func Test_generateShortText_NormalizesQuotedOutput(t *testing.T) {
+func TestNormalizeTurnStatusLabel(t *testing.T) {
 	t.Parallel()
 
-	model := &stubModel{
-		generateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
-			return &fantasy.Response{
-				Content: fantasy.ResponseContent{
-					fantasy.TextContent{Text: "  \"Quoted summary\"  "},
-				},
-				Usage: fantasy.Usage{InputTokens: 3, OutputTokens: 2, TotalTokens: 5},
-			}, nil
-		},
+	tests := []struct {
+		name  string
+		input string
+		want  string
+		ok    bool
+	}{
+		{name: "accepts short label", input: "Finished unit tests", want: "Finished unit tests", ok: true},
+		{name: "accepts two word label", input: "Submitted PR", want: "Submitted PR", ok: true},
+		{name: "trims quotes and trailing punctuation", input: `"Submitted PR."`, want: "Submitted PR", ok: true},
+		{name: "keeps version punctuation", input: "Updated v2.1 config", want: "Updated v2.1 config", ok: true},
+		{name: "accepts five word label", input: "Updated workspace proxy routing rules", want: "Updated workspace proxy routing rules", ok: true},
+		{name: "rejects agent phrasing", input: "Agent identified failing tests", ok: false},
+		{name: "rejects agent possessive", input: "Agent's findings reviewed", ok: false},
+		{name: "rejects i contraction", input: "I've fixed tests", ok: false},
+		{name: "rejects it contraction", input: "It's still running", ok: false},
+		{name: "rejects we contraction", input: "We're almost done", ok: false},
+		{name: "rejects agent phrase without prefix", input: "Found agent identified bugs", ok: false},
+		{name: "rejects chat phrasing", input: "The chat is waiting now", ok: false},
+		{name: "rejects multiline labels", input: "Fixed bug\nAdded tests", ok: false},
+		{name: "rejects multi sentence labels", input: "Fixed bug. Added tests", ok: false},
+		{name: "rejects single word", input: "Fixed", ok: false},
+		{name: "rejects long labels", input: "Fixed the bug and added tests", ok: false},
 	}
 
-	text, err := generateShortText(context.Background(), model, "system", "user")
-	require.NoError(t, err)
-	require.Equal(t, "Quoted summary", text)
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-type stubModel struct {
-	generateFn       func(context.Context, fantasy.Call) (*fantasy.Response, error)
-	generateObjectFn func(context.Context, fantasy.ObjectCall) (*fantasy.ObjectResponse, error)
-}
-
-func (m *stubModel) Generate(
-	ctx context.Context,
-	call fantasy.Call,
-) (*fantasy.Response, error) {
-	if m.generateFn == nil {
-		return nil, xerrors.New("generate not implemented")
+			got, ok := normalizeTurnStatusLabel(tt.input)
+			require.Equal(t, tt.ok, ok)
+			require.Equal(t, tt.want, got)
+		})
 	}
-	return m.generateFn(ctx, call)
 }
 
-func (*stubModel) Stream(
-	context.Context,
-	fantasy.Call,
-) (fantasy.StreamResponse, error) {
-	return nil, xerrors.New("stream not implemented")
-}
+func TestFallbackTurnStatusLabel(t *testing.T) {
+	t.Parallel()
 
-func (m *stubModel) GenerateObject(
-	ctx context.Context,
-	call fantasy.ObjectCall,
-) (*fantasy.ObjectResponse, error) {
-	if m.generateObjectFn == nil {
-		return nil, xerrors.New("generate object not implemented")
+	tests := []struct {
+		status database.ChatStatus
+		want   string
+	}{
+		{status: database.ChatStatusWaiting, want: "Finished latest turn"},
+		{status: database.ChatStatusPending, want: "Still working on request"},
+		{status: database.ChatStatusRequiresAction, want: "Waiting for user input"},
+		{status: database.ChatStatusError, want: "Hit an error"},
+		{status: database.ChatStatus("unknown"), want: "Updated chat status"},
 	}
-	return m.generateObjectFn(ctx, call)
+
+	for _, tt := range tests {
+		t.Run(string(tt.status), func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, fallbackTurnStatusLabel(tt.status))
+		})
+	}
 }
 
-func (*stubModel) StreamObject(
-	context.Context,
-	fantasy.ObjectCall,
-) (fantasy.ObjectStreamResponse, error) {
-	return nil, xerrors.New("stream object not implemented")
-}
+func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
+	t.Parallel()
 
-func (*stubModel) Provider() string {
-	return "test"
-}
+	t.Run("returns compact label", func(t *testing.T) {
+		t.Parallel()
 
-func (*stubModel) Model() string {
-	return "test"
+		model := &chattest.FakeModel{
+			GenerateObjectFn: func(_ context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+				require.Equal(t, "propose_turn_status_label", call.SchemaName)
+				return &fantasy.ObjectResponse{
+					Object: map[string]any{"label": "Submitted PR"},
+				}, nil
+			},
+		}
+
+		label, err := generateStructuredTurnStatusLabel(context.Background(), model, turnStatusLabelPrompt, "done")
+		require.NoError(t, err)
+		require.Equal(t, "Submitted PR", label)
+	})
+
+	t.Run("rejects narrative label", func(t *testing.T) {
+		t.Parallel()
+
+		model := &chattest.FakeModel{
+			GenerateObjectFn: func(_ context.Context, _ fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+				return &fantasy.ObjectResponse{
+					Object: map[string]any{"label": "Agent identified failing tests"},
+				}, nil
+			},
+		}
+
+		_, err := generateStructuredTurnStatusLabel(context.Background(), model, turnStatusLabelPrompt, "done")
+		require.ErrorContains(t, err, "generated turn status label was invalid")
+	})
+
+	t.Run("rejects empty input", func(t *testing.T) {
+		t.Parallel()
+
+		model := &chattest.FakeModel{}
+		_, err := generateStructuredTurnStatusLabel(context.Background(), model, turnStatusLabelPrompt, "  ")
+		require.ErrorContains(t, err, "turn status label input was empty")
+	})
 }
 
 func mustChatMessage(

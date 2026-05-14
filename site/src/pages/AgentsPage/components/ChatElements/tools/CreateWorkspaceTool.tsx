@@ -30,6 +30,7 @@ export const CreateWorkspaceTool: React.FC<{
 	errorMessage?: string;
 	buildId?: string;
 	created?: boolean;
+	labelOverride?: string;
 }> = ({
 	workspaceName,
 	resultJson,
@@ -38,6 +39,7 @@ export const CreateWorkspaceTool: React.FC<{
 	errorMessage,
 	buildId,
 	created = true,
+	labelOverride,
 }) => {
 	const isRunning = status === "running";
 	let rec: Record<string, unknown> | null = null;
@@ -56,24 +58,26 @@ export const CreateWorkspaceTool: React.FC<{
 
 	const label = isRunning
 		? "Creating workspace…"
-		: isError
-			? `Failed to create ${wsName || "workspace"}`
-			: created === false
-				? `Workspace ${wsName} already exists`
-				: wsName
-					? `Created ${wsName}`
-					: "Created workspace";
+		: labelOverride
+			? labelOverride
+			: isError
+				? `Failed to create ${wsName || "workspace"}`
+				: created === false
+					? `Workspace ${wsName} already exists`
+					: wsName
+						? `Created ${wsName}`
+						: "Created workspace";
 
 	const hasBuildLogs = isRunning || Boolean(buildId);
 
 	const header = (
 		<>
-			<MonitorIcon className="h-4 w-4 shrink-0 text-content-secondary" />
-			<span className="text-sm text-content-secondary">{label}</span>
+			<MonitorIcon className="h-4 w-4 shrink-0 text-current" />
+			<span className="text-[13px]">{label}</span>
 			{isError && (
 				<Tooltip>
 					<TooltipTrigger asChild>
-						<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
+						<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-current" />
 					</TooltipTrigger>
 					<TooltipContent>
 						{errorMessage || "Failed to create workspace"}
@@ -81,7 +85,7 @@ export const CreateWorkspaceTool: React.FC<{
 				</Tooltip>
 			)}
 			{isRunning && (
-				<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
+				<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current" />
 			)}
 			{workspaceLink && !isRunning && (
 				<Link

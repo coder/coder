@@ -31,6 +31,7 @@ func (api *API) Routes() http.Handler {
 	r := chi.NewRouter()
 
 	r.Post("/list-directory", api.HandleLS)
+	r.Get("/resolve-path", api.HandleResolvePath)
 	r.Get("/read-file", api.HandleReadFile)
 	r.Get("/read-file-lines", api.HandleReadFileLines)
 	r.Post("/write-file", api.HandleWriteFile)

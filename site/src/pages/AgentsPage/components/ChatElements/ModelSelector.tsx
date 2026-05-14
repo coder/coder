@@ -35,6 +35,10 @@ interface ModelSelectorProps {
 	dropdownSide?: "top" | "bottom" | "left" | "right";
 	dropdownAlign?: "start" | "center" | "end";
 	contentClassName?: string;
+	open?: boolean;
+	onOpenChange?: (open: boolean) => void;
+	onTriggerTouchStart?: () => void;
+	enableMobileFullWidthDropdown?: boolean;
 }
 
 const defaultFormatProviderLabel = (provider: string): string => {
@@ -66,6 +70,10 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 	dropdownSide = "bottom",
 	dropdownAlign = "start",
 	contentClassName,
+	open,
+	onOpenChange,
+	onTriggerTouchStart,
+	enableMobileFullWidthDropdown = false,
 }) => {
 	const selectedModel = options.find((option) => option.id === value);
 	const optionsByProvider = (() => {
@@ -85,21 +93,34 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 	const isDisabled = disabled || options.length === 0;
 
 	return (
-		<Select value={value} onValueChange={onValueChange} disabled={isDisabled}>
+		<Select
+			value={value}
+			onValueChange={onValueChange}
+			disabled={isDisabled}
+			open={open}
+			onOpenChange={onOpenChange}
+		>
 			<SelectTrigger
+				aria-label={selectedModel ? selectedModel.displayName : placeholder}
 				className={cn(
-					"h-8 w-auto gap-1.5 border-none bg-transparent px-1 text-xs shadow-none transition-colors hover:bg-transparent hover:text-content-primary focus:ring-0 [&>svg]:transition-colors [&>svg]:hover:text-content-primary",
+					"h-8 min-w-0 shrink md:shrink-0 md:w-auto gap-0.5 md:gap-1.5 border-0 bg-transparent px-1 text-xs shadow-none transition-colors hover:bg-transparent hover:text-content-primary focus:ring-0 [&>span]:truncate [&>svg]:shrink-0 [&>svg]:transition-colors [&>svg]:hover:text-content-primary",
 					className,
 				)}
+				onTouchStart={onTriggerTouchStart}
 			>
 				<SelectValue placeholder={placeholder}>
-					{selectedModel?.displayName ?? placeholder}
+					{selectedModel ? selectedModel.displayName : placeholder}
 				</SelectValue>
 			</SelectTrigger>
 			<SelectContent
 				side={dropdownSide}
 				align={dropdownAlign}
-				className={cn("[&_[role=option]]:text-xs", contentClassName)}
+				className={cn(
+					enableMobileFullWidthDropdown &&
+						"mobile-full-width-dropdown mobile-full-width-dropdown-bottom",
+					"border-border-default [&_[role=option]]:text-xs",
+					contentClassName,
+				)}
 			>
 				<TooltipProvider delayDuration={300}>
 					{optionsByProvider.map(([provider, providerOptions]) => {
@@ -111,6 +132,7 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 										key={option.id}
 										option={option}
 										providerLabel={providerLabel}
+										isSelected={option.id === value}
 									/>
 								))}
 							</SelectGroup>
@@ -130,24 +152,49 @@ export const ModelSelector: FC<ModelSelectorProps> = ({
 interface ModelOptionItemProps {
 	option: ModelSelectorOption;
 	providerLabel: string;
+	isSelected: boolean;
 }
 
 const ModelOptionItem: FC<ModelOptionItemProps> = ({
 	option,
 	providerLabel,
+	isSelected,
 }) => {
+	const label = option.displayName;
+	const contextInfo =
+		option.contextLimit != null && option.contextLimit > 0
+			? formatContextLimit(option.contextLimit)
+			: null;
+	const subtext = contextInfo
+		? `via ${providerLabel}, ${contextInfo}`
+		: `via ${providerLabel}`;
+
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
-				<SelectItem value={option.id}>{option.displayName}</SelectItem>
+				<SelectItem
+					value={option.id}
+					className={cn(isSelected && "bg-surface-secondary")}
+				>
+					<span className="flex flex-col">
+						<span>{label}</span>
+						<span className="text-content-secondary text-[11px] leading-tight md:hidden">
+							{subtext}
+						</span>
+					</span>
+				</SelectItem>
 			</TooltipTrigger>
-			<TooltipContent side="right" sideOffset={4} className="px-2.5 py-1.5">
+			<TooltipContent
+				side="right"
+				sideOffset={4}
+				className="hidden px-2.5 py-1.5 md:block"
+			>
 				<span className="block font-semibold text-content-primary leading-tight">
-					{option.displayName} via {providerLabel}
+					{label} via {providerLabel}
 				</span>
-				{option.contextLimit != null && option.contextLimit > 0 && (
+				{contextInfo && (
 					<span className="block text-content-secondary leading-tight">
-						{formatContextLimit(option.contextLimit)}
+						{contextInfo}
 					</span>
 				)}
 			</TooltipContent>

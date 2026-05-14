@@ -30,6 +30,15 @@ This command does not have full parity with the standard SSH command. For users 
 
 Specifies whether to emit SSH output over stdin/stdout.
 
+### -t, --tty
+
+|             |                             |
+|-------------|-----------------------------|
+| Type        | <code>bool</code>           |
+| Environment | <code>$CODER_SSH_TTY</code> |
+
+Request a pseudo-terminal for the SSH session. Interactive shell sessions request one by default; command sessions do not unless this flag is set.
+
 ### --ssh-host-prefix
 
 |             |                                         |

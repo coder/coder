@@ -18,5 +18,5 @@ func TestEnterpriseEndpointsDocumented(t *testing.T) {
 
 	//nolint: dogsled
 	_, _, api, _ := coderdenttest.NewWithAPI(t, nil)
-	coderdtest.VerifySwaggerDefinitions(t, api.AGPL.APIHandler, swaggerComments)
+	coderdtest.VerifySwaggerDefinitions(t, api.AGPL.APIHandler, swaggerComments, coderdtest.WithSwaggerRoutePrefix("/api/v2"))
 }

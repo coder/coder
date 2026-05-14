@@ -182,6 +182,7 @@ sql:
           api_version: APIVersion
           avatar_url: AvatarURL
           created_by_avatar_url: CreatedByAvatarURL
+          diff_url: DiffURL
           dbcrypt_key: DBCryptKey
           session_count_vscode: SessionCountVSCode
           session_count_jetbrains: SessionCountJetBrains

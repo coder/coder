@@ -165,7 +165,7 @@ func (h *HTTPAuthorizer) AuthorizeSQLFilterContext(ctx context.Context, action p
 // @Tags Authorization
 // @Param request body codersdk.AuthorizationRequest true "Authorization request"
 // @Success 200 {object} codersdk.AuthorizationResponse
-// @Router /authcheck [post]
+// @Router /api/v2/authcheck [post]
 func (api *API) checkAuthorization(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	auth := httpmw.UserAuthorization(r.Context())

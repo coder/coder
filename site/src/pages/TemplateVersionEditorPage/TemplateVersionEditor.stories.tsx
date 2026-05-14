@@ -35,7 +35,7 @@ const meta: Meta<typeof TemplateVersionEditor> = {
 		onPublish: action("onPublish"),
 		onConfirmPublish: action("onConfirmPublish"),
 		onCancelPublish: action("onCancelPublish"),
-		onCreateWorkspace: action("onCreateWorkspace"),
+		createWorkspaceUrl: "/templates/default/test-template/workspace",
 		onSubmitMissingVariableValues: action("onSubmitMissingVariableValues"),
 		onCancelSubmitMissingVariableValues: action(
 			"onCancelSubmitMissingVariableValues",

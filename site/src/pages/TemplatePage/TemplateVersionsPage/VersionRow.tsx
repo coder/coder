@@ -1,4 +1,3 @@
-import type { CSSObject, Interpolation, Theme } from "@emotion/react";
 import type { FC } from "react";
 import { useNavigate } from "react-router";
 import type { TemplateVersion } from "#/api/typesGenerated";
@@ -6,7 +5,6 @@ import { Avatar } from "#/components/Avatar/Avatar";
 import { Button } from "#/components/Button/Button";
 import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import { Pill } from "#/components/Pill/Pill";
-import { Stack } from "#/components/Stack/Stack";
 import { TableCell } from "#/components/Table/Table";
 import { TimelineEntry } from "#/components/Timeline/TimelineEntry";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
@@ -35,45 +33,28 @@ export const VersionRow: FC<VersionRowProps> = ({
 	const jobStatus = version.job.status;
 
 	return (
-		<TimelineEntry
-			data-testid={`version-${version.id}`}
-			{...clickableProps}
-			className={clickableProps.className}
-		>
-			<TableCell css={styles.versionCell}>
-				<Stack
-					direction="row"
-					alignItems="center"
-					css={styles.versionWrapper}
-					justifyContent="space-between"
-				>
-					<Stack direction="row" alignItems="center">
+		<TimelineEntry data-testid={`version-${version.id}`} {...clickableProps}>
+			<TableCell className="relative border-b-0 !p-0">
+				<div className="flex flex-row items-center justify-between gap-4 px-8 py-4">
+					<div className="flex flex-row items-center gap-4">
 						<Avatar
 							fallback={version.created_by.username}
 							src={version.created_by.avatar_url}
 						/>
-						<Stack
-							css={styles.versionSummary}
-							direction="row"
-							alignItems="center"
-							spacing={1}
-						>
+						<div className="flex flex-row items-center gap-2 font-inherit text-base font-normal leading-normal">
 							<span>
 								<strong>{version.created_by.username}</strong> created the
 								version <strong>{version.name}</strong>
 							</span>
-
 							{version.message && (
 								<InfoTooltip title="Message" message={version.message} />
 							)}
-
-							<span css={styles.versionTime}>
+							<span className="text-xs text-content-secondary">
 								{new Date(version.created_at).toLocaleTimeString()}
 							</span>
-						</Stack>
-					</Stack>
-
-					<Stack direction="row" alignItems="center" spacing={2}>
+						</div>
+					</div>
+					<div className="flex flex-row items-center gap-4">
 						{isActive && (
 							<Pill role="status" type="success">
 								Active
@@ -132,31 +113,9 @@ export const VersionRow: FC<VersionRowProps> = ({
 								Promote&hellip;
 							</Button>
 						)}
-					</Stack>
-				</Stack>
+					</div>
+				</div>
 			</TableCell>
 		</TimelineEntry>
 	);
 };
-
-const styles = {
-	versionWrapper: {
-		padding: "16px 32px",
-	},
-
-	versionCell: {
-		padding: "0 !important",
-		position: "relative",
-		borderBottom: 0,
-	},
-
-	versionSummary: (theme) => ({
-		...(theme.typography.body1 as CSSObject),
-		fontFamily: "inherit",
-	}),
-
-	versionTime: (theme) => ({
-		color: theme.palette.text.secondary,
-		fontSize: 12,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;

@@ -4756,7 +4756,7 @@ func TestWorkspaceUsageTracking(t *testing.T) {
 			DefaultTTL:      int64(8 * time.Hour),
 		})
 		_, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			ActivityBumpMillis: 8 * time.Hour.Milliseconds(),
+			ActivityBumpMillis: ptr.Ref(8 * time.Hour.Milliseconds()),
 		})
 		require.NoError(t, err)
 		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
@@ -5027,7 +5027,7 @@ func TestWorkspaceTimings(t *testing.T) {
 		scripts := dbgen.WorkspaceAgentScripts(t, db, 3, database.WorkspaceAgentScript{
 			WorkspaceAgentID: agent.ID,
 		})
-		dbgen.WorkspaceAgentScriptTimings(t, db, scripts)
+		timings := dbgen.WorkspaceAgentScriptTimings(t, db, scripts)
 
 		// When: fetching the timings
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -5038,6 +5038,19 @@ func TestWorkspaceTimings(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, res.ProvisionerTimings, 5)
 		require.Len(t, res.AgentScriptTimings, 3)
+
+		// The same timings should be on the workspace response.
+		workspace, err := client.Workspace(ctx, ws.ID)
+		require.NoError(t, err)
+		require.Len(t, workspace.LatestBuild.Resources[0].Agents[0].Scripts, 3)
+		for _, script := range workspace.LatestBuild.Resources[0].Agents[0].Scripts {
+			timing, found := slice.Find(timings, func(timing database.WorkspaceAgentScriptTiming) bool {
+				return timing.ScriptID == script.ID
+			})
+			require.True(t, found)
+			require.Equal(t, *script.ExitCode, timing.ExitCode)
+			require.Equal(t, *script.Status, codersdk.WorkspaceAgentScriptStatus(timing.Status))
+		}
 	})
 
 	t.Run("NonExistentWorkspace", func(t *testing.T) {

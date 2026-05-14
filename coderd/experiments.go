@@ -13,7 +13,7 @@ import (
 // @Produce json
 // @Tags General
 // @Success 200 {array} codersdk.Experiment
-// @Router /experiments [get]
+// @Router /api/v2/experiments [get]
 func (api *API) handleExperimentsGet(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	httpapi.Write(ctx, rw, http.StatusOK, api.Experiments)
@@ -25,7 +25,7 @@ func (api *API) handleExperimentsGet(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags General
 // @Success 200 {array} codersdk.Experiment
-// @Router /experiments/available [get]
+// @Router /api/v2/experiments/available [get]
 func handleExperimentsAvailable(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.AvailableExperiments{

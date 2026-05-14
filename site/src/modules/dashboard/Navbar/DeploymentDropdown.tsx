@@ -30,8 +30,8 @@ export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
 	if (
 		!canViewAuditLog &&
 		!canViewConnectionLog &&
-		!canViewOrganizations &&
 		!canViewDeployment &&
+		!canViewOrganizations &&
 		!canViewHealth &&
 		!canViewAIBridge
 	) {
@@ -61,9 +61,8 @@ export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
 	);
 };
 
-const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
+	const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
 	canViewDeployment,
-	canViewOrganizations,
 	canViewAuditLog,
 	canViewHealth,
 	canViewConnectionLog,
@@ -76,31 +75,37 @@ const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
 					<Link to="/deployment">Deployment</Link>
 				</DropdownMenuItem>
 			)}
+<<<<<<< Updated upstream
+			<DropdownMenuItem asChild>
+				<Link to="/organizations">Organizations</Link>
+=======
 			{canViewOrganizations && (
 				<DropdownMenuItem asChild>
 					<Link to="/organizations">Organizations</Link>
 				</DropdownMenuItem>
 			)}
+			<DropdownMenuItem asChild>
+				<Link to="/ai">AI</Link>
+>>>>>>> Stashed changes
+			</DropdownMenuItem>
 			{canViewAuditLog && (
 				<DropdownMenuItem asChild>
-					<Link to={linkToAuditing}>Audit Logs</Link>
+					<Link to={linkToAuditing}>Logs</Link>
 				</DropdownMenuItem>
 			)}
+<<<<<<< Updated upstream
 			{canViewConnectionLog && (
 				<DropdownMenuItem asChild>
 					<Link to="/connectionlog">Connection Logs</Link>
 				</DropdownMenuItem>
 			)}
 			{canViewAIBridge && (
-				<>
-					<DropdownMenuItem asChild>
-						<Link to="/aibridge">AI Bridge Logs</Link>
-					</DropdownMenuItem>
-					<DropdownMenuItem asChild>
-						<Link to="/aibridge/sessions">AI Bridge Sessions</Link>
-					</DropdownMenuItem>
-				</>
+				<DropdownMenuItem asChild>
+					<Link to="/aibridge/sessions">AI Bridge Sessions</Link>
+				</DropdownMenuItem>
 			)}
+=======
+>>>>>>> Stashed changes
 			{canViewHealth && (
 				<DropdownMenuItem asChild>
 					<Link to="/health">Healthcheck</Link>

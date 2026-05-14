@@ -30,7 +30,7 @@ export const createTemplateVersionFileTree = (
 	for (const file of tarReader.fileInfo) {
 		fileTree = set(
 			fileTree,
-			file.name.split("/"),
+			file.name.split("/").filter((part) => part !== ""),
 			file.type === TarFileTypeCodes.Dir
 				? {}
 				: (tarReader.getTextFile(file.name) as string),

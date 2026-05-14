@@ -1,8 +1,7 @@
 import {
 	HardDrive,
+	PanelLeft,
 	Settings,
-	Settings2,
-	ShieldCheck,
 	UserLock,
 } from "lucide-react";
 import { type FC, useCallback, useEffect, useState } from "react";
@@ -11,6 +10,7 @@ import { SettingsSidebarNavItem as BaseSidebarNavItem } from "#/components/Sideb
 import { SidebarAccordion } from "#/components/Sidebar/SidebarAccordion";
 import { useSidebarContext } from "#/components/Sidebar/SidebarContext";
 import type { Permissions } from "#/modules/permissions";
+import { cn } from "#/utils/cn";
 import { isDevBuild } from "#/utils/buildInfo";
 import type { DeploymentSection } from "./useActiveDeploymentSection";
 
@@ -36,12 +36,12 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 	// showOrganizations is passed through for future use by the
 	// Groups link (external redirect indicator).
 	showOrganizations: _showOrganizations,
-	hasPremiumLicense,
+	hasPremiumLicense: _hasPremiumLicense,
 	experiments,
 	buildInfo,
 	activeSection,
 }) => {
-	const { collapsed } = useSidebarContext();
+	const { collapsed, toggle } = useSidebarContext();
 
 	// Track which sections are open as a Set so multiple can be
 	// expanded at the same time via the accordion headers.
@@ -55,7 +55,7 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 		setOpenSections(new Set([activeSection]));
 	}, [activeSection]);
 
-	const toggle = useCallback((section: DeploymentSection) => {
+	const toggleSection = useCallback((section: DeploymentSection) => {
 		setOpenSections((prev) => {
 			const next = new Set(prev);
 			if (next.has(section)) {
@@ -69,18 +69,33 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 
 	return (
 		<div className="flex flex-col gap-1">
-			{!collapsed && (
-				<span className="text-sm text-content-disabled px-3 mb-1">
-					Deployment
-				</span>
-			)}
+			<button
+				type="button"
+				onClick={toggle}
+				className={cn(
+					"group flex items-center bg-transparent border-none cursor-pointer mb-1 p-0",
+					collapsed
+						? "w-10 h-10 justify-center rounded-md"
+						: "w-full px-3 rounded-md h-10",
+				)}
+			>
+				{!collapsed && (
+					<span className="text-sm text-content-secondary">
+						Deployment
+					</span>
+				)}
+				<PanelLeft className={cn(
+					"size-4 text-content-secondary group-hover:text-content-primary transition-colors",
+					!collapsed && "ml-auto",
+				)} />
+			</button>
 			{/* General */}
 			<SidebarAccordion
 				icon={Settings}
 				label="General"
 				href="/deployment/overview"
 				open={openSections.has("general")}
-				onToggle={() => toggle("general")}
+				onToggle={() => toggleSection("general")}
 				active={activeSection === "general"}
 			>
 				<div className="flex flex-col gap-1">
@@ -89,14 +104,14 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 							Overview
 						</BaseSidebarNavItem>
 					)}
+					{permissions.viewAllLicenses && (
+						<BaseSidebarNavItem href="/deployment/licenses">
+							Licenses
+						</BaseSidebarNavItem>
+					)}
 					{permissions.editDeploymentConfig && (
 						<BaseSidebarNavItem href="/deployment/appearance">
 							Appearance
-						</BaseSidebarNavItem>
-					)}
-					{permissions.viewNotificationTemplate && (
-						<BaseSidebarNavItem href="/deployment/notifications">
-							Notifications
 						</BaseSidebarNavItem>
 					)}
 					{permissions.viewAllUsers && (
@@ -104,16 +119,9 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 							Users
 						</BaseSidebarNavItem>
 					)}
-					{permissions.viewAllLicenses && (
-						<BaseSidebarNavItem href="/deployment/licenses">
-							Licenses
-						</BaseSidebarNavItem>
-					)}
-					{!hasPremiumLicense && (
-						<BaseSidebarNavItem href="/deployment/premium">
-							Premium
-						</BaseSidebarNavItem>
-					)}
+					<BaseSidebarNavItem href="/deployment/secrets">
+						Secrets
+					</BaseSidebarNavItem>
 				</div>
 			</SidebarAccordion>
 
@@ -123,7 +131,7 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 				label="Infrastructure"
 				href="/deployment/security"
 				open={openSections.has("infrastructure")}
-				onToggle={() => toggle("infrastructure")}
+				onToggle={() => toggleSection("infrastructure")}
 				active={activeSection === "infrastructure"}
 			>
 				<div className="flex flex-col gap-1">
@@ -139,7 +147,7 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 					)}
 					{permissions.readWorkspaceProxies && (
 						<BaseSidebarNavItem href="/deployment/workspace-proxies">
-							Workspace Proxies
+							Workspace proxies
 						</BaseSidebarNavItem>
 					)}
 					{permissions.viewDeploymentConfig && (
@@ -156,83 +164,31 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 				label="Authentication"
 				href="/deployment/userauth"
 				open={openSections.has("authentication")}
-				onToggle={() => toggle("authentication")}
+				onToggle={() => toggleSection("authentication")}
 				active={activeSection === "authentication"}
 			>
 				<div className="flex flex-col gap-1">
 					{permissions.viewDeploymentConfig && (
 						<BaseSidebarNavItem href="/deployment/userauth">
-							User Authentication
+							User authentication
+						</BaseSidebarNavItem>
+					)}
+					{permissions.viewDeploymentConfig && (
+						<BaseSidebarNavItem href="/deployment/external-auth">
+							External authentication
 						</BaseSidebarNavItem>
 					)}
 					{permissions.viewDeploymentConfig &&
 						(experiments.includes("oauth2") || isDevBuild(buildInfo)) && (
 							<BaseSidebarNavItem href="/deployment/oauth2-provider/apps">
-								OAuth2 Applications
+								OAuth2 applications
 							</BaseSidebarNavItem>
 						)}
-					{permissions.viewDeploymentConfig && (
-						<BaseSidebarNavItem href="/deployment/external-auth">
-							External Authentication
-						</BaseSidebarNavItem>
-					)}
 					{permissions.viewOrganizationIDPSyncSettings && (
 						<BaseSidebarNavItem href="/deployment/idp-org-sync">
-							Organization Sync
+							IdP organization sync
 						</BaseSidebarNavItem>
 					)}
-				</div>
-			</SidebarAccordion>
-
-			{/* AI Settings */}
-			<SidebarAccordion
-				icon={Settings2}
-				label="AI Settings"
-				href="/deployment/ai-settings/usage-stats"
-				open={openSections.has("ai-settings")}
-				onToggle={() => toggle("ai-settings")}
-				active={activeSection === "ai-settings"}
-			>
-				<div className="flex flex-col gap-1">
-					<BaseSidebarNavItem href="/deployment/ai-settings/usage-stats">
-						Usage
-					</BaseSidebarNavItem>
-					<BaseSidebarNavItem href="/deployment/ai-settings/models">
-						Models
-					</BaseSidebarNavItem>
-					<BaseSidebarNavItem href="/deployment/ai-settings/providers">
-						Providers
-					</BaseSidebarNavItem>
-					<BaseSidebarNavItem href="/deployment/ai-settings/keys">
-						Keys
-					</BaseSidebarNavItem>
-				</div>
-			</SidebarAccordion>
-
-			{/* AI Governance */}
-			<SidebarAccordion
-				icon={ShieldCheck}
-				label="AI Governance"
-				href="/deployment/ai-governance"
-				open={openSections.has("ai-governance")}
-				onToggle={() => toggle("ai-governance")}
-				active={activeSection === "ai-governance"}
-			>
-				<div className="flex flex-col gap-1">
-					{permissions.viewDeploymentConfig && (
-						<BaseSidebarNavItem href="/deployment/ai-governance">
-							Access &amp; Speed
-						</BaseSidebarNavItem>
-					)}
-					<BaseSidebarNavItem href="/deployment/ai-governance/settings">
-						Settings
-					</BaseSidebarNavItem>
-					<BaseSidebarNavItem href="/deployment/ai-governance/analytics">
-						Analytics
-					</BaseSidebarNavItem>
-					<BaseSidebarNavItem href="/deployment/ai-governance/data-controls">
-						Data Controls
-					</BaseSidebarNavItem>
 				</div>
 			</SidebarAccordion>
 		</div>

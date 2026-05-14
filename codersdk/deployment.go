@@ -574,6 +574,34 @@ var PostgresAuthDrivers = []string{
 // based on max open connections.
 const PostgresConnMaxIdleAuto = "auto"
 
+// AIBudgetPolicy determines how the effective group is selected when a user
+// belongs to multiple groups with AI budgets configured.
+type AIBudgetPolicy string
+
+const (
+	// AIBudgetPolicyHighest selects the group with the highest spend limit.
+	AIBudgetPolicyHighest AIBudgetPolicy = "highest"
+)
+
+// AIBudgetPolicies lists the supported AIBudgetPolicy values.
+var AIBudgetPolicies = []string{
+	string(AIBudgetPolicyHighest),
+}
+
+// AIBudgetPeriod determines when accumulated AI spend resets to zero,
+// aligned to UTC calendar boundaries.
+type AIBudgetPeriod string
+
+const (
+	// AIBudgetPeriodMonth resets spend at the start of each UTC calendar month.
+	AIBudgetPeriodMonth AIBudgetPeriod = "month"
+)
+
+// AIBudgetPeriods lists the supported AIBudgetPeriod values.
+var AIBudgetPeriods = []string{
+	string(AIBudgetPeriodMonth),
+}
+
 // DeploymentValues is the central configuration values the coder server.
 type DeploymentValues struct {
 	Verbose             serpent.Bool   `json:"verbose,omitempty"`
@@ -645,6 +673,7 @@ type DeploymentValues struct {
 	HideAITasks                             serpent.Bool                         `json:"hide_ai_tasks,omitempty" typescript:",notnull"`
 	AI                                      AIConfig                             `json:"ai,omitempty"`
 	StatsCollection                         StatsCollectionConfig                `json:"stats_collection,omitempty" typescript:",notnull"`
+	TemplateBuilder                         TemplateBuilderConfig                `json:"template_builder,omitempty"`
 
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -1461,6 +1490,10 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Name:        "Retention",
 			Description: "Configure data retention policies for various database tables. Retention policies automatically purge old data to reduce database size and improve performance. Setting a retention duration to 0 disables automatic purging for that data type.",
 			YAML:        "retention",
+		}
+		deploymentGroupTemplateBuilder = serpent.Group{
+			Name: "Template Builder",
+			YAML: "templateBuilder",
 		}
 	)
 
@@ -3650,7 +3683,7 @@ Write out the current server config as YAML to stdout.`,
 			Description: "The base URL of the OpenAI API.",
 			Flag:        "aibridge-openai-base-url",
 			Env:         "CODER_AIBRIDGE_OPENAI_BASE_URL",
-			Value:       &c.AI.BridgeConfig.OpenAI.BaseURL,
+			Value:       &c.AI.BridgeConfig.LegacyOpenAI.BaseURL,
 			Default:     "https://api.openai.com/v1/",
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "openai_base_url",
@@ -3660,7 +3693,7 @@ Write out the current server config as YAML to stdout.`,
 			Description: "The key to authenticate against the OpenAI API.",
 			Flag:        "aibridge-openai-key",
 			Env:         "CODER_AIBRIDGE_OPENAI_KEY",
-			Value:       &c.AI.BridgeConfig.OpenAI.Key,
+			Value:       &c.AI.BridgeConfig.LegacyOpenAI.Key,
 			Default:     "",
 			Group:       &deploymentGroupAIBridge,
 			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
@@ -3670,7 +3703,7 @@ Write out the current server config as YAML to stdout.`,
 			Description: "The base URL of the Anthropic API.",
 			Flag:        "aibridge-anthropic-base-url",
 			Env:         "CODER_AIBRIDGE_ANTHROPIC_BASE_URL",
-			Value:       &c.AI.BridgeConfig.Anthropic.BaseURL,
+			Value:       &c.AI.BridgeConfig.LegacyAnthropic.BaseURL,
 			Default:     "https://api.anthropic.com/",
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "anthropic_base_url",
@@ -3680,7 +3713,7 @@ Write out the current server config as YAML to stdout.`,
 			Description: "The key to authenticate against the Anthropic API.",
 			Flag:        "aibridge-anthropic-key",
 			Env:         "CODER_AIBRIDGE_ANTHROPIC_KEY",
-			Value:       &c.AI.BridgeConfig.Anthropic.Key,
+			Value:       &c.AI.BridgeConfig.LegacyAnthropic.Key,
 			Default:     "",
 			Group:       &deploymentGroupAIBridge,
 			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
@@ -3691,7 +3724,7 @@ Write out the current server config as YAML to stdout.`,
 				"over CODER_AIBRIDGE_BEDROCK_REGION.",
 			Flag:    "aibridge-bedrock-base-url",
 			Env:     "CODER_AIBRIDGE_BEDROCK_BASE_URL",
-			Value:   &c.AI.BridgeConfig.Bedrock.BaseURL,
+			Value:   &c.AI.BridgeConfig.LegacyBedrock.BaseURL,
 			Default: "",
 			Group:   &deploymentGroupAIBridge,
 			YAML:    "bedrock_base_url",
@@ -3702,7 +3735,7 @@ Write out the current server config as YAML to stdout.`,
 				"'https://bedrock-runtime.<region>.amazonaws.com'.",
 			Flag:    "aibridge-bedrock-region",
 			Env:     "CODER_AIBRIDGE_BEDROCK_REGION",
-			Value:   &c.AI.BridgeConfig.Bedrock.Region,
+			Value:   &c.AI.BridgeConfig.LegacyBedrock.Region,
 			Default: "",
 			Group:   &deploymentGroupAIBridge,
 			YAML:    "bedrock_region",
@@ -3712,7 +3745,7 @@ Write out the current server config as YAML to stdout.`,
 			Description: "The access key to authenticate against the AWS Bedrock API.",
 			Flag:        "aibridge-bedrock-access-key",
 			Env:         "CODER_AIBRIDGE_BEDROCK_ACCESS_KEY",
-			Value:       &c.AI.BridgeConfig.Bedrock.AccessKey,
+			Value:       &c.AI.BridgeConfig.LegacyBedrock.AccessKey,
 			Default:     "",
 			Group:       &deploymentGroupAIBridge,
 			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
@@ -3722,7 +3755,7 @@ Write out the current server config as YAML to stdout.`,
 			Description: "The access key secret to use with the access key to authenticate against the AWS Bedrock API.",
 			Flag:        "aibridge-bedrock-access-key-secret",
 			Env:         "CODER_AIBRIDGE_BEDROCK_ACCESS_KEY_SECRET",
-			Value:       &c.AI.BridgeConfig.Bedrock.AccessKeySecret,
+			Value:       &c.AI.BridgeConfig.LegacyBedrock.AccessKeySecret,
 			Default:     "",
 			Group:       &deploymentGroupAIBridge,
 			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
@@ -3732,7 +3765,7 @@ Write out the current server config as YAML to stdout.`,
 			Description: "The model to use when making requests to the AWS Bedrock API.",
 			Flag:        "aibridge-bedrock-model",
 			Env:         "CODER_AIBRIDGE_BEDROCK_MODEL",
-			Value:       &c.AI.BridgeConfig.Bedrock.Model,
+			Value:       &c.AI.BridgeConfig.LegacyBedrock.Model,
 			Default:     "global.anthropic.claude-sonnet-4-5-20250929-v1:0", // See https://docs.claude.com/en/api/claude-on-amazon-bedrock#accessing-bedrock.
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "bedrock_model",
@@ -3742,7 +3775,7 @@ Write out the current server config as YAML to stdout.`,
 			Description: "The small fast model to use when making requests to the AWS Bedrock API. Claude Code uses Haiku-class models to perform background tasks. See https://docs.claude.com/en/docs/claude-code/settings#environment-variables.",
 			Flag:        "aibridge-bedrock-small-fastmodel",
 			Env:         "CODER_AIBRIDGE_BEDROCK_SMALL_FAST_MODEL",
-			Value:       &c.AI.BridgeConfig.Bedrock.SmallFastModel,
+			Value:       &c.AI.BridgeConfig.LegacyBedrock.SmallFastModel,
 			Default:     "global.anthropic.claude-haiku-4-5-20251001-v1:0", // See https://docs.claude.com/en/api/claude-on-amazon-bedrock#accessing-bedrock.
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "bedrock_small_fast_model",
@@ -3812,8 +3845,18 @@ Write out the current server config as YAML to stdout.`,
 			YAML:    "send_actor_headers",
 		},
 		{
+			Name:        "AI Bridge Allow BYOK",
+			Description: "Allow users to provide their own LLM API keys or subscriptions. When disabled, only centralized key authentication is permitted.",
+			Flag:        "aibridge-allow-byok",
+			Env:         "CODER_AIBRIDGE_ALLOW_BYOK",
+			Value:       &c.AI.BridgeConfig.AllowBYOK,
+			Default:     "true",
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "allow_byok",
+		},
+		{
 			Name:        "AI Bridge Circuit Breaker Enabled",
-			Description: "Enable the circuit breaker to protect against cascading failures from upstream AI provider rate limits (429, 503, 529 overloaded).",
+			Description: "Enable the circuit breaker to protect against cascading failures from upstream AI provider overload (503, 529).",
 			Flag:        "aibridge-circuit-breaker-enabled",
 			Env:         "CODER_AIBRIDGE_CIRCUIT_BREAKER_ENABLED",
 			Value:       &c.AI.BridgeConfig.CircuitBreakerEnabled,
@@ -3878,6 +3921,27 @@ Write out the current server config as YAML to stdout.`,
 			YAML:    "circuit_breaker_max_requests",
 		},
 
+		{
+			Name:        "AI Budget Policy",
+			Description: "Determines the effective group when a user belongs to multiple groups with AI budgets. \"highest\" selects the group with the largest spend limit, and is currently the only supported value.",
+			Flag:        "ai-budget-policy",
+			Env:         "CODER_AI_BUDGET_POLICY",
+			Value:       serpent.EnumOf(&c.AI.BridgeConfig.BudgetPolicy, AIBudgetPolicies...),
+			Default:     string(AIBudgetPolicyHighest),
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "budget_policy",
+		},
+		{
+			Name:        "AI Budget Period",
+			Description: "Determines when accumulated AI spend resets to zero, aligned to UTC calendar boundaries. Only \"month\" is currently supported.",
+			Flag:        "ai-budget-period",
+			Env:         "CODER_AI_BUDGET_PERIOD",
+			Value:       serpent.EnumOf(&c.AI.BridgeConfig.BudgetPeriod, AIBudgetPeriods...),
+			Default:     string(AIBudgetPeriodMonth),
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "budget_period",
+		},
+
 		// AI Bridge Proxy Options
 		{
 			Name:        "AI Bridge Proxy Enabled",
@@ -3940,17 +4004,15 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "key_file",
 		},
 		{
-			Name: "AI Bridge Proxy Domain Allowlist",
-			Description: "Comma-separated list of AI provider domains for which HTTPS traffic will be decrypted and routed through AI Bridge. " +
-				"Requests to other domains will be tunneled directly without decryption. " +
-				"Supported domains: api.anthropic.com, api.openai.com, api.individual.githubcopilot.com, api.business.githubcopilot.com, api.enterprise.githubcopilot.com, chatgpt.com.",
-			Flag:    "aibridge-proxy-domain-allowlist",
-			Env:     "CODER_AIBRIDGE_PROXY_DOMAIN_ALLOWLIST",
-			Value:   &c.AI.BridgeProxyConfig.DomainAllowlist,
-			Default: "api.anthropic.com,api.openai.com,api.individual.githubcopilot.com,api.business.githubcopilot.com,api.enterprise.githubcopilot.com,chatgpt.com",
-			Hidden:  true,
-			Group:   &deploymentGroupAIBridgeProxy,
-			YAML:    "domain_allowlist",
+			Name:        "AI Bridge Proxy Domain Allowlist",
+			Description: "Deprecated: This value is now derived automatically from the configured AI Bridge providers' base URLs. Setting this value has no effect. This option will be removed in a future release.",
+			Flag:        "aibridge-proxy-domain-allowlist",
+			Env:         "CODER_AIBRIDGE_PROXY_DOMAIN_ALLOWLIST",
+			Value:       &c.AI.BridgeProxyConfig.DomainAllowlist,
+			Default:     "",
+			Hidden:      true,
+			Group:       &deploymentGroupAIBridgeProxy,
+			YAML:        "domain_allowlist",
 		},
 		{
 			Name:        "AI Bridge Proxy Upstream Proxy",
@@ -3981,6 +4043,16 @@ Write out the current server config as YAML to stdout.`,
 			Default:     "",
 			Group:       &deploymentGroupAIBridgeProxy,
 			YAML:        "allowed_private_cidrs",
+		},
+		{
+			Name:        "AI Bridge Proxy API Dump Directory",
+			Description: "Directory for dumping MITM request/response pairs to disk for debugging. When set, each proxied request produces .req.txt and .resp.txt files organized by provider. Sensitive headers are redacted. Leave empty to disable.",
+			Flag:        "aibridge-proxy-dump-dir",
+			Env:         "CODER_AIBRIDGE_PROXY_DUMP_DIR",
+			Value:       &c.AI.BridgeProxyConfig.APIDumpDir,
+			Default:     "",
+			Group:       &deploymentGroupAIBridgeProxy,
+			YAML:        "api_dump_dir",
 		},
 
 		// Retention settings
@@ -4041,16 +4113,41 @@ Write out the current server config as YAML to stdout.`,
 			// used externally.
 			Hidden: true,
 		},
+		{
+			Name:        "Disable Template Builder",
+			Description: "Disable the template builder feature for guided template creation. When disabled, all /api/v2/templatebuilder/* endpoints return 404.",
+			Flag:        "disable-template-builder",
+			Env:         "CODER_DISABLE_TEMPLATE_BUILDER",
+			Value:       &c.TemplateBuilder.Disabled,
+			Group:       &deploymentGroupTemplateBuilder,
+			YAML:        "disabled",
+		},
+		{
+			Name:        "Template Builder Registry URL",
+			Description: "The base URL of the module registry used by the template builder for module source paths.",
+			Flag:        "template-builder-registry-url",
+			Env:         "CODER_TEMPLATE_BUILDER_REGISTRY_URL",
+			Value:       &c.TemplateBuilder.RegistryURL,
+			Default:     "https://registry.coder.com",
+			Group:       &deploymentGroupTemplateBuilder,
+			YAML:        "registryURL",
+		},
 	}
 
 	return opts
 }
 
 type AIBridgeConfig struct {
-	Enabled   serpent.Bool            `json:"enabled" typescript:",notnull"`
-	OpenAI    AIBridgeOpenAIConfig    `json:"openai" typescript:",notnull"`
-	Anthropic AIBridgeAnthropicConfig `json:"anthropic" typescript:",notnull"`
-	Bedrock   AIBridgeBedrockConfig   `json:"bedrock" typescript:",notnull"`
+	Enabled serpent.Bool `json:"enabled" typescript:",notnull"`
+	// Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.
+	LegacyOpenAI AIBridgeOpenAIConfig `json:"openai" typescript:",notnull"`
+	// Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.
+	LegacyAnthropic AIBridgeAnthropicConfig `json:"anthropic" typescript:",notnull"`
+	// Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.
+	LegacyBedrock AIBridgeBedrockConfig `json:"bedrock" typescript:",notnull"`
+	// Providers holds provider instances populated from CODER_AIBRIDGE_PROVIDER_<N>_<KEY>
+	// env vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.
+	Providers []AIBridgeProviderConfig `json:"providers,omitempty"`
 	// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
 	InjectCoderMCPTools serpent.Bool     `json:"inject_coder_mcp_tools" typescript:",notnull"`
 	Retention           serpent.Duration `json:"retention" typescript:",notnull"`
@@ -4058,8 +4155,12 @@ type AIBridgeConfig struct {
 	RateLimit           serpent.Int64    `json:"rate_limit" typescript:",notnull"`
 	StructuredLogging   serpent.Bool     `json:"structured_logging" typescript:",notnull"`
 	SendActorHeaders    serpent.Bool     `json:"send_actor_headers" typescript:",notnull"`
+	AllowBYOK           serpent.Bool     `json:"allow_byok" typescript:",notnull"`
+	// Budget settings for AI Governance cost controls.
+	BudgetPolicy string `json:"budget_policy,omitempty" typescript:",notnull"`
+	BudgetPeriod string `json:"budget_period,omitempty" typescript:",notnull"`
 	// Circuit breaker protects against cascading failures from upstream AI
-	// provider rate limits (429, 503, 529 overloaded).
+	// provider overload (503, 529).
 	CircuitBreakerEnabled          serpent.Bool     `json:"circuit_breaker_enabled" typescript:",notnull"`
 	CircuitBreakerFailureThreshold serpent.Int64    `json:"circuit_breaker_failure_threshold" typescript:",notnull"`
 	CircuitBreakerInterval         serpent.Duration `json:"circuit_breaker_interval" typescript:",notnull"`
@@ -4086,6 +4187,38 @@ type AIBridgeBedrockConfig struct {
 	SmallFastModel  serpent.String `json:"small_fast_model" typescript:",notnull"`
 }
 
+// AIBridgeProviderConfig represents a single AI Bridge provider instance,
+// parsed from CODER_AIBRIDGE_PROVIDER_<N>_<KEY> environment variables.
+// This follows the same indexed pattern as ExternalAuthConfig.
+type AIBridgeProviderConfig struct {
+	// Type is the provider type: "openai", "anthropic", or "copilot".
+	Type string `json:"type"`
+	// Name is the unique instance identifier used for routing.
+	// Defaults to Type if not provided.
+	Name string `json:"name"`
+	// Keys holds one or more API keys for authenticating with the
+	// upstream provider. When multiple keys are configured, they
+	// form a key pool for automatic failover.
+	Keys []string `json:"-"`
+	// BaseURL is the base URL of the upstream provider API.
+	BaseURL string `json:"base_url"`
+	// DumpDir is the directory path for dumping API requests and responses.
+	DumpDir string `json:"dump_dir,omitempty"`
+
+	// Bedrock fields (only applicable when Type == "anthropic").
+	BedrockBaseURL string `json:"-"`
+	BedrockRegion  string `json:"bedrock_region,omitempty"`
+	// BedrockAccessKeys and BedrockAccessKeySecrets hold one or
+	// more AWS credential pairs for authenticating with Bedrock.
+	// When multiple pairs are configured, they form a key pool
+	// for automatic failover. The two slices must have the same
+	// length.
+	BedrockAccessKeys       []string `json:"-"`
+	BedrockAccessKeySecrets []string `json:"-"`
+	BedrockModel            string   `json:"bedrock_model,omitempty"`
+	BedrockSmallFastModel   string   `json:"bedrock_small_fast_model,omitempty"`
+}
+
 type AIBridgeProxyConfig struct {
 	Enabled             serpent.Bool        `json:"enabled" typescript:",notnull"`
 	ListenAddr          serpent.String      `json:"listen_addr" typescript:",notnull"`
@@ -4097,6 +4230,7 @@ type AIBridgeProxyConfig struct {
 	UpstreamProxy       serpent.String      `json:"upstream_proxy" typescript:",notnull"`
 	UpstreamProxyCA     serpent.String      `json:"upstream_proxy_ca" typescript:",notnull"`
 	AllowedPrivateCIDRs serpent.StringArray `json:"allowed_private_cidrs" typescript:",notnull"`
+	APIDumpDir          serpent.String      `json:"api_dump_dir" typescript:",notnull"`
 }
 
 type ChatConfig struct {
@@ -4108,6 +4242,11 @@ type AIConfig struct {
 	BridgeConfig      AIBridgeConfig      `json:"bridge,omitempty"`
 	BridgeProxyConfig AIBridgeProxyConfig `json:"aibridge_proxy,omitempty"`
 	Chat              ChatConfig          `json:"chat,omitempty" typescript:",notnull"`
+}
+
+type TemplateBuilderConfig struct {
+	Disabled    serpent.Bool   `json:"disabled,omitempty"`
+	RegistryURL serpent.String `json:"registry_url,omitempty"`
 }
 
 type SupportConfig struct {
@@ -4355,9 +4494,7 @@ const (
 	ExperimentAutoFillParameters    Experiment = "auto-fill-parameters"    // This should not be taken out of experiments until we have redesigned the feature.
 	ExperimentNotifications         Experiment = "notifications"           // Sends notifications via SMTP and webhooks following certain events.
 	ExperimentWorkspaceUsage        Experiment = "workspace-usage"         // Enables the new workspace usage tracking.
-	ExperimentWebPush               Experiment = "web-push"                // Enables web push notifications through the browser.
 	ExperimentOAuth2                Experiment = "oauth2"                  // Enables OAuth2 provider functionality.
-	ExperimentAgents                Experiment = "agents"                  // Enables agent-powered chat functionality.
 	ExperimentMCPServerHTTP         Experiment = "mcp-server-http"         // Enables the MCP HTTP server functionality.
 	ExperimentWorkspaceBuildUpdates Experiment = "workspace-build-updates" // Enables publishing workspace build updates to the all builds pubsub channel.
 )
@@ -4372,19 +4509,15 @@ func (e Experiment) DisplayName() string {
 		return "SMTP and Webhook Notifications"
 	case ExperimentWorkspaceUsage:
 		return "Workspace Usage Tracking"
-	case ExperimentWebPush:
-		return "Browser Push Notifications"
 	case ExperimentOAuth2:
 		return "OAuth2 Provider Functionality"
-	case ExperimentAgents:
-		return "Agents"
 	case ExperimentMCPServerHTTP:
 		return "MCP HTTP Server Functionality"
 	case ExperimentWorkspaceBuildUpdates:
 		return "Workspace Build Updates Channel"
 	default:
 		// Split on hyphen and convert to title case
-		// e.g. "web-push" -> "Web Push", "mcp-server-http" -> "Mcp Server Http"
+		// e.g. "mcp-server-http" -> "Mcp Server Http"
 		caser := cases.Title(language.English)
 		return caser.String(strings.ReplaceAll(string(e), "-", " "))
 	}
@@ -4396,9 +4529,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentAutoFillParameters,
 	ExperimentNotifications,
 	ExperimentWorkspaceUsage,
-	ExperimentWebPush,
 	ExperimentOAuth2,
-	ExperimentAgents,
 	ExperimentMCPServerHTTP,
 	ExperimentWorkspaceBuildUpdates,
 }
@@ -4407,7 +4538,6 @@ var ExperimentsKnown = Experiments{
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-// TODO: Add ExperimentAgents to ExperimentsSafe once it is safe for general use.
 var ExperimentsSafe = Experiments{}
 
 // Experiments is a list of experiments.

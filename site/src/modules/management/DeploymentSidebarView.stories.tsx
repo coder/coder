@@ -37,18 +37,6 @@ export const AuthenticationOpen: Story = {
 	},
 };
 
-export const AISettingsOpen: Story = {
-	args: {
-		activeSection: "ai-settings",
-	},
-};
-
-export const AIGovernanceOpen: Story = {
-	args: {
-		activeSection: "ai-governance",
-	},
-};
-
 export const NoViewUsers: Story = {
 	args: {
 		permissions: {

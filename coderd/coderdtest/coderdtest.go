@@ -32,11 +32,11 @@ import (
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
-	"github.com/fullsailor/pkcs7"
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/smallstep/pkcs7"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/text/cases"
@@ -59,6 +59,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/awsidentity"
+	"github.com/coder/coder/v2/coderd/azureidentity"
 	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
@@ -91,6 +92,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
@@ -118,7 +120,7 @@ type Options struct {
 	AppHostname                    string
 	AWSCertificates                awsidentity.Certificates
 	Authorizer                     rbac.Authorizer
-	AzureCertificates              x509.VerifyOptions
+	AzureCertificates              azureidentity.Options
 	GithubOAuth2Config             *coderd.GithubOAuth2Config
 	RealIPConfig                   *httpmw.RealIPConfig
 	OIDCConfig                     *coderd.OIDCConfig
@@ -151,6 +153,7 @@ type Options struct {
 	// IncludeProvisionerDaemon when true means to start an in-memory provisionerD
 	IncludeProvisionerDaemon      bool
 	ChatdInstructionLookupTimeout time.Duration
+	ChatProviderAPIKeys           *chatprovider.ProviderAPIKeys
 	ProvisionerDaemonVersion      string
 	ProvisionerDaemonTags         map[string]string
 	MetricsCacheRefreshInterval   time.Duration
@@ -560,12 +563,19 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	if !options.DeploymentValues.DERP.Server.Enable.Value() {
 		region = nil
 	}
-	derpMap, err := tailnet.NewDERPMap(ctx, region, stunAddresses,
-		options.DeploymentValues.DERP.Config.URL.Value(),
-		options.DeploymentValues.DERP.Config.Path.Value(),
-		options.DeploymentValues.DERP.Config.BlockDirect.Value(),
-	)
-	require.NoError(t, err)
+	derpConfigURL := options.DeploymentValues.DERP.Config.URL.Value()
+	derpConfigPath := options.DeploymentValues.DERP.Config.Path.Value()
+	var derpMap *tailcfg.DERPMap
+	if region == nil && derpConfigURL == "" && derpConfigPath == "" {
+		derpMap = &tailcfg.DERPMap{Regions: map[int]*tailcfg.DERPRegion{}}
+	} else {
+		derpMap, err = tailnet.NewDERPMap(
+			ctx, region, stunAddresses,
+			derpConfigURL, derpConfigPath,
+			options.DeploymentValues.DERP.Config.BlockDirect.Value(),
+		)
+		require.NoError(t, err)
+	}
 
 	return func(h http.Handler) {
 			mutex.Lock()
@@ -577,6 +587,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			// agents are not marked as disconnected during slow tests.
 			AgentInactiveDisconnectTimeout: testutil.WaitShort,
 			ChatdInstructionLookupTimeout:  options.ChatdInstructionLookupTimeout,
+			ChatProviderAPIKeys:            options.ChatProviderAPIKeys,
 			AccessURL:                      accessURL,
 			AppHostname:                    options.AppHostname,
 			AppHostnameRegex:               appHostnameRegex,
@@ -662,7 +673,7 @@ func NewWithAPI(t testing.TB, options *Options) (*codersdk.Client, io.Closer, *c
 	if options.IncludeProvisionerDaemon {
 		provisionerCloser = NewTaggedProvisionerDaemon(t, coderAPI, defaultTestDaemonName, options.ProvisionerDaemonTags, coderd.MemoryProvisionerWithVersionOverride(options.ProvisionerDaemonVersion))
 	}
-	client := codersdk.New(serverURL)
+	client := codersdk.New(serverURL, codersdk.WithHTTPClient(NewIsolatedHTTPClient(serverURL)))
 	t.Cleanup(func() {
 		cancelFunc()
 		_ = provisionerCloser.Close()
@@ -670,6 +681,46 @@ func NewWithAPI(t testing.TB, options *Options) (*codersdk.Client, io.Closer, *c
 		client.HTTPClient.CloseIdleConnections()
 	})
 	return client, provisionerCloser, coderAPI
+}
+
+// NewIsolatedHTTPClient returns a test client with its own transport.
+// Closing idle connections at test cleanup must not close http.DefaultTransport
+// while another parallel test is using it.
+func NewIsolatedHTTPClient(serverURL *url.URL) *http.Client {
+	transport := &http.Transport{Proxy: http.ProxyFromEnvironment}
+	if defaultTransport, ok := http.DefaultTransport.(*http.Transport); ok {
+		transport = defaultTransport.Clone()
+	}
+	if serverURL == nil || serverURL.Scheme != "https" {
+		transport.TLSClientConfig = nil
+		return &http.Client{Transport: transport}
+	}
+	if transport.TLSClientConfig == nil {
+		transport.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+	}
+	if transport.TLSClientConfig.MinVersion == 0 {
+		transport.TLSClientConfig.MinVersion = tls.VersionTLS12
+	}
+	//nolint:gosec // The coderdtest server uses test-only TLS certificates.
+	transport.TLSClientConfig.InsecureSkipVerify = true
+	return &http.Client{Transport: transport}
+}
+
+// newHTTPClientWithTransportFrom returns a fresh client that shares the base
+// transport without sharing mutable per-client state like CheckRedirect.
+func newHTTPClientWithTransportFrom(base *http.Client) *http.Client {
+	if base == nil {
+		return NewIsolatedHTTPClient(nil)
+	}
+	if base.Transport == nil {
+		client := NewIsolatedHTTPClient(nil)
+		client.Timeout = base.Timeout
+		return client
+	}
+	return &http.Client{
+		Transport: base.Transport,
+		Timeout:   base.Timeout,
+	}
 }
 
 // ProvisionerdCloser wraps a provisioner daemon as an io.Closer that can be called multiple times
@@ -930,10 +981,11 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 		require.NoError(t, err)
 	}
 
-	other := codersdk.New(client.URL, codersdk.WithSessionToken(sessionToken))
-	t.Cleanup(func() {
-		other.HTTPClient.CloseIdleConnections()
-	})
+	other := codersdk.New(
+		client.URL,
+		codersdk.WithSessionToken(sessionToken),
+		codersdk.WithHTTPClient(newHTTPClientWithTransportFrom(client.HTTPClient)),
+	)
 
 	if len(roles) > 0 {
 		// Find the roles for the org vs the site wide roles
@@ -1583,27 +1635,63 @@ func NewAWSInstanceIdentity(t testing.TB, instanceID string) (awsidentity.Certif
 		}
 }
 
-// NewAzureInstanceIdentity returns a metadata client and ID token validator for faking
-// instance authentication for Azure.
-func NewAzureInstanceIdentity(t testing.TB, instanceID string) (x509.VerifyOptions, *http.Client) {
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+// NewAzureInstanceIdentity returns a metadata client and ID token
+// validator for faking instance authentication for Azure. It builds
+// a realistic 3-level certificate chain (Root CA -> Intermediate ->
+// Signing Cert) to match the real Azure trust hierarchy.
+func NewAzureInstanceIdentity(t testing.TB, instanceID string) (azureidentity.Options, *http.Client) {
+	// Root CA (self-signed, trusted).
+	rootKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	rootTmpl := &x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: "Test Root CA"},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().AddDate(10, 0, 0),
+		IsCA:                  true,
+		BasicConstraintsValid: true,
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+	}
+	rootDER, err := x509.CreateCertificate(rand.Reader, rootTmpl, rootTmpl, &rootKey.PublicKey, rootKey)
+	require.NoError(t, err)
+	rootCert, err := x509.ParseCertificate(rootDER)
 	require.NoError(t, err)
 
-	rawCertificate, err := x509.CreateCertificate(rand.Reader, &x509.Certificate{
-		SerialNumber: big.NewInt(2022),
+	// Intermediate CA (signed by root).
+	interKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	interTmpl := &x509.Certificate{
+		SerialNumber:          big.NewInt(2),
+		Subject:               pkix.Name{CommonName: "Test Intermediate CA"},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().AddDate(5, 0, 0),
+		IsCA:                  true,
+		BasicConstraintsValid: true,
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+	}
+	interDER, err := x509.CreateCertificate(rand.Reader, interTmpl, rootCert, &interKey.PublicKey, rootKey)
+	require.NoError(t, err)
+	interCert, err := x509.ParseCertificate(interDER)
+	require.NoError(t, err)
+
+	// Signing cert (leaf, signed by intermediate).
+	signKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	signTmpl := &x509.Certificate{
+		SerialNumber: big.NewInt(3),
+		Subject:      pkix.Name{CommonName: "metadata.azure.com"},
+		NotBefore:    time.Now().Add(-time.Hour),
 		NotAfter:     time.Now().AddDate(1, 0, 0),
-		Subject: pkix.Name{
-			CommonName: "metadata.azure.com",
-		},
-	}, &x509.Certificate{}, &privateKey.PublicKey, privateKey)
+	}
+	signDER, err := x509.CreateCertificate(rand.Reader, signTmpl, interCert, &signKey.PublicKey, interKey)
+	require.NoError(t, err)
+	signCert, err := x509.ParseCertificate(signDER)
 	require.NoError(t, err)
 
-	certificate, err := x509.ParseCertificate(rawCertificate)
-	require.NoError(t, err)
-
+	// Build PKCS7 signed data with only the signing cert.
 	signed, err := pkcs7.NewSignedData([]byte(`{"vmId":"` + instanceID + `"}`))
 	require.NoError(t, err)
-	err = signed.AddSigner(certificate, privateKey, pkcs7.SignerInfoConfig{})
+	err = signed.AddSigner(signCert, signKey, pkcs7.SignerInfoConfig{})
 	require.NoError(t, err)
 	signatureRaw, err := signed.Finish()
 	require.NoError(t, err)
@@ -1616,12 +1704,12 @@ func NewAzureInstanceIdentity(t testing.TB, instanceID string) (x509.VerifyOptio
 	})
 	require.NoError(t, err)
 
-	certPool := x509.NewCertPool()
-	certPool.AddCert(certificate)
+	roots := x509.NewCertPool()
+	roots.AddCert(rootCert)
 
-	return x509.VerifyOptions{
-			Intermediates: certPool,
-			Roots:         certPool,
+	return azureidentity.Options{
+			Roots:         roots,
+			Intermediates: []*x509.Certificate{interCert},
 		}, &http.Client{
 			Transport: roundTripper(func(r *http.Request) (*http.Response, error) {
 				// Only handle metadata server requests.

@@ -3,20 +3,15 @@ import {
 	ArchiveRestoreIcon,
 	ArrowLeftIcon,
 	ChevronRightIcon,
-	CopyIcon,
 	EllipsisIcon,
-	ExternalLinkIcon,
-	MonitorIcon,
 	PanelLeftIcon,
 	PanelRightCloseIcon,
 	PanelRightOpenIcon,
-	TerminalIcon,
 	Trash2Icon,
 	WandSparklesIcon,
 } from "lucide-react";
 import type { FC } from "react";
-import { Link } from "react-router";
-import { toast } from "sonner";
+import { Link, useLocation } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -38,20 +33,10 @@ interface SidebarPanelState {
 	onToggleSidebar: () => void;
 }
 
-interface WorkspaceActions {
-	canOpenEditors: boolean;
-	canOpenWorkspace: boolean;
-	onOpenInEditor: (editor: "cursor" | "vscode") => void;
-	onViewWorkspace: () => void;
-	onOpenTerminal: () => void;
-	sshCommand: string | undefined;
-}
-
 type ChatTopBarProps = {
 	chatTitle?: string;
 	parentChat?: TypesGen.Chat;
 	panel: SidebarPanelState;
-	workspace: WorkspaceActions;
 	onArchiveAgent: () => void;
 	onUnarchiveAgent: () => void;
 	onArchiveAndDeleteWorkspace: () => void;
@@ -69,7 +54,6 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 	chatTitle,
 	parentChat,
 	panel,
-	workspace,
 	onArchiveAgent,
 	onUnarchiveAgent,
 	onArchiveAndDeleteWorkspace,
@@ -83,6 +67,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 	diffStatusData,
 }) => {
 	const { isEmbedded } = useEmbedContext();
+	const location = useLocation();
 
 	const prUrl = diffStatusData?.url;
 	const prState = diffStatusData?.pull_request_state;
@@ -101,9 +86,12 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 					asChild
 					variant="subtle"
 					size="icon"
-					className="inline-flex h-7 w-7 min-w-0 shrink-0 md:hidden"
+					className="inline-flex h-7 w-7 min-w-0 shrink-0 sm:hidden"
 				>
-					<Link to="/agents" aria-label="Back">
+					<Link
+						to={{ pathname: "/agents", search: location.search }}
+						aria-label="Back"
+					>
 						<ArrowLeftIcon />
 					</Link>
 				</Button>
@@ -115,7 +103,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 					size="icon"
 					onClick={onToggleSidebarCollapsed}
 					aria-label="Expand sidebar"
-					className="hidden h-7 w-7 min-w-0 shrink-0 md:inline-flex"
+					className="hidden h-7 w-7 min-w-0 shrink-0 sm:inline-flex"
 				>
 					<PanelLeftIcon />
 				</Button>
@@ -137,7 +125,12 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 									variant="subtle"
 									className="h-auto max-w-[16rem] rounded-sm px-1 py-0.5 text-sm text-content-secondary shadow-none hover:bg-transparent hover:text-content-primary"
 								>
-									<Link to={`/agents/${parentChat.id}`}>
+									<Link
+										to={{
+											pathname: `/agents/${parentChat.id}`,
+											search: location.search,
+										}}
+									>
 										<span className="truncate">{parentChat.title}</span>
 									</Link>
 								</Button>
@@ -180,10 +173,10 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 						draft={prDraft}
 						className="!size-3.5 shrink-0"
 					/>
-					<span className="truncate max-w-[120px] hidden md:inline">
+					<span className="truncate max-w-[120px] hidden sm:inline">
 						{prTitle || (prNumberMatch ? `#${prNumberMatch}` : "PR")}
 					</span>
-					<span className="md:hidden">
+					<span className="sm:hidden">
 						{prNumberMatch ? prNumberMatch : "PR"}
 					</span>
 				</a>
@@ -204,72 +197,18 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 						</DropdownMenuTrigger>
 						<DropdownMenuContent
 							align="end"
-							className="[&_[role=menuitem]]:text-[13px]"
+							className="mobile-full-width-dropdown mobile-full-width-dropdown-top [&_[role=menuitem]]:text-[13px]"
 						>
-							<DropdownMenuItem
-								disabled={!workspace.canOpenEditors}
-								onSelect={() => {
-									workspace.onOpenInEditor("cursor");
-								}}
-							>
-								<ExternalLinkIcon className="h-3.5 w-3.5" />
-								Open in Cursor
-							</DropdownMenuItem>
-							<DropdownMenuItem
-								disabled={!workspace.canOpenEditors}
-								onSelect={() => {
-									workspace.onOpenInEditor("vscode");
-								}}
-							>
-								<ExternalLinkIcon className="h-3.5 w-3.5" />
-								Open in VS Code
-							</DropdownMenuItem>
-							<DropdownMenuItem
-								// You can think of the web terminal as an editor if you squint.
-								disabled={!workspace.canOpenEditors}
-								onSelect={workspace.onOpenTerminal}
-							>
-								<TerminalIcon className="h-3.5 w-3.5" />
-								Open Terminal
-							</DropdownMenuItem>
-							<DropdownMenuItem
-								disabled={!workspace.sshCommand}
-								onSelect={async () => {
-									if (!workspace.sshCommand) return;
-									try {
-										await navigator.clipboard.writeText(workspace.sshCommand);
-										toast.success("SSH command copied to clipboard");
-									} catch {
-										toast.error("Failed to copy SSH command");
-									}
-								}}
-							>
-								<CopyIcon className="h-3.5 w-3.5" />
-								Copy SSH Command
-							</DropdownMenuItem>
-							<DropdownMenuSeparator />
-							<DropdownMenuItem
-								disabled={!workspace.canOpenWorkspace}
-								onSelect={workspace.onViewWorkspace}
-							>
-								<MonitorIcon className="h-3.5 w-3.5" />
-								View Workspace
-							</DropdownMenuItem>
-							{!isArchived && (
+							{!isArchived && onRegenerateTitle && (
 								<>
+									<DropdownMenuItem
+										disabled={isRegenerateTitleDisabled}
+										onSelect={onRegenerateTitle}
+									>
+										<WandSparklesIcon className="h-3.5 w-3.5" />
+										Generate new title
+									</DropdownMenuItem>
 									<DropdownMenuSeparator />
-									{onRegenerateTitle && (
-										<>
-											<DropdownMenuItem
-												disabled={isRegenerateTitleDisabled}
-												onSelect={onRegenerateTitle}
-											>
-												<WandSparklesIcon className="h-3.5 w-3.5" />
-												Generate new title
-											</DropdownMenuItem>
-											<DropdownMenuSeparator />
-										</>
-									)}
 								</>
 							)}
 							{isArchived ? (

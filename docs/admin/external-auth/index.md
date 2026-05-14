@@ -334,6 +334,19 @@ CODER_EXTERNAL_AUTH_0_SCOPES="repo:read repo:write write:gpg_key"
 
    ![Install GitHub App](../../images/admin/github-app-install.png)
 
+1. Make the app installable by other users. In the app's **Advanced**
+   tab, select **Make this GitHub App public**.
+
+   Without this, anyone outside the app's owning account or owning
+   organization gets a GitHub 404 when they select **Link GitHub** in
+   Coder. Each user must also install the app on their own account
+   before linking. To surface an **Install GitHub App** link in the
+   Coder UI, set the following environment variable:
+
+   ```env
+   CODER_EXTERNAL_AUTH_0_APP_INSTALL_URL=https://github.com/apps/<your-app-slug>/installations/new
+   ```
+
 ## Multiple External Providers (Premium)
 
 Below is an example configuration with multiple providers:

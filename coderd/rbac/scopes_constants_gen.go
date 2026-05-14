@@ -7,6 +7,10 @@ package rbac
 // declared in code, not here, to avoid duplication.
 
 const (
+	ScopeAiModelPriceRead                    ScopeName = "ai_model_price:read"
+	ScopeAiModelPriceUpdate                  ScopeName = "ai_model_price:update"
+	ScopeAiSeatCreate                        ScopeName = "ai_seat:create"
+	ScopeAiSeatRead                          ScopeName = "ai_seat:read"
 	ScopeAibridgeInterceptionCreate          ScopeName = "aibridge_interception:create"
 	ScopeAibridgeInterceptionRead            ScopeName = "aibridge_interception:read"
 	ScopeAibridgeInterceptionUpdate          ScopeName = "aibridge_interception:update"
@@ -171,6 +175,10 @@ func (e ScopeName) Valid() bool {
 	case ScopeName("coder:all"),
 		ScopeName("coder:application_connect"),
 		ScopeName("no_user_data"),
+		ScopeAiModelPriceRead,
+		ScopeAiModelPriceUpdate,
+		ScopeAiSeatCreate,
+		ScopeAiSeatRead,
 		ScopeAibridgeInterceptionCreate,
 		ScopeAibridgeInterceptionRead,
 		ScopeAibridgeInterceptionUpdate,
@@ -336,6 +344,10 @@ func AllScopeNameValues() []ScopeName {
 		ScopeName("coder:all"),
 		ScopeName("coder:application_connect"),
 		ScopeName("no_user_data"),
+		ScopeAiModelPriceRead,
+		ScopeAiModelPriceUpdate,
+		ScopeAiSeatCreate,
+		ScopeAiSeatRead,
 		ScopeAibridgeInterceptionCreate,
 		ScopeAibridgeInterceptionRead,
 		ScopeAibridgeInterceptionUpdate,

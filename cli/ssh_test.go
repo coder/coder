@@ -2302,9 +2302,9 @@ func TestSSH_CoderConnect(t *testing.T) {
 
 			err := inv.WithContext(ctx).Run()
 			assert.Error(t, err)
-			var exitErr *ssh.ExitError
+			var exitErr interface{ ExitCode() int }
 			assert.True(t, errors.As(err, &exitErr))
-			assert.Equal(t, 1, exitErr.ExitStatus())
+			assert.Equal(t, 1, exitErr.ExitCode())
 		})
 	})
 
@@ -2365,6 +2365,81 @@ func TestSSH_CoderConnect(t *testing.T) {
 		_ = clientOutput.Close()
 
 		<-cmdDone
+	})
+}
+
+func TestSSH_OneShotCommandMode(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("'test' shell command and wc are not available on Windows")
+	}
+
+	client, workspace, agentToken := setupWorkspaceForAgent(t)
+	_ = agenttest.New(t, client.URL, agentToken)
+	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+	t.Run("DoesNotRequestPTY", func(t *testing.T) {
+		t.Parallel()
+
+		output := new(bytes.Buffer)
+		inv, root := clitest.New(t, "ssh", workspace.Name, "test -t 0 && echo tty || echo not-tty")
+		clitest.SetupConfig(t, client, root)
+		inv.Stdout = output
+		inv.Stderr = io.Discard
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+		require.Equal(t, "not-tty", strings.TrimSpace(output.String()))
+	})
+
+	t.Run("RequestsPTYWithFlag", func(t *testing.T) {
+		t.Parallel()
+
+		output := new(bytes.Buffer)
+		inv, root := clitest.New(t, "ssh", "--tty", workspace.Name, "test -t 0 && echo tty || echo not-tty")
+		clitest.SetupConfig(t, client, root)
+		inv.Stdout = output
+		inv.Stderr = io.Discard
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+		require.Equal(t, "tty", strings.TrimSpace(output.String()))
+	})
+
+	t.Run("ClosesStdinOnEOF", func(t *testing.T) {
+		t.Parallel()
+
+		output := new(bytes.Buffer)
+		inv, root := clitest.New(t, "ssh", workspace.Name, "wc -l")
+		clitest.SetupConfig(t, client, root)
+		inv.Stdin = strings.NewReader("a\nb\nc\n")
+		inv.Stdout = output
+		inv.Stderr = io.Discard
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		err := inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+		require.Equal(t, "3", strings.TrimSpace(output.String()))
+	})
+
+	t.Run("PropagatesExitCode", func(t *testing.T) {
+		t.Parallel()
+
+		// Use a non-1 exit code so that we don't accidentally pass when the
+		// CLI falls back to the default exit code of 1 for any error.
+		inv, root := clitest.New(t, "ssh", workspace.Name, "exit 2")
+		clitest.SetupConfig(t, client, root)
+		inv.Stderr = io.Discard
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		err := inv.WithContext(ctx).Run()
+		require.Error(t, err)
+
+		var cliExitErr interface{ ExitCode() int }
+		require.ErrorAs(t, err, &cliExitErr)
+		require.Equal(t, 2, cliExitErr.ExitCode())
 	})
 }
 

@@ -784,7 +784,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		}).Do().Template
 
 		template := coderdtest.UpdateTemplateMeta(t, client, tpl.ID, codersdk.UpdateTemplateMeta{
-			TimeTilDormantMillis: inactiveTTL.Milliseconds(),
+			TimeTilDormantMillis: ptr.Ref(inactiveTTL.Milliseconds()),
 		})
 
 		resp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
@@ -1260,7 +1260,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		require.Len(t, stats.Transitions, 0)
 
 		_, err = anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			TimeTilDormantAutoDeleteMillis: dormantTTL.Milliseconds(),
+			TimeTilDormantAutoDeleteMillis: ptr.Ref(dormantTTL.Milliseconds()),
 		})
 		require.NoError(t, err)
 
@@ -1334,7 +1334,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		// Now that we've validated that the workspace is eligible for autostart
 		// lets cause it to become dormant.
 		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			TimeTilDormantMillis: inactiveTTL.Milliseconds(),
+			TimeTilDormantMillis: ptr.Ref(inactiveTTL.Milliseconds()),
 		})
 		require.NoError(t, err)
 
@@ -1433,7 +1433,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 		// Enable auto-deletion for the template.
 		_, err = templateAdmin.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			TimeTilDormantAutoDeleteMillis: transitionTTL.Milliseconds(),
+			TimeTilDormantAutoDeleteMillis: ptr.Ref(transitionTTL.Milliseconds()),
 		})
 		require.NoError(t, err)
 
@@ -1538,8 +1538,8 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 		// Update the template to require the promoted version.
 		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			RequireActiveVersion: true,
-			AllowUserAutostart:   true,
+			RequireActiveVersion: ptr.Ref(true),
+			AllowUserAutostart:   ptr.Ref(true),
 		})
 		require.NoError(t, err)
 
@@ -1832,7 +1832,7 @@ func TestTemplateDoesNotAllowUserAutostop(t *testing.T) {
 		templateTTL = 72 * time.Hour.Milliseconds()
 		ctx := testutil.Context(t, testutil.WaitShort)
 		template = coderdtest.UpdateTemplateMeta(t, client, template.ID, codersdk.UpdateTemplateMeta{
-			DefaultTTLMillis: templateTTL,
+			DefaultTTLMillis: ptr.Ref(templateTTL),
 		})
 		workspace, err := client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err)
@@ -2908,7 +2908,7 @@ func TestPrebuildActivityBump(t *testing.T) {
 	require.Zero(t, prebuild.LatestBuild.MaxDeadline)
 
 	// When: activity bump is applied to an unclaimed prebuild
-	workspacestats.ActivityBumpWorkspace(ctx, log, db, prebuild.ID, clock.Now().Add(10*time.Hour))
+	workspacestats.ActivityBumpWorkspace(ctx, log, db, prebuild.ID, clock.Now().Add(10*time.Hour), workspacestats.ActivityBumpReasonWorkspaceStats)
 
 	// Then: prebuild Deadline/MaxDeadline remain unchanged
 	prebuild = coderdtest.MustWorkspace(t, client, wb.Workspace.ID)
@@ -2941,7 +2941,7 @@ func TestPrebuildActivityBump(t *testing.T) {
 	workspace = coderdtest.MustWorkspace(t, client, claimedWorkspace.ID)
 
 	// When: activity bump is applied to a claimed prebuild
-	workspacestats.ActivityBumpWorkspace(ctx, log, db, workspace.ID, clock.Now().Add(10*time.Hour))
+	workspacestats.ActivityBumpWorkspace(ctx, log, db, workspace.ID, clock.Now().Add(10*time.Hour), workspacestats.ActivityBumpReasonWorkspaceStats)
 
 	// Then: Deadline is extended by the activity bump, MaxDeadline remains unset
 	workspace = coderdtest.MustWorkspace(t, client, claimedWorkspace.ID)
@@ -4068,7 +4068,7 @@ func TestResolveAutostart(t *testing.T) {
 	defer cancel()
 
 	_, err := ownerClient.UpdateTemplateMeta(ctx, version1.Template.ID, codersdk.UpdateTemplateMeta{
-		RequireActiveVersion: true,
+		RequireActiveVersion: ptr.Ref(true),
 	})
 	require.NoError(t, err)
 

@@ -30,17 +30,30 @@ export const CreateTemplateGalleryPageView: FC<
 		<Margins className="pb-12">
 			<PageHeader
 				actions={
-					<Button asChild size="sm" variant="outline">
-						<a
-							href="https://registry.coder.com/templates"
-							target="_blank"
-							rel="noopener noreferrer"
-							className="flex items-center"
-						>
-							Browse other Templates on the Coder Registry
-							<ExternalLinkIcon className="size-icon-sm ml-1" />
-						</a>
-					</Button>
+					<div className="flex flex-col items-end gap-2">
+						<Button asChild size="sm" variant="outline">
+							<a
+								href="https://registry.coder.com/templates"
+								target="_blank"
+								rel="noopener noreferrer"
+								className="flex items-center"
+							>
+								Browse other Templates on the Coder Registry
+								<ExternalLinkIcon className="size-icon-sm ml-1" />
+							</a>
+						</Button>
+						<Button asChild size="sm" variant="outline">
+							<a
+								href="https://registry.coder.com/skills/coder-templates"
+								target="_blank"
+								rel="noopener noreferrer"
+								className="flex items-center"
+							>
+								Use our template agent skill
+								<ExternalLinkIcon className="size-icon-sm ml-1" />
+							</a>
+						</Button>
+					</div>
 				}
 			>
 				<PageHeaderTitle>Create a Template</PageHeaderTitle>

@@ -6,7 +6,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { cn } from "#/utils/cn";
 import { ImageLightbox } from "../../ImageLightbox";
 import { ToolCollapsible } from "./ToolCollapsible";
 import type { ToolStatus } from "./utils";
@@ -40,13 +39,13 @@ export const ComputerTool: React.FC<{
 			defaultExpanded={hasImage}
 			header={
 				<>
-					<span className={cn("text-sm", "text-content-secondary")}>
+					<span className="text-[13px]">
 						{isRunning ? "Taking screenshot…" : "Screenshot"}
 					</span>
 					{isError && (
 						<Tooltip>
 							<TooltipTrigger asChild>
-								<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
+								<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-current" />
 							</TooltipTrigger>
 							<TooltipContent>
 								{errorMessage || "Failed to take screenshot"}
@@ -54,7 +53,7 @@ export const ComputerTool: React.FC<{
 						</Tooltip>
 					)}
 					{isRunning && (
-						<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
+						<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current" />
 					)}
 				</>
 			}

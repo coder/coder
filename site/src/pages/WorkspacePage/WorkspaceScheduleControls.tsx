@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import Link, { type LinkProps } from "@mui/material/Link";
 import dayjs, { type Dayjs } from "dayjs";
 import { ClockIcon, MinusIcon, PlusIcon } from "lucide-react";
@@ -21,6 +20,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { useTime } from "#/hooks/useTime";
 import { getWorkspaceActivityStatus } from "#/modules/workspaces/activity";
+import { cn } from "#/utils/cn";
 import {
 	autostartDisplay,
 	autostopDisplay,
@@ -55,7 +55,10 @@ const WorkspaceScheduleContainer: FC<WorkspaceScheduleContainerProps> = ({
 							type="button"
 							data-testid="schedule-icon-button"
 							onClick={onClickIcon}
-							css={styles.scheduleIconButton}
+							className={cn(
+								"flex items-center bg-transparent border-0 p-0",
+								"[font-size:inherit] leading-[inherit] cursor-pointer",
+							)}
 						>
 							{icon}
 						</button>
@@ -86,7 +89,10 @@ export const WorkspaceScheduleControls: FC<WorkspaceScheduleControlsProps> = ({
 	}
 
 	return (
-		<div css={styles.scheduleValue} data-testid="schedule-controls">
+		<div
+			className="flex items-center gap-3 [font-variant-numeric:tabular-nums]"
+			data-testid="schedule-controls"
+		>
 			{isWorkspaceOn(workspace) ? (
 				<AutostopDisplay
 					workspace={workspace}
@@ -198,19 +204,14 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 	const display = (
 		<ScheduleSettingsLink
 			data-testid="schedule-controls-autostop"
-			css={
-				danger &&
-				((theme) => ({
-					color: `${theme.roles.danger.fill.outline} !important`,
-				}))
-			}
+			className={cn(danger && "!text-content-destructive")}
 		>
 			{message}
 		</ScheduleSettingsLink>
 	);
 
 	const controls = canUpdateSchedule && canEditDeadline(workspace) && (
-		<div css={styles.scheduleControls}>
+		<div className="flex items-center gap-1">
 			<Tooltip>
 				<TooltipTrigger asChild>
 					<Button
@@ -298,29 +299,3 @@ const shouldDisplayScheduleControls = (workspace: Workspace): boolean => {
 	const willAutoStart = !isWorkspaceOn(workspace) && hasAutoStart(workspace);
 	return willAutoStop || willAutoStart;
 };
-
-const styles = {
-	scheduleIconButton: {
-		display: "flex",
-		alignItems: "center",
-		background: "transparent",
-		border: 0,
-		padding: 0,
-		fontSize: "inherit",
-		lineHeight: "inherit",
-		cursor: "pointer",
-	},
-
-	scheduleValue: {
-		display: "flex",
-		alignItems: "center",
-		gap: 12,
-		fontVariantNumeric: "tabular-nums",
-	},
-
-	scheduleControls: {
-		display: "flex",
-		alignItems: "center",
-		gap: 4,
-	},
-} satisfies Record<string, Interpolation<Theme>>;

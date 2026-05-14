@@ -745,13 +745,13 @@ func TestServer(t *testing.T) {
 
 		var (
 			expectAddr string
-			dials      int64
+			dials      atomic.Int64
 		)
 		client := codersdk.New(accessURL)
 		client.HTTPClient = &http.Client{
 			Transport: &http.Transport{
 				DialTLSContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-					atomic.AddInt64(&dials, 1)
+					dials.Add(1)
 					assert.Equal(t, expectAddr, addr)
 
 					host, _, err := net.SplitHostPort(addr)
@@ -786,14 +786,14 @@ func TestServer(t *testing.T) {
 		expectAddr = "alpaca.com:443"
 		_, err := client.HasFirstUser(ctx)
 		require.NoError(t, err)
-		require.EqualValues(t, 1, atomic.LoadInt64(&dials))
+		require.EqualValues(t, 1, dials.Load())
 
 		// Use the second certificate (wildcard) and hostname.
 		client.URL.Host = "hi.llama.com:443"
 		expectAddr = "hi.llama.com:443"
 		_, err = client.HasFirstUser(ctx)
 		require.NoError(t, err)
-		require.EqualValues(t, 2, atomic.LoadInt64(&dials))
+		require.EqualValues(t, 2, dials.Load())
 	})
 
 	t.Run("TLSAndHTTP", func(t *testing.T) {
@@ -2370,27 +2370,26 @@ func TestConnectToPostgres(t *testing.T) {
 	})
 }
 
-func TestServer_InvalidDERP(t *testing.T) {
+func TestServer_DisabledDERP_EmptyBaseMap(t *testing.T) {
 	t.Parallel()
+
+	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancelFunc()
 
 	// Try to start a server with the built-in DERP server disabled and no
 	// external DERP map.
-
-	inv, _ := clitest.New(t,
+	inv, cfg := clitest.New(t,
 		"server",
 		dbArg(t),
 		"--http-address", ":0",
 		"--access-url", "http://example.com",
 		"--derp-server-enable=false",
-		"--derp-server-stun-addresses", "disable",
-		"--block-direct-connections",
 	)
-	err := inv.Run()
-	require.Error(t, err)
-	require.ErrorContains(t, err, "A valid DERP map is required for networking to work")
+	clitest.Start(t, inv.WithContext(ctx))
+	waitAccessURL(t, cfg)
 }
 
-func TestServer_DisabledDERP(t *testing.T) {
+func TestServer_DisabledDERP_ExternalMap(t *testing.T) {
 	t.Parallel()
 
 	derpMap, _ := tailnettest.RunDERPAndSTUN(t)

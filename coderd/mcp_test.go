@@ -18,24 +18,22 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// mcpDeploymentValues returns deployment values with the agents
-// experiment enabled, which is required by the MCP server config
-// endpoints.
+// mcpDeploymentValues returns deployment values for tests of the MCP
+// server config endpoints.
 func mcpDeploymentValues(t testing.TB) *codersdk.DeploymentValues {
 	t.Helper()
 
-	values := coderdtest.DeploymentValues(t)
-	values.Experiments = []string{string(codersdk.ExperimentAgents)}
-	return values
+	return coderdtest.DeploymentValues(t)
 }
 
-// newMCPClient creates a test server with the agents experiment
-// enabled and returns the admin client.
+// newMCPClient creates a test server and returns the admin client.
 func newMCPClient(t testing.TB) *codersdk.Client {
 	t.Helper()
 
+	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 	return coderdtest.New(t, &coderdtest.Options{
-		DeploymentValues: mcpDeploymentValues(t),
+		DeploymentValues:    mcpDeploymentValues(t),
+		ChatProviderAPIKeys: &providerKeys,
 	})
 }
 
@@ -100,37 +98,61 @@ func TestMCPServerConfigsCRUD(t *testing.T) {
 	require.Equal(t, "client-id-123", created.OAuth2ClientID)
 	require.Equal(t, "default_on", created.Availability)
 	require.True(t, created.Enabled)
+	require.False(t, created.AllowInPlanMode)
+	require.False(t, created.ForwardCoderHeaders)
 
 	// Verify the secret is indicated but never returned.
 	require.True(t, created.HasOAuth2Secret)
 
-	// Verify the config appears in the list.
+	// Verify the config appears in the list and direct get responses.
 	configs, err := client.MCPServerConfigs(ctx)
 	require.NoError(t, err)
 	require.Len(t, configs, 1)
 	require.Equal(t, created.ID, configs[0].ID)
 	require.True(t, configs[0].HasOAuth2Secret)
+	require.False(t, configs[0].AllowInPlanMode)
+	require.False(t, configs[0].ForwardCoderHeaders)
 
-	// Update display name and availability.
+	fetched, err := client.MCPServerConfigByID(ctx, created.ID)
+	require.NoError(t, err)
+	require.Equal(t, created.ID, fetched.ID)
+	require.False(t, fetched.AllowInPlanMode)
+	require.False(t, fetched.ForwardCoderHeaders)
+
+	// Update display name, availability, allow_in_plan_mode, and
+	// forward_coder_headers.
 	newName := "Renamed Server"
 	newAvail := "force_on"
+	allowInPlanMode := true
+	forwardCoderHeaders := true
 	updated, err := client.UpdateMCPServerConfig(ctx, created.ID, codersdk.UpdateMCPServerConfigRequest{
-		DisplayName:  &newName,
-		Availability: &newAvail,
+		DisplayName:         &newName,
+		Availability:        &newAvail,
+		AllowInPlanMode:     &allowInPlanMode,
+		ForwardCoderHeaders: &forwardCoderHeaders,
 	})
 	require.NoError(t, err)
 	require.Equal(t, "Renamed Server", updated.DisplayName)
 	require.Equal(t, "force_on", updated.Availability)
+	require.True(t, updated.AllowInPlanMode)
+	require.True(t, updated.ForwardCoderHeaders)
 	// Unchanged fields should remain the same.
 	require.Equal(t, "my-mcp-server", updated.Slug)
 	require.Equal(t, "oauth2", updated.AuthType)
 
-	// Verify the update took effect through the list.
+	// Verify the update took effect through the list and direct get.
 	configs, err = client.MCPServerConfigs(ctx)
 	require.NoError(t, err)
 	require.Len(t, configs, 1)
 	require.Equal(t, "Renamed Server", configs[0].DisplayName)
 	require.Equal(t, "force_on", configs[0].Availability)
+	require.True(t, configs[0].AllowInPlanMode)
+	require.True(t, configs[0].ForwardCoderHeaders)
+
+	fetched, err = client.MCPServerConfigByID(ctx, created.ID)
+	require.NoError(t, err)
+	require.True(t, fetched.AllowInPlanMode)
+	require.True(t, fetched.ForwardCoderHeaders)
 
 	// Delete it.
 	err = client.DeleteMCPServerConfig(ctx, created.ID)
@@ -305,16 +327,107 @@ func TestMCPServerConfigsAuthConnected(t *testing.T) {
 	// Also create a non-oauth server. It should report
 	// auth_connected=true because no auth is needed.
 	_ = createMCPServerConfig(t, adminClient, "no-auth-server", true)
+
+	// And a user_oidc server. user_oidc never requires a per-user
+	// connect step, so auth_connected is always true regardless of
+	// whether the calling user has an OIDC link.
+	_, err = adminClient.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		DisplayName:   "User OIDC Server",
+		Slug:          "user-oidc-server",
+		Transport:     "streamable_http",
+		URL:           "https://mcp.example.com/oidc",
+		AuthType:      "user_oidc",
+		Availability:  "default_on",
+		Enabled:       true,
+		ToolAllowList: []string{},
+		ToolDenyList:  []string{},
+	})
+	require.NoError(t, err)
+
 	memberConfigs, err = memberClient.MCPServerConfigs(ctx)
 	require.NoError(t, err)
-	require.Len(t, memberConfigs, 2)
+	require.Len(t, memberConfigs, 3)
 	for _, cfg := range memberConfigs {
-		if cfg.AuthType == "none" {
-			require.True(t, cfg.AuthConnected)
-		} else {
-			require.False(t, cfg.AuthConnected)
+		switch cfg.AuthType {
+		case "none", "user_oidc":
+			require.True(t, cfg.AuthConnected, "%s should report auth_connected", cfg.AuthType)
+		default:
+			require.False(t, cfg.AuthConnected, "%s should not report auth_connected", cfg.AuthType)
 		}
 	}
+}
+
+func TestMCPServerConfigsUserOIDCClearsFields(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client := newMCPClient(t)
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	// Start with an oauth2 config that has a client secret, then
+	// switch the auth_type to user_oidc and verify all auth-specific
+	// fields are cleared.
+	created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		DisplayName:        "Switch Server",
+		Slug:               "switch-server",
+		Transport:          "streamable_http",
+		URL:                "https://mcp.example.com/v1",
+		AuthType:           "oauth2",
+		OAuth2ClientID:     "cid",
+		OAuth2ClientSecret: "secret-value",
+		OAuth2AuthURL:      "https://auth.example.com/authorize",
+		OAuth2TokenURL:     "https://auth.example.com/token",
+		OAuth2Scopes:       "read write",
+		Availability:       "default_off",
+		Enabled:            true,
+		ToolAllowList:      []string{},
+		ToolDenyList:       []string{},
+	})
+	require.NoError(t, err)
+	require.True(t, created.HasOAuth2Secret)
+	require.Equal(t, "cid", created.OAuth2ClientID)
+
+	newAuth := "user_oidc"
+	updated, err := client.UpdateMCPServerConfig(ctx, created.ID, codersdk.UpdateMCPServerConfigRequest{
+		AuthType: &newAuth,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "user_oidc", updated.AuthType)
+	require.False(t, updated.HasOAuth2Secret, "oauth2 secret should be cleared")
+	require.False(t, updated.HasAPIKey, "api key should remain unset")
+	require.False(t, updated.HasCustomHeaders, "custom headers should remain unset")
+	require.Empty(t, updated.OAuth2ClientID)
+	require.Empty(t, updated.OAuth2AuthURL)
+	require.Empty(t, updated.OAuth2TokenURL)
+	require.Empty(t, updated.OAuth2Scopes)
+	require.Empty(t, updated.APIKeyHeader)
+}
+
+func TestMCPServerConfigsUserOIDCDirect(t *testing.T) {
+	t.Parallel()
+
+	// Create with user_oidc and confirm validation accepts the value
+	// while no auth-specific fields are persisted on the row.
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client := newMCPClient(t)
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	created, err := client.CreateMCPServerConfig(ctx, codersdk.CreateMCPServerConfigRequest{
+		DisplayName:   "User OIDC Direct",
+		Slug:          "user-oidc-direct",
+		Transport:     "streamable_http",
+		URL:           "https://mcp.example.com/oidc-direct",
+		AuthType:      "user_oidc",
+		Availability:  "default_off",
+		Enabled:       true,
+		ToolAllowList: []string{},
+		ToolDenyList:  []string{},
+	})
+	require.NoError(t, err)
+	require.Equal(t, "user_oidc", created.AuthType)
+	require.False(t, created.HasOAuth2Secret)
+	require.False(t, created.HasAPIKey)
+	require.False(t, created.HasCustomHeaders)
 }
 
 func TestMCPServerConfigsAvailability(t *testing.T) {
@@ -1307,29 +1420,9 @@ func TestChatWithMCPServerIDs(t *testing.T) {
 	require.Contains(t, fetched.MCPServerIDs, mcpConfig.ID)
 }
 
-// createChatModelConfigForMCP sets up a chat provider and model
-// config so that CreateChat succeeds. This mirrors the helper in
-// chats_test.go but is defined here to avoid coupling.
 func createChatModelConfigForMCP(t testing.TB, client *codersdk.ExperimentalClient) codersdk.ChatModelConfig {
 	t.Helper()
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
-		Provider: "openai",
-		APIKey:   "test-api-key",
-	})
-	require.NoError(t, err)
-
-	contextLimit := int64(4096)
-	isDefault := true
-	modelConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-		Provider:     "openai",
-		Model:        "gpt-4o-mini",
-		ContextLimit: &contextLimit,
-		IsDefault:    &isDefault,
-	})
-	require.NoError(t, err)
-	return modelConfig
+	return coderdtest.CreateOpenAICompatChatModelConfig(t, client, "")
 }
 
 func TestMCPOAuth2DiscoveryEdgeCases(t *testing.T) {

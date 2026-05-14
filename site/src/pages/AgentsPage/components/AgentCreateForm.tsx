@@ -1,30 +1,40 @@
-import { type FC, useEffect, useRef, useState } from "react";
+import {
+	type FC,
+	type ReactNode,
+	useEffect,
+	useEffectEvent,
+	useRef,
+	useState,
+} from "react";
+import { useQuery } from "react-query";
 import { Link } from "react-router";
 import { toast } from "sonner";
 import { isApiError } from "#/api/errors";
+import { permittedOrganizations } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
+import type { AgentChatSendShortcut } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { Label } from "#/components/Label/Label";
-import { OrganizationAutocomplete } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { docs } from "#/utils/docs";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import { parseStoredDraft } from "../utils/draftStorage";
 import {
 	getModelSelectorPlaceholder,
+	getProviderForModelOption,
 	hasConfiguredModelsInCatalog,
 	hasUserFixableProviders,
 } from "../utils/modelOptions";
 import {
 	formatUsageLimitMessage,
-	isUsageLimitData,
+	isChatUsageLimitExceededResponse,
 } from "../utils/usageLimitMessage";
 import { AgentChatInput } from "./AgentChatInput";
 import { ChatAccessDeniedAlert } from "./ChatAccessDeniedAlert";
 import type { ModelSelectorOption } from "./ChatElements";
+import { CompactOrgSelector } from "./ChatElements";
 import {
 	getDefaultMCPSelection,
 	getSavedMCPSelection,
@@ -46,6 +56,7 @@ export type CreateChatOptions = {
 	model?: string;
 	mcpServerIds?: string[];
 	organizationId: string;
+	planMode?: TypesGen.ChatPlanMode;
 };
 
 /**
@@ -82,7 +93,7 @@ export function useEmptyStateDraft() {
 				try {
 					localStorage.setItem(emptyInputStorageKey, serializedEditorState);
 				} catch {
-					// QuotaExceededError — silently discard the draft.
+					// QuotaExceededError, silently discard the draft.
 				}
 			} else {
 				localStorage.removeItem(emptyInputStorageKey);
@@ -115,14 +126,18 @@ export function useEmptyStateDraft() {
 
 interface AgentCreateFormProps {
 	onCreateChat: (options: CreateChatOptions) => Promise<void>;
+	sendShortcut: AgentChatSendShortcut;
 	isCreating: boolean;
 	createError: unknown;
 	canCreateChat: boolean;
 	modelCatalog: TypesGen.ChatModelsResponse | null | undefined;
 	modelOptions: readonly ChatModelOption[];
+	agentSetupNotice?: ReactNode;
 	isModelCatalogLoading: boolean;
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
 	isModelConfigsLoading: boolean;
+	rootPersonalModelOverride?: TypesGen.ChatPersonalModelOverride;
+	isPersonalModelOverridesLoading?: boolean;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	onMCPAuthComplete?: (serverId: string) => void;
 	workspaceCount: number | undefined;
@@ -133,14 +148,18 @@ interface AgentCreateFormProps {
 
 export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	onCreateChat,
+	sendShortcut,
 	isCreating,
 	createError,
 	canCreateChat,
 	modelCatalog,
 	modelOptions,
+	agentSetupNotice,
 	modelConfigs,
 	isModelCatalogLoading,
 	isModelConfigsLoading,
+	rootPersonalModelOverride,
+	isPersonalModelOverridesLoading = false,
 	mcpServers,
 	onMCPAuthComplete,
 	workspaceCount: _workspaceCount,
@@ -159,6 +178,10 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const [initialLastModelConfigID] = useState(() => {
 		return localStorage.getItem(lastModelConfigIDStorageKey) ?? "";
 	});
+	/*
+	 * Model precedence: user click > root override (specific model) > root
+	 * override (chat_default, resolved) > last-used > default > first available.
+	 */
 	const lastUsedModelID =
 		initialLastModelConfigID &&
 		modelOptions.some((option) => option.id === initialLastModelConfigID)
@@ -175,17 +198,45 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			? defaultModelConfig.id
 			: "";
 	})();
-	const preferredModelID =
+	const isUsableRootPersonalOverride =
+		rootPersonalModelOverride?.is_set === true &&
+		!rootPersonalModelOverride.is_malformed;
+	const rootOverrideModelID =
+		isUsableRootPersonalOverride &&
+		rootPersonalModelOverride.mode === "model" &&
+		modelOptions.some(
+			(option) => option.id === rootPersonalModelOverride.model_config_id,
+		)
+			? rootPersonalModelOverride.model_config_id
+			: "";
+	const isRootOverrideChatDefault =
+		isUsableRootPersonalOverride &&
+		rootPersonalModelOverride.mode === "chat_default";
+	const rootOverrideDisplayModelID = isRootOverrideChatDefault
+		? defaultModelID || (modelOptions[0]?.id ?? "")
+		: rootOverrideModelID;
+	const fallbackModelID =
 		lastUsedModelID || defaultModelID || (modelOptions[0]?.id ?? "");
+	const preferredModelID = rootOverrideDisplayModelID || fallbackModelID;
 	const [userSelectedModel, setUserSelectedModel] = useState("");
 	const [hasUserSelectedModel, setHasUserSelectedModel] = useState(false);
+	const hasValidUserSelectedModel =
+		hasUserSelectedModel &&
+		modelOptions.some((modelOption) => modelOption.id === userSelectedModel);
 	// Derive the effective model every render so we never reference
 	// a stale model id and can honor fallback precedence.
-	const selectedModel =
-		hasUserSelectedModel &&
-		modelOptions.some((modelOption) => modelOption.id === userSelectedModel)
-			? userSelectedModel
-			: preferredModelID;
+	const selectedModel = hasValidUserSelectedModel
+		? userSelectedModel
+		: preferredModelID;
+	const submittedModel = (() => {
+		if (hasValidUserSelectedModel) {
+			return userSelectedModel;
+		}
+		if (rootOverrideModelID) {
+			return rootOverrideModelID;
+		}
+		return selectedModel || undefined;
+	})();
 	const initialOrg =
 		organizations.find((o) => o.is_default) ?? organizations[0];
 	const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
@@ -193,9 +244,9 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			const stored = localStorage.getItem(selectedWorkspaceIdStorageKey);
 			if (!stored) return null;
 
-			// If workspaces haven't loaded yet, keep the stored value.
-			// It will be re-validated once the list arrives via
-			// filteredWorkspaces clearing the selection if stale.
+			// The stored value is kept optimistically until workspaces
+			// load. effectiveWorkspaceId (computed after render) drops
+			// it if it doesn't match the current org's workspaces.
 			if (workspaceOptions.length === 0) return stored;
 
 			// Validate the stored workspace still exists and belongs
@@ -224,6 +275,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	const [pendingOrgChange, setPendingOrgChange] =
 		useState<TypesGen.Organization | null>(null);
 	const organizationId = selectedOrg?.id ?? "";
+	const [planModeEnabled, setPlanModeEnabled] = useState(false);
 	const hasModelOptions = modelOptions.length > 0;
 	const hasConfiguredModels = hasConfiguredModelsInCatalog(modelCatalog);
 	const hasUserFixableModelProviders = hasUserFixableProviders(modelCatalog);
@@ -257,12 +309,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		lastUsedModelID,
 	]);
 
-	// Keep a mutable ref to selectedWorkspaceId and selectedModel so
-	// that the onSend callback always sees the latest values without
-	// the shared input component re-rendering on every change.
-	const selectedWorkspaceIdRef = useRef(selectedWorkspaceId);
-	const selectedModelRef = useRef(selectedModel);
-	const organizationIdRef = useRef(organizationId);
 	const [userMCPServerIds, setUserMCPServerIds] = useState<string[] | null>(
 		null,
 	);
@@ -276,13 +322,6 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		}
 		return getDefaultMCPSelection(mcpServers ?? []);
 	})();
-	const selectedMCPServerIdsRef = useRef(effectiveMCPServerIds);
-	useEffect(() => {
-		selectedWorkspaceIdRef.current = selectedWorkspaceId;
-		selectedModelRef.current = selectedModel;
-		selectedMCPServerIdsRef.current = effectiveMCPServerIds;
-		organizationIdRef.current = organizationId;
-	});
 	const handleWorkspaceChange = (value: string | null) => {
 		if (value === null) {
 			setSelectedWorkspaceId(null);
@@ -298,23 +337,42 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		setUserSelectedModel(value);
 	};
 
+	const isForbidden = !canCreateChat;
+
+	// Filter workspaces by the selected organization. We use
+	// client-side filtering of the full "owner:me" fetch rather
+	// than re-querying with an org filter because it avoids
+	// extra loading/error states on org change. The full list is
+	// already small (user's own workspaces) and limit: 0
+	// guarantees completeness. If workspace counts grow large
+	// enough to warrant pagination, this should switch to a
+	// server-side organization:<name> query filter.
+	const filteredWorkspaces =
+		showOrganizations && selectedOrg
+			? workspaceOptions.filter((ws) => ws.organization_id === selectedOrg.id)
+			: workspaceOptions;
+
+	const effectiveWorkspaceId =
+		selectedWorkspaceId !== null &&
+		(isWorkspacesLoading ||
+			filteredWorkspaces.some((ws) => ws.id === selectedWorkspaceId))
+			? selectedWorkspaceId
+			: null;
+
 	const handleSend = async (message: string, fileIDs?: string[]) => {
 		submitDraft();
 		await onCreateChat({
 			message,
 			fileIDs,
-			workspaceId: selectedWorkspaceIdRef.current ?? undefined,
-			model: selectedModelRef.current || undefined,
-			organizationId: organizationIdRef.current,
+			workspaceId: effectiveWorkspaceId ?? undefined,
+			model: submittedModel,
+			organizationId,
 			mcpServerIds:
-				selectedMCPServerIdsRef.current.length > 0
-					? [...selectedMCPServerIdsRef.current]
+				effectiveMCPServerIds.length > 0
+					? [...effectiveMCPServerIds]
 					: undefined,
+			planMode: planModeEnabled ? "plan" : undefined,
 		}).catch((err) => {
-			// Re-enable draft persistence so the user can edit
-			// and retry after a failed send attempt, then rethrow
-			// so callers (handleSendWithAttachments) can preserve
-			// attachments on failure.
 			resetDraft();
 			throw err;
 		});
@@ -328,7 +386,10 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		handleAttach,
 		handleRemoveAttachment,
 		resetAttachments,
-	} = useFileAttachments(organizationId || undefined, { persist: true });
+	} = useFileAttachments(organizationId || undefined, {
+		persist: true,
+		provider: getProviderForModelOption(modelOptions, selectedModel),
+	});
 
 	const handleSendWithAttachments = async (message: string) => {
 		const fileIds: string[] = [];
@@ -357,31 +418,60 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		}
 	};
 
-	const isForbidden = !canCreateChat;
+	const permittedOrgsQuery = useQuery({
+		...permittedOrganizations({
+			object: { resource_type: "chat" },
+			action: "create",
+		}),
+		enabled: showOrganizations,
+	});
+	const permittedOrgs = permittedOrgsQuery.data ?? organizations;
 
-	// Filter workspaces by the selected organization. We use
-	// client-side filtering of the full "owner:me" fetch rather
-	// than re-querying with an org filter because it avoids
-	// extra loading/error states on org change. The full list is
-	// already small (user's own workspaces) and limit: 0
-	// guarantees completeness. If workspace counts grow large
-	// enough to warrant pagination, this should switch to a
-	// server-side organization:<name> query filter.
-	const filteredWorkspaces =
-		showOrganizations && selectedOrg
-			? workspaceOptions.filter((ws) => ws.organization_id === selectedOrg.id)
-			: workspaceOptions;
+	// Reconcile selectedOrg when permission filtering removes it.
+	// Only pure state setters run during render; side effects
+	// (localStorage, blob URL cleanup) run in the effect below.
+	const [prevPermittedOrgs, setPrevPermittedOrgs] = useState(permittedOrgs);
+	const [orgWasAdjusted, setOrgWasAdjusted] = useState(false);
+	if (permittedOrgs !== prevPermittedOrgs) {
+		setPrevPermittedOrgs(permittedOrgs);
+		if (selectedOrg && !permittedOrgs.some((o) => o.id === selectedOrg.id)) {
+			// Fall back through: first permitted org, then the
+			// dashboard default. Never null out selectedOrg.
+			// organizationId must always be a valid UUID for the
+			// create-chat request.
+			const nextOrg = permittedOrgs[0] ?? initialOrg ?? null;
+			setSelectedOrg(nextOrg);
+			if (nextOrg?.id !== selectedOrg.id) {
+				setOrgWasAdjusted(true);
+			}
+		}
+	}
+
+	// Clean up workspace and attachment state after a programmatic
+	// org change from permission filtering. These calls have side
+	// effects (localStorage, blob URL revocation) that must not
+	// run during render.
+	const onOrgAdjusted = useEffectEvent(() => {
+		handleWorkspaceChange(null);
+		resetAttachments();
+	});
+	useEffect(() => {
+		if (orgWasAdjusted) {
+			setOrgWasAdjusted(false);
+			onOrgAdjusted();
+		}
+	}, [orgWasAdjusted]);
 
 	return (
 		<>
-			<div className="flex min-h-0 flex-1 items-start justify-center overflow-auto p-4 pt-12 md:h-full md:items-center md:pt-4">
-				<div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
+			<div className="order-last flex min-h-0 flex-none items-end justify-center overflow-auto px-4 pb-4 sm:order-none sm:h-full sm:flex-1 sm:items-center">
+				<div className="mx-auto flex w-full max-w-3xl flex-col gap-2">
 					{isForbidden ? (
 						<ChatAccessDeniedAlert />
 					) : createError ? (
 						isApiError(createError) &&
 						createError.response?.status === 409 &&
-						isUsageLimitData(createError.response.data) ? (
+						isChatUsageLimitExceededResponse(createError.response.data) ? (
 							<Alert
 								severity="info"
 								actions={
@@ -399,32 +489,34 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						)
 					) : null}
 					{workspacesError != null && <ErrorAlert error={workspacesError} />}
-					{showOrganizations && (
-						<div className="flex flex-col gap-2">
-							<Label htmlFor="organization">Organization</Label>
-							<OrganizationAutocomplete
-								id="organization"
-								required
-								value={selectedOrg}
-								options={organizations}
-								onChange={(newOrg) => {
-									const orgChanged = newOrg?.id !== selectedOrg?.id;
-									if (orgChanged && attachments.length > 0) {
-										setPendingOrgChange(newOrg);
-										return;
-									}
-									if (orgChanged) {
-										handleWorkspaceChange(null);
-									}
-									setSelectedOrg(newOrg);
-								}}
-							/>
-						</div>
+					{permittedOrgsQuery.error != null && (
+						<ErrorAlert error={permittedOrgsQuery.error} />
 					)}
+					{showOrganizations && permittedOrgs.length > 1 && (
+						<CompactOrgSelector
+							value={selectedOrg}
+							options={permittedOrgs}
+							onChange={(newOrg) => {
+								const orgChanged = newOrg.id !== selectedOrg?.id;
+								if (orgChanged && attachments.length > 0) {
+									setPendingOrgChange(newOrg);
+									return;
+								}
+								if (orgChanged) {
+									handleWorkspaceChange(null);
+								}
+								setSelectedOrg(newOrg);
+							}}
+						/>
+					)}
+					{agentSetupNotice}
 					<AgentChatInput
 						onSend={handleSendWithAttachments}
+						sendShortcut={sendShortcut}
 						placeholder="Ask Coder to build, fix bugs, or explore your project..."
-						isDisabled={isCreating || isForbidden}
+						isDisabled={
+							isCreating || isForbidden || isPersonalModelOverridesLoading
+						}
 						isLoading={isCreating}
 						initialValue={initialInputValue}
 						initialEditorState={initialEditorState}
@@ -435,6 +527,8 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						modelSelectorPlaceholder={modelSelectorPlaceholder}
 						isModelCatalogLoading={isModelCatalogLoading}
 						hasModelOptions={hasModelOptions}
+						planModeEnabled={planModeEnabled}
+						onPlanModeToggle={setPlanModeEnabled}
 						attachments={attachments}
 						onAttach={handleAttach}
 						onRemoveAttachment={handleRemoveAttachment}
@@ -449,7 +543,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						}}
 						onMCPAuthComplete={onMCPAuthComplete}
 						workspaceOptions={filteredWorkspaces}
-						selectedWorkspaceId={selectedWorkspaceId}
+						selectedWorkspaceId={effectiveWorkspaceId}
 						onWorkspaceChange={handleWorkspaceChange}
 						isWorkspaceLoading={isWorkspacesLoading}
 					/>
@@ -458,7 +552,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							{modelSelectorHelp}
 						</div>
 					) : null}
-					<p className="mt-1 text-center text-xs text-content-secondary/50">
+					<p className="text-center text-xs text-content-secondary/50">
 						<a
 							href={docs("/ai-coder/agents")}
 							target="_blank"

@@ -1,5 +1,6 @@
 import { ChevronRight } from "lucide-react";
 import type { FC } from "react";
+import { PaginationWidgetBase } from "#/components/PaginationWidget/PaginationWidgetBase";
 import { Avatar } from "#/components/Avatar/Avatar";
 import {
 	Table,
@@ -169,39 +170,15 @@ const AISettingsModelsPage: FC = () => {
 				</TableBody>
 			</Table>
 
-			<div className="flex items-center justify-between mt-4">
-				<div className="flex items-center gap-1">
-					<button
-						type="button"
-						className="flex items-center justify-center w-8 h-8 rounded-md bg-transparent border border-solid border-border cursor-pointer text-content-secondary hover:bg-surface-secondary"
-					>
-						‹
-					</button>
-					{[1, 2, 3].map((page) => (
-						<button
-							key={page}
-							type="button"
-							className={cn(
-								"flex items-center justify-center w-8 h-8 rounded-md border border-solid cursor-pointer text-sm",
-								page === 1
-									? "bg-surface-secondary border-border text-content-primary"
-									: "bg-transparent border-border text-content-secondary hover:bg-surface-secondary",
-							)}
-						>
-							{page}
-						</button>
-					))}
-					<span className="px-1 text-content-secondary text-sm">…</span>
-					<button
-						type="button"
-						className="flex items-center justify-center w-8 h-8 rounded-md bg-transparent border border-solid border-border cursor-pointer text-content-secondary hover:bg-surface-secondary"
-					>
-						›
-					</button>
-				</div>
-				<span className="text-sm text-content-secondary">
-					Showing <strong className="text-content-primary">4</strong> of{" "}
-					<strong className="text-content-primary">4</strong> providers
+			<div className="relative mt-4 flex items-center justify-center">
+				<PaginationWidgetBase
+					currentPage={1}
+					pageSize={4}
+					totalRecords={24}
+					onPageChange={() => {}}
+				/>
+				<span className="absolute right-0 text-sm text-content-secondary">
+					Showing <strong className="text-content-primary">1</strong> to <strong className="text-content-primary">4</strong> of <strong className="text-content-primary">4</strong> models
 				</span>
 			</div>
 		</div>

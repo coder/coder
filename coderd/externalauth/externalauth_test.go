@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -26,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/codersdk"
@@ -119,6 +121,11 @@ func TestRefreshToken(t *testing.T) {
 	t.Run("ValidateServerError", func(t *testing.T) {
 		t.Parallel()
 
+		ctrl := gomock.NewController(t)
+		mDB := dbmock.NewMockStore(ctrl)
+		mDB.EXPECT().UpdateExternalAuthLink(gomock.Any(), gomock.Any()).
+			Return(database.ExternalAuthLink{}, nil).AnyTimes()
+
 		const staticError = "static error"
 		validated := false
 		fake, config, link := setupOauth2Test(t, testConfig{
@@ -135,7 +142,7 @@ func TestRefreshToken(t *testing.T) {
 		ctx := oidc.ClientContext(context.Background(), fake.HTTPClient(nil))
 		link.OAuthExpiry = expired
 
-		_, err := config.RefreshToken(ctx, nil, link)
+		_, err := config.RefreshToken(ctx, mDB, link)
 		require.ErrorContains(t, err, staticError)
 		// Unsure if this should be the correct behavior. It's an invalid token because
 		// 'ValidateToken()' failed with a runtime error. This was the previous behavior,
@@ -196,7 +203,9 @@ func TestRefreshToken(t *testing.T) {
 		}
 
 		// Try again with a bad refresh token error. This will invalidate the
-		// refresh token, and not retry again. Expect DB call to remove the refresh token
+		// refresh token, and not retry again. Expect DB calls to check for
+		// concurrent refresh (GetExternalAuthLink) and then remove the refresh token.
+		mDB.EXPECT().GetExternalAuthLink(gomock.Any(), gomock.Any()).Return(link, nil).Times(1)
 		mDB.EXPECT().UpdateExternalAuthLinkRefreshToken(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 		refreshErr = &oauth2.RetrieveError{ // github error
 			Response: &http.Response{
@@ -218,9 +227,65 @@ func TestRefreshToken(t *testing.T) {
 		require.Equal(t, refreshCount, totalRefreshes)
 	})
 
+	// ConcurrentRefreshRace tests that when multiple concurrent requests
+	// race to refresh the same token, the loser does not poison the
+	// database with a cached "bad_refresh_token" failure. This
+	// reproduces the issue described in coder/coder#17069 where
+	// providers with single-use refresh tokens (e.g., GitHub Apps)
+	// reject the second refresh attempt, and the resulting error was
+	// incorrectly cached.
+	t.Run("ConcurrentRefreshRace", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		mDB := dbmock.NewMockStore(ctrl)
+
+		fake, config, link := setupOauth2Test(t, testConfig{
+			FakeIDPOpts: []oidctest.FakeIDPOpt{
+				oidctest.WithRefresh(func(_ string) error {
+					return &oauth2.RetrieveError{
+						Response: &http.Response{
+							StatusCode: http.StatusOK,
+						},
+						ErrorCode: "bad_refresh_token",
+					}
+				}),
+			},
+			ExternalAuthOpt: func(cfg *externalauth.Config) {},
+		})
+
+		ctx := oidc.ClientContext(context.Background(), fake.HTTPClient(nil))
+		link.OAuthExpiry = time.Now().Add(time.Hour * -1)
+
+		// Simulate a concurrent winner: when the loser re-reads the
+		// DB, the refresh token has changed (the winner stored a new
+		// one). The loser should return the updated link instead of
+		// caching the failure.
+		winnerLink := link
+		winnerLink.OAuthRefreshToken = "winner-refresh-token"
+		winnerLink.OAuthAccessToken = "winner-access-token"
+		mDB.EXPECT().GetExternalAuthLink(gomock.Any(), database.GetExternalAuthLinkParams{
+			ProviderID: link.ProviderID,
+			UserID:     link.UserID,
+		}).Return(winnerLink, nil).Times(1)
+
+		// UpdateExternalAuthLinkRefreshToken should NOT be called
+		// because the re-read detected the concurrent refresh.
+
+		result, err := config.RefreshToken(ctx, mDB, link)
+		require.NoError(t, err, "loser should succeed using the winner's token")
+		require.Equal(t, "winner-access-token", result.OAuthAccessToken)
+		require.Equal(t, "winner-refresh-token", result.OAuthRefreshToken)
+	})
+
 	// ValidateFailure tests if the token is no longer valid with a 401 response.
 	t.Run("ValidateFailure", func(t *testing.T) {
 		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		mDB := dbmock.NewMockStore(ctrl)
+		mDB.EXPECT().UpdateExternalAuthLink(gomock.Any(), gomock.Any()).
+			Return(database.ExternalAuthLink{}, nil).AnyTimes()
 
 		const staticError = "static error"
 		validated := false
@@ -238,7 +303,7 @@ func TestRefreshToken(t *testing.T) {
 		ctx := oidc.ClientContext(context.Background(), fake.HTTPClient(nil))
 		link.OAuthExpiry = expired
 
-		_, err := config.RefreshToken(ctx, nil, link)
+		_, err := config.RefreshToken(ctx, mDB, link)
 		require.ErrorContains(t, err, "token failed to validate")
 		require.True(t, externalauth.IsInvalidTokenError(err))
 		require.True(t, validated, "token should have been attempted to be validated")
@@ -378,6 +443,476 @@ func TestRefreshToken(t *testing.T) {
 		mapping, ok := extra["authed_user"].(map[string]interface{})
 		require.True(t, ok)
 		require.Equal(t, updated.OAuthAccessToken, mapping["access_token"])
+	})
+
+	// SaveBeforeValidate tests that a successfully refreshed token is
+	// persisted to the DB even when post-refresh validation fails. This
+	// prevents the data-loss scenario where GitHub rotates the refresh
+	// token on use but the new token is silently discarded because a
+	// rate-limited validation endpoint returns 403.
+	t.Run("SaveBeforeValidate", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+
+		// simulateRateLimit controls whether the validate endpoint
+		// returns 403 (true) or 200 (false).
+		var simulateRateLimit atomic.Bool
+		simulateRateLimit.Store(true)
+
+		var refreshCalls atomic.Int64
+		fake, config, link := setupOauth2Test(t, testConfig{
+			FakeIDPOpts: []oidctest.FakeIDPOpt{
+				oidctest.WithRefresh(func(_ string) error {
+					refreshCalls.Add(1)
+					return nil
+				}),
+				oidctest.WithDynamicUserInfo(func(_ string) (jwt.MapClaims, error) {
+					if simulateRateLimit.Load() {
+						return jwt.MapClaims{}, oidctest.StatusError(http.StatusForbidden, xerrors.New("rate limit exceeded"))
+					}
+					return jwt.MapClaims{}, nil
+				}),
+			},
+			ExternalAuthOpt: func(cfg *externalauth.Config) {
+				cfg.Type = codersdk.EnhancedExternalAuthProviderGitHub.String()
+			},
+			DB: db,
+		})
+
+		ctx := oidc.ClientContext(context.Background(), fake.HTTPClient(nil))
+
+		oldAccessToken := link.OAuthAccessToken
+		oldRefreshToken := link.OAuthRefreshToken
+
+		// Expire the token to force a refresh.
+		link.OAuthExpiry = expired
+
+		// First call: refresh succeeds, validation fails (403).
+		_, err := config.RefreshToken(ctx, db, link)
+		require.Error(t, err, "expected error because validation returned 403")
+		require.True(t, externalauth.IsInvalidTokenError(err))
+		require.Equal(t, int64(1), refreshCalls.Load(), "IDP refresh should have been called exactly once")
+
+		// Critical assertion: the DB must contain the NEW tokens from the
+		// successful refresh, not the old (now-stale) ones.
+		dbLink, err := db.GetExternalAuthLink(context.Background(), database.GetExternalAuthLinkParams{
+			ProviderID: link.ProviderID,
+			UserID:     link.UserID,
+		})
+		require.NoError(t, err)
+		require.NotEqual(t, oldAccessToken, dbLink.OAuthAccessToken,
+			"DB should have the new access token from the successful refresh")
+		require.NotEqual(t, oldRefreshToken, dbLink.OAuthRefreshToken,
+			"DB should have the new refresh token (old one was rotated by the IDP)")
+
+		// Second call: uses the saved token from DB, no re-refresh.
+		// The saved token has a future expiry, so TokenSource should return
+		// it without contacting the IDP. Validation should succeed now.
+		simulateRateLimit.Store(false)
+		updated, err := config.RefreshToken(ctx, db, dbLink)
+		require.NoError(t, err, "second call should succeed because rate limit lifted")
+		require.Equal(t, int64(1), refreshCalls.Load(),
+			"IDP refresh should NOT have been called again; the saved token is not expired")
+		require.Equal(t, dbLink.OAuthAccessToken, updated.OAuthAccessToken,
+			"returned token should match what was saved in the DB")
+	})
+
+	// SaveBeforeValidate_ContextCanceled verifies the early DB save
+	// uses a detached context. The parent context is canceled inside
+	// the refresh hook (after TokenSource.Token() but before the DB
+	// write), and the test asserts the new token is still persisted.
+	t.Run("SaveBeforeValidate_ContextCanceled", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+
+		var refreshCalls atomic.Int64
+		cancelOnRefresh, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		fake, config, link := setupOauth2Test(t, testConfig{
+			FakeIDPOpts: []oidctest.FakeIDPOpt{
+				oidctest.WithRefresh(func(_ string) error {
+					refreshCalls.Add(1)
+					// Cancel the parent context after refresh succeeds
+					// but before the DB save and validation.
+					cancel()
+					return nil
+				}),
+				oidctest.WithDynamicUserInfo(func(_ string) (jwt.MapClaims, error) {
+					return jwt.MapClaims{}, nil
+				}),
+			},
+			ExternalAuthOpt: func(cfg *externalauth.Config) {
+				cfg.Type = codersdk.EnhancedExternalAuthProviderGitHub.String()
+			},
+			DB: db,
+		})
+
+		ctx := oidc.ClientContext(cancelOnRefresh, fake.HTTPClient(nil))
+
+		oldAccessToken := link.OAuthAccessToken
+		oldRefreshToken := link.OAuthRefreshToken
+		link.OAuthExpiry = expired
+
+		_, err := config.RefreshToken(ctx, db, link)
+		require.NoError(t, err)
+		require.Equal(t, int64(1), refreshCalls.Load())
+
+		dbLink, err := db.GetExternalAuthLink(context.Background(), database.GetExternalAuthLinkParams{
+			ProviderID: link.ProviderID,
+			UserID:     link.UserID,
+		})
+		require.NoError(t, err)
+		require.NotEqual(t, oldAccessToken, dbLink.OAuthAccessToken,
+			"DB should have the new access token despite context cancellation")
+		require.NotEqual(t, oldRefreshToken, dbLink.OAuthRefreshToken,
+			"DB should have the new refresh token despite context cancellation")
+	})
+
+	// SaveBeforeValidate_RateLimited tests the full path: refresh
+	// succeeds, early save persists the token, validation returns
+	// rate-limited optimistic true, and RefreshToken returns success
+	// with no InvalidTokenError. Uses httptest.NewServer for the
+	// validate endpoint to set rate-limit headers that the FakeIDP's
+	// WithDynamicUserInfo hook cannot control.
+	t.Run("SaveBeforeValidate_RateLimited", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+
+		var refreshCalls atomic.Int64
+		// rateLimitValidate returns 403 with rate-limit headers.
+		rateLimitValidate := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("X-RateLimit-Remaining", "0")
+			w.Header().Set("X-RateLimit-Limit", "5000")
+			w.WriteHeader(http.StatusForbidden)
+		}))
+		t.Cleanup(rateLimitValidate.Close)
+
+		fake, config, link := setupOauth2Test(t, testConfig{
+			FakeIDPOpts: []oidctest.FakeIDPOpt{
+				oidctest.WithRefresh(func(_ string) error {
+					refreshCalls.Add(1)
+					return nil
+				}),
+			},
+			ExternalAuthOpt: func(cfg *externalauth.Config) {
+				cfg.Type = codersdk.EnhancedExternalAuthProviderGitHub.String()
+				cfg.ValidateURL = rateLimitValidate.URL
+			},
+			DB: db,
+		})
+
+		// Use a real HTTP transport for non-IDP requests so the
+		// validate request can reach the httptest server.
+		ctx := oidc.ClientContext(context.Background(), fake.HTTPClient(&http.Client{
+			Transport: http.DefaultTransport,
+		}))
+
+		oldAccessToken := link.OAuthAccessToken
+		oldRefreshToken := link.OAuthRefreshToken
+
+		// Expire the token to force a refresh.
+		link.OAuthExpiry = expired
+
+		// RefreshToken should succeed: the IDP refresh works, the
+		// early save persists the token, and ValidateToken returns
+		// (true, nil, nil) because the 403 has rate-limit headers.
+		updated, err := config.RefreshToken(ctx, db, link)
+		require.NoError(t, err, "RefreshToken should succeed when validation is rate-limited")
+		require.Equal(t, int64(1), refreshCalls.Load(), "IDP refresh should have been called")
+		require.NotEqual(t, oldAccessToken, updated.OAuthAccessToken,
+			"returned token should be the new one from the refresh")
+
+		// Verify the DB has the new token.
+		dbLink, err := db.GetExternalAuthLink(context.Background(), database.GetExternalAuthLinkParams{
+			ProviderID: link.ProviderID,
+			UserID:     link.UserID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, updated.OAuthAccessToken, dbLink.OAuthAccessToken,
+			"DB should have the refreshed access token")
+		require.NotEqual(t, oldRefreshToken, dbLink.OAuthRefreshToken,
+			"DB should have the new refresh token (old one was rotated by the IDP)")
+	})
+
+	// SaveBeforeValidate_DBError tests that when the early DB save
+	// fails after a successful IDP refresh, the error is surfaced
+	// as a non-InvalidTokenError. This is a degraded state (token
+	// issued by IDP but not persisted), and callers should see a
+	// real error, not a "please re-authenticate" prompt.
+	t.Run("SaveBeforeValidate_DBError", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		mDB := dbmock.NewMockStore(ctrl)
+
+		fake, config, link := setupOauth2Test(t, testConfig{
+			FakeIDPOpts: []oidctest.FakeIDPOpt{
+				oidctest.WithRefresh(func(_ string) error {
+					return nil
+				}),
+			},
+			ExternalAuthOpt: func(cfg *externalauth.Config) {
+				cfg.Type = codersdk.EnhancedExternalAuthProviderGitHub.String()
+			},
+		})
+
+		ctx := oidc.ClientContext(context.Background(), fake.HTTPClient(nil))
+		link.OAuthExpiry = expired
+
+		mDB.EXPECT().
+			UpdateExternalAuthLink(gomock.Any(), gomock.Any()).
+			Return(database.ExternalAuthLink{}, xerrors.New("db connection lost"))
+
+		_, err := config.RefreshToken(ctx, mDB, link)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "persist refreshed token")
+		require.False(t, externalauth.IsInvalidTokenError(err),
+			"DB errors should not be treated as invalid token")
+	})
+
+	// OptimisticLockPreventsStaleOverwrite verifies that the
+	// UpdateExternalAuthLinkRefreshToken WHERE clause prevents a
+	// stale caller from overwriting a valid refresh token saved
+	// by a concurrent winner.
+	t.Run("OptimisticLockPreventsStaleOverwrite", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+
+		fake, config, link := setupOauth2Test(t, testConfig{
+			FakeIDPOpts: []oidctest.FakeIDPOpt{
+				oidctest.WithRefresh(func(_ string) error {
+					return nil
+				}),
+				oidctest.WithDynamicUserInfo(func(_ string) (jwt.MapClaims, error) {
+					return jwt.MapClaims{}, nil
+				}),
+			},
+			ExternalAuthOpt: func(cfg *externalauth.Config) {
+				cfg.Type = codersdk.EnhancedExternalAuthProviderGitHub.String()
+			},
+			DB: db,
+		})
+
+		ctx := oidc.ClientContext(context.Background(), fake.HTTPClient(nil))
+
+		// Snapshot the original tokens before any refresh.
+		oldRefreshToken := link.OAuthRefreshToken
+
+		// Expire the token to force a refresh.
+		link.OAuthExpiry = expired
+
+		// Caller A: refresh and save successfully.
+		updated, err := config.RefreshToken(ctx, db, link)
+		require.NoError(t, err)
+		require.NotEqual(t, oldRefreshToken, updated.OAuthRefreshToken,
+			"caller A should have a new refresh token")
+
+		// Caller B had a stale read of the original link. It tries to
+		// destroy the refresh token using the OLD refresh token in the
+		// optimistic lock. Because caller A already wrote a different
+		// refresh token, this WHERE clause matches nothing.
+		err = db.UpdateExternalAuthLinkRefreshToken(ctx, database.UpdateExternalAuthLinkRefreshTokenParams{
+			OauthRefreshFailureReason: "simulated failure from stale caller B",
+			OAuthRefreshToken:         "",
+			OAuthRefreshTokenKeyID:    "",
+			UpdatedAt:                 dbtime.Now(),
+			ProviderID:                link.ProviderID,
+			UserID:                    link.UserID,
+			OldOauthRefreshToken:      oldRefreshToken,
+		})
+		require.NoError(t, err, "optimistic lock write should not error, it is a no-op")
+
+		// Verify DB still has caller A's valid token.
+		dbLink, err := db.GetExternalAuthLink(context.Background(), database.GetExternalAuthLinkParams{
+			ProviderID: link.ProviderID,
+			UserID:     link.UserID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, updated.OAuthAccessToken, dbLink.OAuthAccessToken,
+			"caller A's access token should still be in DB")
+		require.Equal(t, updated.OAuthRefreshToken, dbLink.OAuthRefreshToken,
+			"caller A's refresh token should still be in DB")
+		require.Empty(t, dbLink.OauthRefreshFailureReason,
+			"caller B's failure reason should not have been written")
+	})
+}
+
+func TestValidateToken(t *testing.T) {
+	t.Parallel()
+
+	// These tests use httptest.NewServer to control response headers
+	// (X-RateLimit-Remaining, Retry-After) that the FakeIDP's
+	// WithDynamicUserInfo hook does not expose.
+
+	newValidateConfig := func(t *testing.T, validateURL string) *externalauth.Config {
+		t.Helper()
+		f := promoauth.NewFactory(prometheus.NewRegistry())
+		return &externalauth.Config{
+			InstrumentedOAuth2Config: f.New("test-validate", &oauth2.Config{}),
+			ID:                       "test-validate",
+			Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
+			ValidateURL:              validateURL,
+		}
+	}
+
+	newToken := func() *oauth2.Token {
+		return &oauth2.Token{
+			AccessToken: "test-access-token",
+			Expiry:      time.Now().Add(time.Hour),
+		}
+	}
+
+	// newValidateCtx returns a context carrying a dedicated http.Client per
+	// subtest. Without this, parallel subtests share http.DefaultTransport,
+	// and httptest.Server.Close() calls http.DefaultTransport.CloseIdleConnections
+	// which can break in-flight requests of sibling subtests.
+	newValidateCtx := func(t *testing.T) context.Context {
+		t.Helper()
+		tp := &http.Transport{}
+		t.Cleanup(tp.CloseIdleConnections)
+		return oidc.ClientContext(context.Background(), &http.Client{Transport: tp})
+	}
+
+	// RateLimitRemaining: 403 with X-RateLimit-Remaining: 0 should be
+	// treated as rate-limited, not as an invalid token.
+	t.Run("RateLimitRemaining", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("X-RateLimit-Remaining", "0")
+			w.Header().Set("X-RateLimit-Limit", "5000")
+			w.WriteHeader(http.StatusForbidden)
+		}))
+		t.Cleanup(srv.Close)
+
+		config := newValidateConfig(t, srv.URL)
+		valid, user, err := config.ValidateToken(newValidateCtx(t), newToken())
+
+		require.NoError(t, err)
+		assert.True(t, valid, "rate-limited 403 should be treated as optimistically valid")
+		assert.Nil(t, user)
+	})
+
+	// RetryAfter: 403 with Retry-After header (secondary rate limit)
+	// should be treated as rate-limited.
+	t.Run("RetryAfter", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Retry-After", "60")
+			w.WriteHeader(http.StatusForbidden)
+		}))
+		t.Cleanup(srv.Close)
+
+		config := newValidateConfig(t, srv.URL)
+		valid, user, err := config.ValidateToken(newValidateCtx(t), newToken())
+
+		require.NoError(t, err)
+		assert.True(t, valid, "rate-limited 403 with Retry-After should be optimistically valid")
+		assert.Nil(t, user)
+	})
+
+	// Forbidden_WithNonZeroRateLimit: a 403 with non-zero
+	// X-RateLimit-Remaining is a genuine token revocation, not a
+	// rate limit. GitHub includes X-RateLimit-* headers on all
+	// authenticated responses; the value matters, not the presence.
+	t.Run("Forbidden_WithNonZeroRateLimit", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("X-RateLimit-Remaining", "5000")
+			w.Header().Set("X-RateLimit-Limit", "5000")
+			w.WriteHeader(http.StatusForbidden)
+		}))
+		t.Cleanup(srv.Close)
+
+		config := newValidateConfig(t, srv.URL)
+		valid, user, err := config.ValidateToken(newValidateCtx(t), newToken())
+
+		require.NoError(t, err)
+		assert.False(t, valid, "403 with non-zero rate limit remaining means token is invalid")
+		assert.Nil(t, user)
+	})
+
+	// Forbidden_NoRateLimitHeaders: a plain 403 without rate-limit
+	// headers is a genuine token revocation / permission error.
+	t.Run("Forbidden_NoRateLimitHeaders", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusForbidden)
+		}))
+		t.Cleanup(srv.Close)
+
+		config := newValidateConfig(t, srv.URL)
+		valid, user, err := config.ValidateToken(newValidateCtx(t), newToken())
+
+		require.NoError(t, err)
+		assert.False(t, valid, "plain 403 without rate-limit headers means token is invalid")
+		assert.Nil(t, user)
+	})
+
+	// Unauthorized: 401 is always a token revocation regardless of
+	// rate-limit headers.
+	t.Run("Unauthorized", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusUnauthorized)
+		}))
+		t.Cleanup(srv.Close)
+
+		config := newValidateConfig(t, srv.URL)
+		valid, user, err := config.ValidateToken(newValidateCtx(t), newToken())
+
+		require.NoError(t, err)
+		assert.False(t, valid, "401 always means token is invalid")
+		assert.Nil(t, user)
+	})
+
+	// Unauthorized_WithRateLimitHeaders: 401 is always a revocation,
+	// even when rate-limit headers are present. Locks the ordering
+	// invariant that the 401 branch precedes the rate-limit check.
+	t.Run("Unauthorized_WithRateLimitHeaders", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("X-RateLimit-Remaining", "0")
+			w.Header().Set("Retry-After", "60")
+			w.WriteHeader(http.StatusUnauthorized)
+		}))
+		t.Cleanup(srv.Close)
+
+		config := newValidateConfig(t, srv.URL)
+		valid, user, err := config.ValidateToken(newValidateCtx(t), newToken())
+
+		require.NoError(t, err)
+		assert.False(t, valid, "401 is always invalid, even with rate-limit headers")
+		assert.Nil(t, user)
+	})
+
+	// TooManyRequests: 429 is treated optimistically, same as a
+	// rate-limited 403. GitHub can return either status code for
+	// rate limits.
+	t.Run("TooManyRequests", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusTooManyRequests)
+		}))
+		t.Cleanup(srv.Close)
+
+		config := newValidateConfig(t, srv.URL)
+		valid, user, err := config.ValidateToken(newValidateCtx(t), newToken())
+
+		require.NoError(t, err)
+		assert.True(t, valid, "429 should be treated as optimistically valid")
+		assert.Nil(t, user)
 	})
 }
 

@@ -107,6 +107,14 @@ type stubParams struct {
 func orderAndStubDatabaseFunctions(filePath, receiver, structName string, stub func(params stubParams) string) error {
 	declByName := map[string]*dst.FuncDecl{}
 	packageName := filepath.Base(filepath.Dir(filePath))
+	externalMethods, err := loadExternalReceiverMethods(
+		filepath.Dir(filePath),
+		filepath.Base(filePath),
+		structName,
+	)
+	if err != nil {
+		return xerrors.Errorf("load external receiver methods: %w", err)
+	}
 
 	contents, err := os.ReadFile(filePath)
 	if err != nil {
@@ -149,6 +157,10 @@ func orderAndStubDatabaseFunctions(filePath, receiver, structName string, stub f
 	}
 
 	for _, fn := range funcs {
+		if _, ok := externalMethods[fn.Name]; ok {
+			continue
+		}
+
 		var bodyStmts []dst.Stmt
 
 		decl, ok := declByName[fn.Name]
@@ -314,6 +326,57 @@ func parseDBFile(filename string) (*dst.File, error) {
 	}
 	f, err := decorator.Parse(querierData)
 	return f, err
+}
+
+func loadExternalReceiverMethods(
+	dirPath string,
+	excludeFile string,
+	structName string,
+) (map[string]struct{}, error) {
+	methods := make(map[string]struct{})
+	entries, err := os.ReadDir(dirPath)
+	if err != nil {
+		return nil, xerrors.Errorf("read dir %s: %w", dirPath, err)
+	}
+
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || name == excludeFile || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+
+		contents, err := os.ReadFile(filepath.Join(dirPath, name))
+		if err != nil {
+			return nil, xerrors.Errorf("read %s: %w", name, err)
+		}
+		f, err := decorator.Parse(contents)
+		if err != nil {
+			return nil, xerrors.Errorf("parse %s: %w", name, err)
+		}
+		for _, decl := range f.Decls {
+			funcDecl, ok := decl.(*dst.FuncDecl)
+			if !ok || funcDecl.Recv == nil || len(funcDecl.Recv.List) == 0 {
+				continue
+			}
+
+			var ident *dst.Ident
+			switch recv := funcDecl.Recv.List[0].Type.(type) {
+			case *dst.Ident:
+				ident = recv
+			case *dst.StarExpr:
+				ident, ok = recv.X.(*dst.Ident)
+				if !ok {
+					continue
+				}
+			}
+			if ident == nil || ident.Name != structName {
+				continue
+			}
+			methods[funcDecl.Name.Name] = struct{}{}
+		}
+	}
+
+	return methods, nil
 }
 
 func loadInterfaceFuncs(f *dst.File, interfaceName string) ([]querierFunction, error) {

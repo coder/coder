@@ -2,7 +2,7 @@ import { type FC, useState } from "react";
 import { useLocation } from "react-router";
 import type { AuthMethods, BuildInfoResponse } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
-import { CustomLogo } from "#/components/CustomLogo/CustomLogo";
+import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { Loader } from "#/components/Loader/Loader";
 import { SignInForm } from "./SignInForm";
 import { TermsOfServiceLink } from "./TermsOfServiceLink";
@@ -37,7 +37,7 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
 	return (
 		<div className="p-6 flex items-center justify-center min-h-full text-center">
 			<div className="w-full max-w-xs flex flex-col items-center gap-4">
-				<CustomLogo />
+				<ProductLogo />
 				{isLoading ? (
 					<Loader />
 				) : tosAcceptanceRequired ? (

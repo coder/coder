@@ -11,7 +11,7 @@ curl -X GET http://coder-server:8080/api/v2/tasks \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /tasks`
+`GET /api/v2/tasks`
 
 ### Parameters
 
@@ -95,7 +95,7 @@ curl -X POST http://coder-server:8080/api/v2/tasks/{user} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /tasks/{user}`
+`POST /api/v2/tasks/{user}`
 
 > Body parameter
 
@@ -186,7 +186,7 @@ curl -X GET http://coder-server:8080/api/v2/tasks/{user}/{task} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /tasks/{user}/{task}`
+`GET /api/v2/tasks/{user}/{task}`
 
 ### Parameters
 
@@ -264,7 +264,7 @@ curl -X DELETE http://coder-server:8080/api/v2/tasks/{user}/{task} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`DELETE /tasks/{user}/{task}`
+`DELETE /api/v2/tasks/{user}/{task}`
 
 ### Parameters
 
@@ -292,7 +292,7 @@ curl -X PATCH http://coder-server:8080/api/v2/tasks/{user}/{task}/input \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PATCH /tasks/{user}/{task}/input`
+`PATCH /api/v2/tasks/{user}/{task}/input`
 
 > Body parameter
 
@@ -329,7 +329,7 @@ curl -X GET http://coder-server:8080/api/v2/tasks/{user}/{task}/logs \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /tasks/{user}/{task}/logs`
+`GET /api/v2/tasks/{user}/{task}/logs`
 
 ### Parameters
 
@@ -376,7 +376,7 @@ curl -X POST http://coder-server:8080/api/v2/tasks/{user}/{task}/pause \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /tasks/{user}/{task}/pause`
+`POST /api/v2/tasks/{user}/{task}/pause`
 
 ### Parameters
 
@@ -547,6 +547,7 @@ curl -X POST http://coder-server:8080/api/v2/tasks/{user}/{task}/pause \
               {
                 "cron": "string",
                 "display_name": "string",
+                "exit_code": 0,
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "log_path": "string",
                 "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
@@ -554,6 +555,7 @@ curl -X POST http://coder-server:8080/api/v2/tasks/{user}/{task}/pause \
                 "run_on_stop": true,
                 "script": "string",
                 "start_blocks_login": true,
+                "status": "ok",
                 "timeout": 0
               }
             ],
@@ -620,7 +622,7 @@ curl -X POST http://coder-server:8080/api/v2/tasks/{user}/{task}/resume \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /tasks/{user}/{task}/resume`
+`POST /api/v2/tasks/{user}/{task}/resume`
 
 ### Parameters
 
@@ -791,6 +793,7 @@ curl -X POST http://coder-server:8080/api/v2/tasks/{user}/{task}/resume \
               {
                 "cron": "string",
                 "display_name": "string",
+                "exit_code": 0,
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "log_path": "string",
                 "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
@@ -798,6 +801,7 @@ curl -X POST http://coder-server:8080/api/v2/tasks/{user}/{task}/resume \
                 "run_on_stop": true,
                 "script": "string",
                 "start_blocks_login": true,
+                "status": "ok",
                 "timeout": 0
               }
             ],
@@ -864,7 +868,7 @@ curl -X POST http://coder-server:8080/api/v2/tasks/{user}/{task}/send \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /tasks/{user}/{task}/send`
+`POST /api/v2/tasks/{user}/{task}/send`
 
 > Body parameter
 
@@ -901,7 +905,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/me/tasks/{task}/log
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /workspaceagents/me/tasks/{task}/log-snapshot`
+`POST /api/v2/workspaceagents/me/tasks/{task}/log-snapshot`
 
 > Body parameter
 

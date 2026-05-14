@@ -43,7 +43,7 @@ const (
 // @Param file formData file true "File to be uploaded. If using tar format, file must conform to ustar (pax may cause problems)."
 // @Success 200 {object} codersdk.UploadResponse "Returns existing file if duplicate"
 // @Success 201 {object} codersdk.UploadResponse "Returns newly created file"
-// @Router /files [post]
+// @Router /api/v2/files [post]
 func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -149,7 +149,7 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 // @Tags Files
 // @Param fileID path string true "File ID" format(uuid)
 // @Success 200
-// @Router /files/{fileID} [get]
+// @Router /api/v2/files/{fileID} [get]
 func (api *API) fileByID(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx    = r.Context()

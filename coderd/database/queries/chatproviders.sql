@@ -6,6 +6,15 @@ FROM
 WHERE
     id = @id::uuid;
 
+-- name: GetChatProviderByIDForUpdate :one
+SELECT
+    *
+FROM
+    chat_providers
+WHERE
+    id = @id::uuid
+FOR UPDATE;
+
 -- name: GetChatProviderByProvider :one
 SELECT
     *
@@ -13,6 +22,15 @@ FROM
     chat_providers
 WHERE
     provider = @provider::text;
+
+-- name: GetChatProviderByProviderForUpdate :one
+SELECT
+    *
+FROM
+    chat_providers
+WHERE
+    provider = @provider::text
+FOR UPDATE;
 
 -- name: GetChatProviders :many
 SELECT

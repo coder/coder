@@ -6,9 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"net/http"
+	"net/netip"
 	"slices"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/SherClockHolmes/webpush-go"
@@ -25,6 +28,22 @@ import (
 )
 
 const defaultSubscriptionCacheTTL = 3 * time.Minute
+
+// isStaleSubscriptionStatus reports whether a status code from a push
+// service indicates that the subscription is permanently invalid and
+// should be removed from the database. Other 4xx and 5xx responses
+// (rate limits, transient failures) leave the subscription in place
+// so it can be retried on the next dispatch.
+func isStaleSubscriptionStatus(statusCode int) bool {
+	switch statusCode {
+	case http.StatusBadRequest, // 400: malformed subscription per the push service.
+		http.StatusForbidden, // 403: Apple BadJwtToken / VAPID rejected, key rotation.
+		http.StatusNotFound,  // 404: FCM/Mozilla endpoint no longer valid.
+		http.StatusGone:      // 410: standard "subscription expired" signal.
+		return true
+	}
+	return false
+}
 
 // Dispatcher is an interface that can be used to dispatch
 // web push notifications to clients such as browsers.
@@ -47,6 +66,7 @@ type SubscriptionCacheInvalidator interface {
 type options struct {
 	clock                quartz.Clock
 	subscriptionCacheTTL time.Duration
+	httpClient           *http.Client
 }
 
 // Option configures optional behavior for a Webpusher.
@@ -65,6 +85,15 @@ func WithClock(clock quartz.Clock) Option {
 func WithSubscriptionCacheTTL(ttl time.Duration) Option {
 	return func(o *options) {
 		o.subscriptionCacheTTL = ttl
+	}
+}
+
+// WithHTTPClient overrides the default SSRF-safe HTTP client used to deliver
+// push notifications. This is intended for tests that need to deliver to
+// localhost test servers.
+func WithHTTPClient(client *http.Client) Option {
+	return func(o *options) {
+		o.httpClient = client
 	}
 }
 
@@ -89,6 +118,9 @@ func New(ctx context.Context, log *slog.Logger, db database.Store, vapidSub stri
 	}
 	if cfg.subscriptionCacheTTL <= 0 {
 		cfg.subscriptionCacheTTL = defaultSubscriptionCacheTTL
+	}
+	if cfg.httpClient == nil {
+		cfg.httpClient = newSSRFSafeHTTPClient()
 	}
 
 	keys, err := db.GetWebpushVAPIDKeys(ctx)
@@ -121,6 +153,7 @@ func New(ctx context.Context, log *slog.Logger, db database.Store, vapidSub stri
 		subscriptionCacheTTL:    cfg.subscriptionCacheTTL,
 		subscriptionCache:       make(map[uuid.UUID]cachedSubscriptions),
 		subscriptionGenerations: make(map[uuid.UUID]uint64),
+		httpClient:              cfg.httpClient,
 	}, nil
 }
 
@@ -141,6 +174,12 @@ type Webpusher struct {
 	// the message payload.
 	VAPIDPublicKey  string
 	VAPIDPrivateKey string
+
+	// httpClient is an SSRF-safe HTTP client that rejects connections to
+	// private, loopback, and link-local IP addresses at dial time. This
+	// closes the DNS rebinding TOCTOU gap where a hostname passes URL
+	// validation but resolves to a private IP when the connection is made.
+	httpClient *http.Client
 
 	clock quartz.Clock
 
@@ -180,11 +219,23 @@ func (n *Webpusher) Dispatch(ctx context.Context, userID uuid.UUID, msg codersdk
 				return xerrors.Errorf("send webpush notification: %w", err)
 			}
 
-			if statusCode == http.StatusGone {
-				// The subscription is no longer valid, remove it.
+			if isStaleSubscriptionStatus(statusCode) {
+				// Remove subscriptions that the push service has marked as
+				// permanently invalid (Apple returns 403 BadJwtToken and 404
+				// for invalidated subscriptions, FCM returns 404 for
+				// expired endpoints, all push services return 410 for
+				// permanently gone subscriptions, and 400 indicates a
+				// malformed subscription that cannot be retried). Without
+				// this, stale rows accumulate after PWA reinstalls and the
+				// in-memory cache keeps trying to deliver to dead
+				// subscriptions.
 				mu.Lock()
 				cleanupSubscriptions = append(cleanupSubscriptions, subscription.ID)
 				mu.Unlock()
+			}
+
+			if statusCode == http.StatusGone {
+				// 410 Gone is informational, not a delivery error.
 				return nil
 			}
 
@@ -198,22 +249,41 @@ func (n *Webpusher) Dispatch(ctx context.Context, userID uuid.UUID, msg codersdk
 		})
 	}
 
-	err = eg.Wait()
-	if err != nil {
-		return xerrors.Errorf("send webpush notifications: %w", err)
-	}
+	dispatchErr := eg.Wait()
 
-	if len(cleanupSubscriptions) > 0 {
-		// nolint:gocritic // These are known to be invalid subscriptions.
-		err = n.store.DeleteWebpushSubscriptions(dbauthz.AsNotifier(ctx), cleanupSubscriptions)
-		if err != nil {
-			n.log.Error(ctx, "failed to delete stale push subscriptions", slog.Error(err))
-		} else {
-			n.pruneSubscriptions(userID, cleanupSubscriptions)
-		}
+	// Always remove subscriptions that the push service rejected as
+	// permanently invalid, even when sibling deliveries returned a
+	// non-stale error. The cleanup must run before the error return so a
+	// transient delivery failure on one subscription cannot block the
+	// deletion of a 410/404/403/400 sibling. Without this ordering,
+	// stale rows accumulate after PWA reinstalls and silently mask the
+	// new subscription on every subsequent dispatch.
+	n.cleanupStaleSubscriptions(ctx, userID, cleanupSubscriptions)
+
+	if dispatchErr != nil {
+		return xerrors.Errorf("send webpush notifications: %w", dispatchErr)
 	}
 
 	return nil
+}
+
+// cleanupStaleSubscriptions deletes the rows the push service flagged as
+// permanently invalid (see isStaleSubscriptionStatus) and clears the cached
+// entries for the affected user. Failures are logged at error level rather
+// than returned: the caller is in the middle of returning a delivery error
+// and shouldn't have its error shadowed by a cleanup failure. The cache
+// prune is gated on a successful database delete so a partial state cannot
+// leak into the cache.
+func (n *Webpusher) cleanupStaleSubscriptions(ctx context.Context, userID uuid.UUID, ids []uuid.UUID) {
+	if len(ids) == 0 {
+		return
+	}
+	// nolint:gocritic // These are known to be invalid subscriptions.
+	if err := n.store.DeleteWebpushSubscriptions(dbauthz.AsNotifier(ctx), ids); err != nil {
+		n.log.Error(ctx, "failed to delete stale push subscriptions", slog.Error(err))
+		return
+	}
+	n.pruneSubscriptions(userID, ids)
 }
 
 func (n *Webpusher) subscriptionsForUser(ctx context.Context, userID uuid.UUID) ([]database.WebpushSubscription, error) {
@@ -338,6 +408,7 @@ func (n *Webpusher) webpushSend(ctx context.Context, msg []byte, endpoint string
 		Endpoint: endpoint,
 		Keys:     keys,
 	}, &webpush.Options{
+		HTTPClient:      n.httpClient,
 		Subscriber:      n.vapidSub,
 		VAPIDPublicKey:  n.VAPIDPublicKey,
 		VAPIDPrivateKey: n.VAPIDPrivateKey,
@@ -386,9 +457,11 @@ func (n *Webpusher) PublicKey() string {
 	return n.VAPIDPublicKey
 }
 
-// NoopWebpusher is a Dispatcher that does nothing except return an error.
-// This is returned when web push notifications are disabled, or if there was an
-// error generating the VAPID keys.
+// NoopWebpusher is a Dispatcher that always fails, returning Msg as
+// the error. It is used as a fallback when VAPID key setup fails.
+// The underlying error is not included to avoid leaking internal
+// details (e.g. database errors) in API responses; it is logged at
+// the call site instead.
 type NoopWebpusher struct {
 	Msg string
 }
@@ -403,6 +476,37 @@ func (n *NoopWebpusher) Test(context.Context, codersdk.WebpushSubscription) erro
 
 func (*NoopWebpusher) PublicKey() string {
 	return ""
+}
+
+// newSSRFSafeHTTPClient returns an HTTP client that rejects connections to
+// private, loopback, link-local, multicast, and unspecified IP addresses.
+// This prevents DNS rebinding attacks where a hostname passes URL-level
+// validation but resolves to an internal IP at dial time.
+func newSSRFSafeHTTPClient() *http.Client {
+	return &http.Client{
+		Transport: &http.Transport{
+			DialContext: (&net.Dialer{
+				Control: func(_ string, address string, _ syscall.RawConn) error {
+					host, _, err := net.SplitHostPort(address)
+					if err != nil {
+						return xerrors.Errorf("split host/port: %w", err)
+					}
+					ip, err := netip.ParseAddr(host)
+					if err != nil {
+						return xerrors.Errorf("parse resolved IP: %w", err)
+					}
+					if ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() ||
+						ip.IsLinkLocalMulticast() || ip.IsMulticast() ||
+						ip.IsUnspecified() {
+						return xerrors.Errorf(
+							"webpush endpoint resolved to non-public address %s", ip.String(),
+						)
+					}
+					return nil
+				},
+			}).DialContext,
+		},
+	}
 }
 
 // RegenerateVAPIDKeys regenerates the VAPID keys and deletes all existing

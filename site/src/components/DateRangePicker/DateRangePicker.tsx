@@ -246,6 +246,7 @@ export const DateRangePicker: FC<DateRangePickerProps> = ({
 								onSelect={handleCalendarSelect}
 								numberOfMonths={2}
 								disabled={{ after: currentTime }}
+								today={currentTime}
 							/>
 						</div>
 

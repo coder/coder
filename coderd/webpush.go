@@ -4,7 +4,12 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"net/netip"
+	"net/url"
 	"slices"
+	"strings"
+
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -23,7 +28,7 @@ import (
 // @Tags Notifications
 // @Param request body codersdk.WebpushSubscription true "Webpush subscription"
 // @Param user path string true "User ID, name, or me"
-// @Router /users/{user}/webpush/subscription [post]
+// @Router /api/v2/users/{user}/webpush/subscription [post]
 // @Success 204
 // @x-apidocgen {"skip": true}
 func (api *API) postUserWebpushSubscription(rw http.ResponseWriter, r *http.Request) {
@@ -31,6 +36,13 @@ func (api *API) postUserWebpushSubscription(rw http.ResponseWriter, r *http.Requ
 	user := httpmw.UserParam(r)
 	var req codersdk.WebpushSubscription
 	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	if err := validateWebpushEndpoint(req.Endpoint); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid webpush endpoint.",
+			Detail:  err.Error(),
+		})
 		return
 	}
 
@@ -62,6 +74,42 @@ func (api *API) postUserWebpushSubscription(rw http.ResponseWriter, r *http.Requ
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+func validateWebpushEndpoint(rawEndpoint string) error {
+	endpoint, err := url.Parse(rawEndpoint)
+	if err != nil {
+		return xerrors.Errorf("parse endpoint URL: %w", err)
+	}
+	if !endpoint.IsAbs() {
+		return xerrors.New("endpoint must be an absolute URL")
+	}
+	if endpoint.Scheme != "https" {
+		return xerrors.New("endpoint URL scheme must be https")
+	}
+	if endpoint.Host == "" {
+		return xerrors.New("endpoint host is required")
+	}
+	if endpoint.User != nil {
+		return xerrors.New("endpoint URL must not include userinfo")
+	}
+
+	hostname := strings.ToLower(endpoint.Hostname())
+	if hostname == "" {
+		return xerrors.New("endpoint hostname is required")
+	}
+	if hostname == "localhost" || strings.HasSuffix(hostname, ".localhost") {
+		return xerrors.New("endpoint hostname must not be localhost")
+	}
+
+	if ip, err := netip.ParseAddr(hostname); err == nil &&
+		(ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() ||
+			ip.IsLinkLocalMulticast() || ip.IsMulticast() ||
+			ip.IsUnspecified()) {
+		return xerrors.New("endpoint IP must not be private, loopback, link-local, multicast, or unspecified")
+	}
+
+	return nil
+}
+
 // @Summary Delete user webpush subscription
 // @ID delete-user-webpush-subscription
 // @Security CoderSessionToken
@@ -69,7 +117,7 @@ func (api *API) postUserWebpushSubscription(rw http.ResponseWriter, r *http.Requ
 // @Tags Notifications
 // @Param request body codersdk.DeleteWebpushSubscription true "Webpush subscription"
 // @Param user path string true "User ID, name, or me"
-// @Router /users/{user}/webpush/subscription [delete]
+// @Router /api/v2/users/{user}/webpush/subscription [delete]
 // @Success 204
 // @x-apidocgen {"skip": true}
 func (api *API) deleteUserWebpushSubscription(rw http.ResponseWriter, r *http.Request) {
@@ -128,7 +176,7 @@ func (api *API) deleteUserWebpushSubscription(rw http.ResponseWriter, r *http.Re
 // @Tags Notifications
 // @Param user path string true "User ID, name, or me"
 // @Success 204
-// @Router /users/{user}/webpush/test [post]
+// @Router /api/v2/users/{user}/webpush/test [post]
 // @x-apidocgen {"skip": true}
 func (api *API) postUserPushNotificationTest(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

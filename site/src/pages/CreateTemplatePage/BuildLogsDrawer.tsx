@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import Drawer from "@mui/material/Drawer";
 import { TriangleAlertIcon, XIcon } from "lucide-react";
 import type { FC } from "react";
@@ -39,9 +38,12 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 
 	return (
 		<Drawer anchor="right" {...drawerProps}>
-			<div css={styles.root}>
-				<header css={styles.header}>
-					<h3 css={styles.title}>Creating template...</h3>
+			<div className="flex h-full w-[800px] flex-col">
+				<header
+					className="flex items-center justify-between border-b border-border px-6"
+					style={{ height: navHeight }}
+				>
+					<h3 className="m-0 text-base font-medium">Creating template...</h3>
 					<Button size="icon-lg" variant="subtle" onClick={drawerProps.onClose}>
 						<XIcon />
 						<span className="sr-only">Close build logs</span>
@@ -72,7 +74,7 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 						)}
 
 						{hasLogs ? (
-							<section css={styles.logs}>
+							<section className="flex-1 overflow-auto bg-surface-primary">
 								<WorkspaceBuildLogs logs={logs} className="border-0" />
 							</section>
 						) : (
@@ -91,16 +93,16 @@ const MissingVariablesBanner: FC<MissingVariablesBannerProps> = ({
 	onFillVariables,
 }) => {
 	return (
-		<div css={bannerStyles.root}>
-			<div css={bannerStyles.content}>
-				<TriangleAlertIcon className="size-icon-lg" css={bannerStyles.icon} />
-				<h4 css={bannerStyles.title}>Missing variables</h4>
-				<p css={bannerStyles.description}>
+		<div className="flex items-center justify-center p-10">
+			<div className="flex max-w-[360px] flex-col items-center text-center">
+				<TriangleAlertIcon className="size-icon-lg text-content-warning" />
+				<h4 className="m-0 mt-4 font-medium leading-none">Missing variables</h4>
+				<p className="m-0 mt-2 text-sm leading-6 text-content-secondary">
 					During the build process, we identified some missing variables. Rest
 					assured, we have automatically added them to the form for you.
 				</p>
 				<Button
-					css={bannerStyles.button}
+					className="mt-4"
 					size="sm"
 					variant="outline"
 					onClick={onFillVariables}
@@ -111,65 +113,3 @@ const MissingVariablesBanner: FC<MissingVariablesBannerProps> = ({
 		</div>
 	);
 };
-
-const styles = {
-	root: {
-		width: 800,
-		height: "100%",
-		display: "flex",
-		flexDirection: "column",
-	},
-	header: (theme) => ({
-		height: navHeight,
-		padding: "0 24px",
-		display: "flex",
-		alignItems: "center",
-		justifyContent: "space-between",
-		borderBottom: `1px solid ${theme.palette.divider}`,
-	}),
-	title: {
-		margin: 0,
-		fontWeight: 500,
-		fontSize: 16,
-	},
-	logs: (theme) => ({
-		flex: 1,
-		overflow: "auto",
-		backgroundColor: theme.palette.background.default,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
-
-const bannerStyles = {
-	root: {
-		display: "flex",
-		alignItems: "center",
-		justifyContent: "center",
-		padding: 40,
-	},
-	content: {
-		display: "flex",
-		flexDirection: "column",
-		alignItems: "center",
-		textAlign: "center",
-		maxWidth: 360,
-	},
-	icon: (theme) => ({
-		color: theme.roles.warning.fill.outline,
-	}),
-	title: {
-		fontWeight: 500,
-		lineHeight: "1",
-		margin: 0,
-		marginTop: 16,
-	},
-	description: (theme) => ({
-		color: theme.palette.text.secondary,
-		fontSize: 14,
-		margin: 0,
-		marginTop: 8,
-		lineHeight: "1.5",
-	}),
-	button: {
-		marginTop: 16,
-	},
-} satisfies Record<string, Interpolation<Theme>>;

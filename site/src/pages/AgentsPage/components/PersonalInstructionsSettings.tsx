@@ -5,8 +5,13 @@ import TextareaAutosize from "react-textarea-autosize";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
+import { Spinner } from "#/components/Spinner/Spinner";
 import { cn } from "#/utils/cn";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
+import {
+	TemporarySavedState,
+	useTemporarySavedState,
+} from "./TemporarySavedState";
 
 interface MutationCallbacks {
 	onSuccess?: () => void;
@@ -29,10 +34,12 @@ export const PersonalInstructionsSettings: FC<
 > = ({
 	userPromptData,
 	onSaveUserPrompt,
+	isSavingUserPrompt,
 	isSaveUserPromptError,
 	isAnyPromptSaving,
 }) => {
 	const [isUserPromptOverflowing, setIsUserPromptOverflowing] = useState(false);
+	const { isSavedVisible, showSavedState } = useTemporarySavedState();
 
 	const form = useFormik({
 		initialValues: {
@@ -42,7 +49,12 @@ export const PersonalInstructionsSettings: FC<
 		onSubmit: (values, helpers) => {
 			onSaveUserPrompt(
 				{ custom_prompt: values.custom_prompt },
-				{ onSuccess: () => helpers.resetForm() },
+				{
+					onSuccess: () => {
+						showSavedState();
+						helpers.resetForm();
+					},
+				},
 			);
 		},
 	});
@@ -52,16 +64,16 @@ export const PersonalInstructionsSettings: FC<
 	);
 
 	return (
-		<form className="space-y-2" onSubmit={form.handleSubmit}>
-			<h3 className="m-0 text-[13px] font-semibold text-content-primary">
+		<form className="flex flex-col gap-2" onSubmit={form.handleSubmit}>
+			<h3 className="m-0 text-sm font-semibold text-content-primary">
 				Personal Instructions
 			</h3>
-			<p className="!mt-0.5 m-0 text-xs text-content-secondary">
+			<p className="m-0 text-xs text-content-secondary">
 				Applied to all your conversations. Only visible to you.
 			</p>
 			<TextareaAutosize
 				className={cn(
-					"max-h-[240px] w-full resize-none rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30",
+					"max-h-[240px] w-full resize-none rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-sm leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link",
 					isUserPromptOverflowing && "overflow-y-auto [scrollbar-width:thin]",
 				)}
 				name="custom_prompt"
@@ -81,23 +93,31 @@ export const PersonalInstructionsSettings: FC<
 					</AlertDescription>
 				</Alert>
 			)}
-			<div className="flex justify-end gap-2">
-				<Button
-					size="sm"
-					variant="outline"
-					type="button"
-					onClick={() => form.setFieldValue("custom_prompt", "")}
-					disabled={isAnyPromptSaving || !form.values.custom_prompt}
-				>
-					Clear
-				</Button>
-				<Button
-					size="sm"
-					type="submit"
-					disabled={isAnyPromptSaving || !form.dirty}
-				>
-					Save
-				</Button>
+			<div className="mt-2 flex min-h-6 justify-end gap-2">
+				{(form.dirty || isSavedVisible || isSavingUserPrompt) &&
+					(isSavedVisible ? (
+						<TemporarySavedState />
+					) : (
+						<>
+							<Button
+								size="xs"
+								variant="outline"
+								type="button"
+								onClick={() => form.setFieldValue("custom_prompt", "")}
+								disabled={isAnyPromptSaving || !form.values.custom_prompt}
+							>
+								Clear
+							</Button>
+							<Button
+								size="xs"
+								type="submit"
+								disabled={isAnyPromptSaving || !form.dirty}
+							>
+								{isSavingUserPrompt && <Spinner loading className="h-4 w-4" />}
+								Save
+							</Button>
+						</>
+					))}
 			</div>
 			{isSaveUserPromptError && (
 				<p className="m-0 text-xs text-content-destructive">

@@ -137,6 +137,19 @@ describe("deriveLiveStatus", () => {
 		});
 	});
 
+	it("passes provider detail through failed status", () => {
+		expect(
+			derive({
+				streamError: makeStreamError({
+					detail: "Image exceeds 5 MB maximum.",
+				}),
+			}),
+		).toMatchObject({
+			phase: "failed",
+			detail: "Image exceeds 5 MB maximum.",
+		});
+	});
+
 	it("tracks accumulated output while reconnecting", () => {
 		expect(
 			derive({

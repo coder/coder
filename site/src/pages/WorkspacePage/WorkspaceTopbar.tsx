@@ -1,6 +1,5 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import Link from "@mui/material/Link";
-import { ChevronLeftIcon, CircleDollarSign, TrashIcon } from "lucide-react";
+import { ChevronLeftIcon, CircleDollarSignIcon, TrashIcon } from "lucide-react";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router";
@@ -30,6 +29,7 @@ import {
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import { WorkspaceStatusIndicator } from "#/modules/workspaces/WorkspaceStatusIndicator/WorkspaceStatusIndicator";
+import { cn } from "#/utils/cn";
 import { displayDormantDeletion } from "#/utils/dormant";
 import { formatDate } from "#/utils/time";
 import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
@@ -37,7 +37,13 @@ import { WorkspaceActions } from "./WorkspaceActions/WorkspaceActions";
 import { WorkspaceNotifications } from "./WorkspaceNotifications/WorkspaceNotifications";
 import { WorkspaceScheduleControls } from "./WorkspaceScheduleControls";
 
-interface WorkspaceProps {
+const BREADCRUMB_SEGMENT_CLASS = cn(
+	"flex items-center flex-row flex-nowrap gap-2",
+	"max-w-40 whitespace-nowrap cursor-default",
+);
+const BREADCRUMB_TEXT_CLASS = "overflow-x-hidden text-ellipsis";
+
+interface WorkspaceTopbarProps {
 	isUpdating: boolean;
 	isRestarting: boolean;
 	workspace: TypesGen.Workspace;
@@ -55,7 +61,7 @@ interface WorkspaceProps {
 	handleToggleFavorite: () => void;
 }
 
-export const WorkspaceTopbar: FC<WorkspaceProps> = ({
+export const WorkspaceTopbar: FC<WorkspaceTopbarProps> = ({
 	workspace,
 	template,
 	latestVersion,
@@ -174,7 +180,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 					>
 						<TopbarData>
 							<TopbarIcon>
-								<CircleDollarSign
+								<CircleDollarSignIcon
 									className="size-icon-sm"
 									aria-label="Daily usage"
 								/>
@@ -263,9 +269,9 @@ const OwnerBreadcrumb: FC<OwnerBreadcrumbProps> = ({
 	return (
 		<HelpPopover>
 			<HelpPopoverTrigger asChild>
-				<span css={styles.breadcrumbSegment}>
+				<span className={BREADCRUMB_SEGMENT_CLASS}>
 					<Avatar size="sm" fallback={ownerName} src={ownerAvatarUrl} />
-					<span css={styles.breadcrumbText}>{ownerName}</span>
+					<span className={BREADCRUMB_TEXT_CLASS}>{ownerName}</span>
 				</span>
 			</HelpPopoverTrigger>
 
@@ -290,14 +296,14 @@ const OrganizationBreadcrumb: FC<OrganizationBreadcrumbProps> = ({
 	return (
 		<HelpPopover>
 			<HelpPopoverTrigger asChild>
-				<span css={styles.breadcrumbSegment}>
+				<span className={BREADCRUMB_SEGMENT_CLASS}>
 					<Avatar
 						size="sm"
 						variant="icon"
 						src={orgIconUrl}
 						fallback={orgName}
 					/>
-					<span css={styles.breadcrumbText}>{orgName}</span>
+					<span className={BREADCRUMB_TEXT_CLASS}>{orgName}</span>
 				</span>
 			</HelpPopoverTrigger>
 
@@ -355,13 +361,13 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 		<div className="flex items-center">
 			<HelpPopover>
 				<HelpPopoverTrigger asChild>
-					<span css={styles.breadcrumbSegment}>
+					<span className={BREADCRUMB_SEGMENT_CLASS}>
 						<TopbarAvatar
 							src={templateIconUrl}
 							fallback={templateDisplayName}
 						/>
 
-						<span css={[styles.breadcrumbText, { fontWeight: 500 }]}>
+						<span className={cn(BREADCRUMB_TEXT_CLASS, "font-medium")}>
 							{workspaceName}
 						</span>
 					</span>
@@ -403,20 +409,3 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 		</div>
 	);
 };
-
-const styles = {
-	breadcrumbSegment: {
-		display: "flex",
-		alignItems: "center",
-		flexFlow: "row nowrap",
-		gap: "8px",
-		maxWidth: "160px",
-		whiteSpace: "nowrap",
-		cursor: "default",
-	},
-
-	breadcrumbText: {
-		overflowX: "hidden",
-		textOverflow: "ellipsis",
-	},
-} satisfies Record<string, Interpolation<Theme>>;

@@ -137,6 +137,35 @@ func TestChatUsageLimitExceededFrom(t *testing.T) {
 	})
 }
 
+func TestChatErrorKind_JSONRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	terminal := codersdk.ChatError{
+		Message: "limit reached",
+		Kind:    codersdk.ChatErrorKindUsageLimit,
+	}
+	data, err := json.Marshal(terminal)
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"kind":"usage_limit"`)
+
+	var decodedTerminal codersdk.ChatError
+	require.NoError(t, json.Unmarshal(data, &decodedTerminal))
+	require.Equal(t, codersdk.ChatErrorKindUsageLimit, decodedTerminal.Kind)
+
+	retry := codersdk.ChatStreamRetry{
+		Attempt: 1,
+		Error:   "retrying",
+		Kind:    codersdk.ChatErrorKindUsageLimit,
+	}
+	data, err = json.Marshal(retry)
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"kind":"usage_limit"`)
+
+	var decodedRetry codersdk.ChatStreamRetry
+	require.NoError(t, json.Unmarshal(data, &decodedRetry))
+	require.Equal(t, codersdk.ChatErrorKindUsageLimit, decodedRetry.Kind)
+}
+
 func TestChatMessagePart_StripInternal(t *testing.T) {
 	t.Parallel()
 
@@ -235,7 +264,6 @@ func TestChatMessagePartVariantTags(t *testing.T) {
 	excludedFields := map[string]string{
 		"type":                         "discriminant, added automatically by codegen",
 		"signature":                    "added in #22290, never populated by any code path",
-		"result_delta":                 "added in #22290, never populated by any code path",
 		"provider_metadata":            "internal only, stripped by db2sdk before API responses",
 		"context_file_content":         "internal only, stripped before API responses (typescript:\"-\")",
 		"context_file_os":              "internal only, used during prompt expansion (typescript:\"-\")",
@@ -447,7 +475,14 @@ func TestChat_JSONRoundTrip(t *testing.T) {
 	reviewerCount := int32(2)
 	refreshedAt := now
 	staleAt := now.Add(time.Hour)
-	lastError := "boom"
+	lastError := &codersdk.ChatError{
+		Message:    "boom",
+		Detail:     "provider detail",
+		Kind:       codersdk.ChatErrorKindGeneric,
+		Provider:   "openai",
+		Retryable:  true,
+		StatusCode: 503,
+	}
 	prURL := "https://github.com/coder/coder/pull/42"
 	workspaceID := uuid.New()
 	buildID := uuid.New()
@@ -466,7 +501,7 @@ func TestChat_JSONRoundTrip(t *testing.T) {
 		LastModelConfigID: uuid.New(),
 		Title:             "round-trip-test",
 		Status:            codersdk.ChatStatusRunning,
-		LastError:         &lastError,
+		LastError:         lastError,
 		CreatedAt:         now,
 		UpdatedAt:         now,
 		Archived:          true,

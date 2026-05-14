@@ -15,12 +15,12 @@ export const CollapsibleSidebar: FC<CollapsibleSidebarProps> = ({
 	className,
 	storageKey = "sidebar-width",
 }) => {
-	const { width, collapsed, expand, onDragStart } =
+	const { width, collapsed, expand, toggle, onDragStart } =
 		useSidebarResize(storageKey);
 
 	const contextValue = useMemo(
-		() => ({ collapsed, expand }),
-		[collapsed, expand],
+		() => ({ collapsed, expand, toggle }),
+		[collapsed, expand, toggle],
 	);
 
 	return (

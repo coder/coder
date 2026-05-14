@@ -1,5 +1,10 @@
 # Mux
 
+> [!NOTE]
+> AI Gateway requires the [AI Governance Add-On](../../ai-governance.md).
+> As of Coder v2.32, deployments without the add-on will not be able to
+> access AI Gateway.
+
 Mux makes it easy to run parallel coding agents, each with its own isolated workspace, from your browser or desktop; it is open source and provider-agnostic.
 
 Mux can be configured to route OpenAI- and Anthropic-compatible traffic through AI Gateway by setting a custom provider base URL and using a Coder-issued token for authentication.
@@ -7,7 +12,7 @@ Mux can be configured to route OpenAI- and Anthropic-compatible traffic through 
 ## Prerequisites
 
 - AI Gateway is enabled on your Coder deployment.
-- A **[Coder session token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)** or long-lived API key.
+- A **[Coder API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)**.
 
 ## Configuration
 
@@ -17,14 +22,14 @@ Mux can be configured to route OpenAI- and Anthropic-compatible traffic through 
 
 1. Open Mux settings (`Cmd+,` / `Ctrl+,`).
 2. Go to **Providers** → **OpenAI**.
-3. Set **API Key** to your Coder session token.
+3. Set **API Key** to your Coder API token.
 4. Set **Base URL** to `https://coder.example.com/api/v2/aibridge/openai/v1`.
 
 ### Anthropic
 
 1. Open Mux settings (`Cmd+,` / `Ctrl+,`).
 2. Go to **Providers** → **Anthropic**.
-3. Set **API Key** to your Coder session token.
+3. Set **API Key** to your Coder API token.
 4. Set **Base URL** to `https://coder.example.com/api/v2/aibridge/anthropic`.
 
 </div>
@@ -42,11 +47,11 @@ Environment variables are useful in CI or when running Mux inside a Coder worksp
 
 ```sh
 # OpenAI-compatible traffic (GPT, Codex, etc.)
-export OPENAI_API_KEY="<your-coder-session-token>"
+export OPENAI_API_KEY="<your-coder-api-token>"
 export OPENAI_BASE_URL="https://coder.example.com/api/v2/aibridge/openai/v1"
 
 # Anthropic-compatible traffic (Claude, etc.)
-export ANTHROPIC_API_KEY="<your-coder-session-token>"
+export ANTHROPIC_API_KEY="<your-coder-api-token>"
 export ANTHROPIC_BASE_URL="https://coder.example.com/api/v2/aibridge/anthropic"
 ```
 
@@ -83,11 +88,11 @@ If you prefer a file-based config, edit `~/.mux/providers.jsonc`:
 ```jsonc
 {
   "openai": {
-    "apiKey": "<your-coder-session-token>",
+    "apiKey": "<your-coder-api-token>",
     "baseUrl": "https://coder.example.com/api/v2/aibridge/openai/v1"
   },
   "anthropic": {
-    "apiKey": "<your-coder-session-token>",
+    "apiKey": "<your-coder-api-token>",
     "baseUrl": "https://coder.example.com/api/v2/aibridge/anthropic"
   }
 }

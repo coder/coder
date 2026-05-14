@@ -3,9 +3,7 @@ import { useLocation } from "react-router";
 export type DeploymentSection =
 	| "general"
 	| "infrastructure"
-	| "authentication"
-	| "ai-settings"
-	| "ai-governance";
+	| "authentication";
 
 // Route-prefix-to-section mapping. Order matters: first match wins.
 // Longer prefixes must precede shorter ones to avoid false matches.
@@ -13,10 +11,11 @@ const SECTION_ROUTES: Array<[string[], DeploymentSection]> = [
 	[
 		[
 			"/deployment/overview",
-			"/deployment/appearance",
-			"/deployment/notifications",
-			"/deployment/users",
 			"/deployment/licenses",
+			"/deployment/appearance",
+			"/deployment/users",
+			"/deployment/secrets",
+			"/deployment/notifications",
 			"/deployment/premium",
 			"/deployment/groups",
 		],
@@ -40,8 +39,6 @@ const SECTION_ROUTES: Array<[string[], DeploymentSection]> = [
 		],
 		"authentication",
 	],
-	[["/deployment/ai-settings"], "ai-settings"],
-	[["/deployment/ai-governance"], "ai-governance"],
 ];
 
 /**

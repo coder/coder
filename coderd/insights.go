@@ -33,7 +33,7 @@ const insightsTimeLayout = time.RFC3339
 // @Tags Insights
 // @Param tz_offset query int true "Time-zone offset (e.g. -2)"
 // @Success 200 {object} codersdk.DAUsResponse
-// @Router /insights/daus [get]
+// @Router /api/v2/insights/daus [get]
 func (api *API) deploymentDAUs(rw http.ResponseWriter, r *http.Request) {
 	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
 		httpapi.Forbidden(rw)
@@ -106,7 +106,7 @@ func (api *API) returnDAUsInternal(rw http.ResponseWriter, r *http.Request, temp
 // @Param end_time query string true "End time" format(date-time)
 // @Param template_ids query []string false "Template IDs" collectionFormat(csv)
 // @Success 200 {object} codersdk.UserActivityInsightsResponse
-// @Router /insights/user-activity [get]
+// @Router /api/v2/insights/user-activity [get]
 func (api *API) insightsUserActivity(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -209,7 +209,7 @@ func (api *API) insightsUserActivity(rw http.ResponseWriter, r *http.Request) {
 // @Param end_time query string true "End time" format(date-time)
 // @Param template_ids query []string false "Template IDs" collectionFormat(csv)
 // @Success 200 {object} codersdk.UserLatencyInsightsResponse
-// @Router /insights/user-latency [get]
+// @Router /api/v2/insights/user-latency [get]
 func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -301,7 +301,7 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 // @Param timezone query string false "IANA timezone name (e.g. America/St_Johns)"
 // @Param tz_offset query int false "Deprecated: Time-zone offset (e.g. -2). Use timezone instead."
 // @Success 200 {object} codersdk.GetUserStatusCountsResponse
-// @Router /insights/user-status-counts [get]
+// @Router /api/v2/insights/user-status-counts [get]
 func (api *API) insightsUserStatusCounts(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -396,7 +396,7 @@ func (api *API) insightsUserStatusCounts(rw http.ResponseWriter, r *http.Request
 // @Param interval query string true "Interval" enums(week,day)
 // @Param template_ids query []string false "Template IDs" collectionFormat(csv)
 // @Success 200 {object} codersdk.TemplateInsightsResponse
-// @Router /insights/templates [get]
+// @Router /api/v2/insights/templates [get]
 func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 

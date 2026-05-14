@@ -1,6 +1,8 @@
 package chaterror
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -11,6 +13,7 @@ import (
 )
 
 type providerErrorDetails struct {
+	detail     string
 	statusCode int
 	retryAfter time.Duration
 }
@@ -22,9 +25,46 @@ func extractProviderErrorDetails(err error) providerErrorDetails {
 	}
 
 	return providerErrorDetails{
+		detail:     providerErrorDetail(providerErr),
 		statusCode: providerErr.StatusCode,
 		retryAfter: retryAfterFromHeaders(providerErr.ResponseHeaders),
 	}
+}
+
+func providerErrorDetail(providerErr *fantasy.ProviderError) string {
+	if detail := providerErrorResponseMessage(providerErr.ResponseBody); detail != "" {
+		return detail
+	}
+	return strings.TrimSpace(providerErr.Message)
+}
+
+// providerErrorResponseMessage extracts error.message from the common
+// provider error JSON envelope after stripping any dumped HTTP status
+// line and headers.
+func providerErrorResponseMessage(responseDump []byte) string {
+	if len(responseDump) == 0 || len(responseDump) > 64*1024 {
+		return ""
+	}
+	body := providerErrorResponseBody(responseDump)
+	var envelope struct {
+		Error struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(body, &envelope); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(envelope.Error.Message)
+}
+
+func providerErrorResponseBody(responseDump []byte) []byte {
+	if _, body, ok := bytes.Cut(responseDump, []byte("\r\n\r\n")); ok {
+		return body
+	}
+	if _, body, ok := bytes.Cut(responseDump, []byte("\n\n")); ok {
+		return body
+	}
+	return responseDump
 }
 
 func retryAfterFromHeaders(headers map[string]string) time.Duration {

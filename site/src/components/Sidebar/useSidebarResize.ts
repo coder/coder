@@ -26,6 +26,8 @@ interface UseSidebarResizeReturn {
 	collapsed: boolean;
 	/** Force the sidebar to expand. */
 	expand: () => void;
+	/** Toggle collapsed/expanded state. */
+	toggle: () => void;
 	onDragStart: (e: React.PointerEvent) => () => void;
 }
 
@@ -44,6 +46,14 @@ export function useSidebarResize(
 	const expand = useCallback(() => {
 		setCollapsed(false);
 		persistCollapsed(storageKey, false);
+	}, [storageKey]);
+
+	const toggle = useCallback(() => {
+		setCollapsed((prev) => {
+			const next = !prev;
+			persistCollapsed(storageKey, next);
+			return next;
+		});
 	}, [storageKey]);
 
 	const onDragStart = useCallback(
@@ -126,5 +136,5 @@ export function useSidebarResize(
 
 	const width = collapsed ? COLLAPSED_WIDTH : EXPANDED_WIDTH;
 
-	return { width, collapsed, expand, onDragStart };
+	return { width, collapsed, expand, toggle, onDragStart };
 }
