@@ -314,53 +314,107 @@ This is purely an image and settings exercise; no product work.
 
 ## Open questions for Cursor
 
-### `agent:*` scope graduation
+Each question is marked with its current status: **Confirmed shipped**
+when the Cursor docs document a stable answer we have verified against
+the live API; **Partially shipped** when a workable surface exists but
+an important refinement is still missing; **Still open** when there is
+no documented answer or the surface we need does not exist yet.
+
+### `agent:*` scope graduation (still open)
 
 User identity blocks on a team service-account key with `agent:*`
 scope being available. Today, calling `POST /v1/sub-tokens` from a
 non-scoped team key returns 403 with the message "Sub-tokens require
-a team service-account API key with the `agent:*` scope." We need:
+a team service-account API key with the `agent:*` scope." Service
+accounts themselves are documented as Enterprise-only at
+`docs/account/enterprise/service-accounts.md`. We need:
 
-- Issuance of the scope, with a documented surface in
-  `cursor.com > Settings > Team > API Keys`.
-- A stable scope name (`agent:*` vs. something narrower) and a
-  documented permission table.
+- A documented scopes table that names `agent:*` and lists what it
+  grants, with a UI surface in
+  `cursor.com > Settings > Service Accounts` for selecting it.
+- A stable scope name (`agent:*` vs. something narrower) so the
+  router can request the right surface area.
 - Clarity on whether scoped keys can be issued to existing teams
   without re-onboarding.
 
-### Sub-token semantics
+Until this lands, only Enterprise teams can ship User identity, and
+even on Enterprise the scoping mechanism is not yet documented.
 
-`POST /v1/sub-tokens { forUserId }` returns an access token. We
-need:
+### Sub-token semantics (confirmed shipped)
 
-- **TTL.** What is the token's lifetime? Does the worker refresh, or
-  does a long session outlast its token? If refresh is required, what
-  endpoint does the worker call and with what credentials?
-- **Revocation.** Does revoking the parent team key revoke
-  outstanding sub-tokens? Is there a per-sub-token revoke?
+`POST /v1/sub-tokens { forUserEmail | forUserId }` returns a
+`{accessToken, expiresAt, userId, teamId}` payload. The Cursor
+endpoint reference documents the contract:
+
+- **TTL is one hour.** Tokens cannot self-refresh; mint a new one
+  with the service-account key.
+- **The CLI consumes the token directly.** `agent worker start
+  --auth-token <token>` and `--auth-token-file <path>` are both
+  documented and stable. The file variant is specifically intended
+  for Kubernetes secret-volume rotation so a controller can swap the
+  mounted token without restarting the worker pod.
+- **My Machines is the documented home for sub-tokens.** Cursor's
+  docs frame sub-tokens under "self-managed per-user workers" on
+  [My Machines](https://cursor.com/docs/cloud-agent/my-machines.md).
+  The Self-Hosted Pool docs frame pool worker auth as service-account
+  authentication, fleet-wide.
+
+Still open within this question:
+
+- **Revocation.** Does revoking the parent team key invalidate
+  outstanding sub-tokens? Is there a per-sub-token revoke endpoint?
 - **Audit.** Does the Cursor session log show "user X via sub-token
   minted by team Y" or just "user X"? Operators will want the chain.
+- **Pool + sub-token configuration.** `--pool` and `--auth-token`
+  are not documented as mutually exclusive in the CLI reference, but
+  the documented identity model is "pool = service account auth, my
+  machines = user auth." Booting pool workers with per-user tokens
+  minted at claim time is what User identity needs; we need Cursor to
+  confirm this is a supported configuration.
 
-### Stable user-lookup endpoint
+### Stable user-lookup endpoint (partially shipped)
 
-The router needs to resolve `userId` -> `email` (or directly to a
-Coder username via SSO claims) for **users other than itself**. Today
-`GET /v1/me` exposes the caller's profile; the router can't use that
-for users it doesn't impersonate. We need a `GET /v1/users/{id}` or
-the email on the `pending-requests` payload.
+The router needs to resolve a Cursor `userId` on a pending request to
+a Coder user. The current surface area:
 
-### Pending-requests stability and a webhook scaling signal
+- `GET /v0/private-workers/pending-requests` returns `userId` on each
+  row, which is enough to mint a sub-token directly with
+  `POST /v1/sub-tokens { forUserId }`. **No email lookup is needed**
+  if the router maintains a Cursor-user-id -> Coder-user-id mapping
+  (typically populated from OIDC subject claims at first login).
+- `GET /v1/me` exposes the caller's profile only.
+- No `GET /v1/users/{id}` exists, so the router cannot resolve
+  `userId -> email` for users other than itself.
 
-The router today polls `GET /v0/private-workers/pending-requests`,
-which is on the legacy v0 surface. We need:
+If the mapping is built on email (the common case for SSO
+deployments), we still need either an email field on the
+`pending-requests` payload or a `GET /v1/users/{id}` endpoint.
 
-- A `/v1/` equivalent with a stable payload shape (`userId`,
-  `userEmail` or a stable lookup id, `repoUrl`, `requestId`,
-  `queuedAt`).
-- A webhook that fires on queue events, so the router can spawn in
-  milliseconds instead of waiting for a poll interval. The wire
-  format and auth shape need to be documented before we can wire
-  receivers.
+### Pending-requests stability and a queue webhook (partially shipped)
+
+The scaling signal works today, but only via polling:
+
+- **Polling works.** `GET /v0/private-workers/pending-requests` is
+  reachable with a service-account key, paginated, and returns
+  `{id, userId, serviceAccountId, repoOwner, repoName, repoUrl,
+  labels[], createdAtMs}` per request. This is the right shape for
+  the router. It is on the v0 surface; a v1 equivalent has not been
+  published.
+- **No queue-event webhook.** The only webhook Cursor documents is
+  `statusChange` at
+  [Webhooks](https://cursor.com/docs/cloud-agent/api/webhooks.md),
+  which fires `FINISHED` or `ERROR` on a run that is **already
+  executing**. By that point the worker has been chosen and the
+  identity is fixed; this event is too late for User identity
+  routing.
+
+What we still need:
+
+- A `/v1/` equivalent of `pending-requests` so the router does not
+  depend on the legacy surface.
+- A queue-event webhook (or any push-based scaling signal). Without
+  this, the user-perceived latency floor is the poll interval, and a
+  cold-start prebuild claim is gated on the next tick.
 
 ### One-worker-one-repo: permanent or transitional?
 

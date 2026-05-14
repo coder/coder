@@ -11,22 +11,34 @@ and Coder's audit log attributes worker activity to them.
 > [!IMPORTANT]
 > User identity is not available yet.
 >
-> - The Cursor API pieces it depends on (a team service-account key
->   with `agent:*` scope, `POST /v1/sub-tokens` for per-user token
->   minting, a stable shape for `GET /v0/private-workers/pending-requests`)
->   are partially shipped. Today, `POST /v1/sub-tokens` returns 403
->   with the message "Sub-tokens require a team service-account API
->   key with the agent:* scope." Issuance of that scoped key is
->   pending on Cursor's side.
-> - The Coder-side routing component that would receive Cursor's
->   webhook (or poll its pending-requests endpoint), map the Cursor
->   user to a Coder user, and claim a prebuild on their behalf does
->   not exist yet. There is no `coderd` endpoint, no middleware, no
->   Terraform block you can wire up today.
+> - **Cursor side:** the API surface area is mostly there. Pool worker
+>   auth via `agent worker start --auth-token <token>` and
+>   `--auth-token-file <path>` is documented and stable, per-user
+>   `POST /v1/sub-tokens` is documented with a one-hour TTL, and
+>   `GET /v0/private-workers/pending-requests` returns `userId` on
+>   each row, which is enough to mint a sub-token at claim time. The
+>   remaining Cursor gaps: service accounts are Enterprise-only;
+>   service-account keys need an `agent:*` scope that has no
+>   documented UI surface today (so `POST /v1/sub-tokens` returns 403
+>   with `"Sub-tokens require a team service-account API key with the
+>   agent:* scope"` even on Enterprise); there is no queue-event
+>   webhook, only a `statusChange` webhook that fires after the
+>   session is already running; and Cursor's docs frame sub-tokens as
+>   a My Machines pattern (per-user workers) rather than the
+>   Self-Hosted Pool pattern, so pool + sub-token is not the
+>   documented configuration even though the CLI flags allow it.
+> - **Coder side:** the routing component that would poll Cursor's
+>   pending-requests endpoint, map the Cursor user to a Coder user,
+>   and claim a prebuild on their behalf does not exist yet. There is
+>   no `coderd` endpoint, no middleware, no Terraform block you can
+>   wire up today.
 >
-> Until both ship, the model to use is
+> Until both sides land, the model to use is
 > [System identity](./system-identity.md). This page describes what
-> the user-identity model will look like once both pieces land.
+> the user-identity model will look like once both pieces land. See
+> [Open questions for Cursor](./plan.md#open-questions-for-cursor)
+> for the per-gap status (confirmed shipped, partially shipped, or
+> still open).
 
 ## What user identity gives you
 
