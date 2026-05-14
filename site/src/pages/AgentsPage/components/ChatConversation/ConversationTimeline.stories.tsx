@@ -2415,6 +2415,38 @@ export const SequentialReadFilesEmptyAndErrorStates: Story = {
 	},
 };
 
+export const SequentialReadFilesRunningState: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: [
+			buildParsedReadFileEntry({
+				messageId: 1,
+				toolId: "read-running-1",
+				path: "site/src/one.ts",
+				status: "running",
+			}),
+			buildParsedReadFileEntry({
+				messageId: 2,
+				toolId: "read-running-2",
+				path: "site/src/two.ts",
+				status: "running",
+			}),
+			buildParsedReadFileEntry({
+				messageId: 3,
+				toolId: "read-running-3",
+				path: "site/src/three.ts",
+				status: "running",
+			}),
+		] satisfies ParsedMessageEntry[],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: /reading 3 files/i }),
+		).toBeInTheDocument();
+	},
+};
+
 export const SequentialReadFilesExpansionPersistsAcrossGrouping: Story = {
 	render: function Render(args) {
 		const [parsedMessages, setParsedMessages] = useState<ParsedMessageEntry[]>([
