@@ -6474,6 +6474,34 @@ func buildSystemPrompt(
 	return prompt
 }
 
+func removeSkillIndexMessages(prompt []fantasy.Message) []fantasy.Message {
+	out := make([]fantasy.Message, 0, len(prompt))
+	removed := false
+	for _, message := range prompt {
+		if isSkillIndexMessage(message) {
+			removed = true
+			continue
+		}
+		out = append(out, message)
+	}
+	if !removed {
+		return prompt
+	}
+	return out
+}
+
+func isSkillIndexMessage(message fantasy.Message) bool {
+	if message.Role != fantasy.MessageRoleSystem || len(message.Content) != 1 {
+		return false
+	}
+	textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](message.Content[0])
+	if !ok {
+		return false
+	}
+	text := strings.TrimSpace(textPart.Text)
+	return strings.HasPrefix(text, "<available-skills>\n") && strings.HasSuffix(text, "</available-skills>")
+}
+
 type rootChatToolsOptions struct {
 	chat            database.Chat
 	modelConfigID   uuid.UUID
@@ -7137,6 +7165,7 @@ func (p *Server) runChat(
 		return skillspkg.Lookup(resolvedSkillsFor(workspaceSkills), alias)
 	}
 	initialResolvedSkills := resolvedSkillsFor(workspaceSkills)
+	injectedSkillIndex := chattool.FormatResolvedSkillIndex(initialResolvedSkills)
 	prompt = buildSystemPrompt(
 		prompt,
 		subagentInstruction,
@@ -7169,7 +7198,6 @@ func (p *Server) runChat(
 	}
 
 	instructionInjected := instruction != ""
-	skillIndexInjected := len(initialResolvedSkills) > 0
 	// workspaceMCPDiscovered tracks whether workspace MCP discovery
 	// has already been attempted for this turn. The top-of-turn
 	// discovery path above only fires when chat.WorkspaceID is
@@ -7552,23 +7580,44 @@ func (p *Server) runChat(
 	}
 
 	// Append skill tools when personal or workspace skills are available.
-	if len(personalSkills) > 0 || len(workspaceSkills) > 0 {
-		skillOpts := chattool.ReadSkillOptions{
-			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
-			GetSkills: func() []chattool.SkillMeta {
-				return workspaceSkills
-			},
-			Logger:       logger,
-			ResolveAlias: resolveSkillAlias,
-			LoadPersonalSkillBody: func(ctx context.Context, name string) (skillspkg.ParsedSkill, error) {
-				return p.loadPersonalSkillBody(ctx, chat.OwnerID, name)
-			},
-		}
-		tools = append(tools, chattool.ReadSkill(skillOpts))
-		if len(workspaceSkills) > 0 {
-			tools = append(tools, chattool.ReadSkillFile(skillOpts))
-		}
+	skillOpts := chattool.ReadSkillOptions{
+		GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
+		GetSkills: func() []chattool.SkillMeta {
+			return workspaceSkills
+		},
+		Logger:       logger,
+		ResolveAlias: resolveSkillAlias,
+		LoadPersonalSkillBody: func(ctx context.Context, name string) (skillspkg.ParsedSkill, error) {
+			return p.loadPersonalSkillBody(ctx, chat.OwnerID, name)
+		},
 	}
+	skillToolRegistered := false
+	readSkillFileToolRegistered := false
+	appendCurrentSkillTools := func(current []fantasy.AgentTool) ([]fantasy.AgentTool, bool) {
+		if len(personalSkills) == 0 && len(workspaceSkills) == 0 {
+			return current, false
+		}
+
+		updated := current
+		changed := false
+		appendTool := func(tool fantasy.AgentTool) {
+			if !changed {
+				updated = slices.Clone(current)
+				changed = true
+			}
+			updated = append(updated, tool)
+		}
+		if !skillToolRegistered {
+			appendTool(chattool.ReadSkill(skillOpts))
+			skillToolRegistered = true
+		}
+		if !readSkillFileToolRegistered && len(workspaceSkills) > 0 {
+			appendTool(chattool.ReadSkillFile(skillOpts))
+			readSkillFileToolRegistered = true
+		}
+		return updated, changed
+	}
+	tools, _ = appendCurrentSkillTools(tools)
 	if advisorRuntime != nil {
 		tools = append(tools, chatadvisor.Tool(chatadvisor.ToolOptions{
 			Runtime: advisorRuntime,
@@ -7883,6 +7932,8 @@ func (p *Server) runChat(
 			chainModeActive = false
 		},
 		PrepareTools: func(currentTools []fantasy.AgentTool) []fantasy.AgentTool {
+			updatedTools, toolsChanged := appendCurrentSkillTools(currentTools)
+
 			// Mid-turn workspace MCP discovery for chats that bind a
 			// workspace via create_workspace or start_workspace
 			// after the turn has already started. The top-of-turn
@@ -7890,10 +7941,16 @@ func (p *Server) runChat(
 			// callback bridges the gap so the LLM sees workspace MCP
 			// tools on the very next step instead of the turn after.
 			if workspaceMCPDiscovered || isExploreSubagent {
+				if toolsChanged {
+					return updatedTools
+				}
 				return nil
 			}
 			snapshot := workspaceCtx.currentChatSnapshot()
 			if !snapshot.WorkspaceID.Valid {
+				if toolsChanged {
+					return updatedTools
+				}
 				return nil
 			}
 			workspaceMCPDiscovered = true
@@ -7901,9 +7958,12 @@ func (p *Server) runChat(
 				ctx, loopLogger, chat.ID, &workspaceCtx,
 			)
 			if len(discovered) == 0 {
+				if toolsChanged {
+					return updatedTools
+				}
 				return nil
 			}
-			return append(slices.Clone(currentTools), discovered...)
+			return append(slices.Clone(updatedTools), discovered...)
 		},
 		PrepareMessages: func(msgs []fantasy.Message) []fantasy.Message {
 			// Skip the snapshot update when chain mode is active;
@@ -7914,16 +7974,21 @@ func (p *Server) runChat(
 			if !chainModeActive {
 				setAdvisorPromptSnapshot(msgs)
 			}
-			if instructionInjected || instruction == "" {
-				return nil
+			result := msgs
+			changed := false
+			if !instructionInjected && instruction != "" {
+				instructionInjected = true
+				result = chatprompt.InsertSystem(result, instruction)
+				changed = true
 			}
-			instructionInjected = true
-			result := chatprompt.InsertSystem(msgs, instruction)
-			if !skillIndexInjected {
-				if skillIndex := chattool.FormatResolvedSkillIndex(resolvedSkillsFor(workspaceSkills)); skillIndex != "" {
-					result = chatprompt.InsertSystem(result, skillIndex)
-					skillIndexInjected = true
-				}
+			if skillIndex := chattool.FormatResolvedSkillIndex(resolvedSkillsFor(workspaceSkills)); skillIndex != "" && skillIndex != injectedSkillIndex {
+				result = removeSkillIndexMessages(result)
+				result = chatprompt.InsertSystem(result, skillIndex)
+				injectedSkillIndex = skillIndex
+				changed = true
+			}
+			if !changed {
+				return nil
 			}
 			if !chainModeActive {
 				setAdvisorPromptSnapshot(result)

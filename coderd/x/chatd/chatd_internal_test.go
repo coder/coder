@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	openaicomputeruse "github.com/coder/coder/v2/coderd/x/chatd/chatopenai/computeruse"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
@@ -3161,6 +3162,53 @@ func TestPersonalAndWorkspaceSkillCollisionInSystemPrompt(t *testing.T) {
 
 	_, err = skillspkg.Lookup(resolved, "deploy")
 	require.ErrorIs(t, err, skillspkg.ErrSkillNotFound)
+}
+
+func TestSkillIndexRefreshReplacesStaleAliases(t *testing.T) {
+	t.Parallel()
+
+	initialResolved := mergeTurnSkills(
+		[]skillspkg.Skill{{
+			Name:        "deploy",
+			Description: "Personal deployment process",
+			Source:      skillspkg.SourcePersonal,
+		}},
+		nil,
+	)
+	prompt := buildSystemPrompt(
+		[]fantasy.Message{{
+			Role: fantasy.MessageRoleUser,
+			Content: []fantasy.MessagePart{
+				fantasy.TextPart{Text: "Create a workspace."},
+			},
+		}},
+		"",
+		"",
+		initialResolved,
+		"",
+		systemPromptBehaviorContext{},
+	)
+
+	mergedIndex := chattool.FormatResolvedSkillIndex(mergeTurnSkills(
+		[]skillspkg.Skill{{
+			Name:        "deploy",
+			Description: "Personal deployment process",
+			Source:      skillspkg.SourcePersonal,
+		}},
+		[]chattool.SkillMeta{{
+			Name:        "deploy",
+			Description: "Workspace deployment process",
+			Dir:         "/skills/deploy",
+		}},
+	))
+	prompt = removeSkillIndexMessages(prompt)
+	prompt = chatprompt.InsertSystem(prompt, mergedIndex)
+
+	text := systemPromptText(t, prompt)
+	require.Equal(t, 1, strings.Count(text, "<available-skills>"))
+	require.NotContains(t, text, "\n- deploy: Personal deployment process")
+	require.Contains(t, text, "- personal/deploy: Personal deployment process")
+	require.Contains(t, text, "- workspace/deploy: Workspace deployment process")
 }
 
 func requireUserSkillContextActor(ctx context.Context, t *testing.T, userID uuid.UUID) {
