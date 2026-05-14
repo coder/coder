@@ -852,6 +852,16 @@ func TestAugmentRequestForBedrock_AdaptiveThinking(t *testing.T) {
 			requestBody:        `{"max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":8000}}`,
 			expectThinkingType: "adaptive",
 		},
+		{
+			// Opus 4.7 on Bedrock rejects output_config.format (structured
+			// outputs) with a 400 even though it accepts output_config.effort.
+			name:                "opus_4_7_model_strips_output_config_format_but_keeps_effort",
+			bedrockModel:        "us.anthropic.claude-opus-4-7",
+			requestBody:         `{"max_tokens":10000,"output_config":{"effort":"high","format":{"type":"json_schema","schema":{"type":"object"}}}}`,
+			expectEffort:        "high",
+			expectKeptFields:    []string{"output_config", "output_config.effort"},
+			expectRemovedFields: []string{"output_config.format"},
+		},
 	}
 
 	for _, tc := range tests {

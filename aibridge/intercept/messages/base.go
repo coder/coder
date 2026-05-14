@@ -399,6 +399,18 @@ func (i *interceptionBase) augmentRequestForBedrock() {
 		return
 	}
 	i.reqPayload = updated
+
+	// Adaptive-only models accept output_config but reject some of its
+	// sub-fields (currently: output_config.format). Strip those after the
+	// top-level pass has decided to keep output_config.
+	if bedrockModelRequiresAdaptiveThinking(model) {
+		updated, err = i.reqPayload.removeBedrockUnsupportedOutputConfigSubFields()
+		if err != nil {
+			i.logger.Warn(context.Background(), "failed to strip unsupported output_config sub-fields for Bedrock", slog.Error(err))
+			return
+		}
+		i.reqPayload = updated
+	}
 }
 
 // bedrockModelSupportsAdaptiveThinking returns true if the given Bedrock model ID

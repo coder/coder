@@ -20,6 +20,7 @@ const (
 	messagesReqPathModel                     = "model"
 	messagesReqPathOutputConfig              = "output_config"
 	messagesReqPathOutputConfigEffort        = "output_config.effort"
+	messagesReqPathOutputConfigFormat        = "output_config.format"
 	messagesReqPathMetadata                  = "metadata"
 	messagesReqPathServiceTier               = "service_tier"
 	messagesReqPathContainer                 = "container"
@@ -405,6 +406,24 @@ func (p RequestPayload) convertEnabledThinkingForBedrock() (RequestPayload, erro
 		return p, nil
 	}
 	return p.set(messagesReqPathThinking, map[string]string{"type": constAdaptive})
+}
+
+// removeBedrockUnsupportedOutputConfigSubFields drops sub-fields of
+// output_config that Bedrock rejects even on models where the parent
+// output_config object is accepted. Adaptive-only models (Opus 4.7+) accept
+// output_config.effort but reject output_config.format (structured outputs)
+// with a 400 "Extra inputs are not permitted." The generic field-strip pass
+// (removeUnsupportedBedrockFields) operates at top-level granularity only, so
+// this targeted pass handles the sub-field case.
+func (p RequestPayload) removeBedrockUnsupportedOutputConfigSubFields() (RequestPayload, error) {
+	if !gjson.GetBytes(p, messagesReqPathOutputConfigFormat).Exists() {
+		return p, nil
+	}
+	out, err := sjson.DeleteBytes(p, messagesReqPathOutputConfigFormat)
+	if err != nil {
+		return p, xerrors.Errorf("delete %s: %w", messagesReqPathOutputConfigFormat, err)
+	}
+	return RequestPayload(out), nil
 }
 
 // removeUnsupportedBedrockFields strips top-level fields that Bedrock does not
