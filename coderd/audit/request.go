@@ -138,8 +138,9 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return typed.Name
 	case database.AIProviderKey:
 		// Provider keys have no user-facing name; show the parent
-		// provider's UUID prefix as a coarse display hint.
-		return typed.ProviderID.String()[:8]
+		// provider's UUID so the row can be correlated back to its
+		// provider in the audit UI.
+		return typed.ProviderID.String()
 	case database.Chat:
 		// Chat titles can contain sensitive content (secrets, internal
 		// project names), so we use a short UUID prefix as a display
