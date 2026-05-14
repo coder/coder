@@ -2630,7 +2630,11 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 		eg          errgroup.Group
 	)
 	eg.Go(func() (err error) {
-		templates, err = api.Database.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
+		// nolint:gocritic // System context to fetch template metadata for workspaces
+		// the caller is already authorized to read. Consistent with builds and
+		// app statuses below, and required for shared workspaces where the user
+		// may not have direct template read permission.
+		templates, err = api.Database.GetTemplatesWithFilter(dbauthz.AsSystemRestricted(ctx), database.GetTemplatesWithFilterParams{
 			IDs: templateIDs,
 		})
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
