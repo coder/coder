@@ -741,16 +741,6 @@ func (api *API) upsertGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	if req.SpendLimitMicros <= 0 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "spend_limit_micros must be greater than zero.",
-			Validations: []codersdk.ValidationError{{
-				Field:  "spend_limit_micros",
-				Detail: "must be greater than zero",
-			}},
-		})
-		return
-	}
 
 	budget, err := api.Database.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{
 		GroupID:    group.ID,
