@@ -34,6 +34,51 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+func TestLinearExternalAuthIdentity(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+		server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			require.Equal(t, "/graphql", r.URL.Path)
+			require.Equal(t, http.MethodPost, r.Method)
+			require.Equal(t, "Bearer token", r.Header.Get("Authorization"))
+			rw.Header().Set("Content-Type", "application/json")
+			_, _ = rw.Write([]byte(`{"data":{"viewer":{"id":"linear-user-1","name":"Ada","displayName":"Ada Lovelace","email":"ada@example.com","avatarUrl":"https://example.com/avatar.png"}}}`))
+		}))
+		t.Cleanup(server.Close)
+		config := &externalauth.Config{
+			InstrumentedOAuth2Config: &testutil.OAuth2Config{},
+			Type:                     codersdk.EnhancedExternalAuthProviderLinear.String(),
+			APIBaseURL:               server.URL,
+		}
+
+		identity, err := config.ExternalAuthIdentity(context.Background(), "token")
+		require.NoError(t, err)
+		require.Equal(t, "linear-user-1", identity.ID)
+		require.Equal(t, "Ada Lovelace", identity.Name)
+		require.Equal(t, "ada@example.com", identity.Email)
+		require.Equal(t, "https://example.com/avatar.png", identity.AvatarURL)
+	})
+
+	t.Run("GraphQLError", func(t *testing.T) {
+		t.Parallel()
+		server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
+			rw.Header().Set("Content-Type", "application/json")
+			_, _ = rw.Write([]byte(`{"errors":[{"message":"bad scope"}]}`))
+		}))
+		t.Cleanup(server.Close)
+		config := &externalauth.Config{
+			InstrumentedOAuth2Config: &testutil.OAuth2Config{},
+			Type:                     codersdk.EnhancedExternalAuthProviderLinear.String(),
+			APIBaseURL:               server.URL,
+		}
+
+		_, err := config.ExternalAuthIdentity(context.Background(), "token")
+		require.ErrorContains(t, err, "bad scope")
+	})
+}
+
 func TestRefreshToken(t *testing.T) {
 	t.Parallel()
 	expired := time.Now().Add(time.Hour * -1)
@@ -116,6 +161,50 @@ func TestRefreshToken(t *testing.T) {
 		require.Error(t, err)
 		require.True(t, externalauth.IsInvalidTokenError(err))
 		require.Contains(t, err.Error(), "failure")
+	})
+
+	t.Run("PreservesIdentityOnAccessTokenRefresh", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		mDB := dbmock.NewMockStore(ctrl)
+		link := database.ExternalAuthLink{
+			ProviderID:            "linear",
+			UserID:                uuid.New(),
+			OAuthAccessToken:      "old-access-token",
+			OAuthRefreshToken:     "refresh-token",
+			OAuthExpiry:           expired,
+			ExternalUserID:        "linear-user-1",
+			ExternalUserLogin:     "",
+			ExternalUserName:      "Ada Lovelace",
+			ExternalUserEmail:     "ada@example.com",
+			ExternalUserAvatarUrl: "https://example.com/avatar.png",
+		}
+		config := &externalauth.Config{
+			ID: "linear",
+			InstrumentedOAuth2Config: &testutil.OAuth2Config{
+				TokenSourceFunc: testutil.OAuth2TokenSource(func() (*oauth2.Token, error) {
+					return &oauth2.Token{
+						AccessToken:  "new-access-token",
+						RefreshToken: "new-refresh-token",
+						Expiry:       time.Now().Add(time.Hour),
+					}, nil
+				}),
+			},
+		}
+
+		mDB.EXPECT().UpdateExternalAuthLink(gomock.Any(), gomock.Cond(func(arg database.UpdateExternalAuthLinkParams) bool {
+			return arg.ProviderID == link.ProviderID &&
+				arg.UserID == link.UserID &&
+				arg.OAuthAccessToken == "new-access-token" &&
+				arg.ExternalUserID == link.ExternalUserID &&
+				arg.ExternalUserName == link.ExternalUserName &&
+				arg.ExternalUserEmail == link.ExternalUserEmail &&
+				arg.ExternalUserAvatarUrl == link.ExternalUserAvatarUrl
+		})).Return(database.ExternalAuthLink{}, nil).Times(1)
+
+		_, err := config.RefreshToken(context.Background(), mDB, link)
+		require.NoError(t, err)
 	})
 
 	t.Run("ValidateServerError", func(t *testing.T) {

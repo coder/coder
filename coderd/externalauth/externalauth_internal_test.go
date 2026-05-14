@@ -2,6 +2,7 @@ package externalauth
 
 import (
 	"net/http"
+	"net/url"
 	"testing"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestGitlabDefaults(t *testing.T) {
@@ -126,6 +128,31 @@ func TestGitlabDefaults(t *testing.T) {
 			require.Equal(t, c.input, c.expected)
 		})
 	}
+}
+
+func TestLinearDefaultsAndScopes(t *testing.T) {
+	t.Parallel()
+
+	entry := codersdk.ExternalAuthConfig{
+		Type:         string(codersdk.EnhancedExternalAuthProviderLinear),
+		ClientID:     "client-id",
+		ClientSecret: "client-secret",
+		Scopes:       []string{"read", "issues:create"},
+	}
+	applyDefaultsToConfig(&entry)
+	require.Equal(t, "linear", entry.ID)
+	require.Equal(t, "https://linear.app/oauth/authorize", entry.AuthURL)
+	require.Equal(t, "https://api.linear.app/oauth/token", entry.TokenURL)
+	require.Equal(t, "https://api.linear.app/oauth/revoke", entry.RevokeURL)
+	require.Equal(t, "https://api.linear.app", entry.APIBaseURL)
+	require.Equal(t, []string{"read", "issues:create"}, entry.Scopes)
+
+	configs, err := ConvertConfig(promoauth.NewFactory(nil), []codersdk.ExternalAuthConfig{entry}, testutil.MustURL(t, "https://coder.example.com"))
+	require.NoError(t, err)
+	require.Len(t, configs, 1)
+	authURL, err := url.Parse(configs[0].AuthCodeURL("state"))
+	require.NoError(t, err)
+	require.Equal(t, "read,issues:create", authURL.Query().Get("scope"))
 }
 
 func TestIsFailedRefresh(t *testing.T) {

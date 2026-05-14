@@ -7,6 +7,9 @@ DELETE FROM external_auth_links WHERE provider_id = $1 AND user_id = $2;
 -- name: GetExternalAuthLinksByUserID :many
 SELECT * FROM external_auth_links WHERE user_id = $1;
 
+-- name: GetExternalAuthLinkByProviderIDAndExternalUserID :one
+SELECT * FROM external_auth_links WHERE provider_id = $1 AND external_user_id = $2 AND external_user_id != '';
+
 -- name: InsertExternalAuthLink :one
 INSERT INTO external_auth_links (
     provider_id,
@@ -18,7 +21,12 @@ INSERT INTO external_auth_links (
     oauth_refresh_token,
     oauth_refresh_token_key_id,
     oauth_expiry,
-	oauth_extra
+	oauth_extra,
+	external_user_id,
+	external_user_login,
+	external_user_name,
+	external_user_email,
+	external_user_avatar_url
 ) VALUES (
     $1,
     $2,
@@ -29,7 +37,12 @@ INSERT INTO external_auth_links (
     $7,
     $8,
     $9,
-	$10
+	$10,
+	$11,
+	$12,
+	$13,
+	$14,
+	$15
 ) RETURNING *;
 
 -- name: UpdateExternalAuthLink :one
@@ -41,10 +54,25 @@ UPDATE external_auth_links SET
     oauth_refresh_token_key_id = $7,
     oauth_expiry = $8,
 	oauth_extra = $9,
+	external_user_id = $10,
+	external_user_login = $11,
+	external_user_name = $12,
+	external_user_email = $13,
+	external_user_avatar_url = $14,
 	-- Only 'UpdateExternalAuthLinkRefreshToken' supports updating the oauth_refresh_failure_reason.
 	-- Any updates to the external auth link, will be assumed to change the state and clear
 	-- any cached errors.
 	oauth_refresh_failure_reason = ''
+WHERE provider_id = $1 AND user_id = $2 RETURNING *;
+
+-- name: UpdateExternalAuthLinkIdentity :one
+UPDATE external_auth_links SET
+	updated_at = $3,
+	external_user_id = $4,
+	external_user_login = $5,
+	external_user_name = $6,
+	external_user_email = $7,
+	external_user_avatar_url = $8
 WHERE provider_id = $1 AND user_id = $2 RETURNING *;
 
 -- name: UpdateExternalAuthLinkRefreshToken :exec

@@ -81,7 +81,7 @@ func TSMutations(ts *guts.Typescript) {
 		// Prefer enums as types
 		config.EnumAsTypes,
 		// Enum list generator
-		config.EnumLists,
+		EnumLists,
 		// Export all top level types
 		config.ExportTypes,
 		// Readonly interface fields
@@ -94,6 +94,85 @@ func TSMutations(ts *guts.Typescript) {
 		// TsType: (string | null)[] --> (string)[]
 		config.NullUnionSlices,
 	)
+}
+
+func EnumLists(ts *guts.Typescript) {
+	addNodes := make(map[string]bindings.Node)
+	ts.ForEach(func(key string, node bindings.Node) {
+		_, union, ok := isGoEnum(node)
+		if !ok {
+			return
+		}
+
+		values := make([]bindings.ExpressionType, 0, len(union.Types))
+		values = append(values, union.Types...)
+
+		name := pluralize(key)
+		if _, ok := ts.Node(name); ok {
+			return
+		}
+		addNodes[name] = &bindings.VariableStatement{
+			Declarations: &bindings.VariableDeclarationList{
+				Declarations: []*bindings.VariableDeclaration{{
+					Name: bindings.Identifier{Name: name},
+					Type: &bindings.ArrayType{
+						Node: bindings.Reference(bindings.Identifier{Name: key}),
+					},
+					Initializer: &bindings.ArrayLiteralType{Elements: values},
+				}},
+				Flags: bindings.NodeFlagsConstant,
+			},
+		}
+	})
+
+	for name, node := range addNodes {
+		_ = ts.SetNode(name, node)
+	}
+}
+
+func pluralize(key string) string {
+	if key == "" {
+		return key
+	}
+	if strings.HasSuffix(key, "ch") || strings.HasSuffix(key, "sh") {
+		return key + "es"
+	}
+	switch key[len(key)-1] {
+	case 'x', 's', 'z':
+		return key + "es"
+	case 'y':
+		if len(key) >= 2 && !strings.ContainsRune("aeiouAEIOU", rune(key[len(key)-2])) {
+			return key[:len(key)-1] + "ies"
+		}
+	}
+	return key + "s"
+}
+
+func isGoEnum(n bindings.Node) (*bindings.Alias, *bindings.UnionType, bool) {
+	al, ok := n.(*bindings.Alias)
+	if !ok {
+		return nil, nil, false
+	}
+	union, ok := al.Type.(*bindings.UnionType)
+	if !ok || len(union.Types) == 0 {
+		return nil, nil, false
+	}
+
+	var expectedType *bindings.LiteralType
+	for _, t := range union.Types {
+		value, ok := t.(*bindings.LiteralType)
+		if !ok {
+			return nil, nil, false
+		}
+		if expectedType == nil {
+			expectedType = value
+			continue
+		}
+		if reflect.TypeOf(expectedType.Value) != reflect.TypeOf(value.Value) {
+			return nil, nil, false
+		}
+	}
+	return al, union, true
 }
 
 // TypeMappings is all the custom types for codersdk

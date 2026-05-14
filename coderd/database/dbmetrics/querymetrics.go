@@ -1793,6 +1793,14 @@ func (m queryMetricsStore) GetExternalAuthLink(ctx context.Context, arg database
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetExternalAuthLinkByProviderIDAndExternalUserID(ctx context.Context, arg database.GetExternalAuthLinkByProviderIDAndExternalUserIDParams) (database.ExternalAuthLink, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetExternalAuthLinkByProviderIDAndExternalUserID(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetExternalAuthLinkByProviderIDAndExternalUserID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetExternalAuthLinkByProviderIDAndExternalUserID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetExternalAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]database.ExternalAuthLink, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetExternalAuthLinksByUserID(ctx, userID)
@@ -4806,6 +4814,14 @@ func (m queryMetricsStore) UpdateExternalAuthLink(ctx context.Context, arg datab
 	r0, r1 := m.s.UpdateExternalAuthLink(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateExternalAuthLink").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateExternalAuthLink").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateExternalAuthLinkIdentity(ctx context.Context, arg database.UpdateExternalAuthLinkIdentityParams) (database.ExternalAuthLink, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateExternalAuthLinkIdentity(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateExternalAuthLinkIdentity").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateExternalAuthLinkIdentity").Inc()
 	return r0, r1
 }
 

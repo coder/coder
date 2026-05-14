@@ -3316,6 +3316,21 @@ func (mr *MockStoreMockRecorder) GetExternalAuthLink(ctx, arg any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetExternalAuthLink", reflect.TypeOf((*MockStore)(nil).GetExternalAuthLink), ctx, arg)
 }
 
+// GetExternalAuthLinkByProviderIDAndExternalUserID mocks base method.
+func (m *MockStore) GetExternalAuthLinkByProviderIDAndExternalUserID(ctx context.Context, arg database.GetExternalAuthLinkByProviderIDAndExternalUserIDParams) (database.ExternalAuthLink, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetExternalAuthLinkByProviderIDAndExternalUserID", ctx, arg)
+	ret0, _ := ret[0].(database.ExternalAuthLink)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetExternalAuthLinkByProviderIDAndExternalUserID indicates an expected call of GetExternalAuthLinkByProviderIDAndExternalUserID.
+func (mr *MockStoreMockRecorder) GetExternalAuthLinkByProviderIDAndExternalUserID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetExternalAuthLinkByProviderIDAndExternalUserID", reflect.TypeOf((*MockStore)(nil).GetExternalAuthLinkByProviderIDAndExternalUserID), ctx, arg)
+}
+
 // GetExternalAuthLinksByUserID mocks base method.
 func (m *MockStore) GetExternalAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]database.ExternalAuthLink, error) {
 	m.ctrl.T.Helper()
@@ -9087,6 +9102,21 @@ func (m *MockStore) UpdateExternalAuthLink(ctx context.Context, arg database.Upd
 func (mr *MockStoreMockRecorder) UpdateExternalAuthLink(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateExternalAuthLink", reflect.TypeOf((*MockStore)(nil).UpdateExternalAuthLink), ctx, arg)
+}
+
+// UpdateExternalAuthLinkIdentity mocks base method.
+func (m *MockStore) UpdateExternalAuthLinkIdentity(ctx context.Context, arg database.UpdateExternalAuthLinkIdentityParams) (database.ExternalAuthLink, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateExternalAuthLinkIdentity", ctx, arg)
+	ret0, _ := ret[0].(database.ExternalAuthLink)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateExternalAuthLinkIdentity indicates an expected call of UpdateExternalAuthLinkIdentity.
+func (mr *MockStoreMockRecorder) UpdateExternalAuthLinkIdentity(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateExternalAuthLinkIdentity", reflect.TypeOf((*MockStore)(nil).UpdateExternalAuthLinkIdentity), ctx, arg)
 }
 
 // UpdateExternalAuthLinkRefreshToken mocks base method.

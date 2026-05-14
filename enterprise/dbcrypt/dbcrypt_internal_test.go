@@ -358,6 +358,63 @@ func TestExternalAuthLinks(t *testing.T) {
 		})
 	})
 
+	t.Run("GetExternalAuthLinkByProviderIDAndExternalUserID", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		link := dbgen.ExternalAuthLink(t, crypt, database.ExternalAuthLink{
+			OAuthAccessToken:  "access",
+			OAuthRefreshToken: "refresh",
+			ExternalUserID:    "linear-user-1",
+		})
+		got, err := crypt.GetExternalAuthLinkByProviderIDAndExternalUserID(ctx, database.GetExternalAuthLinkByProviderIDAndExternalUserIDParams{
+			ProviderID:     link.ProviderID,
+			ExternalUserID: link.ExternalUserID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "access", got.OAuthAccessToken)
+		require.Equal(t, "refresh", got.OAuthRefreshToken)
+
+		raw, err := db.GetExternalAuthLinkByProviderIDAndExternalUserID(ctx, database.GetExternalAuthLinkByProviderIDAndExternalUserIDParams{
+			ProviderID:     link.ProviderID,
+			ExternalUserID: link.ExternalUserID,
+		})
+		require.NoError(t, err)
+		requireEncryptedEquals(t, ciphers[0], raw.OAuthAccessToken, "access")
+		requireEncryptedEquals(t, ciphers[0], raw.OAuthRefreshToken, "refresh")
+	})
+
+	t.Run("UpdateExternalAuthLinkIdentity", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		link := dbgen.ExternalAuthLink(t, crypt, database.ExternalAuthLink{
+			OAuthAccessToken:  "access",
+			OAuthRefreshToken: "refresh",
+		})
+		updated, err := crypt.UpdateExternalAuthLinkIdentity(ctx, database.UpdateExternalAuthLinkIdentityParams{
+			ProviderID:            link.ProviderID,
+			UserID:                link.UserID,
+			UpdatedAt:             link.UpdatedAt,
+			ExternalUserID:        "linear-user-1",
+			ExternalUserLogin:     "ada",
+			ExternalUserName:      "Ada Lovelace",
+			ExternalUserEmail:     "ada@example.com",
+			ExternalUserAvatarUrl: "https://example.com/avatar.png",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "access", updated.OAuthAccessToken)
+		require.Equal(t, "refresh", updated.OAuthRefreshToken)
+		require.Equal(t, "linear-user-1", updated.ExternalUserID)
+
+		raw, err := db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
+			ProviderID: link.ProviderID,
+			UserID:     link.UserID,
+		})
+		require.NoError(t, err)
+		requireEncryptedEquals(t, ciphers[0], raw.OAuthAccessToken, "access")
+		requireEncryptedEquals(t, ciphers[0], raw.OAuthRefreshToken, "refresh")
+		require.Equal(t, "linear-user-1", raw.ExternalUserID)
+	})
+
 	t.Run("GetExternalAuthLinksByUserID", func(t *testing.T) {
 		t.Parallel()
 

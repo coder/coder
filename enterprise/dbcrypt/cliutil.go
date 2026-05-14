@@ -69,6 +69,11 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 					OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
 					OAuthExpiry:            externalAuthLink.OAuthExpiry,
 					OAuthExtra:             externalAuthLink.OAuthExtra,
+					ExternalUserID:         externalAuthLink.ExternalUserID,
+					ExternalUserLogin:      externalAuthLink.ExternalUserLogin,
+					ExternalUserName:       externalAuthLink.ExternalUserName,
+					ExternalUserEmail:      externalAuthLink.ExternalUserEmail,
+					ExternalUserAvatarUrl:  externalAuthLink.ExternalUserAvatarUrl,
 				}); err != nil {
 					return xerrors.Errorf("update external auth link user_id=%s provider_id=%s: %w", externalAuthLink.UserID, externalAuthLink.ProviderID, err)
 				}
@@ -239,6 +244,11 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 					OAuthRefreshTokenKeyID: sql.NullString{}, // we explicitly want to clear the key id
 					OAuthExpiry:            externalAuthLink.OAuthExpiry,
 					OAuthExtra:             externalAuthLink.OAuthExtra,
+					ExternalUserID:         externalAuthLink.ExternalUserID,
+					ExternalUserLogin:      externalAuthLink.ExternalUserLogin,
+					ExternalUserName:       externalAuthLink.ExternalUserName,
+					ExternalUserEmail:      externalAuthLink.ExternalUserEmail,
+					ExternalUserAvatarUrl:  externalAuthLink.ExternalUserAvatarUrl,
 				}); err != nil {
 					return xerrors.Errorf("update external auth link user_id=%s provider_id=%s: %w", externalAuthLink.UserID, externalAuthLink.ProviderID, err)
 				}

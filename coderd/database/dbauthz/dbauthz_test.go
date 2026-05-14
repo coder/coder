@@ -2970,6 +2970,12 @@ func (s *MethodTestSuite) TestUser() {
 		dbm.EXPECT().GetExternalAuthLink(gomock.Any(), arg).Return(link, nil).AnyTimes()
 		check.Args(arg).Asserts(link, policy.ActionReadPersonal).Returns(link)
 	}))
+	s.Run("GetExternalAuthLinkByProviderIDAndExternalUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		link := testutil.Fake(s.T(), faker, database.ExternalAuthLink{})
+		arg := database.GetExternalAuthLinkByProviderIDAndExternalUserIDParams{ProviderID: link.ProviderID, ExternalUserID: link.ExternalUserID}
+		dbm.EXPECT().GetExternalAuthLinkByProviderIDAndExternalUserID(gomock.Any(), arg).Return(link, nil).AnyTimes()
+		check.Args(arg).Asserts(link, policy.ActionReadPersonal).Returns(link)
+	}))
 	s.Run("InsertExternalAuthLink", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
 		arg := database.InsertExternalAuthLinkParams{ProviderID: uuid.NewString(), UserID: u.ID}
@@ -2988,6 +2994,13 @@ func (s *MethodTestSuite) TestUser() {
 		arg := database.UpdateExternalAuthLinkParams{ProviderID: link.ProviderID, UserID: link.UserID, OAuthAccessToken: link.OAuthAccessToken, OAuthRefreshToken: link.OAuthRefreshToken, OAuthExpiry: link.OAuthExpiry, UpdatedAt: link.UpdatedAt}
 		dbm.EXPECT().GetExternalAuthLink(gomock.Any(), database.GetExternalAuthLinkParams{ProviderID: link.ProviderID, UserID: link.UserID}).Return(link, nil).AnyTimes()
 		dbm.EXPECT().UpdateExternalAuthLink(gomock.Any(), arg).Return(link, nil).AnyTimes()
+		check.Args(arg).Asserts(link, policy.ActionUpdatePersonal).Returns(link)
+	}))
+	s.Run("UpdateExternalAuthLinkIdentity", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		link := testutil.Fake(s.T(), faker, database.ExternalAuthLink{})
+		arg := database.UpdateExternalAuthLinkIdentityParams{ProviderID: link.ProviderID, UserID: link.UserID, ExternalUserID: link.ExternalUserID, ExternalUserLogin: link.ExternalUserLogin, ExternalUserName: link.ExternalUserName, ExternalUserEmail: link.ExternalUserEmail, ExternalUserAvatarUrl: link.ExternalUserAvatarUrl, UpdatedAt: link.UpdatedAt}
+		dbm.EXPECT().GetExternalAuthLink(gomock.Any(), database.GetExternalAuthLinkParams{ProviderID: link.ProviderID, UserID: link.UserID}).Return(link, nil).AnyTimes()
+		dbm.EXPECT().UpdateExternalAuthLinkIdentity(gomock.Any(), arg).Return(link, nil).AnyTimes()
 		check.Args(arg).Asserts(link, policy.ActionUpdatePersonal).Returns(link)
 	}))
 	s.Run("UpdateUserLink", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {

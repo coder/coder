@@ -14,6 +14,7 @@ application. The following providers have been tested and work with Coder:
 - [BitBucket](https://support.atlassian.com/bitbucket-cloud/docs/use-oauth-on-bitbucket-cloud/)
 - [GitHub](#configure-a-github-oauth-app)
 - [GitLab](https://docs.gitlab.com/ee/integration/oauth_provider.html)
+- [Linear](#linear)
 
 If you have experience with a provider that is not listed here, please
 [file an issue](https://github.com/coder/internal/issues/new?title=request%28docs%29%3A+external-auth+-+request+title+here%0D%0A&labels=["customer-feedback","docs"]&body=doc%3A+%5Bexternal-auth%5D%28https%3A%2F%2Fcoder.com%2Fdocs%2Fadmin%2Fexternal-auth%29%0D%0A%0D%0Aplease+enter+your+request+here%0D%0A)
@@ -70,6 +71,31 @@ Use [`external-auth`](../../reference/cli/external-auth.md) in the Coder CLI to 
 ```shell
 coder external-auth access-token <USER_DEFINED_ID>
 ```
+
+## Linear
+
+Linear external authentication connects an already authenticated Coder user to
+Linear. It does not configure Linear as a Coder SSO or primary login method.
+
+Create an OAuth application in Linear and configure its callback URL with your
+Coder access URL and external auth provider ID:
+
+```text
+https://example.com/external-auth/linear/callback
+```
+
+Then configure Coder with the Linear provider:
+
+```env
+CODER_EXTERNAL_AUTH_0_ID="linear"
+CODER_EXTERNAL_AUTH_0_TYPE=linear
+CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxx
+CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
+```
+
+Coder defaults Linear to the `read` scope so it can map the connected Linear
+user ID to the Coder user. Configure additional scopes only when a Linear
+integration needs them.
 
 ## Git Authentication in Workspaces
 

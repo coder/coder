@@ -3299,6 +3299,10 @@ func (q *querier) GetExternalAuthLink(ctx context.Context, arg database.GetExter
 	return fetchWithAction(q.log, q.auth, policy.ActionReadPersonal, q.db.GetExternalAuthLink)(ctx, arg)
 }
 
+func (q *querier) GetExternalAuthLinkByProviderIDAndExternalUserID(ctx context.Context, arg database.GetExternalAuthLinkByProviderIDAndExternalUserIDParams) (database.ExternalAuthLink, error) {
+	return fetchWithAction(q.log, q.auth, policy.ActionReadPersonal, q.db.GetExternalAuthLinkByProviderIDAndExternalUserID)(ctx, arg)
+}
+
 func (q *querier) GetExternalAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]database.ExternalAuthLink, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionReadPersonal, q.db.GetExternalAuthLinksByUserID)(ctx, userID)
 }
@@ -6652,6 +6656,13 @@ func (q *querier) UpdateExternalAuthLink(ctx context.Context, arg database.Updat
 		return q.db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{UserID: arg.UserID, ProviderID: arg.ProviderID})
 	}
 	return fetchAndQuery(q.log, q.auth, policy.ActionUpdatePersonal, fetch, q.db.UpdateExternalAuthLink)(ctx, arg)
+}
+
+func (q *querier) UpdateExternalAuthLinkIdentity(ctx context.Context, arg database.UpdateExternalAuthLinkIdentityParams) (database.ExternalAuthLink, error) {
+	fetch := func(ctx context.Context, arg database.UpdateExternalAuthLinkIdentityParams) (database.ExternalAuthLink, error) {
+		return q.db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{UserID: arg.UserID, ProviderID: arg.ProviderID})
+	}
+	return fetchAndQuery(q.log, q.auth, policy.ActionUpdatePersonal, fetch, q.db.UpdateExternalAuthLinkIdentity)(ctx, arg)
 }
 
 func (q *querier) UpdateExternalAuthLinkRefreshToken(ctx context.Context, arg database.UpdateExternalAuthLinkRefreshTokenParams) error {

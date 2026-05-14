@@ -11527,7 +11527,7 @@ func (q *sqlQuerier) DeleteExternalAuthLink(ctx context.Context, arg DeleteExter
 }
 
 const getExternalAuthLink = `-- name: GetExternalAuthLink :one
-SELECT provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra, oauth_refresh_failure_reason FROM external_auth_links WHERE provider_id = $1 AND user_id = $2
+SELECT provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra, oauth_refresh_failure_reason, external_user_id, external_user_login, external_user_name, external_user_email, external_user_avatar_url FROM external_auth_links WHERE provider_id = $1 AND user_id = $2
 `
 
 type GetExternalAuthLinkParams struct {
@@ -11550,12 +11550,50 @@ func (q *sqlQuerier) GetExternalAuthLink(ctx context.Context, arg GetExternalAut
 		&i.OAuthRefreshTokenKeyID,
 		&i.OAuthExtra,
 		&i.OauthRefreshFailureReason,
+		&i.ExternalUserID,
+		&i.ExternalUserLogin,
+		&i.ExternalUserName,
+		&i.ExternalUserEmail,
+		&i.ExternalUserAvatarUrl,
+	)
+	return i, err
+}
+
+const getExternalAuthLinkByProviderIDAndExternalUserID = `-- name: GetExternalAuthLinkByProviderIDAndExternalUserID :one
+SELECT provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra, oauth_refresh_failure_reason, external_user_id, external_user_login, external_user_name, external_user_email, external_user_avatar_url FROM external_auth_links WHERE provider_id = $1 AND external_user_id = $2 AND external_user_id != ''
+`
+
+type GetExternalAuthLinkByProviderIDAndExternalUserIDParams struct {
+	ProviderID     string `db:"provider_id" json:"provider_id"`
+	ExternalUserID string `db:"external_user_id" json:"external_user_id"`
+}
+
+func (q *sqlQuerier) GetExternalAuthLinkByProviderIDAndExternalUserID(ctx context.Context, arg GetExternalAuthLinkByProviderIDAndExternalUserIDParams) (ExternalAuthLink, error) {
+	row := q.db.QueryRowContext(ctx, getExternalAuthLinkByProviderIDAndExternalUserID, arg.ProviderID, arg.ExternalUserID)
+	var i ExternalAuthLink
+	err := row.Scan(
+		&i.ProviderID,
+		&i.UserID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OAuthAccessToken,
+		&i.OAuthRefreshToken,
+		&i.OAuthExpiry,
+		&i.OAuthAccessTokenKeyID,
+		&i.OAuthRefreshTokenKeyID,
+		&i.OAuthExtra,
+		&i.OauthRefreshFailureReason,
+		&i.ExternalUserID,
+		&i.ExternalUserLogin,
+		&i.ExternalUserName,
+		&i.ExternalUserEmail,
+		&i.ExternalUserAvatarUrl,
 	)
 	return i, err
 }
 
 const getExternalAuthLinksByUserID = `-- name: GetExternalAuthLinksByUserID :many
-SELECT provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra, oauth_refresh_failure_reason FROM external_auth_links WHERE user_id = $1
+SELECT provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra, oauth_refresh_failure_reason, external_user_id, external_user_login, external_user_name, external_user_email, external_user_avatar_url FROM external_auth_links WHERE user_id = $1
 `
 
 func (q *sqlQuerier) GetExternalAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]ExternalAuthLink, error) {
@@ -11579,6 +11617,11 @@ func (q *sqlQuerier) GetExternalAuthLinksByUserID(ctx context.Context, userID uu
 			&i.OAuthRefreshTokenKeyID,
 			&i.OAuthExtra,
 			&i.OauthRefreshFailureReason,
+			&i.ExternalUserID,
+			&i.ExternalUserLogin,
+			&i.ExternalUserName,
+			&i.ExternalUserEmail,
+			&i.ExternalUserAvatarUrl,
 		); err != nil {
 			return nil, err
 		}
@@ -11604,7 +11647,12 @@ INSERT INTO external_auth_links (
     oauth_refresh_token,
     oauth_refresh_token_key_id,
     oauth_expiry,
-	oauth_extra
+	oauth_extra,
+	external_user_id,
+	external_user_login,
+	external_user_name,
+	external_user_email,
+	external_user_avatar_url
 ) VALUES (
     $1,
     $2,
@@ -11615,8 +11663,13 @@ INSERT INTO external_auth_links (
     $7,
     $8,
     $9,
-	$10
-) RETURNING provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra, oauth_refresh_failure_reason
+	$10,
+	$11,
+	$12,
+	$13,
+	$14,
+	$15
+) RETURNING provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra, oauth_refresh_failure_reason, external_user_id, external_user_login, external_user_name, external_user_email, external_user_avatar_url
 `
 
 type InsertExternalAuthLinkParams struct {
@@ -11630,6 +11683,11 @@ type InsertExternalAuthLinkParams struct {
 	OAuthRefreshTokenKeyID sql.NullString        `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
 	OAuthExpiry            time.Time             `db:"oauth_expiry" json:"oauth_expiry"`
 	OAuthExtra             pqtype.NullRawMessage `db:"oauth_extra" json:"oauth_extra"`
+	ExternalUserID         string                `db:"external_user_id" json:"external_user_id"`
+	ExternalUserLogin      string                `db:"external_user_login" json:"external_user_login"`
+	ExternalUserName       string                `db:"external_user_name" json:"external_user_name"`
+	ExternalUserEmail      string                `db:"external_user_email" json:"external_user_email"`
+	ExternalUserAvatarUrl  string                `db:"external_user_avatar_url" json:"external_user_avatar_url"`
 }
 
 func (q *sqlQuerier) InsertExternalAuthLink(ctx context.Context, arg InsertExternalAuthLinkParams) (ExternalAuthLink, error) {
@@ -11644,6 +11702,11 @@ func (q *sqlQuerier) InsertExternalAuthLink(ctx context.Context, arg InsertExter
 		arg.OAuthRefreshTokenKeyID,
 		arg.OAuthExpiry,
 		arg.OAuthExtra,
+		arg.ExternalUserID,
+		arg.ExternalUserLogin,
+		arg.ExternalUserName,
+		arg.ExternalUserEmail,
+		arg.ExternalUserAvatarUrl,
 	)
 	var i ExternalAuthLink
 	err := row.Scan(
@@ -11658,6 +11721,11 @@ func (q *sqlQuerier) InsertExternalAuthLink(ctx context.Context, arg InsertExter
 		&i.OAuthRefreshTokenKeyID,
 		&i.OAuthExtra,
 		&i.OauthRefreshFailureReason,
+		&i.ExternalUserID,
+		&i.ExternalUserLogin,
+		&i.ExternalUserName,
+		&i.ExternalUserEmail,
+		&i.ExternalUserAvatarUrl,
 	)
 	return i, err
 }
@@ -11671,11 +11739,16 @@ UPDATE external_auth_links SET
     oauth_refresh_token_key_id = $7,
     oauth_expiry = $8,
 	oauth_extra = $9,
+	external_user_id = $10,
+	external_user_login = $11,
+	external_user_name = $12,
+	external_user_email = $13,
+	external_user_avatar_url = $14,
 	-- Only 'UpdateExternalAuthLinkRefreshToken' supports updating the oauth_refresh_failure_reason.
 	-- Any updates to the external auth link, will be assumed to change the state and clear
 	-- any cached errors.
 	oauth_refresh_failure_reason = ''
-WHERE provider_id = $1 AND user_id = $2 RETURNING provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra, oauth_refresh_failure_reason
+WHERE provider_id = $1 AND user_id = $2 RETURNING provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra, oauth_refresh_failure_reason, external_user_id, external_user_login, external_user_name, external_user_email, external_user_avatar_url
 `
 
 type UpdateExternalAuthLinkParams struct {
@@ -11688,6 +11761,11 @@ type UpdateExternalAuthLinkParams struct {
 	OAuthRefreshTokenKeyID sql.NullString        `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
 	OAuthExpiry            time.Time             `db:"oauth_expiry" json:"oauth_expiry"`
 	OAuthExtra             pqtype.NullRawMessage `db:"oauth_extra" json:"oauth_extra"`
+	ExternalUserID         string                `db:"external_user_id" json:"external_user_id"`
+	ExternalUserLogin      string                `db:"external_user_login" json:"external_user_login"`
+	ExternalUserName       string                `db:"external_user_name" json:"external_user_name"`
+	ExternalUserEmail      string                `db:"external_user_email" json:"external_user_email"`
+	ExternalUserAvatarUrl  string                `db:"external_user_avatar_url" json:"external_user_avatar_url"`
 }
 
 func (q *sqlQuerier) UpdateExternalAuthLink(ctx context.Context, arg UpdateExternalAuthLinkParams) (ExternalAuthLink, error) {
@@ -11701,6 +11779,11 @@ func (q *sqlQuerier) UpdateExternalAuthLink(ctx context.Context, arg UpdateExter
 		arg.OAuthRefreshTokenKeyID,
 		arg.OAuthExpiry,
 		arg.OAuthExtra,
+		arg.ExternalUserID,
+		arg.ExternalUserLogin,
+		arg.ExternalUserName,
+		arg.ExternalUserEmail,
+		arg.ExternalUserAvatarUrl,
 	)
 	var i ExternalAuthLink
 	err := row.Scan(
@@ -11715,6 +11798,66 @@ func (q *sqlQuerier) UpdateExternalAuthLink(ctx context.Context, arg UpdateExter
 		&i.OAuthRefreshTokenKeyID,
 		&i.OAuthExtra,
 		&i.OauthRefreshFailureReason,
+		&i.ExternalUserID,
+		&i.ExternalUserLogin,
+		&i.ExternalUserName,
+		&i.ExternalUserEmail,
+		&i.ExternalUserAvatarUrl,
+	)
+	return i, err
+}
+
+const updateExternalAuthLinkIdentity = `-- name: UpdateExternalAuthLinkIdentity :one
+UPDATE external_auth_links SET
+	updated_at = $3,
+	external_user_id = $4,
+	external_user_login = $5,
+	external_user_name = $6,
+	external_user_email = $7,
+	external_user_avatar_url = $8
+WHERE provider_id = $1 AND user_id = $2 RETURNING provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, oauth_extra, oauth_refresh_failure_reason, external_user_id, external_user_login, external_user_name, external_user_email, external_user_avatar_url
+`
+
+type UpdateExternalAuthLinkIdentityParams struct {
+	ProviderID            string    `db:"provider_id" json:"provider_id"`
+	UserID                uuid.UUID `db:"user_id" json:"user_id"`
+	UpdatedAt             time.Time `db:"updated_at" json:"updated_at"`
+	ExternalUserID        string    `db:"external_user_id" json:"external_user_id"`
+	ExternalUserLogin     string    `db:"external_user_login" json:"external_user_login"`
+	ExternalUserName      string    `db:"external_user_name" json:"external_user_name"`
+	ExternalUserEmail     string    `db:"external_user_email" json:"external_user_email"`
+	ExternalUserAvatarUrl string    `db:"external_user_avatar_url" json:"external_user_avatar_url"`
+}
+
+func (q *sqlQuerier) UpdateExternalAuthLinkIdentity(ctx context.Context, arg UpdateExternalAuthLinkIdentityParams) (ExternalAuthLink, error) {
+	row := q.db.QueryRowContext(ctx, updateExternalAuthLinkIdentity,
+		arg.ProviderID,
+		arg.UserID,
+		arg.UpdatedAt,
+		arg.ExternalUserID,
+		arg.ExternalUserLogin,
+		arg.ExternalUserName,
+		arg.ExternalUserEmail,
+		arg.ExternalUserAvatarUrl,
+	)
+	var i ExternalAuthLink
+	err := row.Scan(
+		&i.ProviderID,
+		&i.UserID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OAuthAccessToken,
+		&i.OAuthRefreshToken,
+		&i.OAuthExpiry,
+		&i.OAuthAccessTokenKeyID,
+		&i.OAuthRefreshTokenKeyID,
+		&i.OAuthExtra,
+		&i.OauthRefreshFailureReason,
+		&i.ExternalUserID,
+		&i.ExternalUserLogin,
+		&i.ExternalUserName,
+		&i.ExternalUserEmail,
+		&i.ExternalUserAvatarUrl,
 	)
 	return i, err
 }

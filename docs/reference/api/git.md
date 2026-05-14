@@ -23,6 +23,13 @@ curl -X GET http://coder-server:8080/api/v2/external-auth \
   "created_at": "2019-08-24T14:15:22Z",
   "expires": "2019-08-24T14:15:22Z",
   "has_refresh_token": true,
+  "identity": {
+    "avatar_url": "string",
+    "email": "string",
+    "id": "string",
+    "login": "string",
+    "name": "string"
+  },
   "provider_id": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "validate_error": "string"
@@ -67,6 +74,13 @@ curl -X GET http://coder-server:8080/api/v2/external-auth/{externalauth} \
   "authenticated": true,
   "device": true,
   "display_name": "string",
+  "identity": {
+    "avatar_url": "string",
+    "email": "string",
+    "id": "string",
+    "login": "string",
+    "name": "string"
+  },
   "installations": [
     {
       "account": {

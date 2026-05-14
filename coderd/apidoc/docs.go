@@ -18216,6 +18216,14 @@ const docTemplate = `{
                 "display_name": {
                     "type": "string"
                 },
+                "identity": {
+                    "description": "Identity is the external user identity associated with the provider.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ExternalAuthIdentity"
+                        }
+                    ]
+                },
                 "installations": {
                     "description": "AppInstallations are the installations that the user has access to.",
                     "type": "array",
@@ -18227,7 +18235,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "user": {
-                    "description": "User is the user that authenticated with the provider.",
+                    "description": "User is the user that authenticated with the provider.\nDeprecated: Use Identity for providers with non-numeric IDs.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.ExternalAuthUser"
@@ -18354,6 +18362,26 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ExternalAuthIdentity": {
+            "type": "object",
+            "properties": {
+                "avatar_url": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "login": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.ExternalAuthLink": {
             "type": "object",
             "properties": {
@@ -18370,6 +18398,9 @@ const docTemplate = `{
                 },
                 "has_refresh_token": {
                     "type": "boolean"
+                },
+                "identity": {
+                    "$ref": "#/definitions/codersdk.ExternalAuthIdentity"
                 },
                 "provider_id": {
                     "type": "string"

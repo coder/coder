@@ -46,6 +46,7 @@ const (
 	EnhancedExternalAuthProviderSlack           EnhancedExternalAuthProvider = "slack"
 	EnhancedExternalAuthProviderJFrog           EnhancedExternalAuthProvider = "jfrog"
 	EnhancedExternalAuthProviderGitea           EnhancedExternalAuthProvider = "gitea"
+	EnhancedExternalAuthProviderLinear          EnhancedExternalAuthProvider = "linear"
 )
 
 type ExternalAuth struct {
@@ -54,7 +55,10 @@ type ExternalAuth struct {
 	DisplayName        string `json:"display_name"`
 	SupportsRevocation bool   `json:"supports_revocation"`
 
+	// Identity is the external user identity associated with the provider.
+	Identity *ExternalAuthIdentity `json:"identity,omitempty"`
 	// User is the user that authenticated with the provider.
+	// Deprecated: Use Identity for providers with non-numeric IDs.
 	User *ExternalAuthUser `json:"user"`
 	// AppInstallable is true if the request for app installs was successful.
 	AppInstallable bool `json:"app_installable"`
@@ -83,13 +87,14 @@ type DeleteExternalAuthByIDResponse struct {
 // It excludes information that requires a token to access, so can be statically
 // built from the database and configs.
 type ExternalAuthLink struct {
-	ProviderID      string    `json:"provider_id"`
-	CreatedAt       time.Time `json:"created_at" format:"date-time"`
-	UpdatedAt       time.Time `json:"updated_at" format:"date-time"`
-	HasRefreshToken bool      `json:"has_refresh_token"`
-	Expires         time.Time `json:"expires" format:"date-time"`
-	Authenticated   bool      `json:"authenticated"`
-	ValidateError   string    `json:"validate_error"`
+	ProviderID      string                `json:"provider_id"`
+	CreatedAt       time.Time             `json:"created_at" format:"date-time"`
+	UpdatedAt       time.Time             `json:"updated_at" format:"date-time"`
+	HasRefreshToken bool                  `json:"has_refresh_token"`
+	Expires         time.Time             `json:"expires" format:"date-time"`
+	Authenticated   bool                  `json:"authenticated"`
+	ValidateError   string                `json:"validate_error"`
+	Identity        *ExternalAuthIdentity `json:"identity,omitempty"`
 }
 
 // ExternalAuthLinkProvider are the static details of a provider.
@@ -103,6 +108,15 @@ type ExternalAuthLinkProvider struct {
 	AllowValidate                 bool     `json:"allow_validate"`
 	SupportsRevocation            bool     `json:"supports_revocation"`
 	CodeChallengeMethodsSupported []string `json:"code_challenge_methods_supported"`
+}
+
+// ExternalAuthIdentity is the external provider account associated with an external auth link.
+type ExternalAuthIdentity struct {
+	ID        string `json:"id"`
+	Login     string `json:"login,omitempty"`
+	Name      string `json:"name,omitempty"`
+	Email     string `json:"email,omitempty"`
+	AvatarURL string `json:"avatar_url,omitempty"`
 }
 
 type ExternalAuthAppInstallation struct {

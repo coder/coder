@@ -13,8 +13,89 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 )
+
+func TestExternalAuthLinkIdentityMapping(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+	ctx := context.Background()
+	providerID := uuid.NewString()
+	externalUserID := uuid.NewString()
+	userID := uuid.New()
+
+	link, err := db.InsertExternalAuthLink(ctx, database.InsertExternalAuthLinkParams{
+		ProviderID:            providerID,
+		UserID:                userID,
+		CreatedAt:             dbtime.Now(),
+		UpdatedAt:             dbtime.Now(),
+		OAuthAccessToken:      uuid.NewString(),
+		OAuthRefreshToken:     uuid.NewString(),
+		OAuthExpiry:           dbtime.Now(),
+		ExternalUserID:        externalUserID,
+		ExternalUserName:      "Ada Lovelace",
+		ExternalUserEmail:     "ada@example.com",
+		ExternalUserAvatarUrl: "https://example.com/avatar.png",
+	})
+	require.NoError(t, err)
+
+	lookup, err := db.GetExternalAuthLinkByProviderIDAndExternalUserID(ctx, database.GetExternalAuthLinkByProviderIDAndExternalUserIDParams{
+		ProviderID:     providerID,
+		ExternalUserID: externalUserID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, link.UserID, lookup.UserID)
+	require.Equal(t, "Ada Lovelace", lookup.ExternalUserName)
+
+	_, err = db.InsertExternalAuthLink(ctx, database.InsertExternalAuthLinkParams{
+		ProviderID:        providerID,
+		UserID:            uuid.New(),
+		CreatedAt:         dbtime.Now(),
+		UpdatedAt:         dbtime.Now(),
+		OAuthAccessToken:  uuid.NewString(),
+		OAuthRefreshToken: uuid.NewString(),
+		OAuthExpiry:       dbtime.Now(),
+	})
+	require.NoError(t, err)
+	_, err = db.GetExternalAuthLinkByProviderIDAndExternalUserID(ctx, database.GetExternalAuthLinkByProviderIDAndExternalUserIDParams{
+		ProviderID:     providerID,
+		ExternalUserID: "",
+	})
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	_, err = db.InsertExternalAuthLink(ctx, database.InsertExternalAuthLinkParams{
+		ProviderID:        providerID,
+		UserID:            uuid.New(),
+		CreatedAt:         dbtime.Now(),
+		UpdatedAt:         dbtime.Now(),
+		OAuthAccessToken:  uuid.NewString(),
+		OAuthRefreshToken: uuid.NewString(),
+		OAuthExpiry:       dbtime.Now(),
+		ExternalUserID:    externalUserID,
+	})
+	require.True(t, database.IsUniqueViolation(err, database.UniqueExternalAuthLinksProviderExternalUserIDIndex))
+}
+
+func TestExternalAuthLinksDeletedWithUser(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+	ctx := context.Background()
+	user := dbgen.User(t, db, database.User{})
+	link := dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
+		UserID:         user.ID,
+		ExternalUserID: uuid.NewString(),
+	})
+
+	err := db.UpdateUserDeletedByID(ctx, user.ID)
+	require.NoError(t, err)
+
+	_, err = db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
+		ProviderID: link.ProviderID,
+		UserID:     user.ID,
+	})
+	require.ErrorIs(t, err, sql.ErrNoRows)
+}
 
 func TestGenerator(t *testing.T) {
 	t.Parallel()

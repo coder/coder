@@ -6870,6 +6870,13 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "authenticated": true,
   "device": true,
   "display_name": "string",
+  "identity": {
+    "avatar_url": "string",
+    "email": "string",
+    "id": "string",
+    "login": "string",
+    "name": "string"
+  },
   "installations": [
     {
       "account": {
@@ -6896,16 +6903,17 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name                  | Type                                                                                  | Required | Restrictions | Description                                                             |
-|-----------------------|---------------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------|
-| `app_install_url`     | string                                                                                | false    |              | App install URL is the URL to install the app.                          |
-| `app_installable`     | boolean                                                                               | false    |              | App installable is true if the request for app installs was successful. |
-| `authenticated`       | boolean                                                                               | false    |              |                                                                         |
-| `device`              | boolean                                                                               | false    |              |                                                                         |
-| `display_name`        | string                                                                                | false    |              |                                                                         |
-| `installations`       | array of [codersdk.ExternalAuthAppInstallation](#codersdkexternalauthappinstallation) | false    |              | Installations are the installations that the user has access to.        |
-| `supports_revocation` | boolean                                                                               | false    |              |                                                                         |
-| `user`                | [codersdk.ExternalAuthUser](#codersdkexternalauthuser)                                | false    |              | User is the user that authenticated with the provider.                  |
+| Name                  | Type                                                                                  | Required | Restrictions | Description                                                                                                         |
+|-----------------------|---------------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------|
+| `app_install_url`     | string                                                                                | false    |              | App install URL is the URL to install the app.                                                                      |
+| `app_installable`     | boolean                                                                               | false    |              | App installable is true if the request for app installs was successful.                                             |
+| `authenticated`       | boolean                                                                               | false    |              |                                                                                                                     |
+| `device`              | boolean                                                                               | false    |              |                                                                                                                     |
+| `display_name`        | string                                                                                | false    |              |                                                                                                                     |
+| `identity`            | [codersdk.ExternalAuthIdentity](#codersdkexternalauthidentity)                        | false    |              | Identity is the external user identity associated with the provider.                                                |
+| `installations`       | array of [codersdk.ExternalAuthAppInstallation](#codersdkexternalauthappinstallation) | false    |              | Installations are the installations that the user has access to.                                                    |
+| `supports_revocation` | boolean                                                                               | false    |              |                                                                                                                     |
+| `user`                | [codersdk.ExternalAuthUser](#codersdkexternalauthuser)                                | false    |              | User is the user that authenticated with the provider. Deprecated: Use Identity for providers with non-numeric IDs. |
 
 ## codersdk.ExternalAuthAppInstallation
 
@@ -7012,6 +7020,28 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `user_code`        | string  | false    |              |             |
 | `verification_uri` | string  | false    |              |             |
 
+## codersdk.ExternalAuthIdentity
+
+```json
+{
+  "avatar_url": "string",
+  "email": "string",
+  "id": "string",
+  "login": "string",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name         | Type   | Required | Restrictions | Description |
+|--------------|--------|----------|--------------|-------------|
+| `avatar_url` | string | false    |              |             |
+| `email`      | string | false    |              |             |
+| `id`         | string | false    |              |             |
+| `login`      | string | false    |              |             |
+| `name`       | string | false    |              |             |
+
 ## codersdk.ExternalAuthLink
 
 ```json
@@ -7020,6 +7050,13 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "created_at": "2019-08-24T14:15:22Z",
   "expires": "2019-08-24T14:15:22Z",
   "has_refresh_token": true,
+  "identity": {
+    "avatar_url": "string",
+    "email": "string",
+    "id": "string",
+    "login": "string",
+    "name": "string"
+  },
   "provider_id": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "validate_error": "string"
@@ -7028,15 +7065,16 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name                | Type    | Required | Restrictions | Description |
-|---------------------|---------|----------|--------------|-------------|
-| `authenticated`     | boolean | false    |              |             |
-| `created_at`        | string  | false    |              |             |
-| `expires`           | string  | false    |              |             |
-| `has_refresh_token` | boolean | false    |              |             |
-| `provider_id`       | string  | false    |              |             |
-| `updated_at`        | string  | false    |              |             |
-| `validate_error`    | string  | false    |              |             |
+| Name                | Type                                                           | Required | Restrictions | Description |
+|---------------------|----------------------------------------------------------------|----------|--------------|-------------|
+| `authenticated`     | boolean                                                        | false    |              |             |
+| `created_at`        | string                                                         | false    |              |             |
+| `expires`           | string                                                         | false    |              |             |
+| `has_refresh_token` | boolean                                                        | false    |              |             |
+| `identity`          | [codersdk.ExternalAuthIdentity](#codersdkexternalauthidentity) | false    |              |             |
+| `provider_id`       | string                                                         | false    |              |             |
+| `updated_at`        | string                                                         | false    |              |             |
+| `validate_error`    | string                                                         | false    |              |             |
 
 ## codersdk.ExternalAuthUser
 

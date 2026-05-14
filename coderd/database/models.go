@@ -4787,6 +4787,11 @@ type ExternalAuthLink struct {
 	OAuthExtra             pqtype.NullRawMessage `db:"oauth_extra" json:"oauth_extra"`
 	// This error means the refresh token is invalid. Cached so we can avoid calling the external provider again for the same error.
 	OauthRefreshFailureReason string `db:"oauth_refresh_failure_reason" json:"oauth_refresh_failure_reason"`
+	ExternalUserID            string `db:"external_user_id" json:"external_user_id"`
+	ExternalUserLogin         string `db:"external_user_login" json:"external_user_login"`
+	ExternalUserName          string `db:"external_user_name" json:"external_user_name"`
+	ExternalUserEmail         string `db:"external_user_email" json:"external_user_email"`
+	ExternalUserAvatarUrl     string `db:"external_user_avatar_url" json:"external_user_avatar_url"`
 }
 
 type File struct {

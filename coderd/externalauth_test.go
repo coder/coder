@@ -19,6 +19,7 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -32,6 +33,17 @@ import (
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/testutil"
 )
+
+func TestExternalAuthConfigLinearSupportsValidation(t *testing.T) {
+	t.Parallel()
+
+	provider := coderd.ExternalAuthConfig(&externalauth.Config{
+		ID:   "linear",
+		Type: codersdk.EnhancedExternalAuthProviderLinear.String(),
+	})
+
+	require.True(t, provider.AllowValidate)
+}
 
 func TestExternalAuthByID(t *testing.T) {
 	t.Parallel()
@@ -271,6 +283,61 @@ func TestExternalAuthManagement(t *testing.T) {
 		require.Len(t, list.Providers, 4)
 		require.Len(t, list.Links, 0)
 	})
+	t.Run("LinearIdentityStoredAndListed", func(t *testing.T) {
+		t.Parallel()
+		const providerID = "linear"
+
+		linear := oidctest.NewFakeIDP(t, oidctest.WithServing())
+		viewerID := "linear-user-1"
+		routes := (&oidctest.ExternalAuthConfigOptions{}).AddRoute("/graphql", func(_ string, rw http.ResponseWriter, r *http.Request) {
+			require.Equal(t, http.MethodPost, r.Method)
+			require.True(t, strings.HasPrefix(r.Header.Get("Authorization"), "Bearer "))
+			httpapi.Write(r.Context(), rw, http.StatusOK, map[string]any{
+				"data": map[string]any{
+					"viewer": map[string]any{
+						"id":          viewerID,
+						"displayName": "Ada Lovelace",
+						"email":       "ada@example.com",
+						"avatarUrl":   "https://example.com/avatar.png",
+					},
+				},
+			})
+		})
+		owner := coderdtest.New(t, &coderdtest.Options{
+			ExternalAuthConfigs: []*externalauth.Config{
+				linear.ExternalAuthConfig(t, providerID, routes, func(cfg *externalauth.Config) {
+					cfg.Type = codersdk.EnhancedExternalAuthProviderLinear.String()
+					cfg.APIBaseURL = strings.TrimRight(cfg.ValidateURL, "/")
+					cfg.ValidateURL = ""
+				}),
+			},
+		})
+		ownerUser := coderdtest.CreateFirstUser(t, owner)
+		client, _ := coderdtest.CreateAnotherUser(t, owner, ownerUser.OrganizationID)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		linear.ExternalLogin(t, client)
+
+		list, err := client.ListExternalAuths(ctx)
+		require.NoError(t, err)
+		require.Len(t, list.Links, 1)
+		require.NotNil(t, list.Links[0].Identity)
+		require.Equal(t, "linear-user-1", list.Links[0].Identity.ID)
+		require.Equal(t, "Ada Lovelace", list.Links[0].Identity.Name)
+		require.Equal(t, "ada@example.com", list.Links[0].Identity.Email)
+
+		auth, err := client.ExternalAuthByID(ctx, providerID)
+		require.NoError(t, err)
+		require.True(t, auth.Authenticated)
+		require.NotNil(t, auth.Identity)
+		require.Equal(t, "linear-user-1", auth.Identity.ID)
+
+		viewerID = "linear-user-2"
+		_, err = client.ExternalAuthByID(ctx, providerID)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "Failed to validate external auth identity")
+	})
+
 	t.Run("RefreshAllProviders", func(t *testing.T) {
 		t.Parallel()
 		const githubID = "fake-github"

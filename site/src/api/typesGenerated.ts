@@ -3974,6 +3974,7 @@ export type EnhancedExternalAuthProvider =
 	| "gitlab"
 	| "gitea"
 	| "jfrog"
+	| "linear"
 	| "slack";
 
 export const EnhancedExternalAuthProviders: EnhancedExternalAuthProvider[] = [
@@ -3985,6 +3986,7 @@ export const EnhancedExternalAuthProviders: EnhancedExternalAuthProvider[] = [
 	"gitlab",
 	"gitea",
 	"jfrog",
+	"linear",
 	"slack",
 ];
 
@@ -4049,7 +4051,12 @@ export interface ExternalAuth {
 	readonly display_name: string;
 	readonly supports_revocation: boolean;
 	/**
+	 * Identity is the external user identity associated with the provider.
+	 */
+	readonly identity?: ExternalAuthIdentity;
+	/**
 	 * User is the user that authenticated with the provider.
+	 * @deprecated Use Identity for providers with non-numeric IDs.
 	 */
 	readonly user: ExternalAuthUser | null;
 	/**
@@ -4157,6 +4164,18 @@ export interface ExternalAuthDeviceExchange {
 
 // From codersdk/externalauth.go
 /**
+ * ExternalAuthIdentity is the external provider account associated with an external auth link.
+ */
+export interface ExternalAuthIdentity {
+	readonly id: string;
+	readonly login?: string;
+	readonly name?: string;
+	readonly email?: string;
+	readonly avatar_url?: string;
+}
+
+// From codersdk/externalauth.go
+/**
  * ExternalAuthLink is a link between a user and an external auth provider.
  * It excludes information that requires a token to access, so can be statically
  * built from the database and configs.
@@ -4169,6 +4188,7 @@ export interface ExternalAuthLink {
 	readonly expires: string;
 	readonly authenticated: boolean;
 	readonly validate_error: string;
+	readonly identity?: ExternalAuthIdentity;
 }
 
 // From codersdk/externalauth.go

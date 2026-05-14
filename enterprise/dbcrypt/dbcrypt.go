@@ -192,6 +192,13 @@ func (db *dbCrypt) UpdateUserLink(ctx context.Context, params database.UpdateUse
 	return link, nil
 }
 
+func (db *dbCrypt) decryptExternalAuthLink(link *database.ExternalAuthLink) error {
+	if err := db.decryptField(&link.OAuthAccessToken, link.OAuthAccessTokenKeyID); err != nil {
+		return err
+	}
+	return db.decryptField(&link.OAuthRefreshToken, link.OAuthRefreshTokenKeyID)
+}
+
 func (db *dbCrypt) InsertExternalAuthLink(ctx context.Context, params database.InsertExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 	if err := db.encryptField(&params.OAuthAccessToken, &params.OAuthAccessTokenKeyID); err != nil {
 		return database.ExternalAuthLink{}, err
@@ -203,10 +210,7 @@ func (db *dbCrypt) InsertExternalAuthLink(ctx context.Context, params database.I
 	if err != nil {
 		return database.ExternalAuthLink{}, err
 	}
-	if err := db.decryptField(&link.OAuthAccessToken, link.OAuthAccessTokenKeyID); err != nil {
-		return database.ExternalAuthLink{}, err
-	}
-	if err := db.decryptField(&link.OAuthRefreshToken, link.OAuthRefreshTokenKeyID); err != nil {
+	if err := db.decryptExternalAuthLink(&link); err != nil {
 		return database.ExternalAuthLink{}, err
 	}
 	return link, nil
@@ -217,10 +221,18 @@ func (db *dbCrypt) GetExternalAuthLink(ctx context.Context, params database.GetE
 	if err != nil {
 		return database.ExternalAuthLink{}, err
 	}
-	if err := db.decryptField(&link.OAuthAccessToken, link.OAuthAccessTokenKeyID); err != nil {
+	if err := db.decryptExternalAuthLink(&link); err != nil {
 		return database.ExternalAuthLink{}, err
 	}
-	if err := db.decryptField(&link.OAuthRefreshToken, link.OAuthRefreshTokenKeyID); err != nil {
+	return link, nil
+}
+
+func (db *dbCrypt) GetExternalAuthLinkByProviderIDAndExternalUserID(ctx context.Context, params database.GetExternalAuthLinkByProviderIDAndExternalUserIDParams) (database.ExternalAuthLink, error) {
+	link, err := db.Store.GetExternalAuthLinkByProviderIDAndExternalUserID(ctx, params)
+	if err != nil {
+		return database.ExternalAuthLink{}, err
+	}
+	if err := db.decryptExternalAuthLink(&link); err != nil {
 		return database.ExternalAuthLink{}, err
 	}
 	return link, nil
@@ -232,10 +244,7 @@ func (db *dbCrypt) GetExternalAuthLinksByUserID(ctx context.Context, userID uuid
 		return nil, err
 	}
 	for idx := range links {
-		if err := db.decryptField(&links[idx].OAuthAccessToken, links[idx].OAuthAccessTokenKeyID); err != nil {
-			return nil, err
-		}
-		if err := db.decryptField(&links[idx].OAuthRefreshToken, links[idx].OAuthRefreshTokenKeyID); err != nil {
+		if err := db.decryptExternalAuthLink(&links[idx]); err != nil {
 			return nil, err
 		}
 	}
@@ -253,10 +262,18 @@ func (db *dbCrypt) UpdateExternalAuthLink(ctx context.Context, params database.U
 	if err != nil {
 		return database.ExternalAuthLink{}, err
 	}
-	if err := db.decryptField(&link.OAuthAccessToken, link.OAuthAccessTokenKeyID); err != nil {
+	if err := db.decryptExternalAuthLink(&link); err != nil {
 		return database.ExternalAuthLink{}, err
 	}
-	if err := db.decryptField(&link.OAuthRefreshToken, link.OAuthRefreshTokenKeyID); err != nil {
+	return link, nil
+}
+
+func (db *dbCrypt) UpdateExternalAuthLinkIdentity(ctx context.Context, params database.UpdateExternalAuthLinkIdentityParams) (database.ExternalAuthLink, error) {
+	link, err := db.Store.UpdateExternalAuthLinkIdentity(ctx, params)
+	if err != nil {
+		return database.ExternalAuthLink{}, err
+	}
+	if err := db.decryptExternalAuthLink(&link); err != nil {
 		return database.ExternalAuthLink{}, err
 	}
 	return link, nil

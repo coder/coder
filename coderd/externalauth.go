@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -73,6 +75,20 @@ func (api *API) externalAuthByID(w http.ResponseWriter, r *http.Request) {
 			Detail:  err.Error(),
 		})
 		return
+	}
+	if res.Authenticated {
+		var identity *codersdk.ExternalAuthIdentity
+		link, identity, err = api.refreshExternalAuthIdentity(ctx, config, link)
+		if err != nil {
+			httpapi.Write(ctx, w, http.StatusUnauthorized, codersdk.Response{
+				Message: "Failed to validate external auth identity.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		res.Identity = identity
+	} else {
+		res.Identity = db2sdk.ExternalAuthIdentity(link)
 	}
 	if res.AppInstallations == nil {
 		res.AppInstallations = []codersdk.ExternalAuthAppInstallation{}
@@ -169,7 +185,7 @@ func (api *API) postExternalAuthDeviceByID(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	_, err = api.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
+	existingLink, err := api.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
 		ProviderID: config.ID,
 		UserID:     apiKey.UserID,
 	})
@@ -193,7 +209,12 @@ func (api *API) postExternalAuthDeviceByID(rw http.ResponseWriter, r *http.Reque
 			OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will set as required
 			OAuthExpiry:            token.Expiry,
 			// No extra data from device auth!
-			OAuthExtra: pqtype.NullRawMessage{},
+			OAuthExtra:            pqtype.NullRawMessage{},
+			ExternalUserID:        "",
+			ExternalUserLogin:     "",
+			ExternalUserName:      "",
+			ExternalUserEmail:     "",
+			ExternalUserAvatarUrl: "",
 		})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -213,6 +234,11 @@ func (api *API) postExternalAuthDeviceByID(rw http.ResponseWriter, r *http.Reque
 			OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
 			OAuthExpiry:            token.Expiry,
 			OAuthExtra:             pqtype.NullRawMessage{},
+			ExternalUserID:         existingLink.ExternalUserID,
+			ExternalUserLogin:      existingLink.ExternalUserLogin,
+			ExternalUserName:       existingLink.ExternalUserName,
+			ExternalUserEmail:      existingLink.ExternalUserEmail,
+			ExternalUserAvatarUrl:  existingLink.ExternalUserAvatarUrl,
 		})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -256,6 +282,47 @@ func (*API) externalAuthDeviceByID(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, deviceAuth)
 }
 
+func externalAuthIdentityFields(identity *codersdk.ExternalAuthIdentity) (id, login, name, email, avatarURL string) {
+	if identity == nil {
+		return "", "", "", "", ""
+	}
+	return identity.ID, identity.Login, identity.Name, identity.Email, identity.AvatarURL
+}
+
+func (api *API) refreshExternalAuthIdentity(ctx context.Context, config *externalauth.Config, link database.ExternalAuthLink) (database.ExternalAuthLink, *codersdk.ExternalAuthIdentity, error) {
+	identity, err := config.ExternalAuthIdentity(ctx, link.OAuthAccessToken)
+	if err != nil {
+		return link, nil, err
+	}
+	if identity == nil {
+		return link, db2sdk.ExternalAuthIdentity(link), nil
+	}
+	if link.ExternalUserID != "" && link.ExternalUserID != identity.ID {
+		return link, nil, xerrors.Errorf("external auth identity changed for provider %q; reconnect the provider", config.ID)
+	}
+	if link.ExternalUserID == identity.ID &&
+		link.ExternalUserLogin == identity.Login &&
+		link.ExternalUserName == identity.Name &&
+		link.ExternalUserEmail == identity.Email &&
+		link.ExternalUserAvatarUrl == identity.AvatarURL {
+		return link, identity, nil
+	}
+	updated, err := api.Database.UpdateExternalAuthLinkIdentity(ctx, database.UpdateExternalAuthLinkIdentityParams{
+		ProviderID:            config.ID,
+		UserID:                link.UserID,
+		UpdatedAt:             dbtime.Now(),
+		ExternalUserID:        identity.ID,
+		ExternalUserLogin:     identity.Login,
+		ExternalUserName:      identity.Name,
+		ExternalUserEmail:     identity.Email,
+		ExternalUserAvatarUrl: identity.AvatarURL,
+	})
+	if err != nil {
+		return link, nil, err
+	}
+	return updated, identity, nil
+}
+
 func (api *API) externalAuthCallback(externalAuthConfig *externalauth.Config) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		var (
@@ -272,7 +339,16 @@ func (api *API) externalAuthCallback(externalAuthConfig *externalauth.Config) ht
 			})
 			return
 		}
-		_, err = api.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
+		identity, err := externalAuthConfig.ExternalAuthIdentity(ctx, state.Token.AccessToken)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to fetch external auth identity.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		externalUserID, externalUserLogin, externalUserName, externalUserEmail, externalUserAvatarURL := externalAuthIdentityFields(identity)
+		existingLink, err := api.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
 			ProviderID: externalAuthConfig.ID,
 			UserID:     apiKey.UserID,
 		})
@@ -296,6 +372,11 @@ func (api *API) externalAuthCallback(externalAuthConfig *externalauth.Config) ht
 				OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will set as required
 				OAuthExpiry:            state.Token.Expiry,
 				OAuthExtra:             extra,
+				ExternalUserID:         externalUserID,
+				ExternalUserLogin:      externalUserLogin,
+				ExternalUserName:       externalUserName,
+				ExternalUserEmail:      externalUserEmail,
+				ExternalUserAvatarUrl:  externalUserAvatarURL,
 			})
 			if err != nil {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -305,6 +386,12 @@ func (api *API) externalAuthCallback(externalAuthConfig *externalauth.Config) ht
 				return
 			}
 		} else {
+			if existingLink.ExternalUserID != "" && existingLink.ExternalUserID != externalUserID {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "External auth identity changed. Unlink and reconnect the provider.",
+				})
+				return
+			}
 			_, err = api.Database.UpdateExternalAuthLink(ctx, database.UpdateExternalAuthLinkParams{
 				ProviderID:             externalAuthConfig.ID,
 				UserID:                 apiKey.UserID,
@@ -315,6 +402,11 @@ func (api *API) externalAuthCallback(externalAuthConfig *externalauth.Config) ht
 				OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
 				OAuthExpiry:            state.Token.Expiry,
 				OAuthExtra:             extra,
+				ExternalUserID:         externalUserID,
+				ExternalUserLogin:      externalUserLogin,
+				ExternalUserName:       externalUserName,
+				ExternalUserEmail:      externalUserEmail,
+				ExternalUserAvatarUrl:  externalUserAvatarURL,
 			})
 			if err != nil {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -424,7 +516,7 @@ func ExternalAuthConfig(cfg *externalauth.Config) codersdk.ExternalAuthLinkProvi
 		DisplayName:                   cfg.DisplayName,
 		DisplayIcon:                   cfg.DisplayIcon,
 		AllowRefresh:                  !cfg.NoRefresh,
-		AllowValidate:                 cfg.ValidateURL != "",
+		AllowValidate:                 cfg.SupportsValidate(),
 		SupportsRevocation:            cfg.RevokeURL != "",
 		CodeChallengeMethodsSupported: slice.ToStrings(cfg.CodeChallengeMethodsSupported),
 	}

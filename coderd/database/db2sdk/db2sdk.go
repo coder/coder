@@ -47,6 +47,19 @@ type ExternalAuthMeta struct {
 	ValidateError string
 }
 
+func ExternalAuthIdentity(auth database.ExternalAuthLink) *codersdk.ExternalAuthIdentity {
+	if auth.ExternalUserID == "" {
+		return nil
+	}
+	return &codersdk.ExternalAuthIdentity{
+		ID:        auth.ExternalUserID,
+		Login:     auth.ExternalUserLogin,
+		Name:      auth.ExternalUserName,
+		Email:     auth.ExternalUserEmail,
+		AvatarURL: auth.ExternalUserAvatarUrl,
+	}
+}
+
 func ExternalAuths(auths []database.ExternalAuthLink, meta map[string]ExternalAuthMeta) []codersdk.ExternalAuthLink {
 	out := make([]codersdk.ExternalAuthLink, 0, len(auths))
 	for _, auth := range auths {
@@ -64,6 +77,7 @@ func ExternalAuth(auth database.ExternalAuthLink, meta ExternalAuthMeta) codersd
 		Expires:         auth.OAuthExpiry,
 		Authenticated:   meta.Authenticated,
 		ValidateError:   meta.ValidateError,
+		Identity:        ExternalAuthIdentity(auth),
 	}
 }
 

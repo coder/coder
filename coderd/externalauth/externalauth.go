@@ -147,6 +147,11 @@ func (c *Config) GenerateTokenExtra(token *oauth2.Token) (pqtype.NullRawMessage,
 	}, nil
 }
 
+// SupportsValidate reports whether the provider can validate tokens.
+func (c *Config) SupportsValidate() bool {
+	return c.ValidateURL != "" || c.Type == codersdk.EnhancedExternalAuthProviderLinear.String()
+}
+
 // InvalidTokenError is a case where the "RefreshToken" failed to complete
 // as a result of invalid credentials. Error contains the reason of the failure.
 type InvalidTokenError string
@@ -303,6 +308,11 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 			OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
 			OAuthExpiry:            token.Expiry,
 			OAuthExtra:             extra,
+			ExternalUserID:         externalAuthLink.ExternalUserID,
+			ExternalUserLogin:      externalAuthLink.ExternalUserLogin,
+			ExternalUserName:       externalAuthLink.ExternalUserName,
+			ExternalUserEmail:      externalAuthLink.ExternalUserEmail,
+			ExternalUserAvatarUrl:  externalAuthLink.ExternalUserAvatarUrl,
 		})
 		if err != nil {
 			return updatedAuthLink, xerrors.Errorf("persist refreshed token: %w", err)
@@ -431,6 +441,77 @@ func (c *Config) ValidateToken(ctx context.Context, link *oauth2.Token) (bool, *
 	}
 
 	return true, user, nil
+}
+
+const (
+	linearViewerPayload  = `{"query":"query CoderExternalAuthViewer { viewer { id name displayName email avatarUrl } }"}`
+	linearErrorBodyLimit = 8192
+)
+
+// ExternalAuthIdentity fetches provider identity for providers that support it.
+func (c *Config) ExternalAuthIdentity(ctx context.Context, accessToken string) (*codersdk.ExternalAuthIdentity, error) {
+	if c.Type != codersdk.EnhancedExternalAuthProviderLinear.String() {
+		return nil, nil //nolint:nilnil // Providers without identity support return no identity and no error.
+	}
+	if accessToken == "" {
+		return nil, xerrors.New("linear external auth identity: access token is empty")
+	}
+	apiBaseURL := strings.TrimRight(c.APIBaseURL, "/")
+	if apiBaseURL == "" {
+		return nil, xerrors.New("linear external auth identity: api base URL is empty")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiBaseURL+"/graphql", strings.NewReader(linearViewerPayload))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", accessToken))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	res, err := c.InstrumentedOAuth2Config.Do(ctx, promoauth.SourceValidateToken, req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		data, _ := io.ReadAll(io.LimitReader(res.Body, linearErrorBodyLimit))
+		return nil, xerrors.Errorf("status %d: body: %s", res.StatusCode, data)
+	}
+	var body struct {
+		Data struct {
+			Viewer *struct {
+				ID          string `json:"id"`
+				Name        string `json:"name"`
+				DisplayName string `json:"displayName"`
+				Email       string `json:"email"`
+				AvatarURL   string `json:"avatarUrl"`
+			} `json:"viewer"`
+		} `json:"data"`
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
+		return nil, xerrors.Errorf("decode linear viewer response: %w", err)
+	}
+	if len(body.Errors) > 0 {
+		return nil, xerrors.Errorf("linear viewer query failed: %s", body.Errors[0].Message)
+	}
+	if body.Data.Viewer == nil {
+		return nil, xerrors.New("linear viewer query returned no viewer")
+	}
+	if body.Data.Viewer.ID == "" {
+		return nil, xerrors.New("linear viewer query returned empty user ID")
+	}
+	name := body.Data.Viewer.DisplayName
+	if name == "" {
+		name = body.Data.Viewer.Name
+	}
+	return &codersdk.ExternalAuthIdentity{
+		ID:        body.Data.Viewer.ID,
+		Name:      name,
+		Email:     body.Data.Viewer.Email,
+		AvatarURL: body.Data.Viewer.AvatarURL,
+	}, nil
 }
 
 type AppInstallation struct {
@@ -741,6 +822,9 @@ func ConvertConfig(instrument *promoauth.Factory, entries []codersdk.ExternalAut
 		if entry.ClientID == "" {
 			return nil, xerrors.Errorf("%q external auth provider: client_id must be provided", entry.ID)
 		}
+		if entry.Type == codersdk.EnhancedExternalAuthProviderLinear.String() && entry.ClientSecret == "" {
+			return nil, xerrors.Errorf("%q external auth provider: client_secret must be provided", entry.ID)
+		}
 
 		_, exists := ids[entry.ID]
 		if exists {
@@ -777,6 +861,11 @@ func ConvertConfig(instrument *promoauth.Factory, entries []codersdk.ExternalAut
 
 		var oauthConfig promoauth.OAuth2Config = oc
 		// Azure DevOps uses JWT token authentication!
+		if entry.Type == string(codersdk.EnhancedExternalAuthProviderLinear) {
+			linearScopes := append([]string(nil), oc.Scopes...)
+			oc.Scopes = nil
+			oauthConfig = &linearOAuth2Config{Config: oc, scopes: linearScopes}
+		}
 		if entry.Type == string(codersdk.EnhancedExternalAuthProviderAzureDevops) {
 			oauthConfig = &jwtConfig{oc}
 		}
@@ -959,6 +1048,8 @@ func copyDefaultSettings(config *codersdk.ExternalAuthConfig, defaults codersdk.
 			config.APIBaseURL = "https://gitlab.com/api/v4"
 		case codersdk.EnhancedExternalAuthProviderGitea:
 			config.APIBaseURL = "https://gitea.com/api/v1"
+		case codersdk.EnhancedExternalAuthProviderLinear:
+			config.APIBaseURL = "https://api.linear.app"
 		}
 	}
 }
@@ -1198,6 +1289,15 @@ var staticDefaults = map[codersdk.EnhancedExternalAuthProvider]codersdk.External
 		// TODO: Investigate if 'S256' is accepted and PKCE is supported
 		CodeChallengeMethodsSupported: []string{string(promoauth.PKCEChallengeMethodNone)},
 	},
+	codersdk.EnhancedExternalAuthProviderLinear: {
+		AuthURL:                       "https://linear.app/oauth/authorize",
+		TokenURL:                      "https://api.linear.app/oauth/token",
+		RevokeURL:                     "https://api.linear.app/oauth/revoke",
+		DisplayName:                   "Linear",
+		DisplayIcon:                   "/icon/linear.svg",
+		Scopes:                        []string{"read"},
+		CodeChallengeMethodsSupported: []string{string(promoauth.PKCEChallengeMethodSha256)},
+	},
 	codersdk.EnhancedExternalAuthProviderSlack: {
 		AuthURL:     "https://slack.com/oauth/v2/authorize",
 		TokenURL:    "https://slack.com/api/oauth.v2.access",
@@ -1209,6 +1309,18 @@ var staticDefaults = map[codersdk.EnhancedExternalAuthProvider]codersdk.External
 		// TODO: Investigate if 'S256' is accepted and PKCE is supported
 		CodeChallengeMethodsSupported: []string{string(promoauth.PKCEChallengeMethodNone)},
 	},
+}
+
+type linearOAuth2Config struct {
+	*oauth2.Config
+	scopes []string
+}
+
+func (c *linearOAuth2Config) AuthCodeURL(state string, opts ...oauth2.AuthCodeOption) string {
+	if len(c.scopes) > 0 {
+		opts = append(opts, oauth2.SetAuthURLParam("scope", strings.Join(c.scopes, ",")))
+	}
+	return c.Config.AuthCodeURL(state, opts...)
 }
 
 // jwtConfig is a new OAuth2 config that uses a custom

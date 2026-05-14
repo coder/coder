@@ -775,16 +775,14 @@ BEGIN
 		DELETE FROM user_links
 		WHERE user_id = OLD.id;
 
+		-- Remove their external_auth_links.
+		DELETE FROM external_auth_links
+		WHERE user_id = OLD.id;
+
 		-- Remove their user_secrets.
 		-- user_secrets.user_id has ON DELETE CASCADE, but soft-delete
 		-- does not remove the users row so the FK cascade never fires.
 		DELETE FROM user_secrets
-		WHERE user_id = OLD.id;
-
-		-- Remove their organization memberships.
-		-- This also triggers group membership cleanup via
-		-- trigger_delete_group_members_on_org_member_delete.
-		DELETE FROM organization_members
 		WHERE user_id = OLD.id;
 	END IF;
 	RETURN NEW;
@@ -1739,7 +1737,12 @@ CREATE TABLE external_auth_links (
     oauth_access_token_key_id text,
     oauth_refresh_token_key_id text,
     oauth_extra jsonb,
-    oauth_refresh_failure_reason text DEFAULT ''::text NOT NULL
+    oauth_refresh_failure_reason text DEFAULT ''::text NOT NULL,
+    external_user_id text DEFAULT ''::text NOT NULL,
+    external_user_login text DEFAULT ''::text NOT NULL,
+    external_user_name text DEFAULT ''::text NOT NULL,
+    external_user_email text DEFAULT ''::text NOT NULL,
+    external_user_avatar_url text DEFAULT ''::text NOT NULL
 );
 
 COMMENT ON COLUMN external_auth_links.oauth_access_token_key_id IS 'The ID of the key used to encrypt the OAuth access token. If this is NULL, the access token is not encrypted';
@@ -3872,6 +3875,8 @@ CREATE UNIQUE INDEX ai_providers_name_unique ON ai_providers USING btree (name) 
 CREATE INDEX api_keys_last_used_idx ON api_keys USING btree (last_used DESC);
 
 COMMENT ON INDEX api_keys_last_used_idx IS 'Index for optimizing api_keys queries filtering by last_used';
+
+CREATE UNIQUE INDEX external_auth_links_provider_external_user_id_idx ON external_auth_links USING btree (provider_id, external_user_id) WHERE (external_user_id <> ''::text);
 
 CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
 
