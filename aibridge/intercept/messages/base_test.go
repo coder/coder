@@ -809,24 +809,15 @@ func TestAugmentRequestForBedrock_AdaptiveThinking(t *testing.T) {
 			expectRemovedFields: []string{"output_config", "metadata", "service_tier", "container", "inference_geo", "context_management"},
 		},
 
-		// Adaptive-only models (Opus 4.7+), see coder/aibridge#280.
-		// Symmetric counterpart of the adaptive -> enabled conversion in
-		// coder/aibridge#225.
+		// Adaptive-only models (Opus 4.7+), see coder/aibridge#280. The
+		// conversion drops budget_tokens and flips the type; an explicit
+		// output_config.effort from the caller is preserved, but none is
+		// fabricated when absent.
 		{
-			name:               "opus_4_7_model_with_enabled_thinking_is_converted_to_adaptive",
+			name:               "opus_4_7_model_with_enabled_thinking_is_converted_to_adaptive_and_drops_budget",
 			bedrockModel:       "us.anthropic.claude-opus-4-7",
 			requestBody:        `{"max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":5000}}`,
 			expectThinkingType: "adaptive",
-			expectEffort:       "medium", // 5000/10000 = 0.5 -> medium
-			expectKeptFields:   []string{"output_config"},
-		},
-		{
-			name:               "opus_4_7_model_with_enabled_thinking_low_budget_is_converted_with_low_effort",
-			bedrockModel:       "us.anthropic.claude-opus-4-7",
-			requestBody:        `{"max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":2000}}`,
-			expectThinkingType: "adaptive",
-			expectEffort:       "low",
-			expectKeptFields:   []string{"output_config"},
 		},
 		{
 			name:               "opus_4_7_model_with_adaptive_thinking_is_unchanged",
@@ -844,7 +835,7 @@ func TestAugmentRequestForBedrock_AdaptiveThinking(t *testing.T) {
 			bedrockModel:       "us.anthropic.claude-opus-4-7",
 			requestBody:        `{"max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":2000},"output_config":{"effort":"max"}}`,
 			expectThinkingType: "adaptive",
-			expectEffort:       "max", // ratio would say low, but explicit max wins
+			expectEffort:       "max",
 			expectKeptFields:   []string{"output_config"},
 		},
 		{
@@ -860,8 +851,6 @@ func TestAugmentRequestForBedrock_AdaptiveThinking(t *testing.T) {
 			bedrockModel:       "arn:aws:bedrock:us-east-1:123:application-inference-profile/global.anthropic.claude-opus-4-7",
 			requestBody:        `{"max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":8000}}`,
 			expectThinkingType: "adaptive",
-			expectEffort:       "high", // 8000/10000 = 0.8 -> high
-			expectKeptFields:   []string{"output_config"},
 		},
 	}
 

@@ -370,7 +370,10 @@ func TestRequestPayloadConvertEnabledThinkingForBedrock(t *testing.T) {
 		requestBody string
 
 		expectedThinkingType string
-		expectedEffort       string
+		// expectedEffort is what output_config.effort should resolve to after
+		// the conversion. The reverse direction never sets this field itself;
+		// it only persists when the caller already had it on the payload.
+		expectedEffort string
 	}{
 		{
 			name:        "no_thinking_field_is_no_op",
@@ -387,52 +390,20 @@ func TestRequestPayloadConvertEnabledThinkingForBedrock(t *testing.T) {
 			expectedThinkingType: "disabled",
 		},
 		{
-			name:                 "enabled_with_low_ratio_maps_to_low_effort",
-			requestBody:          `{"model":"claude-opus-4-7","max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":2000},"messages":[]}`,
-			expectedThinkingType: "adaptive",
-			expectedEffort:       "low",
-		},
-		{
-			name:                 "enabled_with_medium_ratio_maps_to_medium_effort",
+			name:                 "enabled_with_budget_becomes_adaptive_and_drops_budget",
 			requestBody:          `{"model":"claude-opus-4-7","max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":5000},"messages":[]}`,
 			expectedThinkingType: "adaptive",
-			expectedEffort:       "medium",
 		},
 		{
-			name:                 "enabled_with_high_ratio_maps_to_high_effort",
-			requestBody:          `{"model":"claude-opus-4-7","max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":8000},"messages":[]}`,
-			expectedThinkingType: "adaptive",
-			expectedEffort:       "high",
-		},
-		{
-			name:                 "enabled_with_max_ratio_maps_to_max_effort",
-			requestBody:          `{"model":"claude-opus-4-7","max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":9500},"messages":[]}`,
-			expectedThinkingType: "adaptive",
-			expectedEffort:       "max",
-		},
-		{
-			name:                 "enabled_at_low_medium_boundary_maps_to_medium",
-			requestBody:          `{"model":"claude-opus-4-7","max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":3500},"messages":[]}`,
-			expectedThinkingType: "adaptive",
-			expectedEffort:       "medium", // 0.35 boundary lands in medium
-		},
-		{
-			name:                 "enabled_without_budget_falls_back_to_high_effort",
+			name:                 "enabled_without_budget_becomes_adaptive",
 			requestBody:          `{"model":"claude-opus-4-7","max_tokens":10000,"thinking":{"type":"enabled"},"messages":[]}`,
 			expectedThinkingType: "adaptive",
-			expectedEffort:       "high",
-		},
-		{
-			name:                 "enabled_without_max_tokens_falls_back_to_high_effort",
-			requestBody:          `{"model":"claude-opus-4-7","thinking":{"type":"enabled","budget_tokens":5000},"messages":[]}`,
-			expectedThinkingType: "adaptive",
-			expectedEffort:       "high",
 		},
 		{
 			name:                 "enabled_preserves_explicit_effort",
 			requestBody:          `{"model":"claude-opus-4-7","max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":2000},"output_config":{"effort":"max"},"messages":[]}`,
 			expectedThinkingType: "adaptive",
-			expectedEffort:       "max", // ratio would say "low", but explicit "max" wins
+			expectedEffort:       "max",
 		},
 	}
 
@@ -448,17 +419,13 @@ func TestRequestPayloadConvertEnabledThinkingForBedrock(t *testing.T) {
 			require.NotEqual(t, tc.expectedThinkingType == "", thinking.Exists(), "thinking should not be set")
 			require.Equal(t, tc.expectedThinkingType, gjson.GetBytes(updatedPayload, messagesReqPathThinkingType).String())
 
-			// budget_tokens must always be absent after a successful conversion.
+			// budget_tokens must always be absent after a successful conversion to adaptive.
 			budgetTokens := gjson.GetBytes(updatedPayload, messagesReqPathThinkingBudgetTokens)
 			if tc.expectedThinkingType == "adaptive" {
 				require.False(t, budgetTokens.Exists(), "budget_tokens should be removed after conversion")
 			}
 
 			effort := gjson.GetBytes(updatedPayload, messagesReqPathOutputConfigEffort)
-			if tc.expectedEffort == "" {
-				// Effort is only set when we converted an "enabled" payload.
-				return
-			}
 			require.Equal(t, tc.expectedEffort, effort.String())
 		})
 	}

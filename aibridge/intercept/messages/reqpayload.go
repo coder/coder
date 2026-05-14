@@ -327,11 +327,37 @@ func (RequestPayload) resultToRawMessage(items []gjson.Result) []json.RawMessage
 	return rawMessages
 }
 
-// convertAdaptiveThinkingForBedrock converts thinking.type "adaptive" to "enabled" with a calculated budget_tokens
-// conversion is needed for Bedrock models that does not support the "adaptive" thinking.type
+// The two Bedrock thinking-type conversions below are a temporary shim.
+// AI Bridge relays the Anthropic Messages API shape to Bedrock, whose Claude
+// models accept a disjoint subset on each generation (older models reject
+// "adaptive"; Opus 4.7+ rejects "enabled"). A planned native Bedrock provider
+// removes the impedance mismatch and lets us delete this whole block. Hopefully.
+
+// bedrockThinkingEffortRatios maps an output_config.effort hint to the fraction
+// of max_tokens to allocate as thinking budget. The mapping is a heuristic
+// with no canonical source; ratios adapted from OpenRouter:
+// https://openrouter.ai/docs/guides/best-practices/reasoning-tokens#reasoning-effort-level
+var bedrockThinkingEffortRatios = map[string]float64{
+	"low":    0.2,
+	"medium": 0.5,
+	"high":   0.8,
+	"max":    0.95,
+}
+
+// bedrockThinkingDefaultEffortRatio is used when output_config.effort is
+// absent or unrecognized. Kept as a separate const rather than a runtime
+// lookup so a misnamed map key can't silently zero out the budget.
+const bedrockThinkingDefaultEffortRatio = 0.8 // matches "high"
+
+// convertAdaptiveThinkingForBedrock converts thinking.type "adaptive" to
+// "enabled" with a calculated budget_tokens. Needed for Bedrock models that
+// do not support the "adaptive" thinking.type.
+//
+// This direction has to invent a number — "enabled" requires budget_tokens.
+// We bias the budget by output_config.effort when present, since that's the
+// only signal we have about caller intent.
 func (p RequestPayload) convertAdaptiveThinkingForBedrock() (RequestPayload, error) {
-	thinkingType := gjson.GetBytes(p, messagesReqPathThinkingType)
-	if thinkingType.String() != constAdaptive {
+	if gjson.GetBytes(p, messagesReqPathThinkingType).String() != constAdaptive {
 		return p, nil
 	}
 
@@ -341,22 +367,9 @@ func (p RequestPayload) convertAdaptiveThinkingForBedrock() (RequestPayload, err
 		return p, xerrors.New("max_tokens: field required")
 	}
 
-	effort := gjson.GetBytes(p, messagesReqPathOutputConfigEffort).String()
-
-	// Enabled thinking type requires budget_tokens set.
-	// Heuristically calculate value based on the effort level.
-	// Effort-to-ratio mapping adapted from OpenRouter:
-	// https://openrouter.ai/docs/guides/best-practices/reasoning-tokens#reasoning-effort-level
-	var ratio float64
-	switch effort {
-	case "low":
-		ratio = 0.2
-	case "medium":
-		ratio = 0.5
-	case "max":
-		ratio = 0.95
-	default: // "high" or absent (high is the default effort)
-		ratio = 0.8
+	ratio, ok := bedrockThinkingEffortRatios[gjson.GetBytes(p, messagesReqPathOutputConfigEffort).String()]
+	if !ok {
+		ratio = bedrockThinkingDefaultEffortRatio
 	}
 
 	// budget_tokens must be ≥ 1024 && < max_tokens. If the calculated budget
@@ -375,59 +388,23 @@ func (p RequestPayload) convertAdaptiveThinkingForBedrock() (RequestPayload, err
 	})
 }
 
-// convertEnabledThinkingForBedrock converts thinking.type "enabled" with a
-// budget_tokens budget to the "adaptive" thinking type plus an output_config.effort
-// derived from the budget_tokens / max_tokens ratio. The conversion is needed for
-// Bedrock models that only support the "adaptive" thinking.type (Opus 4.7+).
+// convertEnabledThinkingForBedrock rewrites thinking.type "enabled" to plain
+// "adaptive", dropping budget_tokens. Needed for Bedrock models that only
+// support adaptive thinking (Opus 4.7+).
+//
+// We deliberately do not derive output_config.effort from the budget. Any
+// such mapping would be invented (no canonical budget-to-effort relationship
+// exists), and adaptive thinking already has well-defined platform behavior
+// when no effort hint is provided. An explicit output_config.effort from the
+// caller is preserved naturally because we never touch that field.
 //
 // See https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-opus-4-7.html
 // and https://docs.aws.amazon.com/bedrock/latest/userguide/claude-messages-adaptive-thinking.html
-//
-// This is the symmetric counterpart to convertAdaptiveThinkingForBedrock; the
-// ratio thresholds are the midpoints between the forward mapping's anchor
-// ratios (low=0.2, medium=0.5, high=0.8, max=0.95), so a payload that
-// round-trips through both conversions lands on the same effort level it
-// started with.
-//
-// An explicit output_config.effort already present in the request is preserved.
 func (p RequestPayload) convertEnabledThinkingForBedrock() (RequestPayload, error) {
-	thinkingType := gjson.GetBytes(p, messagesReqPathThinkingType)
-	if thinkingType.String() != constEnabled {
+	if gjson.GetBytes(p, messagesReqPathThinkingType).String() != constEnabled {
 		return p, nil
 	}
-
-	// Derive effort from budget_tokens / max_tokens. If either is missing or
-	// unusable, fall back to "high" so the resulting request matches the
-	// default effort assumption in convertAdaptiveThinkingForBedrock.
-	derivedEffort := "high"
-	budgetTokens := gjson.GetBytes(p, messagesReqPathThinkingBudgetTokens).Int()
-	maxTokens := gjson.GetBytes(p, messagesReqPathMaxTokens).Int()
-	if budgetTokens > 0 && maxTokens > 0 {
-		ratio := float64(budgetTokens) / float64(maxTokens)
-		switch {
-		case ratio < 0.35: // midpoint of low (0.2) and medium (0.5)
-			derivedEffort = "low"
-		case ratio < 0.65: // midpoint of medium (0.5) and high (0.8)
-			derivedEffort = "medium"
-		case ratio < 0.875: // midpoint of high (0.8) and max (0.95)
-			derivedEffort = "high"
-		default:
-			derivedEffort = "max"
-		}
-	}
-
-	updated, err := p.set(messagesReqPathThinking, map[string]string{"type": constAdaptive})
-	if err != nil {
-		return p, xerrors.Errorf("set thinking: %w", err)
-	}
-
-	// Preserve an explicit output_config.effort if the caller set one. Only
-	// inject the derived value when the field is absent, so we don't override
-	// intent.
-	if gjson.GetBytes(updated, messagesReqPathOutputConfigEffort).String() != "" {
-		return updated, nil
-	}
-	return updated.set(messagesReqPathOutputConfigEffort, derivedEffort)
+	return p.set(messagesReqPathThinking, map[string]string{"type": constAdaptive})
 }
 
 // removeUnsupportedBedrockFields strips top-level fields that Bedrock does not
