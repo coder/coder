@@ -6,11 +6,11 @@ import {
 } from "./PromptHistoryPopover";
 
 const sampleEntries: readonly PromptHistoryEntry[] = [
-	{ id: 1, index: 1, text: "How do I set up a workspace template?" },
-	{ id: 2, index: 2, text: "Can you explain the provisioner lifecycle?" },
-	{ id: 3, index: 3, text: "Show me how to configure environment variables" },
-	{ id: 4, index: 4, text: "What are the best practices for Terraform?" },
-	{ id: 5, index: 5, text: "Help me debug this agent connection issue" },
+	{ id: 1, index: 1, label: "How do I set up a workspace template?" },
+	{ id: 2, index: 2, label: "Can you explain the provisioner lifecycle?" },
+	{ id: 3, index: 3, label: "Show me how to configure environment variables" },
+	{ id: 4, index: 4, label: "What are the best practices for Terraform?" },
+	{ id: 5, index: 5, label: "Help me debug this agent connection issue" },
 ];
 
 const meta: Meta<typeof PromptHistoryPopover> = {
@@ -31,9 +31,8 @@ export const Default: Story = {
 		const trigger = canvas.getByRole("button", { name: "Prompt history" });
 		await userEvent.click(trigger);
 
-		const listbox = await screen.findByRole("listbox");
-		const options = within(listbox).getAllByRole("option");
-		await expect(options).toHaveLength(5);
+		const items = await screen.findAllByRole("option");
+		await expect(items).toHaveLength(5);
 	},
 };
 
@@ -46,20 +45,30 @@ export const SearchFiltering: Story = {
 		const trigger = canvas.getByRole("button", { name: "Prompt history" });
 		await userEvent.click(trigger);
 
-		const searchInput = await screen.findByRole("searchbox", {
-			name: "Search prompts",
-		});
+		const searchInput = await screen.findByRole("combobox");
 		await userEvent.type(searchInput, "terraform");
 
-		const listbox = await screen.findByRole("listbox");
-		const options = within(listbox).getAllByRole("option");
-		await expect(options).toHaveLength(1);
-		await expect(options[0]).toHaveTextContent("Terraform");
+		const items = await screen.findAllByRole("option");
+		await expect(items).toHaveLength(1);
+		await expect(items[0]).toHaveTextContent("Terraform");
+	},
+};
 
-		// Clear search and verify all entries return.
-		await userEvent.clear(searchInput);
-		const allOptions = within(listbox).getAllByRole("option");
-		await expect(allOptions).toHaveLength(5);
+export const EmptySearchResults: Story = {
+	args: {
+		entries: sampleEntries,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const trigger = canvas.getByRole("button", { name: "Prompt history" });
+		await userEvent.click(trigger);
+
+		const searchInput = await screen.findByRole("combobox");
+		await userEvent.type(searchInput, "xyznonexistent");
+
+		// cmdk renders CommandEmpty when no items match.
+		const emptyMessage = await screen.findByText("No matching prompts");
+		await expect(emptyMessage).toBeVisible();
 	},
 };
 
@@ -72,32 +81,38 @@ export const KeyboardNavigation: Story = {
 		const trigger = canvas.getByRole("button", { name: "Prompt history" });
 		await userEvent.click(trigger);
 
-		const searchInput = await screen.findByRole("searchbox", {
-			name: "Search prompts",
-		});
+		// Wait for the popover to be fully open.
+		await screen.findAllByRole("option");
 
-		// Press ArrowDown to highlight first item.
+		// ArrowDown selects items sequentially.
 		await userEvent.keyboard("{ArrowDown}");
-		const listbox = await screen.findByRole("listbox");
-		const options = within(listbox).getAllByRole("option");
-		await expect(options[0]).toHaveAttribute("aria-selected", "true");
+		const items = await screen.findAllByRole("option");
+		await expect(items[0]).toHaveAttribute("data-selected", "true");
 
-		// Press ArrowDown again to move to second item.
 		await userEvent.keyboard("{ArrowDown}");
-		await expect(options[0]).toHaveAttribute("aria-selected", "false");
-		await expect(options[1]).toHaveAttribute("aria-selected", "true");
+		await expect(items[1]).toHaveAttribute("data-selected", "true");
 
-		// Verify active-descendant is set on the search input.
-		await expect(searchInput).toHaveAttribute(
-			"aria-activedescendant",
-			`prompt-option-${sampleEntries[1].id}`,
+		// ArrowUp moves back.
+		await userEvent.keyboard("{ArrowUp}");
+		await expect(items[0]).toHaveAttribute("data-selected", "true");
+
+		// Home jumps to first.
+		await userEvent.keyboard("{ArrowDown}{ArrowDown}{ArrowDown}");
+		await userEvent.keyboard("{Home}");
+		await expect(items[0]).toHaveAttribute("data-selected", "true");
+
+		// End jumps to last.
+		await userEvent.keyboard("{End}");
+		await expect(items[items.length - 1]).toHaveAttribute(
+			"data-selected",
+			"true",
 		);
 	},
 };
 
 export const FewerThanTwoEntries: Story = {
 	args: {
-		entries: [{ id: 1, index: 1, text: "Only one prompt" }],
+		entries: [{ id: 1, index: 1, label: "Only one prompt" }],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

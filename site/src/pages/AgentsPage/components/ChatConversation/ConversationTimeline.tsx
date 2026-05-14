@@ -3,7 +3,9 @@ import {
 	type FC,
 	Fragment,
 	memo,
+	useEffect,
 	useLayoutEffect,
+	useMemo,
 	useRef,
 	useState,
 } from "react";
@@ -715,7 +717,9 @@ const StickyUserMessage = memo<{
 		// callback (created once in a [] effect) can read the
 		// latest value without needing to be re-created.
 		const hasActiveStreamRef = useRef(hasActiveStream);
-		hasActiveStreamRef.current = hasActiveStream;
+		useEffect(() => {
+			hasActiveStreamRef.current = hasActiveStream;
+		}, [hasActiveStream]);
 
 		// useLayoutEffect so isStuck and --clip-h are both resolved
 		// before the browser paints, avoiding a flash on load.
@@ -1076,6 +1080,57 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 	}) => {
 		const lastInChainFlags = computeLastInChainFlags(parsedMessages);
 
+		// Build prompt history entries for the history popover.
+		// This gives every user message a 1-based index and
+		// its plain-text content for the dropdown list.
+		const promptHistory = useMemo<PromptHistoryEntry[]>(() => {
+			const result: PromptHistoryEntry[] = [];
+			let promptIndex = 0;
+			for (const entry of parsedMessages) {
+				if (entry.message.role === "user") {
+					// Skip metadata-only messages that won't be rendered.
+					const { shouldHide } = deriveMessageDisplayState({
+						message: entry.message,
+						parsed: entry.parsed,
+						hideActions: false,
+						hasActiveStream: false,
+						isAwaitingFirstStreamChunk: false,
+					});
+					if (shouldHide) {
+						continue;
+					}
+					promptIndex++;
+					const text = getChatMessageTextContent(entry.message.content);
+					const parts = entry.message.content ?? [];
+					// Count file attachments. Uploaded images may lack
+					// media_type (only file_id is set), so treat any
+					// type==="file" part without a known non-image
+					// media_type as a potential attachment.
+					const fileParts = parts.filter((p) => p.type === "file");
+					let label = text ?? "";
+					if (!label && fileParts.length > 0) {
+						label =
+							fileParts.length === 1
+								? "[Attachment]"
+								: `[${fileParts.length} attachments]`;
+					} else if (label && fileParts.length > 0) {
+						const suffix =
+							fileParts.length === 1
+								? " [+attachment]"
+								: ` [+${fileParts.length} attachments]`;
+						label += suffix;
+					}
+
+					result.push({
+						id: entry.message.id,
+						index: promptIndex,
+						label,
+					});
+				}
+			}
+			return result;
+		}, [parsedMessages]);
+
 		if (parsedMessages.length === 0) {
 			return null;
 		}
@@ -1131,54 +1186,6 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			askUserQuestionResponseTextByToolId.size > 0
 				? askUserQuestionResponseTextByToolId
 				: undefined;
-
-		// Build prompt history entries for the history popover.
-		// This gives every user message a 1-based index and
-		// its plain-text content for the dropdown list.
-		const promptHistory: PromptHistoryEntry[] = [];
-		let promptIndex = 0;
-		for (const entry of parsedMessages) {
-			if (entry.message.role === "user") {
-				// Skip metadata-only messages that won't be rendered.
-				const { shouldHide } = deriveMessageDisplayState({
-					message: entry.message,
-					parsed: entry.parsed,
-					hideActions: false,
-					hasActiveStream: false,
-					isAwaitingFirstStreamChunk: false,
-				});
-				if (shouldHide) {
-					continue;
-				}
-				promptIndex++;
-				const text = getChatMessageTextContent(entry.message.content);
-				const parts = entry.message.content ?? [];
-				// Count file attachments. Uploaded images may lack
-				// media_type (only file_id is set), so treat any
-				// type==="file" part without a known non-image
-				// media_type as a potential attachment.
-				const fileParts = parts.filter((p) => p.type === "file");
-				let label = text ?? "";
-				if (!label && fileParts.length > 0) {
-					label =
-						fileParts.length === 1
-							? "[Attachment]"
-							: `[${fileParts.length} attachments]`;
-				} else if (label && fileParts.length > 0) {
-					const suffix =
-						fileParts.length === 1
-							? " [+attachment]"
-							: ` [+${fileParts.length} attachments]`;
-					label += suffix;
-				}
-
-				promptHistory.push({
-					id: entry.message.id,
-					index: promptIndex,
-					text: label,
-				});
-			}
-		}
 
 		return (
 			<FileProbeProvider>

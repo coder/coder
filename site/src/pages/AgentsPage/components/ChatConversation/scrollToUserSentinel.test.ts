@@ -1,18 +1,46 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { scrollToUserSentinel } from "./scrollToUserSentinel";
+import { _resetForTesting, scrollToUserSentinel } from "./scrollToUserSentinel";
 
 function buildDOM(messageIds: number[]) {
 	const scroller = document.createElement("div");
-	scroller.setAttribute("data-testid", "scroll-container");
+	scroller.classList.add("overflow-y-auto");
 	Object.defineProperty(scroller, "clientHeight", { value: 600 });
-	scroller.scrollTop = 0;
+
+	// Make scrollTop writable and observable.
+	let scrollTopValue = 0;
+	Object.defineProperty(scroller, "scrollTop", {
+		get: () => scrollTopValue,
+		set: (v: number) => {
+			scrollTopValue = v;
+		},
+	});
 
 	for (const id of messageIds) {
 		const sentinel = document.createElement("div");
 		sentinel.setAttribute("data-user-sentinel", "");
 		sentinel.setAttribute("data-user-message-id", String(id));
+		// Mock getBoundingClientRect relative to scroller.
+		sentinel.getBoundingClientRect = () =>
+			({
+				top: id * 200,
+				left: 0,
+				right: 0,
+				bottom: 0,
+				width: 0,
+				height: 0,
+			}) as DOMRect;
 		scroller.appendChild(sentinel);
 	}
+
+	scroller.getBoundingClientRect = () =>
+		({
+			top: 0,
+			left: 0,
+			right: 0,
+			bottom: 600,
+			width: 0,
+			height: 600,
+		}) as DOMRect;
 
 	document.body.appendChild(scroller);
 	return scroller;
@@ -23,6 +51,7 @@ describe("scrollToUserSentinel", () => {
 
 	beforeEach(() => {
 		document.body.innerHTML = "";
+		_resetForTesting();
 		// Default: no reduced motion
 		matchMediaSpy = vi.spyOn(window, "matchMedia").mockReturnValue({
 			matches: false,
@@ -51,17 +80,16 @@ describe("scrollToUserSentinel", () => {
 		// No error thrown is the success condition
 	});
 
-	it("jumps instantly when prefers-reduced-motion is set", () => {
+	it("jumps instantly and updates scrollTop when prefers-reduced-motion is set", () => {
 		matchMediaSpy.mockReturnValue({
 			matches: true,
 		} as MediaQueryList);
 
-		const scroller = buildDOM([1, 2]);
+		const scroller = buildDOM([1]);
 		scrollToUserSentinel(1);
 
-		// Reduced motion path sets scrollTop synchronously, no RAF needed.
-		// The exact value depends on getBoundingClientRect mocking, but
-		// it should have set the lock attribute and removed it.
+		// sentinel top=200, scroller top=0, clientHeight=600 => offset = 200 - 0 - 300 = -100
+		expect(scroller.scrollTop).toBe(-100);
 		expect(scroller.hasAttribute("data-scroll-lock")).toBe(false);
 		expect(scroller.style.overflowAnchor).toBe("");
 	});
@@ -94,7 +122,29 @@ describe("scrollToUserSentinel", () => {
 		expect(scroller.style.overflowAnchor).toBe("");
 	});
 
-	it("cancels in-flight animation when called again", () => {
+	it("updates scrollTop to final position after animation completes", () => {
+		const scroller = buildDOM([1]);
+
+		let rafCallback: FrameRequestCallback | null = null;
+		vi.spyOn(window, "requestAnimationFrame").mockImplementation(
+			(cb: FrameRequestCallback) => {
+				rafCallback = cb;
+				return 1;
+			},
+		);
+
+		scrollToUserSentinel(1);
+
+		// Complete the animation
+		if (rafCallback) {
+			(rafCallback as FrameRequestCallback)(Number.MAX_SAFE_INTEGER);
+		}
+
+		// sentinel top=200, scroller top=0, clientHeight=600 => offset = -100
+		expect(scroller.scrollTop).toBe(-100);
+	});
+
+	it("cancels in-flight animation and cleans up lock state", () => {
 		buildDOM([1, 2]);
 		const cancelSpy = vi.spyOn(window, "cancelAnimationFrame");
 		let rafId = 0;
@@ -106,7 +156,7 @@ describe("scrollToUserSentinel", () => {
 		scrollToUserSentinel(1);
 		expect(cancelSpy).not.toHaveBeenCalled();
 
-		// Second call should cancel the first
+		// Second call should cancel the first and clean up its lock
 		scrollToUserSentinel(2);
 		expect(cancelSpy).toHaveBeenCalledWith(1);
 	});

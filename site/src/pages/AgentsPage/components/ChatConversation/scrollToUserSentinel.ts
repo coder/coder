@@ -1,18 +1,44 @@
 // Track the current animation so a new scroll request cancels
 // any in-flight animation before starting.
 let activeRafId: number | null = null;
+let activeScroller: HTMLElement | null = null;
+
+const SCROLL_DURATION_MS = 450;
+
+// Wait for Radix popover exit animation to complete before
+// scrolling. Without this, the popover's unmount triggers a
+// layout shift that fights the scroll animation.
+const POPOVER_CLOSE_DELAY_MS = 80;
+
+/**
+ * Clean up scroll-lock state on the active scroller. Called both
+ * on normal completion and when cancelling an in-flight animation.
+ */
+function unlock() {
+	if (activeScroller) {
+		activeScroller.style.overflowAnchor = "";
+		activeScroller.removeAttribute("data-scroll-lock");
+		activeScroller.dispatchEvent(new Event("scroll"));
+		activeScroller = null;
+	}
+}
 
 /**
  * Scroll the chat to a specific user-message sentinel, centered
  * in the viewport. Disables browser scroll-anchoring and the
  * sticky-message scroll handler during the animation to prevent
  * layout-shift snap-back.
+ *
+ * If called while a previous animation is in flight, the old
+ * animation is cancelled and its lock state is cleaned up before
+ * the new animation begins.
  */
 export function scrollToUserSentinel(messageId: number): void {
-	// Cancel any in-flight animation first.
+	// Cancel any in-flight animation and clean up its lock state.
 	if (activeRafId !== null) {
 		cancelAnimationFrame(activeRafId);
 		activeRafId = null;
+		unlock();
 	}
 
 	const sentinel = document.querySelector(
@@ -20,11 +46,10 @@ export function scrollToUserSentinel(messageId: number): void {
 	);
 	if (!sentinel) return;
 
-	const scroller = sentinel.closest(
-		'[data-testid="scroll-container"]',
-	) as HTMLElement | null;
+	const scroller = sentinel.closest(".overflow-y-auto") as HTMLElement | null;
 	if (!scroller) return;
 
+	activeScroller = scroller;
 	scroller.style.overflowAnchor = "none";
 	scroller.setAttribute("data-scroll-lock", "");
 
@@ -40,15 +65,12 @@ export function scrollToUserSentinel(messageId: number): void {
 
 	if (prefersReduced) {
 		scroller.scrollTop += offset;
-		scroller.style.overflowAnchor = "";
-		scroller.removeAttribute("data-scroll-lock");
-		scroller.dispatchEvent(new Event("scroll"));
+		unlock();
 		activeRafId = null;
 		return;
 	}
 
 	const start = scroller.scrollTop;
-	const duration = 450;
 	const t0 = performance.now();
 
 	// Ease-in-out cubic for a gentle start and gentle stop.
@@ -56,18 +78,34 @@ export function scrollToUserSentinel(messageId: number): void {
 		t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2;
 
 	const step = (now: number) => {
-		const p = Math.min((now - t0) / duration, 1);
+		const p = Math.min((now - t0) / SCROLL_DURATION_MS, 1);
 		scroller.scrollTop = start + offset * ease(p);
 		if (p < 1) {
 			activeRafId = requestAnimationFrame(step);
 		} else {
-			scroller.style.overflowAnchor = "";
-			scroller.removeAttribute("data-scroll-lock");
-			// Kick all sticky handlers so they recalculate
-			// visibility after the jump.
-			scroller.dispatchEvent(new Event("scroll"));
+			unlock();
 			activeRafId = null;
 		}
 	};
 	activeRafId = requestAnimationFrame(step);
+}
+
+/**
+ * Schedule a scroll after a short delay. Used when closing a popover
+ * that needs time to unmount before the scroll starts.
+ */
+export function scrollToUserSentinelAfterClose(messageId: number): void {
+	setTimeout(() => scrollToUserSentinel(messageId), POPOVER_CLOSE_DELAY_MS);
+}
+
+/**
+ * Reset module-level state. Exported for use in tests only.
+ * @internal
+ */
+export function _resetForTesting(): void {
+	if (activeRafId !== null) {
+		cancelAnimationFrame(activeRafId);
+		activeRafId = null;
+	}
+	activeScroller = null;
 }
