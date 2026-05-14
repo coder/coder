@@ -21,16 +21,21 @@ import (
 // pubsub.Pubsub. See package doc for status.
 //
 // Connection model: when constructed via New, Pubsub owns one embedded
-// server and a pool of TCP-loopback *natsgo.Conns dialed at the
+// server and two pools of TCP-loopback *natsgo.Conns dialed at the
 // server's client listener: one or more pubConns for publishes
-// (configurable via Options.PublishConns, default 1) plus one subConn
-// for all subscriptions. Each Publish call selects a publisher
-// connection by a stable hash of the subject so same-subject
-// publishes preserve per-subject ordering. Subscriptions multiplex
-// over the single subConn and rely on client-side PendingLimits for
-// per-subscription slow-consumer isolation. NewFromConn is the
-// exception: a single caller-supplied connection is used for both
-// publish and subscribe.
+// (configurable via Options.PublishConns, default 1) and one or more
+// subConns for subscriptions (configurable via Options.SubscribeConns,
+// default 1). Each Publish call selects a publisher connection by a
+// stable hash of the subject so same-subject publishes preserve
+// per-subject ordering. Each shared NATS subscription is likewise
+// pinned to a subscriber connection by a stable hash of its subject,
+// so a subject's underlying *natsgo.Subscription always lives on the
+// same subscriber connection within a process. Local fan-out for a
+// subject still coalesces onto that single shared NATS subscription;
+// the pool only distributes shared subscriptions for distinct
+// subjects across multiple TCP read/parser loops and per-conn
+// server-side pending budgets. NewFromConn is the exception: a single
+// caller-supplied connection is used for both publish and subscribe.
 type Pubsub struct {
 	logger slog.Logger
 	opts   Options
@@ -40,14 +45,21 @@ type Pubsub struct {
 	// Options.PublishConns (default 1). Publish selects an entry by a
 	// stable hash of the subject. In the NewFromConn path the slice
 	// has length 1 and aliases the externally supplied connection,
-	// which also serves as subConn. The slice itself is immutable
+	// which also serves as subConns[0]. The slice itself is immutable
 	// after construction so the Publish hot path can index without
 	// holding p.mu.
 	pubConns []*natsgo.Conn
-	// subConn carries every subscription created via Subscribe /
-	// SubscribeWithErr. In the NewFromConn path it aliases
-	// pubConns[0].
-	subConn *natsgo.Conn
+	// subConns carries every subscription created via Subscribe /
+	// SubscribeWithErr. Length is determined by Options.SubscribeConns
+	// (default 1). Each shared subscription is assigned a subConn by
+	// a stable hash of its subject so the assignment is deterministic
+	// and same-subject subscribers all land on the same underlying
+	// *natsgo.Subscription on the same subConn. In the NewFromConn
+	// path the slice has length 1 and aliases pubConns[0] (the
+	// externally supplied connection). The slice itself is immutable
+	// after construction so the subscribe hot path can index without
+	// holding p.mu.
+	subConns []*natsgo.Conn
 
 	ownsServer bool
 	// ownsPubConns is true when the wrapper opened its own publisher
@@ -55,9 +67,10 @@ type Pubsub struct {
 	// caller owns the externally supplied connection and Close must
 	// not drain or close it.
 	ownsPubConns bool
-	// ownsSubConn is true when the wrapper opened its own subConn. False
-	// for NewFromConn, which reuses the external connection for subs.
-	ownsSubConn bool
+	// ownsSubConns is true when the wrapper opened its own subConns.
+	// False for NewFromConn, which reuses the external connection
+	// for subs.
+	ownsSubConns bool
 
 	mu sync.Mutex
 	// subs is the set of all local listeners across all subjects. Each
@@ -291,11 +304,23 @@ func publishConnCount(opts Options) int {
 	return opts.PublishConns
 }
 
+// subscribeConnCount returns the effective number of subscriber
+// connections for opts. Zero or negative means 1 (single connection,
+// historical default).
+func subscribeConnCount(opts Options) int {
+	if opts.SubscribeConns <= 0 {
+		return 1
+	}
+	return opts.SubscribeConns
+}
+
 // New creates a new embedded NATS Pubsub. The returned *Pubsub owns the
 // embedded server, one or more TCP-loopback publisher connections
-// (Options.PublishConns, default 1), and one TCP-loopback subscriber
-// connection. All subscriptions multiplex over the subscriber
-// connection. Close shuts down all owned resources.
+// (Options.PublishConns, default 1), and one or more TCP-loopback
+// subscriber connections (Options.SubscribeConns, default 1).
+// Subscriptions for distinct subjects are distributed across the
+// subscriber pool by a stable hash of the subject. Close shuts down
+// all owned resources.
 func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error) {
 	var peers []Peer
 	if opts.PeerProvider != nil {
@@ -318,20 +343,20 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error)
 	p.ns = ns
 	p.ownsServer = true
 	p.ownsPubConns = true
-	p.ownsSubConn = true
+	p.ownsSubConns = true
 	p.provider = opts.PeerProvider
 	p.serverOpts = sopts
 	p.currentRoutes = sortRouteURLs(cloneRouteURLs(sopts.Routes))
 	p.effectiveClusterToken = token
 
-	n := publishConnCount(opts)
-	pubConns := make([]*natsgo.Conn, 0, n)
-	for i := 0; i < n; i++ {
+	npub := publishConnCount(opts)
+	pubConns := make([]*natsgo.Conn, 0, npub)
+	for i := 0; i < npub; i++ {
 		// Per-conn name suffix when the pool has more than one entry
 		// so server logs can distinguish them. With a single conn we
 		// keep the historical "coder-pubsub-pub" name.
 		name := "coder-pubsub-pub"
-		if n > 1 {
+		if npub > 1 {
 			name = fmt.Sprintf("coder-pubsub-pub-%d", i)
 		}
 		nc, err := connectClient(ns, opts, p.buildConnHandlers(), name)
@@ -345,17 +370,32 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error)
 		}
 		pubConns = append(pubConns, nc)
 	}
-	subConn, err := connectClient(ns, opts, p.buildConnHandlers(), "coder-pubsub-sub")
-	if err != nil {
-		for _, c := range pubConns {
-			c.Close()
+	nsub := subscribeConnCount(opts)
+	subConns := make([]*natsgo.Conn, 0, nsub)
+	for i := 0; i < nsub; i++ {
+		// Per-conn name suffix when the pool has more than one entry
+		// so server logs can distinguish them. With a single conn we
+		// keep the historical "coder-pubsub-sub" name.
+		name := "coder-pubsub-sub"
+		if nsub > 1 {
+			name = fmt.Sprintf("coder-pubsub-sub-%d", i)
 		}
-		ns.Shutdown()
-		ns.WaitForShutdown()
-		return nil, xerrors.Errorf("dial sub conn: %w", err)
+		nc, err := connectClient(ns, opts, p.buildConnHandlers(), name)
+		if err != nil {
+			for _, c := range pubConns {
+				c.Close()
+			}
+			for _, c := range subConns {
+				c.Close()
+			}
+			ns.Shutdown()
+			ns.WaitForShutdown()
+			return nil, xerrors.Errorf("dial sub conn %d: %w", i, err)
+		}
+		subConns = append(subConns, nc)
 	}
 	p.pubConns = pubConns
-	p.subConn = subConn
+	p.subConns = subConns
 	return p, nil
 }
 
@@ -364,10 +404,11 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error)
 // subscriptions but does not drain or close the connection or any server.
 //
 // NewFromConn does not get the publish/subscribe split or the publish
-// connection pool: the supplied connection is reused for both publish
-// and subscribe (so the publisher "pool" has length 1 and aliases the
-// external conn). Options.PublishConns is ignored on this path because
-// the wrapper has no authority to open additional connections to the
+// or subscribe connection pools: the supplied connection is reused for
+// both publish and subscribe (so the publisher and subscriber "pools"
+// each have length 1 and alias the external conn). Options.PublishConns
+// and Options.SubscribeConns are ignored on this path because the
+// wrapper has no authority to open additional connections to the
 // external server. Callers choosing this path own their own connection
 // budgeting.
 func NewFromConn(logger slog.Logger, nc *natsgo.Conn) (*Pubsub, error) {
@@ -376,10 +417,10 @@ func NewFromConn(logger slog.Logger, nc *natsgo.Conn) (*Pubsub, error) {
 	}
 	p := newPubsub(logger, Options{})
 	p.pubConns = []*natsgo.Conn{nc}
-	// subConn aliases the external conn so Subscribe always uses
-	// p.subConn. The ownership flags stay false; Close will not drain
-	// or close it.
-	p.subConn = nc
+	// subConns aliases the external conn so Subscribe always uses
+	// p.subConns[0]. The ownership flags stay false; Close will not
+	// drain or close it.
+	p.subConns = []*natsgo.Conn{nc}
 	return p, nil
 }
 
@@ -505,6 +546,37 @@ func (p *Pubsub) pickPubConn(subject string) *natsgo.Conn {
 	// the caller and in practice is well below MaxInt32. The
 	// int -> uint32 conversion is therefore safe.
 	n := uint32(len(conns)) //nolint:gosec // pool size bounded by Options.PublishConns
+	return conns[h.Sum32()%n]
+}
+
+// pickSubConn returns the subscriber connection assigned to subject.
+// The subConns slice is immutable after construction so this lookup
+// is safe without holding p.mu.
+//
+// Selection uses a stable FNV-1a hash of the subject so the chosen
+// connection is deterministic per subject within a process. This
+// pairs with same-subject subscription coalescing: every local
+// subscriber for a subject attaches to the one shared
+// *natsgo.Subscription registered on this conn. Distributing distinct
+// subjects across multiple TCP read/parser loops and per-conn
+// server-side pending budgets is the throughput reason for the pool;
+// pinning a subject to a single conn keeps the shared-subscription
+// model intact and makes async slow-consumer routing (which is keyed
+// on *natsgo.Subscription, not on the owning conn) work unchanged.
+//
+// FNV-1a is deterministic (no per-process seed), which makes the
+// selection reproducible across test runs.
+func (p *Pubsub) pickSubConn(subject string) *natsgo.Conn {
+	conns := p.subConns
+	if len(conns) == 1 {
+		return conns[0]
+	}
+	h := fnv.New32a()
+	// fnv.Hash32a.Write never returns an error.
+	_, _ = h.Write([]byte(subject))
+	// len(conns) is bounded by Options.SubscribeConns, which is set
+	// by the caller and in practice is well below MaxInt32.
+	n := uint32(len(conns)) //nolint:gosec // pool size bounded by Options.SubscribeConns
 	return conns[h.Sum32()%n]
 }
 
@@ -838,7 +910,14 @@ func (p *Pubsub) attachListener(subject string, s *subscription) (*sharedSub, bo
 		return nil, false, initErr
 	}
 
-	natsSub, err := p.subConn.Subscribe(subject, shared.makeCallback(p))
+	// Choose the subscriber connection for this subject. Subject hashing
+	// keeps the choice deterministic so same-subject subscribers all
+	// coalesce onto the same underlying *natsgo.Subscription on the
+	// same conn, and async slow-consumer routing (keyed on
+	// *natsgo.Subscription via sharedByNATS) keeps working regardless
+	// of which conn owns the subscription.
+	subConn := p.pickSubConn(subject)
+	natsSub, err := subConn.Subscribe(subject, shared.makeCallback(p))
 	if err != nil {
 		return finishCreator(xerrors.Errorf("subscribe: %w", err))
 	}
@@ -865,8 +944,11 @@ func (p *Pubsub) attachListener(subject string, s *subscription) (*sharedSub, bo
 	// Flush the SUB protocol message to the server before returning
 	// so a publish issued immediately after Subscribe cannot race
 	// ahead of subscription registration. This is the critical
-	// readiness gate that joiners are waiting on.
-	if err := p.subConn.Flush(); err != nil {
+	// readiness gate that joiners are waiting on. We flush the
+	// subscriber connection that owns natsSub, not an arbitrary entry
+	// of p.subConns, so the SUB protocol message we just enqueued is
+	// the one we wait for.
+	if err := subConn.Flush(); err != nil {
 		return finishCreator(xerrors.Errorf("flush subscribe: %w", err))
 	}
 	if hook := p.testHookBeforeSetPendingLimits; hook != nil {
@@ -1125,7 +1207,7 @@ func (p *Pubsub) Close() error {
 	var errs []error
 	p.closeOnce.Do(func() {
 		// Signal the hot path before taking p.mu so racing Publish /
-		// Flush / Subscribe calls bail before touching pubConns/subConn.
+		// Flush / Subscribe calls bail before touching pubConns/subConns.
 		p.cancel()
 		p.mu.Lock()
 		subs := make([]*subscription, 0, len(p.subs))
@@ -1139,9 +1221,9 @@ func (p *Pubsub) Close() error {
 		p.mu.Unlock()
 
 		// Unsubscribe each shared subscription. Don't drain
-		// individually here; we drain subConn as a whole below.
-		// shared.sub may be nil if a creator is still mid-init at
-		// Close time; the conn drain below tears that case down.
+		// individually here; we drain every owned subConn as a whole
+		// below. shared.sub may be nil if a creator is still mid-init
+		// at Close time; the conn drains below tear that case down.
 		for _, ss := range shareds {
 			if ss.sub != nil {
 				_ = ss.sub.Unsubscribe()
@@ -1152,7 +1234,7 @@ func (p *Pubsub) Close() error {
 		// in-flight user callbacks to complete. We do this on the
 		// originating subscription handles (not via cancelFn) so the
 		// individual cancel paths do not also try to drain shared
-		// subscriptions; the subConn drain below handles flushing
+		// subscriptions; the subConn drains below handle flushing
 		// in-flight server-to-client deliveries.
 		for _, s := range subs {
 			s.cancelOnce.Do(func() {
@@ -1184,18 +1266,26 @@ func (p *Pubsub) Close() error {
 			drainTimeout = 30 * time.Second
 		}
 
-		// Drain subConn first so any in-flight deliveries flush to
-		// listeners, then close it.
-		if p.ownsSubConn && p.subConn != nil {
-			if err := drainConn(p.subConn, drainTimeout); err != nil {
-				errs = append(errs, xerrors.Errorf("drain subConn: %w", err))
+		// Drain every owned subscriber connection first so any
+		// in-flight deliveries flush to listeners, then close them.
+		// Skipped entirely on the NewFromConn path
+		// (ownsSubConns == false) so the externally supplied
+		// connection is never drained or closed.
+		if p.ownsSubConns {
+			for i, nc := range p.subConns {
+				if nc == nil {
+					continue
+				}
+				if err := drainConn(nc, drainTimeout); err != nil {
+					errs = append(errs, xerrors.Errorf("drain sub conn %d: %w", i, err))
+				}
 			}
 		}
 		// Drain every owned publisher connection. Skipped entirely on
 		// the NewFromConn path (ownsPubConns == false) so the
 		// externally supplied connection is never drained or closed,
-		// even though it also aliases subConn (whose drain is
-		// likewise gated by ownsSubConn).
+		// even though it also aliases subConns[0] (whose drain is
+		// likewise gated by ownsSubConns).
 		if p.ownsPubConns {
 			for i, nc := range p.pubConns {
 				if nc == nil {

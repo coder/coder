@@ -6,12 +6,12 @@ import (
 )
 
 // PendingLimits configures per-subscription NATS pending limits.
-// These limits are applied to each *natsgo.Subscription created on the
-// wrapper's shared subscriber connection (subConn) via
-// SetPendingLimits. They bound each subscription's client-side pending
-// queue independently, so one slow listener gets nats.ErrSlowConsumer
-// for its own subscription without disrupting other subscriptions
-// multiplexed on the same connection.
+// These limits are applied to each *natsgo.Subscription created on
+// the wrapper's subscriber connections via SetPendingLimits. They
+// bound each subscription's client-side pending queue independently,
+// so one slow listener gets nats.ErrSlowConsumer for its own
+// subscription without disrupting other subscriptions multiplexed on
+// the same connection.
 type PendingLimits struct {
 	// Msgs is the per-subscription pending message limit.
 	// Zero keeps the NATS client default. Negative disables this limit.
@@ -73,11 +73,11 @@ type Options struct {
 	// MaxPending is the per-client outbound pending byte budget enforced
 	// by the embedded server. When a client's outbound queue exceeds
 	// this, the server treats the client as a slow consumer and
-	// disconnects it. Because the wrapper multiplexes all subscriptions
-	// on a single subConn, this budget bounds the burst headroom for
-	// wide local fan-out. Zero means DefaultMaxPending (1 GiB), well
-	// above the nats-server default of 64 MiB. Negative means use the
-	// server default.
+	// disconnects it. Because the wrapper multiplexes many subscriptions
+	// on each subscriber connection, this budget bounds the burst
+	// headroom for wide local fan-out on any one subscriber conn. Zero
+	// means DefaultMaxPending (1 GiB), well above the nats-server
+	// default of 64 MiB. Negative means use the server default.
 	MaxPending int64
 
 	// DrainTimeout bounds subscription and connection drains in Close.
@@ -107,11 +107,12 @@ type Options struct {
 	// default. Negative means retry forever, following nats.go semantics.
 	MaxReconnects int
 
-	// InProcess, when true, causes New to construct its pubConn and
-	// subConn via nats.InProcessServer instead of dialing the embedded
-	// server's TCP loopback listener. This skips the kernel socket
-	// layer and is intended for benchmarks and tests that want to
-	// measure the in-process path. Default false (TCP loopback).
+	// InProcess, when true, causes New to construct its publisher and
+	// subscriber connections via nats.InProcessServer instead of
+	// dialing the embedded server's TCP loopback listener. This skips
+	// the kernel socket layer and is intended for benchmarks and
+	// tests that want to measure the in-process path. Default false
+	// (TCP loopback).
 	InProcess bool
 
 	// PublishConns sets the number of TCP-loopback publisher
@@ -125,6 +126,20 @@ type Options struct {
 	// matching the historical behavior. Ignored by NewFromConn, which
 	// reuses the externally supplied connection.
 	PublishConns int
+
+	// SubscribeConns sets the number of TCP-loopback subscriber
+	// connections New opens to the embedded server. Each underlying
+	// shared *natsgo.Subscription is assigned to one of these
+	// connections by a stable hash of its subject, so all local
+	// subscribers for a subject coalesce onto the same shared NATS
+	// subscription on the same connection. Multiple subscriber
+	// connections spread distinct subjects across multiple TCP
+	// read/parser loops and per-conn server-side pending budgets,
+	// which is the main subscriber-side bottleneck beyond same-
+	// subject coalescing. Zero or negative means 1 (single subscriber
+	// connection), matching the historical behavior. Ignored by
+	// NewFromConn, which reuses the externally supplied connection.
+	SubscribeConns int
 
 	// NoServerLog disables routing embedded server logs into logger.
 	NoServerLog bool

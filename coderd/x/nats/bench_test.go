@@ -715,11 +715,12 @@ func BenchmarkPubsubUpstream1x1_16KiB(b *testing.B) {
 // canonical NATS performance reference.
 //
 // Key difference: upstream's --clients 4 spawns four independent
-// *nats.Conn per role. In coder mode, all 4 subscribers multiplex onto
-// the wrapper's single subConn, so this leaf also doubles as a check
-// that multiplexing on one client conn does not measurably regress
-// against the documented per-conn-per-sub baseline at small N and
-// small payload.
+// *nats.Conn per role. In coder mode, all 4 subscribers multiplex
+// onto the wrapper's subscriber pool (a single subscriber conn at
+// default Options.SubscribeConns), so this leaf also doubles as a
+// check that multiplexing on one client conn does not measurably
+// regress against the documented per-conn-per-sub baseline at small
+// N and small payload.
 //
 // Operator contract matches BenchmarkPubsub: requires -benchtime=Nx.
 func BenchmarkPubsubUpstreamNxM(b *testing.B) {

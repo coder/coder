@@ -80,8 +80,8 @@ func buildServerOptions(opts Options, peers []Peer) (*natsserver.Options, string
 		clusterToken = hex.EncodeToString(buf[:])
 	}
 
-	// Bind a loopback random client listener: the wrapper's pubConn
-	// and subConn dial this listener via connectClient. Additionally,
+	// Bind a loopback random client listener: the wrapper's pubConns
+	// and subConns dial this listener via connectClient. Additionally,
 	// nats-server v2.12.8 deadlocks the route AcceptLoop on client
 	// listener readiness when DontListen=true is combined with a
 	// non-zero Cluster.Port, so the listener must be real.
@@ -176,16 +176,20 @@ type connHandlers struct {
 
 // connectClient builds a NATS client that dials the embedded server's
 // client listener over TCP loopback. The wrapper opens one or more
-// publisher conns plus one subscriber conn per *Pubsub: the publisher
-// pool carries all publishes (sized by Options.PublishConns), and
-// subConn carries all subscriptions. TCP loopback gives the
-// server-to-client edge a real kernel socket buffer, which is what
-// makes multiplexing many subscriptions on a single subConn viable.
+// publisher conns plus one or more subscriber conns per *Pubsub: the
+// publisher pool carries all publishes (sized by Options.PublishConns),
+// and the subscriber pool carries all subscriptions (sized by
+// Options.SubscribeConns), with each underlying shared
+// *natsgo.Subscription assigned to one subscriber conn by a stable
+// hash of its subject. TCP loopback gives the server-to-client edge a
+// real kernel socket buffer, which is what makes multiplexing many
+// subscriptions on each subscriber conn viable.
 // See docs/internal/wrapper-conn-pool-plan.md.
 //
 // connName is applied via natsgo.Name and identifies the connection in
-// server logs (e.g., "coder-pubsub-pub", "coder-pubsub-pub-0", or
-// "coder-pubsub-sub"). If opts.ClientName is set, it takes precedence.
+// server logs (e.g., "coder-pubsub-pub", "coder-pubsub-pub-0",
+// "coder-pubsub-sub", or "coder-pubsub-sub-0"). If opts.ClientName is
+// set, it takes precedence.
 func connectClient(ns *natsserver.Server, opts Options, handlers connHandlers, connName string) (*natsgo.Conn, error) {
 	name := opts.ClientName
 	if name == "" {

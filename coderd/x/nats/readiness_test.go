@@ -218,7 +218,8 @@ func TestReadiness_PublishAfterJoinerNotLost(t *testing.T) {
 }
 
 // TestReadiness_FlushFailureCleansUp asserts that when the creator's
-// readiness sequence fails (we force a failure by closing subConn
+// readiness sequence fails (we force a failure by closing the
+// subscriber conn that owns this subject's shared subscription
 // inside the hook), the shared entry is removed from the registries
 // and the underlying NATS subscription is unsubscribed. No state
 // must leak.
@@ -247,13 +248,14 @@ func TestReadiness_FlushFailureCleansUp(t *testing.T) {
 		ps.mu.Lock()
 		inFlightShared = ps.sharedBySubject[subj]
 		ps.mu.Unlock()
-		// Force the upcoming Flush to fail by closing the subConn.
+		// Force the upcoming Flush to fail by closing the subscriber
+		// conn that owns this subject's shared subscription.
 		// nats.go's Flush on a closed conn returns ErrConnectionClosed.
-		ps.subConn.Close()
+		ps.pickSubConn(subj).Close()
 	}
 
 	_, err = ps.Subscribe(event, func(context.Context, []byte) {})
-	require.Error(t, err, "Flush must fail after we closed subConn")
+	require.Error(t, err, "Flush must fail after we closed the owning subConn")
 
 	// No leaked registry state: sharedBySubject and sharedByNATS
 	// must not contain the failed shared.
