@@ -379,6 +379,16 @@ type sqlcQuerier interface {
 	GetChatUsageLimitConfig(ctx context.Context) (ChatUsageLimitConfig, error)
 	GetChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) (GetChatUsageLimitGroupOverrideRow, error)
 	GetChatUsageLimitUserOverride(ctx context.Context, userID uuid.UUID) (GetChatUsageLimitUserOverrideRow, error)
+	// Returns the concatenated text of each user-visible user prompt in a
+	// chat, newest first. Used by the composer to populate the up/down
+	// arrow prompt-history cycle. Non-text parts (tool calls, files,
+	// attachments, ...) are excluded; messages whose text payload is
+	// entirely whitespace are dropped so cycling never lands on a blank
+	// entry. The jsonb_typeof guard skips legacy V0 rows whose content is
+	// a scalar JSON string (predates migration 000434) so the lateral
+	// jsonb_array_elements never raises "cannot extract elements from a
+	// scalar". Backed by idx_chat_messages_user_prompts.
+	GetChatUserPromptsByChatID(ctx context.Context, arg GetChatUserPromptsByChatIDParams) ([]GetChatUserPromptsByChatIDRow, error)
 	// Returns the global TTL for chat workspaces as a Go duration string.
 	// Returns "0s" (disabled) when no value has been configured.
 	GetChatWorkspaceTTL(ctx context.Context) (string, error)
@@ -700,6 +710,7 @@ type sqlcQuerier interface {
 	// simultaneously.
 	GetUserActivityInsights(ctx context.Context, arg GetUserActivityInsightsParams) ([]GetUserActivityInsightsRow, error)
 	GetUserAgentChatSendShortcut(ctx context.Context, userID uuid.UUID) (string, error)
+	GetUserAppearanceSettings(ctx context.Context, userID uuid.UUID) (GetUserAppearanceSettingsRow, error)
 	GetUserByEmailOrUsername(ctx context.Context, arg GetUserByEmailOrUsernameParams) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserChatCompactionThreshold(ctx context.Context, arg GetUserChatCompactionThresholdParams) (string, error)
@@ -758,12 +769,11 @@ type sqlcQuerier interface {
 	// percentile_disc returns an actual integer count from the underlying
 	// values rather than interpolating between rows.
 	GetUserSecretsTelemetrySummary(ctx context.Context) (GetUserSecretsTelemetrySummaryRow, error)
+	GetUserShellToolDisplayMode(ctx context.Context, userID uuid.UUID) (string, error)
 	// GetUserStatusCounts returns the count of users in each status over time.
 	// The time range is inclusively defined by the start_time and end_time parameters.
 	GetUserStatusCounts(ctx context.Context, arg GetUserStatusCountsParams) ([]GetUserStatusCountsRow, error)
 	GetUserTaskNotificationAlertDismissed(ctx context.Context, userID uuid.UUID) (bool, error)
-	GetUserTerminalFont(ctx context.Context, userID uuid.UUID) (string, error)
-	GetUserThemePreference(ctx context.Context, userID uuid.UUID) (string, error)
 	GetUserThinkingDisplayMode(ctx context.Context, userID uuid.UUID) (string, error)
 	GetUserWorkspaceBuildParameters(ctx context.Context, arg GetUserWorkspaceBuildParametersParams) ([]GetUserWorkspaceBuildParametersRow, error)
 	// This will never return deleted users.
@@ -1214,9 +1224,13 @@ type sqlcQuerier interface {
 	UpdateUserQuietHoursSchedule(ctx context.Context, arg UpdateUserQuietHoursScheduleParams) (User, error)
 	UpdateUserRoles(ctx context.Context, arg UpdateUserRolesParams) (User, error)
 	UpdateUserSecretByUserIDAndName(ctx context.Context, arg UpdateUserSecretByUserIDAndNameParams) (UserSecret, error)
+	UpdateUserShellToolDisplayMode(ctx context.Context, arg UpdateUserShellToolDisplayModeParams) (string, error)
 	UpdateUserStatus(ctx context.Context, arg UpdateUserStatusParams) (User, error)
 	UpdateUserTaskNotificationAlertDismissed(ctx context.Context, arg UpdateUserTaskNotificationAlertDismissedParams) (bool, error)
 	UpdateUserTerminalFont(ctx context.Context, arg UpdateUserTerminalFontParams) (UserConfig, error)
+	UpdateUserThemeDark(ctx context.Context, arg UpdateUserThemeDarkParams) (UserConfig, error)
+	UpdateUserThemeLight(ctx context.Context, arg UpdateUserThemeLightParams) (UserConfig, error)
+	UpdateUserThemeMode(ctx context.Context, arg UpdateUserThemeModeParams) (UserConfig, error)
 	UpdateUserThemePreference(ctx context.Context, arg UpdateUserThemePreferenceParams) (UserConfig, error)
 	UpdateUserThinkingDisplayMode(ctx context.Context, arg UpdateUserThinkingDisplayModeParams) (string, error)
 	UpdateVolumeResourceMonitor(ctx context.Context, arg UpdateVolumeResourceMonitorParams) error

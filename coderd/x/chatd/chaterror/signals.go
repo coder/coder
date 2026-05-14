@@ -48,6 +48,14 @@ var (
 		"goaway",
 		"http2: stream closed",
 		"use of closed network connection",
+		// Stringified HTTP/2 RST_STREAM errors. Classify uses
+		// typed http2.StreamError values when they survive wrapping;
+		// these patterns cover bridge layers that flatten errors.
+		"internal_error; received from peer",
+		"refused_stream; received from peer",
+		"cancel; received from peer",
+		"enhance_your_calm; received from peer",
+		"no_error; received from peer",
 	}
 	authStrongPatterns = []string{
 		"authentication",
@@ -83,9 +91,7 @@ func extractStatusCode(lower string) int {
 		return 0
 	}
 	for _, loc := range standaloneStatusPattern.FindAllStringIndex(lower, -1) {
-		// Skip values in host:port text. A later standalone status code in the
-		// same message may still be valid, so keep scanning.
-		if loc[0] > 0 && lower[loc[0]-1] == ':' {
+		if shouldSkipStandaloneStatusMatch(lower, loc[0]) {
 			continue
 		}
 		if code, err := strconv.Atoi(lower[loc[0]:loc[1]]); err == nil {
@@ -94,6 +100,21 @@ func extractStatusCode(lower string) int {
 		return 0
 	}
 	return 0
+}
+
+func shouldSkipStandaloneStatusMatch(lower string, start int) bool {
+	// Skip values in host:port text. A later standalone status code in the
+	// same message may still be valid, so keep scanning.
+	if start > 0 && lower[start-1] == ':' {
+		return true
+	}
+
+	// Go's HTTP/2 stream reset errors include "stream ID N". Those IDs are
+	// not HTTP status codes, even when they happen to equal 401, 429, or 503.
+	prefix := strings.TrimRight(lower[:start], " \t\r\n")
+	prefix = strings.TrimRight(prefix, ":=")
+	prefix = strings.TrimRight(prefix, " \t\r\n")
+	return strings.HasSuffix(prefix, "stream id")
 }
 
 func detectProvider(lower string) string {

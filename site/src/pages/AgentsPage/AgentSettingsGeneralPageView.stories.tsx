@@ -10,6 +10,7 @@ import {
 const preferencesData = {
 	task_notification_alert_dismissed: false,
 	thinking_display_mode: "auto" as const,
+	shell_tool_display_mode: "auto" as const,
 	code_diff_display_mode: "auto" as const,
 	agent_chat_send_shortcut: "enter" as const,
 };
@@ -177,6 +178,7 @@ export const RendersAgentDisplayModeSettings: Story = {
 		const canvas = within(canvasElement);
 
 		expect(await canvas.findByText("Thinking Display")).toBeVisible();
+		expect(await canvas.findByText("Shell Output Display")).toBeVisible();
 		expect(await canvas.findByText("Code Diff Display")).toBeVisible();
 	},
 };

@@ -4244,6 +4244,25 @@ func shouldClearRetryPhaseForStatus(status codersdk.ChatStatus) bool {
 	}
 }
 
+func (p *Server) clearProvisionalStreamParts(chatID uuid.UUID) {
+	val, ok := p.chatStreams.Load(chatID)
+	if !ok {
+		return
+	}
+	rs, ok := val.(*chatStreamState)
+	if !ok {
+		return
+	}
+
+	// Streamed parts are provisional until a durable message commits
+	// them. A retry rolls back the failed attempt before replacement
+	// parts are streamed.
+	rs.mu.Lock()
+	rs.buffer = nil
+	rs.resetDropCounters()
+	rs.mu.Unlock()
+}
+
 func (p *Server) publishToStream(chatID uuid.UUID, event codersdk.ChatStreamEvent) {
 	state := p.getOrCreateStreamState(chatID)
 	state.mu.Lock()
@@ -7796,14 +7815,7 @@ func (p *Server) runChat(
 			classified chatretry.ClassifiedError,
 			delay time.Duration,
 		) {
-			if val, ok := p.chatStreams.Load(chat.ID); ok {
-				if rs, ok := val.(*chatStreamState); ok {
-					rs.mu.Lock()
-					rs.buffer = nil
-					rs.resetDropCounters()
-					rs.mu.Unlock()
-				}
-			}
+			p.clearProvisionalStreamParts(chat.ID)
 			logger.Warn(ctx, "retrying LLM stream",
 				slog.F("attempt", attempt),
 				slog.F("delay", delay.String()),

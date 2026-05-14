@@ -6950,6 +6950,72 @@ func (q *sqlQuerier) GetChatUsageLimitUserOverride(ctx context.Context, userID u
 	return i, err
 }
 
+const getChatUserPromptsByChatID = `-- name: GetChatUserPromptsByChatID :many
+SELECT
+    cm.id,
+    string_agg(part->>'text', '' ORDER BY ordinality)::text AS text
+FROM
+    chat_messages cm,
+    jsonb_array_elements(cm.content) WITH ORDINALITY AS t(part, ordinality)
+WHERE
+    cm.chat_id = $1::uuid
+    AND cm.role = 'user'
+    AND cm.deleted = false
+    AND cm.visibility IN ('user', 'both')
+    AND jsonb_typeof(cm.content) = 'array'
+    AND part->>'type' = 'text'
+GROUP BY
+    cm.id
+HAVING
+    string_agg(part->>'text', '') ~ '\S'
+ORDER BY
+    cm.id DESC
+LIMIT
+    COALESCE(NULLIF($2::int, 0), 500)
+`
+
+type GetChatUserPromptsByChatIDParams struct {
+	ChatID   uuid.UUID `db:"chat_id" json:"chat_id"`
+	LimitVal int32     `db:"limit_val" json:"limit_val"`
+}
+
+type GetChatUserPromptsByChatIDRow struct {
+	ID   int64  `db:"id" json:"id"`
+	Text string `db:"text" json:"text"`
+}
+
+// Returns the concatenated text of each user-visible user prompt in a
+// chat, newest first. Used by the composer to populate the up/down
+// arrow prompt-history cycle. Non-text parts (tool calls, files,
+// attachments, ...) are excluded; messages whose text payload is
+// entirely whitespace are dropped so cycling never lands on a blank
+// entry. The jsonb_typeof guard skips legacy V0 rows whose content is
+// a scalar JSON string (predates migration 000434) so the lateral
+// jsonb_array_elements never raises "cannot extract elements from a
+// scalar". Backed by idx_chat_messages_user_prompts.
+func (q *sqlQuerier) GetChatUserPromptsByChatID(ctx context.Context, arg GetChatUserPromptsByChatIDParams) ([]GetChatUserPromptsByChatIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChatUserPromptsByChatID, arg.ChatID, arg.LimitVal)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChatUserPromptsByChatIDRow
+	for rows.Next() {
+		var i GetChatUserPromptsByChatIDRow
+		if err := rows.Scan(&i.ID, &i.Text); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getChats = `-- name: GetChats :many
 SELECT
     chats.id, chats.owner_id, chats.workspace_id, chats.title, chats.status, chats.worker_id, chats.started_at, chats.heartbeat_at, chats.created_at, chats.updated_at, chats.parent_chat_id, chats.root_chat_id, chats.last_model_config_id, chats.archived, chats.last_error, chats.mode, chats.mcp_server_ids, chats.labels, chats.build_id, chats.agent_id, chats.pin_order, chats.last_read_message_id, chats.last_injected_context, chats.dynamic_tools, chats.organization_id, chats.plan_mode, chats.client_type, chats.last_turn_summary,
@@ -25552,6 +25618,7 @@ FROM
 	users
 WHERE
 	status = 'active'::user_status AND deleted = false
+	AND is_service_account = false
 	AND CASE WHEN $1::bool THEN TRUE ELSE is_system = false END
 `
 
@@ -25656,6 +25723,47 @@ func (q *sqlQuerier) GetUserAgentChatSendShortcut(ctx context.Context, userID uu
 	var agent_chat_send_shortcut string
 	err := row.Scan(&agent_chat_send_shortcut)
 	return agent_chat_send_shortcut, err
+}
+
+const getUserAppearanceSettings = `-- name: GetUserAppearanceSettings :one
+SELECT
+	COALESCE(MAX(value) FILTER (WHERE key = 'theme_preference'), '')::text AS theme_preference,
+	COALESCE(MAX(value) FILTER (WHERE key = 'theme_mode'), '')::text AS theme_mode,
+	COALESCE(MAX(value) FILTER (WHERE key = 'theme_light'), '')::text AS theme_light,
+	COALESCE(MAX(value) FILTER (WHERE key = 'theme_dark'), '')::text AS theme_dark,
+	COALESCE(MAX(value) FILTER (WHERE key = 'terminal_font'), '')::text AS terminal_font
+FROM
+	user_configs
+WHERE
+	user_id = $1
+	AND key IN (
+		'theme_preference',
+		'theme_mode',
+		'theme_light',
+		'theme_dark',
+		'terminal_font'
+	)
+`
+
+type GetUserAppearanceSettingsRow struct {
+	ThemePreference string `db:"theme_preference" json:"theme_preference"`
+	ThemeMode       string `db:"theme_mode" json:"theme_mode"`
+	ThemeLight      string `db:"theme_light" json:"theme_light"`
+	ThemeDark       string `db:"theme_dark" json:"theme_dark"`
+	TerminalFont    string `db:"terminal_font" json:"terminal_font"`
+}
+
+func (q *sqlQuerier) GetUserAppearanceSettings(ctx context.Context, userID uuid.UUID) (GetUserAppearanceSettingsRow, error) {
+	row := q.db.QueryRowContext(ctx, getUserAppearanceSettings, userID)
+	var i GetUserAppearanceSettingsRow
+	err := row.Scan(
+		&i.ThemePreference,
+		&i.ThemeMode,
+		&i.ThemeLight,
+		&i.ThemeDark,
+		&i.TerminalFont,
+	)
+	return i, err
 }
 
 const getUserByEmailOrUsername = `-- name: GetUserByEmailOrUsername :one
@@ -25845,6 +25953,23 @@ func (q *sqlQuerier) GetUserCount(ctx context.Context, includeSystem bool) (int6
 	return count, err
 }
 
+const getUserShellToolDisplayMode = `-- name: GetUserShellToolDisplayMode :one
+SELECT
+	value AS shell_tool_display_mode
+FROM
+	user_configs
+WHERE
+	user_id = $1
+	AND key = 'preference_shell_tool_display_mode'
+`
+
+func (q *sqlQuerier) GetUserShellToolDisplayMode(ctx context.Context, userID uuid.UUID) (string, error) {
+	row := q.db.QueryRowContext(ctx, getUserShellToolDisplayMode, userID)
+	var shell_tool_display_mode string
+	err := row.Scan(&shell_tool_display_mode)
+	return shell_tool_display_mode, err
+}
+
 const getUserTaskNotificationAlertDismissed = `-- name: GetUserTaskNotificationAlertDismissed :one
 SELECT
 	value::boolean as task_notification_alert_dismissed
@@ -25860,40 +25985,6 @@ func (q *sqlQuerier) GetUserTaskNotificationAlertDismissed(ctx context.Context, 
 	var task_notification_alert_dismissed bool
 	err := row.Scan(&task_notification_alert_dismissed)
 	return task_notification_alert_dismissed, err
-}
-
-const getUserTerminalFont = `-- name: GetUserTerminalFont :one
-SELECT
-	value as terminal_font
-FROM
-	user_configs
-WHERE
-	user_id = $1
-	AND key = 'terminal_font'
-`
-
-func (q *sqlQuerier) GetUserTerminalFont(ctx context.Context, userID uuid.UUID) (string, error) {
-	row := q.db.QueryRowContext(ctx, getUserTerminalFont, userID)
-	var terminal_font string
-	err := row.Scan(&terminal_font)
-	return terminal_font, err
-}
-
-const getUserThemePreference = `-- name: GetUserThemePreference :one
-SELECT
-	value as theme_preference
-FROM
-	user_configs
-WHERE
-	user_id = $1
-	AND key = 'theme_preference'
-`
-
-func (q *sqlQuerier) GetUserThemePreference(ctx context.Context, userID uuid.UUID) (string, error) {
-	row := q.db.QueryRowContext(ctx, getUserThemePreference, userID)
-	var theme_preference string
-	err := row.Scan(&theme_preference)
-	return theme_preference, err
 }
 
 const getUserThinkingDisplayMode = `-- name: GetUserThinkingDisplayMode :one
@@ -26795,6 +26886,33 @@ func (q *sqlQuerier) UpdateUserRoles(ctx context.Context, arg UpdateUserRolesPar
 	return i, err
 }
 
+const updateUserShellToolDisplayMode = `-- name: UpdateUserShellToolDisplayMode :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	($1, 'preference_shell_tool_display_mode', $2::text)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = $2
+WHERE user_configs.user_id = $1
+	AND user_configs.key = 'preference_shell_tool_display_mode'
+RETURNING value AS shell_tool_display_mode
+`
+
+type UpdateUserShellToolDisplayModeParams struct {
+	UserID               uuid.UUID `db:"user_id" json:"user_id"`
+	ShellToolDisplayMode string    `db:"shell_tool_display_mode" json:"shell_tool_display_mode"`
+}
+
+func (q *sqlQuerier) UpdateUserShellToolDisplayMode(ctx context.Context, arg UpdateUserShellToolDisplayModeParams) (string, error) {
+	row := q.db.QueryRowContext(ctx, updateUserShellToolDisplayMode, arg.UserID, arg.ShellToolDisplayMode)
+	var shell_tool_display_mode string
+	err := row.Scan(&shell_tool_display_mode)
+	return shell_tool_display_mode, err
+}
+
 const updateUserStatus = `-- name: UpdateUserStatus :one
 UPDATE
 	users
@@ -26896,6 +27014,87 @@ type UpdateUserTerminalFontParams struct {
 
 func (q *sqlQuerier) UpdateUserTerminalFont(ctx context.Context, arg UpdateUserTerminalFontParams) (UserConfig, error) {
 	row := q.db.QueryRowContext(ctx, updateUserTerminalFont, arg.UserID, arg.TerminalFont)
+	var i UserConfig
+	err := row.Scan(&i.UserID, &i.Key, &i.Value)
+	return i, err
+}
+
+const updateUserThemeDark = `-- name: UpdateUserThemeDark :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	($1, 'theme_dark', $2)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = $2
+WHERE user_configs.user_id = $1
+	AND user_configs.key = 'theme_dark'
+RETURNING user_id, key, value
+`
+
+type UpdateUserThemeDarkParams struct {
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+	ThemeDark string    `db:"theme_dark" json:"theme_dark"`
+}
+
+func (q *sqlQuerier) UpdateUserThemeDark(ctx context.Context, arg UpdateUserThemeDarkParams) (UserConfig, error) {
+	row := q.db.QueryRowContext(ctx, updateUserThemeDark, arg.UserID, arg.ThemeDark)
+	var i UserConfig
+	err := row.Scan(&i.UserID, &i.Key, &i.Value)
+	return i, err
+}
+
+const updateUserThemeLight = `-- name: UpdateUserThemeLight :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	($1, 'theme_light', $2)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = $2
+WHERE user_configs.user_id = $1
+	AND user_configs.key = 'theme_light'
+RETURNING user_id, key, value
+`
+
+type UpdateUserThemeLightParams struct {
+	UserID     uuid.UUID `db:"user_id" json:"user_id"`
+	ThemeLight string    `db:"theme_light" json:"theme_light"`
+}
+
+func (q *sqlQuerier) UpdateUserThemeLight(ctx context.Context, arg UpdateUserThemeLightParams) (UserConfig, error) {
+	row := q.db.QueryRowContext(ctx, updateUserThemeLight, arg.UserID, arg.ThemeLight)
+	var i UserConfig
+	err := row.Scan(&i.UserID, &i.Key, &i.Value)
+	return i, err
+}
+
+const updateUserThemeMode = `-- name: UpdateUserThemeMode :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	($1, 'theme_mode', $2)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = $2
+WHERE user_configs.user_id = $1
+	AND user_configs.key = 'theme_mode'
+RETURNING user_id, key, value
+`
+
+type UpdateUserThemeModeParams struct {
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+	ThemeMode string    `db:"theme_mode" json:"theme_mode"`
+}
+
+func (q *sqlQuerier) UpdateUserThemeMode(ctx context.Context, arg UpdateUserThemeModeParams) (UserConfig, error) {
+	row := q.db.QueryRowContext(ctx, updateUserThemeMode, arg.UserID, arg.ThemeMode)
 	var i UserConfig
 	err := row.Scan(&i.UserID, &i.Key, &i.Value)
 	return i, err

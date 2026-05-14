@@ -1741,6 +1741,17 @@ func TestSpawnAgent_ExploreFallsBackWhenOverrideCredentialsAreUnavailable(t *tes
 	require.Equal(t, currentTurnModel.ID, childChat.LastModelConfigID)
 }
 
+func TestDefaultSystemPromptPlanningGuidance_SteersSubagentSelection(t *testing.T) {
+	t.Parallel()
+
+	require.Contains(t, defaultSystemPromptPlanningGuidance, `Prefer type="general" for substantial delegated research, analysis, reasoning, review, planning support, or implementation`)
+	require.Contains(t, defaultSystemPromptPlanningGuidance, `Use type="general" even for read-only work when the task is open-ended, multi-step, parallel, requires synthesis, or may later need edits`)
+	require.Contains(t, defaultSystemPromptPlanningGuidance, `Use type="explore" only for narrow repository-local read-only code discovery or code tracing`)
+	require.Contains(t, defaultSystemPromptPlanningGuidance, `Do not use type="explore" for generic research, broad architecture analysis, planning synthesis, external or web research, parallel research, or tasks that may need edits`)
+	require.NotContains(t, defaultSystemPromptPlanningGuidance, "research the codebase")
+	require.NotContains(t, defaultSystemPromptPlanningGuidance, "Reserve type=\"general\" for writable delegated work")
+}
+
 func TestSpawnAgent_DescriptionListsAllAvailableTypes(t *testing.T) {
 	t.Parallel()
 
@@ -1763,6 +1774,30 @@ func TestSpawnAgent_DescriptionListsAllAvailableTypes(t *testing.T) {
 	require.Contains(t, description, subagentTypeGeneral)
 	require.Contains(t, description, subagentTypeExplore)
 	require.Contains(t, description, subagentTypeComputerUse)
+}
+
+func TestSpawnAgent_DescriptionSteersGeneralForSubstantialResearch(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(t, db)
+	parentChat := createInternalParentChat(
+		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-description-selection-guidance",
+	)
+
+	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
+	tool := findToolByName(tools, spawnAgentToolName)
+	require.NotNil(t, tool, "spawn_agent tool must be present")
+	description := tool.Info().Description
+
+	require.Contains(t, description, `Prefer type="general" for substantial delegated research, analysis, reasoning, review, planning support, or implementation`)
+	require.Contains(t, description, "even when the child should only report findings")
+	require.Contains(t, description, `When using type="general" for read-only work, explicitly instruct the child not to modify files and to return findings`)
+	require.Contains(t, description, `Use type="explore" only for narrow repository-local read-only code discovery or code tracing`)
+	require.Contains(t, description, `Do not use type="explore" for generic research, broad architecture analysis, planning synthesis, external or web research, parallel research, or tasks that may need edits`)
 }
 
 func TestSpawnAgent_DescriptionIncludesComputerUseWithMissingProviderKey(t *testing.T) {
@@ -1820,6 +1855,10 @@ func TestSpawnAgent_PlanModeDescriptionOmitsComputerUse(t *testing.T) {
 	require.Contains(t, description, subagentTypeGeneral)
 	require.Contains(t, description, subagentTypeExplore)
 	require.NotContains(t, description, subagentTypeComputerUse)
+	require.Contains(t, description, `type="general" is for non-mutating substantial investigation and planning support`)
+	require.Contains(t, description, `type="explore" is for narrow repository-local lookup or tracing`)
+	require.Contains(t, description, `only type="general" should be used for cloning repositories or non-local investigation`)
+	require.NotContains(t, description, "Both may use shell commands for exploration, such as cloning repositories")
 	require.Contains(t, description, "must not implement changes or intentionally modify workspace files")
 }
 
@@ -1864,6 +1903,10 @@ func TestPlanningOverlaySubagentGuidance_UsesPlanModeSafeDescriptions(t *testing
 
 	require.Contains(t, guidance, subagentTypeGeneral)
 	require.Contains(t, guidance, subagentTypeExplore)
+	require.Contains(t, guidance, `Use type="general" for substantial investigation, reasoning, and planning support`)
+	require.Contains(t, guidance, `Use type="explore" only for narrow repository-local lookup or tracing`)
+	require.Contains(t, guidance, "general (non-mutating substantial investigation, analysis, and planning support)")
+	require.Contains(t, guidance, "explore (narrow repository-local codebase lookup and code tracing)")
 	require.NotContains(t, guidance, subagentTypeComputerUse)
 	require.NotContains(t, guidance, "modify")
 	require.NotContains(t, guidance, "may inspect or modify workspace files")

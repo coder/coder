@@ -27,6 +27,7 @@ import {
 	ComboboxItem,
 	ComboboxTrigger,
 } from "#/components/Combobox/Combobox";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import {
 	HelpPopover,
 	HelpPopoverContent,
@@ -636,7 +637,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 															value={preset.value}
 														>
 															{preset.icon && (
-																<img
+																<ExternalImage
 																	src={preset.icon}
 																	alt={preset.label}
 																	className="w-4 h-4"
