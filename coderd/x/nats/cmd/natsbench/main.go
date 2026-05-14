@@ -57,6 +57,7 @@ func main() {
 	replicas := flag.Int("replicas", 10, "number of replicas for *-cluster modes (ignored elsewhere)")
 	cpuProfile := flag.String("cpuprofile", "", "write a CPU profile of the hot phase to this path")
 	memProfile := flag.String("memprofile", "", "write a heap profile of live memory after the hot phase to this path")
+	writeBuffer := flag.Int("write-buffer", 0, "NATS Go client write buffer size in bytes for every wrapper-owned or natsbench-owned client connection. 0 keeps the nats.go default (32 KiB). Applies to both Coder modes (via codernats.Options.WriteBufferSize) and native modes (via natsgo.WriteBufferSize on every raw nats.go client).")
 	flag.Parse()
 
 	cpuProfilePath = *cpuProfile
@@ -75,8 +76,12 @@ func main() {
 		_, _ = fmt.Fprintln(os.Stderr, "natsbench: -subjects must be >= 1")
 		os.Exit(2)
 	}
+	if *writeBuffer < 0 {
+		_, _ = fmt.Fprintln(os.Stderr, "natsbench: -write-buffer must be >= 0")
+		os.Exit(2)
+	}
 
-	if err := run(*mode, *msgs, *size, *pubs, *subs, *subj, *subjects, *timeout, *replicas); err != nil {
+	if err := run(*mode, *msgs, *size, *pubs, *subs, *subj, *subjects, *timeout, *replicas, *writeBuffer); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "natsbench: %v\n", err)
 		os.Exit(1)
 	}
@@ -166,12 +171,17 @@ func hotEnd(before runtime.MemStats) runtimeStats {
 	}
 }
 
-func run(mode string, msgs, size, pubs, subs int, subj string, subjects int, timeout time.Duration, replicas int) error {
+func run(mode string, msgs, size, pubs, subs int, subj string, subjects int, timeout time.Duration, replicas, writeBuffer int) error {
+	// writeBufferSuffix builds a " write-buffer=N" tail for the header
+	// line so each run is self-describing. Empty when zero (i.e. the
+	// nats.go default is in effect) to keep legacy runs visually
+	// identical to pre-flag output.
+	wbSuffix := writeBufferHeader(writeBuffer)
 	switch mode {
 	case "loopback-tcp", "loopback-pipe":
-		// Loopback modes ignore -pubs/-subs/-subj/-subjects: single
-		// writer, single reader, raw byte stream. Echo back the chosen
-		// mode header for the user.
+		// Loopback modes ignore -pubs/-subs/-subj/-subjects and
+		// -write-buffer: they're a raw kernel/net.Pipe byte stream
+		// with no nats.go client involved.
 		_, _ = fmt.Printf("mode=%s msgs=%d size=%d\n", mode, msgs, size)
 		res, err := runLoopback(mode, msgs, size)
 		if err != nil {
@@ -190,12 +200,12 @@ func run(mode string, msgs, size, pubs, subs int, subj string, subjects int, tim
 		if isClusterSym {
 			// -msgs is interpreted per-publisher in symmetric modes; the
 			// suffix makes that semantic difference explicit.
-			_, _ = fmt.Printf("mode=%s pubs=%d subs=%d msgs=%d size=%d subjects=%d replicas=%d (msgs/pub)\n", mode, pubs, subs, msgs, size, subjects, replicas)
+			_, _ = fmt.Printf("mode=%s pubs=%d subs=%d msgs=%d size=%d subjects=%d replicas=%d%s (msgs/pub)\n", mode, pubs, subs, msgs, size, subjects, replicas, wbSuffix)
 		} else {
-			_, _ = fmt.Printf("mode=%s pubs=%d subs=%d msgs=%d size=%d subjects=%d replicas=%d\n", mode, pubs, subs, msgs, size, subjects, replicas)
+			_, _ = fmt.Printf("mode=%s pubs=%d subs=%d msgs=%d size=%d subjects=%d replicas=%d%s\n", mode, pubs, subs, msgs, size, subjects, replicas, wbSuffix)
 		}
 	} else {
-		_, _ = fmt.Printf("mode=%s pubs=%d subs=%d msgs=%d size=%d subjects=%d\n", mode, pubs, subs, msgs, size, subjects)
+		_, _ = fmt.Printf("mode=%s pubs=%d subs=%d msgs=%d size=%d subjects=%d%s\n", mode, pubs, subs, msgs, size, subjects, wbSuffix)
 	}
 	var (
 		res result
@@ -203,21 +213,21 @@ func run(mode string, msgs, size, pubs, subs int, subj string, subjects int, tim
 	)
 	switch mode {
 	case "native-tcp":
-		res, err = runNative(false, msgs, size, pubs, subs, subj, subjects, timeout)
+		res, err = runNative(false, msgs, size, pubs, subs, subj, subjects, timeout, writeBuffer)
 	case "native-inproc":
-		res, err = runNative(true, msgs, size, pubs, subs, subj, subjects, timeout)
+		res, err = runNative(true, msgs, size, pubs, subs, subj, subjects, timeout, writeBuffer)
 	case "coder-tcp":
-		res, err = runCoder(false, msgs, size, pubs, subs, subj, subjects, timeout)
+		res, err = runCoder(false, msgs, size, pubs, subs, subj, subjects, timeout, writeBuffer)
 	case "coder-inproc":
-		res, err = runCoder(true, msgs, size, pubs, subs, subj, subjects, timeout)
+		res, err = runCoder(true, msgs, size, pubs, subs, subj, subjects, timeout, writeBuffer)
 	case "native-cluster":
-		res, err = runNativeCluster(msgs, size, pubs, subs, subj, subjects, timeout, replicas)
+		res, err = runNativeCluster(msgs, size, pubs, subs, subj, subjects, timeout, replicas, writeBuffer)
 	case "coder-cluster":
-		res, err = runCoderCluster(msgs, size, pubs, subs, subj, subjects, timeout, replicas)
+		res, err = runCoderCluster(msgs, size, pubs, subs, subj, subjects, timeout, replicas, writeBuffer)
 	case "native-cluster-symmetric":
-		res, err = runNativeClusterSymmetric(msgs, size, pubs, subs, subj, subjects, timeout, replicas)
+		res, err = runNativeClusterSymmetric(msgs, size, pubs, subs, subj, subjects, timeout, replicas, writeBuffer)
 	case "coder-cluster-symmetric":
-		res, err = runCoderClusterSymmetric(msgs, size, pubs, subs, subj, subjects, timeout, replicas)
+		res, err = runCoderClusterSymmetric(msgs, size, pubs, subs, subj, subjects, timeout, replicas, writeBuffer)
 	default:
 		return xerrors.Errorf("unknown mode %q", mode)
 	}
@@ -226,6 +236,17 @@ func run(mode string, msgs, size, pubs, subs int, subj string, subjects int, tim
 	}
 	printResult(mode, res, msgs, size, pubs, subs, subjects)
 	return nil
+}
+
+// writeBufferHeader renders a " write-buffer=N" suffix for the run
+// header line, or the empty string when writeBuffer == 0 so legacy
+// runs that don't pass the flag print the same header they always
+// have.
+func writeBufferHeader(writeBuffer int) string {
+	if writeBuffer == 0 {
+		return ""
+	}
+	return fmt.Sprintf(" write-buffer=%d", writeBuffer)
 }
 
 // runLoopback measures the raw byte ceiling for TCP loopback or
@@ -333,7 +354,7 @@ func tcpPair() (client net.Conn, server net.Conn, err error) {
 // nats.go clients. Each publisher and subscriber gets its own *nats.Conn.
 //
 //nolint:revive // inProcess is a transport selector, not a control flag.
-func runNative(inProcess bool, msgs, size, pubs, subs int, subj string, numSubjects int, timeout time.Duration) (result, error) {
+func runNative(inProcess bool, msgs, size, pubs, subs int, subj string, numSubjects int, timeout time.Duration, writeBuffer int) (result, error) {
 	plan, err := planSubjects(pubs, subs, numSubjects, msgs, false)
 	if err != nil {
 		return result{}, xerrors.Errorf("plan subjects: %w", err)
@@ -368,6 +389,9 @@ func runNative(inProcess bool, msgs, size, pubs, subs int, subj string, numSubje
 		opts := []natsgo.Option{
 			natsgo.Name(name),
 			natsgo.MaxReconnects(-1),
+		}
+		if writeBuffer > 0 {
+			opts = append(opts, natsgo.WriteBufferSize(writeBuffer))
 		}
 		if inProcess {
 			opts = append(opts, natsgo.InProcessServer(ns))
@@ -509,7 +533,7 @@ func runNative(inProcess bool, msgs, size, pubs, subs int, subj string, numSubje
 // every Coder mode run is directly comparable.
 //
 //nolint:revive // inProcess is a transport selector, not a control flag.
-func runCoder(inProcess bool, msgs, size, pubs, subs int, subj string, numSubjects int, timeout time.Duration) (result, error) {
+func runCoder(inProcess bool, msgs, size, pubs, subs int, subj string, numSubjects int, timeout time.Duration, writeBuffer int) (result, error) {
 	plan, err := planSubjects(pubs, subs, numSubjects, msgs, false)
 	if err != nil {
 		return result{}, xerrors.Errorf("plan subjects: %w", err)
@@ -531,8 +555,9 @@ func runCoder(inProcess bool, msgs, size, pubs, subs int, subj string, numSubjec
 			Msgs:  pendingMsgs,
 			Bytes: -1,
 		},
-		PublishConns:   benchmarkPublishConns,
-		SubscribeConns: benchmarkSubscribeConns,
+		PublishConns:    benchmarkPublishConns,
+		SubscribeConns:  benchmarkSubscribeConns,
+		WriteBufferSize: writeBuffer,
 	})
 	if err != nil {
 		return result{}, xerrors.Errorf("new pubsub: %w", err)
@@ -748,7 +773,7 @@ func printRuntimeStats(rs runtimeStats, msgs, subs int) {
 // When replicas==1 there are no remote replicas; subscribers all
 // attach to replica 0 alongside the publishers. This degrades to the
 // runNative shape but preserves the cluster-mode flag plumbing.
-func runNativeCluster(msgs, size, pubs, subs int, subj string, numSubjects int, timeout time.Duration, replicas int) (result, error) {
+func runNativeCluster(msgs, size, pubs, subs int, subj string, numSubjects int, timeout time.Duration, replicas, writeBuffer int) (result, error) {
 	plan, err := planSubjects(pubs, subs, numSubjects, msgs, false)
 	if err != nil {
 		return result{}, xerrors.Errorf("plan subjects: %w", err)
@@ -778,10 +803,14 @@ func runNativeCluster(msgs, size, pubs, subs int, subj string, numSubjects int, 
 	}
 
 	connect := func(ns *natsserver.Server, name string) (*natsgo.Conn, error) {
-		return natsgo.Connect(ns.ClientURL(),
+		opts := []natsgo.Option{
 			natsgo.Name(name),
 			natsgo.MaxReconnects(-1),
-		)
+		}
+		if writeBuffer > 0 {
+			opts = append(opts, natsgo.WriteBufferSize(writeBuffer))
+		}
+		return natsgo.Connect(ns.ClientURL(), opts...)
 	}
 
 	type subState struct {
@@ -915,7 +944,7 @@ func runNativeCluster(msgs, size, pubs, subs int, subj string, numSubjects int, 
 // subscribers register against replicas 1..N-1 round-robin so every
 // published message must cross a route. With replicas==1, subscribers
 // attach to replica 0 (degrades to runCoder shape).
-func runCoderCluster(msgs, size, pubs, subs int, subj string, numSubjects int, timeout time.Duration, replicas int) (result, error) {
+func runCoderCluster(msgs, size, pubs, subs int, subj string, numSubjects int, timeout time.Duration, replicas, writeBuffer int) (result, error) {
 	plan, err := planSubjects(pubs, subs, numSubjects, msgs, false)
 	if err != nil {
 		return result{}, xerrors.Errorf("plan subjects: %w", err)
@@ -924,7 +953,7 @@ func runCoderCluster(msgs, size, pubs, subs int, subj string, numSubjects int, t
 	pendingMsgs := benchmarkPendingMsgs(plan)
 	t0 := time.Now()
 	logger := slog.Make() // discard
-	pubsubs, err := startCoderCluster(context.Background(), logger, replicas, 0, benchmarkPublishConns, benchmarkSubscribeConns, pendingMsgs)
+	pubsubs, err := startCoderCluster(context.Background(), logger, replicas, 0, benchmarkPublishConns, benchmarkSubscribeConns, pendingMsgs, writeBuffer)
 	if err != nil {
 		return result{}, xerrors.Errorf("start coder cluster: %w", err)
 	}
@@ -1072,7 +1101,7 @@ func runCoderCluster(msgs, size, pubs, subs int, subj string, numSubjects int, t
 //
 // MaxPending is bounded at 128 MiB (instead of the default 1 GiB) to
 // cap worst-case in-flight bytes in cluster fan-out scenarios.
-func runNativeClusterSymmetric(msgs, size, pubs, subs int, subj string, numSubjects int, timeout time.Duration, replicas int) (result, error) {
+func runNativeClusterSymmetric(msgs, size, pubs, subs int, subj string, numSubjects int, timeout time.Duration, replicas, writeBuffer int) (result, error) {
 	const symMaxPending int64 = 128 << 20
 	plan, err := planSubjects(pubs, subs, numSubjects, msgs, true)
 	if err != nil {
@@ -1097,10 +1126,14 @@ func runNativeClusterSymmetric(msgs, size, pubs, subs int, subj string, numSubje
 	}
 
 	connect := func(ns *natsserver.Server, name string) (*natsgo.Conn, error) {
-		return natsgo.Connect(ns.ClientURL(),
+		opts := []natsgo.Option{
 			natsgo.Name(name),
 			natsgo.MaxReconnects(-1),
-		)
+		}
+		if writeBuffer > 0 {
+			opts = append(opts, natsgo.WriteBufferSize(writeBuffer))
+		}
+		return natsgo.Connect(ns.ClientURL(), opts...)
 	}
 
 	type subState struct {
@@ -1238,7 +1271,7 @@ func runNativeClusterSymmetric(msgs, size, pubs, subs int, subj string, numSubje
 //
 // MaxPending is bounded at 128 MiB (instead of the default 1 GiB) to
 // cap worst-case in-flight bytes in cluster fan-out scenarios.
-func runCoderClusterSymmetric(msgs, size, pubs, subs int, subj string, numSubjects int, timeout time.Duration, replicas int) (result, error) {
+func runCoderClusterSymmetric(msgs, size, pubs, subs int, subj string, numSubjects int, timeout time.Duration, replicas, writeBuffer int) (result, error) {
 	const symMaxPending int64 = 128 << 20
 	plan, err := planSubjects(pubs, subs, numSubjects, msgs, true)
 	if err != nil {
@@ -1248,7 +1281,7 @@ func runCoderClusterSymmetric(msgs, size, pubs, subs int, subj string, numSubjec
 	pendingMsgs := benchmarkPendingMsgs(plan)
 	t0 := time.Now()
 	logger := slog.Make() // discard
-	pubsubs, err := startCoderCluster(context.Background(), logger, replicas, symMaxPending, benchmarkPublishConns, benchmarkSubscribeConns, pendingMsgs)
+	pubsubs, err := startCoderCluster(context.Background(), logger, replicas, symMaxPending, benchmarkPublishConns, benchmarkSubscribeConns, pendingMsgs, writeBuffer)
 	if err != nil {
 		return result{}, xerrors.Errorf("start coder cluster: %w", err)
 	}

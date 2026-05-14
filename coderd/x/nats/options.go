@@ -141,6 +141,21 @@ type Options struct {
 	// NewFromConn, which reuses the externally supplied connection.
 	SubscribeConns int
 
+	// WriteBufferSize sets the NATS Go client write buffer size, in
+	// bytes, applied to every wrapper-owned client connection (all
+	// publish conns and all subscriber conns). It maps to
+	// natsgo.WriteBufferSize, which controls the flush threshold for
+	// the per-connection outbound buffer; nats.go auto-flushes when
+	// the buffer fills, and the default is 32 KiB. Larger values
+	// amortize syscall and lock overhead at the cost of bursty
+	// in-flight bytes, which matters most for 8 KiB+ payloads.
+	//
+	// Zero preserves the nats.go default (32 KiB). Positive values
+	// override it. NewFromConn does not apply this option: it reuses
+	// a caller-supplied external *natsgo.Conn whose write buffer is
+	// already fixed by whoever opened it.
+	WriteBufferSize int
+
 	// NoServerLog disables routing embedded server logs into logger.
 	NoServerLog bool
 }

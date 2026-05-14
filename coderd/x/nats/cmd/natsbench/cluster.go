@@ -151,7 +151,12 @@ func startNativeCluster(n int, maxPending int64) ([]*natsserver.Server, error) {
 // local inbox can absorb a full expected per-subscriber burst (see
 // benchmarkPendingMsgs). Pass <= 0 to keep the package default (which
 // leaves the local inbox at codernats.defaultListenerQueueSize, 1024).
-func startCoderCluster(ctx context.Context, logger slog.Logger, n int, maxPending int64, publishConns, subscribeConns, pendingMsgs int) ([]*codernats.Pubsub, error) {
+//
+// writeBuffer plumbs Options.WriteBufferSize through to every
+// wrapper-owned client connection in each replica. Pass 0 to keep the
+// nats.go default (32 KiB); positive values raise the per-conn flush
+// threshold, which is the lever benchmarked for large-payload runs.
+func startCoderCluster(ctx context.Context, logger slog.Logger, n int, maxPending int64, publishConns, subscribeConns, pendingMsgs, writeBuffer int) ([]*codernats.Pubsub, error) {
 	if n < 1 {
 		return nil, xerrors.Errorf("coder cluster requires n >= 1, got %d", n)
 	}
@@ -196,6 +201,7 @@ func startCoderCluster(ctx context.Context, logger slog.Logger, n int, maxPendin
 			MaxPending:       maxPending,
 			PublishConns:     publishConns,
 			SubscribeConns:   subscribeConns,
+			WriteBufferSize:  writeBuffer,
 			PendingLimits: codernats.PendingLimits{
 				Msgs:  pendingMsgs,
 				Bytes: -1,

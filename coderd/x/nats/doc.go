@@ -88,7 +88,11 @@
 // returns. nats.go auto-flushes when the buffer fills (default
 // WriteBufferSize 32 KiB) and on a short interval; callers that need
 // stronger "server has acknowledged" semantics should drive flushing
-// at a higher layer.
+// at a higher layer. Options.WriteBufferSize raises that per-conn
+// flush threshold for every wrapper-owned client connection (both
+// pools); zero keeps the nats.go default. NewFromConn does not apply
+// WriteBufferSize: it reuses the caller's connection without
+// reconfiguring it.
 //
 // # Cluster auth and TLS
 //

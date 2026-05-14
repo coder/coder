@@ -409,8 +409,10 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error)
 // each have length 1 and alias the external conn). Options.PublishConns
 // and Options.SubscribeConns are ignored on this path because the
 // wrapper has no authority to open additional connections to the
-// external server. Callers choosing this path own their own connection
-// budgeting.
+// external server. Options.WriteBufferSize is likewise ignored: the
+// supplied *natsgo.Conn was already opened by the caller and its
+// write buffer cannot be reconfigured after Connect. Callers choosing
+// this path own their own connection budgeting.
 func NewFromConn(logger slog.Logger, nc *natsgo.Conn) (*Pubsub, error) {
 	if nc == nil {
 		return nil, xerrors.New("nats: nil connection")
