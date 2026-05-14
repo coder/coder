@@ -1,8 +1,8 @@
 import {
-	HardDrive,
-	PanelLeft,
-	Settings,
-	UserLock,
+	HardDriveIcon,
+	PanelLeftIcon,
+	SettingsIcon,
+	UserLockIcon,
 } from "lucide-react";
 import { type FC, useCallback, useEffect, useState } from "react";
 import type { BuildInfoResponse, Experiment } from "#/api/typesGenerated";
@@ -11,7 +11,7 @@ import { SidebarAccordion } from "#/components/Sidebar/SidebarAccordion";
 import { useSidebarContext } from "#/components/Sidebar/SidebarContext";
 import type { Permissions } from "#/modules/permissions";
 import { cn } from "#/utils/cn";
-import { isDevBuild } from "#/utils/buildInfo";
+import { getPrereleaseFlag } from "#/utils/buildInfo";
 import type { DeploymentSection } from "./useActiveDeploymentSection";
 
 interface DeploymentSidebarViewProps {
@@ -84,14 +84,14 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 						Deployment
 					</span>
 				)}
-				<PanelLeft className={cn(
+				<PanelLeftIcon className={cn(
 					"size-4 text-content-secondary group-hover:text-content-primary transition-colors",
 					!collapsed && "ml-auto",
 				)} />
 			</button>
 			{/* General */}
 			<SidebarAccordion
-				icon={Settings}
+				icon={SettingsIcon}
 				label="General"
 				href="/deployment/overview"
 				open={openSections.has("general")}
@@ -127,7 +127,7 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 
 			{/* Infrastructure */}
 			<SidebarAccordion
-				icon={HardDrive}
+				icon={HardDriveIcon}
 				label="Infrastructure"
 				href="/deployment/security"
 				open={openSections.has("infrastructure")}
@@ -160,7 +160,7 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 
 			{/* Authentication */}
 			<SidebarAccordion
-				icon={UserLock}
+				icon={UserLockIcon}
 				label="Authentication"
 				href="/deployment/userauth"
 				open={openSections.has("authentication")}
@@ -179,7 +179,7 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 						</BaseSidebarNavItem>
 					)}
 					{permissions.viewDeploymentConfig &&
-						(experiments.includes("oauth2") || isDevBuild(buildInfo)) && (
+						(experiments.includes("oauth2") || getPrereleaseFlag(buildInfo) === "devel") && (
 							<BaseSidebarNavItem href="/deployment/oauth2-provider/apps">
 								OAuth2 applications
 							</BaseSidebarNavItem>

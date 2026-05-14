@@ -1,4 +1,4 @@
-import { ArrowLeft, ChevronDown } from "lucide-react";
+import { ArrowLeftIcon, ChevronDownIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Link } from "react-router";
 import { Button } from "#/components/Button/Button";
@@ -24,7 +24,7 @@ const AISettingsAddProviderPage: FC = () => {
 				to="/deployment/ai-settings/providers"
 				className="inline-flex items-center gap-1 text-sm text-content-secondary no-underline hover:text-content-primary mb-6"
 			>
-				<ArrowLeft className="size-4" />
+				<ArrowLeftIcon className="size-4" />
 				Back to providers
 			</Link>
 
@@ -75,7 +75,7 @@ const AISettingsAddProviderPage: FC = () => {
 							className="flex items-center gap-1 px-3 py-2 text-sm bg-transparent border border-solid border-border rounded-md cursor-pointer text-content-primary hover:bg-surface-secondary"
 						>
 							Emoji
-							<ChevronDown className="size-4 text-content-secondary" />
+							<ChevronDownIcon className="size-4 text-content-secondary" />
 						</button>
 					</div>
 				</div>

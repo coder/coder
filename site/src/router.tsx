@@ -749,16 +749,16 @@ export const router = createBrowserRouter(
 					</Route>
 					<Route path="/ai" element={<AISettingsLayout />}>
 						<Route path="governance" element={<AIGovernancePage />} />
-						<Route path="providers" element={<AIProvidersPage />} />
-						<Route path="models" element={<AIModelsPage />} />
-						<Route path="spend" element={<AISpendPage />} />
+						<Route path="providers" element={<AgentSettingsProvidersPage />} />
+						<Route path="models" element={<AgentSettingsModelsPage />} />
+						<Route path="spend" element={<AgentSettingsSpendPage />} />
 						<Route path="agents">
-							<Route index element={<AIAgentsGeneralPage />} />
-							<Route path="instructions" element={<AIAgentsInstructionsPage />} />
-							<Route path="templates" element={<AIAgentsTemplatesPage />} />
-							<Route path="experiments" element={<AIAgentsExperimentsPage />} />
-							<Route path="mcp-servers" element={<AIAgentsMCPServersPage />} />
-							<Route path="lifecycle" element={<AIAgentsLifecyclePage />} />
+							<Route index element={<AgentSettingsGeneralPage />} />
+							<Route path="instructions" element={<AgentSettingsInstructionsPage />} />
+							<Route path="templates" element={<AgentSettingsTemplatesPage />} />
+							<Route path="experiments" element={<AgentSettingsExperimentsPage />} />
+							<Route path="mcp-servers" element={<AgentSettingsMCPServersPage />} />
+							<Route path="lifecycle" element={<AgentSettingsLifecyclePage />} />
 						</Route>
 					</Route>
 					<Route path="/settings" element={<UserSettingsLayout />}>

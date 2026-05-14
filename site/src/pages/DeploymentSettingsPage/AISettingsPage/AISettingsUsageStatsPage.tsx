@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, MoreVertical, Search } from "lucide-react";
+import { ArrowDownIcon, ArrowUpIcon, EllipsisVerticalIcon, SearchIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { PaginationWidgetBase } from "#/components/PaginationWidget/PaginationWidgetBase";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -95,7 +95,7 @@ const AISettingsUsageStatsPage: FC = () => {
 				<TabsContent value="groups">
 					<div className="flex items-center justify-between mt-6 mb-6">
 						<div className="relative w-80">
-							<Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-content-secondary" />
+							<SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-content-secondary" />
 							<Input placeholder="Search groups.." className="pl-10" />
 						</div>
 						<span className="text-sm text-content-secondary">
@@ -142,11 +142,11 @@ const AISettingsUsageStatsPage: FC = () => {
 									<TableCell>
 										<div className="flex items-center gap-2">
 											<span className="inline-flex items-center gap-1 rounded-md bg-surface-secondary px-2 py-0.5 text-xs text-content-secondary">
-												<ArrowDown className="size-3" />
+												<ArrowDownIcon className="size-3" />
 												{group.inputTokens}
 											</span>
 											<span className="inline-flex items-center gap-1 rounded-md bg-surface-secondary px-2 py-0.5 text-xs text-content-secondary">
-												<ArrowUp className="size-3" />
+												<ArrowUpIcon className="size-3" />
 												{group.outputTokens}
 											</span>
 										</div>
@@ -166,7 +166,7 @@ const AISettingsUsageStatsPage: FC = () => {
 											type="button"
 											className="flex items-center justify-center w-8 h-8 rounded-md bg-transparent border-none cursor-pointer hover:bg-surface-secondary"
 										>
-											<MoreVertical className="size-4 text-content-secondary" />
+											<EllipsisVerticalIcon className="size-4 text-content-secondary" />
 										</button>
 									</TableCell>
 								</TableRow>

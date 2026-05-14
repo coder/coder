@@ -1,4 +1,4 @@
-import { Check, ChevronRight, Plus, X } from "lucide-react";
+import { CheckIcon, ChevronRightIcon, PlusIcon, XIcon } from "lucide-react";
 import type { FC } from "react";
 import { useNavigate } from "react-router";
 import { PaginationWidgetBase } from "#/components/PaginationWidget/PaginationWidgetBase";
@@ -62,7 +62,7 @@ const AISettingsProvidersPage: FC = () => {
 					</p>
 				</div>
 				<Button variant="default">
-					<Plus />
+					<PlusIcon />
 					Add provider
 				</Button>
 			</div>
@@ -104,13 +104,13 @@ const AISettingsProvidersPage: FC = () => {
 							</TableCell>
 							<TableCell>
 								{provider.userKeys ? (
-									<Check className="size-4 text-content-success" />
+									<CheckIcon className="size-4 text-content-success" />
 								) : (
-									<X className="size-4 text-content-secondary" />
+									<XIcon className="size-4 text-content-secondary" />
 								)}
 							</TableCell>
 							<TableCell>
-								<ChevronRight className="size-4 text-content-secondary" />
+								<ChevronRightIcon className="size-4 text-content-secondary" />
 							</TableCell>
 						</TableRow>
 					))}

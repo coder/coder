@@ -1,10 +1,10 @@
 import {
-	Building2,
-	Cpu,
-	Link2,
-	PanelLeft,
-	ShieldCheck,
-	Store,
+	Building2Icon,
+	CpuIcon,
+	Link2Icon,
+	PanelLeftIcon,
+	ShieldCheckIcon,
+	StoreIcon,
 } from "lucide-react";
 import { type FC, useCallback, useEffect, useState } from "react";
 import { Link, NavLink } from "react-router";
@@ -36,25 +36,25 @@ const TOP_LEVEL_ITEMS: TopLevelNavItem[] = [
 	{
 		label: "AI Governance",
 		href: "/ai/governance",
-		icon: ShieldCheck,
+		icon: ShieldCheckIcon,
 		section: "ai-governance",
 	},
 	{
 		label: "Providers",
 		href: "/ai/providers",
-		icon: Store,
+		icon: StoreIcon,
 		section: "providers",
 	},
 	{
 		label: "Models",
 		href: "/ai/models",
-		icon: Cpu,
+		icon: CpuIcon,
 		section: "models",
 	},
 	{
 		label: "Spend",
 		href: "/ai/spend",
-		icon: Link2,
+		icon: Link2Icon,
 		section: "spend",
 	},
 ];
@@ -96,7 +96,7 @@ export const AISidebarView: FC<AISidebarViewProps> = ({ activeSection }) => {
 				{!collapsed && (
 					<span className="text-sm text-content-secondary">AI</span>
 				)}
-				<PanelLeft
+				<PanelLeftIcon
 					className={cn(
 						"size-4 text-content-secondary group-hover:text-content-primary transition-colors",
 						!collapsed && "ml-auto",
@@ -154,7 +154,7 @@ export const AISidebarView: FC<AISidebarViewProps> = ({ activeSection }) => {
 
 			{/* Agents accordion */}
 			<SidebarAccordion
-				icon={Building2}
+				icon={Building2Icon}
 				label="Agents"
 				href="/ai/agents"
 				open={agentsOpen}

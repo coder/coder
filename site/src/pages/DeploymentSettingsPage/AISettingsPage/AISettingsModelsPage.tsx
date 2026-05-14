@@ -1,4 +1,4 @@
-import { ChevronRight } from "lucide-react";
+import { ChevronRightIcon } from "lucide-react";
 import type { FC } from "react";
 import { PaginationWidgetBase } from "#/components/PaginationWidget/PaginationWidgetBase";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -162,7 +162,7 @@ const AISettingsModelsPage: FC = () => {
 									</div>
 								</TableCell>
 								<TableCell>
-									<ChevronRight className="size-4 text-content-secondary" />
+									<ChevronRightIcon className="size-4 text-content-secondary" />
 								</TableCell>
 							</TableRow>
 						);
