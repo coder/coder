@@ -335,7 +335,7 @@ func TestExternalAuthManagement(t *testing.T) {
 		viewerID = "linear-user-2"
 		_, err = client.ExternalAuthByID(ctx, providerID)
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "Failed to validate external auth identity")
+		require.Contains(t, err.Error(), "External auth identity changed")
 	})
 
 	t.Run("RefreshAllProviders", func(t *testing.T) {
