@@ -34,6 +34,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/xjson"
 	"github.com/coder/coder/v2/coderd/webpush"
@@ -51,6 +52,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/internal/agentselect"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
+	skillspkg "github.com/coder/coder/v2/coderd/x/skills"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/quartz"
@@ -6406,6 +6408,31 @@ type systemPromptBehaviorContext struct {
 	isRootChat           bool
 }
 
+func workspaceSkillsForResolution(workspaceSkills []chattool.SkillMeta) []skillspkg.Skill {
+	if len(workspaceSkills) == 0 {
+		return nil
+	}
+	resolved := make([]skillspkg.Skill, 0, len(workspaceSkills))
+	for _, skill := range workspaceSkills {
+		resolved = append(resolved, skillspkg.Skill{
+			Name:        skill.Name,
+			Description: skill.Description,
+			Source:      skillspkg.SourceWorkspace,
+		})
+	}
+	return resolved
+}
+
+func mergeTurnSkills(
+	personalSkills []skillspkg.Skill,
+	workspaceSkills []chattool.SkillMeta,
+) []skillspkg.ResolvedSkill {
+	return skillspkg.MergeSkills(
+		personalSkills,
+		workspaceSkillsForResolution(workspaceSkills),
+	)
+}
+
 // buildSystemPrompt applies system-level prompt injections in the
 // canonical order. It is used by both the initial prompt assembly
 // and the ReloadMessages callback to keep them in sync.
@@ -6413,7 +6440,7 @@ func buildSystemPrompt(
 	prompt []fantasy.Message,
 	subagentInstruction string,
 	instruction string,
-	skills []chattool.SkillMeta,
+	resolvedSkills []skillspkg.ResolvedSkill,
 	userPrompt string,
 	behaviorContext systemPromptBehaviorContext,
 ) []fantasy.Message {
@@ -6423,7 +6450,7 @@ func buildSystemPrompt(
 	if instruction != "" {
 		prompt = chatprompt.InsertSystem(prompt, instruction)
 	}
-	if skillIndex := chattool.FormatSkillIndex(skills); skillIndex != "" {
+	if skillIndex := chattool.FormatResolvedSkillIndex(resolvedSkills); skillIndex != "" {
 		prompt = chatprompt.InsertSystem(prompt, skillIndex)
 	}
 	if userPrompt != "" {
@@ -6445,6 +6472,34 @@ func buildSystemPrompt(
 		}
 	}
 	return prompt
+}
+
+func removeSkillIndexMessages(prompt []fantasy.Message) []fantasy.Message {
+	out := make([]fantasy.Message, 0, len(prompt))
+	removed := false
+	for _, message := range prompt {
+		if isSkillIndexMessage(message) {
+			removed = true
+			continue
+		}
+		out = append(out, message)
+	}
+	if !removed {
+		return prompt
+	}
+	return out
+}
+
+func isSkillIndexMessage(message fantasy.Message) bool {
+	if message.Role != fantasy.MessageRoleSystem || len(message.Content) != 1 {
+		return false
+	}
+	textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](message.Content[0])
+	if !ok {
+		return false
+	}
+	text := strings.TrimSpace(textPart.Text)
+	return strings.HasPrefix(text, "<available-skills>\n") && strings.HasSuffix(text, "</available-skills>")
 }
 
 type rootChatToolsOptions struct {
@@ -6482,6 +6537,79 @@ func (p *Server) loadPlanModeInstructions(
 	}
 
 	return fetched
+}
+
+func userSkillContext(ctx context.Context, userID uuid.UUID) context.Context {
+	actor := rbac.Subject{
+		Type:  rbac.SubjectTypeUser,
+		ID:    userID.String(),
+		Roles: rbac.RoleIdentifiers{rbac.RoleMember()},
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
+	// Chat turns run asynchronously after admission, so the original request
+	// actor may no longer be available when a worker loads personal skills.
+	// We synthesize the chat owner as a member instead of reusing that actor.
+	// Hardcoding RoleMember is safe because dbauthz enforces
+	// ResourceUserSkill.WithOwner(userID), so this actor cannot read any other
+	// user's skills regardless of role. Org scoping is not needed because
+	// personal skills are user-scoped, not org-scoped.
+	//nolint:gocritic // The synthetic actor is intentional for the reasons above.
+	return dbauthz.As(ctx, actor)
+}
+
+func (p *Server) fetchPersonalSkillMetadata(
+	ctx context.Context,
+	userID uuid.UUID,
+	logger slog.Logger,
+) []skillspkg.Skill {
+	rows, err := p.db.ListUserSkillMetadataByUserID(userSkillContext(ctx, userID), userID)
+	// See package coderd/x/skills (doc.go) for why metadata fetch failures
+	// intentionally degrade to an empty personal-skill list instead of
+	// failing the chat turn.
+	if err != nil {
+		logger.Warn(ctx, "failed to load personal skill metadata",
+			slog.F("owner_id", userID),
+			slog.Error(err),
+		)
+		return nil
+	}
+
+	personalSkills := make([]skillspkg.Skill, 0, len(rows))
+	for _, row := range rows {
+		personalSkills = append(personalSkills, skillspkg.Skill{
+			Name:        row.Name,
+			Description: row.Description,
+			Source:      skillspkg.SourcePersonal,
+		})
+	}
+	return personalSkills
+}
+
+func (p *Server) loadPersonalSkillBody(
+	ctx context.Context,
+	userID uuid.UUID,
+	name string,
+) (skillspkg.ParsedSkill, error) {
+	row, err := p.db.GetUserSkillByUserIDAndName(
+		userSkillContext(ctx, userID),
+		database.GetUserSkillByUserIDAndNameParams{
+			UserID: userID,
+			Name:   name,
+		},
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return skillspkg.ParsedSkill{}, skillspkg.ErrSkillNotFound
+		}
+		p.logger.Error(ctx, "load personal skill body failed",
+			slog.F("user_id", userID),
+			slog.F("name", name),
+			slog.Error(err),
+		)
+		return skillspkg.ParsedSkill{}, xerrors.Errorf("load personal skill body: %w", err)
+	}
+
+	return skillspkg.ParsePersonalSkillMarkdown([]byte(row.Content))
 }
 
 func (p *Server) appendRootChatTools(
@@ -6907,7 +7035,8 @@ func (p *Server) runChat(
 		mcpTools           []fantasy.AgentTool
 		mcpCleanup         func()
 		workspaceMCPTools  []fantasy.AgentTool
-		skills             []chattool.SkillMeta
+		workspaceSkills    []chattool.SkillMeta
+		personalSkills     []skillspkg.Skill
 	)
 	// Check if instruction files need to be (re-)persisted.
 	// This happens when no context-file parts exist yet, or when
@@ -6964,7 +7093,7 @@ func (p *Server) runChat(
 					return workspaceCtx.getWorkspaceConn(instructionCtx)
 				},
 			)
-			skills = selectSkillMetasForInstructionRefresh(
+			workspaceSkills = selectSkillMetasForInstructionRefresh(
 				persistedSkills,
 				discoveredSkills,
 				uuid.NullUUID{UUID: currentWorkspaceAgentID, Valid: hasCurrentWorkspaceAgent},
@@ -6984,8 +7113,12 @@ func (p *Server) runChat(
 		// re-injected via InsertSystem after compaction drops
 		// those messages. No workspace dial needed.
 		instruction = instructionFromContextFiles(messages)
-		skills = persistedSkills
+		workspaceSkills = persistedSkills
 	}
+	g2.Go(func() error {
+		personalSkills = p.fetchPersonalSkillMetadata(ctx, chat.OwnerID, logger)
+		return nil
+	})
 	g2.Go(func() error {
 		resolvedUserPrompt = p.resolveUserPrompt(ctx, chat.OwnerID)
 		return nil
@@ -7025,11 +7158,19 @@ func (p *Server) runChat(
 	if !isRootChat {
 		subagentInstruction = defaultSubagentInstruction
 	}
+	resolvedSkillsFor := func(workspaceSkills []chattool.SkillMeta) []skillspkg.ResolvedSkill {
+		return mergeTurnSkills(personalSkills, workspaceSkills)
+	}
+	resolveSkillAlias := func(alias string) (skillspkg.ResolvedSkill, error) {
+		return skillspkg.Lookup(resolvedSkillsFor(workspaceSkills), alias)
+	}
+	initialResolvedSkills := resolvedSkillsFor(workspaceSkills)
+	injectedSkillIndex := chattool.FormatResolvedSkillIndex(initialResolvedSkills)
 	prompt = buildSystemPrompt(
 		prompt,
 		subagentInstruction,
 		instruction,
-		skills,
+		initialResolvedSkills,
 		resolvedUserPrompt,
 		systemPromptBehaviorContext{
 			planMode:             currentPlanMode,
@@ -7431,26 +7572,52 @@ func (p *Server) runChat(
 			workspaceCtx:    &workspaceCtx,
 			workspaceMu:     &workspaceMu,
 			instruction:     &instruction,
-			skills:          &skills,
+			skills:          &workspaceSkills,
 			resolvePlanPath: resolvePlanPathForTools,
 			storeFile:       storeChatAttachment,
 			isPlanModeTurn:  isPlanModeTurn,
 		})
 	}
 
-	// Append skill tools when the workspace has skills.
-	if len(skills) > 0 {
-		skillOpts := chattool.ReadSkillOptions{
-			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
-			GetSkills: func() []chattool.SkillMeta {
-				return skills
-			},
-		}
-		tools = append(tools,
-			chattool.ReadSkill(skillOpts),
-			chattool.ReadSkillFile(skillOpts),
-		)
+	// Append skill tools when personal or workspace skills are available.
+	skillOpts := chattool.ReadSkillOptions{
+		GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
+		GetSkills: func() []chattool.SkillMeta {
+			return workspaceSkills
+		},
+		Logger:       logger,
+		ResolveAlias: resolveSkillAlias,
+		LoadPersonalSkillBody: func(ctx context.Context, name string) (skillspkg.ParsedSkill, error) {
+			return p.loadPersonalSkillBody(ctx, chat.OwnerID, name)
+		},
 	}
+	skillToolRegistered := false
+	readSkillFileToolRegistered := false
+	appendCurrentSkillTools := func(current []fantasy.AgentTool) ([]fantasy.AgentTool, bool) {
+		if len(personalSkills) == 0 && len(workspaceSkills) == 0 {
+			return current, false
+		}
+
+		updated := current
+		changed := false
+		appendTool := func(tool fantasy.AgentTool) {
+			if !changed {
+				updated = slices.Clone(current)
+				changed = true
+			}
+			updated = append(updated, tool)
+		}
+		if !skillToolRegistered {
+			appendTool(chattool.ReadSkill(skillOpts))
+			skillToolRegistered = true
+		}
+		if !readSkillFileToolRegistered && len(workspaceSkills) > 0 {
+			appendTool(chattool.ReadSkillFile(skillOpts))
+			readSkillFileToolRegistered = true
+		}
+		return updated, changed
+	}
+	tools, _ = appendCurrentSkillTools(tools)
 	if advisorRuntime != nil {
 		tools = append(tools, chatadvisor.Tool(chatadvisor.ToolOptions{
 			Runtime: advisorRuntime,
@@ -7724,14 +7891,14 @@ func (p *Server) runChat(
 			}
 			reloadedSkills := skillsFromParts(reloadedMsgs)
 			if len(reloadedSkills) == 0 {
-				reloadedSkills = skills
+				reloadedSkills = workspaceSkills
 			}
 			reloadUserPrompt := p.resolveUserPrompt(reloadCtx, chat.OwnerID)
 			reloadedPrompt = buildSystemPrompt(
 				reloadedPrompt,
 				subagentInstruction,
 				reloadedInstruction,
-				reloadedSkills,
+				resolvedSkillsFor(reloadedSkills),
 				reloadUserPrompt,
 				systemPromptBehaviorContext{
 					planMode:             currentPlanMode,
@@ -7765,6 +7932,8 @@ func (p *Server) runChat(
 			chainModeActive = false
 		},
 		PrepareTools: func(currentTools []fantasy.AgentTool) []fantasy.AgentTool {
+			updatedTools, toolsChanged := appendCurrentSkillTools(currentTools)
+
 			// Mid-turn workspace MCP discovery for chats that bind a
 			// workspace via create_workspace or start_workspace
 			// after the turn has already started. The top-of-turn
@@ -7772,10 +7941,16 @@ func (p *Server) runChat(
 			// callback bridges the gap so the LLM sees workspace MCP
 			// tools on the very next step instead of the turn after.
 			if workspaceMCPDiscovered || isExploreSubagent {
+				if toolsChanged {
+					return updatedTools
+				}
 				return nil
 			}
 			snapshot := workspaceCtx.currentChatSnapshot()
 			if !snapshot.WorkspaceID.Valid {
+				if toolsChanged {
+					return updatedTools
+				}
 				return nil
 			}
 			workspaceMCPDiscovered = true
@@ -7783,9 +7958,12 @@ func (p *Server) runChat(
 				ctx, loopLogger, chat.ID, &workspaceCtx,
 			)
 			if len(discovered) == 0 {
+				if toolsChanged {
+					return updatedTools
+				}
 				return nil
 			}
-			return append(slices.Clone(currentTools), discovered...)
+			return append(slices.Clone(updatedTools), discovered...)
 		},
 		PrepareMessages: func(msgs []fantasy.Message) []fantasy.Message {
 			// Skip the snapshot update when chain mode is active;
@@ -7796,13 +7974,21 @@ func (p *Server) runChat(
 			if !chainModeActive {
 				setAdvisorPromptSnapshot(msgs)
 			}
-			if instructionInjected || instruction == "" {
-				return nil
+			result := msgs
+			changed := false
+			if !instructionInjected && instruction != "" {
+				instructionInjected = true
+				result = chatprompt.InsertSystem(result, instruction)
+				changed = true
 			}
-			instructionInjected = true
-			result := chatprompt.InsertSystem(msgs, instruction)
-			if skillIndex := chattool.FormatSkillIndex(skills); skillIndex != "" {
+			if skillIndex := chattool.FormatResolvedSkillIndex(resolvedSkillsFor(workspaceSkills)); skillIndex != "" && skillIndex != injectedSkillIndex {
+				result = removeSkillIndexMessages(result)
 				result = chatprompt.InsertSystem(result, skillIndex)
+				injectedSkillIndex = skillIndex
+				changed = true
+			}
+			if !changed {
+				return nil
 			}
 			if !chainModeActive {
 				setAdvisorPromptSnapshot(result)
