@@ -94,6 +94,16 @@ type Pubsub struct {
 	// route URLs so that auto-generated tokens stay consistent across
 	// refreshes.
 	effectiveClusterToken string
+
+	// testHookBeforeFlush and testHookBeforeSetPendingLimits are
+	// internal test seams scoped to a single *Pubsub. Production code
+	// never sets these. Tests set them via SetTestHooks (defined in a
+	// _test.go file) to deterministically reproduce concurrent-attach,
+	// Close-during-init, and Flush / SetPendingLimits failure races
+	// without time.Sleep. Per-Pubsub scoping lets parallel tests
+	// install distinct hooks without stomping on each other.
+	testHookBeforeFlush            func(subject string)
+	testHookBeforeSetPendingLimits func(subject string)
 }
 
 // sharedSub coalesces local subscribers on the same NATS subject onto a
@@ -102,21 +112,48 @@ type Pubsub struct {
 // When the last local subscriber detaches, the underlying subscription
 // is drained / unsubscribed.
 //
-// All mutable fields below (listeners, lastDropped) are protected by
+// Readiness model: the creator inserts a sharedSub in an "initializing"
+// state under p.mu (ready is open, sub is nil). It then performs the
+// NATS Subscribe / Flush / SetPendingLimits sequence outside p.mu.
+// On success it stores sub under p.mu and closes ready. On failure it
+// stores readyErr, removes the shared entry from p.sharedBySubject /
+// p.sharedByNATS, unsubscribes the underlying NATS sub (if any), and
+// closes ready. Joiners attach under p.mu, then wait on ready outside
+// the lock before returning, so they cannot observe a half-initialized
+// shared subscription or publish before the SUB has reached the server.
+//
+// All mutable fields below (listeners, sub, lastDropped) are protected by
 // the parent Pubsub.mu, except dropMu / lastDropped which use their own
 // mutex so the async error callback can update drop accounting without
-// taking the parent Pubsub.mu.
+// taking the parent Pubsub.mu. readyErr is written exactly once by the
+// creator before close(ready) and is observable by joiners after
+// <-ready completes via channel-close happens-before.
 type sharedSub struct {
 	// subject is the full NATS subject this shared subscription is
 	// registered against.
 	subject string
 	// sub is the underlying *natsgo.Subscription. Lifecycle is tied to
 	// listeners: created on the first attach, drained/unsubscribed
-	// when the last listener detaches.
+	// when the last listener detaches. Set under p.mu by the creator
+	// after a successful NATS Subscribe; reads outside p.mu are only
+	// safe after <-ready confirms init completed.
 	sub *natsgo.Subscription
 	// listeners is the set of local listeners attached to this shared
 	// subscription. Guarded by p.mu.
 	listeners map[*subscription]struct{}
+
+	// ready is closed by the creator after NATS Subscribe + Flush +
+	// SetPendingLimits complete (success or failure). Joiners wait on
+	// it (with a p.ctx.Done() escape) so they never return success
+	// before the underlying subscription is registered and limit-set
+	// at the server, and they never observe a half-initialized shared
+	// sub. Set once by the creator at construction time.
+	ready chan struct{}
+	// readyErr is the init error if init failed; nil on success.
+	// Written by the creator before close(ready); read by joiners
+	// after <-ready. The channel close acts as the happens-before
+	// barrier for readyErr.
+	readyErr error
 
 	// dropMu guards lastDropped, which dedups
 	// pubsub.ErrDroppedMessages broadcasts: NATS reports a cumulative
@@ -464,38 +501,59 @@ func (p *Pubsub) SubscribeWithErr(event string, listener pubsub.ListenerWithErr)
 		emitterDone:    make(chan struct{}),
 	}
 
-	// attachListener creates the shared *natsgo.Subscription on first
-	// attach for this subject and links s to it. On error we return
-	// without leaking any registry state or NATS subscription.
-	shared, created, err := p.attachListener(string(subj), s)
+	// Start the per-listener goroutines BEFORE inserting s into p.subs.
+	// Once attachListener registers s, Close may snapshot it and wait
+	// on s.dispatcherDone / s.emitterDone. Starting the goroutines first
+	// guarantees those channels are owned by live goroutines that will
+	// observe a future close(s.stop) and exit, so Close can never
+	// deadlock on goroutines that were never scheduled. The goroutines
+	// idle on s.queue / s.dropSignal / s.stop until either work arrives
+	// or s.stop closes.
+	go s.dispatch()
+	go s.emitDrops()
+
+	// stopGoroutines tears down the listener goroutines started above.
+	// Used on every error path so we never leak a goroutine pair when
+	// attach or readiness fails.
+	stopGoroutines := func() {
+		s.cancelOnce.Do(func() {
+			close(s.stop)
+			<-s.dispatcherDone
+			<-s.emitterDone
+		})
+	}
+
+	// attachListener registers s in the per-subject coalescing tables
+	// and, on the first attach for this subject, drives the underlying
+	// NATS Subscribe / Flush / SetPendingLimits sequence. It does not
+	// return until the shared subscription is fully ready or has
+	// deterministically failed. On error it has already detached s and
+	// (when this caller was the creator) cleaned up the shared registry
+	// state and the underlying NATS subscription. Joiners on a failed
+	// creator are also detached.
+	shared, _, err := p.attachListener(string(subj), s)
 	if err != nil {
+		stopGoroutines()
 		return nil, err
 	}
 	s.shared = shared
 	s.sub = shared.sub
 
-	if created {
-		// First attach for this subject: flush the SUB protocol message
-		// to the server before returning so a publish issued
-		// immediately after Subscribe cannot race ahead of subscription
-		// registration.
-		if err := p.subConn.Flush(); err != nil {
-			// Undo the attach atomically: removes s from listeners,
-			// tears down the shared sub since it was just created.
-			p.detachListener(s)
-			return nil, xerrors.Errorf("flush subscribe: %w", err)
+	// Final guard against Close racing in between attachListener
+	// returning success and us handing a cancel function to the caller.
+	// If Close has begun, every other code path will see p.ctx.Err()
+	// and bail; we mirror that behavior here so callers never receive
+	// a "successful" cancel function for a Pubsub that is being torn
+	// down. The cancel-once interlock with Close means our cleanup
+	// here is harmless if Close already cleaned us up.
+	if p.ctx.Err() != nil {
+		toDrain := p.detachListener(s)
+		stopGoroutines()
+		if toDrain != nil {
+			p.drainShared(toDrain)
 		}
-		limits := defaultPendingLimits(p.opts.PendingLimits)
-		if err := shared.sub.SetPendingLimits(limits.Msgs, limits.Bytes); err != nil {
-			p.detachListener(s)
-			return nil, xerrors.Errorf("set pending limits: %w", err)
-		}
+		return nil, xerrors.New("nats pubsub: closed")
 	}
-
-	// Start the per-listener goroutines only after attach has succeeded
-	// so a failure path above never leaks a goroutine.
-	go s.dispatch()
-	go s.emitDrops()
 
 	cancelFn := func() {
 		s.cancelOnce.Do(func() {
@@ -544,58 +602,188 @@ func listenerQueueSize(in PendingLimits) int {
 // bounding the per-listener memory footprint at a few KiB of pointers.
 const defaultListenerQueueSize = 1024
 
-// attachListener attaches s to the sharedSub for subject. If no shared
-// subscription exists yet, it creates the underlying *natsgo.Subscription
-// (with the wrapper's shared callback that fans out to every attached
-// listener) and registers it. Returns the shared entry, whether this
-// call created it, and any error from the NATS subscribe call.
+// attachListener attaches s to the sharedSub for subject and blocks
+// until the shared subscription is ready (or has deterministically
+// failed).
+//
+// The first attacher for a subject becomes the creator: it inserts a
+// sharedSub in an initializing state under p.mu, then issues NATS
+// Subscribe / Flush / SetPendingLimits outside the lock. On success it
+// stores the underlying *natsgo.Subscription under p.mu and closes
+// shared.ready. On failure it stores shared.readyErr, force-removes the
+// shared entry from the registries so future Subscribes start fresh,
+// unsubscribes the underlying NATS subscription if one was created,
+// detaches s, and closes shared.ready so any joiners that attached in
+// the meantime wake up and clean up too.
+//
+// Joiners (second and later attachers for the same subject) insert
+// themselves into the existing shared.listeners under p.mu, then wait
+// outside the lock for either shared.ready or p.ctx.Done(). They never
+// return success before the creator has flushed the SUB to the server
+// and set pending limits, so a Publish issued immediately after the
+// second SubscribeWithErr returns cannot race ahead of subscription
+// registration.
+//
+// On any error path attachListener has already detached s and (for the
+// creator) cleaned up registry / NATS state, so the caller need only
+// stop its already-started listener goroutines and return the error.
+//
+// The returned bool reports whether this call created the shared
+// subscription; it is preserved for symmetry but is currently
+// informational only (callers no longer drive Flush / SetPendingLimits
+// themselves; attachListener owns the full readiness sequence).
 func (p *Pubsub) attachListener(subject string, s *subscription) (*sharedSub, bool, error) {
 	p.mu.Lock()
+	// Authoritative close check while holding p.mu. Close sets
+	// p.ctx.Err() before acquiring p.mu, so any registration that
+	// makes it past this point is guaranteed to be observed by Close's
+	// snapshot of p.subs (which is also taken under p.mu). This is
+	// what prevents Close from missing a sub that is registering
+	// concurrently.
+	if p.ctx.Err() != nil {
+		p.mu.Unlock()
+		return nil, false, xerrors.New("nats pubsub: closed")
+	}
 	if shared, ok := p.sharedBySubject[subject]; ok {
+		// Joiner path: register before unlocking so the creator's
+		// success callback path (and any subsequent fan-out) sees
+		// this listener in shared.listeners, and so Close sees s in
+		// p.subs.
 		shared.listeners[s] = struct{}{}
+		s.shared = shared
 		p.subs[s] = struct{}{}
 		p.eventCounts[s.event]++
 		p.mu.Unlock()
+
+		// Wait for the creator's NATS Subscribe + Flush +
+		// SetPendingLimits to complete (or fail) before returning.
+		// p.ctx.Done() lets us bail if Close happens while we're
+		// waiting; in that case the joiner cleans itself up and
+		// reports the closed error. We do not hold p.mu here so
+		// concurrent fan-out and Close can both make progress.
+		select {
+		case <-shared.ready:
+		case <-p.ctx.Done():
+			p.detachListener(s)
+			return nil, false, xerrors.New("nats pubsub: closed")
+		}
+		if shared.readyErr != nil {
+			// Creator failed; clean ourselves up. The creator has
+			// already removed shared from the registries and
+			// unsubscribed the underlying NATS sub, so detach is
+			// just listener bookkeeping for this s.
+			p.detachListener(s)
+			return nil, false, xerrors.Errorf("shared subscription init: %w", shared.readyErr)
+		}
 		return shared, false, nil
 	}
-	// Drop the lock around the actual NATS Subscribe call: it issues a
-	// SUB protocol frame on subConn and we must not hold p.mu while
-	// doing network I/O. The window between unlock and re-lock could
-	// allow a racing Subscribe for the same subject to also miss the
-	// map entry and create its own shared. We resolve that race below
-	// after re-acquiring the lock.
-	p.mu.Unlock()
 
+	// Creator path: insert a placeholder shared in the initializing
+	// state. Joiners that arrive between now and close(shared.ready)
+	// will find this entry and wait. We hold p.mu only long enough to
+	// register the placeholder; the network I/O below runs lock-free.
 	shared := &sharedSub{
 		subject:   subject,
-		listeners: make(map[*subscription]struct{}),
+		listeners: map[*subscription]struct{}{s: {}},
+		ready:     make(chan struct{}),
 	}
-	natsSub, err := p.subConn.Subscribe(subject, shared.makeCallback(p))
-	if err != nil {
-		return nil, false, xerrors.Errorf("subscribe: %w", err)
-	}
-	shared.sub = natsSub
-
-	p.mu.Lock()
-	if existing, ok := p.sharedBySubject[subject]; ok {
-		// Lost the race; tear down our duplicate underlying sub and
-		// attach to the winner instead.
-		p.mu.Unlock()
-		_ = natsSub.Unsubscribe()
-		p.mu.Lock()
-		existing.listeners[s] = struct{}{}
-		p.subs[s] = struct{}{}
-		p.eventCounts[s.event]++
-		p.mu.Unlock()
-		return existing, false, nil
-	}
-	shared.listeners[s] = struct{}{}
+	s.shared = shared
 	p.sharedBySubject[subject] = shared
-	p.sharedByNATS[natsSub] = shared
 	p.subs[s] = struct{}{}
 	p.eventCounts[s.event]++
 	p.mu.Unlock()
-	return shared, true, nil
+
+	// finishCreator publishes the init result to joiners and (on
+	// failure) tears down all registry state we inserted above and
+	// any underlying NATS subscription we created. It is invoked
+	// exactly once on every creator-path return.
+	finishCreator := func(initErr error) (*sharedSub, bool, error) {
+		if initErr == nil {
+			close(shared.ready)
+			return shared, true, nil
+		}
+
+		// Failure: force-remove the shared entry from the registries
+		// so that (a) future Subscribes for this subject create a
+		// fresh shared rather than attaching to this dead one, and
+		// (b) Close's snapshot iteration doesn't see a phantom entry
+		// after we close ready. Also detach self.
+		p.mu.Lock()
+		if cur, ok := p.sharedBySubject[subject]; ok && cur == shared {
+			delete(p.sharedBySubject, subject)
+		}
+		if shared.sub != nil {
+			if cur, ok := p.sharedByNATS[shared.sub]; ok && cur == shared {
+				delete(p.sharedByNATS, shared.sub)
+			}
+		}
+		delete(shared.listeners, s)
+		delete(p.subs, s)
+		if c, ok := p.eventCounts[s.event]; ok {
+			if c <= 1 {
+				delete(p.eventCounts, s.event)
+			} else {
+				p.eventCounts[s.event] = c - 1
+			}
+		}
+		natsSub := shared.sub
+		p.mu.Unlock()
+
+		shared.readyErr = initErr
+		// Unsubscribe the underlying NATS sub if we created one.
+		// detachListener does not do this for us, and we cannot rely
+		// on Close to drain the conn because the caller's
+		// SubscribeWithErr will return now with an error.
+		if natsSub != nil {
+			_ = natsSub.Unsubscribe()
+		}
+		// Close ready last so any joiners that attached between
+		// placeholder insertion and finishCreator wake up after the
+		// registry cleanup is complete and observe a consistent
+		// state when they call detachListener.
+		close(shared.ready)
+		return nil, false, initErr
+	}
+
+	natsSub, err := p.subConn.Subscribe(subject, shared.makeCallback(p))
+	if err != nil {
+		return finishCreator(xerrors.Errorf("subscribe: %w", err))
+	}
+
+	// Publish shared.sub and sharedByNATS under p.mu before we start
+	// the network-side readiness handshake. This makes the natsSub
+	// observable from Close, async error routing, and (after ready
+	// closes) from joiners. shared.sub never reverts to nil after
+	// being set; if init fails below, finishCreator removes the
+	// sharedByNATS entry and calls Unsubscribe but leaves shared.sub
+	// pointing at the now-dead *natsgo.Subscription so debug paths
+	// and tests can still inspect it.
+	p.mu.Lock()
+	shared.sub = natsSub
+	p.sharedByNATS[natsSub] = shared
+	p.mu.Unlock()
+
+	// Test seam: simulate a Flush failure or expose the initialization
+	// window deterministically. Production code never sets this hook.
+	if hook := p.testHookBeforeFlush; hook != nil {
+		hook(subject)
+	}
+
+	// Flush the SUB protocol message to the server before returning
+	// so a publish issued immediately after Subscribe cannot race
+	// ahead of subscription registration. This is the critical
+	// readiness gate that joiners are waiting on.
+	if err := p.subConn.Flush(); err != nil {
+		return finishCreator(xerrors.Errorf("flush subscribe: %w", err))
+	}
+	if hook := p.testHookBeforeSetPendingLimits; hook != nil {
+		hook(subject)
+	}
+	limits := defaultPendingLimits(p.opts.PendingLimits)
+	if err := natsSub.SetPendingLimits(limits.Msgs, limits.Bytes); err != nil {
+		return finishCreator(xerrors.Errorf("set pending limits: %w", err))
+	}
+	return finishCreator(nil)
 }
 
 // detachListener removes s from its shared subscription and from the
@@ -632,10 +820,26 @@ func (p *Pubsub) detachListener(s *subscription) *sharedSub {
 	}
 	// Last listener: remove the shared entry from registries so a new
 	// Subscribe to the same subject creates a fresh underlying
-	// subscription rather than attaching to a draining one.
-	delete(p.sharedBySubject, shared.subject)
-	delete(p.sharedByNATS, shared.sub)
+	// subscription rather than attaching to a draining one. Use
+	// identity-checked deletes because a parallel creator-failure
+	// path may have already replaced this entry with a new shared
+	// (or removed it entirely) since we last looked.
+	if cur, ok := p.sharedBySubject[shared.subject]; ok && cur == shared {
+		delete(p.sharedBySubject, shared.subject)
+	}
+	if shared.sub != nil {
+		if cur, ok := p.sharedByNATS[shared.sub]; ok && cur == shared {
+			delete(p.sharedByNATS, shared.sub)
+		}
+	}
 	p.mu.Unlock()
+	// If the underlying NATS subscription was never published (creator
+	// failed before storing sub, or this listener attached as a
+	// joiner to a failed-init shared whose sub field was cleared),
+	// the caller should not try to drain it.
+	if shared.sub == nil {
+		return nil
+	}
 	return shared
 }
 
@@ -659,6 +863,16 @@ func (p *Pubsub) drainShared(shared *sharedSub) {
 // shared *natsgo.Subscription. It snapshots the listener set under
 // p.mu, then performs a non-blocking enqueue per listener so no single
 // slow listener can stall the NATS delivery goroutine.
+//
+// Zero-copy fan-out: msg.Data is delivered to every local listener as
+// the same []byte (no clone). This preserves throughput for large
+// payloads and matches the legacy single-subscriber path's semantics,
+// where the user already received the *natsgo.Msg payload directly.
+// Listeners attached to a coalesced subject MUST treat the delivered
+// bytes as immutable: do not mutate the slice, retain a reference past
+// the callback, or pass it to anything that may mutate it. The slice
+// is owned by nats.go's per-conn read buffer and is reused for the
+// next message once all listeners' callbacks return.
 func (ss *sharedSub) makeCallback(p *Pubsub) natsgo.MsgHandler {
 	return func(msg *natsgo.Msg) {
 		// Snapshot listeners under p.mu so concurrent detach /
@@ -672,6 +886,8 @@ func (ss *sharedSub) makeCallback(p *Pubsub) natsgo.MsgHandler {
 		}
 		p.mu.Unlock()
 		for _, s := range listeners {
+			// Pass msg.Data directly: every listener observes the
+			// same backing array. See zero-copy contract above.
 			s.offerData(msg.Data)
 		}
 	}
@@ -831,8 +1047,12 @@ func (p *Pubsub) Close() error {
 
 		// Unsubscribe each shared subscription. Don't drain
 		// individually here; we drain subConn as a whole below.
+		// shared.sub may be nil if a creator is still mid-init at
+		// Close time; the conn drain below tears that case down.
 		for _, ss := range shareds {
-			_ = ss.sub.Unsubscribe()
+			if ss.sub != nil {
+				_ = ss.sub.Unsubscribe()
+			}
 		}
 
 		// Stop every per-listener dispatcher goroutine and wait for
