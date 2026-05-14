@@ -146,7 +146,12 @@ func startNativeCluster(n int, maxPending int64) ([]*natsserver.Server, error) {
 // and subscribeConns are the per-replica Pubsub pool sizes; the bench
 // harness always pins these to benchmarkPublishConns /
 // benchmarkSubscribeConns so cluster runs match standalone runs.
-func startCoderCluster(ctx context.Context, logger slog.Logger, n int, maxPending int64, publishConns, subscribeConns int) ([]*codernats.Pubsub, error) {
+//
+// pendingMsgs sizes Options.PendingLimits.Msgs so the per-listener
+// local inbox can absorb a full expected per-subscriber burst (see
+// benchmarkPendingMsgs). Pass <= 0 to keep the package default (which
+// leaves the local inbox at codernats.defaultListenerQueueSize, 1024).
+func startCoderCluster(ctx context.Context, logger slog.Logger, n int, maxPending int64, publishConns, subscribeConns, pendingMsgs int) ([]*codernats.Pubsub, error) {
 	if n < 1 {
 		return nil, xerrors.Errorf("coder cluster requires n >= 1, got %d", n)
 	}
@@ -192,7 +197,7 @@ func startCoderCluster(ctx context.Context, logger slog.Logger, n int, maxPendin
 			PublishConns:     publishConns,
 			SubscribeConns:   subscribeConns,
 			PendingLimits: codernats.PendingLimits{
-				Msgs:  -1,
+				Msgs:  pendingMsgs,
 				Bytes: -1,
 			},
 		}

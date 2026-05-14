@@ -24,6 +24,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -40,6 +41,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 	codernats "github.com/coder/coder/v2/coderd/x/nats"
 )
 
@@ -86,8 +88,14 @@ type result struct {
 	deliverHot time.Duration // end-to-end window: from publish start to last subscriber reaching its target count
 	published  int64
 	delivered  int64
-	subCount   int // number of subscribers in the run
-	rstats     runtimeStats
+	// drops counts pubsub.ErrDroppedMessages signals observed by
+	// SubscribeWithErr listeners across all subscribers, summed for
+	// the run. Native and loopback modes leave this at zero. Coder
+	// modes populate it even on a successful run so a benchmark
+	// report always shows whether the local listener queue overflowed.
+	drops    int64
+	subCount int // number of subscribers in the run
+	rstats   runtimeStats
 	// symmetric is true for *-cluster-symmetric modes where -msgs is
 	// interpreted per-publisher (not total). It only affects the header
 	// line and delivery-count display, not any timing math.
@@ -507,12 +515,20 @@ func runCoder(inProcess bool, msgs, size, pubs, subs int, subj string, numSubjec
 		return result{}, xerrors.Errorf("plan subjects: %w", err)
 	}
 	subjectNames := buildCoderSubjects(subj, numSubjects)
+	pendingMsgs := benchmarkPendingMsgs(plan)
 	t0 := time.Now()
 	logger := slog.Make() // discard
 	ps, err := codernats.New(context.Background(), logger, codernats.Options{
 		InProcess: inProcess,
+		// Benchmark-only sizing: PendingLimits.Msgs sets BOTH the
+		// per-subscription NATS pending cap and the per-listener
+		// inbox capacity (see codernats.listenerQueueSize). After
+		// same-subject coalescing the default 1024 local inbox is
+		// the first thing to overflow in exact-delivery throughput
+		// runs; size it from the plan so legitimate burst traffic
+		// is absorbed and drops genuinely indicate runtime backpressure.
 		PendingLimits: codernats.PendingLimits{
-			Msgs:  -1,
+			Msgs:  pendingMsgs,
 			Bytes: -1,
 		},
 		PublishConns:   benchmarkPublishConns,
@@ -525,17 +541,27 @@ func runCoder(inProcess bool, msgs, size, pubs, subs int, subj string, numSubjec
 
 	type subState struct {
 		count  atomic.Int64
+		drops  atomic.Int64
 		done   chan struct{}
 		expect int64
 		cancel func()
 	}
 	subStates := make([]*subState, subs)
+	var firstSubErr atomic.Value // error
 	for i := 0; i < subs; i++ {
 		st := &subState{done: make(chan struct{}), expect: plan.ExpectPerSub[i]}
 		if st.expect == 0 {
 			close(st.done)
 		}
-		cancel, serr := ps.Subscribe(subjectNames[plan.SubSubject[i]], func(_ context.Context, _ []byte) {
+		cancel, serr := ps.SubscribeWithErr(subjectNames[plan.SubSubject[i]], func(_ context.Context, _ []byte, cberr error) {
+			if cberr != nil {
+				if errors.Is(cberr, pubsub.ErrDroppedMessages) {
+					st.drops.Add(1)
+					return
+				}
+				firstSubErr.CompareAndSwap(nil, cberr)
+				return
+			}
 			n := st.count.Add(1)
 			if n == st.expect {
 				close(st.done)
@@ -591,13 +617,17 @@ func runCoder(inProcess bool, msgs, size, pubs, subs int, subj string, numSubjec
 		select {
 		case <-st.done:
 		case <-deadline.C:
-			var delivered int64
-			var expected int64
+			var delivered, expected, drops int64
 			for _, s := range subStates {
 				delivered += s.count.Load()
 				expected += s.expect
+				drops += s.drops.Load()
 			}
-			return result{}, xerrors.Errorf("timeout: delivered %d of %d (subs=%d)", delivered, expected, subs)
+			var firstErr error
+			if v := firstSubErr.Load(); v != nil {
+				firstErr, _ = v.(error)
+			}
+			return result{}, formatBenchTimeoutError(delivered, expected, subs, drops, firstErr)
 		}
 	}
 	subDone := time.Now()
@@ -608,10 +638,16 @@ func runCoder(inProcess bool, msgs, size, pubs, subs int, subj string, numSubjec
 	}
 	rs := hotEnd(memBefore)
 
-	var delivered int64
+	var delivered, drops int64
 	for _, st := range subStates {
 		delivered += st.count.Load()
+		drops += st.drops.Load()
 		st.cancel()
+	}
+	if v := firstSubErr.Load(); v != nil {
+		if ferr, _ := v.(error); ferr != nil {
+			return result{}, xerrors.Errorf("subscriber error: %w", ferr)
+		}
 	}
 	return result{
 		setup:      setup,
@@ -619,6 +655,7 @@ func runCoder(inProcess bool, msgs, size, pubs, subs int, subj string, numSubjec
 		deliverHot: deliverHot,
 		published:  plan.TotalPublished,
 		delivered:  delivered,
+		drops:      drops,
 		subCount:   subs,
 		rstats:     rs,
 	}, nil
@@ -653,6 +690,12 @@ func printResult(mode string, r result, msgs, size, pubs, subs, subjects int) {
 			perSub = totalPub / subjects
 		}
 		_, _ = fmt.Printf("total msgs delivered: %d (%d subs, ~%d msgs/sub)\n", r.delivered, r.subCount, perSub)
+		// Always print drop-signal accounting (zero or nonzero) for
+		// modes that exercise SubscribeWithErr so users can confirm
+		// at a glance that the run was not silently shedding messages
+		// to a bounded local listener queue. Native/loopback modes
+		// leave drops at zero.
+		_, _ = fmt.Printf("drop signals: %d\n", r.drops)
 	}
 	pubSecs := r.pubHot.Seconds()
 	delSecs := r.deliverHot.Seconds()
@@ -878,9 +921,10 @@ func runCoderCluster(msgs, size, pubs, subs int, subj string, numSubjects int, t
 		return result{}, xerrors.Errorf("plan subjects: %w", err)
 	}
 	subjectNames := buildCoderSubjects(subj, numSubjects)
+	pendingMsgs := benchmarkPendingMsgs(plan)
 	t0 := time.Now()
 	logger := slog.Make() // discard
-	pubsubs, err := startCoderCluster(context.Background(), logger, replicas, 0, benchmarkPublishConns, benchmarkSubscribeConns)
+	pubsubs, err := startCoderCluster(context.Background(), logger, replicas, 0, benchmarkPublishConns, benchmarkSubscribeConns, pendingMsgs)
 	if err != nil {
 		return result{}, xerrors.Errorf("start coder cluster: %w", err)
 	}
@@ -900,17 +944,27 @@ func runCoderCluster(msgs, size, pubs, subs int, subj string, numSubjects int, t
 
 	type subState struct {
 		count  atomic.Int64
+		drops  atomic.Int64
 		done   chan struct{}
 		expect int64
 		cancel func()
 	}
 	subStates := make([]*subState, subs)
+	var firstSubErr atomic.Value // error
 	for i := 0; i < subs; i++ {
 		st := &subState{done: make(chan struct{}), expect: plan.ExpectPerSub[i]}
 		if st.expect == 0 {
 			close(st.done)
 		}
-		cancel, serr := subPSAt(i).Subscribe(subjectNames[plan.SubSubject[i]], func(_ context.Context, _ []byte) {
+		cancel, serr := subPSAt(i).SubscribeWithErr(subjectNames[plan.SubSubject[i]], func(_ context.Context, _ []byte, cberr error) {
+			if cberr != nil {
+				if errors.Is(cberr, pubsub.ErrDroppedMessages) {
+					st.drops.Add(1)
+					return
+				}
+				firstSubErr.CompareAndSwap(nil, cberr)
+				return
+			}
 			n := st.count.Add(1)
 			if n == st.expect {
 				close(st.done)
@@ -966,13 +1020,17 @@ func runCoderCluster(msgs, size, pubs, subs int, subj string, numSubjects int, t
 		select {
 		case <-st.done:
 		case <-deadline.C:
-			var delivered int64
-			var expected int64
+			var delivered, expected, drops int64
 			for _, s := range subStates {
 				delivered += s.count.Load()
 				expected += s.expect
+				drops += s.drops.Load()
 			}
-			return result{}, xerrors.Errorf("timeout: delivered %d of %d (subs=%d)", delivered, expected, subs)
+			var firstErr error
+			if v := firstSubErr.Load(); v != nil {
+				firstErr, _ = v.(error)
+			}
+			return result{}, formatBenchTimeoutError(delivered, expected, subs, drops, firstErr)
 		}
 	}
 	subDone := time.Now()
@@ -983,10 +1041,16 @@ func runCoderCluster(msgs, size, pubs, subs int, subj string, numSubjects int, t
 	}
 	rs := hotEnd(memBefore)
 
-	var delivered int64
+	var delivered, drops int64
 	for _, st := range subStates {
 		delivered += st.count.Load()
+		drops += st.drops.Load()
 		st.cancel()
+	}
+	if v := firstSubErr.Load(); v != nil {
+		if ferr, _ := v.(error); ferr != nil {
+			return result{}, xerrors.Errorf("subscriber error: %w", ferr)
+		}
 	}
 	return result{
 		setup:      setup,
@@ -994,6 +1058,7 @@ func runCoderCluster(msgs, size, pubs, subs int, subj string, numSubjects int, t
 		deliverHot: deliverHot,
 		published:  plan.TotalPublished,
 		delivered:  delivered,
+		drops:      drops,
 		subCount:   subs,
 		rstats:     rs,
 	}, nil
@@ -1180,9 +1245,10 @@ func runCoderClusterSymmetric(msgs, size, pubs, subs int, subj string, numSubjec
 		return result{}, xerrors.Errorf("plan subjects: %w", err)
 	}
 	subjectNames := buildCoderSubjects(subj, numSubjects)
+	pendingMsgs := benchmarkPendingMsgs(plan)
 	t0 := time.Now()
 	logger := slog.Make() // discard
-	pubsubs, err := startCoderCluster(context.Background(), logger, replicas, symMaxPending, benchmarkPublishConns, benchmarkSubscribeConns)
+	pubsubs, err := startCoderCluster(context.Background(), logger, replicas, symMaxPending, benchmarkPublishConns, benchmarkSubscribeConns, pendingMsgs)
 	if err != nil {
 		return result{}, xerrors.Errorf("start coder cluster: %w", err)
 	}
@@ -1198,17 +1264,27 @@ func runCoderClusterSymmetric(msgs, size, pubs, subs int, subj string, numSubjec
 
 	type subState struct {
 		count  atomic.Int64
+		drops  atomic.Int64
 		done   chan struct{}
 		expect int64
 		cancel func()
 	}
 	subStates := make([]*subState, subs)
+	var firstSubErr atomic.Value // error
 	for i := 0; i < subs; i++ {
 		st := &subState{done: make(chan struct{}), expect: plan.ExpectPerSub[i]}
 		if st.expect == 0 {
 			close(st.done)
 		}
-		cancel, serr := replicaAt(i).Subscribe(subjectNames[plan.SubSubject[i]], func(_ context.Context, _ []byte) {
+		cancel, serr := replicaAt(i).SubscribeWithErr(subjectNames[plan.SubSubject[i]], func(_ context.Context, _ []byte, cberr error) {
+			if cberr != nil {
+				if errors.Is(cberr, pubsub.ErrDroppedMessages) {
+					st.drops.Add(1)
+					return
+				}
+				firstSubErr.CompareAndSwap(nil, cberr)
+				return
+			}
 			n := st.count.Add(1)
 			if n == st.expect {
 				close(st.done)
@@ -1267,13 +1343,17 @@ func runCoderClusterSymmetric(msgs, size, pubs, subs int, subj string, numSubjec
 		select {
 		case <-st.done:
 		case <-deadline.C:
-			var delivered int64
-			var expected int64
+			var delivered, expected, drops int64
 			for _, s := range subStates {
 				delivered += s.count.Load()
 				expected += s.expect
+				drops += s.drops.Load()
 			}
-			return result{}, xerrors.Errorf("timeout: delivered %d of %d (subs=%d)", delivered, expected, subs)
+			var firstErr error
+			if v := firstSubErr.Load(); v != nil {
+				firstErr, _ = v.(error)
+			}
+			return result{}, formatBenchTimeoutError(delivered, expected, subs, drops, firstErr)
 		}
 	}
 	subDone := time.Now()
@@ -1284,10 +1364,16 @@ func runCoderClusterSymmetric(msgs, size, pubs, subs int, subj string, numSubjec
 	}
 	rs := hotEnd(memBefore)
 
-	var delivered int64
+	var delivered, drops int64
 	for _, st := range subStates {
 		delivered += st.count.Load()
+		drops += st.drops.Load()
 		st.cancel()
+	}
+	if v := firstSubErr.Load(); v != nil {
+		if ferr, _ := v.(error); ferr != nil {
+			return result{}, xerrors.Errorf("subscriber error: %w", ferr)
+		}
 	}
 	return result{
 		setup:      setup,
@@ -1295,6 +1381,7 @@ func runCoderClusterSymmetric(msgs, size, pubs, subs int, subj string, numSubjec
 		deliverHot: deliverHot,
 		published:  plan.TotalPublished,
 		delivered:  delivered,
+		drops:      drops,
 		subCount:   subs,
 		rstats:     rs,
 		symmetric:  true,
