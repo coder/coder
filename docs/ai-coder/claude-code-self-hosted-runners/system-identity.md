@@ -160,7 +160,10 @@ RUN git config --system user.name  "Claude" \
  && git config --system user.email "noreply@anthropic.com" \
  && git config --system --add safe.directory '*'
 
-# Pin and install the self-hosted runner binary.
+# Pin and install the self-hosted runner binary. The per-session
+# wrapper (which forces --permission-mode bypassPermissions) is
+# written at agent start by the claude-self-hosted-runner module, not
+# baked into the image.
 RUN set -eux; \
     install -d /opt/claude; \
     curl -fsSL \
@@ -168,19 +171,6 @@ RUN set -eux; \
       | tar -xz -C /opt/claude --strip-components=1 linux-x64; \
     ln -sf /opt/claude/claude /usr/local/bin/claude; \
     /usr/local/bin/claude --version
-
-# Per-session wrapper script. The runner execs this once per session
-# right before starting Claude Code, appending its server-computed
-# flags. Claude Code's flag parser is last-occurrence-wins, so anything
-# we append after "$@" overrides the server. We force
-# --permission-mode bypassPermissions so the runner never stalls on a
-# tool-approval prompt (sessions have no terminal attached). The
-# runner picks this up via --exec-path in the coder_script below.
-RUN printf '%s\n' \
-    '#!/bin/bash' \
-    'exec /opt/claude/claude "$@" --permission-mode bypassPermissions' \
-    > /opt/claude/wrapper.sh \
-  && chmod 0755 /opt/claude/wrapper.sh
 
 # Repository checkout root used by the self-hosted runner. The runner
 # defaults to `--base-dir /workspace` and will `mkdir` it on the first
@@ -273,11 +263,18 @@ The template defines:
   at build time to mint the per-workspace delete token.
 - A `coder_workspace_preset` with `prebuilds { instances = N }` so Coder
   keeps N warm runners ready for the Anthropic pool to claim.
-- `coder_agent.metadata` blocks that scrape the runner's `/healthz` and
-  `/metrics` and surface the runner state on the workspace page.
+- A reference to the
+  [`coder-labs/claude-self-hosted-runner`](https://github.com/coder/registry/tree/claude-self-hosted-runner/registry/coder-labs/modules/claude-self-hosted-runner)
+  module that drops in the runner script, the per-session wrapper,
+  the agent env, the detached supervisor, and the four
+  `/healthz` + `/metrics` scraping items the workspace page shows.
+  The module is parked on a branch of `coder/registry` and is not
+  yet published; the EAP recipe is still stabilizing.
 
-The Terraform below is a minimal Docker-backed example. Adapt to
-Kubernetes or your existing template by replacing the `docker_*` blocks.
+The Terraform below is a minimal Docker-backed example. The runner
+pieces are infra-agnostic; adapt to Kubernetes or your existing
+template by swapping the `docker_*` blocks for the equivalents in
+your stack.
 
 ```hcl
 terraform {
@@ -389,170 +386,37 @@ resource "coder_agent" "main" {
   dir                     = "/home/coder"
   startup_script_behavior = "non-blocking"
 
-  env = {
-    CLAUDE_POOL_SECRET = var.pool_secret
-    CLAUDE_CAPACITY    = tostring(data.coder_parameter.capacity.value)
-    GIT_BOT_TOKEN      = var.git_bot_token
-    # Per-workspace delete-scoped token (see restapi_object above).
-    # Owned by svc-claude-delete, scope = workspace:delete plus minimal
-    # reads, allow-listed to this workspace's UUID. A leaked copy can
-    # only delete this one workspace; no read of peers, no SSH, no
-    # external-auth, no git creds.
-    CODER_SELF_TOKEN   = local.self_evict_token
-    CODER_WORKSPACE_ID = data.coder_workspace.me.id
-  }
-
-  startup_script = <<-EOT
-    set -euo pipefail
-    mkdir -p "$HOME/.claude"
-
-    # Wire git push credentials for the bot identity. GIT_ASKPASS is a
-    # one-line script that prints the token whenever git needs a password.
-    if [ -n "$${GIT_BOT_TOKEN:-}" ]; then
-      install -d -m 0700 "$HOME/.git-creds"
-      cat > "$HOME/.git-creds/askpass.sh" <<'ASK'
-    #!/bin/sh
-    printf '%s' "$GIT_BOT_TOKEN"
-    ASK
-      chmod 0500 "$HOME/.git-creds/askpass.sh"
-      git config --global core.askPass "$HOME/.git-creds/askpass.sh"
-      git config --global credential.helper ''
-    fi
-  EOT
-
-  metadata {
-    display_name = "Lock status"
-    key          = "0_lock_status"
-    interval     = 10
-    timeout      = 5
-    # The runner exposes `claude_code_self_hosted_runner_locked_account` as
-    # a bare gauge (no labels), so we can only tell locked from unlocked,
-    # not which user the runner is locked to. The locked user is visible
-    # in `claude.ai > Self-hosted runner pools` and in Anthropic's session
-    # log.
-    script       = <<-EOT
-      val=$(curl -fsS http://127.0.0.1:8080/metrics 2>/dev/null \
-        | awk '/^claude_code_self_hosted_runner_locked_account[[:space:]]/ {print $2; exit}')
-      if [ "$val" = "1" ]; then printf 'locked'
-      else printf 'unlocked'; fi
-    EOT
-  }
-
-  metadata {
-    display_name = "Active sessions"
-    key          = "1_active_sessions"
-    interval     = 5
-    timeout      = 5
-    script       = <<-EOT
-      active=$(curl -fsS http://127.0.0.1:8080/healthz 2>/dev/null \
-        | jq -r '.active_sessions // empty')
-      if [ -z "$active" ]; then echo '?'; exit 0; fi
-      printf '%s / %s' "$active" "${CLAUDE_CAPACITY:-1}"
-    EOT
-  }
-
-  metadata {
-    display_name = "Runner ID"
-    key          = "2_runner_id"
-    interval     = 30
-    timeout      = 5
-    script       = <<-EOT
-      curl -fsS http://127.0.0.1:8080/healthz 2>/dev/null \
-        | jq -r '.runner_id // "(starting)"'
-    EOT
-  }
-
-  metadata {
-    display_name = "Last Anthropic poll"
-    key          = "3_last_poll"
-    interval     = 15
-    timeout      = 5
-    script       = <<-EOT
-      age=$(curl -fsS http://127.0.0.1:8080/healthz 2>/dev/null \
-        | jq -r '.last_poll_age_ms // empty')
-      if [ -z "$age" ]; then echo '?'; exit 0; fi
-      if [ "$age" -lt 30000 ]; then printf 'ok (%sms ago)' "$age"
-      else printf 'stale (%ss ago)' $((age/1000)); fi
-    EOT
+  # The four metadata items below come from the module's
+  # `agent_metadata` output. They scrape the runner's local /healthz
+  # and /metrics endpoints and surface lock status, active sessions,
+  # runner ID, and last-poll age on the workspace page.
+  dynamic "metadata" {
+    for_each = module.claude_runner.agent_metadata
+    content {
+      display_name = metadata.value.display_name
+      key          = metadata.value.key
+      interval     = metadata.value.interval
+      timeout      = metadata.value.timeout
+      script       = metadata.value.script
+    }
   }
 }
 
-# coder_script spawns the runner as a detached supervisor and exits
-# within a second. The supervisor runs the runner in the foreground,
-# then POSTs a delete build to self-evict so the prebuild reconciler
-# refills the pool. Detaching is important: if we foregrounded the
-# runner inside coder_script the workspace UI would show '1 script
-# running' for the lifetime of the workspace, since the agent treats
-# a coder_script as 'Running' while its process is alive.
+# The runner module owns the per-session wrapper, the detached
+# supervisor, the supervisor's self-eviction curl call, the agent
+# env, the optional git askpass setup, and the host Docker socket
+# gid fixup. Drop this block into any Coder template alongside a
+# `coder_agent` and a workspace image that has Anthropic's runner
+# binary installed at /usr/local/bin/claude.
+module "claude_runner" {
+  source = "git::https://github.com/coder/registry.git//registry/coder-labs/modules/claude-self-hosted-runner?ref=claude-self-hosted-runner"
 
-resource "coder_script" "claude_runner" {
-  agent_id           = coder_agent.main.id
-  display_name       = "Claude self-hosted runner"
-  run_on_start       = true
-  start_blocks_login = false
-  icon               = "/icon/code.svg"
-
-  script = <<-EOT
-    set -euo pipefail
-
-    if [ -z "$${CLAUDE_POOL_SECRET:-}" ]; then
-      echo "CLAUDE_POOL_SECRET is empty. Re-push the template with --variable pool_secret=..."
-      exit 1
-    fi
-
-    POOL_SECRET_FILE="$HOME/.claude/pool-secret"
-    install -d -m 0700 "$HOME/.claude"
-    rm -f "$POOL_SECRET_FILE"
-    umask 077
-    printf '%s' "$CLAUDE_POOL_SECRET" > "$POOL_SECRET_FILE"
-    chmod 0400 "$POOL_SECRET_FILE"
-
-    # Write the supervisor script. The supervisor runs the runner in the
-    # foreground; on runner exit it self-evicts so the prebuild reconciler
-    # refills the pool. The supervisor uses raw curl to call the
-    # delete-build endpoint; the `coder delete` CLI fetches workspace
-    # resources first, which doesn't work with our scoped token.
-    SUPERVISOR="$HOME/.claude/supervisor.sh"
-    cat > "$SUPERVISOR" <<SUP
-    #!/usr/bin/env bash
-    set -uo pipefail
-    exec >>"$HOME/.claude/supervisor.log" 2>&1
-    echo "[supervisor] start \$(date -Is)"
-
-    /usr/local/bin/claude self-hosted-runner \
-      --pool-secret-file "$POOL_SECRET_FILE" \
-      --capacity        "$${CLAUDE_CAPACITY:-1}" \
-      --log-file        "$HOME/.claude/runner.log" \
-      --exec-path       /opt/claude/wrapper.sh
-    echo "[supervisor] runner exited rc=\$? \$(date -Is)"
-
-    if [ -z "$${CODER_SELF_TOKEN:-}" ]; then
-      echo "[supervisor] CODER_SELF_TOKEN is empty; skipping self-eviction."
-      exit 0
-    fi
-    http_code=\$(curl -s -o /tmp/evict.out -w "%%{http_code}" \
-      -X POST \
-      -H "Coder-Session-Token: \$CODER_SELF_TOKEN" \
-      -H "Content-Type: application/json" \
-      -d '{"transition":"delete"}' \
-      "\$CODER_AGENT_URL/api/v2/workspaces/\$CODER_WORKSPACE_ID/builds")
-    if [ "\$http_code" = "201" ]; then
-      echo "[supervisor] self-eviction queued (HTTP 201)."
-    else
-      echo "[supervisor] self-eviction failed (HTTP \$http_code): \$(head -c 300 /tmp/evict.out)"
-    fi
-    SUP
-    chmod 0700 "$SUPERVISOR"
-
-    # Detach with setsid + nohup so the supervisor survives this script
-    # exiting and ignores SIGHUP. The supervisor reopens stdout/stderr
-    # to a logfile via 'exec >>...' above; we point its standard fds at
-    # /dev/null here.
-    setsid nohup "$SUPERVISOR" </dev/null >/dev/null 2>&1 &
-    disown
-
-    echo "Runner spawned as detached supervisor. See ~/.claude/supervisor.log."
-  EOT
+  agent_id         = coder_agent.main.id
+  workspace_id     = data.coder_workspace.me.id
+  pool_secret      = var.pool_secret
+  self_evict_token = local.self_evict_token
+  git_bot_token    = var.git_bot_token
+  capacity         = tonumber(data.coder_parameter.capacity.value)
 }
 
 # === Docker resources ===
@@ -591,9 +455,10 @@ resource "docker_container" "workspace" {
 >
 > - `startup_script_behavior = "non-blocking"` on the agent: lets
 >   the agent flip to "ready" without waiting on `startup_script`.
-> - **Detached supervisor** in `coder_script`: the script writes a
->   `supervisor.sh`, launches it with `setsid nohup ... &`, and exits.
->   The supervisor (re-parented to PID 1) runs the runner in the
+> - **Detached supervisor** inside the module's `coder_script`: the
+>   module writes a `supervisor.sh` to `$HOME/.claude/`, launches it
+>   with `setsid nohup ... &`, and the wrapping script exits. The
+>   supervisor (re-parented to PID 1) runs the runner in the
 >   foreground for the workspace's life, then POSTs a delete build via
 >   the per-workspace scoped token when the runner drains. Without
 >   this detach the agent treats `coder_script` as "Running" the
