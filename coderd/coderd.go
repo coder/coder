@@ -1711,6 +1711,7 @@ func New(options *Options) *API {
 						r.Route("/secrets", func(r chi.Router) {
 							r.Post("/", api.postUserSecret)
 							r.Get("/", api.getUserSecrets)
+							r.Get("/-/watch", api.watchUserSecrets)
 							r.Route("/{name}", func(r chi.Router) {
 								r.Get("/", api.getUserSecret)
 								r.Patch("/", api.patchUserSecret)
