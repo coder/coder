@@ -253,12 +253,16 @@ func (r stepResult) toResponseMessages() []fantasy.Message {
 			})
 		case fantasy.ContentTypeReasoning:
 			reasoning, ok := fantasy.AsContentType[fantasy.ReasoningContent](c)
-			if !ok || strings.TrimSpace(reasoning.Text) == "" {
+			if !ok {
+				continue
+			}
+			opts := fantasy.ProviderOptions(reasoning.ProviderMetadata)
+			if strings.TrimSpace(reasoning.Text) == "" && !chatprompt.HasAnthropicSignedReasoningOptions(opts) {
 				continue
 			}
 			assistantParts = append(assistantParts, fantasy.ReasoningPart{
 				Text:            reasoning.Text,
-				ProviderOptions: fantasy.ProviderOptions(reasoning.ProviderMetadata),
+				ProviderOptions: opts,
 			})
 		case fantasy.ContentTypeToolCall:
 			toolCall, ok := fantasy.AsContentType[fantasy.ToolCallContent](c)
@@ -418,9 +422,13 @@ func Run(ctx context.Context, opts RunOptions) error {
 				}
 			}
 			var prepared []fantasy.Message
-			messages, prepared = prepareMessagesForRequest(
+			var prepareErr error
+			messages, prepared, prepareErr = prepareMessagesForRequest(
 				ctx, opts, messages, provider, modelName, step, totalSteps,
 			)
+			if prepareErr != nil {
+				return xerrors.Errorf("prepare prompt: %w", prepareErr)
+			}
 			opts.Metrics.MessageCount.WithLabelValues(provider, modelName).Observe(float64(len(prepared)))
 			opts.Metrics.PromptSizeBytes.WithLabelValues(provider, modelName).Observe(float64(EstimatePromptSize(prepared)))
 
@@ -437,8 +445,12 @@ func Run(ctx context.Context, opts RunOptions) error {
 			}
 
 			var result stepResult
+			var retryPrepareErr error
 			stepCtx := chatdebug.ReuseStep(ctx)
 			err := chatretry.Retry(stepCtx, func(retryCtx context.Context) error {
+				if retryPrepareErr != nil {
+					return retryPrepareErr
+				}
 				attempt, streamErr := guardedStream(
 					retryCtx,
 					provider,
@@ -497,9 +509,13 @@ func Run(ctx context.Context, opts RunOptions) error {
 							// Reloaded history replaces the prompt prepared before
 							// the failed attempt, so run the same preparation
 							// pipeline used by normal provider requests.
-							messages, call.Prompt = prepareMessagesForRequest(
+							var prepareErr error
+							messages, call.Prompt, prepareErr = prepareMessagesForRequest(
 								ctx, opts, reloaded, provider, modelName, step, totalSteps,
 							)
+							if prepareErr != nil {
+								retryPrepareErr = prepareErr
+							}
 						}
 					}
 				}
@@ -692,8 +708,8 @@ func Run(ctx context.Context, opts RunOptions) error {
 
 // prepareMessagesForRequest applies the prompt preparation pipeline used
 // immediately before sending messages to a provider. It returns the
-// possibly updated canonical messages and an independent provider-ready
-// prompt.
+// possibly updated canonical messages, an independent provider-ready
+// prompt, and any terminal prompt-preparation error.
 func prepareMessagesForRequest(
 	ctx context.Context,
 	opts RunOptions,
@@ -702,7 +718,7 @@ func prepareMessagesForRequest(
 	modelName string,
 	step int,
 	totalSteps int,
-) (canonical []fantasy.Message, prompt []fantasy.Message) {
+) (canonical []fantasy.Message, prompt []fantasy.Message, err error) {
 	canonical = messages
 	if opts.PrepareMessages != nil {
 		if updated := opts.PrepareMessages(canonical); updated != nil {
@@ -718,13 +734,26 @@ func prepareMessagesForRequest(
 		slog.F("step_index", step),
 		slog.F("total_steps", totalSteps),
 	)
-	prompt = chatsanitize.ApplyAnthropicProviderToolGuard(
+	prompt, err = chatsanitize.ApplyAnthropicProviderToolGuard(
 		ctx, opts.Logger, provider, modelName, prompt,
 	)
+	if err != nil {
+		err = chaterror.WithClassification(
+			xerrors.Errorf("apply anthropic provider tool guard: %w", err),
+			chaterror.ClassifiedError{
+				Message:   "The chat continuation failed due to an internal state mismatch. This is not a configuration or billing issue.",
+				Detail:    "Anthropic replay diagnostic: match=provider_tool_guard_postcondition_failed.",
+				Kind:      codersdk.ChatErrorKindGeneric,
+				Provider:  provider,
+				Retryable: false,
+			},
+		)
+		return canonical, prompt, err
+	}
 	if shouldApplyAnthropicPromptCaching(opts.Model) {
 		addAnthropicPromptCaching(prompt)
 	}
-	return canonical, prompt
+	return canonical, prompt, nil
 }
 
 // guardedAttempt owns an attempt-scoped context and startup guard
@@ -881,14 +910,16 @@ func processStepStream(
 		case fantasy.StreamPartTypeReasoningDelta:
 			if active, exists := activeReasoningContent[part.ID]; exists {
 				active.text += part.Delta
-				active.options = part.ProviderMetadata
+				if len(part.ProviderMetadata) > 0 {
+					active.options = part.ProviderMetadata
+				}
 				activeReasoningContent[part.ID] = active
 			}
 			publishMessagePart(codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageReasoning(part.Delta))
 
 		case fantasy.StreamPartTypeReasoningEnd:
 			if active, exists := activeReasoningContent[part.ID]; exists {
-				if part.ProviderMetadata != nil {
+				if len(part.ProviderMetadata) > 0 {
 					active.options = part.ProviderMetadata
 				}
 				content := fantasy.ReasoningContent{
@@ -1564,12 +1595,13 @@ func flushActiveState(
 
 	// Flush partial reasoning content.
 	for _, rs := range activeReasoning {
-		if rs.text != "" {
-			result.content = append(result.content, fantasy.ReasoningContent{
-				Text:             rs.text,
-				ProviderMetadata: rs.options,
-			})
+		if rs.text == "" && !chatprompt.HasAnthropicSignedReasoningOptions(fantasy.ProviderOptions(rs.options)) {
+			continue
 		}
+		result.content = append(result.content, fantasy.ReasoningContent{
+			Text:             rs.text,
+			ProviderMetadata: rs.options,
+		})
 	}
 
 	// Flush in-progress tool calls. These haven't received a
@@ -1599,8 +1631,8 @@ func flushActiveState(
 }
 
 // persistInterruptedStep saves durable content from a partial stream.
-// Provider-executed calls without results are removed because their
-// result metadata cannot be synthesized safely.
+// Provider-executed calls without results are removed when that can be
+// done without mutating signed Anthropic replay state.
 func persistInterruptedStep(
 	ctx context.Context,
 	opts RunOptions,

@@ -7,6 +7,7 @@ import (
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 )
@@ -45,6 +46,13 @@ type AnthropicProviderToolHistoryViolation struct {
 	ID           string
 	Reason       string
 }
+
+// ErrAnthropicProviderToolPromptUnsafe reports that the pre-request
+// guard could not repair provider-executed tool history into a prompt
+// shape Anthropic will accept.
+var ErrAnthropicProviderToolPromptUnsafe = xerrors.New(
+	"anthropic prompt still contains invalid provider-executed tool history after guard",
+)
 
 // LogAnthropicProviderToolSanitization logs prompt changes made while
 // removing invalid Anthropic provider-executed tool history.
@@ -243,7 +251,12 @@ func SanitizeAnthropicProviderToolHistory(
 	for {
 		// Each pass shrinks the finite part set, so the loop terminates.
 		analysis := analyzeAnthropicProviderToolHistory(current)
-		if len(analysis.remove) == 0 {
+		remove := analysis.remove
+		immutableIndex := latestAssistantMessageIndexWithSignedReasoning(current)
+		if immutableIndex >= 0 {
+			remove = removeAnthropicProviderToolPartsForMessage(remove, immutableIndex)
+		}
+		if len(remove) == 0 {
 			if !changed {
 				return messages, stats
 			}
@@ -259,7 +272,7 @@ func SanitizeAnthropicProviderToolHistory(
 					messageIndex: messageIndex,
 					partIndex:    partIndex,
 				}
-				if _, remove := analysis.remove[key]; remove {
+				if _, remove := remove[key]; remove {
 					countRemovedAnthropicProviderToolPart(&stats, part)
 					if textPart, ok := AnthropicProviderToolResultTextPart(part); ok {
 						parts = append(parts, textPart)
@@ -277,6 +290,10 @@ func SanitizeAnthropicProviderToolHistory(
 					continue
 				}
 				msg.Content = parts
+			}
+			if messageIndex == immutableIndex {
+				out = appendSanitizedMessagePreservingStructure(out, msg)
+				continue
 			}
 			out = appendSanitizedMessage(out, msg)
 		}
@@ -306,13 +323,17 @@ func SanitizeAnthropicProviderToolStepContent(
 }
 
 // SanitizeAnthropicProviderToolContent removes invalid Anthropic
-// provider-executed tool blocks from streamed content.
+// provider-executed tool blocks from streamed content when doing so does
+// not mutate signed reasoning replay state.
 func SanitizeAnthropicProviderToolContent(
 	provider string,
 	content []fantasy.Content,
 ) ([]fantasy.Content, AnthropicProviderToolSanitizationStats) {
 	var stats AnthropicProviderToolSanitizationStats
 	if provider != fantasyanthropic.Name || len(content) == 0 {
+		return content, stats
+	}
+	if contentHasAnthropicSignedReasoning(content) {
 		return content, stats
 	}
 
@@ -414,6 +435,22 @@ func SanitizeAnthropicProviderToolContent(
 	return out, stats
 }
 
+func contentHasAnthropicSignedReasoning(content []fantasy.Content) bool {
+	for _, block := range content {
+		reasoning, ok := fantasy.AsContentType[fantasy.ReasoningContent](block)
+		if !ok {
+			continue
+		}
+		metadata := fantasyanthropic.GetReasoningMetadata(
+			fantasy.ProviderOptions(reasoning.ProviderMetadata),
+		)
+		if metadata != nil && (metadata.Signature != "" || metadata.RedactedData != "") {
+			return true
+		}
+	}
+	return false
+}
+
 // IsAnthropicProviderExecutedToolCall reports whether toolCall is an
 // Anthropic provider-executed tool call.
 func IsAnthropicProviderExecutedToolCall(
@@ -424,21 +461,22 @@ func IsAnthropicProviderExecutedToolCall(
 }
 
 // ApplyAnthropicProviderToolGuard fail-closes unsafe Anthropic provider-tool
-// history immediately before a provider request is issued.
+// history immediately before a provider request is issued. It returns an
+// error when the prompt still cannot be repaired safely.
 func ApplyAnthropicProviderToolGuard(
 	ctx context.Context,
 	logger slog.Logger,
 	provider string,
 	modelName string,
 	messages []fantasy.Message,
-) []fantasy.Message {
+) ([]fantasy.Message, error) {
 	if provider != fantasyanthropic.Name || len(messages) == 0 {
-		return messages
+		return messages, nil
 	}
 
 	violations := ValidateAnthropicProviderToolHistory(messages)
 	if len(violations) == 0 {
-		return messages
+		return messages, nil
 	}
 	affectedMessages := messageIndexesFromAnthropicProviderToolViolations(
 		violations,
@@ -454,7 +492,7 @@ func ApplyAnthropicProviderToolGuard(
 		len(violations),
 	)
 	if isSafeAnthropicProviderToolPrompt(guarded) {
-		return guarded
+		return guarded, nil
 	}
 
 	fallbackViolations := ValidateAnthropicProviderToolHistory(guarded)
@@ -470,7 +508,7 @@ func ApplyAnthropicProviderToolGuard(
 		slog.F("fallback", true),
 	)
 	if isSafeAnthropicProviderToolPrompt(guarded) {
-		return guarded
+		return guarded, nil
 	}
 
 	// The guard sanitizer should normally remove every typed provider block it
@@ -505,16 +543,6 @@ func ApplyAnthropicProviderToolGuard(
 			guarded,
 		)
 		stripStats = addAnthropicProviderToolSanitizationStats(stripStats, sanitizeStats)
-		if !isSafeAnthropicProviderToolPrompt(guarded) {
-			logger.Error(
-				ctx,
-				"anthropic provider tool guard postcondition failed: prompt still unsafe after nuclear strip",
-				slog.F("phase", "pre_request_guard_postcondition_failed"),
-				slog.F("tool_type", "provider_executed"),
-				slog.F("provider", provider),
-				slog.F("model", modelName),
-			)
-		}
 	}
 
 	details, truncated := anthropicProviderToolViolationLogDetails(
@@ -531,12 +559,111 @@ func ApplyAnthropicProviderToolGuard(
 		slog.F("validation_violation_details", details),
 		slog.F("truncated_violations", truncated),
 	)
-	return guarded
+
+	finalViolations := ValidateAnthropicProviderToolHistory(guarded)
+	if len(finalViolations) == 0 {
+		return guarded, nil
+	}
+
+	immutableLatestSignedAssistant := false
+	if immutableIndex := latestAssistantMessageIndexWithSignedReasoning(guarded); immutableIndex >= 0 {
+		for _, violation := range finalViolations {
+			if violation.MessageIndex == immutableIndex {
+				immutableLatestSignedAssistant = true
+				break
+			}
+		}
+	}
+	finalDetails, finalTruncated := anthropicProviderToolViolationLogDetails(
+		finalViolations,
+	)
+	logger.Error(
+		ctx,
+		"anthropic provider tool guard postcondition failed: prompt still unsafe after nuclear strip",
+		slog.F("phase", "pre_request_guard_postcondition_failed"),
+		slog.F("tool_type", "provider_executed"),
+		slog.F("provider", provider),
+		slog.F("model", modelName),
+		slog.F("validation_violations", len(finalViolations)),
+		slog.F("validation_violation_details", finalDetails),
+		slog.F("truncated_violations", finalTruncated),
+		slog.F(
+			"immutable_latest_signed_assistant",
+			immutableLatestSignedAssistant,
+		),
+	)
+	return guarded, ErrAnthropicProviderToolPromptUnsafe
 }
 
 type anthropicProviderToolPartKey struct {
 	messageIndex int
 	partIndex    int
+}
+
+func removeAnthropicProviderToolPartsForMessage(
+	remove map[anthropicProviderToolPartKey]struct{},
+	messageIndex int,
+) map[anthropicProviderToolPartKey]struct{} {
+	if len(remove) == 0 {
+		return remove
+	}
+	filtered := make(map[anthropicProviderToolPartKey]struct{}, len(remove))
+	for key := range remove {
+		if key.messageIndex == messageIndex {
+			continue
+		}
+		filtered[key] = struct{}{}
+	}
+	return filtered
+}
+
+func latestAssistantMessageIndexWithSignedReasoning(messages []fantasy.Message) int {
+	for i := len(messages) - 1; i >= 0; i-- {
+		if messages[i].Role != fantasy.MessageRoleAssistant {
+			continue
+		}
+		if messageHasAnthropicSignedReasoning(messages[i]) {
+			return i
+		}
+	}
+	return -1
+}
+
+func messageHasAnthropicSignedReasoning(message fantasy.Message) bool {
+	for _, part := range message.Content {
+		reasoning, ok := fantasy.AsMessagePart[fantasy.ReasoningPart](part)
+		if !ok {
+			continue
+		}
+		metadata := fantasyanthropic.GetReasoningMetadata(reasoning.ProviderOptions)
+		if metadata != nil && (metadata.Signature != "" || metadata.RedactedData != "") {
+			return true
+		}
+	}
+	return false
+}
+
+func removeImmutableSignedReasoningMessages(
+	messages []fantasy.Message,
+	affected map[int]struct{},
+) map[int]struct{} {
+	if len(affected) == 0 {
+		return affected
+	}
+	immutableIndex := latestAssistantMessageIndexWithSignedReasoning(messages)
+	if immutableIndex < 0 {
+		return affected
+	}
+	if _, ok := affected[immutableIndex]; !ok {
+		return affected
+	}
+	filtered := make(map[int]struct{}, len(affected))
+	for index := range affected {
+		if index != immutableIndex {
+			filtered[index] = struct{}{}
+		}
+	}
+	return filtered
 }
 
 type anthropicProviderToolHistoryAnalysis struct {
@@ -842,6 +969,10 @@ func sanitizeAnthropicProviderToolGuardMessages(
 	validationViolations int,
 	extraFields ...slog.Field,
 ) []fantasy.Message {
+	affectedMessages = removeImmutableSignedReasoningMessages(messages, affectedMessages)
+	if len(affectedMessages) == 0 {
+		return messages
+	}
 	guardPrompt := invalidateProviderExecutedToolCallsInMessages(messages, affectedMessages)
 	// Marking affected provider calls invalid lets the sanitizer remove the
 	// unsafe history while preserving result payloads as plain text.
@@ -902,6 +1033,8 @@ func stripAnthropicProviderToolHistoryFromMessages(
 	affectedMessages map[int]struct{},
 ) ([]fantasy.Message, AnthropicProviderToolSanitizationStats) {
 	var stats AnthropicProviderToolSanitizationStats
+	immutableIndex := latestAssistantMessageIndexWithSignedReasoning(messages)
+	affectedMessages = removeImmutableSignedReasoningMessages(messages, affectedMessages)
 	if len(affectedMessages) == 0 {
 		return messages, stats
 	}
@@ -909,6 +1042,10 @@ func stripAnthropicProviderToolHistoryFromMessages(
 	out := make([]fantasy.Message, 0, len(messages))
 	for messageIndex, message := range messages {
 		if _, affected := affectedMessages[messageIndex]; !affected {
+			if messageIndex == immutableIndex {
+				out = appendSanitizedMessagePreservingStructure(out, message)
+				continue
+			}
 			out = appendSanitizedMessage(out, message)
 			continue
 		}
@@ -933,6 +1070,10 @@ func stripAnthropicProviderToolHistoryFromMessages(
 			continue
 		}
 		message.Content = parts
+		if messageIndex == immutableIndex {
+			out = appendSanitizedMessagePreservingStructure(out, message)
+			continue
+		}
 		out = appendSanitizedMessage(out, message)
 	}
 	return out, stats
@@ -952,6 +1093,10 @@ func appendSanitizedMessage(out []fantasy.Message, msg fantasy.Message) []fantas
 	last.Content = content
 	last.ProviderOptions = nil
 	return out
+}
+
+func appendSanitizedMessagePreservingStructure(out []fantasy.Message, msg fantasy.Message) []fantasy.Message {
+	return append(out, msg)
 }
 
 func applyMessageProviderOptionsToLastPart(
