@@ -354,7 +354,7 @@ const bedrockThinkingDefaultEffortRatio = 0.8 // matches "high"
 // "enabled" with a calculated budget_tokens. Needed for Bedrock models that
 // do not support the "adaptive" thinking.type.
 //
-// This direction has to invent a number — "enabled" requires budget_tokens.
+// This direction has to invent a number, since "enabled" requires budget_tokens.
 // We bias the budget by output_config.effort when present, since that's the
 // only signal we have about caller intent.
 func (p RequestPayload) convertAdaptiveThinkingForBedrock() (RequestPayload, error) {
