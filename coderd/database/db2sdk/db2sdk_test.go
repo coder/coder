@@ -991,7 +991,6 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 	// HasUnread is populated by ChatRowsWithChildren (which joins the
 	// read-cursor query), not by Chat. Warnings is a transient
 	// field populated by handlers, not the converter. Both are
-	// Warnings is a transient field populated by handlers. Both are
 	// expected to remain zero here.
 	skip := map[string]bool{"HasUnread": true, "Warnings": true}
 	for i := range typ.NumField() {
