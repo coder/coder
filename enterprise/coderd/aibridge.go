@@ -771,11 +771,12 @@ func (api *API) deleteGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	group := httpmw.GroupParam(r)
 
-	if _, err := api.Database.DeleteGroupAIBudget(ctx, group.ID); err != nil {
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
+	_, err := api.Database.DeleteGroupAIBudget(ctx, group.ID)
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
 		api.Logger.Error(ctx, "delete group AI budget", slog.Error(err))
 		httpapi.InternalServerError(rw, err)
 		return
