@@ -55,10 +55,10 @@ func TestChatACLSharingLifecycle(t *testing.T) {
 
 	err = client.UpdateChatACL(ctx, chat.ID, codersdk.UpdateChatACL{
 		UserRoles: map[string]codersdk.ChatRole{
-			strings.ToUpper(sharedUser.ID.String()): codersdk.ChatRoleRead,
+			sharedUser.ID.String(): codersdk.ChatRoleRead,
 		},
 		GroupRoles: map[string]codersdk.ChatRole{
-			strings.ToUpper(sharedGroup.ID.String()): codersdk.ChatRoleRead,
+			sharedGroup.ID.String(): codersdk.ChatRoleRead,
 		},
 	})
 	require.NoError(t, err)
@@ -144,7 +144,7 @@ func TestChatACLSharingLifecycle(t *testing.T) {
 
 	err = client.UpdateChatACL(ctx, chat.ID, codersdk.UpdateChatACL{
 		UserRoles: map[string]codersdk.ChatRole{
-			firstUser.UserID.String(): codersdk.ChatRoleRead,
+			strings.ToUpper(firstUser.UserID.String()): codersdk.ChatRoleRead,
 		},
 	})
 	sdkErr := requireSDKError(t, err, http.StatusBadRequest)
@@ -234,8 +234,6 @@ func TestChatACLValidation(t *testing.T) {
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	_ = createChatModelConfig(t, client)
 	chat := createChatForSharing(ctx, t, client, firstUser.OrganizationID, "validation chat")
-	duplicateUserID := uuid.MustParse("aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa")
-	duplicateGroupID := uuid.MustParse("bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb")
 	missingUserID := uuid.New()
 	missingGroupID := uuid.New()
 
@@ -281,19 +279,6 @@ func TestChatACLValidation(t *testing.T) {
 			},
 		},
 		{
-			name: "DuplicateCanonicalUserUUID",
-			req: codersdk.UpdateChatACL{
-				UserRoles: map[string]codersdk.ChatRole{
-					duplicateUserID.String():                  codersdk.ChatRoleRead,
-					strings.ToUpper(duplicateUserID.String()): codersdk.ChatRoleDeleted,
-				},
-			},
-			wantValidation: codersdk.ValidationError{
-				Field:  "user_roles",
-				Detail: "duplicate UUID " + duplicateUserID.String() + " after canonicalization",
-			},
-		},
-		{
 			name: "MissingUser",
 			req: codersdk.UpdateChatACL{
 				UserRoles: map[string]codersdk.ChatRole{
@@ -303,19 +288,6 @@ func TestChatACLValidation(t *testing.T) {
 			wantValidation: codersdk.ValidationError{
 				Field:  "user_roles",
 				Detail: "user with ID " + missingUserID.String() + " does not exist",
-			},
-		},
-		{
-			name: "DuplicateCanonicalGroupUUID",
-			req: codersdk.UpdateChatACL{
-				GroupRoles: map[string]codersdk.ChatRole{
-					duplicateGroupID.String():                  codersdk.ChatRoleRead,
-					strings.ToUpper(duplicateGroupID.String()): codersdk.ChatRoleDeleted,
-				},
-			},
-			wantValidation: codersdk.ValidationError{
-				Field:  "group_roles",
-				Detail: "duplicate UUID " + duplicateGroupID.String() + " after canonicalization",
 			},
 		},
 		{

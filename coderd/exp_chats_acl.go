@@ -42,7 +42,11 @@ func (api *API) getChatACL(rw http.ResponseWriter, r *http.Request) { //nolint:r
 		return
 	}
 	if chat.IsSubChat() {
-		writeChatACLSubChatError(ctx, rw, chat)
+		resp := codersdk.Response{Message: "Chat ACLs can only be set on root chats."}
+		if chat.RootChatID.Valid {
+			resp.Detail = "Target the root chat (id: " + chat.RootChatID.UUID.String() + ") instead."
+		}
+		httpapi.Write(ctx, rw, http.StatusBadRequest, resp)
 		return
 	}
 
@@ -102,7 +106,11 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if chat.IsSubChat() {
-		writeChatACLSubChatError(ctx, rw, chat)
+		resp := codersdk.Response{Message: "Chat ACLs can only be set on root chats."}
+		if chat.RootChatID.Valid {
+			resp.Detail = "Target the root chat (id: " + chat.RootChatID.UUID.String() + ") instead."
+		}
+		httpapi.Write(ctx, rw, http.StatusBadRequest, resp)
 		return
 	}
 	if !api.Authorize(r, policy.ActionShare, chat.RBACObject()) {
@@ -115,28 +123,18 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var validErrs []codersdk.ValidationError
-	req.UserRoles, validErrs = canonicalChatACLKeys(req.UserRoles, "user_roles")
-	var canonicalErrs []codersdk.ValidationError
-	req.GroupRoles, canonicalErrs = canonicalChatACLKeys(req.GroupRoles, "group_roles")
-	validErrs = append(validErrs, canonicalErrs...)
-	if len(validErrs) > 0 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message:     "Invalid request to update chat ACL.",
-			Validations: validErrs,
-		})
-		return
-	}
-
 	apiKey := httpmw.APIKey(r)
-	if _, ok := req.UserRoles[apiKey.UserID.String()]; ok {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Cannot change your own chat sharing role.",
-		})
-		return
+	for userID := range req.UserRoles {
+		parsed, err := uuid.Parse(userID)
+		if err == nil && parsed == apiKey.UserID {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Cannot change your own chat sharing role.",
+			})
+			return
+		}
 	}
 
-	validErrs = acl.Validate(ctx, api.Database, ChatACLUpdateValidator(req))
+	validErrs := acl.Validate(ctx, api.Database, ChatACLUpdateValidator(req))
 	if len(validErrs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid request to update chat ACL.",
@@ -293,19 +291,6 @@ func (api *API) chatSharingDisabled() bool {
 	return rbac.ChatACLDisabled() || (api.DeploymentValues != nil && bool(api.DeploymentValues.DisableChatSharing))
 }
 
-func writeChatACLSubChatError(ctx context.Context, rw http.ResponseWriter, chat database.Chat) {
-	if !chat.IsSubChat() {
-		panic("developer error: writeChatACLSubChatError called on non-sub-chat")
-	}
-	resp := codersdk.Response{
-		Message: "Chat ACLs can only be set on root chats.",
-	}
-	if chat.RootChatID.Valid {
-		resp.Detail = "Target the root chat (id: " + chat.RootChatID.UUID.String() + ") instead."
-	}
-	httpapi.Write(ctx, rw, http.StatusBadRequest, resp)
-}
-
 type ChatACLUpdateValidator codersdk.UpdateChatACL
 
 var _ acl.UpdateValidator[codersdk.ChatRole] = ChatACLUpdateValidator{}
@@ -331,34 +316,4 @@ func convertToChatRole(actions []policy.Action) codersdk.ChatRole {
 	}
 
 	return codersdk.ChatRoleDeleted
-}
-
-// UUIDs can arrive with non-canonical casing from clients. Normalizing
-// keys keeps audit comparisons stable, but collided inputs are ambiguous
-// and must fail validation.
-func canonicalChatACLKeys(entries map[string]codersdk.ChatRole, field string) (map[string]codersdk.ChatRole, []codersdk.ValidationError) {
-	if len(entries) == 0 {
-		return entries, nil
-	}
-	out := make(map[string]codersdk.ChatRole, len(entries))
-	duplicateKeys := make(map[string]struct{})
-	validErrs := make([]codersdk.ValidationError, 0)
-	for id, role := range entries {
-		key := id
-		if parsed, err := uuid.Parse(id); err == nil {
-			key = parsed.String()
-			if _, ok := out[key]; ok {
-				if _, reported := duplicateKeys[key]; !reported {
-					validErrs = append(validErrs, codersdk.ValidationError{
-						Field:  field,
-						Detail: "duplicate UUID " + key + " after canonicalization",
-					})
-					duplicateKeys[key] = struct{}{}
-				}
-				continue
-			}
-		}
-		out[key] = role
-	}
-	return out, validErrs
 }
