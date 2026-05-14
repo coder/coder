@@ -1186,10 +1186,10 @@ func TestMigration000475AgentsAccessOrgRole(t *testing.T) {
 	)
 }
 
-func TestMigration000494SoftDeleteStaleWorkspaceAgents(t *testing.T) {
+func TestMigration000497SoftDeleteStaleWorkspaceAgents(t *testing.T) {
 	t.Parallel()
 
-	const migrationVersion = 494
+	const migrationVersion = 497
 
 	sqlDB := testSQLDB(t)
 
