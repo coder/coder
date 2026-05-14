@@ -39,7 +39,7 @@ restores the per-developer audit trail across the whole stack:
 | Git push                               | Blocked (`remote.origin.pushurl = no_push`)              | Enabled via the user's own credential through Coder external auth          |
 | Git author on commits                  | The bot                                                  | The user                                                                   |
 | Coder audit log                        | Attributes to the bot service account                    | Attributes to the user, with the routing service account shown as on-behalf-of creator |
-| Routing                                | Cursor picks any free worker bound to the requested repo | The worker is born authenticated as the user before sessions arrive        |
+| Routing                                | Label-based: Cursor picks any free worker whose `repo=` label matches the request | The worker is born authenticated as the user before sessions arrive        |
 | Pool size / concurrency                | Fixed per repo: at most `instances` concurrent sessions per repo, every workspace is the bot | Dynamic: one workspace per session, spawned on demand; prebuilds become a warm cache that hides cold-start time |
 | Failure if the user is missing in Coder | Not possible to detect: the workspace runs as the bot regardless | Pre-flight rejects with a friendly error so onboarding can complete first   |
 

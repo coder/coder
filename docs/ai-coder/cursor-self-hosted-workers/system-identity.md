@@ -2,12 +2,13 @@
 
 Publish a Coder template that runs a pool of Cursor private workers
 under a **system (bot) identity**. Coder maintains warm worker
-workspaces per repository; Cursor's scheduler picks one when a session
-arrives. The workspace, the git push credential (which is blocked
-by default), and the worker's Cursor identity are all the same
-service account, fleet-wide.
+workspaces per repository; when a Cursor session for that repo
+arrives, Cursor's label-based routing assigns it to a free worker
+in the matching pool. The workspace, the git push credential (which
+is blocked by default), and the worker's Cursor identity are all the
+same service account, fleet-wide.
 
-<img src="../../images/guides/cursor-self-hosted-workers/system-identity-flow.svg" alt="Coder maintains warm worker workspaces per repository. When a Cursor session arrives, the scheduler picks one and the worker serves the session. When work drains the workspace is deleted and the reconciler queues a replacement." />
+<img src="../../images/guides/cursor-self-hosted-workers/system-identity-flow.svg" alt="Coder maintains warm worker workspaces per repository. When a Cursor session arrives, Cursor's label-based routing matches it to a free worker bound to the requested repo. When work drains the workspace is deleted and the reconciler queues a replacement." />
 
 > [!TIP]
 > The primitives this guide depends on (templates, prebuilds on
@@ -215,8 +216,8 @@ data "coder_parameter" "git_repo_url" {
 }
 
 # One preset per repo. Coder keeps `instances` warm prebuilds per
-# preset. Cursor's scheduler picks any free worker bound to the
-# requested repo.
+# preset. Cursor's label-based routing matches a session to any free
+# worker whose repo= label is the requested repo.
 
 data "coder_workspace_preset" "coder_repo" {
   name = "coder/coder pool"
@@ -436,10 +437,10 @@ tail -f ~/cursor-agent.log
 | Symptom                                      | Cause and fix                                                                                                                                                                                                                                       |
 |----------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Prebuilds never come up                      | Confirm your deployment is on **Coder Premium** (prebuilds is an enterprise feature). Check `coder server` logs for `prebuilds` errors. For OSS, use the [alternative daemon path](#alternative-external-daemon).                                   |
-| Workers appear in Cursor but never get claimed | The `git_repo_url` parameter doesn't match the repo a developer is asking for. Cursor's scheduler only routes a session to a worker whose `worker-dir` is the matching repo. Create a preset per repo.                                            |
+| Workers appear in Cursor but never get claimed | The `git_repo_url` parameter doesn't match the repo a developer is asking for. Cursor's routing only matches a session to a worker whose `repo=` label is the same repo. Create a preset per repo.                                            |
 | `git push` fails with "Permission denied"    | Expected. System identity blocks pushes on purpose. Sessions can read, search, and propose diffs; pull requests are not supported until [User identity](./user-identity.md).                                                                       |
 | Worker process is `stopped` but workspace is healthy | `cursor-agent worker start` exited. Tail `~/cursor-agent.log` for the reason. Common causes: invalid `--worker-dir` (not a git repo), service-account key revoked, network egress to `api.cursor.com` blocked.                                  |
-| Same worker keeps getting claimed             | Cursor's scheduler does round-robin by repo, not by recency. If you have one preset of `instances = 1`, every session for that repo goes to the same workspace until it's busy. Bump `instances` for parallel sessions.                            |
+| Same worker keeps getting claimed             | Cursor's routing matches by label, not by recency. If you have one preset of `instances = 1`, every session for that repo goes to the same workspace until it's busy. Bump `instances` for parallel sessions. The ordering between multiple matching workers isn't documented; don't depend on a specific tie-breaker.                            |
 
 ## Alternative: external daemon
 

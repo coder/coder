@@ -45,9 +45,9 @@ be proposed in a Linear issue, not in this docs branch.
 
 A pool of bot-owned Coder workspaces per repository, each running one
 Cursor private worker, behind either a Coder prebuilds preset or an
-external reconciler daemon. Cursor's scheduler chooses which workspace
-serves which session; Coder's role is to keep N workspaces warm per
-repo and to refill the pool when one drains.
+external reconciler daemon. Cursor's label-based routing chooses which
+workspace serves which session; Coder's role is to keep N workspaces
+warm per repo and to refill the pool when one drains.
 
 **Identity model:** every worker authenticates with the same team
 service-account API key. Git pushes are blocked at startup

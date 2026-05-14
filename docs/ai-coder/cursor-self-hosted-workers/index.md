@@ -50,8 +50,9 @@ reach: internal Git, package registries, databases, build tooling.
 1. A developer starts a Cursor Background Agent session and picks the
    private-worker pool that targets Coder, against a specific
    repository.
-2. The session queues on Cursor's side. Cursor's scheduler picks a
-   free worker that is bound to that repository.
+2. The session queues on Cursor's side. Cursor's label-based routing
+   matches the request to a free worker whose `repo=` label is the
+   requested repository.
 3. The worker pulls the requested branch into its checkout, runs the
    session, and streams events back to Cursor.
 4. The developer sees the session in the Cursor UI exactly as they
@@ -153,9 +154,10 @@ who owns the workspace and whose credentials the worker uses.
 ### System identity (Works Today)
 
 Coder (or an external daemon) maintains N warm bot-owned workspaces
-per repo. Cursor's scheduler picks one when a session arrives and
-routes it there. The workspace, the git credential, and the worker's
-Cursor identity are all the same service account, fleet-wide.
+per repo. When a Cursor session for that repo arrives, Cursor's
+label-based routing matches it to a free worker in the matching pool.
+The workspace, the git credential, and the worker's Cursor identity
+are all the same service account, fleet-wide.
 
 Because there is no per-user identity to attribute commits to, **git
 pushes are deliberately blocked** at startup
