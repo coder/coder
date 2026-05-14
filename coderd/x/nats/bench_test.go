@@ -59,6 +59,17 @@ import (
 var benchType = flag.String("bench.type", "native",
 	"benchmark backend: native (raw nats) or coder (coderd/x/nats.Pubsub wrapper)")
 
+// Benchmark-only Pubsub pool sizes for the Coder backend. We pin
+// these to 3/3 (matching DefaultRoutePoolSize) so every Coder
+// benchmark instance uses the same connection-pool shape and runs
+// are directly comparable. Sweeping pool sizes is intentionally out
+// of scope; if/when we add public CLI flags for these knobs, these
+// constants are the place to swap them out.
+const (
+	benchmarkPublishConns   = 3
+	benchmarkSubscribeConns = 3
+)
+
 // ---------- IEC byte formatter (no external dep) ----------
 
 func iecBytes(n int) string {
@@ -350,8 +361,13 @@ func setupCoder(b *testing.B, topology string, numPubs, numSubs int) *harness {
 	pubsubs := make([]*xnats.Pubsub, numReplicas)
 
 	if numReplicas == 1 {
-		// Cluster-of-1; no peers needed.
-		p, err := xnats.New(ctx, logger, xnats.Options{})
+		// Cluster-of-1; no peers needed. Pin pool sizes to the
+		// benchmark constants so standalone runs use the same
+		// 3/3 shape as cluster runs.
+		p, err := xnats.New(ctx, logger, xnats.Options{
+			PublishConns:   benchmarkPublishConns,
+			SubscribeConns: benchmarkSubscribeConns,
+		})
 		if err != nil {
 			b.Fatalf("coder pubsub New (standalone): %v", err)
 		}
@@ -387,6 +403,8 @@ func setupCoder(b *testing.B, topology string, numPubs, numSubs int) *harness {
 				ClusterAdvertise: net.JoinHostPort("127.0.0.1", strconv.Itoa(ports[i])),
 				PeerProvider:     xnats.StaticPeerProvider(peers),
 				ReadyTimeout:     30 * time.Second,
+				PublishConns:     benchmarkPublishConns,
+				SubscribeConns:   benchmarkSubscribeConns,
 			}
 			p, err := xnats.New(ctx, logger, opts)
 			if err != nil {
@@ -715,12 +733,13 @@ func BenchmarkPubsubUpstream1x1_16KiB(b *testing.B) {
 // canonical NATS performance reference.
 //
 // Key difference: upstream's --clients 4 spawns four independent
-// *nats.Conn per role. In coder mode, all 4 subscribers multiplex
-// onto the wrapper's subscriber pool (a single subscriber conn at
-// default Options.SubscribeConns), so this leaf also doubles as a
-// check that multiplexing on one client conn does not measurably
-// regress against the documented per-conn-per-sub baseline at small
-// N and small payload.
+// *nats.Conn per role. In coder mode, the wrapper pins the
+// subscriber pool to benchmarkSubscribeConns (3) and uses subject
+// hashing, so a single-subject run collapses all 4 subscribers onto
+// one of those 3 conns. This leaf doubles as a check that
+// multiplexing on one client conn does not measurably regress
+// against the documented per-conn-per-sub baseline at small N and
+// small payload.
 //
 // Operator contract matches BenchmarkPubsub: requires -benchtime=Nx.
 func BenchmarkPubsubUpstreamNxM(b *testing.B) {

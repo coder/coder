@@ -142,8 +142,11 @@ func startNativeCluster(n int, maxPending int64) ([]*natsserver.Server, error) {
 // actually proves messages traversed routes.
 // maxPending is the per-client outbound pending byte budget plumbed
 // into each replica's codernats.Options. Pass 0 to use the package
-// default (1 GiB); pass a positive value to override.
-func startCoderCluster(ctx context.Context, logger slog.Logger, n int, maxPending int64) ([]*codernats.Pubsub, error) {
+// default (1 GiB); pass a positive value to override. publishConns
+// and subscribeConns are the per-replica Pubsub pool sizes; the bench
+// harness always pins these to benchmarkPublishConns /
+// benchmarkSubscribeConns so cluster runs match standalone runs.
+func startCoderCluster(ctx context.Context, logger slog.Logger, n int, maxPending int64, publishConns, subscribeConns int) ([]*codernats.Pubsub, error) {
 	if n < 1 {
 		return nil, xerrors.Errorf("coder cluster requires n >= 1, got %d", n)
 	}
@@ -186,6 +189,8 @@ func startCoderCluster(ctx context.Context, logger slog.Logger, n int, maxPendin
 			PeerProvider:     codernats.StaticPeerProvider(peers),
 			ReadyTimeout:     30 * time.Second,
 			MaxPending:       maxPending,
+			PublishConns:     publishConns,
+			SubscribeConns:   subscribeConns,
 			PendingLimits: codernats.PendingLimits{
 				Msgs:  -1,
 				Bytes: -1,
