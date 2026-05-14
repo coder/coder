@@ -9477,6 +9477,28 @@ export interface UserSecret {
 	readonly updated_at: string;
 }
 
+// From codersdk/usersecrets.go
+/**
+ * UserSecretEvent is emitted when a user secret is created, updated, or deleted.
+ * The secret value is never included.
+ */
+export interface UserSecretEvent {
+	readonly kind: UserSecretEventKind;
+	readonly user_id: string;
+	readonly name: string;
+	readonly env_name?: string;
+	readonly file_path?: string;
+}
+
+// From codersdk/usersecrets.go
+export type UserSecretEventKind = "created" | "deleted" | "updated";
+
+export const UserSecretEventKinds: UserSecretEventKind[] = [
+	"created",
+	"deleted",
+	"updated",
+];
+
 // From codersdk/userskills.go
 /**
  * UserSkill represents a user skill with its raw Markdown content.

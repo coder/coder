@@ -76,10 +76,10 @@ type CallbackFn = (ev?: MessageEvent) => void;
 
 // parameters.webSocket accepts two formats:
 //
-//   Array — events are delivered to every socket (backward-compatible):
+//   Array of events delivered to every socket:
 //     webSocket: [{ event: "message", data: "..." }]
 //
-//   Record keyed by URL substring — events are delivered only to
+//   Record keyed by URL substring, events are delivered only to
 //   sockets whose URL contains the key:
 //     webSocket: {
 //       "/api/experimental/chats/": [{ event: "message", data: "..." }],

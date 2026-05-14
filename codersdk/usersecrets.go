@@ -8,6 +8,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/coder/coder/v2/codersdk/wsjson"
+	"github.com/coder/websocket"
 )
 
 // UserSecret represents a user secret's metadata. The secret value
@@ -20,6 +23,28 @@ type UserSecret struct {
 	FilePath    string    `json:"file_path"`
 	CreatedAt   time.Time `json:"created_at" format:"date-time"`
 	UpdatedAt   time.Time `json:"updated_at" format:"date-time"`
+}
+
+// UserSecretEventKind describes the type of user secret change.
+type UserSecretEventKind string
+
+const (
+	// UserSecretEventKindCreated indicates a user secret was created.
+	UserSecretEventKindCreated UserSecretEventKind = "created"
+	// UserSecretEventKindUpdated indicates a user secret was updated.
+	UserSecretEventKindUpdated UserSecretEventKind = "updated"
+	// UserSecretEventKindDeleted indicates a user secret was deleted.
+	UserSecretEventKindDeleted UserSecretEventKind = "deleted"
+)
+
+// UserSecretEvent is emitted when a user secret is created, updated, or deleted.
+// The secret value is never included.
+type UserSecretEvent struct {
+	Kind     UserSecretEventKind `json:"kind"`
+	UserID   uuid.UUID           `json:"user_id" format:"uuid"`
+	Name     string              `json:"name"`
+	EnvName  string              `json:"env_name,omitempty"`
+	FilePath string              `json:"file_path,omitempty"`
 }
 
 // CreateUserSecretRequest is the payload for creating a new user
@@ -68,6 +93,15 @@ func (c *Client) UserSecrets(ctx context.Context, user string) ([]UserSecret, er
 	}
 	var secrets []UserSecret
 	return secrets, json.NewDecoder(res.Body).Decode(&secrets)
+}
+
+// WatchUserSecrets opens a websocket that emits user secret change events.
+func (c *Client) WatchUserSecrets(ctx context.Context, user string) (*wsjson.Stream[UserSecretEvent, struct{}], error) {
+	conn, err := c.Dial(ctx, fmt.Sprintf("/api/v2/users/%s/secrets/-/watch", user), nil)
+	if err != nil {
+		return nil, err
+	}
+	return wsjson.NewStream[UserSecretEvent, struct{}](conn, websocket.MessageText, websocket.MessageText, c.Logger()), nil
 }
 
 func (c *Client) UserSecretByName(ctx context.Context, user string, name string) (UserSecret, error) {

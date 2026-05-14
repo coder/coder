@@ -117,6 +117,47 @@ curl -X POST http://coder-server:8080/api/v2/users/{user}/secrets \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Watch user secret changes
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/users/{user}/secrets/-/watch \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/users/{user}/secrets/-/watch`
+
+### Parameters
+
+| Name   | In   | Type   | Required | Description              |
+|--------|------|--------|----------|--------------------------|
+| `user` | path | string | true     | User ID, username, or me |
+
+### Example responses
+
+> 101 Response
+
+```json
+{
+  "env_name": "string",
+  "file_path": "string",
+  "kind": "created",
+  "name": "string",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                                  | Description         | Schema                                                         |
+|--------|--------------------------------------------------------------------------|---------------------|----------------------------------------------------------------|
+| 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols | [codersdk.UserSecretEvent](schemas.md#codersdkusersecretevent) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get a user secret by name
 
 ### Code samples

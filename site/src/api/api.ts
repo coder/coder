@@ -209,6 +209,14 @@ export function watchInboxNotifications(
 	});
 }
 
+export function watchUserSecrets(
+	userId: string,
+): OneWayWebSocketApi<TypesGen.UserSecretEvent> {
+	return new OneWayWebSocket({
+		apiRoute: `/api/v2/users/${userId}/secrets/-/watch`,
+	});
+}
+
 export const getURLWithSearchParams = (
 	basePath: string,
 	options?: object,

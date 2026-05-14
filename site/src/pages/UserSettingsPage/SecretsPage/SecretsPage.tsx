@@ -1,6 +1,7 @@
-import type { FC } from "react";
+import { type FC, useEffect, useEffectEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
+import { watchUserSecrets } from "#/api/api";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	createUserSecret,
@@ -9,6 +10,7 @@ import {
 	userSecrets,
 } from "#/api/queries/userSecrets";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import { SecretsPageView } from "./SecretsPageView";
 
 const SecretsPage: FC = () => {
@@ -25,6 +27,35 @@ const SecretsPage: FC = () => {
 	const deleteSecretMutation = useMutation(
 		deleteUserSecret(queryClient, me.id),
 	);
+
+	const invalidateSecrets = useEffectEvent(() => {
+		void queryClient.invalidateQueries({
+			queryKey: secretsQueryOptions.queryKey,
+		});
+	});
+
+	useEffect(() => {
+		return createReconnectingWebSocket({
+			connect: () => {
+				const socket = watchUserSecrets(me.id);
+				socket.addEventListener("message", (event) => {
+					if (event.parseError) {
+						toast.error("Unable to process latest secrets update.", {
+							description: "Please try refreshing the browser.",
+						});
+						return;
+					}
+
+					if (event.parsedMessage.user_id !== me.id) {
+						return;
+					}
+					invalidateSecrets();
+				});
+				return socket;
+			},
+			onOpen: () => invalidateSecrets(),
+		});
+	}, [me.id]);
 
 	return (
 		<SecretsPageView

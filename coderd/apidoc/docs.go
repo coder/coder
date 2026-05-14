@@ -10435,6 +10435,40 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/users/{user}/secrets/-/watch": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Secrets"
+                ],
+                "summary": "Watch user secret changes",
+                "operationId": "watch-user-secret-changes",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserSecretEvent"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/users/{user}/secrets/{name}": {
             "get": {
                 "produces": [
@@ -25213,6 +25247,40 @@ const docTemplate = `{
                     "format": "date-time"
                 }
             }
+        },
+        "codersdk.UserSecretEvent": {
+            "type": "object",
+            "properties": {
+                "env_name": {
+                    "type": "string"
+                },
+                "file_path": {
+                    "type": "string"
+                },
+                "kind": {
+                    "$ref": "#/definitions/codersdk.UserSecretEventKind"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
+        "codersdk.UserSecretEventKind": {
+            "type": "string",
+            "enum": [
+                "created",
+                "updated",
+                "deleted"
+            ],
+            "x-enum-varnames": [
+                "UserSecretEventKindCreated",
+                "UserSecretEventKindUpdated",
+                "UserSecretEventKindDeleted"
+            ]
         },
         "codersdk.UserSkill": {
             "type": "object",
