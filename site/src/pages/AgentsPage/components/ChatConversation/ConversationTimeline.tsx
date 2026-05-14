@@ -47,6 +47,10 @@ import {
 import { FileProbeProvider } from "./FileProbeContext";
 import { deriveMessageDisplayState } from "./messageHelpers";
 import { getEditableUserMessagePayload } from "./messageParsing";
+import {
+	type PromptHistoryEntry,
+	PromptHistoryPopover,
+} from "./PromptHistoryPopover";
 import { useSmoothStreamingText } from "./SmoothText";
 import type {
 	MergedTool,
@@ -486,6 +490,7 @@ const ChatMessageItem = memo<{
 	hideActions?: boolean;
 	hasActiveStream?: boolean;
 	isAwaitingFirstStreamChunk?: boolean;
+	promptHistory?: readonly PromptHistoryEntry[];
 
 	// When true, renders a gradient overlay inside the bubble
 	// that fades text out toward the bottom. Used by the sticky
@@ -513,6 +518,7 @@ const ChatMessageItem = memo<{
 		hasActiveStream = false,
 		isAwaitingFirstStreamChunk = false,
 		fadeFromBottom = false,
+		promptHistory,
 		onImplementPlan,
 		onSendAskUserQuestionResponse,
 		isChatCompleted,
@@ -530,6 +536,7 @@ const ChatMessageItem = memo<{
 		const [previewImage, setPreviewImage] = useState<string | null>(null);
 		const [previewText, setPreviewText] =
 			useState<PreviewTextAttachment | null>(null);
+		const [historyOpen, setHistoryOpen] = useState(false);
 		const displayState = deriveMessageDisplayState({
 			message,
 			parsed,
@@ -607,11 +614,13 @@ const ChatMessageItem = memo<{
 				</ConversationItem>
 				{!hideActions &&
 					(displayState.hasCopyableContent ||
-						(isUser && onEditUserMessage)) && (
+						(isUser && onEditUserMessage) ||
+						(isUser && promptHistory)) && (
 						<div
 							className={cn(
 								"mt-0.5 flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100",
 								isUser && "w-full justify-end",
+								historyOpen && "opacity-100",
 							)}
 							data-testid="message-actions"
 						>
@@ -643,6 +652,12 @@ const ChatMessageItem = memo<{
 									</TooltipTrigger>
 									<TooltipContent side="bottom">Edit message</TooltipContent>
 								</Tooltip>
+							)}
+							{isUser && promptHistory && (
+								<PromptHistoryPopover
+									entries={promptHistory}
+									onOpenChange={setHistoryOpen}
+								/>
 							)}
 						</div>
 					)}
@@ -678,6 +693,8 @@ const StickyUserMessage = memo<{
 	) => void;
 	editingMessageId?: number | null;
 	isAfterEditingMessage?: boolean;
+	promptHistory?: readonly PromptHistoryEntry[];
+	hasActiveStream?: boolean;
 }>(
 	({
 		message,
@@ -685,6 +702,8 @@ const StickyUserMessage = memo<{
 		onEditUserMessage,
 		editingMessageId,
 		isAfterEditingMessage = false,
+		promptHistory,
+		hasActiveStream = false,
 	}) => {
 		const [isStuck, setIsStuck] = useState(false);
 		const [isReady, setIsReady] = useState(false);
@@ -692,6 +711,11 @@ const StickyUserMessage = memo<{
 		const sentinelRef = useRef<HTMLDivElement>(null);
 		const containerRef = useRef<HTMLDivElement>(null);
 		const updateFnRef = useRef<(() => void) | null>(null);
+		// Track streaming state in a ref so the ResizeObserver
+		// callback (created once in a [] effect) can read the
+		// latest value without needing to be re-created.
+		const hasActiveStreamRef = useRef(hasActiveStream);
+		hasActiveStreamRef.current = hasActiveStream;
 
 		// useLayoutEffect so isStuck and --clip-h are both resolved
 		// before the browser paints, avoiding a flash on load.
@@ -804,6 +828,11 @@ const StickyUserMessage = memo<{
 			// do redundant work on high-refresh-rate displays.
 			let rafId: number | null = null;
 			const onScroll = () => {
+				// Skip updates while a programmatic scroll-jump is
+				// in progress. The sticky update() changes layout
+				// (container.style.top) which triggers a browser
+				// scroll-anchor adjustment that undoes the jump.
+				if (scroller.hasAttribute("data-scroll-lock")) return;
 				if (rafId !== null) return;
 				rafId = requestAnimationFrame(() => {
 					rafId = null;
@@ -814,12 +843,19 @@ const StickyUserMessage = memo<{
 			// Re-run the visual update when the scrollable content height
 			// changes (e.g. streaming responses growing the transcript).
 			// In flex-col-reverse, scrollTop stays at 0 when pinned to
-			// bottom so no scroll event fires — but the content wrapper
+			// bottom so no scroll event fires, but the content wrapper
 			// resizes and this observer catches that.
+			//
+			// During active streaming we skip these updates so that
+			// agent activity (thinking, streaming tokens) does not
+			// cause the pinned prompt to bounce or overlap with other
+			// prompts. Only user-initiated scrolling updates the
+			// sticky state while the agent is active.
 			const contentEl = scroller.firstElementChild as HTMLElement | null;
 			let contentRafId: number | null = null;
 			const contentObserver = contentEl
 				? new ResizeObserver(() => {
+						if (hasActiveStreamRef.current) return;
 						if (contentRafId !== null) return;
 						contentRafId = requestAnimationFrame(() => {
 							contentRafId = null;
@@ -856,6 +892,15 @@ const StickyUserMessage = memo<{
 			updateFnRef.current?.();
 		}, [isStuck]);
 
+		// When streaming ends, run one final position update so
+		// the sticky state catches up with any content growth
+		// that occurred while updates were suppressed.
+		useLayoutEffect(() => {
+			if (!hasActiveStream) {
+				updateFnRef.current?.();
+			}
+		}, [hasActiveStream]);
+
 		const handleEditUserMessage = onEditUserMessage
 			? (
 					messageId: number,
@@ -880,7 +925,12 @@ const StickyUserMessage = memo<{
 
 		return (
 			<>
-				<div ref={sentinelRef} className="h-0" data-user-sentinel />
+				<div
+					ref={sentinelRef}
+					className="h-0"
+					data-user-sentinel
+					data-message-id={message.id}
+				/>
 				<div
 					ref={containerRef}
 					className={cn(
@@ -909,6 +959,7 @@ const StickyUserMessage = memo<{
 							onEditUserMessage={handleEditUserMessage}
 							editingMessageId={editingMessageId}
 							isAfterEditingMessage={isAfterEditingMessage}
+							promptHistory={promptHistory}
 						/>
 					</div>
 
@@ -951,6 +1002,7 @@ const StickyUserMessage = memo<{
 									onEditUserMessage={handleEditUserMessage}
 									editingMessageId={editingMessageId}
 									isAfterEditingMessage={isAfterEditingMessage}
+									promptHistory={promptHistory}
 									fadeFromBottom
 								/>
 							</div>
@@ -1080,6 +1132,43 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				? askUserQuestionResponseTextByToolId
 				: undefined;
 
+		// Build prompt history entries for the history popover.
+		// This gives every user message a 1-based index and
+		// its plain-text content for the dropdown list.
+		const promptHistory: PromptHistoryEntry[] = [];
+		let promptIndex = 0;
+		for (const entry of parsedMessages) {
+			if (entry.message.role === "user") {
+				promptIndex++;
+				const text = getChatMessageTextContent(entry.message.content);
+				const parts = entry.message.content ?? [];
+				// Count file attachments. Uploaded images may lack
+				// media_type (only file_id is set), so treat any
+				// type==="file" part without a known non-image
+				// media_type as a potential attachment.
+				const fileParts = parts.filter((p) => p.type === "file");
+				let label = text ?? "";
+				if (!label && fileParts.length > 0) {
+					label =
+						fileParts.length === 1
+							? "[Attachment]"
+							: `[${fileParts.length} attachments]`;
+				} else if (label && fileParts.length > 0) {
+					const suffix =
+						fileParts.length === 1
+							? " [+attachment]"
+							: ` [+${fileParts.length} attachments]`;
+					label += suffix;
+				}
+
+				promptHistory.push({
+					id: entry.message.id,
+					index: promptIndex,
+					text: label,
+				});
+			}
+		}
+
 		return (
 			<FileProbeProvider>
 				<div
@@ -1106,6 +1195,8 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 									onEditUserMessage={onEditUserMessage}
 									editingMessageId={editingMessageId}
 									isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
+									promptHistory={promptHistory}
+									hasActiveStream={Boolean(hasActiveStream)}
 								/>
 							);
 						}
