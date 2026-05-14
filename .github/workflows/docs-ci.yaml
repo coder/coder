@@ -30,11 +30,9 @@ jobs:
       - name: Setup Node
         uses: ./.github/actions/setup-node
 
-      # Per-tool changed-files filters. Each downstream tool gets its own
-      # `changed-files` step scoped to the files that tool can process, so the
-      # workflow-level `paths:` triggers stay broad and a new tool (e.g. an
-      # image linter) can be added by appending another `changed-*` step and a
-      # step that consumes its output, without changing the existing filters.
+      # Per-tool changed-files filters. Each tool gets its own `changed-*`
+      # step scoped to the files it processes, keeping workflow-level `paths:`
+      # broad. Adding a tool (e.g. image linter) only needs a new step pair.
       - uses: tj-actions/changed-files@22103cc46bda19c2b464ffe86db46df6922fd323 # v45.0.7
         id: changed-md
         with:
@@ -45,16 +43,17 @@ jobs:
       - name: lint
         if: steps.changed-md.outputs.any_changed == 'true'
         run: |
-          # shellcheck disable=SC2086
-          pnpm exec markdownlint-cli2 $ALL_CHANGED_FILES
+          # `separator: ","` joins paths with commas, but markdownlint-cli2
+          # takes files as argv. Split on the comma boundary with xargs (the
+          # same shape `fmt` uses) so filenames containing spaces survive.
+          echo "$ALL_CHANGED_FILES" | tr ',' '\n' | xargs -d '\n' pnpm exec markdownlint-cli2
         env:
           ALL_CHANGED_FILES: ${{ steps.changed-md.outputs.all_changed_files }}
 
       - name: fmt
         if: steps.changed-md.outputs.any_changed == 'true'
         run: |
-          # markdown-table-formatter requires a space separated list of files
-          # shellcheck disable=SC2086
-          echo $ALL_CHANGED_FILES | tr ',' '\n' | pnpm exec markdown-table-formatter --check
+          # markdown-table-formatter reads newline-separated paths from stdin.
+          echo "$ALL_CHANGED_FILES" | tr ',' '\n' | pnpm exec markdown-table-formatter --check
         env:
           ALL_CHANGED_FILES: ${{ steps.changed-md.outputs.all_changed_files }}
