@@ -16,6 +16,7 @@
 
 # Re-allow paths the dogfood Dockerfiles consume.
 !mise.toml
+!mise.lock
 !dogfood
 !dogfood/coder
 !dogfood/coder/ubuntu-22.04

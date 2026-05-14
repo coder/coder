@@ -201,10 +201,19 @@ RUN install --directory --owner=coder --group=coder --mode=0755 "${MISE_INSTALL_
 ENV MISE_DATA_DIR=/home/coder/.local/share/mise \
 	MISE_TRUSTED_CONFIG_PATHS=/home/coder/coder:/etc/mise
 
-# /etc/mise/config.toml is mise's system-wide config. Tools listed
-# here resolve everywhere in the workspace; the cloned coder repo's
-# mise.toml layers on top inside the repo.
-COPY mise.toml /etc/mise/config.toml
+# Bake the project manifest in as mise's system config and ship
+# the lockfile alongside it so mise verifies download checksums
+# during install. We do NOT override MISE_GLOBAL_CONFIG_FILE — that
+# would re-target `mise use --global` away from the user's
+# ~/.config/mise/config.toml (on the home volume) into this
+# image-only path, breaking the workflow.
+#
+# We pre-create /etc/mise as 0755 because COPY's implicitly-created
+# parent dirs inherit the --chmod, which would leave /etc/mise
+# without the `x` bit and unreachable to the coder user.
+RUN install --directory --mode=0755 /etc/mise
+COPY --chmod=0644 mise.toml /etc/mise/config.toml
+COPY --chmod=0644 mise.lock /etc/mise/mise.lock
 
 # Pre-install image tools as coder so they land on the home volume
 # layer. Sudo drops env vars, so MISE_* are re-exported via `env`.
