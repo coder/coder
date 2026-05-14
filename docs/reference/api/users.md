@@ -547,6 +547,9 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/appearance \
 ```json
 {
   "terminal_font": "",
+  "theme_dark": "string",
+  "theme_light": "string",
+  "theme_mode": "",
   "theme_preference": "string"
 }
 ```
@@ -578,6 +581,9 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/appearance \
 ```json
 {
   "terminal_font": "",
+  "theme_dark": "light",
+  "theme_light": "light",
+  "theme_mode": "sync",
   "theme_preference": "string"
 }
 ```
@@ -596,6 +602,9 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/appearance \
 ```json
 {
   "terminal_font": "",
+  "theme_dark": "string",
+  "theme_light": "string",
+  "theme_mode": "",
   "theme_preference": "string"
 }
 ```
