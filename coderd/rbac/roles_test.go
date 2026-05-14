@@ -1106,6 +1106,25 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
+			// Only owners can manage AI providers. Provider
+			// configuration is deployment-wide and includes secret
+			// material (api_key, settings) so it is not exposed to
+			// org admins or auditors.
+			Name:     "AIProviders",
+			Actions:  crud,
+			Resource: rbac.ResourceAIProvider,
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner},
+				false: {
+					memberMe, agentsAccessUser,
+					orgAdmin, otherOrgAdmin,
+					orgAuditor, otherOrgAuditor,
+					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
+					userAdmin, orgUserAdmin, otherOrgUserAdmin,
+				},
+			},
+		},
+		{
 			Name:     "BoundaryUsage",
 			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 			Resource: rbac.ResourceBoundaryUsage,

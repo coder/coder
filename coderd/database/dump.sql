@@ -10,6 +10,11 @@ CREATE TYPE agent_key_scope_enum AS ENUM (
     'no_user_data'
 );
 
+CREATE TYPE ai_provider_type AS ENUM (
+    'openai',
+    'anthropic'
+);
+
 CREATE TYPE ai_seat_usage_reason AS ENUM (
     'aibridge',
     'task'
@@ -226,7 +231,12 @@ CREATE TYPE api_key_scope AS ENUM (
     'ai_seat:read',
     'ai_model_price:*',
     'ai_model_price:read',
-    'ai_model_price:update'
+    'ai_model_price:update',
+    'ai_provider:*',
+    'ai_provider:create',
+    'ai_provider:delete',
+    'ai_provider:read',
+    'ai_provider:update'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -533,7 +543,9 @@ CREATE TYPE resource_type AS ENUM (
     'task',
     'ai_seat',
     'chat',
-    'user_secret'
+    'user_secret',
+    'ai_provider',
+    'ai_provider_key'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (
@@ -1107,6 +1119,46 @@ CREATE TABLE ai_model_prices (
 );
 
 COMMENT ON TABLE ai_model_prices IS 'Per-model token prices used by AI Bridge to compute interception cost.';
+
+CREATE TABLE ai_provider_keys (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    provider_id uuid NOT NULL,
+    api_key text NOT NULL,
+    api_key_key_id text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+COMMENT ON TABLE ai_provider_keys IS 'API keys associated with AI providers. Bedrock providers have zero keys (they authenticate via settings). OpenAI and Anthropic providers have one or more keys for failover.';
+
+COMMENT ON COLUMN ai_provider_keys.api_key IS 'API key used to authenticate with the upstream AI provider. Encrypted at rest via dbcrypt when api_key_key_id is set.';
+
+COMMENT ON COLUMN ai_provider_keys.api_key_key_id IS 'The ID of the key used to encrypt the provider API key. If this is NULL, the API key is not encrypted.';
+
+CREATE TABLE ai_providers (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    type ai_provider_type NOT NULL,
+    name text NOT NULL,
+    display_name text,
+    enabled boolean DEFAULT true NOT NULL,
+    deleted boolean DEFAULT false NOT NULL,
+    base_url text NOT NULL,
+    settings text,
+    settings_key_id text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ai_providers_name_check CHECK ((name ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text))
+);
+
+COMMENT ON TABLE ai_providers IS 'Runtime configuration for AI providers. Authoritative source for the provider set served by aibridged. Replaces deployment-time CODER_AIBRIDGE_* environment variables.';
+
+COMMENT ON COLUMN ai_providers.display_name IS 'Optional human-readable label. When NULL, callers should fall back to name.';
+
+COMMENT ON COLUMN ai_providers.deleted IS 'Soft delete flag. Soft-deleted rows are preserved for audit and FK history but do not block name reuse by future live rows.';
+
+COMMENT ON COLUMN ai_providers.settings IS 'Encrypted JSON blob holding type-specific configuration (e.g. AWS Bedrock region, model, access key secret). Plaintext is a JSON object. NULL when no type-specific settings are required.';
+
+COMMENT ON COLUMN ai_providers.settings_key_id IS 'The ID of the key used to encrypt settings. If this is NULL, settings is not encrypted.';
 
 CREATE TABLE ai_seat_state (
     user_id uuid NOT NULL,
@@ -3409,6 +3461,12 @@ ALTER TABLE ONLY workspace_agent_stats
 ALTER TABLE ONLY ai_model_prices
     ADD CONSTRAINT ai_model_prices_pkey PRIMARY KEY (provider, model);
 
+ALTER TABLE ONLY ai_provider_keys
+    ADD CONSTRAINT ai_provider_keys_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY ai_providers
+    ADD CONSTRAINT ai_providers_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY ai_seat_state
     ADD CONSTRAINT ai_seat_state_pkey PRIMARY KEY (user_id);
 
@@ -3775,6 +3833,8 @@ ALTER TABLE ONLY workspace_resources
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_pkey PRIMARY KEY (id);
 
+CREATE UNIQUE INDEX ai_providers_name_unique ON ai_providers USING btree (name) WHERE (deleted = false);
+
 CREATE INDEX api_keys_last_used_idx ON api_keys USING btree (last_used DESC);
 
 COMMENT ON INDEX api_keys_last_used_idx IS 'Index for optimizing api_keys queries filtering by last_used';
@@ -3782,6 +3842,10 @@ COMMENT ON INDEX api_keys_last_used_idx IS 'Index for optimizing api_keys querie
 CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
 
 CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_id);
+
+CREATE INDEX idx_ai_provider_keys_provider_id ON ai_provider_keys USING btree (provider_id);
+
+CREATE INDEX idx_ai_providers_enabled ON ai_providers USING btree (enabled) WHERE (deleted = false);
 
 CREATE INDEX idx_aibridge_interceptions_client ON aibridge_interceptions USING btree (client);
 
@@ -4148,6 +4212,15 @@ CREATE TRIGGER workspace_agent_name_unique_trigger BEFORE INSERT OR UPDATE OF na
 COMMENT ON TRIGGER workspace_agent_name_unique_trigger ON workspace_agents IS 'Use a trigger instead of a unique constraint because existing data may violate
 the uniqueness requirement. A trigger allows us to enforce uniqueness going
 forward without requiring a migration to clean up historical data.';
+
+ALTER TABLE ONLY ai_provider_keys
+    ADD CONSTRAINT ai_provider_keys_api_key_key_id_fkey FOREIGN KEY (api_key_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY ai_provider_keys
+    ADD CONSTRAINT ai_provider_keys_provider_id_fkey FOREIGN KEY (provider_id) REFERENCES ai_providers(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY ai_providers
+    ADD CONSTRAINT ai_providers_settings_key_id_fkey FOREIGN KEY (settings_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 
 ALTER TABLE ONLY ai_seat_state
     ADD CONSTRAINT ai_seat_state_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;

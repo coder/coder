@@ -43,11 +43,13 @@ const (
 	ResourceTypeWorkspaceAgent ResourceType = "workspace_agent"
 	// Deprecated: Workspace App connections are now included in the
 	// connection log.
-	ResourceTypeWorkspaceApp ResourceType = "workspace_app"
-	ResourceTypeTask         ResourceType = "task"
-	ResourceTypeAISeat       ResourceType = "ai_seat"
-	ResourceTypeChat         ResourceType = "chat"
-	ResourceTypeUserSecret   ResourceType = "user_secret"
+	ResourceTypeWorkspaceApp  ResourceType = "workspace_app"
+	ResourceTypeTask          ResourceType = "task"
+	ResourceTypeAISeat        ResourceType = "ai_seat"
+	ResourceTypeAIProvider    ResourceType = "ai_provider"
+	ResourceTypeAIProviderKey ResourceType = "ai_provider_key"
+	ResourceTypeChat          ResourceType = "chat"
+	ResourceTypeUserSecret    ResourceType = "user_secret"
 )
 
 func (r ResourceType) FriendlyString() string {
@@ -108,6 +110,10 @@ func (r ResourceType) FriendlyString() string {
 		return "task"
 	case ResourceTypeAISeat:
 		return "ai seat"
+	case ResourceTypeAIProvider:
+		return "ai provider"
+	case ResourceTypeAIProviderKey:
+		return "ai provider key"
 	case ResourceTypeChat:
 		return "chat"
 	case ResourceTypeUserSecret:
