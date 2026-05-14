@@ -8,10 +8,10 @@ import type {
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { FeatureStageBadge } from "#/components/FeatureStageBadge/FeatureStageBadge";
+import { Link } from "#/components/Link/Link";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
-	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -60,9 +60,6 @@ export const SecretsPageView: FC<SecretsPageViewProps> = ({
 			<SettingsHeader
 				actions={
 					<div className="flex flex-wrap gap-2">
-						<SettingsHeaderDocsLink href="https://coder.com/docs/user-guides/user-secrets">
-							View docs
-						</SettingsHeaderDocsLink>
 						<Button
 							variant="outline"
 							onClick={onRefresh}
@@ -77,15 +74,21 @@ export const SecretsPageView: FC<SecretsPageViewProps> = ({
 				}
 			>
 				<SettingsHeaderTitle
-					tooltip={<FeatureStageBadge contentType="early_access" size="sm" />}
+					tooltip={<FeatureStageBadge contentType="early_access" size="md" />}
 				>
 					Secrets
 				</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
-					Secrets let you store encrypted values and inject them into workspaces
-					you own. When a secret has the same environment variable or file path
-					as a template-defined value, Coder applies the user secret during
-					workspace startup.
+					When multiple secrets share the same environment variable or file
+					path, you'll choose which one to use during workspace creation.{" "}
+					<Link
+						href="https://coder.com/docs/user-guides/user-secrets"
+						target="_blank"
+						rel="noreferrer"
+						showExternalIcon={false}
+					>
+						View docs
+					</Link>
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 

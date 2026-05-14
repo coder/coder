@@ -76,6 +76,52 @@ describe("parseSecretImport", () => {
 		]);
 	});
 
+	it("parses YAML object maps", () => {
+		expect(
+			parseSecretImport(
+				[
+					"GITHUB_TOKEN: example-value",
+					"ANTHROPIC_API_KEY: another-example-value",
+				].join("\n"),
+				"secrets.yaml",
+			),
+		).toEqual([
+			{
+				name: "GITHUB_TOKEN",
+				env_name: "GITHUB_TOKEN",
+				value: "example-value",
+			},
+			{
+				name: "ANTHROPIC_API_KEY",
+				env_name: "ANTHROPIC_API_KEY",
+				value: "another-example-value",
+			},
+		]);
+	});
+
+	it("parses YAML arrays of secret requests", () => {
+		expect(
+			parseSecretImport(
+				[
+					"- name: github",
+					"  value: example-value",
+					"  env_name: GITHUB_TOKEN",
+					"  description: GitHub token",
+					"  file_path: ~/secrets/github",
+				].join("\n"),
+				"secrets.yml",
+			),
+		).toEqual([
+			{
+				name: "github",
+				value: "example-value",
+				env_name: "GITHUB_TOKEN",
+				description: "GitHub token",
+				file_path: "~/secrets/github",
+			},
+		]);
+	});
+
 	it.each([
 		["ROUTE/UNSAFE=placeholder", "secrets.env"],
 		[JSON.stringify({ "ROUTE?UNSAFE": "placeholder" }), "secrets.json"],
@@ -83,8 +129,23 @@ describe("parseSecretImport", () => {
 			JSON.stringify([{ name: "ROUTE#UNSAFE", value: "placeholder" }]),
 			"secrets.json",
 		],
+		["ROUTE/UNSAFE: placeholder", "secrets.yaml"],
+		[
+			["- name: ROUTE#UNSAFE", "  value: placeholder"].join("\n"),
+			"secrets.yaml",
+		],
 	])("rejects route-unsafe imported secret names", (content, fileName) => {
 		expect(() => parseSecretImport(content, fileName)).toThrow("Invalid");
+	});
+
+	it.each([
+		["GITHUB_TOKEN: true"],
+		["GITHUB_TOKEN: 123"],
+		[["- name: github", "  value: true"].join("\n")],
+	])("rejects non-string YAML secret values", (content) => {
+		expect(() => parseSecretImport(content, "secrets.yaml")).toThrow(
+			"Invalid YAML secret value",
+		);
 	});
 });
 

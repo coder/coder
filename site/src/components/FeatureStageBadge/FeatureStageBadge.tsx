@@ -13,7 +13,7 @@ import { docs } from "#/utils/docs";
  * ensure that we can't accidentally make typos when writing the badge text.
  */
 export const featureStageBadgeTypes = {
-	early_access: "early access",
+	early_access: "Early Access",
 	beta: "beta",
 } as const satisfies Record<string, ReactNode>;
 
@@ -26,13 +26,19 @@ type FeatureStageBadgeProps = Readonly<
 >;
 
 const badgeColorClasses = {
-	early_access: "bg-surface-orange text-content-warning",
+	early_access: "border-[#8FE8F5] bg-[#07343F] text-[#9FEAF2]",
 	beta: "bg-surface-sky text-highlight-sky",
 } as const;
 
 const badgeSizeClasses = {
-	sm: "text-xs font-medium px-2 py-1",
-	md: "text-base px-2 py-1",
+	early_access: {
+		sm: "rounded-[5px] border px-2 py-0.5 text-[10px] font-normal leading-4",
+		md: "rounded-[5px] border px-[7px] py-[3.5px] text-xs font-normal leading-4",
+	},
+	beta: {
+		sm: "rounded-md border text-xs font-medium px-2 py-1",
+		md: "rounded-md border text-base px-2 py-1",
+	},
 } as const;
 
 export const FeatureStageBadge: FC<FeatureStageBadgeProps> = ({
@@ -43,14 +49,14 @@ export const FeatureStageBadge: FC<FeatureStageBadgeProps> = ({
 	...delegatedProps
 }) => {
 	const colorClasses = badgeColorClasses[contentType];
-	const sizeClasses = badgeSizeClasses[size];
+	const sizeClasses = badgeSizeClasses[contentType][size];
 
 	return (
 		<Tooltip>
 			<TooltipTrigger asChild>
 				<span
 					className={cn(
-						"block max-w-fit cursor-default flex-shrink-0 leading-none whitespace-nowrap border rounded-md transition-colors duration-200 ease-in-out bg-transparent border-solid border-transparent",
+						"block max-w-fit cursor-default flex-shrink-0 leading-none whitespace-nowrap border-solid border-transparent transition-colors duration-200 ease-in-out",
 						sizeClasses,
 						colorClasses,
 						className,

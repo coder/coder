@@ -119,9 +119,9 @@ const SecretTypeBadge: FC<{ secret: UserSecret }> = ({ secret }) => {
 	const hasFile = secret.file_path !== "";
 	const label =
 		hasEnv && hasFile
-			? "env + file"
+			? ".env + file"
 			: hasEnv
-				? "env"
+				? ".env"
 				: hasFile
 					? "file"
 					: "not injected";

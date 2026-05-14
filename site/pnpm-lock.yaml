@@ -259,6 +259,9 @@ importers:
       websocket-ts:
         specifier: 2.3.0
         version: 2.3.0
+      yaml:
+        specifier: 2.7.0
+        version: 2.7.0
       yup:
         specifier: 1.7.1
         version: 1.7.1
@@ -12950,8 +12953,7 @@ snapshots:
 
   yaml@1.10.2: {}
 
-  yaml@2.7.0:
-    optional: true
+  yaml@2.7.0: {}
 
   yargs-parser@21.1.1: {}
 

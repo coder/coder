@@ -62,6 +62,9 @@ const emptyValues: SecretFormValues = {
 const infoText =
 	"Secrets are encrypted and cannot be retrieved after creation. Make sure to save the secret value in a secure location.";
 
+const importSecretFileTypes = ".env,.json,.yaml,.yml";
+const replacementSecretFileTypes = ".env,.json";
+
 export const SecretDialog: FC<SecretDialogProps> = ({
 	open,
 	secret,
@@ -160,6 +163,8 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 								showValue={false}
 							/>
 							<UploadBlock
+								description="Upload a .env or .json file to replace this secret's value."
+								accept={replacementSecretFileTypes}
 								onFile={async (file) => {
 									try {
 										setReplacementFileName(file.name);
@@ -186,6 +191,8 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 					) : (
 						<>
 							<UploadBlock
+								description="Import a single or multiple secrets at once with a .env, .json, .yaml, or .yml file."
+								accept={importSecretFileTypes}
 								onFile={async (file) => {
 									try {
 										const requests = parseSecretImport(
@@ -324,10 +331,12 @@ const SecretDescriptionField: FC<SecretDescriptionFieldProps> = ({ field }) => {
 };
 
 type UploadBlockProps = {
+	description: string;
+	accept: string;
 	onFile: (file: File) => Promise<void> | void;
 };
 
-const UploadBlock: FC<UploadBlockProps> = ({ onFile }) => {
+const UploadBlock: FC<UploadBlockProps> = ({ description, accept, onFile }) => {
 	const inputId = useId();
 	const inputRef = useRef<HTMLInputElement>(null);
 
@@ -336,8 +345,7 @@ const UploadBlock: FC<UploadBlockProps> = ({ onFile }) => {
 			<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 				<div className="flex flex-col gap-1">
 					<p className="m-0 text-sm font-medium text-content-primary">
-						Import a single or multiple secrets at once with a .env or .json
-						file.
+						{description}
 					</p>
 				</div>
 				<Button
@@ -357,7 +365,7 @@ const UploadBlock: FC<UploadBlockProps> = ({ onFile }) => {
 				type="file"
 				tabIndex={-1}
 				aria-hidden="true"
-				accept=".env,.json"
+				accept={accept}
 				onChange={async (event) => {
 					const file = event.currentTarget.files?.[0];
 					event.currentTarget.value = "";

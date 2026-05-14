@@ -458,6 +458,53 @@ export const JsonUploadImportSubmit: Story = {
 	},
 };
 
+const yamlUploadRequests: CapturedCreateRequest[] = [];
+
+export const YamlUploadImportSubmit: Story = {
+	args: {
+		onCreateSecret: async (request: CreateUserSecretRequest) => {
+			yamlUploadRequests.push(captureCreateRequest(request));
+			return createSecretFromRequest(request);
+		},
+	},
+	play: async ({ canvasElement }) => {
+		yamlUploadRequests.length = 0;
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+
+		await user.click(canvas.getByRole("button", { name: "Add secret" }));
+		const dialog = await body.findByRole("dialog");
+		await user.upload(
+			uploadInput(dialog),
+			new File(
+				[
+					[
+						"- name: yaml-secret",
+						"  env_name: YAML_SECRET",
+						"  file_path: ~/secrets/yaml-secret",
+						"  description: Imported from YAML",
+						`  value: ${placeholderInput}`,
+					].join("\n"),
+				],
+				"secrets.yaml",
+				{ type: "application/yaml" },
+			),
+		);
+
+		await waitFor(() => expect(yamlUploadRequests).toHaveLength(1));
+		expect(yamlUploadRequests[0]).toEqual({
+			name: "yaml-secret",
+			env_name: "YAML_SECRET",
+			file_path: "~/secrets/yaml-secret",
+			description: "Imported from YAML",
+			hasValue: true,
+		});
+		await waitForDialogToClose(body);
+		expectNoValueField(body);
+	},
+};
+
 export const UploadControlKeyboardOperable: Story = {
 	play: async ({ canvasElement }) => {
 		const user = userEvent.setup();

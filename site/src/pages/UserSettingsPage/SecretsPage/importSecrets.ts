@@ -1,3 +1,4 @@
+import { parse as parseYaml } from "yaml";
 import type { CreateUserSecretRequest, UserSecret } from "#/api/typesGenerated";
 import {
 	buildCreateUserSecretRequest,
@@ -30,6 +31,9 @@ export const parseSecretImport = (
 	}
 	if (lowerFileName.endsWith(".json")) {
 		return parseJsonFile(content);
+	}
+	if (lowerFileName.endsWith(".yaml") || lowerFileName.endsWith(".yml")) {
+		return parseYamlFile(content);
 	}
 
 	throw new Error("Unsupported secret import file type.");
@@ -94,20 +98,33 @@ function parseEnvFile(content: string): CreateUserSecretRequest[] {
 }
 
 function parseJsonFile(content: string): CreateUserSecretRequest[] {
-	const parsed = JSON.parse(content) as unknown;
+	const parsed: unknown = JSON.parse(content);
+	return parseStructuredSecretImport(parsed, "JSON");
+}
 
+function parseYamlFile(content: string): CreateUserSecretRequest[] {
+	const parsed: unknown = parseYaml(content);
+	return parseStructuredSecretImport(parsed, "YAML");
+}
+
+function parseStructuredSecretImport(
+	parsed: unknown,
+	formatName: "JSON" | "YAML",
+): CreateUserSecretRequest[] {
 	if (Array.isArray(parsed)) {
-		return parsed.map((item, index) => parseJsonSecretRequest(item, index));
+		return parsed.map((item, index) =>
+			parseStructuredSecretRequest(item, index, formatName),
+		);
 	}
 
 	if (isRecord(parsed)) {
 		return Object.entries(parsed).map(([name, value]) => {
 			const nameError = validateUserSecretName(name);
 			if (nameError) {
-				throw new Error(`Invalid JSON secret name for ${name}.`);
+				throw new Error(`Invalid ${formatName} secret name for ${name}.`);
 			}
 			if (typeof value !== "string") {
-				throw new Error(`Invalid JSON secret value for ${name}.`);
+				throw new Error(`Invalid ${formatName} secret value for ${name}.`);
 			}
 
 			return {
@@ -118,23 +135,26 @@ function parseJsonFile(content: string): CreateUserSecretRequest[] {
 		});
 	}
 
-	throw new Error("JSON secret imports must be an object or an array.");
+	throw new Error(
+		`${formatName} secret imports must be an object or an array.`,
+	);
 }
 
-function parseJsonSecretRequest(
+function parseStructuredSecretRequest(
 	item: unknown,
 	index: number,
+	formatName: "JSON" | "YAML",
 ): CreateUserSecretRequest {
 	if (!isRecord(item)) {
-		throw new Error(`Invalid JSON secret entry at index ${index}.`);
+		throw new Error(`Invalid ${formatName} secret entry at index ${index}.`);
 	}
 
 	const { name, value } = item;
 	if (typeof name !== "string" || validateUserSecretName(name)) {
-		throw new Error(`Invalid JSON secret name at index ${index}.`);
+		throw new Error(`Invalid ${formatName} secret name at index ${index}.`);
 	}
 	if (typeof value !== "string") {
-		throw new Error(`Invalid JSON secret value for ${name}.`);
+		throw new Error(`Invalid ${formatName} secret value for ${name}.`);
 	}
 
 	return buildCreateUserSecretRequest({
@@ -151,5 +171,10 @@ function getOptionalString(value: unknown): string {
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
+	return (
+		typeof value === "object" &&
+		value !== null &&
+		!Array.isArray(value) &&
+		Object.getPrototypeOf(value) === Object.prototype
+	);
 }
