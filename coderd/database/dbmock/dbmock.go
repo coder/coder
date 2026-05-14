@@ -603,6 +603,34 @@ func (mr *MockStoreMockRecorder) CustomRoles(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CustomRoles", reflect.TypeOf((*MockStore)(nil).CustomRoles), ctx, arg)
 }
 
+// DeleteAIProviderByID mocks base method.
+func (m *MockStore) DeleteAIProviderByID(ctx context.Context, id uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteAIProviderByID", ctx, id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteAIProviderByID indicates an expected call of DeleteAIProviderByID.
+func (mr *MockStoreMockRecorder) DeleteAIProviderByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAIProviderByID", reflect.TypeOf((*MockStore)(nil).DeleteAIProviderByID), ctx, id)
+}
+
+// DeleteAIProviderKey mocks base method.
+func (m *MockStore) DeleteAIProviderKey(ctx context.Context, id uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteAIProviderKey", ctx, id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteAIProviderKey indicates an expected call of DeleteAIProviderKey.
+func (mr *MockStoreMockRecorder) DeleteAIProviderKey(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAIProviderKey", reflect.TypeOf((*MockStore)(nil).DeleteAIProviderKey), ctx, id)
+}
+
 // DeleteAPIKeyByID mocks base method.
 func (m *MockStore) DeleteAPIKeyByID(ctx context.Context, id string) error {
 	m.ctrl.T.Helper()
@@ -1711,6 +1739,96 @@ func (m *MockStore) GetAIModelPriceByProviderModel(ctx context.Context, arg data
 func (mr *MockStoreMockRecorder) GetAIModelPriceByProviderModel(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIModelPriceByProviderModel", reflect.TypeOf((*MockStore)(nil).GetAIModelPriceByProviderModel), ctx, arg)
+}
+
+// GetAIProviderByID mocks base method.
+func (m *MockStore) GetAIProviderByID(ctx context.Context, id uuid.UUID) (database.AIProvider, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIProviderByID", ctx, id)
+	ret0, _ := ret[0].(database.AIProvider)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIProviderByID indicates an expected call of GetAIProviderByID.
+func (mr *MockStoreMockRecorder) GetAIProviderByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIProviderByID", reflect.TypeOf((*MockStore)(nil).GetAIProviderByID), ctx, id)
+}
+
+// GetAIProviderByName mocks base method.
+func (m *MockStore) GetAIProviderByName(ctx context.Context, name string) (database.AIProvider, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIProviderByName", ctx, name)
+	ret0, _ := ret[0].(database.AIProvider)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIProviderByName indicates an expected call of GetAIProviderByName.
+func (mr *MockStoreMockRecorder) GetAIProviderByName(ctx, name any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIProviderByName", reflect.TypeOf((*MockStore)(nil).GetAIProviderByName), ctx, name)
+}
+
+// GetAIProviderKeyByID mocks base method.
+func (m *MockStore) GetAIProviderKeyByID(ctx context.Context, id uuid.UUID) (database.AIProviderKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIProviderKeyByID", ctx, id)
+	ret0, _ := ret[0].(database.AIProviderKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIProviderKeyByID indicates an expected call of GetAIProviderKeyByID.
+func (mr *MockStoreMockRecorder) GetAIProviderKeyByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIProviderKeyByID", reflect.TypeOf((*MockStore)(nil).GetAIProviderKeyByID), ctx, id)
+}
+
+// GetAIProviderKeys mocks base method.
+func (m *MockStore) GetAIProviderKeys(ctx context.Context) ([]database.AIProviderKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIProviderKeys", ctx)
+	ret0, _ := ret[0].([]database.AIProviderKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIProviderKeys indicates an expected call of GetAIProviderKeys.
+func (mr *MockStoreMockRecorder) GetAIProviderKeys(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIProviderKeys", reflect.TypeOf((*MockStore)(nil).GetAIProviderKeys), ctx)
+}
+
+// GetAIProviderKeysByProviderID mocks base method.
+func (m *MockStore) GetAIProviderKeysByProviderID(ctx context.Context, providerID uuid.UUID) ([]database.AIProviderKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIProviderKeysByProviderID", ctx, providerID)
+	ret0, _ := ret[0].([]database.AIProviderKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIProviderKeysByProviderID indicates an expected call of GetAIProviderKeysByProviderID.
+func (mr *MockStoreMockRecorder) GetAIProviderKeysByProviderID(ctx, providerID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIProviderKeysByProviderID", reflect.TypeOf((*MockStore)(nil).GetAIProviderKeysByProviderID), ctx, providerID)
+}
+
+// GetAIProviders mocks base method.
+func (m *MockStore) GetAIProviders(ctx context.Context, arg database.GetAIProvidersParams) ([]database.AIProvider, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIProviders", ctx, arg)
+	ret0, _ := ret[0].([]database.AIProvider)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIProviders indicates an expected call of GetAIProviders.
+func (mr *MockStoreMockRecorder) GetAIProviders(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIProviders", reflect.TypeOf((*MockStore)(nil).GetAIProviders), ctx, arg)
 }
 
 // GetAPIKeyByID mocks base method.
@@ -2836,6 +2954,21 @@ func (m *MockStore) GetChatUsageLimitUserOverride(ctx context.Context, userID uu
 func (mr *MockStoreMockRecorder) GetChatUsageLimitUserOverride(ctx, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatUsageLimitUserOverride", reflect.TypeOf((*MockStore)(nil).GetChatUsageLimitUserOverride), ctx, userID)
+}
+
+// GetChatUserPromptsByChatID mocks base method.
+func (m *MockStore) GetChatUserPromptsByChatID(ctx context.Context, arg database.GetChatUserPromptsByChatIDParams) ([]database.GetChatUserPromptsByChatIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatUserPromptsByChatID", ctx, arg)
+	ret0, _ := ret[0].([]database.GetChatUserPromptsByChatIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatUserPromptsByChatID indicates an expected call of GetChatUserPromptsByChatID.
+func (mr *MockStoreMockRecorder) GetChatUserPromptsByChatID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatUserPromptsByChatID", reflect.TypeOf((*MockStore)(nil).GetChatUserPromptsByChatID), ctx, arg)
 }
 
 // GetChatWorkspaceTTL mocks base method.
@@ -5268,6 +5401,21 @@ func (mr *MockStoreMockRecorder) GetUserAgentChatSendShortcut(ctx, userID any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserAgentChatSendShortcut", reflect.TypeOf((*MockStore)(nil).GetUserAgentChatSendShortcut), ctx, userID)
 }
 
+// GetUserAppearanceSettings mocks base method.
+func (m *MockStore) GetUserAppearanceSettings(ctx context.Context, userID uuid.UUID) (database.GetUserAppearanceSettingsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserAppearanceSettings", ctx, userID)
+	ret0, _ := ret[0].(database.GetUserAppearanceSettingsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserAppearanceSettings indicates an expected call of GetUserAppearanceSettings.
+func (mr *MockStoreMockRecorder) GetUserAppearanceSettings(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserAppearanceSettings", reflect.TypeOf((*MockStore)(nil).GetUserAppearanceSettings), ctx, userID)
+}
+
 // GetUserByEmailOrUsername mocks base method.
 func (m *MockStore) GetUserByEmailOrUsername(ctx context.Context, arg database.GetUserByEmailOrUsernameParams) (database.User, error) {
 	m.ctrl.T.Helper()
@@ -5553,6 +5701,21 @@ func (mr *MockStoreMockRecorder) GetUserSecretsTelemetrySummary(ctx any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserSecretsTelemetrySummary", reflect.TypeOf((*MockStore)(nil).GetUserSecretsTelemetrySummary), ctx)
 }
 
+// GetUserShellToolDisplayMode mocks base method.
+func (m *MockStore) GetUserShellToolDisplayMode(ctx context.Context, userID uuid.UUID) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserShellToolDisplayMode", ctx, userID)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserShellToolDisplayMode indicates an expected call of GetUserShellToolDisplayMode.
+func (mr *MockStoreMockRecorder) GetUserShellToolDisplayMode(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserShellToolDisplayMode", reflect.TypeOf((*MockStore)(nil).GetUserShellToolDisplayMode), ctx, userID)
+}
+
 // GetUserStatusCounts mocks base method.
 func (m *MockStore) GetUserStatusCounts(ctx context.Context, arg database.GetUserStatusCountsParams) ([]database.GetUserStatusCountsRow, error) {
 	m.ctrl.T.Helper()
@@ -5581,36 +5744,6 @@ func (m *MockStore) GetUserTaskNotificationAlertDismissed(ctx context.Context, u
 func (mr *MockStoreMockRecorder) GetUserTaskNotificationAlertDismissed(ctx, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserTaskNotificationAlertDismissed", reflect.TypeOf((*MockStore)(nil).GetUserTaskNotificationAlertDismissed), ctx, userID)
-}
-
-// GetUserTerminalFont mocks base method.
-func (m *MockStore) GetUserTerminalFont(ctx context.Context, userID uuid.UUID) (string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetUserTerminalFont", ctx, userID)
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetUserTerminalFont indicates an expected call of GetUserTerminalFont.
-func (mr *MockStoreMockRecorder) GetUserTerminalFont(ctx, userID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserTerminalFont", reflect.TypeOf((*MockStore)(nil).GetUserTerminalFont), ctx, userID)
-}
-
-// GetUserThemePreference mocks base method.
-func (m *MockStore) GetUserThemePreference(ctx context.Context, userID uuid.UUID) (string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetUserThemePreference", ctx, userID)
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetUserThemePreference indicates an expected call of GetUserThemePreference.
-func (mr *MockStoreMockRecorder) GetUserThemePreference(ctx, userID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserThemePreference", reflect.TypeOf((*MockStore)(nil).GetUserThemePreference), ctx, userID)
 }
 
 // GetUserThinkingDisplayMode mocks base method.
@@ -6690,6 +6823,36 @@ func (m *MockStore) InsertAIBridgeUserPrompt(ctx context.Context, arg database.I
 func (mr *MockStoreMockRecorder) InsertAIBridgeUserPrompt(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAIBridgeUserPrompt", reflect.TypeOf((*MockStore)(nil).InsertAIBridgeUserPrompt), ctx, arg)
+}
+
+// InsertAIProvider mocks base method.
+func (m *MockStore) InsertAIProvider(ctx context.Context, arg database.InsertAIProviderParams) (database.AIProvider, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertAIProvider", ctx, arg)
+	ret0, _ := ret[0].(database.AIProvider)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertAIProvider indicates an expected call of InsertAIProvider.
+func (mr *MockStoreMockRecorder) InsertAIProvider(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAIProvider", reflect.TypeOf((*MockStore)(nil).InsertAIProvider), ctx, arg)
+}
+
+// InsertAIProviderKey mocks base method.
+func (m *MockStore) InsertAIProviderKey(ctx context.Context, arg database.InsertAIProviderKeyParams) (database.AIProviderKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertAIProviderKey", ctx, arg)
+	ret0, _ := ret[0].(database.AIProviderKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertAIProviderKey indicates an expected call of InsertAIProviderKey.
+func (mr *MockStoreMockRecorder) InsertAIProviderKey(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAIProviderKey", reflect.TypeOf((*MockStore)(nil).InsertAIProviderKey), ctx, arg)
 }
 
 // InsertAPIKey mocks base method.
@@ -8554,6 +8717,21 @@ func (mr *MockStoreMockRecorder) UpdateAIBridgeInterceptionEnded(ctx, arg any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAIBridgeInterceptionEnded", reflect.TypeOf((*MockStore)(nil).UpdateAIBridgeInterceptionEnded), ctx, arg)
 }
 
+// UpdateAIProvider mocks base method.
+func (m *MockStore) UpdateAIProvider(ctx context.Context, arg database.UpdateAIProviderParams) (database.AIProvider, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateAIProvider", ctx, arg)
+	ret0, _ := ret[0].(database.AIProvider)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateAIProvider indicates an expected call of UpdateAIProvider.
+func (mr *MockStoreMockRecorder) UpdateAIProvider(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAIProvider", reflect.TypeOf((*MockStore)(nil).UpdateAIProvider), ctx, arg)
+}
+
 // UpdateAPIKeyByID mocks base method.
 func (m *MockStore) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKeyByIDParams) error {
 	m.ctrl.T.Helper()
@@ -8894,6 +9072,36 @@ func (m *MockStore) UpdateCustomRole(ctx context.Context, arg database.UpdateCus
 func (mr *MockStoreMockRecorder) UpdateCustomRole(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateCustomRole", reflect.TypeOf((*MockStore)(nil).UpdateCustomRole), ctx, arg)
+}
+
+// UpdateEncryptedAIProviderKey mocks base method.
+func (m *MockStore) UpdateEncryptedAIProviderKey(ctx context.Context, arg database.UpdateEncryptedAIProviderKeyParams) (database.AIProviderKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateEncryptedAIProviderKey", ctx, arg)
+	ret0, _ := ret[0].(database.AIProviderKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateEncryptedAIProviderKey indicates an expected call of UpdateEncryptedAIProviderKey.
+func (mr *MockStoreMockRecorder) UpdateEncryptedAIProviderKey(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateEncryptedAIProviderKey", reflect.TypeOf((*MockStore)(nil).UpdateEncryptedAIProviderKey), ctx, arg)
+}
+
+// UpdateEncryptedAIProviderSettings mocks base method.
+func (m *MockStore) UpdateEncryptedAIProviderSettings(ctx context.Context, arg database.UpdateEncryptedAIProviderSettingsParams) (database.AIProvider, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateEncryptedAIProviderSettings", ctx, arg)
+	ret0, _ := ret[0].(database.AIProvider)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateEncryptedAIProviderSettings indicates an expected call of UpdateEncryptedAIProviderSettings.
+func (mr *MockStoreMockRecorder) UpdateEncryptedAIProviderSettings(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateEncryptedAIProviderSettings", reflect.TypeOf((*MockStore)(nil).UpdateEncryptedAIProviderSettings), ctx, arg)
 }
 
 // UpdateExternalAuthLink mocks base method.
@@ -9738,6 +9946,21 @@ func (mr *MockStoreMockRecorder) UpdateUserSecretByUserIDAndName(ctx, arg any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserSecretByUserIDAndName", reflect.TypeOf((*MockStore)(nil).UpdateUserSecretByUserIDAndName), ctx, arg)
 }
 
+// UpdateUserShellToolDisplayMode mocks base method.
+func (m *MockStore) UpdateUserShellToolDisplayMode(ctx context.Context, arg database.UpdateUserShellToolDisplayModeParams) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateUserShellToolDisplayMode", ctx, arg)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateUserShellToolDisplayMode indicates an expected call of UpdateUserShellToolDisplayMode.
+func (mr *MockStoreMockRecorder) UpdateUserShellToolDisplayMode(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserShellToolDisplayMode", reflect.TypeOf((*MockStore)(nil).UpdateUserShellToolDisplayMode), ctx, arg)
+}
+
 // UpdateUserStatus mocks base method.
 func (m *MockStore) UpdateUserStatus(ctx context.Context, arg database.UpdateUserStatusParams) (database.User, error) {
 	m.ctrl.T.Helper()
@@ -9781,6 +10004,51 @@ func (m *MockStore) UpdateUserTerminalFont(ctx context.Context, arg database.Upd
 func (mr *MockStoreMockRecorder) UpdateUserTerminalFont(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserTerminalFont", reflect.TypeOf((*MockStore)(nil).UpdateUserTerminalFont), ctx, arg)
+}
+
+// UpdateUserThemeDark mocks base method.
+func (m *MockStore) UpdateUserThemeDark(ctx context.Context, arg database.UpdateUserThemeDarkParams) (database.UserConfig, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateUserThemeDark", ctx, arg)
+	ret0, _ := ret[0].(database.UserConfig)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateUserThemeDark indicates an expected call of UpdateUserThemeDark.
+func (mr *MockStoreMockRecorder) UpdateUserThemeDark(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserThemeDark", reflect.TypeOf((*MockStore)(nil).UpdateUserThemeDark), ctx, arg)
+}
+
+// UpdateUserThemeLight mocks base method.
+func (m *MockStore) UpdateUserThemeLight(ctx context.Context, arg database.UpdateUserThemeLightParams) (database.UserConfig, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateUserThemeLight", ctx, arg)
+	ret0, _ := ret[0].(database.UserConfig)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateUserThemeLight indicates an expected call of UpdateUserThemeLight.
+func (mr *MockStoreMockRecorder) UpdateUserThemeLight(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserThemeLight", reflect.TypeOf((*MockStore)(nil).UpdateUserThemeLight), ctx, arg)
+}
+
+// UpdateUserThemeMode mocks base method.
+func (m *MockStore) UpdateUserThemeMode(ctx context.Context, arg database.UpdateUserThemeModeParams) (database.UserConfig, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateUserThemeMode", ctx, arg)
+	ret0, _ := ret[0].(database.UserConfig)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateUserThemeMode indicates an expected call of UpdateUserThemeMode.
+func (mr *MockStoreMockRecorder) UpdateUserThemeMode(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserThemeMode", reflect.TypeOf((*MockStore)(nil).UpdateUserThemeMode), ctx, arg)
 }
 
 // UpdateUserThemePreference mocks base method.

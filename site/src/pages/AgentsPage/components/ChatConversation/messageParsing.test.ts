@@ -152,6 +152,28 @@ describe("getEditableUserMessagePayload", () => {
 			expect(getEditableUserMessagePayload(message)).toEqual(want);
 		}
 	});
+
+	it("preserves whitespace-only text parts when concatenating", () => {
+		// The server-side prompt-history cycle joins text parts
+		// verbatim via `string_agg(part->>'text', '' ORDER BY ordinality)`.
+		// The edit path must agree so cycling and clicking Edit on the
+		// same message produce the same draft text.
+		const message: ChatMessage = {
+			id: 1,
+			chat_id: "chat-1",
+			created_at: "2026-04-21T00:00:00.000Z",
+			role: "user",
+			content: [
+				{ type: "text", text: "hello" },
+				{ type: "text", text: "   " },
+				{ type: "text", text: "world" },
+			],
+		};
+		expect(getEditableUserMessagePayload(message)).toEqual({
+			text: "hello   world",
+			fileBlocks: undefined,
+		});
+	});
 });
 
 describe("parseMessageContent", () => {

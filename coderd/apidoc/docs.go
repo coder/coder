@@ -694,6 +694,48 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/experimental/chats/{chat}/prompts": {
+            "get": {
+                "description": "Experimental: this endpoint is subject to change.\n\nReturns the user-authored prompts in a chat, newest first,\nwith each prompt's text parts concatenated in the order they\nwere authored. Used by the composer to power the up/down\narrow prompt-history cycle without paging through every\nmessage in the chat.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chat user prompts",
+                "operationId": "list-chat-user-prompts",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size, 0 to 2000. 0 (the default) means the server-side default of 500.",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatPromptsResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/experimental/chats/{chat}/stream": {
             "get": {
                 "description": "Experimental: this endpoint is subject to change.",
@@ -13954,7 +13996,7 @@ const docTemplate = `{
                     "description": "Providers holds provider instances populated from CODER_AIBRIDGE_PROVIDER_\u003cN\u003e_\u003cKEY\u003e\nenv vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/codersdk.AIBridgeProviderConfig"
+                        "$ref": "#/definitions/codersdk.AIProviderConfig"
                     }
                 },
                 "rate_limit": {
@@ -14071,36 +14113,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "key": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.AIBridgeProviderConfig": {
-            "type": "object",
-            "properties": {
-                "base_url": {
-                    "description": "BaseURL is the base URL of the upstream provider API.",
-                    "type": "string"
-                },
-                "bedrock_model": {
-                    "type": "string"
-                },
-                "bedrock_region": {
-                    "type": "string"
-                },
-                "bedrock_small_fast_model": {
-                    "type": "string"
-                },
-                "dump_dir": {
-                    "description": "DumpDir is the directory path for dumping API requests and responses.",
-                    "type": "string"
-                },
-                "name": {
-                    "description": "Name is the unique instance identifier used for routing.\nDefaults to Type if not provided.",
-                    "type": "string"
-                },
-                "type": {
-                    "description": "Type is the provider type: \"openai\", \"anthropic\", or \"copilot\".",
                     "type": "string"
                 }
             }
@@ -14486,6 +14498,36 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AIProviderConfig": {
+            "type": "object",
+            "properties": {
+                "base_url": {
+                    "description": "BaseURL is the base URL of the upstream provider API.",
+                    "type": "string"
+                },
+                "bedrock_model": {
+                    "type": "string"
+                },
+                "bedrock_region": {
+                    "type": "string"
+                },
+                "bedrock_small_fast_model": {
+                    "type": "string"
+                },
+                "dump_dir": {
+                    "description": "DumpDir is the directory path for dumping API requests and responses.",
+                    "type": "string"
+                },
+                "name": {
+                    "description": "Name is the unique instance identifier used for routing.\nDefaults to Type if not provided.",
+                    "type": "string"
+                },
+                "type": {
+                    "description": "Type is the provider type: \"openai\", \"anthropic\", or \"copilot\".",
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.APIAllowListTarget": {
             "type": "object",
             "properties": {
@@ -14587,6 +14629,11 @@ const docTemplate = `{
                 "ai_model_price:*",
                 "ai_model_price:read",
                 "ai_model_price:update",
+                "ai_provider:*",
+                "ai_provider:create",
+                "ai_provider:delete",
+                "ai_provider:read",
+                "ai_provider:update",
                 "ai_seat:*",
                 "ai_seat:create",
                 "ai_seat:read",
@@ -14802,6 +14849,11 @@ const docTemplate = `{
                 "APIKeyScopeAiModelPriceAll",
                 "APIKeyScopeAiModelPriceRead",
                 "APIKeyScopeAiModelPriceUpdate",
+                "APIKeyScopeAiProviderAll",
+                "APIKeyScopeAiProviderCreate",
+                "APIKeyScopeAiProviderDelete",
+                "APIKeyScopeAiProviderRead",
+                "APIKeyScopeAiProviderUpdate",
                 "APIKeyScopeAiSeatAll",
                 "APIKeyScopeAiSeatCreate",
                 "APIKeyScopeAiSeatRead",
@@ -16294,6 +16346,28 @@ const docTemplate = `{
             "x-enum-varnames": [
                 "ChatPlanModePlan"
             ]
+        },
+        "codersdk.ChatPrompt": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "text": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatPromptsResponse": {
+            "type": "object",
+            "properties": {
+                "prompts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatPrompt"
+                    }
+                }
+            }
         },
         "codersdk.ChatQueuedMessage": {
             "type": "object",
@@ -21414,6 +21488,7 @@ const docTemplate = `{
             "enum": [
                 "*",
                 "ai_model_price",
+                "ai_provider",
                 "ai_seat",
                 "aibridge_interception",
                 "api_key",
@@ -21462,6 +21537,7 @@ const docTemplate = `{
             "x-enum-varnames": [
                 "ResourceWildcard",
                 "ResourceAiModelPrice",
+                "ResourceAIProvider",
                 "ResourceAiSeat",
                 "ResourceAibridgeInterception",
                 "ResourceApiKey",
@@ -21721,6 +21797,8 @@ const docTemplate = `{
                 "workspace_app",
                 "task",
                 "ai_seat",
+                "ai_provider",
+                "ai_provider_key",
                 "chat",
                 "user_secret"
             ],
@@ -21752,6 +21830,8 @@ const docTemplate = `{
                 "ResourceTypeWorkspaceApp",
                 "ResourceTypeTask",
                 "ResourceTypeAISeat",
+                "ResourceTypeAIProvider",
+                "ResourceTypeAIProviderKey",
                 "ResourceTypeChat",
                 "ResourceTypeUserSecret"
             ]
@@ -23216,6 +23296,19 @@ const docTemplate = `{
                 "TerminalFontJetBrainsMono"
             ]
         },
+        "codersdk.ThemeMode": {
+            "type": "string",
+            "enum": [
+                "",
+                "sync",
+                "single"
+            ],
+            "x-enum-varnames": [
+                "ThemeModeUnset",
+                "ThemeModeSync",
+                "ThemeModeSingle"
+            ]
+        },
         "codersdk.ThinkingDisplayMode": {
             "type": "string",
             "enum": [
@@ -23547,6 +23640,42 @@ const docTemplate = `{
                 "terminal_font": {
                     "$ref": "#/definitions/codersdk.TerminalFontName"
                 },
+                "theme_dark": {
+                    "description": "ThemeDark is required when ThemeMode is \"sync\". In \"single\" mode\nan empty value means \"preserve the previously persisted slot\"\nrather than \"clear the slot\", so partial updates that send only\none slot keep the other intact.",
+                    "type": "string",
+                    "enum": [
+                        "light",
+                        "light-protan-deuter",
+                        "light-tritan",
+                        "dark",
+                        "dark-protan-deuter",
+                        "dark-tritan"
+                    ]
+                },
+                "theme_light": {
+                    "description": "ThemeLight is required when ThemeMode is \"sync\". In \"single\"\nmode an empty value means \"preserve the previously persisted\nslot\" rather than \"clear the slot\", so partial updates that send\nonly one slot keep the other intact.",
+                    "type": "string",
+                    "enum": [
+                        "light",
+                        "light-protan-deuter",
+                        "light-tritan",
+                        "dark",
+                        "dark-protan-deuter",
+                        "dark-tritan"
+                    ]
+                },
+                "theme_mode": {
+                    "description": "ThemeMode is optional for backward compatibility. When empty,\nthe server leaves theme_mode, theme_light, and theme_dark\nunchanged so older CLI clients do not erase sync-mode settings.\nLegacy auto preferences are the exception: they clear theme_mode\nso clients can migrate the old sync-with-system setting.",
+                    "enum": [
+                        "sync",
+                        "single"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ThemeMode"
+                        }
+                    ]
+                },
                 "theme_preference": {
                     "type": "string"
                 }
@@ -23584,6 +23713,9 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.AgentChatSendShortcut"
                 },
                 "code_diff_display_mode": {
+                    "$ref": "#/definitions/codersdk.AgentDisplayMode"
+                },
+                "shell_tool_display_mode": {
                     "$ref": "#/definitions/codersdk.AgentDisplayMode"
                 },
                 "task_notification_alert_dismissed": {
@@ -23980,7 +24112,19 @@ const docTemplate = `{
                 "terminal_font": {
                     "$ref": "#/definitions/codersdk.TerminalFontName"
                 },
+                "theme_dark": {
+                    "description": "Ignored when ThemeMode is \"single\"",
+                    "type": "string"
+                },
+                "theme_light": {
+                    "description": "Ignored when ThemeMode is \"single\"",
+                    "type": "string"
+                },
+                "theme_mode": {
+                    "$ref": "#/definitions/codersdk.ThemeMode"
+                },
                 "theme_preference": {
+                    "description": "ThemePreference is the legacy single-field appearance setting. In\n\"single\" mode it mirrors the active theme. In \"sync\" mode modern\nclients normally mirror the active OS slot, but older clients can\nupdate only this field, so it may diverge from ThemeLight or\nThemeDark until a modern client saves the full appearance state\nagain.",
                     "type": "string"
                 }
             }
@@ -24071,6 +24215,9 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.AgentChatSendShortcut"
                 },
                 "code_diff_display_mode": {
+                    "$ref": "#/definitions/codersdk.AgentDisplayMode"
+                },
+                "shell_tool_display_mode": {
                     "$ref": "#/definitions/codersdk.AgentDisplayMode"
                 },
                 "task_notification_alert_dismissed": {

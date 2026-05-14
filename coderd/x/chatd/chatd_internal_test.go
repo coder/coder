@@ -2332,6 +2332,51 @@ func TestSubscribeDoesNotReplayRetryAfterStreamResumes(t *testing.T) {
 	requireNoStreamEvent(t, events, 200*time.Millisecond)
 }
 
+func TestSubscribeDoesNotReplayFailedAttemptPartsAfterRetry(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancelCtx := context.WithCancel(context.Background())
+	defer cancelCtx()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	chatID := uuid.New()
+	chat := database.Chat{ID: chatID, Status: database.ChatStatusRunning}
+
+	gomock.InOrder(
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
+		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
+			ChatID:  chatID,
+			AfterID: 0,
+		}).Return(nil, nil),
+		db.EXPECT().GetChatQueuedMessages(gomock.Any(), chatID).Return(nil, nil),
+	)
+
+	server := newBufferedSubscribeTestServer(t, db, chatID)
+
+	server.publishMessagePart(chatID, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("failed partial"))
+	server.clearProvisionalStreamParts(chatID)
+	server.publishRetry(chatID, newTestRetryPayload())
+	server.publishMessagePart(chatID, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("retry recovered"))
+
+	snapshot, events, cancel, ok := server.Subscribe(ctx, chatID, nil, 0)
+	require.True(t, ok)
+	defer cancel()
+
+	requireNoSnapshotRetryEvent(t, snapshot)
+	partEvent := requireSnapshotMessagePartEvent(t, snapshot)
+	require.Equal(t, "retry recovered", partEvent.MessagePart.Part.Text)
+	for _, event := range snapshot {
+		if event.Type != codersdk.ChatStreamEventTypeMessagePart {
+			continue
+		}
+		require.NotEqual(t, "failed partial", event.MessagePart.Part.Text)
+	}
+	requireNoStreamEvent(t, events, 200*time.Millisecond)
+}
+
 func TestSubscribeDoesNotReplayRetryAfterTerminalError(t *testing.T) {
 	t.Parallel()
 

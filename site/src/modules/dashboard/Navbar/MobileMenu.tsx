@@ -22,6 +22,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { Latency } from "#/components/Latency/Latency";
 import type { ProxyContextValue } from "#/contexts/ProxyContext";
 import { cn } from "#/utils/cn";
@@ -134,7 +135,7 @@ const ProxySettingsSub: FC<ProxySettingsSubProps> = ({ proxyContextValue }) => {
 				>
 					Workspace proxy settings:
 					<span className="leading-none flex items-center gap-1">
-						<img
+						<ExternalImage
 							className="w-4 h-4"
 							src={selectedProxy.icon_url}
 							alt={selectedProxy.name}
@@ -171,7 +172,11 @@ const ProxySettingsSub: FC<ProxySettingsSubProps> = ({ proxyContextValue }) => {
 									setOpen(false);
 								}}
 							>
-								<img className="w-4 h-4" src={p.icon_url} alt={p.name} />
+								<ExternalImage
+									className="w-4 h-4"
+									src={p.icon_url}
+									alt={p.name}
+								/>
 								{p.display_name || p.name}
 								{latency ? (
 									<Latency className="ml-auto" latency={latency.latencyMS} />

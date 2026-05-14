@@ -12,6 +12,12 @@ export const RBACResourceActions: Partial<
 		read: "read AI model prices",
 		update: "update AI model prices",
 	},
+	ai_provider: {
+		create: "create an AI provider",
+		delete: "delete an AI provider",
+		read: "read AI provider configuration",
+		update: "update an AI provider",
+	},
 	ai_seat: {
 		create: "record AI seat usage",
 		read: "read AI seat state",

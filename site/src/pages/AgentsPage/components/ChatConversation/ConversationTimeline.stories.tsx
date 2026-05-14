@@ -1139,6 +1139,45 @@ export const UserMessageWithMultipleInlineFileRefs: Story = {
 	},
 };
 
+export const MetadataOnlyUserMessageDoesNotLeaveStickyGap: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "assistant",
+				content: [{ type: "text", text: "Before hidden metadata." }],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "user",
+				content: [
+					{
+						type: "context-file",
+						context_file_path: "/home/coder/coder/AGENTS.md",
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 3,
+				role: "assistant",
+				content: [{ type: "text", text: "After hidden metadata." }],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Before hidden metadata.")).toBeVisible();
+		expect(canvas.getByText("After hidden metadata.")).toBeVisible();
+		expect(canvasElement.querySelectorAll("[data-user-sentinel]")).toHaveLength(
+			0,
+		);
+	},
+};
+
 /**
  * Verifies the structural requirements for sticky user messages
  * in the flat (section-less) message list:
@@ -1802,7 +1841,7 @@ export const AssistantActionBarAfterHiddenMessages: Story = {
 	},
 };
 
-export const CodeDiffDisplayModeFromPreferences: Story = {
+export const ToolDisplayModesFromPreferences: Story = {
 	parameters: {
 		queries: [
 			{
@@ -1810,6 +1849,7 @@ export const CodeDiffDisplayModeFromPreferences: Story = {
 				data: {
 					task_notification_alert_dismissed: false,
 					thinking_display_mode: "auto" as const,
+					shell_tool_display_mode: "always_collapsed" as const,
 					code_diff_display_mode: "always_collapsed" as const,
 					agent_chat_send_shortcut: "enter" as const,
 				},
@@ -1833,6 +1873,14 @@ export const CodeDiffDisplayModeFromPreferences: Story = {
 					toolResults: [],
 					tools: [
 						{
+							id: "execute-tool",
+							name: "execute",
+							args: { command: "pnpm test" },
+							result: { output: "tests passed" },
+							isError: false,
+							status: "completed",
+						},
+						{
 							id: "edit-tool",
 							name: "edit_files",
 							args: {
@@ -1853,7 +1901,10 @@ export const CodeDiffDisplayModeFromPreferences: Story = {
 							status: "completed",
 						},
 					],
-					blocks: [{ type: "tool", id: "edit-tool" }],
+					blocks: [
+						{ type: "tool", id: "execute-tool" },
+						{ type: "tool", id: "edit-tool" },
+					],
 					sources: [],
 				},
 			},
@@ -1861,8 +1912,19 @@ export const CodeDiffDisplayModeFromPreferences: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		expect(canvas.getByText("pnpm test")).toBeVisible();
+		expect(canvas.queryByText("tests passed")).not.toBeInTheDocument();
 		expect(canvas.getByText(/Edited config\.ts/)).toBeVisible();
 		expect(canvas.queryAllByTestId("edit-file-diff")).toHaveLength(0);
+
+		const commandOutputButton = canvas.getByRole("button", {
+			name: "Expand command output",
+		});
+		expect(commandOutputButton).toHaveAttribute("aria-expanded", "false");
+		await userEvent.click(commandOutputButton);
+		await waitFor(() => {
+			expect(canvas.getByText("tests passed")).toBeVisible();
+		});
 
 		const editFilesButton = canvas.getByRole("button", {
 			name: /Edited config\.ts/,
@@ -1887,6 +1949,7 @@ export const ThinkingBlockAlwaysExpanded: Story = {
 				data: {
 					task_notification_alert_dismissed: false,
 					thinking_display_mode: "always_expanded" as const,
+					shell_tool_display_mode: "auto" as const,
 					code_diff_display_mode: "auto" as const,
 					agent_chat_send_shortcut: "enter" as const,
 				},
@@ -1936,6 +1999,7 @@ export const ThinkingBlockAlwaysCollapsed: Story = {
 				data: {
 					task_notification_alert_dismissed: false,
 					thinking_display_mode: "always_collapsed" as const,
+					shell_tool_display_mode: "auto" as const,
 					code_diff_display_mode: "auto" as const,
 					agent_chat_send_shortcut: "enter" as const,
 				},
@@ -1986,6 +2050,7 @@ export const ThinkingBlockWithToolCall: Story = {
 				data: {
 					task_notification_alert_dismissed: false,
 					thinking_display_mode: "always_collapsed" as const,
+					shell_tool_display_mode: "auto" as const,
 					code_diff_display_mode: "auto" as const,
 					agent_chat_send_shortcut: "enter" as const,
 				},
@@ -2049,6 +2114,7 @@ export const ThinkingBlockAutoMode: Story = {
 				data: {
 					task_notification_alert_dismissed: false,
 					thinking_display_mode: "auto" as const,
+					shell_tool_display_mode: "auto" as const,
 					code_diff_display_mode: "auto" as const,
 					agent_chat_send_shortcut: "enter" as const,
 				},
@@ -2102,6 +2168,7 @@ export const ThinkingBlockPreviewMode: Story = {
 				data: {
 					task_notification_alert_dismissed: false,
 					thinking_display_mode: "preview" as const,
+					shell_tool_display_mode: "auto" as const,
 					code_diff_display_mode: "auto" as const,
 					agent_chat_send_shortcut: "enter" as const,
 				},

@@ -99,6 +99,8 @@ type sqlcQuerier interface {
 	CountUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) (int64, error)
 	CreateUserSecret(ctx context.Context, arg CreateUserSecretParams) (UserSecret, error)
 	CustomRoles(ctx context.Context, arg CustomRolesParams) ([]CustomRole, error)
+	DeleteAIProviderByID(ctx context.Context, id uuid.UUID) error
+	DeleteAIProviderKey(ctx context.Context, id uuid.UUID) error
 	DeleteAPIKeyByID(ctx context.Context, id string) error
 	DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
 	DeleteAllChatQueuedMessages(ctx context.Context, chatID uuid.UUID) error
@@ -247,6 +249,21 @@ type sqlcQuerier interface {
 	GetAIBridgeToolUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]AIBridgeToolUsage, error)
 	GetAIBridgeUserPromptsByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]AIBridgeUserPrompt, error)
 	GetAIModelPriceByProviderModel(ctx context.Context, arg GetAIModelPriceByProviderModelParams) (AiModelPrice, error)
+	GetAIProviderByID(ctx context.Context, id uuid.UUID) (AIProvider, error)
+	GetAIProviderByName(ctx context.Context, name string) (AIProvider, error)
+	GetAIProviderKeyByID(ctx context.Context, id uuid.UUID) (AIProviderKey, error)
+	// Returns every AI provider key row, including those belonging to a
+	// soft-deleted provider, so the dbcrypt key rotation utility can
+	// re-encrypt their api_key and clear references to retired keys.
+	GetAIProviderKeys(ctx context.Context) ([]AIProviderKey, error)
+	// Returns all keys for a provider, ordered by created_at ASC so the
+	// oldest key is returned first. AI Bridge currently uses the oldest
+	// key per provider; multiple keys are stored to support future
+	// failover and rotation flows.
+	GetAIProviderKeysByProviderID(ctx context.Context, providerID uuid.UUID) ([]AIProviderKey, error)
+	// Returns AI provider rows. Soft-deleted and disabled rows are excluded
+	// unless include_deleted or include_disabled is set.
+	GetAIProviders(ctx context.Context, arg GetAIProvidersParams) ([]AIProvider, error)
 	GetAPIKeyByID(ctx context.Context, id string) (APIKey, error)
 	// there is no unique constraint on empty token names
 	GetAPIKeyByName(ctx context.Context, arg GetAPIKeyByNameParams) (APIKey, error)
@@ -380,6 +397,16 @@ type sqlcQuerier interface {
 	GetChatUsageLimitConfig(ctx context.Context) (ChatUsageLimitConfig, error)
 	GetChatUsageLimitGroupOverride(ctx context.Context, groupID uuid.UUID) (GetChatUsageLimitGroupOverrideRow, error)
 	GetChatUsageLimitUserOverride(ctx context.Context, userID uuid.UUID) (GetChatUsageLimitUserOverrideRow, error)
+	// Returns the concatenated text of each user-visible user prompt in a
+	// chat, newest first. Used by the composer to populate the up/down
+	// arrow prompt-history cycle. Non-text parts (tool calls, files,
+	// attachments, ...) are excluded; messages whose text payload is
+	// entirely whitespace are dropped so cycling never lands on a blank
+	// entry. The jsonb_typeof guard skips legacy V0 rows whose content is
+	// a scalar JSON string (predates migration 000434) so the lateral
+	// jsonb_array_elements never raises "cannot extract elements from a
+	// scalar". Backed by idx_chat_messages_user_prompts.
+	GetChatUserPromptsByChatID(ctx context.Context, arg GetChatUserPromptsByChatIDParams) ([]GetChatUserPromptsByChatIDRow, error)
 	// Returns the global TTL for chat workspaces as a Go duration string.
 	// Returns "0s" (disabled) when no value has been configured.
 	GetChatWorkspaceTTL(ctx context.Context) (string, error)
@@ -702,6 +729,7 @@ type sqlcQuerier interface {
 	// simultaneously.
 	GetUserActivityInsights(ctx context.Context, arg GetUserActivityInsightsParams) ([]GetUserActivityInsightsRow, error)
 	GetUserAgentChatSendShortcut(ctx context.Context, userID uuid.UUID) (string, error)
+	GetUserAppearanceSettings(ctx context.Context, userID uuid.UUID) (GetUserAppearanceSettingsRow, error)
 	GetUserByEmailOrUsername(ctx context.Context, arg GetUserByEmailOrUsernameParams) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	GetUserChatCompactionThreshold(ctx context.Context, arg GetUserChatCompactionThresholdParams) (string, error)
@@ -760,12 +788,11 @@ type sqlcQuerier interface {
 	// percentile_disc returns an actual integer count from the underlying
 	// values rather than interpolating between rows.
 	GetUserSecretsTelemetrySummary(ctx context.Context) (GetUserSecretsTelemetrySummaryRow, error)
+	GetUserShellToolDisplayMode(ctx context.Context, userID uuid.UUID) (string, error)
 	// GetUserStatusCounts returns the count of users in each status over time.
 	// The time range is inclusively defined by the start_time and end_time parameters.
 	GetUserStatusCounts(ctx context.Context, arg GetUserStatusCountsParams) ([]GetUserStatusCountsRow, error)
 	GetUserTaskNotificationAlertDismissed(ctx context.Context, userID uuid.UUID) (bool, error)
-	GetUserTerminalFont(ctx context.Context, userID uuid.UUID) (string, error)
-	GetUserThemePreference(ctx context.Context, userID uuid.UUID) (string, error)
 	GetUserThinkingDisplayMode(ctx context.Context, userID uuid.UUID) (string, error)
 	GetUserWorkspaceBuildParameters(ctx context.Context, arg GetUserWorkspaceBuildParametersParams) ([]GetUserWorkspaceBuildParametersRow, error)
 	// This will never return deleted users.
@@ -858,6 +885,8 @@ type sqlcQuerier interface {
 	InsertAIBridgeTokenUsage(ctx context.Context, arg InsertAIBridgeTokenUsageParams) (AIBridgeTokenUsage, error)
 	InsertAIBridgeToolUsage(ctx context.Context, arg InsertAIBridgeToolUsageParams) (AIBridgeToolUsage, error)
 	InsertAIBridgeUserPrompt(ctx context.Context, arg InsertAIBridgeUserPromptParams) (AIBridgeUserPrompt, error)
+	InsertAIProvider(ctx context.Context, arg InsertAIProviderParams) (AIProvider, error)
+	InsertAIProviderKey(ctx context.Context, arg InsertAIProviderKeyParams) (AIProviderKey, error)
 	InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error)
 	// We use the organization_id as the id
 	// for simplicity since all users is
@@ -1089,6 +1118,7 @@ type sqlcQuerier interface {
 	UnpinChatByID(ctx context.Context, id uuid.UUID) error
 	UnsetDefaultChatModelConfigs(ctx context.Context) error
 	UpdateAIBridgeInterceptionEnded(ctx context.Context, arg UpdateAIBridgeInterceptionEndedParams) (AIBridgeInterception, error)
+	UpdateAIProvider(ctx context.Context, arg UpdateAIProviderParams) (AIProvider, error)
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
 	UpdateChatBuildAgentBinding(ctx context.Context, arg UpdateChatBuildAgentBindingParams) (Chat, error)
 	UpdateChatByID(ctx context.Context, arg UpdateChatByIDParams) (Chat, error)
@@ -1151,6 +1181,15 @@ type sqlcQuerier interface {
 	UpdateChatWorkspaceBinding(ctx context.Context, arg UpdateChatWorkspaceBindingParams) (Chat, error)
 	UpdateCryptoKeyDeletesAt(ctx context.Context, arg UpdateCryptoKeyDeletesAtParams) (CryptoKey, error)
 	UpdateCustomRole(ctx context.Context, arg UpdateCustomRoleParams) (CustomRole, error)
+	// Updates only the encrypted columns (api_key, api_key_key_id) and
+	// the updated_at timestamp on a row. Used by the dbcrypt key
+	// rotation utility to re-encrypt or decrypt rows in place.
+	UpdateEncryptedAIProviderKey(ctx context.Context, arg UpdateEncryptedAIProviderKeyParams) (AIProviderKey, error)
+	// Updates only the encrypted columns (settings, settings_key_id) and
+	// the updated_at timestamp on a row, regardless of its deleted flag.
+	// Used by the dbcrypt key rotation utility to re-encrypt or decrypt
+	// rows in place.
+	UpdateEncryptedAIProviderSettings(ctx context.Context, arg UpdateEncryptedAIProviderSettingsParams) (AIProvider, error)
 	UpdateExternalAuthLink(ctx context.Context, arg UpdateExternalAuthLinkParams) (ExternalAuthLink, error)
 	// Optimistic lock: only update the row if the refresh token in the database
 	// still matches the one we read before attempting the refresh. This prevents
@@ -1216,9 +1255,13 @@ type sqlcQuerier interface {
 	UpdateUserQuietHoursSchedule(ctx context.Context, arg UpdateUserQuietHoursScheduleParams) (User, error)
 	UpdateUserRoles(ctx context.Context, arg UpdateUserRolesParams) (User, error)
 	UpdateUserSecretByUserIDAndName(ctx context.Context, arg UpdateUserSecretByUserIDAndNameParams) (UserSecret, error)
+	UpdateUserShellToolDisplayMode(ctx context.Context, arg UpdateUserShellToolDisplayModeParams) (string, error)
 	UpdateUserStatus(ctx context.Context, arg UpdateUserStatusParams) (User, error)
 	UpdateUserTaskNotificationAlertDismissed(ctx context.Context, arg UpdateUserTaskNotificationAlertDismissedParams) (bool, error)
 	UpdateUserTerminalFont(ctx context.Context, arg UpdateUserTerminalFontParams) (UserConfig, error)
+	UpdateUserThemeDark(ctx context.Context, arg UpdateUserThemeDarkParams) (UserConfig, error)
+	UpdateUserThemeLight(ctx context.Context, arg UpdateUserThemeLightParams) (UserConfig, error)
+	UpdateUserThemeMode(ctx context.Context, arg UpdateUserThemeModeParams) (UserConfig, error)
 	UpdateUserThemePreference(ctx context.Context, arg UpdateUserThemePreferenceParams) (UserConfig, error)
 	UpdateUserThinkingDisplayMode(ctx context.Context, arg UpdateUserThinkingDisplayModeParams) (string, error)
 	UpdateVolumeResourceMonitor(ctx context.Context, arg UpdateVolumeResourceMonitorParams) error

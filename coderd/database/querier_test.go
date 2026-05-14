@@ -11740,11 +11740,15 @@ func TestChatLabels(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, database.StringMap{"github.repo": "coder/coder", "env": "prod"}, chat.Labels)
+		require.Equal(t, owner.Username, chat.OwnerUsername)
+		require.Equal(t, owner.Name, chat.OwnerName)
 
 		// Read back and verify.
 		fetched, err := db.GetChatByID(ctx, chat.ID)
 		require.NoError(t, err)
 		require.Equal(t, chat.Labels, fetched.Labels)
+		require.Equal(t, owner.Username, fetched.OwnerUsername)
+		require.Equal(t, owner.Name, fetched.OwnerName)
 	})
 
 	t.Run("CreateWithoutLabels", func(t *testing.T) {
@@ -11763,6 +11767,66 @@ func TestChatLabels(t *testing.T) {
 		// Default should be an empty map, not nil.
 		require.NotNil(t, chat.Labels)
 		require.Empty(t, chat.Labels)
+	})
+
+	t.Run("ListReturnsOwnerFields", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		chat, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
+			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
+			OwnerID:           owner.ID,
+			LastModelConfigID: modelCfg.ID,
+			Title:             "owner-fields-chat-" + uuid.NewString(),
+		})
+		require.NoError(t, err)
+
+		rows, err := db.GetChats(ctx, database.GetChatsParams{OwnerID: owner.ID})
+		require.NoError(t, err)
+
+		chatIndex := slices.IndexFunc(rows, func(row database.GetChatsRow) bool {
+			return row.Chat.ID == chat.ID
+		})
+		require.NotEqual(t, -1, chatIndex, "chat not found in GetChats result")
+		require.Equal(t, owner.Username, rows[chatIndex].Chat.OwnerUsername)
+		require.Equal(t, owner.Name, rows[chatIndex].Chat.OwnerName)
+	})
+
+	t.Run("ChildrenReturnOwnerFields", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		parent, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
+			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
+			OwnerID:           owner.ID,
+			LastModelConfigID: modelCfg.ID,
+			Title:             "owner-fields-parent-" + uuid.NewString(),
+		})
+		require.NoError(t, err)
+		child, err := db.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
+			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
+			OwnerID:           owner.ID,
+			LastModelConfigID: modelCfg.ID,
+			Title:             "owner-fields-child-" + uuid.NewString(),
+			ParentChatID:      uuid.NullUUID{UUID: parent.ID, Valid: true},
+			RootChatID:        uuid.NullUUID{UUID: parent.ID, Valid: true},
+		})
+		require.NoError(t, err)
+
+		rows, err := db.GetChildChatsByParentIDs(ctx, database.GetChildChatsByParentIDsParams{
+			ParentIds: []uuid.UUID{parent.ID},
+		})
+		require.NoError(t, err)
+		require.Len(t, rows, 1)
+		require.Equal(t, child.ID, rows[0].Chat.ID)
+		require.Equal(t, owner.Username, rows[0].Chat.OwnerUsername)
+		require.Equal(t, owner.Name, rows[0].Chat.OwnerName)
 	})
 
 	t.Run("UpdateLabels", func(t *testing.T) {
@@ -11834,6 +11898,8 @@ func TestChatLabels(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "new-title", updated.Title)
 		require.Equal(t, database.StringMap{"pr": "1234"}, updated.Labels)
+		require.Equal(t, owner.Username, updated.OwnerUsername)
+		require.Equal(t, owner.Name, updated.OwnerName)
 	})
 
 	t.Run("FilterByLabels", func(t *testing.T) {

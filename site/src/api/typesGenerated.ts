@@ -57,7 +57,7 @@ export interface AIBridgeConfig {
 	 * Providers holds provider instances populated from CODER_AIBRIDGE_PROVIDER_<N>_<KEY>
 	 * env vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.
 	 */
-	readonly providers?: readonly AIBridgeProviderConfig[];
+	readonly providers?: readonly AIProviderConfig[];
 	/**
 	 * @deprecated Injected MCP in AI Bridge is deprecated and will be removed in a future release.
 	 */
@@ -127,35 +127,6 @@ export interface AIBridgeModelThought {
 export interface AIBridgeOpenAIConfig {
 	readonly base_url: string;
 	readonly key: string;
-}
-
-// From codersdk/deployment.go
-/**
- * AIBridgeProviderConfig represents a single AI Bridge provider instance,
- * parsed from CODER_AIBRIDGE_PROVIDER_<N>_<KEY> environment variables.
- * This follows the same indexed pattern as ExternalAuthConfig.
- */
-export interface AIBridgeProviderConfig {
-	/**
-	 * Type is the provider type: "openai", "anthropic", or "copilot".
-	 */
-	readonly type: string;
-	/**
-	 * Name is the unique instance identifier used for routing.
-	 * Defaults to Type if not provided.
-	 */
-	readonly name: string;
-	/**
-	 * BaseURL is the base URL of the upstream provider API.
-	 */
-	readonly base_url: string;
-	/**
-	 * DumpDir is the directory path for dumping API requests and responses.
-	 */
-	readonly dump_dir?: string;
-	readonly bedrock_region?: string;
-	readonly bedrock_model?: string;
-	readonly bedrock_small_fast_model?: string;
 }
 
 // From codersdk/deployment.go
@@ -327,6 +298,35 @@ export interface AIConfig {
 	readonly chat?: ChatConfig;
 }
 
+// From codersdk/deployment.go
+/**
+ * AIProviderConfig represents a single AI provider instance,
+ * parsed from CODER_AIBRIDGE_PROVIDER_<N>_<KEY> environment variables.
+ * This follows the same indexed pattern as ExternalAuthConfig.
+ */
+export interface AIProviderConfig {
+	/**
+	 * Type is the provider type: "openai", "anthropic", or "copilot".
+	 */
+	readonly type: string;
+	/**
+	 * Name is the unique instance identifier used for routing.
+	 * Defaults to Type if not provided.
+	 */
+	readonly name: string;
+	/**
+	 * BaseURL is the base URL of the upstream provider API.
+	 */
+	readonly base_url: string;
+	/**
+	 * DumpDir is the directory path for dumping API requests and responses.
+	 */
+	readonly dump_dir?: string;
+	readonly bedrock_region?: string;
+	readonly bedrock_model?: string;
+	readonly bedrock_small_fast_model?: string;
+}
+
 // From codersdk/allowlist.go
 /**
  * APIAllowListTarget represents a single allow-list entry using the canonical
@@ -362,6 +362,11 @@ export type APIKeyScope =
 	| "ai_model_price:*"
 	| "ai_model_price:read"
 	| "ai_model_price:update"
+	| "ai_provider:*"
+	| "ai_provider:create"
+	| "ai_provider:delete"
+	| "ai_provider:read"
+	| "ai_provider:update"
 	| "ai_seat:*"
 	| "ai_seat:create"
 	| "ai_seat:read"
@@ -577,6 +582,11 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"ai_model_price:*",
 	"ai_model_price:read",
 	"ai_model_price:update",
+	"ai_provider:*",
+	"ai_provider:create",
+	"ai_provider:delete",
+	"ai_provider:read",
+	"ai_provider:update",
 	"ai_seat:*",
 	"ai_seat:create",
 	"ai_seat:read",
@@ -2382,6 +2392,42 @@ export interface ChatPlanModeInstructionsResponse {
 }
 
 export const ChatPlanModes: ChatPlanMode[] = ["plan"];
+
+// From codersdk/chats.go
+/**
+ * ChatPrompt is a single user-authored prompt in a chat, returned by
+ * GET /api/experimental/chats/{chat}/prompts. The text field contains
+ * the concatenated text payload of the underlying chat message; non-text
+ * parts (tool calls, files, attachments) are omitted by the server.
+ */
+export interface ChatPrompt {
+	readonly id: number;
+	readonly text: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatPromptsOptions are optional query parameters for GetChatPrompts.
+ */
+export interface ChatPromptsOptions {
+	/**
+	 * Limit caps the number of prompts returned. The server enforces a
+	 * minimum of 1 and a maximum of 2000; passing 0 (or negative)
+	 * applies the server-side default of 500.
+	 */
+	readonly Limit: number;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatPromptsResponse is the payload of
+ * GET /api/experimental/chats/{chat}/prompts. Prompts are returned
+ * newest first so the client can index directly into the slice for
+ * up/down arrow history cycling.
+ */
+export interface ChatPromptsResponse {
+	readonly prompts: readonly ChatPrompt[];
+}
 
 // From codersdk/chats.go
 /**
@@ -6404,6 +6450,7 @@ export const RBACActions: RBACAction[] = [
 
 // From codersdk/rbacresources_gen.go
 export type RBACResource =
+	| "ai_provider"
 	| "ai_model_price"
 	| "ai_seat"
 	| "aibridge_interception"
@@ -6452,6 +6499,7 @@ export type RBACResource =
 	| "workspace_proxy";
 
 export const RBACResources: RBACResource[] = [
+	"ai_provider",
 	"ai_model_price",
 	"ai_seat",
 	"aibridge_interception",
@@ -6611,6 +6659,8 @@ export interface ResolveAutostartResponse {
 
 // From codersdk/audit.go
 export type ResourceType =
+	| "ai_provider"
+	| "ai_provider_key"
 	| "ai_seat"
 	| "api_key"
 	| "chat"
@@ -6642,6 +6692,8 @@ export type ResourceType =
 	| "workspace_proxy";
 
 export const ResourceTypes: ResourceType[] = [
+	"ai_provider",
+	"ai_provider_key",
 	"ai_seat",
 	"api_key",
 	"chat",
@@ -7917,6 +7969,11 @@ export const TerminalFontNames: TerminalFontName[] = [
 ];
 
 // From codersdk/users.go
+export type ThemeMode = "single" | "sync" | "";
+
+export const ThemeModes: ThemeMode[] = ["single", "sync", ""];
+
+// From codersdk/users.go
 export type ThinkingDisplayMode =
 	| "always_collapsed"
 	| "always_expanded"
@@ -8406,6 +8463,28 @@ export interface UpdateTemplateMeta {
 // From codersdk/users.go
 export interface UpdateUserAppearanceSettingsRequest {
 	readonly theme_preference: string;
+	/**
+	 * ThemeMode is optional for backward compatibility. When empty,
+	 * the server leaves theme_mode, theme_light, and theme_dark
+	 * unchanged so older CLI clients do not erase sync-mode settings.
+	 * Legacy auto preferences are the exception: they clear theme_mode
+	 * so clients can migrate the old sync-with-system setting.
+	 */
+	readonly theme_mode: ThemeMode;
+	/**
+	 * ThemeLight is required when ThemeMode is "sync". In "single"
+	 * mode an empty value means "preserve the previously persisted
+	 * slot" rather than "clear the slot", so partial updates that send
+	 * only one slot keep the other intact.
+	 */
+	readonly theme_light: string;
+	/**
+	 * ThemeDark is required when ThemeMode is "sync". In "single" mode
+	 * an empty value means "preserve the previously persisted slot"
+	 * rather than "clear the slot", so partial updates that send only
+	 * one slot keep the other intact.
+	 */
+	readonly theme_dark: string;
 	readonly terminal_font: TerminalFontName;
 }
 
@@ -8452,6 +8531,7 @@ export interface UpdateUserPasswordRequest {
 export interface UpdateUserPreferenceSettingsRequest {
 	readonly task_notification_alert_dismissed?: boolean;
 	readonly thinking_display_mode?: ThinkingDisplayMode;
+	readonly shell_tool_display_mode?: AgentDisplayMode;
 	readonly code_diff_display_mode?: AgentDisplayMode;
 	readonly agent_chat_send_shortcut?: AgentChatSendShortcut;
 }
@@ -8712,7 +8792,24 @@ export interface UserActivityInsightsResponse {
 
 // From codersdk/users.go
 export interface UserAppearanceSettings {
+	/**
+	 * ThemePreference is the legacy single-field appearance setting. In
+	 * "single" mode it mirrors the active theme. In "sync" mode modern
+	 * clients normally mirror the active OS slot, but older clients can
+	 * update only this field, so it may diverge from ThemeLight or
+	 * ThemeDark until a modern client saves the full appearance state
+	 * again.
+	 */
 	readonly theme_preference: string;
+	readonly theme_mode: ThemeMode;
+	/**
+	 * Ignored when ThemeMode is "single"
+	 */
+	readonly theme_light: string;
+	/**
+	 * Ignored when ThemeMode is "single"
+	 */
+	readonly theme_dark: string;
 	readonly terminal_font: TerminalFontName;
 }
 
@@ -8836,6 +8933,7 @@ export interface UserParameter {
 export interface UserPreferenceSettings {
 	readonly task_notification_alert_dismissed: boolean;
 	readonly thinking_display_mode: ThinkingDisplayMode;
+	readonly shell_tool_display_mode: AgentDisplayMode;
 	readonly code_diff_display_mode: AgentDisplayMode;
 	readonly agent_chat_send_shortcut: AgentChatSendShortcut;
 }

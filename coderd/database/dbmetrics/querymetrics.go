@@ -377,6 +377,22 @@ func (m queryMetricsStore) CustomRoles(ctx context.Context, arg database.CustomR
 	return r0, r1
 }
 
+func (m queryMetricsStore) DeleteAIProviderByID(ctx context.Context, id uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteAIProviderByID(ctx, id)
+	m.queryLatencies.WithLabelValues("DeleteAIProviderByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteAIProviderByID").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) DeleteAIProviderKey(ctx context.Context, id uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteAIProviderKey(ctx, id)
+	m.queryLatencies.WithLabelValues("DeleteAIProviderKey").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteAIProviderKey").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) DeleteAPIKeyByID(ctx context.Context, id string) error {
 	start := time.Now()
 	r0 := m.s.DeleteAPIKeyByID(ctx, id)
@@ -993,6 +1009,54 @@ func (m queryMetricsStore) GetAIModelPriceByProviderModel(ctx context.Context, a
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetAIProviderByID(ctx context.Context, id uuid.UUID) (database.AIProvider, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIProviderByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetAIProviderByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIProviderByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAIProviderByName(ctx context.Context, name string) (database.AIProvider, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIProviderByName(ctx, name)
+	m.queryLatencies.WithLabelValues("GetAIProviderByName").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIProviderByName").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAIProviderKeyByID(ctx context.Context, id uuid.UUID) (database.AIProviderKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIProviderKeyByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetAIProviderKeyByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIProviderKeyByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAIProviderKeys(ctx context.Context) ([]database.AIProviderKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIProviderKeys(ctx)
+	m.queryLatencies.WithLabelValues("GetAIProviderKeys").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIProviderKeys").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAIProviderKeysByProviderID(ctx context.Context, providerID uuid.UUID) ([]database.AIProviderKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIProviderKeysByProviderID(ctx, providerID)
+	m.queryLatencies.WithLabelValues("GetAIProviderKeysByProviderID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIProviderKeysByProviderID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAIProviders(ctx context.Context, arg database.GetAIProvidersParams) ([]database.AIProvider, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIProviders(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetAIProviders").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIProviders").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAPIKeyByID(ctx, id)
@@ -1534,6 +1598,14 @@ func (m queryMetricsStore) GetChatUsageLimitUserOverride(ctx context.Context, us
 	r0, r1 := m.s.GetChatUsageLimitUserOverride(ctx, userID)
 	m.queryLatencies.WithLabelValues("GetChatUsageLimitUserOverride").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatUsageLimitUserOverride").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatUserPromptsByChatID(ctx context.Context, arg database.GetChatUserPromptsByChatIDParams) ([]database.GetChatUserPromptsByChatIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatUserPromptsByChatID(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatUserPromptsByChatID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatUserPromptsByChatID").Inc()
 	return r0, r1
 }
 
@@ -2817,6 +2889,14 @@ func (m queryMetricsStore) GetUserAgentChatSendShortcut(ctx context.Context, use
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetUserAppearanceSettings(ctx context.Context, userID uuid.UUID) (database.GetUserAppearanceSettingsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserAppearanceSettings(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetUserAppearanceSettings").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserAppearanceSettings").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetUserByEmailOrUsername(ctx context.Context, arg database.GetUserByEmailOrUsernameParams) (database.User, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserByEmailOrUsername(ctx, arg)
@@ -2969,6 +3049,14 @@ func (m queryMetricsStore) GetUserSecretsTelemetrySummary(ctx context.Context) (
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetUserShellToolDisplayMode(ctx context.Context, userID uuid.UUID) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserShellToolDisplayMode(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetUserShellToolDisplayMode").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserShellToolDisplayMode").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetUserStatusCounts(ctx context.Context, arg database.GetUserStatusCountsParams) ([]database.GetUserStatusCountsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserStatusCounts(ctx, arg)
@@ -2982,22 +3070,6 @@ func (m queryMetricsStore) GetUserTaskNotificationAlertDismissed(ctx context.Con
 	r0, r1 := m.s.GetUserTaskNotificationAlertDismissed(ctx, userID)
 	m.queryLatencies.WithLabelValues("GetUserTaskNotificationAlertDismissed").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserTaskNotificationAlertDismissed").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetUserTerminalFont(ctx context.Context, userID uuid.UUID) (string, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetUserTerminalFont(ctx, userID)
-	m.queryLatencies.WithLabelValues("GetUserTerminalFont").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserTerminalFont").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetUserThemePreference(ctx context.Context, userID uuid.UUID) (string, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetUserThemePreference(ctx, userID)
-	m.queryLatencies.WithLabelValues("GetUserThemePreference").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserThemePreference").Inc()
 	return r0, r1
 }
 
@@ -3566,6 +3638,22 @@ func (m queryMetricsStore) InsertAIBridgeUserPrompt(ctx context.Context, arg dat
 	r0, r1 := m.s.InsertAIBridgeUserPrompt(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertAIBridgeUserPrompt").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAIBridgeUserPrompt").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertAIProvider(ctx context.Context, arg database.InsertAIProviderParams) (database.AIProvider, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertAIProvider(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertAIProvider").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAIProvider").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertAIProviderKey(ctx context.Context, arg database.InsertAIProviderKeyParams) (database.AIProviderKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertAIProviderKey(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertAIProviderKey").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAIProviderKey").Inc()
 	return r0, r1
 }
 
@@ -4521,6 +4609,14 @@ func (m queryMetricsStore) UpdateAIBridgeInterceptionEnded(ctx context.Context, 
 	return r0, r1
 }
 
+func (m queryMetricsStore) UpdateAIProvider(ctx context.Context, arg database.UpdateAIProviderParams) (database.AIProvider, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateAIProvider(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateAIProvider").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateAIProvider").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKeyByIDParams) error {
 	start := time.Now()
 	r0 := m.s.UpdateAPIKeyByID(ctx, arg)
@@ -4702,6 +4798,22 @@ func (m queryMetricsStore) UpdateCustomRole(ctx context.Context, arg database.Up
 	r0, r1 := m.s.UpdateCustomRole(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateCustomRole").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateCustomRole").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateEncryptedAIProviderKey(ctx context.Context, arg database.UpdateEncryptedAIProviderKeyParams) (database.AIProviderKey, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateEncryptedAIProviderKey(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateEncryptedAIProviderKey").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateEncryptedAIProviderKey").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateEncryptedAIProviderSettings(ctx context.Context, arg database.UpdateEncryptedAIProviderSettingsParams) (database.AIProvider, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateEncryptedAIProviderSettings(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateEncryptedAIProviderSettings").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateEncryptedAIProviderSettings").Inc()
 	return r0, r1
 }
 
@@ -5169,6 +5281,14 @@ func (m queryMetricsStore) UpdateUserSecretByUserIDAndName(ctx context.Context, 
 	return r0, r1
 }
 
+func (m queryMetricsStore) UpdateUserShellToolDisplayMode(ctx context.Context, arg database.UpdateUserShellToolDisplayModeParams) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateUserShellToolDisplayMode(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateUserShellToolDisplayMode").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUserShellToolDisplayMode").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpdateUserStatus(ctx context.Context, arg database.UpdateUserStatusParams) (database.User, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateUserStatus(ctx, arg)
@@ -5190,6 +5310,30 @@ func (m queryMetricsStore) UpdateUserTerminalFont(ctx context.Context, arg datab
 	r0, r1 := m.s.UpdateUserTerminalFont(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateUserTerminalFont").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUserTerminalFont").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateUserThemeDark(ctx context.Context, arg database.UpdateUserThemeDarkParams) (database.UserConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateUserThemeDark(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateUserThemeDark").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUserThemeDark").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateUserThemeLight(ctx context.Context, arg database.UpdateUserThemeLightParams) (database.UserConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateUserThemeLight(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateUserThemeLight").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUserThemeLight").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateUserThemeMode(ctx context.Context, arg database.UpdateUserThemeModeParams) (database.UserConfig, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateUserThemeMode(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateUserThemeMode").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUserThemeMode").Inc()
 	return r0, r1
 }
 
