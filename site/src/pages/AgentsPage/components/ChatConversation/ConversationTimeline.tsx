@@ -569,6 +569,7 @@ const ChatMessageItem = memo<{
 					) : (
 						<Message className="w-full">
 							<MessageContent className="whitespace-normal">
+								{/* Keep consecutive shell tools tighter because execute/process_output pairs read as one terminal interaction. */}
 								<div className="relative space-y-3 overflow-visible [&>[data-shell-tool]+[data-shell-tool]]:mt-2">
 									<BlockList
 										blocks={parsed.blocks}

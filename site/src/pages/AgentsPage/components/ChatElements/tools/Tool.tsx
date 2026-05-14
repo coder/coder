@@ -226,14 +226,13 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 	const command = parsedArgs ? asString(parsedArgs.command) : "";
 	const rec = asRecord(result);
 	const output = rec ? asString(rec.output).trim() : "";
-	const rawExitCode = rec
-		? asNumber(rec.exit_code, { parseString: true })
-		: undefined;
-	const exitCode = rawExitCode ?? null;
 	const durationMs = rec
 		? (asNumber(rec.wall_duration_ms, { parseString: true }) ??
 			asNumber(rec.duration_ms, { parseString: true }))
 		: undefined;
+	const isBackgrounded = Boolean(
+		rec && asString(rec.background_process_id).trim(),
+	);
 	const authRequired = rec ? Boolean(rec.auth_required) : false;
 	const authenticateURL = rec ? asString(rec.authenticate_url).trim() : "";
 	const providerLabel = toProviderLabel(
@@ -258,8 +257,8 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 			output={output}
 			status={status}
 			isError={isError}
-			exitCode={exitCode}
 			durationMs={durationMs}
+			isBackgrounded={isBackgrounded}
 			killedBySignal={killedBySignal}
 			shellToolDisplayMode={shellToolDisplayMode}
 		/>
@@ -276,9 +275,7 @@ const ProcessOutputRenderer: FC<ToolRendererProps> = ({
 	const rec = asRecord(result);
 	const output = rec ? asString(rec.output).trim() : "";
 	const exitCode = rec
-		? rec.exit_code !== undefined && rec.exit_code !== null
-			? Number(rec.exit_code)
-			: null
+		? (asNumber(rec.exit_code, { parseString: true }) ?? null)
 		: null;
 
 	return (
@@ -1072,6 +1069,7 @@ export const Tool = memo(
 					isShellTool || name === "propose_plan" || name === "advisor"
 						? "w-full py-0.5"
 						: "py-0.5",
+					// Keep back-to-back tool cards visually grouped so stacked tool calls do not look double-spaced.
 					"[&:has(+[data-tool-call])]:pb-0",
 					"[[data-tool-call]+&]:pt-0",
 					className,

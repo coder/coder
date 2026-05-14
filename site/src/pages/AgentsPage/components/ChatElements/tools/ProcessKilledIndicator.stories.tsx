@@ -38,7 +38,7 @@ export const ExecuteKilled: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getAllByText("make pre-push 2>&1").length).toBeGreaterThan(0);
+		expect(canvas.getByText("make pre-push 2>&1")).toBeInTheDocument();
 	},
 };
 
@@ -58,7 +58,7 @@ export const ExecuteTerminated: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getAllByText("npm start").length).toBeGreaterThan(0);
+		expect(canvas.getByText("npm start")).toBeInTheDocument();
 	},
 };
 
@@ -77,7 +77,7 @@ export const ExecuteNotSignaled: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getAllByText("echo hello").length).toBeGreaterThan(0);
+		expect(canvas.getByText("echo hello")).toBeInTheDocument();
 	},
 };
 
@@ -91,7 +91,7 @@ export const ExecuteRunningNotYetKilled: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getAllByText("make pre-push 2>&1").length).toBeGreaterThan(0);
+		expect(canvas.getByText("make pre-push 2>&1")).toBeInTheDocument();
 	},
 };
 

@@ -55,11 +55,38 @@ export const shortDurationMs = (durationMs: number | undefined): string => {
 	if (seconds < 60) {
 		return `${seconds}s`;
 	}
-	const minutes = Math.round(seconds / 60);
+	const minutes = Math.round(durationMs / 60_000);
 	if (minutes < 60) {
 		return `${minutes}m`;
 	}
-	const hours = Math.round(minutes / 60);
+	const hours = Math.round(durationMs / 3_600_000);
+	return `${hours}h`;
+};
+
+const roundToTenths = (value: number): number => Number(value.toFixed(1));
+
+export const formatShellDurationMs = (
+	durationMs: number | undefined,
+): string => {
+	if (
+		durationMs === undefined ||
+		durationMs < 0 ||
+		!Number.isFinite(durationMs)
+	) {
+		return "";
+	}
+	if (durationMs < 1000) {
+		return `${Math.round(durationMs)}ms`;
+	}
+	const seconds = roundToTenths(durationMs / 1000);
+	if (seconds < 60) {
+		return `${seconds}s`;
+	}
+	const minutes = roundToTenths(durationMs / 60_000);
+	if (minutes < 60) {
+		return `${minutes}m`;
+	}
+	const hours = roundToTenths(durationMs / 3_600_000);
 	return `${hours}h`;
 };
 
@@ -421,10 +448,6 @@ export const DIFFS_FONT_STYLE = {
 	"--diffs-font-size": "11px",
 	"--diffs-line-height": "1.5",
 } as CSSProperties;
-
-export const BORDER_BG_STYLE = {
-	background: "hsl(var(--border-default))",
-};
 
 /**
  * Checks whether a tool result should be rendered as a syntax-highlighted

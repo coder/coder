@@ -164,6 +164,31 @@ export const ProcessOutputAlwaysCollapsed: Story = {
 	},
 };
 
+export const ProcessOutputAlwaysExpanded: Story = {
+	args: {
+		name: "process_output",
+		status: "completed",
+		shellToolDisplayMode: "always_expanded",
+		result: {
+			output: Array.from(
+				{ length: 30 },
+				(_, index) => `process output line ${index + 1}`,
+			).join("\n"),
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/process output line 1/)).toBeVisible();
+		expect(canvas.getByText(/process output line 30/)).toBeVisible();
+		const toggle = canvas.queryByRole("button", {
+			name: "Collapse full process output",
+		});
+		if (toggle) {
+			expect(toggle).toHaveAttribute("aria-expanded", "true");
+		}
+	},
+};
+
 export const ExecuteAuthRequired: Story = {
 	args: {
 		result: {

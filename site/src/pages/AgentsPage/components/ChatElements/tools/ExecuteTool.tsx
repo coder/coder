@@ -22,16 +22,20 @@ import {
 import { cn } from "#/utils/cn";
 import {
 	type AgentDisplayState,
+	isAgentDisplayOpen,
 	resolveAgentDisplayState,
 } from "./displayMode";
-import { signalTooltipLabel, type ToolStatus } from "./utils";
+import {
+	formatShellDurationMs,
+	signalTooltipLabel,
+	type ToolStatus,
+} from "./utils";
 
 type ExecuteToolProps = {
 	command: string;
 	output: string;
 	status: ToolStatus;
 	isError: boolean;
-	exitCode?: number | null;
 	durationMs?: number;
 	isBackgrounded?: boolean;
 	killedBySignal?: "kill" | "terminate";
@@ -39,7 +43,7 @@ type ExecuteToolProps = {
 };
 
 type ExecuteToolInnerProps = ExecuteToolProps & {
-	outputInitiallyExpanded: boolean;
+	outputInitiallyOpen: boolean;
 };
 
 export const ExecuteTool: React.FC<ExecuteToolProps> = (props) => {
@@ -58,7 +62,7 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = (props) => {
 		<ExecuteToolInner
 			key={`${props.shellToolDisplayMode ?? "auto"}:${autoDisplayState}`}
 			{...props}
-			outputInitiallyExpanded={resolvedDisplayState !== "collapsed"}
+			outputInitiallyOpen={isAgentDisplayOpen(resolvedDisplayState)}
 		/>
 	);
 };
@@ -71,12 +75,12 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 	durationMs,
 	isBackgrounded = false,
 	killedBySignal,
-	outputInitiallyExpanded,
+	outputInitiallyOpen,
 }) => {
 	const hasOutput = output.length > 0;
 	const isRunning = status === "running";
-	const [outputExpanded, setOutputExpanded] = useState(outputInitiallyExpanded);
-	const outputToggleLabel = outputExpanded
+	const [outputOpen, setOutputOpen] = useState(outputInitiallyOpen);
+	const outputToggleLabel = outputOpen
 		? "Collapse command output"
 		: "Expand command output";
 	const durationLabel = formatShellDurationMs(durationMs);
@@ -88,15 +92,15 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 					{hasOutput ? (
 						<button
 							type="button"
-							aria-expanded={outputExpanded}
+							aria-expanded={outputOpen}
 							aria-label={outputToggleLabel}
-							onClick={() => setOutputExpanded((value) => !value)}
+							onClick={() => setOutputOpen((value) => !value)}
 							className="col-start-1 row-start-1 m-0 flex w-full min-w-0 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-left font-[inherit] text-[inherit] text-content-secondary transition-colors hover:text-content-primary"
 						>
 							<ShellCommandLine
 								command={command}
 								durationLabel={durationLabel}
-								expanded={outputExpanded}
+								expanded={outputOpen}
 							/>
 						</button>
 					) : (
@@ -140,7 +144,7 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 					className="-my-0.5 size-6 p-0 opacity-0 transition-opacity hover:bg-surface-tertiary group-hover/exec:opacity-100"
 				/>
 			</div>
-			{hasOutput && outputExpanded && (
+			{hasOutput && outputOpen && (
 				<ShellOutputBody output={output} isError={isError} />
 			)}
 		</div>
@@ -188,32 +192,13 @@ const ShellOutputBody: React.FC<{
 			<pre
 				className={cn(
 					"m-0 whitespace-pre-wrap break-all border-0 bg-transparent px-2 py-1.5 font-mono text-xs leading-5",
-					isError ? "text-content-destructive" : "text-content-primary",
+					isError ? "text-content-destructive" : "text-content-secondary",
 				)}
 			>
 				{output}
 			</pre>
 		</ScrollArea>
 	);
-};
-
-const formatShellDurationMs = (durationMs: number | undefined): string => {
-	if (durationMs === undefined || durationMs < 0) {
-		return "";
-	}
-	if (durationMs < 1000) {
-		return `${Math.round(durationMs)}ms`;
-	}
-	const seconds = durationMs / 1000;
-	if (seconds < 60) {
-		return `${Number(seconds.toFixed(1))}s`;
-	}
-	const minutes = seconds / 60;
-	if (minutes < 60) {
-		return `${Number(minutes.toFixed(1))}m`;
-	}
-	const hours = minutes / 60;
-	return `${Number(hours.toFixed(1))}h`;
 };
 
 export const ExecuteAuthRequiredTool: React.FC<{

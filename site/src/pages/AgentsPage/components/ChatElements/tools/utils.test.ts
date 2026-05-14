@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-	BORDER_BG_STYLE,
 	buildEditDiff,
 	buildWriteFileDiff,
 	COLLAPSED_OUTPUT_HEIGHT,
@@ -9,6 +8,7 @@ import {
 	diffViewerCSS,
 	fileViewerCSS,
 	formatResultOutput,
+	formatShellDurationMs,
 	getDiffViewerOptions,
 	getFileContentForViewer,
 	getFileViewerOptions,
@@ -70,17 +70,42 @@ describe("shortDurationMs", () => {
 		expect(shortDurationMs(1000)).toBe("1s");
 		expect(shortDurationMs(30_000)).toBe("30s");
 		expect(shortDurationMs(59_000)).toBe("59s");
+		expect(shortDurationMs(59_499)).toBe("59s");
 	});
 
 	it("formats minutes", () => {
+		expect(shortDurationMs(59_500)).toBe("1m");
 		expect(shortDurationMs(60_000)).toBe("1m");
 		expect(shortDurationMs(300_000)).toBe("5m");
 		expect(shortDurationMs(3_540_000)).toBe("59m");
+		expect(shortDurationMs(3_569_999)).toBe("59m");
 	});
 
 	it("formats hours", () => {
+		expect(shortDurationMs(3_570_000)).toBe("1h");
 		expect(shortDurationMs(3_600_000)).toBe("1h");
 		expect(shortDurationMs(7_200_000)).toBe("2h");
+	});
+});
+
+describe("formatShellDurationMs", () => {
+	it("returns empty string for invalid values", () => {
+		expect(formatShellDurationMs(undefined)).toBe("");
+		expect(formatShellDurationMs(-1)).toBe("");
+		expect(formatShellDurationMs(Number.NaN)).toBe("");
+		expect(formatShellDurationMs(Number.POSITIVE_INFINITY)).toBe("");
+	});
+
+	it("formats milliseconds and rounded seconds", () => {
+		expect(formatShellDurationMs(100)).toBe("100ms");
+		expect(formatShellDurationMs(47_200)).toBe("47.2s");
+		expect(formatShellDurationMs(59_949)).toBe("59.9s");
+		expect(formatShellDurationMs(59_950)).toBe("1m");
+	});
+
+	it("formats rounded minutes and hours", () => {
+		expect(formatShellDurationMs(3_596_999)).toBe("59.9m");
+		expect(formatShellDurationMs(3_597_000)).toBe("1h");
 	});
 });
 
@@ -838,13 +863,6 @@ describe("constants", () => {
 	it("DIFFS_FONT_STYLE has expected CSS properties", () => {
 		expect(DIFFS_FONT_STYLE).toHaveProperty("--diffs-font-size", "11px");
 		expect(DIFFS_FONT_STYLE).toHaveProperty("--diffs-line-height", "1.5");
-	});
-
-	it("BORDER_BG_STYLE has expected background", () => {
-		expect(BORDER_BG_STYLE).toHaveProperty(
-			"background",
-			"hsl(var(--border-default))",
-		);
 	});
 
 	it("fileViewerCSS is a non-empty string", () => {

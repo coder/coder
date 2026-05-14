@@ -12,6 +12,7 @@ import {
 import { cn } from "#/utils/cn";
 import {
 	type AgentDisplayState,
+	isAgentDisplayFullyExpanded,
 	resolveAgentDisplayState,
 } from "./displayMode";
 import { AgentDisplayModeToolCollapsible } from "./ToolCollapsible";
@@ -28,7 +29,7 @@ type ProcessOutputToolProps = {
 
 type ProcessOutputToolInnerProps = ProcessOutputToolProps & {
 	autoDisplayState: AgentDisplayState;
-	outputInitiallyExpanded: boolean;
+	outputInitiallyFullyExpanded: boolean;
 };
 
 export const ProcessOutputTool: React.FC<ProcessOutputToolProps> = (props) => {
@@ -43,7 +44,9 @@ export const ProcessOutputTool: React.FC<ProcessOutputToolProps> = (props) => {
 			key={`${props.shellToolDisplayMode ?? "auto"}:${autoDisplayState}`}
 			{...props}
 			autoDisplayState={autoDisplayState}
-			outputInitiallyExpanded={resolvedDisplayState === "expanded"}
+			outputInitiallyFullyExpanded={isAgentDisplayFullyExpanded(
+				resolvedDisplayState,
+			)}
 		/>
 	);
 };
@@ -56,9 +59,11 @@ const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 	killedBySignal,
 	shellToolDisplayMode,
 	autoDisplayState,
-	outputInitiallyExpanded,
+	outputInitiallyFullyExpanded,
 }) => {
-	const [outputExpanded, setOutputExpanded] = useState(outputInitiallyExpanded);
+	const [outputFullyExpanded, setOutputFullyExpanded] = useState(
+		outputInitiallyFullyExpanded,
+	);
 	const outputRef = useRef<HTMLPreElement | null>(null);
 	const hasOutput = output.length > 0;
 
@@ -72,7 +77,7 @@ const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 
 	const showExitCode = exitCode !== null && exitCode !== 0;
 	const toggleOutputExpansion = () => {
-		setOutputExpanded((expanded) => !expanded);
+		setOutputFullyExpanded((expanded) => !expanded);
 	};
 	const hasHeaderActions =
 		isRunning || Boolean(killedBySignal) || showExitCode || hasOutput;
@@ -115,13 +120,13 @@ const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 		>
 			<ScrollArea
 				className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
-				viewportClassName={outputExpanded ? "max-h-64" : ""}
+				viewportClassName={outputFullyExpanded ? "max-h-64" : ""}
 				scrollBarClassName="w-1.5"
 			>
 				<pre
 					ref={measureRef}
 					style={
-						outputExpanded
+						outputFullyExpanded
 							? undefined
 							: { maxHeight: COLLAPSED_OUTPUT_HEIGHT, overflow: "hidden" }
 					}
@@ -136,11 +141,11 @@ const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 			{overflows && (
 				<button
 					type="button"
-					aria-expanded={outputExpanded}
+					aria-expanded={outputFullyExpanded}
 					onClick={toggleOutputExpansion}
 					className="border-0 bg-transparent m-0 mt-0.5 font-[inherit] text-[inherit] flex w-full cursor-pointer items-center justify-center rounded-md py-0.5 text-content-secondary transition-colors hover:bg-surface-secondary hover:text-content-primary"
 					aria-label={
-						outputExpanded
+						outputFullyExpanded
 							? "Collapse full process output"
 							: "Expand full process output"
 					}
@@ -148,7 +153,7 @@ const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 					<ChevronDownIcon
 						className={cn(
 							"h-3 w-3 transition-transform",
-							outputExpanded && "rotate-180",
+							outputFullyExpanded && "rotate-180",
 						)}
 					/>
 				</button>
