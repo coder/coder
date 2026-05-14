@@ -34,9 +34,9 @@ describe("getChatStatusGroup", () => {
 	});
 
 	it("returns Unread when has_unread is true and not running", () => {
-		expect(
-			getChatStatusGroup({ ...baseChat, has_unread: true }),
-		).toBe("Unread");
+		expect(getChatStatusGroup({ ...baseChat, has_unread: true })).toBe(
+			"Unread",
+		);
 	});
 
 	it("returns Running over Unread when both apply", () => {
@@ -50,9 +50,7 @@ describe("getChatStatusGroup", () => {
 	});
 
 	it("returns Error for error status", () => {
-		expect(getChatStatusGroup({ ...baseChat, status: "error" })).toBe(
-			"Error",
-		);
+		expect(getChatStatusGroup({ ...baseChat, status: "error" })).toBe("Error");
 	});
 
 	it("returns Archived for archived chats regardless of status", () => {
@@ -72,9 +70,9 @@ describe("getChatStatusGroup", () => {
 	});
 
 	it("returns Awaiting feedback for requires_action status", () => {
-		expect(
-			getChatStatusGroup({ ...baseChat, status: "requires_action" }),
-		).toBe("Awaiting feedback");
+		expect(getChatStatusGroup({ ...baseChat, status: "requires_action" })).toBe(
+			"Awaiting feedback",
+		);
 	});
 
 	it("returns Idle for completed status", () => {

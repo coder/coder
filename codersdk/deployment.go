@@ -574,6 +574,34 @@ var PostgresAuthDrivers = []string{
 // based on max open connections.
 const PostgresConnMaxIdleAuto = "auto"
 
+// AIBudgetPolicy determines how the effective group is selected when a user
+// belongs to multiple groups with AI budgets configured.
+type AIBudgetPolicy string
+
+const (
+	// AIBudgetPolicyHighest selects the group with the highest spend limit.
+	AIBudgetPolicyHighest AIBudgetPolicy = "highest"
+)
+
+// AIBudgetPolicies lists the supported AIBudgetPolicy values.
+var AIBudgetPolicies = []string{
+	string(AIBudgetPolicyHighest),
+}
+
+// AIBudgetPeriod determines when accumulated AI spend resets to zero,
+// aligned to UTC calendar boundaries.
+type AIBudgetPeriod string
+
+const (
+	// AIBudgetPeriodMonth resets spend at the start of each UTC calendar month.
+	AIBudgetPeriodMonth AIBudgetPeriod = "month"
+)
+
+// AIBudgetPeriods lists the supported AIBudgetPeriod values.
+var AIBudgetPeriods = []string{
+	string(AIBudgetPeriodMonth),
+}
+
 // DeploymentValues is the central configuration values the coder server.
 type DeploymentValues struct {
 	Verbose             serpent.Bool   `json:"verbose,omitempty"`
@@ -645,6 +673,7 @@ type DeploymentValues struct {
 	HideAITasks                             serpent.Bool                         `json:"hide_ai_tasks,omitempty" typescript:",notnull"`
 	AI                                      AIConfig                             `json:"ai,omitempty"`
 	StatsCollection                         StatsCollectionConfig                `json:"stats_collection,omitempty" typescript:",notnull"`
+	TemplateBuilder                         TemplateBuilderConfig                `json:"template_builder,omitempty"`
 
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -1461,6 +1490,10 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Name:        "Retention",
 			Description: "Configure data retention policies for various database tables. Retention policies automatically purge old data to reduce database size and improve performance. Setting a retention duration to 0 disables automatic purging for that data type.",
 			YAML:        "retention",
+		}
+		deploymentGroupTemplateBuilder = serpent.Group{
+			Name: "Template Builder",
+			YAML: "templateBuilder",
 		}
 	)
 
@@ -3888,6 +3921,27 @@ Write out the current server config as YAML to stdout.`,
 			YAML:    "circuit_breaker_max_requests",
 		},
 
+		{
+			Name:        "AI Budget Policy",
+			Description: "Determines the effective group when a user belongs to multiple groups with AI budgets. \"highest\" selects the group with the largest spend limit, and is currently the only supported value.",
+			Flag:        "ai-budget-policy",
+			Env:         "CODER_AI_BUDGET_POLICY",
+			Value:       serpent.EnumOf(&c.AI.BridgeConfig.BudgetPolicy, AIBudgetPolicies...),
+			Default:     string(AIBudgetPolicyHighest),
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "budget_policy",
+		},
+		{
+			Name:        "AI Budget Period",
+			Description: "Determines when accumulated AI spend resets to zero, aligned to UTC calendar boundaries. Only \"month\" is currently supported.",
+			Flag:        "ai-budget-period",
+			Env:         "CODER_AI_BUDGET_PERIOD",
+			Value:       serpent.EnumOf(&c.AI.BridgeConfig.BudgetPeriod, AIBudgetPeriods...),
+			Default:     string(AIBudgetPeriodMonth),
+			Group:       &deploymentGroupAIBridge,
+			YAML:        "budget_period",
+		},
+
 		// AI Bridge Proxy Options
 		{
 			Name:        "AI Bridge Proxy Enabled",
@@ -3990,6 +4044,16 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupAIBridgeProxy,
 			YAML:        "allowed_private_cidrs",
 		},
+		{
+			Name:        "AI Bridge Proxy API Dump Directory",
+			Description: "Directory for dumping MITM request/response pairs to disk for debugging. When set, each proxied request produces .req.txt and .resp.txt files organized by provider. Sensitive headers are redacted. Leave empty to disable.",
+			Flag:        "aibridge-proxy-dump-dir",
+			Env:         "CODER_AIBRIDGE_PROXY_DUMP_DIR",
+			Value:       &c.AI.BridgeProxyConfig.APIDumpDir,
+			Default:     "",
+			Group:       &deploymentGroupAIBridgeProxy,
+			YAML:        "api_dump_dir",
+		},
 
 		// Retention settings
 		{
@@ -4049,6 +4113,25 @@ Write out the current server config as YAML to stdout.`,
 			// used externally.
 			Hidden: true,
 		},
+		{
+			Name:        "Disable Template Builder",
+			Description: "Disable the template builder feature for guided template creation. When disabled, all /api/v2/templatebuilder/* endpoints return 404.",
+			Flag:        "disable-template-builder",
+			Env:         "CODER_DISABLE_TEMPLATE_BUILDER",
+			Value:       &c.TemplateBuilder.Disabled,
+			Group:       &deploymentGroupTemplateBuilder,
+			YAML:        "disabled",
+		},
+		{
+			Name:        "Template Builder Registry URL",
+			Description: "The base URL of the module registry used by the template builder for module source paths.",
+			Flag:        "template-builder-registry-url",
+			Env:         "CODER_TEMPLATE_BUILDER_REGISTRY_URL",
+			Value:       &c.TemplateBuilder.RegistryURL,
+			Default:     "https://registry.coder.com",
+			Group:       &deploymentGroupTemplateBuilder,
+			YAML:        "registryURL",
+		},
 	}
 
 	return opts
@@ -4073,6 +4156,9 @@ type AIBridgeConfig struct {
 	StructuredLogging   serpent.Bool     `json:"structured_logging" typescript:",notnull"`
 	SendActorHeaders    serpent.Bool     `json:"send_actor_headers" typescript:",notnull"`
 	AllowBYOK           serpent.Bool     `json:"allow_byok" typescript:",notnull"`
+	// Budget settings for AI Governance cost controls.
+	BudgetPolicy string `json:"budget_policy,omitempty" typescript:",notnull"`
+	BudgetPeriod string `json:"budget_period,omitempty" typescript:",notnull"`
 	// Circuit breaker protects against cascading failures from upstream AI
 	// provider overload (503, 529).
 	CircuitBreakerEnabled          serpent.Bool     `json:"circuit_breaker_enabled" typescript:",notnull"`
@@ -4144,6 +4230,7 @@ type AIBridgeProxyConfig struct {
 	UpstreamProxy       serpent.String      `json:"upstream_proxy" typescript:",notnull"`
 	UpstreamProxyCA     serpent.String      `json:"upstream_proxy_ca" typescript:",notnull"`
 	AllowedPrivateCIDRs serpent.StringArray `json:"allowed_private_cidrs" typescript:",notnull"`
+	APIDumpDir          serpent.String      `json:"api_dump_dir" typescript:",notnull"`
 }
 
 type ChatConfig struct {
@@ -4155,6 +4242,11 @@ type AIConfig struct {
 	BridgeConfig      AIBridgeConfig      `json:"bridge,omitempty"`
 	BridgeProxyConfig AIBridgeProxyConfig `json:"aibridge_proxy,omitempty"`
 	Chat              ChatConfig          `json:"chat,omitempty" typescript:",notnull"`
+}
+
+type TemplateBuilderConfig struct {
+	Disabled    serpent.Bool   `json:"disabled,omitempty"`
+	RegistryURL serpent.String `json:"registry_url,omitempty"`
 }
 
 type SupportConfig struct {

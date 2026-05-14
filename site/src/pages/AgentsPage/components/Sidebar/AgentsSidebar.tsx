@@ -27,8 +27,7 @@ import {
 	ChevronDownIcon,
 	ChevronRightIcon,
 	CoinsIcon,
-	EllipsisIcon,
-	FilterIcon,
+	EllipsisVerticalIcon,
 	FlaskConicalIcon,
 	GitMergeIcon,
 	GitPullRequestArrowIcon,
@@ -44,7 +43,6 @@ import {
 	PlugIcon,
 	ReceiptTextIcon,
 	RefreshCwIcon,
-	SearchIcon,
 	ServerIcon,
 	Settings2Icon,
 	SettingsIcon,
@@ -75,7 +73,6 @@ import type {
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Button } from "#/components/Button/Button";
-import { Checkbox } from "#/components/Checkbox/Checkbox";
 import {
 	ContextMenu,
 	ContextMenuContent,
@@ -92,12 +89,6 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { FeatureStageBadge } from "#/components/FeatureStageBadge/FeatureStageBadge";
 import { ProductLogo } from "#/components/Icons/ProductLogo";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "#/components/Popover/Popover";
-import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -121,47 +112,15 @@ import { asNonEmptyString } from "../ChatConversation/blockUtils";
 import type { ModelSelectorOption } from "../ChatElements";
 import { asString } from "../ChatElements/runtimeTypeUtils";
 import { UsageIndicator } from "../UsageIndicator";
+import {
+	type ChatStatusFilter,
+	DEFAULT_FILTER_STATE,
+	FilterDropdown,
+	hasActiveFilters,
+	type PRStatusFilter,
+	type SidebarFilterState,
+} from "./FilterDropdown";
 import { RenameChatDialog } from "./RenameChatDialog";
-
-type GroupByOption = "date" | "chat-status";
-
-type PRStatusFilter = "draft" | "open" | "merged" | "closed";
-
-type ChatStatusFilter =
-	| "unread"
-	| "running"
-	| "awaiting-feedback"
-	| "idle"
-	| "error"
-	| "archived";
-
-interface SidebarFilterState {
-	groupBy: GroupByOption;
-	prStatus: ReadonlySet<PRStatusFilter>;
-	chatStatus: ReadonlySet<ChatStatusFilter>;
-}
-
-const DEFAULT_FILTER_STATE: SidebarFilterState = {
-	groupBy: "date",
-	prStatus: new Set<PRStatusFilter>(),
-	chatStatus: new Set<ChatStatusFilter>(),
-};
-
-const PR_STATUS_OPTIONS: { value: PRStatusFilter; label: string }[] = [
-	{ value: "draft", label: "Draft" },
-	{ value: "open", label: "Open" },
-	{ value: "merged", label: "Merged" },
-	{ value: "closed", label: "Closed" },
-];
-
-const CHAT_STATUS_OPTIONS: { value: ChatStatusFilter; label: string }[] = [
-	{ value: "unread", label: "Unread" },
-	{ value: "running", label: "Running" },
-	{ value: "awaiting-feedback", label: "Awaiting feedback" },
-	{ value: "idle", label: "Idle" },
-	{ value: "error", label: "Error" },
-	{ value: "archived", label: "Archived" },
-];
 
 type SidebarView =
 	| { panel: "chats" }
@@ -347,10 +306,6 @@ const matchesFilterState = (
 		}
 	}
 	return true;
-};
-
-const hasActiveFilters = (filterState: SidebarFilterState): boolean => {
-	return filterState.prStatus.size > 0 || filterState.chatStatus.size > 0;
 };
 
 const getModelDisplayName = (
@@ -611,7 +566,61 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 			? chatErrorReasons[chat.id] || chat.last_error?.message || undefined
 			: undefined;
 	const lastTurnSummary = asNonEmptyString(chat.last_turn_summary);
-	const subtitle = errorReason || lastTurnSummary || modelName;
+	// While a turn is in flight the cached last_turn_summary still holds
+	// the previous turn's text. Surface a live "{model} streaming…" label
+	// instead so the sidebar does not look stuck on the old status.
+	const isStreaming = chat.status === "running" || chat.status === "pending";
+	const streamingSubtitle = isStreaming ? `${modelName} streaming…` : undefined;
+	// Server-side, status flips to "waiting" synchronously when streaming
+	// ends, but the new last_turn_summary is written by an async finalizer
+	// (it calls the model to generate a label). For a beat after the stream
+	// stops, the chat row still carries the previous turn's summary text.
+	// Suppress that briefly-stale text: remember the cached summary observed
+	// while streaming, then hide an exact match on the post-stream renders
+	// until the new summary lands. A timeout-based release covers the rare
+	// case where the regenerated summary equals the previous one byte-for-
+	// byte (so the equality-based release would never fire). State is
+	// captured during render using the React "adjust state during render"
+	// pattern so the first post-stream paint already suppresses the stale
+	// string instead of flashing it for a frame.
+	const staleTurnSummaryReleaseMs = 10_000;
+	const [streamingSummary, setStreamingSummary] = useState<string | undefined>(
+		isStreaming ? lastTurnSummary : undefined,
+	);
+	const [suppressionExpired, setSuppressionExpired] = useState(false);
+	if (isStreaming) {
+		if (streamingSummary !== lastTurnSummary) {
+			setStreamingSummary(lastTurnSummary);
+		}
+		if (suppressionExpired) {
+			setSuppressionExpired(false);
+		}
+	} else if (
+		streamingSummary !== undefined &&
+		lastTurnSummary !== streamingSummary
+	) {
+		setStreamingSummary(undefined);
+		if (suppressionExpired) {
+			setSuppressionExpired(false);
+		}
+	}
+	const isStaleTurnSummary =
+		!isStreaming &&
+		lastTurnSummary !== undefined &&
+		!suppressionExpired &&
+		streamingSummary === lastTurnSummary;
+	useEffect(() => {
+		if (!isStaleTurnSummary) {
+			return;
+		}
+		const timeoutId = window.setTimeout(() => {
+			setSuppressionExpired(true);
+		}, staleTurnSummaryReleaseMs);
+		return () => window.clearTimeout(timeoutId);
+	}, [isStaleTurnSummary]);
+	const displayedTurnSummary = isStaleTurnSummary ? undefined : lastTurnSummary;
+	const subtitle =
+		errorReason || streamingSubtitle || displayedTurnSummary || modelName;
 	const diffStatus = getChatDiffStatus(chat);
 	const baseConfig = getStatusConfig(chat.status);
 	const prConfig =
@@ -837,7 +846,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 												className="absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
 												aria-label={`Open actions for ${chat.title}`}
 											>
-												<EllipsisIcon className="h-3.5 w-3.5" />
+												<EllipsisVerticalIcon className="h-3.5 w-3.5" />
 											</Button>
 										</DropdownMenuTrigger>
 										<DropdownMenuContent
@@ -920,6 +929,54 @@ const SortableChatTreeNode: FC<{
 	);
 };
 
+const PINNED_SECTION_KEY = "Pinned";
+
+const getSectionToggleTestId = (sectionKey: string) =>
+	`agents-section-toggle-${sectionKey.replaceAll(" ", "-")}`;
+
+interface ChatSectionHeaderProps {
+	readonly label: string;
+	readonly count: number;
+	readonly expanded: boolean;
+	readonly onToggle: () => void;
+	readonly testId: string;
+}
+
+const ChatSectionHeader: FC<ChatSectionHeaderProps> = ({
+	label,
+	count,
+	expanded,
+	onToggle,
+	testId,
+}) => {
+	const actionLabel = expanded ? "Collapse" : "Expand";
+	return (
+		<div className="group/header mb-1 ml-2.5 mr-2 flex h-7 items-center text-xs font-medium text-content-secondary">
+			<button
+				type="button"
+				className="flex h-7 min-w-0 flex-1 cursor-pointer appearance-none items-center rounded-md border-0 bg-transparent p-0 text-left font-sans text-xs font-medium text-current focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link [@media(hover:hover)]:group-hover/header:text-content-primary"
+				aria-expanded={expanded}
+				aria-label={`${actionLabel} ${label} section`}
+				data-testid={testId}
+				onClick={onToggle}
+			>
+				<span className="min-w-0 flex-1 truncate">
+					{label} ({count})
+				</span>
+				<span className="flex h-6 w-7 shrink-0 items-center justify-end">
+					<ChevronDownIcon
+						aria-hidden="true"
+						className={cn(
+							"h-3.5 w-3.5 text-current transition-transform",
+							expanded && "rotate-180",
+						)}
+					/>
+				</span>
+			</button>
+		</div>
+	);
+};
+
 export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const {
 		chats,
@@ -980,12 +1037,20 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		isAdmin || isApiKeysSection || Boolean(providerConfigsQuery.data?.length);
 	const normalizedSearch = "";
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
+	const [collapsedSections, setCollapsedSections] = useState<
+		Record<string, boolean>
+	>({});
 	const [chatPendingRename, setChatPendingRename] = useState<Chat | null>(null);
 	const [internalFilterState, setInternalFilterState] =
 		useState<SidebarFilterState>(DEFAULT_FILTER_STATE);
 	const filterState = filterStateProp ?? internalFilterState;
-	const setFilterState = onFilterStateChange ?? setInternalFilterState;
-	const [filterSearch, setFilterSearch] = useState("");
+	const setFilterState = (state: SidebarFilterState) => {
+		if (onFilterStateChange) {
+			onFilterStateChange(state);
+			return;
+		}
+		setInternalFilterState(state);
+	};
 
 	const chatTree = buildChatTree(chats);
 	const chatById = chatTree.chatById;
@@ -1081,156 +1146,24 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 
 	const totalRootCount = chatTree.rootIds.length;
 	const filteredCount = visibleRootIDs.length;
-	const showFilterCount =
-		hasActiveFilters(filterState) && totalRootCount > 0;
 
-	// Compute per-option counts from all root chats (unfiltered).
+	// Compute per-option counts from all root chats before sidebar filters.
 	const allRootChats = chatTree.rootIds
 		.map((id) => chatById.get(id))
-		.filter((c): c is Chat => c !== undefined);
+		.filter((chat): chat is Chat => chat !== undefined);
 	const prStatusCounts = new Map<string, number>();
 	const chatStatusCounts = new Map<string, number>();
 	for (const chat of allRootChats) {
-		const pr = getPRStatusForChat(chat.diff_status);
-		if (pr) {
-			prStatusCounts.set(pr, (prStatusCounts.get(pr) ?? 0) + 1);
+		const prStatus = getPRStatusForChat(chat.diff_status);
+		if (prStatus) {
+			prStatusCounts.set(prStatus, (prStatusCounts.get(prStatus) ?? 0) + 1);
 		}
-		const cs = getChatStatusFilterValue(chat);
-		chatStatusCounts.set(cs, (chatStatusCounts.get(cs) ?? 0) + 1);
+		const chatStatus = getChatStatusFilterValue(chat);
+		chatStatusCounts.set(
+			chatStatus,
+			(chatStatusCounts.get(chatStatus) ?? 0) + 1,
+		);
 	}
-
-	const filterDropdown = (
-		<Popover>
-			<PopoverTrigger asChild>
-				<button
-					type="button"
-					aria-label="Filter agents"
-					className={cn(
-						"inline-flex items-center gap-1 rounded-md border-0 bg-transparent p-0 text-content-secondary hover:text-content-primary cursor-pointer",
-						(archivedFilter === "archived" ||
-							hasActiveFilters(filterState) ||
-							filterState.groupBy !== "date") &&
-							"text-content-primary",
-					)}
-				>
-					<span className={cn("text-xs text-content-secondary", !showFilterCount && "invisible")}>
-						({filteredCount} of {totalRootCount})
-					</span>
-					<FilterIcon className="h-3.5 w-3.5" />
-				</button>
-			</PopoverTrigger>
-			<PopoverContent
-				align="end"
-				sideOffset={2}
-				alignOffset={6}
-				className="w-[225px] overflow-y-hidden p-0"
-				onPointerDownOutside={() => setFilterSearch("")}
-				onEscapeKeyDown={() => setFilterSearch("")}
-			>
-				<div className="flex flex-col">
-					{/* Group section */}
-					<div className="border-0 border-b border-solid border-border-default px-3 py-2.5">
-						<span className="mb-1.5 block text-xs font-medium text-content-secondary">
-							Group
-						</span>
-						<RadioGroup
-							value={filterState.groupBy}
-							onValueChange={(value) =>
-								setFilterState({
-									...filterState,
-									groupBy: value as GroupByOption,
-								})
-							}
-							className="gap-1.5"
-						>
-							<div className="flex items-center gap-2">
-								<RadioGroupItem value="date" id="group-date" />
-								<label
-									htmlFor="group-date"
-									className="cursor-pointer text-[13px] text-content-primary"
-								>
-									Date
-								</label>
-							</div>
-							<div className="flex items-center gap-2">
-								<RadioGroupItem value="chat-status" id="group-status" />
-								<label
-									htmlFor="group-status"
-									className="cursor-pointer text-[13px] text-content-primary"
-								>
-									Chat status
-								</label>
-							</div>
-						</RadioGroup>
-					</div>
-
-					{/* Filter by section */}
-					<div className="px-3 pt-2.5 pb-0">
-						<span className="mb-1.5 block text-xs font-medium text-content-secondary">
-							Filter by
-						</span>
-						<div className="relative mb-2">
-							<SearchIcon className="pointer-events-none absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2 text-content-secondary" />
-							<input
-								type="text"
-								placeholder="Search filters..."
-								value={filterSearch}
-								onChange={(e) => setFilterSearch(e.target.value)}
-								className="h-7 w-full rounded-md border border-solid border-border bg-transparent pl-7 pr-2 text-xs text-content-primary placeholder:text-content-disabled focus:border-border-hover focus:outline-none"
-							/>
-						</div>
-						<div
-								className="mt-1 max-h-40 overflow-y-auto pb-2 [scrollbar-color:initial] [&::-webkit-scrollbar]:w-[6px] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-surface-quaternary [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-surface-secondary"
-							>
-							<FilterCheckboxSection
-								title="PR status"
-								options={PR_STATUS_OPTIONS}
-								selected={filterState.prStatus}
-								counts={prStatusCounts}
-								searchTerm={filterSearch}
-								onChange={(value, checked) => {
-									const next = new Set(filterState.prStatus);
-									if (checked) {
-										next.add(value as PRStatusFilter);
-									} else {
-										next.delete(value as PRStatusFilter);
-									}
-									setFilterState({ ...filterState, prStatus: next });
-								}}
-							/>
-							<FilterCheckboxSection
-								title="Chat status"
-								options={CHAT_STATUS_OPTIONS}
-								selected={filterState.chatStatus}
-								counts={chatStatusCounts}
-								searchTerm={filterSearch}
-								onChange={(value, checked) => {
-									const next = new Set(filterState.chatStatus);
-									if (checked) {
-										next.add(value as ChatStatusFilter);
-									} else {
-										next.delete(value as ChatStatusFilter);
-									}
-									setFilterState({ ...filterState, chatStatus: next });
-								}}
-							/>
-						</div>
-					</div>
-
-					{/* Footer */}
-					<div className="border-0 border-t border-solid border-border-default px-3 py-2">
-						<button
-							type="button"
-							className="cursor-pointer border-0 bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary"
-							onClick={() => setFilterState(DEFAULT_FILTER_STATE)}
-						>
-							Clear all
-						</button>
-					</div>
-				</div>
-			</PopoverContent>
-		</Popover>
-	);
 
 	// Auto-expand ancestors of the active chat so it's always visible.
 	// Only runs when activeChatId changes, not on every parentById
@@ -1267,6 +1200,36 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	}, [activeChatId]);
 	const toggleExpanded = (chatID: string) => {
 		setExpandedById((prev) => ({ ...prev, [chatID]: !prev[chatID] }));
+	};
+	const toggleSection = (sectionKey: string) => {
+		setCollapsedSections((prev) => ({
+			...prev,
+			[sectionKey]: !prev[sectionKey],
+		}));
+	};
+	const renderRootChatSection = (
+		sectionKey: string,
+		groupChats: readonly Chat[],
+	) => {
+		const isGroupExpanded = !collapsedSections[sectionKey];
+		return (
+			<div key={sectionKey} className="[&:not(:first-child)]:mt-3">
+				<ChatSectionHeader
+					label={sectionKey}
+					count={groupChats.length}
+					expanded={isGroupExpanded}
+					onToggle={() => toggleSection(sectionKey)}
+					testId={getSectionToggleTestId(sectionKey)}
+				/>
+				{isGroupExpanded && (
+					<div className="flex flex-col gap-0.5">
+						{groupChats.map((chat) => (
+							<ChatTreeNode key={chat.id} chat={chat} isChildNode={false} />
+						))}
+					</div>
+				)}
+			</div>
+		);
 	};
 
 	const chatTreeCtx: ChatTreeContextValue = {
@@ -1396,21 +1359,26 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							) : (
 								<ChatTreeContext value={chatTreeCtx}>
 									<div className="mb-1 ml-2.5 -mr-0.5 flex justify-end">
-										{filterDropdown}
+										<FilterDropdown
+											archivedFilter={archivedFilter}
+											onArchivedFilterChange={onArchivedFilterChange}
+											filterState={filterState}
+											onFilterStateChange={setFilterState}
+											filteredCount={filteredCount}
+											totalRootCount={totalRootCount}
+											prStatusCounts={prStatusCounts}
+											chatStatusCounts={chatStatusCounts}
+										/>
 									</div>
 									{visibleRootIDs.length === 0 ? (
 										<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
 											{hasActiveFilters(filterState) ? (
 												<>
-													<p className="m-0">
-														No results for your selection.
-													</p>
+													<p className="m-0">No results for your selection.</p>
 													<button
 														type="button"
 														className="mt-2 cursor-pointer border-none bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary hover:underline"
-														onClick={() =>
-															setFilterState(DEFAULT_FILTER_STATE)
-														}
+														onClick={() => setFilterState(DEFAULT_FILTER_STATE)}
 													>
 														Reset filters
 													</button>
@@ -1441,7 +1409,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 													</button>
 												</>
 											)}
-											</div>
+										</div>
 									) : (
 										<div>
 											{visibleRootIDs.length > 0 && (
@@ -1449,64 +1417,58 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 													{/* ── Pinned section ── */}
 													{pinnedChats.length > 0 && (
 														<div className="[&:not(:first-child)]:mt-3">
-															<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
-																<span>Pinned</span>
-															</div>
-															<DndContext
-																sensors={sensors}
-																collisionDetection={closestCenter}
-																onDragEnd={handleDragEnd}
-															>
-																<SortableContext
-																	items={pinnedChatIds}
-																	strategy={verticalListSortingStrategy}
+															<ChatSectionHeader
+																label={PINNED_SECTION_KEY}
+																count={pinnedChats.length}
+																expanded={
+																	!collapsedSections[PINNED_SECTION_KEY]
+																}
+																onToggle={() =>
+																	toggleSection(PINNED_SECTION_KEY)
+																}
+																testId={getSectionToggleTestId(
+																	PINNED_SECTION_KEY,
+																)}
+															/>
+															{!collapsedSections[PINNED_SECTION_KEY] && (
+																<DndContext
+																	sensors={sensors}
+																	collisionDetection={closestCenter}
+																	onDragEnd={handleDragEnd}
 																>
-																	<div
-																		ref={pinnedContainerRef}
-																		className="flex flex-col gap-0.5"
+																	<SortableContext
+																		items={pinnedChatIds}
+																		strategy={verticalListSortingStrategy}
 																	>
-																		{sortedPinnedChats.map((chat) => (
-																			<SortableChatTreeNode
-																				key={chat.id}
-																				chat={chat}
-																			/>
-																		))}
-																	</div>
-																</SortableContext>
-															</DndContext>
+																		<div
+																			ref={pinnedContainerRef}
+																			className="flex flex-col gap-0.5"
+																		>
+																			{sortedPinnedChats.map((chat) => (
+																				<SortableChatTreeNode
+																					key={chat.id}
+																					chat={chat}
+																				/>
+																			))}
+																		</div>
+																	</SortableContext>
+																</DndContext>
+															)}
 														</div>
 													)}
 													{/* ── Grouped sections ── */}
 													{filterState.groupBy === "date"
 														? TIME_GROUPS.map((group) => {
-																	const groupChats = visibleRootIDs
-																		.map((id) => chatById.get(id))
-																		.filter(
-																			(chat): chat is Chat =>
-																				chat !== undefined &&
-																				getTimeGroup(chat.updated_at) === group &&
-																				chat.pin_order === 0,
-																		);
-																	if (groupChats.length === 0) return null;
-																	return (
-																		<div
-																			key={group}
-																			className="[&:not(:first-child)]:mt-3"
-																		>
-																			<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
-																				<span>{group}</span>
-																		</div>
-																		<div className="flex flex-col gap-0.5">
-																			{groupChats.map((chat) => (
-																				<ChatTreeNode
-																					key={chat.id}
-																					chat={chat}
-																					isChildNode={false}
-																				/>
-																			))}
-																		</div>
-																	</div>
-																);
+																const groupChats = visibleRootIDs
+																	.map((id) => chatById.get(id))
+																	.filter(
+																		(chat): chat is Chat =>
+																			chat !== undefined &&
+																			getTimeGroup(chat.updated_at) === group &&
+																			chat.pin_order === 0,
+																	);
+																if (groupChats.length === 0) return null;
+																return renderRootChatSection(group, groupChats);
 															})
 														: CHAT_STATUS_GROUPS.map((group) => {
 																const groupChats = visibleRootIDs
@@ -1518,26 +1480,8 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 																			chat.pin_order === 0,
 																	);
 																if (groupChats.length === 0) return null;
-																return (
-																	<div
-																		key={group}
-																		className="[&:not(:first-child)]:mt-3"
-																	>
-																		<div className="mb-1 ml-2.5 -mr-0.5 flex items-center justify-between text-xs font-medium text-content-secondary">
-																			<span>{group}</span>
-																		</div>
-																			<div className="flex flex-col gap-0.5">
-																				{groupChats.map((chat) => (
-																					<ChatTreeNode
-																						key={chat.id}
-																						chat={chat}
-																						isChildNode={false}
-																					/>
-																				))}
-																			</div>
-																		</div>
-																	);
-																})}
+																return renderRootChatSection(group, groupChats);
+															})}
 												</div>
 											)}
 										</div>
@@ -1909,48 +1853,6 @@ const LoadMoreSentinel: FC<{
 			{isFetchingNextPage && (
 				<Spinner className="h-4 w-4 text-content-secondary" loading />
 			)}
-		</div>
-	);
-};
-
-/**
- * Reusable checkbox section for the filter popover. Renders a titled
- * group of checkbox options that can be filtered by a search term.
- */
-const FilterCheckboxSection: FC<{
-	title: string;
-	options: readonly { value: string; label: string }[];
-	selected: ReadonlySet<string>;
-	counts?: ReadonlyMap<string, number>;
-	searchTerm: string;
-	onChange: (value: string, checked: boolean) => void;
-}> = ({ title, options, selected, counts, searchTerm, onChange }) => {
-	const normalizedTerm = searchTerm.toLowerCase();
-	const filtered = normalizedTerm
-		? options.filter((opt) => opt.label.toLowerCase().includes(normalizedTerm))
-		: options;
-	if (filtered.length === 0) return null;
-	return (
-		<div className="mb-2 last:mb-0">
-			<span className="mb-1 block text-xs text-content-secondary">
-				{title}
-			</span>
-			<div className="flex flex-col gap-1.5">
-				{filtered.map((opt) => (
-					<div
-						key={opt.value}
-						className="flex cursor-pointer items-center gap-2 text-[13px] text-content-primary"
-					>
-						<Checkbox
-							checked={selected.has(opt.value)}
-							onCheckedChange={(checked) =>
-								onChange(opt.value, checked === true)
-							}
-						/>
-						{opt.label} {counts && <span className="text-content-disabled">({counts.get(opt.value) ?? 0})</span>}
-					</div>
-				))}
-			</div>
 		</div>
 	);
 };

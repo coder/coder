@@ -2,6 +2,7 @@ import { type FC, Profiler, type ReactNode, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
+import type { AgentChatSendShortcut } from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
@@ -21,6 +22,7 @@ import { getLatestContextUsage } from "./ChatConversation/chatHelpers";
 import {
 	selectChatStatus,
 	selectHasStreamState,
+	selectIsAwaitingFirstStreamChunk,
 	selectMessagesByID,
 	selectOrderedMessageIDs,
 	selectQueuedMessages,
@@ -74,6 +76,10 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
 	const chatStatus = useChatSelector(store, selectChatStatus);
 	const hasStream = useChatSelector(store, selectHasStreamState);
+	const isAwaitingFirstStreamChunk = useChatSelector(
+		store,
+		selectIsAwaitingFirstStreamChunk,
+	);
 	const isChatCompleted = !hasStream && chatStatus !== "pending";
 
 	const messages = orderedMessageIDs
@@ -117,6 +123,8 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					onImplementPlan={onImplementPlan}
 					onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
 					isChatCompleted={isChatCompleted}
+					hasActiveStream={hasStream}
+					isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
 					urlTransform={urlTransform}
 					mcpServers={mcpServers}
 					showDesktopPreviews={false}
@@ -150,6 +158,7 @@ interface ChatPageInputProps {
 		message: string,
 		attachments?: readonly PendingAttachment[],
 	) => Promise<void> | void;
+	sendShortcut: AgentChatSendShortcut;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	onPromoteQueuedMessage: (id: number) => Promise<void>;
 	onInterrupt: () => void;
@@ -214,6 +223,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	store,
 	compressionThreshold,
 	onSend,
+	sendShortcut,
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
 	onInterrupt,
@@ -445,6 +455,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 					}
 				})();
 			}}
+			sendShortcut={sendShortcut}
 			attachments={attachments}
 			onAttach={handleAttach}
 			onRemoveAttachment={handleRemoveAttachment}

@@ -2168,6 +2168,41 @@ func TestInsertUserServiceAccountConstraints(t *testing.T) {
 	})
 }
 
+func TestGetActiveUserCount(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// Seed users: 2 active humans, 1 active service account,
+	// 1 dormant, 1 deleted. Only the 2 active humans should
+	// be counted for license seat purposes.
+	_ = dbgen.User(t, db, database.User{
+		Status: database.UserStatusActive,
+	})
+	_ = dbgen.User(t, db, database.User{
+		Status: database.UserStatusActive,
+	})
+	_ = dbgen.User(t, db, database.User{
+		Status:           database.UserStatusActive,
+		IsServiceAccount: true,
+	})
+	_ = dbgen.User(t, db, database.User{
+		Status: database.UserStatusDormant,
+	})
+	_ = dbgen.User(t, db, database.User{
+		Status:  database.UserStatusActive,
+		Deleted: true,
+	})
+
+	count, err := db.GetActiveUserCount(ctx, false)
+	require.NoError(t, err)
+	require.Equal(t, int64(2), count)
+}
+
 func TestUserChangeLoginType(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -7187,6 +7222,103 @@ func markWorkspaceAgentDeleted(ctx context.Context, t *testing.T, sqlDB *sql.DB,
 	require.NoError(t, err)
 }
 
+type workspaceBuildAgentQueryFixture struct {
+	Workspace database.WorkspaceTable
+	Build     database.WorkspaceBuild
+	Agent     database.WorkspaceAgent
+}
+
+func setupWorkspaceBuildAgentQueryWorkspace(t testing.TB, db database.Store, deleted bool) database.WorkspaceTable {
+	t.Helper()
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	template := dbgen.Template(t, db, database.Template{
+		CreatedBy:      user.ID,
+		OrganizationID: org.ID,
+	})
+	return dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID:        user.ID,
+		OrganizationID: org.ID,
+		TemplateID:     template.ID,
+		Deleted:        deleted,
+	})
+}
+
+func setupWorkspaceBuildAgentQueryFixture(
+	t testing.TB,
+	db database.Store,
+	authInstanceID string,
+	name string,
+	createdAt time.Time,
+	workspace database.WorkspaceTable,
+) workspaceBuildAgentQueryFixture {
+	t.Helper()
+
+	if workspace.ID == uuid.Nil {
+		workspace = setupWorkspaceBuildAgentQueryWorkspace(t, db, false)
+	}
+	templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		TemplateID:     uuid.NullUUID{UUID: workspace.TemplateID, Valid: true},
+		OrganizationID: workspace.OrganizationID,
+		CreatedBy:      workspace.OwnerID,
+	})
+	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: workspace.OrganizationID,
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+	})
+	build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		WorkspaceID:       workspace.ID,
+		TemplateVersionID: templateVersion.ID,
+		JobID:             job.ID,
+	})
+	resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+		JobID: job.ID,
+	})
+	agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+		Name:       name,
+		ResourceID: resource.ID,
+		CreatedAt:  createdAt,
+		AuthInstanceID: sql.NullString{
+			String: authInstanceID,
+			Valid:  true,
+		},
+	})
+
+	return workspaceBuildAgentQueryFixture{
+		Workspace: workspace,
+		Build:     build,
+		Agent:     agent,
+	}
+}
+
+func setupProvisionerJobAgentQueryFixture(
+	t testing.TB,
+	db database.Store,
+	authInstanceID string,
+	name string,
+	createdAt time.Time,
+	jobType database.ProvisionerJobType,
+) database.WorkspaceAgent {
+	t.Helper()
+
+	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		Type: jobType,
+	})
+	resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+		JobID: job.ID,
+	})
+	return dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+		Name:       name,
+		ResourceID: resource.ID,
+		CreatedAt:  createdAt,
+		AuthInstanceID: sql.NullString{
+			String: authInstanceID,
+			Valid:  true,
+		},
+	})
+}
+
 func TestGetWorkspaceAgentsByInstanceID(t *testing.T) {
 	t.Parallel()
 
@@ -7301,6 +7433,90 @@ func TestGetWorkspaceAgentsByInstanceID(t *testing.T) {
 		require.Len(t, agents, 2)
 		assert.Equal(t, newerAgent.ID, agents[0].ID)
 		assert.Equal(t, olderAgent.ID, agents[1].ID)
+	})
+}
+
+func TestGetWorkspaceBuildAgentsByInstanceID(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ReturnsWorkspaceBuildRootAgentsNewestFirst", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		authInstanceID := fmt.Sprintf("instance-%s-%d", t.Name(), time.Now().UnixNano())
+		olderCreatedAt := dbtime.Now().Add(-time.Hour)
+		newerCreatedAt := dbtime.Now()
+
+		older := setupWorkspaceBuildAgentQueryFixture(t, db, authInstanceID, "older", olderCreatedAt, database.WorkspaceTable{})
+		newer := setupWorkspaceBuildAgentQueryFixture(t, db, authInstanceID, "newer", newerCreatedAt, database.WorkspaceTable{})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		agents, err := db.GetWorkspaceBuildAgentsByInstanceID(ctx, authInstanceID)
+		require.NoError(t, err)
+		require.Len(t, agents, 2)
+		assert.Equal(t, []uuid.UUID{newer.Agent.ID, older.Agent.ID}, []uuid.UUID{agents[0].WorkspaceAgent.ID, agents[1].WorkspaceAgent.ID})
+		assert.Equal(t, []uuid.UUID{newer.Build.ID, older.Build.ID}, []uuid.UUID{agents[0].WorkspaceBuildID, agents[1].WorkspaceBuildID})
+		assert.Equal(t, newer.Workspace.ID, agents[0].WorkspaceTable.ID)
+		assert.Equal(t, older.Workspace.ID, agents[1].WorkspaceTable.ID)
+		assert.Equal(t, newer.Workspace.OwnerID, agents[0].WorkspaceTable.OwnerID)
+		assert.Equal(t, older.Workspace.OwnerID, agents[1].WorkspaceTable.OwnerID)
+		assert.Equal(t, newer.Workspace.OrganizationID, agents[0].WorkspaceTable.OrganizationID)
+		assert.Equal(t, older.Workspace.OrganizationID, agents[1].WorkspaceTable.OrganizationID)
+		assert.False(t, agents[0].WorkspaceTable.Deleted)
+		assert.False(t, agents[1].WorkspaceTable.Deleted)
+	})
+
+	t.Run("ExcludesDeletedAgentsSubAgentsAndNonWorkspaceBuildJobs", func(t *testing.T) {
+		t.Parallel()
+
+		db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+		authInstanceID := fmt.Sprintf("instance-%s-%d", t.Name(), time.Now().UnixNano())
+		baseCreatedAt := dbtime.Now()
+
+		root := setupWorkspaceBuildAgentQueryFixture(t, db, authInstanceID, "root", baseCreatedAt.Add(-time.Hour), database.WorkspaceTable{})
+		_ = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ParentID:   uuid.NullUUID{UUID: root.Agent.ID, Valid: true},
+			Name:       "sub",
+			ResourceID: root.Agent.ResourceID,
+			CreatedAt:  baseCreatedAt.Add(time.Minute),
+			AuthInstanceID: sql.NullString{
+				String: authInstanceID,
+				Valid:  true,
+			},
+		})
+		deletedAgent := setupWorkspaceBuildAgentQueryFixture(t, db, authInstanceID, "deleted", baseCreatedAt.Add(2*time.Minute), database.WorkspaceTable{})
+		_ = setupProvisionerJobAgentQueryFixture(t, db, authInstanceID, "template-import", baseCreatedAt.Add(3*time.Minute), database.ProvisionerJobTypeTemplateVersionImport)
+		_ = setupProvisionerJobAgentQueryFixture(t, db, authInstanceID, "dry-run", baseCreatedAt.Add(4*time.Minute), database.ProvisionerJobTypeTemplateVersionDryRun)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		markWorkspaceAgentDeleted(ctx, t, sqlDB, deletedAgent.Agent.ID)
+
+		agents, err := db.GetWorkspaceBuildAgentsByInstanceID(ctx, authInstanceID)
+		require.NoError(t, err)
+		require.Len(t, agents, 1)
+		assert.Equal(t, root.Agent.ID, agents[0].WorkspaceAgent.ID)
+		assert.False(t, agents[0].WorkspaceAgent.ParentID.Valid)
+		assert.Equal(t, root.Build.ID, agents[0].WorkspaceBuildID)
+	})
+
+	t.Run("ExcludesDeletedWorkspaces", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		authInstanceID := fmt.Sprintf("instance-%s-%d", t.Name(), time.Now().UnixNano())
+		baseCreatedAt := dbtime.Now()
+		active := setupWorkspaceBuildAgentQueryFixture(t, db, authInstanceID, "active", baseCreatedAt, database.WorkspaceTable{})
+		deletedWorkspace := setupWorkspaceBuildAgentQueryWorkspace(t, db, true)
+		_ = setupWorkspaceBuildAgentQueryFixture(t, db, authInstanceID, "deleted-workspace", baseCreatedAt.Add(time.Minute), deletedWorkspace)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		agents, err := db.GetWorkspaceBuildAgentsByInstanceID(ctx, authInstanceID)
+		require.NoError(t, err)
+		require.Len(t, agents, 1)
+		assert.Equal(t, active.Agent.ID, agents[0].WorkspaceAgent.ID)
+		assert.Equal(t, active.Workspace.ID, agents[0].WorkspaceTable.ID)
 	})
 }
 
@@ -7555,6 +7771,249 @@ func TestUserSecretsCRUDOperations(t *testing.T) {
 			UserID: testUser.ID, Name: secret2.Name,
 		})
 		require.NoError(t, err)
+	})
+}
+
+// TestUserSecretsSoftDeleteTrigger verifies that a user's secrets
+// are deleted when the user is soft-deleted.
+func TestUserSecretsSoftDeleteTrigger(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	// userA will be soft-deleted.
+	userA := dbgen.User(t, db, database.User{})
+	secretA1 := dbgen.UserSecret(t, db, database.UserSecret{
+		UserID:   userA.ID,
+		Name:     "secret-a-1",
+		Value:    "value-a-1",
+		EnvName:  "SECRET_A_1",
+		FilePath: "/secrets/a/1",
+	})
+	secretA2 := dbgen.UserSecret(t, db, database.UserSecret{
+		UserID:   userA.ID,
+		Name:     "secret-a-2",
+		Value:    "value-a-2",
+		EnvName:  "SECRET_A_2",
+		FilePath: "/secrets/a/2",
+	})
+
+	// Sanity-check the existing trigger behavior. An API key for
+	// userA should also be wiped on soft-delete.
+	_, _ = dbgen.APIKey(t, db, database.APIKey{UserID: userA.ID})
+
+	userB := dbgen.User(t, db, database.User{})
+	secretB := dbgen.UserSecret(t, db, database.UserSecret{
+		UserID:   userB.ID,
+		Name:     "secret-b",
+		Value:    "value-b",
+		EnvName:  "SECRET_B",
+		FilePath: "/secrets/b",
+	})
+
+	require.NoError(t, db.UpdateUserDeletedByID(ctx, userA.ID))
+
+	// userA's secrets are removed after soft-deletion.
+	_, err := db.GetUserSecretByID(ctx, secretA1.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+	_, err = db.GetUserSecretByID(ctx, secretA2.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	// userA's API key is also removed.
+	apiKeysA, err := db.GetAPIKeysByUserID(ctx, database.GetAPIKeysByUserIDParams{
+		UserID:    userA.ID,
+		LoginType: userA.LoginType,
+	})
+	require.NoError(t, err)
+	require.Empty(t, apiKeysA)
+
+	// userB's secret is unaffected.
+	got, err := db.GetUserSecretByID(ctx, secretB.ID)
+	require.NoError(t, err)
+	require.Equal(t, secretB.ID, got.ID)
+
+	// Trying to insert a new secret for the soft-deleted userA must fail.
+	_, err = db.CreateUserSecret(ctx, database.CreateUserSecretParams{
+		ID:       uuid.New(),
+		UserID:   userA.ID,
+		Name:     "post-delete",
+		Value:    "value",
+		EnvName:  "POST_DELETE_ENV",
+		FilePath: "/secrets/post-delete",
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "Cannot create user_secret for deleted user")
+}
+
+// TestOrgMembersSoftDeleteTrigger verifies that a user's organization
+// memberships (and transitively their group memberships) are deleted
+// when the user is soft-deleted.
+func TestOrgMembersSoftDeleteTrigger(t *testing.T) {
+	t.Parallel()
+
+	// SingleOrg verifies the basic case: one org, one group, and a
+	// control user whose membership must survive.
+	t.Run("SingleOrg", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		org := dbgen.Organization(t, db, database.Organization{})
+
+		// userA will be soft-deleted.
+		userA := dbgen.User(t, db, database.User{})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: org.ID,
+			UserID:         userA.ID,
+		})
+
+		// Add userA to a group in the org (should be cleaned up transitively).
+		group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{
+			UserID:  userA.ID,
+			GroupID: group.ID,
+		})
+
+		// userB is a control; their membership must not be touched.
+		userB := dbgen.User(t, db, database.User{})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: org.ID,
+			UserID:         userB.ID,
+		})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{
+			UserID:  userB.ID,
+			GroupID: group.ID,
+		})
+
+		// Soft-delete userA.
+		require.NoError(t, db.UpdateUserDeletedByID(ctx, userA.ID))
+
+		// userA should no longer appear in the organization.
+		orgMembers, err := db.OrganizationMembers(ctx, database.OrganizationMembersParams{
+			OrganizationID: org.ID,
+		})
+		require.NoError(t, err)
+		var memberIDs []uuid.UUID
+		for _, m := range orgMembers {
+			memberIDs = append(memberIDs, m.OrganizationMember.UserID)
+		}
+		require.NotContains(t, memberIDs, userA.ID)
+		require.Contains(t, memberIDs, userB.ID)
+
+		// The raw org membership rows should also be gone (not just hidden).
+		rawOrgs, err := db.GetOrganizationIDsByMemberIDs(ctx, []uuid.UUID{userA.ID})
+		require.NoError(t, err)
+		require.Empty(t, rawOrgs, "zombie org membership rows should not exist after soft-delete")
+
+		// userA's group membership should also be removed by the cascading trigger.
+		groupMembers, err := db.GetGroupMembersByGroupID(ctx, database.GetGroupMembersByGroupIDParams{
+			GroupID:       group.ID,
+			IncludeSystem: true,
+		})
+		require.NoError(t, err)
+		var groupMemberIDs []uuid.UUID
+		for _, gm := range groupMembers {
+			groupMemberIDs = append(groupMemberIDs, gm.UserID)
+		}
+		require.NotContains(t, groupMemberIDs, userA.ID)
+		require.Contains(t, groupMemberIDs, userB.ID)
+	})
+
+	// MultipleOrgs verifies that memberships are cleaned up across
+	// every organization the deleted user belonged to.
+	t.Run("MultipleOrgs", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		org1 := dbgen.Organization(t, db, database.Organization{})
+		org2 := dbgen.Organization(t, db, database.Organization{})
+
+		// userA will be soft-deleted. They belong to both orgs.
+		userA := dbgen.User(t, db, database.User{})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: org1.ID,
+			UserID:         userA.ID,
+		})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: org2.ID,
+			UserID:         userA.ID,
+		})
+
+		// Add userA to a group in each org.
+		group1 := dbgen.Group(t, db, database.Group{OrganizationID: org1.ID})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{
+			UserID:  userA.ID,
+			GroupID: group1.ID,
+		})
+		group2 := dbgen.Group(t, db, database.Group{OrganizationID: org2.ID})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{
+			UserID:  userA.ID,
+			GroupID: group2.ID,
+		})
+
+		// userB stays in org1 as a control.
+		userB := dbgen.User(t, db, database.User{})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			OrganizationID: org1.ID,
+			UserID:         userB.ID,
+		})
+		dbgen.GroupMember(t, db, database.GroupMemberTable{
+			UserID:  userB.ID,
+			GroupID: group1.ID,
+		})
+
+		// Soft-delete userA.
+		require.NoError(t, db.UpdateUserDeletedByID(ctx, userA.ID))
+
+		// userA should be gone from both orgs.
+		for _, org := range []database.Organization{org1, org2} {
+			members, err := db.OrganizationMembers(ctx, database.OrganizationMembersParams{
+				OrganizationID: org.ID,
+			})
+			require.NoError(t, err)
+			for _, m := range members {
+				require.NotEqual(t, userA.ID, m.OrganizationMember.UserID,
+					"userA should not appear in org %s", org.ID)
+			}
+		}
+
+		// No raw org membership rows should remain.
+		rawOrgs, err := db.GetOrganizationIDsByMemberIDs(ctx, []uuid.UUID{userA.ID})
+		require.NoError(t, err)
+		require.Empty(t, rawOrgs, "zombie org membership rows should not exist after soft-delete")
+
+		// Group memberships in both orgs should be cleaned up.
+		for _, g := range []struct {
+			name    string
+			groupID uuid.UUID
+		}{
+			{"org1-group", group1.ID},
+			{"org2-group", group2.ID},
+		} {
+			groupMembers, err := db.GetGroupMembersByGroupID(ctx, database.GetGroupMembersByGroupIDParams{
+				GroupID:       g.groupID,
+				IncludeSystem: true,
+			})
+			require.NoError(t, err, g.name)
+			for _, gm := range groupMembers {
+				require.NotEqual(t, userA.ID, gm.UserID, g.name)
+			}
+		}
+
+		// userB's memberships are unaffected.
+		org1Members, err := db.OrganizationMembers(ctx, database.OrganizationMembersParams{
+			OrganizationID: org1.ID,
+		})
+		require.NoError(t, err)
+		var org1MemberIDs []uuid.UUID
+		for _, m := range org1Members {
+			org1MemberIDs = append(org1MemberIDs, m.OrganizationMember.UserID)
+		}
+		require.Contains(t, org1MemberIDs, userB.ID)
 	})
 }
 

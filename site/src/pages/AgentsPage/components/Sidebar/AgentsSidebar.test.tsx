@@ -129,10 +129,7 @@ describe("AgentsSidebar archived filter", () => {
 
 		render(
 			<Wrapper>
-				<AgentsSidebar
-					{...defaultProps}
-					onArchivedFilterChange={vi.fn()}
-				/>
+				<AgentsSidebar {...defaultProps} onArchivedFilterChange={vi.fn()} />
 			</Wrapper>,
 		);
 
@@ -143,6 +140,25 @@ describe("AgentsSidebar archived filter", () => {
 		expect(screen.getAllByText("Chat status").length).toBeGreaterThanOrEqual(1);
 		expect(screen.getByText("Filter by")).toBeInTheDocument();
 		expect(screen.getByText("PR status")).toBeInTheDocument();
+	});
+
+	it("calls the filter change callback from the dropdown", async () => {
+		const user = userEvent.setup();
+		const onArchivedFilterChange = vi.fn();
+
+		render(
+			<Wrapper>
+				<AgentsSidebar
+					{...defaultProps}
+					onArchivedFilterChange={onArchivedFilterChange}
+				/>
+			</Wrapper>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Filter agents" }));
+		await user.click(screen.getByLabelText("Archived agents"));
+
+		expect(onArchivedFilterChange).toHaveBeenCalledWith("archived");
 	});
 
 	it("calls the filter change callback from the empty-state link", async () => {
@@ -336,7 +352,7 @@ describe("AgentsSidebar load-more behavior", () => {
 					{...defaultProps}
 					hasNextPage
 					onLoadMore={onLoadMore}
-					isFetchingNextPage={true}
+					isFetchingNextPage
 				/>
 			</Wrapper>,
 		);

@@ -1124,35 +1124,38 @@ func (api *API) userAppearanceSettings(rw http.ResponseWriter, r *http.Request) 
 		user = httpmw.UserParam(r)
 	)
 
-	themePreference, err := api.Database.GetUserThemePreference(ctx, user.ID)
+	settings, err := api.Database.GetUserAppearanceSettings(ctx, user.ID)
 	if err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Error reading user settings.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-
-		themePreference = ""
+		writeUserSettingsReadError(ctx, rw, err)
+		return
 	}
 
-	terminalFont, err := api.Database.GetUserTerminalFont(ctx, user.ID)
-	if err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Error reading user settings.",
-				Detail:  err.Error(),
-			})
-			return
-		}
+	httpapi.Write(ctx, rw, http.StatusOK, userAppearanceSettingsFromRow(settings))
+}
 
-		terminalFont = ""
+func userAppearanceSettingsFromRow(settings database.GetUserAppearanceSettingsRow) codersdk.UserAppearanceSettings {
+	return codersdk.UserAppearanceSettings{
+		ThemePreference: settings.ThemePreference,
+		ThemeMode:       codersdk.ThemeMode(settings.ThemeMode),
+		ThemeLight:      settings.ThemeLight,
+		ThemeDark:       settings.ThemeDark,
+		TerminalFont:    codersdk.TerminalFontName(settings.TerminalFont),
 	}
+}
 
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserAppearanceSettings{
-		ThemePreference: themePreference,
-		TerminalFont:    codersdk.TerminalFontName(terminalFont),
+func isLegacyAutoThemePreference(themePreference string) bool {
+	switch themePreference {
+	case "auto", "auto-protan-deuter", "auto-tritan":
+		return true
+	default:
+		return false
+	}
+}
+
+func writeUserSettingsReadError(ctx context.Context, rw http.ResponseWriter, err error) {
+	httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+		Message: "Error reading user settings.",
+		Detail:  err.Error(),
 	})
 }
 
@@ -1184,34 +1187,89 @@ func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	updatedThemePreference, err := api.Database.UpdateUserThemePreference(ctx, database.UpdateUserThemePreferenceParams{
-		UserID:          user.ID,
-		ThemePreference: params.ThemePreference,
-	})
+	// theme_mode is optional for backward compatibility. Older CLI
+	// clients do not know about theme_mode or the sync slots, so an
+	// omitted mode must leave those fields untouched instead of replacing
+	// them with single-mode defaults. Legacy auto values are the exception:
+	// the old UI used them to mean sync-with-system, so clearing theme_mode
+	// lets modern clients migrate them on read.
+	themeModeProvided := params.ThemeMode != codersdk.ThemeModeUnset
+	updateThemeMode := themeModeProvided
+	isSyncMode := params.ThemeMode == codersdk.ThemeModeSync
+	isSingleMode := params.ThemeMode == codersdk.ThemeModeSingle
+	updateThemeLight := isSyncMode || (isSingleMode && params.ThemeLight != "")
+	updateThemeDark := isSyncMode || (isSingleMode && params.ThemeDark != "")
+	themeMode := params.ThemeMode
+	if !updateThemeMode && isLegacyAutoThemePreference(params.ThemePreference) {
+		updateThemeMode = true
+		themeMode = codersdk.ThemeModeUnset
+	}
+
+	var updatedSettings database.GetUserAppearanceSettingsRow
+
+	err := api.Database.InTx(func(tx database.Store) error {
+		_, err := tx.UpdateUserThemePreference(ctx, database.UpdateUserThemePreferenceParams{
+			UserID:          user.ID,
+			ThemePreference: params.ThemePreference,
+		})
+		if err != nil {
+			return xerrors.Errorf("update user theme preference: %w", err)
+		}
+
+		if updateThemeMode {
+			_, err = tx.UpdateUserThemeMode(ctx, database.UpdateUserThemeModeParams{
+				UserID:    user.ID,
+				ThemeMode: string(themeMode),
+			})
+			if err != nil {
+				return xerrors.Errorf("update user theme mode: %w", err)
+			}
+		}
+
+		if updateThemeLight {
+			_, err = tx.UpdateUserThemeLight(ctx, database.UpdateUserThemeLightParams{
+				UserID:     user.ID,
+				ThemeLight: params.ThemeLight,
+			})
+			if err != nil {
+				return xerrors.Errorf("update user theme light: %w", err)
+			}
+		}
+
+		if updateThemeDark {
+			_, err = tx.UpdateUserThemeDark(ctx, database.UpdateUserThemeDarkParams{
+				UserID:    user.ID,
+				ThemeDark: params.ThemeDark,
+			})
+			if err != nil {
+				return xerrors.Errorf("update user theme dark: %w", err)
+			}
+		}
+
+		_, err = tx.UpdateUserTerminalFont(ctx, database.UpdateUserTerminalFontParams{
+			UserID:       user.ID,
+			TerminalFont: string(params.TerminalFont),
+		})
+		if err != nil {
+			return xerrors.Errorf("update user terminal font: %w", err)
+		}
+
+		updatedSettings, err = tx.GetUserAppearanceSettings(ctx, user.ID)
+		if err != nil {
+			return xerrors.Errorf("get updated user appearance settings: %w", err)
+		}
+
+		return nil
+	}, nil)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error updating user theme preference.",
+			Message: "Internal error updating user appearance settings.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 
-	updatedTerminalFont, err := api.Database.UpdateUserTerminalFont(ctx, database.UpdateUserTerminalFontParams{
-		UserID:       user.ID,
-		TerminalFont: string(params.TerminalFont),
-	})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error updating user terminal font.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserAppearanceSettings{
-		ThemePreference: updatedThemePreference.Value,
-		TerminalFont:    codersdk.TerminalFontName(updatedTerminalFont.Value),
-	})
+	httpapi.Write(ctx, rw, http.StatusOK, userAppearanceSettingsFromRow(updatedSettings))
 }
 
 // @Summary Get user preference settings
@@ -1257,10 +1315,20 @@ func (api *API) userPreferenceSettings(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	agentChatSendShortcut, err := api.Database.GetUserAgentChatSendShortcut(ctx, user.ID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Error reading user preference settings.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserPreferenceSettings{
 		TaskNotificationAlertDismissed: taskAlertDismissed,
 		ThinkingDisplayMode:            sanitizeThinkingDisplayMode(thinkingMode),
 		CodeDiffDisplayMode:            sanitizeAgentDisplayMode(codeDiffMode),
+		AgentChatSendShortcut:          sanitizeAgentChatSendShortcut(agentChatSendShortcut),
 	})
 }
 
@@ -1301,6 +1369,16 @@ func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Reques
 			Message: "Invalid code diff display mode.",
 			Validations: []codersdk.ValidationError{
 				{Field: "code_diff_display_mode", Detail: agentDisplayModeValidationDetail},
+			},
+		})
+		return
+	}
+	if params.AgentChatSendShortcut != "" &&
+		!slices.Contains(codersdk.ValidAgentChatSendShortcuts, params.AgentChatSendShortcut) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid agent chat send shortcut.",
+			Validations: []codersdk.ValidationError{
+				{Field: "agent_chat_send_shortcut", Detail: agentChatSendShortcutValidationDetail},
 			},
 		})
 		return
@@ -1356,6 +1434,23 @@ func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Reques
 			}
 			settings.CodeDiffDisplayMode = sanitizeAgentDisplayMode(stored)
 		}
+
+		if params.AgentChatSendShortcut != "" {
+			updated, err := tx.UpdateUserAgentChatSendShortcut(ctx, database.UpdateUserAgentChatSendShortcutParams{
+				UserID:                user.ID,
+				AgentChatSendShortcut: string(params.AgentChatSendShortcut),
+			})
+			if err != nil {
+				return newUserPreferenceSettingsAPIError("Internal error updating agent chat send shortcut.", err)
+			}
+			settings.AgentChatSendShortcut = sanitizeAgentChatSendShortcut(updated)
+		} else {
+			stored, err := tx.GetUserAgentChatSendShortcut(ctx, user.ID)
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return newUserPreferenceSettingsAPIError("Error reading agent chat send shortcut.", err)
+			}
+			settings.AgentChatSendShortcut = sanitizeAgentChatSendShortcut(stored)
+		}
 		return nil
 	}, database.DefaultTXOptions().WithID("user_preference_settings"))
 	if err != nil {
@@ -1400,8 +1495,9 @@ func (e userPreferenceSettingsAPIError) Unwrap() error {
 }
 
 const (
-	thinkingDisplayModeValidationDetail = "must be one of: auto, preview, always_expanded, always_collapsed"
-	agentDisplayModeValidationDetail    = "must be one of: auto, always_expanded, always_collapsed"
+	thinkingDisplayModeValidationDetail   = "must be one of: auto, preview, always_expanded, always_collapsed"
+	agentDisplayModeValidationDetail      = "must be one of: auto, always_expanded, always_collapsed"
+	agentChatSendShortcutValidationDetail = "must be one of: enter, modifier_enter"
 )
 
 func sanitizeThinkingDisplayMode(raw string) codersdk.ThinkingDisplayMode {
@@ -1418,6 +1514,14 @@ func sanitizeAgentDisplayMode(raw string) codersdk.AgentDisplayMode {
 		return mode
 	}
 	return codersdk.AgentDisplayModeAuto
+}
+
+func sanitizeAgentChatSendShortcut(raw string) codersdk.AgentChatSendShortcut {
+	shortcut := codersdk.AgentChatSendShortcut(raw)
+	if slices.Contains(codersdk.ValidAgentChatSendShortcuts, shortcut) {
+		return shortcut
+	}
+	return codersdk.AgentChatSendShortcutEnter
 }
 
 func isValidFontName(font codersdk.TerminalFontName) bool {

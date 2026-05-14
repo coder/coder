@@ -252,26 +252,80 @@ const (
 	TerminalFontJetBrainsMono TerminalFontName = "jetbrains-mono"
 )
 
+type ThemeMode string
+
+const (
+	// ThemeModeUnset is the server-side default when the user has never
+	// set a theme_mode. It is also stored for legacy auto preferences so
+	// clients can migrate the old sync-with-system setting. Clients should
+	// inspect ThemePreference for legacy auto values before treating unset
+	// mode as ThemeModeSingle for backward compatibility with PR #24672.
+	ThemeModeUnset  ThemeMode = ""
+	ThemeModeSync   ThemeMode = "sync"
+	ThemeModeSingle ThemeMode = "single"
+)
+
 type UserAppearanceSettings struct {
-	ThemePreference string           `json:"theme_preference"`
-	TerminalFont    TerminalFontName `json:"terminal_font"`
+	// ThemePreference is the legacy single-field appearance setting. In
+	// "single" mode it mirrors the active theme. In "sync" mode modern
+	// clients normally mirror the active OS slot, but older clients can
+	// update only this field, so it may diverge from ThemeLight or
+	// ThemeDark until a modern client saves the full appearance state
+	// again.
+	ThemePreference string    `json:"theme_preference"`
+	ThemeMode       ThemeMode `json:"theme_mode"`
+	// Ignored when ThemeMode is "single"
+	ThemeLight string `json:"theme_light"`
+	// Ignored when ThemeMode is "single"
+	ThemeDark    string           `json:"theme_dark"`
+	TerminalFont TerminalFontName `json:"terminal_font"`
 }
 
 type UpdateUserAppearanceSettingsRequest struct {
-	ThemePreference string           `json:"theme_preference" validate:"required"`
-	TerminalFont    TerminalFontName `json:"terminal_font" validate:"required"`
+	ThemePreference string `json:"theme_preference" validate:"required"`
+	// ThemeMode is optional for backward compatibility. When empty,
+	// the server leaves theme_mode, theme_light, and theme_dark
+	// unchanged so older CLI clients do not erase sync-mode settings.
+	// Legacy auto preferences are the exception: they clear theme_mode
+	// so clients can migrate the old sync-with-system setting.
+	ThemeMode ThemeMode `json:"theme_mode" validate:"omitempty,oneof=sync single"`
+	// ThemeLight is required when ThemeMode is "sync". In "single"
+	// mode an empty value means "preserve the previously persisted
+	// slot" rather than "clear the slot", so partial updates that send
+	// only one slot keep the other intact.
+	ThemeLight string `json:"theme_light" validate:"required_if=ThemeMode sync,omitempty,oneof=light light-protan-deuter light-tritan dark dark-protan-deuter dark-tritan"`
+	// ThemeDark is required when ThemeMode is "sync". In "single" mode
+	// an empty value means "preserve the previously persisted slot"
+	// rather than "clear the slot", so partial updates that send only
+	// one slot keep the other intact.
+	ThemeDark    string           `json:"theme_dark" validate:"required_if=ThemeMode sync,omitempty,oneof=light light-protan-deuter light-tritan dark dark-protan-deuter dark-tritan"`
+	TerminalFont TerminalFontName `json:"terminal_font" validate:"required"`
 }
 
 type UserPreferenceSettings struct {
-	TaskNotificationAlertDismissed bool                `json:"task_notification_alert_dismissed"`
-	ThinkingDisplayMode            ThinkingDisplayMode `json:"thinking_display_mode"`
-	CodeDiffDisplayMode            AgentDisplayMode    `json:"code_diff_display_mode"`
+	TaskNotificationAlertDismissed bool                  `json:"task_notification_alert_dismissed"`
+	ThinkingDisplayMode            ThinkingDisplayMode   `json:"thinking_display_mode"`
+	CodeDiffDisplayMode            AgentDisplayMode      `json:"code_diff_display_mode"`
+	AgentChatSendShortcut          AgentChatSendShortcut `json:"agent_chat_send_shortcut"`
 }
 
 type UpdateUserPreferenceSettingsRequest struct {
-	TaskNotificationAlertDismissed *bool               `json:"task_notification_alert_dismissed,omitempty"`
-	ThinkingDisplayMode            ThinkingDisplayMode `json:"thinking_display_mode,omitempty"`
-	CodeDiffDisplayMode            AgentDisplayMode    `json:"code_diff_display_mode,omitempty"`
+	TaskNotificationAlertDismissed *bool                 `json:"task_notification_alert_dismissed,omitempty"`
+	ThinkingDisplayMode            ThinkingDisplayMode   `json:"thinking_display_mode,omitempty"`
+	CodeDiffDisplayMode            AgentDisplayMode      `json:"code_diff_display_mode,omitempty"`
+	AgentChatSendShortcut          AgentChatSendShortcut `json:"agent_chat_send_shortcut,omitempty"`
+}
+
+type AgentChatSendShortcut string
+
+const (
+	AgentChatSendShortcutEnter         AgentChatSendShortcut = "enter"
+	AgentChatSendShortcutModifierEnter AgentChatSendShortcut = "modifier_enter"
+)
+
+var ValidAgentChatSendShortcuts = []AgentChatSendShortcut{
+	AgentChatSendShortcutEnter,
+	AgentChatSendShortcutModifierEnter,
 }
 
 type ThinkingDisplayMode string

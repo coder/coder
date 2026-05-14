@@ -38,7 +38,7 @@ export const AgentExternal: FC<AgentExternalProps> = ({ agent, workspace }) => {
 				secret={false}
 				redactPattern={/CODER_AGENT_TOKEN="([^"]+)"/g}
 				redactReplacement={`CODER_AGENT_TOKEN="********"`}
-				showRevealButton={true}
+				showRevealButton
 			/>
 		</section>
 	);

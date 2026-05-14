@@ -26,6 +26,19 @@ When investigating or editing TypeScript/React code, always use the TypeScript l
 - `pnpm playwright:test` - Run playwright e2e tests. When running e2e tests, remind the user that a license is required to run all the tests
 - `pnpm format` - Format frontend code. Always run before creating a PR
 
+## Failure artifacts
+
+Playwright writes per-test failure artifacts to `site/test-results/` when
+running `pnpm playwright:test` from `site/`. Failed tests keep screenshots,
+videos, and traces through the Playwright config. The HTML report is written
+to `site/playwright-report/`, and the coderd debug log is written to
+`site/e2e/test-results/debug.log`.
+
+In CI, the `test-e2e` job uploads failure artifacts to the workflow run's
+Artifacts section. Look for artifact names prefixed with
+`playwright-artifacts-`, followed by the matrix job name and commit SHA.
+Debug logs and pprof dumps use the same job name and commit SHA convention.
+
 ## Components
 
 - MUI components are deprecated - migrate away from these when encountered
@@ -88,6 +101,9 @@ When investigating or editing TypeScript/React code, always use the TypeScript l
 - Do not use emdash (U+2014), endash (U+2013), or ` -- ` as punctuation
   in code, comments, string literals, or documentation. Use commas,
   semicolons, or periods instead. Restructure the sentence if needed.
+- For JSX boolean props that are `true`, use the shorthand form
+  (`<Foo prop />`) instead of `<Foo prop={true} />`. The two are
+  equivalent; the shorthand is the React convention and reduces noise.
 - **Avoid unnecessary indirection.** Inline single-use module-level
   constants, single-use aliases, and one-line helpers that just return a
   single field at the call site. Do not create wrapper hooks that only

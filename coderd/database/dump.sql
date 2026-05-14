@@ -223,7 +223,10 @@ CREATE TYPE api_key_scope AS ENUM (
     'chat:*',
     'ai_seat:*',
     'ai_seat:create',
-    'ai_seat:read'
+    'ai_seat:read',
+    'ai_model_price:*',
+    'ai_model_price:read',
+    'ai_model_price:update'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -759,6 +762,18 @@ BEGIN
 		-- email if the account is undeleted. Although that is not a guarantee.
 		DELETE FROM user_links
 		WHERE user_id = OLD.id;
+
+		-- Remove their user_secrets.
+		-- user_secrets.user_id has ON DELETE CASCADE, but soft-delete
+		-- does not remove the users row so the FK cascade never fires.
+		DELETE FROM user_secrets
+		WHERE user_id = OLD.id;
+
+		-- Remove their organization memberships.
+		-- This also triggers group membership cleanup via
+		-- trigger_delete_group_members_on_org_member_delete.
+		DELETE FROM organization_members
+		WHERE user_id = OLD.id;
 	END IF;
 	RETURN NEW;
 END;
@@ -879,6 +894,21 @@ BEGIN
 	IF (NEW.user_id IS NOT NULL) THEN
 		IF (SELECT deleted FROM users WHERE id = NEW.user_id LIMIT 1) THEN
 			RAISE EXCEPTION 'Cannot create user_link for deleted user';
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION insert_user_secret_fail_if_user_deleted() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+
+DECLARE
+BEGIN
+	IF (NEW.user_id IS NOT NULL) THEN
+		IF (SELECT deleted FROM users WHERE id = NEW.user_id LIMIT 1) THEN
+			RAISE EXCEPTION 'Cannot create user_secret for deleted user';
 		END IF;
 	END IF;
 	RETURN NEW;
@@ -1060,6 +1090,23 @@ BEGIN
 	RETURN OLD;
 END;
 $$;
+
+CREATE TABLE ai_model_prices (
+    provider text NOT NULL,
+    model text NOT NULL,
+    input_price bigint,
+    output_price bigint,
+    cache_read_price bigint,
+    cache_write_price bigint,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ai_model_prices_cache_read_price_check CHECK ((cache_read_price >= 0)),
+    CONSTRAINT ai_model_prices_cache_write_price_check CHECK ((cache_write_price >= 0)),
+    CONSTRAINT ai_model_prices_input_price_check CHECK ((input_price >= 0)),
+    CONSTRAINT ai_model_prices_output_price_check CHECK ((output_price >= 0))
+);
+
+COMMENT ON TABLE ai_model_prices IS 'Per-model token prices used by AI Bridge to compute interception cost.';
 
 CREATE TABLE ai_seat_state (
     user_id uuid NOT NULL,
@@ -1759,6 +1806,7 @@ CREATE TABLE mcp_server_configs (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     model_intent boolean DEFAULT false NOT NULL,
     allow_in_plan_mode boolean DEFAULT false NOT NULL,
+    forward_coder_headers boolean DEFAULT false NOT NULL,
     CONSTRAINT mcp_server_configs_auth_type_check CHECK ((auth_type = ANY (ARRAY['none'::text, 'oauth2'::text, 'api_key'::text, 'custom_headers'::text, 'user_oidc'::text]))),
     CONSTRAINT mcp_server_configs_availability_check CHECK ((availability = ANY (ARRAY['force_on'::text, 'default_on'::text, 'default_off'::text]))),
     CONSTRAINT mcp_server_configs_transport_check CHECK ((transport = ANY (ARRAY['streamable_http'::text, 'sse'::text])))
@@ -3358,6 +3406,9 @@ ALTER TABLE ONLY workspace_resource_metadata ALTER COLUMN id SET DEFAULT nextval
 ALTER TABLE ONLY workspace_agent_stats
     ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY ai_model_prices
+    ADD CONSTRAINT ai_model_prices_pkey PRIMARY KEY (provider, model);
+
 ALTER TABLE ONLY ai_seat_state
     ADD CONSTRAINT ai_seat_state_pkey PRIMARY KEY (user_id);
 
@@ -3800,6 +3851,8 @@ CREATE INDEX idx_chat_debug_steps_stale ON chat_debug_steps USING btree (updated
 
 CREATE INDEX idx_chat_diff_statuses_stale_at ON chat_diff_statuses USING btree (stale_at);
 
+CREATE INDEX idx_chat_diff_statuses_url_lower ON chat_diff_statuses USING btree (lower(url)) WHERE ((url IS NOT NULL) AND (url <> ''::text));
+
 CREATE INDEX idx_chat_file_links_chat_id ON chat_file_links USING btree (chat_id);
 
 CREATE INDEX idx_chat_files_org ON chat_files USING btree (organization_id);
@@ -4081,6 +4134,8 @@ CREATE TRIGGER trigger_nullify_next_start_at_on_workspace_autostart_modificati A
 CREATE TRIGGER trigger_update_users AFTER INSERT OR UPDATE ON users FOR EACH ROW WHEN ((new.deleted = true)) EXECUTE FUNCTION delete_deleted_user_resources();
 
 CREATE TRIGGER trigger_upsert_user_links BEFORE INSERT OR UPDATE ON user_links FOR EACH ROW EXECUTE FUNCTION insert_user_links_fail_if_user_deleted();
+
+CREATE TRIGGER trigger_upsert_user_secrets BEFORE INSERT OR UPDATE ON user_secrets FOR EACH ROW EXECUTE FUNCTION insert_user_secret_fail_if_user_deleted();
 
 CREATE TRIGGER update_notification_message_dedupe_hash BEFORE INSERT OR UPDATE ON notification_messages FOR EACH ROW EXECUTE FUNCTION compute_notification_message_dedupe_hash();
 
