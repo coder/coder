@@ -256,16 +256,12 @@ type sqlcQuerier interface {
 	// re-encrypt their api_key and clear references to retired keys.
 	GetAIProviderKeys(ctx context.Context) ([]AIProviderKey, error)
 	// Returns all keys for a provider, ordered by created_at ASC so the
-	// oldest key is returned first. AI Bridge currently uses the first
+	// oldest key is returned first. AI Bridge currently uses the oldest
 	// key per provider; multiple keys are stored to support future
 	// failover and rotation flows.
 	GetAIProviderKeysByProviderID(ctx context.Context, providerID uuid.UUID) ([]AIProviderKey, error)
-	// Returns AI provider rows. Soft-deleted and/or disabled rows are
-	// excluded by default; callers pass include_deleted=true to also see
-	// soft-deleted rows (the env seeder uses this to distinguish "never
-	// existed" from "operator soft-deleted; do not re-create from env")
-	// and include_disabled=true to also see rows the operator has marked
-	// disabled.
+	// Returns AI provider rows. Soft-deleted and disabled rows are excluded
+	// unless include_deleted or include_disabled is set.
 	GetAIProviders(ctx context.Context, arg GetAIProvidersParams) ([]AIProvider, error)
 	GetAPIKeyByID(ctx context.Context, id string) (APIKey, error)
 	// there is no unique constraint on empty token names

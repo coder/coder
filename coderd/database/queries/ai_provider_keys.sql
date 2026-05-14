@@ -8,7 +8,7 @@ WHERE
 
 -- name: GetAIProviderKeysByProviderID :many
 -- Returns all keys for a provider, ordered by created_at ASC so the
--- oldest key is returned first. AI Bridge currently uses the first
+-- oldest key is returned first. AI Bridge currently uses the oldest
 -- key per provider; multiple keys are stored to support future
 -- failover and rotation flows.
 SELECT

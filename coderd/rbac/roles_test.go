@@ -1107,7 +1107,7 @@ func TestRolePermissions(t *testing.T) {
 		},
 		{
 			// Only owners can manage AI providers. Provider
-			// configuration is workspace-wide and includes secret
+			// configuration is deployment-wide and includes secret
 			// material (api_key, settings) so it is not exposed to
 			// org admins or auditors.
 			Name:     "AIProviders",

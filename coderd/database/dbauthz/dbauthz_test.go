@@ -6201,7 +6201,7 @@ func (s *MethodTestSuite) TestAIBridge() {
 	s.Run("GetAIProviders", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		providerA := testutil.Fake(s.T(), faker, database.AIProvider{})
 		providerB := testutil.Fake(s.T(), faker, database.AIProvider{})
-		arg := sql.NullBool{}
+		arg := database.GetAIProvidersParams{}
 		dbm.EXPECT().GetAIProviders(gomock.Any(), arg).Return([]database.AIProvider{providerA, providerB}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceAIProvider, policy.ActionRead).Returns([]database.AIProvider{providerA, providerB})
 	}))

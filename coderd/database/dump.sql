@@ -1154,7 +1154,7 @@ COMMENT ON TABLE ai_providers IS 'Runtime configuration for AI providers. Author
 
 COMMENT ON COLUMN ai_providers.display_name IS 'Optional human-readable label. When NULL, callers should fall back to name.';
 
-COMMENT ON COLUMN ai_providers.deleted IS 'Soft delete flag. Soft-deleted rows are preserved for audit and FK history; their names remain reserved.';
+COMMENT ON COLUMN ai_providers.deleted IS 'Soft delete flag. Soft-deleted rows are preserved for audit and FK history but do not block name reuse by future live rows.';
 
 COMMENT ON COLUMN ai_providers.settings IS 'Encrypted JSON blob holding type-specific configuration (e.g. AWS Bedrock region, model, access key secret). Plaintext is a JSON object. NULL when no type-specific settings are required.';
 
@@ -3465,9 +3465,6 @@ ALTER TABLE ONLY ai_provider_keys
     ADD CONSTRAINT ai_provider_keys_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY ai_providers
-    ADD CONSTRAINT ai_providers_name_key UNIQUE (name);
-
-ALTER TABLE ONLY ai_providers
     ADD CONSTRAINT ai_providers_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY ai_seat_state
@@ -3835,6 +3832,8 @@ ALTER TABLE ONLY workspace_resources
 
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_pkey PRIMARY KEY (id);
+
+CREATE UNIQUE INDEX ai_providers_name_unique ON ai_providers USING btree (name) WHERE (deleted = false);
 
 CREATE INDEX api_keys_last_used_idx ON api_keys USING btree (last_used DESC);
 

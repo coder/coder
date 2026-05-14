@@ -6,7 +6,7 @@ CREATE TYPE ai_provider_type AS ENUM (
 CREATE TABLE ai_providers (
     id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     type            ai_provider_type NOT NULL,
-    name            text NOT NULL UNIQUE
+    name            text NOT NULL
                         CONSTRAINT ai_providers_name_check
                         CHECK (name ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
     display_name    text,
@@ -19,13 +19,19 @@ CREATE TABLE ai_providers (
     updated_at      timestamp with time zone NOT NULL DEFAULT NOW()
 );
 
+-- Provider names are unique among live rows only. Soft-deleted rows
+-- are retained for audit and FK history but do not reserve names.
+CREATE UNIQUE INDEX ai_providers_name_unique
+    ON ai_providers (name)
+    WHERE deleted = FALSE;
+
 COMMENT ON TABLE ai_providers IS 'Runtime configuration for AI providers. Authoritative source for the provider set served by aibridged. Replaces deployment-time CODER_AIBRIDGE_* environment variables.';
 
 COMMENT ON COLUMN ai_providers.settings IS 'Encrypted JSON blob holding type-specific configuration (e.g. AWS Bedrock region, model, access key secret). Plaintext is a JSON object. NULL when no type-specific settings are required.';
 
 COMMENT ON COLUMN ai_providers.settings_key_id IS 'The ID of the key used to encrypt settings. If this is NULL, settings is not encrypted.';
 
-COMMENT ON COLUMN ai_providers.deleted IS 'Soft delete flag. Soft-deleted rows are preserved for audit and FK history; their names remain reserved.';
+COMMENT ON COLUMN ai_providers.deleted IS 'Soft delete flag. Soft-deleted rows are preserved for audit and FK history but do not block name reuse by future live rows.';
 
 COMMENT ON COLUMN ai_providers.display_name IS 'Optional human-readable label. When NULL, callers should fall back to name.';
 

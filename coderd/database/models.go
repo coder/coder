@@ -4386,7 +4386,7 @@ type AIProvider struct {
 	// Optional human-readable label. When NULL, callers should fall back to name.
 	DisplayName sql.NullString `db:"display_name" json:"display_name"`
 	Enabled     bool           `db:"enabled" json:"enabled"`
-	// Soft delete flag. Soft-deleted rows are preserved for audit and FK history; their names remain reserved.
+	// Soft delete flag. Soft-deleted rows are preserved for audit and FK history but do not block name reuse by future live rows.
 	Deleted bool   `db:"deleted" json:"deleted"`
 	BaseUrl string `db:"base_url" json:"base_url"`
 	// Encrypted JSON blob holding type-specific configuration (e.g. AWS Bedrock region, model, access key secret). Plaintext is a JSON object. NULL when no type-specific settings are required.

@@ -15,12 +15,8 @@ WHERE
     name = @name::text AND deleted = FALSE;
 
 -- name: GetAIProviders :many
--- Returns AI provider rows. Soft-deleted and/or disabled rows are
--- excluded by default; callers pass include_deleted=true to also see
--- soft-deleted rows (the env seeder uses this to distinguish "never
--- existed" from "operator soft-deleted; do not re-create from env")
--- and include_disabled=true to also see rows the operator has marked
--- disabled.
+-- Returns AI provider rows. Soft-deleted and disabled rows are excluded
+-- unless include_deleted or include_disabled is set.
 SELECT
     *
 FROM
