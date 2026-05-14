@@ -57,7 +57,7 @@ func main() {
 		var err error
 		connection, cleanup, err = dbtestutil.OpenContainerized(t, dbtestutil.DBContainerOptions{})
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "containerized postgres unavailable (%s); falling back to embedded postgres\n", err)
+			_, _ = fmt.Fprintf(os.Stderr, "containerized postgres unavailable (%s); falling back to embedded postgres\n", err)
 			connection, cleanup, err = openEmbeddedPostgres()
 			if err != nil {
 				err = xerrors.Errorf("open embedded postgres failed: %w", err)
@@ -82,7 +82,7 @@ func main() {
 
 	dumpBytes, err := dbtestutil.PGDumpSchemaOnly(connection)
 	if err != nil {
-		fmt.Fprintf(os.Stderr,
+		_, _ = fmt.Fprintf(os.Stderr,
 			"\nThis step needs pg_dump (PostgreSQL v13.x) on PATH OR a Docker-compatible daemon.\n"+
 				"Install pg_dump locally to avoid Docker:\n"+
 				"  mise:  mise use -g postgres@13\n"+
@@ -162,7 +162,7 @@ func openEmbeddedPostgres() (string, func(), error) {
 
 	cleanup := func() {
 		if stopErr := ep.Stop(); stopErr != nil {
-			fmt.Fprintf(os.Stderr, "failed to stop embedded postgres: %s\n", stopErr)
+			_, _ = fmt.Fprintf(os.Stderr, "failed to stop embedded postgres: %s\n", stopErr)
 		}
 		_ = os.RemoveAll(runtimeDir)
 	}
