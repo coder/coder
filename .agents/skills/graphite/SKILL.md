@@ -71,16 +71,41 @@ On Windows, run `gt` from WSL. There is no native Windows build.
 
 ## Authentication
 
-1. Visit <https://app.graphite.dev/activate> in a browser and copy the
-   token.
-2. Run:
+`gt` requires a personal CLI token that can only be obtained through a
+browser flow tied to a human Graphite account. An agent cannot complete
+it on its own.
 
-   ```bash
-   gt auth --token <TOKEN>
-   ```
+Before running any other `gt` command, check for an existing token:
 
-The token is stored at `~/.graphite_user_config`. Re-run `gt auth` if
-`gt submit` later prints a re-auth URL.
+```bash
+test -s ~/.graphite_user_config && echo authed || echo missing
+```
+
+If the file is missing or empty, **stop and surface these instructions
+to the human verbatim**, then wait for confirmation before continuing:
+
+> Graphite CLI is not authenticated in this workspace. To unblock me:
+>
+> 1. Open <https://app.graphite.dev/activate> in your browser.
+> 2. Sign in if needed and copy the CLI auth token.
+> 3. In the workspace, run:
+>
+>    ```bash
+>    gt auth --token <PASTE_TOKEN_HERE>
+>    ```
+>
+> 4. Reply when done and I will resume.
+
+Do not try to invoke `gt auth` interactively (without `--token`); it
+opens a browser flow that also needs a human.
+
+The token is stored at `~/.graphite_user_config`. On Coder workspaces
+that path lives inside the persistent home volume, so the token
+survives workspace stops and rebuilds as long as the volume is not
+destroyed.
+
+If a later `gt submit` fails with a re-auth URL, stop and surface the
+same instructions again.
 
 ## Per-repository init
 
@@ -387,7 +412,9 @@ fi
 - **Detached HEAD.** Run `gt checkout <branch>` to attach again.
 - **Untracked branch after `git checkout`.** Run `gt track`.
 - **Missing trunk.** Run `gt init --trunk <branch>`.
-- **Auth expired.** Re-run `gt auth --token <new-token>`.
+- **Auth expired or missing.** `gt submit` prints a re-auth URL.
+  Stop and surface the auth instructions from the "Authentication"
+  section to the human; do not try to complete the flow yourself.
 - **Squash-merged but still local.** `gt sync` detects this by patch
   ID. If the PR was force-rebased before squash-merge, the heuristic
   may miss it. Use `gt delete <branch>` manually.
