@@ -22,10 +22,12 @@ const REQUIRED_VARIABLES = [
 	// must resolve every token after base mode and variant overrides are
 	// applied.
 	"--content-link",
+	"--content-early-access",
 	"--surface-destructive",
 	"--surface-green",
 	"--surface-orange",
 	"--surface-sky",
+	"--surface-early-access",
 	"--surface-red",
 	"--surface-purple",
 	"--surface-magenta",
@@ -35,6 +37,7 @@ const REQUIRED_VARIABLES = [
 	"--border-green",
 	"--border-magenta",
 	"--border-purple",
+	"--border-early-access",
 	"--highlight-purple",
 	"--highlight-green",
 	"--highlight-orange",

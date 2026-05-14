@@ -10,7 +10,7 @@ import type {
 	UserSecret,
 } from "#/api/typesGenerated";
 
-interface SecretFormValues {
+export interface SecretFormValues {
 	name: string;
 	value: string;
 	description: string;
@@ -20,7 +20,7 @@ interface SecretFormValues {
 
 type SecretFormField = keyof SecretFormValues;
 
-type SecretFieldErrors = Partial<Record<SecretFormField, string>>;
+export type SecretFieldErrors = Partial<Record<SecretFormField, string>>;
 
 interface SecretFormErrors {
 	fieldErrors: SecretFieldErrors;
