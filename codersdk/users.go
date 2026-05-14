@@ -252,17 +252,9 @@ const (
 	TerminalFontJetBrainsMono TerminalFontName = "jetbrains-mono"
 )
 
-// ThemeMode selects how Coder decides which concrete theme to render.
-// "sync" picks the matching theme for each OS color scheme; "single"
-// renders one concrete theme regardless of OS.
 type ThemeMode string
 
 const (
-	// ThemeModeUnset is the server-side default when the user has never
-	// set a theme_mode. It is also stored for legacy auto preferences so
-	// clients can migrate the old sync-with-system setting. Clients should
-	// inspect ThemePreference for legacy auto values before treating unset
-	// mode as ThemeModeSingle for backward compatibility with PR #24672.
 	ThemeModeUnset  ThemeMode = ""
 	ThemeModeSync   ThemeMode = "sync"
 	ThemeModeSingle ThemeMode = "single"
@@ -278,8 +270,7 @@ type UserAppearanceSettings struct {
 	ThemePreference string    `json:"theme_preference"`
 	ThemeMode       ThemeMode `json:"theme_mode"`
 	// ThemeLight is the theme applied when the OS color scheme is light
-	// and ThemeMode is "sync". Ignored in "single" mode but still stored
-	// so switching modes preserves the slot value.
+	// and ThemeMode is "sync". Ignored in "single" mode but still stored.
 	ThemeLight string `json:"theme_light"`
 	// ThemeDark is the theme applied when the OS color scheme is dark
 	// and ThemeMode is "sync". Ignored in "single" mode but still stored.
@@ -287,13 +278,6 @@ type UserAppearanceSettings struct {
 	TerminalFont TerminalFontName `json:"terminal_font"`
 }
 
-// UpdateUserAppearanceSettingsRequest is the payload for updating a
-// user's theme and terminal-font preferences. ThemePreference is the
-// legacy mirror field and is intentionally not validated against a
-// server-side allowlist; clients should treat unknown values as the
-// default theme. ThemeLight and ThemeDark are concrete sync slots.
-// They are required in sync mode and may be any concrete theme name
-// when present.
 type UpdateUserAppearanceSettingsRequest struct {
 	ThemePreference string `json:"theme_preference" validate:"required"`
 	// ThemeMode is optional for backward compatibility. When empty,

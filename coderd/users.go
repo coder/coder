@@ -1208,16 +1208,7 @@ func (api *API) putUserAppearanceSettings(rw http.ResponseWriter, r *http.Reques
 	var updatedSettings database.GetUserAppearanceSettingsRow
 
 	// Wrap every appearance write in a single transaction so a mid-batch
-	// failure cannot leave the user's settings half-applied. Without this
-	// the client could see an error response while, for example,
-	// theme_light has already been persisted and theme_dark has not,
-	// breaking the sync-mode invariant that mode + both slots move
-	// together. The frontend in draftToUpdate mirrors theme_preference
-	// from the single theme, or from the active OS slot in sync mode, so
-	// older clients that only read theme_preference still see a plausible
-	// value. Older clients may update only theme_preference, so it can
-	// temporarily diverge from the sync slots until a modern client saves
-	// the full appearance state again.
+	// failure cannot leave the user's settings half-applied.
 	err := api.Database.InTx(func(tx database.Store) error {
 		_, err := tx.UpdateUserThemePreference(ctx, database.UpdateUserThemePreferenceParams{
 			UserID:          user.ID,
