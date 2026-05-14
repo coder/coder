@@ -250,6 +250,10 @@ type sqlcQuerier interface {
 	GetAIModelPriceByProviderModel(ctx context.Context, arg GetAIModelPriceByProviderModelParams) (AiModelPrice, error)
 	GetAIProviderByID(ctx context.Context, id uuid.UUID) (AIProvider, error)
 	GetAIProviderByName(ctx context.Context, name string) (AIProvider, error)
+	// Returns an AI provider row by name regardless of its deleted flag.
+	// The env seeder uses this to distinguish "never existed" from
+	// "operator soft-deleted; do not re-create from env".
+	GetAIProviderByNameIncludeDeleted(ctx context.Context, name string) (AIProvider, error)
 	GetAIProviderKeyByID(ctx context.Context, id uuid.UUID) (AIProviderKey, error)
 	// Returns every AI provider key row, including those belonging to a
 	// soft-deleted provider, so the dbcrypt key rotation utility can

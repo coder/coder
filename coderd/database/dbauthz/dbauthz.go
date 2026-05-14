@@ -2516,6 +2516,13 @@ func (q *querier) GetAIProviderByName(ctx context.Context, name string) (databas
 	return q.db.GetAIProviderByName(ctx, name)
 }
 
+func (q *querier) GetAIProviderByNameIncludeDeleted(ctx context.Context, name string) (database.AIProvider, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIProvider); err != nil {
+		return database.AIProvider{}, err
+	}
+	return q.db.GetAIProviderByNameIncludeDeleted(ctx, name)
+}
+
 func (q *querier) GetAIProviderKeyByID(ctx context.Context, id uuid.UUID) (database.AIProviderKey, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIProvider); err != nil {
 		return database.AIProviderKey{}, err

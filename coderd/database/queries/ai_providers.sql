@@ -14,6 +14,17 @@ FROM
 WHERE
     name = @name::text AND deleted = FALSE;
 
+-- name: GetAIProviderByNameIncludeDeleted :one
+-- Returns an AI provider row by name regardless of its deleted flag.
+-- The env seeder uses this to distinguish "never existed" from
+-- "operator soft-deleted; do not re-create from env".
+SELECT
+    *
+FROM
+    ai_providers
+WHERE
+    name = @name::text;
+
 -- name: GetAIProviders :many
 -- Returns AI provider rows, optionally filtered by enabled and/or
 -- deleted flags. Pass NULL for either flag to skip that filter; the
