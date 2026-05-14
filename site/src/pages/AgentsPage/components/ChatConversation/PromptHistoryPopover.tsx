@@ -94,6 +94,9 @@ export const PromptHistoryPopover: FC<PromptHistoryPopoverProps> = ({
 				} else {
 					scroller.style.overflowAnchor = "";
 					scroller.removeAttribute("data-scroll-lock");
+					// Kick all sticky handlers so they recalculate
+					// visibility after the jump.
+					scroller.dispatchEvent(new Event("scroll"));
 				}
 			};
 			requestAnimationFrame(step);
