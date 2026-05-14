@@ -305,6 +305,7 @@ type UpdateUserAppearanceSettingsRequest struct {
 type UserPreferenceSettings struct {
 	TaskNotificationAlertDismissed bool                  `json:"task_notification_alert_dismissed"`
 	ThinkingDisplayMode            ThinkingDisplayMode   `json:"thinking_display_mode"`
+	ShellToolDisplayMode           AgentDisplayMode      `json:"shell_tool_display_mode"`
 	CodeDiffDisplayMode            AgentDisplayMode      `json:"code_diff_display_mode"`
 	AgentChatSendShortcut          AgentChatSendShortcut `json:"agent_chat_send_shortcut"`
 }
@@ -312,6 +313,7 @@ type UserPreferenceSettings struct {
 type UpdateUserPreferenceSettingsRequest struct {
 	TaskNotificationAlertDismissed *bool                 `json:"task_notification_alert_dismissed,omitempty"`
 	ThinkingDisplayMode            ThinkingDisplayMode   `json:"thinking_display_mode,omitempty"`
+	ShellToolDisplayMode           AgentDisplayMode      `json:"shell_tool_display_mode,omitempty"`
 	CodeDiffDisplayMode            AgentDisplayMode      `json:"code_diff_display_mode,omitempty"`
 	AgentChatSendShortcut          AgentChatSendShortcut `json:"agent_chat_send_shortcut,omitempty"`
 }

@@ -2433,7 +2433,32 @@ func TestAgentDisplayModePreferences(t *testing.T) {
 
 		settings, err := client.GetUserPreferenceSettings(ctx, codersdk.Me)
 		require.NoError(t, err)
+		require.Equal(t, codersdk.AgentDisplayModeAuto, settings.ShellToolDisplayMode)
 		require.Equal(t, codersdk.AgentDisplayModeAuto, settings.CodeDiffDisplayMode)
+	})
+
+	t.Run("round-trips shell tool display mode", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		for _, mode := range []codersdk.AgentDisplayMode{
+			codersdk.AgentDisplayModeAlwaysExpanded,
+			codersdk.AgentDisplayModeAlwaysCollapsed,
+		} {
+			updated, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
+				ShellToolDisplayMode: mode,
+			})
+			require.NoError(t, err)
+			require.Equal(t, mode, updated.ShellToolDisplayMode)
+
+			settings, err := client.GetUserPreferenceSettings(ctx, codersdk.Me)
+			require.NoError(t, err)
+			require.Equal(t, mode, settings.ShellToolDisplayMode)
+		}
 	})
 
 	t.Run("round-trips code diff display mode", func(t *testing.T) {
@@ -2469,22 +2494,55 @@ func TestAgentDisplayModePreferences(t *testing.T) {
 		defer cancel()
 
 		_, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
-			ThinkingDisplayMode: codersdk.ThinkingDisplayModePreview,
-			CodeDiffDisplayMode: codersdk.AgentDisplayModeAlwaysExpanded,
+			ThinkingDisplayMode:  codersdk.ThinkingDisplayModePreview,
+			ShellToolDisplayMode: codersdk.AgentDisplayModeAlwaysCollapsed,
+			CodeDiffDisplayMode:  codersdk.AgentDisplayModeAlwaysExpanded,
 		})
 		require.NoError(t, err)
 
 		updated, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
-			ThinkingDisplayMode: codersdk.ThinkingDisplayModeAlwaysExpanded,
+			ShellToolDisplayMode: codersdk.AgentDisplayModeAlwaysExpanded,
 		})
 		require.NoError(t, err)
-		require.Equal(t, codersdk.ThinkingDisplayModeAlwaysExpanded, updated.ThinkingDisplayMode)
+		require.Equal(t, codersdk.ThinkingDisplayModePreview, updated.ThinkingDisplayMode)
+		require.Equal(t, codersdk.AgentDisplayModeAlwaysExpanded, updated.ShellToolDisplayMode)
 		require.Equal(t, codersdk.AgentDisplayModeAlwaysExpanded, updated.CodeDiffDisplayMode)
 
 		settings, err := client.GetUserPreferenceSettings(ctx, codersdk.Me)
 		require.NoError(t, err)
-		require.Equal(t, codersdk.ThinkingDisplayModeAlwaysExpanded, settings.ThinkingDisplayMode)
+		require.Equal(t, codersdk.ThinkingDisplayModePreview, settings.ThinkingDisplayMode)
+		require.Equal(t, codersdk.AgentDisplayModeAlwaysExpanded, settings.ShellToolDisplayMode)
 		require.Equal(t, codersdk.AgentDisplayModeAlwaysExpanded, settings.CodeDiffDisplayMode)
+	})
+
+	t.Run("rejects invalid shell tool display mode", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		for _, tt := range []struct {
+			name string
+			mode codersdk.AgentDisplayMode
+		}{
+			{
+				name: "bogus",
+				mode: codersdk.AgentDisplayMode("bogus"),
+			},
+			{
+				name: "thinking preview",
+				mode: codersdk.AgentDisplayMode(codersdk.ThinkingDisplayModePreview),
+			},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				_, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
+					ShellToolDisplayMode: tt.mode,
+				})
+				requireValidationField(t, err, "shell_tool_display_mode")
+			})
+		}
 	})
 
 	t.Run("rejects invalid code diff display mode", func(t *testing.T) {
