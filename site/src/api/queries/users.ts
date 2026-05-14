@@ -289,6 +289,9 @@ export const updateAppearanceSettings = (
 			// more responsive.
 			queryClient.setQueryData(myAppearanceKey, {
 				theme_preference: patch.theme_preference,
+				theme_mode: patch.theme_mode,
+				theme_light: patch.theme_light,
+				theme_dark: patch.theme_dark,
 				terminal_font: patch.terminal_font,
 			});
 		},

@@ -2823,6 +2823,21 @@ func (mr *MockStoreMockRecorder) GetChatUsageLimitUserOverride(ctx, userID any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatUsageLimitUserOverride", reflect.TypeOf((*MockStore)(nil).GetChatUsageLimitUserOverride), ctx, userID)
 }
 
+// GetChatUserPromptsByChatID mocks base method.
+func (m *MockStore) GetChatUserPromptsByChatID(ctx context.Context, arg database.GetChatUserPromptsByChatIDParams) ([]database.GetChatUserPromptsByChatIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatUserPromptsByChatID", ctx, arg)
+	ret0, _ := ret[0].([]database.GetChatUserPromptsByChatIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatUserPromptsByChatID indicates an expected call of GetChatUserPromptsByChatID.
+func (mr *MockStoreMockRecorder) GetChatUserPromptsByChatID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatUserPromptsByChatID", reflect.TypeOf((*MockStore)(nil).GetChatUserPromptsByChatID), ctx, arg)
+}
+
 // GetChatWorkspaceTTL mocks base method.
 func (m *MockStore) GetChatWorkspaceTTL(ctx context.Context) (string, error) {
 	m.ctrl.T.Helper()
@@ -5238,6 +5253,21 @@ func (mr *MockStoreMockRecorder) GetUserAgentChatSendShortcut(ctx, userID any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserAgentChatSendShortcut", reflect.TypeOf((*MockStore)(nil).GetUserAgentChatSendShortcut), ctx, userID)
 }
 
+// GetUserAppearanceSettings mocks base method.
+func (m *MockStore) GetUserAppearanceSettings(ctx context.Context, userID uuid.UUID) (database.GetUserAppearanceSettingsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserAppearanceSettings", ctx, userID)
+	ret0, _ := ret[0].(database.GetUserAppearanceSettingsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserAppearanceSettings indicates an expected call of GetUserAppearanceSettings.
+func (mr *MockStoreMockRecorder) GetUserAppearanceSettings(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserAppearanceSettings", reflect.TypeOf((*MockStore)(nil).GetUserAppearanceSettings), ctx, userID)
+}
+
 // GetUserByEmailOrUsername mocks base method.
 func (m *MockStore) GetUserByEmailOrUsername(ctx context.Context, arg database.GetUserByEmailOrUsernameParams) (database.User, error) {
 	m.ctrl.T.Helper()
@@ -5551,36 +5581,6 @@ func (m *MockStore) GetUserTaskNotificationAlertDismissed(ctx context.Context, u
 func (mr *MockStoreMockRecorder) GetUserTaskNotificationAlertDismissed(ctx, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserTaskNotificationAlertDismissed", reflect.TypeOf((*MockStore)(nil).GetUserTaskNotificationAlertDismissed), ctx, userID)
-}
-
-// GetUserTerminalFont mocks base method.
-func (m *MockStore) GetUserTerminalFont(ctx context.Context, userID uuid.UUID) (string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetUserTerminalFont", ctx, userID)
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetUserTerminalFont indicates an expected call of GetUserTerminalFont.
-func (mr *MockStoreMockRecorder) GetUserTerminalFont(ctx, userID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserTerminalFont", reflect.TypeOf((*MockStore)(nil).GetUserTerminalFont), ctx, userID)
-}
-
-// GetUserThemePreference mocks base method.
-func (m *MockStore) GetUserThemePreference(ctx context.Context, userID uuid.UUID) (string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetUserThemePreference", ctx, userID)
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetUserThemePreference indicates an expected call of GetUserThemePreference.
-func (mr *MockStoreMockRecorder) GetUserThemePreference(ctx, userID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserThemePreference", reflect.TypeOf((*MockStore)(nil).GetUserThemePreference), ctx, userID)
 }
 
 // GetUserThinkingDisplayMode mocks base method.
@@ -9751,6 +9751,51 @@ func (m *MockStore) UpdateUserTerminalFont(ctx context.Context, arg database.Upd
 func (mr *MockStoreMockRecorder) UpdateUserTerminalFont(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserTerminalFont", reflect.TypeOf((*MockStore)(nil).UpdateUserTerminalFont), ctx, arg)
+}
+
+// UpdateUserThemeDark mocks base method.
+func (m *MockStore) UpdateUserThemeDark(ctx context.Context, arg database.UpdateUserThemeDarkParams) (database.UserConfig, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateUserThemeDark", ctx, arg)
+	ret0, _ := ret[0].(database.UserConfig)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateUserThemeDark indicates an expected call of UpdateUserThemeDark.
+func (mr *MockStoreMockRecorder) UpdateUserThemeDark(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserThemeDark", reflect.TypeOf((*MockStore)(nil).UpdateUserThemeDark), ctx, arg)
+}
+
+// UpdateUserThemeLight mocks base method.
+func (m *MockStore) UpdateUserThemeLight(ctx context.Context, arg database.UpdateUserThemeLightParams) (database.UserConfig, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateUserThemeLight", ctx, arg)
+	ret0, _ := ret[0].(database.UserConfig)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateUserThemeLight indicates an expected call of UpdateUserThemeLight.
+func (mr *MockStoreMockRecorder) UpdateUserThemeLight(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserThemeLight", reflect.TypeOf((*MockStore)(nil).UpdateUserThemeLight), ctx, arg)
+}
+
+// UpdateUserThemeMode mocks base method.
+func (m *MockStore) UpdateUserThemeMode(ctx context.Context, arg database.UpdateUserThemeModeParams) (database.UserConfig, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateUserThemeMode", ctx, arg)
+	ret0, _ := ret[0].(database.UserConfig)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateUserThemeMode indicates an expected call of UpdateUserThemeMode.
+func (mr *MockStoreMockRecorder) UpdateUserThemeMode(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserThemeMode", reflect.TypeOf((*MockStore)(nil).UpdateUserThemeMode), ctx, arg)
 }
 
 // UpdateUserThemePreference mocks base method.

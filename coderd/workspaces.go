@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
+	"github.com/coder/coder/v2/coderd/dynamicparameters"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -2009,6 +2010,36 @@ func (api *API) resolveAutostart(rw http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
+
+	// Surface whether the active template version declares coder_secret
+	// requirements that the workspace owner's secrets do not satisfy. The
+	// intention is for this information to inform the workspace update
+	// requirement so the user knows autostart will not run an auto-update
+	// build until the missing secrets are satisfied.
+	//
+	// Callers without user_secret:read on the workspace owner produce a
+	// forbidden warning diagnostic. This is treated as "unknown" and
+	// no mismatch is reported rather than returning a partial answer.
+	secretMismatch, err := dynamicparameters.EvaluateSecretMismatch(
+		ctx,
+		api.Logger.Named("dynamicparameters"),
+		api.Database, api.FileCache, version, workspace.OwnerID, dbBuildParams,
+	)
+	switch {
+	case err == nil:
+		response.SecretMismatch = secretMismatch
+	case xerrors.Is(err, dynamicparameters.ErrTemplateVersionNotReady):
+		// Active version's provisioner job hasn't completed yet. Leave
+		// SecretMismatch false.
+	default:
+		// Don't drop the already-computed ParameterMismatch signal on a
+		// renderer infrastructure error. Log and treat as "unknown."
+		api.Logger.Warn(ctx, "failed to evaluate secret requirements",
+			slog.F("workspace_id", workspace.ID),
+			slog.Error(err),
+		)
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 

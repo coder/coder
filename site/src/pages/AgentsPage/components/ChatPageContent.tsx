@@ -1,6 +1,8 @@
 import { type FC, Profiler, type ReactNode, useEffect, useRef } from "react";
+import { useQuery } from "react-query";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
+import { chatPromptsQuery } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { AgentChatSendShortcut } from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
@@ -32,7 +34,6 @@ import {
 import { LiveStreamTail } from "./ChatConversation/LiveStreamTail";
 import {
 	buildSubagentMaps,
-	getEditableUserMessagePayload,
 	parseMessagesWithMergedTools,
 } from "./ChatConversation/messageParsing";
 import { useOnRenderProfiler } from "./ChatConversation/useOnRenderProfiler";
@@ -288,21 +289,10 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			return message;
 		})
 		.filter(isChatMessage);
-	// Newest first. messages are in id-ascending order, so reverse
-	// iteration yields the most recent user prompts first. Store the
-	// original text untouched so cycling and re-sending reproduces what
-	// the user originally sent (boundary whitespace can be intentional).
-	const userPromptHistory: string[] = [];
-	for (let index = messages.length - 1; index >= 0; index--) {
-		const message = messages.at(index);
-		if (!message || message.role !== "user") {
-			continue;
-		}
-		const text = getEditableUserMessagePayload(message).text;
-		if (text.trim()) {
-			userPromptHistory.push(text);
-		}
-	}
+	// Source the composer's prompt-history cycle from the dedicated /prompts endpoint.
+	const { data: promptsData } = useQuery(chatPromptsQuery(chatId ?? ""));
+	const userPromptHistory: readonly string[] =
+		promptsData?.prompts.map((prompt) => prompt.text) ?? [];
 
 	const rawUsage = getLatestContextUsage(messages);
 	const latestContextUsage = rawUsage

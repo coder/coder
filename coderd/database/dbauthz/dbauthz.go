@@ -3065,6 +3065,15 @@ func (q *querier) GetChatUsageLimitUserOverride(ctx context.Context, userID uuid
 	return q.db.GetChatUsageLimitUserOverride(ctx, userID)
 }
 
+func (q *querier) GetChatUserPromptsByChatID(ctx context.Context, arg database.GetChatUserPromptsByChatIDParams) ([]database.GetChatUserPromptsByChatIDRow, error) {
+	// Authorize read on the parent chat.
+	_, err := q.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return nil, err
+	}
+	return q.db.GetChatUserPromptsByChatID(ctx, arg)
+}
+
 func (q *querier) GetChatWorkspaceTTL(ctx context.Context) (string, error) {
 	// The workspace-TTL setting is a deployment-wide value read by any
 	// authenticated chat user. We only require that an explicit actor is
@@ -4357,6 +4366,17 @@ func (q *querier) GetUserAgentChatSendShortcut(ctx context.Context, userID uuid.
 	return q.db.GetUserAgentChatSendShortcut(ctx, userID)
 }
 
+func (q *querier) GetUserAppearanceSettings(ctx context.Context, userID uuid.UUID) (database.GetUserAppearanceSettingsRow, error) {
+	u, err := q.db.GetUserByID(ctx, userID)
+	if err != nil {
+		return database.GetUserAppearanceSettingsRow{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, u); err != nil {
+		return database.GetUserAppearanceSettingsRow{}, err
+	}
+	return q.db.GetUserAppearanceSettings(ctx, userID)
+}
+
 func (q *querier) GetUserByEmailOrUsername(ctx context.Context, arg database.GetUserByEmailOrUsernameParams) (database.User, error) {
 	return fetch(q.log, q.auth, q.db.GetUserByEmailOrUsername)(ctx, arg)
 }
@@ -4542,28 +4562,6 @@ func (q *querier) GetUserTaskNotificationAlertDismissed(ctx context.Context, use
 		return false, err
 	}
 	return q.db.GetUserTaskNotificationAlertDismissed(ctx, userID)
-}
-
-func (q *querier) GetUserTerminalFont(ctx context.Context, userID uuid.UUID) (string, error) {
-	u, err := q.db.GetUserByID(ctx, userID)
-	if err != nil {
-		return "", err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, u); err != nil {
-		return "", err
-	}
-	return q.db.GetUserTerminalFont(ctx, userID)
-}
-
-func (q *querier) GetUserThemePreference(ctx context.Context, userID uuid.UUID) (string, error) {
-	u, err := q.db.GetUserByID(ctx, userID)
-	if err != nil {
-		return "", err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, u); err != nil {
-		return "", err
-	}
-	return q.db.GetUserThemePreference(ctx, userID)
 }
 
 func (q *querier) GetUserThinkingDisplayMode(ctx context.Context, userID uuid.UUID) (string, error) {
@@ -7242,6 +7240,39 @@ func (q *querier) UpdateUserTerminalFont(ctx context.Context, arg database.Updat
 		return database.UserConfig{}, err
 	}
 	return q.db.UpdateUserTerminalFont(ctx, arg)
+}
+
+func (q *querier) UpdateUserThemeDark(ctx context.Context, arg database.UpdateUserThemeDarkParams) (database.UserConfig, error) {
+	u, err := q.db.GetUserByID(ctx, arg.UserID)
+	if err != nil {
+		return database.UserConfig{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, u); err != nil {
+		return database.UserConfig{}, err
+	}
+	return q.db.UpdateUserThemeDark(ctx, arg)
+}
+
+func (q *querier) UpdateUserThemeLight(ctx context.Context, arg database.UpdateUserThemeLightParams) (database.UserConfig, error) {
+	u, err := q.db.GetUserByID(ctx, arg.UserID)
+	if err != nil {
+		return database.UserConfig{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, u); err != nil {
+		return database.UserConfig{}, err
+	}
+	return q.db.UpdateUserThemeLight(ctx, arg)
+}
+
+func (q *querier) UpdateUserThemeMode(ctx context.Context, arg database.UpdateUserThemeModeParams) (database.UserConfig, error) {
+	u, err := q.db.GetUserByID(ctx, arg.UserID)
+	if err != nil {
+		return database.UserConfig{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, u); err != nil {
+		return database.UserConfig{}, err
+	}
+	return q.db.UpdateUserThemeMode(ctx, arg)
 }
 
 func (q *querier) UpdateUserThemePreference(ctx context.Context, arg database.UpdateUserThemePreferenceParams) (database.UserConfig, error) {

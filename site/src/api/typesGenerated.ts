@@ -2385,6 +2385,42 @@ export const ChatPlanModes: ChatPlanMode[] = ["plan"];
 
 // From codersdk/chats.go
 /**
+ * ChatPrompt is a single user-authored prompt in a chat, returned by
+ * GET /api/experimental/chats/{chat}/prompts. The text field contains
+ * the concatenated text payload of the underlying chat message; non-text
+ * parts (tool calls, files, attachments) are omitted by the server.
+ */
+export interface ChatPrompt {
+	readonly id: number;
+	readonly text: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatPromptsOptions are optional query parameters for GetChatPrompts.
+ */
+export interface ChatPromptsOptions {
+	/**
+	 * Limit caps the number of prompts returned. The server enforces a
+	 * minimum of 1 and a maximum of 2000; passing 0 (or negative)
+	 * applies the server-side default of 500.
+	 */
+	readonly Limit: number;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatPromptsResponse is the payload of
+ * GET /api/experimental/chats/{chat}/prompts. Prompts are returned
+ * newest first so the client can index directly into the slice for
+ * up/down arrow history cycling.
+ */
+export interface ChatPromptsResponse {
+	readonly prompts: readonly ChatPrompt[];
+}
+
+// From codersdk/chats.go
+/**
  * ChatProviderConfig is an admin-managed provider configuration.
  */
 export interface ChatProviderConfig {
@@ -6593,6 +6629,12 @@ export interface RequestOneTimePasscodeRequest {
 // From codersdk/workspaces.go
 export interface ResolveAutostartResponse {
 	readonly parameter_mismatch: boolean;
+	/**
+	 * SecretMismatch is true when the active template version declares
+	 * `coder_secret` requirements that the workspace owner's secrets do not
+	 * satisfy.
+	 */
+	readonly secret_mismatch: boolean;
 }
 
 // From codersdk/audit.go
@@ -7903,6 +7945,11 @@ export const TerminalFontNames: TerminalFontName[] = [
 ];
 
 // From codersdk/users.go
+export type ThemeMode = "single" | "sync" | "";
+
+export const ThemeModes: ThemeMode[] = ["single", "sync", ""];
+
+// From codersdk/users.go
 export type ThinkingDisplayMode =
 	| "always_collapsed"
 	| "always_expanded"
@@ -8392,6 +8439,28 @@ export interface UpdateTemplateMeta {
 // From codersdk/users.go
 export interface UpdateUserAppearanceSettingsRequest {
 	readonly theme_preference: string;
+	/**
+	 * ThemeMode is optional for backward compatibility. When empty,
+	 * the server leaves theme_mode, theme_light, and theme_dark
+	 * unchanged so older CLI clients do not erase sync-mode settings.
+	 * Legacy auto preferences are the exception: they clear theme_mode
+	 * so clients can migrate the old sync-with-system setting.
+	 */
+	readonly theme_mode: ThemeMode;
+	/**
+	 * ThemeLight is required when ThemeMode is "sync". In "single"
+	 * mode an empty value means "preserve the previously persisted
+	 * slot" rather than "clear the slot", so partial updates that send
+	 * only one slot keep the other intact.
+	 */
+	readonly theme_light: string;
+	/**
+	 * ThemeDark is required when ThemeMode is "sync". In "single" mode
+	 * an empty value means "preserve the previously persisted slot"
+	 * rather than "clear the slot", so partial updates that send only
+	 * one slot keep the other intact.
+	 */
+	readonly theme_dark: string;
 	readonly terminal_font: TerminalFontName;
 }
 
@@ -8693,7 +8762,24 @@ export interface UserActivityInsightsResponse {
 
 // From codersdk/users.go
 export interface UserAppearanceSettings {
+	/**
+	 * ThemePreference is the legacy single-field appearance setting. In
+	 * "single" mode it mirrors the active theme. In "sync" mode modern
+	 * clients normally mirror the active OS slot, but older clients can
+	 * update only this field, so it may diverge from ThemeLight or
+	 * ThemeDark until a modern client saves the full appearance state
+	 * again.
+	 */
 	readonly theme_preference: string;
+	readonly theme_mode: ThemeMode;
+	/**
+	 * Ignored when ThemeMode is "single"
+	 */
+	readonly theme_light: string;
+	/**
+	 * Ignored when ThemeMode is "single"
+	 */
+	readonly theme_dark: string;
 	readonly terminal_font: TerminalFontName;
 }
 
