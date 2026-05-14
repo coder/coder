@@ -23,7 +23,7 @@ them.
 >   their behalf does not exist yet. There is no `coderd` endpoint, no
 >   middleware, no Terraform block you can wire up today.
 >
-> Until both ship, the model documented for production use is
+> Until both ship, the model to use is
 > [System identity](./system-identity.md). This page describes what
 > the user-identity model will look like once both pieces land.
 
