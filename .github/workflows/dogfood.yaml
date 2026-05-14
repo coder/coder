@@ -18,11 +18,11 @@ on:
   #   Pushes to main: `build_image` retags rolling tags on
   #   `codercom/oss-dogfood` (`:latest`, `:22.04`, `:26.04`),
   #   `codercom/oss-dogfood-vscode-coder` (`:latest`), and
-  #   `codercom/oss-dogfood-nix` (`:latest`), plus a per-SHA tag on
+  #   `codercom/oss-dogfood-nix` (`:latest`), plus a per-branch tag on
   #   each. `deploy_template` runs `terraform apply` and creates new
   #   `coderd_template` versions on dev.coder.com whose `name` is the
   #   commit short SHA. Content is unchanged when neither `dogfood/**`
-  #   nor the flake files moved, so the new versions are cosmetic.
+  #   nor the flake files changed, so the new versions are cosmetic.
   push:
     branches:
       - main
