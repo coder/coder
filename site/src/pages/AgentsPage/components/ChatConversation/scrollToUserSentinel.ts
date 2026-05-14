@@ -6,7 +6,7 @@
  */
 export function scrollToUserSentinel(messageId: number): void {
 	const sentinel = document.querySelector(
-		`[data-user-sentinel][data-message-id="${messageId}"]`,
+		`[data-user-sentinel][data-user-message-id="${messageId}"]`,
 	);
 	if (!sentinel) return;
 

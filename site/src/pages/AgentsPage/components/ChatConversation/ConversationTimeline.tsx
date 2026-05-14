@@ -1,9 +1,4 @@
-import {
-	ChevronDownIcon,
-	ChevronLeftIcon,
-	ChevronRightIcon,
-	PencilIcon,
-} from "lucide-react";
+import { ChevronDownIcon, PencilIcon } from "lucide-react";
 import {
 	type FC,
 	Fragment,
@@ -57,7 +52,6 @@ import {
 	PromptHistoryPopover,
 } from "./PromptHistoryPopover";
 import { useSmoothStreamingText } from "./SmoothText";
-import { scrollToUserSentinel } from "./scrollToUserSentinel";
 import type {
 	MergedTool,
 	ParsedMessageContent,
@@ -665,61 +659,6 @@ const ChatMessageItem = memo<{
 									onOpenChange={setHistoryOpen}
 								/>
 							)}
-							{isUser &&
-								promptHistory &&
-								promptHistory.length > 1 &&
-								(() => {
-									const entry = promptHistory.find((e) => e.id === message.id);
-									if (!entry) return null;
-									return (
-										<>
-											<Tooltip>
-												<TooltipTrigger asChild>
-													<Button
-														size="icon"
-														variant="subtle"
-														className="size-6"
-														aria-label="Previous prompt"
-														disabled={entry.prevId === undefined}
-														onClick={() => {
-															if (entry.prevId !== undefined) {
-																scrollToUserSentinel(entry.prevId);
-															}
-														}}
-													>
-														<ChevronLeftIcon />
-														<span className="sr-only">Previous prompt</span>
-													</Button>
-												</TooltipTrigger>
-												<TooltipContent side="bottom">
-													Previous prompt
-												</TooltipContent>
-											</Tooltip>
-											<Tooltip>
-												<TooltipTrigger asChild>
-													<Button
-														size="icon"
-														variant="subtle"
-														className="size-6"
-														aria-label="Next prompt"
-														disabled={entry.nextId === undefined}
-														onClick={() => {
-															if (entry.nextId !== undefined) {
-																scrollToUserSentinel(entry.nextId);
-															}
-														}}
-													>
-														<ChevronRightIcon />
-														<span className="sr-only">Next prompt</span>
-													</Button>
-												</TooltipTrigger>
-												<TooltipContent side="bottom">
-													Next prompt
-												</TooltipContent>
-											</Tooltip>
-										</>
-									);
-								})()}
 						</div>
 					)}
 				{displayState.needsAssistantBottomSpacer && (
@@ -998,7 +937,7 @@ const StickyUserMessage = memo<{
 					ref={sentinelRef}
 					className="h-0"
 					data-user-sentinel
-					data-message-id={message.id}
+					data-user-message-id={message.id}
 				/>
 				<div
 					ref={containerRef}
@@ -1235,16 +1174,6 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					index: promptIndex,
 					text: label,
 				});
-			}
-		}
-
-		// Link prev/next neighbors so chevron buttons can navigate.
-		for (let i = 0; i < promptHistory.length; i++) {
-			if (i > 0) {
-				promptHistory[i].prevId = promptHistory[i - 1].id;
-			}
-			if (i < promptHistory.length - 1) {
-				promptHistory[i].nextId = promptHistory[i + 1].id;
 			}
 		}
 

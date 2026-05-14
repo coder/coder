@@ -20,10 +20,6 @@ export interface PromptHistoryEntry {
 	index: number;
 	/** Plain-text preview of the user message. */
 	text: string;
-	/** ID of the previous user message, undefined if first. */
-	prevId?: number;
-	/** ID of the next user message, undefined if last. */
-	nextId?: number;
 }
 
 interface PromptHistoryPopoverProps {
