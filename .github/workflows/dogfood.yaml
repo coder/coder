@@ -1,17 +1,28 @@
 name: dogfood
 
 on:
-  # Self-reference on `.github/workflows/dogfood.yaml` is intentional: a
-  # workflow-file edit runs both jobs: the matrix `build_image` (rebuilds
-  # and retags the rolling `:latest`, `:22.04`, `:26.04`, `:nix` tags on
-  # main) and `deploy_template` (which runs `terraform apply` and creates
-  # three new `coderd_template` versions on dev.coder.com whose `name`
-  # is the commit short SHA and whose content is unchanged). Workflow-
-  # only edits are not free, but they're idempotent and bounded: rolling
-  # tags get retagged, dev.coder.com gets cosmetic template-version
-  # entries, and nothing is published outside the dogfood environment.
-  # The runtime cost validates the workflow itself end to end. See
-  # DOCS-129 for the broader workflow-self-reference audit.
+  # Self-reference on `.github/workflows/dogfood.yaml` is intentional.
+  # The runtime cost is bounded and the matrix runs validate the
+  # workflow itself end to end. See DOCS-129 for the broader
+  # workflow-self-reference audit.
+  #
+  # Effects vary by event:
+  #
+  #   PRs: `build_image` builds the three image variants but never
+  #   pushes (each `depot/build-push-action` step's `push:` and the
+  #   `Push Nix image` step are gated on `github.ref ==
+  #   'refs/heads/main'`). `deploy_template` runs `terraform init` +
+  #   `validate` only; the apply step and SHA/title gathering are
+  #   gated on main.
+  #
+  #   Pushes to main: `build_image` retags rolling tags on
+  #   `codercom/oss-dogfood` (`:latest`, `:22.04`, `:26.04`),
+  #   `codercom/oss-dogfood-vscode-coder` (`:latest`), and
+  #   `codercom/oss-dogfood-nix` (`:latest`), plus a per-SHA tag on
+  #   each. `deploy_template` runs `terraform apply` and creates new
+  #   `coderd_template` versions on dev.coder.com whose `name` is the
+  #   commit short SHA. Content is unchanged when neither `dogfood/**`
+  #   nor the flake files moved, so the new versions are cosmetic.
   push:
     branches:
       - main
