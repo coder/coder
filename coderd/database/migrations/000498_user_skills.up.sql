@@ -6,7 +6,10 @@ CREATE TABLE user_skills (
     description text NOT NULL DEFAULT '',
     content text NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz NOT NULL DEFAULT now()
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT user_skills_name_size CHECK (octet_length(name) <= 256),
+    CONSTRAINT user_skills_name_format CHECK (name ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
+    CONSTRAINT user_skills_content_size CHECK (octet_length(content) <= 65536)
 );
 
 CREATE UNIQUE INDEX user_skills_user_id_name_idx ON user_skills (user_id, name);
@@ -103,17 +106,16 @@ CREATE FUNCTION insert_user_skill_fail_if_user_deleted() RETURNS trigger
     LANGUAGE plpgsql
 AS $$
 
-DECLARE
-    user_deleted boolean;
 BEGIN
-    IF (NEW.user_id IS NOT NULL) THEN
-        SELECT deleted INTO user_deleted
-        FROM users
-        WHERE id = NEW.user_id
-        FOR UPDATE;
-        IF user_deleted THEN
-            RAISE EXCEPTION 'Cannot create user_skill for deleted user';
-        END IF;
+    PERFORM 1
+    FROM users
+    WHERE id = NEW.user_id
+      AND deleted = true
+    LIMIT 1;
+    IF FOUND THEN
+        RAISE EXCEPTION 'Cannot create user_skill for deleted user'
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'user_skill_user_deleted';
     END IF;
     RETURN NEW;
 END;

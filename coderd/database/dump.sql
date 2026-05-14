@@ -977,17 +977,16 @@ CREATE FUNCTION insert_user_skill_fail_if_user_deleted() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 
-DECLARE
-    user_deleted boolean;
 BEGIN
-    IF (NEW.user_id IS NOT NULL) THEN
-        SELECT deleted INTO user_deleted
-        FROM users
-        WHERE id = NEW.user_id
-        FOR UPDATE;
-        IF user_deleted THEN
-            RAISE EXCEPTION 'Cannot create user_skill for deleted user';
-        END IF;
+    PERFORM 1
+    FROM users
+    WHERE id = NEW.user_id
+      AND deleted = true
+    LIMIT 1;
+    IF FOUND THEN
+        RAISE EXCEPTION 'Cannot create user_skill for deleted user'
+            USING ERRCODE = 'check_violation',
+                  CONSTRAINT = 'user_skill_user_deleted';
     END IF;
     RETURN NEW;
 END;
@@ -3080,7 +3079,10 @@ CREATE TABLE user_skills (
     description text DEFAULT ''::text NOT NULL,
     content text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT user_skills_content_size CHECK ((octet_length(content) <= 65536)),
+    CONSTRAINT user_skills_name_format CHECK ((name ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text)),
+    CONSTRAINT user_skills_name_size CHECK ((octet_length(name) <= 256))
 );
 
 CREATE TABLE user_status_changes (

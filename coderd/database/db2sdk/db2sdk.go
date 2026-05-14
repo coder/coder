@@ -2046,3 +2046,35 @@ func UserSecrets(secrets []database.ListUserSecretsRow) []codersdk.UserSecret {
 	}
 	return result
 }
+
+// UserSkill converts a database UserSkill to an SDK UserSkill.
+func UserSkill(skill database.UserSkill) codersdk.UserSkill {
+	return codersdk.UserSkill{
+		ID:          skill.ID,
+		Name:        skill.Name,
+		Description: skill.Description,
+		Content:     skill.Content,
+		CreatedAt:   skill.CreatedAt,
+		UpdatedAt:   skill.UpdatedAt,
+	}
+}
+
+// UserSkillMetadata converts database user skill metadata to an SDK UserSkillMetadata.
+func UserSkillMetadata(skill database.ListUserSkillMetadataByUserIDRow) codersdk.UserSkillMetadata {
+	return codersdk.UserSkillMetadata{
+		ID:          skill.ID,
+		Name:        skill.Name,
+		Description: skill.Description,
+		CreatedAt:   skill.CreatedAt,
+		UpdatedAt:   skill.UpdatedAt,
+	}
+}
+
+// UserSkillMetadataList converts database user skill metadata rows to SDK values.
+func UserSkillMetadataList(rows []database.ListUserSkillMetadataByUserIDRow) []codersdk.UserSkillMetadata {
+	metadata := make([]codersdk.UserSkillMetadata, 0, len(rows))
+	for _, row := range rows {
+		metadata = append(metadata, UserSkillMetadata(row))
+	}
+	return metadata
+}

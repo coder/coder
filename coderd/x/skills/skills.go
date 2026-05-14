@@ -18,6 +18,10 @@ const MaxPersonalSkillSizeBytes = workspacesdk.MaxSkillMetaBytes
 // personal skill upload. Skill names are also used in URL paths.
 const MaxPersonalSkillNameBytes = 256
 
+// MaxPersonalSkillsPerUser is the maximum number of personal skills a user may
+// create.
+const MaxPersonalSkillsPerUser = 100
+
 // Source identifies where a skill came from.
 type Source string
 
