@@ -151,6 +151,7 @@ func TestReadiness_PublishAfterJoinerNotLost(t *testing.T) {
 
 	gotCreator := make(chan []byte, 1)
 	creatorReady := make(chan struct{})
+	creatorErr := make(chan error, 1)
 	go func() {
 		c, err := ps.Subscribe(event, func(_ context.Context, msg []byte) {
 			select {
@@ -158,8 +159,10 @@ func TestReadiness_PublishAfterJoinerNotLost(t *testing.T) {
 			default:
 			}
 		})
-		require.NoError(t, err)
-		t.Cleanup(c)
+		if err == nil {
+			t.Cleanup(c)
+		}
+		creatorErr <- err
 		close(creatorReady)
 	}()
 	select {
@@ -171,6 +174,7 @@ func TestReadiness_PublishAfterJoinerNotLost(t *testing.T) {
 	// Start the joiner. It blocks on readiness.
 	gotJoiner := make(chan []byte, 1)
 	joinerReady := make(chan struct{})
+	joinerErr := make(chan error, 1)
 	go func() {
 		c, err := ps.Subscribe(event, func(_ context.Context, msg []byte) {
 			select {
@@ -178,8 +182,10 @@ func TestReadiness_PublishAfterJoinerNotLost(t *testing.T) {
 			default:
 			}
 		})
-		require.NoError(t, err)
-		t.Cleanup(c)
+		if err == nil {
+			t.Cleanup(c)
+		}
+		joinerErr <- err
 		close(joinerReady)
 	}()
 
@@ -192,11 +198,13 @@ func TestReadiness_PublishAfterJoinerNotLost(t *testing.T) {
 	case <-time.After(testutil.WaitShort):
 		t.Fatal("creator never returned from Subscribe")
 	}
+	require.NoError(t, <-creatorErr)
 	select {
 	case <-joinerReady:
 	case <-time.After(testutil.WaitShort):
 		t.Fatal("joiner never returned from Subscribe")
 	}
+	require.NoError(t, <-joinerErr)
 
 	require.NoError(t, ps.Publish(event, []byte("after-joiner")))
 	require.NoError(t, ps.Flush())
@@ -337,7 +345,7 @@ func TestClose_DuringInitDoesNotDeadlock(t *testing.T) {
 	// rather than a successful subscription. Polling p.ctx.Err()
 	// directly is the test seam we have without adding more hooks.
 	require.Eventually(t, func() bool { return ps.ctx.Err() != nil },
-		testutil.WaitShort, time.Millisecond,
+		testutil.WaitShort, testutil.IntervalFast,
 		"Close must cancel p.ctx promptly")
 
 	// While Close is in flight (its cancel has fired), let the
@@ -417,10 +425,13 @@ func TestReadiness_ManyConcurrentJoinersOneCreator(t *testing.T) {
 	}
 
 	creatorReady := make(chan struct{})
+	creatorErr := make(chan error, 1)
 	go func() {
 		c, err := ps.Subscribe(event, func(context.Context, []byte) {})
-		require.NoError(t, err)
-		t.Cleanup(c)
+		if err == nil {
+			t.Cleanup(c)
+		}
+		creatorErr <- err
 		close(creatorReady)
 	}()
 	select {
@@ -446,12 +457,13 @@ func TestReadiness_ManyConcurrentJoinersOneCreator(t *testing.T) {
 	select {
 	case err := <-errs:
 		t.Fatalf("joiner returned (err=%v) before creator readiness", err)
-	case <-time.After(50 * time.Millisecond):
+	case <-time.After(testutil.IntervalFast):
 		// expected
 	}
 
 	close(release)
 	<-creatorReady
+	require.NoError(t, <-creatorErr)
 	wg.Wait()
 	close(errs)
 	close(cancels)
