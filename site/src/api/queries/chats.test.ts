@@ -2301,6 +2301,78 @@ describe("mergeWatchedChatSummary", () => {
 			}).has_unread,
 		).toBe(false);
 	});
+
+	it("does not mark inactive chats unread when transitioning to running", () => {
+		const cachedChat = makeChat("chat-1", {
+			has_unread: false,
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			status: "running",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "status_change",
+				activeChatId: "chat-2",
+			}).has_unread,
+		).toBe(false);
+	});
+
+	it("does not mark inactive chats unread when transitioning to pending", () => {
+		const cachedChat = makeChat("chat-1", {
+			has_unread: false,
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			status: "pending",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "status_change",
+				activeChatId: "chat-2",
+			}).has_unread,
+		).toBe(false);
+	});
+
+	it("preserves existing has_unread when transitioning to a streaming status", () => {
+		const cachedChat = makeChat("chat-1", {
+			has_unread: true,
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			status: "running",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "status_change",
+				activeChatId: "chat-2",
+			}).has_unread,
+		).toBe(true);
+	});
+
+	it("marks inactive chats unread when transitioning to waiting", () => {
+		const cachedChat = makeChat("chat-1", {
+			has_unread: false,
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			status: "waiting",
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "status_change",
+				activeChatId: "chat-2",
+			}).has_unread,
+		).toBe(true);
+	});
 });
 
 describe("mergeWatchedChatIntoCaches", () => {

@@ -293,8 +293,19 @@ export const mergeWatchedChatSummary = (
 		isFreshEnough || isSummaryEvent
 			? watchedChat.last_turn_summary
 			: cachedChat.last_turn_summary;
+	// Only flip has_unread to true on a status_change when the new status is
+	// not actively streaming. While a chat is `running` or `pending` the user
+	// has nothing to act on (the spinner already conveys progress), and an
+	// unread dot in that state is just noise. Intermediate status_change
+	// events during a turn would also race the authoritative server value,
+	// producing a visible flicker where the dot appears then vanishes.
+	const isStreamingStatus =
+		watchedChat.status === "running" || watchedChat.status === "pending";
 	const nextHasUnread =
-		isFreshEnough && isStatusEvent && watchedChat.id !== activeChatId
+		isFreshEnough &&
+		isStatusEvent &&
+		watchedChat.id !== activeChatId &&
+		!isStreamingStatus
 			? true
 			: cachedChat.has_unread;
 	const nextUpdatedAt =

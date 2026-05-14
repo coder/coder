@@ -714,7 +714,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 											>
 												{chat.title}
 											</span>
-											{chat.has_unread && !isActiveChat && (
+											{chat.has_unread && !isActiveChat && !isStreaming && (
 												<span className="sr-only">(unread)</span>
 											)}
 											{isRegeneratingThisChat && (
@@ -762,7 +762,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 							) : (
 								<>
 									<span className="flex items-center justify-end text-xs text-content-secondary/50 tabular-nums [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
-										{chat.has_unread && !isActiveChat ? (
+										{chat.has_unread && !isActiveChat && !isStreaming ? (
 											<span
 												className="h-2 w-2 shrink-0 rounded-full bg-content-link"
 												data-testid={`unread-indicator-${chat.id}`}
