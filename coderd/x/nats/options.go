@@ -114,6 +114,18 @@ type Options struct {
 	// measure the in-process path. Default false (TCP loopback).
 	InProcess bool
 
+	// PublishConns sets the number of TCP-loopback publisher
+	// connections New opens to the embedded server. Each Publish call
+	// is dispatched to one of these connections selected by a stable
+	// hash of the subject, so same-subject publishes are routed to the
+	// same connection and preserve per-subject ordering. Multiple
+	// publish connections reduce contention on the per-conn write
+	// mutex and socket under concurrent publishers across distinct
+	// subjects. Zero or negative means 1 (single publish connection),
+	// matching the historical behavior. Ignored by NewFromConn, which
+	// reuses the externally supplied connection.
+	PublishConns int
+
 	// NoServerLog disables routing embedded server logs into logger.
 	NoServerLog bool
 }

@@ -69,7 +69,7 @@ func TestSlowConsumer_DropSignal_Sync(t *testing.T) {
 		require.NoError(t, ps.Publish(event, []byte("burst")))
 	}
 	// Force flush so the embedded server actually delivers.
-	require.NoError(t, ps.pubConn.FlushTimeout(testutil.WaitShort))
+	require.NoError(t, ps.Flush())
 
 	// Release the listener.
 	close(release)
@@ -163,7 +163,7 @@ func TestSlowConsumer_PlainSubscribeNoErrCallback(t *testing.T) {
 	for i := 0; i < 50; i++ {
 		require.NoError(t, ps.Publish(event, []byte("burst")))
 	}
-	require.NoError(t, ps.pubConn.FlushTimeout(testutil.WaitShort))
+	require.NoError(t, ps.Flush())
 	close(release)
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -226,7 +226,7 @@ func TestSlowConsumer_Dedup(t *testing.T) {
 	for i := 0; i < 50; i++ {
 		require.NoError(t, ps.Publish(event, []byte("burst")))
 	}
-	require.NoError(t, ps.pubConn.FlushTimeout(testutil.WaitShort))
+	require.NoError(t, ps.Flush())
 	close(release)
 
 	// Drain the channel and count drops.

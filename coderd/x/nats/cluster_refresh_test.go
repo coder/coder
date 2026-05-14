@@ -268,7 +268,7 @@ func TestPubsubRefreshPeers_NewFromConn_NoEmbeddedServer(t *testing.T) {
 	// theoretically be wired in.
 	host := newSoloPubsub(t, Options{})
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	p, err := NewFromConn(logger, host.pubConn)
+	p, err := NewFromConn(logger, host.pubConns[0])
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = p.Close() })
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)

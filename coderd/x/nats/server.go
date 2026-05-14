@@ -175,16 +175,17 @@ type connHandlers struct {
 }
 
 // connectClient builds a NATS client that dials the embedded server's
-// client listener over TCP loopback. The wrapper opens exactly two of
-// these per *Pubsub: pubConn for all publishes, subConn for all
-// subscriptions. TCP loopback gives the server-to-client edge a real
-// kernel socket buffer, which is what makes multiplexing many
-// subscriptions on a single subConn viable. See
-// docs/internal/wrapper-conn-pool-plan.md.
+// client listener over TCP loopback. The wrapper opens one or more
+// publisher conns plus one subscriber conn per *Pubsub: the publisher
+// pool carries all publishes (sized by Options.PublishConns), and
+// subConn carries all subscriptions. TCP loopback gives the
+// server-to-client edge a real kernel socket buffer, which is what
+// makes multiplexing many subscriptions on a single subConn viable.
+// See docs/internal/wrapper-conn-pool-plan.md.
 //
 // connName is applied via natsgo.Name and identifies the connection in
-// server logs (e.g., "coder-pubsub-pub" or "coder-pubsub-sub"). If
-// opts.ClientName is set, it takes precedence.
+// server logs (e.g., "coder-pubsub-pub", "coder-pubsub-pub-0", or
+// "coder-pubsub-sub"). If opts.ClientName is set, it takes precedence.
 func connectClient(ns *natsserver.Server, opts Options, handlers connHandlers, connName string) (*natsgo.Conn, error) {
 	name := opts.ClientName
 	if name == "" {

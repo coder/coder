@@ -46,7 +46,8 @@ func TestDualConn_ConnectionCount(t *testing.T) {
 	// embedded server reports, independent of subscription count.
 	require.Equal(t, 2, ps.ns.NumClients(),
 		"expected exactly 2 client connections (pubConn + subConn), got %d", ps.ns.NumClients())
-	require.NotSame(t, ps.pubConn, ps.subConn, "pubConn and subConn must be distinct")
+	require.Len(t, ps.pubConns, 1, "default PublishConns must be 1")
+	require.NotSame(t, ps.pubConns[0], ps.subConn, "pubConn and subConn must be distinct")
 }
 
 // TestDualConn_SlowListenerIsolation verifies that when one subscription's
@@ -101,7 +102,7 @@ func TestDualConn_SlowListenerIsolation(t *testing.T) {
 		require.NoError(t, ps.Publish("iso_slow", payload))
 		require.NoError(t, ps.Publish("iso_fast", []byte("ping")))
 	}
-	require.NoError(t, ps.pubConn.FlushTimeout(testutil.WaitShort))
+	require.NoError(t, ps.Flush())
 
 	deadline := time.Now().Add(testutil.WaitLong)
 	for time.Now().Before(deadline) {

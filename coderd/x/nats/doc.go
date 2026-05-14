@@ -56,21 +56,25 @@
 // # Echo
 //
 // Self-published messages are always delivered to local subscribers.
-// Publishes flow on a different connection (pubConn) than subscribes
-// (subConn), so they cross the server boundary and are routed back to
-// local subscribers like any other message. Callers that need
-// de-duplication should tag publishes at a higher layer.
+// Publishes flow on different connection(s) (the pubConn pool) than
+// subscribes (subConn), so they cross the server boundary and are
+// routed back to local subscribers like any other message. Callers
+// that need de-duplication should tag publishes at a higher layer.
 //
 // # Connection model
 //
-// New starts one embedded NATS server and opens exactly two
-// TCP-loopback *nats.Conns to it: pubConn for every publish and
-// subConn for every subscription. All subscriptions multiplex over the
-// single subConn; per-subscription slow-consumer isolation comes from
-// client-side PendingLimits on each *nats.Subscription rather than from
-// separate connections. NewFromConn is the explicit exception: it
-// reuses the caller-provided *nats.Conn for both publish and subscribe
-// and does not get the publish/subscribe split.
+// New starts one embedded NATS server and opens a pool of TCP-loopback
+// *nats.Conns to it: one or more publisher conns (configurable via
+// Options.PublishConns, default 1) plus one subscriber conn.
+// Publish selects a publisher conn by a stable hash of the resolved
+// subject so same-subject publishes always target the same connection
+// and preserve per-subject ordering. All subscriptions multiplex over
+// the single subConn; per-subscription slow-consumer isolation comes
+// from client-side PendingLimits on each *nats.Subscription rather
+// than from separate connections. NewFromConn is the explicit
+// exception: it reuses the caller-provided *nats.Conn for both
+// publish and subscribe and does not get the publish/subscribe split
+// or the publish-conn pool.
 //
 // # Publish semantics
 //

@@ -320,7 +320,7 @@ func TestCoalescing_SlowLocalListenerIsolated(t *testing.T) {
 	for i := 0; i < total; i++ {
 		require.NoError(t, ps.Publish(event, []byte("payload")))
 	}
-	require.NoError(t, ps.pubConn.FlushTimeout(testutil.WaitShort))
+	require.NoError(t, ps.Flush())
 
 	// Fast listener must reach the total regardless of the slow
 	// listener being parked, and the slow listener must observe at
