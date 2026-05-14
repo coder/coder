@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"reflect"
+	"slices"
 	"strings"
 
 	"golang.org/x/xerrors"
@@ -104,8 +105,7 @@ func EnumLists(ts *guts.Typescript) {
 			return
 		}
 
-		values := make([]bindings.ExpressionType, 0, len(union.Types))
-		values = append(values, union.Types...)
+		values := slices.Clone(union.Types)
 
 		name := pluralize(key)
 		if _, ok := ts.Node(name); ok {

@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -336,6 +337,81 @@ func TestExternalAuthManagement(t *testing.T) {
 		_, err = client.ExternalAuthByID(ctx, providerID)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "External auth identity changed")
+	})
+
+	t.Run("LinearRevokedTokenIsUnauthenticated", func(t *testing.T) {
+		t.Parallel()
+		const providerID = "linear"
+
+		var authorized atomic.Bool
+		authorized.Store(true)
+		linear := oidctest.NewFakeIDP(t, oidctest.WithServing())
+		routes := (&oidctest.ExternalAuthConfigOptions{}).AddRoute("/graphql", func(_ string, rw http.ResponseWriter, r *http.Request) {
+			require.Equal(t, http.MethodPost, r.Method)
+			if !authorized.Load() {
+				http.Error(rw, "revoked", http.StatusUnauthorized)
+				return
+			}
+			httpapi.Write(r.Context(), rw, http.StatusOK, map[string]any{
+				"data": map[string]any{
+					"viewer": map[string]any{
+						"id":          "linear-user-1",
+						"displayName": "Ada Lovelace",
+					},
+				},
+			})
+		})
+		owner := coderdtest.New(t, &coderdtest.Options{
+			ExternalAuthConfigs: []*externalauth.Config{
+				linear.ExternalAuthConfig(t, providerID, routes, func(cfg *externalauth.Config) {
+					cfg.Type = codersdk.EnhancedExternalAuthProviderLinear.String()
+					cfg.APIBaseURL = strings.TrimRight(cfg.ValidateURL, "/")
+					cfg.ValidateURL = ""
+				}),
+			},
+		})
+		ownerUser := coderdtest.CreateFirstUser(t, owner)
+		client, _ := coderdtest.CreateAnotherUser(t, owner, ownerUser.OrganizationID)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		linear.ExternalLogin(t, client)
+		auth, err := client.ExternalAuthByID(ctx, providerID)
+		require.NoError(t, err)
+		require.True(t, auth.Authenticated)
+
+		authorized.Store(false)
+		auth, err = client.ExternalAuthByID(ctx, providerID)
+		require.NoError(t, err)
+		require.False(t, auth.Authenticated)
+	})
+
+	t.Run("LinearCallbackIdentityFailureStoresLink", func(t *testing.T) {
+		t.Parallel()
+		const providerID = "linear"
+
+		linear := oidctest.NewFakeIDP(t, oidctest.WithServing())
+		routes := (&oidctest.ExternalAuthConfigOptions{}).AddRoute("/graphql", func(_ string, rw http.ResponseWriter, _ *http.Request) {
+			http.Error(rw, "try again", http.StatusServiceUnavailable)
+		})
+		owner := coderdtest.New(t, &coderdtest.Options{
+			ExternalAuthConfigs: []*externalauth.Config{
+				linear.ExternalAuthConfig(t, providerID, routes, func(cfg *externalauth.Config) {
+					cfg.Type = codersdk.EnhancedExternalAuthProviderLinear.String()
+					cfg.APIBaseURL = strings.TrimRight(cfg.ValidateURL, "/")
+					cfg.ValidateURL = ""
+				}),
+			},
+		})
+		ownerUser := coderdtest.CreateFirstUser(t, owner)
+		client, _ := coderdtest.CreateAnotherUser(t, owner, ownerUser.OrganizationID)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		linear.ExternalLogin(t, client)
+
+		list, err := client.ListExternalAuths(ctx)
+		require.NoError(t, err)
+		require.Len(t, list.Links, 1)
+		require.Nil(t, list.Links[0].Identity)
 	})
 
 	t.Run("RefreshAllProviders", func(t *testing.T) {

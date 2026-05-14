@@ -79,7 +79,11 @@ func (api *API) externalAuthByID(w http.ResponseWriter, r *http.Request) {
 	if res.Authenticated {
 		var identity *codersdk.ExternalAuthIdentity
 		link, identity, err = api.refreshExternalAuthIdentity(ctx, config, link)
-		if err != nil {
+		switch {
+		case errors.Is(err, externalauth.ErrExternalAuthIdentityUnauthorized):
+			res.Authenticated = false
+			res.Identity = db2sdk.ExternalAuthIdentity(link)
+		case err != nil:
 			status := http.StatusBadGateway
 			message := "Failed to fetch external auth identity."
 			if errors.Is(err, errExternalAuthIdentityChanged) {
@@ -94,8 +98,9 @@ func (api *API) externalAuthByID(w http.ResponseWriter, r *http.Request) {
 				Detail:  err.Error(),
 			})
 			return
+		default:
+			res.Identity = identity
 		}
-		res.Identity = identity
 	} else {
 		res.Identity = db2sdk.ExternalAuthIdentity(link)
 	}
@@ -355,11 +360,7 @@ func (api *API) externalAuthCallback(externalAuthConfig *externalauth.Config) ht
 		}
 		identity, err := externalAuthConfig.ExternalAuthIdentity(ctx, state.Token.AccessToken)
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to fetch external auth identity.",
-				Detail:  err.Error(),
-			})
-			return
+			identity = nil
 		}
 		externalUserID, externalUserLogin, externalUserName, externalUserEmail, externalUserAvatarURL := externalAuthIdentityFields(identity)
 		existingLink, err := api.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
@@ -393,6 +394,13 @@ func (api *API) externalAuthCallback(externalAuthConfig *externalauth.Config) ht
 				ExternalUserAvatarUrl:  externalUserAvatarURL,
 			})
 			if err != nil {
+				if database.IsUniqueViolation(err, database.UniqueExternalAuthLinksProviderExternalUserIDIndex) {
+					httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+						Message: "This external account is already linked to another Coder user.",
+						Detail:  fmt.Sprintf("Provider %q external user %q is already linked to another Coder user.", externalAuthConfig.ID, externalUserID),
+					})
+					return
+				}
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 					Message: "Failed to insert external auth link.",
 					Detail:  err.Error(),
@@ -400,9 +408,16 @@ func (api *API) externalAuthCallback(externalAuthConfig *externalauth.Config) ht
 				return
 			}
 		} else {
-			if existingLink.ExternalUserID != "" && existingLink.ExternalUserID != externalUserID {
+			if identity == nil {
+				externalUserID = existingLink.ExternalUserID
+				externalUserLogin = existingLink.ExternalUserLogin
+				externalUserName = existingLink.ExternalUserName
+				externalUserEmail = existingLink.ExternalUserEmail
+				externalUserAvatarURL = existingLink.ExternalUserAvatarUrl
+			} else if existingLink.ExternalUserID != "" && existingLink.ExternalUserID != externalUserID {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 					Message: "External auth identity changed. Unlink and reconnect the provider.",
+					Detail:  fmt.Sprintf("Provider %q identity changed from %q to %q.", externalAuthConfig.ID, existingLink.ExternalUserID, externalUserID),
 				})
 				return
 			}
@@ -423,6 +438,13 @@ func (api *API) externalAuthCallback(externalAuthConfig *externalauth.Config) ht
 				ExternalUserAvatarUrl:  externalUserAvatarURL,
 			})
 			if err != nil {
+				if database.IsUniqueViolation(err, database.UniqueExternalAuthLinksProviderExternalUserIDIndex) {
+					httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+						Message: "This external account is already linked to another Coder user.",
+						Detail:  fmt.Sprintf("Provider %q external user %q is already linked to another Coder user.", externalAuthConfig.ID, externalUserID),
+					})
+					return
+				}
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 					Message: "Failed to update external auth link.",
 					Detail:  err.Error(),

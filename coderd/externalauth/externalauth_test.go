@@ -3,6 +3,7 @@ package externalauth_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -77,6 +78,61 @@ func TestLinearExternalAuthIdentity(t *testing.T) {
 		_, err := config.ExternalAuthIdentity(context.Background(), "token")
 		require.ErrorContains(t, err, "bad scope")
 	})
+}
+
+func TestLinearExternalAuthIdentityFailures(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name         string
+		status       int
+		body         string
+		wantErr      string
+		unauthorized bool
+	}{
+		{
+			name:    "NilViewer",
+			status:  http.StatusOK,
+			body:    `{"data":{"viewer":null}}`,
+			wantErr: "linear viewer query returned no viewer",
+		},
+		{
+			name:    "EmptyViewerID",
+			status:  http.StatusOK,
+			body:    `{"data":{"viewer":{"id":""}}}`,
+			wantErr: "linear viewer query returned empty user ID",
+		},
+		{
+			name:         "Unauthorized",
+			status:       http.StatusUnauthorized,
+			body:         `{"error":"revoked"}`,
+			wantErr:      "linear external auth identity",
+			unauthorized: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
+				rw.Header().Set("Content-Type", "application/json")
+				rw.WriteHeader(tc.status)
+				_, _ = rw.Write([]byte(tc.body))
+			}))
+			t.Cleanup(server.Close)
+
+			config := &externalauth.Config{
+				InstrumentedOAuth2Config: &testutil.OAuth2Config{},
+				Type:                     codersdk.EnhancedExternalAuthProviderLinear.String(),
+				APIBaseURL:               server.URL,
+			}
+
+			_, err := config.ExternalAuthIdentity(context.Background(), "token")
+			require.ErrorContains(t, err, tc.wantErr)
+			require.Equal(t, tc.unauthorized, errors.Is(err, externalauth.ErrExternalAuthIdentityUnauthorized))
+		})
+	}
 }
 
 func TestRefreshToken(t *testing.T) {

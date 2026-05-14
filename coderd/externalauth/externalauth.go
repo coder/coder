@@ -1,6 +1,7 @@
 package externalauth
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -10,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -443,6 +445,9 @@ func (c *Config) ValidateToken(ctx context.Context, link *oauth2.Token) (bool, *
 	return true, user, nil
 }
 
+// ErrExternalAuthIdentityUnauthorized means the provider rejected the access token while fetching identity.
+var ErrExternalAuthIdentityUnauthorized = xerrors.New("external auth identity unauthorized")
+
 const (
 	linearViewerPayload  = `{"query":"query CoderExternalAuthViewer { viewer { id name displayName email avatarUrl } }"}`
 	linearErrorBodyLimit = 8192
@@ -467,14 +472,17 @@ func (c *Config) ExternalAuthIdentity(ctx context.Context, accessToken string) (
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", accessToken))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
-	res, err := c.InstrumentedOAuth2Config.Do(ctx, promoauth.SourceValidateToken, req)
+	res, err := c.InstrumentedOAuth2Config.Do(ctx, promoauth.SourceIdentityFetch, req)
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("linear external auth identity: %w", err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
 		data, _ := io.ReadAll(io.LimitReader(res.Body, linearErrorBodyLimit))
-		return nil, xerrors.Errorf("status %d: body: %s", res.StatusCode, data)
+		if res.StatusCode == http.StatusUnauthorized {
+			return nil, xerrors.Errorf("linear external auth identity: %w: status %d: body: %s", ErrExternalAuthIdentityUnauthorized, res.StatusCode, data)
+		}
+		return nil, xerrors.Errorf("linear external auth identity: status %d: body: %s", res.StatusCode, data)
 	}
 	var body struct {
 		Data struct {
@@ -502,10 +510,7 @@ func (c *Config) ExternalAuthIdentity(ctx context.Context, accessToken string) (
 	if body.Data.Viewer.ID == "" {
 		return nil, xerrors.New("linear viewer query returned empty user ID")
 	}
-	name := body.Data.Viewer.DisplayName
-	if name == "" {
-		name = body.Data.Viewer.Name
-	}
+	name := cmp.Or(body.Data.Viewer.DisplayName, body.Data.Viewer.Name)
 	return &codersdk.ExternalAuthIdentity{
 		ID:        body.Data.Viewer.ID,
 		Name:      name,
@@ -860,12 +865,12 @@ func ConvertConfig(instrument *promoauth.Factory, entries []codersdk.ExternalAut
 		}
 
 		var oauthConfig promoauth.OAuth2Config = oc
-		// Azure DevOps uses JWT token authentication!
 		if entry.Type == string(codersdk.EnhancedExternalAuthProviderLinear) {
-			linearScopes := append([]string(nil), oc.Scopes...)
+			linearScopes := slices.Clone(oc.Scopes)
 			oc.Scopes = nil
 			oauthConfig = &linearOAuth2Config{Config: oc, scopes: linearScopes}
 		}
+		// Azure DevOps uses JWT token authentication!
 		if entry.Type == string(codersdk.EnhancedExternalAuthProviderAzureDevops) {
 			oauthConfig = &jwtConfig{oc}
 		}
@@ -1311,6 +1316,8 @@ var staticDefaults = map[codersdk.EnhancedExternalAuthProvider]codersdk.External
 	},
 }
 
+// linearOAuth2Config preserves Linear's comma-separated scope encoding in the
+// authorization URL while leaving token exchange behavior on oauth2.Config.
 type linearOAuth2Config struct {
 	*oauth2.Config
 	scopes []string
