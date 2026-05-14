@@ -450,6 +450,8 @@
     "region": "string",
     "small_fast_model": "string"
   },
+  "budget_period": "string",
+  "budget_policy": "string",
   "circuit_breaker_enabled": true,
   "circuit_breaker_failure_threshold": 0,
   "circuit_breaker_interval": 0,
@@ -487,6 +489,8 @@
 | `allow_byok`                        | boolean                                                                     | false    |              |                                                                                                                                                                             |
 | `anthropic`                         | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig)        | false    |              | Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.                                                                                      |
 | `bedrock`                           | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)            | false    |              | Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.                                                                                      |
+| `budget_period`                     | string                                                                      | false    |              |                                                                                                                                                                             |
+| `budget_policy`                     | string                                                                      | false    |              | Budget settings for AI Governance cost controls.                                                                                                                            |
 | `circuit_breaker_enabled`           | boolean                                                                     | false    |              | Circuit breaker protects against cascading failures from upstream AI provider overload (503, 529).                                                                          |
 | `circuit_breaker_failure_threshold` | integer                                                                     | false    |              |                                                                                                                                                                             |
 | `circuit_breaker_interval`          | integer                                                                     | false    |              |                                                                                                                                                                             |
@@ -1275,6 +1279,8 @@
       "region": "string",
       "small_fast_model": "string"
     },
+    "budget_period": "string",
+    "budget_policy": "string",
     "circuit_breaker_enabled": true,
     "circuit_breaker_failure_threshold": 0,
     "circuit_breaker_interval": 0,
@@ -1411,6 +1417,20 @@
 | Name      | Type   | Required | Restrictions | Description |
 |-----------|--------|----------|--------------|-------------|
 | `license` | string | true     |              |             |
+
+## codersdk.AgentChatSendShortcut
+
+```json
+"enter"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                  |
+|---------------------------|
+| `enter`, `modifier_enter` |
 
 ## codersdk.AgentConnectionTiming
 
@@ -3124,6 +3144,41 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Value(s) |
 |----------|
 | `plan`   |
+
+## codersdk.ChatPrompt
+
+```json
+{
+  "id": 0,
+  "text": "string"
+}
+```
+
+### Properties
+
+| Name   | Type    | Required | Restrictions | Description |
+|--------|---------|----------|--------------|-------------|
+| `id`   | integer | false    |              |             |
+| `text` | string  | false    |              |             |
+
+## codersdk.ChatPromptsResponse
+
+```json
+{
+  "prompts": [
+    {
+      "id": 0,
+      "text": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name      | Type                                                | Required | Restrictions | Description |
+|-----------|-----------------------------------------------------|----------|--------------|-------------|
+| `prompts` | array of [codersdk.ChatPrompt](#codersdkchatprompt) | false    |              |             |
 
 ## codersdk.ChatQueuedMessage
 
@@ -5274,6 +5329,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "region": "string",
           "small_fast_model": "string"
         },
+        "budget_period": "string",
+        "budget_policy": "string",
         "circuit_breaker_enabled": true,
         "circuit_breaker_failure_threshold": 0,
         "circuit_breaker_interval": 0,
@@ -5870,6 +5927,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "region": "string",
         "small_fast_model": "string"
       },
+      "budget_period": "string",
+      "budget_policy": "string",
       "circuit_breaker_enabled": true,
       "circuit_breaker_failure_threshold": 0,
       "circuit_breaker_interval": 0,
@@ -6584,15 +6643,17 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "text": "string",
       "type": "text"
     }
-  ]
+  ],
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
 }
 ```
 
 ### Properties
 
-| Name      | Type                                                      | Required | Restrictions | Description |
-|-----------|-----------------------------------------------------------|----------|--------------|-------------|
-| `content` | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |             |
+| Name              | Type                                                      | Required | Restrictions | Description                                                                                                                                                                  |
+|-------------------|-----------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `content`         | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |                                                                                                                                                                              |
+| `model_config_id` | string                                                    | false    |              | Model config ID when set, overrides the model used for the replacement user message and the assistant turn that follows. When nil the original message's model is preserved. |
 
 ## codersdk.EditChatMessageResponse
 
@@ -10599,15 +10660,17 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ```json
 {
-  "parameter_mismatch": true
+  "parameter_mismatch": true,
+  "secret_mismatch": true
 }
 ```
 
 ### Properties
 
-| Name                 | Type    | Required | Restrictions | Description |
-|----------------------|---------|----------|--------------|-------------|
-| `parameter_mismatch` | boolean | false    |              |             |
+| Name                 | Type    | Required | Restrictions | Description                                                                                                                                      |
+|----------------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
+| `parameter_mismatch` | boolean | false    |              |                                                                                                                                                  |
+| `secret_mismatch`    | boolean | false    |              | Secret mismatch is true when the active template version declares `coder_secret` requirements that the workspace owner's secrets do not satisfy. |
 
 ## codersdk.ResourceType
 
@@ -12490,6 +12553,20 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |-------------------------------------------------------------------------------------|
 | ``, `fira-code`, `geist-mono`, `ibm-plex-mono`, `jetbrains-mono`, `source-code-pro` |
 
+## codersdk.ThemeMode
+
+```json
+""
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)             |
+|----------------------|
+| ``, `single`, `sync` |
+
 ## codersdk.ThinkingDisplayMode
 
 ```json
@@ -12818,16 +12895,30 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 ```json
 {
   "terminal_font": "",
+  "theme_dark": "light",
+  "theme_light": "light",
+  "theme_mode": "sync",
   "theme_preference": "string"
 }
 ```
 
 ### Properties
 
-| Name               | Type                                                   | Required | Restrictions | Description |
-|--------------------|--------------------------------------------------------|----------|--------------|-------------|
-| `terminal_font`    | [codersdk.TerminalFontName](#codersdkterminalfontname) | true     |              |             |
-| `theme_preference` | string                                                 | true     |              |             |
+| Name               | Type                                                   | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                        |
+|--------------------|--------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `terminal_font`    | [codersdk.TerminalFontName](#codersdkterminalfontname) | true     |              |                                                                                                                                                                                                                                                                                                                    |
+| `theme_dark`       | string                                                 | false    |              | Theme dark is required when ThemeMode is "sync". In "single" mode an empty value means "preserve the previously persisted slot" rather than "clear the slot", so partial updates that send only one slot keep the other intact.                                                                                    |
+| `theme_light`      | string                                                 | false    |              | Theme light is required when ThemeMode is "sync". In "single" mode an empty value means "preserve the previously persisted slot" rather than "clear the slot", so partial updates that send only one slot keep the other intact.                                                                                   |
+| `theme_mode`       | [codersdk.ThemeMode](#codersdkthememode)               | false    |              | Theme mode is optional for backward compatibility. When empty, the server leaves theme_mode, theme_light, and theme_dark unchanged so older CLI clients do not erase sync-mode settings. Legacy auto preferences are the exception: they clear theme_mode so clients can migrate the old sync-with-system setting. |
+| `theme_preference` | string                                                 | true     |              |                                                                                                                                                                                                                                                                                                                    |
+
+#### Enumerated Values
+
+| Property      | Value(s)                                                                                    |
+|---------------|---------------------------------------------------------------------------------------------|
+| `theme_dark`  | `dark`, `dark-protan-deuter`, `dark-tritan`, `light`, `light-protan-deuter`, `light-tritan` |
+| `theme_light` | `dark`, `dark-protan-deuter`, `dark-tritan`, `light`, `light-protan-deuter`, `light-tritan` |
+| `theme_mode`  | `single`, `sync`                                                                            |
 
 ## codersdk.UpdateUserNotificationPreferences
 
@@ -12867,7 +12958,9 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ```json
 {
+  "agent_chat_send_shortcut": "enter",
   "code_diff_display_mode": "auto",
+  "shell_tool_display_mode": "auto",
   "task_notification_alert_dismissed": true,
   "thinking_display_mode": "auto"
 }
@@ -12875,11 +12968,13 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name                                | Type                                                         | Required | Restrictions | Description |
-|-------------------------------------|--------------------------------------------------------------|----------|--------------|-------------|
-| `code_diff_display_mode`            | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)       | false    |              |             |
-| `task_notification_alert_dismissed` | boolean                                                      | false    |              |             |
-| `thinking_display_mode`             | [codersdk.ThinkingDisplayMode](#codersdkthinkingdisplaymode) | false    |              |             |
+| Name                                | Type                                                             | Required | Restrictions | Description |
+|-------------------------------------|------------------------------------------------------------------|----------|--------------|-------------|
+| `agent_chat_send_shortcut`          | [codersdk.AgentChatSendShortcut](#codersdkagentchatsendshortcut) | false    |              |             |
+| `code_diff_display_mode`            | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
+| `shell_tool_display_mode`           | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
+| `task_notification_alert_dismissed` | boolean                                                          | false    |              |             |
+| `thinking_display_mode`             | [codersdk.ThinkingDisplayMode](#codersdkthinkingdisplaymode)     | false    |              |             |
 
 ## codersdk.UpdateUserProfileRequest
 
@@ -13314,16 +13409,22 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 ```json
 {
   "terminal_font": "",
+  "theme_dark": "string",
+  "theme_light": "string",
+  "theme_mode": "",
   "theme_preference": "string"
 }
 ```
 
 ### Properties
 
-| Name               | Type                                                   | Required | Restrictions | Description |
-|--------------------|--------------------------------------------------------|----------|--------------|-------------|
-| `terminal_font`    | [codersdk.TerminalFontName](#codersdkterminalfontname) | false    |              |             |
-| `theme_preference` | string                                                 | false    |              |             |
+| Name               | Type                                                   | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                               |
+|--------------------|--------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `terminal_font`    | [codersdk.TerminalFontName](#codersdkterminalfontname) | false    |              |                                                                                                                                                                                                                                                                                                                                           |
+| `theme_dark`       | string                                                 | false    |              | Ignored when ThemeMode is "single"                                                                                                                                                                                                                                                                                                        |
+| `theme_light`      | string                                                 | false    |              | Ignored when ThemeMode is "single"                                                                                                                                                                                                                                                                                                        |
+| `theme_mode`       | [codersdk.ThemeMode](#codersdkthememode)               | false    |              |                                                                                                                                                                                                                                                                                                                                           |
+| `theme_preference` | string                                                 | false    |              | Theme preference is the legacy single-field appearance setting. In "single" mode it mirrors the active theme. In "sync" mode modern clients normally mirror the active OS slot, but older clients can update only this field, so it may diverge from ThemeLight or ThemeDark until a modern client saves the full appearance state again. |
 
 ## codersdk.UserLatency
 
@@ -13455,7 +13556,9 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
+  "agent_chat_send_shortcut": "enter",
   "code_diff_display_mode": "auto",
+  "shell_tool_display_mode": "auto",
   "task_notification_alert_dismissed": true,
   "thinking_display_mode": "auto"
 }
@@ -13463,11 +13566,13 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                                | Type                                                         | Required | Restrictions | Description |
-|-------------------------------------|--------------------------------------------------------------|----------|--------------|-------------|
-| `code_diff_display_mode`            | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)       | false    |              |             |
-| `task_notification_alert_dismissed` | boolean                                                      | false    |              |             |
-| `thinking_display_mode`             | [codersdk.ThinkingDisplayMode](#codersdkthinkingdisplaymode) | false    |              |             |
+| Name                                | Type                                                             | Required | Restrictions | Description |
+|-------------------------------------|------------------------------------------------------------------|----------|--------------|-------------|
+| `agent_chat_send_shortcut`          | [codersdk.AgentChatSendShortcut](#codersdkagentchatsendshortcut) | false    |              |             |
+| `code_diff_display_mode`            | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
+| `shell_tool_display_mode`           | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
+| `task_notification_alert_dismissed` | boolean                                                          | false    |              |             |
+| `thinking_display_mode`             | [codersdk.ThinkingDisplayMode](#codersdkthinkingdisplaymode)     | false    |              |             |
 
 ## codersdk.UserQuietHoursScheduleConfig
 

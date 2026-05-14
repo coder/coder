@@ -768,6 +768,12 @@ BEGIN
 		-- does not remove the users row so the FK cascade never fires.
 		DELETE FROM user_secrets
 		WHERE user_id = OLD.id;
+
+		-- Remove their organization memberships.
+		-- This also triggers group membership cleanup via
+		-- trigger_delete_group_members_on_org_member_delete.
+		DELETE FROM organization_members
+		WHERE user_id = OLD.id;
 	END IF;
 	RETURN NEW;
 END;
@@ -1800,6 +1806,7 @@ CREATE TABLE mcp_server_configs (
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     model_intent boolean DEFAULT false NOT NULL,
     allow_in_plan_mode boolean DEFAULT false NOT NULL,
+    forward_coder_headers boolean DEFAULT false NOT NULL,
     CONSTRAINT mcp_server_configs_auth_type_check CHECK ((auth_type = ANY (ARRAY['none'::text, 'oauth2'::text, 'api_key'::text, 'custom_headers'::text, 'user_oidc'::text]))),
     CONSTRAINT mcp_server_configs_availability_check CHECK ((availability = ANY (ARRAY['force_on'::text, 'default_on'::text, 'default_off'::text]))),
     CONSTRAINT mcp_server_configs_transport_check CHECK ((transport = ANY (ARRAY['streamable_http'::text, 'sse'::text])))
@@ -3844,6 +3851,8 @@ CREATE INDEX idx_chat_debug_steps_stale ON chat_debug_steps USING btree (updated
 
 CREATE INDEX idx_chat_diff_statuses_stale_at ON chat_diff_statuses USING btree (stale_at);
 
+CREATE INDEX idx_chat_diff_statuses_url_lower ON chat_diff_statuses USING btree (lower(url)) WHERE ((url IS NOT NULL) AND (url <> ''::text));
+
 CREATE INDEX idx_chat_file_links_chat_id ON chat_file_links USING btree (chat_id);
 
 CREATE INDEX idx_chat_files_org ON chat_files USING btree (organization_id);
@@ -3859,6 +3868,8 @@ CREATE INDEX idx_chat_messages_compressed_summary_boundary ON chat_messages USIN
 CREATE INDEX idx_chat_messages_created_at ON chat_messages USING btree (created_at);
 
 CREATE INDEX idx_chat_messages_owner_spend ON chat_messages USING btree (chat_id, created_at) WHERE (total_cost_micros IS NOT NULL);
+
+CREATE INDEX idx_chat_messages_user_prompts ON chat_messages USING btree (chat_id, id DESC) WHERE ((deleted = false) AND (role = 'user'::chat_message_role) AND (visibility = ANY (ARRAY['user'::chat_message_visibility, 'both'::chat_message_visibility])));
 
 CREATE INDEX idx_chat_model_configs_enabled ON chat_model_configs USING btree (enabled);
 

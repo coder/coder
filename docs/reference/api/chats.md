@@ -17,10 +17,10 @@ Experimental: this endpoint is subject to change.
 
 ### Parameters
 
-| Name    | In    | Type   | Required | Description                                                    |
-|---------|-------|--------|----------|----------------------------------------------------------------|
-| `q`     | query | string | false    | Search query                                                   |
-| `label` | query | string | false    | Filter by label as key:value. Repeat for multiple (AND logic). |
+| Name    | In    | Type   | Required | Description                                                                 |
+|---------|-------|--------|----------|-----------------------------------------------------------------------------|
+| `q`     | query | string | false    | Search query. Supports archived:bool and diff_url:<url> terms (quote URLs). |
+| `label` | query | string | false    | Filter by label as key:value. Repeat for multiple (AND logic).              |
 
 ### Example responses
 
@@ -2013,7 +2013,8 @@ Experimental: this endpoint is subject to change.
       "text": "string",
       "type": "text"
     }
-  ]
+  ],
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
 }
 ```
 
@@ -2117,6 +2118,57 @@ Experimental: this endpoint is subject to change.
 | Status | Meaning                                                 | Description | Schema                                                                         |
 |--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.EditChatMessageResponse](schemas.md#codersdkeditchatmessageresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## List chat user prompts
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/experimental/chats/{chat}/prompts \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/experimental/chats/{chat}/prompts`
+
+Experimental: this endpoint is subject to change.
+
+Returns the user-authored prompts in a chat, newest first,
+with each prompt's text parts concatenated in the order they
+were authored. Used by the composer to power the up/down
+arrow prompt-history cycle without paging through every
+message in the chat.
+
+### Parameters
+
+| Name    | In    | Type         | Required | Description                                                                 |
+|---------|-------|--------------|----------|-----------------------------------------------------------------------------|
+| `chat`  | path  | string(uuid) | true     | Chat ID                                                                     |
+| `limit` | query | integer      | false    | Page size, 0 to 2000. 0 (the default) means the server-side default of 500. |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "prompts": [
+    {
+      "id": 0,
+      "text": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                 |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatPromptsResponse](schemas.md#codersdkchatpromptsresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

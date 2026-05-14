@@ -78,7 +78,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query",
+                        "description": "Search query. Supports archived:bool and diff_url:\u003curl\u003e terms (quote URLs).",
                         "name": "q",
                         "in": "query"
                     },
@@ -684,6 +684,48 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.EditChatMessageResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/experimental/chats/{chat}/prompts": {
+            "get": {
+                "description": "Experimental: this endpoint is subject to change.\n\nReturns the user-authored prompts in a chat, newest first,\nwith each prompt's text parts concatenated in the order they\nwere authored. Used by the composer to power the up/down\narrow prompt-history cycle without paging through every\nmessage in the chat.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chat user prompts",
+                "operationId": "list-chat-user-prompts",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size, 0 to 2000. 0 (the default) means the server-side default of 500.",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatPromptsResponse"
                         }
                     }
                 },
@@ -13802,6 +13844,13 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "budget_period": {
+                    "type": "string"
+                },
+                "budget_policy": {
+                    "description": "Budget settings for AI Governance cost controls.",
+                    "type": "string"
+                },
                 "circuit_breaker_enabled": {
                     "description": "Circuit breaker protects against cascading failures from upstream AI\nprovider overload (503, 529).",
                     "type": "boolean"
@@ -14908,6 +14957,17 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.AgentChatSendShortcut": {
+            "type": "string",
+            "enum": [
+                "enter",
+                "modifier_enter"
+            ],
+            "x-enum-varnames": [
+                "AgentChatSendShortcutEnter",
+                "AgentChatSendShortcutModifierEnter"
+            ]
         },
         "codersdk.AgentConnectionTiming": {
             "type": "object",
@@ -16169,6 +16229,28 @@ const docTemplate = `{
             "x-enum-varnames": [
                 "ChatPlanModePlan"
             ]
+        },
+        "codersdk.ChatPrompt": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "text": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatPromptsResponse": {
+            "type": "object",
+            "properties": {
+                "prompts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatPrompt"
+                    }
+                }
+            }
         },
         "codersdk.ChatQueuedMessage": {
             "type": "object",
@@ -17972,6 +18054,11 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatInputPart"
                     }
+                },
+                "model_config_id": {
+                    "description": "ModelConfigID, when set, overrides the model used for the\nreplacement user message and the assistant turn that follows.\nWhen nil the original message's model is preserved.",
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
@@ -21534,6 +21621,10 @@ const docTemplate = `{
             "properties": {
                 "parameter_mismatch": {
                     "type": "boolean"
+                },
+                "secret_mismatch": {
+                    "description": "SecretMismatch is true when the active template version declares\n` + "`" + `coder_secret` + "`" + ` requirements that the workspace owner's secrets do not\nsatisfy.",
+                    "type": "boolean"
                 }
             }
         },
@@ -23062,6 +23153,19 @@ const docTemplate = `{
                 "TerminalFontJetBrainsMono"
             ]
         },
+        "codersdk.ThemeMode": {
+            "type": "string",
+            "enum": [
+                "",
+                "sync",
+                "single"
+            ],
+            "x-enum-varnames": [
+                "ThemeModeUnset",
+                "ThemeModeSync",
+                "ThemeModeSingle"
+            ]
+        },
         "codersdk.ThinkingDisplayMode": {
             "type": "string",
             "enum": [
@@ -23393,6 +23497,42 @@ const docTemplate = `{
                 "terminal_font": {
                     "$ref": "#/definitions/codersdk.TerminalFontName"
                 },
+                "theme_dark": {
+                    "description": "ThemeDark is required when ThemeMode is \"sync\". In \"single\" mode\nan empty value means \"preserve the previously persisted slot\"\nrather than \"clear the slot\", so partial updates that send only\none slot keep the other intact.",
+                    "type": "string",
+                    "enum": [
+                        "light",
+                        "light-protan-deuter",
+                        "light-tritan",
+                        "dark",
+                        "dark-protan-deuter",
+                        "dark-tritan"
+                    ]
+                },
+                "theme_light": {
+                    "description": "ThemeLight is required when ThemeMode is \"sync\". In \"single\"\nmode an empty value means \"preserve the previously persisted\nslot\" rather than \"clear the slot\", so partial updates that send\nonly one slot keep the other intact.",
+                    "type": "string",
+                    "enum": [
+                        "light",
+                        "light-protan-deuter",
+                        "light-tritan",
+                        "dark",
+                        "dark-protan-deuter",
+                        "dark-tritan"
+                    ]
+                },
+                "theme_mode": {
+                    "description": "ThemeMode is optional for backward compatibility. When empty,\nthe server leaves theme_mode, theme_light, and theme_dark\nunchanged so older CLI clients do not erase sync-mode settings.\nLegacy auto preferences are the exception: they clear theme_mode\nso clients can migrate the old sync-with-system setting.",
+                    "enum": [
+                        "sync",
+                        "single"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ThemeMode"
+                        }
+                    ]
+                },
                 "theme_preference": {
                     "type": "string"
                 }
@@ -23426,7 +23566,13 @@ const docTemplate = `{
         "codersdk.UpdateUserPreferenceSettingsRequest": {
             "type": "object",
             "properties": {
+                "agent_chat_send_shortcut": {
+                    "$ref": "#/definitions/codersdk.AgentChatSendShortcut"
+                },
                 "code_diff_display_mode": {
+                    "$ref": "#/definitions/codersdk.AgentDisplayMode"
+                },
+                "shell_tool_display_mode": {
                     "$ref": "#/definitions/codersdk.AgentDisplayMode"
                 },
                 "task_notification_alert_dismissed": {
@@ -23812,7 +23958,19 @@ const docTemplate = `{
                 "terminal_font": {
                     "$ref": "#/definitions/codersdk.TerminalFontName"
                 },
+                "theme_dark": {
+                    "description": "Ignored when ThemeMode is \"single\"",
+                    "type": "string"
+                },
+                "theme_light": {
+                    "description": "Ignored when ThemeMode is \"single\"",
+                    "type": "string"
+                },
+                "theme_mode": {
+                    "$ref": "#/definitions/codersdk.ThemeMode"
+                },
                 "theme_preference": {
+                    "description": "ThemePreference is the legacy single-field appearance setting. In\n\"single\" mode it mirrors the active theme. In \"sync\" mode modern\nclients normally mirror the active OS slot, but older clients can\nupdate only this field, so it may diverge from ThemeLight or\nThemeDark until a modern client saves the full appearance state\nagain.",
                     "type": "string"
                 }
             }
@@ -23899,7 +24057,13 @@ const docTemplate = `{
         "codersdk.UserPreferenceSettings": {
             "type": "object",
             "properties": {
+                "agent_chat_send_shortcut": {
+                    "$ref": "#/definitions/codersdk.AgentChatSendShortcut"
+                },
                 "code_diff_display_mode": {
+                    "$ref": "#/definitions/codersdk.AgentDisplayMode"
+                },
+                "shell_tool_display_mode": {
                     "$ref": "#/definitions/codersdk.AgentDisplayMode"
                 },
                 "task_notification_alert_dismissed": {

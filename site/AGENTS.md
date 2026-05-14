@@ -101,6 +101,9 @@ Debug logs and pprof dumps use the same job name and commit SHA convention.
 - Do not use emdash (U+2014), endash (U+2013), or ` -- ` as punctuation
   in code, comments, string literals, or documentation. Use commas,
   semicolons, or periods instead. Restructure the sentence if needed.
+- For JSX boolean props that are `true`, use the shorthand form
+  (`<Foo prop />`) instead of `<Foo prop={true} />`. The two are
+  equivalent; the shorthand is the React convention and reduces noise.
 - **Avoid unnecessary indirection.** Inline single-use module-level
   constants, single-use aliases, and one-line helpers that just return a
   single field at the call site. Do not create wrapper hooks that only

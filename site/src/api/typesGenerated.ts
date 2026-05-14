@@ -69,6 +69,11 @@ export interface AIBridgeConfig {
 	readonly send_actor_headers: boolean;
 	readonly allow_byok: boolean;
 	/**
+	 * Budget settings for AI Governance cost controls.
+	 */
+	readonly budget_policy?: string;
+	readonly budget_period?: string;
+	/**
 	 * Circuit breaker protects against cascading failures from upstream AI
 	 * provider overload (503, 529).
 	 */
@@ -304,6 +309,16 @@ export interface AIBridgeUserPrompt {
 	readonly metadata: Record<string, unknown>;
 	readonly created_at: string;
 }
+
+// From codersdk/deployment.go
+export type AIBudgetPeriod = "month";
+
+export const AIBudgetPeriods: AIBudgetPeriod[] = ["month"];
+
+export const AIBudgetPolicies: AIBudgetPolicy[] = ["highest"];
+
+// From codersdk/deployment.go
+export type AIBudgetPolicy = "highest";
 
 // From codersdk/deployment.go
 export interface AIConfig {
@@ -836,6 +851,14 @@ export interface AdvisorConfig {
 	 */
 	readonly model_config_id: string;
 }
+
+// From codersdk/users.go
+export type AgentChatSendShortcut = "enter" | "modifier_enter";
+
+export const AgentChatSendShortcuts: AgentChatSendShortcut[] = [
+	"enter",
+	"modifier_enter",
+];
 
 // From codersdk/workspacebuilds.go
 export interface AgentConnectionTiming {
@@ -2362,6 +2385,42 @@ export const ChatPlanModes: ChatPlanMode[] = ["plan"];
 
 // From codersdk/chats.go
 /**
+ * ChatPrompt is a single user-authored prompt in a chat, returned by
+ * GET /api/experimental/chats/{chat}/prompts. The text field contains
+ * the concatenated text payload of the underlying chat message; non-text
+ * parts (tool calls, files, attachments) are omitted by the server.
+ */
+export interface ChatPrompt {
+	readonly id: number;
+	readonly text: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatPromptsOptions are optional query parameters for GetChatPrompts.
+ */
+export interface ChatPromptsOptions {
+	/**
+	 * Limit caps the number of prompts returned. The server enforces a
+	 * minimum of 1 and a maximum of 2000; passing 0 (or negative)
+	 * applies the server-side default of 500.
+	 */
+	readonly Limit: number;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatPromptsResponse is the payload of
+ * GET /api/experimental/chats/{chat}/prompts. Prompts are returned
+ * newest first so the client can index directly into the slice for
+ * up/down arrow history cycling.
+ */
+export interface ChatPromptsResponse {
+	readonly prompts: readonly ChatPrompt[];
+}
+
+// From codersdk/chats.go
+/**
  * ChatProviderConfig is an admin-managed provider configuration.
  */
 export interface ChatProviderConfig {
@@ -3063,6 +3122,11 @@ export interface CreateMCPServerConfigRequest {
 	readonly enabled: boolean;
 	readonly model_intent: boolean;
 	readonly allow_in_plan_mode: boolean;
+	/**
+	 * ForwardCoderHeaders, when true, forwards Coder identity
+	 * headers on every outgoing MCP request. See MCPServerConfig.
+	 */
+	readonly forward_coder_headers: boolean;
 }
 
 // From codersdk/organizations.go
@@ -3871,6 +3935,12 @@ export interface DynamicToolResponse {
  */
 export interface EditChatMessageRequest {
 	readonly content: readonly ChatInputPart[];
+	/**
+	 * ModelConfigID, when set, overrides the model used for the
+	 * replacement user message and the assistant turn that follows.
+	 * When nil the original message's model is preserved.
+	 */
+	readonly model_config_id?: string;
 }
 
 // From codersdk/chats.go
@@ -4761,6 +4831,14 @@ export interface MCPServerConfig {
 	readonly enabled: boolean;
 	readonly model_intent: boolean;
 	readonly allow_in_plan_mode: boolean;
+	/**
+	 * ForwardCoderHeaders forwards the same Coder identity headers we
+	 * send to LLM providers (X-Coder-Owner-Id, X-Coder-Chat-Id, and the
+	 * optional X-Coder-Subchat-Id and X-Coder-Workspace-Id) to this
+	 * MCP server on every request. Off by default to avoid leaking
+	 * chat identity to third-party servers.
+	 */
+	readonly forward_coder_headers: boolean;
 	readonly created_at: string;
 	readonly updated_at: string;
 	/**
@@ -6551,6 +6629,12 @@ export interface RequestOneTimePasscodeRequest {
 // From codersdk/workspaces.go
 export interface ResolveAutostartResponse {
 	readonly parameter_mismatch: boolean;
+	/**
+	 * SecretMismatch is true when the active template version declares
+	 * `coder_secret` requirements that the workspace owner's secrets do not
+	 * satisfy.
+	 */
+	readonly secret_mismatch: boolean;
 }
 
 // From codersdk/audit.go
@@ -7861,6 +7945,11 @@ export const TerminalFontNames: TerminalFontName[] = [
 ];
 
 // From codersdk/users.go
+export type ThemeMode = "single" | "sync" | "";
+
+export const ThemeModes: ThemeMode[] = ["single", "sync", ""];
+
+// From codersdk/users.go
 export type ThinkingDisplayMode =
 	| "always_collapsed"
 	| "always_expanded"
@@ -8216,6 +8305,11 @@ export interface UpdateMCPServerConfigRequest {
 	readonly enabled?: boolean;
 	readonly model_intent?: boolean;
 	readonly allow_in_plan_mode?: boolean;
+	/**
+	 * ForwardCoderHeaders, when set, updates whether Coder identity
+	 * headers are forwarded on every outgoing MCP request.
+	 */
+	readonly forward_coder_headers?: boolean;
 }
 
 // From codersdk/notifications.go
@@ -8345,6 +8439,28 @@ export interface UpdateTemplateMeta {
 // From codersdk/users.go
 export interface UpdateUserAppearanceSettingsRequest {
 	readonly theme_preference: string;
+	/**
+	 * ThemeMode is optional for backward compatibility. When empty,
+	 * the server leaves theme_mode, theme_light, and theme_dark
+	 * unchanged so older CLI clients do not erase sync-mode settings.
+	 * Legacy auto preferences are the exception: they clear theme_mode
+	 * so clients can migrate the old sync-with-system setting.
+	 */
+	readonly theme_mode: ThemeMode;
+	/**
+	 * ThemeLight is required when ThemeMode is "sync". In "single"
+	 * mode an empty value means "preserve the previously persisted
+	 * slot" rather than "clear the slot", so partial updates that send
+	 * only one slot keep the other intact.
+	 */
+	readonly theme_light: string;
+	/**
+	 * ThemeDark is required when ThemeMode is "sync". In "single" mode
+	 * an empty value means "preserve the previously persisted slot"
+	 * rather than "clear the slot", so partial updates that send only
+	 * one slot keep the other intact.
+	 */
+	readonly theme_dark: string;
 	readonly terminal_font: TerminalFontName;
 }
 
@@ -8391,7 +8507,9 @@ export interface UpdateUserPasswordRequest {
 export interface UpdateUserPreferenceSettingsRequest {
 	readonly task_notification_alert_dismissed?: boolean;
 	readonly thinking_display_mode?: ThinkingDisplayMode;
+	readonly shell_tool_display_mode?: AgentDisplayMode;
 	readonly code_diff_display_mode?: AgentDisplayMode;
+	readonly agent_chat_send_shortcut?: AgentChatSendShortcut;
 }
 
 // From codersdk/users.go
@@ -8645,7 +8763,24 @@ export interface UserActivityInsightsResponse {
 
 // From codersdk/users.go
 export interface UserAppearanceSettings {
+	/**
+	 * ThemePreference is the legacy single-field appearance setting. In
+	 * "single" mode it mirrors the active theme. In "sync" mode modern
+	 * clients normally mirror the active OS slot, but older clients can
+	 * update only this field, so it may diverge from ThemeLight or
+	 * ThemeDark until a modern client saves the full appearance state
+	 * again.
+	 */
 	readonly theme_preference: string;
+	readonly theme_mode: ThemeMode;
+	/**
+	 * Ignored when ThemeMode is "single"
+	 */
+	readonly theme_light: string;
+	/**
+	 * Ignored when ThemeMode is "single"
+	 */
+	readonly theme_dark: string;
 	readonly terminal_font: TerminalFontName;
 }
 
@@ -8769,7 +8904,9 @@ export interface UserParameter {
 export interface UserPreferenceSettings {
 	readonly task_notification_alert_dismissed: boolean;
 	readonly thinking_display_mode: ThinkingDisplayMode;
+	readonly shell_tool_display_mode: AgentDisplayMode;
 	readonly code_diff_display_mode: AgentDisplayMode;
+	readonly agent_chat_send_shortcut: AgentChatSendShortcut;
 }
 
 // From codersdk/deployment.go

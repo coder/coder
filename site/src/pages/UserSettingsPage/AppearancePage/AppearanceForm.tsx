@@ -52,6 +52,9 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 		}
 		await onSubmit({
 			theme_preference: theme,
+			theme_mode: "",
+			theme_light: "",
+			theme_dark: "",
 			terminal_font: currentTerminalFont,
 		});
 	};
@@ -62,6 +65,9 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 		}
 		await onSubmit({
 			theme_preference: currentTheme,
+			theme_mode: "",
+			theme_light: "",
+			theme_dark: "",
 			terminal_font: terminalFont,
 		});
 	};

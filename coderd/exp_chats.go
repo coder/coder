@@ -312,7 +312,7 @@ func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
-// @Param q query string false "Search query"
+// @Param q query string false "Search query. Supports archived:bool and diff_url:<url> terms (quote URLs)."
 // @Param label query string false "Filter by label as key:value. Repeat for multiple (AND logic)."
 // @Success 200 {array} codersdk.Chat
 // @Router /api/experimental/chats [get]
@@ -368,6 +368,7 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		Archived:    searchParams.Archived,
 		AfterID:     paginationParams.AfterID,
 		LabelFilter: labelFilter,
+		DiffURL:     searchParams.DiffURL,
 		// #nosec G115 - Pagination offsets are small and fit in int32
 		OffsetOpt: int32(paginationParams.Offset),
 		// #nosec G115 - Pagination limits are small and fit in int32
@@ -2090,6 +2091,78 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// @Summary List chat user prompts
+// @ID list-chat-user-prompts
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Param chat path string true "Chat ID" format(uuid)
+// @Param limit query int false "Page size, 0 to 2000. 0 (the default) means the server-side default of 500."
+// @Success 200 {object} codersdk.ChatPromptsResponse
+// @Router /api/experimental/chats/{chat}/prompts [get]
+// @Description Experimental: this endpoint is subject to change.
+// @Description
+// @Description Returns the user-authored prompts in a chat, newest first,
+// @Description with each prompt's text parts concatenated in the order they
+// @Description were authored. Used by the composer to power the up/down
+// @Description arrow prompt-history cycle without paging through every
+// @Description message in the chat.
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
+func (api *API) getChatUserPrompts(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat := httpmw.ChatParam(r)
+	chatID := chat.ID
+
+	queryParams := r.URL.Query()
+	parser := httpapi.NewQueryParamParser()
+	// Default 0 sentinel; the SQL query treats 0 as "use the built-in
+	// default of 500" via COALESCE(NULLIF(@limit_val, 0), 500). The
+	// SDK guards opts.Limit > 0 so callers using the typed client only
+	// reach here with an explicit value; raw HTTP callers can omit the
+	// parameter (or pass 0) to opt into the default.
+	limit := parser.PositiveInt32(queryParams, 0, "limit")
+	if len(parser.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Query parameters have invalid values.",
+			Validations: parser.Errors,
+		})
+		return
+	}
+	// PositiveInt32 already rejects negatives via parser.Errors above,
+	// so we only need to cap the upper bound here.
+	if limit > 2000 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid limit parameter (0-2000).",
+		})
+		return
+	}
+
+	rows, err := api.Database.GetChatUserPromptsByChatID(ctx, database.GetChatUserPromptsByChatIDParams{
+		ChatID:   chatID,
+		LimitVal: limit,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get chat user prompts.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	prompts := make([]codersdk.ChatPrompt, 0, len(rows))
+	for _, row := range rows {
+		prompts = append(prompts, codersdk.ChatPrompt{
+			ID:   row.ID,
+			Text: row.Text,
+		})
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatPromptsResponse{
+		Prompts: prompts,
+	})
+}
+
 // authorizeChatWorkspaceExec enforces the workspace-level permissions
 // shared by the chat stream endpoints that proxy a live websocket into
 // the workspace agent (currently /stream/git and /stream/desktop).
@@ -3060,11 +3133,17 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	editModelConfigID := uuid.Nil
+	if req.ModelConfigID != nil {
+		editModelConfigID = *req.ModelConfigID
+	}
+
 	editResult, editErr := api.chatDaemon.EditMessage(ctx, chatd.EditMessageOptions{
 		ChatID:          chat.ID,
 		CreatedBy:       apiKey.UserID,
 		EditedMessageID: messageID,
 		Content:         contentBlocks,
+		ModelConfigID:   editModelConfigID,
 	})
 	if editErr != nil {
 		if maybeWriteLimitErr(ctx, rw, editErr) {
@@ -3084,6 +3163,10 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		case xerrors.Is(editErr, chatd.ErrEditedMessageNotUser):
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Only user messages can be edited.",
+			})
+		case xerrors.Is(editErr, chatd.ErrInvalidModelConfigID):
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid model config ID.",
 			})
 		default:
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

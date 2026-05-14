@@ -102,7 +102,6 @@ const OrganizationMembersPage: FC = () => {
 				error={
 					membersQuery.error ??
 					organizationRolesQuery.error ??
-					groupsByUserIdQuery.error ??
 					addMemberMutation.error ??
 					removeMemberMutation.error ??
 					updateMemberRolesMutation.error

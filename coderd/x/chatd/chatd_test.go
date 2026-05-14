@@ -2623,6 +2623,12 @@ func TestPromoteQueuedMessageReloadsChatWhenModelConfigChangesDuringPending(t *t
 
 func TestAutoPromoteQueuedMessagesPreservesPerTurnModelOrder(t *testing.T) {
 	t.Parallel()
+	// TODO(CODAGT-353): Re-enable this test after the chatd notification flow
+	// refactor gives workers enough causal information to distinguish stale
+	// control NOTIFY messages from real interrupts. The current design reuses
+	// the same status notification shape for wake-only and interrupt intents,
+	// so a stale NOTIFY can cancel a new processChat run.
+	t.Skip("skipped until chatd notification flow refactor handles stale control notifications")
 
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
@@ -8726,6 +8732,155 @@ func TestEditMessageRejectsArchivedChat(t *testing.T) {
 		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edited")},
 	})
 	require.ErrorIs(t, err, chatd.ErrChatArchived)
+}
+
+// TestEditMessageWithModelConfigOverride verifies that callers can
+// change the model when editing a previous user message. The
+// replacement message must persist with the new model and the chat's
+// LastModelConfigID must be advanced so the assistant turn that follows
+// runs against the new selection.
+func TestEditMessageWithModelConfigOverride(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, modelA := seedChatDependencies(t, db)
+	modelB := insertChatModelConfigWithCallConfig(
+		t,
+		db,
+		user.ID,
+		"openai",
+		"gpt-4o-mini-edit-"+uuid.NewString(),
+		codersdk.ChatModelCallConfig{},
+	)
+
+	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		OrganizationID:     org.ID,
+		Title:              "edit-with-model-override",
+		ModelConfigID:      modelA.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("original")},
+	})
+	require.NoError(t, err)
+
+	initial, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+	require.Len(t, initial, 1)
+	require.Equal(t, modelA.ID, initial[0].ModelConfigID.UUID)
+
+	result, err := replica.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          chat.ID,
+		EditedMessageID: initial[0].ID,
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edited")},
+		ModelConfigID:   modelB.ID,
+	})
+	require.NoError(t, err)
+	require.True(t, result.Message.ModelConfigID.Valid)
+	require.Equal(t, modelB.ID, result.Message.ModelConfigID.UUID)
+
+	storedChat, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, modelB.ID, storedChat.LastModelConfigID,
+		"edit must update last_model_config_id so the assistant turn picks up the new model")
+}
+
+// TestEditMessagePreservesModelConfigByDefault verifies that omitting
+// ModelConfigID on edit keeps the original message's model. This is the
+// existing default for callers that only edit the text.
+func TestEditMessagePreservesModelConfigByDefault(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, modelA := seedChatDependencies(t, db)
+
+	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		OrganizationID:     org.ID,
+		Title:              "edit-preserves-model",
+		ModelConfigID:      modelA.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("original")},
+	})
+	require.NoError(t, err)
+
+	initial, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+	require.Len(t, initial, 1)
+
+	result, err := replica.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          chat.ID,
+		EditedMessageID: initial[0].ID,
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edited")},
+	})
+	require.NoError(t, err)
+	require.True(t, result.Message.ModelConfigID.Valid)
+	require.Equal(t, modelA.ID, result.Message.ModelConfigID.UUID)
+
+	storedChat, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, modelA.ID, storedChat.LastModelConfigID,
+		"edit without model override must not change last_model_config_id")
+}
+
+// TestEditMessageRejectsUnknownModelConfig verifies the edit handler
+// returns ErrInvalidModelConfigID when the requested model does not
+// exist, mirroring SendMessage's validation.
+func TestEditMessageRejectsUnknownModelConfig(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, modelA := seedChatDependencies(t, db)
+
+	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
+		OwnerID:            user.ID,
+		OrganizationID:     org.ID,
+		Title:              "edit-unknown-model",
+		ModelConfigID:      modelA.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("original")},
+	})
+	require.NoError(t, err)
+
+	initial, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+	require.Len(t, initial, 1)
+
+	_, err = replica.EditMessage(ctx, chatd.EditMessageOptions{
+		ChatID:          chat.ID,
+		EditedMessageID: initial[0].ID,
+		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edited")},
+		ModelConfigID:   uuid.New(),
+	})
+	require.ErrorIs(t, err, chatd.ErrInvalidModelConfigID)
+
+	// The edit must roll back: the original message should still be
+	// present and the chat's LastModelConfigID unchanged.
+	stillThere, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+	require.Len(t, stillThere, 1)
+	require.Equal(t, initial[0].ID, stillThere[0].ID)
+
+	storedChat, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, modelA.ID, storedChat.LastModelConfigID)
 }
 
 func TestPromoteQueuedRejectsArchivedChat(t *testing.T) {

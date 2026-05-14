@@ -277,6 +277,38 @@ ORDER BY
 LIMIT
     COALESCE(NULLIF(@limit_val::int, 0), 50);
 
+-- name: GetChatUserPromptsByChatID :many
+-- Returns the concatenated text of each user-visible user prompt in a
+-- chat, newest first. Used by the composer to populate the up/down
+-- arrow prompt-history cycle. Non-text parts (tool calls, files,
+-- attachments, ...) are excluded; messages whose text payload is
+-- entirely whitespace are dropped so cycling never lands on a blank
+-- entry. The jsonb_typeof guard skips legacy V0 rows whose content is
+-- a scalar JSON string (predates migration 000434) so the lateral
+-- jsonb_array_elements never raises "cannot extract elements from a
+-- scalar". Backed by idx_chat_messages_user_prompts.
+SELECT
+    cm.id,
+    string_agg(part->>'text', '' ORDER BY ordinality)::text AS text
+FROM
+    chat_messages cm,
+    jsonb_array_elements(cm.content) WITH ORDINALITY AS t(part, ordinality)
+WHERE
+    cm.chat_id = @chat_id::uuid
+    AND cm.role = 'user'
+    AND cm.deleted = false
+    AND cm.visibility IN ('user', 'both')
+    AND jsonb_typeof(cm.content) = 'array'
+    AND part->>'type' = 'text'
+GROUP BY
+    cm.id
+HAVING
+    string_agg(part->>'text', '') ~ '\S'
+ORDER BY
+    cm.id DESC
+LIMIT
+    COALESCE(NULLIF(@limit_val::int, 0), 500);
+
 -- name: GetChatMessagesForPromptByChatID :many
 WITH latest_compressed_summary AS (
     SELECT
@@ -375,6 +407,22 @@ WHERE
     END
     AND CASE
         WHEN sqlc.narg('label_filter')::jsonb IS NOT NULL THEN chats.labels @> sqlc.narg('label_filter')::jsonb
+        ELSE true
+    END
+    -- Match chats whose linked diff URL (e.g. a pull request URL)
+    -- equals the given value, case-insensitively. The URL may live on
+    -- a delegated sub-agent's diff status, so we surface the root chat
+    -- when any descendant matches.
+    AND CASE
+        WHEN sqlc.narg('diff_url')::text IS NOT NULL THEN EXISTS (
+            SELECT 1
+            FROM chat_diff_statuses cds
+            JOIN chats c2 ON c2.id = cds.chat_id
+            WHERE cds.url IS NOT NULL
+              AND cds.url <> ''
+              AND LOWER(cds.url) = LOWER(sqlc.narg('diff_url')::text)
+              AND (c2.id = chats.id OR c2.root_chat_id = chats.id)
+        )
         ELSE true
     END
     -- Paginate over root chats only. Children are fetched

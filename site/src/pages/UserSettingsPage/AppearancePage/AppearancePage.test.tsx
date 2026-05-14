@@ -12,6 +12,9 @@ describe("appearance page", () => {
 		vi.spyOn(API, "updateAppearanceSettings").mockResolvedValueOnce({
 			...MockUserOwner,
 			theme_preference: "dark",
+			theme_mode: "single",
+			theme_light: "light",
+			theme_dark: "dark",
 			terminal_font: "fira-code",
 		});
 
@@ -29,6 +32,9 @@ describe("appearance page", () => {
 			...MockUserOwner,
 			terminal_font: "geist-mono",
 			theme_preference: "light",
+			theme_mode: "single",
+			theme_light: "light",
+			theme_dark: "dark",
 		});
 
 		const light = await screen.findByText("Light");
@@ -36,10 +42,12 @@ describe("appearance page", () => {
 
 		// Check if the API was called correctly
 		expect(API.updateAppearanceSettings).toHaveBeenCalledTimes(1);
-		expect(API.updateAppearanceSettings).toHaveBeenCalledWith({
-			terminal_font: "geist-mono",
-			theme_preference: "light",
-		});
+		expect(API.updateAppearanceSettings).toHaveBeenCalledWith(
+			expect.objectContaining({
+				terminal_font: "geist-mono",
+				theme_preference: "light",
+			}),
+		);
 	});
 
 	it("changes font to fira code", async () => {
@@ -49,6 +57,9 @@ describe("appearance page", () => {
 			...MockUserOwner,
 			terminal_font: "fira-code",
 			theme_preference: "dark",
+			theme_mode: "single",
+			theme_light: "light",
+			theme_dark: "dark",
 		});
 
 		const firaCode = await screen.findByText("Fira Code");
@@ -56,10 +67,12 @@ describe("appearance page", () => {
 
 		// Check if the API was called correctly
 		expect(API.updateAppearanceSettings).toHaveBeenCalledTimes(1);
-		expect(API.updateAppearanceSettings).toHaveBeenCalledWith({
-			terminal_font: "fira-code",
-			theme_preference: "dark",
-		});
+		expect(API.updateAppearanceSettings).toHaveBeenCalledWith(
+			expect.objectContaining({
+				terminal_font: "fira-code",
+				theme_preference: "dark",
+			}),
+		);
 	});
 
 	it("changes font to fira code, then back to geist mono", async () => {
@@ -71,11 +84,17 @@ describe("appearance page", () => {
 				...MockUserOwner,
 				terminal_font: "fira-code",
 				theme_preference: "dark",
+				theme_mode: "single",
+				theme_light: "light",
+				theme_dark: "dark",
 			})
 			.mockResolvedValueOnce({
 				...MockUserOwner,
 				terminal_font: "geist-mono",
 				theme_preference: "dark",
+				theme_mode: "single",
+				theme_light: "light",
+				theme_dark: "dark",
 			});
 
 		// when
@@ -84,10 +103,12 @@ describe("appearance page", () => {
 
 		// then
 		expect(API.updateAppearanceSettings).toHaveBeenCalledTimes(1);
-		expect(API.updateAppearanceSettings).toHaveBeenCalledWith({
-			terminal_font: "fira-code",
-			theme_preference: "dark",
-		});
+		expect(API.updateAppearanceSettings).toHaveBeenCalledWith(
+			expect.objectContaining({
+				terminal_font: "fira-code",
+				theme_preference: "dark",
+			}),
+		);
 
 		// when
 		const geistMono = await screen.findByText("Geist Mono");
@@ -95,9 +116,12 @@ describe("appearance page", () => {
 
 		// then
 		expect(API.updateAppearanceSettings).toHaveBeenCalledTimes(2);
-		expect(API.updateAppearanceSettings).toHaveBeenNthCalledWith(2, {
-			terminal_font: "geist-mono",
-			theme_preference: "dark",
-		});
+		expect(API.updateAppearanceSettings).toHaveBeenNthCalledWith(
+			2,
+			expect.objectContaining({
+				terminal_font: "geist-mono",
+				theme_preference: "dark",
+			}),
+		);
 	});
 });

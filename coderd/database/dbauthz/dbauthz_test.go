@@ -813,6 +813,14 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatMessagesByChatIDDescPaginated(gomock.Any(), arg).Return(msgs, nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionRead).Returns(msgs)
 	}))
+	s.Run("GetChatUserPromptsByChatID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		rows := []database.GetChatUserPromptsByChatIDRow{{ID: 1, Text: "hello"}}
+		arg := database.GetChatUserPromptsByChatIDParams{ChatID: chat.ID, LimitVal: 500}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().GetChatUserPromptsByChatID(gomock.Any(), arg).Return(rows, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionRead).Returns(rows)
+	}))
 	s.Run("GetLastChatMessageByRole", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		msg := testutil.Fake(s.T(), faker, database.ChatMessage{ChatID: chat.ID})
@@ -2701,11 +2709,18 @@ func (s *MethodTestSuite) TestUser() {
 		dbm.EXPECT().GetUserWorkspaceBuildParameters(gomock.Any(), arg).Return([]database.GetUserWorkspaceBuildParametersRow{}, nil).AnyTimes()
 		check.Args(arg).Asserts(u, policy.ActionReadPersonal).Returns([]database.GetUserWorkspaceBuildParametersRow{})
 	}))
-	s.Run("GetUserThemePreference", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+	s.Run("GetUserAppearanceSettings", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
+		settings := database.GetUserAppearanceSettingsRow{
+			ThemePreference: "dark",
+			ThemeMode:       "sync",
+			ThemeLight:      "light",
+			ThemeDark:       "dark",
+			TerminalFont:    "geist-mono",
+		}
 		dbm.EXPECT().GetUserByID(gomock.Any(), u.ID).Return(u, nil).AnyTimes()
-		dbm.EXPECT().GetUserThemePreference(gomock.Any(), u.ID).Return("light", nil).AnyTimes()
-		check.Args(u.ID).Asserts(u, policy.ActionReadPersonal).Returns("light")
+		dbm.EXPECT().GetUserAppearanceSettings(gomock.Any(), u.ID).Return(settings, nil).AnyTimes()
+		check.Args(u.ID).Asserts(u, policy.ActionReadPersonal).Returns(settings)
 	}))
 	s.Run("UpdateUserThemePreference", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
@@ -2715,18 +2730,36 @@ func (s *MethodTestSuite) TestUser() {
 		dbm.EXPECT().UpdateUserThemePreference(gomock.Any(), arg).Return(uc, nil).AnyTimes()
 		check.Args(arg).Asserts(u, policy.ActionUpdatePersonal).Returns(uc)
 	}))
-	s.Run("GetUserTerminalFont", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		u := testutil.Fake(s.T(), faker, database.User{})
-		dbm.EXPECT().GetUserByID(gomock.Any(), u.ID).Return(u, nil).AnyTimes()
-		dbm.EXPECT().GetUserTerminalFont(gomock.Any(), u.ID).Return("ibm-plex-mono", nil).AnyTimes()
-		check.Args(u.ID).Asserts(u, policy.ActionReadPersonal).Returns("ibm-plex-mono")
-	}))
 	s.Run("UpdateUserTerminalFont", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
 		uc := database.UserConfig{UserID: u.ID, Key: "terminal_font", Value: "ibm-plex-mono"}
 		arg := database.UpdateUserTerminalFontParams{UserID: u.ID, TerminalFont: uc.Value}
 		dbm.EXPECT().GetUserByID(gomock.Any(), u.ID).Return(u, nil).AnyTimes()
 		dbm.EXPECT().UpdateUserTerminalFont(gomock.Any(), arg).Return(uc, nil).AnyTimes()
+		check.Args(arg).Asserts(u, policy.ActionUpdatePersonal).Returns(uc)
+	}))
+	s.Run("UpdateUserThemeMode", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		u := testutil.Fake(s.T(), faker, database.User{})
+		uc := database.UserConfig{UserID: u.ID, Key: "theme_mode", Value: "sync"}
+		arg := database.UpdateUserThemeModeParams{UserID: u.ID, ThemeMode: uc.Value}
+		dbm.EXPECT().GetUserByID(gomock.Any(), u.ID).Return(u, nil).AnyTimes()
+		dbm.EXPECT().UpdateUserThemeMode(gomock.Any(), arg).Return(uc, nil).AnyTimes()
+		check.Args(arg).Asserts(u, policy.ActionUpdatePersonal).Returns(uc)
+	}))
+	s.Run("UpdateUserThemeLight", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		u := testutil.Fake(s.T(), faker, database.User{})
+		uc := database.UserConfig{UserID: u.ID, Key: "theme_light", Value: "light"}
+		arg := database.UpdateUserThemeLightParams{UserID: u.ID, ThemeLight: uc.Value}
+		dbm.EXPECT().GetUserByID(gomock.Any(), u.ID).Return(u, nil).AnyTimes()
+		dbm.EXPECT().UpdateUserThemeLight(gomock.Any(), arg).Return(uc, nil).AnyTimes()
+		check.Args(arg).Asserts(u, policy.ActionUpdatePersonal).Returns(uc)
+	}))
+	s.Run("UpdateUserThemeDark", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		u := testutil.Fake(s.T(), faker, database.User{})
+		uc := database.UserConfig{UserID: u.ID, Key: "theme_dark", Value: "dark"}
+		arg := database.UpdateUserThemeDarkParams{UserID: u.ID, ThemeDark: uc.Value}
+		dbm.EXPECT().GetUserByID(gomock.Any(), u.ID).Return(u, nil).AnyTimes()
+		dbm.EXPECT().UpdateUserThemeDark(gomock.Any(), arg).Return(uc, nil).AnyTimes()
 		check.Args(arg).Asserts(u, policy.ActionUpdatePersonal).Returns(uc)
 	}))
 	s.Run("GetUserTaskNotificationAlertDismissed", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
@@ -2829,6 +2862,19 @@ func (s *MethodTestSuite) TestUser() {
 		dbm.EXPECT().UpdateUserThinkingDisplayMode(gomock.Any(), arg).Return("always_expanded", nil).AnyTimes()
 		check.Args(arg).Asserts(u, policy.ActionUpdatePersonal).Returns("always_expanded")
 	}))
+	s.Run("GetUserShellToolDisplayMode", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		u := testutil.Fake(s.T(), faker, database.User{})
+		dbm.EXPECT().GetUserByID(gomock.Any(), u.ID).Return(u, nil).AnyTimes()
+		dbm.EXPECT().GetUserShellToolDisplayMode(gomock.Any(), u.ID).Return("auto", nil).AnyTimes()
+		check.Args(u.ID).Asserts(u, policy.ActionReadPersonal).Returns("auto")
+	}))
+	s.Run("UpdateUserShellToolDisplayMode", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		u := testutil.Fake(s.T(), faker, database.User{})
+		arg := database.UpdateUserShellToolDisplayModeParams{UserID: u.ID, ShellToolDisplayMode: "always_collapsed"}
+		dbm.EXPECT().GetUserByID(gomock.Any(), u.ID).Return(u, nil).AnyTimes()
+		dbm.EXPECT().UpdateUserShellToolDisplayMode(gomock.Any(), arg).Return("always_collapsed", nil).AnyTimes()
+		check.Args(arg).Asserts(u, policy.ActionUpdatePersonal).Returns("always_collapsed")
+	}))
 	s.Run("GetUserCodeDiffDisplayMode", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
 		dbm.EXPECT().GetUserByID(gomock.Any(), u.ID).Return(u, nil).AnyTimes()
@@ -2841,6 +2887,19 @@ func (s *MethodTestSuite) TestUser() {
 		dbm.EXPECT().GetUserByID(gomock.Any(), u.ID).Return(u, nil).AnyTimes()
 		dbm.EXPECT().UpdateUserCodeDiffDisplayMode(gomock.Any(), arg).Return("always_collapsed", nil).AnyTimes()
 		check.Args(arg).Asserts(u, policy.ActionUpdatePersonal).Returns("always_collapsed")
+	}))
+	s.Run("GetUserAgentChatSendShortcut", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		u := testutil.Fake(s.T(), faker, database.User{})
+		dbm.EXPECT().GetUserByID(gomock.Any(), u.ID).Return(u, nil).AnyTimes()
+		dbm.EXPECT().GetUserAgentChatSendShortcut(gomock.Any(), u.ID).Return("modifier_enter", nil).AnyTimes()
+		check.Args(u.ID).Asserts(u, policy.ActionReadPersonal).Returns("modifier_enter")
+	}))
+	s.Run("UpdateUserAgentChatSendShortcut", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		u := testutil.Fake(s.T(), faker, database.User{})
+		arg := database.UpdateUserAgentChatSendShortcutParams{UserID: u.ID, AgentChatSendShortcut: "modifier_enter"}
+		dbm.EXPECT().GetUserByID(gomock.Any(), u.ID).Return(u, nil).AnyTimes()
+		dbm.EXPECT().UpdateUserAgentChatSendShortcut(gomock.Any(), arg).Return("modifier_enter", nil).AnyTimes()
+		check.Args(arg).Asserts(u, policy.ActionUpdatePersonal).Returns("modifier_enter")
 	}))
 	s.Run("ListUserChatCompactionThresholds", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
@@ -3242,6 +3301,19 @@ func (s *MethodTestSuite) TestWorkspace() {
 		check.Args(authInstanceID).
 			Asserts(rbac.ResourceSystem, policy.ActionRead, w, policy.ActionRead).
 			Returns([]database.WorkspaceAgent{agt}).
+			FailSystemObjectChecks()
+	}))
+	s.Run("GetWorkspaceBuildAgentsByInstanceID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		w := testutil.Fake(s.T(), faker, database.WorkspaceTable{})
+		agt := testutil.Fake(s.T(), faker, database.WorkspaceAgent{})
+		row := testutil.Fake(s.T(), faker, database.GetWorkspaceBuildAgentsByInstanceIDRow{})
+		row.WorkspaceAgent = agt
+		row.WorkspaceTable = w
+		authInstanceID := "instance-id"
+		dbm.EXPECT().GetWorkspaceBuildAgentsByInstanceID(gomock.Any(), authInstanceID).Return([]database.GetWorkspaceBuildAgentsByInstanceIDRow{row}, nil).AnyTimes()
+		check.Args(authInstanceID).
+			Asserts(rbac.ResourceSystem, policy.ActionRead, w, policy.ActionRead).
+			Returns([]database.GetWorkspaceBuildAgentsByInstanceIDRow{row}).
 			FailSystemObjectChecks()
 	}))
 	s.Run("UpdateWorkspaceAgentLifecycleStateByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
