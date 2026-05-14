@@ -163,7 +163,7 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 		log.Debug(ctx, "encrypted chat provider key", slog.F("provider", provider.Provider), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
 	}
 
-	aiProviders, err := cryptDB.GetAIProviders(ctx, database.GetAIProvidersParams{})
+	aiProviders, err := cryptDB.GetAIProviders(ctx, database.GetAIProvidersParams{IncludeDeleted: true, IncludeDisabled: true})
 	if err != nil {
 		return xerrors.Errorf("get ai providers: %w", err)
 	}
@@ -173,7 +173,7 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 			log.Debug(ctx, "skipping ai provider", slog.F("ai_provider_id", ap.ID), slog.F("name", ap.Name), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
 			continue
 		}
-		if _, err := cryptDB.UpdateAIProviderSettings(ctx, database.UpdateAIProviderSettingsParams{
+		if _, err := cryptDB.UpdateEncryptedAIProviderSettings(ctx, database.UpdateEncryptedAIProviderSettingsParams{
 			ID:            ap.ID,
 			Settings:      ap.Settings,
 			SettingsKeyID: sql.NullString{}, // dbcrypt will update as required
@@ -366,7 +366,7 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 		log.Debug(ctx, "decrypted chat provider key", slog.F("provider", provider.Provider), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
 	}
 
-	aiProviders, err := cryptDB.GetAIProviders(ctx, database.GetAIProvidersParams{})
+	aiProviders, err := cryptDB.GetAIProviders(ctx, database.GetAIProvidersParams{IncludeDeleted: true, IncludeDisabled: true})
 	if err != nil {
 		return xerrors.Errorf("get ai providers: %w", err)
 	}
@@ -376,7 +376,7 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 			log.Debug(ctx, "skipping ai provider", slog.F("ai_provider_id", ap.ID), slog.F("name", ap.Name), slog.F("current", idx+1))
 			continue
 		}
-		if _, err := cryptDB.UpdateAIProviderSettings(ctx, database.UpdateAIProviderSettingsParams{
+		if _, err := cryptDB.UpdateEncryptedAIProviderSettings(ctx, database.UpdateEncryptedAIProviderSettingsParams{
 			ID:            ap.ID,
 			Settings:      ap.Settings,
 			SettingsKeyID: sql.NullString{}, // explicitly clear the key id

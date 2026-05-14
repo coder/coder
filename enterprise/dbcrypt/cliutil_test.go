@@ -23,7 +23,7 @@ import (
 // across the live/deleted boundary.
 func findAIProviderByID(ctx context.Context, t *testing.T, db database.Store, id uuid.UUID) database.AIProvider {
 	t.Helper()
-	all, err := db.GetAIProviders(ctx, database.GetAIProvidersParams{})
+	all, err := db.GetAIProviders(ctx, database.GetAIProvidersParams{IncludeDeleted: true, IncludeDisabled: true})
 	require.NoError(t, err)
 	idx := slices.IndexFunc(all, func(p database.AIProvider) bool { return p.ID == id })
 	require.GreaterOrEqual(t, idx, 0, "provider %s not found", id)
@@ -67,8 +67,7 @@ func TestRotateAIProviders(t *testing.T) {
 		Name:     "soft-deleted",
 		Settings: sql.NullString{String: settingsDelete, Valid: true},
 	})
-	_, err = rawDB.DeleteAIProviderByID(ctx, deleted.ID)
-	require.NoError(t, err)
+	require.NoError(t, rawDB.DeleteAIProviderByID(ctx, deleted.ID))
 
 	// Both rows should have key IDs pointing at the old cipher's
 	// digest before rotation.
@@ -159,8 +158,7 @@ func TestRotateAIProviderKeys(t *testing.T) {
 		ProviderID: deletedProvider.ID,
 		APIKey:     apiKeyDeleted,
 	})
-	_, err = rawDB.DeleteAIProviderByID(ctx, deletedProvider.ID)
-	require.NoError(t, err)
+	require.NoError(t, rawDB.DeleteAIProviderByID(ctx, deletedProvider.ID))
 
 	beforeAlive, err := rawDB.GetAIProviderKeyByID(ctx, aliveKey.ID)
 	require.NoError(t, err)
