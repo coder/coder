@@ -23,9 +23,11 @@ func newSlowConsumerPubsub(t *testing.T) *Pubsub {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
 	ps, err := New(ctx, logger, Options{
-		// Tiny pending limit on subscriber forces NATS to drop messages
-		// when the listener blocks.
-		PendingLimits: PendingLimits{Msgs: 1, Bytes: 1024 * 1024},
+		// Tight pending limit so the parked listener overflows the
+		// per-listener inbox quickly while still leaving enough head
+		// room for a post-burst "marker" publish to enqueue without
+		// racing the dispatcher under the race detector.
+		PendingLimits: PendingLimits{Msgs: 8, Bytes: 1024 * 1024},
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = ps.Close() })
@@ -115,8 +117,22 @@ collect:
 	})
 	require.NoError(t, err)
 	defer cancel2()
+	// Retry the marker on a fast tick so a single in-flight publish
+	// that happens to race the post-burst dispatcher drain cannot
+	// fail the assertion under the race detector.
+	markerTick := time.NewTicker(testutil.IntervalMedium)
+	defer markerTick.Stop()
 	require.NoError(t, ps.Publish(event, []byte("post-drop-marker")))
-	_ = testutil.TryReceive(ctx, t, gotMarker)
+	for {
+		select {
+		case <-gotMarker:
+			return
+		case <-markerTick.C:
+			require.NoError(t, ps.Publish(event, []byte("post-drop-marker")))
+		case <-ctx.Done():
+			t.Fatalf("did not receive post-drop-marker: %v", ctx.Err())
+		}
+	}
 }
 
 // TestSlowConsumer_PlainSubscribeNoErrCallback ensures that the plain
@@ -156,7 +172,13 @@ func TestSlowConsumer_PlainSubscribeNoErrCallback(t *testing.T) {
 	// listener).
 	_ = testutil.TryReceive(ctx, t, got)
 
-	// Marker should still be delivered.
+	// Marker should still be delivered. With same-subject coalescing
+	// the per-listener inbox is bounded by Options.PendingLimits, and
+	// the post-burst dispatcher race against marker enqueue is small
+	// but real under -race; retry the publish on a fast tick until
+	// the marker round-trips through the listener.
+	markerSent := time.NewTicker(testutil.IntervalMedium)
+	defer markerSent.Stop()
 	require.NoError(t, ps.Publish(event, []byte("marker")))
 	deadline := time.After(testutil.WaitShort)
 	for {
@@ -165,6 +187,10 @@ func TestSlowConsumer_PlainSubscribeNoErrCallback(t *testing.T) {
 			if string(msg) == "marker" {
 				return
 			}
+		case <-markerSent.C:
+			// Re-publish to absorb local-queue-overflow drops that
+			// can swallow a single in-flight marker.
+			require.NoError(t, ps.Publish(event, []byte("marker")))
 		case <-deadline:
 			t.Fatal("did not receive post-drop marker")
 		}
@@ -258,12 +284,31 @@ drain:
 	ps.handleSlowConsumer(s)
 
 	// Drain any drop callbacks that arrived during the stabilization
-	// wait so the post-manual check sees a clean channel.
-	for done := false; !done; {
+	// wait so the post-manual check sees a clean channel. The
+	// coalesced wrapper has two drop emission paths (NATS-level
+	// slow-consumer and per-listener inbox overflow). The inbox
+	// overflow path runs on an independent emitter goroutine, so we
+	// also drop any pending entry off s.dropSignal and then drain
+	// deliveries until a quiet period elapses; otherwise an in-flight
+	// emitter callback could race the post-handleAsync check below.
+drainSignal:
+	for {
+		select {
+		case <-s.dropSignal:
+		default:
+			break drainSignal
+		}
+	}
+	drainDeadline := time.After(testutil.IntervalSlow)
+drainDeliveries:
+	for {
 		select {
 		case <-deliveries:
-		default:
-			done = true
+			// Reset the quiet timer: a late emitter callback may
+			// still be in flight.
+			drainDeadline = time.After(testutil.IntervalSlow)
+		case <-drainDeadline:
+			break drainDeliveries
 		}
 	}
 

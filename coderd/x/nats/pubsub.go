@@ -44,9 +44,20 @@ type Pubsub struct {
 	// for NewFromConn, which reuses the external connection for subs.
 	ownsSubConn bool
 
-	mu          sync.Mutex
-	subs        map[*subscription]struct{}
-	subsByNATS  map[*natsgo.Subscription]*subscription
+	mu sync.Mutex
+	// subs is the set of all local listeners across all subjects. Each
+	// element is one Subscribe / SubscribeWithErr call's local handle.
+	subs map[*subscription]struct{}
+	// sharedBySubject coalesces concurrent local subscribers on the
+	// same NATS subject onto a single underlying *natsgo.Subscription.
+	// See sharedSub.
+	sharedBySubject map[string]*sharedSub
+	// sharedByNATS routes async NATS subscription-level errors (notably
+	// ErrSlowConsumer) back to the sharedSub that owns them.
+	sharedByNATS map[*natsgo.Subscription]*sharedSub
+	// eventCounts tracks the number of local listeners per legacy event
+	// name. Maintained for backward compatibility; unused by the
+	// wrapper itself.
 	eventCounts map[string]int
 	closeOnce   sync.Once
 
@@ -85,15 +96,74 @@ type Pubsub struct {
 	effectiveClusterToken string
 }
 
+// sharedSub coalesces local subscribers on the same NATS subject onto a
+// single *natsgo.Subscription. The first local subscriber for a subject
+// creates the underlying subscription; later subscribers attach to it.
+// When the last local subscriber detaches, the underlying subscription
+// is drained / unsubscribed.
+//
+// All mutable fields below (listeners, lastDropped) are protected by
+// the parent Pubsub.mu, except dropMu / lastDropped which use their own
+// mutex so the async error callback can update drop accounting without
+// taking the parent Pubsub.mu.
+type sharedSub struct {
+	// subject is the full NATS subject this shared subscription is
+	// registered against.
+	subject string
+	// sub is the underlying *natsgo.Subscription. Lifecycle is tied to
+	// listeners: created on the first attach, drained/unsubscribed
+	// when the last listener detaches.
+	sub *natsgo.Subscription
+	// listeners is the set of local listeners attached to this shared
+	// subscription. Guarded by p.mu.
+	listeners map[*subscription]struct{}
+
+	// dropMu guards lastDropped, which dedups
+	// pubsub.ErrDroppedMessages broadcasts: NATS reports a cumulative
+	// dropped-count per subscription, so we only broadcast a new
+	// callback when the count advances.
+	dropMu      sync.Mutex
+	lastDropped uint64
+}
+
+// subscription is the local handle a Subscribe / SubscribeWithErr
+// caller holds. Each local subscriber gets its own bounded inbox and
+// dispatcher goroutine so a single slow listener cannot block deliveries
+// to its peers on the same subject.
 type subscription struct {
+	// sub aliases shared.sub so existing internal tests that reach into
+	// s.sub directly continue to compile. Do not call Unsubscribe /
+	// Drain via this field: the shared subscription's lifecycle is
+	// managed by Pubsub via shared.
 	sub        *natsgo.Subscription
 	cancelOnce sync.Once
 
 	event    string
 	listener pubsub.ListenerWithErr
 
-	dropMu      sync.Mutex
-	lastDropped uint64
+	// shared is the per-subject coalescing entry this listener is
+	// attached to. Never nil after a successful Subscribe.
+	shared *sharedSub
+
+	// queue is the per-listener data fan-out inbox. The shared NATS
+	// callback enqueues non-blockingly; when full, the message is
+	// dropped and a signal is pushed onto dropSignal so this listener
+	// learns about the drop independent of dispatcher progress.
+	queue chan []byte
+	// dropSignal is a size-1 buffered channel used to wake the drop
+	// emitter goroutine without blocking. Multiple drop sources
+	// (local overflow, NATS slow-consumer broadcast) coalesce onto a
+	// single pending signal between emitter dequeues.
+	dropSignal chan struct{}
+	// stop is closed by cancelFn to signal both dispatcher and drop
+	// emitter to exit.
+	stop chan struct{}
+	// dispatcherDone is closed by the dispatcher goroutine on exit;
+	// cancel waits on it so any in-flight data user callback completes
+	// before Drain.
+	dispatcherDone chan struct{}
+	// emitterDone is closed by the drop emitter goroutine on exit.
+	emitterDone chan struct{}
 }
 
 // Compile-time assertion that *Pubsub satisfies the pubsub.Pubsub interface.
@@ -103,13 +173,14 @@ var _ pubsub.Pubsub = (*Pubsub)(nil)
 func newPubsub(logger slog.Logger, opts Options) *Pubsub {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Pubsub{
-		logger:      logger,
-		opts:        opts,
-		subs:        make(map[*subscription]struct{}),
-		subsByNATS:  make(map[*natsgo.Subscription]*subscription),
-		eventCounts: make(map[string]int),
-		ctx:         ctx,
-		cancel:      cancel,
+		logger:          logger,
+		opts:            opts,
+		subs:            make(map[*subscription]struct{}),
+		sharedBySubject: make(map[string]*sharedSub),
+		sharedByNATS:    make(map[*natsgo.Subscription]*sharedSub),
+		eventCounts:     make(map[string]int),
+		ctx:             ctx,
+		cancel:          cancel,
 	}
 }
 
@@ -367,6 +438,12 @@ func (p *Pubsub) Subscribe(event string, listener pubsub.Listener) (cancel func(
 // SubscribeWithErr subscribes a ListenerWithErr to the given legacy event
 // name. The listener also receives error deliveries such as
 // pubsub.ErrDroppedMessages.
+//
+// Multiple local subscribers on the same event share a single underlying
+// *natsgo.Subscription. Each local subscriber gets its own bounded inbox
+// and dispatcher goroutine so a slow user listener can drop its own
+// messages (surfaced as pubsub.ErrDroppedMessages) without blocking
+// other listeners attached to the same shared subscription.
 func (p *Pubsub) SubscribeWithErr(event string, listener pubsub.ListenerWithErr) (cancel func(), err error) {
 	if p.ctx.Err() != nil {
 		return nil, xerrors.New("nats pubsub: closed")
@@ -378,73 +455,285 @@ func (p *Pubsub) SubscribeWithErr(event string, listener pubsub.ListenerWithErr)
 	}
 
 	s := &subscription{
-		event:    event,
-		listener: listener,
+		event:          event,
+		listener:       listener,
+		queue:          make(chan []byte, listenerQueueSize(p.opts.PendingLimits)),
+		dropSignal:     make(chan struct{}, 1),
+		stop:           make(chan struct{}),
+		dispatcherDone: make(chan struct{}),
+		emitterDone:    make(chan struct{}),
 	}
 
-	// Use async Subscribe: nats.go spawns one delivery goroutine per
-	// *Subscription and invokes the callback for each message. The
-	// callback closes over s so we can route via subsByNATS for
-	// slow-consumer error accounting.
-	natsSub, err := p.subConn.Subscribe(string(subj), func(msg *natsgo.Msg) {
-		s.listener(context.Background(), msg.Data, nil)
-	})
+	// attachListener creates the shared *natsgo.Subscription on first
+	// attach for this subject and links s to it. On error we return
+	// without leaking any registry state or NATS subscription.
+	shared, created, err := p.attachListener(string(subj), s)
 	if err != nil {
-		return nil, xerrors.Errorf("subscribe: %w", err)
+		return nil, err
 	}
-	// Flush so the SUB protocol message has actually reached the server
-	// before we return; otherwise a Publish issued immediately after
-	// Subscribe on pubConn could race ahead of subscription registration.
-	if err := p.subConn.Flush(); err != nil {
-		_ = natsSub.Unsubscribe()
-		return nil, xerrors.Errorf("flush subscribe: %w", err)
-	}
-	limits := defaultPendingLimits(p.opts.PendingLimits)
-	if err := natsSub.SetPendingLimits(limits.Msgs, limits.Bytes); err != nil {
-		_ = natsSub.Unsubscribe()
-		return nil, xerrors.Errorf("set pending limits: %w", err)
-	}
-	s.sub = natsSub
+	s.shared = shared
+	s.sub = shared.sub
 
-	p.mu.Lock()
-	p.subs[s] = struct{}{}
-	p.subsByNATS[natsSub] = s
-	p.eventCounts[event]++
-	p.mu.Unlock()
+	if created {
+		// First attach for this subject: flush the SUB protocol message
+		// to the server before returning so a publish issued
+		// immediately after Subscribe cannot race ahead of subscription
+		// registration.
+		if err := p.subConn.Flush(); err != nil {
+			// Undo the attach atomically: removes s from listeners,
+			// tears down the shared sub since it was just created.
+			p.detachListener(s)
+			return nil, xerrors.Errorf("flush subscribe: %w", err)
+		}
+		limits := defaultPendingLimits(p.opts.PendingLimits)
+		if err := shared.sub.SetPendingLimits(limits.Msgs, limits.Bytes); err != nil {
+			p.detachListener(s)
+			return nil, xerrors.Errorf("set pending limits: %w", err)
+		}
+	}
+
+	// Start the per-listener goroutines only after attach has succeeded
+	// so a failure path above never leaks a goroutine.
+	go s.dispatch()
+	go s.emitDrops()
 
 	cancelFn := func() {
 		s.cancelOnce.Do(func() {
-			// Drain so in-flight delivery completes; fall back to
-			// Unsubscribe if drain doesn't return promptly.
-			drainTimeout := p.opts.DrainTimeout
-			if drainTimeout <= 0 {
-				drainTimeout = 5 * time.Second
+			// detachListener returns the shared entry to drain when s
+			// was the last listener (otherwise nil).
+			toDrain := p.detachListener(s)
+			// Signal both goroutines to exit and wait for in-flight
+			// user callbacks to complete. The shared NATS callback
+			// may still attempt a non-blocking send to s.queue
+			// concurrently; it uses a select on s.stop and silently
+			// drops in that case so there is no panic on a
+			// closed-but-still-targeted queue.
+			close(s.stop)
+			<-s.dispatcherDone
+			<-s.emitterDone
+			if toDrain != nil {
+				p.drainShared(toDrain)
 			}
-			done := make(chan error, 1)
-			go func() { done <- s.sub.Drain() }()
-			select {
-			case <-done:
-			case <-time.After(drainTimeout):
-				_ = s.sub.Unsubscribe()
-			}
-			p.unregisterSubscription(s)
 		})
 	}
 	return cancelFn, nil
 }
 
-// unregisterSubscription removes s from all tracking maps. Safe to call
-// multiple times only if guarded externally; callers use cancelOnce.
-func (p *Pubsub) unregisterSubscription(s *subscription) {
+// listenerQueueSize returns the per-listener inbox channel capacity.
+// When the caller explicitly sets PendingLimits.Msgs to a positive
+// value we use that as the local-queue cap too: same-subject
+// coalescing means tight pending limits on the underlying
+// *natsgo.Subscription are no longer sufficient to surface
+// pubsub.ErrDroppedMessages on their own (the shared NATS callback
+// drains the per-sub pending queue quickly into per-listener inboxes,
+// so the NATS-level slow-consumer signal rarely fires). Sizing the
+// local inbox from PendingLimits.Msgs gives callers a knob that
+// reliably triggers local-overflow drops when they want it. When the
+// caller leaves PendingLimits at the zero or unlimited setting, we
+// use a generous default.
+func listenerQueueSize(in PendingLimits) int {
+	if in.Msgs > 0 {
+		return in.Msgs
+	}
+	return defaultListenerQueueSize
+}
+
+// defaultListenerQueueSize is the per-listener inbox channel capacity
+// applied when the caller has not opted into a tighter PendingLimits.
+// It is large enough to absorb realistic publish bursts while still
+// bounding the per-listener memory footprint at a few KiB of pointers.
+const defaultListenerQueueSize = 1024
+
+// attachListener attaches s to the sharedSub for subject. If no shared
+// subscription exists yet, it creates the underlying *natsgo.Subscription
+// (with the wrapper's shared callback that fans out to every attached
+// listener) and registers it. Returns the shared entry, whether this
+// call created it, and any error from the NATS subscribe call.
+func (p *Pubsub) attachListener(subject string, s *subscription) (*sharedSub, bool, error) {
 	p.mu.Lock()
-	defer p.mu.Unlock()
+	if shared, ok := p.sharedBySubject[subject]; ok {
+		shared.listeners[s] = struct{}{}
+		p.subs[s] = struct{}{}
+		p.eventCounts[s.event]++
+		p.mu.Unlock()
+		return shared, false, nil
+	}
+	// Drop the lock around the actual NATS Subscribe call: it issues a
+	// SUB protocol frame on subConn and we must not hold p.mu while
+	// doing network I/O. The window between unlock and re-lock could
+	// allow a racing Subscribe for the same subject to also miss the
+	// map entry and create its own shared. We resolve that race below
+	// after re-acquiring the lock.
+	p.mu.Unlock()
+
+	shared := &sharedSub{
+		subject:   subject,
+		listeners: make(map[*subscription]struct{}),
+	}
+	natsSub, err := p.subConn.Subscribe(subject, shared.makeCallback(p))
+	if err != nil {
+		return nil, false, xerrors.Errorf("subscribe: %w", err)
+	}
+	shared.sub = natsSub
+
+	p.mu.Lock()
+	if existing, ok := p.sharedBySubject[subject]; ok {
+		// Lost the race; tear down our duplicate underlying sub and
+		// attach to the winner instead.
+		p.mu.Unlock()
+		_ = natsSub.Unsubscribe()
+		p.mu.Lock()
+		existing.listeners[s] = struct{}{}
+		p.subs[s] = struct{}{}
+		p.eventCounts[s.event]++
+		p.mu.Unlock()
+		return existing, false, nil
+	}
+	shared.listeners[s] = struct{}{}
+	p.sharedBySubject[subject] = shared
+	p.sharedByNATS[natsSub] = shared
+	p.subs[s] = struct{}{}
+	p.eventCounts[s.event]++
+	p.mu.Unlock()
+	return shared, true, nil
+}
+
+// detachListener removes s from its shared subscription and from the
+// Pubsub-wide tracking maps. When s was the last listener on its
+// shared subscription, the shared entry is also removed from the
+// registries and returned so the caller can drain / unsubscribe the
+// underlying *natsgo.Subscription outside p.mu. Otherwise returns nil.
+//
+// Safe to call multiple times: subsequent calls find s already
+// detached and become no-ops.
+func (p *Pubsub) detachListener(s *subscription) *sharedSub {
+	p.mu.Lock()
+	if _, tracked := p.subs[s]; !tracked {
+		p.mu.Unlock()
+		return nil
+	}
 	delete(p.subs, s)
-	delete(p.subsByNATS, s.sub)
 	if c, ok := p.eventCounts[s.event]; ok {
 		if c <= 1 {
 			delete(p.eventCounts, s.event)
 		} else {
 			p.eventCounts[s.event] = c - 1
+		}
+	}
+	shared := s.shared
+	if shared == nil {
+		p.mu.Unlock()
+		return nil
+	}
+	delete(shared.listeners, s)
+	if len(shared.listeners) > 0 {
+		p.mu.Unlock()
+		return nil
+	}
+	// Last listener: remove the shared entry from registries so a new
+	// Subscribe to the same subject creates a fresh underlying
+	// subscription rather than attaching to a draining one.
+	delete(p.sharedBySubject, shared.subject)
+	delete(p.sharedByNATS, shared.sub)
+	p.mu.Unlock()
+	return shared
+}
+
+// drainShared drains and unsubscribes the underlying NATS subscription
+// for shared. Called when the last local listener detaches.
+func (p *Pubsub) drainShared(shared *sharedSub) {
+	drainTimeout := p.opts.DrainTimeout
+	if drainTimeout <= 0 {
+		drainTimeout = 5 * time.Second
+	}
+	done := make(chan error, 1)
+	go func() { done <- shared.sub.Drain() }()
+	select {
+	case <-done:
+	case <-time.After(drainTimeout):
+		_ = shared.sub.Unsubscribe()
+	}
+}
+
+// makeCallback returns the *natsgo.Conn callback installed on the
+// shared *natsgo.Subscription. It snapshots the listener set under
+// p.mu, then performs a non-blocking enqueue per listener so no single
+// slow listener can stall the NATS delivery goroutine.
+func (ss *sharedSub) makeCallback(p *Pubsub) natsgo.MsgHandler {
+	return func(msg *natsgo.Msg) {
+		// Snapshot listeners under p.mu so concurrent detach /
+		// attach observes a consistent view. The snapshot is small in
+		// the common case (<= a handful of subscribers per subject)
+		// and we don't invoke user callbacks while holding the lock.
+		p.mu.Lock()
+		listeners := make([]*subscription, 0, len(ss.listeners))
+		for s := range ss.listeners {
+			listeners = append(listeners, s)
+		}
+		p.mu.Unlock()
+		for _, s := range listeners {
+			s.offerData(msg.Data)
+		}
+	}
+}
+
+// offerData performs a non-blocking enqueue of data onto s.queue. The
+// select prefers a successful send; if s has been canceled (stop
+// closed) it silently drops; otherwise if the queue is full the
+// message is dropped and a drop signal is raised so the emitter
+// goroutine surfaces it to the user listener as
+// pubsub.ErrDroppedMessages, independent of dispatcher progress.
+func (s *subscription) offerData(data []byte) {
+	select {
+	case s.queue <- data:
+	case <-s.stop:
+	default:
+		s.signalDrop()
+	}
+}
+
+// signalDrop pushes onto dropSignal without blocking. Multiple drop
+// sources between emitter dequeues coalesce onto a single pending
+// signal, so the user listener observes one ErrDroppedMessages
+// callback per drop wave rather than per dropped message.
+func (s *subscription) signalDrop() {
+	select {
+	case s.dropSignal <- struct{}{}:
+	default:
+	}
+}
+
+// dispatch is the per-listener data delivery goroutine. It serializes
+// data callbacks for one subscriber while a separate emitter goroutine
+// delivers drop notifications, so a slow user listener cannot prevent
+// pubsub.ErrDroppedMessages from being surfaced.
+func (s *subscription) dispatch() {
+	defer close(s.dispatcherDone)
+	for {
+		select {
+		case <-s.stop:
+			return
+		case data := <-s.queue:
+			s.listener(context.Background(), data, nil)
+		}
+	}
+}
+
+// emitDrops is the per-listener drop-notification goroutine. It runs
+// concurrently with dispatch so a blocked data callback does not
+// prevent drop signaling. The existing wrapper already permitted
+// concurrent listener invocations: in the previous code path drop
+// callbacks were dispatched on the NATS connection's async error
+// goroutine while data callbacks ran on the per-subscription delivery
+// goroutine.
+func (s *subscription) emitDrops() {
+	defer close(s.emitterDone)
+	for {
+		select {
+		case <-s.stop:
+			return
+		case <-s.dropSignal:
+			s.listener(context.Background(), nil, pubsub.ErrDroppedMessages)
 		}
 	}
 }
@@ -457,41 +746,69 @@ func (p *Pubsub) handleAsyncError(sub *natsgo.Subscription, err error) {
 		return
 	}
 	p.mu.Lock()
-	s, ok := p.subsByNATS[sub]
+	shared, ok := p.sharedByNATS[sub]
 	p.mu.Unlock()
 	if !ok {
 		return
 	}
-	p.handleSlowConsumer(s)
+	p.handleSharedSlowConsumer(shared)
 }
 
-// handleSlowConsumer is invoked for async slow-consumer signals on s.
-// It queries NATS for the cumulative dropped count and emits at most
-// one ErrDroppedMessages callback per delta.
+// handleSlowConsumer is preserved for white-box test access. It
+// forwards to handleSharedSlowConsumer on the listener's shared
+// subscription. Production code paths use handleSharedSlowConsumer
+// directly via handleAsyncError.
 func (p *Pubsub) handleSlowConsumer(s *subscription) {
-	s.dropMu.Lock()
-	defer s.dropMu.Unlock()
+	if s == nil || s.shared == nil {
+		return
+	}
+	p.handleSharedSlowConsumer(s.shared)
+}
 
-	dropped, err := s.sub.Dropped()
+// handleSharedSlowConsumer is invoked for async slow-consumer signals
+// on a shared subscription. It queries NATS for the cumulative dropped
+// count and, on each new delta, broadcasts pubsub.ErrDroppedMessages
+// to every local listener attached to the shared subscription. The
+// underlying NATS slow-consumer signal is per-subscription, so we
+// cannot narrow it to a single local listener.
+func (p *Pubsub) handleSharedSlowConsumer(shared *sharedSub) {
+	shared.dropMu.Lock()
+	dropped, err := shared.sub.Dropped()
 	if err != nil {
+		shared.dropMu.Unlock()
 		p.logger.Warn(context.Background(), "nats: query dropped count", slog.Error(err))
 		return
 	}
 	if dropped < 0 {
+		shared.dropMu.Unlock()
 		p.logger.Warn(context.Background(), "nats: negative dropped count")
 		return
 	}
 	cur := uint64(dropped)
-	if cur < s.lastDropped {
-		s.lastDropped = cur
+	if cur < shared.lastDropped {
+		shared.lastDropped = cur
+		shared.dropMu.Unlock()
 		return
 	}
-	delta := cur - s.lastDropped
+	delta := cur - shared.lastDropped
 	if delta == 0 {
+		shared.dropMu.Unlock()
 		return
 	}
-	s.lastDropped = cur
-	s.listener(context.Background(), nil, pubsub.ErrDroppedMessages)
+	shared.lastDropped = cur
+	shared.dropMu.Unlock()
+
+	// Snapshot the listener set under p.mu so we don't hold the lock
+	// while invoking user callbacks via the dispatcher.
+	p.mu.Lock()
+	listeners := make([]*subscription, 0, len(shared.listeners))
+	for s := range shared.listeners {
+		listeners = append(listeners, s)
+	}
+	p.mu.Unlock()
+	for _, s := range listeners {
+		s.signalDrop()
+	}
 }
 
 // Close drains and shuts down the Pubsub. It is idempotent.
@@ -506,16 +823,48 @@ func (p *Pubsub) Close() error {
 		for s := range p.subs {
 			subs = append(subs, s)
 		}
+		shareds := make([]*sharedSub, 0, len(p.sharedBySubject))
+		for _, ss := range p.sharedBySubject {
+			shareds = append(shareds, ss)
+		}
 		p.mu.Unlock()
 
-		// Unsubscribe each subscription. Don't drain individually here;
-		// we drain subConn as a whole below.
+		// Unsubscribe each shared subscription. Don't drain
+		// individually here; we drain subConn as a whole below.
+		for _, ss := range shareds {
+			_ = ss.sub.Unsubscribe()
+		}
+
+		// Stop every per-listener dispatcher goroutine and wait for
+		// in-flight user callbacks to complete. We do this on the
+		// originating subscription handles (not via cancelFn) so the
+		// individual cancel paths do not also try to drain shared
+		// subscriptions; the subConn drain below handles flushing
+		// in-flight server-to-client deliveries.
 		for _, s := range subs {
 			s.cancelOnce.Do(func() {
-				_ = s.sub.Unsubscribe()
-				p.unregisterSubscription(s)
+				close(s.stop)
+				<-s.dispatcherDone
+				<-s.emitterDone
 			})
 		}
+
+		// Clear tracking maps so a post-Close inspection sees no
+		// dangling state.
+		p.mu.Lock()
+		for s := range p.subs {
+			delete(p.subs, s)
+		}
+		for k := range p.sharedBySubject {
+			delete(p.sharedBySubject, k)
+		}
+		for k := range p.sharedByNATS {
+			delete(p.sharedByNATS, k)
+		}
+		for k := range p.eventCounts {
+			delete(p.eventCounts, k)
+		}
+		p.mu.Unlock()
 
 		drainTimeout := p.opts.DrainTimeout
 		if drainTimeout <= 0 {

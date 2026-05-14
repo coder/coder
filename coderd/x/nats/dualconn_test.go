@@ -59,9 +59,12 @@ func TestDualConn_SlowListenerIsolation(t *testing.T) {
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
-	// Leave Options.PendingLimits at the package default (effectively
-	// unlimited) so the fast subscription cannot be tripped. The slow
-	// subscription gets a tight per-sub limit applied directly below.
+	// Package defaults: per-listener inbox capacity is
+	// defaultListenerQueueSize. Publishing more messages than that to
+	// the parked slow subscriber overflows its inbox and triggers
+	// pubsub.ErrDroppedMessages, while leaving NATS-level pending
+	// limits at the package default so the fast subscriber's inbox
+	// can drain freely.
 	ps, err := New(ctx, logger, Options{})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = ps.Close() })
@@ -81,17 +84,6 @@ func TestDualConn_SlowListenerIsolation(t *testing.T) {
 	require.NoError(t, err)
 	defer slowCancel()
 
-	// Tighten the slow sub's pending limits via white-box access so
-	// only it trips slow-consumer. The fast sub keeps the package
-	// default (effectively unlimited).
-	ps.mu.Lock()
-	for s := range ps.subs {
-		if s.event == "iso_slow" {
-			require.NoError(t, s.sub.SetPendingLimits(10, 64*1024))
-		}
-	}
-	ps.mu.Unlock()
-
 	var fastCount atomic.Int64
 	fastCancel, err := ps.Subscribe("iso_fast", func(_ context.Context, _ []byte) {
 		fastCount.Add(1)
@@ -99,10 +91,11 @@ func TestDualConn_SlowListenerIsolation(t *testing.T) {
 	require.NoError(t, err)
 	defer fastCancel()
 
-	// Stuff the slow subscription far past its PendingLimits so the
-	// async error handler fires reliably; meanwhile publish to the
-	// fast subject so we can confirm deliveries continue.
-	const total = 200
+	// Stuff the slow subscription's per-listener inbox far past its
+	// capacity so the local-overflow drop path fires reliably;
+	// meanwhile publish the same number to the fast subject so we
+	// can confirm deliveries continue independently.
+	total := defaultListenerQueueSize + 256
 	payload := make([]byte, 4*1024)
 	for i := 0; i < total; i++ {
 		require.NoError(t, ps.Publish("iso_slow", payload))
@@ -112,7 +105,7 @@ func TestDualConn_SlowListenerIsolation(t *testing.T) {
 
 	deadline := time.Now().Add(testutil.WaitLong)
 	for time.Now().Before(deadline) {
-		if fastCount.Load() >= total && slowDrops.Load() >= 1 {
+		if fastCount.Load() >= int64(total) && slowDrops.Load() >= 1 {
 			break
 		}
 		time.Sleep(20 * time.Millisecond)
