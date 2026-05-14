@@ -1,3 +1,7 @@
+// Track the current animation so a new scroll request cancels
+// any in-flight animation before starting.
+let activeRafId: number | null = null;
+
 /**
  * Scroll the chat to a specific user-message sentinel, centered
  * in the viewport. Disables browser scroll-anchoring and the
@@ -5,6 +9,12 @@
  * layout-shift snap-back.
  */
 export function scrollToUserSentinel(messageId: number): void {
+	// Cancel any in-flight animation first.
+	if (activeRafId !== null) {
+		cancelAnimationFrame(activeRafId);
+		activeRafId = null;
+	}
+
 	const sentinel = document.querySelector(
 		`[data-user-sentinel][data-user-message-id="${messageId}"]`,
 	);
@@ -33,6 +43,7 @@ export function scrollToUserSentinel(messageId: number): void {
 		scroller.style.overflowAnchor = "";
 		scroller.removeAttribute("data-scroll-lock");
 		scroller.dispatchEvent(new Event("scroll"));
+		activeRafId = null;
 		return;
 	}
 
@@ -48,14 +59,15 @@ export function scrollToUserSentinel(messageId: number): void {
 		const p = Math.min((now - t0) / duration, 1);
 		scroller.scrollTop = start + offset * ease(p);
 		if (p < 1) {
-			requestAnimationFrame(step);
+			activeRafId = requestAnimationFrame(step);
 		} else {
 			scroller.style.overflowAnchor = "";
 			scroller.removeAttribute("data-scroll-lock");
 			// Kick all sticky handlers so they recalculate
 			// visibility after the jump.
 			scroller.dispatchEvent(new Event("scroll"));
+			activeRafId = null;
 		}
 	};
-	requestAnimationFrame(step);
+	activeRafId = requestAnimationFrame(step);
 }

@@ -1139,6 +1139,17 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		let promptIndex = 0;
 		for (const entry of parsedMessages) {
 			if (entry.message.role === "user") {
+				// Skip metadata-only messages that won't be rendered.
+				const { shouldHide } = deriveMessageDisplayState({
+					message: entry.message,
+					parsed: entry.parsed,
+					hideActions: false,
+					hasActiveStream: false,
+					isAwaitingFirstStreamChunk: false,
+				});
+				if (shouldHide) {
+					continue;
+				}
 				promptIndex++;
 				const text = getChatMessageTextContent(entry.message.content);
 				const parts = entry.message.content ?? [];
