@@ -272,6 +272,9 @@ importers:
       websocket-ts:
         specifier: 2.3.0
         version: 2.3.0
+      yaml:
+        specifier: 2.8.3
+        version: 2.8.3
       yup:
         specifier: 1.7.1
         version: 1.7.1
