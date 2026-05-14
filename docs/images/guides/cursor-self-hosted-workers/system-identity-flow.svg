@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 360" width="1000" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="diag-title diag-desc">
   <title id="diag-title">Cursor system-identity flow</title>
-  <desc id="diag-desc">Placeholder diagram. Coder keeps a warm pool of bot-owned workspaces per repository. When a Cursor session is queued for a repo, Cursor's scheduler picks one and the worker serves it. When the worker drains the workspace is deleted and the reconciler queues a replacement.</desc>
+  <desc id="diag-desc">Placeholder diagram. Coder keeps a warm pool of bot-owned workspaces per repository. When a Cursor session is queued for a repo, Cursor's label-based routing matches it to a free worker whose repo= label is the same repo, and the worker serves the session. When the worker drains the workspace is deleted and the reconciler queues a replacement.</desc>
   <style>
     .box { fill: #ffffff; stroke: #94a3b8; stroke-width: 1.5; rx: 8; }
     .title { font-family: ui-sans-serif, system-ui, sans-serif; font-size: 14px; font-weight: 600; fill: #0f172a; }
@@ -19,8 +19,8 @@
   <text class="title" x="400" y="74">Warm workspace pool</text>
   <text class="sub"   x="400" y="92">N workspaces per repo, bot-owned</text>
   <rect class="box" x="380" y="140" width="240" height="60"/>
-  <text class="title" x="400" y="174">Cursor scheduler</text>
-  <text class="sub"   x="400" y="192">picks a free worker for the repo</text>
+  <text class="title" x="400" y="174">Cursor routing</text>
+  <text class="sub"   x="400" y="192">matches repo= label to a free worker</text>
   <rect class="box" x="720" y="90"  width="240" height="60"/>
   <text class="title" x="740" y="124">Session served</text>
   <text class="sub"   x="740" y="142">activeBcId in fleet API</text>
