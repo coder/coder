@@ -4640,13 +4640,13 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			Input:         json.RawMessage("{}"),
 		}
 		dbm.EXPECT().InsertProvisionerJob(gomock.Any(), arg).Return(testutil.Fake(s.T(), gofakeit.New(0), database.ProvisionerJob{}), nil).AnyTimes()
-		check.Args(arg).Asserts( /* rbac.ResourceProvisionerJobs, policy.ActionCreate */)
+		check.Args(arg).Asserts( /* rbac.ResourceProvisionerJobs, policy.ActionCreate */ )
 	}))
 	s.Run("InsertProvisionerJobLogs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		j := testutil.Fake(s.T(), faker, database.ProvisionerJob{})
 		arg := database.InsertProvisionerJobLogsParams{JobID: j.ID}
 		dbm.EXPECT().InsertProvisionerJobLogs(gomock.Any(), arg).Return([]database.ProvisionerJobLog{}, nil).AnyTimes()
-		check.Args(arg).Asserts( /* rbac.ResourceProvisionerJobs, policy.ActionUpdate */)
+		check.Args(arg).Asserts( /* rbac.ResourceProvisionerJobs, policy.ActionUpdate */ )
 	}))
 	s.Run("InsertProvisionerJobTimings", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		j := testutil.Fake(s.T(), faker, database.ProvisionerJob{})
