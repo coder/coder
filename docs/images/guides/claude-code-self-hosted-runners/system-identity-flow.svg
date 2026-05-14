@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 360" width="960" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="sys-diagram-title sys-diagram-desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 360" width="960" height="360" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="sys-diagram-title sys-diagram-desc">
   <title id="sys-diagram-title">System identity flow: Coder maintains a pool of bot-owned runner workspaces</title>
   <desc id="sys-diagram-desc">Coder prebuilds maintain N warm workspaces, each owned by the prebuilds service account and each running one Claude Code self-hosted runner. When an Anthropic session arrives, one workspace's runner locks to the developer's Anthropic account and serves their sessions. When work drains, the workspace deletes itself and Coder queues a replacement, keeping the pool at N.</desc>
 

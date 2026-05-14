@@ -62,8 +62,32 @@ For a flow diagram: `viewBox="0 0 960 360"` keeps things proportionate
 and matches the existing flow diagrams in
 `docs/images/guides/claude-code-self-hosted-runners/`.
 
-Always set `preserveAspectRatio="xMidYMid meet"` and a `width` attribute
-matching the viewBox width.
+Always set `preserveAspectRatio="xMidYMid meet"` and **both** `width`
+and `height` attributes matching the viewBox dimensions. The width
+alone is not enough.
+
+If the SVG has `width` but no `height`, browsers loading it as a
+standalone document (e.g. the raw GitHub URL someone shares in chat,
+or an `<img>` whose intrinsic height is computed from the file) fall
+back to a default height of 100% of the viewport. The `meet`
+preserveAspectRatio then letterboxes the viewBox content inside that
+taller box, so the diagram appears in a sea of white space.
+
+Good:
+
+```svg
+<svg viewBox="0 0 1000 460" width="1000" height="460"
+     preserveAspectRatio="xMidYMid meet">
+```
+
+Bad:
+
+```svg
+<svg viewBox="0 0 1000 460" width="1000"
+     preserveAspectRatio="xMidYMid meet">
+```
+
+The overlap checker enforces this (`svg-missing-dimensions` error).
 
 ### Text size minima
 

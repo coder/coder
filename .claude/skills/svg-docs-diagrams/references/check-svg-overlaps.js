@@ -249,6 +249,40 @@ function pageProbeFactory() {
 
     const findings = [];
 
+    // 0. ROOT SVG DIMENSIONS: standalone-render safety. SVGs served
+    // as their own document (raw.githubusercontent.com URLs, direct
+    // file:// loads, some <img> intrinsic-size paths) fall back to a
+    // 100%-of-viewport height if `width` is set but `height` is not.
+    // The `meet` preserveAspectRatio then letterboxes the viewBox
+    // content inside that taller box, so the diagram appears in a
+    // sea of white space above and below. Require both.
+    const widthAttr = svg.getAttribute("width");
+    const heightAttr = svg.getAttribute("height");
+    const viewBoxAttr = svg.getAttribute("viewBox");
+    if (widthAttr && !heightAttr) {
+      const vbHeight = viewBoxAttr ? viewBoxAttr.split(/\s+/)[3] || "" : "";
+      findings.push({
+        rule: "svg-missing-dimensions",
+        severity: "error",
+        message:
+          'root <svg> has width="' +
+          widthAttr +
+          '" but no height attribute. Add height="' +
+          (vbHeight || "...") +
+          '" so standalone renders do not letterbox the viewBox inside a viewport-height box.',
+      });
+    }
+    if (!widthAttr && heightAttr) {
+      findings.push({
+        rule: "svg-missing-dimensions",
+        severity: "error",
+        message:
+          'root <svg> has height="' +
+          heightAttr +
+          '" but no width attribute. Set both to the viewBox dimensions.',
+      });
+    }
+
     // 1. TEXT OVERFLOW: only checks text that has an enclosing rect.
     // Free-floating text (footnotes, zone labels, arrow labels) is
     // checked by collision rules below, not by containment.

@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 360" width="960" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="user-diagram-title user-diagram-desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 360" width="960" height="360" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="user-diagram-title user-diagram-desc">
   <title id="user-diagram-title">User identity flow: a routing component pre-binds each runner workspace to the matching Coder user</title>
   <desc id="user-diagram-desc">When an Anthropic session is queued for @alice, a routing component maps her identity to her Coder user and claims a warm prebuild on her behalf. Coder runs the claim build with @alice as the workspace owner, so external auth wires GIT_ASKPASS to her GitHub token, audit log entries attribute to her, and the runner is born locked to her Anthropic account. User identity is on the Coder and Anthropic roadmap and is not yet available.</desc>
 
