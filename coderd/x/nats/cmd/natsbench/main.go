@@ -57,6 +57,7 @@ func main() {
 	cpuProfile := flag.String("cpuprofile", "", "write a CPU profile of the hot phase to this path")
 	memProfile := flag.String("memprofile", "", "write a heap profile of live memory after the hot phase to this path")
 	writeBuffer := flag.Int("write-buffer", 0, "NATS Go client write buffer size in bytes for every wrapper-owned or natsbench-owned client connection. 0 keeps the nats.go default (32 KiB). Applies to both Coder modes (via codernats.Options.WriteBufferSize) and native modes (via natsgo.WriteBufferSize on every raw nats.go client).")
+	maxPending := flag.Int64("max-pending", 0, "override the per-client outbound pending byte budget (NATS server MaxPending) for cluster-symmetric modes. 0 means derive from the workload: max-expected-per-subscriber * (payload+overhead), floored at codernats.DefaultMaxPending (1 GiB) and capped at 16 GiB. A positive value forces that byte value verbatim; if it sits below the workload estimate the header advertises that drops are possible so the operator is not surprised by silent slow-consumer disconnects. Ignored by non-cluster-symmetric modes which retain their existing budgets.")
 	flag.Parse()
 
 	cpuProfilePath = *cpuProfile
@@ -83,8 +84,12 @@ func main() {
 		_, _ = fmt.Fprintln(os.Stderr, "natsbench: -local-queue-msgs must be >= 0")
 		os.Exit(2)
 	}
+	if *maxPending < 0 {
+		_, _ = fmt.Fprintln(os.Stderr, "natsbench: -max-pending must be >= 0 (0 = workload-derived)")
+		os.Exit(2)
+	}
 
-	if err := run(*mode, *msgs, *size, *pubs, *subs, *subj, *subjects, *timeout, *replicas, *writeBuffer, *localQueueMsgs); err != nil {
+	if err := run(*mode, *msgs, *size, *pubs, *subs, *subj, *subjects, *timeout, *replicas, *writeBuffer, *localQueueMsgs, *maxPending); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "natsbench: %v\n", err)
 		os.Exit(1)
 	}
@@ -174,7 +179,7 @@ func hotEnd(before runtime.MemStats) runtimeStats {
 	}
 }
 
-func run(mode string, msgs, size, pubs, subs int, subj string, subjects int, timeout time.Duration, replicas, writeBuffer, localQueueMsgs int) error {
+func run(mode string, msgs, size, pubs, subs int, subj string, subjects int, timeout time.Duration, replicas, writeBuffer, localQueueMsgs int, maxPendingOverride int64) error {
 	// writeBufferSuffix builds a " write-buffer=N" tail for the header
 	// line so each run is self-describing. Empty when zero (i.e. the
 	// nats.go default is in effect) to keep legacy runs visually
@@ -228,9 +233,9 @@ func run(mode string, msgs, size, pubs, subs int, subj string, subjects int, tim
 	case "coder-cluster":
 		res, err = runCoderCluster(msgs, size, pubs, subs, subj, subjects, timeout, replicas, writeBuffer, localQueueMsgs)
 	case "native-cluster-symmetric":
-		res, err = runNativeClusterSymmetric(msgs, size, pubs, subs, subj, subjects, timeout, replicas, writeBuffer)
+		res, err = runNativeClusterSymmetric(msgs, size, pubs, subs, subj, subjects, timeout, replicas, writeBuffer, maxPendingOverride)
 	case "coder-cluster-symmetric":
-		res, err = runCoderClusterSymmetric(msgs, size, pubs, subs, subj, subjects, timeout, replicas, writeBuffer, localQueueMsgs)
+		res, err = runCoderClusterSymmetric(msgs, size, pubs, subs, subj, subjects, timeout, replicas, writeBuffer, localQueueMsgs, maxPendingOverride)
 	default:
 		return xerrors.Errorf("unknown mode %q", mode)
 	}
@@ -641,7 +646,7 @@ func runCoder(inProcess bool, msgs, size, pubs, subs int, subj string, numSubjec
 	pubDone := time.Now()
 
 	if derr := awaitCoderDeliveryDone("delivery", timeout, subStates, &firstSubErr); derr != nil {
-		return result{}, derr
+		return result{}, xerrors.Errorf("%w %s", derr, coderClusterStatsDescription([]*codernats.Pubsub{ps}))
 	}
 	subDone := time.Now()
 	pubHot := pubDone.Sub(hotStartT)
@@ -1039,7 +1044,7 @@ func runCoderCluster(msgs, size, pubs, subs int, subj string, numSubjects int, t
 	pubDone := time.Now()
 
 	if derr := awaitCoderDeliveryDone("delivery", timeout, subStates, &firstSubErr); derr != nil {
-		return result{}, derr
+		return result{}, xerrors.Errorf("%w %s", derr, coderClusterStatsDescription(pubsubs))
 	}
 	subDone := time.Now()
 	pubHot := pubDone.Sub(hotStartT)
@@ -1078,17 +1083,24 @@ func runCoderCluster(msgs, size, pubs, subs int, subj string, numSubjects int, t
 // so the total messages flowing is msgs*pubs and every subscriber, on
 // the one shared subject, expects msgs*pubs deliveries.
 //
-// MaxPending is bounded at 128 MiB (instead of the default 1 GiB) to
-// cap worst-case in-flight bytes in cluster fan-out scenarios.
-func runNativeClusterSymmetric(msgs, size, pubs, subs int, subj string, numSubjects int, timeout time.Duration, replicas, writeBuffer int) (result, error) {
-	const symMaxPending int64 = 128 << 20
+// MaxPending is workload-derived (see benchmarkMaxPending) so exact-
+// delivery large-payload runs do not silently disconnect subscribers
+// as slow consumers when the burst exceeds the server's per-client
+// outbound budget. The legacy 128 MiB ceiling was too small for the
+// 64 KiB symmetric run (~1.25 GiB pending per subscriber connection)
+// and caused at-most-once message loss. -max-pending forces an
+// explicit byte value if the operator wants to reproduce the old
+// behavior or test a particular budget.
+func runNativeClusterSymmetric(msgs, size, pubs, subs int, subj string, numSubjects int, timeout time.Duration, replicas, writeBuffer int, maxPendingOverride int64) (result, error) {
 	plan, err := planSubjects(pubs, subs, numSubjects, msgs, true)
 	if err != nil {
 		return result{}, xerrors.Errorf("plan subjects: %w", err)
 	}
+	symMaxPending := benchmarkMaxPending(plan, size, maxPendingOverride)
+	_, _ = fmt.Println(symMaxPending.describe())
 	subjectNames := buildNativeSubjects(subj, numSubjects)
 	t0 := time.Now()
-	servers, err := startNativeCluster(replicas, symMaxPending)
+	servers, err := startNativeCluster(replicas, symMaxPending.Effective)
 	if err != nil {
 		return result{}, xerrors.Errorf("start native cluster: %w", err)
 	}
@@ -1212,7 +1224,8 @@ func runNativeClusterSymmetric(msgs, size, pubs, subs int, subj string, numSubje
 				delivered += s.count.Load()
 				expected += s.expect
 			}
-			return result{}, xerrors.Errorf("timeout: delivered %d of %d (subs=%d)", delivered, expected, subs)
+			diag := nativeClusterStatsDescription(servers)
+			return result{}, xerrors.Errorf("timeout: delivered %d of %d (subs=%d) %s", delivered, expected, subs, diag)
 		}
 	}
 	subDone := time.Now()
@@ -1248,8 +1261,15 @@ func runNativeClusterSymmetric(msgs, size, pubs, subs int, subj string, numSubje
 // replicas. -msgs is interpreted per-publisher (total = msgs*pubs);
 // every subscriber sees every message on the shared subject.
 //
-// MaxPending is bounded at 128 MiB (instead of the default 1 GiB) to
-// cap worst-case in-flight bytes in cluster fan-out scenarios.
+// MaxPending is workload-derived (see benchmarkMaxPending) so an
+// exact-delivery large-payload run never silently runs on a smaller
+// per-client outbound budget than the wrapper production default. The
+// legacy 128 MiB ceiling was below the per-subscriber requirement for
+// the 64 KiB symmetric run and caused the server to disconnect
+// subscribers as slow consumers, which surfaces as a delivery timeout
+// without a Pubsub ErrDroppedMessages signal. -max-pending forces an
+// explicit byte value if the operator wants to reproduce the old
+// behavior or test a particular budget.
 //
 // Like runCoderCluster, this runner warms up cross-route interest on
 // the real benchmark subjects before the timed hot phase. Because
@@ -1257,12 +1277,13 @@ func runNativeClusterSymmetric(msgs, size, pubs, subs int, subj string, numSubje
 // loop tracks per-replica interest using a uint64 bitmask
 // (warmupReplicaCap caps the trackable replica count at 64; runs above
 // the cap fall back to "any one warmup observed" semantics).
-func runCoderClusterSymmetric(msgs, size, pubs, subs int, subj string, numSubjects int, timeout time.Duration, replicas, writeBuffer, localQueueMsgs int) (result, error) {
-	const symMaxPending int64 = 128 << 20
+func runCoderClusterSymmetric(msgs, size, pubs, subs int, subj string, numSubjects int, timeout time.Duration, replicas, writeBuffer, localQueueMsgs int, maxPendingOverride int64) (result, error) {
 	plan, err := planSubjects(pubs, subs, numSubjects, msgs, true)
 	if err != nil {
 		return result{}, xerrors.Errorf("plan subjects: %w", err)
 	}
+	symMaxPending := benchmarkMaxPending(plan, size, maxPendingOverride)
+	_, _ = fmt.Println(symMaxPending.describe())
 	subjectNames := buildCoderSubjects(subj, numSubjects)
 	pendingMsgs, clamped, err := localQueueCapacity(plan, localQueueMsgs)
 	if err != nil {
@@ -1271,7 +1292,7 @@ func runCoderClusterSymmetric(msgs, size, pubs, subs int, subj string, numSubjec
 	_, _ = fmt.Println(localQueueDescription(pendingMsgs, subs, localQueueMsgs, clamped))
 	t0 := time.Now()
 	logger := slog.Make() // discard
-	pubsubs, err := startCoderCluster(context.Background(), logger, replicas, symMaxPending, benchmarkPublishConns, benchmarkSubscribeConns, pendingMsgs, writeBuffer)
+	pubsubs, err := startCoderCluster(context.Background(), logger, replicas, symMaxPending.Effective, benchmarkPublishConns, benchmarkSubscribeConns, pendingMsgs, writeBuffer)
 	if err != nil {
 		return result{}, xerrors.Errorf("start coder cluster: %w", err)
 	}
@@ -1358,7 +1379,7 @@ func runCoderClusterSymmetric(msgs, size, pubs, subs int, subj string, numSubjec
 	pubDone := time.Now()
 
 	if derr := awaitCoderDeliveryDone("delivery", timeout, subStates, &firstSubErr); derr != nil {
-		return result{}, derr
+		return result{}, xerrors.Errorf("%w %s", derr, coderClusterStatsDescription(pubsubs))
 	}
 	subDone := time.Now()
 	pubHot := pubDone.Sub(hotStartT)

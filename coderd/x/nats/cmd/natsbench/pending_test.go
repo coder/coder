@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"golang.org/x/xerrors"
+
+	codernats "github.com/coder/coder/v2/coderd/x/nats"
 )
 
 func TestBenchmarkPendingMsgsUsesMaxExpected(t *testing.T) {
@@ -104,6 +106,182 @@ func TestFormatBenchTimeoutErrorWrapsFirstSubErr(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "first subscriber error") {
 		t.Errorf("expected 'first subscriber error' in %q", err.Error())
+	}
+}
+
+func TestBenchmarkMaxPendingSmallPayloadHitsFloor(t *testing.T) {
+	t.Parallel()
+	// 2 pubs * 50 msgs total, 128 B payload. Estimate is well below
+	// codernats.DefaultMaxPending (1 GiB), so the helper must
+	// floor at DefaultMaxPending so the symmetric cluster runs never
+	// silently choose a smaller budget than the wrapper production
+	// default.
+	plan, err := planSubjects(2, 2, 1, 100, false)
+	if err != nil {
+		t.Fatalf("planSubjects: %v", err)
+	}
+	dec := benchmarkMaxPending(plan, 128, 0)
+	if dec.Effective != codernats.DefaultMaxPending {
+		t.Errorf("Effective = %d, want DefaultMaxPending %d", dec.Effective, codernats.DefaultMaxPending)
+	}
+	if dec.Forced {
+		t.Errorf("Forced = true, want false (no override)")
+	}
+	if dec.BelowEstimate {
+		t.Errorf("BelowEstimate = true, want false (estimate <= effective)")
+	}
+	if dec.Capped {
+		t.Errorf("Capped = true, want false")
+	}
+	if dec.Estimate <= 0 {
+		t.Errorf("Estimate = %d, want > 0", dec.Estimate)
+	}
+}
+
+func TestBenchmarkMaxPendingLargePayloadExceedsDefault(t *testing.T) {
+	t.Parallel()
+	// Reproduce the failing 64 KiB symmetric run shape:
+	//   -msgs=2000 -pubs=10 -subs=30 -subjects=1 (symmetric)
+	//   total per sub = 20000, payload = 65536 B
+	// Estimated need ~ 20000 * (65536 + 128) = ~1.31 GiB > 1 GiB
+	// default. The helper must produce Effective > DefaultMaxPending
+	// so the server does not slow-consumer-disconnect subscribers.
+	plan, err := planSubjects(10, 30, 1, 2000, true)
+	if err != nil {
+		t.Fatalf("planSubjects: %v", err)
+	}
+	dec := benchmarkMaxPending(plan, 65536, 0)
+	if dec.Effective <= codernats.DefaultMaxPending {
+		t.Errorf("Effective = %d, want > DefaultMaxPending %d", dec.Effective, codernats.DefaultMaxPending)
+	}
+	if dec.Effective != dec.Estimate {
+		t.Errorf("Effective = %d, want Estimate = %d (no cap, no override)", dec.Effective, dec.Estimate)
+	}
+	if dec.BelowEstimate {
+		t.Errorf("BelowEstimate = true, want false")
+	}
+	if dec.Capped {
+		t.Errorf("Capped = true, want false (estimate well under cap)")
+	}
+	// Sanity: the failing 128 MiB ceiling is now clearly exceeded.
+	if dec.Effective < 128<<20 {
+		t.Errorf("Effective = %d, want at least 128 MiB (1.31 GiB expected)", dec.Effective)
+	}
+}
+
+func TestBenchmarkMaxPendingOverrideForced(t *testing.T) {
+	t.Parallel()
+	plan, err := planSubjects(10, 30, 1, 2000, true)
+	if err != nil {
+		t.Fatalf("planSubjects: %v", err)
+	}
+	const override int64 = 64 << 20
+	dec := benchmarkMaxPending(plan, 65536, override)
+	if dec.Effective != override {
+		t.Errorf("Effective = %d, want override %d", dec.Effective, override)
+	}
+	if !dec.Forced {
+		t.Errorf("Forced = false, want true")
+	}
+	// The override is below the estimate (~1.31 GiB), so the helper
+	// must flag BelowEstimate so the header warning fires.
+	if !dec.BelowEstimate {
+		t.Errorf("BelowEstimate = false, want true (override 64 MiB << estimate)")
+	}
+	if dec.Capped {
+		t.Errorf("Capped = true, want false (override path does not cap)")
+	}
+}
+
+func TestBenchmarkMaxPendingOverrideAboveEstimate(t *testing.T) {
+	t.Parallel()
+	plan, err := planSubjects(2, 2, 1, 100, false)
+	if err != nil {
+		t.Fatalf("planSubjects: %v", err)
+	}
+	const override int64 = 4 << 30 // 4 GiB, well above tiny estimate
+	dec := benchmarkMaxPending(plan, 128, override)
+	if dec.Effective != override {
+		t.Errorf("Effective = %d, want %d", dec.Effective, override)
+	}
+	if !dec.Forced {
+		t.Errorf("Forced = false, want true")
+	}
+	if dec.BelowEstimate {
+		t.Errorf("BelowEstimate = true, want false (override > estimate)")
+	}
+}
+
+func TestBenchmarkMaxPendingCapApplied(t *testing.T) {
+	t.Parallel()
+	// Construct a plan whose estimate exceeds benchmarkMaxPendingCap so
+	// the helper clamps and reports Capped + BelowEstimate.
+	// We need maxExpectedPerSub * (payload + 128) > 16 GiB.
+	// payload = 1 MiB, maxExpectedPerSub = 17 * 1024 -> estimate
+	// = 17_408 * (1 MiB + 128) > 16 GiB.
+	plan, err := planSubjects(1, 1, 1, 17408, false)
+	if err != nil {
+		t.Fatalf("planSubjects: %v", err)
+	}
+	dec := benchmarkMaxPending(plan, 1<<20, 0)
+	if dec.Effective != benchmarkMaxPendingCap {
+		t.Errorf("Effective = %d, want cap %d", dec.Effective, benchmarkMaxPendingCap)
+	}
+	if !dec.Capped {
+		t.Errorf("Capped = false, want true")
+	}
+	if !dec.BelowEstimate {
+		t.Errorf("BelowEstimate = false, want true (capped implies below estimate)")
+	}
+}
+
+func TestBenchmarkMaxPendingDescribeWarns(t *testing.T) {
+	t.Parallel()
+	plan, err := planSubjects(10, 30, 1, 2000, true)
+	if err != nil {
+		t.Fatalf("planSubjects: %v", err)
+	}
+	belowOverride := int64(128 << 20)
+	dec := benchmarkMaxPending(plan, 65536, belowOverride)
+	desc := dec.describe()
+	for _, want := range []string{"max-pending=", "override-below-estimate", "WARNING"} {
+		if !strings.Contains(desc, want) {
+			t.Errorf("describe() = %q, missing %q", desc, want)
+		}
+	}
+}
+
+func TestBenchmarkMaxPendingDescribeNoWarnWhenSafe(t *testing.T) {
+	t.Parallel()
+	plan, err := planSubjects(2, 2, 1, 100, false)
+	if err != nil {
+		t.Fatalf("planSubjects: %v", err)
+	}
+	dec := benchmarkMaxPending(plan, 128, 0)
+	desc := dec.describe()
+	if strings.Contains(desc, "WARNING") {
+		t.Errorf("describe() = %q, did not expect WARNING (safe default)", desc)
+	}
+	if !strings.Contains(desc, "workload-derived") {
+		t.Errorf("describe() = %q, missing source=workload-derived", desc)
+	}
+}
+
+func TestBenchmarkMaxPendingZeroPlan(t *testing.T) {
+	t.Parallel()
+	// No subscribers: max expected is zero. Helper must still return
+	// at least DefaultMaxPending so callers can pass the value to the
+	// server without a special case.
+	plan, err := planSubjects(2, 0, 1, 100, false)
+	if err != nil {
+		t.Fatalf("planSubjects: %v", err)
+	}
+	dec := benchmarkMaxPending(plan, 128, 0)
+	if dec.Effective < codernats.DefaultMaxPending {
+		t.Errorf("Effective = %d, want >= DefaultMaxPending", dec.Effective)
+	}
+	if dec.BelowEstimate {
+		t.Errorf("BelowEstimate = true, want false (zero estimate)")
 	}
 }
 
