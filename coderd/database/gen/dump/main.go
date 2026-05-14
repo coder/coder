@@ -4,10 +4,11 @@ import (
 	"database/sql"
 	"fmt"
 	"net"
-	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 
 	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
 	"golang.org/x/xerrors"
@@ -60,7 +61,6 @@ func main() {
 			_, _ = fmt.Fprintf(os.Stderr, "containerized postgres unavailable (%s); falling back to embedded postgres\n", err)
 			connection, cleanup, err = openEmbeddedPostgres()
 			if err != nil {
-				err = xerrors.Errorf("open embedded postgres failed: %w", err)
 				panic(err)
 			}
 		}
@@ -82,12 +82,14 @@ func main() {
 
 	dumpBytes, err := dbtestutil.PGDumpSchemaOnly(connection)
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr,
-			"\nThis step needs pg_dump (PostgreSQL v13.x) on PATH OR a Docker-compatible daemon.\n"+
-				"Install pg_dump locally to avoid Docker:\n"+
-				"  mise:  mise use -g postgres@13\n"+
-				"  brew:  brew install libpq && brew link --force libpq\n"+
-				"  apt:   install the postgresql-client-13 package\n\n")
+		if _, lookErr := exec.LookPath("pg_dump"); lookErr != nil {
+			_, _ = fmt.Fprintf(os.Stderr,
+				"\nThis step needs pg_dump (PostgreSQL v13 or later) on PATH OR a Docker-compatible daemon.\n"+
+					"Install pg_dump locally to avoid Docker:\n"+
+					"  mise:  mise use -g postgres@13\n"+
+					"  brew:  brew install libpq && brew link --force libpq\n"+
+					"  apt:   sudo apt-get install -y postgresql-client\n\n")
+		}
 		err = xerrors.Errorf("dump schema failed: %w", err)
 		panic(err)
 	}
@@ -127,19 +129,12 @@ func openEmbeddedPostgres() (string, func(), error) {
 		return "", nil, xerrors.Errorf("create runtime dir: %w", err)
 	}
 
-	// Force the server's timezone to UTC. Postgres canonicalizes
-	// timestamptz DEFAULT expressions at parse time using the server's
-	// local timezone, then stores the canonical form in pg_attrdef.
-	// Without this, the host's local TZ leaks into the generated
-	// dump.sql via re-rendered defaults like
-	// '0001-12-31 23:06:32+00 BC'. The container-based Postgres
-	// already defaults to Etc/UTC.
-	_ = os.Setenv("TZ", "UTC")
-
 	const password = "postgres"
 	ep := embeddedpostgres.NewDatabase(
 		embeddedpostgres.DefaultConfig().
 			Version(embeddedpostgres.V13).
+			// repo1.maven.org is flaky; matches cli/server.go and scripts/embedded-pg/main.go.
+			BinaryRepositoryURL("https://repo.maven.apache.org/maven2").
 			BinariesPath(filepath.Join(cacheDir, "bin")).
 			CachePath(filepath.Join(cacheDir, "cache")).
 			DataPath(filepath.Join(runtimeDir, "data")).
@@ -148,17 +143,27 @@ func openEmbeddedPostgres() (string, func(), error) {
 			Username("postgres").
 			Password(password).
 			Database("postgres").
+			// Postgres canonicalizes timestamptz DEFAULT expressions at
+			// parse time using the server timezone GUC, then stores the
+			// canonical form in pg_attrdef. Without UTC, the host's TZ
+			// leaks into dump.sql as values like '0001-12-31 23:06:32+00 BC'.
+			StartParameters(map[string]string{"timezone": "UTC"}).
 			Logger(nil),
 	)
 
+	_, _ = fmt.Fprintln(os.Stderr, "starting embedded postgres (first run may download binaries)...")
 	if err := ep.Start(); err != nil {
 		_ = os.RemoveAll(runtimeDir)
 		return "", nil, xerrors.Errorf("start embedded postgres: %w", err)
 	}
 
-	dsn := fmt.Sprintf(
-		"postgres://postgres@127.0.0.1:%d/postgres?sslmode=disable&password=%s",
-		port, url.QueryEscape(password))
+	dsn := dbtestutil.ConnectionParams{
+		Username: "postgres",
+		Password: password,
+		Host:     "127.0.0.1",
+		Port:     strconv.Itoa(port),
+		DBName:   "postgres",
+	}.DSN()
 
 	cleanup := func() {
 		if stopErr := ep.Stop(); stopErr != nil {
