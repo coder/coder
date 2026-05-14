@@ -24,7 +24,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -41,7 +40,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/coderd/database/pubsub"
 	codernats "github.com/coder/coder/v2/coderd/x/nats"
 )
 
@@ -53,8 +51,9 @@ func main() {
 	subs := flag.Int("subs", 1, "number of subscriber goroutines")
 	subj := flag.String("subj", "bench", "subject prefix (NATS modes). With -subjects=1 this is used as the subject as-is; with -subjects>1 native modes append \".<idx>\" and coder modes append \"_<idx>\". For coder modes the prefix must be a valid legacy event token ([A-Za-z0-9_-]+).")
 	subjects := flag.Int("subjects", 1, "number of subjects publishers/subscribers are distributed across (round-robin). 1 preserves legacy single-subject behavior.")
-	timeout := flag.Duration("timeout", 5*time.Minute, "max wait for subscribers to drain")
+	timeout := flag.Duration("timeout", 5*time.Minute, "per-phase timeout. Applied independently to the publish phase (wg.Wait + pool flush), the delivery wait, and the bounded cleanup phase. Setup uses its own embedded-server timeouts; warmup uses a derived sub-budget. Zero means \"wait forever\" for the delivery phase only.")
 	replicas := flag.Int("replicas", 10, "number of replicas for *-cluster modes (ignored elsewhere)")
+	localQueueMsgs := flag.Int("local-queue-msgs", 0, "override the per-listener inbox channel capacity for Coder modes. 0 means derive from the benchmark plan (benchmarkPendingMsgs). Values are clamped to [benchmarkPendingMsgsFloor, benchmarkPendingMsgsCap] so an operator typo cannot allocate an unbounded local listener channel buffer.")
 	cpuProfile := flag.String("cpuprofile", "", "write a CPU profile of the hot phase to this path")
 	memProfile := flag.String("memprofile", "", "write a heap profile of live memory after the hot phase to this path")
 	writeBuffer := flag.Int("write-buffer", 0, "NATS Go client write buffer size in bytes for every wrapper-owned or natsbench-owned client connection. 0 keeps the nats.go default (32 KiB). Applies to both Coder modes (via codernats.Options.WriteBufferSize) and native modes (via natsgo.WriteBufferSize on every raw nats.go client).")
@@ -80,8 +79,12 @@ func main() {
 		_, _ = fmt.Fprintln(os.Stderr, "natsbench: -write-buffer must be >= 0")
 		os.Exit(2)
 	}
+	if *localQueueMsgs < 0 {
+		_, _ = fmt.Fprintln(os.Stderr, "natsbench: -local-queue-msgs must be >= 0")
+		os.Exit(2)
+	}
 
-	if err := run(*mode, *msgs, *size, *pubs, *subs, *subj, *subjects, *timeout, *replicas, *writeBuffer); err != nil {
+	if err := run(*mode, *msgs, *size, *pubs, *subs, *subj, *subjects, *timeout, *replicas, *writeBuffer, *localQueueMsgs); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "natsbench: %v\n", err)
 		os.Exit(1)
 	}
@@ -171,7 +174,7 @@ func hotEnd(before runtime.MemStats) runtimeStats {
 	}
 }
 
-func run(mode string, msgs, size, pubs, subs int, subj string, subjects int, timeout time.Duration, replicas, writeBuffer int) error {
+func run(mode string, msgs, size, pubs, subs int, subj string, subjects int, timeout time.Duration, replicas, writeBuffer, localQueueMsgs int) error {
 	// writeBufferSuffix builds a " write-buffer=N" tail for the header
 	// line so each run is self-describing. Empty when zero (i.e. the
 	// nats.go default is in effect) to keep legacy runs visually
@@ -217,17 +220,17 @@ func run(mode string, msgs, size, pubs, subs int, subj string, subjects int, tim
 	case "native-inproc":
 		res, err = runNative(true, msgs, size, pubs, subs, subj, subjects, timeout, writeBuffer)
 	case "coder-tcp":
-		res, err = runCoder(false, msgs, size, pubs, subs, subj, subjects, timeout, writeBuffer)
+		res, err = runCoder(false, msgs, size, pubs, subs, subj, subjects, timeout, writeBuffer, localQueueMsgs)
 	case "coder-inproc":
-		res, err = runCoder(true, msgs, size, pubs, subs, subj, subjects, timeout, writeBuffer)
+		res, err = runCoder(true, msgs, size, pubs, subs, subj, subjects, timeout, writeBuffer, localQueueMsgs)
 	case "native-cluster":
 		res, err = runNativeCluster(msgs, size, pubs, subs, subj, subjects, timeout, replicas, writeBuffer)
 	case "coder-cluster":
-		res, err = runCoderCluster(msgs, size, pubs, subs, subj, subjects, timeout, replicas, writeBuffer)
+		res, err = runCoderCluster(msgs, size, pubs, subs, subj, subjects, timeout, replicas, writeBuffer, localQueueMsgs)
 	case "native-cluster-symmetric":
 		res, err = runNativeClusterSymmetric(msgs, size, pubs, subs, subj, subjects, timeout, replicas, writeBuffer)
 	case "coder-cluster-symmetric":
-		res, err = runCoderClusterSymmetric(msgs, size, pubs, subs, subj, subjects, timeout, replicas, writeBuffer)
+		res, err = runCoderClusterSymmetric(msgs, size, pubs, subs, subj, subjects, timeout, replicas, writeBuffer, localQueueMsgs)
 	default:
 		return xerrors.Errorf("unknown mode %q", mode)
 	}
@@ -533,13 +536,17 @@ func runNative(inProcess bool, msgs, size, pubs, subs int, subj string, numSubje
 // every Coder mode run is directly comparable.
 //
 //nolint:revive // inProcess is a transport selector, not a control flag.
-func runCoder(inProcess bool, msgs, size, pubs, subs int, subj string, numSubjects int, timeout time.Duration, writeBuffer int) (result, error) {
+func runCoder(inProcess bool, msgs, size, pubs, subs int, subj string, numSubjects int, timeout time.Duration, writeBuffer, localQueueMsgs int) (result, error) {
 	plan, err := planSubjects(pubs, subs, numSubjects, msgs, false)
 	if err != nil {
 		return result{}, xerrors.Errorf("plan subjects: %w", err)
 	}
 	subjectNames := buildCoderSubjects(subj, numSubjects)
-	pendingMsgs := benchmarkPendingMsgs(plan)
+	pendingMsgs, clamped, err := localQueueCapacity(plan, localQueueMsgs)
+	if err != nil {
+		return result{}, err
+	}
+	_, _ = fmt.Println(localQueueDescription(pendingMsgs, subs, localQueueMsgs, clamped))
 	t0 := time.Now()
 	logger := slog.Make() // discard
 	ps, err := codernats.New(context.Background(), logger, codernats.Options{
@@ -558,40 +565,25 @@ func runCoder(inProcess bool, msgs, size, pubs, subs int, subj string, numSubjec
 		PublishConns:    benchmarkPublishConns,
 		SubscribeConns:  benchmarkSubscribeConns,
 		WriteBufferSize: writeBuffer,
+		DrainTimeout:    benchmarkDrainTimeout(timeout),
 	})
 	if err != nil {
 		return result{}, xerrors.Errorf("new pubsub: %w", err)
 	}
-	defer ps.Close()
+	// Bounded cleanup: ensures Close cannot silently hang AFTER a
+	// successful hot phase. We run it deferred so it also fires on
+	// early errors. See runBoundedCleanup for the contract.
+	defer func() {
+		if cerr := runBoundedCleanup("ps.Close", cleanupTimeout(timeout), ps.Close); cerr != nil {
+			reportCleanupErr("ps.Close", cerr)
+		}
+	}()
 
-	type subState struct {
-		count  atomic.Int64
-		drops  atomic.Int64
-		done   chan struct{}
-		expect int64
-		cancel func()
-	}
-	subStates := make([]*subState, subs)
+	subStates := make([]*coderSubState, subs)
 	var firstSubErr atomic.Value // error
 	for i := 0; i < subs; i++ {
-		st := &subState{done: make(chan struct{}), expect: plan.ExpectPerSub[i]}
-		if st.expect == 0 {
-			close(st.done)
-		}
-		cancel, serr := ps.SubscribeWithErr(subjectNames[plan.SubSubject[i]], func(_ context.Context, _ []byte, cberr error) {
-			if cberr != nil {
-				if errors.Is(cberr, pubsub.ErrDroppedMessages) {
-					st.drops.Add(1)
-					return
-				}
-				firstSubErr.CompareAndSwap(nil, cberr)
-				return
-			}
-			n := st.count.Add(1)
-			if n == st.expect {
-				close(st.done)
-			}
-		})
+		st := newCoderSubState(plan.ExpectPerSub[i])
+		cancel, serr := ps.SubscribeWithErr(subjectNames[plan.SubSubject[i]], coderSubCallback(st, &firstSubErr))
 		if serr != nil {
 			return result{}, xerrors.Errorf("subscribe %d: %w", i, serr)
 		}
@@ -621,39 +613,35 @@ func runCoder(inProcess bool, msgs, size, pubs, subs int, subj string, numSubjec
 					return
 				}
 			}
-			if err := ps.Flush(); err != nil {
-				publishErr.Store(err)
-			}
+			// Per publisher Flush removed: Pubsub.Flush flushes the
+			// whole publisher pool, so calling it from every
+			// publisher goroutine made one slow pub conn block
+			// every other publisher. We now flush the pool once
+			// from the main goroutine after wg.Wait.
 		}(n, pubSubject)
 	}
 	memBefore := hotStart()
 	hotStartT := time.Now()
 	close(start)
-	wg.Wait()
-	pubDone := time.Now()
+	publishDiag := func() string {
+		return publishPhaseDiagFromCoderStates(subStates, plan.TotalPublished, &publishErr, &firstSubErr).String()
+	}
+	if perr := awaitWaitGroup("publish", timeout, &wg, publishDiag); perr != nil {
+		return result{}, wrapPhaseError("publish wg.Wait", perr)
+	}
 	if v := publishErr.Load(); v != nil {
 		perr, _ := v.(error)
 		return result{}, xerrors.Errorf("publish: %w", perr)
 	}
+	// Single pool flush under the publish-phase timeout. Pubsub.Flush
+	// already iterates every pubConn internally.
+	if ferr := runBoundedCleanup("publish-flush", timeout, ps.Flush); ferr != nil {
+		return result{}, wrapPhaseError("publish-flush", ferr)
+	}
+	pubDone := time.Now()
 
-	deadline := time.NewTimer(timeout)
-	defer deadline.Stop()
-	for _, st := range subStates {
-		select {
-		case <-st.done:
-		case <-deadline.C:
-			var delivered, expected, drops int64
-			for _, s := range subStates {
-				delivered += s.count.Load()
-				expected += s.expect
-				drops += s.drops.Load()
-			}
-			var firstErr error
-			if v := firstSubErr.Load(); v != nil {
-				firstErr, _ = v.(error)
-			}
-			return result{}, formatBenchTimeoutError(delivered, expected, subs, drops, firstErr)
-		}
+	if derr := awaitCoderDeliveryDone("delivery", timeout, subStates, &firstSubErr); derr != nil {
+		return result{}, derr
 	}
 	subDone := time.Now()
 	pubHot := pubDone.Sub(hotStartT)
@@ -944,13 +932,25 @@ func runNativeCluster(msgs, size, pubs, subs int, subj string, numSubjects int, 
 // subscribers register against replicas 1..N-1 round-robin so every
 // published message must cross a route. With replicas==1, subscribers
 // attach to replica 0 (degrades to runCoder shape).
-func runCoderCluster(msgs, size, pubs, subs int, subj string, numSubjects int, timeout time.Duration, replicas, writeBuffer int) (result, error) {
+//
+// Before the timed hot phase begins, this runner runs a warmup phase
+// on the real benchmark subjects so that subscribers across the
+// cluster have proven cross-route interest from replica 0. Warmup
+// payloads are tagged with warmupSentinel and do NOT count toward the
+// measured delivery totals (see coderSubCallback). The warmup phase
+// is bounded by warmupTimeout; if it times out the hot phase still
+// runs and the normal timeout path surfaces any delivery shortfall.
+func runCoderCluster(msgs, size, pubs, subs int, subj string, numSubjects int, timeout time.Duration, replicas, writeBuffer, localQueueMsgs int) (result, error) {
 	plan, err := planSubjects(pubs, subs, numSubjects, msgs, false)
 	if err != nil {
 		return result{}, xerrors.Errorf("plan subjects: %w", err)
 	}
 	subjectNames := buildCoderSubjects(subj, numSubjects)
-	pendingMsgs := benchmarkPendingMsgs(plan)
+	pendingMsgs, clamped, err := localQueueCapacity(plan, localQueueMsgs)
+	if err != nil {
+		return result{}, err
+	}
+	_, _ = fmt.Println(localQueueDescription(pendingMsgs, subs, localQueueMsgs, clamped))
 	t0 := time.Now()
 	logger := slog.Make() // discard
 	pubsubs, err := startCoderCluster(context.Background(), logger, replicas, 0, benchmarkPublishConns, benchmarkSubscribeConns, pendingMsgs, writeBuffer)
@@ -958,8 +958,10 @@ func runCoderCluster(msgs, size, pubs, subs int, subj string, numSubjects int, t
 		return result{}, xerrors.Errorf("start coder cluster: %w", err)
 	}
 	defer func() {
-		for _, p := range pubsubs {
-			_ = p.Close()
+		if cerr := runBoundedCleanup("coder-cluster.Close", cleanupTimeout(timeout), func() error {
+			return closeCoderClusterConcurrent(pubsubs)
+		}); cerr != nil {
+			reportCleanupErr("coder-cluster.Close", cerr)
 		}
 	}()
 
@@ -971,34 +973,11 @@ func runCoderCluster(msgs, size, pubs, subs int, subj string, numSubjects int, t
 		return pubsubs[1+(i%(replicas-1))]
 	}
 
-	type subState struct {
-		count  atomic.Int64
-		drops  atomic.Int64
-		done   chan struct{}
-		expect int64
-		cancel func()
-	}
-	subStates := make([]*subState, subs)
+	subStates := make([]*coderSubState, subs)
 	var firstSubErr atomic.Value // error
 	for i := 0; i < subs; i++ {
-		st := &subState{done: make(chan struct{}), expect: plan.ExpectPerSub[i]}
-		if st.expect == 0 {
-			close(st.done)
-		}
-		cancel, serr := subPSAt(i).SubscribeWithErr(subjectNames[plan.SubSubject[i]], func(_ context.Context, _ []byte, cberr error) {
-			if cberr != nil {
-				if errors.Is(cberr, pubsub.ErrDroppedMessages) {
-					st.drops.Add(1)
-					return
-				}
-				firstSubErr.CompareAndSwap(nil, cberr)
-				return
-			}
-			n := st.count.Add(1)
-			if n == st.expect {
-				close(st.done)
-			}
-		})
+		st := newClusterCoderSubState(plan.ExpectPerSub[i])
+		cancel, serr := subPSAt(i).SubscribeWithErr(subjectNames[plan.SubSubject[i]], coderSubCallback(st, &firstSubErr))
 		if serr != nil {
 			return result{}, xerrors.Errorf("subscribe %d: %w", i, serr)
 		}
@@ -1006,6 +985,15 @@ func runCoderCluster(msgs, size, pubs, subs int, subj string, numSubjects int, t
 		subStates[i] = st
 	}
 	setup := time.Since(t0)
+
+	// Warmup phase: replica 0 publishes a tagged warmup payload on
+	// every actual benchmark subject so cross-route interest is
+	// established before counters start. All publishers in this mode
+	// are on replica 0, so the per-subject pubReplicas mask is just {0}.
+	pubReplicaOf := func(int) int { return 0 }
+	if err := runCoderClusterWarmup(subjectNames, plan, subStates, pubsubs, pubReplicaOf, timeout); err != nil {
+		return result{}, wrapPhaseError("warmup", err)
+	}
 
 	payload := make([]byte, size)
 	for i := range payload {
@@ -1028,39 +1016,30 @@ func runCoderCluster(msgs, size, pubs, subs int, subj string, numSubjects int, t
 					return
 				}
 			}
-			if err := pubPS.Flush(); err != nil {
-				publishErr.Store(err)
-			}
+			// Per publisher Flush removed: see runCoder for rationale.
 		}(n, pubSubject)
 	}
 	memBefore := hotStart()
 	hotStartT := time.Now()
 	close(start)
-	wg.Wait()
-	pubDone := time.Now()
+	publishDiag := func() string {
+		return publishPhaseDiagFromCoderStates(subStates, plan.TotalPublished, &publishErr, &firstSubErr).String()
+	}
+	if perr := awaitWaitGroup("publish", timeout, &wg, publishDiag); perr != nil {
+		return result{}, wrapPhaseError("publish wg.Wait", perr)
+	}
 	if v := publishErr.Load(); v != nil {
 		perr, _ := v.(error)
 		return result{}, xerrors.Errorf("publish: %w", perr)
 	}
+	// Single pool flush; pubPS.Flush iterates every pubConn internally.
+	if ferr := runBoundedCleanup("publish-flush", timeout, pubPS.Flush); ferr != nil {
+		return result{}, wrapPhaseError("publish-flush", ferr)
+	}
+	pubDone := time.Now()
 
-	deadline := time.NewTimer(timeout)
-	defer deadline.Stop()
-	for _, st := range subStates {
-		select {
-		case <-st.done:
-		case <-deadline.C:
-			var delivered, expected, drops int64
-			for _, s := range subStates {
-				delivered += s.count.Load()
-				expected += s.expect
-				drops += s.drops.Load()
-			}
-			var firstErr error
-			if v := firstSubErr.Load(); v != nil {
-				firstErr, _ = v.(error)
-			}
-			return result{}, formatBenchTimeoutError(delivered, expected, subs, drops, firstErr)
-		}
+	if derr := awaitCoderDeliveryDone("delivery", timeout, subStates, &firstSubErr); derr != nil {
+		return result{}, derr
 	}
 	subDone := time.Now()
 	pubHot := pubDone.Sub(hotStartT)
@@ -1271,14 +1250,25 @@ func runNativeClusterSymmetric(msgs, size, pubs, subs int, subj string, numSubje
 //
 // MaxPending is bounded at 128 MiB (instead of the default 1 GiB) to
 // cap worst-case in-flight bytes in cluster fan-out scenarios.
-func runCoderClusterSymmetric(msgs, size, pubs, subs int, subj string, numSubjects int, timeout time.Duration, replicas, writeBuffer int) (result, error) {
+//
+// Like runCoderCluster, this runner warms up cross-route interest on
+// the real benchmark subjects before the timed hot phase. Because
+// publishers are spread across replicas in symmetric mode, the warmup
+// loop tracks per-replica interest using a uint64 bitmask
+// (warmupReplicaCap caps the trackable replica count at 64; runs above
+// the cap fall back to "any one warmup observed" semantics).
+func runCoderClusterSymmetric(msgs, size, pubs, subs int, subj string, numSubjects int, timeout time.Duration, replicas, writeBuffer, localQueueMsgs int) (result, error) {
 	const symMaxPending int64 = 128 << 20
 	plan, err := planSubjects(pubs, subs, numSubjects, msgs, true)
 	if err != nil {
 		return result{}, xerrors.Errorf("plan subjects: %w", err)
 	}
 	subjectNames := buildCoderSubjects(subj, numSubjects)
-	pendingMsgs := benchmarkPendingMsgs(plan)
+	pendingMsgs, clamped, err := localQueueCapacity(plan, localQueueMsgs)
+	if err != nil {
+		return result{}, err
+	}
+	_, _ = fmt.Println(localQueueDescription(pendingMsgs, subs, localQueueMsgs, clamped))
 	t0 := time.Now()
 	logger := slog.Make() // discard
 	pubsubs, err := startCoderCluster(context.Background(), logger, replicas, symMaxPending, benchmarkPublishConns, benchmarkSubscribeConns, pendingMsgs, writeBuffer)
@@ -1286,8 +1276,10 @@ func runCoderClusterSymmetric(msgs, size, pubs, subs int, subj string, numSubjec
 		return result{}, xerrors.Errorf("start coder cluster: %w", err)
 	}
 	defer func() {
-		for _, p := range pubsubs {
-			_ = p.Close()
+		if cerr := runBoundedCleanup("coder-cluster.Close", cleanupTimeout(timeout), func() error {
+			return closeCoderClusterConcurrent(pubsubs)
+		}); cerr != nil {
+			reportCleanupErr("coder-cluster.Close", cerr)
 		}
 	}()
 
@@ -1295,34 +1287,11 @@ func runCoderClusterSymmetric(msgs, size, pubs, subs int, subj string, numSubjec
 		return pubsubs[i%replicas]
 	}
 
-	type subState struct {
-		count  atomic.Int64
-		drops  atomic.Int64
-		done   chan struct{}
-		expect int64
-		cancel func()
-	}
-	subStates := make([]*subState, subs)
+	subStates := make([]*coderSubState, subs)
 	var firstSubErr atomic.Value // error
 	for i := 0; i < subs; i++ {
-		st := &subState{done: make(chan struct{}), expect: plan.ExpectPerSub[i]}
-		if st.expect == 0 {
-			close(st.done)
-		}
-		cancel, serr := replicaAt(i).SubscribeWithErr(subjectNames[plan.SubSubject[i]], func(_ context.Context, _ []byte, cberr error) {
-			if cberr != nil {
-				if errors.Is(cberr, pubsub.ErrDroppedMessages) {
-					st.drops.Add(1)
-					return
-				}
-				firstSubErr.CompareAndSwap(nil, cberr)
-				return
-			}
-			n := st.count.Add(1)
-			if n == st.expect {
-				close(st.done)
-			}
-		})
+		st := newClusterCoderSubState(plan.ExpectPerSub[i])
+		cancel, serr := replicaAt(i).SubscribeWithErr(subjectNames[plan.SubSubject[i]], coderSubCallback(st, &firstSubErr))
 		if serr != nil {
 			return result{}, xerrors.Errorf("subscribe %d: %w", i, serr)
 		}
@@ -1330,6 +1299,11 @@ func runCoderClusterSymmetric(msgs, size, pubs, subs int, subj string, numSubjec
 		subStates[i] = st
 	}
 	setup := time.Since(t0)
+
+	pubReplicaOf := func(i int) int { return i % replicas }
+	if err := runCoderClusterWarmup(subjectNames, plan, subStates, pubsubs, pubReplicaOf, timeout); err != nil {
+		return result{}, wrapPhaseError("warmup", err)
+	}
 
 	payload := make([]byte, size)
 	for i := range payload {
@@ -1341,8 +1315,10 @@ func runCoderClusterSymmetric(msgs, size, pubs, subs int, subj string, numSubjec
 	var wg sync.WaitGroup
 	var publishErr atomic.Value
 	start := make(chan struct{})
+	usedPubsubs := make(map[*codernats.Pubsub]struct{}, replicas)
 	for i := 0; i < pubs; i++ {
 		ps := replicaAt(i)
+		usedPubsubs[ps] = struct{}{}
 		n := plan.PerPubMsgs[i]
 		pubSubject := subjectNames[plan.PubSubject[i]]
 		wg.Add(1)
@@ -1355,39 +1331,34 @@ func runCoderClusterSymmetric(msgs, size, pubs, subs int, subj string, numSubjec
 					return
 				}
 			}
-			if err := ps.Flush(); err != nil {
-				publishErr.Store(err)
-			}
+			// Per publisher Flush removed: see runCoder for rationale.
 		}(ps, n, pubSubject)
 	}
 	memBefore := hotStart()
 	hotStartT := time.Now()
 	close(start)
-	wg.Wait()
-	pubDone := time.Now()
+	publishDiag := func() string {
+		return publishPhaseDiagFromCoderStates(subStates, plan.TotalPublished, &publishErr, &firstSubErr).String()
+	}
+	if perr := awaitWaitGroup("publish", timeout, &wg, publishDiag); perr != nil {
+		return result{}, wrapPhaseError("publish wg.Wait", perr)
+	}
 	if v := publishErr.Load(); v != nil {
 		perr, _ := v.(error)
 		return result{}, xerrors.Errorf("publish: %w", perr)
 	}
+	// Flush each used Pubsub once (each is a pool). This replaces the
+	// per-goroutine flush that used to redundantly flush every replica's
+	// entire pool from every publisher goroutine.
+	if ferr := runBoundedCleanup("publish-flush", timeout, func() error {
+		return flushPubsubsConcurrent(usedPubsubs)
+	}); ferr != nil {
+		return result{}, wrapPhaseError("publish-flush", ferr)
+	}
+	pubDone := time.Now()
 
-	deadline := time.NewTimer(timeout)
-	defer deadline.Stop()
-	for _, st := range subStates {
-		select {
-		case <-st.done:
-		case <-deadline.C:
-			var delivered, expected, drops int64
-			for _, s := range subStates {
-				delivered += s.count.Load()
-				expected += s.expect
-				drops += s.drops.Load()
-			}
-			var firstErr error
-			if v := firstSubErr.Load(); v != nil {
-				firstErr, _ = v.(error)
-			}
-			return result{}, formatBenchTimeoutError(delivered, expected, subs, drops, firstErr)
-		}
+	if derr := awaitCoderDeliveryDone("delivery", timeout, subStates, &firstSubErr); derr != nil {
+		return result{}, derr
 	}
 	subDone := time.Now()
 	pubHot := pubDone.Sub(hotStartT)
