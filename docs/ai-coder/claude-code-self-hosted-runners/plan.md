@@ -71,12 +71,34 @@ pushing the commit are both the bot.
    `/metrics` endpoints to surface the locked Anthropic user, active
    session count, runner ID, and last-poll age on the workspace page.
 4. **Self-eviction** in `coder_script`: after the runner exits 0 on drain,
-   call `coder delete` against the Coder API using a service-account
-   token (a third sensitive template variable). The prebuild reconciler
-   sees the deficit and queues a replacement.
+   call `POST /api/v2/workspaces/{id}/builds` with `{"transition":"delete"}`
+   using a **per-workspace, scope-restricted** Coder API token minted at
+   template-build time. The token is scoped to
+   `workspace:delete + workspace:read + template:read + user:read` and
+   allow-listed to this workspace's UUID. A leaked copy can only delete
+   this one workspace; no read of peer prebuilds, SSH, external auth,
+   or git creds. The token is minted via the `Mastercard/restapi`
+   Terraform provider hitting `POST /api/v2/users/{svc}/keys/tokens` at
+   template build time, using a long-lived bootstrap admin token kept
+   in Terraform state but never injected into the workspace. The
+   prebuild reconciler sees the deficit and queues a replacement.
 5. **A prebuilds preset** with `prebuilds { instances = N }` and a TTL of
    roughly 8 hours, so unused warm workspaces also get recycled and the
    pool always presents fresh disks to Anthropic.
+6. **A per-session wrapper script** baked into the image at
+   `/opt/claude/wrapper.sh` and wired via `--exec-path`. The wrapper
+   appends `--permission-mode bypassPermissions` after `"$@"` so the
+   runner never stalls on a tool-approval prompt (sessions have no
+   terminal attached). Per the Anthropic PDF, Claude Code's flag
+   parser is last-occurrence-wins, so the wrapper overrides whatever
+   permission mode the server sent.
+7. **Host Docker socket passthrough** so the runner's child claude can
+   `docker build` / `docker run` for sessions that need it. The
+   container mounts `/var/run/docker.sock` from the host and the
+   startup script chgrps the socket to the in-container `docker`
+   group if the gid doesn't match. This is root-equivalent on the
+   host; it matches dogfood's everyday workspace behavior and is
+   acceptable for the EAP recipe.
 
 ### What this gives you
 
@@ -134,15 +156,26 @@ arrives so there is no first-session-wins race.
 
 ### Pieces
 
-1. **Webhook receiver.** A few hundred lines of Go or Node. Verifies the
-   Anthropic signature, looks up the user in Coder via the API, pre-flights
-   that the user has the required external-auth grants, calls
-   `POST /workspaces` on the user's behalf with `--lock-to-account` as a
-   parameter.
+1. **Webhook receiver, or in-tree integration.** Two implementation
+   paths, both valid:
+   - **Middleware service.** A few hundred lines of Go or Node.
+     Verifies the Anthropic signature, looks up the user in Coder via
+     the API, pre-flights that the user has the required
+     external-auth grants, calls `POST /workspaces` on the user's
+     behalf with `--lock-to-account` as a parameter. Faster to ship;
+     can land the day Anthropic's webhook ships.
+   - **First-class integration in `coderd`.** Coder's server consumes
+     the Anthropic webhook directly, with user-mapping rules and the
+     on-behalf-of spawn built in. The webhook receiver collapses from
+     "a service to write" to "a config block in the template." Better
+     long-term shape; absorbs whatever middleware deployments teach
+     us about the right defaults.
 2. **Coder service-account token.** A scoped API token owned by, for
    example, `svc-claude-pool`. Scopes: create workspaces on behalf of
-   users, read users, read and delete workspaces. Vaulted, rotated. Never a
-   human admin's PAT.
+   users, read users, read and delete workspaces. Same pattern as the
+   `svc-claude-delete` bootstrap token system identity already uses
+   for per-workspace self-eviction. Vaulted, rotated. Never a human
+   admin's PAT.
 3. **`--lock-to-account` parameter on the template.** A new
    `coder_parameter` that flows through to the runner CLI. Default empty
    (behaves like System identity); set by the middleware on every spawn.
@@ -278,12 +311,11 @@ This is purely an image and settings exercise; no product work.
 
 | Stage             | Pages                            | Reviewers                   | Notes                                                                 |
 |-------------------|----------------------------------|-----------------------------|-----------------------------------------------------------------------|
-| System identity   | overview, system-identity, plan  | docs, AI team, platform-eng | Ship as a single PR. Don't gate on User identity.                     |
-| Stage A           | wrapper scripts page             | security, IdP owners        | Needs IdP examples beyond AWS STS.                                    |
+| System identity   | overview, system-identity, plan  | docs, AI team, platform-eng | Ship as a single PR. Don't gate on User identity. Includes the per-session wrapper (`--permission-mode bypassPermissions`), per-workspace scoped self-eviction token, and host Docker socket passthrough; Stage A is no longer a separate page. |
 | Stage B           | lifecycle hooks page             | infra, source-control       | Pair with a Coder template that demonstrates the cache volume layout. |
 | Stage C           | AI Gateway integration page      | AI Gateway maintainers      | Behind AI Governance Add-on entitlement.                              |
 | Stage D           | permissions and skills page      | security, AI team           | Mostly cribs from the PDF + existing `~/.claude` content.             |
-| User identity     | middleware reference, plan diff  | platform-eng, AI team       | Depends on Anthropic publishing the webhook contract.                 |
+| User identity     | middleware reference, plan diff  | platform-eng, AI team       | Depends on Anthropic publishing the webhook contract; either middleware or in-tree `coderd` integration on Coder's side. |
 
 ## Risks and open issues
 
@@ -386,20 +418,24 @@ If the answer is "no, runners are always ephemeral":
 
 ### Webhook payload and `--lock-to-account` graduation
 
-User identity depends on two interfaces the PDF flags as not yet finalized:
+User identity depends on two interfaces the PDF flags as on Anthropic's
+roadmap but not yet shipped:
 
-- The `runner-needed` webhook payload shape and auth contract. Per the
-  PDF: "tell us which scaling signal fits your infrastructure, what
-  payload fields you need to provision a runner (for example: pool ID,
-  the account the runner should serve, repository URLs to pre-clone),
-  and what authentication shape your webhook receiver expects." We have
-  a concrete consumer (the middleware in User identity) and would like to
-  influence the contract before it is finalized.
+- The `runner-needed` webhook. The PDF describes it (one event per
+  queued session with no available runner, plus a CLI poll fallback)
+  and says "tell us which scaling signal fits your infrastructure,
+  what payload fields you need to provision a runner (for example:
+  pool ID, the account the runner should serve, repository URLs to
+  pre-clone), and what authentication shape your webhook receiver
+  expects." The wire format is not finalized and there is no
+  destination URL to configure today. We have a concrete consumer
+  (the middleware or coderd-integration in User identity) and want
+  to influence the contract before it is finalized.
 - The `--lock-to-account` flag is documented today as "intended for
-  webhook-driven spawn (pending)." user identity's no-first-session-wins
-  property depends on it. We need to know whether it will graduate from
-  pending and whether the locked account must already have queued
-  sessions, must belong to the pool's org, etc.
+  webhook-driven spawn (pending)." User identity's no-first-session-
+  wins property depends on it. We need to know whether it will
+  graduate from pending and whether the locked account must already
+  have queued sessions, must belong to the pool's org, etc.
 
 Specific asks for the webhook payload:
 

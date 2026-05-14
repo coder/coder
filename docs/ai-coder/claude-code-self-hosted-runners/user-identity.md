@@ -36,7 +36,7 @@ restores the per-developer audit trail across the whole stack:
 |--------------------------|----------------------------------------------------------|----------------------------------------------------------------------------|
 | Coder workspace owner    | A bot service account                                    | The Coder user who matches the Claude Code session creator                 |
 | Git push credential      | A fleet-wide bot PAT delivered as a Terraform variable   | The user's own git push credential via Coder external auth                 |
-| Git author on commits    | The bot                                                  | The bot in `Author` plus the human's session URL trailer (or per-user, depending on your image) |
+| Git author on commits    | The bot                                                  | The bot for the initial clone; the user's identity (via Coder external auth) for commits and pushes inside the session |
 | Coder audit log          | Attributes to the bot service account                    | Attributes to the user, with the routing service account shown as on-behalf-of creator |
 | Routing                  | Anthropic picks any free runner; the runner locks on first session | The runner is pre-bound to the matching user before sessions arrive        |
 | Pool size / concurrency  | Fixed: at most `instances` concurrent Anthropic users, because every workspace is the same service account | Dynamic: one workspace per Anthropic user, spawned on demand; prebuilds are just a warm cache that hides cold-start time |
@@ -87,14 +87,46 @@ Two pieces of the Anthropic runner protocol have not shipped:
 
 - A way for Anthropic to **tell your infrastructure** that a specific
   user has a session waiting, so Coder can spawn a workspace on their
-  behalf instead of waiting for a runner to be claimed.
+  behalf instead of waiting for a runner to be claimed. Webhook
+  support is on Anthropic's roadmap (the EAP guide describes a
+  `runner-needed` webhook plus a CLI poll fallback), but the wire
+  format and auth contract are not finalized and there is no
+  destination URL to configure today.
 - A way to **pre-bind a runner to a specific user** at startup, so
-  there is no race where a session lands on the wrong runner.
+  there is no race where a session lands on the wrong runner. The
+  `--lock-immediate` flag exists in the runner today but is marked
+  pending and intended for webhook-driven spawn.
 
-Anthropic flags both in their EAP guide as pending, with the wire
-format not finalized and operator input invited on the contract
-shape. Once those ship, this page will be replaced with a
-copy-and-go recipe.
+Anthropic invites operator input on both contracts. Once they ship,
+this page will be replaced with a copy-and-go recipe.
+
+## Where this depends on Coder
+
+Once Anthropic publishes the webhook contract, two implementation
+paths get you to per-user workspaces:
+
+- **A small middleware service in front of Coder.** Receives the
+  Anthropic webhook, maps the session creator's identity to a Coder
+  user, calls `POST /api/v2/users/{user}/workspaces` on the user's
+  behalf with the runner pre-locked to that user, and reports back to
+  Anthropic. A few hundred lines of Go or Node, authenticated to
+  Coder as a dedicated service account with a scoped admin-like
+  token. This is what we expect most early adopters to deploy because
+  it can ship the day Anthropic's webhook ships, on top of Coder
+  primitives that already exist.
+- **A first-class integration inside `coderd`.** Coder's server
+  natively consumes the Anthropic webhook, with the user-mapping
+  rules, the on-behalf-of spawn, and the audit-log wiring built in.
+  The webhook receiver collapses from "a service you write" to "a
+  config block in the template." This is the better long-term shape
+  for any team that doesn't want to operate a separate service, and
+  it is the natural follow-on once we have learned from middleware
+  deployments what the right defaults are.
+
+The two paths are not mutually exclusive: middleware lets us iterate
+on the integration shape before committing to anything in the
+product, and the in-tree integration absorbs whatever middleware
+teaches us once the patterns are clear.
 
 ## What to do today
 
@@ -110,11 +142,6 @@ Session: https://claude.ai/code/sessions/cse_...
 That trailer points at the Anthropic session, which is attributed to
 the human user. Your tooling (CODEOWNERS bots, dashboards, audit
 reports) can read it to recover the per-human signal.
-
-For most teams that bridges the gap until user identity ships. If your
-audit, signed-commit, or policy requirements need per-user attribution
-at the `Author` line, contact Coder so we can prioritize against your
-timeline.
 
 ## Where to next
 
