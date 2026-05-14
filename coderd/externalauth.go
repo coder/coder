@@ -80,8 +80,17 @@ func (api *API) externalAuthByID(w http.ResponseWriter, r *http.Request) {
 		var identity *codersdk.ExternalAuthIdentity
 		link, identity, err = api.refreshExternalAuthIdentity(ctx, config, link)
 		if err != nil {
-			httpapi.Write(ctx, w, http.StatusUnauthorized, codersdk.Response{
-				Message: "Failed to validate external auth identity.",
+			status := http.StatusBadGateway
+			message := "Failed to fetch external auth identity."
+			if errors.Is(err, errExternalAuthIdentityChanged) {
+				status = http.StatusBadRequest
+				message = "External auth identity changed. Unlink and reconnect the provider."
+			} else if errors.Is(err, errExternalAuthIdentityUpdate) {
+				status = http.StatusInternalServerError
+				message = "Failed to update external auth identity."
+			}
+			httpapi.Write(ctx, w, status, codersdk.Response{
+				Message: message,
 				Detail:  err.Error(),
 			})
 			return
@@ -251,6 +260,11 @@ func (api *API) postExternalAuthDeviceByID(rw http.ResponseWriter, r *http.Reque
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+var (
+	errExternalAuthIdentityChanged = xerrors.New("external auth identity changed")
+	errExternalAuthIdentityUpdate  = xerrors.New("update external auth identity")
+)
+
 // @Summary Get external auth device by ID.
 // @ID get-external-auth-device-by-id
 // @Security CoderSessionToken
@@ -292,13 +306,13 @@ func externalAuthIdentityFields(identity *codersdk.ExternalAuthIdentity) (id, lo
 func (api *API) refreshExternalAuthIdentity(ctx context.Context, config *externalauth.Config, link database.ExternalAuthLink) (database.ExternalAuthLink, *codersdk.ExternalAuthIdentity, error) {
 	identity, err := config.ExternalAuthIdentity(ctx, link.OAuthAccessToken)
 	if err != nil {
-		return link, nil, err
+		return link, nil, xerrors.Errorf("fetch external auth identity: %w", err)
 	}
 	if identity == nil {
 		return link, db2sdk.ExternalAuthIdentity(link), nil
 	}
 	if link.ExternalUserID != "" && link.ExternalUserID != identity.ID {
-		return link, nil, xerrors.Errorf("external auth identity changed for provider %q; reconnect the provider", config.ID)
+		return link, nil, xerrors.Errorf("%w for provider %q", errExternalAuthIdentityChanged, config.ID)
 	}
 	if link.ExternalUserID == identity.ID &&
 		link.ExternalUserLogin == identity.Login &&
@@ -318,7 +332,7 @@ func (api *API) refreshExternalAuthIdentity(ctx context.Context, config *externa
 		ExternalUserAvatarUrl: identity.AvatarURL,
 	})
 	if err != nil {
-		return link, nil, err
+		return link, nil, xerrors.Errorf("%w: %w", errExternalAuthIdentityUpdate, err)
 	}
 	return updated, identity, nil
 }

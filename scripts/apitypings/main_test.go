@@ -16,10 +16,61 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/guts"
+	"github.com/coder/guts/bindings"
 )
 
 // updateGoldenFiles is a flag that can be set to update golden files.
 var updateGoldenFiles = flag.Bool("update", false, "Update golden files")
+
+func TestPluralize(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "Empty", in: "", want: ""},
+		{name: "Default", in: "User", want: "Users"},
+		{name: "S", in: "Status", want: "Statuses"},
+		{name: "X", in: "Box", want: "Boxes"},
+		{name: "Z", in: "Buzz", want: "Buzzes"},
+		{name: "Ch", in: "Branch", want: "Branches"},
+		{name: "Sh", in: "Dash", want: "Dashes"},
+		{name: "ConsonantY", in: "Policy", want: "Policies"},
+		{name: "VowelY", in: "Key", want: "Keys"},
+		{name: "SingleY", in: "y", want: "ys"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, pluralize(tt.in))
+		})
+	}
+}
+
+func TestIsGoEnum(t *testing.T) {
+	t.Parallel()
+
+	alias := &bindings.Alias{Type: &bindings.UnionType{Types: []bindings.ExpressionType{
+		&bindings.LiteralType{Value: "one"},
+		&bindings.LiteralType{Value: "two"},
+	}}}
+	_, union, ok := isGoEnum(alias)
+	require.True(t, ok)
+	require.Len(t, union.Types, 2)
+
+	_, _, ok = isGoEnum(&bindings.Interface{})
+	require.False(t, ok)
+	_, _, ok = isGoEnum(&bindings.Alias{Type: &bindings.LiteralType{Value: "one"}})
+	require.False(t, ok)
+	_, _, ok = isGoEnum(&bindings.Alias{Type: &bindings.UnionType{}})
+	require.False(t, ok)
+	_, _, ok = isGoEnum(&bindings.Alias{Type: &bindings.UnionType{Types: []bindings.ExpressionType{
+		&bindings.LiteralType{Value: "one"},
+		&bindings.LiteralType{Value: 2},
+	}}})
+	require.False(t, ok)
+}
 
 func TestGeneration(t *testing.T) {
 	t.Parallel()
