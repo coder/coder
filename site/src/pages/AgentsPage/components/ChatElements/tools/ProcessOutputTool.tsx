@@ -1,6 +1,6 @@
 import { ChevronDownIcon, LoaderIcon, OctagonXIcon } from "lucide-react";
 import type React from "react";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
@@ -64,12 +64,10 @@ const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 	const [outputFullyExpanded, setOutputFullyExpanded] = useState(
 		outputInitiallyFullyExpanded,
 	);
-	const outputRef = useRef<HTMLPreElement | null>(null);
 	const hasOutput = output.length > 0;
 
 	const [overflows, setOverflows] = useState(false);
 	const measureRef = (node: HTMLPreElement | null) => {
-		outputRef.current = node;
 		if (node) {
 			setOverflows(node.scrollHeight > COLLAPSED_OUTPUT_HEIGHT);
 		}

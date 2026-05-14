@@ -1,5 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
+import {
+	expect,
+	fn,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
 import { DesktopPanelContext } from "./DesktopPanelContext";
@@ -61,6 +69,9 @@ export const ExecuteSuccess: Story = {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText(/From github\.com:coder\/coder/)).toBeVisible();
 		expect(canvas.queryByText("exit 0")).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("img", { name: "Running in background" }),
+		).not.toBeInTheDocument();
 		expect(canvas.getByText("47.2s")).toBeVisible();
 		expect(canvas.queryByText("2 lines")).not.toBeInTheDocument();
 	},
@@ -84,9 +95,40 @@ export const ExecuteError: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		expect(canvas.queryByText(/error line 1/)).not.toBeInTheDocument();
+		expect(canvas.getByRole("img", { name: "Command failed" })).toBeVisible();
 		expect(canvas.queryByText("exit 1")).not.toBeInTheDocument();
-		expect(canvas.getByText("8.6s")).toBeVisible();
-		expect(canvas.queryByText("47 lines")).not.toBeInTheDocument();
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Expand command output" }),
+		);
+		await waitFor(() => {
+			expect(canvas.getByText(/error line 1/)).toBeVisible();
+		});
+	},
+};
+
+export const ExecuteBackgrounded: Story = {
+	args: {
+		name: "execute",
+		status: "completed",
+		args: { command: "npm start" },
+		shellToolDisplayMode: "always_collapsed",
+		result: {
+			background_process_id: "process-123",
+			output: "",
+			wall_duration_ms: 2100,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const backgroundIndicator = canvas.getByRole("img", {
+			name: "Running in background",
+		});
+		expect(backgroundIndicator).toBeVisible();
+		await userEvent.hover(backgroundIndicator);
+		expect(await screen.findByRole("tooltip")).toHaveTextContent(
+			"Running in background",
+		);
 	},
 };
 
@@ -180,12 +222,13 @@ export const ProcessOutputAlwaysExpanded: Story = {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText(/process output line 1/)).toBeVisible();
 		expect(canvas.getByText(/process output line 30/)).toBeVisible();
-		const toggle = canvas.queryByRole("button", {
-			name: "Collapse full process output",
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("button", {
+					name: "Collapse full process output",
+				}),
+			).toHaveAttribute("aria-expanded", "true");
 		});
-		if (toggle) {
-			expect(toggle).toHaveAttribute("aria-expanded", "true");
-		}
 	},
 };
 

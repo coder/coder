@@ -79,6 +79,7 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 }) => {
 	const hasOutput = output.length > 0;
 	const isRunning = status === "running";
+	const showFailureIndicator = isError && !isRunning;
 	const [outputOpen, setOutputOpen] = useState(outputInitiallyOpen);
 	const outputToggleLabel = outputOpen
 		? "Collapse command output"
@@ -120,10 +121,33 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 				{isRunning && (
 					<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
 				)}
+				{showFailureIndicator && (
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<span
+								aria-label="Command failed"
+								role="img"
+								className="flex shrink-0 text-content-destructive"
+							>
+								<TriangleAlertIcon
+									aria-hidden
+									className="h-3.5 w-3.5 shrink-0"
+								/>
+							</span>
+						</TooltipTrigger>
+						<TooltipContent>Command failed</TooltipContent>
+					</Tooltip>
+				)}
 				{isBackgrounded && !isRunning && (
 					<Tooltip>
 						<TooltipTrigger asChild>
-							<LayersIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
+							<span
+								aria-label="Running in background"
+								role="img"
+								className="flex shrink-0 text-content-secondary"
+							>
+								<LayersIcon aria-hidden className="h-3.5 w-3.5 shrink-0" />
+							</span>
 						</TooltipTrigger>
 						<TooltipContent>Running in background</TooltipContent>
 					</Tooltip>
