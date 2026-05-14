@@ -4147,7 +4147,7 @@ type AIBridgeConfig struct {
 	LegacyBedrock AIBridgeBedrockConfig `json:"bedrock" typescript:",notnull"`
 	// Providers holds provider instances populated from CODER_AIBRIDGE_PROVIDER_<N>_<KEY>
 	// env vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.
-	Providers []AIBridgeProviderConfig `json:"providers,omitempty"`
+	Providers []AIProviderConfig `json:"providers,omitempty"`
 	// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
 	InjectCoderMCPTools serpent.Bool     `json:"inject_coder_mcp_tools" typescript:",notnull"`
 	Retention           serpent.Duration `json:"retention" typescript:",notnull"`
@@ -4187,10 +4187,10 @@ type AIBridgeBedrockConfig struct {
 	SmallFastModel  serpent.String `json:"small_fast_model" typescript:",notnull"`
 }
 
-// AIBridgeProviderConfig represents a single AI Bridge provider instance,
+// AIProviderConfig represents a single AI provider instance,
 // parsed from CODER_AIBRIDGE_PROVIDER_<N>_<KEY> environment variables.
 // This follows the same indexed pattern as ExternalAuthConfig.
-type AIBridgeProviderConfig struct {
+type AIProviderConfig struct {
 	// Type is the provider type: "openai", "anthropic", or "copilot".
 	Type string `json:"type"`
 	// Name is the unique instance identifier used for routing.
