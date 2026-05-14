@@ -3,10 +3,13 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
 
+	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -54,8 +57,12 @@ func main() {
 		var err error
 		connection, cleanup, err = dbtestutil.OpenContainerized(t, dbtestutil.DBContainerOptions{})
 		if err != nil {
-			err = xerrors.Errorf("open containerized database failed: %w", err)
-			panic(err)
+			fmt.Fprintf(os.Stderr, "containerized postgres unavailable (%s); falling back to embedded postgres\n", err)
+			connection, cleanup, err = openEmbeddedPostgres()
+			if err != nil {
+				err = xerrors.Errorf("open embedded postgres failed: %w", err)
+				panic(err)
+			}
 		}
 		defer cleanup()
 	}
@@ -75,6 +82,12 @@ func main() {
 
 	dumpBytes, err := dbtestutil.PGDumpSchemaOnly(connection)
 	if err != nil {
+		fmt.Fprintf(os.Stderr,
+			"\nThis step needs pg_dump (PostgreSQL v13.x) on PATH OR a Docker-compatible daemon.\n"+
+				"Install pg_dump locally to avoid Docker:\n"+
+				"  mise:  mise use -g postgres@13\n"+
+				"  brew:  brew install libpq && brew link --force libpq\n"+
+				"  apt:   install the postgresql-client-13 package\n\n")
 		err = xerrors.Errorf("dump schema failed: %w", err)
 		panic(err)
 	}
@@ -88,4 +101,70 @@ func main() {
 		err = xerrors.Errorf("write dump failed: %w", err)
 		panic(err)
 	}
+}
+
+func openEmbeddedPostgres() (string, func(), error) {
+	listener, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		return "", nil, xerrors.Errorf("find ephemeral port: %w", err)
+	}
+	tcpAddr, ok := listener.Addr().(*net.TCPAddr)
+	if !ok {
+		_ = listener.Close()
+		return "", nil, xerrors.New("listener returned non-TCP addr")
+	}
+	port := tcpAddr.Port
+	_ = listener.Close()
+
+	cacheRoot, err := os.UserCacheDir()
+	if err != nil {
+		cacheRoot = os.TempDir()
+	}
+	cacheDir := filepath.Join(cacheRoot, "coder", "dbdump-postgres")
+
+	runtimeDir, err := os.MkdirTemp("", "coder-dbdump-postgres-")
+	if err != nil {
+		return "", nil, xerrors.Errorf("create runtime dir: %w", err)
+	}
+
+	// Force the server's timezone to UTC. Postgres canonicalizes
+	// timestamptz DEFAULT expressions at parse time using the server's
+	// local timezone, then stores the canonical form in pg_attrdef.
+	// Without this, the host's local TZ leaks into the generated
+	// dump.sql via re-rendered defaults like
+	// '0001-12-31 23:06:32+00 BC'. The container-based Postgres
+	// already defaults to Etc/UTC.
+	_ = os.Setenv("TZ", "UTC")
+
+	const password = "postgres"
+	ep := embeddedpostgres.NewDatabase(
+		embeddedpostgres.DefaultConfig().
+			Version(embeddedpostgres.V13).
+			BinariesPath(filepath.Join(cacheDir, "bin")).
+			CachePath(filepath.Join(cacheDir, "cache")).
+			DataPath(filepath.Join(runtimeDir, "data")).
+			RuntimePath(filepath.Join(runtimeDir, "runtime")).
+			Port(uint32(port)). //nolint:gosec // port from listener, fits uint32.
+			Username("postgres").
+			Password(password).
+			Database("postgres").
+			Logger(nil),
+	)
+
+	if err := ep.Start(); err != nil {
+		_ = os.RemoveAll(runtimeDir)
+		return "", nil, xerrors.Errorf("start embedded postgres: %w", err)
+	}
+
+	dsn := fmt.Sprintf(
+		"postgres://postgres@127.0.0.1:%d/postgres?sslmode=disable&password=%s",
+		port, url.QueryEscape(password))
+
+	cleanup := func() {
+		if stopErr := ep.Stop(); stopErr != nil {
+			fmt.Fprintf(os.Stderr, "failed to stop embedded postgres: %s\n", stopErr)
+		}
+		_ = os.RemoveAll(runtimeDir)
+	}
+	return dsn, cleanup, nil
 }
