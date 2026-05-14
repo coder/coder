@@ -9,9 +9,6 @@ import {
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
 
-const agentSetupLinkClassName =
-	"text-content-link transition-colors hover:text-content-link/80";
-
 interface AgentSetupNoticeProps {
 	providerCount: number;
 	modelCount: number;
@@ -95,7 +92,10 @@ const AgentSetupStep: FC<AgentSetupStepProps> = ({
 				)}
 			</span>
 			<span className="text-content-secondary">{label}</span>
-			<Link to={linkTo} className={agentSetupLinkClassName}>
+			<Link
+				to={linkTo}
+				className="text-content-link transition-colors hover:text-content-link/80"
+			>
 				{linkText}
 			</Link>
 		</div>
