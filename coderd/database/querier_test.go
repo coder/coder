@@ -11785,15 +11785,13 @@ func TestChatLabels(t *testing.T) {
 
 		rows, err := db.GetChats(ctx, database.GetChatsParams{OwnerID: owner.ID})
 		require.NoError(t, err)
-		for _, row := range rows {
-			if row.Chat.ID != chat.ID {
-				continue
-			}
-			require.Equal(t, owner.Username, row.Chat.OwnerUsername)
-			require.Equal(t, owner.Name, row.Chat.OwnerName)
-			return
-		}
-		t.Fatal("chat not found in GetChats result")
+
+		chatIndex := slices.IndexFunc(rows, func(row database.GetChatsRow) bool {
+			return row.Chat.ID == chat.ID
+		})
+		require.NotEqual(t, -1, chatIndex, "chat not found in GetChats result")
+		require.Equal(t, owner.Username, rows[chatIndex].Chat.OwnerUsername)
+		require.Equal(t, owner.Name, rows[chatIndex].Chat.OwnerName)
 	})
 
 	t.Run("ChildrenReturnOwnerFields", func(t *testing.T) {
