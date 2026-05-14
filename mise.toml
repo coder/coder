@@ -37,7 +37,6 @@ protoc-gen-go = "1.30.0"
 "aqua:ahmetb/kubectx/kubens" = "0.9.4"
 cosign = "2.4.3"
 golangci-lint = "1.64.8"
-helm = "v3.12.0"
 kubectx = "0.9.4"
 syft = "1.20.0"
 terraform = "1.15.2"
@@ -56,3 +55,14 @@ terraform = "1.15.2"
 "aqua:watchexec/watchexec" = "2.5.1"
 doctl = "1.158.0"
 lazygit = "0.61.1"
+
+# helm publishes binaries at get.helm.sh, not on GitHub. Mise's aqua
+# plugin templates the URL without the `v` prefix (404), and the
+# github backend can't find the binary (helm only publishes signatures
+# on GitHub). The http backend with a templated URL covers
+# linux/macos cleanly. Windows is omitted (different extension);
+# the dogfood image is linux/amd64-only and nobody on the team runs
+# helm via mise on Windows.
+[tools."http:helm"]
+version = "3.12.0"
+url = 'https://get.helm.sh/helm-v{{version}}-{{os(macos="darwin")}}-{{arch(x64="amd64")}}.tar.gz'
