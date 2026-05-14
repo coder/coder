@@ -223,14 +223,21 @@ func (s *EventStream) IsStreaming() bool {
 	return s.initiated.Load() || len(s.eventsCh) > 0
 }
 
-// IsConnError checks if an error is related to client disconnection or context cancellation.
+// IsStreamEnd reports whether err signals the normal end of an
+// upstream SSE stream. SDKs (e.g. anthropic-sdk-go) surface
+// io.EOF from Stream.Err() after the decoder reaches the end of
+// the response body, which is a successful completion, not a
+// failure.
+func IsStreamEnd(err error) bool {
+	return errors.Is(err, io.EOF)
+}
+
+// IsConnError reports whether err indicates the client
+// disconnected (broken pipe, connection reset, closed socket).
+// It does not match io.EOF; use IsStreamEnd for that.
 func IsConnError(err error) bool {
 	if err == nil {
 		return false
-	}
-
-	if errors.Is(err, io.EOF) {
-		return true
 	}
 
 	if errors.Is(err, syscall.ECONNRESET) || errors.Is(err, syscall.EPIPE) || errors.Is(err, net.ErrClosed) {
@@ -242,12 +249,16 @@ func IsConnError(err error) bool {
 		strings.Contains(errStr, "connection reset by peer")
 }
 
+// IsUnrecoverableError reports whether err means the interception
+// cannot be relayed back to the client: the request was canceled,
+// the client disconnected, or the upstream stream ended. In all
+// three cases there is no point trying to send an error event.
 func IsUnrecoverableError(err error) bool {
 	if errors.Is(err, context.Canceled) {
 		return true
 	}
 
-	return IsConnError(err)
+	return IsConnError(err) || IsStreamEnd(err)
 }
 
 func flush(w http.ResponseWriter) (err error) {

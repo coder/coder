@@ -542,10 +542,12 @@ newStream:
 				} else if err := events.Send(streamCtx, payload); err != nil {
 					logger.Warn(ctx, "failed to relay error", slog.Error(err), slog.F("payload", payload))
 				}
-			} else if streamErr != nil {
+			} else if streamErr != nil && !eventstream.IsStreamEnd(streamErr) {
 				// Unrecoverable (e.g., broken pipe, context
 				// canceled): can't relay to the client, but record
-				// the error so it isn't silently swallowed.
+				// the error so it isn't silently swallowed. A clean
+				// upstream stream end (io.EOF) is a successful
+				// completion and must not be recorded as a failure.
 				interceptionErr = streamErr
 			}
 		} else {
