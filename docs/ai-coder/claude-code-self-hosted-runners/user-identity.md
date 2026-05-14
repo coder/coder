@@ -14,7 +14,10 @@ them.
 >
 > - The Anthropic runner protocol pieces it depends on (per-user
 >   routing webhook, pre-locking a runner before its first session)
->   are still being finalized by Anthropic.
+>   have not shipped. Anthropic flags both as pending in their EAP
+>   guide; the wire format is not finalized and there is no
+>   destination URL to configure in `claude.ai` or in the runner
+>   today.
 > - The Coder-side routing component that would receive that webhook,
 >   map the Anthropic user to a Coder user, and claim a prebuild on
 >   their behalf does not exist yet. There is no `coderd` endpoint, no
@@ -80,7 +83,7 @@ plumbing from the bot PAT to Coder's external auth feature.
 
 ## Where this depends on Anthropic
 
-Two pieces of the Anthropic runner protocol are still being finalized:
+Two pieces of the Anthropic runner protocol have not shipped:
 
 - A way for Anthropic to **tell your infrastructure** that a specific
   user has a session waiting, so Coder can spawn a workspace on their
@@ -88,9 +91,10 @@ Two pieces of the Anthropic runner protocol are still being finalized:
 - A way to **pre-bind a runner to a specific user** at startup, so
   there is no race where a session lands on the wrong runner.
 
-Anthropic has flagged both in their guide as not yet stable and has
-invited operator input on the contract shape. Once those are
-finalized, this page will be replaced with a copy-and-go recipe.
+Anthropic flags both in their EAP guide as pending, with the wire
+format not finalized and operator input invited on the contract
+shape. Once those ship, this page will be replaced with a
+copy-and-go recipe.
 
 ## What to do today
 
