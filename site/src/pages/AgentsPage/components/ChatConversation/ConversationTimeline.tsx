@@ -945,13 +945,8 @@ const StickyUserMessage = memo<{
 						"relative px-3 -mx-3 -mt-2",
 						!isTooTall && "sticky z-10",
 						!isReady && "invisible",
-						isStuck && !isTooTall && "pointer-events-none overflow-hidden",
+						isStuck && !isTooTall && "pointer-events-none",
 					)}
-					style={
-						isStuck && !isTooTall
-							? { maxHeight: "var(--clip-h, none)" }
-							: undefined
-					}
 				>
 					{/* Flow element: always in the DOM to preserve
 				    scroll layout. Hidden when stuck so the
