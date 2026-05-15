@@ -19,20 +19,19 @@ export const SingleModeSection: FC<SingleModeSectionProps> = ({
 	onSelect,
 }) => {
 	return (
-		<div
-			role="radiogroup"
-			aria-label="Theme"
-			className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
-		>
-			{SINGLE_MODE_ORDER.map((theme) => (
-				<SingleTile
-					key={theme}
-					theme={theme}
-					selected={theme === selected}
-					onSelect={() => onSelect(theme)}
-				/>
-			))}
-		</div>
+		<fieldset className="m-0 min-w-0 border-0 p-0">
+			<legend className="sr-only">Theme</legend>
+			<div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+				{SINGLE_MODE_ORDER.map((theme) => (
+					<SingleTile
+						key={theme}
+						theme={theme}
+						selected={theme === selected}
+						onSelect={() => onSelect(theme)}
+					/>
+				))}
+			</div>
+		</fieldset>
 	);
 };
 
@@ -67,14 +66,12 @@ const SingleTile: FC<SingleTileProps> = ({ theme, selected, onSelect }) => {
 				<span
 					aria-hidden="true"
 					className={cn(
-						"mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border border-solid",
-						selected
-							? "border-content-link bg-content-link"
-							: "border-border-secondary",
+						"mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border border-solid bg-surface-primary",
+						selected ? "border-border-secondary" : "border-border",
 					)}
 				>
 					{selected && (
-						<span className="size-1.5 rounded-full bg-surface-primary" />
+						<span className="size-2.5 rounded-full bg-surface-invert-primary" />
 					)}
 				</span>
 				<div className="flex flex-col gap-1">

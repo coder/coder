@@ -5,9 +5,6 @@ type PreferredColorScheme = "dark" | "light";
 const defaultPreferredColorScheme: PreferredColorScheme = "dark";
 
 const getColorSchemeQuery = () => {
-	if (typeof window === "undefined") {
-		return undefined;
-	}
 	return window.matchMedia?.("(prefers-color-scheme: light)");
 };
 
