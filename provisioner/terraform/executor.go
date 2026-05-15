@@ -342,7 +342,7 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		metadata.GetPrebuiltWorkspaceBuildStage().IsPrebuiltWorkspaceClaim()
 	if isPrebuildClaimAttempt {
 		// When a prebuild claim attempt is made, log a warning if a
-		// resource is due to be replaced. This would obviate the
+		// resource is due to be replaced, since this will obviate the
 		// point of prebuilding if the expensive resource is replaced
 		// once claimed!
 		if hasResourceReplacement(plan) {
