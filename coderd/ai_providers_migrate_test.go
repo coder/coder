@@ -330,6 +330,71 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		require.Empty(t, keys, "Bedrock providers must not seed bearer keys")
 	})
 
+	t.Run("ChatdProviderTypesPersisted", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		auditor := audit.NewMock()
+
+		// Indexed providers of every chatd-supported type, including
+		// the explicit bedrock type, persist with the matching
+		// ai_provider_type enum value. Routing to a specific aibridge
+		// fantasy client (OpenAI for azure/google/etc., Anthropic for
+		// bedrock) happens later in buildProvidersFromDB.
+		cfg := codersdk.AIBridgeConfig{
+			Providers: []codersdk.AIProviderConfig{
+				{Type: "azure", Name: "azure-prod", BaseURL: "https://az.example.com/v1", Keys: []string{"az-key"}},
+				{Type: "google", Name: "google-prod", BaseURL: "https://generativelanguage.googleapis.com/v1", Keys: []string{"g-key"}},
+				{Type: "openai-compat", Name: "compat-prod", BaseURL: "https://compat.example.com/v1", Keys: []string{"c-key"}},
+				{Type: "openrouter", Name: "or-prod", BaseURL: "https://openrouter.ai/api/v1", Keys: []string{"or-key"}},
+				{Type: "vercel", Name: "vercel-prod", BaseURL: "https://api.v0.dev", Keys: []string{"v-key"}},
+				{
+					// type=bedrock with explicit AWS credentials lands
+					// in ai_providers as type=bedrock and stores its
+					// credentials in the settings blob, not in
+					// ai_provider_keys.
+					Type:                    "bedrock",
+					Name:                    "bedrock-direct",
+					BaseURL:                 "https://bedrock-runtime.us-east-1.amazonaws.com/",
+					BedrockRegion:           "us-east-1",
+					BedrockAccessKeys:       []string{"AKIA"},
+					BedrockAccessKeySecrets: []string{"secret"},
+					BedrockModel:            "anthropic.claude-3-5-sonnet",
+				},
+			},
+		}
+		require.NoError(t, entcoderd.SeedAIProvidersFromEnv(ctx, db, cfg, auditor, testLogger(t)))
+
+		want := map[string]database.AIProviderType{
+			"azure-prod":     database.AiProviderTypeAzure,
+			"google-prod":    database.AiProviderTypeGoogle,
+			"compat-prod":    database.AiProviderTypeOpenaiCompat,
+			"or-prod":        database.AiProviderTypeOpenrouter,
+			"vercel-prod":    database.AiProviderTypeVercel,
+			"bedrock-direct": database.AiProviderTypeBedrock,
+		}
+		for name, dbType := range want {
+			row, err := db.GetAIProviderByName(ctx, name)
+			require.NoErrorf(t, err, "fetch %s", name)
+			require.Equalf(t, dbType, row.Type, "db type for %s", name)
+			require.Truef(t, row.Enabled, "%s should be enabled", name)
+
+			keys, err := db.GetAIProviderKeysByProviderID(ctx, row.ID)
+			require.NoErrorf(t, err, "fetch keys for %s", name)
+			if dbType == database.AiProviderTypeBedrock {
+				// Bedrock providers carry credentials in settings
+				// and must not seed bearer keys.
+				require.Emptyf(t, keys, "%s should have no bearer keys", name)
+				require.Truef(t, row.Settings.Valid, "%s should have settings", name)
+				require.Containsf(t, row.Settings.String, "AKIA", "%s settings should contain bedrock access key", name)
+				require.Containsf(t, row.Settings.String, "secret", "%s settings should contain bedrock secret", name)
+			} else {
+				require.Lenf(t, keys, 1, "%s should have one bearer key", name)
+				require.Falsef(t, row.Settings.Valid, "%s should have no settings blob", name)
+			}
+		}
+	})
+
 	t.Run("LegacyAndIndexedSameNameConflict", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)

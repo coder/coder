@@ -181,6 +181,59 @@ func TestReadAIProvidersFromEnv(t *testing.T) {
 			errContains: "BEDROCK_* fields are only supported with TYPE",
 		},
 		{
+			name:        "BedrockFieldsOnAzure",
+			env:         []string{"CODER_AIBRIDGE_PROVIDER_0_TYPE=azure", "CODER_AIBRIDGE_PROVIDER_0_BEDROCK_REGION=us-west-2"},
+			errContains: "BEDROCK_* fields are only supported with TYPE",
+		},
+		{
+			// chatd providers map to their own ai_provider_type values
+			// at the env layer. Routing to a specific aibridge fantasy
+			// client (OpenAI for azure/google/openrouter/etc., Anthropic
+			// for bedrock) happens later in buildProvidersFromDB.
+			name: "ChatdProviderTypes",
+			env: []string{
+				"CODER_AIBRIDGE_PROVIDER_0_TYPE=azure",
+				"CODER_AIBRIDGE_PROVIDER_0_KEY=azure-key",
+				"CODER_AIBRIDGE_PROVIDER_1_TYPE=google",
+				"CODER_AIBRIDGE_PROVIDER_1_KEY=google-key",
+				"CODER_AIBRIDGE_PROVIDER_2_TYPE=openai-compat",
+				"CODER_AIBRIDGE_PROVIDER_2_KEY=compat-key",
+				"CODER_AIBRIDGE_PROVIDER_3_TYPE=openrouter",
+				"CODER_AIBRIDGE_PROVIDER_3_KEY=or-key",
+				"CODER_AIBRIDGE_PROVIDER_4_TYPE=vercel",
+				"CODER_AIBRIDGE_PROVIDER_4_KEY=vercel-key",
+			},
+			expected: []codersdk.AIProviderConfig{
+				{Type: string(codersdk.AIProviderTypeAzure), Name: string(codersdk.AIProviderTypeAzure), Keys: []string{"azure-key"}},
+				{Type: string(codersdk.AIProviderTypeGoogle), Name: string(codersdk.AIProviderTypeGoogle), Keys: []string{"google-key"}},
+				{Type: string(codersdk.AIProviderTypeOpenAICompat), Name: string(codersdk.AIProviderTypeOpenAICompat), Keys: []string{"compat-key"}},
+				{Type: string(codersdk.AIProviderTypeOpenrouter), Name: string(codersdk.AIProviderTypeOpenrouter), Keys: []string{"or-key"}},
+				{Type: string(codersdk.AIProviderTypeVercel), Name: string(codersdk.AIProviderTypeVercel), Keys: []string{"vercel-key"}},
+			},
+		},
+		{
+			// type=bedrock is its own provider type and accepts the
+			// BEDROCK_* fields directly. Operators migrating from
+			// chatd land here once the env-to-DB seed is in place.
+			name: "BedrockTypeWithCredentials",
+			env: []string{
+				"CODER_AIBRIDGE_PROVIDER_0_TYPE=bedrock",
+				"CODER_AIBRIDGE_PROVIDER_0_NAME=bedrock-direct",
+				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_REGION=us-west-2",
+				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_ACCESS_KEY=AKID",
+				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_ACCESS_KEY_SECRET=secret",
+			},
+			expected: []codersdk.AIProviderConfig{
+				{
+					Type:                    string(codersdk.AIProviderTypeBedrock),
+					Name:                    "bedrock-direct",
+					BedrockRegion:           "us-west-2",
+					BedrockAccessKeys:       []string{"AKID"},
+					BedrockAccessKeySecrets: []string{"secret"},
+				},
+			},
+		},
+		{
 			name: "IgnoresUnrelatedEnvVars",
 			env: []string{
 				"CODER_AIBRIDGE_OPENAI_KEY=should-be-ignored",

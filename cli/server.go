@@ -3012,11 +3012,9 @@ func ReadAIProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AI
 			return nil, xerrors.Errorf("provider %d: TYPE is required", i)
 		}
 
-		switch p.Type {
-		case aibridge.ProviderOpenAI, aibridge.ProviderAnthropic, aibridge.ProviderCopilot:
-		default:
-			return nil, xerrors.Errorf("provider %d: unknown TYPE %q (must be %s, %s, or %s)",
-				i, p.Type, aibridge.ProviderOpenAI, aibridge.ProviderAnthropic, aibridge.ProviderCopilot)
+		if !isValidEnvAIProviderType(p.Type) {
+			return nil, xerrors.Errorf("provider %d: unknown TYPE %q (must be one of: %s)",
+				i, p.Type, strings.Join(envAIProviderTypes(), ", "))
 		}
 
 		var bedrockKey, bedrockSecret string
@@ -3194,6 +3192,34 @@ func validateLegacyAIBridgeConfig(cfg codersdk.AIBridgeConfig) error {
 		return xerrors.New("CODER_AIBRIDGE_ANTHROPIC_KEY and CODER_AIBRIDGE_BEDROCK_* are mutually exclusive")
 	}
 	return nil
+}
+
+// envAIProviderTypes returns the set of provider TYPE values accepted
+// by CODER_AIBRIDGE_PROVIDER_<N>_TYPE. This is the full set of AI
+// provider types Coder understands, not just the aibridge fantasy
+// client names; mapping a type onto a specific aibridge client is the
+// routing layer's job (see buildProvidersFromDB).
+func envAIProviderTypes() []string {
+	return []string{
+		string(codersdk.AIProviderTypeOpenAI),
+		string(codersdk.AIProviderTypeAnthropic),
+		aibridge.ProviderCopilot,
+		string(codersdk.AIProviderTypeAzure),
+		string(codersdk.AIProviderTypeBedrock),
+		string(codersdk.AIProviderTypeGoogle),
+		string(codersdk.AIProviderTypeOpenAICompat),
+		string(codersdk.AIProviderTypeOpenrouter),
+		string(codersdk.AIProviderTypeVercel),
+	}
+}
+
+func isValidEnvAIProviderType(t string) bool {
+	for _, allowed := range envAIProviderTypes() {
+		if t == allowed {
+			return true
+		}
+	}
+	return false
 }
 
 // maxKeysPerProvider is the maximum number of keys allowed per
