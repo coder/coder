@@ -13,6 +13,7 @@ import (
 
 	aiblib "github.com/coder/coder/v2/aibridge"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -2774,6 +2775,59 @@ func TestGroupAIBudget(t *testing.T) {
 		got, err = memberClient.GroupAIBudget(ctx, group.ID)
 		require.NoError(t, err)
 		require.EqualValues(t, 500_000_000, got.SpendLimitMicros)
+	})
+
+	t.Run("Audit", func(t *testing.T) {
+		t.Parallel()
+
+		auditor := audit.NewMock()
+		dv := coderdtest.DeploymentValues(t)
+		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+			AuditLogging: true,
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+				Auditor:          auditor,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureTemplateRBAC: 1,
+					codersdk.FeatureAIBridge:     1,
+					codersdk.FeatureAuditLog:     1,
+				},
+			},
+		})
+		adminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		group, err := adminClient.CreateGroup(ctx, owner.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "budget-audit",
+		})
+		require.NoError(t, err)
+
+		// Upsert (create-or-update) emits an AuditActionWrite entry.
+		base := len(auditor.AuditLogs())
+		_, err = adminClient.UpsertGroupAIBudget(ctx, group.ID, codersdk.UpsertGroupAIBudgetRequest{
+			SpendLimitMicros: 500_000_000,
+		})
+		require.NoError(t, err)
+		require.Len(t, auditor.AuditLogs(), base+1)
+		require.True(t, auditor.Contains(t, database.AuditLog{
+			Action:         database.AuditActionWrite,
+			ResourceID:     group.ID,
+			ResourceType:   database.ResourceTypeGroupAiBudget,
+			OrganizationID: owner.OrganizationID,
+		}))
+
+		// Delete emits an AuditActionDelete entry against the same resource.
+		require.NoError(t, adminClient.DeleteGroupAIBudget(ctx, group.ID))
+		require.Len(t, auditor.AuditLogs(), base+2)
+		require.True(t, auditor.Contains(t, database.AuditLog{
+			Action:         database.AuditActionDelete,
+			ResourceID:     group.ID,
+			ResourceType:   database.ResourceTypeGroupAiBudget,
+			OrganizationID: owner.OrganizationID,
+		}))
 	})
 }
 
