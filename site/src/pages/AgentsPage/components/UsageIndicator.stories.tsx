@@ -254,6 +254,22 @@ export const WorkspaceQuotaWithoutWorkspaceCount: Story = {
 	},
 };
 
+export const UsageAndUnlimitedWorkspaceQuota: Story = {
+	decorators: [
+		withUsageLimitStatus(
+			limitedUsageStatus({
+				spend_limit_micros: 50_000_000,
+				current_spend: 498_100_000,
+			}),
+		),
+		withWorkspaceQuota({
+			credits_consumed: 24,
+			budget: 0,
+		}),
+		withWorkspaceCount(2),
+	],
+};
+
 export const NotLimited: Story = {
 	decorators: [
 		withUsageLimitStatus(unlimitedUsageStatus),
