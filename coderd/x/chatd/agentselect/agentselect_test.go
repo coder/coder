@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/x/chatd/internal/agentselect"
+	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
 )
 
 func TestFindChatAgent(t *testing.T) {

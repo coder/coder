@@ -10320,6 +10320,15 @@ export interface WorkspaceSharingSettings {
 	readonly shareable_workspace_owners: ShareableWorkspaceOwners;
 }
 
+// From codersdk/workspaceskills.go
+/**
+ * WorkspaceSkillMetadata represents a workspace skill without its raw Markdown content.
+ */
+export interface WorkspaceSkillMetadata {
+	readonly name: string;
+	readonly description: string;
+}
+
 // From codersdk/workspacebuilds.go
 export type WorkspaceStatus =
 	| "canceled"

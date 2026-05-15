@@ -12,6 +12,7 @@ import (
 	"golang.org/x/xerrors"
 
 	skillspkg "github.com/coder/coder/v2/coderd/x/skills"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
@@ -37,6 +38,24 @@ type SkillMeta struct {
 	// MetaFile is the basename of the skill meta file (e.g.
 	// "SKILL.md"). When empty, DefaultSkillMetaFile is used.
 	MetaFile string
+}
+
+// SkillMetasFromContextParts converts skill context parts into workspace skill
+// metadata used by chat tools. Non-skill parts are ignored.
+func SkillMetasFromContextParts(parts []codersdk.ChatMessagePart) []SkillMeta {
+	metas := make([]SkillMeta, 0, len(parts))
+	for _, part := range parts {
+		if part.Type != codersdk.ChatMessagePartTypeSkill {
+			continue
+		}
+		metas = append(metas, SkillMeta{
+			Name:        part.SkillName,
+			Description: part.SkillDescription,
+			Dir:         part.SkillDir,
+			MetaFile:    part.ContextFileSkillMetaFile,
+		})
+	}
+	return metas
 }
 
 // SkillContent is the full body of a skill, loaded on demand

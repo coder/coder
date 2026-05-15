@@ -16295,6 +16295,22 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |------------------------------|----------------------------------------|
 | `shareable_workspace_owners` | `everyone`, `none`, `service_accounts` |
 
+## codersdk.WorkspaceSkillMetadata
+
+```json
+{
+  "description": "string",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description |
+|---------------|--------|----------|--------------|-------------|
+| `description` | string | false    |              |             |
+| `name`        | string | false    |              |             |
+
 ## codersdk.WorkspaceStatus
 
 ```json

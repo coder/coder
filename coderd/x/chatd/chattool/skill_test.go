@@ -15,6 +15,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	skillspkg "github.com/coder/coder/v2/coderd/x/skills"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
 )
@@ -33,6 +34,32 @@ func responseName(t *testing.T, resp fantasy.ToolResponse) string {
 	}
 	require.NoError(t, json.Unmarshal([]byte(resp.Content), &payload))
 	return payload.Name
+}
+
+func TestSkillMetasFromContextParts(t *testing.T) {
+	t.Parallel()
+
+	got := chattool.SkillMetasFromContextParts([]codersdk.ChatMessagePart{
+		{
+			Type:               codersdk.ChatMessagePartTypeContextFile,
+			ContextFilePath:    "AGENTS.md",
+			ContextFileContent: "rules",
+		},
+		{
+			Type:                     codersdk.ChatMessagePartTypeSkill,
+			SkillName:                "review-code",
+			SkillDescription:         "Review code",
+			SkillDir:                 "/workspace/.agents/skills/review-code",
+			ContextFileSkillMetaFile: "SKILL.md",
+		},
+	})
+
+	require.Equal(t, []chattool.SkillMeta{{
+		Name:        "review-code",
+		Description: "Review code",
+		Dir:         "/workspace/.agents/skills/review-code",
+		MetaFile:    "SKILL.md",
+	}}, got)
 }
 
 func TestFormatResolvedSkillIndex(t *testing.T) {

@@ -39,6 +39,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/xjson"
 	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/coderd/workspacestats"
+	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatcost"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
@@ -50,7 +51,6 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
-	"github.com/coder/coder/v2/coderd/x/chatd/internal/agentselect"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	skillspkg "github.com/coder/coder/v2/coderd/x/skills"
 	"github.com/coder/coder/v2/codersdk"
@@ -8837,20 +8837,13 @@ func (p *Server) fetchWorkspaceContext(
 
 	for i := range agentParts {
 		agentParts[i].ContextFileAgentID = agentID
-		switch agentParts[i].Type {
-		case codersdk.ChatMessagePartTypeContextFile:
+		if agentParts[i].Type == codersdk.ChatMessagePartTypeContextFile {
 			agentParts[i].ContextFileContent = SanitizePromptText(agentParts[i].ContextFileContent)
 			agentParts[i].ContextFileOS = loadedAgent.OperatingSystem
 			agentParts[i].ContextFileDirectory = directory
-		case codersdk.ChatMessagePartTypeSkill:
-			discoveredSkills = append(discoveredSkills, chattool.SkillMeta{
-				Name:        agentParts[i].SkillName,
-				Description: agentParts[i].SkillDescription,
-				Dir:         agentParts[i].SkillDir,
-				MetaFile:    agentParts[i].ContextFileSkillMetaFile,
-			})
 		}
 	}
+	discoveredSkills = chattool.SkillMetasFromContextParts(agentParts)
 
 	return &loadedAgent, agentParts, discoveredSkills, workspaceConnOK
 }
