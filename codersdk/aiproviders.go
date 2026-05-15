@@ -1,6 +1,7 @@
 package codersdk
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 )
 
 // AIProviderType identifies the protocol Coder uses to communicate
@@ -19,32 +21,115 @@ const (
 	AIProviderTypeAnthropic AIProviderType = "anthropic"
 )
 
-// AIProviderSettings holds type-specific provider settings that do
-// not fit the generic API key + base URL pattern. Fields are only
-// meaningful for specific provider types.
+// AIProviderSettings is the discriminated container for type-specific
+// provider settings stored in ai_providers.settings. Providers that
+// need no type-specific configuration (current OpenAI and standard
+// Anthropic flows) leave every field nil; the wire form for those
+// providers is JSON null.
 //
-// Bedrock-targeted Anthropic providers authenticate via the AWS
-// credentials stored on this struct, not via an entry in
-// ai_provider_keys.
+// On the wire, settings serialize as a JSON object that always carries
+// _type and _version discriminator keys alongside the type-specific
+// fields. The custom (Un)MarshalJSON implementations on this type
+// handle the routing automatically; callers should never marshal the
+// concrete settings struct directly.
 type AIProviderSettings struct {
-	// BedrockRegion is the AWS region used to construct the Bedrock
-	// endpoint URL when BaseURL is not set on the parent provider.
-	// Only meaningful when Type is AIProviderTypeAnthropic.
-	BedrockRegion string `json:"bedrock_region,omitempty"`
-	// BedrockModel is the AWS Bedrock model identifier used for
-	// primary requests. Only meaningful when Type is
+	// Bedrock, when set, indicates this provider authenticates against
+	// AWS Bedrock instead of api.anthropic.com. Only meaningful for
 	// AIProviderTypeAnthropic.
-	BedrockModel string `json:"bedrock_model,omitempty"`
-	// BedrockSmallFastModel is the AWS Bedrock model identifier used
-	// for background tasks (e.g. Claude Code's haiku-class model).
-	// Only meaningful when Type is AIProviderTypeAnthropic.
-	BedrockSmallFastModel string `json:"bedrock_small_fast_model,omitempty"`
-	// BedrockAccessKey is the AWS access key ID used to authenticate
-	// against Bedrock. Write-only.
-	BedrockAccessKey string `json:"bedrock_access_key,omitempty"`
-	// BedrockAccessKeySecret is the AWS secret access key paired with
-	// BedrockAccessKey. Write-only.
-	BedrockAccessKeySecret string `json:"bedrock_access_key_secret,omitempty"`
+	Bedrock *AIProviderBedrockSettings `json:"-"`
+}
+
+// IsZero reports whether the settings carry no type-specific data.
+func (s AIProviderSettings) IsZero() bool {
+	return s.Bedrock == nil
+}
+
+// MarshalJSON emits the discriminated wire form. Empty settings encode
+// as JSON null so the column round-trips cleanly through SQL NULL.
+func (s AIProviderSettings) MarshalJSON() ([]byte, error) {
+	switch {
+	case s.Bedrock != nil:
+		return marshalSettings(*s.Bedrock)
+	default:
+		return []byte("null"), nil
+	}
+}
+
+// UnmarshalJSON inspects the _type discriminator and routes to the
+// concrete settings struct that matches it.
+func (s *AIProviderSettings) UnmarshalJSON(data []byte) error {
+	*s = AIProviderSettings{}
+	trimmed := bytes.TrimSpace(data)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+		return nil
+	}
+	var header aiProviderSettingsHeader
+	if err := json.Unmarshal(data, &header); err != nil {
+		return xerrors.Errorf("decode settings header: %w", err)
+	}
+	if header.Type == "" {
+		return xerrors.New("settings missing _type discriminator")
+	}
+	switch header.Type {
+	case AIProviderSettingsTypeBedrock:
+		// TODO: handle multiple versions; this will be implemented
+		// once needed.
+		if header.Version != AIProviderBedrockSettingsVersion {
+			return xerrors.Errorf("unsupported %q settings version %d (expected %d)",
+				header.Type, header.Version, AIProviderBedrockSettingsVersion)
+		}
+		var b AIProviderBedrockSettings
+		if err := json.Unmarshal(data, &b); err != nil {
+			return xerrors.Errorf("decode bedrock settings: %w", err)
+		}
+		s.Bedrock = &b
+		return nil
+	default:
+		return xerrors.Errorf("unknown settings type %q", header.Type)
+	}
+}
+
+// aiProviderSettingsHeader is the discriminator-only view of an
+// encoded settings blob.
+type aiProviderSettingsHeader struct {
+	Type    string `json:"_type"`
+	Version int    `json:"_version"`
+}
+
+// settingsTyped is implemented by concrete settings structs so that
+// marshalSettings can inject the discriminator without type-asserting
+// against every variant.
+type settingsTyped interface {
+	settingsType() string
+	settingsVersion() int
+}
+
+// marshalSettings encodes a concrete settings struct and merges the
+// _type and _version discriminator keys at the top level of the
+// resulting JSON object.
+func marshalSettings(s settingsTyped) ([]byte, error) {
+	raw, err := json.Marshal(s)
+	if err != nil {
+		return nil, err
+	}
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &m); err != nil {
+		return nil, err
+	}
+	if m == nil {
+		m = make(map[string]json.RawMessage)
+	}
+	typeRaw, err := json.Marshal(s.settingsType())
+	if err != nil {
+		return nil, err
+	}
+	versRaw, err := json.Marshal(s.settingsVersion())
+	if err != nil {
+		return nil, err
+	}
+	m["_type"] = typeRaw
+	m["_version"] = versRaw
+	return json.Marshal(m)
 }
 
 // AIProvider represents an AI provider configuration row as returned
@@ -74,7 +159,7 @@ type CreateAIProviderRequest struct {
 	DisplayName string             `json:"display_name,omitempty"`
 	Enabled     bool               `json:"enabled"`
 	BaseURL     string             `json:"base_url"`
-	Settings    AIProviderSettings `json:"settings,omitempty"`
+	Settings    AIProviderSettings `json:"settings,omitzero"`
 }
 
 // UpdateAIProviderRequest is the payload for partially updating an

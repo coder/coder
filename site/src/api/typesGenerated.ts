@@ -317,6 +317,47 @@ export interface AIProvider {
 	readonly updated_at: string;
 }
 
+// From codersdk/aiproviders_bedrock.go
+/**
+ * AIProviderBedrockSettings configures providers that authenticate
+ * against AWS Bedrock. AccessKey and AccessKeySecret are write-only:
+ * servers strip them from GET and list responses.
+ */
+export interface AIProviderBedrockSettings {
+	/**
+	 * Region is the AWS region used to construct the Bedrock endpoint
+	 * URL when BaseURL is not set on the parent provider.
+	 */
+	readonly region?: string;
+	/**
+	 * Model is the AWS Bedrock model identifier used for primary
+	 * requests.
+	 */
+	readonly model?: string;
+	/**
+	 * SmallFastModel is the AWS Bedrock model identifier used for
+	 * background tasks (e.g. Claude Code's haiku-class model).
+	 */
+	readonly small_fast_model?: string;
+	/**
+	 * AccessKey is the AWS access key ID used to authenticate against
+	 * Bedrock. Write-only.
+	 */
+	readonly access_key?: string;
+	/**
+	 * AccessKeySecret is the AWS secret access key paired with
+	 * AccessKey. Write-only.
+	 */
+	readonly access_key_secret?: string;
+}
+
+// From codersdk/aiproviders_bedrock.go
+/**
+ * AIProviderBedrockSettingsVersion is the current schema version of
+ * AIProviderBedrockSettings.
+ */
+export const AIProviderBedrockSettingsVersion = 1;
+
 // From codersdk/deployment.go
 /**
  * AIProviderConfig represents a single AI provider instance,
