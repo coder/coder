@@ -184,7 +184,7 @@ const UsageTriggerProgress: FC<{ sections: readonly UsageSectionData[] }> = ({
 	sections,
 }) => {
 	return (
-		<div className="flex shrink-0 flex-col gap-1">
+		<div className="flex shrink-0 flex-col gap-1 md:flex-row md:gap-4">
 			{sections.map((section) => (
 				<div key={section.id} className="flex items-center gap-2">
 					<span
@@ -201,7 +201,7 @@ const UsageTriggerProgress: FC<{ sections: readonly UsageSectionData[] }> = ({
 							percent={section.percent}
 							severity={section.severity}
 							size="compact"
-							className="w-20"
+							className="hidden w-20 md:block"
 						/>
 					)}
 					<span

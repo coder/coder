@@ -57,8 +57,14 @@ const withUnavailableWorkspaceCount = (Story: FC) => {
 	return <Story />;
 };
 
-const withUsageIndicatorFrame = (Story: FC) => (
-	<div className="flex h-14 w-[340px] items-stretch justify-end rounded-md bg-surface-secondary">
+const withNarrowFrame = (Story: FC) => (
+	<div className="flex h-14 w-[260px] items-stretch justify-end rounded-md bg-surface-secondary">
+		<Story />
+	</div>
+);
+
+const withWideFrame = (Story: FC) => (
+	<div className="flex h-12 w-[540px] items-stretch justify-end rounded-md bg-surface-secondary">
 		<Story />
 	</div>
 );
@@ -104,7 +110,7 @@ const meta: Meta<typeof UsageIndicator> = {
 	decorators: [
 		withAuthProvider,
 		withDashboardProvider,
-		withUsageIndicatorFrame,
+		withNarrowFrame,
 	],
 	parameters: {
 		user: MockUserOwner,
@@ -187,6 +193,15 @@ export const UsageAndWorkspaceQuota: Story = {
 		]);
 		await userEvent.click(canvas.getByRole("button"));
 	},
+};
+
+export const UsageAndWorkspaceQuotaWide: Story = {
+	decorators: [
+		withUsageLimitStatus(limitedUsageStatus()),
+		withWorkspaceQuota(defaultWorkspaceQuota),
+		withWorkspaceCount(3),
+		withWideFrame,
+	],
 };
 
 export const WorkspaceQuotaUnused: Story = {
