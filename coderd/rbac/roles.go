@@ -589,10 +589,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				},
 			}
 		},
-		// agentsAccess grants org members permission to create, read, and
-		// update chats. ActionDelete is intentionally excluded: no dbauthz
-		// function checks it on ResourceChat. Hard-deletion goes through
-		// ResourceSystem (dbpurge).
+		// ActionDelete is intentionally excluded because hard-deletion goes through
+		// ResourceSystem in dbpurge.
 		agentsAccess: func(organizationID uuid.UUID) Role {
 			return Role{
 				Identifier:  RoleIdentifier{Name: agentsAccess, OrganizationID: organizationID},
@@ -606,6 +604,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 							ResourceChat.Type: {
 								policy.ActionCreate,
 								policy.ActionRead,
+								policy.ActionShare,
 								policy.ActionUpdate,
 							},
 						}),
