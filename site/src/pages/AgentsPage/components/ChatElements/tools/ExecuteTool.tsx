@@ -6,6 +6,7 @@ import {
 	LayersIcon,
 	LoaderIcon,
 	OctagonXIcon,
+	TerminalIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
 import type React from "react";
@@ -187,10 +188,8 @@ const ShellCommandLine: React.FC<{
 }> = ({ command, durationLabel, expanded }) => {
 	return (
 		<>
-			<span className="shrink-0 text-[13px] font-normal text-content-success">
-				$
-			</span>
-			<span className="block min-w-0 truncate text-[13px] font-normal text-content-primary">
+			<TerminalIcon aria-hidden className="size-3.5 shrink-0 text-current" />
+			<span className="block min-w-0 truncate text-[13px] font-normal text-current">
 				{command}
 			</span>
 			{durationLabel && (
