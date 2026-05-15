@@ -7760,6 +7760,12 @@ WHERE
         )
         ELSE true
     END
+    -- Filter by title substring (case-insensitive). Applied when the
+    -- caller provides a non-empty title_query.
+    AND CASE
+        WHEN $6 :: text != '' THEN chats_expanded.title ILIKE '%' || $6 || '%'
+        ELSE true
+    END
     -- Paginate over root chats only. Children are fetched
     -- separately via GetChildChatsByParentIDs and embedded under
     -- each parent. Other callers that need the full set should
@@ -7776,11 +7782,11 @@ ORDER BY
     -chats_expanded.pin_order DESC,
     chats_expanded.updated_at DESC,
     chats_expanded.id DESC
-OFFSET $6
+OFFSET $7
 LIMIT
     -- The chat list is unbounded and expected to grow large.
     -- Default to 50 to prevent accidental excessively large queries.
-    COALESCE(NULLIF($7 :: int, 0), 50)
+    COALESCE(NULLIF($8 :: int, 0), 50)
 `
 
 type GetChatsParams struct {
@@ -7789,6 +7795,7 @@ type GetChatsParams struct {
 	AfterID     uuid.UUID             `db:"after_id" json:"after_id"`
 	LabelFilter pqtype.NullRawMessage `db:"label_filter" json:"label_filter"`
 	DiffURL     sql.NullString        `db:"diff_url" json:"diff_url"`
+	TitleQuery  string                `db:"title_query" json:"title_query"`
 	OffsetOpt   int32                 `db:"offset_opt" json:"offset_opt"`
 	LimitOpt    int32                 `db:"limit_opt" json:"limit_opt"`
 }
@@ -7805,6 +7812,7 @@ func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]GetCha
 		arg.AfterID,
 		arg.LabelFilter,
 		arg.DiffURL,
+		arg.TitleQuery,
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)

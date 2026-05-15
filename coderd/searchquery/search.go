@@ -561,8 +561,9 @@ func Chats(query string) (database.GetChatsParams, []codersdk.ValidationError) {
 	// types them, but preserve value casing because some filters
 	// (e.g. diff_url) may include URL path segments where case is
 	// meaningful.
-	values, errors := searchTerms(query, func(term string, _ url.Values) error {
-		return xerrors.Errorf("unsupported search term: %q", term)
+	values, errors := searchTerms(query, func(term string, values url.Values) error {
+		values.Add("title", term)
+		return nil
 	})
 	if len(errors) > 0 {
 		return filter, errors
@@ -580,6 +581,8 @@ func Chats(query string) (database.GetChatsParams, []codersdk.ValidationError) {
 			filter.DiffURL = sql.NullString{String: diffURL, Valid: true}
 		}
 	}
+
+	filter.TitleQuery = parser.String(values, "", "title")
 
 	parser.ErrorExcessParams(values)
 	return filter, parser.Errors

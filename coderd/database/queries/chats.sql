@@ -503,6 +503,12 @@ WHERE
         )
         ELSE true
     END
+    -- Filter by title substring (case-insensitive). Applied when the
+    -- caller provides a non-empty title_query.
+    AND CASE
+        WHEN @title_query :: text != '' THEN chats_expanded.title ILIKE '%' || @title_query || '%'
+        ELSE true
+    END
     -- Paginate over root chats only. Children are fetched
     -- separately via GetChildChatsByParentIDs and embedded under
     -- each parent. Other callers that need the full set should

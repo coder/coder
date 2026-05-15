@@ -1539,6 +1539,113 @@ func TestListChats(t *testing.T) {
 			require.Equal(t, archivedWithPR.ID, chats[0].ID)
 		})
 	})
+
+	t.Run("TitleSearch", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		// Create chats with distinct titles using dbgen (avoids async processing).
+		_ = dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    firstUser.OrganizationID,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "alpha project",
+		})
+		_ = dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    firstUser.OrganizationID,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "beta project",
+		})
+		_ = dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    firstUser.OrganizationID,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "gamma unrelated",
+		})
+
+		// Search by "project" should return alpha and beta.
+		chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "project"})
+		require.NoError(t, err)
+		require.Len(t, chats, 2)
+		titles := []string{chats[0].Title, chats[1].Title}
+		require.ElementsMatch(t, []string{"alpha project", "beta project"}, titles)
+
+		// Search by "gamma" should return only gamma.
+		chats, err = client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "gamma"})
+		require.NoError(t, err)
+		require.Len(t, chats, 1)
+		require.Equal(t, "gamma unrelated", chats[0].Title)
+
+		// Case-insensitive: "ALPHA" should match "alpha project".
+		chats, err = client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "ALPHA"})
+		require.NoError(t, err)
+		require.Len(t, chats, 1)
+		require.Equal(t, "alpha project", chats[0].Title)
+
+		// No query returns all 3.
+		chats, err = client.ListChats(ctx, nil)
+		require.NoError(t, err)
+		require.Len(t, chats, 3)
+	})
+
+	t.Run("TitleSearchMetacharacters", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		// Create chats to test ILIKE metacharacter behavior.
+		_ = dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    firstUser.OrganizationID,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "100% complete",
+		})
+		_ = dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    firstUser.OrganizationID,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "1001 things",
+		})
+		_ = dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    firstUser.OrganizationID,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "user_name config",
+		})
+		_ = dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    firstUser.OrganizationID,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "user-name config",
+		})
+
+		// The % in "100%" acts as a wildcard since we don't escape
+		// ILIKE metacharacters. This matches BOTH "100% complete"
+		// AND "1001 things" because the pattern becomes '%100%%'.
+		chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "100%"})
+		require.NoError(t, err)
+		require.Len(t, chats, 2, "expected % to act as wildcard matching both chats")
+		titles := []string{chats[0].Title, chats[1].Title}
+		require.ElementsMatch(t, []string{"100% complete", "1001 things"}, titles)
+
+		// The _ in "user_name" acts as a single-char wildcard since we
+		// don't escape ILIKE metacharacters. This matches BOTH
+		// "user_name config" AND "user-name config" because _ matches
+		// any single character (both '_' and '-' satisfy it).
+		chats, err = client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "user_name"})
+		require.NoError(t, err)
+		require.Len(t, chats, 2, "expected _ to act as single-char wildcard matching both chats")
+		titles = []string{chats[0].Title, chats[1].Title}
+		require.ElementsMatch(t, []string{"user_name config", "user-name config"}, titles)
+	})
 }
 
 func TestListChatModels(t *testing.T) {

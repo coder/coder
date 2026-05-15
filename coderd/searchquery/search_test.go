@@ -1336,6 +1336,39 @@ func TestSearchChats(t *testing.T) {
 			Query:                 `diff_url:"http://%41:8080/"`,
 			ExpectedErrorContains: "not a valid URL",
 		},
+		{
+			Name:  "TitleSearch",
+			Query: "hello world",
+			Expected: database.GetChatsParams{
+				Archived:   sql.NullBool{Bool: false, Valid: true},
+				TitleQuery: "hello world",
+			},
+		},
+		{
+			Name:  "TitleSearchWithArchived",
+			Query: "my chat archived:true",
+			Expected: database.GetChatsParams{
+				Archived:   sql.NullBool{Bool: true, Valid: true},
+				TitleQuery: "my chat",
+			},
+		},
+		{
+			Name:  "TitleSearchQuoted",
+			Query: `"exact phrase"`,
+			Expected: database.GetChatsParams{
+				Archived:   sql.NullBool{Bool: false, Valid: true},
+				TitleQuery: `"exact phrase"`,
+			},
+		},
+		{
+			Name:  "TitleSearchWithDiffURL",
+			Query: `deploy diff_url:"https://github.com/coder/coder/pull/456"`,
+			Expected: database.GetChatsParams{
+				Archived:   sql.NullBool{Bool: false, Valid: true},
+				TitleQuery: "deploy",
+				DiffURL:    sql.NullString{String: "https://github.com/coder/coder/pull/456", Valid: true},
+			},
+		},
 	}
 
 	for _, c := range testCases {
