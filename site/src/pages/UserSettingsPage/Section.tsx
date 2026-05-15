@@ -1,4 +1,4 @@
-import type { FC, PropsWithChildren, ReactNode } from "react";
+import type { PropsWithChildren, ReactNode } from "react";
 import { cn } from "#/utils/cn";
 
 type SectionProps = PropsWithChildren<{
@@ -7,7 +7,7 @@ type SectionProps = PropsWithChildren<{
 	className?: string;
 }>;
 
-export const Section: FC<SectionProps> = ({
+export const Section: React.FC<SectionProps> = ({
 	title,
 	layout = "fixed",
 	className,
