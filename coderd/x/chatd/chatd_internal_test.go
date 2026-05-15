@@ -6055,8 +6055,18 @@ Loop:
 		mockClock.Advance(workspaceMCPPrimeRetryInterval).MustWait(ctx)
 	}
 
-	require.Greater(t, listCalls.Load(), int32(1),
-		"primer must retry at least once before giving up")
+	// expectedAttempts is the floor on how many times the primer
+	// should call discoverWorkspaceMCPTools before the deadline
+	// expires. The primer makes one attempt before sleeping, then
+	// one per workspaceMCPPrimeRetryInterval until the deadline.
+	// We assert a high-water mark (rather than exact equality) so
+	// the test is robust to off-by-one boundaries while still
+	// catching deadline miscomputations: a primer that exits after a
+	// handful of attempts would suggest the deadline was set with a
+	// shorter window than workspaceMCPPrimeMaxWait.
+	expectedAttempts := int32(workspaceMCPPrimeMaxWait/workspaceMCPPrimeRetryInterval) / 2
+	require.GreaterOrEqual(t, listCalls.Load(), expectedAttempts,
+		"primer must retry enough times to consume the full budget")
 	_, ok := server.workspaceMCPToolsCache.Load(chat.ID)
 	require.False(t, ok,
 		"primer must not cache an empty result; PrepareTools needs to retry on the next step")
