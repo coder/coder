@@ -79,10 +79,6 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 	activeSchemeRef.current = activeScheme;
 	onSubmitRef.current = onSubmit;
 
-	const applyValues = (next: AppearanceFormValues) => {
-		setValues(next);
-	};
-
 	// Optimistic submit queue: only one request is in flight at a time.
 	// Later changes overwrite the pending slot. On success, the queued
 	// draft fires next. On failure, a queued draft still gets a chance to
@@ -108,7 +104,7 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 					fireSubmit(queued);
 					return;
 				}
-				applyValues(next);
+				setValues(next);
 			},
 			() => {
 				submitInFlightRef.current = false;
@@ -119,7 +115,7 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 					fireSubmit(queued);
 					return;
 				}
-				applyValues(rollbackTo);
+				setValues(rollbackTo);
 			},
 		);
 	};
@@ -140,18 +136,18 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 			theme_dark,
 			terminal_font,
 		});
-		confirmedValuesRef.current = next;
 		// Preserve the optimistic local draft until the in-flight submit settles.
 		if (submitInFlightRef.current) {
 			return;
 		}
+		confirmedValuesRef.current = next;
 		setValues(next);
 	}, [theme_preference, theme_mode, theme_light, theme_dark, terminal_font]);
 
 	const { draft, terminalFont } = values;
 
 	const submit = (next: AppearanceFormValues) => {
-		applyValues(next);
+		setValues(next);
 
 		if (submitInFlightRef.current) {
 			pendingSubmitRef.current = next;

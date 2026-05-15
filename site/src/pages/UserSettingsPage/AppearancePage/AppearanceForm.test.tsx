@@ -21,12 +21,14 @@ const renderAppearanceForm = (children: ReactNode) => {
 	);
 };
 
+// These queue tests stay in Vitest because they need manually controlled
+// promises and act() boundaries that are awkward in Storybook play functions.
 describe("appearance form", () => {
 	it("queues the latest draft while an update is in flight", async () => {
-		const submitResolvers: Array<(value: UserAppearanceSettings) => void> = [];
+		const submitResolvers: Array<() => void> = [];
 		const onSubmit = vi.fn(
 			() =>
-				new Promise<UserAppearanceSettings>((resolve) => {
+				new Promise<void>((resolve) => {
 					submitResolvers.push(resolve);
 				}),
 		);
@@ -53,7 +55,7 @@ describe("appearance form", () => {
 		});
 
 		await act(async () => {
-			submitResolvers[0]?.(makeSettings({ terminal_font: "fira-code" }));
+			submitResolvers[0]?.();
 			await Promise.resolve();
 		});
 
@@ -66,24 +68,20 @@ describe("appearance form", () => {
 			terminal_font: "fira-code",
 		});
 		await act(async () => {
-			submitResolvers[1]?.(
-				makeSettings({
-					theme_preference: "light",
-					terminal_font: "fira-code",
-				}),
-			);
+			submitResolvers[1]?.();
 			await Promise.resolve();
 		});
+		expect(screen.getByRole("radio", { name: /light default/i })).toBeChecked();
 	});
 
 	it("submits the queued draft after an earlier update fails", async () => {
 		const submitResolvers: Array<{
-			resolve: (value: UserAppearanceSettings) => void;
+			resolve: () => void;
 			reject: (error: unknown) => void;
 		}> = [];
 		const onSubmit = vi.fn(
 			() =>
-				new Promise<UserAppearanceSettings>((resolve, reject) => {
+				new Promise<void>((resolve, reject) => {
 					submitResolvers.push({ resolve, reject });
 				}),
 		);
@@ -124,21 +122,17 @@ describe("appearance form", () => {
 		expect(screen.getByRole("radio", { name: /light default/i })).toBeChecked();
 
 		await act(async () => {
-			submitResolvers[1]?.resolve(
-				makeSettings({
-					theme_preference: "light",
-					terminal_font: "fira-code",
-				}),
-			);
+			submitResolvers[1]?.resolve();
 			await Promise.resolve();
 		});
+		expect(screen.getByRole("radio", { name: /light default/i })).toBeChecked();
 	});
 
 	it("rolls back local draft and releases submit guard on failure", async () => {
 		let rejectSubmit: ((error: unknown) => void) | undefined;
 		const onSubmit = vi.fn(
 			() =>
-				new Promise<UserAppearanceSettings>((_, reject) => {
+				new Promise<void>((_, reject) => {
 					rejectSubmit = reject;
 				}),
 		);
