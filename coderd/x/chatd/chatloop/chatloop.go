@@ -257,7 +257,7 @@ func (r stepResult) toResponseMessages() []fantasy.Message {
 				continue
 			}
 			opts := fantasy.ProviderOptions(reasoning.ProviderMetadata)
-			if strings.TrimSpace(reasoning.Text) == "" && !chatprompt.HasAnthropicSignedReasoningOptions(opts) {
+			if strings.TrimSpace(reasoning.Text) == "" && !chatsanitize.HasAnthropicSignedReasoningOptions(opts) {
 				continue
 			}
 			assistantParts = append(assistantParts, fantasy.ReasoningPart{
@@ -509,12 +509,20 @@ func Run(ctx context.Context, opts RunOptions) error {
 							// Reloaded history replaces the prompt prepared before
 							// the failed attempt, so run the same preparation
 							// pipeline used by normal provider requests.
-							var prepareErr error
-							messages, call.Prompt, prepareErr = prepareMessagesForRequest(
+							var (
+								reloadedCanonical []fantasy.Message
+								retryPrompt       []fantasy.Message
+								prepareErr        error
+							)
+							call.Prompt = nil
+							reloadedCanonical, retryPrompt, prepareErr = prepareMessagesForRequest(
 								ctx, opts, reloaded, provider, modelName, step, totalSteps,
 							)
 							if prepareErr != nil {
 								retryPrepareErr = prepareErr
+							} else {
+								messages = reloadedCanonical
+								call.Prompt = retryPrompt
 							}
 						}
 					}
@@ -527,6 +535,9 @@ func Run(ctx context.Context, opts RunOptions) error {
 				if errors.Is(err, ErrInterrupted) {
 					persistInterruptedStep(ctx, opts, &result)
 					return ErrInterrupted
+				}
+				if retryPrepareErr != nil && errors.Is(err, retryPrepareErr) {
+					return xerrors.Errorf("prepare prompt: %w", err)
 				}
 				return xerrors.Errorf("stream response: %w", err)
 			}
@@ -708,8 +719,9 @@ func Run(ctx context.Context, opts RunOptions) error {
 
 // prepareMessagesForRequest applies the prompt preparation pipeline used
 // immediately before sending messages to a provider. It returns the
-// possibly updated canonical messages, an independent provider-ready
-// prompt, and any terminal prompt-preparation error.
+// possibly updated canonical messages and an independent provider-ready
+// prompt. When preparation fails, the prompt result is nil and err is the
+// terminal prompt-preparation failure.
 func prepareMessagesForRequest(
 	ctx context.Context,
 	opts RunOptions,
@@ -741,14 +753,14 @@ func prepareMessagesForRequest(
 		err = chaterror.WithClassification(
 			xerrors.Errorf("apply anthropic provider tool guard: %w", err),
 			chaterror.ClassifiedError{
-				Message:   "The chat continuation failed due to an internal state mismatch. This is not a configuration or billing issue.",
+				Message:   "The chat continuation failed due to an internal state mismatch. This is not a configuration or billing issue. Start a new chat to continue.",
 				Detail:    "Anthropic replay diagnostic: match=provider_tool_guard_postcondition_failed.",
 				Kind:      codersdk.ChatErrorKindGeneric,
 				Provider:  provider,
 				Retryable: false,
 			},
 		)
-		return canonical, prompt, err
+		return canonical, nil, err
 	}
 	if shouldApplyAnthropicPromptCaching(opts.Model) {
 		addAnthropicPromptCaching(prompt)
@@ -1595,7 +1607,7 @@ func flushActiveState(
 
 	// Flush partial reasoning content.
 	for _, rs := range activeReasoning {
-		if rs.text == "" && !chatprompt.HasAnthropicSignedReasoningOptions(fantasy.ProviderOptions(rs.options)) {
+		if rs.text == "" && !chatsanitize.HasAnthropicSignedReasoningOptions(fantasy.ProviderOptions(rs.options)) {
 			continue
 		}
 		result.content = append(result.content, fantasy.ReasoningContent{
@@ -1631,8 +1643,9 @@ func flushActiveState(
 }
 
 // persistInterruptedStep saves durable content from a partial stream.
-// Provider-executed calls without results are removed when that can be
-// done without mutating signed Anthropic replay state.
+// Provider-executed calls without results are removed because their result
+// metadata cannot be synthesized safely, except when removal would mutate
+// signed Anthropic replay state.
 func persistInterruptedStep(
 	ctx context.Context,
 	opts RunOptions,

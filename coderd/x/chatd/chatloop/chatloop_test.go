@@ -3791,7 +3791,7 @@ func TestRun_AnthropicProviderToolPreRequestGuard(t *testing.T) {
 		require.Error(t, err)
 		require.Zero(t, streamCalls)
 		require.Equal(t, chaterror.ClassifiedError{
-			Message:   "The chat continuation failed due to an internal state mismatch. This is not a configuration or billing issue.",
+			Message:   "The chat continuation failed due to an internal state mismatch. This is not a configuration or billing issue. Start a new chat to continue.",
 			Detail:    "Anthropic replay diagnostic: match=provider_tool_guard_postcondition_failed.",
 			Kind:      codersdk.ChatErrorKindGeneric,
 			Provider:  "anthropic",

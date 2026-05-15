@@ -11,13 +11,13 @@ import (
 	"strings"
 
 	"charm.land/fantasy"
-	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -1256,13 +1256,6 @@ func providerMetadataToOptions(logger slog.Logger, raw json.RawMessage) fantasy.
 	return opts
 }
 
-// HasAnthropicSignedReasoningOptions reports whether provider options contain
-// Anthropic reasoning data that must be replayed without mutation.
-func HasAnthropicSignedReasoningOptions(options fantasy.ProviderOptions) bool {
-	reasoning := fantasyanthropic.GetReasoningMetadata(options)
-	return reasoning != nil && (reasoning.Signature != "" || reasoning.RedactedData != "")
-}
-
 // safeToolCallArgs ensures tool call args are valid JSON. Returns
 // nil for empty or invalid input so the field is omitted.
 func safeToolCallArgs(input string) json.RawMessage {
@@ -1506,7 +1499,7 @@ func partsToMessageParts(
 			})
 		case codersdk.ChatMessagePartTypeReasoning:
 			opts := providerMetadataToOptions(logger, part.ProviderMetadata)
-			if strings.TrimSpace(part.Text) == "" && !HasAnthropicSignedReasoningOptions(opts) {
+			if strings.TrimSpace(part.Text) == "" && !chatsanitize.HasAnthropicSignedReasoningOptions(opts) {
 				continue
 			}
 			result = append(result, fantasy.ReasoningPart{

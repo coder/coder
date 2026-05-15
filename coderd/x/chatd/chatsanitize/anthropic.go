@@ -14,6 +14,11 @@ import (
 
 const maxAnthropicProviderToolViolationLogDetails = 32
 
+// Anthropic immutability contract. The latest assistant message containing
+// signed or redacted reasoning is an immutable transcript boundary. Helpers
+// in this file enforce it via HasAnthropicSignedReasoningOptions,
+// latestAssistantMessageIndexWithSignedReasoning, and appendSanitizedMessage.
+
 // supportedAnthropicProviderToolNames is the allowlist of provider-executed
 // tool names the Anthropic provider in fantasy can currently serialize.
 var supportedAnthropicProviderToolNames = map[string]struct{}{
@@ -252,9 +257,12 @@ func SanitizeAnthropicProviderToolHistory(
 		// Each pass shrinks the finite part set, so the loop terminates.
 		analysis := analyzeAnthropicProviderToolHistory(current)
 		remove := analysis.remove
-		immutableIndex := latestAssistantMessageIndexWithSignedReasoning(current)
-		if immutableIndex >= 0 {
-			remove = removeAnthropicProviderToolPartsForMessage(remove, immutableIndex)
+		if immutableIndex := latestAssistantMessageIndexWithSignedReasoning(current); immutableIndex >= 0 {
+			for key := range remove {
+				if key.messageIndex == immutableIndex {
+					delete(remove, key)
+				}
+			}
 		}
 		if len(remove) == 0 {
 			if !changed {
@@ -431,6 +439,18 @@ func SanitizeAnthropicProviderToolContent(
 	return out, stats
 }
 
+func hasAnthropicSignedReasoningMetadata(
+	metadata *fantasyanthropic.ReasoningOptionMetadata,
+) bool {
+	return metadata != nil && (metadata.Signature != "" || metadata.RedactedData != "")
+}
+
+// HasAnthropicSignedReasoningOptions reports whether provider options contain
+// Anthropic reasoning data that must be replayed without mutation.
+func HasAnthropicSignedReasoningOptions(options fantasy.ProviderOptions) bool {
+	return hasAnthropicSignedReasoningMetadata(fantasyanthropic.GetReasoningMetadata(options))
+}
+
 func contentHasAnthropicSignedReasoning(content []fantasy.Content) bool {
 	for _, block := range content {
 		reasoning, ok := fantasy.AsContentType[fantasy.ReasoningContent](block)
@@ -440,7 +460,7 @@ func contentHasAnthropicSignedReasoning(content []fantasy.Content) bool {
 		metadata := fantasyanthropic.GetReasoningMetadata(
 			fantasy.ProviderOptions(reasoning.ProviderMetadata),
 		)
-		if metadata != nil && (metadata.Signature != "" || metadata.RedactedData != "") {
+		if hasAnthropicSignedReasoningMetadata(metadata) {
 			return true
 		}
 	}
@@ -457,8 +477,9 @@ func IsAnthropicProviderExecutedToolCall(
 }
 
 // ApplyAnthropicProviderToolGuard fail-closes unsafe Anthropic provider-tool
-// history immediately before a provider request is issued. It returns an
-// error when the prompt still cannot be repaired safely.
+// history immediately before a provider request is issued. It returns a
+// sanitized prompt on success, or nil with ErrAnthropicProviderToolPromptUnsafe
+// when the prompt still cannot be repaired safely.
 func ApplyAnthropicProviderToolGuard(
 	ctx context.Context,
 	logger slog.Logger,
@@ -588,7 +609,7 @@ func ApplyAnthropicProviderToolGuard(
 			immutableLatestSignedAssistant,
 		),
 	)
-	return guarded, ErrAnthropicProviderToolPromptUnsafe
+	return nil, ErrAnthropicProviderToolPromptUnsafe
 }
 
 type anthropicProviderToolPartKey struct {
@@ -596,23 +617,11 @@ type anthropicProviderToolPartKey struct {
 	partIndex    int
 }
 
-func removeAnthropicProviderToolPartsForMessage(
-	remove map[anthropicProviderToolPartKey]struct{},
-	messageIndex int,
-) map[anthropicProviderToolPartKey]struct{} {
-	if len(remove) == 0 {
-		return remove
-	}
-	filtered := make(map[anthropicProviderToolPartKey]struct{}, len(remove))
-	for key := range remove {
-		if key.messageIndex == messageIndex {
-			continue
-		}
-		filtered[key] = struct{}{}
-	}
-	return filtered
-}
-
+// latestAssistantMessageIndexWithSignedReasoning returns the most recent
+// assistant message when that message carries signed or redacted Anthropic
+// reasoning. Older signed assistant turns were already validated when they
+// were the latest replay boundary. If Anthropic ever validates earlier turns
+// during replay, this is the single place to revisit that assumption.
 func latestAssistantMessageIndexWithSignedReasoning(messages []fantasy.Message) int {
 	for i := len(messages) - 1; i >= 0; i-- {
 		if messages[i].Role != fantasy.MessageRoleAssistant {
@@ -621,6 +630,7 @@ func latestAssistantMessageIndexWithSignedReasoning(messages []fantasy.Message) 
 		if messageHasAnthropicSignedReasoning(messages[i]) {
 			return i
 		}
+		return -1
 	}
 	return -1
 }
@@ -632,34 +642,23 @@ func messageHasAnthropicSignedReasoning(message fantasy.Message) bool {
 			continue
 		}
 		metadata := fantasyanthropic.GetReasoningMetadata(reasoning.ProviderOptions)
-		if metadata != nil && (metadata.Signature != "" || metadata.RedactedData != "") {
+		if hasAnthropicSignedReasoningMetadata(metadata) {
 			return true
 		}
 	}
 	return false
 }
 
-func removeImmutableSignedReasoningMessages(
+func excludeImmutableSignedReasoningMessages(
 	messages []fantasy.Message,
 	affected map[int]struct{},
-) map[int]struct{} {
+) {
 	if len(affected) == 0 {
-		return affected
+		return
 	}
-	immutableIndex := latestAssistantMessageIndexWithSignedReasoning(messages)
-	if immutableIndex < 0 {
-		return affected
+	if immutableIndex := latestAssistantMessageIndexWithSignedReasoning(messages); immutableIndex >= 0 {
+		delete(affected, immutableIndex)
 	}
-	if _, ok := affected[immutableIndex]; !ok {
-		return affected
-	}
-	filtered := make(map[int]struct{}, len(affected))
-	for index := range affected {
-		if index != immutableIndex {
-			filtered[index] = struct{}{}
-		}
-	}
-	return filtered
 }
 
 type anthropicProviderToolHistoryAnalysis struct {
@@ -965,7 +964,7 @@ func sanitizeAnthropicProviderToolGuardMessages(
 	validationViolations int,
 	extraFields ...slog.Field,
 ) []fantasy.Message {
-	affectedMessages = removeImmutableSignedReasoningMessages(messages, affectedMessages)
+	excludeImmutableSignedReasoningMessages(messages, affectedMessages)
 	if len(affectedMessages) == 0 {
 		return messages
 	}
@@ -1029,7 +1028,7 @@ func stripAnthropicProviderToolHistoryFromMessages(
 	affectedMessages map[int]struct{},
 ) ([]fantasy.Message, AnthropicProviderToolSanitizationStats) {
 	var stats AnthropicProviderToolSanitizationStats
-	affectedMessages = removeImmutableSignedReasoningMessages(messages, affectedMessages)
+	excludeImmutableSignedReasoningMessages(messages, affectedMessages)
 	if len(affectedMessages) == 0 {
 		return messages, stats
 	}
@@ -1070,7 +1069,12 @@ func appendSanitizedMessage(out []fantasy.Message, msg fantasy.Message) []fantas
 	if len(out) == 0 || out[len(out)-1].Role != msg.Role {
 		return append(out, msg)
 	}
-	if messageHasAnthropicSignedReasoning(out[len(out)-1]) || messageHasAnthropicSignedReasoning(msg) {
+	// Refuse to coalesce across an immutable Anthropic turn. Merging would
+	// reorder parts within the signed message and break replay fidelity. The
+	// resulting consecutive same-role messages are valid for Anthropic.
+	crossesImmutableBoundary := messageHasAnthropicSignedReasoning(out[len(out)-1]) ||
+		messageHasAnthropicSignedReasoning(msg)
+	if crossesImmutableBoundary {
 		return append(out, msg)
 	}
 
