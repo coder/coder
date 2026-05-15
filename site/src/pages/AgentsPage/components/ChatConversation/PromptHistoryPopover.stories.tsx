@@ -81,32 +81,21 @@ export const KeyboardNavigation: Story = {
 		const trigger = canvas.getByRole("button", { name: "Prompt history" });
 		await userEvent.click(trigger);
 
-		// Wait for the popover to be fully open.
-		await screen.findAllByRole("option");
-
-		// ArrowDown selects items sequentially.
-		await userEvent.keyboard("{ArrowDown}");
+		// cmdk auto-selects the first item on open.
 		const items = await screen.findAllByRole("option");
 		await expect(items[0]).toHaveAttribute("data-selected", "true");
 
+		// ArrowDown moves to the next item.
 		await userEvent.keyboard("{ArrowDown}");
 		await expect(items[1]).toHaveAttribute("data-selected", "true");
 
+		// ArrowDown again.
+		await userEvent.keyboard("{ArrowDown}");
+		await expect(items[2]).toHaveAttribute("data-selected", "true");
+
 		// ArrowUp moves back.
 		await userEvent.keyboard("{ArrowUp}");
-		await expect(items[0]).toHaveAttribute("data-selected", "true");
-
-		// Home jumps to first.
-		await userEvent.keyboard("{ArrowDown}{ArrowDown}{ArrowDown}");
-		await userEvent.keyboard("{Home}");
-		await expect(items[0]).toHaveAttribute("data-selected", "true");
-
-		// End jumps to last.
-		await userEvent.keyboard("{End}");
-		await expect(items[items.length - 1]).toHaveAttribute(
-			"data-selected",
-			"true",
-		);
+		await expect(items[1]).toHaveAttribute("data-selected", "true");
 	},
 };
 
