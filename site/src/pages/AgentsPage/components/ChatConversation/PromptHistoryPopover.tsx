@@ -74,7 +74,11 @@ export const PromptHistoryPopover: FC<PromptHistoryPopoverProps> = ({
 				<TooltipContent side="bottom">Prompt history</TooltipContent>
 			</Tooltip>
 
-			<PopoverContent align="end" side="bottom" className="w-[calc(100vw-2rem)] overflow-hidden p-0 sm:w-80">
+			<PopoverContent
+				align="end"
+				side="bottom"
+				className="w-[calc(100vw-2rem)] overflow-hidden p-0 sm:w-80"
+			>
 				<Command loop>
 					<CommandInput placeholder="Search prompts..." />
 					<CommandList>
