@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -381,34 +382,31 @@ func TestUserSkillAuthorization(t *testing.T) {
 	_, err = userAdmin.CreateUserSkill(ctx, targetUser, codersdk.CreateUserSkillRequest{
 		Content: userSkillMarkdown("denied-admin-create", "Denied", "Body."),
 	})
-	requireSDKErrorStatus(t, err, http.StatusNotFound)
+	requireSDKErrorStatus(t, err, http.StatusForbidden)
 	_, err = userAdmin.UpdateUserSkill(ctx, targetUser, "auth-skill", codersdk.UpdateUserSkillRequest{
 		Content: userSkillMarkdown("auth-skill", "Denied", "Body."),
 	})
-	requireSDKErrorStatus(t, err, http.StatusNotFound)
+	requireSDKErrorStatus(t, err, http.StatusForbidden)
 	err = userAdmin.DeleteUserSkill(ctx, targetUser, "auth-skill")
 	requireSDKErrorStatus(t, err, http.StatusNotFound)
 
-	adminCreated, err := admin.CreateUserSkill(ctx, targetUser, codersdk.CreateUserSkillRequest{
+	_, err = admin.CreateUserSkill(ctx, targetUser, codersdk.CreateUserSkillRequest{
 		Content: userSkillMarkdown("admin-created", "Admin create", "Created by admin."),
 	})
-	require.NoError(t, err)
-	assert.Equal(t, "admin-created", adminCreated.Name)
+	requireSDKErrorStatus(t, err, http.StatusForbidden)
 
 	list, err := admin.UserSkills(ctx, targetUser)
 	require.NoError(t, err)
-	require.Len(t, list, 2)
-	assert.ElementsMatch(t, []string{"admin-created", "auth-skill"}, []string{list[0].Name, list[1].Name})
+	require.Len(t, list, 1)
+	assert.Equal(t, "auth-skill", list[0].Name)
 	got, err := admin.UserSkillByName(ctx, targetUser, "auth-skill")
 	require.NoError(t, err)
 	assert.Equal(t, "auth-skill", got.Name)
-	updated, err := admin.UpdateUserSkill(ctx, targetUser, "auth-skill", codersdk.UpdateUserSkillRequest{
+	_, err = admin.UpdateUserSkill(ctx, targetUser, "auth-skill", codersdk.UpdateUserSkillRequest{
 		Content: userSkillMarkdown("auth-skill", "Admin update", "Updated by admin."),
 	})
-	require.NoError(t, err)
-	assert.Equal(t, "Admin update", updated.Description)
+	requireSDKErrorStatus(t, err, http.StatusForbidden)
 	require.NoError(t, admin.DeleteUserSkill(ctx, targetUser, "auth-skill"))
-	require.NoError(t, admin.DeleteUserSkill(ctx, targetUser, "admin-created"))
 }
 
 func TestUserSkillSoftDeleteCleanup(t *testing.T) {
@@ -438,13 +436,14 @@ func TestUserSkillSoftDeleteCleanup(t *testing.T) {
 
 	createAuthzCtx := dbauthz.As(ctx, rbac.Subject{
 		Type:  rbac.SubjectTypeUser,
-		ID:    firstUser.UserID.String(),
-		Roles: rbac.RoleIdentifiers{rbac.RoleMember(), rbac.RoleOwner()},
+		ID:    ownerUser.ID.String(),
+		Roles: rbac.RoleIdentifiers{rbac.RoleMember()},
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue())
 	_, err = api.Database.InsertUserSkill(
 		createAuthzCtx,
 		database.InsertUserSkillParams{
+			ID:          uuid.New(),
 			UserID:      ownerUser.ID,
 			Name:        "after-soft-delete",
 			Description: "Soft delete",
@@ -461,9 +460,6 @@ func TestUserSkillDatabaseConstraints(t *testing.T) {
 	adminClient, _, api := coderdtest.NewWithAPI(t, nil)
 	firstUser := coderdtest.CreateFirstUser(t, adminClient)
 	_, ownerUser := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
-	ctx := testutil.Context(t, testutil.WaitMedium)
-	authzCtx := dbauthz.As(ctx, coderdtest.AuthzUserSubject(ownerUser))
-
 	tests := []struct {
 		name       string
 		params     database.InsertUserSkillParams
@@ -472,6 +468,7 @@ func TestUserSkillDatabaseConstraints(t *testing.T) {
 		{
 			name: "NameFormat",
 			params: database.InsertUserSkillParams{
+				ID:          uuid.New(),
 				UserID:      ownerUser.ID,
 				Name:        "not kebab",
 				Description: "Invalid",
@@ -482,6 +479,7 @@ func TestUserSkillDatabaseConstraints(t *testing.T) {
 		{
 			name: "NameSize",
 			params: database.InsertUserSkillParams{
+				ID:          uuid.New(),
 				UserID:      ownerUser.ID,
 				Name:        strings.Repeat("a", skills.MaxPersonalSkillNameBytes+1),
 				Description: "Invalid",
@@ -492,6 +490,7 @@ func TestUserSkillDatabaseConstraints(t *testing.T) {
 		{
 			name: "ContentSize",
 			params: database.InsertUserSkillParams{
+				ID:          uuid.New(),
 				UserID:      ownerUser.ID,
 				Name:        "content-too-large",
 				Description: "Invalid",
@@ -504,6 +503,9 @@ func TestUserSkillDatabaseConstraints(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			authzCtx := dbauthz.As(ctx, coderdtest.AuthzUserSubject(ownerUser))
+
 			_, err := api.Database.InsertUserSkill(authzCtx, tt.params)
 			require.True(t, database.IsCheckViolation(err, tt.constraint), "expected %s, got %v", tt.constraint, err)
 		})
@@ -514,8 +516,8 @@ func TestUserSkillSchemaConstants(t *testing.T) {
 	t.Parallel()
 
 	_, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
-	ctx := testutil.Context(t, testutil.WaitMedium)
 
+	ctx := testutil.Context(t, testutil.WaitMedium)
 	var triggerDef string
 	require.NoError(t, sqlDB.QueryRowContext(
 		ctx,
@@ -532,6 +534,7 @@ func TestUserSkillSchemaConstants(t *testing.T) {
 		t.Run(string(constraint), func(t *testing.T) {
 			t.Parallel()
 
+			ctx := testutil.Context(t, testutil.WaitMedium)
 			var constraintDef string
 			require.NoError(t, sqlDB.QueryRowContext(
 				ctx,
