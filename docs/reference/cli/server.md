@@ -269,6 +269,16 @@ URL to fetch a DERP mapping on startup. See: https://tailscale.com/kb/1118/custo
 
 Path to read a DERP mapping from. See: https://tailscale.com/kb/1118/custom-derp-servers/.
 
+### --azure-instance-identity-root-ca-path
+
+|             |                                                          |
+|-------------|----------------------------------------------------------|
+| Type        | <code>string</code>                                      |
+| Environment | <code>$CODER_AZURE_INSTANCE_IDENTITY_ROOT_CA_PATH</code> |
+| YAML        | <code>networking.azureInstanceIdentityRootCAPath</code>  |
+
+Path to a PEM-encoded file containing root CA certificates to trust for Azure instance identity verification. By default, Coder uses embedded Azure root CAs. Set this to override with custom roots when Azure rotates CAs before a Coder upgrade.
+
 ### --stats-collection-usage-stats-enable
 
 |             |                                                              |

@@ -183,10 +183,12 @@ type metadata struct {
 }
 
 type Options struct {
-	// Roots is the trusted root certificate pool. If nil,
-	// the default cert pool is used. On darwin, this is an
-	// embedded pool. On all other platforms it is the system
-	// pool.
+	// Roots is the trusted root certificate pool. If nil, the
+	// embedded Azure root CAs are used, which pins trust to the
+	// known Azure certificate chain. Callers can set this to
+	// x509.SystemCertPool() or a custom pool to trust additional
+	// or different roots (for example, after an Azure CA rotation
+	// before a Coder binary update).
 	Roots *x509.CertPool
 	// Intermediates are additional intermediate certificates to
 	// inject into the PKCS7 object for chain verification. Azure

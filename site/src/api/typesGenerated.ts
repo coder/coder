@@ -3836,6 +3836,7 @@ export interface DeploymentValues {
 	readonly workspace_prebuilds?: PrebuildsConfig;
 	readonly hide_ai_tasks?: boolean;
 	readonly ai?: AIConfig;
+	readonly azure_instance_identity_root_ca_path?: string;
 	readonly stats_collection?: StatsCollectionConfig;
 	readonly template_builder?: TemplateBuilderConfig;
 	readonly config?: string;

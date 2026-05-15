@@ -168,6 +168,12 @@ networking:
     # https://tailscale.com/kb/1118/custom-derp-servers/.
     # (default: <unset>, type: string)
     configPath: ""
+  # Path to a PEM-encoded file containing root CA certificates to trust for Azure
+  # instance identity verification. By default, Coder uses embedded Azure root CAs.
+  # Set this to override with custom roots when Azure rotates CAs before a Coder
+  # upgrade.
+  # (default: <unset>, type: string)
+  azureInstanceIdentityRootCAPath: ""
   # Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-Ip,
   # True-Client-Ip, X-Forwarded-For.
   # (default: <unset>, type: string-array)

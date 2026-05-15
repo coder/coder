@@ -54,7 +54,7 @@ extend-exclude = [
 	"tailnet/testdata/**",
 	"site/src/pages/SetupPage/countries.tsx",
 	"provisioner/terraform/testdata/**",
-	"coderd/azureidentity/roots_darwin.go",
+	"coderd/azureidentity/roots.go",
 	"coderd/azureidentity/azureidentity.go",
 	# notifications' golden files confuse the detector because of quoted-printable encoding
 	"coderd/notifications/testdata/**",

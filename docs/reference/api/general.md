@@ -230,6 +230,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     },
     "allow_workspace_renames": true,
     "autobuild_poll_interval": 0,
+    "azure_instance_identity_root_ca_path": "string",
     "browser_only": true,
     "cache_directory": "string",
     "cli_upgrade_message": "string",

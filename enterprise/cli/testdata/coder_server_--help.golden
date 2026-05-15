@@ -406,6 +406,12 @@ NETWORKING OPTIONS:
       --access-url url, $CODER_ACCESS_URL
           The URL that users will use to access the Coder deployment.
 
+      --azure-instance-identity-root-ca-path string, $CODER_AZURE_INSTANCE_IDENTITY_ROOT_CA_PATH
+          Path to a PEM-encoded file containing root CA certificates to trust
+          for Azure instance identity verification. By default, Coder uses
+          embedded Azure root CAs. Set this to override with custom roots when
+          Azure rotates CAs before a Coder upgrade.
+
       --docs-url url, $CODER_DOCS_URL (default: https://coder.com/docs)
           Specifies the custom docs URL.
 

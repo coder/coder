@@ -672,6 +672,7 @@ type DeploymentValues struct {
 	Prebuilds                               PrebuildsConfig                      `json:"workspace_prebuilds,omitempty" typescript:",notnull"`
 	HideAITasks                             serpent.Bool                         `json:"hide_ai_tasks,omitempty" typescript:",notnull"`
 	AI                                      AIConfig                             `json:"ai,omitempty"`
+	AzureInstanceIdentityRootCAPath         serpent.String                       `json:"azure_instance_identity_root_ca_path,omitempty" typescript:",notnull"`
 	StatsCollection                         StatsCollectionConfig                `json:"stats_collection,omitempty" typescript:",notnull"`
 	TemplateBuilder                         TemplateBuilderConfig                `json:"template_builder,omitempty"`
 
@@ -1997,6 +1998,16 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Value:       &c.DERP.Config.Path,
 			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "configPath",
+		},
+		// Azure instance identity settings
+		{
+			Name:        "Azure Instance Identity Root CA Path",
+			Description: "Path to a PEM-encoded file containing root CA certificates to trust for Azure instance identity verification. By default, Coder uses embedded Azure root CAs. Set this to override with custom roots when Azure rotates CAs before a Coder upgrade.",
+			Flag:        "azure-instance-identity-root-ca-path",
+			Env:         "CODER_AZURE_INSTANCE_IDENTITY_ROOT_CA_PATH",
+			Value:       &c.AzureInstanceIdentityRootCAPath,
+			Group:       &deploymentGroupNetworking,
+			YAML:        "azureInstanceIdentityRootCAPath",
 		},
 		{
 			Name:        "Stats Collection Usage Stats Enable",

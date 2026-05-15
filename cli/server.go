@@ -64,6 +64,7 @@ import (
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/autobuild"
+	"github.com/coder/coder/v2/coderd/azureidentity"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/awsiamrds"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -652,6 +653,19 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					vals.WorkspaceHostnameSuffix.String())
 			}
 
+			var azureCerts azureidentity.Options
+			if caPath := vals.AzureInstanceIdentityRootCAPath.String(); caPath != "" {
+				pemData, err := os.ReadFile(caPath)
+				if err != nil {
+					return xerrors.Errorf("read azure instance identity root CA %q: %w", caPath, err)
+				}
+				pool := x509.NewCertPool()
+				if !pool.AppendCertsFromPEM(pemData) {
+					return xerrors.Errorf("no valid certificates found in %q", caPath)
+				}
+				azureCerts.Roots = pool
+			}
+
 			options := &coderd.Options{
 				AccessURL:                   vals.AccessURL.Value(),
 				AppHostname:                 appHostname,
@@ -662,6 +676,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				Pubsub:                      nil,
 				CacheDir:                    cacheDir,
 				GoogleTokenValidator:        googleTokenValidator,
+				AzureCertificates:           azureCerts,
 				ExternalAuthConfigs:         nil,
 				RealIPConfig:                realIPConfig,
 				SSHKeygenAlgorithm:          sshKeygenAlgorithm,

@@ -1,5 +1,3 @@
-//go:build darwin
-
 package azureidentity
 
 import (
@@ -11,10 +9,8 @@ import (
 )
 
 // TestEmbeddedRoots ensures the package's embedded root certificates parse
-// successfully. The roots are used by Validate to avoid falling back to the
-// platform's system verifier (notably Apple's Security framework on macOS),
-// which previously caused TestValidate/regular to fail on macOS with
-// `x509: "metadata.azure.com" certificate is not standards compliant`.
+// successfully. The roots are used by Validate to pin trust to the known
+// Azure root CAs on all platforms.
 // See https://github.com/coder/coder/issues/12978.
 func TestEmbeddedRoots(t *testing.T) {
 	t.Parallel()

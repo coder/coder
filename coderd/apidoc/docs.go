@@ -17853,6 +17853,9 @@ const docTemplate = `{
                 "autobuild_poll_interval": {
                     "type": "integer"
                 },
+                "azure_instance_identity_root_ca_path": {
+                    "type": "string"
+                },
                 "browser_only": {
                     "type": "boolean"
                 },

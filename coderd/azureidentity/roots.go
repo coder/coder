@@ -1,5 +1,3 @@
-//go:build darwin
-
 package azureidentity
 
 import (
@@ -11,14 +9,21 @@ import (
 )
 
 // rootCertPool returns a CertPool containing the root CAs that Azure
-// instance-identity certificates ultimately chain to. On macOS, we embed these
-// because Apple's Security framework enforces stricter standards-compliance
-// checks than Go's pure-Go verifier and rejects some otherwise valid Azure leaf
-// certificates. However, we want to avoid hardcoding the roots on other
-// platforms because if Azure changes their root CAs, we want operators to be
-// able to validate without having to get a new Coder binary. macOS support for
-// coderd is only intended for development and testing, so this is a small trade
-// off.
+// instance-identity certificates ultimately chain to. We embed these so
+// verification is pinned to the known Azure roots on all platforms.
+// This prevents the system trust store from being used as a trust
+// anchor, which would allow any CA trusted by the host to sign
+// metadata documents accepted by Validate.
+//
+// Operators who need to trust additional or replacement roots (for
+// example, after an Azure CA rotation) can set Options.Roots
+// explicitly.
+//
+// On macOS an additional benefit is that embedding forces Go's
+// pure-Go x509 verifier instead of Apple's Security framework, which
+// enforces stricter standards-compliance checks and rejects some
+// otherwise valid Azure leaf certificates.
+// See https://github.com/coder/coder/issues/12978.
 var rootCertPool = sync.OnceValues(func() (*x509.CertPool, error) {
 	pool := x509.NewCertPool()
 	for _, pemCert := range embeddedRoots {
@@ -39,9 +44,8 @@ var rootCertPool = sync.OnceValues(func() (*x509.CertPool, error) {
 })
 
 // embeddedRoots are the root CAs that Azure instance-identity certificates
-// chain to. These are embedded so verification works on macOS where the system
-// verifier would otherwise be used and may reject otherwise valid Azure
-// certificates due to stricter standards-compliance checks.
+// chain to. These are embedded so Validate always pins trust to the known
+// Azure roots, regardless of the host's system certificate store.
 // See https://github.com/coder/coder/issues/12978.
 var embeddedRoots = []string{
 	// DigiCert Global Root G2

@@ -5366,6 +5366,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     },
     "allow_workspace_renames": true,
     "autobuild_poll_interval": 0,
+    "azure_instance_identity_root_ca_path": "string",
     "browser_only": true,
     "cache_directory": "string",
     "cli_upgrade_message": "string",
@@ -5964,6 +5965,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   },
   "allow_workspace_renames": true,
   "autobuild_poll_interval": 0,
+  "azure_instance_identity_root_ca_path": "string",
   "browser_only": true,
   "cache_directory": "string",
   "cli_upgrade_message": "string",
@@ -6387,6 +6389,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `ai`                                           | [codersdk.AIConfig](#codersdkaiconfig)                                                               | false    |              |                                                                    |
 | `allow_workspace_renames`                      | boolean                                                                                              | false    |              |                                                                    |
 | `autobuild_poll_interval`                      | integer                                                                                              | false    |              |                                                                    |
+| `azure_instance_identity_root_ca_path`         | string                                                                                               | false    |              |                                                                    |
 | `browser_only`                                 | boolean                                                                                              | false    |              |                                                                    |
 | `cache_directory`                              | string                                                                                               | false    |              |                                                                    |
 | `cli_upgrade_message`                          | string                                                                                               | false    |              |                                                                    |
