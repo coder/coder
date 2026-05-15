@@ -2,9 +2,6 @@
 # It creates a Coder Agent chat session that uses AI to analyze the PR
 # changes, search existing docs, and comment with recommendations.
 #
-# Uses the coder/create-agent-chat-action wrapper around the Coder Chat
-# API (/api/experimental/chats); no workspace provisioning required.
-#
 # Triggers:
 #   - New PR opened: Initial documentation review
 #   - PR updated (synchronize): Re-review after changes
@@ -213,18 +210,9 @@ jobs:
             echo "EOFOUTPUT"
           } >> "${GITHUB_OUTPUT}"
 
-      # ------------------------------------------------------------------
-      # Create and run the chat via the coder/create-agent-chat-action.
-      # The action wraps the Coder Chat API: it creates the chat, polls
-      # until terminal status (waiting, completed, error) or timeout, and
-      # posts a lifecycle comment on the linked PR. coder-username pins
-      # the run to the doc-check bot identity, bypassing the action's
-      # auto-resolve trust gate so every event (including fork PRs)
-      # runs as the bot, matching today's behavior.
-      # ------------------------------------------------------------------
       - name: Run doc-check via Coder Agent Chat
         if: steps.check-secrets.outputs.skip != 'true'
-        # pin to v0 tag once tagged.
+        # Pin to v0 tag once tagged.
         uses: coder/agents-chat-action@7fc11ff850800d5f60fd47306099d75996a674dd
         with:
           coder-url: ${{ secrets.DOC_CHECK_CODER_URL }}
@@ -235,7 +223,6 @@ jobs:
           github-token: ${{ github.token }}
           wait: complete
           wait-timeout-seconds: "600"
-          # The doc-check agent posts its own sticky review comment when
-          # there are findings; failures surface in the workflow run log.
-          # The action's own lifecycle comment is not needed.
+          # The doc-check agent posts its own sticky comment when there
+          # are findings; failures surface in the workflow run log.
           comment-on-issue: "false"
