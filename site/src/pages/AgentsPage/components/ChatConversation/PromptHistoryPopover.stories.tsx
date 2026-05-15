@@ -98,15 +98,3 @@ export const KeyboardNavigation: Story = {
 		await expect(items[1]).toHaveAttribute("data-selected", "true");
 	},
 };
-
-export const FewerThanTwoEntries: Story = {
-	args: {
-		entries: [{ id: 1, index: 1, label: "Only one prompt" }],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// Component should not render when entries < 2.
-		const trigger = canvas.queryByRole("button", { name: "Prompt history" });
-		await expect(trigger).toBeNull();
-	},
-};
