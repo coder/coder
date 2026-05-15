@@ -52,6 +52,7 @@ To list shared workspaces:
 - `coder list --search shared:true`
 - `coder list --search shared_with_user:<user>`
 - `coder list --search shared_with_group:<group>`
+- `coder list --search shared-with:<user-or-group>` (use `me` for your own user; matches access via the user, any of their groups, or a named group)
 
 ### UI
 

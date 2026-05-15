@@ -389,6 +389,23 @@ WHERE
 			workspaces.group_acl ? (@shared_with_group_id :: uuid) :: text
 		ELSE true
 	END
+	-- Filter by shared-with principal. The principal is resolved at parse
+	-- time to either a user (shared_with_principal_user_id) or a group
+	-- (shared_with_principal_group_id); at most one is non-nil. A workspace
+	-- matches if the principal has access via user_acl, group_acl, or
+	-- (for users) via membership in any group present in group_acl.
+	AND CASE
+		WHEN @shared_with_principal_user_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			workspaces.user_acl ? (@shared_with_principal_user_id :: uuid) :: text
+			OR EXISTS (
+				SELECT 1 FROM group_members_expanded gme
+				WHERE gme.user_id = @shared_with_principal_user_id :: uuid
+					AND workspaces.group_acl ? gme.group_id :: text
+			)
+		WHEN @shared_with_principal_group_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			workspaces.group_acl ? (@shared_with_principal_group_id :: uuid) :: text
+		ELSE true
+	END
 
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter

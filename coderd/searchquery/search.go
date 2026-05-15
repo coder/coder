@@ -216,7 +216,7 @@ func Members(query string, organizationID uuid.UUID) (database.OrganizationMembe
 	return params, parser.Errors
 }
 
-func Workspaces(ctx context.Context, db database.Store, query string, page codersdk.Pagination, agentInactiveDisconnectTimeout time.Duration) (database.GetWorkspacesParams, []codersdk.ValidationError) {
+func Workspaces(ctx context.Context, db database.Store, query string, page codersdk.Pagination, agentInactiveDisconnectTimeout time.Duration, actorID uuid.UUID) (database.GetWorkspacesParams, []codersdk.ValidationError) {
 	filter := database.GetWorkspacesParams{
 		AgentInactiveDisconnectTimeoutSeconds: int64(agentInactiveDisconnectTimeout.Seconds()),
 
@@ -272,9 +272,9 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 	filter.HasExternalAgent = parser.NullableBoolean(values, sql.NullBool{}, "has_external_agent")
 	filter.OrganizationID = parseOrganization(ctx, db, parser, values, "organization")
 	filter.Shared = parser.NullableBoolean(values, sql.NullBool{}, "shared")
-	// TODO: support "me" by passing in the actorID
-	filter.SharedWithUserID = parseUser(ctx, db, parser, values, "shared_with_user", uuid.Nil)
+	filter.SharedWithUserID = parseUser(ctx, db, parser, values, "shared_with_user", actorID)
 	filter.SharedWithGroupID = parseGroup(ctx, db, parser, values, "shared_with_group")
+	filter.SharedWithPrincipalUserID, filter.SharedWithPrincipalGroupID = parseSharedWith(ctx, db, parser, values, "shared-with", actorID)
 	// Translate healthy filter to has-agent statuses
 	// healthy:true = connected, healthy:false = disconnected or timeout
 	if healthy := parser.NullableBoolean(values, sql.NullBool{}, "healthy"); healthy.Valid {
@@ -695,54 +695,103 @@ func parseGroup(ctx context.Context, db database.Store, parser *httpapi.QueryPar
 		if v == "" {
 			return uuid.Nil, nil
 		}
-		groupID, err := uuid.Parse(v)
-		if err == nil {
-			return groupID, nil
+		return resolveGroup(ctx, db, v)
+	})
+}
+
+// parseSharedWith resolves a `shared-with:<principal>` value into either a user
+// UUID or a group UUID. The principal can be:
+//   - the literal "me" (resolves to actorID),
+//   - a user UUID, username, or email,
+//   - a group UUID, group name, or <org>/<group>.
+//
+// It tries to resolve as a user first; on miss it falls back to a group. If
+// both fail, it surfaces a validation error. At most one of the returned
+// UUIDs is non-nil.
+func parseSharedWith(ctx context.Context, db database.Store, parser *httpapi.QueryParamParser, vals url.Values, queryParam string, actorID uuid.UUID) (userID, groupID uuid.UUID) {
+	userID = httpapi.ParseCustom(parser, vals, uuid.Nil, queryParam, func(v string) (uuid.UUID, error) {
+		if v == "" {
+			return uuid.Nil, nil
 		}
-
-		var groupName string
-		var org database.Organization
-		parts := strings.Split(v, "/")
-		switch len(parts) {
-		case 1:
-			dbOrg, err := db.GetDefaultOrganization(ctx)
-			if err != nil {
-				return uuid.Nil, xerrors.New("fetching default organization")
-			}
-			org = dbOrg
-			groupName = parts[0]
-		case 2:
-			orgName := parts[0]
-			if err := codersdk.NameValid(orgName); err != nil {
-				return uuid.Nil, xerrors.Errorf("invalid organization name %w", err)
-			}
-			dbOrg, err := db.GetOrganizationByName(ctx, database.GetOrganizationByNameParams{
-				Name: orgName,
-			})
-			if err != nil {
-				return uuid.Nil, xerrors.Errorf("organization %q either does not exist, or you are unauthorized to view it", orgName)
-			}
-			org = dbOrg
-
-			groupName = parts[1]
-
-		default:
-			return uuid.Nil, xerrors.New("invalid organization or group name, the filter must be in the pattern of <organization name>/<group name>")
+		if v == codersdk.Me && actorID != uuid.Nil {
+			return actorID, nil
 		}
-
-		if err := codersdk.GroupNameValid(groupName); err != nil {
-			return uuid.Nil, xerrors.Errorf("invalid group name %w", err)
+		if id, err := uuid.Parse(v); err == nil {
+			// Could be a user or group UUID. Try user first, then group.
+			if _, err := db.GetUserByID(ctx, id); err == nil {
+				return id, nil
+			}
+			if _, err := db.GetGroupByID(ctx, id); err == nil {
+				groupID = id
+				return uuid.Nil, nil
+			}
+			return uuid.Nil, xerrors.Errorf("user or group with id %q either does not exist, or you are unauthorized to view them", v)
 		}
+		// Not a UUID. Try username/email first; if that fails, try group lookup.
+		if user, err := db.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
+			Username: v,
+			Email:    v,
+		}); err == nil {
+			return user.ID, nil
+		}
+		id, err := resolveGroup(ctx, db, v)
+		if err != nil {
+			return uuid.Nil, xerrors.Errorf("principal %q either does not match a user or group, or you are unauthorized to view it", v)
+		}
+		groupID = id
+		return uuid.Nil, nil
+	})
+	return userID, groupID
+}
 
-		group, err := db.GetGroupByOrgAndName(ctx, database.GetGroupByOrgAndNameParams{
-			OrganizationID: org.ID,
-			Name:           groupName,
+// resolveGroup resolves a group identifier string (group name, <org>/<group>,
+// or UUID) to a group UUID. It mirrors parseGroup, but returns an error
+// instead of recording one on a parser.
+func resolveGroup(ctx context.Context, db database.Store, v string) (uuid.UUID, error) {
+	if id, err := uuid.Parse(v); err == nil {
+		return id, nil
+	}
+
+	var groupName string
+	var org database.Organization
+	parts := strings.Split(v, "/")
+	switch len(parts) {
+	case 1:
+		dbOrg, err := db.GetDefaultOrganization(ctx)
+		if err != nil {
+			return uuid.Nil, xerrors.New("fetching default organization")
+		}
+		org = dbOrg
+		groupName = parts[0]
+	case 2:
+		orgName := parts[0]
+		if err := codersdk.NameValid(orgName); err != nil {
+			return uuid.Nil, xerrors.Errorf("invalid organization name %w", err)
+		}
+		dbOrg, err := db.GetOrganizationByName(ctx, database.GetOrganizationByNameParams{
+			Name: orgName,
 		})
 		if err != nil {
-			return uuid.Nil, xerrors.Errorf("group %q either does not exist, does not belong to the organization %q, or you are unauthorized to view it", groupName, org.Name)
+			return uuid.Nil, xerrors.Errorf("organization %q either does not exist, or you are unauthorized to view it", orgName)
 		}
-		return group.ID, nil
+		org = dbOrg
+		groupName = parts[1]
+	default:
+		return uuid.Nil, xerrors.New("invalid organization or group name, the filter must be in the pattern of <organization name>/<group name>")
+	}
+
+	if err := codersdk.GroupNameValid(groupName); err != nil {
+		return uuid.Nil, xerrors.Errorf("invalid group name %w", err)
+	}
+
+	group, err := db.GetGroupByOrgAndName(ctx, database.GetGroupByOrgAndNameParams{
+		OrganizationID: org.ID,
+		Name:           groupName,
 	})
+	if err != nil {
+		return uuid.Nil, xerrors.Errorf("group %q either does not exist, does not belong to the organization %q, or you are unauthorized to view it", groupName, org.Name)
+	}
+	return group.ID, nil
 }
 
 // splitQueryParameterByDelimiter takes a query string and splits it into the individual elements

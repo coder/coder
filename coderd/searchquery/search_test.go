@@ -27,6 +27,7 @@ func TestSearchWorkspace(t *testing.T) {
 		Expected              database.GetWorkspacesParams
 		ExpectedErrorContains string
 		Setup                 func(t *testing.T, db database.Store)
+		ActorID               uuid.UUID
 	}{
 		{
 			Name:     "Empty",
@@ -418,6 +419,89 @@ func TestSearchWorkspace(t *testing.T) {
 				SharedWithGroupID: uuid.MustParse("a7d1ba00-53c7-4aa6-92ea-83157dd57480"),
 			},
 		},
+		{
+			Name:    "SharedWithUserMe",
+			Query:   `shared_with_user:me`,
+			ActorID: uuid.MustParse("a3a2b6d4-9ec8-4d6f-8f47-30b7bb4d8b1e"),
+			Expected: database.GetWorkspacesParams{
+				SharedWithUserID: uuid.MustParse("a3a2b6d4-9ec8-4d6f-8f47-30b7bb4d8b1e"),
+			},
+		},
+		{
+			Name:    "SharedWithMe",
+			Query:   `shared-with:me`,
+			ActorID: uuid.MustParse("a3a2b6d4-9ec8-4d6f-8f47-30b7bb4d8b1e"),
+			Expected: database.GetWorkspacesParams{
+				SharedWithPrincipalUserID: uuid.MustParse("a3a2b6d4-9ec8-4d6f-8f47-30b7bb4d8b1e"),
+			},
+		},
+		{
+			Name:  "SharedWithPrincipalUserByName",
+			Query: `shared-with:wibble`,
+			Setup: func(t *testing.T, db database.Store) {
+				dbgen.User(t, db, database.User{
+					ID:       uuid.MustParse("3dd8b1b8-dff5-4b22-8ae9-c243ca136ecf"),
+					Username: "wibble",
+				})
+			},
+			Expected: database.GetWorkspacesParams{
+				SharedWithPrincipalUserID: uuid.MustParse("3dd8b1b8-dff5-4b22-8ae9-c243ca136ecf"),
+			},
+		},
+		{
+			Name:  "SharedWithPrincipalUserByUUID",
+			Query: `shared-with:3dd8b1b8-dff5-4b22-8ae9-c243ca136ecf`,
+			Setup: func(t *testing.T, db database.Store) {
+				dbgen.User(t, db, database.User{
+					ID: uuid.MustParse("3dd8b1b8-dff5-4b22-8ae9-c243ca136ecf"),
+				})
+			},
+			Expected: database.GetWorkspacesParams{
+				SharedWithPrincipalUserID: uuid.MustParse("3dd8b1b8-dff5-4b22-8ae9-c243ca136ecf"),
+			},
+		},
+		{
+			Name:  "SharedWithPrincipalGroupByName",
+			Query: `shared-with:wibblegroup`,
+			Setup: func(t *testing.T, db database.Store) {
+				org, err := db.GetOrganizationByName(t.Context(), database.GetOrganizationByNameParams{
+					Name: "coder",
+				})
+				require.NoError(t, err)
+
+				dbgen.Group(t, db, database.Group{
+					ID:             uuid.MustParse("590f1006-15e6-4b21-a6e1-92e33af8a5c3"),
+					Name:           "wibblegroup",
+					OrganizationID: org.ID,
+				})
+			},
+			Expected: database.GetWorkspacesParams{
+				SharedWithPrincipalGroupID: uuid.MustParse("590f1006-15e6-4b21-a6e1-92e33af8a5c3"),
+			},
+		},
+		{
+			Name:  "SharedWithPrincipalGroupInOrg",
+			Query: `shared-with:wibbleorg/wobble`,
+			Setup: func(t *testing.T, db database.Store) {
+				org := dbgen.Organization(t, db, database.Organization{
+					ID:   uuid.MustParse("dbeb1bd5-dce6-459c-ab7b-b7f8b9b10467"),
+					Name: "wibbleorg",
+				})
+				dbgen.Group(t, db, database.Group{
+					ID:             uuid.MustParse("3c831688-0a5a-45a2-a796-f7648874df34"),
+					Name:           "wobble",
+					OrganizationID: org.ID,
+				})
+			},
+			Expected: database.GetWorkspacesParams{
+				SharedWithPrincipalGroupID: uuid.MustParse("3c831688-0a5a-45a2-a796-f7648874df34"),
+			},
+		},
+		{
+			Name:                  "SharedWithUnknownPrincipal",
+			Query:                 `shared-with:no-such-thing`,
+			ExpectedErrorContains: "either does not match a user or group",
+		},
 
 		// Failures
 		{
@@ -485,7 +569,7 @@ func TestSearchWorkspace(t *testing.T) {
 			if c.Setup != nil {
 				c.Setup(t, db)
 			}
-			values, errs := searchquery.Workspaces(context.Background(), db, c.Query, codersdk.Pagination{}, 0)
+			values, errs := searchquery.Workspaces(context.Background(), db, c.Query, codersdk.Pagination{}, 0, c.ActorID)
 			if c.ExpectedErrorContains != "" {
 				assert.True(t, len(errs) > 0, "expect some errors")
 				var s strings.Builder
@@ -517,7 +601,7 @@ func TestSearchWorkspace(t *testing.T) {
 		query := ``
 		timeout := 1337 * time.Second
 		db, _ := dbtestutil.NewDB(t)
-		values, errs := searchquery.Workspaces(context.Background(), db, query, codersdk.Pagination{}, timeout)
+		values, errs := searchquery.Workspaces(context.Background(), db, query, codersdk.Pagination{}, timeout, uuid.Nil)
 		require.Empty(t, errs)
 		require.Equal(t, int64(timeout.Seconds()), values.AgentInactiveDisconnectTimeoutSeconds)
 	})
