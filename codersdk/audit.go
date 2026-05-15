@@ -116,7 +116,7 @@ func (r ResourceType) FriendlyString() string {
 	case ResourceTypeAIProviderKey:
 		return "ai provider key"
 	case ResourceTypeGroupAIBudget:
-		return "group AI budget"
+		return "group ai budget"
 	case ResourceTypeChat:
 		return "chat"
 	case ResourceTypeUserSecret:
