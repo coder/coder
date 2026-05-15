@@ -94,23 +94,22 @@ const SyncCard: FC<SyncCardProps> = ({
 				size="lg"
 				label={THEME_COPY[displayedTheme].title}
 			/>
-			<div
-				role="radiogroup"
-				aria-label={`${title} options`}
-				className="flex flex-wrap items-center gap-3"
-			>
-				{SYNC_MODE_THEMES.map((theme) => (
-					<ThemeSwatch
-						key={theme}
-						name={name}
-						theme={theme}
-						selected={theme === selected}
-						onSelect={() => onSelect(theme)}
-						onPreview={() => setPreviewTheme(theme)}
-						onPreviewEnd={() => setPreviewTheme(undefined)}
-					/>
-				))}
-			</div>
+			<fieldset className="m-0 min-w-0 border-0 p-0">
+				<legend className="sr-only">{`${title} options`}</legend>
+				<div className="flex flex-wrap items-center gap-3">
+					{SYNC_MODE_THEMES.map((theme) => (
+						<ThemeSwatch
+							key={theme}
+							name={name}
+							theme={theme}
+							selected={theme === selected}
+							onSelect={() => onSelect(theme)}
+							onPreview={() => setPreviewTheme(theme)}
+							onPreviewEnd={() => setPreviewTheme(undefined)}
+						/>
+					))}
+				</div>
+			</fieldset>
 		</div>
 	);
 };
