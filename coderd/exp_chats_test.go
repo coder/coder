@@ -1587,6 +1587,12 @@ func TestListChats(t *testing.T) {
 		require.Len(t, chats, 1)
 		require.Equal(t, "alpha project", chats[0].Title)
 
+		// Multi-word search: "alpha project" should match exactly one.
+		chats, err = client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "alpha project"})
+		require.NoError(t, err)
+		require.Len(t, chats, 1)
+		require.Equal(t, "alpha project", chats[0].Title)
+
 		// No query returns all 3.
 		chats, err = client.ListChats(ctx, nil)
 		require.NoError(t, err)
