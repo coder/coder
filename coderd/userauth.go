@@ -1193,6 +1193,11 @@ type OIDCConfig struct {
 	// check. Used for IdP brokers that do not issue a stable `sub` for the
 	// same user across connections.
 	EmailFallback bool
+	// RedirectAllowedHosts, when non-empty, enables dynamic redirect_uri
+	// construction from the request Host header. The request Host must match
+	// (case-insensitive, ignoring port) one of the hostnames in this list,
+	// otherwise the OIDC flow is rejected.
+	RedirectAllowedHosts []string
 }
 
 // PKCESupported is to prevent nil pointer dereference.

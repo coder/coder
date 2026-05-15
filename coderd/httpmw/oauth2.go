@@ -3,10 +3,12 @@ package httpmw
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"reflect"
 	"slices"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -45,12 +47,32 @@ func OAuth2(r *http.Request) OAuth2State {
 // pkceMethods should be a list like ['S256', 'plain'] indicating
 // which PKCE methods are supported by the OAuth2 provider. If empty,
 // PKCE will not be used.
-func ExtractOAuth2(config promoauth.OAuth2Config, client *http.Client, cookieCfg codersdk.HTTPCookieConfig, authURLOpts map[string]string, pkceMethods []promoauth.Oauth2PKCEChallengeMethod) func(http.Handler) http.Handler {
+//
+// redirectAllowedHosts, when non-empty, enables dynamic redirect_uri
+// construction from the request Host header. The request Host must match
+// (case-insensitive, ignoring port) one of the listed hostnames. The
+// dynamic redirect_uri is cached in a cookie so the same value is reused
+// for the token exchange, as required by RFC 6749 section 4.1.3. Pass nil
+// to preserve the legacy behavior of using the redirect_uri baked into
+// config at startup.
+func ExtractOAuth2(config promoauth.OAuth2Config, client *http.Client, cookieCfg codersdk.HTTPCookieConfig, authURLOpts map[string]string, pkceMethods []promoauth.Oauth2PKCEChallengeMethod, redirectAllowedHosts []string) func(http.Handler) http.Handler {
 	opts := make([]oauth2.AuthCodeOption, 0, len(authURLOpts)+1)
 	opts = append(opts, oauth2.AccessTypeOffline)
 	for k, v := range authURLOpts {
 		opts = append(opts, oauth2.SetAuthURLParam(k, v))
 	}
+
+	// Pre-normalize the allowlist once so the per-request check is a plain
+	// case-insensitive compare and we do not re-allocate on every login.
+	normalizedAllowedHosts := make([]string, 0, len(redirectAllowedHosts))
+	for _, h := range redirectAllowedHosts {
+		h = strings.TrimSpace(h)
+		if h == "" {
+			continue
+		}
+		normalizedAllowedHosts = append(normalizedAllowedHosts, strings.ToLower(h))
+	}
+	dynamicRedirectEnabled := len(normalizedAllowedHosts) > 0
 
 	// Only S256 PKCE is currently supported.
 	sha256PKCESupported := slices.Contains(pkceMethods, promoauth.PKCEChallengeMethodSha256)
@@ -103,6 +125,34 @@ func ExtractOAuth2(config promoauth.OAuth2Config, client *http.Client, cookieCfg
 				redirect = uriFromURL(redirect)
 			}
 
+			// When dynamic redirect URIs are enabled, validate the request Host
+			// against the allowlist regardless of whether we are initiating the
+			// flow or handling the callback. Doing this upfront avoids burning
+			// state and lets us reject obviously-bad requests with a clear error.
+			var dynamicRedirectURI string
+			if dynamicRedirectEnabled {
+				hostname := r.Host
+				if h, _, splitErr := net.SplitHostPort(r.Host); splitErr == nil {
+					hostname = h
+				}
+				allowed := false
+				lowerHost := strings.ToLower(hostname)
+				for _, h := range normalizedAllowedHosts {
+					if lowerHost == h {
+						allowed = true
+						break
+					}
+				}
+				if !allowed {
+					httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+						Message: "OIDC login is not permitted from this host.",
+						Detail:  fmt.Sprintf("Host %q is not in the OIDC redirect allowlist. Configure CODER_OIDC_REDIRECT_ALLOWED_HOSTS to include it.", hostname),
+					})
+					return
+				}
+				dynamicRedirectURI = buildDynamicRedirectURI(r)
+			}
+
 			if code == "" {
 				// If the code isn't provided, we'll redirect!
 				var state string
@@ -153,6 +203,19 @@ func ExtractOAuth2(config promoauth.OAuth2Config, client *http.Client, cookieCfg
 					}))
 				}
 
+				// Persist and inject the dynamic redirect_uri so the IdP
+				// sends the user back to the same domain they started on,
+				// and so the token exchange below uses the matching value.
+				if dynamicRedirectURI != "" {
+					http.SetCookie(rw, cookieCfg.Apply(&http.Cookie{
+						Name:     codersdk.OAuth2RedirectURICookie,
+						Value:    dynamicRedirectURI,
+						Path:     "/",
+						HttpOnly: true,
+					}))
+					authOpts = append(authOpts, oauth2.SetAuthURLParam("redirect_uri", dynamicRedirectURI))
+				}
+
 				http.Redirect(rw, r, config.AuthCodeURL(state, authOpts...), http.StatusTemporaryRedirect)
 				return
 			}
@@ -193,6 +256,16 @@ func ExtractOAuth2(config promoauth.OAuth2Config, client *http.Client, cookieCfg
 					return
 				}
 				exchangeOpts = append(exchangeOpts, oauth2.VerifierOption(pkceVerifier.Value))
+			}
+
+			// RFC 6749 section 4.1.3: the redirect_uri included in the token
+			// exchange must match the one sent in the authorization request.
+			// When the dynamic-redirect path is in use, the original value was
+			// stashed in a cookie; replay it here.
+			if dynamicRedirectEnabled {
+				if redirectCookie, err := r.Cookie(codersdk.OAuth2RedirectURICookie); err == nil && redirectCookie.Value != "" {
+					exchangeOpts = append(exchangeOpts, oauth2.SetAuthURLParam("redirect_uri", redirectCookie.Value))
+				}
 			}
 
 			oauthToken, err := config.Exchange(ctx, code, exchangeOpts...)
@@ -423,4 +496,27 @@ func uriFromURL(u string) string {
 	}
 
 	return uri.RequestURI()
+}
+
+// buildDynamicRedirectURI constructs the OIDC redirect_uri from the incoming
+// request, used when CODER_OIDC_REDIRECT_ALLOWED_HOSTS is configured. The
+// callback path is whatever path the middleware is mounted at, which today
+// is /api/v2/users/oidc/callback for OIDC.
+//
+// Scheme detection trusts X-Forwarded-Proto when r.TLS is unset to support
+// the common deployment shape where Coder runs behind a TLS-terminating
+// proxy. A spoofed X-Forwarded-Proto cannot meaningfully attack the OIDC
+// flow because the resulting redirect_uri must still match an entry the
+// OIDC provider has registered; mismatches cause the IdP to reject the
+// request before any code is issued.
+func buildDynamicRedirectURI(r *http.Request) string {
+	scheme := "https"
+	if r.TLS == nil {
+		if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
+			scheme = proto
+		} else {
+			scheme = "http"
+		}
+	}
+	return scheme + "://" + r.Host + r.URL.Path
 }

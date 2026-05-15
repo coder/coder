@@ -448,6 +448,13 @@ oidc:
   # enable if you understand and accept the risk.
   # (default: <unset>, type: bool)
   dangerousOidcEmailFallback: false
+  # An allowlist of hostnames that may be used as the host of the OIDC redirect_uri.
+  # When set, the redirect_uri sent to the OIDC provider is built from the incoming
+  # request's Host header (validated against this list) instead of from access-url.
+  # Every listed host must also be registered as a valid redirect URI in the OIDC
+  # provider. Ignored when oidc-redirect-url is set.
+  # (default: <unset>, type: string-array)
+  oidcRedirectAllowedHosts: []
 # Telemetry is critical to our ability to improve Coder. We strip all personal
 #  information before sending data to our servers. Please only disable telemetry
 #  when required by your organization's security policy.
