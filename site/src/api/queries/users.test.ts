@@ -4,9 +4,7 @@ import type {
 	UpdateUserAppearanceSettingsRequest,
 	UserAppearanceSettings,
 } from "#/api/typesGenerated";
-import { updateAppearanceSettings } from "./users";
-
-const myAppearanceKey = ["me", "appearance"];
+import { myAppearanceKey, updateAppearanceSettings } from "./users";
 
 const appearanceSettings = (
 	overrides: Partial<UserAppearanceSettings> = {},

@@ -275,6 +275,8 @@ export const BlockList: FC<{
 	const prefQuery = useQuery(preferenceSettings());
 	const thinkingDisplayMode: ThinkingDisplayMode =
 		prefQuery.data?.thinking_display_mode || "auto";
+	const shellToolDisplayMode: TypesGen.AgentDisplayMode =
+		prefQuery.data?.shell_tool_display_mode || "auto";
 	const codeDiffDisplayMode: TypesGen.AgentDisplayMode =
 		prefQuery.data?.code_diff_display_mode || "auto";
 
@@ -367,6 +369,7 @@ export const BlockList: FC<{
 									name="Tool"
 									status="running"
 									isError={false}
+									shellToolDisplayMode={shellToolDisplayMode}
 									codeDiffDisplayMode={codeDiffDisplayMode}
 									subagentTitles={subagentTitles}
 									subagentVariants={subagentVariants}
@@ -384,6 +387,7 @@ export const BlockList: FC<{
 								status={tool.status}
 								isError={tool.isError}
 								killedBySignal={tool.killedBySignal}
+								shellToolDisplayMode={shellToolDisplayMode}
 								codeDiffDisplayMode={codeDiffDisplayMode}
 								subagentTitles={subagentTitles}
 								subagentVariants={subagentVariants}
@@ -440,6 +444,7 @@ export const BlockList: FC<{
 					status={tool.status}
 					isError={tool.isError}
 					killedBySignal={tool.killedBySignal}
+					shellToolDisplayMode={shellToolDisplayMode}
 					codeDiffDisplayMode={codeDiffDisplayMode}
 					subagentTitles={subagentTitles}
 					subagentVariants={subagentVariants}
@@ -479,6 +484,8 @@ const ChatMessageItem = memo<{
 	editingMessageId?: number | null;
 	isAfterEditingMessage?: boolean;
 	hideActions?: boolean;
+	hasActiveStream?: boolean;
+	isAwaitingFirstStreamChunk?: boolean;
 
 	// When true, renders a gradient overlay inside the bubble
 	// that fades text out toward the bottom. Used by the sticky
@@ -503,6 +510,8 @@ const ChatMessageItem = memo<{
 		editingMessageId,
 		isAfterEditingMessage = false,
 		hideActions = false,
+		hasActiveStream = false,
+		isAwaitingFirstStreamChunk = false,
 		fadeFromBottom = false,
 		onImplementPlan,
 		onSendAskUserQuestionResponse,
@@ -525,6 +534,8 @@ const ChatMessageItem = memo<{
 			message,
 			parsed,
 			hideActions,
+			hasActiveStream,
+			isAwaitingFirstStreamChunk,
 		});
 		if (displayState.shouldHide) {
 			return null;
@@ -558,7 +569,8 @@ const ChatMessageItem = memo<{
 					) : (
 						<Message className="w-full">
 							<MessageContent className="whitespace-normal">
-								<div className="relative space-y-3 overflow-visible">
+								{/* Keep consecutive shell tools tighter because execute/process_output pairs read as one terminal interaction. */}
+								<div className="relative space-y-3 overflow-visible [&>[data-shell-tool]+[data-shell-tool]]:mt-2">
 									<BlockList
 										blocks={parsed.blocks}
 										tools={parsed.tools}
@@ -961,6 +973,8 @@ function computeLastInChainFlags(
 			message: entry.message,
 			parsed: entry.parsed,
 			hideActions: false,
+			hasActiveStream: false,
+			isAwaitingFirstStreamChunk: false,
 		});
 		if (entry.message.role !== "user") {
 			flags[i] = nextVisibleIsUser;
@@ -988,7 +1002,8 @@ interface ConversationTimelineProps {
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	showDesktopPreviews?: boolean;
-	isTurnActive?: boolean;
+	hasActiveStream?: boolean;
+	isAwaitingFirstStreamChunk?: boolean;
 }
 
 export const ConversationTimeline = memo<ConversationTimelineProps>(
@@ -1004,6 +1019,8 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		urlTransform,
 		mcpServers,
 		showDesktopPreviews,
+		hasActiveStream,
+		isAwaitingFirstStreamChunk,
 	}) => {
 		const lastInChainFlags = computeLastInChainFlags(parsedMessages);
 
@@ -1071,6 +1088,16 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				>
 					{parsedMessages.map(({ message, parsed }, msgIdx) => {
 						if (message.role === "user") {
+							const { shouldHide } = deriveMessageDisplayState({
+								message,
+								parsed,
+								hideActions: false,
+								hasActiveStream: false,
+								isAwaitingFirstStreamChunk: false,
+							});
+							if (shouldHide) {
+								return null;
+							}
 							return (
 								<StickyUserMessage
 									key={message.id}
@@ -1104,6 +1131,8 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								urlTransform={urlTransform}
 								isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
 								hideActions={!isLastInChain}
+								hasActiveStream={Boolean(hasActiveStream)}
+								isAwaitingFirstStreamChunk={Boolean(isAwaitingFirstStreamChunk)}
 								mcpServers={mcpServers}
 								subagentTitles={subagentTitles}
 								subagentVariants={subagentVariants}

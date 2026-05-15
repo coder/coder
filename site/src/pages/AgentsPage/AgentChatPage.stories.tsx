@@ -14,6 +14,7 @@ import {
 	chatMessagesKey,
 	chatModelConfigs,
 	chatModelsKey,
+	chatPromptsKey,
 	chatsKey,
 	mcpServerConfigsKey,
 } from "#/api/queries/chats";
@@ -160,6 +161,30 @@ index abc1234..def5678 100644
  }
 `;
 
+/** Extract user prompts from messages, newest first, mirroring
+ * the server's `/prompts` endpoint contract: role=user, non-empty
+ * after concatenating only `text` parts.
+ */
+const extractPromptsFromMessages = (
+	messages: readonly TypesGen.ChatMessage[],
+): TypesGen.ChatPrompt[] => {
+	const prompts: TypesGen.ChatPrompt[] = [];
+	for (let i = messages.length - 1; i >= 0; i--) {
+		const message = messages[i];
+		if (message.role !== "user") {
+			continue;
+		}
+		const text = (message.content ?? [])
+			.filter((part): part is TypesGen.ChatTextPart => part.type === "text")
+			.map((part) => part.text)
+			.join("");
+		if (text.trim()) {
+			prompts.push({ id: message.id, text });
+		}
+	}
+	return prompts;
+};
+
 /** Build `parameters.queries` entries for a given chat and messages. */
 const buildQueries = (
 	chat: TypesGen.Chat,
@@ -185,6 +210,12 @@ const buildQueries = (
 		{
 			key: chatMessagesKey(CHAT_ID),
 			data: { pages: [messagesData], pageParams: [undefined] },
+		},
+		{
+			key: chatPromptsKey(CHAT_ID),
+			data: {
+				prompts: extractPromptsFromMessages(messagesData.messages),
+			} satisfies TypesGen.ChatPromptsResponse,
 		},
 		{ key: chatsKey, data: [chatWithDiffStatus] },
 		{

@@ -3,7 +3,6 @@ package coderd
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"database/sql"
 	_ "embed"
 	"errors"
@@ -52,6 +51,7 @@ import (
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/awsidentity"
+	"github.com/coder/coder/v2/coderd/azureidentity"
 	"github.com/coder/coder/v2/coderd/boundaryusage"
 	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
@@ -95,6 +95,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/x/chatd"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/codersdk"
@@ -172,7 +173,7 @@ type Options struct {
 	ChatdInstructionLookupTimeout  time.Duration
 	AWSCertificates                awsidentity.Certificates
 	Authorizer                     rbac.Authorizer
-	AzureCertificates              x509.VerifyOptions
+	AzureCertificates              azureidentity.Options
 	GoogleTokenValidator           *idtoken.Validator
 	GithubOAuth2Config             *GithubOAuth2Config
 	OIDCConfig                     *OIDCConfig
@@ -248,6 +249,9 @@ type Options struct {
 	// ChatSubscribeFn provides cross-replica subscription merging.
 	// Set by enterprise for HA deployments. Nil in AGPL single-replica.
 	ChatSubscribeFn chatd.SubscribeFn
+	// ChatProviderAPIKeys overrides deployment-derived provider keys.
+	// Test harnesses use this to route chat models to local providers.
+	ChatProviderAPIKeys *chatprovider.ProviderAPIKeys
 
 	UpdateAgentMetrics func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 	StatsBatcher       workspacestats.Batcher
@@ -792,13 +796,18 @@ func New(options *Options) *API {
 				options.Logger.Named("mcp-user-oidc"),
 			)
 		}
+		providerAPIKeys := ChatProviderAPIKeysFromDeploymentValues(options.DeploymentValues)
+		if options.ChatProviderAPIKeys != nil {
+			providerAPIKeys = *options.ChatProviderAPIKeys
+		}
+
 		api.chatDaemon = chatd.New(chatd.Config{
 			Logger:                         options.Logger.Named("chatd"),
 			Database:                       options.Database,
 			ReplicaID:                      api.ID,
 			SubscribeFn:                    options.ChatSubscribeFn,
 			MaxChatsPerAcquire:             int32(maxChatsPerAcquire), //nolint:gosec // maxChatsPerAcquire is clamped to int32 range above.
-			ProviderAPIKeys:                ChatProviderAPIKeysFromDeploymentValues(options.DeploymentValues),
+			ProviderAPIKeys:                providerAPIKeys,
 			AlwaysEnableDebugLogs:          options.DeploymentValues.AI.Chat.DebugLoggingEnabled.Value(),
 			AgentConn:                      api.agentProvider.AgentConn,
 			AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
@@ -831,6 +840,7 @@ func New(options *Options) *API {
 	if options.DeploymentValues.Prometheus.Enable {
 		options.PrometheusRegistry.MustRegister(stn)
 		api.lifecycleMetrics = agentapi.NewLifecycleMetrics(options.PrometheusRegistry)
+		api.workspaceAgentRPCMetrics = NewWorkspaceAgentRPCMetrics(options.PrometheusRegistry, options.Logger)
 	}
 	api.NetworkTelemetryBatcher = tailnet.NewNetworkTelemetryBatcher(
 		quartz.NewReal(),
@@ -1276,6 +1286,7 @@ func New(options *Options) *API {
 				r.Get("/messages", api.getChatMessages)
 				r.Post("/messages", api.postChatMessages)
 				r.Patch("/messages/{message}", api.patchChatMessage)
+				r.Get("/prompts", api.getChatUserPrompts)
 				r.Route("/stream", func(r chi.Router) {
 					r.Get("/", api.streamChat)
 					r.Get("/desktop", api.watchChatDesktop)
@@ -1541,6 +1552,16 @@ func New(options *Options) *API {
 				})
 			})
 		})
+		if !api.DeploymentValues.TemplateBuilder.Disabled.Value() {
+			r.Route("/templatebuilder", func(r chi.Router) {
+				r.Use(
+					apiKeyMiddleware,
+				)
+				// Endpoints added by DEVEX-275 (bases), DEVEX-276
+				// (modules), DEVEX-277/279 (compose).
+			})
+		}
+
 		r.Route("/users", func(r chi.Router) {
 			r.Get("/first", api.firstUser)
 			r.Post("/first", api.postFirstUser)
@@ -2171,9 +2192,10 @@ type API struct {
 	healthCheckCache    atomic.Pointer[healthsdk.HealthcheckReport]
 	healthCheckProgress healthcheck.Progress
 
-	statsReporter    *workspacestats.Reporter
-	metadataBatcher  *metadatabatcher.Batcher
-	lifecycleMetrics *agentapi.LifecycleMetrics
+	statsReporter            *workspacestats.Reporter
+	metadataBatcher          *metadatabatcher.Batcher
+	lifecycleMetrics         *agentapi.LifecycleMetrics
+	workspaceAgentRPCMetrics *WorkspaceAgentRPCMetrics
 
 	Acquirer *provisionerdserver.Acquirer
 	// dbRolluper rolls up template usage stats from raw agent and app

@@ -697,3 +697,90 @@ func populatedAndConvertAIBridgeInterceptions(ctx context.Context, db database.S
 
 	return items, nil
 }
+
+// @Summary Get group AI budget
+// @ID get-group-ai-budget
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param group path string true "Group ID" format(uuid)
+// @Success 200 {object} codersdk.GroupAIBudget
+// @Router /api/v2/groups/{group}/ai/budget [get]
+func (api *API) groupAIBudget(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	group := httpmw.GroupParam(r)
+
+	budget, err := api.Database.GetGroupAIBudget(ctx, group.ID)
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		api.Logger.Error(ctx, "get group AI budget", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.GroupAIBudget(budget))
+}
+
+// @Summary Upsert group AI budget
+// @ID upsert-group-ai-budget
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Enterprise
+// @Param group path string true "Group ID" format(uuid)
+// @Param request body codersdk.UpsertGroupAIBudgetRequest true "Upsert group AI budget request"
+// @Success 200 {object} codersdk.GroupAIBudget
+// @Router /api/v2/groups/{group}/ai/budget [put]
+func (api *API) upsertGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	group := httpmw.GroupParam(r)
+
+	var req codersdk.UpsertGroupAIBudgetRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	budget, err := api.Database.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{
+		GroupID:          group.ID,
+		SpendLimitMicros: req.SpendLimitMicros,
+	})
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		api.Logger.Error(ctx, "upsert group AI budget", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.GroupAIBudget(budget))
+}
+
+// @Summary Delete group AI budget
+// @ID delete-group-ai-budget
+// @Security CoderSessionToken
+// @Tags Enterprise
+// @Param group path string true "Group ID" format(uuid)
+// @Success 204
+// @Router /api/v2/groups/{group}/ai/budget [delete]
+func (api *API) deleteGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	group := httpmw.GroupParam(r)
+
+	_, err := api.Database.DeleteGroupAIBudget(ctx, group.ID)
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		api.Logger.Error(ctx, "delete group AI budget", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
+}

@@ -3,6 +3,7 @@ import type { FC } from "react";
 import { useOutletContext } from "react-router";
 import type { HealthcheckReport } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import {
 	Tooltip,
 	TooltipContent,
@@ -73,7 +74,7 @@ const WorkspaceProxyPage: FC = () => {
 							<header className="p-6 flex items-center justify-between gap-6">
 								<div className="flex items-center gap-6">
 									<div className="w-9 h-9 flex items-center justify-center">
-										<img
+										<ExternalImage
 											src={region.icon_url}
 											className="object-fill w-full h-full"
 											alt=""

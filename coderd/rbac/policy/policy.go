@@ -398,6 +398,15 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionUpdate: "update AI model prices",
 		},
 	},
+	"ai_provider": {
+		Name: "AIProvider",
+		Actions: map[Action]ActionDefinition{
+			ActionRead:   "read AI provider configuration",
+			ActionCreate: "create an AI provider",
+			ActionUpdate: "update an AI provider",
+			ActionDelete: "delete an AI provider",
+		},
+	},
 	"ai_seat": {
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: "record AI seat usage",

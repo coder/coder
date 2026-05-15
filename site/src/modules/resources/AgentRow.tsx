@@ -523,7 +523,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 								>
 									<Spinner
 										size="lg"
-										loading={true}
+										loading
 										className="text-content-secondary -ml-1"
 									/>
 									<span>{runningScriptsCount}</span>

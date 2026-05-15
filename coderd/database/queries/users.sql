@@ -78,6 +78,7 @@ FROM
 	users
 WHERE
 	status = 'active'::user_status AND deleted = false
+	AND is_service_account = false
 	AND CASE WHEN @include_system::bool THEN TRUE ELSE is_system = false END;
 
 -- name: InsertUser :one
@@ -346,6 +347,29 @@ WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'preference_thinking_display_mode'
 RETURNING value AS thinking_display_mode;
 
+-- name: GetUserShellToolDisplayMode :one
+SELECT
+	value AS shell_tool_display_mode
+FROM
+	user_configs
+WHERE
+	user_id = @user_id
+	AND key = 'preference_shell_tool_display_mode';
+
+-- name: UpdateUserShellToolDisplayMode :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'preference_shell_tool_display_mode', @shell_tool_display_mode::text)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @shell_tool_display_mode
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'preference_shell_tool_display_mode'
+RETURNING value AS shell_tool_display_mode;
+
 -- name: GetUserCodeDiffDisplayMode :one
 SELECT
 	value AS code_diff_display_mode
@@ -368,6 +392,29 @@ SET
 WHERE user_configs.user_id = @user_id
 	AND user_configs.key = 'preference_code_diff_display_mode'
 RETURNING value AS code_diff_display_mode;
+
+-- name: GetUserAgentChatSendShortcut :one
+SELECT
+	value AS agent_chat_send_shortcut
+FROM
+	user_configs
+WHERE
+	user_id = @user_id
+	AND key = 'preference_agent_chat_send_shortcut';
+
+-- name: UpdateUserAgentChatSendShortcut :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'preference_agent_chat_send_shortcut', @agent_chat_send_shortcut::text)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @agent_chat_send_shortcut
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'preference_agent_chat_send_shortcut'
+RETURNING value AS agent_chat_send_shortcut;
 
 -- name: UpdateUserRoles :one
 UPDATE

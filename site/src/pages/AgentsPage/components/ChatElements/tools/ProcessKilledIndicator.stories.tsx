@@ -19,7 +19,7 @@ export default meta;
 type Story = StoryObj<typeof Tool>;
 
 // ---------------------------------------------------------------------------
-// Execute tool — killed indicator via killedBySignal prop
+// Execute tool, killed indicator via killedBySignal prop.
 // ---------------------------------------------------------------------------
 
 export const ExecuteKilled: Story = {
@@ -62,7 +62,7 @@ export const ExecuteTerminated: Story = {
 	},
 };
 
-/** Execute NOT signaled — no indicator. */
+/** Execute not signaled, no indicator. */
 export const ExecuteNotSignaled: Story = {
 	args: {
 		name: "execute",
@@ -81,7 +81,7 @@ export const ExecuteNotSignaled: Story = {
 	},
 };
 
-/** Running execute — killed indicator should NOT appear yet. */
+/** Running execute, killed indicator should not appear yet. */
 export const ExecuteRunningNotYetKilled: Story = {
 	args: {
 		name: "execute",
@@ -96,7 +96,7 @@ export const ExecuteRunningNotYetKilled: Story = {
 };
 
 // ---------------------------------------------------------------------------
-// ProcessOutput tool — killed indicator
+// ProcessOutput tool, killed indicator.
 // ---------------------------------------------------------------------------
 
 export const ProcessOutputKilled: Story = {
@@ -133,7 +133,7 @@ export const ProcessOutputTerminated: Story = {
 	},
 };
 
-/** ProcessOutput with no output and killed — indicator in empty state. */
+/** ProcessOutput with no output and killed, indicator in empty state. */
 export const ProcessOutputKilledNoOutput: Story = {
 	args: {
 		name: "process_output",

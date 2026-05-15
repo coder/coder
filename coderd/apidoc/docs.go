@@ -78,7 +78,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query",
+                        "description": "Search query. Supports archived:bool and diff_url:\u003curl\u003e terms (quote URLs).",
                         "name": "q",
                         "in": "query"
                     },
@@ -684,6 +684,48 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.EditChatMessageResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/experimental/chats/{chat}/prompts": {
+            "get": {
+                "description": "Experimental: this endpoint is subject to change.\n\nReturns the user-authored prompts in a chat, newest first,\nwith each prompt's text parts concatenated in the order they\nwere authored. Used by the composer to power the up/down\narrow prompt-history cycle without paging through every\nmessage in the chat.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chat user prompts",
+                "operationId": "list-chat-user-prompts",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size, 0 to 2000. 0 (the default) means the server-side default of 500.",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatPromptsResponse"
                         }
                     }
                 },
@@ -2469,6 +2511,113 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.Group"
                         }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/groups/{group}/ai/budget": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get group AI budget",
+                "operationId": "get-group-ai-budget",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Group ID",
+                        "name": "group",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.GroupAIBudget"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Upsert group AI budget",
+                "operationId": "upsert-group-ai-budget",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Group ID",
+                        "name": "group",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Upsert group AI budget request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpsertGroupAIBudgetRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.GroupAIBudget"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Delete group AI budget",
+                "operationId": "delete-group-ai-budget",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Group ID",
+                        "name": "group",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     }
                 },
                 "security": [
@@ -13802,6 +13951,13 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "budget_period": {
+                    "type": "string"
+                },
+                "budget_policy": {
+                    "description": "Budget settings for AI Governance cost controls.",
+                    "type": "string"
+                },
                 "circuit_breaker_enabled": {
                     "description": "Circuit breaker protects against cascading failures from upstream AI\nprovider overload (503, 529).",
                     "type": "boolean"
@@ -13840,7 +13996,7 @@ const docTemplate = `{
                     "description": "Providers holds provider instances populated from CODER_AIBRIDGE_PROVIDER_\u003cN\u003e_\u003cKEY\u003e\nenv vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/codersdk.AIBridgeProviderConfig"
+                        "$ref": "#/definitions/codersdk.AIProviderConfig"
                     }
                 },
                 "rate_limit": {
@@ -13957,36 +14113,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "key": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.AIBridgeProviderConfig": {
-            "type": "object",
-            "properties": {
-                "base_url": {
-                    "description": "BaseURL is the base URL of the upstream provider API.",
-                    "type": "string"
-                },
-                "bedrock_model": {
-                    "type": "string"
-                },
-                "bedrock_region": {
-                    "type": "string"
-                },
-                "bedrock_small_fast_model": {
-                    "type": "string"
-                },
-                "dump_dir": {
-                    "description": "DumpDir is the directory path for dumping API requests and responses.",
-                    "type": "string"
-                },
-                "name": {
-                    "description": "Name is the unique instance identifier used for routing.\nDefaults to Type if not provided.",
-                    "type": "string"
-                },
-                "type": {
-                    "description": "Type is the provider type: \"openai\", \"anthropic\", or \"copilot\".",
                     "type": "string"
                 }
             }
@@ -14372,6 +14498,36 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AIProviderConfig": {
+            "type": "object",
+            "properties": {
+                "base_url": {
+                    "description": "BaseURL is the base URL of the upstream provider API.",
+                    "type": "string"
+                },
+                "bedrock_model": {
+                    "type": "string"
+                },
+                "bedrock_region": {
+                    "type": "string"
+                },
+                "bedrock_small_fast_model": {
+                    "type": "string"
+                },
+                "dump_dir": {
+                    "description": "DumpDir is the directory path for dumping API requests and responses.",
+                    "type": "string"
+                },
+                "name": {
+                    "description": "Name is the unique instance identifier used for routing.\nDefaults to Type if not provided.",
+                    "type": "string"
+                },
+                "type": {
+                    "description": "Type is the provider type: \"openai\", \"anthropic\", or \"copilot\".",
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.APIAllowListTarget": {
             "type": "object",
             "properties": {
@@ -14473,6 +14629,11 @@ const docTemplate = `{
                 "ai_model_price:*",
                 "ai_model_price:read",
                 "ai_model_price:update",
+                "ai_provider:*",
+                "ai_provider:create",
+                "ai_provider:delete",
+                "ai_provider:read",
+                "ai_provider:update",
                 "ai_seat:*",
                 "ai_seat:create",
                 "ai_seat:read",
@@ -14688,6 +14849,11 @@ const docTemplate = `{
                 "APIKeyScopeAiModelPriceAll",
                 "APIKeyScopeAiModelPriceRead",
                 "APIKeyScopeAiModelPriceUpdate",
+                "APIKeyScopeAiProviderAll",
+                "APIKeyScopeAiProviderCreate",
+                "APIKeyScopeAiProviderDelete",
+                "APIKeyScopeAiProviderRead",
+                "APIKeyScopeAiProviderUpdate",
                 "APIKeyScopeAiSeatAll",
                 "APIKeyScopeAiSeatCreate",
                 "APIKeyScopeAiSeatRead",
@@ -14908,6 +15074,17 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.AgentChatSendShortcut": {
+            "type": "string",
+            "enum": [
+                "enter",
+                "modifier_enter"
+            ],
+            "x-enum-varnames": [
+                "AgentChatSendShortcutEnter",
+                "AgentChatSendShortcutModifierEnter"
+            ]
         },
         "codersdk.AgentConnectionTiming": {
             "type": "object",
@@ -15970,6 +16147,9 @@ const docTemplate = `{
                 "result_delta": {
                     "type": "string"
                 },
+                "result_reset": {
+                    "type": "boolean"
+                },
                 "signature": {
                     "type": "string"
                 },
@@ -16166,6 +16346,28 @@ const docTemplate = `{
             "x-enum-varnames": [
                 "ChatPlanModePlan"
             ]
+        },
+        "codersdk.ChatPrompt": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "text": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatPromptsResponse": {
+            "type": "object",
+            "properties": {
+                "prompts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatPrompt"
+                    }
+                }
+            }
         },
         "codersdk.ChatQueuedMessage": {
             "type": "object",
@@ -17820,6 +18022,9 @@ const docTemplate = `{
                 "telemetry": {
                     "$ref": "#/definitions/codersdk.TelemetryConfig"
                 },
+                "template_builder": {
+                    "$ref": "#/definitions/codersdk.TemplateBuilderConfig"
+                },
                 "terms_of_service_url": {
                     "type": "string"
                 },
@@ -17966,6 +18171,11 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatInputPart"
                     }
+                },
+                "model_config_id": {
+                    "description": "ModelConfigID, when set, overrides the model used for the\nreplacement user message and the assistant turn that follows.\nWhen nil the original message's model is preserved.",
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
@@ -18463,6 +18673,26 @@ const docTemplate = `{
                 "total_member_count": {
                     "description": "How many members are in this group. Shows the total count,\neven if the user is not authorized to read group member details.\nMay be greater than ` + "`" + `len(Group.Members)` + "`" + `.",
                     "type": "integer"
+                }
+            }
+        },
+        "codersdk.GroupAIBudget": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "group_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "spend_limit_micros": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
                 }
             }
         },
@@ -21258,6 +21488,7 @@ const docTemplate = `{
             "enum": [
                 "*",
                 "ai_model_price",
+                "ai_provider",
                 "ai_seat",
                 "aibridge_interception",
                 "api_key",
@@ -21306,6 +21537,7 @@ const docTemplate = `{
             "x-enum-varnames": [
                 "ResourceWildcard",
                 "ResourceAiModelPrice",
+                "ResourceAIProvider",
                 "ResourceAiSeat",
                 "ResourceAibridgeInterception",
                 "ResourceApiKey",
@@ -21528,6 +21760,10 @@ const docTemplate = `{
             "properties": {
                 "parameter_mismatch": {
                     "type": "boolean"
+                },
+                "secret_mismatch": {
+                    "description": "SecretMismatch is true when the active template version declares\n` + "`" + `coder_secret` + "`" + ` requirements that the workspace owner's secrets do not\nsatisfy.",
+                    "type": "boolean"
                 }
             }
         },
@@ -21561,6 +21797,8 @@ const docTemplate = `{
                 "workspace_app",
                 "task",
                 "ai_seat",
+                "ai_provider",
+                "ai_provider_key",
                 "chat",
                 "user_secret"
             ],
@@ -21592,6 +21830,8 @@ const docTemplate = `{
                 "ResourceTypeWorkspaceApp",
                 "ResourceTypeTask",
                 "ResourceTypeAISeat",
+                "ResourceTypeAIProvider",
+                "ResourceTypeAIProviderKey",
                 "ResourceTypeChat",
                 "ResourceTypeUserSecret"
             ]
@@ -22480,6 +22720,17 @@ const docTemplate = `{
                 "$ref": "#/definitions/codersdk.TransitionStats"
             }
         },
+        "codersdk.TemplateBuilderConfig": {
+            "type": "object",
+            "properties": {
+                "disabled": {
+                    "type": "boolean"
+                },
+                "registry_url": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.TemplateExample": {
             "type": "object",
             "properties": {
@@ -23366,7 +23617,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "update_workspace_dormant_at": {
-                    "description": "UpdateWorkspaceDormant updates the dormant_at field of workspaces spawned\nfrom the template. This is useful for preventing dormant workspaces being immediately\ndeleted when updating the dormant_ttl field to a new, shorter value.",
+                    "description": "UpdateWorkspaceDormantAt updates the dormant_at field of workspaces spawned\nfrom the template. This is useful for preventing dormant workspaces being\nimmediately deleted when updating the dormant_ttl field to a new, shorter\nvalue.",
                     "type": "boolean"
                 },
                 "update_workspace_last_used_at": {
@@ -23458,7 +23709,13 @@ const docTemplate = `{
         "codersdk.UpdateUserPreferenceSettingsRequest": {
             "type": "object",
             "properties": {
+                "agent_chat_send_shortcut": {
+                    "$ref": "#/definitions/codersdk.AgentChatSendShortcut"
+                },
                 "code_diff_display_mode": {
+                    "$ref": "#/definitions/codersdk.AgentDisplayMode"
+                },
+                "shell_tool_display_mode": {
                     "$ref": "#/definitions/codersdk.AgentDisplayMode"
                 },
                 "task_notification_alert_dismissed": {
@@ -23620,6 +23877,15 @@ const docTemplate = `{
                 "hash": {
                     "type": "string",
                     "format": "uuid"
+                }
+            }
+        },
+        "codersdk.UpsertGroupAIBudgetRequest": {
+            "type": "object",
+            "properties": {
+                "spend_limit_micros": {
+                    "type": "integer",
+                    "minimum": 0
                 }
             }
         },
@@ -23943,7 +24209,13 @@ const docTemplate = `{
         "codersdk.UserPreferenceSettings": {
             "type": "object",
             "properties": {
+                "agent_chat_send_shortcut": {
+                    "$ref": "#/definitions/codersdk.AgentChatSendShortcut"
+                },
                 "code_diff_display_mode": {
+                    "$ref": "#/definitions/codersdk.AgentDisplayMode"
+                },
+                "shell_tool_display_mode": {
                     "$ref": "#/definitions/codersdk.AgentDisplayMode"
                 },
                 "task_notification_alert_dismissed": {

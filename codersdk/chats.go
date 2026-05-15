@@ -255,7 +255,8 @@ type ChatMessagePart struct {
 	Args              json.RawMessage     `json:"args,omitempty" variants:"tool-call?"`
 	ArgsDelta         string              `json:"args_delta,omitempty" variants:"tool-call?"`
 	Result            json.RawMessage     `json:"result,omitempty" variants:"tool-result?"`
-	ResultDelta       string              `json:"result_delta,omitempty"`
+	ResultDelta       string              `json:"result_delta,omitempty" variants:"tool-result?"`
+	ResultReset       bool                `json:"result_reset,omitempty" variants:"tool-result?"`
 	IsError           bool                `json:"is_error,omitempty" variants:"tool-result?"`
 	IsMedia           bool                `json:"is_media,omitempty" variants:"tool-result?"`
 	SourceID          string              `json:"source_id,omitempty" variants:"source?"`
@@ -327,9 +328,11 @@ type ChatMessagePart struct {
 // StripInternal removes internal-only fields that must not be
 // sent to API clients. Call before publishing via REST or SSE.
 //
-// Note: ArgsDelta and ResultDelta are intentionally preserved.
-// They are streaming-only fields consumed by the frontend via
-// SSE message_part events (see processStepStream in chatloop).
+// Note: ArgsDelta, ResultDelta, and ResultReset are intentionally preserved.
+// They are streaming-only fields consumed by the frontend via SSE
+// message_part events. ArgsDelta is produced by processStepStream in
+// chatloop; ResultDelta and ResultReset are produced by the advisor
+// streaming callbacks in chatd.
 func (p *ChatMessagePart) StripInternal() {
 	p.ProviderMetadata = nil
 	if p.FileID.Valid {
@@ -518,6 +521,10 @@ type CreateChatMessageRequest struct {
 // EditChatMessageRequest is the request to edit a user message in a chat.
 type EditChatMessageRequest struct {
 	Content []ChatInputPart `json:"content"`
+	// ModelConfigID, when set, overrides the model used for the
+	// replacement user message and the assistant turn that follows.
+	// When nil the original message's model is preserved.
+	ModelConfigID *uuid.UUID `json:"model_config_id,omitempty" format:"uuid"`
 }
 
 // CreateChatMessageResponse is the response from adding a message to a chat.
@@ -546,6 +553,23 @@ type ChatMessagesResponse struct {
 	Messages       []ChatMessage       `json:"messages"`
 	QueuedMessages []ChatQueuedMessage `json:"queued_messages"`
 	HasMore        bool                `json:"has_more"`
+}
+
+// ChatPrompt is a single user-authored prompt in a chat, returned by
+// GET /api/experimental/chats/{chat}/prompts. The text field contains
+// the concatenated text payload of the underlying chat message; non-text
+// parts (tool calls, files, attachments) are omitted by the server.
+type ChatPrompt struct {
+	ID   int64  `json:"id"`
+	Text string `json:"text"`
+}
+
+// ChatPromptsResponse is the payload of
+// GET /api/experimental/chats/{chat}/prompts. Prompts are returned
+// newest first so the client can index directly into the slice for
+// up/down arrow history cycling.
+type ChatPromptsResponse struct {
+	Prompts []ChatPrompt `json:"prompts"`
 }
 
 // ChatModelProviderUnavailableReason explains why a provider cannot be used.
@@ -2950,6 +2974,41 @@ func (c *ExperimentalClient) GetChatMessages(ctx context.Context, chatID uuid.UU
 		return ChatMessagesResponse{}, ReadBodyAsError(res)
 	}
 	var resp ChatMessagesResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// ChatPromptsOptions are optional query parameters for GetChatPrompts.
+type ChatPromptsOptions struct {
+	// Limit caps the number of prompts returned. The server enforces a
+	// minimum of 1 and a maximum of 2000; passing 0 (or negative)
+	// applies the server-side default of 500.
+	Limit int
+}
+
+// GetChatPrompts returns the user prompts for a chat in newest-first
+// order. It is a thin endpoint dedicated to the composer's prompt
+// history cycle: only user-visible user messages are included, and
+// only their text parts (concatenated in the original order) are
+// returned. Whitespace-only prompts are filtered server-side so the
+// caller never has to skip blank entries while cycling.
+func (c *ExperimentalClient) GetChatPrompts(ctx context.Context, chatID uuid.UUID, opts *ChatPromptsOptions) (ChatPromptsResponse, error) {
+	reqOpts := []RequestOption{}
+	if opts != nil && opts.Limit > 0 {
+		reqOpts = append(reqOpts, func(r *http.Request) {
+			q := r.URL.Query()
+			q.Set("limit", strconv.Itoa(opts.Limit))
+			r.URL.RawQuery = q.Encode()
+		})
+	}
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/prompts", chatID), nil, reqOpts...)
+	if err != nil {
+		return ChatPromptsResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatPromptsResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatPromptsResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 

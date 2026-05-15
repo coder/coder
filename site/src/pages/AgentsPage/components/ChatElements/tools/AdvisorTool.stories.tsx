@@ -121,6 +121,30 @@ export const Running: Story = {
 	},
 };
 
+export const RunningWithStreamedAdvice: Story = {
+	args: {
+		status: "running",
+		args: { question: sampleQuestion },
+		result: "Use the smaller diff while the advisor is still responding.",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(sampleQuestion)).toBeInTheDocument();
+		expect(canvas.getByText("Consulting advisor…")).toBeInTheDocument();
+		expect(
+			await canvas.findByText(
+				"Use the smaller diff while the advisor is still responding.",
+			),
+		).toBeInTheDocument();
+		expect(
+			canvas.queryByText("Advisor returned no guidance."),
+		).not.toBeInTheDocument();
+		expect(
+			canvas.queryByText("Reviewing context and preparing guidance."),
+		).not.toBeInTheDocument();
+	},
+};
+
 export const LimitReached: Story = {
 	args: {
 		status: "completed",

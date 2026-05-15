@@ -1317,7 +1317,25 @@ func (api *API) userPreferenceSettings(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	shellToolMode, err := api.Database.GetUserShellToolDisplayMode(ctx, user.ID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Error reading user preference settings.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	codeDiffMode, err := api.Database.GetUserCodeDiffDisplayMode(ctx, user.ID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Error reading user preference settings.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	agentChatSendShortcut, err := api.Database.GetUserAgentChatSendShortcut(ctx, user.ID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Error reading user preference settings.",
@@ -1329,7 +1347,9 @@ func (api *API) userPreferenceSettings(rw http.ResponseWriter, r *http.Request) 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserPreferenceSettings{
 		TaskNotificationAlertDismissed: taskAlertDismissed,
 		ThinkingDisplayMode:            sanitizeThinkingDisplayMode(thinkingMode),
+		ShellToolDisplayMode:           sanitizeAgentDisplayMode(shellToolMode),
 		CodeDiffDisplayMode:            sanitizeAgentDisplayMode(codeDiffMode),
+		AgentChatSendShortcut:          sanitizeAgentChatSendShortcut(agentChatSendShortcut),
 	})
 }
 
@@ -1364,12 +1384,32 @@ func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Reques
 		})
 		return
 	}
+	if params.ShellToolDisplayMode != "" &&
+		!slices.Contains(codersdk.ValidAgentDisplayModes, params.ShellToolDisplayMode) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid shell tool display mode.",
+			Validations: []codersdk.ValidationError{
+				{Field: "shell_tool_display_mode", Detail: agentDisplayModeValidationDetail},
+			},
+		})
+		return
+	}
 	if params.CodeDiffDisplayMode != "" &&
 		!slices.Contains(codersdk.ValidAgentDisplayModes, params.CodeDiffDisplayMode) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid code diff display mode.",
 			Validations: []codersdk.ValidationError{
 				{Field: "code_diff_display_mode", Detail: agentDisplayModeValidationDetail},
+			},
+		})
+		return
+	}
+	if params.AgentChatSendShortcut != "" &&
+		!slices.Contains(codersdk.ValidAgentChatSendShortcuts, params.AgentChatSendShortcut) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid agent chat send shortcut.",
+			Validations: []codersdk.ValidationError{
+				{Field: "agent_chat_send_shortcut", Detail: agentChatSendShortcutValidationDetail},
 			},
 		})
 		return
@@ -1409,6 +1449,23 @@ func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Reques
 			settings.ThinkingDisplayMode = sanitizeThinkingDisplayMode(stored)
 		}
 
+		if params.ShellToolDisplayMode != "" {
+			updated, err := tx.UpdateUserShellToolDisplayMode(ctx, database.UpdateUserShellToolDisplayModeParams{
+				UserID:               user.ID,
+				ShellToolDisplayMode: string(params.ShellToolDisplayMode),
+			})
+			if err != nil {
+				return newUserPreferenceSettingsAPIError("Internal error updating shell tool display mode.", err)
+			}
+			settings.ShellToolDisplayMode = sanitizeAgentDisplayMode(updated)
+		} else {
+			stored, err := tx.GetUserShellToolDisplayMode(ctx, user.ID)
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return newUserPreferenceSettingsAPIError("Error reading shell tool display mode.", err)
+			}
+			settings.ShellToolDisplayMode = sanitizeAgentDisplayMode(stored)
+		}
+
 		if params.CodeDiffDisplayMode != "" {
 			updated, err := tx.UpdateUserCodeDiffDisplayMode(ctx, database.UpdateUserCodeDiffDisplayModeParams{
 				UserID:              user.ID,
@@ -1424,6 +1481,23 @@ func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Reques
 				return newUserPreferenceSettingsAPIError("Error reading code diff display mode.", err)
 			}
 			settings.CodeDiffDisplayMode = sanitizeAgentDisplayMode(stored)
+		}
+
+		if params.AgentChatSendShortcut != "" {
+			updated, err := tx.UpdateUserAgentChatSendShortcut(ctx, database.UpdateUserAgentChatSendShortcutParams{
+				UserID:                user.ID,
+				AgentChatSendShortcut: string(params.AgentChatSendShortcut),
+			})
+			if err != nil {
+				return newUserPreferenceSettingsAPIError("Internal error updating agent chat send shortcut.", err)
+			}
+			settings.AgentChatSendShortcut = sanitizeAgentChatSendShortcut(updated)
+		} else {
+			stored, err := tx.GetUserAgentChatSendShortcut(ctx, user.ID)
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return newUserPreferenceSettingsAPIError("Error reading agent chat send shortcut.", err)
+			}
+			settings.AgentChatSendShortcut = sanitizeAgentChatSendShortcut(stored)
 		}
 		return nil
 	}, database.DefaultTXOptions().WithID("user_preference_settings"))
@@ -1469,8 +1543,9 @@ func (e userPreferenceSettingsAPIError) Unwrap() error {
 }
 
 const (
-	thinkingDisplayModeValidationDetail = "must be one of: auto, preview, always_expanded, always_collapsed"
-	agentDisplayModeValidationDetail    = "must be one of: auto, always_expanded, always_collapsed"
+	thinkingDisplayModeValidationDetail   = "must be one of: auto, preview, always_expanded, always_collapsed"
+	agentDisplayModeValidationDetail      = "must be one of: auto, always_expanded, always_collapsed"
+	agentChatSendShortcutValidationDetail = "must be one of: enter, modifier_enter"
 )
 
 func sanitizeThinkingDisplayMode(raw string) codersdk.ThinkingDisplayMode {
@@ -1487,6 +1562,14 @@ func sanitizeAgentDisplayMode(raw string) codersdk.AgentDisplayMode {
 		return mode
 	}
 	return codersdk.AgentDisplayModeAuto
+}
+
+func sanitizeAgentChatSendShortcut(raw string) codersdk.AgentChatSendShortcut {
+	shortcut := codersdk.AgentChatSendShortcut(raw)
+	if slices.Contains(codersdk.ValidAgentChatSendShortcuts, shortcut) {
+		return shortcut
+	}
+	return codersdk.AgentChatSendShortcutEnter
 }
 
 func isValidFontName(font codersdk.TerminalFontName) bool {

@@ -9,9 +9,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	promtest "github.com/prometheus/client_golang/prometheus/testutil"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -336,6 +340,79 @@ func TestAgentConnectionMonitor_StartClose(t *testing.T) {
 		close(closed)
 	}()
 	_ = testutil.TryReceive(ctx, t, closed)
+}
+
+func TestAgentConnectionMonitor_FirstConnectionMetric(t *testing.T) {
+	t.Parallel()
+	const metricName = "coderd_agents_first_connection_seconds"
+
+	t.Run("records metric on first connection", func(t *testing.T) {
+		t.Parallel()
+		reg := prometheus.NewRegistry()
+		logger := testutil.Logger(t)
+		metrics := NewWorkspaceAgentRPCMetrics(reg, logger)
+
+		createdAt := dbtime.Now().Add(-30 * time.Second)
+		uut := &agentConnectionMonitor{
+			workspace: database.Workspace{
+				TemplateName: "my-template",
+			},
+			workspaceAgent: database.WorkspaceAgent{
+				Name:      "main",
+				CreatedAt: createdAt,
+				// FirstConnectedAt is zero-value (not valid),
+				// so init() treats this as the first connection.
+			},
+			metrics: metrics,
+		}
+		uut.init()
+
+		require.Equal(t, 1,
+			promtest.CollectAndCount(metrics.FirstConnectionDuration, metricName))
+
+		// Verify the observed sum reflects the duration since CreatedAt.
+		// testutil has no helper for reading histogram sums, so extract
+		// the sample via dto.Metric directly.
+		var observed dto.Metric
+		require.NoError(t, metrics.FirstConnectionDuration.
+			WithLabelValues("my-template", "main").(prometheus.Histogram).
+			Write(&observed))
+		require.EqualValues(t, 1, observed.GetHistogram().GetSampleCount())
+		require.GreaterOrEqual(t, observed.GetHistogram().GetSampleSum(), float64(30))
+	})
+
+	t.Run("skips metric and logs warning if duration is negative", func(t *testing.T) {
+		t.Parallel()
+		reg := prometheus.NewRegistry()
+		sink := testutil.NewFakeSink(t)
+		metrics := NewWorkspaceAgentRPCMetrics(reg, sink.Logger())
+
+		// Set CreatedAt in the future so the duration is negative,
+		// simulating clock skew.
+		uut := &agentConnectionMonitor{
+			workspace: database.Workspace{
+				TemplateName: "my-template",
+			},
+			workspaceAgent: database.WorkspaceAgent{
+				Name:      "main",
+				CreatedAt: dbtime.Now().Add(time.Minute),
+			},
+			metrics: metrics,
+		}
+		uut.init()
+
+		// The negative-duration path skips the observation, so the
+		// histogram should have no recorded label combinations.
+		require.Equal(t, 0,
+			promtest.CollectAndCount(metrics.FirstConnectionDuration, metricName))
+
+		// Verify that a warning was logged.
+		warnings := sink.Entries(func(e slog.SinkEntry) bool {
+			return e.Level == slog.LevelWarn
+		})
+		require.Len(t, warnings, 1)
+		require.Contains(t, warnings[0].Message, "negative agent first connection duration")
+	})
 }
 
 type fakePingerCloser struct {

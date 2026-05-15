@@ -600,7 +600,7 @@ const ParameterUsageLabel: FC<ParameterUsageLabelProps> = ({
 			<div className="flex items-center gap-4">
 				{icon && (
 					<div className="leading-none w-4 h-4">
-						<img
+						<ExternalImage
 							alt=""
 							src={icon}
 							className="w-full h-full object-contain"

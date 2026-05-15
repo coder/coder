@@ -91,6 +91,50 @@ func TestPostWorkspaceAuthAWSInstanceIdentity(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	t.Run("RecycledInstanceID", func(t *testing.T) {
+		t.Parallel()
+
+		instanceID := newTestInstanceID(t)
+		certificates, metadataClient := coderdtest.NewAWSInstanceIdentity(t, instanceID)
+		setup := setupInstanceIDWorkspaceWithResources(t, &coderdtest.Options{
+			AWSCertificates: certificates,
+		}, workspaceAgentsForInstanceID(instanceID, "dev"))
+
+		successorVersion := coderdtest.CreateTemplateVersion(t, setup.client, setup.user.OrganizationID, &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionGraph: []*proto.Response{{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
+						Resources: []*proto.Resource{{
+							Name:   "resource",
+							Type:   "instance",
+							Agents: workspaceAgentsForInstanceID(newTestInstanceID(t), "dev"),
+						}},
+					},
+				},
+			}},
+		}, func(req *codersdk.CreateTemplateVersionRequest) {
+			req.TemplateID = setup.template.ID
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, setup.client, successorVersion.ID)
+		build := coderdtest.CreateWorkspaceBuild(t, setup.client, setup.workspace, database.WorkspaceTransitionStart, func(req *codersdk.CreateWorkspaceBuildRequest) {
+			req.TemplateVersionID = successorVersion.ID
+		})
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, setup.client, build.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		agentClient := agentsdk.New(setup.client.URL, agentsdk.WithAWSInstanceIdentity())
+		agentClient.SDK.HTTPClient = metadataClient
+
+		err := agentClient.RefreshToken(ctx)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "isn't registered on the latest history")
+	})
+
 	t.Run("Ambiguous/MultipleAgentsNoSelector", func(t *testing.T) {
 		t.Parallel()
 
@@ -126,35 +170,11 @@ func TestPostWorkspaceAuthAWSInstanceIdentity(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		signatureReq, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://169.254.169.254/latest/dynamic/instance-identity/signature", nil)
-		require.NoError(t, err)
-		signatureRes, err := metadataClient.Do(signatureReq)
-		require.NoError(t, err)
-		defer signatureRes.Body.Close()
-		signature, err := io.ReadAll(signatureRes.Body)
-		require.NoError(t, err)
-
-		documentReq, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://169.254.169.254/latest/dynamic/instance-identity/document", nil)
-		require.NoError(t, err)
-		documentRes, err := metadataClient.Do(documentReq)
-		require.NoError(t, err)
-		defer documentRes.Body.Close()
-		document, err := io.ReadAll(documentRes.Body)
-		require.NoError(t, err)
-
-		reqBody, err := json.Marshal(map[string]string{
-			"signature":  string(signature),
-			"document":   string(document),
-			"agent_name": "",
-		})
-		require.NoError(t, err)
-
-		res, err := client.RequestWithoutSessionToken(ctx, http.MethodPost, "/api/v2/workspaceagents/aws-instance-identity", reqBody)
-		require.NoError(t, err)
+		res := postAWSInstanceIdentity(ctx, t, client, metadataClient, "")
 		defer res.Body.Close()
 
 		require.Equal(t, http.StatusConflict, res.StatusCode)
-		err = codersdk.ReadBodyAsError(res)
+		err := codersdk.ReadBodyAsError(res)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
@@ -174,35 +194,11 @@ func TestPostWorkspaceAuthAWSInstanceIdentity(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		signatureReq, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://169.254.169.254/latest/dynamic/instance-identity/signature", nil)
-		require.NoError(t, err)
-		signatureRes, err := metadataClient.Do(signatureReq)
-		require.NoError(t, err)
-		defer signatureRes.Body.Close()
-		signature, err := io.ReadAll(signatureRes.Body)
-		require.NoError(t, err)
-
-		documentReq, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://169.254.169.254/latest/dynamic/instance-identity/document", nil)
-		require.NoError(t, err)
-		documentRes, err := metadataClient.Do(documentReq)
-		require.NoError(t, err)
-		defer documentRes.Body.Close()
-		document, err := io.ReadAll(documentRes.Body)
-		require.NoError(t, err)
-
-		reqBody, err := json.Marshal(map[string]string{
-			"signature":  string(signature),
-			"document":   string(document),
-			"agent_name": "   ",
-		})
-		require.NoError(t, err)
-
-		res, err := client.RequestWithoutSessionToken(ctx, http.MethodPost, "/api/v2/workspaceagents/aws-instance-identity", reqBody)
-		require.NoError(t, err)
+		res := postAWSInstanceIdentity(ctx, t, client, metadataClient, "   ")
 		defer res.Body.Close()
 
 		require.Equal(t, http.StatusConflict, res.StatusCode)
-		err = codersdk.ReadBodyAsError(res)
+		err := codersdk.ReadBodyAsError(res)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
@@ -368,7 +364,26 @@ func TestPostWorkspaceAuthGoogleInstanceIdentity(t *testing.T) {
 	})
 }
 
+type instanceIDWorkspaceSetup struct {
+	client    *codersdk.Client
+	store     database.Store
+	user      codersdk.CreateFirstUserResponse
+	template  codersdk.Template
+	workspace codersdk.Workspace
+}
+
 func setupInstanceIDWorkspace(t *testing.T, opts *coderdtest.Options, agents []*proto.Agent) (*codersdk.Client, database.Store) {
+	t.Helper()
+
+	setup := setupInstanceIDWorkspaceWithResources(t, opts, agents)
+	return setup.client, setup.store
+}
+
+func setupInstanceIDWorkspaceWithResources(
+	t *testing.T,
+	opts *coderdtest.Options,
+	agents []*proto.Agent,
+) instanceIDWorkspaceSetup {
 	t.Helper()
 
 	actualOpts := &coderdtest.Options{}
@@ -398,7 +413,13 @@ func setupInstanceIDWorkspace(t *testing.T, opts *coderdtest.Options, agents []*
 	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
-	return client, store
+	return instanceIDWorkspaceSetup{
+		client:    client,
+		store:     store,
+		user:      user,
+		template:  template,
+		workspace: workspace,
+	}
 }
 
 func workspaceAgentsForInstanceID(instanceID string, names ...string) []*proto.Agent {
@@ -425,6 +446,59 @@ func requireWorkspaceAgentByInstanceIDAndName(t testing.TB, store database.Store
 	}
 	require.FailNow(t, "workspace agent not found", "instance ID %q, name %q", instanceID, name)
 	return database.WorkspaceAgent{}
+}
+
+const awsInstanceIdentityMetadataURL = "http://169.254.169.254/latest/dynamic/instance-identity"
+
+func postAWSInstanceIdentity(
+	ctx context.Context,
+	t testing.TB,
+	client *codersdk.Client,
+	metadataClient *http.Client,
+	agentName string,
+) *http.Response {
+	t.Helper()
+
+	signature := readAWSInstanceMetadata(ctx, t, metadataClient, "signature")
+	document := readAWSInstanceMetadata(ctx, t, metadataClient, "document")
+	reqBody, err := json.Marshal(map[string]string{
+		"signature":  signature,
+		"document":   document,
+		"agent_name": agentName,
+	})
+	require.NoError(t, err)
+
+	res, err := client.RequestWithoutSessionToken(
+		ctx,
+		http.MethodPost,
+		"/api/v2/workspaceagents/aws-instance-identity",
+		reqBody,
+	)
+	require.NoError(t, err)
+	return res
+}
+
+func readAWSInstanceMetadata(
+	ctx context.Context,
+	t testing.TB,
+	metadataClient *http.Client,
+	path string,
+) string {
+	t.Helper()
+
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodGet,
+		awsInstanceIdentityMetadataURL+"/"+path,
+		nil,
+	)
+	require.NoError(t, err)
+	res, err := metadataClient.Do(req)
+	require.NoError(t, err)
+	defer res.Body.Close()
+	body, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+	return string(body)
 }
 
 func newTestInstanceID(t testing.TB) string {
