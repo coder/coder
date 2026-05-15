@@ -5,7 +5,6 @@ import {
 	memo,
 	useEffect,
 	useLayoutEffect,
-	useMemo,
 	useRef,
 	useState,
 } from "react";
@@ -1083,7 +1082,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		// Build prompt history entries for the history popover.
 		// This gives every user message a 1-based index and
 		// its plain-text content for the dropdown list.
-		const promptHistory = useMemo<PromptHistoryEntry[]>(() => {
+		const promptHistory = (() => {
 			const result: PromptHistoryEntry[] = [];
 			let promptIndex = 0;
 			for (const entry of parsedMessages) {
@@ -1129,7 +1128,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				}
 			}
 			return result;
-		}, [parsedMessages]);
+		})();
 
 		if (parsedMessages.length === 0) {
 			return null;

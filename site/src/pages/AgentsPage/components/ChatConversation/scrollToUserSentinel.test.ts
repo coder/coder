@@ -145,7 +145,7 @@ describe("scrollToUserSentinel", () => {
 	});
 
 	it("cancels in-flight animation and cleans up lock state", () => {
-		buildDOM([1, 2]);
+		const scroller = buildDOM([1, 2]);
 		const cancelSpy = vi.spyOn(window, "cancelAnimationFrame");
 		let rafId = 0;
 		vi.spyOn(window, "requestAnimationFrame").mockImplementation(() => {
@@ -155,10 +155,17 @@ describe("scrollToUserSentinel", () => {
 
 		scrollToUserSentinel(1);
 		expect(cancelSpy).not.toHaveBeenCalled();
+		// Lock should be set from first animation.
+		expect(scroller.hasAttribute("data-scroll-lock")).toBe(true);
+		expect(scroller.style.overflowAnchor).toBe("none");
 
-		// Second call should cancel the first and clean up its lock
+		// Second call should cancel the first and clean up its lock.
 		scrollToUserSentinel(2);
 		expect(cancelSpy).toHaveBeenCalledWith(1);
+		// Lock should be re-applied for the new animation, proving
+		// unlock() ran between cancel and the new lock.
+		expect(scroller.hasAttribute("data-scroll-lock")).toBe(true);
+		expect(scroller.style.overflowAnchor).toBe("none");
 	});
 
 	it("dispatches scroll event on completion", () => {
