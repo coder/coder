@@ -452,7 +452,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"user_id":     ActionTrack,
 		"name":        ActionTrack,
 		"description": ActionTrack,
-		"content":     ActionSecret,
+		"content":     ActionTrack,
 		"created_at":  ActionIgnore,
 		"updated_at":  ActionIgnore,
 	},

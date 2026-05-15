@@ -1110,6 +1110,8 @@ func TestRolePermissions(t *testing.T) {
 				},
 			},
 		},
+		// Skills are user-authored instructions, not secrets. Owners can manage
+		// them, unlike user secrets.
 		{
 			Name:     "UserSkills",
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},

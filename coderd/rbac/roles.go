@@ -301,7 +301,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		Site: append(
 			// Workspace dormancy and workspace are omitted.
 			// Workspace is specifically handled based on the opts.NoOwnerWorkspaceExec.
-			// Owners cannot access other users' secrets.
+			// Owners cannot access other users' secrets. They can access user
+			// skills because skills are user-authored instructions, not secrets.
 			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUserSecret, ResourceUsageEvent, ResourceBoundaryUsage, ResourceAiSeat),
 			// This adds back in the Workspace permissions.
 			Permissions(map[string][]policy.Action{
