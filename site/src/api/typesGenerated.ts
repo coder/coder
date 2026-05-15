@@ -57,7 +57,7 @@ export interface AIBridgeConfig {
 	 * Providers holds provider instances populated from CODER_AIBRIDGE_PROVIDER_<N>_<KEY>
 	 * env vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.
 	 */
-	readonly providers?: readonly AIBridgeProviderConfig[];
+	readonly providers?: readonly AIProviderConfig[];
 	/**
 	 * @deprecated Injected MCP in AI Bridge is deprecated and will be removed in a future release.
 	 */
@@ -127,35 +127,6 @@ export interface AIBridgeModelThought {
 export interface AIBridgeOpenAIConfig {
 	readonly base_url: string;
 	readonly key: string;
-}
-
-// From codersdk/deployment.go
-/**
- * AIBridgeProviderConfig represents a single AI Bridge provider instance,
- * parsed from CODER_AIBRIDGE_PROVIDER_<N>_<KEY> environment variables.
- * This follows the same indexed pattern as ExternalAuthConfig.
- */
-export interface AIBridgeProviderConfig {
-	/**
-	 * Type is the provider type: "openai", "anthropic", or "copilot".
-	 */
-	readonly type: string;
-	/**
-	 * Name is the unique instance identifier used for routing.
-	 * Defaults to Type if not provided.
-	 */
-	readonly name: string;
-	/**
-	 * BaseURL is the base URL of the upstream provider API.
-	 */
-	readonly base_url: string;
-	/**
-	 * DumpDir is the directory path for dumping API requests and responses.
-	 */
-	readonly dump_dir?: string;
-	readonly bedrock_region?: string;
-	readonly bedrock_model?: string;
-	readonly bedrock_small_fast_model?: string;
 }
 
 // From codersdk/deployment.go
@@ -327,6 +298,35 @@ export interface AIConfig {
 	readonly chat?: ChatConfig;
 }
 
+// From codersdk/deployment.go
+/**
+ * AIProviderConfig represents a single AI provider instance,
+ * parsed from CODER_AIBRIDGE_PROVIDER_<N>_<KEY> environment variables.
+ * This follows the same indexed pattern as ExternalAuthConfig.
+ */
+export interface AIProviderConfig {
+	/**
+	 * Type is the provider type: "openai", "anthropic", or "copilot".
+	 */
+	readonly type: string;
+	/**
+	 * Name is the unique instance identifier used for routing.
+	 * Defaults to Type if not provided.
+	 */
+	readonly name: string;
+	/**
+	 * BaseURL is the base URL of the upstream provider API.
+	 */
+	readonly base_url: string;
+	/**
+	 * DumpDir is the directory path for dumping API requests and responses.
+	 */
+	readonly dump_dir?: string;
+	readonly bedrock_region?: string;
+	readonly bedrock_model?: string;
+	readonly bedrock_small_fast_model?: string;
+}
+
 // From codersdk/allowlist.go
 /**
  * APIAllowListTarget represents a single allow-list entry using the canonical
@@ -362,6 +362,11 @@ export type APIKeyScope =
 	| "ai_model_price:*"
 	| "ai_model_price:read"
 	| "ai_model_price:update"
+	| "ai_provider:*"
+	| "ai_provider:create"
+	| "ai_provider:delete"
+	| "ai_provider:read"
+	| "ai_provider:update"
 	| "ai_seat:*"
 	| "ai_seat:create"
 	| "ai_seat:read"
@@ -577,6 +582,11 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"ai_model_price:*",
 	"ai_model_price:read",
 	"ai_model_price:update",
+	"ai_provider:*",
+	"ai_provider:create",
+	"ai_provider:delete",
+	"ai_provider:read",
+	"ai_provider:update",
 	"ai_seat:*",
 	"ai_seat:create",
 	"ai_seat:read",
@@ -4359,6 +4369,14 @@ export interface Group {
 	readonly organization_display_name: string;
 }
 
+// From codersdk/aibridge.go
+export interface GroupAIBudget {
+	readonly group_id: string;
+	readonly spend_limit_micros: number;
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
 // From codersdk/groups.go
 export interface GroupArguments {
 	/**
@@ -6432,6 +6450,7 @@ export const RBACActions: RBACAction[] = [
 
 // From codersdk/rbacresources_gen.go
 export type RBACResource =
+	| "ai_provider"
 	| "ai_model_price"
 	| "ai_seat"
 	| "aibridge_interception"
@@ -6480,6 +6499,7 @@ export type RBACResource =
 	| "workspace_proxy";
 
 export const RBACResources: RBACResource[] = [
+	"ai_provider",
 	"ai_model_price",
 	"ai_seat",
 	"aibridge_interception",
@@ -6639,6 +6659,8 @@ export interface ResolveAutostartResponse {
 
 // From codersdk/audit.go
 export type ResourceType =
+	| "ai_provider"
+	| "ai_provider_key"
 	| "ai_seat"
 	| "api_key"
 	| "chat"
@@ -6670,6 +6692,8 @@ export type ResourceType =
 	| "workspace_proxy";
 
 export const ResourceTypes: ResourceType[] = [
+	"ai_provider",
+	"ai_provider_key",
 	"ai_seat",
 	"api_key",
 	"chat",
@@ -8675,6 +8699,11 @@ export interface UpsertChatUsageLimitGroupOverrideRequest {
  */
 export interface UpsertChatUsageLimitOverrideRequest {
 	readonly spend_limit_micros: number; // Must be greater than 0.
+}
+
+// From codersdk/aibridge.go
+export interface UpsertGroupAIBudgetRequest {
+	readonly spend_limit_micros: number;
 }
 
 // From codersdk/workspaceagentportshare.go

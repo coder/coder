@@ -2520,6 +2520,113 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/groups/{group}/ai/budget": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get group AI budget",
+                "operationId": "get-group-ai-budget",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Group ID",
+                        "name": "group",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.GroupAIBudget"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Upsert group AI budget",
+                "operationId": "upsert-group-ai-budget",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Group ID",
+                        "name": "group",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Upsert group AI budget request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpsertGroupAIBudgetRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.GroupAIBudget"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Delete group AI budget",
+                "operationId": "delete-group-ai-budget",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Group ID",
+                        "name": "group",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/groups/{group}/members": {
             "get": {
                 "produces": [
@@ -13889,7 +13996,7 @@ const docTemplate = `{
                     "description": "Providers holds provider instances populated from CODER_AIBRIDGE_PROVIDER_\u003cN\u003e_\u003cKEY\u003e\nenv vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/codersdk.AIBridgeProviderConfig"
+                        "$ref": "#/definitions/codersdk.AIProviderConfig"
                     }
                 },
                 "rate_limit": {
@@ -14006,36 +14113,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "key": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.AIBridgeProviderConfig": {
-            "type": "object",
-            "properties": {
-                "base_url": {
-                    "description": "BaseURL is the base URL of the upstream provider API.",
-                    "type": "string"
-                },
-                "bedrock_model": {
-                    "type": "string"
-                },
-                "bedrock_region": {
-                    "type": "string"
-                },
-                "bedrock_small_fast_model": {
-                    "type": "string"
-                },
-                "dump_dir": {
-                    "description": "DumpDir is the directory path for dumping API requests and responses.",
-                    "type": "string"
-                },
-                "name": {
-                    "description": "Name is the unique instance identifier used for routing.\nDefaults to Type if not provided.",
-                    "type": "string"
-                },
-                "type": {
-                    "description": "Type is the provider type: \"openai\", \"anthropic\", or \"copilot\".",
                     "type": "string"
                 }
             }
@@ -14421,6 +14498,36 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AIProviderConfig": {
+            "type": "object",
+            "properties": {
+                "base_url": {
+                    "description": "BaseURL is the base URL of the upstream provider API.",
+                    "type": "string"
+                },
+                "bedrock_model": {
+                    "type": "string"
+                },
+                "bedrock_region": {
+                    "type": "string"
+                },
+                "bedrock_small_fast_model": {
+                    "type": "string"
+                },
+                "dump_dir": {
+                    "description": "DumpDir is the directory path for dumping API requests and responses.",
+                    "type": "string"
+                },
+                "name": {
+                    "description": "Name is the unique instance identifier used for routing.\nDefaults to Type if not provided.",
+                    "type": "string"
+                },
+                "type": {
+                    "description": "Type is the provider type: \"openai\", \"anthropic\", or \"copilot\".",
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.APIAllowListTarget": {
             "type": "object",
             "properties": {
@@ -14522,6 +14629,11 @@ const docTemplate = `{
                 "ai_model_price:*",
                 "ai_model_price:read",
                 "ai_model_price:update",
+                "ai_provider:*",
+                "ai_provider:create",
+                "ai_provider:delete",
+                "ai_provider:read",
+                "ai_provider:update",
                 "ai_seat:*",
                 "ai_seat:create",
                 "ai_seat:read",
@@ -14737,6 +14849,11 @@ const docTemplate = `{
                 "APIKeyScopeAiModelPriceAll",
                 "APIKeyScopeAiModelPriceRead",
                 "APIKeyScopeAiModelPriceUpdate",
+                "APIKeyScopeAiProviderAll",
+                "APIKeyScopeAiProviderCreate",
+                "APIKeyScopeAiProviderDelete",
+                "APIKeyScopeAiProviderRead",
+                "APIKeyScopeAiProviderUpdate",
                 "APIKeyScopeAiSeatAll",
                 "APIKeyScopeAiSeatCreate",
                 "APIKeyScopeAiSeatRead",
@@ -18559,6 +18676,26 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.GroupAIBudget": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "group_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "spend_limit_micros": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
         "codersdk.GroupMembersResponse": {
             "type": "object",
             "properties": {
@@ -21351,6 +21488,7 @@ const docTemplate = `{
             "enum": [
                 "*",
                 "ai_model_price",
+                "ai_provider",
                 "ai_seat",
                 "aibridge_interception",
                 "api_key",
@@ -21399,6 +21537,7 @@ const docTemplate = `{
             "x-enum-varnames": [
                 "ResourceWildcard",
                 "ResourceAiModelPrice",
+                "ResourceAIProvider",
                 "ResourceAiSeat",
                 "ResourceAibridgeInterception",
                 "ResourceApiKey",
@@ -21658,6 +21797,8 @@ const docTemplate = `{
                 "workspace_app",
                 "task",
                 "ai_seat",
+                "ai_provider",
+                "ai_provider_key",
                 "chat",
                 "user_secret"
             ],
@@ -21689,6 +21830,8 @@ const docTemplate = `{
                 "ResourceTypeWorkspaceApp",
                 "ResourceTypeTask",
                 "ResourceTypeAISeat",
+                "ResourceTypeAIProvider",
+                "ResourceTypeAIProviderKey",
                 "ResourceTypeChat",
                 "ResourceTypeUserSecret"
             ]
@@ -23734,6 +23877,15 @@ const docTemplate = `{
                 "hash": {
                     "type": "string",
                     "format": "uuid"
+                }
+            }
+        },
+        "codersdk.UpsertGroupAIBudgetRequest": {
+            "type": "object",
+            "properties": {
+                "spend_limit_micros": {
+                    "type": "integer",
+                    "minimum": 0
                 }
             }
         },

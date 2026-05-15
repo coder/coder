@@ -16,6 +16,64 @@ import (
 	"github.com/sqlc-dev/pqtype"
 )
 
+type AIProviderType string
+
+const (
+	AiProviderTypeOpenai    AIProviderType = "openai"
+	AiProviderTypeAnthropic AIProviderType = "anthropic"
+)
+
+func (e *AIProviderType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AIProviderType(s)
+	case string:
+		*e = AIProviderType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AIProviderType: %T", src)
+	}
+	return nil
+}
+
+type NullAIProviderType struct {
+	AIProviderType AIProviderType `json:"ai_provider_type"`
+	Valid          bool           `json:"valid"` // Valid is true if AIProviderType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAIProviderType) Scan(value interface{}) error {
+	if value == nil {
+		ns.AIProviderType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AIProviderType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAIProviderType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AIProviderType), nil
+}
+
+func (e AIProviderType) Valid() bool {
+	switch e {
+	case AiProviderTypeOpenai,
+		AiProviderTypeAnthropic:
+		return true
+	}
+	return false
+}
+
+func AllAIProviderTypeValues() []AIProviderType {
+	return []AIProviderType{
+		AiProviderTypeOpenai,
+		AiProviderTypeAnthropic,
+	}
+}
+
 type APIKeyScope string
 
 const (
@@ -230,6 +288,11 @@ const (
 	ApiKeyScopeAiModelPrice                        APIKeyScope = "ai_model_price:*"
 	ApiKeyScopeAiModelPriceRead                    APIKeyScope = "ai_model_price:read"
 	ApiKeyScopeAiModelPriceUpdate                  APIKeyScope = "ai_model_price:update"
+	ApiKeyScopeAiProvider                          APIKeyScope = "ai_provider:*"
+	ApiKeyScopeAiProviderCreate                    APIKeyScope = "ai_provider:create"
+	ApiKeyScopeAiProviderDelete                    APIKeyScope = "ai_provider:delete"
+	ApiKeyScopeAiProviderRead                      APIKeyScope = "ai_provider:read"
+	ApiKeyScopeAiProviderUpdate                    APIKeyScope = "ai_provider:update"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -479,7 +542,12 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeAiSeatRead,
 		ApiKeyScopeAiModelPrice,
 		ApiKeyScopeAiModelPriceRead,
-		ApiKeyScopeAiModelPriceUpdate:
+		ApiKeyScopeAiModelPriceUpdate,
+		ApiKeyScopeAiProvider,
+		ApiKeyScopeAiProviderCreate,
+		ApiKeyScopeAiProviderDelete,
+		ApiKeyScopeAiProviderRead,
+		ApiKeyScopeAiProviderUpdate:
 		return true
 	}
 	return false
@@ -698,6 +766,11 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeAiModelPrice,
 		ApiKeyScopeAiModelPriceRead,
 		ApiKeyScopeAiModelPriceUpdate,
+		ApiKeyScopeAiProvider,
+		ApiKeyScopeAiProviderCreate,
+		ApiKeyScopeAiProviderDelete,
+		ApiKeyScopeAiProviderRead,
+		ApiKeyScopeAiProviderUpdate,
 	}
 }
 
@@ -3225,6 +3298,8 @@ const (
 	ResourceTypeAiSeat                      ResourceType = "ai_seat"
 	ResourceTypeChat                        ResourceType = "chat"
 	ResourceTypeUserSecret                  ResourceType = "user_secret"
+	ResourceTypeAiProvider                  ResourceType = "ai_provider"
+	ResourceTypeAiProviderKey               ResourceType = "ai_provider_key"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3292,7 +3367,9 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeTask,
 		ResourceTypeAiSeat,
 		ResourceTypeChat,
-		ResourceTypeUserSecret:
+		ResourceTypeUserSecret,
+		ResourceTypeAiProvider,
+		ResourceTypeAiProviderKey:
 		return true
 	}
 	return false
@@ -3329,6 +3406,8 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeAiSeat,
 		ResourceTypeChat,
 		ResourceTypeUserSecret,
+		ResourceTypeAiProvider,
+		ResourceTypeAiProviderKey,
 	}
 }
 
@@ -4299,6 +4378,37 @@ type AIBridgeUserPrompt struct {
 	CreatedAt          time.Time             `db:"created_at" json:"created_at"`
 }
 
+// Runtime configuration for AI providers. Authoritative source for the provider set served by aibridged. Replaces deployment-time CODER_AIBRIDGE_* environment variables.
+type AIProvider struct {
+	ID   uuid.UUID      `db:"id" json:"id"`
+	Type AIProviderType `db:"type" json:"type"`
+	Name string         `db:"name" json:"name"`
+	// Optional human-readable label. When NULL, callers should fall back to name.
+	DisplayName sql.NullString `db:"display_name" json:"display_name"`
+	Enabled     bool           `db:"enabled" json:"enabled"`
+	// Soft delete flag. Soft-deleted rows are preserved for audit and FK history but do not block name reuse by future live rows.
+	Deleted bool   `db:"deleted" json:"deleted"`
+	BaseUrl string `db:"base_url" json:"base_url"`
+	// Encrypted JSON blob holding type-specific configuration (e.g. AWS Bedrock region, model, access key secret). Plaintext is a JSON object. NULL when no type-specific settings are required.
+	Settings sql.NullString `db:"settings" json:"settings"`
+	// The ID of the key used to encrypt settings. If this is NULL, settings is not encrypted.
+	SettingsKeyID sql.NullString `db:"settings_key_id" json:"settings_key_id"`
+	CreatedAt     time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt     time.Time      `db:"updated_at" json:"updated_at"`
+}
+
+// API keys associated with AI providers. Bedrock providers have zero keys (they authenticate via settings). OpenAI and Anthropic providers have one or more keys for failover.
+type AIProviderKey struct {
+	ID         uuid.UUID `db:"id" json:"id"`
+	ProviderID uuid.UUID `db:"provider_id" json:"provider_id"`
+	// API key used to authenticate with the upstream AI provider. Encrypted at rest via dbcrypt when api_key_key_id is set.
+	APIKey string `db:"api_key" json:"api_key"`
+	// The ID of the key used to encrypt the provider API key. If this is NULL, the API key is not encrypted.
+	ApiKeyKeyID sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
+	CreatedAt   time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
+}
+
 type APIKey struct {
 	ID string `db:"id" json:"id"`
 	// hashed_secret contains a SHA256 hash of the key secret. This is considered a secret and MUST NOT be returned from the API as it is used for API key encryption in app proxying code.
@@ -4402,6 +4512,8 @@ type Chat struct {
 	PlanMode            NullChatPlanMode      `db:"plan_mode" json:"plan_mode"`
 	ClientType          ChatClientType        `db:"client_type" json:"client_type"`
 	LastTurnSummary     sql.NullString        `db:"last_turn_summary" json:"last_turn_summary"`
+	OwnerUsername       string                `db:"owner_username" json:"owner_username"`
+	OwnerName           string                `db:"owner_name" json:"owner_name"`
 }
 
 type ChatDebugRun struct {
@@ -4550,6 +4662,37 @@ type ChatQueuedMessage struct {
 	ModelConfigID uuid.NullUUID   `db:"model_config_id" json:"model_config_id"`
 }
 
+type ChatTable struct {
+	ID                  uuid.UUID             `db:"id" json:"id"`
+	OwnerID             uuid.UUID             `db:"owner_id" json:"owner_id"`
+	WorkspaceID         uuid.NullUUID         `db:"workspace_id" json:"workspace_id"`
+	Title               string                `db:"title" json:"title"`
+	Status              ChatStatus            `db:"status" json:"status"`
+	WorkerID            uuid.NullUUID         `db:"worker_id" json:"worker_id"`
+	StartedAt           sql.NullTime          `db:"started_at" json:"started_at"`
+	HeartbeatAt         sql.NullTime          `db:"heartbeat_at" json:"heartbeat_at"`
+	CreatedAt           time.Time             `db:"created_at" json:"created_at"`
+	UpdatedAt           time.Time             `db:"updated_at" json:"updated_at"`
+	ParentChatID        uuid.NullUUID         `db:"parent_chat_id" json:"parent_chat_id"`
+	RootChatID          uuid.NullUUID         `db:"root_chat_id" json:"root_chat_id"`
+	LastModelConfigID   uuid.UUID             `db:"last_model_config_id" json:"last_model_config_id"`
+	Archived            bool                  `db:"archived" json:"archived"`
+	LastError           pqtype.NullRawMessage `db:"last_error" json:"last_error"`
+	Mode                NullChatMode          `db:"mode" json:"mode"`
+	MCPServerIDs        []uuid.UUID           `db:"mcp_server_ids" json:"mcp_server_ids"`
+	Labels              StringMap             `db:"labels" json:"labels"`
+	BuildID             uuid.NullUUID         `db:"build_id" json:"build_id"`
+	AgentID             uuid.NullUUID         `db:"agent_id" json:"agent_id"`
+	PinOrder            int32                 `db:"pin_order" json:"pin_order"`
+	LastReadMessageID   sql.NullInt64         `db:"last_read_message_id" json:"last_read_message_id"`
+	LastInjectedContext pqtype.NullRawMessage `db:"last_injected_context" json:"last_injected_context"`
+	DynamicTools        pqtype.NullRawMessage `db:"dynamic_tools" json:"dynamic_tools"`
+	OrganizationID      uuid.UUID             `db:"organization_id" json:"organization_id"`
+	PlanMode            NullChatPlanMode      `db:"plan_mode" json:"plan_mode"`
+	ClientType          ChatClientType        `db:"client_type" json:"client_type"`
+	LastTurnSummary     sql.NullString        `db:"last_turn_summary" json:"last_turn_summary"`
+}
+
 type ChatUsageLimitConfig struct {
 	ID                 int64     `db:"id" json:"id"`
 	Singleton          bool      `db:"singleton" json:"singleton"`
@@ -4674,6 +4817,14 @@ type Group struct {
 	// Source indicates how the group was created. It can be created by a user manually, or through some system process like OIDC group sync.
 	Source               GroupSource   `db:"source" json:"source"`
 	ChatSpendLimitMicros sql.NullInt64 `db:"chat_spend_limit_micros" json:"chat_spend_limit_micros"`
+}
+
+// Per-group AI spend limit applied to each member of the group. No row means no budget is enforced.
+type GroupAiBudget struct {
+	GroupID          uuid.UUID `db:"group_id" json:"group_id"`
+	SpendLimitMicros int64     `db:"spend_limit_micros" json:"spend_limit_micros"`
+	CreatedAt        time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
 }
 
 type GroupMember struct {

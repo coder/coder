@@ -856,11 +856,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				)
 			}
 
-			aibridgeProviders, err := ReadAIBridgeProvidersFromEnv(logger, os.Environ())
+			aiProviders, err := ReadAIProvidersFromEnv(logger, os.Environ())
 			if err != nil {
-				return xerrors.Errorf("read aibridge providers from env: %w", err)
+				return xerrors.Errorf("read AI providers from env: %w", err)
 			}
-			vals.AI.BridgeConfig.Providers = append(vals.AI.BridgeConfig.Providers, aibridgeProviders...)
+			vals.AI.BridgeConfig.Providers = append(vals.AI.BridgeConfig.Providers, aiProviders...)
 
 			// Manage push notifications.
 			webpusher, err := webpush.New(ctx, ptr.Ref(options.Logger.Named("webpush")), options.Database, options.AccessURL.String())
@@ -2926,10 +2926,10 @@ func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]coder
 	return providers, nil
 }
 
-// ReadAIBridgeProvidersFromEnv parses CODER_AIBRIDGE_PROVIDER_<N>_<KEY>
-// environment variables into a slice of AIBridgeProviderConfig.
+// ReadAIProvidersFromEnv parses CODER_AIBRIDGE_PROVIDER_<N>_<KEY>
+// environment variables into a slice of AIProviderConfig.
 // This follows the same indexed pattern as ReadExternalAuthProvidersFromEnv.
-func ReadAIBridgeProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AIBridgeProviderConfig, error) {
+func ReadAIProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AIProviderConfig, error) {
 	parsed := serpent.ParseEnviron(environ, "CODER_AIBRIDGE_PROVIDER_")
 
 	// Sort by numeric index so that PROVIDER_2 comes before PROVIDER_10.
@@ -2942,7 +2942,7 @@ func ReadAIBridgeProvidersFromEnv(logger slog.Logger, environ []string) ([]coder
 		return strings.Compare(a.Name, b.Name)
 	})
 
-	var providers []codersdk.AIBridgeProviderConfig
+	var providers []codersdk.AIProviderConfig
 	for _, v := range parsed {
 		tokens := strings.SplitN(v.Name, "_", 2)
 		if len(tokens) != 2 {
@@ -2954,7 +2954,7 @@ func ReadAIBridgeProvidersFromEnv(logger slog.Logger, environ []string) ([]coder
 			return nil, xerrors.Errorf("parse number: %s", v.Name)
 		}
 
-		var provider codersdk.AIBridgeProviderConfig
+		var provider codersdk.AIProviderConfig
 		switch {
 		case len(providers) < providerNum:
 			return nil, xerrors.Errorf(
@@ -3014,7 +3014,7 @@ func ReadAIBridgeProvidersFromEnv(logger slog.Logger, environ []string) ([]coder
 		case "BEDROCK_SMALL_FAST_MODEL":
 			provider.BedrockSmallFastModel = v.Value
 		default:
-			logger.Warn(context.Background(), "ignoring unknown aibridge provider field (check for typos)",
+			logger.Warn(context.Background(), "ignoring unknown AI provider field (check for typos)",
 				slog.F("env", fmt.Sprintf("CODER_AIBRIDGE_PROVIDER_%d_%s", providerNum, key)),
 			)
 		}
@@ -3066,7 +3066,7 @@ func ReadAIBridgeProvidersFromEnv(logger slog.Logger, environ []string) ([]coder
 	return providers, nil
 }
 
-func hasBedrockFields(p codersdk.AIBridgeProviderConfig) bool {
+func hasBedrockFields(p codersdk.AIProviderConfig) bool {
 	return p.BedrockBaseURL != "" || p.BedrockRegion != "" ||
 		len(p.BedrockAccessKeys) > 0 || len(p.BedrockAccessKeySecrets) > 0 ||
 		p.BedrockModel != "" || p.BedrockSmallFastModel != ""

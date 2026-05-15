@@ -169,6 +169,62 @@ func ChatModelConfig(t testing.TB, db database.Store, seed database.ChatModelCon
 	return cfg
 }
 
+func AIProvider(t testing.TB, db database.Store, seed database.AIProvider, munge ...func(*database.InsertAIProviderParams)) database.AIProvider {
+	t.Helper()
+	id := seed.ID
+	if id == uuid.Nil {
+		id = uuid.New()
+	}
+	provType := seed.Type
+	if provType == "" {
+		provType = database.AiProviderTypeOpenai
+	}
+	name := takeFirst(seed.Name, testutil.GetRandomNameHyphenated(t))
+	displayName := seed.DisplayName
+	if !displayName.Valid {
+		displayName = sql.NullString{String: name, Valid: true}
+	}
+	params := database.InsertAIProviderParams{
+		ID:            id,
+		Type:          provType,
+		Name:          name,
+		DisplayName:   displayName,
+		Enabled:       takeFirst(seed.Enabled, true),
+		BaseUrl:       takeFirst(seed.BaseUrl, "https://api.example.com/"),
+		Settings:      seed.Settings,
+		SettingsKeyID: seed.SettingsKeyID,
+	}
+	for _, fn := range munge {
+		fn(&params)
+	}
+	provider, err := db.InsertAIProvider(genCtx, params)
+	require.NoError(t, err, "insert ai provider")
+	return provider
+}
+
+func AIProviderKey(t testing.TB, db database.Store, seed database.AIProviderKey, munge ...func(*database.InsertAIProviderKeyParams)) database.AIProviderKey {
+	t.Helper()
+	id := seed.ID
+	if id == uuid.Nil {
+		id = uuid.New()
+	}
+	now := dbtime.Now()
+	params := database.InsertAIProviderKeyParams{
+		ID:          id,
+		ProviderID:  seed.ProviderID,
+		APIKey:      takeFirst(seed.APIKey, "test-key"),
+		ApiKeyKeyID: seed.ApiKeyKeyID,
+		CreatedAt:   takeFirst(seed.CreatedAt, now),
+		UpdatedAt:   takeFirst(seed.UpdatedAt, now),
+	}
+	for _, fn := range munge {
+		fn(&params)
+	}
+	key, err := db.InsertAIProviderKey(genCtx, params)
+	require.NoError(t, err, "insert ai provider key")
+	return key
+}
+
 func ChatProvider(t testing.TB, db database.Store, seed database.ChatProvider, munge ...func(*database.InsertChatProviderParams)) database.ChatProvider {
 	t.Helper()
 	params := database.InsertChatProviderParams{

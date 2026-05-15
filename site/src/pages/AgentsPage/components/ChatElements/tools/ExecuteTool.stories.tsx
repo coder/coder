@@ -32,6 +32,21 @@ export const ShortCommand: Story = {
 	},
 };
 
+export const RunningWithoutCommand: Story = {
+	args: {
+		command: "",
+		status: "running",
+		output: "",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.queryByText("$")).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: "Copy command" }),
+		).not.toBeInTheDocument();
+	},
+};
+
 export const LongCommand: Story = {
 	args: {
 		command: longCommand,
