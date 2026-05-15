@@ -29,7 +29,8 @@ const (
 )
 
 var (
-	// ErrInvalidSkillName indicates that a skill name is missing or not valid kebab-case.
+	// ErrInvalidSkillName indicates that a skill name is missing, not valid
+	// kebab-case, or exceeds the maximum length.
 	ErrInvalidSkillName = xerrors.New("invalid skill name")
 	// ErrSkillBodyRequired indicates that the skill has no body after frontmatter.
 	ErrSkillBodyRequired = xerrors.New("skill body is required")
@@ -116,7 +117,7 @@ func ValidatePersonalSkillMarkdown(raw []byte) (ParsedSkill, error) {
 			workspacesdk.SkillNameRegex,
 		)
 	}
-	nameBytes := len([]byte(parsed.Name))
+	nameBytes := len(parsed.Name)
 	if nameBytes > MaxPersonalSkillNameBytes {
 		return ParsedSkill{}, xerrors.Errorf(
 			"%w: %q is %d bytes, maximum is %d bytes",
@@ -178,19 +179,30 @@ func MergeSkills(personalSkills, workspaceSkills []Skill) []ResolvedSkill {
 	return resolved
 }
 
-// Lookup finds a resolved skill by bare alias or qualified source alias.
+// Lookup finds a resolved skill by bare alias or qualified source alias. It
+// returns ErrSkillNotFound if no alias matches, or ErrSkillAmbiguous if a bare
+// name matches skills from multiple sources.
 func Lookup(resolved []ResolvedSkill, lookup string) (ResolvedSkill, error) {
-	var matches []string
+	var (
+		bareNameMatch ResolvedSkill
+		matches       []string
+	)
 	for _, skill := range resolved {
 		qualifiedAlias := QualifiedAlias(skill.Source, skill.Name)
 		if lookup == skill.Alias || lookup == qualifiedAlias {
 			return skill, nil
 		}
 		if lookup == skill.Name {
+			bareNameMatch = skill
 			matches = append(matches, qualifiedAlias)
 		}
 	}
-	if len(matches) > 1 {
+	switch len(matches) {
+	case 0:
+		return ResolvedSkill{}, xerrors.Errorf("%w: %q", ErrSkillNotFound, lookup)
+	case 1:
+		return bareNameMatch, nil
+	default:
 		return ResolvedSkill{}, xerrors.Errorf(
 			"%w: %q matches %s",
 			ErrSkillAmbiguous,
@@ -198,7 +210,6 @@ func Lookup(resolved []ResolvedSkill, lookup string) (ResolvedSkill, error) {
 			strings.Join(matches, ", "),
 		)
 	}
-	return ResolvedSkill{}, xerrors.Errorf("%w: %q", ErrSkillNotFound, lookup)
 }
 
 // QualifiedAlias returns the stable source-qualified alias for a skill name.

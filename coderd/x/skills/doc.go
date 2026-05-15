@@ -11,7 +11,7 @@
 //   - Skill source: The origin of a skill available to chatd, such as personal
 //     storage or workspace filesystem discovery.
 //   - Skill alias: A chat or tool lookup name for a skill. Bare aliases use the
-//     skill name. Collision aliases use personal/<name> or workspace/<name>.
+//     skill name. Qualified aliases use personal/<name> or workspace/<name>.
 //
 // Decision:
 //
@@ -22,7 +22,7 @@
 // read_skill flow instead of syncing files into workspace filesystems.
 //
 // If a personal skill and workspace skill share the same kebab-case name, both
-// are exposed with collision aliases: personal/<name> for the personal skill
+// are exposed with qualified aliases: personal/<name> for the personal skill
 // and workspace/<name> for the workspace skill. One source must not silently
 // override the other.
 //

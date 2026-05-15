@@ -334,6 +334,21 @@ func TestLookup(t *testing.T) {
 		require.Equal(t, "workspace-skill", workspace.Name)
 	})
 
+	t.Run("BareNameFallsBackToSingleQualifiedAliasMatch", func(t *testing.T) {
+		t.Parallel()
+
+		resolved := []skills.ResolvedSkill{{
+			Skill: skills.Skill{Name: "personal-skill", Source: skills.SourcePersonal},
+			Alias: "personal/personal-skill",
+		}}
+
+		personal, err := skills.Lookup(resolved, "personal-skill")
+
+		require.NoError(t, err)
+		require.Equal(t, skills.SourcePersonal, personal.Source)
+		require.Equal(t, "personal-skill", personal.Name)
+	})
+
 	t.Run("UnknownLookupReturnsNotFound", func(t *testing.T) {
 		t.Parallel()
 
