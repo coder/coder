@@ -6616,12 +6616,13 @@ func (p *Server) appendRootChatTools(
 		// in-progress primer.
 		//
 		// Guard on both WorkspaceID and AgentID being valid:
-		// create_workspace fires onChatUpdated three times (binding,
-		// build, and post-ready) and stop_workspace fires it once with a
-		// nil agent. Only the post-ready callback has a live AgentID, so
-		// pre-build and stop-side firings would otherwise spawn a primer
-		// goroutine that dials a missing or dying agent and burns the
-		// full budget for nothing.
+		// create_workspace and start_workspace each fire onChatUpdated
+		// twice for a new build (binding before waitForAgentReady;
+		// post-ready after it), and stop_workspace fires it with a nil
+		// agent. Only the post-ready callback has a live AgentID, so
+		// the pre-build and stop-side firings would otherwise spawn a
+		// primer goroutine that dials a missing or dying agent and
+		// burns the full budget for nothing.
 		//
 		// Read the snapshot from workspaceCtx rather than the
 		// updatedChat parameter: persistInstructionFiles above runs
