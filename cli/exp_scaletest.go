@@ -472,12 +472,7 @@ func (f *workspaceTargetFlags) getTargetedWorkspaces(ctx context.Context, client
 	return workspaces[targetStart:targetEnd], nil
 }
 
-// RequireAdmin is the exported form of requireAdmin for use by the enterprise CLI.
 func RequireAdmin(ctx context.Context, client *codersdk.Client) (codersdk.User, error) {
-	return requireAdmin(ctx, client)
-}
-
-func requireAdmin(ctx context.Context, client *codersdk.Client) (codersdk.User, error) {
 	me, err := client.User(ctx, codersdk.Me)
 	if err != nil {
 		return codersdk.User{}, xerrors.Errorf("fetch current user: %w", err)
@@ -622,7 +617,7 @@ func (r *RootCmd) scaletestCleanup() *serpent.Command {
 
 			ctx := inv.Context()
 
-			me, err := requireAdmin(ctx, client)
+			me, err := RequireAdmin(ctx, client)
 			if err != nil {
 				return err
 			}
@@ -856,7 +851,7 @@ func (r *RootCmd) scaletestCreateWorkspaces() *serpent.Command {
 
 			ctx := inv.Context()
 
-			me, err := requireAdmin(ctx, client)
+			me, err := RequireAdmin(ctx, client)
 			if err != nil {
 				return err
 			}
@@ -1182,7 +1177,7 @@ func (r *RootCmd) scaletestWorkspaceUpdates() *serpent.Command {
 			defer stop()
 			ctx = notifyCtx
 
-			me, err := requireAdmin(ctx, client)
+			me, err := RequireAdmin(ctx, client)
 			if err != nil {
 				return err
 			}
@@ -1478,7 +1473,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 			defer stop()
 			ctx = notifyCtx
 
-			me, err := requireAdmin(ctx, client)
+			me, err := RequireAdmin(ctx, client)
 			if err != nil {
 				return err
 			}
@@ -1930,7 +1925,7 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 			defer stop()
 			ctx = notifyCtx
 
-			me, err := requireAdmin(ctx, client)
+			me, err := RequireAdmin(ctx, client)
 			if err != nil {
 				return err
 			}
