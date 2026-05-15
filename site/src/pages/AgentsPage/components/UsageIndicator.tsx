@@ -114,7 +114,9 @@ export const UsageIndicator: FC = () => {
 			percent: getPercent(creditsConsumed, quota.budget),
 			severity: getSeverity(creditsConsumed, quota.budget),
 			icon: <ServerIcon className="size-3.5" />,
-			summaryValue: `${formatNumber(creditsConsumed)} of ${formatNumber(quota.budget)}`,
+			summaryValue: quota.budget > 0
+				? `${formatNumber(creditsConsumed)} of ${formatNumber(quota.budget)}`
+				: `${formatNumber(creditsConsumed)} of unlimited`,
 			detail: quotaDetail,
 			tooltip:
 				"Workspaces, stopped or running, may consume credits. Stop or delete unused ones to free quota.",
