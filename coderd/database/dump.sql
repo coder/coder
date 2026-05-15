@@ -336,7 +336,8 @@ CREATE TYPE connection_type AS ENUM (
     'reconnecting_pty',
     'workspace_app',
     'port_forwarding',
-    'desktop'
+    'desktop',
+    'ai_agent'
 );
 
 CREATE TYPE cors_behavior AS ENUM (
@@ -2639,7 +2640,8 @@ CREATE TABLE template_version_dlp_policies (
     display_name text DEFAULT ''::text NOT NULL,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     desktop_access boolean DEFAULT false NOT NULL,
-    clipboard_access boolean DEFAULT false NOT NULL
+    clipboard_access boolean DEFAULT false NOT NULL,
+    ai_agent_access boolean DEFAULT false NOT NULL
 );
 
 CREATE TABLE template_version_parameters (

@@ -193,6 +193,11 @@ type DLPPolicy struct {
 	PortForwardingAccess bool   `json:"port_forwarding_access"`
 	DesktopAccess        bool   `json:"desktop_access"`
 	ClipboardAccess      bool   `json:"clipboard_access"`
+	// AIAgentAccess gates chatd dials to the workspace agent. When false,
+	// chatd strips the workspace-touching tools from the LLM's tool slice
+	// for chats against this workspace; the model can still chat but
+	// cannot read files, run commands, or otherwise reach the workspace.
+	AIAgentAccess bool `json:"ai_agent_access"`
 	// AllowedApplications lists the `coder_app` slugs the workspace user is
 	// permitted to access. Apps whose slugs are not in this list are blocked.
 	AllowedApplications []string `json:"allowed_applications"`

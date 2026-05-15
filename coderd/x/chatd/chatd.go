@@ -29,10 +29,12 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/dlppolicy"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/xjson"
@@ -214,6 +216,7 @@ type Server struct {
 	webpushDispatcher              webpush.Dispatcher
 	providerAPIKeys                chatprovider.ProviderAPIKeys
 	oidcTokenSource                mcpclient.UserOIDCTokenSource
+	connectionLogger               *atomic.Pointer[connectionlog.ConnectionLogger]
 	debugSvc                       *chatdebug.Service
 	debugSvcFactory                func() *chatdebug.Service
 	debugSvcReady                  atomic.Bool
@@ -3977,6 +3980,11 @@ type Config struct {
 	// May be nil if the deployment has no OIDC provider; servers
 	// using user_oidc will then send no Authorization header.
 	OIDCTokenSource mcpclient.UserOIDCTokenSource
+
+	// ConnectionLogger is used to record DLP-denied AI agent dials to
+	// the connection_logs table. Optional: when nil, denials are not
+	// audited.
+	ConnectionLogger *atomic.Pointer[connectionlog.ConnectionLogger]
 }
 
 // New creates a new chat processor. The processor polls for pending
@@ -4037,6 +4045,7 @@ func New(cfg Config) *Server {
 		webpushDispatcher:              cfg.WebpushDispatcher,
 		providerAPIKeys:                cfg.ProviderAPIKeys,
 		oidcTokenSource:                cfg.OIDCTokenSource,
+		connectionLogger:               cfg.ConnectionLogger,
 		debugSvcFactory: func() *chatdebug.Service {
 			debugSvc := chatdebug.NewService(
 				cfg.Database,
@@ -7386,36 +7395,83 @@ func (p *Server) runChat(
 
 	allowAskUserQuestion := isPlanModeTurn && isRootChat
 	storeChatAttachment := p.newStoreChatAttachmentFunc(&workspaceCtx)
-	tools := []fantasy.AgentTool{
-		chattool.ReadFile(chattool.ReadFileOptions{
-			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
-		}),
-		chattool.WriteFile(chattool.WriteFileOptions{
-			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
-			ResolvePlanPath:  resolvePlanPathForTools,
-			IsPlanTurn:       isPlanModeTurn,
-		}),
-		chattool.EditFiles(chattool.EditFilesOptions{
-			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
-			ResolvePlanPath:  resolvePlanPathForTools,
-			IsPlanTurn:       isPlanModeTurn,
-		}),
-		chattool.AttachFile(chattool.AttachFileOptions{
-			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
-			StoreFile:        storeChatAttachment,
-		}),
-		chattool.Execute(chattool.ExecuteOptions{
-			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
-		}),
-		chattool.ProcessOutput(chattool.ProcessToolOptions{
-			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
-		}),
-		chattool.ProcessList(chattool.ProcessToolOptions{
-			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
-		}),
-		chattool.ProcessSignal(chattool.ProcessToolOptions{
-			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
-		}),
+
+	// DLP gate: if the workspace agent has a DLP policy with
+	// ai_agent_access=false, omit the workspace-touching tools from
+	// the LLM's tool slice entirely. The model can still chat, ask
+	// clarifying questions, and use root-chat provisioning tools; it
+	// just cannot reach into the running workspace. The denial is
+	// recorded once per turn to connection_logs.
+	//
+	// We tolerate ensureWorkspaceAgent failures (e.g. the chat
+	// hasn't been bound to a workspace yet): no agent means no DLP
+	// policy to enforce, and the tools will surface their own
+	// runtime errors when invoked. Likewise a nil policy or nil
+	// connection logger short-circuits to the normal path.
+	allowAIAgentAccess := true
+	if _, agent, err := workspaceCtx.ensureWorkspaceAgent(ctx); err == nil {
+		if dlp, dlpErr := dlppolicy.ForAgent(ctx, p.db, agent.ID); dlpErr == nil && dlp != nil && !dlp.AiAgentAccess {
+			allowAIAgentAccess = false
+			if p.connectionLogger != nil {
+				if connLoggerPtr := p.connectionLogger.Load(); connLoggerPtr != nil && *connLoggerPtr != nil {
+					// Best-effort enrichment with workspace name. If the
+					// lookup fails we still log the denial keyed on the
+					// IDs we have.
+					workspaceName := ""
+					//nolint:gocritic // System-restricted ctx is intentional: this is
+					// a best-effort enrichment for the denial row. The chat is
+					// already authorized to reach this point.
+					if row, err := p.db.GetWorkspaceAgentAndWorkspaceByID(dbauthz.AsSystemRestricted(ctx), agent.ID); err == nil {
+						workspaceName = row.WorkspaceTable.Name
+					}
+					dlppolicy.LogDenial(ctx, logger, *connLoggerPtr, dlppolicy.DenialParams{
+						OrganizationID:   chat.OrganizationID,
+						WorkspaceOwnerID: chat.OwnerID,
+						WorkspaceID:      chat.WorkspaceID.UUID,
+						WorkspaceName:    workspaceName,
+						AgentName:        agent.Name,
+						Type:             database.ConnectionTypeAiAgent,
+						Reason:           fmt.Sprintf(`DLP policy %q denied ai_agent_access`, dlp.Name),
+						UserID:           uuid.NullUUID{UUID: chat.OwnerID, Valid: chat.OwnerID != uuid.Nil},
+					})
+				}
+			}
+		}
+	}
+
+	tools := []fantasy.AgentTool{}
+	if allowAIAgentAccess {
+		tools = append(tools,
+			chattool.ReadFile(chattool.ReadFileOptions{
+				GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
+			}),
+			chattool.WriteFile(chattool.WriteFileOptions{
+				GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
+				ResolvePlanPath:  resolvePlanPathForTools,
+				IsPlanTurn:       isPlanModeTurn,
+			}),
+			chattool.EditFiles(chattool.EditFilesOptions{
+				GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
+				ResolvePlanPath:  resolvePlanPathForTools,
+				IsPlanTurn:       isPlanModeTurn,
+			}),
+			chattool.AttachFile(chattool.AttachFileOptions{
+				GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
+				StoreFile:        storeChatAttachment,
+			}),
+			chattool.Execute(chattool.ExecuteOptions{
+				GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
+			}),
+			chattool.ProcessOutput(chattool.ProcessToolOptions{
+				GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
+			}),
+			chattool.ProcessList(chattool.ProcessToolOptions{
+				GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
+			}),
+			chattool.ProcessSignal(chattool.ProcessToolOptions{
+				GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
+			}),
+		)
 	}
 	if allowAskUserQuestion {
 		tools = append(tools, chattool.NewAskUserQuestionTool())

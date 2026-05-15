@@ -711,6 +711,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			PortForwardingAccess: attrs.PortForwardingAccess,
 			DesktopAccess:        attrs.DesktopAccess,
 			ClipboardAccess:      attrs.ClipboardAccess,
+			AiAgentAccess:        attrs.AIAgentAccess,
 			AllowedApplications:  attrs.AllowedApplications,
 		}
 		dlpPoliciesByID[attrs.ID] = policy

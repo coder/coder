@@ -3673,6 +3673,13 @@ export interface DLPPolicy {
 	readonly desktop_access: boolean;
 	readonly clipboard_access: boolean;
 	/**
+	 * AIAgentAccess gates chatd dials to the workspace agent. When false,
+	 * chatd strips the workspace-touching tools from the LLM's tool slice
+	 * for chats against this workspace; the model can still chat but
+	 * cannot read files, run commands, or otherwise reach the workspace.
+	 */
+	readonly ai_agent_access: boolean;
+	/**
 	 * AllowedApplications lists the `coder_app` slugs the workspace user is
 	 * permitted to access. Apps whose slugs are not in this list are blocked.
 	 */

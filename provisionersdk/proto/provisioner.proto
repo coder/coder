@@ -366,6 +366,11 @@ message DLPPolicy {
   string name = 6;
   bool desktop_access = 7;
   bool clipboard_access = 8;
+  // Whether AI chat agents (coderd's chatd service) may dial the workspace
+  // agent. When false, chatd skips wiring the workspace-touching tools into
+  // the LLM's tool slice; the model can still chat but cannot read files,
+  // run commands, or otherwise reach into the workspace.
+  bool ai_agent_access = 9;
 }
 
 // Metadata is information about a workspace used in the execution of a build

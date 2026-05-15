@@ -1638,6 +1638,7 @@ const (
 	ConnectionTypeWorkspaceApp    ConnectionType = "workspace_app"
 	ConnectionTypePortForwarding  ConnectionType = "port_forwarding"
 	ConnectionTypeDesktop         ConnectionType = "desktop"
+	ConnectionTypeAiAgent         ConnectionType = "ai_agent"
 )
 
 func (e *ConnectionType) Scan(src interface{}) error {
@@ -1683,7 +1684,8 @@ func (e ConnectionType) Valid() bool {
 		ConnectionTypeReconnectingPty,
 		ConnectionTypeWorkspaceApp,
 		ConnectionTypePortForwarding,
-		ConnectionTypeDesktop:
+		ConnectionTypeDesktop,
+		ConnectionTypeAiAgent:
 		return true
 	}
 	return false
@@ -1698,6 +1700,7 @@ func AllConnectionTypeValues() []ConnectionType {
 		ConnectionTypeWorkspaceApp,
 		ConnectionTypePortForwarding,
 		ConnectionTypeDesktop,
+		ConnectionTypeAiAgent,
 	}
 }
 
@@ -5482,6 +5485,7 @@ type TemplateVersionDlpPolicy struct {
 	CreatedAt            time.Time `db:"created_at" json:"created_at"`
 	DesktopAccess        bool      `db:"desktop_access" json:"desktop_access"`
 	ClipboardAccess      bool      `db:"clipboard_access" json:"clipboard_access"`
+	AiAgentAccess        bool      `db:"ai_agent_access" json:"ai_agent_access"`
 }
 
 type TemplateVersionParameter struct {

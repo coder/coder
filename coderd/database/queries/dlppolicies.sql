@@ -8,6 +8,7 @@ INSERT INTO template_version_dlp_policies (
 	port_forwarding_access,
 	desktop_access,
 	clipboard_access,
+	ai_agent_access,
 	allowed_applications,
 	display_name,
 	created_at
@@ -21,6 +22,7 @@ VALUES (
 	@port_forwarding_access,
 	@desktop_access,
 	@clipboard_access,
+	@ai_agent_access,
 	@allowed_applications,
 	@display_name,
 	@created_at
