@@ -872,8 +872,8 @@ aibridgeproxy:
   # (default: <unset>, type: string)
   key_file: ""
   # Deprecated: This value is now derived automatically from the configured AI
-  # Bridge providers' base URLs. Setting this value has no effect. This option will
-  # be removed in a future release.
+  # providers' base URLs. Setting this value has no effect. This option will be
+  # removed in a future release.
   # (default: <unset>, type: string-array)
   domain_allowlist: []
   # URL of an upstream HTTP proxy to chain tunneled (non-allowlisted) requests

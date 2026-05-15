@@ -23,6 +23,16 @@ var (
 		Type: "ai_model_price",
 	}
 
+	// ResourceAIProvider
+	// Valid Actions
+	//  - "ActionCreate" :: create an AI provider
+	//  - "ActionDelete" :: delete an AI provider
+	//  - "ActionRead" :: read AI provider configuration
+	//  - "ActionUpdate" :: update an AI provider
+	ResourceAIProvider = Object{
+		Type: "ai_provider",
+	}
+
 	// ResourceAiSeat
 	// Valid Actions
 	//  - "ActionCreate" :: record AI seat usage
@@ -450,6 +460,7 @@ func AllResources() []Objecter {
 	return []Objecter{
 		ResourceWildcard,
 		ResourceAiModelPrice,
+		ResourceAIProvider,
 		ResourceAiSeat,
 		ResourceAibridgeInterception,
 		ResourceApiKey,

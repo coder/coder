@@ -92,7 +92,7 @@ export const StreamingOutput: FC<{
 		<ConversationItem {...conversationItemProps}>
 			<Message className="w-full">
 				<MessageContent className="whitespace-normal">
-					<div className="space-y-3">
+					<div className="space-y-2">
 						{shouldShowBlocks && (
 							<BlockList
 								blocks={blocks}

@@ -10,6 +10,11 @@ CREATE TYPE agent_key_scope_enum AS ENUM (
     'no_user_data'
 );
 
+CREATE TYPE ai_provider_type AS ENUM (
+    'openai',
+    'anthropic'
+);
+
 CREATE TYPE ai_seat_usage_reason AS ENUM (
     'aibridge',
     'task'
@@ -226,7 +231,12 @@ CREATE TYPE api_key_scope AS ENUM (
     'ai_seat:read',
     'ai_model_price:*',
     'ai_model_price:read',
-    'ai_model_price:update'
+    'ai_model_price:update',
+    'ai_provider:*',
+    'ai_provider:create',
+    'ai_provider:delete',
+    'ai_provider:read',
+    'ai_provider:update'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -533,7 +543,9 @@ CREATE TYPE resource_type AS ENUM (
     'task',
     'ai_seat',
     'chat',
-    'user_secret'
+    'user_secret',
+    'ai_provider',
+    'ai_provider_key'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (
@@ -1108,6 +1120,46 @@ CREATE TABLE ai_model_prices (
 
 COMMENT ON TABLE ai_model_prices IS 'Per-model token prices used by AI Bridge to compute interception cost.';
 
+CREATE TABLE ai_provider_keys (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    provider_id uuid NOT NULL,
+    api_key text NOT NULL,
+    api_key_key_id text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+COMMENT ON TABLE ai_provider_keys IS 'API keys associated with AI providers. Bedrock providers have zero keys (they authenticate via settings). OpenAI and Anthropic providers have one or more keys for failover.';
+
+COMMENT ON COLUMN ai_provider_keys.api_key IS 'API key used to authenticate with the upstream AI provider. Encrypted at rest via dbcrypt when api_key_key_id is set.';
+
+COMMENT ON COLUMN ai_provider_keys.api_key_key_id IS 'The ID of the key used to encrypt the provider API key. If this is NULL, the API key is not encrypted.';
+
+CREATE TABLE ai_providers (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    type ai_provider_type NOT NULL,
+    name text NOT NULL,
+    display_name text,
+    enabled boolean DEFAULT true NOT NULL,
+    deleted boolean DEFAULT false NOT NULL,
+    base_url text NOT NULL,
+    settings text,
+    settings_key_id text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT ai_providers_name_check CHECK ((name ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text))
+);
+
+COMMENT ON TABLE ai_providers IS 'Runtime configuration for AI providers. Authoritative source for the provider set served by aibridged. Replaces deployment-time CODER_AIBRIDGE_* environment variables.';
+
+COMMENT ON COLUMN ai_providers.display_name IS 'Optional human-readable label. When NULL, callers should fall back to name.';
+
+COMMENT ON COLUMN ai_providers.deleted IS 'Soft delete flag. Soft-deleted rows are preserved for audit and FK history but do not block name reuse by future live rows.';
+
+COMMENT ON COLUMN ai_providers.settings IS 'Encrypted JSON blob holding type-specific configuration (e.g. AWS Bedrock region, model, access key secret). Plaintext is a JSON object. NULL when no type-specific settings are required.';
+
+COMMENT ON COLUMN ai_providers.settings_key_id IS 'The ID of the key used to encrypt settings. If this is NULL, settings is not encrypted.';
+
 CREATE TABLE ai_seat_state (
     user_id uuid NOT NULL,
     first_used_at timestamp with time zone NOT NULL,
@@ -1503,6 +1555,91 @@ CREATE TABLE chats (
     CONSTRAINT chats_pin_order_parent_check CHECK (((pin_order = 0) OR (parent_chat_id IS NULL)))
 );
 
+CREATE TABLE users (
+    id uuid NOT NULL,
+    email text NOT NULL,
+    username text DEFAULT ''::text NOT NULL,
+    hashed_password bytea NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    status user_status DEFAULT 'dormant'::user_status NOT NULL,
+    rbac_roles text[] DEFAULT '{}'::text[] NOT NULL,
+    login_type login_type DEFAULT 'password'::login_type NOT NULL,
+    avatar_url text DEFAULT ''::text NOT NULL,
+    deleted boolean DEFAULT false NOT NULL,
+    last_seen_at timestamp without time zone DEFAULT '0001-01-01 00:00:00'::timestamp without time zone NOT NULL,
+    quiet_hours_schedule text DEFAULT ''::text NOT NULL,
+    name text DEFAULT ''::text NOT NULL,
+    github_com_user_id bigint,
+    hashed_one_time_passcode bytea,
+    one_time_passcode_expires_at timestamp with time zone,
+    is_system boolean DEFAULT false NOT NULL,
+    is_service_account boolean DEFAULT false NOT NULL,
+    chat_spend_limit_micros bigint,
+    CONSTRAINT one_time_passcode_set CHECK ((((hashed_one_time_passcode IS NULL) AND (one_time_passcode_expires_at IS NULL)) OR ((hashed_one_time_passcode IS NOT NULL) AND (one_time_passcode_expires_at IS NOT NULL)))),
+    CONSTRAINT users_chat_spend_limit_micros_check CHECK (((chat_spend_limit_micros IS NULL) OR (chat_spend_limit_micros > 0))),
+    CONSTRAINT users_email_not_empty CHECK (((is_service_account = true) = (email = ''::text))),
+    CONSTRAINT users_service_account_login_type CHECK (((is_service_account = false) OR (login_type = 'none'::login_type))),
+    CONSTRAINT users_username_min_length CHECK ((length(username) >= 1))
+);
+
+COMMENT ON COLUMN users.quiet_hours_schedule IS 'Daily (!) cron schedule (with optional CRON_TZ) signifying the start of the user''s quiet hours. If empty, the default quiet hours on the instance is used instead.';
+
+COMMENT ON COLUMN users.name IS 'Name of the Coder user';
+
+COMMENT ON COLUMN users.github_com_user_id IS 'The GitHub.com numerical user ID. It is used to check if the user has starred the Coder repository. It is also used for filtering users in the users list CLI command, and may become more widely used in the future.';
+
+COMMENT ON COLUMN users.hashed_one_time_passcode IS 'A hash of the one-time-passcode given to the user.';
+
+COMMENT ON COLUMN users.one_time_passcode_expires_at IS 'The time when the one-time-passcode expires.';
+
+COMMENT ON COLUMN users.is_system IS 'Determines if a user is a system user, and therefore cannot login or perform normal actions';
+
+COMMENT ON COLUMN users.is_service_account IS 'Determines if a user is an admin-managed account that cannot login';
+
+CREATE VIEW visible_users AS
+ SELECT users.id,
+    users.username,
+    users.name,
+    users.avatar_url
+   FROM users;
+
+COMMENT ON VIEW visible_users IS 'Visible fields of users are allowed to be joined with other tables for including context of other resources.';
+
+CREATE VIEW chats_expanded AS
+ SELECT c.id,
+    c.owner_id,
+    c.workspace_id,
+    c.title,
+    c.status,
+    c.worker_id,
+    c.started_at,
+    c.heartbeat_at,
+    c.created_at,
+    c.updated_at,
+    c.parent_chat_id,
+    c.root_chat_id,
+    c.last_model_config_id,
+    c.archived,
+    c.last_error,
+    c.mode,
+    c.mcp_server_ids,
+    c.labels,
+    c.build_id,
+    c.agent_id,
+    c.pin_order,
+    c.last_read_message_id,
+    c.last_injected_context,
+    c.dynamic_tools,
+    c.organization_id,
+    c.plan_mode,
+    c.client_type,
+    c.last_turn_summary,
+    owner.username AS owner_username,
+    owner.name AS owner_name
+   FROM (chats c
+     JOIN visible_users owner ON ((owner.id = c.owner_id)));
+
 CREATE TABLE connection_logs (
     id uuid NOT NULL,
     connect_time timestamp with time zone NOT NULL,
@@ -1628,6 +1765,16 @@ CREATE TABLE gitsshkeys (
     public_key text NOT NULL
 );
 
+CREATE TABLE group_ai_budgets (
+    group_id uuid NOT NULL,
+    spend_limit_micros bigint NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT group_ai_budgets_spend_limit_micros_check CHECK ((spend_limit_micros >= 0))
+);
+
+COMMENT ON TABLE group_ai_budgets IS 'Per-group AI spend limit applied to each member of the group. No row means no budget is enforced.';
+
 CREATE TABLE group_members (
     user_id uuid NOT NULL,
     group_id uuid NOT NULL
@@ -1656,48 +1803,6 @@ CREATE TABLE organization_members (
     updated_at timestamp with time zone NOT NULL,
     roles text[] DEFAULT '{}'::text[] NOT NULL
 );
-
-CREATE TABLE users (
-    id uuid NOT NULL,
-    email text NOT NULL,
-    username text DEFAULT ''::text NOT NULL,
-    hashed_password bytea NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    status user_status DEFAULT 'dormant'::user_status NOT NULL,
-    rbac_roles text[] DEFAULT '{}'::text[] NOT NULL,
-    login_type login_type DEFAULT 'password'::login_type NOT NULL,
-    avatar_url text DEFAULT ''::text NOT NULL,
-    deleted boolean DEFAULT false NOT NULL,
-    last_seen_at timestamp without time zone DEFAULT '0001-01-01 00:00:00'::timestamp without time zone NOT NULL,
-    quiet_hours_schedule text DEFAULT ''::text NOT NULL,
-    name text DEFAULT ''::text NOT NULL,
-    github_com_user_id bigint,
-    hashed_one_time_passcode bytea,
-    one_time_passcode_expires_at timestamp with time zone,
-    is_system boolean DEFAULT false NOT NULL,
-    is_service_account boolean DEFAULT false NOT NULL,
-    chat_spend_limit_micros bigint,
-    CONSTRAINT one_time_passcode_set CHECK ((((hashed_one_time_passcode IS NULL) AND (one_time_passcode_expires_at IS NULL)) OR ((hashed_one_time_passcode IS NOT NULL) AND (one_time_passcode_expires_at IS NOT NULL)))),
-    CONSTRAINT users_chat_spend_limit_micros_check CHECK (((chat_spend_limit_micros IS NULL) OR (chat_spend_limit_micros > 0))),
-    CONSTRAINT users_email_not_empty CHECK (((is_service_account = true) = (email = ''::text))),
-    CONSTRAINT users_service_account_login_type CHECK (((is_service_account = false) OR (login_type = 'none'::login_type))),
-    CONSTRAINT users_username_min_length CHECK ((length(username) >= 1))
-);
-
-COMMENT ON COLUMN users.quiet_hours_schedule IS 'Daily (!) cron schedule (with optional CRON_TZ) signifying the start of the user''s quiet hours. If empty, the default quiet hours on the instance is used instead.';
-
-COMMENT ON COLUMN users.name IS 'Name of the Coder user';
-
-COMMENT ON COLUMN users.github_com_user_id IS 'The GitHub.com numerical user ID. It is used to check if the user has starred the Coder repository. It is also used for filtering users in the users list CLI command, and may become more widely used in the future.';
-
-COMMENT ON COLUMN users.hashed_one_time_passcode IS 'A hash of the one-time-passcode given to the user.';
-
-COMMENT ON COLUMN users.one_time_passcode_expires_at IS 'The time when the one-time-passcode expires.';
-
-COMMENT ON COLUMN users.is_system IS 'Determines if a user is a system user, and therefore cannot login or perform normal actions';
-
-COMMENT ON COLUMN users.is_service_account IS 'Determines if a user is an admin-managed account that cannot login';
 
 CREATE VIEW group_members_expanded AS
  WITH all_members AS (
@@ -2248,15 +2353,6 @@ CREATE TABLE tasks (
 );
 
 COMMENT ON COLUMN tasks.display_name IS 'Display name is a custom, human-friendly task name.';
-
-CREATE VIEW visible_users AS
- SELECT users.id,
-    users.username,
-    users.name,
-    users.avatar_url
-   FROM users;
-
-COMMENT ON VIEW visible_users IS 'Visible fields of users are allowed to be joined with other tables for including context of other resources.';
 
 CREATE TABLE workspace_agents (
     id uuid NOT NULL,
@@ -3415,6 +3511,12 @@ ALTER TABLE ONLY workspace_agent_stats
 ALTER TABLE ONLY ai_model_prices
     ADD CONSTRAINT ai_model_prices_pkey PRIMARY KEY (provider, model);
 
+ALTER TABLE ONLY ai_provider_keys
+    ADD CONSTRAINT ai_provider_keys_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY ai_providers
+    ADD CONSTRAINT ai_providers_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY ai_seat_state
     ADD CONSTRAINT ai_seat_state_pkey PRIMARY KEY (user_id);
 
@@ -3507,6 +3609,9 @@ ALTER TABLE ONLY external_auth_links
 
 ALTER TABLE ONLY gitsshkeys
     ADD CONSTRAINT gitsshkeys_pkey PRIMARY KEY (user_id);
+
+ALTER TABLE ONLY group_ai_budgets
+    ADD CONSTRAINT group_ai_budgets_pkey PRIMARY KEY (group_id);
 
 ALTER TABLE ONLY group_members
     ADD CONSTRAINT group_members_user_id_group_id_key UNIQUE (user_id, group_id);
@@ -3784,6 +3889,8 @@ ALTER TABLE ONLY workspace_resources
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_pkey PRIMARY KEY (id);
 
+CREATE UNIQUE INDEX ai_providers_name_unique ON ai_providers USING btree (name) WHERE (deleted = false);
+
 CREATE INDEX api_keys_last_used_idx ON api_keys USING btree (last_used DESC);
 
 COMMENT ON INDEX api_keys_last_used_idx IS 'Index for optimizing api_keys queries filtering by last_used';
@@ -3791,6 +3898,10 @@ COMMENT ON INDEX api_keys_last_used_idx IS 'Index for optimizing api_keys querie
 CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
 
 CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_id);
+
+CREATE INDEX idx_ai_provider_keys_provider_id ON ai_provider_keys USING btree (provider_id);
+
+CREATE INDEX idx_ai_providers_enabled ON ai_providers USING btree (enabled) WHERE (deleted = false);
 
 CREATE INDEX idx_aibridge_interceptions_client ON aibridge_interceptions USING btree (client);
 
@@ -3877,6 +3988,8 @@ CREATE INDEX idx_chat_messages_compressed_summary_boundary ON chat_messages USIN
 CREATE INDEX idx_chat_messages_created_at ON chat_messages USING btree (created_at);
 
 CREATE INDEX idx_chat_messages_owner_spend ON chat_messages USING btree (chat_id, created_at) WHERE (total_cost_micros IS NOT NULL);
+
+CREATE INDEX idx_chat_messages_user_prompts ON chat_messages USING btree (chat_id, id DESC) WHERE ((deleted = false) AND (role = 'user'::chat_message_role) AND (visibility = ANY (ARRAY['user'::chat_message_visibility, 'both'::chat_message_visibility])));
 
 CREATE INDEX idx_chat_model_configs_enabled ON chat_model_configs USING btree (enabled);
 
@@ -4156,6 +4269,15 @@ COMMENT ON TRIGGER workspace_agent_name_unique_trigger ON workspace_agents IS 'U
 the uniqueness requirement. A trigger allows us to enforce uniqueness going
 forward without requiring a migration to clean up historical data.';
 
+ALTER TABLE ONLY ai_provider_keys
+    ADD CONSTRAINT ai_provider_keys_api_key_key_id_fkey FOREIGN KEY (api_key_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY ai_provider_keys
+    ADD CONSTRAINT ai_provider_keys_provider_id_fkey FOREIGN KEY (provider_id) REFERENCES ai_providers(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY ai_providers
+    ADD CONSTRAINT ai_providers_settings_key_id_fkey FOREIGN KEY (settings_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
 ALTER TABLE ONLY ai_seat_state
     ADD CONSTRAINT ai_seat_state_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
@@ -4257,6 +4379,9 @@ ALTER TABLE ONLY external_auth_links
 
 ALTER TABLE ONLY gitsshkeys
     ADD CONSTRAINT gitsshkeys_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);
+
+ALTER TABLE ONLY group_ai_budgets
+    ADD CONSTRAINT group_ai_budgets_group_id_fkey FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY group_members
     ADD CONSTRAINT group_members_group_id_fkey FOREIGN KEY (group_id) REFERENCES groups(id) ON DELETE CASCADE;

@@ -854,6 +854,7 @@ resource "docker_container" "workspace" {
   # CPU limits are unnecessary since Docker will load balance automatically
   memory  = data.coder_workspace_owner.me.name == "code-asher" ? 65536 : 32768
   runtime = "sysbox-runc"
+  restart = "unless-stopped"
 
   # Ensure the workspace is given time to:
   # - Execute shutdown scripts

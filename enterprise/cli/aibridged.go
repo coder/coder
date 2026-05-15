@@ -44,7 +44,7 @@ func newAIBridgeDaemon(coderAPI *coderd.API, providers []aibridge.Provider) (*ai
 	return srv, nil
 }
 
-// buildProviders constructs the list of aibridge providers from config.
+// buildProviders constructs the list of AI providers from config.
 // It merges legacy single-provider env vars and indexed provider configs:
 //  1. Legacy providers (from CODER_AIBRIDGE_OPENAI_KEY, etc.) are added first.
 //     If a legacy name conflicts with an indexed provider, startup fails with
@@ -171,9 +171,9 @@ func buildProviders(cfg codersdk.AIBridgeConfig) ([]aibridge.Provider, error) {
 }
 
 // bedrockConfigFromProvider converts Bedrock fields from an indexed
-// AIBridgeProviderConfig into an aibridge AWSBedrockConfig.
+// AIProviderConfig into an aibridge AWSBedrockConfig.
 // Returns nil if no Bedrock fields are set.
-func bedrockConfigFromProvider(p codersdk.AIBridgeProviderConfig) *aibridge.AWSBedrockConfig {
+func bedrockConfigFromProvider(p codersdk.AIProviderConfig) *aibridge.AWSBedrockConfig {
 	if p.BedrockRegion == "" && p.BedrockBaseURL == "" && len(p.BedrockAccessKeys) == 0 && len(p.BedrockAccessKeySecrets) == 0 {
 		return nil
 	}

@@ -10,6 +10,7 @@ import (
 
 	"charm.land/fantasy"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/net/http2"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
@@ -332,6 +333,11 @@ func TestClassify_PatternCoverage(t *testing.T) {
 		{name: "GOAWAYLiteral", err: "goaway", wantKind: codersdk.ChatErrorKindTimeout, wantRetry: true},
 		{name: "HTTP2StreamClosedLiteral", err: "http2: stream closed", wantKind: codersdk.ChatErrorKindTimeout, wantRetry: true},
 		{name: "UseOfClosedNetworkConnectionLiteral", err: "use of closed network connection", wantKind: codersdk.ChatErrorKindTimeout, wantRetry: true},
+		{name: "HTTP2InternalErrorReceivedFromPeerLiteral", err: "internal_error; received from peer", wantKind: codersdk.ChatErrorKindTimeout, wantRetry: true},
+		{name: "HTTP2RefusedStreamReceivedFromPeerLiteral", err: "refused_stream; received from peer", wantKind: codersdk.ChatErrorKindTimeout, wantRetry: true},
+		{name: "HTTP2CancelReceivedFromPeerLiteral", err: "cancel; received from peer", wantKind: codersdk.ChatErrorKindTimeout, wantRetry: true},
+		{name: "HTTP2EnhanceYourCalmReceivedFromPeerLiteral", err: "enhance_your_calm; received from peer", wantKind: codersdk.ChatErrorKindTimeout, wantRetry: true},
+		{name: "HTTP2NoErrorReceivedFromPeerLiteral", err: "no_error; received from peer", wantKind: codersdk.ChatErrorKindTimeout, wantRetry: true},
 		{name: "AuthenticationLiteral", err: "authentication", wantKind: codersdk.ChatErrorKindAuth, wantRetry: false},
 		{name: "UnauthorizedLiteral", err: "unauthorized", wantKind: codersdk.ChatErrorKindAuth, wantRetry: false},
 		{name: "InvalidAPIKeyLiteral", err: "invalid api key", wantKind: codersdk.ChatErrorKindAuth, wantRetry: false},
@@ -430,6 +436,10 @@ func TestClassify_HTTP2TransportErrors(t *testing.T) {
 			err:  "http2: stream closed",
 		},
 		{
+			name: "HTTP2PeerInternalStreamReset",
+			err:  "stream error: stream ID 455; INTERNAL_ERROR; received from peer",
+		},
+		{
 			name: "UseOfClosedNetworkConnectionOnPOST",
 			err:  `Post "https://example.com/v1/messages": use of closed network connection`,
 		},
@@ -488,6 +498,12 @@ func TestClassify_HTTP2TransportErrors(t *testing.T) {
 			wantMessage: "OpenAI is temporarily unavailable.",
 		},
 		{
+			name:        "AnthropicPeerInternalStreamReset",
+			err:         `stream response: Post "https://api.anthropic.com/v1/messages": stream error: stream ID 455; INTERNAL_ERROR; received from peer`,
+			provider:    "anthropic",
+			wantMessage: "Anthropic is temporarily unavailable.",
+		},
+		{
 			name:        "GoogleGOAWAY",
 			err:         `stream response: Post "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:streamGenerateContent": http2: server sent GOAWAY and closed the connection`,
 			provider:    "google",
@@ -506,6 +522,208 @@ func TestClassify_HTTP2TransportErrors(t *testing.T) {
 			require.Equal(t, tt.wantMessage, classified.Message, "Message")
 		})
 	}
+}
+
+func TestClassify_HTTP2StreamErrorValues(t *testing.T) {
+	t.Parallel()
+
+	peerReset := func(code http2.ErrCode) http2.StreamError {
+		return http2.StreamError{
+			StreamID: 455,
+			Code:     code,
+			Cause:    xerrors.New("received from peer"),
+		}
+	}
+
+	retryable := []struct {
+		name string
+		err  error
+		want chaterror.ClassifiedError
+	}{
+		{
+			name: "Internal",
+			err:  peerReset(http2.ErrCodeInternal),
+			want: chaterror.ClassifiedError{
+				Message:   "The AI provider is temporarily unavailable.",
+				Kind:      codersdk.ChatErrorKindTimeout,
+				Retryable: true,
+			},
+		},
+		{
+			name: "RefusedStream",
+			err:  peerReset(http2.ErrCodeRefusedStream),
+			want: chaterror.ClassifiedError{
+				Message:   "The AI provider is temporarily unavailable.",
+				Kind:      codersdk.ChatErrorKindTimeout,
+				Retryable: true,
+			},
+		},
+		{
+			name: "CancelPointer",
+			err: &http2.StreamError{
+				StreamID: 455,
+				Code:     http2.ErrCodeCancel,
+				Cause:    xerrors.New("received from peer"),
+			},
+			want: chaterror.ClassifiedError{
+				Message:   "The AI provider is temporarily unavailable.",
+				Kind:      codersdk.ChatErrorKindTimeout,
+				Retryable: true,
+			},
+		},
+		{
+			name: "EnhanceYourCalm",
+			err:  peerReset(http2.ErrCodeEnhanceYourCalm),
+			want: chaterror.ClassifiedError{
+				Message:   "The AI provider is temporarily unavailable.",
+				Kind:      codersdk.ChatErrorKindTimeout,
+				Retryable: true,
+			},
+		},
+		{
+			name: "NoError",
+			err:  peerReset(http2.ErrCodeNo),
+			want: chaterror.ClassifiedError{
+				Message:   "The AI provider is temporarily unavailable.",
+				Kind:      codersdk.ChatErrorKindTimeout,
+				Retryable: true,
+			},
+		},
+	}
+
+	for _, tt := range retryable {
+		t.Run("Retryable/"+tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, chaterror.Classify(tt.err))
+		})
+	}
+
+	localNonRetryable := []struct {
+		name string
+		err  error
+	}{
+		{
+			name: "CancelWithoutPeerCause",
+			err: http2.StreamError{
+				StreamID: 455,
+				Code:     http2.ErrCodeCancel,
+			},
+		},
+		{
+			name: "InternalWithLocalCause",
+			err: http2.StreamError{
+				StreamID: 455,
+				Code:     http2.ErrCodeInternal,
+				Cause:    xerrors.New("local transport reset"),
+			},
+		},
+	}
+	for _, tt := range localNonRetryable {
+		t.Run("NonRetryable/"+tt.name, func(t *testing.T) {
+			t.Parallel()
+			classified := chaterror.Classify(tt.err)
+			require.Equal(t, codersdk.ChatErrorKindGeneric, classified.Kind)
+			require.False(t, classified.Retryable)
+		})
+	}
+
+	nonRetryable := []struct {
+		name string
+		code http2.ErrCode
+	}{
+		{name: "Protocol", code: http2.ErrCodeProtocol},
+		{name: "FlowControl", code: http2.ErrCodeFlowControl},
+		{name: "FrameSize", code: http2.ErrCodeFrameSize},
+		{name: "Compression", code: http2.ErrCodeCompression},
+	}
+	for _, tt := range nonRetryable {
+		t.Run("NonRetryable/"+tt.name, func(t *testing.T) {
+			t.Parallel()
+			classified := chaterror.Classify(peerReset(tt.code))
+			require.Equal(t, codersdk.ChatErrorKindGeneric, classified.Kind)
+			require.False(t, classified.Retryable)
+		})
+	}
+}
+
+func TestClassify_HTTP2StreamIDDoesNotBecomeStatusCode(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		err  error
+		want chaterror.ClassifiedError
+	}{
+		{
+			name: "RetryableInternalWithAuthLikeStreamID",
+			err: http2.StreamError{
+				StreamID: 401,
+				Code:     http2.ErrCodeInternal,
+				Cause:    xerrors.New("received from peer"),
+			},
+			want: chaterror.ClassifiedError{
+				Message:   "The AI provider is temporarily unavailable.",
+				Kind:      codersdk.ChatErrorKindTimeout,
+				Retryable: true,
+			},
+		},
+		{
+			name: "NonRetryableProtocolWithTimeoutLikeStreamID",
+			err: http2.StreamError{
+				StreamID: 503,
+				Code:     http2.ErrCodeProtocol,
+				Cause:    xerrors.New("received from peer"),
+			},
+			want: chaterror.ClassifiedError{
+				Message: "The chat request failed unexpectedly.",
+				Kind:    codersdk.ChatErrorKindGeneric,
+			},
+		},
+		{
+			name: "StringFallbackInternalWithAuthLikeStreamID",
+			err:  xerrors.New("stream error: stream ID 401; INTERNAL_ERROR; received from peer"),
+			want: chaterror.ClassifiedError{
+				Message:   "The AI provider is temporarily unavailable.",
+				Kind:      codersdk.ChatErrorKindTimeout,
+				Retryable: true,
+			},
+		},
+		{
+			name: "StringProtocolWithTimeoutLikeStreamID",
+			err:  xerrors.New("stream error: stream ID 503; PROTOCOL_ERROR; received from peer"),
+			want: chaterror.ClassifiedError{
+				Message: "The chat request failed unexpectedly.",
+				Kind:    codersdk.ChatErrorKindGeneric,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, chaterror.Classify(tt.err))
+		})
+	}
+}
+
+func TestClassify_StatusCodeBeatsTypedHTTP2StreamError(t *testing.T) {
+	t.Parallel()
+
+	err := xerrors.Errorf(
+		"provider returned status 401: %w",
+		http2.StreamError{
+			StreamID: 455,
+			Code:     http2.ErrCodeInternal,
+			Cause:    xerrors.New("received from peer"),
+		},
+	)
+
+	require.Equal(t, chaterror.ClassifiedError{
+		Message:    "Authentication with the AI provider failed. Check the API key, permissions, and billing settings.",
+		Kind:       codersdk.ChatErrorKindAuth,
+		Retryable:  false,
+		StatusCode: 401,
+	}, chaterror.Classify(err))
 }
 
 // TestClassify_StatusCodeBeatsHTTP2Transport ensures explicit status

@@ -55,11 +55,38 @@ export const shortDurationMs = (durationMs: number | undefined): string => {
 	if (seconds < 60) {
 		return `${seconds}s`;
 	}
-	const minutes = Math.round(seconds / 60);
+	const minutes = Math.round(durationMs / 60_000);
 	if (minutes < 60) {
 		return `${minutes}m`;
 	}
-	const hours = Math.round(minutes / 60);
+	const hours = Math.round(durationMs / 3_600_000);
+	return `${hours}h`;
+};
+
+const roundToTenths = (value: number): number => Number(value.toFixed(1));
+
+export const formatShellDurationMs = (
+	durationMs: number | undefined,
+): string => {
+	if (
+		durationMs === undefined ||
+		durationMs < 0 ||
+		!Number.isFinite(durationMs)
+	) {
+		return "";
+	}
+	if (durationMs < 1000) {
+		return `${Math.round(durationMs)}ms`;
+	}
+	const seconds = roundToTenths(durationMs / 1000);
+	if (seconds < 60) {
+		return `${seconds}s`;
+	}
+	const minutes = roundToTenths(durationMs / 60_000);
+	if (minutes < 60) {
+		return `${minutes}m`;
+	}
+	const hours = roundToTenths(durationMs / 3_600_000);
 	return `${hours}h`;
 };
 
@@ -332,11 +359,27 @@ const DIFF_HEADER_CSS = [
 	"}",
 ].join(" ");
 
+const CHANGE_LINE_CSS = [
+	":host {",
+	"  --diffs-addition-color-override: hsl(var(--git-added));",
+	"  --diffs-deletion-color-override: hsl(var(--git-deleted));",
+	"  --diffs-bg-addition-override: hsl(var(--surface-git-added));",
+	"  --diffs-bg-deletion-override: hsl(var(--surface-git-deleted));",
+	"  --diffs-bg-addition-number-override: hsl(var(--surface-git-added));",
+	"  --diffs-bg-deletion-number-override: hsl(var(--surface-git-deleted));",
+	"}",
+	"[data-line-type='change-addition']:not([data-selected-line]) {",
+	"  background-color: hsl(var(--surface-git-added)) !important;",
+	"}",
+	"[data-line-type='change-deletion']:not([data-selected-line]) {",
+	"  background-color: hsl(var(--surface-git-deleted)) !important;",
+	"}",
+].join(" ");
+
 export const diffViewerCSS = [
 	// Make context lines transparent so they blend with the page,
-	// but preserve the library's colored backgrounds on changed
-	// lines (change-addition / change-deletion) so the line-level
-	// tint and word-level emphasis highlights remain visible.
+	// while changed lines use the same theme-aware git surfaces as
+	// the file headers and stats.
 	"pre, [data-line]:not([data-selected-line]):not([data-line-type='change-addition']):not([data-line-type='change-deletion']), [data-diffs-header] { background-color: transparent !important; }",
 	"[data-diffs-header] { border-left: 1px solid var(--border); }",
 	// The library reserves a 6 px horizontal scrollbar track on
@@ -345,6 +388,7 @@ export const diffViewerCSS = [
 	"[data-code] { scrollbar-width: none !important; }",
 	"[data-code]::-webkit-scrollbar { height: 0 !important; }",
 	DIFF_HEADER_CSS,
+	CHANGE_LINE_CSS,
 	SELECTION_OVERRIDE_CSS,
 	SEPARATOR_CSS,
 ].join(" ");
@@ -421,10 +465,6 @@ export const DIFFS_FONT_STYLE = {
 	"--diffs-font-size": "11px",
 	"--diffs-line-height": "1.5",
 } as CSSProperties;
-
-export const BORDER_BG_STYLE = {
-	background: "hsl(var(--border-default))",
-};
 
 /**
  * Checks whether a tool result should be rendered as a syntax-highlighted
