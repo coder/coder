@@ -100,15 +100,17 @@ export const UsageIndicator: FC = () => {
 
 	if (!isQuotaError && hasWorkspaceQuotaUsage) {
 		const creditsConsumed = quota.credits_consumed;
+		const hasQuotaBudget = quota.budget > 0;
 		const workspaceCount = workspacesQuery.isError
 			? undefined
 			: getWorkspaceCount(workspacesQuery.data?.count);
+		const budgetLabel = hasQuotaBudget
+			? formatNumber(quota.budget)
+			: "unlimited";
 		const quotaDetail =
 			workspaceCount === undefined
-				? `${formatNumber(creditsConsumed)} of ${formatNumber(quota.budget)} credits used`
-				: `${formatNumber(workspaceCount)} ${workspaceCount === 1 ? "workspace" : "workspaces"} using ${formatNumber(creditsConsumed)} of ${formatNumber(quota.budget)} credits`;
-
-		const hasQuotaBudget = quota.budget > 0;
+				? `${formatNumber(creditsConsumed)} of ${budgetLabel} credits used`
+				: `${formatNumber(workspaceCount)} ${workspaceCount === 1 ? "workspace" : "workspaces"} using ${formatNumber(creditsConsumed)} of ${budgetLabel} credits`;
 
 		sections.push({
 			id: "workspace-quota",
@@ -215,20 +217,27 @@ const UsageSection: FC<{ section: UsageSectionData }> = ({ section }) => {
 				<span className="truncate text-sm font-medium text-content-primary">
 					{section.title}
 				</span>
-				<span
-					className={cn("shrink-0 text-xs", getTextClassName(section.severity))}
-				>
-					{roundedPercent}%
-				</span>
+				{section.showProgress !== false && (
+					<span
+						className={cn(
+							"shrink-0 text-xs",
+							getTextClassName(section.severity),
+						)}
+					>
+						{roundedPercent}%
+					</span>
+				)}
 			</div>
 
-			<div className="px-2 pb-2">
-				<UsageProgress
-					ariaLabel={section.progressLabel}
-					percent={section.percent}
-					severity={section.severity}
-				/>
-			</div>
+			{section.showProgress !== false && (
+				<div className="px-2 pb-2">
+					<UsageProgress
+						ariaLabel={section.progressLabel}
+						percent={section.percent}
+						severity={section.severity}
+					/>
+				</div>
+			)}
 
 			<div
 				className={cn(
