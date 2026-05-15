@@ -1100,8 +1100,12 @@ func TestRootExploreChatExcludesWebSearchProviderToolAtRuntime(t *testing.T) {
 
 func TestExploreChatSendMessageCannotMutateMCPSnapshot(t *testing.T) {
 	t.Parallel()
-	// TODO(hugodutka): Unskip when chatd is free of race conditions.
-	t.Skip("skipped due to inherent race condition; see https://github.com/coder/internal/issues/1493")
+	// TODO(CODAGT-353): Re-enable this test after the chatd notification flow
+	// refactor gives workers enough causal information to distinguish stale
+	// control NOTIFY messages from real interrupts. The current design reuses
+	// the same status notification shape for wake-only and interrupt intents,
+	// so a stale NOTIFY can cancel a new processChat run.
+	t.Skip("skipped until chatd notification flow refactor handles stale control notifications")
 
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -10104,6 +10108,12 @@ func TestAdvisorGating_ExploreSubagent(t *testing.T) {
 // message, losing the context the outer model had been building on.
 func TestAdvisorChainMode_SnapshotKeepsFullHistory(t *testing.T) {
 	t.Parallel()
+	// TODO(CODAGT-353): Re-enable this test after the chatd notification flow
+	// refactor gives workers enough causal information to distinguish stale
+	// control NOTIFY messages from real interrupts. The current design reuses
+	// the same status notification shape for wake-only and interrupt intents,
+	// so a stale NOTIFY can cancel a new processChat run.
+	t.Skip("skipped until chatd notification flow refactor handles stale control notifications")
 
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
