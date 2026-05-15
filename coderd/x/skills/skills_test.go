@@ -28,7 +28,7 @@ func TestParsePersonalSkillMarkdown(t *testing.T) {
 	t.Run("AcceptsOversizedContent", func(t *testing.T) {
 		t.Parallel()
 
-		raw := []byte(userSkillMarkdownForTest(
+		raw := []byte(personalSkillMarkdownForTest(
 			"oversized-skill",
 			"Parser accepts oversized content.",
 			strings.Repeat("a", skills.MaxPersonalSkillSizeBytes),
@@ -98,6 +98,7 @@ func TestValidatePersonalSkillMarkdown(t *testing.T) {
 		))
 
 		require.ErrorIs(t, err, skills.ErrInvalidSkillName)
+		require.ErrorContains(t, err, "frontmatter must contain a 'name' field")
 	})
 
 	t.Run("NonKebabCaseName", func(t *testing.T) {
@@ -109,6 +110,19 @@ func TestValidatePersonalSkillMarkdown(t *testing.T) {
 
 		require.ErrorIs(t, err, skills.ErrInvalidSkillName)
 		require.ErrorContains(t, err, "Not_Kebab")
+	})
+
+	t.Run("NameTooLong", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := skills.ValidatePersonalSkillMarkdown([]byte(personalSkillMarkdownForTest(
+			strings.Repeat("a", skills.MaxPersonalSkillNameBytes+1),
+			"Too long",
+			"Body.",
+		)))
+
+		require.ErrorIs(t, err, skills.ErrInvalidSkillName)
+		require.ErrorContains(t, err, "maximum is 256 bytes")
 	})
 
 	t.Run("EmptyBody", func(t *testing.T) {
@@ -132,7 +146,7 @@ func TestValidatePersonalSkillMarkdown(t *testing.T) {
 	})
 }
 
-func userSkillMarkdownForTest(name string, description string, body string) string {
+func personalSkillMarkdownForTest(name string, description string, body string) string {
 	return "---\nname: " + name + "\ndescription: " + description + "\n---\n\n" + body + "\n"
 }
 
@@ -228,8 +242,54 @@ func TestMergeSkills(t *testing.T) {
 			},
 		}, resolved)
 
-		_, err := skills.Lookup(resolved, "shared-skill")
-		require.ErrorIs(t, err, skills.ErrSkillNotFound)
+		personal, err := skills.Lookup(resolved, "personal/shared-skill")
+		require.NoError(t, err)
+		require.Equal(t, skills.SourcePersonal, personal.Source)
+		require.Equal(t, "shared-skill", personal.Name)
+
+		workspace, err := skills.Lookup(resolved, "workspace/shared-skill")
+		require.NoError(t, err)
+		require.Equal(t, skills.SourceWorkspace, workspace.Source)
+		require.Equal(t, "shared-skill", workspace.Name)
+
+		_, err = skills.Lookup(resolved, "shared-skill")
+		require.ErrorIs(t, err, skills.ErrSkillAmbiguous)
+		require.ErrorContains(t, err, "personal/shared-skill")
+		require.ErrorContains(t, err, "workspace/shared-skill")
+	})
+
+	t.Run("DuplicatesWithinSourceKeepFirst", func(t *testing.T) {
+		t.Parallel()
+
+		resolved := skills.MergeSkills(
+			[]skills.Skill{
+				{Name: "duplicate-skill", Description: "First"},
+				{Name: "duplicate-skill", Description: "Second"},
+			},
+			[]skills.Skill{
+				{Name: "workspace-skill", Description: "Workspace"},
+				{Name: "workspace-skill", Description: "Workspace duplicate"},
+			},
+		)
+
+		require.Equal(t, []skills.ResolvedSkill{
+			{
+				Skill: skills.Skill{
+					Name:        "duplicate-skill",
+					Description: "First",
+					Source:      skills.SourcePersonal,
+				},
+				Alias: "duplicate-skill",
+			},
+			{
+				Skill: skills.Skill{
+					Name:        "workspace-skill",
+					Description: "Workspace",
+					Source:      skills.SourceWorkspace,
+				},
+				Alias: "workspace-skill",
+			},
+		}, resolved)
 	})
 }
 

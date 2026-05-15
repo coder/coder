@@ -28,7 +28,7 @@ const (
 
 const (
 	maxInstructionFileBytes = 64 * 1024
-	maxSkillMetaBytes       = 64 * 1024
+	maxSkillMetaBytes       = workspacesdk.MaxSkillMetaBytes
 )
 
 // markdownCommentPattern strips HTML comments from instruction

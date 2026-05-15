@@ -7,10 +7,13 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// SkillNameRegex validates kebab-case skill names.
+// SkillNameRegex is the regular expression used to validate kebab-case skill names.
 const SkillNameRegex = "^[a-z0-9]+(-[a-z0-9]+)*$"
 
-// SkillNamePattern validates kebab-case skill names.
+// MaxSkillMetaBytes is the maximum raw Markdown size accepted for a skill meta file.
+const MaxSkillMetaBytes = 64 * 1024
+
+// SkillNamePattern is the compiled pattern used to validate kebab-case skill names.
 var SkillNamePattern = regexp.MustCompile(SkillNameRegex)
 
 // markdownCommentRe strips HTML comments from skill file bodies so

@@ -15,9 +15,9 @@
 //
 // Decision:
 //
-// Personal skills are stored in the user_skills table. For each chat turn,
-// chatd fetches personal skill metadata fresh, combines it with workspace skill
-// metadata, and injects the available skills into the existing skill prompt.
+// Personal skills are stored by Coder. For each chat turn, chatd fetches
+// personal skill metadata fresh, combines it with workspace skill metadata, and
+// injects the available skills into the existing skill prompt.
 // When chatd needs skill content, it resolves personal skills through the
 // read_skill flow instead of syncing files into workspace filesystems.
 //
