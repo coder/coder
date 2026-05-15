@@ -295,6 +295,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # Fat build validates the full toolchain including Node, pnpm,
+      # and the TypeScript/React frontend build, not just Go.
       - name: make build
         run: |
           docker run --rm \
@@ -304,7 +306,7 @@ jobs:
             --user "$(id -u):$(id -g)" \
             --env GITHUB_TOKEN \
             "dogfood-test:${{ matrix.variant }}" \
-            make -j build/coder-slim_linux_amd64
+            make -j build/coder_linux_amd64
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
