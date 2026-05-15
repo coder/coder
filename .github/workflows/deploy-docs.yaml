@@ -31,8 +31,10 @@ on:
       - main
       - "release/*"
     paths:
+      # Intentionally only docs/**. Edits to this workflow file must not
+      # auto-trigger a production reindex; use workflow_dispatch instead.
+      # See DOCS-121 (incident) and DOCS-124 (fix).
       - "docs/**"
-      - ".github/workflows/deploy-docs.yaml"
   workflow_dispatch:
     inputs:
       action:
