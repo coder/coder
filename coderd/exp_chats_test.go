@@ -1543,114 +1543,135 @@ func TestListChats(t *testing.T) {
 	t.Run("TitleSearch", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitLong)
 		client, db := newChatClientWithDatabase(t)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
-		// Create chats with distinct titles using dbgen (avoids async processing).
-		_ = dbgen.Chat(t, db, database.Chat{
+		// Create chats with distinct titles. Order of creation matters
+		// because results come back ordered by updated_at DESC, id DESC.
+		// We store IDs to assert exact result sets.
+		alpha := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    firstUser.OrganizationID,
 			OwnerID:           firstUser.UserID,
 			LastModelConfigID: modelConfig.ID,
 			Title:             "alpha project",
 		})
-		_ = dbgen.Chat(t, db, database.Chat{
+		beta := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    firstUser.OrganizationID,
 			OwnerID:           firstUser.UserID,
 			LastModelConfigID: modelConfig.ID,
 			Title:             "beta project",
 		})
-		_ = dbgen.Chat(t, db, database.Chat{
+		gamma := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    firstUser.OrganizationID,
 			OwnerID:           firstUser.UserID,
 			LastModelConfigID: modelConfig.ID,
 			Title:             "gamma unrelated",
 		})
-
-		// Search by "project" should return alpha and beta.
-		chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "project"})
-		require.NoError(t, err)
-		require.Len(t, chats, 2)
-		titles := []string{chats[0].Title, chats[1].Title}
-		require.ElementsMatch(t, []string{"alpha project", "beta project"}, titles)
-
-		// Search by "gamma" should return only gamma.
-		chats, err = client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "gamma"})
-		require.NoError(t, err)
-		require.Len(t, chats, 1)
-		require.Equal(t, "gamma unrelated", chats[0].Title)
-
-		// Case-insensitive: "ALPHA" should match "alpha project".
-		chats, err = client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "ALPHA"})
-		require.NoError(t, err)
-		require.Len(t, chats, 1)
-		require.Equal(t, "alpha project", chats[0].Title)
-
-		// Multi-word search: "alpha project" should match exactly one.
-		chats, err = client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "alpha project"})
-		require.NoError(t, err)
-		require.Len(t, chats, 1)
-		require.Equal(t, "alpha project", chats[0].Title)
-
-		// No query returns all 3.
-		chats, err = client.ListChats(ctx, nil)
-		require.NoError(t, err)
-		require.Len(t, chats, 3)
-	})
-
-	t.Run("TitleSearchMetacharacters", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		modelConfig := createChatModelConfig(t, client)
-
-		// Create chats to test ILIKE metacharacter behavior.
-		_ = dbgen.Chat(t, db, database.Chat{
+		percent := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    firstUser.OrganizationID,
 			OwnerID:           firstUser.UserID,
 			LastModelConfigID: modelConfig.ID,
 			Title:             "100% complete",
 		})
-		_ = dbgen.Chat(t, db, database.Chat{
+		thousandOne := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    firstUser.OrganizationID,
 			OwnerID:           firstUser.UserID,
 			LastModelConfigID: modelConfig.ID,
 			Title:             "1001 things",
 		})
-		_ = dbgen.Chat(t, db, database.Chat{
+		underscore := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    firstUser.OrganizationID,
 			OwnerID:           firstUser.UserID,
 			LastModelConfigID: modelConfig.ID,
 			Title:             "user_name config",
 		})
-		_ = dbgen.Chat(t, db, database.Chat{
+		hyphen := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    firstUser.OrganizationID,
 			OwnerID:           firstUser.UserID,
 			LastModelConfigID: modelConfig.ID,
 			Title:             "user-name config",
 		})
 
-		// The % in "100%" acts as a wildcard since we don't escape
-		// ILIKE metacharacters. This matches BOTH "100% complete"
-		// AND "1001 things" because the pattern becomes '%100%%'.
-		chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "100%"})
-		require.NoError(t, err)
-		require.Len(t, chats, 2, "expected % to act as wildcard matching both chats")
-		titles := []string{chats[0].Title, chats[1].Title}
-		require.ElementsMatch(t, []string{"100% complete", "1001 things"}, titles)
+		allIDs := []uuid.UUID{
+			hyphen.ID, underscore.ID, thousandOne.ID,
+			percent.ID, gamma.ID, beta.ID, alpha.ID,
+		}
 
-		// The _ in "user_name" acts as a single-char wildcard since we
-		// don't escape ILIKE metacharacters. This matches BOTH
-		// "user_name config" AND "user-name config" because _ matches
-		// any single character (both '_' and '-' satisfy it).
-		chats, err = client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "user_name"})
-		require.NoError(t, err)
-		require.Len(t, chats, 2, "expected _ to act as single-char wildcard matching both chats")
-		titles = []string{chats[0].Title, chats[1].Title}
-		require.ElementsMatch(t, []string{"user_name config", "user-name config"}, titles)
+		tests := []struct {
+			name    string
+			query   string
+			wantIDs []uuid.UUID
+		}{
+			{
+				name:    "SubstringMatch",
+				query:   "project",
+				wantIDs: []uuid.UUID{beta.ID, alpha.ID},
+			},
+			{
+				name:    "SingleResult",
+				query:   "gamma",
+				wantIDs: []uuid.UUID{gamma.ID},
+			},
+			{
+				name:    "CaseInsensitive",
+				query:   "ALPHA",
+				wantIDs: []uuid.UUID{alpha.ID},
+			},
+			{
+				name:    "MultiWord",
+				query:   "alpha project",
+				wantIDs: []uuid.UUID{alpha.ID},
+			},
+			{
+				name:    "NoMatch",
+				query:   "nonexistent",
+				wantIDs: []uuid.UUID{},
+			},
+			{
+				name:    "EmptyQuery",
+				query:   "",
+				wantIDs: allIDs,
+			},
+			{
+				// The % in "100%" acts as a wildcard since we don't
+				// escape ILIKE metacharacters. Pattern becomes
+				// '%100%%' which matches both "100% complete" and
+				// "1001 things".
+				name:    "PercentWildcard",
+				query:   "100%",
+				wantIDs: []uuid.UUID{thousandOne.ID, percent.ID},
+			},
+			{
+				// The _ in "user_name" acts as a single-char wildcard
+				// since we don't escape ILIKE metacharacters. Both
+				// "user_name" and "user-name" match.
+				name:    "UnderscoreWildcard",
+				query:   "user_name",
+				wantIDs: []uuid.UUID{hyphen.ID, underscore.ID},
+			},
+		}
+
+		for _, tt := range tests {
+			tt := tt
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+
+				var opts *codersdk.ListChatsOptions
+				if tt.query != "" {
+					opts = &codersdk.ListChatsOptions{Query: tt.query}
+				}
+				chats, err := client.ListChats(ctx, opts)
+				require.NoError(t, err)
+
+				gotIDs := make([]uuid.UUID, len(chats))
+				for i, c := range chats {
+					gotIDs[i] = c.ID
+				}
+				require.Equal(t, tt.wantIDs, gotIDs)
+			})
+		}
 	})
 }
 
