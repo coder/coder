@@ -162,12 +162,12 @@ AI Gateway does **not** write to Coder's regular audit log
 writes to a dedicated set of tables introduced across migrations
 `000374`, `000385`, and `000428`:
 
-- `aibridge_interceptions` — one row per request through AI Gateway.
-- `aibridge_token_usages` — token counts per interception.
-- `aibridge_user_prompts` — user-side prompt content.
-- `aibridge_tool_usages` — tool calls inside the session.
-- `aibridge_model_thoughts` — thinking blocks.
-- `aibridge_sessions` — session-level grouping.
+- `aibridge_interceptions`: one row per request through AI Gateway.
+- `aibridge_token_usages`: token counts per interception.
+- `aibridge_user_prompts`: user-side prompt content.
+- `aibridge_tool_usages`: tool calls inside the session.
+- `aibridge_model_thoughts`: thinking blocks.
+- `aibridge_sessions`: session-level grouping.
 
 These are exposed via `/api/v2/aibridge/sessions` and
 `/api/v2/aibridge/interceptions`, surfaced in the `Sessions` UI
@@ -185,10 +185,10 @@ a Coder user UUID.
 
 The add-on gates two features (`codersdk/deployment.go`):
 
-- `aibridge` — boolean, controls whether the `/api/v2/aibridge/*`
+- `aibridge`: boolean, controls whether the `/api/v2/aibridge/*`
   endpoints respond at all. Enforced via
   `RequireFeatureMW(codersdk.FeatureAIBridge)` on the routes.
-- `ai_governance_user_limit` — seat counter for users who actively
+- `ai_governance_user_limit`: seat counter for users who actively
   consume AI Gateway interceptions
   (`enterprise/coderd/license/license.go`).
 

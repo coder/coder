@@ -12,10 +12,18 @@ Code sessions on infrastructure you operate. Each runner needs an OS,
 an image, an outbound network path to `api.anthropic.com`, and a
 lifecycle.
 
-That is what [Coder workspaces](../../user-guides/workspace-management.md)
-are. The same
-[Terraform templates](../../admin/templates/index.md) your platform team
-uses to ship developer environments can ship runners.
+## Where Coder fits
+
+[Coder](https://coder.com) describes infrastructure as Terraform
+templates and runs that infrastructure on whatever cloud or cluster
+you already use, with the same image, network policy, secret
+management, and audit trail as your developer workspaces. A Claude
+Code self-hosted runner needs the same things a workspace needs (an
+OS, an image, an outbound network path, a credential, a lifecycle),
+so we describe it as a template too. Coder's
+[prebuilds](../../admin/templates/extending-templates/prebuilt-workspaces.md)
+primitive keeps N warm runners ready, and replaces each one when it
+drains. No second control plane, no bespoke pool manager.
 
 ## Architecture
 
