@@ -616,7 +616,7 @@ const ChatMessageItem = memo<{
 				{!hideActions &&
 					(displayState.hasCopyableContent ||
 						(isUser && onEditUserMessage) ||
-						(isUser && promptHistory)) && (
+						(isUser && promptHistory && promptHistory.length > 1)) && (
 						<div
 							className={cn(
 								"mt-0.5 flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100",
