@@ -3008,6 +3008,22 @@ func TestPartFromContent_CreatedAtNotStamped(t *testing.T) {
 		part := chatprompt.PartFromContent(fantasy.TextContent{Text: "hello"})
 		assert.Nil(t, part.CreatedAt)
 	})
+
+	t.Run("ReasoningHasNilCreatedAndCompletedAt", func(t *testing.T) {
+		t.Parallel()
+		// Same rationale as ToolCall: the chatloop layer records
+		// reasoning timestamps separately and the persistence
+		// layer applies them. PartFromContent is called in
+		// multiple contexts so stamping here would yield
+		// incorrect durations.
+		part := chatprompt.PartFromContent(fantasy.ReasoningContent{Text: "thinking"})
+		assert.Nil(t, part.CreatedAt)
+		assert.Nil(t, part.CompletedAt)
+
+		partPtr := chatprompt.PartFromContent(&fantasy.ReasoningContent{Text: "thinking"})
+		assert.Nil(t, partPtr.CreatedAt)
+		assert.Nil(t, partPtr.CompletedAt)
+	})
 }
 
 func TestToolResultAntivenom(t *testing.T) {
