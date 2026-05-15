@@ -1,4 +1,4 @@
-import type { UserSecret } from "#/api/typesGenerated";
+import { MaxSecretValueSize, type UserSecret } from "#/api/typesGenerated";
 import { mockApiError } from "#/testHelpers/entities";
 import {
 	buildCreateUserSecretRequest,
@@ -9,6 +9,7 @@ import {
 	validateUserSecretEnvName,
 	validateUserSecretFilePath,
 	validateUserSecretName,
+	validateUserSecretValue,
 } from "./secretForm";
 
 const existingSecrets: UserSecret[] = [
@@ -112,6 +113,24 @@ describe("createSecretValidationSchema", () => {
 			"must start",
 		);
 	});
+
+	it("allows secret values at the maximum size", () => {
+		expect(
+			validateUserSecretValue("x".repeat(MaxSecretValueSize)),
+		).toBeUndefined();
+	});
+
+	it("rejects secret values with null bytes", () => {
+		expect(validateUserSecretValue("has\0null")).toBe(
+			"Secret value must not contain null bytes.",
+		);
+	});
+
+	it("rejects secret values over the maximum size", () => {
+		expect(validateUserSecretValue("x".repeat(MaxSecretValueSize + 1))).toBe(
+			`Secret value must not exceed ${MaxSecretValueSize} bytes.`,
+		);
+	});
 });
 
 describe("payload builders", () => {
@@ -163,22 +182,35 @@ describe("payload builders", () => {
 });
 
 describe("mapSecretApiErrorToFormErrors", () => {
-	it.each([
-		["Name is required.", "name"],
-		["Value is required.", "value"],
-		["Invalid secret value.", "value"],
-		["Invalid environment variable name.", "env_name"],
-		["Invalid file path.", "file_path"],
-	])("maps backend 400 message %s", (message, field) => {
+	it("maps structured API validation errors to fields", () => {
 		expect(
 			mapSecretApiErrorToFormErrors(
 				mockApiError({
-					message,
-					detail: "Backend detail.",
+					message: "Invalid request.",
+					validations: [
+						{ field: "env_name", detail: "Use a different variable." },
+						{ field: "file_path", detail: "Use an absolute path." },
+						{ field: "unknown", detail: "Ignored." },
+					],
 				}),
 			).fieldErrors,
 		).toEqual({
-			[field]: "Backend detail.",
+			env_name: "Use a different variable.",
+			file_path: "Use an absolute path.",
+		});
+	});
+
+	it("maps unstructured API validation errors to a form error", () => {
+		expect(
+			mapSecretApiErrorToFormErrors(
+				mockApiError({
+					message: "Invalid environment variable name.",
+					detail: "Backend detail.",
+				}),
+			),
+		).toEqual({
+			fieldErrors: {},
+			formError: "Backend detail.",
 		});
 	});
 

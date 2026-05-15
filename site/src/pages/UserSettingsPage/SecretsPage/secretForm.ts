@@ -3,11 +3,13 @@ import {
 	type ApiErrorResponse,
 	isApiError,
 	isApiErrorResponse,
+	mapApiErrorToFieldErrors,
 } from "#/api/errors";
-import type {
-	CreateUserSecretRequest,
-	UpdateUserSecretRequest,
-	UserSecret,
+import {
+	type CreateUserSecretRequest,
+	MaxSecretValueSize,
+	type UpdateUserSecretRequest,
+	type UserSecret,
 } from "#/api/typesGenerated";
 
 interface SecretFormValues {
@@ -27,10 +29,12 @@ interface SecretFormErrors {
 	formError?: string;
 }
 
-const maxSecretValueSize = 32 * 1024;
+const routeUnsafeSecretNameRegex = /[/?#]/;
+
+// Env name, file path, and value validation rules mirror codersdk/usersecretvalidation.go.
+// Keep these rules in sync with the backend validators.
 const maxFilePathLength = 4096;
 const posixEnvNameRegex = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
-const routeUnsafeSecretNameRegex = /[/?#]/;
 
 const reservedEnvNames = new Set([
 	"PATH",
@@ -135,13 +139,13 @@ export const validateUserSecretFilePath = (
 	return undefined;
 };
 
-const validateUserSecretValue = (value: string): string | undefined => {
+export const validateUserSecretValue = (value: string): string | undefined => {
 	if (value.includes("\0")) {
 		return "Secret value must not contain null bytes.";
 	}
 
-	if (byteLength(value) > maxSecretValueSize) {
-		return `Secret value must not exceed ${maxSecretValueSize} bytes.`;
+	if (byteLength(value) > MaxSecretValueSize) {
+		return `Secret value must not exceed ${MaxSecretValueSize} bytes.`;
 	}
 
 	return undefined;
@@ -215,25 +219,14 @@ export const mapSecretApiErrorToFormErrors = (
 		};
 	}
 
-	const field = fieldByBackendMessage[apiError.response.message];
-	if (field) {
-		return {
-			fieldErrors: {
-				[field]: apiError.response.detail ?? apiError.response.message,
-			},
-		};
-	}
-
-	if (apiError.status === 409) {
-		return {
-			fieldErrors: {},
-			formError: apiError.response.message,
-		};
+	const fieldErrors = getSecretFieldErrors(apiError.response);
+	if (Object.keys(fieldErrors).length > 0) {
+		return { fieldErrors };
 	}
 
 	return {
 		fieldErrors: {},
-		formError: apiError.response.message,
+		formError: apiError.response.detail ?? apiError.response.message,
 	};
 };
 
@@ -267,13 +260,28 @@ export const getDuplicateSecretFieldErrors = (
 	return errors;
 };
 
-const fieldByBackendMessage: Record<string, SecretFormField> = {
-	"Name is required.": "name",
-	"Value is required.": "value",
-	"Invalid secret value.": "value",
-	"Invalid environment variable name.": "env_name",
-	"Invalid file path.": "file_path",
+const secretFormFieldLookup: Record<SecretFormField, true> = {
+	name: true,
+	value: true,
+	description: true,
+	env_name: true,
+	file_path: true,
 };
+
+function getSecretFieldErrors(response: ApiErrorResponse): SecretFieldErrors {
+	const apiFieldErrors = mapApiErrorToFieldErrors(response);
+	const fieldErrors: SecretFieldErrors = {};
+	for (const [field, message] of Object.entries(apiFieldErrors)) {
+		if (isSecretFormField(field)) {
+			fieldErrors[field] = message;
+		}
+	}
+	return fieldErrors;
+}
+
+function isSecretFormField(field: string): field is SecretFormField {
+	return Object.hasOwn(secretFormFieldLookup, field);
+}
 
 function getApiError(
 	error: unknown,

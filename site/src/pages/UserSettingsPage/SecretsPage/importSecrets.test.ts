@@ -1,4 +1,4 @@
-import type { UserSecret } from "#/api/typesGenerated";
+import { MaxSecretValueSize, type UserSecret } from "#/api/typesGenerated";
 import {
 	importUserSecretsSequential,
 	parseSecretImport,
@@ -46,6 +46,29 @@ describe("parseSecretImport", () => {
 				name: "ONLY_SPACES",
 				env_name: "ONLY_SPACES",
 				value: "   ",
+			},
+		]);
+	});
+
+	it("strips export prefixes from .env entries", () => {
+		expect(
+			parseSecretImport(
+				[
+					"export GITHUB_TOKEN=example-value",
+					"  export ANTHROPIC_API_KEY=another-example-value",
+				].join("\n"),
+				"secrets.env",
+			),
+		).toEqual([
+			{
+				name: "GITHUB_TOKEN",
+				env_name: "GITHUB_TOKEN",
+				value: "example-value",
+			},
+			{
+				name: "ANTHROPIC_API_KEY",
+				env_name: "ANTHROPIC_API_KEY",
+				value: "another-example-value",
 			},
 		]);
 	});
@@ -177,6 +200,21 @@ describe("parseSecretImport", () => {
 		]);
 	});
 
+	it("rejects unsupported import file types", () => {
+		expect(() =>
+			parseSecretImport("GITHUB_TOKEN=value", "secrets.txt"),
+		).toThrow("Unsupported file type. Expected .env, .json, .yaml, or .yml.");
+	});
+
+	it("rejects .env entries without key value separators", () => {
+		expect(() =>
+			parseSecretImport(
+				["GITHUB_TOKEN=value", "BROKEN"].join("\n"),
+				"secrets.env",
+			),
+		).toThrow("Invalid .env entry on line 2: expected KEY=VALUE format.");
+	});
+
 	it.each([
 		["ROUTE/UNSAFE=placeholder", "secrets.env"],
 		[JSON.stringify({ "ROUTE?UNSAFE": "placeholder" }), "secrets.json"],
@@ -209,6 +247,26 @@ describe("parseSecretImport", () => {
 		expect(() => parseSecretImport(content, fileName)).toThrow(
 			"Invalid secret import.",
 		);
+	});
+
+	it.each([
+		[
+			"WITH_NULL=has\0null",
+			"secrets.env",
+			"WITH_NULL value: Secret value must not contain null bytes.",
+		],
+		[
+			JSON.stringify({ TOO_LARGE: "x".repeat(MaxSecretValueSize + 1) }),
+			"secrets.json",
+			`TOO_LARGE value: Secret value must not exceed ${MaxSecretValueSize} bytes.`,
+		],
+		[
+			`TOO_LARGE: ${"x".repeat(MaxSecretValueSize + 1)}`,
+			"secrets.yaml",
+			`TOO_LARGE value: Secret value must not exceed ${MaxSecretValueSize} bytes.`,
+		],
+	])("rejects invalid imported secret values", (content, fileName, error) => {
+		expect(() => parseSecretImport(content, fileName)).toThrow(error);
 	});
 
 	it.each([

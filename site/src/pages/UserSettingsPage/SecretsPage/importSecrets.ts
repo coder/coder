@@ -5,6 +5,7 @@ import {
 	validateUserSecretEnvName,
 	validateUserSecretFilePath,
 	validateUserSecretName,
+	validateUserSecretValue,
 } from "./secretForm";
 
 type CreateImportedSecret = (
@@ -38,7 +39,9 @@ export const parseSecretImport = (
 		return validateImportedSecretRequests(parseYamlFile(content));
 	}
 
-	throw new Error("Unsupported secret import file type.");
+	throw new Error(
+		"Unsupported file type. Expected .env, .json, .yaml, or .yml.",
+	);
 };
 
 export const importUserSecretsSequential = async (
@@ -77,13 +80,16 @@ function parseEnvFile(content: string): CreateUserSecretRequest[] {
 			continue;
 		}
 
-		const separatorIndex = rawLine.indexOf("=");
+		const assignmentLine = rawLine.trimStart().replace(/^export\s+/, "");
+		const separatorIndex = assignmentLine.indexOf("=");
 		if (separatorIndex <= 0) {
-			throw new Error(`Invalid .env entry on line ${index + 1}.`);
+			throw new Error(
+				`Invalid .env entry on line ${index + 1}: expected KEY=VALUE format.`,
+			);
 		}
 
-		const name = rawLine.slice(0, separatorIndex).trim();
-		const value = parseEnvValue(rawLine.slice(separatorIndex + 1));
+		const name = assignmentLine.slice(0, separatorIndex).trim();
+		const value = parseEnvValue(assignmentLine.slice(separatorIndex + 1));
 
 		requests.push({
 			name,
@@ -213,6 +219,13 @@ function validateImportedSecretRequests(
 		if (filePathError) {
 			requestErrors.push(
 				formatImportFieldError(request.name, "file path", filePathError),
+			);
+		}
+
+		const valueError = validateUserSecretValue(request.value);
+		if (valueError) {
+			requestErrors.push(
+				formatImportFieldError(request.name, "value", valueError),
 			);
 		}
 
