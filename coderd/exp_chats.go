@@ -312,7 +312,7 @@ func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
-// @Param q query string false "Search query. Supports archived:bool and diff_url:<url> terms (quote URLs)."
+// @Param q query string false "Search query. Bare terms filter by title (case-insensitive substring). Also supports archived:bool and diff_url:<url> (quote URLs)."
 // @Param label query string false "Filter by label as key:value. Repeat for multiple (AND logic)."
 // @Success 200 {array} codersdk.Chat
 // @Router /api/experimental/chats [get]

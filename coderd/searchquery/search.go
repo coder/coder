@@ -543,6 +543,7 @@ func Tasks(ctx context.Context, db database.Store, query string, actorID uuid.UU
 // Chats parses a search query for chats.
 //
 // Supported query parameters:
+//   - (bare terms): case-insensitive title substring match via ILIKE
 //   - archived: boolean (default: false, excludes archived chats unless explicitly set)
 //   - diff_url: string (matches chats whose linked diff URL equals the
 //     given value, case-insensitively; URLs typically contain ':' so
