@@ -1,4 +1,5 @@
-import { type FC, useEffect, useRef, useState } from "react";
+import { type FormikContextType, useFormik } from "formik";
+import { type FC, useEffect, useId, useRef } from "react";
 import {
 	type TerminalFontName,
 	TerminalFontNames,
@@ -41,6 +42,13 @@ const sortedTerminalFontNames = [
 	...TerminalFontNames.filter((name) => name !== "" && name !== "geist-mono"),
 ];
 
+interface AppearanceFormValues {
+	draft: ThemeModeDraft;
+	terminalFont: TerminalFontName;
+}
+
+type AppearanceThemeMode = ThemeModeDraft["mode"];
+
 interface AppearanceFormProps {
 	isUpdating?: boolean;
 	error?: unknown;
@@ -56,73 +64,41 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 	initialValues,
 	activeScheme,
 }) => {
-	const [draft, setDraft] = useState<ThemeModeDraft>(() =>
-		draftFromState(migrateLegacyPreference(initialValues), {
-			light: initialValues.theme_light,
-			dark: initialValues.theme_dark,
-		}),
-	);
-
-	const [terminalFontDraft, setTerminalFontDraft] = useState<TerminalFontName>(
-		() => initialValues.terminal_font || DEFAULT_TERMINAL_FONT,
-	);
 	const submitInFlightRef = useRef(false);
-	const pendingSubmitRef = useRef<{
-		draft: ThemeModeDraft;
-		terminalFont: TerminalFontName;
-	} | null>(null);
+	const pendingSubmitRef = useRef<AppearanceFormValues | null>(null);
 	const activeSchemeRef = useRef(activeScheme);
+	const formRef = useRef<FormikContextType<AppearanceFormValues> | null>(null);
+	const themeModeId = useId();
+	const fontGroupId = useId();
+	const fontGroupLabelId = `${fontGroupId}-label`;
+	const fontGroupName = `${fontGroupId}-fonts`;
+	const singleThemeGroupName = `${themeModeId}-single`;
+	const syncThemeGroupNamePrefix = `${themeModeId}-sync`;
 
 	activeSchemeRef.current = activeScheme;
 
-	const {
-		theme_preference,
-		theme_mode,
-		theme_light,
-		theme_dark,
-		terminal_font,
-	} = initialValues;
-	const persistedTerminalFont = terminal_font || DEFAULT_TERMINAL_FONT;
-	useEffect(() => {
-		if (submitInFlightRef.current) {
-			return;
-		}
-		setDraft(
-			draftFromState(
-				migrateLegacyPreference({
-					theme_preference,
-					theme_mode,
-					theme_light,
-					theme_dark,
-				}),
-				{ light: theme_light, dark: theme_dark },
-			),
-		);
-		setTerminalFontDraft(persistedTerminalFont);
-	}, [
-		theme_preference,
-		theme_mode,
-		theme_light,
-		theme_dark,
-		persistedTerminalFont,
-	]);
+	const setSubmitting = (submitting: boolean) => {
+		formRef.current?.setSubmitting(submitting);
+	};
+
+	const resetForm = (values: AppearanceFormValues) => {
+		formRef.current?.resetForm({ values });
+	};
 
 	const fireSubmit = (
-		next: ThemeModeDraft,
-		terminalFont: TerminalFontName,
-		rollbackTo: { draft: ThemeModeDraft; terminalFont: TerminalFontName },
+		values: AppearanceFormValues,
+		rollbackTo: AppearanceFormValues,
 	) => {
 		submitInFlightRef.current = true;
+		setSubmitting(true);
 		let submitted: Promise<unknown>;
 		try {
-			submitted = onSubmit(
-				draftToUpdate(next, terminalFont, activeSchemeRef.current),
-			);
+			submitted = onSubmit(toUpdateRequest(values, activeSchemeRef.current));
 		} catch (error) {
 			submitInFlightRef.current = false;
 			pendingSubmitRef.current = null;
-			setDraft(rollbackTo.draft);
-			setTerminalFontDraft(rollbackTo.terminalFont);
+			resetForm(rollbackTo);
+			setSubmitting(false);
 			throw error;
 		}
 		void submitted.then(
@@ -131,38 +107,70 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 				const queued = pendingSubmitRef.current;
 				if (queued !== null) {
 					pendingSubmitRef.current = null;
-					fireSubmit(queued.draft, queued.terminalFont, {
-						draft: next,
-						terminalFont,
-					});
+					fireSubmit(queued, values);
+					return;
 				}
+				resetForm(values);
+				setSubmitting(false);
 			},
 			() => {
 				submitInFlightRef.current = false;
 				pendingSubmitRef.current = null;
-				setDraft(rollbackTo.draft);
-				setTerminalFontDraft(rollbackTo.terminalFont);
+				resetForm(rollbackTo);
+				setSubmitting(false);
 			},
 		);
 	};
 
-	const submit = (next: ThemeModeDraft, terminalFont: TerminalFontName) => {
-		const previousDraft = {
-			draft,
-			terminalFont: terminalFontDraft,
-		};
-		setDraft(next);
-		setTerminalFontDraft(terminalFont);
+	const form = useFormik<AppearanceFormValues>({
+		initialValues: toFormValues(initialValues),
+		onSubmit: (values) => {
+			fireSubmit(values, formRef.current?.initialValues ?? values);
+		},
+	});
+
+	useEffect(() => {
+		formRef.current = form;
+	}, [form]);
+
+	const {
+		theme_preference,
+		theme_mode,
+		theme_light,
+		theme_dark,
+		terminal_font,
+	} = initialValues;
+
+	useEffect(() => {
+		if (submitInFlightRef.current) {
+			return;
+		}
+		formRef.current?.resetForm({
+			values: toFormValues({
+				theme_preference,
+				theme_mode,
+				theme_light,
+				theme_dark,
+				terminal_font,
+			}),
+		});
+	}, [theme_preference, theme_mode, theme_light, theme_dark, terminal_font]);
+
+	const { draft, terminalFont } = form.values;
+
+	const submit = (next: AppearanceFormValues) => {
+		const rollbackTo = form.values;
+		void form.setValues(next, false);
 
 		if (submitInFlightRef.current || isUpdating) {
-			pendingSubmitRef.current = { draft: next, terminalFont };
+			pendingSubmitRef.current = next;
 			return;
 		}
 
-		fireSubmit(next, terminalFont, previousDraft);
+		fireSubmit(next, rollbackTo);
 	};
 
-	const onChangeMode = (mode: "sync" | "single") => {
+	const onChangeMode = (mode: AppearanceThemeMode) => {
 		if (mode === draft.mode) {
 			return;
 		}
@@ -183,7 +191,7 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 						light: draft.light,
 						dark: draft.dark,
 					};
-		submit(next, terminalFontDraft);
+		submit({ draft: next, terminalFont });
 	};
 
 	const onSelectSyncSlot = (
@@ -194,19 +202,22 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 			scheme === "light"
 				? { ...draft, light: theme }
 				: { ...draft, dark: theme };
-		submit(next, terminalFontDraft);
+		submit({ draft: next, terminalFont });
 	};
 
 	const onSelectSingle = (theme: ConcreteThemeName) => {
-		submit({ ...draft, single: theme, mode: "single" }, terminalFontDraft);
+		submit({
+			draft: { ...draft, single: theme, mode: "single" },
+			terminalFont,
+		});
 	};
 
-	const onChangeTerminalFont = (terminalFont: TerminalFontName) => {
-		submit(draft, terminalFont);
+	const onChangeTerminalFont = (nextTerminalFont: TerminalFontName) => {
+		submit({ draft, terminalFont: nextTerminalFont });
 	};
 
 	return (
-		<form>
+		<form onSubmit={form.handleSubmit}>
 			{Boolean(error) && <ErrorAlert error={error} />}
 
 			<Section
@@ -221,18 +232,20 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 			>
 				<div className="flex flex-col gap-4">
 					<div className="flex flex-col gap-2">
-						<Label htmlFor="theme-mode" className="text-sm font-medium">
+						<Label htmlFor={themeModeId} className="text-sm font-medium">
 							Theme mode
 						</Label>
 						<div className="flex items-center gap-4">
 							<Select
 								value={draft.mode}
-								onValueChange={(value) =>
-									onChangeMode(value as "sync" | "single")
-								}
+								onValueChange={(value) => {
+									if (isThemeMode(value)) {
+										onChangeMode(value);
+									}
+								}}
 							>
 								<SelectTrigger
-									id="theme-mode"
+									id={themeModeId}
 									className="w-48 text-content-primary"
 								>
 									<SelectValue />
@@ -250,11 +263,13 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 							light={draft.light}
 							dark={draft.dark}
 							activeScheme={activeScheme}
+							namePrefix={syncThemeGroupNamePrefix}
 							onSelect={onSelectSyncSlot}
 						/>
 					) : (
 						<SingleModeSection
 							selected={draft.single}
+							name={singleThemeGroupName}
 							onSelect={onSelectSingle}
 						/>
 					)}
@@ -264,25 +279,25 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 			<Section
 				title={
 					<div className="flex flex-row items-center gap-2">
-						<span id="fonts-radio-buttons-group-label">Terminal Font</span>
+						<span id={fontGroupLabelId}>Terminal Font</span>
 						<Spinner loading={isUpdating} size="sm" />
 					</div>
 				}
 				layout="fluid"
 			>
 				<RadioGroup
-					aria-labelledby="fonts-radio-buttons-group-label"
-					value={terminalFontDraft}
-					name="fonts-radio-buttons-group"
+					aria-labelledby={fontGroupLabelId}
+					value={terminalFont}
+					name={fontGroupName}
 					onValueChange={(value) =>
 						onChangeTerminalFont(toTerminalFontName(value))
 					}
 				>
 					{sortedTerminalFontNames.map((name) => (
 						<div key={name} className="flex items-center space-x-2">
-							<RadioGroupItem value={name} id={name} />
+							<RadioGroupItem value={name} id={`${fontGroupId}-${name}`} />
 							<Label
-								htmlFor={name}
+								htmlFor={`${fontGroupId}-${name}`}
 								className="cursor-pointer font-normal"
 								style={{ fontFamily: terminalFonts[name] }}
 							>
@@ -295,6 +310,27 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 		</form>
 	);
 };
+
+function toFormValues(settings: UserAppearanceSettings): AppearanceFormValues {
+	return {
+		draft: draftFromState(migrateLegacyPreference(settings), {
+			light: settings.theme_light,
+			dark: settings.theme_dark,
+		}),
+		terminalFont: settings.terminal_font || DEFAULT_TERMINAL_FONT,
+	};
+}
+
+function toUpdateRequest(
+	values: AppearanceFormValues,
+	activeScheme: "dark" | "light",
+): UpdateUserAppearanceSettingsRequest {
+	return draftToUpdate(values.draft, values.terminalFont, activeScheme);
+}
+
+function isThemeMode(value: string): value is AppearanceThemeMode {
+	return value === "sync" || value === "single";
+}
 
 function toTerminalFontName(value: string): TerminalFontName {
 	return TerminalFontNames.includes(value as TerminalFontName)
