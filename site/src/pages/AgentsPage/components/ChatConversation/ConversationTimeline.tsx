@@ -954,7 +954,6 @@ const StickyUserMessage = memo<{
 							onEditUserMessage={handleEditUserMessage}
 							editingMessageId={editingMessageId}
 							isAfterEditingMessage={isAfterEditingMessage}
-							promptHistory={promptHistory}
 						/>
 					</div>
 
