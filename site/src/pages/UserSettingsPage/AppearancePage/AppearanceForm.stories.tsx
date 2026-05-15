@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { type FC, useState } from "react";
 import { action } from "storybook/actions";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type {
@@ -23,6 +24,75 @@ const resolvedSubmit = () =>
 		onUpdateTheme(update);
 		return Promise.resolve({ ...baseSettings, ...update });
 	});
+
+interface ResyncHarnessProps {
+	initialValues: UserAppearanceSettings;
+	onSubmit: (update: UpdateUserAppearanceSettingsRequest) => void;
+}
+
+const ResyncHarness: FC<ResyncHarnessProps> = ({ initialValues, onSubmit }) => {
+	const [settings, setSettings] = useState(initialValues);
+
+	return (
+		<div className="flex flex-col gap-6">
+			<button
+				type="button"
+				className="w-fit rounded-md border border-solid border-border px-3 py-2"
+				onClick={() =>
+					setSettings({ ...baseSettings, theme_preference: "light" })
+				}
+			>
+				Load light default
+			</button>
+			<AppearanceForm
+				activeScheme="dark"
+				initialValues={settings}
+				onSubmit={onSubmit}
+			/>
+		</div>
+	);
+};
+
+interface PendingUpdateHarnessProps {
+	initialValues: UserAppearanceSettings;
+	onSubmit: (update: UpdateUserAppearanceSettingsRequest) => void;
+}
+
+const PendingUpdateHarness: FC<PendingUpdateHarnessProps> = ({
+	initialValues,
+	onSubmit,
+}) => {
+	const [isUpdating, setIsUpdating] = useState(true);
+	const [renderCount, setRenderCount] = useState(0);
+
+	return (
+		<div className="flex flex-col gap-6">
+			<div className="flex gap-2">
+				<button
+					type="button"
+					className="rounded-md border border-solid border-border px-3 py-2"
+					onClick={() => setRenderCount((current) => current + 1)}
+				>
+					Rerender pending update
+				</button>
+				<button
+					type="button"
+					className="rounded-md border border-solid border-border px-3 py-2"
+					onClick={() => setIsUpdating(false)}
+				>
+					Complete update
+				</button>
+			</div>
+			<div hidden>Render count: {renderCount}</div>
+			<AppearanceForm
+				activeScheme="dark"
+				initialValues={initialValues}
+				isUpdating={isUpdating}
+				onSubmit={onSubmit}
+			/>
+		</div>
+	);
+};
 
 const meta: Meta<typeof AppearanceForm> = {
 	title: "pages/UserSettingsPage/AppearanceForm",
@@ -318,6 +388,100 @@ export const SelectTerminalFont: Story = {
 				theme_dark: "dark",
 				terminal_font: "fira-code",
 			});
+		});
+
+		await user.click(
+			await canvas.findByRole("radio", { name: /light default/i }),
+		);
+
+		await waitFor(() => {
+			expect(args.onSubmit).toHaveBeenCalledTimes(2);
+		});
+		expect(args.onSubmit).toHaveBeenLastCalledWith({
+			theme_preference: "light",
+			theme_mode: "single",
+			theme_light: "light",
+			theme_dark: "dark",
+			terminal_font: "fira-code",
+		});
+		expect(
+			await canvas.findByRole("radio", { name: /light default/i }),
+		).toBeChecked();
+	},
+};
+
+export const ResyncsWhenInitialValuesChange: Story = {
+	args: {
+		initialValues: { ...baseSettings, theme_preference: "dark" },
+		onSubmit: fn(),
+	},
+	render: (args) => (
+		<ResyncHarness
+			initialValues={args.initialValues ?? baseSettings}
+			onSubmit={args.onSubmit ?? onUpdateTheme}
+		/>
+	),
+	play: async ({ canvasElement, args }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+
+		expect(
+			await canvas.findByRole("radio", { name: /dark default/i }),
+		).toBeChecked();
+
+		await user.click(
+			await canvas.findByRole("button", { name: "Load light default" }),
+		);
+
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("radio", { name: /light default/i }),
+			).toBeChecked();
+		});
+		expect(args.onSubmit).not.toHaveBeenCalled();
+	},
+};
+
+export const PreservesDraftWhileUpdating: Story = {
+	args: {
+		initialValues: { ...baseSettings, theme_preference: "dark" },
+		onSubmit: resolvedSubmit(),
+	},
+	render: (args) => (
+		<PendingUpdateHarness
+			initialValues={args.initialValues ?? baseSettings}
+			onSubmit={args.onSubmit ?? onUpdateTheme}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+
+		await user.click(
+			await canvas.findByRole("radio", { name: /light default/i }),
+		);
+		expect(
+			await canvas.findByRole("radio", { name: /light default/i }),
+		).toBeChecked();
+
+		await user.click(
+			await canvas.findByRole("button", {
+				name: "Rerender pending update",
+			}),
+		);
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("radio", { name: /light default/i }),
+			).toBeChecked();
+		});
+
+		await user.click(
+			await canvas.findByRole("button", { name: "Complete update" }),
+		);
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("radio", { name: /dark default/i }),
+			).toBeChecked();
 		});
 	},
 };
