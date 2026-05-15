@@ -1,0 +1,311 @@
+package gitprovider_test
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/coderd/externalauth/gitprovider"
+)
+
+func TestGitLabFetchPullRequestStatus(t *testing.T) {
+	t.Parallel()
+
+	t.Run("HeadSHAFallback", func(t *testing.T) {
+		t.Parallel()
+
+		// When diff_refs.head_sha is empty, FetchPullRequestStatus
+		// should fall back to the top-level sha field.
+		mux := http.NewServeMux()
+		mux.HandleFunc("/api/v4/projects/owner%2Frepo/merge_requests/1", func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"title":"T","state":"opened","source_branch":"feat","target_branch":"main","sha":"fallback-sha","draft":false,"iid":1,"changes_count":"1","web_url":"http://HOST/owner/repo/-/merge_requests/1","author":{"username":"u"},"diff_refs":{"head_sha":""}}`))
+		})
+		mux.HandleFunc("/api/v4/projects/owner%2Frepo/merge_requests/1/approvals", func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"approved":false,"approved_by":[]}`))
+		})
+
+		srv := httptest.NewServer(mux)
+		defer srv.Close()
+
+		gp, err := gitprovider.New("gitlab", srv.URL, srv.Client())
+		require.NoError(t, err)
+
+		status, err := gp.FetchPullRequestStatus(
+			context.Background(),
+			"token",
+			gitprovider.PRRef{Owner: "owner", Repo: "repo", Number: 1},
+		)
+		require.NoError(t, err)
+		assert.Equal(t, "fallback-sha", status.HeadSHA)
+	})
+}
+
+func TestGitLabFetchPullRequestDiff(t *testing.T) {
+	t.Parallel()
+
+	t.Run("TooLarge", func(t *testing.T) {
+		t.Parallel()
+
+		oversizeDiff := string(make([]byte, gitprovider.MaxDiffSize+1024))
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "text/plain")
+			_, _ = w.Write([]byte(oversizeDiff))
+		}))
+		defer srv.Close()
+
+		gp, err := gitprovider.New("gitlab", srv.URL, srv.Client())
+		require.NoError(t, err)
+
+		_, err = gp.FetchPullRequestDiff(
+			context.Background(),
+			"test-token",
+			gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 1},
+		)
+		assert.ErrorIs(t, err, gitprovider.ErrDiffTooLarge)
+	})
+}
+
+func TestGitLabFetchBranchDiff(t *testing.T) {
+	t.Parallel()
+
+	t.Run("TrailingNewlineAppended", func(t *testing.T) {
+		t.Parallel()
+
+		// When a file diff does not end with a newline, FetchBranchDiff
+		// should append one so the unified diff is well-formed.
+		mux := http.NewServeMux()
+		mux.HandleFunc("/api/v4/projects/owner%2Frepo/repository/compare", func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			// diff field intentionally lacks a trailing newline.
+			_, _ = w.Write([]byte(`{"diffs":[{"old_path":"a.txt","new_path":"a.txt","diff":"@@ -1 +1 @@\n-old\n+new"}]}`))
+		})
+		mux.HandleFunc("/api/v4/projects/owner%2Frepo", func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"default_branch":"main"}`))
+		})
+
+		srv := httptest.NewServer(mux)
+		defer srv.Close()
+
+		gp, err := gitprovider.New("gitlab", srv.URL, srv.Client())
+		require.NoError(t, err)
+
+		diff, err := gp.FetchBranchDiff(
+			context.Background(),
+			"token",
+			gitprovider.BranchRef{Owner: "owner", Repo: "repo", Branch: "feat"},
+		)
+		require.NoError(t, err)
+		// Must end with newline even though the API response did not.
+		assert.True(t, len(diff) > 0 && diff[len(diff)-1] == '\n')
+		assert.Equal(t, "diff --git a/a.txt b/a.txt\n@@ -1 +1 @@\n-old\n+new\n", diff)
+	})
+
+	t.Run("EmptyDefaultBranch", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"default_branch":""}`))
+		}))
+		defer srv.Close()
+
+		gp, err := gitprovider.New("gitlab", srv.URL, srv.Client())
+		require.NoError(t, err)
+
+		_, err = gp.FetchBranchDiff(
+			context.Background(),
+			"test-token",
+			gitprovider.BranchRef{Owner: "owner", Repo: "repo", Branch: "feat"},
+		)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "default branch is empty")
+	})
+}
+
+func TestGitLabResolveBranchPullRequest(t *testing.T) {
+	t.Parallel()
+
+	t.Run("FallbackOnUnparsableWebURL", func(t *testing.T) {
+		t.Parallel()
+
+		// When the MR's web_url cannot be parsed by ParsePullRequestURL,
+		// ResolveBranchPullRequest falls back to constructing the PRRef
+		// from the known owner/repo and the returned IID.
+		mux := http.NewServeMux()
+		mux.HandleFunc("/api/v4/projects/owner%2Frepo/merge_requests", func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			// Return a web_url that won't match the provider's host.
+			_, _ = w.Write([]byte(`[{"iid":99,"web_url":"https://other-host.example.com/x/y/-/merge_requests/99"}]`))
+		})
+
+		srv := httptest.NewServer(mux)
+		defer srv.Close()
+
+		gp, err := gitprovider.New("gitlab", srv.URL, srv.Client())
+		require.NoError(t, err)
+
+		prRef, err := gp.ResolveBranchPullRequest(
+			context.Background(),
+			"token",
+			gitprovider.BranchRef{Owner: "owner", Repo: "repo", Branch: "feat"},
+		)
+		require.NoError(t, err)
+		require.NotNil(t, prRef)
+		assert.Equal(t, "owner", prRef.Owner)
+		assert.Equal(t, "repo", prRef.Repo)
+		assert.Equal(t, 99, prRef.Number)
+	})
+
+	t.Run("EmptyRef", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			t.Fatal("server should not be called for empty branch ref")
+		}))
+		defer srv.Close()
+
+		gp, err := gitprovider.New("gitlab", srv.URL, srv.Client())
+		require.NoError(t, err)
+
+		prRef, err := gp.ResolveBranchPullRequest(
+			context.Background(),
+			"test-token",
+			gitprovider.BranchRef{Owner: "owner", Repo: "repo", Branch: ""},
+		)
+		require.NoError(t, err)
+		assert.Nil(t, prRef)
+	})
+}
+
+func TestGitLabRateLimit(t *testing.T) {
+	t.Parallel()
+
+	t.Run("429WithRetryAfter", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Retry-After", "120")
+			w.WriteHeader(http.StatusTooManyRequests)
+			_, _ = w.Write([]byte(`{"message":"rate limit exceeded"}`))
+		}))
+		defer srv.Close()
+
+		gp, err := gitprovider.New("gitlab", srv.URL, srv.Client())
+		require.NoError(t, err)
+
+		_, err = gp.FetchPullRequestStatus(
+			context.Background(),
+			"test-token",
+			gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 1},
+		)
+		require.Error(t, err)
+
+		var rlErr *gitprovider.RateLimitError
+		require.True(t, errors.As(err, &rlErr), "error should be *RateLimitError, got: %T", err)
+
+		expected := time.Now().Add(120 * time.Second)
+		assert.WithinDuration(t, expected.Add(gitprovider.RateLimitPadding), rlErr.RetryAfter, 5*time.Second)
+	})
+
+	t.Run("403WithRateLimitReset", func(t *testing.T) {
+		t.Parallel()
+
+		resetTime := time.Now().Add(60 * time.Second)
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("RateLimit-Reset", fmt.Sprintf("%d", resetTime.Unix()))
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(`{"message":"rate limit exceeded"}`))
+		}))
+		defer srv.Close()
+
+		gp, err := gitprovider.New("gitlab", srv.URL, srv.Client())
+		require.NoError(t, err)
+
+		_, err = gp.FetchPullRequestStatus(
+			context.Background(),
+			"test-token",
+			gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 1},
+		)
+		require.Error(t, err)
+
+		var rlErr *gitprovider.RateLimitError
+		require.True(t, errors.As(err, &rlErr), "error should be *RateLimitError, got: %T", err)
+		assert.WithinDuration(t, resetTime.Add(gitprovider.RateLimitPadding), rlErr.RetryAfter, 5*time.Second)
+	})
+
+	t.Run("403WithoutRateLimitHeaders", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(`{"message":"forbidden"}`))
+		}))
+		defer srv.Close()
+
+		gp, err := gitprovider.New("gitlab", srv.URL, srv.Client())
+		require.NoError(t, err)
+
+		_, err = gp.FetchPullRequestStatus(
+			context.Background(),
+			"bad-token",
+			gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 1},
+		)
+		require.Error(t, err)
+
+		var rlErr *gitprovider.RateLimitError
+		assert.False(t, errors.As(err, &rlErr), "error should NOT be *RateLimitError")
+		assert.Contains(t, err.Error(), "403")
+	})
+}
+
+func TestGitLabSelfHosted(t *testing.T) {
+	t.Parallel()
+
+	gp, err := gitprovider.New("gitlab", "https://gitlab.corp.com", nil)
+	require.NoError(t, err)
+
+	t.Run("ParseRepositoryOriginMatches", func(t *testing.T) {
+		t.Parallel()
+		owner, repo, _, ok := gp.ParseRepositoryOrigin("https://gitlab.corp.com/org/repo.git")
+		assert.True(t, ok)
+		assert.Equal(t, "org", owner)
+		assert.Equal(t, "repo", repo)
+	})
+
+	t.Run("ParseRepositoryOriginRejectsGitLabCom", func(t *testing.T) {
+		t.Parallel()
+		_, _, _, ok := gp.ParseRepositoryOrigin("https://gitlab.com/org/repo.git")
+		assert.False(t, ok, "gitlab.com URL should not match self-hosted instance")
+	})
+
+	t.Run("ParsePullRequestURLMatches", func(t *testing.T) {
+		t.Parallel()
+		ref, ok := gp.ParsePullRequestURL("https://gitlab.corp.com/org/repo/-/merge_requests/1")
+		assert.True(t, ok)
+		assert.Equal(t, "org", ref.Owner)
+		assert.Equal(t, "repo", ref.Repo)
+		assert.Equal(t, 1, ref.Number)
+	})
+
+	t.Run("ParsePullRequestURLRejectsGitLabCom", func(t *testing.T) {
+		t.Parallel()
+		_, ok := gp.ParsePullRequestURL("https://gitlab.com/org/repo/-/merge_requests/1")
+		assert.False(t, ok, "gitlab.com MR URL should not match self-hosted instance")
+	})
+
+	t.Run("BuildPullRequestURL", func(t *testing.T) {
+		t.Parallel()
+		result := gp.BuildPullRequestURL(gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 42})
+		assert.Equal(t, "https://gitlab.corp.com/org/repo/-/merge_requests/42", result)
+	})
+}

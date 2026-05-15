@@ -4047,8 +4047,8 @@ func (api *API) resolveChatDiffReference(
 	// PR URL so the caller can still show provider/owner/repo.
 	if reference.RepositoryRef == nil && reference.PullRequestURL != "" {
 		for _, extAuth := range api.ExternalAuthConfigs {
-			gp := extAuth.Git(api.HTTPClient)
-			if gp == nil {
+			gp, err := extAuth.Git(api.HTTPClient)
+			if err != nil || gp == nil {
 				continue
 			}
 			if parsed, ok := gp.ParsePullRequestURL(reference.PullRequestURL); ok {
@@ -4154,8 +4154,11 @@ func (api *API) resolveExternalAuth(origin string) (providerType string, gp gitp
 		if extAuth.Regex == nil || !extAuth.Regex.MatchString(origin) {
 			continue
 		}
-		return strings.ToLower(strings.TrimSpace(extAuth.Type)),
-			extAuth.Git(api.HTTPClient)
+		p, err := extAuth.Git(api.HTTPClient)
+		if err != nil || p == nil {
+			continue
+		}
+		return strings.ToLower(strings.TrimSpace(extAuth.Type)), p
 	}
 	return "", nil
 }

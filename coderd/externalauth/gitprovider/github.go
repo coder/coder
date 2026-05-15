@@ -19,8 +19,6 @@ import (
 
 const (
 	defaultGitHubAPIBaseURL = "https://api.github.com"
-	// Adding padding to our retry times to guard against over-consumption of request quotas.
-	RateLimitPadding = 5 * time.Minute
 )
 
 type githubProvider struct {

@@ -1,0 +1,163 @@
+---
+version: 2
+interactions:
+    - id: 0
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        host: gitlab.com
+        headers:
+            Accept:
+                - application/json
+            Private-Token:
+                - stripped
+            User-Agent:
+                - stripped
+        url: https://gitlab.com/api/v4/projects/gitlab-org%2Fapi%2Fclient-go
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        content_length: -1
+        uncompressed: true
+        body: '{"id":65271576,"description":"GitLab Go SDK\n\nThis project has been migrated from `github.com/xanzy/go-gitlab`.\n","name":"client-go","name_with_namespace":"GitLab.org / API / client-go","path":"client-go","path_with_namespace":"gitlab-org/api/client-go","created_at":"2024-12-10T14:14:37.357Z","default_branch":"main","tag_list":["gitlab","go","infra-mgmt Managed","sdk"],"topics":["gitlab","go","infra-mgmt Managed","sdk"],"ssh_url_to_repo":"git@gitlab.com:gitlab-org/api/client-go.git","http_url_to_repo":"https://gitlab.com/gitlab-org/api/client-go.git","web_url":"https://gitlab.com/gitlab-org/api/client-go","readme_url":"https://gitlab.com/gitlab-org/api/client-go/-/blob/main/README.md","forks_count":93,"avatar_url":null,"star_count":99,"last_activity_at":"2026-05-15T07:53:14.061Z","visibility":"public","namespace":{"id":98461187,"name":"API","path":"api","kind":"group","full_path":"gitlab-org/api","parent_id":9970,"avatar_url":null,"web_url":"https://gitlab.com/groups/gitlab-org/api"}}'
+        headers:
+            Cache-Control:
+                - stripped
+            Cf-Cache-Status:
+                - stripped
+            Cf-Ray:
+                - stripped
+            Content-Security-Policy:
+                - stripped
+            Content-Type:
+                - application/json
+            Date:
+                - stripped
+            Etag:
+                - stripped
+            Gitlab-Lb:
+                - stripped
+            Gitlab-Sv:
+                - stripped
+            Nel:
+                - stripped
+            Ratelimit-Limit:
+                - stripped
+            Ratelimit-Name:
+                - stripped
+            Ratelimit-Observed:
+                - stripped
+            Ratelimit-Remaining:
+                - stripped
+            Ratelimit-Reset:
+                - stripped
+            Referrer-Policy:
+                - stripped
+            Server:
+                - stripped
+            Set-Cookie:
+                - stripped
+            Strict-Transport-Security:
+                - stripped
+            Vary:
+                - stripped
+            X-Content-Type-Options:
+                - stripped
+            X-Frame-Options:
+                - stripped
+            X-Gitlab-Meta:
+                - stripped
+            X-Request-Id:
+                - stripped
+            X-Runtime:
+                - stripped
+        status: 200 OK
+        code: 200
+        duration: 287.884009ms
+    - id: 1
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        host: gitlab.com
+        form:
+            from:
+                - main
+            to:
+                - add-missing-deprecation-replacement
+            unidiff:
+                - "true"
+        headers:
+            Accept:
+                - application/json
+            Private-Token:
+                - stripped
+            User-Agent:
+                - stripped
+        url: https://gitlab.com/api/v4/projects/gitlab-org%2Fapi%2Fclient-go/repository/compare?from=main&to=add-missing-deprecation-replacement&unidiff=true
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        content_length: 31
+        body: '{"message":"404 Ref Not Found"}'
+        headers:
+            Cache-Control:
+                - stripped
+            Cf-Cache-Status:
+                - stripped
+            Cf-Ray:
+                - stripped
+            Content-Length:
+                - stripped
+            Content-Security-Policy:
+                - stripped
+            Content-Type:
+                - application/json
+            Date:
+                - stripped
+            Gitlab-Lb:
+                - stripped
+            Gitlab-Sv:
+                - stripped
+            Nel:
+                - stripped
+            Ratelimit-Limit:
+                - stripped
+            Ratelimit-Name:
+                - stripped
+            Ratelimit-Observed:
+                - stripped
+            Ratelimit-Remaining:
+                - stripped
+            Ratelimit-Reset:
+                - stripped
+            Referrer-Policy:
+                - stripped
+            Server:
+                - stripped
+            Set-Cookie:
+                - stripped
+            Strict-Transport-Security:
+                - stripped
+            Vary:
+                - stripped
+            X-Content-Type-Options:
+                - stripped
+            X-Frame-Options:
+                - stripped
+            X-Gitlab-Meta:
+                - stripped
+            X-Request-Id:
+                - stripped
+            X-Runtime:
+                - stripped
+        status: 404 Not Found
+        code: 404
+        duration: 244.093453ms

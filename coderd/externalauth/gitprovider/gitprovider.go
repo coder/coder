@@ -107,6 +107,10 @@ type PRStatus struct {
 // ErrDiffTooLarge.
 const MaxDiffSize = 4 << 20 // 4 MiB
 
+// RateLimitPadding is added to rate-limit retry times to guard
+// against over-consumption of request quotas.
+const RateLimitPadding = 5 * time.Minute
+
 // ErrDiffTooLarge is returned when a diff exceeds MaxDiffSize.
 var ErrDiffTooLarge = xerrors.Errorf("diff exceeds maximum size of %d bytes", MaxDiffSize)
 
@@ -171,7 +175,7 @@ type Provider interface {
 // New creates a Provider for the given provider type and API base
 // URL. Returns nil if the provider type is not a supported git
 // provider.
-func New(providerType string, apiBaseURL string, httpClient *http.Client, opts ...Option) Provider {
+func New(providerType string, apiBaseURL string, httpClient *http.Client, opts ...Option) (Provider, error) {
 	o := providerOptions{}
 	for _, opt := range opts {
 		opt(&o)
@@ -182,11 +186,13 @@ func New(providerType string, apiBaseURL string, httpClient *http.Client, opts .
 
 	switch providerType {
 	case "github":
-		return newGitHub(apiBaseURL, httpClient, o.clock)
+		return newGitHub(apiBaseURL, httpClient, o.clock), nil
+	case "gitlab":
+		return newGitLab(apiBaseURL, httpClient, o.clock)
 	default:
-		// Other providers (gitlab, bitbucket-cloud, etc.) will be
+		// Other providers (bitbucket-cloud, etc.) will be
 		// added here as they are implemented.
-		return nil
+		return nil, nil //nolint:nilnil // nil provider means unsupported type, not an error
 	}
 }
 

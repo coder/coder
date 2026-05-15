@@ -1,0 +1,157 @@
+---
+version: 2
+interactions:
+    - id: 0
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        host: gitlab.com
+        headers:
+            Accept:
+                - application/json
+            Private-Token:
+                - stripped
+            User-Agent:
+                - stripped
+        url: https://gitlab.com/api/v4/projects/gitlab-org%2Fapi%2Fclient-go/merge_requests/2654
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        content_length: -1
+        uncompressed: true
+        body: '{"id":445457372,"iid":2654,"project_id":65271576,"title":"feat: convert examples to testable examples for pkg.go.dev","description":"Convert all examples from examples/ directory to testable examples that\nintegrate with pkg.go.dev documentation system.\n\nChanges:\n- Add 24 testable example files with package gitlab_test\n- Implement httptest mocking for all examples (no GitLab instance required)\n- Add Output comments for go test verification\n- All examples pass ''go test'' successfully\n- Remove old examples/ directory\n\nExamples include:\n- Applications, BasicAuth, ClusterAgents, Deployments\n- Impersonation, Import (Bitbucket Cloud/Server), Labels\n- Languages, MergeRequests (standard and auto-merge)\n- OAuth2, Pagination (standard and keyset)\n- PersonalAccessTokens (list, revoke, rotate)\n- Pipelines, Projects, Repositories, Services, Topics, Webhooks\n\nBenefits:\n- Examples verified by CI/CD through go test\n- Examples display on pkg.go.dev with syntax highlighting\n- Users can copy/paste working code directly\n- API changes caught by example tests\n\nCloses #2194","state":"closed","created_at":"2026-01-11T12:14:32.907Z","updated_at":"2026-01-11T14:21:31.409Z","merged_by":null,"merge_user":null,"merged_at":null,"closed_by":{"id":32878191,"username":"amrkhald777","public_email":"","name":"Amer Khaled","state":"active","locked":false,"avatar_url":"https://gitlab.com/uploads/-/system/user/avatar/32878191/avatar.png","web_url":"https://gitlab.com/amrkhald777"},"closed_at":"2026-01-11T14:21:31.137Z","target_branch":"main","source_branch":"convert-examples-to-testable-examples","user_notes_count":3,"upvotes":0,"downvotes":0,"author":{"id":32878191,"username":"amrkhald777","public_email":"","name":"Amer Khaled","state":"active","locked":false,"avatar_url":"https://gitlab.com/uploads/-/system/user/avatar/32878191/avatar.png","web_url":"https://gitlab.com/amrkhald777"},"assignees":[{"id":32878191,"username":"amrkhald777","public_email":"","name":"Amer Khaled","state":"active","locked":false,"avatar_url":"https://gitlab.com/uploads/-/system/user/avatar/32878191/avatar.png","web_url":"https://gitlab.com/amrkhald777"}],"assignee":{"id":32878191,"username":"amrkhald777","public_email":"","name":"Amer Khaled","state":"active","locked":false,"avatar_url":"https://gitlab.com/uploads/-/system/user/avatar/32878191/avatar.png","web_url":"https://gitlab.com/amrkhald777"},"reviewers":[{"id":21826781,"username":"GitLabDuo","public_email":null,"name":"GitLab Duo","state":"active","locked":false,"avatar_url":"https://gitlab.com/uploads/-/system/user/avatar/21826781/duo-bot.png","web_url":"https://gitlab.com/GitLabDuo"}],"source_project_id":null,"target_project_id":65271576,"labels":["1st contribution","Community contribution","devops::developer experience","group::development tooling","linked-issue","section::developer experience","type::feature","workflow::in dev"],"draft":false,"imported":false,"imported_from":"none","work_in_progress":false,"milestone":null,"merge_when_pipeline_succeeds":false,"merge_status":"can_be_merged","detailed_merge_status":"not_open","merge_after":null,"sha":"868041db85955c58393306e7c21c480f243b3a18","merge_commit_sha":null,"squash_commit_sha":null,"discussion_locked":null,"should_remove_source_branch":null,"force_remove_source_branch":true,"prepared_at":"2026-01-11T12:14:40.504Z","allow_collaboration":false,"allow_maintainer_to_push":false,"reference":"!2654","references":{"short":"!2654","relative":"!2654","full":"gitlab-org/api/client-go!2654"},"web_url":"https://gitlab.com/gitlab-org/api/client-go/-/merge_requests/2654","time_stats":{"time_estimate":0,"total_time_spent":0,"human_time_estimate":null,"human_total_time_spent":null},"squash":true,"squash_on_merge":true,"task_completion_status":{"count":0,"completed_count":0},"has_conflicts":false,"blocking_discussions_resolved":true,"approvals_before_merge":null,"subscribed":false,"changes_count":"21","latest_build_started_at":null,"latest_build_finished_at":null,"first_deployed_to_production_at":null,"pipeline":null,"head_pipeline":null,"diff_refs":{"base_sha":"2ccecf61d2c782363a9bab9d08bb3287f146c203","head_sha":"868041db85955c58393306e7c21c480f243b3a18","start_sha":"2ccecf61d2c782363a9bab9d08bb3287f146c203"},"merge_error":null,"first_contribution":false,"user":{"can_merge":false}}'
+        headers:
+            Cache-Control:
+                - stripped
+            Cf-Cache-Status:
+                - stripped
+            Cf-Ray:
+                - stripped
+            Content-Security-Policy:
+                - stripped
+            Content-Type:
+                - application/json
+            Date:
+                - stripped
+            Etag:
+                - stripped
+            Gitlab-Lb:
+                - stripped
+            Gitlab-Sv:
+                - stripped
+            Nel:
+                - stripped
+            Ratelimit-Limit:
+                - stripped
+            Ratelimit-Name:
+                - stripped
+            Ratelimit-Observed:
+                - stripped
+            Ratelimit-Remaining:
+                - stripped
+            Ratelimit-Reset:
+                - stripped
+            Referrer-Policy:
+                - stripped
+            Server:
+                - stripped
+            Set-Cookie:
+                - stripped
+            Strict-Transport-Security:
+                - stripped
+            Vary:
+                - stripped
+            X-Content-Type-Options:
+                - stripped
+            X-Frame-Options:
+                - stripped
+            X-Gitlab-Meta:
+                - stripped
+            X-Request-Id:
+                - stripped
+            X-Runtime:
+                - stripped
+        status: 200 OK
+        code: 200
+        duration: 333.202132ms
+    - id: 1
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        host: gitlab.com
+        headers:
+            Accept:
+                - application/json
+            Private-Token:
+                - stripped
+            User-Agent:
+                - stripped
+        url: https://gitlab.com/api/v4/projects/gitlab-org%2Fapi%2Fclient-go/merge_requests/2654/approvals
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        content_length: -1
+        uncompressed: true
+        body: '{"id":445457372,"iid":2654,"project_id":65271576,"title":"feat: convert examples to testable examples for pkg.go.dev","description":"Convert all examples from examples/ directory to testable examples that\nintegrate with pkg.go.dev documentation system.\n\nChanges:\n- Add 24 testable example files with package gitlab_test\n- Implement httptest mocking for all examples (no GitLab instance required)\n- Add Output comments for go test verification\n- All examples pass ''go test'' successfully\n- Remove old examples/ directory\n\nExamples include:\n- Applications, BasicAuth, ClusterAgents, Deployments\n- Impersonation, Import (Bitbucket Cloud/Server), Labels\n- Languages, MergeRequests (standard and auto-merge)\n- OAuth2, Pagination (standard and keyset)\n- PersonalAccessTokens (list, revoke, rotate)\n- Pipelines, Projects, Repositories, Services, Topics, Webhooks\n\nBenefits:\n- Examples verified by CI/CD through go test\n- Examples display on pkg.go.dev with syntax highlighting\n- Users can copy/paste working code directly\n- API changes caught by example tests\n\nCloses #2194","state":"closed","created_at":"2026-01-11T12:14:32.907Z","updated_at":"2026-01-11T14:21:31.409Z","merge_status":"can_be_merged","approved":false,"approvals_required":1,"approvals_left":1,"require_password_to_approve":false,"approved_by":[],"suggested_approvers":[{"id":8095268,"username":"PatrickRice","public_email":"","name":"Patrick Rice","state":"active","locked":false,"avatar_url":"https://secure.gravatar.com/avatar/70681ab1dd7f83c5985b07172bdff30cad387261ace57b084c955ae3498d5b25?s=80\u0026d=identicon","web_url":"https://gitlab.com/PatrickRice"},{"id":12689435,"username":"timofurrer","public_email":"tfurrer@gitlab.com","name":"Timo Furrer","state":"active","locked":false,"avatar_url":"https://gitlab.com/uploads/-/system/user/avatar/12689435/avatar.png","web_url":"https://gitlab.com/timofurrer"},{"id":18657743,"username":"heidi.berry","public_email":"","name":"Heidi Berry","state":"active","locked":false,"avatar_url":"https://gitlab.com/uploads/-/system/user/avatar/18657743/avatar.png","web_url":"https://gitlab.com/heidi.berry"},{"id":19535662,"username":"fforster","public_email":"fforster@gitlab.com","name":"Florian Forster","state":"active","locked":false,"avatar_url":"https://gitlab.com/uploads/-/system/user/avatar/19535662/avatar.png","web_url":"https://gitlab.com/fforster"}],"approvers":[],"approver_groups":[],"user_has_approved":false,"user_can_approve":false,"approval_rules_left":[{"id":56306169,"name":"All Members","rule_type":"any_approver"}],"has_approval_rules":true,"merge_request_approvers_available":true,"multiple_approval_rules_available":true,"invalid_approvers_rules":[]}'
+        headers:
+            Cache-Control:
+                - stripped
+            Cf-Cache-Status:
+                - stripped
+            Cf-Ray:
+                - stripped
+            Content-Security-Policy:
+                - stripped
+            Content-Type:
+                - application/json
+            Date:
+                - stripped
+            Etag:
+                - stripped
+            Gitlab-Lb:
+                - stripped
+            Gitlab-Sv:
+                - stripped
+            Nel:
+                - stripped
+            Ratelimit-Limit:
+                - stripped
+            Ratelimit-Name:
+                - stripped
+            Ratelimit-Observed:
+                - stripped
+            Ratelimit-Remaining:
+                - stripped
+            Ratelimit-Reset:
+                - stripped
+            Referrer-Policy:
+                - stripped
+            Server:
+                - stripped
+            Set-Cookie:
+                - stripped
+            Strict-Transport-Security:
+                - stripped
+            Vary:
+                - stripped
+            X-Content-Type-Options:
+                - stripped
+            X-Frame-Options:
+                - stripped
+            X-Gitlab-Meta:
+                - stripped
+            X-Request-Id:
+                - stripped
+            X-Runtime:
+                - stripped
+        status: 200 OK
+        code: 200
+        duration: 289.892864ms

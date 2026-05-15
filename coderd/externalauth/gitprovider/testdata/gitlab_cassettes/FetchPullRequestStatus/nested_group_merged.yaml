@@ -1,0 +1,157 @@
+---
+version: 2
+interactions:
+    - id: 0
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        host: gitlab.com
+        headers:
+            Accept:
+                - application/json
+            Private-Token:
+                - stripped
+            User-Agent:
+                - stripped
+        url: https://gitlab.com/api/v4/projects/gitlab-org%2Fapi%2Fclient-go/merge_requests/2883
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        content_length: -1
+        uncompressed: true
+        body: '{"id":483124224,"iid":2883,"project_id":65271576,"title":"fix: Add PublicJobs to CreateProjectOptions","description":"Added support for a `PublicJobs` setting when creating new GitLab projects. This allows developers to specify whether job information should be publicly visible when creating a project through the API. It replaces the deprecated `PublicBuilds` attribute.","state":"merged","created_at":"2026-05-09T21:17:01.968Z","updated_at":"2026-05-13T21:22:02.162Z","merged_by":{"id":8095268,"username":"PatrickRice","public_email":"","name":"Patrick Rice","state":"active","locked":false,"avatar_url":"https://secure.gravatar.com/avatar/70681ab1dd7f83c5985b07172bdff30cad387261ace57b084c955ae3498d5b25?s=80\u0026d=identicon","web_url":"https://gitlab.com/PatrickRice"},"merge_user":{"id":8095268,"username":"PatrickRice","public_email":"","name":"Patrick Rice","state":"active","locked":false,"avatar_url":"https://secure.gravatar.com/avatar/70681ab1dd7f83c5985b07172bdff30cad387261ace57b084c955ae3498d5b25?s=80\u0026d=identicon","web_url":"https://gitlab.com/PatrickRice"},"merged_at":"2026-05-13T21:09:43.032Z","closed_by":null,"closed_at":null,"target_branch":"main","source_branch":"add-missing-deprecation-replacement","user_notes_count":6,"upvotes":1,"downvotes":0,"author":{"id":18657743,"username":"heidi.berry","public_email":"","name":"Heidi Berry","state":"active","locked":false,"avatar_url":"https://gitlab.com/uploads/-/system/user/avatar/18657743/avatar.png","web_url":"https://gitlab.com/heidi.berry"},"assignees":[{"id":18657743,"username":"heidi.berry","public_email":"","name":"Heidi Berry","state":"active","locked":false,"avatar_url":"https://gitlab.com/uploads/-/system/user/avatar/18657743/avatar.png","web_url":"https://gitlab.com/heidi.berry"}],"assignee":{"id":18657743,"username":"heidi.berry","public_email":"","name":"Heidi Berry","state":"active","locked":false,"avatar_url":"https://gitlab.com/uploads/-/system/user/avatar/18657743/avatar.png","web_url":"https://gitlab.com/heidi.berry"},"reviewers":[{"id":8095268,"username":"PatrickRice","public_email":"","name":"Patrick Rice","state":"active","locked":false,"avatar_url":"https://secure.gravatar.com/avatar/70681ab1dd7f83c5985b07172bdff30cad387261ace57b084c955ae3498d5b25?s=80\u0026d=identicon","web_url":"https://gitlab.com/PatrickRice"},{"id":12689435,"username":"timofurrer","public_email":"tfurrer@gitlab.com","name":"Timo Furrer","state":"active","locked":false,"avatar_url":"https://gitlab.com/uploads/-/system/user/avatar/12689435/avatar.png","web_url":"https://gitlab.com/timofurrer"},{"id":21826781,"username":"GitLabDuo","public_email":null,"name":"GitLab Duo","state":"active","locked":false,"avatar_url":"https://gitlab.com/uploads/-/system/user/avatar/21826781/duo-bot.png","web_url":"https://gitlab.com/GitLabDuo"}],"source_project_id":65271576,"target_project_id":65271576,"labels":["Community contribution","Leading Organization","automation:ml","backend","feature::enhancement","type::feature","workflow::in dev"],"draft":false,"imported":false,"imported_from":"none","work_in_progress":false,"milestone":null,"merge_when_pipeline_succeeds":true,"merge_status":"can_be_merged","detailed_merge_status":"not_open","merge_after":null,"sha":"f793022bc000a737f4fca46a4eed1c4a3ea353d2","merge_commit_sha":"795279ed33e218ba80553151716a9896ca28f0e8","squash_commit_sha":"4bbf58ab60c776e921f737f395031eb6e8cbe9bc","discussion_locked":null,"should_remove_source_branch":true,"force_remove_source_branch":true,"prepared_at":"2026-05-09T21:17:07.715Z","reference":"!2883","references":{"short":"!2883","relative":"!2883","full":"gitlab-org/api/client-go!2883"},"web_url":"https://gitlab.com/gitlab-org/api/client-go/-/merge_requests/2883","time_stats":{"time_estimate":0,"total_time_spent":0,"human_time_estimate":null,"human_total_time_spent":null},"squash":true,"squash_on_merge":true,"task_completion_status":{"count":0,"completed_count":0},"has_conflicts":false,"blocking_discussions_resolved":true,"approvals_before_merge":null,"subscribed":false,"changes_count":"1","latest_build_started_at":"2026-05-13T20:51:41.189Z","latest_build_finished_at":"2026-05-13T21:09:38.364Z","first_deployed_to_production_at":null,"pipeline":{"id":2523564331,"iid":3099,"project_id":65271576,"sha":"6b45fe3ae83206b82c0be181be2cb0b5994d8a57","ref":"refs/merge-requests/2883/train","status":"success","source":"merge_request_event","created_at":"2026-05-13T20:51:39.687Z","updated_at":"2026-05-13T21:09:38.379Z","web_url":"https://gitlab.com/gitlab-org/api/client-go/-/pipelines/2523564331"},"head_pipeline":{"id":2523564331,"iid":3099,"project_id":65271576,"sha":"6b45fe3ae83206b82c0be181be2cb0b5994d8a57","ref":"refs/merge-requests/2883/train","status":"success","source":"merge_request_event","created_at":"2026-05-13T20:51:39.687Z","updated_at":"2026-05-13T21:09:38.379Z","web_url":"https://gitlab.com/gitlab-org/api/client-go/-/pipelines/2523564331","before_sha":"6b45fe3ae83206b82c0be181be2cb0b5994d8a57","tag":false,"yaml_errors":null,"user":{"id":8095268,"username":"PatrickRice","public_email":"","name":"Patrick Rice","state":"active","locked":false,"avatar_url":"https://secure.gravatar.com/avatar/70681ab1dd7f83c5985b07172bdff30cad387261ace57b084c955ae3498d5b25?s=80\u0026d=identicon","web_url":"https://gitlab.com/PatrickRice"},"started_at":"2026-05-13T20:51:41.189Z","finished_at":"2026-05-13T21:09:38.364Z","committed_at":null,"duration":1077,"queued_duration":1,"coverage":"70.20","detailed_status":{"icon":"status_success","text":"Passed","label":"passed","group":"success","tooltip":"passed","has_details":true,"details_path":"/gitlab-org/api/client-go/-/pipelines/2523564331","illustration":null,"favicon":"/assets/ci_favicons/favicon_status_success-8451333011eee8ce9f2ab25dc487fe24a8758c694827a582f17f42b0a90446a2.png"},"archived":false},"diff_refs":{"base_sha":"b4c2cfbf03e69a0d78727d23b5e42963512ac4e8","head_sha":"f793022bc000a737f4fca46a4eed1c4a3ea353d2","start_sha":"b4c2cfbf03e69a0d78727d23b5e42963512ac4e8"},"merge_error":null,"first_contribution":false,"user":{"can_merge":false}}'
+        headers:
+            Cache-Control:
+                - stripped
+            Cf-Cache-Status:
+                - stripped
+            Cf-Ray:
+                - stripped
+            Content-Security-Policy:
+                - stripped
+            Content-Type:
+                - application/json
+            Date:
+                - stripped
+            Etag:
+                - stripped
+            Gitlab-Lb:
+                - stripped
+            Gitlab-Sv:
+                - stripped
+            Nel:
+                - stripped
+            Ratelimit-Limit:
+                - stripped
+            Ratelimit-Name:
+                - stripped
+            Ratelimit-Observed:
+                - stripped
+            Ratelimit-Remaining:
+                - stripped
+            Ratelimit-Reset:
+                - stripped
+            Referrer-Policy:
+                - stripped
+            Server:
+                - stripped
+            Set-Cookie:
+                - stripped
+            Strict-Transport-Security:
+                - stripped
+            Vary:
+                - stripped
+            X-Content-Type-Options:
+                - stripped
+            X-Frame-Options:
+                - stripped
+            X-Gitlab-Meta:
+                - stripped
+            X-Request-Id:
+                - stripped
+            X-Runtime:
+                - stripped
+        status: 200 OK
+        code: 200
+        duration: 414.952908ms
+    - id: 1
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        host: gitlab.com
+        headers:
+            Accept:
+                - application/json
+            Private-Token:
+                - stripped
+            User-Agent:
+                - stripped
+        url: https://gitlab.com/api/v4/projects/gitlab-org%2Fapi%2Fclient-go/merge_requests/2883/approvals
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        content_length: -1
+        uncompressed: true
+        body: '{"id":483124224,"iid":2883,"project_id":65271576,"title":"fix: Add PublicJobs to CreateProjectOptions","description":"Added support for a `PublicJobs` setting when creating new GitLab projects. This allows developers to specify whether job information should be publicly visible when creating a project through the API. It replaces the deprecated `PublicBuilds` attribute.","state":"merged","created_at":"2026-05-09T21:17:01.968Z","updated_at":"2026-05-13T21:22:02.162Z","merge_status":"can_be_merged","approved":true,"approvals_required":1,"approvals_left":0,"require_password_to_approve":false,"approved_by":[{"user":{"id":8095268,"username":"PatrickRice","public_email":"","name":"Patrick Rice","state":"active","locked":false,"avatar_url":"https://secure.gravatar.com/avatar/70681ab1dd7f83c5985b07172bdff30cad387261ace57b084c955ae3498d5b25?s=80\u0026d=identicon","web_url":"https://gitlab.com/PatrickRice"},"approved_at":"2026-05-13T20:51:34.440Z"}],"suggested_approvers":[{"id":12689435,"username":"timofurrer","public_email":"tfurrer@gitlab.com","name":"Timo Furrer","state":"active","locked":false,"avatar_url":"https://gitlab.com/uploads/-/system/user/avatar/12689435/avatar.png","web_url":"https://gitlab.com/timofurrer"},{"id":19535662,"username":"fforster","public_email":"fforster@gitlab.com","name":"Florian Forster","state":"active","locked":false,"avatar_url":"https://gitlab.com/uploads/-/system/user/avatar/19535662/avatar.png","web_url":"https://gitlab.com/fforster"}],"approvers":[],"approver_groups":[],"user_has_approved":false,"user_can_approve":false,"approval_rules_left":[],"has_approval_rules":true,"merge_request_approvers_available":true,"multiple_approval_rules_available":true,"invalid_approvers_rules":[]}'
+        headers:
+            Cache-Control:
+                - stripped
+            Cf-Cache-Status:
+                - stripped
+            Cf-Ray:
+                - stripped
+            Content-Security-Policy:
+                - stripped
+            Content-Type:
+                - application/json
+            Date:
+                - stripped
+            Etag:
+                - stripped
+            Gitlab-Lb:
+                - stripped
+            Gitlab-Sv:
+                - stripped
+            Nel:
+                - stripped
+            Ratelimit-Limit:
+                - stripped
+            Ratelimit-Name:
+                - stripped
+            Ratelimit-Observed:
+                - stripped
+            Ratelimit-Remaining:
+                - stripped
+            Ratelimit-Reset:
+                - stripped
+            Referrer-Policy:
+                - stripped
+            Server:
+                - stripped
+            Set-Cookie:
+                - stripped
+            Strict-Transport-Security:
+                - stripped
+            Vary:
+                - stripped
+            X-Content-Type-Options:
+                - stripped
+            X-Frame-Options:
+                - stripped
+            X-Gitlab-Meta:
+                - stripped
+            X-Request-Id:
+                - stripped
+            X-Runtime:
+                - stripped
+        status: 200 OK
+        code: 200
+        duration: 226.704574ms

@@ -1,0 +1,1087 @@
+---
+version: 2
+interactions:
+    - id: 0
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        host: gitlab.com
+        headers:
+            Accept:
+                - application/json
+            Private-Token:
+                - stripped
+            User-Agent:
+                - stripped
+        url: https://gitlab.com/api/v4/projects/gitlab-org%2Fapi%2Fclient-go/merge_requests/2654/raw_diffs
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        content_length: -1
+        uncompressed: true
+        body: |
+            diff --git a/example_applications_test.go b/example_applications_test.go
+            new file mode 100644
+            index 0000000000000000000000000000000000000000..a7c3c5e560ae659fa54fc128db33f7c24e17adf6
+            --- /dev/null
+            +++ b/example_applications_test.go
+            @@ -0,0 +1,47 @@
+            +package gitlab_test
+            +
+            +import (
+            +	"fmt"
+            +	"net/http"
+            +	"net/http/httptest"
+            +	gitlab "gitlab.com/gitlab-org/api/client-go"
+            +)
+            +
+            +func ExampleApplicationsService() {
+            +	mux := http.NewServeMux()
+            +	server := httptest.NewServer(mux)
+            +	defer server.Close()
+            +
+            +	mux.HandleFunc("/api/v4/applications", func(w http.ResponseWriter, r *http.Request) {
+            +		if r.Method == http.MethodPost {
+            +			fmt.Fprint(w, `{"id":1,"application_id":"app123","redirect_uri":"http://example.org"}`)
+            +			return
+            +		}
+            +		fmt.Fprint(w, `[{"id":1,"application_id":"app123"}]`)
+            +	})
+            +
+            +	mux.HandleFunc("/api/v4/applications/1", func(w http.ResponseWriter, r *http.Request) {
+            +		w.WriteHeader(http.StatusNoContent)
+            +	})
+            +
+            +	git, _ := gitlab.NewClient("token", gitlab.WithBaseURL(server.URL))
+            +
+            +	opts := &gitlab.CreateApplicationOptions{
+            +		Name:        gitlab.Ptr("Travis"),
+            +		RedirectURI: gitlab.Ptr("http://example.org"),
+            +		Scopes:      gitlab.Ptr("api"),
+            +	}
+            +	created, _, _ := git.Applications.CreateApplication(opts)
+            +	fmt.Printf("Created application ID: %d\n", created.ID)
+            +
+            +	applications, _, _ := git.Applications.ListApplications(&gitlab.ListApplicationsOptions{})
+            +	fmt.Printf("Found %d application(s)\n", len(applications))
+            +
+            +	resp, _ := git.Applications.DeleteApplication(created.ID)
+            +	fmt.Printf("Delete status: %d\n", resp.StatusCode)
+            +
+            +	// Output:
+            +	// Created application ID: 1
+            +	// Found 1 application(s)
+            +	// Delete status: 204
+            +}
+            diff --git a/example_basic_auth_test.go b/example_basic_auth_test.go
+            new file mode 100644
+            index 0000000000000000000000000000000000000000..a73fb00a4d65c9cee7e87c9c0dbb9e70e7b1bede
+            --- /dev/null
+            +++ b/example_basic_auth_test.go
+            @@ -0,0 +1,44 @@
+            +package gitlab_test
+            +
+            +import (
+            +	"fmt"
+            +	"net/http"
+            +	"net/http/httptest"
+            +
+            +	gitlab "gitlab.com/gitlab-org/api/client-go"
+            +)
+            +
+            +// Example_basicAuth demonstrates how to create a client with username and password.
+            +func Example_basicAuth() {
+            +	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+            +		w.Header().Set("Content-Type", "application/json")
+            +
+            +		// Handle OAuth token request first
+            +		if r.URL.Path == "/oauth/token" {
+            +			fmt.Fprint(w, `{"access_token":"mock-token","token_type":"Bearer"}`)
+            +			return
+            +		}
+            +
+            +		// Handle projects list request
+            +		if r.URL.Path == "/api/v4/projects" {
+            +			fmt.Fprint(w, `[{"id":1,"name":"project1"},{"id":2,"name":"project2"}]`)
+            +			return
+            +		}
+            +
+            +		http.NotFound(w, r)
+            +	})
+            +
+            +	server := httptest.NewServer(handler)
+            +	defer server.Close()
+            +
+            +	git, _ := gitlab.NewBasicAuthClient(
+            +		"username",
+            +		"password",
+            +		gitlab.WithBaseURL(server.URL),
+            +	)
+            +
+            +	projects, _, _ := git.Projects.ListProjects(nil)
+            +	fmt.Printf("Found %d projects\n", len(projects))
+            +
+            +	// Output: Found 2 projects
+            +}
+            diff --git a/example_cluster_agents_test.go b/example_cluster_agents_test.go
+            new file mode 100644
+            index 0000000000000000000000000000000000000000..0f4d48154dcb7e987f84d2c5ab7253a621520380
+            --- /dev/null
+            +++ b/example_cluster_agents_test.go
+            @@ -0,0 +1,34 @@
+            +package gitlab_test
+            +
+            +import (
+            +	"fmt"
+            +	"net/http"
+            +	"net/http/httptest"
+            +	gitlab "gitlab.com/gitlab-org/api/client-go"
+            +)
+            +
+            +func ExampleClusterAgentsService() {
+            +	mux := http.NewServeMux()
+            +	server := httptest.NewServer(mux)
+            +	defer server.Close()
+            +
+            +	mux.HandleFunc("/api/v4/projects/33/cluster_agents", func(w http.ResponseWriter, r *http.Request) {
+            +		if r.Method == http.MethodPost {
+            +			fmt.Fprint(w, `{"id":1,"name":"agent-2"}`)
+            +			return
+            +		}
+            +		fmt.Fprint(w, `[{"id":1,"name":"agent-2"}]`)
+            +	})
+            +
+            +	git, _ := gitlab.NewClient("token", gitlab.WithBaseURL(server.URL))
+            +	agent, _, _ := git.ClusterAgents.RegisterAgent(33, &gitlab.RegisterAgentOptions{Name: gitlab.Ptr("agent-2")})
+            +	fmt.Printf("Registered: %s\n", agent.Name)
+            +
+            +	agents, _, _ := git.ClusterAgents.ListAgents(33, nil)
+            +	fmt.Printf("Found %d agent(s)\n", len(agents))
+            +
+            +	// Output:
+            +	// Registered: agent-2
+            +	// Found 1 agent(s)
+            +}
+            +
+            diff --git a/example_deployment_merge_requests_test.go b/example_deployment_merge_requests_test.go
+            new file mode 100644
+            index 0000000000000000000000000000000000000000..ae7fe873b22733bf2170bef93596fda03037b792
+            --- /dev/null
+            +++ b/example_deployment_merge_requests_test.go
+            @@ -0,0 +1,28 @@
+            +package gitlab_test
+            +
+            +import (
+            +	"fmt"
+            +	"net/http"
+            +	"net/http/httptest"
+            +	gitlab "gitlab.com/gitlab-org/api/client-go"
+            +)
+            +
+            +func ExampleDeploymentMergeRequestsService() {
+            +	mux := http.NewServeMux()
+            +	server := httptest.NewServer(mux)
+            +	defer server.Close()
+            +
+            +	mux.HandleFunc("/api/v4/projects/1/deployments/1/merge_requests", func(w http.ResponseWriter, r *http.Request) {
+            +		fmt.Fprint(w, `[{"id":1,"iid":1,"title":"Test MR"}]`)
+            +	})
+            +
+            +	git, _ := gitlab.NewClient("token", gitlab.WithBaseURL(server.URL))
+            +	mrs, _, _ := git.DeploymentMergeRequests.ListDeploymentMergeRequests(1, 1, &gitlab.ListMergeRequestsOptions{})
+            +	fmt.Printf("Found %d merge request(s)\n", len(mrs))
+            +
+            +	// Output: Found 1 merge request(s)
+            +}
+            +
+            +
+            +
+            +
+            diff --git a/example_impersonation_tokens_test.go b/example_impersonation_tokens_test.go
+            new file mode 100644
+            index 0000000000000000000000000000000000000000..57a6720a04fabe2f6fa900c8c4454d1d1ee9a804
+            --- /dev/null
+            +++ b/example_impersonation_tokens_test.go
+            @@ -0,0 +1,35 @@
+            +package gitlab_test
+            +
+            +import (
+            +	"fmt"
+            +	"net/http"
+            +	"net/http/httptest"
+            +	gitlab "gitlab.com/gitlab-org/api/client-go"
+            +)
+            +
+            +func ExampleUsersService_impersonationTokens() {
+            +	mux := http.NewServeMux()
+            +	server := httptest.NewServer(mux)
+            +	defer server.Close()
+            +
+            +	mux.HandleFunc("/api/v4/users/1/impersonation_tokens", func(w http.ResponseWriter, r *http.Request) {
+            +		if r.Method == http.MethodGet {
+            +			fmt.Fprint(w, `[{"id":1,"token":"existing-token"}]`)
+            +			return
+            +		}
+            +		fmt.Fprint(w, `{"id":2,"token":"new-token"}`)
+            +	})
+            +
+            +	git, _ := gitlab.NewClient("token", gitlab.WithBaseURL(server.URL))
+            +
+            +	tokens, _, _ := git.Users.GetAllImpersonationTokens(1, &gitlab.GetAllImpersonationTokensOptions{State: gitlab.Ptr("active")})
+            +	fmt.Printf("Found %d token(s)\n", len(tokens))
+            +
+            +	token, _, _ := git.Users.CreateImpersonationToken(1, &gitlab.CreateImpersonationTokenOptions{Scopes: &[]string{"api"}})
+            +	fmt.Printf("Created: %s\n", token.Token)
+            +
+            +	// Output:
+            +	// Found 1 token(s)
+            +	// Created: new-token
+            +}
+            +
+            diff --git a/example_import_test.go b/example_import_test.go
+            new file mode 100644
+            index 0000000000000000000000000000000000000000..f56975d44ed8e5504b7ee20972c68a07d01c0f7b
+            --- /dev/null
+            +++ b/example_import_test.go
+            @@ -0,0 +1,79 @@
+            +package gitlab_test
+            +
+            +import (
+            +	"fmt"
+            +	"log"
+            +	"net/http"
+            +	"net/http/httptest"
+            +
+            +	gitlab "gitlab.com/gitlab-org/api/client-go"
+            +)
+            +
+            +func ExampleImportService_bitbucketCloud() {
+            +	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+            +		w.Header().Set("Content-Type", "application/json")
+            +		fmt.Fprint(w, `{"id":1,"name":"some-repo","path":"some-repo","path_with_namespace":"some-group/some-repo"}`)
+            +	})
+            +
+            +	server := httptest.NewServer(handler)
+            +	defer server.Close()
+            +
+            +	git, err := gitlab.NewClient("token", gitlab.WithBaseURL(server.URL))
+            +	if err != nil {
+            +		log.Fatal(err)
+            +	}
+            +
+            +	cloudOpt := &gitlab.ImportRepositoryFromBitbucketCloudOptions{
+            +		BitbucketUsername:    gitlab.Ptr("username"),
+            +		BitbucketAppPassword: gitlab.Ptr("password"),
+            +		RepoPath:             gitlab.Ptr("some/repo"),
+            +		TargetNamespace:      gitlab.Ptr("some-group"),
+            +		NewName:              gitlab.Ptr("some-repo"),
+            +	}
+            +	cloudResp, _, err := git.Import.ImportRepositoryFromBitbucketCloud(cloudOpt)
+            +	if err != nil {
+            +		log.Fatal(err)
+            +	}
+            +
+            +	if cloudResp != nil {
+            +		fmt.Printf("Imported project: %s (ID: %d)\n", cloudResp.Name, cloudResp.ID)
+            +	}
+            +
+            +	// Output: Imported project: some-repo (ID: 1)
+            +}
+            +
+            +func ExampleImportService_bitbucketServer() {
+            +	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+            +		w.Header().Set("Content-Type", "application/json")
+            +		fmt.Fprint(w, `{"id":1,"name":"some-other-repo","path":"some-other-repo","path_with_namespace":"some-group/some-other-repo"}`)
+            +	})
+            +
+            +	server := httptest.NewServer(handler)
+            +	defer server.Close()
+            +
+            +	git, err := gitlab.NewClient("token", gitlab.WithBaseURL(server.URL))
+            +	if err != nil {
+            +		log.Fatal(err)
+            +	}
+            +
+            +	serverOpt := &gitlab.ImportRepositoryFromBitbucketServerOptions{
+            +		BitbucketServerURL:      gitlab.Ptr("https://bitbucket.example.com"),
+            +		BitbucketServerUsername: gitlab.Ptr("username"),
+            +		PersonalAccessToken:     gitlab.Ptr("access-token"),
+            +		BitbucketServerProject:  gitlab.Ptr("some-project"),
+            +		BitbucketServerRepo:     gitlab.Ptr("some-repo"),
+            +		NewName:                 gitlab.Ptr("some-other-repo"),
+            +		NewNamespace:            gitlab.Ptr("some-group"),
+            +		TimeoutStrategy:         gitlab.Ptr("pessimistic"),
+            +	}
+            +	serverResp, _, err := git.Import.ImportRepositoryFromBitbucketServer(serverOpt)
+            +	if err != nil {
+            +		log.Fatal(err)
+            +	}
+            +
+            +	if serverResp != nil {
+            +		fmt.Printf("Imported project: %s (ID: %d)\n", serverResp.Name, serverResp.ID)
+            +	}
+            +
+            +	// Output: Imported project: some-other-repo (ID: 1)
+            +}
+            \ No newline at end of file
+            diff --git a/example_labels_test.go b/example_labels_test.go
+            new file mode 100644
+            index 0000000000000000000000000000000000000000..c2beb6ef67c6a29df5f97fde61b18ab663dac368
+            --- /dev/null
+            +++ b/example_labels_test.go
+            @@ -0,0 +1,37 @@
+            +package gitlab_test
+            +
+            +import (
+            +	"fmt"
+            +	"net/http"
+            +	"net/http/httptest"
+            +	gitlab "gitlab.com/gitlab-org/api/client-go"
+            +)
+            +
+            +func ExampleLabelsService() {
+            +	mux := http.NewServeMux()
+            +	server := httptest.NewServer(mux)
+            +	defer server.Close()
+            +
+            +	mux.HandleFunc("/api/v4/projects/myname%2Fmyproject/labels", func(w http.ResponseWriter, r *http.Request) {
+            +		if r.Method == http.MethodPost {
+            +			fmt.Fprint(w, `{"id":1,"name":"My Label","color":"#11FF22"}`)
+            +			return
+            +		}
+            +		fmt.Fprint(w, `[{"id":1,"name":"My Label","color":"#11FF22"}]`)
+            +	})
+            +
+            +	git, _ := gitlab.NewClient("token", gitlab.WithBaseURL(server.URL))
+            +
+            +	label, _, _ := git.Labels.CreateLabel("myname/myproject", &gitlab.CreateLabelOptions{
+            +		Name:  gitlab.Ptr("My Label"),
+            +		Color: gitlab.Ptr("#11FF22"),
+            +	})
+            +	fmt.Printf("Created: %s (%s)\n", label.Name, label.Color)
+            +
+            +	labels, _, _ := git.Labels.ListLabels("myname/myproject", nil)
+            +	fmt.Printf("Found %d label(s)\n", len(labels))
+            +
+            +	// Output:
+            +	// Created: My Label (#11FF22)
+            +	// Found 1 label(s)
+            +}
+            diff --git a/example_languages_test.go b/example_languages_test.go
+            new file mode 100644
+            index 0000000000000000000000000000000000000000..8adcdf69d434ea20e6458e01da2503700f2320c8
+            --- /dev/null
+            +++ b/example_languages_test.go
+            @@ -0,0 +1,24 @@
+            +package gitlab_test
+            +
+            +import (
+            +	"fmt"
+            +	"net/http"
+            +	"net/http/httptest"
+            +	gitlab "gitlab.com/gitlab-org/api/client-go"
+            +)
+            +
+            +func ExampleProjectsService_GetProjectLanguages() {
+            +	mux := http.NewServeMux()
+            +	server := httptest.NewServer(mux)
+            +	defer server.Close()
+            +
+            +	mux.HandleFunc("/api/v4/projects/2743054/languages", func(w http.ResponseWriter, r *http.Request) {
+            +		fmt.Fprint(w, `{"Go":75.5,"Python":24.5}`)
+            +	})
+            +
+            +	git, _ := gitlab.NewClient("token", gitlab.WithBaseURL(server.URL))
+            +	languages, _, _ := git.Projects.GetProjectLanguages("2743054")
+            +	fmt.Printf("Found %d language(s)\n", len(*languages))
+            +
+            +	// Output: Found 2 language(s)
+            +}
+            \ No newline at end of file
+            diff --git a/example_merge_requests_auto_merge_test.go b/example_merge_requests_auto_merge_test.go
+            new file mode 100644
+            index 0000000000000000000000000000000000000000..107598d71b0ecdbc48d2279eafe8973ad96cbf71
+            --- /dev/null
+            +++ b/example_merge_requests_auto_merge_test.go
+            @@ -0,0 +1,40 @@
+            +package gitlab_test
+            +
+            +import (
+            +	"fmt"
+            +	"net/http"
+            +	"net/http/httptest"
+            +	gitlab "gitlab.com/gitlab-org/api/client-go"
+            +)
+            +
+            +func ExampleMergeRequestsService_autoMerge() {
+            +	mux := http.NewServeMux()
+            +	server := httptest.NewServer(mux)
+            +	defer server.Close()
+            +
+            +	mux.HandleFunc("/api/v4/projects/example%2Fexample/merge_requests", func(w http.ResponseWriter, r *http.Request) {
+            +		fmt.Fprint(w, `{"id":1,"iid":1,"title":"New MergeRequest"}`)
+            +	})
+            +
+            +	mux.HandleFunc("/api/v4/projects/example%2Fexample/merge_requests/1/merge", func(w http.ResponseWriter, r *http.Request) {
+            +		fmt.Fprint(w, `{"id":1,"iid":1,"state":"merged"}`)
+            +	})
+            +
+            +	git, _ := gitlab.NewClient("token", gitlab.WithBaseURL(server.URL))
+            +
+            +	mr, _, _ := git.MergeRequests.CreateMergeRequest("example/example", &gitlab.CreateMergeRequestOptions{
+            +		SourceBranch: gitlab.Ptr("my-topic-branch"),
+            +		TargetBranch: gitlab.Ptr("main"),
+            +		Title:        gitlab.Ptr("New MergeRequest"),
+            +	})
+            +	fmt.Printf("Created MR #%d\n", mr.IID)
+            +
+            +	git.MergeRequests.AcceptMergeRequest("example/example", mr.IID, &gitlab.AcceptMergeRequestOptions{AutoMerge: gitlab.Ptr(true)})
+            +	fmt.Println("Auto-merge enabled")
+            +
+            +	// Output:
+            +	// Created MR #1
+            +	// Auto-merge enabled
+            +}
+            +
+            +
+            diff --git a/example_merge_requests_test.go b/example_merge_requests_test.go
+            new file mode 100644
+            index 0000000000000000000000000000000000000000..007f4ea27fb0bcc3d2a0c754521190ed2222c358
+            --- /dev/null
+            +++ b/example_merge_requests_test.go
+            @@ -0,0 +1,57 @@
+            +package gitlab_test
+            +
+            +import (
+            +	"fmt"
+            +	"net/http"
+            +	"net/http/httptest"
+            +	gitlab "gitlab.com/gitlab-org/api/client-go"
+            +)
+            +
+            +func ExampleMergeRequestsService() {
+            +	mux := http.NewServeMux()
+            +	server := httptest.NewServer(mux)
+            +	defer server.Close()
+            +
+            +	mux.HandleFunc("/api/v4/projects/12345/merge_requests", func(w http.ResponseWriter, r *http.Request) {
+            +		if r.Method == http.MethodPost {
+            +			fmt.Fprint(w, `{"id":1,"iid":1,"title":"Add new feature"}`)
+            +			return
+            +		}
+            +		fmt.Fprint(w, `[{"id":1,"iid":1,"title":"Add new feature"}]`)
+            +	})
+            +
+            +	mux.HandleFunc("/api/v4/projects/12345/merge_requests/1/approve", func(w http.ResponseWriter, r *http.Request) {
+            +		fmt.Fprint(w, `{"id":1,"iid":1}`)
+            +	})
+            +
+            +	mux.HandleFunc("/api/v4/projects/12345/merge_requests/1/notes", func(w http.ResponseWriter, r *http.Request) {
+            +		fmt.Fprint(w, `{"id":1,"body":"This is a comment on the merge request."}`)
+            +	})
+            +
+            +	git, _ := gitlab.NewClient("token", gitlab.WithBaseURL(server.URL))
+            +
+            +	mr, _, _ := git.MergeRequests.CreateMergeRequest(12345, &gitlab.CreateMergeRequestOptions{
+            +		Title:        gitlab.Ptr("Add new feature"),
+            +		SourceBranch: gitlab.Ptr("feature-branch"),
+            +		TargetBranch: gitlab.Ptr("main"),
+            +	})
+            +	fmt.Printf("Created MR #%d\n", mr.IID)
+            +
+            +	mrs, _, _ := git.MergeRequests.ListProjectMergeRequests(12345, &gitlab.ListProjectMergeRequestsOptions{})
+            +	fmt.Printf("Found %d MR(s)\n", len(mrs))
+            +
+            +	git.MergeRequestApprovals.ApproveMergeRequest(12345, mr.IID, &gitlab.ApproveMergeRequestOptions{})
+            +	fmt.Printf("Approved MR #%d\n", mr.IID)
+            +
+            +	comment, _, _ := git.Notes.CreateMergeRequestNote(12345, mr.IID, &gitlab.CreateMergeRequestNoteOptions{
+            +		Body: gitlab.Ptr("This is a comment on the merge request."),
+            +	})
+            +	fmt.Printf("Comment: %s\n", comment.Body)
+            +
+            +	// Output:
+            +	// Created MR #1
+            +	// Found 1 MR(s)
+            +	// Approved MR #1
+            +	// Comment: This is a comment on the merge request.
+            +}
+            +
+            diff --git a/example_oauth2_test.go b/example_oauth2_test.go
+            new file mode 100644
+            index 0000000000000000000000000000000000000000..fad1e149b0926f16e759f22ca6f4c45f941979b1
+            --- /dev/null
+            +++ b/example_oauth2_test.go
+            @@ -0,0 +1,12 @@
+            +package gitlab_test
+            +
+            +import "fmt"
+            +
+            +func Example_oauth2() {
+            +	fmt.Println("OAuth2 requires interactive browser flow")
+            +	fmt.Println("See: gitlab.com/gitlab-org/api/client-go/gitlaboauth2")
+            +
+            +	// Output:
+            +	// OAuth2 requires interactive browser flow
+            +	// See: gitlab.com/gitlab-org/api/client-go/gitlaboauth2
+            +}
+            diff --git a/example_pagination_test.go b/example_pagination_test.go
+            new file mode 100644
+            index 0000000000000000000000000000000000000000..c0502af07ddad5e9d361021c6e7f0571445572bc
+            --- /dev/null
+            +++ b/example_pagination_test.go
+            @@ -0,0 +1,78 @@
+            +package gitlab_test
+            +
+            +import (
+            +	"fmt"
+            +	"net/http"
+            +	"net/http/httptest"
+            +
+            +	gitlab "gitlab.com/gitlab-org/api/client-go"
+            +)
+            +
+            +func Example_pagination() {
+            +	mux := http.NewServeMux()
+            +	server := httptest.NewServer(mux)
+            +	defer server.Close()
+            +
+            +	callCount := 0
+            +	mux.HandleFunc("/api/v4/projects", func(w http.ResponseWriter, r *http.Request) {
+            +		callCount++
+            +		if callCount == 1 {
+            +			w.Header().Set("X-Next-Page", "2")
+            +			fmt.Fprint(w, `[{"id":1,"name":"project1"}]`)
+            +		} else {
+            +			fmt.Fprint(w, `[{"id":2,"name":"project2"}]`)
+            +		}
+            +	})
+            +
+            +	git, _ := gitlab.NewClient("token", gitlab.WithBaseURL(server.URL))
+            +
+            +	opt := &gitlab.ListProjectsOptions{
+            +		ListOptions: gitlab.ListOptions{PerPage: 10, Page: 1},
+            +		Owned:       gitlab.Ptr(true),
+            +	}
+            +
+            +	count := 0
+            +	for range gitlab.Must(gitlab.Scan2(func(p gitlab.PaginationOptionFunc) ([]*gitlab.Project, *gitlab.Response, error) {
+            +		return git.Projects.ListProjects(opt, p)
+            +	})) {
+            +		count++
+            +	}
+            +	fmt.Printf("Iterated %d projects\n", count)
+            +
+            +	// Output: Iterated 2 projects
+            +}
+            +
+            +func Example_keysetPagination() {
+            +	mux := http.NewServeMux()
+            +	server := httptest.NewServer(mux)
+            +	defer server.Close()
+            +
+            +	callCount := 0
+            +	mux.HandleFunc("/api/v4/projects", func(w http.ResponseWriter, r *http.Request) {
+            +		callCount++
+            +		if callCount == 1 {
+            +			w.Header().Set("Link", `<next>; rel="next"`)
+            +			fmt.Fprint(w, `[{"id":1,"name":"project1"}]`)
+            +		} else {
+            +			fmt.Fprint(w, `[{"id":2,"name":"project2"}]`)
+            +		}
+            +	})
+            +
+            +	git, _ := gitlab.NewClient("token", gitlab.WithBaseURL(server.URL))
+            +
+            +	opt := &gitlab.ListProjectsOptions{
+            +		ListOptions: gitlab.ListOptions{OrderBy: "id", Pagination: "keyset", PerPage: 5, Sort: "asc"},
+            +		Owned:       gitlab.Ptr(true),
+            +	}
+            +
+            +	count := 0
+            +	for range gitlab.Must(gitlab.Scan2(func(p gitlab.PaginationOptionFunc) ([]*gitlab.Project, *gitlab.Response, error) {
+            +		return git.Projects.ListProjects(opt, p)
+            +	})) {
+            +		count++
+            +	}
+            +	fmt.Printf("Iterated %d projects\n", count)
+            +
+            +	// Output: Iterated 2 projects
+            +}
+            +
+            diff --git a/example_personal_access_tokens_test.go b/example_personal_access_tokens_test.go
+            new file mode 100644
+            index 0000000000000000000000000000000000000000..88ebf4046240a9af2115691fc99d8c4536f42951
+            --- /dev/null
+            +++ b/example_personal_access_tokens_test.go
+            @@ -0,0 +1,63 @@
+            +package gitlab_test
+            +
+            +import (
+            +	"fmt"
+            +	"net/http"
+            +	"net/http/httptest"
+            +	"time"
+            +
+            +	gitlab "gitlab.com/gitlab-org/api/client-go"
+            +)
+            +
+            +func ExamplePersonalAccessTokensService_RevokePersonalAccessToken() {
+            +	mux := http.NewServeMux()
+            +	server := httptest.NewServer(mux)
+            +	defer server.Close()
+            +
+            +	mux.HandleFunc("/api/v4/personal_access_tokens/99999999", func(w http.ResponseWriter, r *http.Request) {
+            +		w.WriteHeader(http.StatusNoContent)
+            +	})
+            +
+            +	git, _ := gitlab.NewClient("token", gitlab.WithBaseURL(server.URL))
+            +	resp, _ := git.PersonalAccessTokens.RevokePersonalAccessToken(99999999)
+            +	fmt.Printf("Status: %s\n", resp.Status)
+            +
+            +	// Output: Status: 204 No Content
+            +}
+            +
+            +func ExamplePersonalAccessTokensService_ListPersonalAccessTokens() {
+            +	mux := http.NewServeMux()
+            +	server := httptest.NewServer(mux)
+            +	defer server.Close()
+            +
+            +	mux.HandleFunc("/api/v4/personal_access_tokens", func(w http.ResponseWriter, r *http.Request) {
+            +		fmt.Fprint(w, `[{"id":1,"name":"token1"},{"id":2,"name":"token2"}]`)
+            +	})
+            +
+            +	git, _ := gitlab.NewClient("token", gitlab.WithBaseURL(server.URL))
+            +
+            +	tokens, _, _ := git.PersonalAccessTokens.ListPersonalAccessTokens(&gitlab.ListPersonalAccessTokensOptions{
+            +		UserID: gitlab.Ptr(int64(12345)),
+            +	})
+            +	fmt.Printf("Found %d token(s)\n", len(tokens))
+            +
+            +	// Output: Found 2 token(s)
+            +}
+            +
+            +func ExamplePersonalAccessTokensService_RotatePersonalAccessToken() {
+            +	mux := http.NewServeMux()
+            +	server := httptest.NewServer(mux)
+            +	defer server.Close()
+            +
+            +	mux.HandleFunc("/api/v4/personal_access_tokens/12345/rotate", func(w http.ResponseWriter, r *http.Request) {
+            +		fmt.Fprint(w, `{"id":12345,"token":"new-rotated-token"}`)
+            +	})
+            +
+            +	git, _ := gitlab.NewClient("token", gitlab.WithBaseURL(server.URL))
+            +
+            +	expiry := gitlab.ISOTime(time.Date(2023, time.August, 15, 0, 0, 0, 0, time.UTC))
+            +	token, _, _ := git.PersonalAccessTokens.RotatePersonalAccessToken(12345, &gitlab.RotatePersonalAccessTokenOptions{ExpiresAt: &expiry})
+            +	fmt.Printf("New token: %s\n", token.Token)
+            +
+            +	// Output: New token: new-rotated-token
+            +}
+            diff --git a/example_pipeline_test_report_test.go b/example_pipeline_test_report_test.go
+            new file mode 100644
+            index 0000000000000000000000000000000000000000..9c92a6383e7d7b537f09ffe227b06b2471f27271
+            --- /dev/null
+            +++ b/example_pipeline_test_report_test.go
+            @@ -0,0 +1,33 @@
+            +package gitlab_test
+            +
+            +import (
+            +	"fmt"
+            +	"net/http"
+            +	"net/http/httptest"
+            +	gitlab "gitlab.com/gitlab-org/api/client-go"
+            +)
+            +
+            +func ExamplePipelinesService_GetPipelineTestReport() {
+            +	mux := http.NewServeMux()
+            +	server := httptest.NewServer(mux)
+            +	defer server.Close()
+            +
+            +	mux.HandleFunc("/api/v4/projects/1234/pipelines", func(w http.ResponseWriter, r *http.Request) {
+            +		fmt.Fprint(w, `[{"id":100,"ref":"master"}]`)
+            +	})
+            +
+            +	mux.HandleFunc("/api/v4/projects/1234/pipelines/100/test_report", func(w http.ResponseWriter, r *http.Request) {
+            +		fmt.Fprint(w, `{"total_time":5,"total_count":10,"success_count":8}`)
+            +	})
+            +
+            +	git, _ := gitlab.NewClient("token", gitlab.WithBaseURL(server.URL))
+            +
+            +	pipelines, _, _ := git.Pipelines.ListProjectPipelines(1234, &gitlab.ListProjectPipelinesOptions{Ref: gitlab.Ptr("master")})
+            +
+            +	for _, pipeline := range pipelines {
+            +		report, _, _ := git.Pipelines.GetPipelineTestReport(1234, int64(pipeline.ID))
+            +		fmt.Printf("Tests: %d total, %d succeeded\n", report.TotalCount, report.SuccessCount)
+            +	}
+            +
+            +	// Output: Tests: 10 total, 8 succeeded
+            +}
+            diff --git a/example_pipelines_test.go b/example_pipelines_test.go
+            new file mode 100644
+            index 0000000000000000000000000000000000000000..565723c55dcc63e1517adffe2188eca78df0e110
+            --- /dev/null
+            +++ b/example_pipelines_test.go
+            @@ -0,0 +1,30 @@
+            +package gitlab_test
+            +
+            +import (
+            +	"fmt"
+            +	"net/http"
+            +	"net/http/httptest"
+            +	gitlab "gitlab.com/gitlab-org/api/client-go"
+            +)
+            +
+            +func ExamplePipelinesService() {
+            +	mux := http.NewServeMux()
+            +	server := httptest.NewServer(mux)
+            +	defer server.Close()
+            +
+            +	mux.HandleFunc("/api/v4/projects/2743054/pipelines", func(w http.ResponseWriter, r *http.Request) {
+            +		fmt.Fprint(w, `[{"id":1,"status":"running","ref":"master"}]`)
+            +	})
+            +
+            +	git, _ := gitlab.NewClient("token", gitlab.WithBaseURL(server.URL))
+            +
+            +	pipelines, _, _ := git.Pipelines.ListProjectPipelines(2743054, &gitlab.ListProjectPipelinesOptions{
+            +		Scope:  gitlab.Ptr("branches"),
+            +		Status: gitlab.Ptr(gitlab.Running),
+            +		Ref:    gitlab.Ptr("master"),
+            +	})
+            +	fmt.Printf("Found %d pipeline(s)\n", len(pipelines))
+            +
+            +	// Output: Found 1 pipeline(s)
+            +}
+            +
+            diff --git a/example_projects_test.go b/example_projects_test.go
+            new file mode 100644
+            index 0000000000000000000000000000000000000000..c2998c5fd04b71ef9c24b043dbac62d8e713cdb7
+            --- /dev/null
+            +++ b/example_projects_test.go
+            @@ -0,0 +1,60 @@
+            +package gitlab_test
+            +
+            +import (
+            +	"fmt"
+            +	"net/http"
+            +	"net/http/httptest"
+            +	"strings"
+            +
+            +	gitlab "gitlab.com/gitlab-org/api/client-go"
+            +)
+            +
+            +func ExampleProjectsService() {
+            +	mux := http.NewServeMux()
+            +	server := httptest.NewServer(mux)
+            +	defer server.Close()
+            +
+            +	// Catch all API requests
+            +	mux.HandleFunc("/api/v4/", func(w http.ResponseWriter, r *http.Request) {
+            +		// Create project
+            +		if r.URL.Path == "/api/v4/projects" && r.Method == http.MethodPost {
+            +			fmt.Fprint(w, `{"id":1,"name":"My Project","path_with_namespace":"myname/myproject"}`)
+            +			return
+            +		}
+            +
+            +		// Create snippet
+            +		if strings.Contains(r.URL.Path, "/snippets") && r.Method == http.MethodPost {
+            +			fmt.Fprint(w, `{"id":1,"title":"Dummy Snippet"}`)
+            +			return
+            +		}
+            +
+            +		// List snippets - handle both numeric ID and path_with_namespace
+            +		if strings.Contains(r.URL.Path, "/snippets") && r.Method == http.MethodGet {
+            +			fmt.Fprint(w, `[{"id":1,"title":"Dummy Snippet"}]`)
+            +			return
+            +		}
+            +
+            +		w.WriteHeader(http.StatusNotFound)
+            +	})
+            +
+            +	git, _ := gitlab.NewClient("token", gitlab.WithBaseURL(server.URL))
+            +
+            +	project, _, _ := git.Projects.CreateProject(&gitlab.CreateProjectOptions{
+            +		Name:       gitlab.Ptr("My Project"),
+            +		Visibility: gitlab.Ptr(gitlab.PublicVisibility),
+            +	})
+            +	fmt.Printf("Created: %s\n", project.Name)
+            +
+            +	git.ProjectSnippets.CreateSnippet(project.ID, &gitlab.CreateProjectSnippetOptions{
+            +		Title:    gitlab.Ptr("Dummy Snippet"),
+            +		FileName: gitlab.Ptr("snippet.go"),
+            +		Content:  gitlab.Ptr("package main...."),
+            +	})
+            +
+            +	snippets, _, _ := git.ProjectSnippets.ListSnippets(project.PathWithNamespace, &gitlab.ListProjectSnippetsOptions{})
+            +	fmt.Printf("Found %d snippet(s)\n", len(snippets))
+            +
+            +	// Output:
+            +	// Created: My Project
+            +	// Found 1 snippet(s)
+            +}
+            diff --git a/example_repository_archive_test.go b/example_repository_archive_test.go
+            new file mode 100644
+            index 0000000000000000000000000000000000000000..b085d871ec01a2093b045259e1374c59243e75d1
+            --- /dev/null
+            +++ b/example_repository_archive_test.go
+            @@ -0,0 +1,27 @@
+            +package gitlab_test
+            +
+            +import (
+            +	"fmt"
+            +	"net/http"
+            +	"net/http/httptest"
+            +	gitlab "gitlab.com/gitlab-org/api/client-go"
+            +)
+            +
+            +func ExampleRepositoriesService_Archive() {
+            +	mux := http.NewServeMux()
+            +	server := httptest.NewServer(mux)
+            +	defer server.Close()
+            +
+            +	mux.HandleFunc("/api/v4/projects/mygroup%2Fmyproject/repository/archive.tar.gz", func(w http.ResponseWriter, r *http.Request) {
+            +		w.Write([]byte("fake-archive-content"))
+            +	})
+            +
+            +	git, _ := gitlab.NewClient("token", gitlab.WithBaseURL(server.URL))
+            +
+            +	content, _, _ := git.Repositories.Archive("mygroup/myproject", &gitlab.ArchiveOptions{
+            +		Format: gitlab.Ptr("tar.gz"),
+            +	}, nil)
+            +	fmt.Printf("Archive: %d bytes\n", len(content))
+            +
+            +	// Output: Archive: 20 bytes
+            +}
+            diff --git a/example_repository_files_test.go b/example_repository_files_test.go
+            new file mode 100644
+            index 0000000000000000000000000000000000000000..e25def50184b38c01d1ded5dfeff156b918a7ca5
+            --- /dev/null
+            +++ b/example_repository_files_test.go
+            @@ -0,0 +1,57 @@
+            +package gitlab_test
+            +
+            +import (
+            +	"fmt"
+            +	"net/http"
+            +	"net/http/httptest"
+            +
+            +	gitlab "gitlab.com/gitlab-org/api/client-go"
+            +)
+            +
+            +func ExampleRepositoryFilesService() {
+            +	mux := http.NewServeMux()
+            +	server := httptest.NewServer(mux)
+            +	defer server.Close()
+            +
+            +	mux.HandleFunc("/api/v4/projects/myname%2Fmyproject/repository/files/file.go", func(w http.ResponseWriter, r *http.Request) {
+            +		if r.Method == http.MethodPost {
+            +			fmt.Fprint(w, `{"file_path":"file.go","branch":"master"}`)
+            +			return
+            +		}
+            +		if r.Method == "PUT" {
+            +			fmt.Fprint(w, `{"file_path":"file.go","branch":"master"}`)
+            +			return
+            +		}
+            +		fmt.Fprint(w, `{"file_path":"file.go","content":"TXkgZmlsZSBjb250ZW50"}`)
+            +	})
+            +
+            +	mux.HandleFunc("/api/v4/projects/myname%2Fmyproject/repository/files/file.go/blame", func(w http.ResponseWriter, r *http.Request) {
+            +		fmt.Fprint(w, `[{"lines":["line1"]},{"lines":["line2"]}]`)
+            +	})
+            +
+            +	git, _ := gitlab.NewClient("token", gitlab.WithBaseURL(server.URL))
+            +
+            +	file, _, _ := git.RepositoryFiles.CreateFile("myname/myproject", "file.go", &gitlab.CreateFileOptions{
+            +		Branch:        gitlab.Ptr("master"),
+            +		Content:       gitlab.Ptr("My file contents"),
+            +		CommitMessage: gitlab.Ptr("Adding a test file"),
+            +	})
+            +	fmt.Printf("Created: %s\n", file.FilePath)
+            +
+            +	git.RepositoryFiles.UpdateFile("myname/myproject", file.FilePath, &gitlab.UpdateFileOptions{
+            +		Branch:        gitlab.Ptr("master"),
+            +		Content:       gitlab.Ptr("My file content"),
+            +		CommitMessage: gitlab.Ptr("Fixing typo"),
+            +	})
+            +
+            +	f, _, _ := git.RepositoryFiles.GetFile("myname/myproject", file.FilePath, &gitlab.GetFileOptions{Ref: gitlab.Ptr("master")})
+            +	fmt.Printf("Retrieved: %s\n", f.FilePath)
+            +
+            +	fb, _, _ := git.RepositoryFiles.GetFileBlame("myname/myproject", file.FilePath, &gitlab.GetFileBlameOptions{Ref: gitlab.Ptr("master")})
+            +	fmt.Printf("Blame ranges: %d\n", len(fb))
+            +
+            +	// Output:
+            +	// Created: file.go
+            +	// Retrieved: file.go
+            +	// Blame ranges: 2
+            +}
+            \ No newline at end of file
+            diff --git a/example_services_datadog_test.go b/example_services_datadog_test.go
+            new file mode 100644
+            index 0000000000000000000000000000000000000000..aa6d0e3607fd9c9a7130210148a2884936828ea1
+            --- /dev/null
+            +++ b/example_services_datadog_test.go
+            @@ -0,0 +1,39 @@
+            +package gitlab_test
+            +
+            +import (
+            +	"fmt"
+            +	"net/http"
+            +	"net/http/httptest"
+            +	gitlab "gitlab.com/gitlab-org/api/client-go"
+            +)
+            +
+            +func ExampleServicesService_datadog() {
+            +	mux := http.NewServeMux()
+            +	server := httptest.NewServer(mux)
+            +	defer server.Close()
+            +
+            +	mux.HandleFunc("/api/v4/projects/1/integrations/datadog", func(w http.ResponseWriter, r *http.Request) {
+            +		if r.Method == http.MethodPut {
+            +			fmt.Fprint(w, `{"properties":{"datadog_env":"sandbox","datadog_service":"test"}}`)
+            +			return
+            +		}
+            +		w.WriteHeader(http.StatusNoContent)
+            +	})
+            +
+            +	git, _ := gitlab.NewClient("token", gitlab.WithBaseURL(server.URL))
+            +
+            +	svc, _, _ := git.Services.SetDataDogService(1, &gitlab.SetDataDogServiceOptions{
+            +		APIKey:         gitlab.Ptr("testing"),
+            +		DataDogEnv:     gitlab.Ptr("sandbox"),
+            +		DataDogService: gitlab.Ptr("test"),
+            +	})
+            +	fmt.Printf("Env: %s, Service: %s\n", svc.Properties.DataDogEnv, svc.Properties.DataDogService)
+            +
+            +	git.Services.DeleteDataDogService(1)
+            +	fmt.Println("Deleted")
+            +
+            +	// Output:
+            +	// Env: sandbox, Service: test
+            +	// Deleted
+            +}
+            +
+            diff --git a/example_topics_test.go b/example_topics_test.go
+            new file mode 100644
+            index 0000000000000000000000000000000000000000..1b7b25b2276a91e716186a03c19ef4b3955b4166
+            --- /dev/null
+            +++ b/example_topics_test.go
+            @@ -0,0 +1,38 @@
+            +package gitlab_test
+            +
+            +import (
+            +	"fmt"
+            +	"net/http"
+            +	"net/http/httptest"
+            +	gitlab "gitlab.com/gitlab-org/api/client-go"
+            +)
+            +
+            +func ExampleTopicsService() {
+            +	mux := http.NewServeMux()
+            +	server := httptest.NewServer(mux)
+            +	defer server.Close()
+            +
+            +	mux.HandleFunc("/api/v4/topics", func(w http.ResponseWriter, r *http.Request) {
+            +		fmt.Fprint(w, `{"id":1,"name":"My Topic 2","description":"Some description"}`)
+            +	})
+            +
+            +	mux.HandleFunc("/api/v4/topics/1", func(w http.ResponseWriter, r *http.Request) {
+            +		fmt.Fprint(w, `{"id":1,"name":"My Topic 2","avatar_url":"http://example.com/avatar.png"}`)
+            +	})
+            +
+            +	git, _ := gitlab.NewClient("token", gitlab.WithBaseURL(server.URL))
+            +
+            +	topic, _, _ := git.Topics.CreateTopic(&gitlab.CreateTopicOptions{
+            +		Name:        gitlab.Ptr("My Topic 2"),
+            +		Description: gitlab.Ptr("Some description"),
+            +	})
+            +	fmt.Printf("Created: %s\n", topic.Name)
+            +
+            +	topic, _, _ = git.Topics.UpdateTopic(topic.ID, &gitlab.UpdateTopicOptions{})
+            +	fmt.Printf("Topic ID: %d\n", topic.ID)
+            +
+            +	// Output:
+            +	// Created: My Topic 2
+            +	// Topic ID: 1
+            +}
+            +
+            diff --git a/example_webhook_test.go b/example_webhook_test.go
+            new file mode 100644
+            index 0000000000000000000000000000000000000000..dadbae57ac0c535843335d7756b2283b33454737
+            --- /dev/null
+            +++ b/example_webhook_test.go
+            @@ -0,0 +1,14 @@
+            +package gitlab_test
+            +
+            +import "fmt"
+            +
+            +func Example_webhook() {
+            +	fmt.Println("Webhook server example")
+            +	fmt.Println("Use gitlab.ParseWebhook() to parse webhook events")
+            +	fmt.Println("See package docs for full HTTP server implementation")
+            +
+            +	// Output:
+            +	// Webhook server example
+            +	// Use gitlab.ParseWebhook() to parse webhook events
+            +	// See package docs for full HTTP server implementation
+            +}
+        headers:
+            Cache-Control:
+                - stripped
+            Cf-Cache-Status:
+                - stripped
+            Cf-Ray:
+                - stripped
+            Content-Security-Policy:
+                - stripped
+            Content-Type:
+                - text/plain; charset=utf-8
+            Date:
+                - stripped
+            Etag:
+                - stripped
+            Expires:
+                - stripped
+            Gitlab-Lb:
+                - stripped
+            Gitlab-Sv:
+                - stripped
+            Nel:
+                - stripped
+            Ratelimit-Limit:
+                - stripped
+            Ratelimit-Name:
+                - stripped
+            Ratelimit-Observed:
+                - stripped
+            Ratelimit-Remaining:
+                - stripped
+            Ratelimit-Reset:
+                - stripped
+            Referrer-Policy:
+                - stripped
+            Server:
+                - stripped
+            Set-Cookie:
+                - stripped
+            Strict-Transport-Security:
+                - stripped
+            Vary:
+                - stripped
+            X-Content-Type-Options:
+                - stripped
+            X-Frame-Options:
+                - stripped
+            X-Gitlab-Meta:
+                - stripped
+            X-Request-Id:
+                - stripped
+            X-Runtime:
+                - stripped
+        status: 200 OK
+        code: 200
+        duration: 324.711522ms

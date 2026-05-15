@@ -120,10 +120,10 @@ type Config struct {
 // Git returns a Provider for this config if the provider type
 // is a supported git hosting provider. Returns nil for non-git
 // providers (e.g. Slack, JFrog).
-func (c *Config) Git(client *http.Client) gitprovider.Provider {
+func (c *Config) Git(client *http.Client) (gitprovider.Provider, error) {
 	norm := strings.ToLower(c.Type)
 	if !codersdk.EnhancedExternalAuthProvider(norm).Git() {
-		return nil
+		return nil, nil //nolint:nilnil // nil provider means non-git type, not an error
 	}
 	return gitprovider.New(norm, c.APIBaseURL, client)
 }

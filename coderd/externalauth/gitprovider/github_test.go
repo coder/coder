@@ -21,7 +21,8 @@ import (
 
 func TestGitHubParseRepositoryOrigin(t *testing.T) {
 	t.Parallel()
-	gp := gitprovider.New("github", "", nil)
+	gp, err := gitprovider.New("github", "", nil)
+	require.NoError(t, err)
 	require.NotNil(t, gp)
 
 	tests := []struct {
@@ -121,7 +122,8 @@ func TestGitHubParseRepositoryOrigin(t *testing.T) {
 
 func TestGitHubParsePullRequestURL(t *testing.T) {
 	t.Parallel()
-	gp := gitprovider.New("github", "", nil)
+	gp, err := gitprovider.New("github", "", nil)
+	require.NoError(t, err)
 	require.NotNil(t, gp)
 
 	tests := []struct {
@@ -194,7 +196,8 @@ func TestGitHubParsePullRequestURL(t *testing.T) {
 
 func TestGitHubNormalizePullRequestURL(t *testing.T) {
 	t.Parallel()
-	gp := gitprovider.New("github", "", nil)
+	gp, err := gitprovider.New("github", "", nil)
+	require.NoError(t, err)
 	require.NotNil(t, gp)
 
 	tests := []struct {
@@ -245,7 +248,8 @@ func TestGitHubNormalizePullRequestURL(t *testing.T) {
 
 func TestGitHubBuildBranchURL(t *testing.T) {
 	t.Parallel()
-	gp := gitprovider.New("github", "", nil)
+	gp, err := gitprovider.New("github", "", nil)
+	require.NoError(t, err)
 	require.NotNil(t, gp)
 
 	tests := []struct {
@@ -310,7 +314,8 @@ func TestGitHubBuildBranchURL(t *testing.T) {
 
 func TestGitHubBuildPullRequestURL(t *testing.T) {
 	t.Parallel()
-	gp := gitprovider.New("github", "", nil)
+	gp, err := gitprovider.New("github", "", nil)
+	require.NoError(t, err)
 	require.NotNil(t, gp)
 
 	tests := []struct {
@@ -356,7 +361,8 @@ func TestGitHubBuildPullRequestURL(t *testing.T) {
 
 func TestGitHubEnterpriseURLs(t *testing.T) {
 	t.Parallel()
-	gp := gitprovider.New("github", "https://ghes.corp.com/api/v3", nil)
+	gp, err := gitprovider.New("github", "https://ghes.corp.com/api/v3", nil)
+	require.NoError(t, err)
 	require.NotNil(t, gp)
 
 	t.Run("ParseRepositoryOrigin HTTPS", func(t *testing.T) {
@@ -419,7 +425,8 @@ func TestGitHubEnterpriseURLs(t *testing.T) {
 
 func TestNewUnsupportedProvider(t *testing.T) {
 	t.Parallel()
-	gp := gitprovider.New("unsupported", "", nil)
+	gp, err := gitprovider.New("unsupported", "", nil)
+	require.NoError(t, err)
 	assert.Nil(t, gp, "unsupported provider type should return nil")
 }
 
@@ -434,10 +441,11 @@ func TestGitHubRatelimit_403WithResetHeader(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	gp := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
+	gp, err := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
+	require.NoError(t, err)
 	require.NotNil(t, gp)
 
-	_, err := gp.FetchPullRequestStatus(
+	_, err = gp.FetchPullRequestStatus(
 		context.Background(),
 		"test-token",
 		gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 1},
@@ -459,10 +467,11 @@ func TestGitHubRatelimit_429WithRetryAfter(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	gp := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
+	gp, err := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
+	require.NoError(t, err)
 	require.NotNil(t, gp)
 
-	_, err := gp.FetchPullRequestStatus(
+	_, err = gp.FetchPullRequestStatus(
 		context.Background(),
 		"test-token",
 		gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 1},
@@ -486,10 +495,11 @@ func TestGitHubRatelimit_403NormalError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	gp := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
+	gp, err := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
+	require.NoError(t, err)
 	require.NotNil(t, gp)
 
-	_, err := gp.FetchPullRequestStatus(
+	_, err = gp.FetchPullRequestStatus(
 		context.Background(),
 		"bad-token",
 		gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 1},
@@ -515,7 +525,9 @@ func TestGitHubFetchPullRequestDiff(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		gp := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
+		gp, err := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
+		require.NoError(t, err)
+
 		require.NotNil(t, gp)
 
 		diff, err := gp.FetchPullRequestDiff(
@@ -537,7 +549,9 @@ func TestGitHubFetchPullRequestDiff(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		gp := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
+		gp, err := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
+		require.NoError(t, err)
+
 		require.NotNil(t, gp)
 
 		diff, err := gp.FetchPullRequestDiff(
@@ -559,10 +573,12 @@ func TestGitHubFetchPullRequestDiff(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		gp := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
+		gp, err := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
+		require.NoError(t, err)
+
 		require.NotNil(t, gp)
 
-		_, err := gp.FetchPullRequestDiff(
+		_, err = gp.FetchPullRequestDiff(
 			context.Background(),
 			"test-token",
 			gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 1},
@@ -581,10 +597,11 @@ func TestFetchPullRequestDiff_Ratelimit(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	gp := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
+	gp, err := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
+	require.NoError(t, err)
 	require.NotNil(t, gp)
 
-	_, err := gp.FetchPullRequestDiff(
+	_, err = gp.FetchPullRequestDiff(
 		context.Background(),
 		"test-token",
 		gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 1},
@@ -614,10 +631,11 @@ func TestFetchBranchDiff_Ratelimit(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	gp := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
+	gp, err := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
+	require.NoError(t, err)
 	require.NotNil(t, gp)
 
-	_, err := gp.FetchBranchDiff(
+	_, err = gp.FetchBranchDiff(
 		context.Background(),
 		"test-token",
 		gitprovider.BranchRef{Owner: "org", Repo: "repo", Branch: "feat"},
@@ -747,7 +765,9 @@ func TestFetchPullRequestStatus(t *testing.T) {
 			srv := httptest.NewServer(mux)
 			defer srv.Close()
 
-			gp := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
+			gp, err := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
+			require.NoError(t, err)
+
 			require.NotNil(t, gp)
 
 			before := time.Now().UTC()
@@ -793,7 +813,9 @@ func TestResolveBranchPullRequest(t *testing.T) {
 		defer srv.Close()
 		srvURL = srv.URL
 
-		gp := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
+		gp, err := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
+		require.NoError(t, err)
+
 		require.NotNil(t, gp)
 
 		prRef, err := gp.ResolveBranchPullRequest(
@@ -817,7 +839,9 @@ func TestResolveBranchPullRequest(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		gp := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
+		gp, err := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
+		require.NoError(t, err)
+
 		require.NotNil(t, gp)
 
 		prRef, err := gp.ResolveBranchPullRequest(
@@ -840,7 +864,9 @@ func TestResolveBranchPullRequest(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		gp := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
+		gp, err := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
+		require.NoError(t, err)
+
 		require.NotNil(t, gp)
 
 		prRef, err := gp.ResolveBranchPullRequest(
@@ -873,7 +899,9 @@ func TestFetchBranchDiff(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		gp := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
+		gp, err := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
+		require.NoError(t, err)
+
 		require.NotNil(t, gp)
 
 		diff, err := gp.FetchBranchDiff(
@@ -894,10 +922,12 @@ func TestFetchBranchDiff(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		gp := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
+		gp, err := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
+		require.NoError(t, err)
+
 		require.NotNil(t, gp)
 
-		_, err := gp.FetchBranchDiff(
+		_, err = gp.FetchBranchDiff(
 			context.Background(),
 			"test-token",
 			gitprovider.BranchRef{Owner: "org", Repo: "repo", Branch: "feat"},
@@ -921,10 +951,12 @@ func TestFetchBranchDiff(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		gp := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
+		gp, err := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
+		require.NoError(t, err)
+
 		require.NotNil(t, gp)
 
-		_, err := gp.FetchBranchDiff(
+		_, err = gp.FetchBranchDiff(
 			context.Background(),
 			"test-token",
 			gitprovider.BranchRef{Owner: "org", Repo: "repo", Branch: "feat"},
@@ -937,7 +969,8 @@ func TestEscapePathPreserveSlashes(t *testing.T) {
 	t.Parallel()
 	// The function is unexported, so test it indirectly via BuildBranchURL.
 	// A branch with a space in a segment should be escaped, but slashes preserved.
-	gp := gitprovider.New("github", "", nil)
+	gp, err := gitprovider.New("github", "", nil)
+	require.NoError(t, err)
 	require.NotNil(t, gp)
 	got := gp.BuildBranchURL("owner", "repo", "feat/my thing")
 	assert.Equal(t, "https://github.com/owner/repo/tree/feat/my%20thing", got)

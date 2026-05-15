@@ -1,0 +1,540 @@
+package gitprovider
+
+import (
+	"cmp"
+	"context"
+	"fmt"
+	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
+	"time"
+
+	gitlab "gitlab.com/gitlab-org/api/client-go"
+	"golang.org/x/xerrors"
+
+	"github.com/coder/quartz"
+)
+
+type gitlabProvider struct {
+	webBaseURL string
+	client     *gitlab.Client
+	clock      quartz.Clock
+}
+
+func newGitLab(baseURL string, httpClient *http.Client, clock quartz.Clock) (*gitlabProvider, error) {
+	if baseURL == "" {
+		baseURL = "https://gitlab.com"
+	}
+	baseURL = strings.TrimRight(baseURL, "/")
+	baseURL = strings.TrimSuffix(baseURL, "/api/v4")
+	if httpClient == nil {
+		httpClient = http.DefaultClient
+	}
+
+	client, err := gitlab.NewClient("",
+		gitlab.WithBaseURL(baseURL),
+		gitlab.WithHTTPClient(httpClient),
+		gitlab.WithoutRetries(),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create gitlab client: %w", err)
+	}
+
+	return &gitlabProvider{
+		webBaseURL: baseURL,
+		client:     client,
+		clock:      clock,
+	}, nil
+}
+
+var _ Provider = (*gitlabProvider)(nil)
+
+// webHost returns the hostname (with port if present) of the GitLab web URL.
+func (g *gitlabProvider) webHost() string {
+	u, err := url.Parse(g.webBaseURL)
+	if err != nil {
+		return "gitlab.com"
+	}
+	return u.Host
+}
+
+// reqOpts returns per-request options for authentication and context.
+func reqOpts(ctx context.Context, token string) []gitlab.RequestOptionFunc {
+	opts := []gitlab.RequestOptionFunc{gitlab.WithContext(ctx)}
+	if token != "" {
+		opts = append(opts, gitlab.WithToken(gitlab.OAuthToken, token))
+	}
+	return opts
+}
+
+// projectPath returns the full project path (owner/repo) for use as a pid.
+// The library handles URL encoding internally.
+func projectPath(owner, repo string) string {
+	return owner + "/" + repo
+}
+
+func (g *gitlabProvider) FetchPullRequestStatus(
+	ctx context.Context,
+	token string,
+	ref PRRef,
+) (*PRStatus, error) {
+	pid := projectPath(ref.Owner, ref.Repo)
+	opts := reqOpts(ctx, token)
+
+	// Fetch merge request details.
+	mr, _, err := g.client.MergeRequests.GetMergeRequest(pid, int64(ref.Number), nil, opts...)
+	if err != nil {
+		return nil, g.wrapError(err, "get merge request")
+	}
+
+	// Fetch approvals.
+	approvals, _, err := g.client.MergeRequests.GetMergeRequestApprovals(pid, int64(ref.Number), opts...)
+	if err != nil {
+		return nil, g.wrapError(err, "get merge request approvals")
+	}
+
+	// Map GitLab state to normalized state.
+	state := mapGitLabState(mr.State)
+
+	// Use diff_refs.head_sha if available, fall back to top-level sha.
+	headSHA := cmp.Or(mr.DiffRefs.HeadSha, mr.SHA)
+
+	// Parse changes_count (it's a string, possibly "1000+").
+	var changedFiles int32
+	if mr.ChangesCount != "" {
+		trimmed := strings.TrimSuffix(mr.ChangesCount, "+")
+		if n, err := strconv.Atoi(trimmed); err == nil {
+			changedFiles = int32(n)
+		}
+	}
+
+	// TODO(CODAGT-440): These fields have semantic gaps vs the GitHub
+	// provider. GitLab's "Approved" is threshold-based (not "at least one
+	// approval and no changes requested"), ChangesRequested has no GitLab
+	// equivalent, and ReviewerCount only counts approvers.
+	reviewerCount := int32(len(approvals.ApprovedBy))
+
+	var authorLogin, authorAvatarURL string
+	if mr.Author != nil {
+		authorLogin = mr.Author.Username
+		authorAvatarURL = mr.Author.AvatarURL
+	}
+
+	return &PRStatus{
+		Title:      mr.Title,
+		State:      state,
+		Draft:      mr.Draft,
+		HeadSHA:    headSHA,
+		HeadBranch: mr.SourceBranch,
+		DiffStats: DiffStats{
+			Additions:    0,
+			Deletions:    0,
+			ChangedFiles: changedFiles,
+		},
+		ChangesRequested: false,
+		Approved:         approvals.Approved,
+		ReviewerCount:    reviewerCount,
+		AuthorLogin:      authorLogin,
+		AuthorAvatarURL:  authorAvatarURL,
+		BaseBranch:       mr.TargetBranch,
+		PRNumber:         int(mr.IID),
+		Commits:          0,
+		FetchedAt:        g.clock.Now().UTC(),
+	}, nil
+}
+
+func (g *gitlabProvider) ResolveBranchPullRequest(
+	ctx context.Context,
+	token string,
+	ref BranchRef,
+) (*PRRef, error) {
+	if ref.Owner == "" || ref.Repo == "" || ref.Branch == "" {
+		return nil, nil
+	}
+
+	pid := projectPath(ref.Owner, ref.Repo)
+	opts := reqOpts(ctx, token)
+
+	mrs, _, err := g.client.MergeRequests.ListProjectMergeRequests(pid, &gitlab.ListProjectMergeRequestsOptions{
+		ListOptions:  gitlab.ListOptions{PerPage: 1},
+		SourceBranch: gitlab.Ptr(ref.Branch),
+		State:        gitlab.Ptr("opened"),
+		OrderBy:      gitlab.Ptr("updated_at"),
+		Sort:         gitlab.Ptr("desc"),
+	}, opts...)
+	if err != nil {
+		return nil, g.wrapError(err, "list merge requests by branch")
+	}
+	if len(mrs) == 0 {
+		return nil, nil
+	}
+
+	prRef, ok := g.ParsePullRequestURL(mrs[0].WebURL)
+	if !ok {
+		// Fallback: construct from known owner/repo and returned IID.
+		return &PRRef{
+			Owner:  ref.Owner,
+			Repo:   ref.Repo,
+			Number: int(mrs[0].IID),
+		}, nil
+	}
+	return &prRef, nil
+}
+
+func (g *gitlabProvider) FetchPullRequestDiff(
+	ctx context.Context,
+	token string,
+	ref PRRef,
+) (string, error) {
+	pid := projectPath(ref.Owner, ref.Repo)
+	opts := reqOpts(ctx, token)
+
+	rawDiff, _, err := g.client.MergeRequests.ShowMergeRequestRawDiffs(pid, int64(ref.Number), nil, opts...)
+	if err != nil {
+		return "", g.wrapError(err, "get merge request raw diffs")
+	}
+
+	if len(rawDiff) > MaxDiffSize {
+		return "", ErrDiffTooLarge
+	}
+	return string(rawDiff), nil
+}
+
+func (g *gitlabProvider) FetchBranchDiff(
+	ctx context.Context,
+	token string,
+	ref BranchRef,
+) (string, error) {
+	if ref.Owner == "" || ref.Repo == "" || ref.Branch == "" {
+		return "", nil
+	}
+
+	pid := projectPath(ref.Owner, ref.Repo)
+	opts := reqOpts(ctx, token)
+
+	// Get the default branch from the project.
+	project, _, err := g.client.Projects.GetProject(pid, nil, opts...)
+	if err != nil {
+		return "", g.wrapError(err, "get project")
+	}
+	defaultBranch := strings.TrimSpace(project.DefaultBranch)
+	if defaultBranch == "" {
+		return "", xerrors.New("gitlab project default branch is empty")
+	}
+
+	// Use the compare endpoint.
+	compare, _, err := g.client.Repositories.Compare(pid, &gitlab.CompareOptions{
+		From:    gitlab.Ptr(defaultBranch),
+		To:      gitlab.Ptr(ref.Branch),
+		Unidiff: gitlab.Ptr(true),
+	}, opts...)
+	if err != nil {
+		return "", g.wrapError(err, "compare branches")
+	}
+	if compare.CompareTimeout {
+		return "", xerrors.New("gitlab compare timed out; diff may be incomplete")
+	}
+
+	// Reconstruct unified diff from individual file diffs.
+	var sb strings.Builder
+	var estimated int
+	for _, d := range compare.Diffs {
+		estimated += len(d.Diff) + len(d.OldPath) + len(d.NewPath) + 20
+	}
+	if estimated > MaxDiffSize {
+		estimated = MaxDiffSize
+	}
+	sb.Grow(estimated)
+	for _, d := range compare.Diffs {
+		fmt.Fprintf(&sb, "diff --git a/%s b/%s\n", d.OldPath, d.NewPath)
+		sb.WriteString(d.Diff)
+		// Ensure each file diff ends with a newline.
+		if len(d.Diff) > 0 && d.Diff[len(d.Diff)-1] != '\n' {
+			sb.WriteByte('\n')
+		}
+	}
+
+	result := sb.String()
+	if len(result) > MaxDiffSize {
+		return "", ErrDiffTooLarge
+	}
+	return result, nil
+}
+
+func (g *gitlabProvider) ParseRepositoryOrigin(raw string) (owner, repo, normalizedOrigin string, ok bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", "", "", false
+	}
+
+	host := g.webHost()
+
+	// Try SSH format: git@HOST:path.git or ssh://git@HOST/path.git
+	if path, matched := g.parseSSHOrigin(raw, host); matched {
+		owner, repo = splitOwnerRepo(path)
+		if owner == "" || repo == "" {
+			return "", "", "", false
+		}
+		normalized := fmt.Sprintf("%s/%s/%s", g.webBaseURL, owner, repo)
+		return owner, repo, normalized, true
+	}
+
+	// Try HTTPS format.
+	u, err := url.Parse(raw)
+	if err != nil {
+		return "", "", "", false
+	}
+	if !strings.EqualFold(u.Host, host) {
+		return "", "", "", false
+	}
+	if u.Scheme != "https" && u.Scheme != "http" {
+		return "", "", "", false
+	}
+
+	path := strings.TrimPrefix(u.Path, "/")
+	path = strings.TrimSuffix(path, "/")
+	path = strings.TrimSuffix(path, ".git")
+	if path == "" {
+		return "", "", "", false
+	}
+
+	owner, repo = splitOwnerRepo(path)
+	if owner == "" || repo == "" {
+		return "", "", "", false
+	}
+
+	normalized := fmt.Sprintf("%s/%s/%s", g.webBaseURL, owner, repo)
+	return owner, repo, normalized, true
+}
+
+func (g *gitlabProvider) ParsePullRequestURL(raw string) (PRRef, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return PRRef{}, false
+	}
+
+	u, err := url.Parse(raw)
+	if err != nil {
+		return PRRef{}, false
+	}
+
+	host := g.webHost()
+	if !strings.EqualFold(u.Host, host) {
+		return PRRef{}, false
+	}
+
+	// GitLab MR URLs: /owner/repo/-/merge_requests/123
+	// or /group/subgroup/repo/-/merge_requests/123
+	path := strings.TrimPrefix(u.Path, "/")
+	path = strings.TrimSuffix(path, "/")
+
+	// Find "-/merge_requests/NUMBER" in the path.
+	const mrMarker = "-/merge_requests/"
+	idx := strings.Index(path, mrMarker)
+	if idx < 0 {
+		return PRRef{}, false
+	}
+
+	// Everything before the marker (minus trailing slash) is the project path.
+	projPath := path[:idx]
+	projPath = strings.TrimSuffix(projPath, "/")
+	if projPath == "" {
+		return PRRef{}, false
+	}
+
+	// The number comes after the marker.
+	afterMR := path[idx+len(mrMarker):]
+	// Strip any trailing path segments.
+	if slashIdx := strings.Index(afterMR, "/"); slashIdx >= 0 {
+		afterMR = afterMR[:slashIdx]
+	}
+
+	number, err := strconv.Atoi(afterMR)
+	if err != nil || number <= 0 {
+		return PRRef{}, false
+	}
+
+	owner, repo := splitOwnerRepo(projPath)
+	if owner == "" || repo == "" {
+		return PRRef{}, false
+	}
+
+	return PRRef{
+		Owner:  owner,
+		Repo:   repo,
+		Number: number,
+	}, true
+}
+
+func (g *gitlabProvider) NormalizePullRequestURL(raw string) string {
+	ref, ok := g.ParsePullRequestURL(strings.TrimRight(
+		strings.TrimSpace(raw),
+		"),.",
+	))
+	if !ok {
+		return ""
+	}
+	return g.BuildPullRequestURL(ref)
+}
+
+func (g *gitlabProvider) BuildBranchURL(owner, repo, branch string) string {
+	owner = strings.TrimSpace(owner)
+	repo = strings.TrimSpace(repo)
+	branch = strings.TrimSpace(branch)
+	if owner == "" || repo == "" || branch == "" {
+		return ""
+	}
+
+	return fmt.Sprintf(
+		"%s/%s/%s/-/tree/%s",
+		g.webBaseURL,
+		owner,
+		repo,
+		escapePathPreserveSlashes(branch),
+	)
+}
+
+func (g *gitlabProvider) BuildRepositoryURL(owner, repo string) string {
+	owner = strings.TrimSpace(owner)
+	repo = strings.TrimSpace(repo)
+	if owner == "" || repo == "" {
+		return ""
+	}
+	return fmt.Sprintf("%s/%s/%s", g.webBaseURL, owner, repo)
+}
+
+func (g *gitlabProvider) BuildPullRequestURL(ref PRRef) string {
+	if ref.Owner == "" || ref.Repo == "" || ref.Number <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("%s/%s/%s/-/merge_requests/%d", g.webBaseURL, ref.Owner, ref.Repo, ref.Number)
+}
+
+// wrapError converts library errors to our domain errors (e.g. rate limits).
+func (g *gitlabProvider) wrapError(err error, action string) error {
+	var errResp *gitlab.ErrorResponse
+	if xerrors.As(err, &errResp) {
+		if errResp.Response != nil {
+			sc := errResp.Response.StatusCode
+			if sc == http.StatusForbidden || sc == http.StatusTooManyRequests {
+				retryAfter := parseGitLabRetryAfter(errResp.Response.Header, g.clock)
+				if retryAfter > 0 {
+					return &RateLimitError{RetryAfter: g.clock.Now().Add(retryAfter + RateLimitPadding)}
+				}
+			}
+		}
+	}
+	return xerrors.Errorf("gitlab %s: %w", action, err)
+}
+
+// parseGitLabRetryAfter extracts a retry duration from GitLab rate-limit headers.
+// GitLab uses "Retry-After" (seconds) and "RateLimit-Reset" (unix timestamp).
+func parseGitLabRetryAfter(h http.Header, clk quartz.Clock) time.Duration {
+	if clk == nil {
+		clk = quartz.NewReal()
+	}
+	// Retry-After header: seconds until retry.
+	if ra := h.Get("Retry-After"); ra != "" {
+		if secs, err := strconv.Atoi(ra); err == nil {
+			return time.Duration(secs) * time.Second
+		}
+	}
+	// RateLimit-Reset header: unix timestamp.
+	if reset := h.Get("RateLimit-Reset"); reset != "" {
+		if ts, err := strconv.ParseInt(reset, 10, 64); err == nil {
+			d := time.Unix(ts, 0).Sub(clk.Now())
+			return d
+		}
+	}
+	return 0
+}
+
+// mapGitLabState maps a GitLab merge request state string to a normalized PRState.
+func mapGitLabState(state string) PRState {
+	switch strings.ToLower(strings.TrimSpace(state)) {
+	case "opened":
+		return PRStateOpen
+	case "merged":
+		return PRStateMerged
+	case "closed", "locked":
+		return PRStateClosed
+	default:
+		return PRStateClosed
+	}
+}
+
+// splitOwnerRepo splits a path like "group/subgroup/repo" into
+// owner="group/subgroup" and repo="repo". The last segment is always
+// the repo name, and everything before it is the owner.
+func splitOwnerRepo(path string) (owner, repo string) {
+	path = strings.TrimPrefix(path, "/")
+	path = strings.TrimSuffix(path, "/")
+	if path == "" {
+		return "", ""
+	}
+
+	lastSlash := strings.LastIndex(path, "/")
+	if lastSlash < 0 {
+		// No slash means no owner/repo split possible.
+		return "", ""
+	}
+
+	owner = path[:lastSlash]
+	repo = path[lastSlash+1:]
+	if owner == "" || repo == "" {
+		return "", ""
+	}
+	return owner, repo
+}
+
+// parseSSHOrigin attempts to parse an SSH git remote URL for the given host.
+// Returns the path (without .git suffix) and true if it matched.
+func (g *gitlabProvider) parseSSHOrigin(raw string, host string) (string, bool) {
+	// Handle ssh://git@HOST/path.git format.
+	if strings.HasPrefix(raw, "ssh://") {
+		u, err := url.Parse(raw)
+		if err != nil {
+			return "", false
+		}
+		// The host in SSH URLs may include a port, so compare case-insensitively.
+		if !strings.EqualFold(u.Host, host) && !strings.EqualFold(u.Hostname(), hostWithoutPort(host)) {
+			return "", false
+		}
+		path := strings.TrimPrefix(u.Path, "/")
+		path = strings.TrimSuffix(path, ".git")
+		path = strings.TrimSuffix(path, "/")
+		if path == "" {
+			return "", false
+		}
+		return path, true
+	}
+
+	// Handle git@HOST:path.git format (SCP-like syntax).
+	prefix := "git@" + host + ":"
+	// Also try matching without port for host comparison.
+	prefixNoPort := "git@" + hostWithoutPort(host) + ":"
+
+	path, ok := strings.CutPrefix(raw, prefix)
+	if !ok {
+		path, ok = strings.CutPrefix(raw, prefixNoPort)
+	}
+	if !ok {
+		return "", false
+	}
+
+	path = strings.TrimSuffix(path, ".git")
+	path = strings.TrimSuffix(path, "/")
+	if path == "" {
+		return "", false
+	}
+	return path, true
+}
+
+// hostWithoutPort strips the port from a host:port string.
+func hostWithoutPort(host string) string {
+	if idx := strings.LastIndex(host, ":"); idx >= 0 {
+		return host[:idx]
+	}
+	return host
+}
