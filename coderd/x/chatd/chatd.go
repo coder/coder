@@ -6597,14 +6597,14 @@ func (p *Server) appendRootChatTools(
 		}
 
 		// Prime the workspace MCP tools cache while the create_workspace
-		// or start_workspace tool is still running. The tool only fires
-		// this callback after waitForAgentReady returns, so the agent is
-		// reachable. ListMCPTools may still return an empty list on the
-		// first try when the agent's MCP Connect is racing with agent
-		// startup; primeWorkspaceMCPCache retries with a short backoff up
-		// to workspaceMCPPrimeMaxWait. Priming here lets the next LLM
-		// step's PrepareTools hit the cache instead of dialing again on a
-		// separate timeout budget.
+		// or start_workspace tool is still running. The AgentID guard
+		// below restricts the primer to the post-ready callback, when
+		// the agent is reachable. ListMCPTools may still return an
+		// empty list on the first try when the agent's MCP Connect is
+		// racing with agent startup; primeWorkspaceMCPCache retries
+		// with a short backoff up to workspaceMCPPrimeMaxWait. Priming
+		// here lets the next LLM step's PrepareTools hit the cache
+		// instead of dialing again on a separate timeout budget.
 		//
 		// Run asynchronously: the tool itself must not block on the
 		// primer because the agent may not advertise any MCP tools at
