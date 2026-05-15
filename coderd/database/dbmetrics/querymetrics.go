@@ -3440,11 +3440,11 @@ func (m queryMetricsStore) GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx context
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetWorkspaceUsageGroupedByTemplateIDForOwner(ctx context.Context, arg database.GetWorkspaceUsageGroupedByTemplateIDForOwnerParams) ([]database.GetWorkspaceUsageGroupedByTemplateIDForOwnerRow, error) {
+func (m queryMetricsStore) GetWorkspaceUsageGroupedByTemplateIDByOwnerID(ctx context.Context, arg database.GetWorkspaceUsageGroupedByTemplateIDByOwnerIDParams) ([]database.GetWorkspaceUsageGroupedByTemplateIDByOwnerIDRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetWorkspaceUsageGroupedByTemplateIDForOwner(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetWorkspaceUsageGroupedByTemplateIDForOwner").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceUsageGroupedByTemplateIDForOwner").Inc()
+	r0, r1 := m.s.GetWorkspaceUsageGroupedByTemplateIDByOwnerID(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetWorkspaceUsageGroupedByTemplateIDByOwnerID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceUsageGroupedByTemplateIDByOwnerID").Inc()
 	return r0, r1
 }
 

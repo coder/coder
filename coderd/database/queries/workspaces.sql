@@ -497,7 +497,7 @@ LEFT JOIN workspaces ON workspaces.template_id = templates.id AND workspaces.del
 WHERE templates.id = ANY(@template_ids :: uuid[])
 GROUP BY templates.id;
 
--- name: GetWorkspaceUsageGroupedByTemplateIDForOwner :many
+-- name: GetWorkspaceUsageGroupedByTemplateIDByOwnerID :many
 SELECT
 	template_id,
 	COUNT(*) AS workspace_count,

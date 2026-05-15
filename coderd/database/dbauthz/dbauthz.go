@@ -5077,7 +5077,7 @@ func (q *querier) GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx context.Context,
 	return q.db.GetWorkspaceUniqueOwnerCountByTemplateIDs(ctx, templateIDs)
 }
 
-func (q *querier) GetWorkspaceUsageGroupedByTemplateIDForOwner(ctx context.Context, arg database.GetWorkspaceUsageGroupedByTemplateIDForOwnerParams) ([]database.GetWorkspaceUsageGroupedByTemplateIDForOwnerRow, error) {
+func (q *querier) GetWorkspaceUsageGroupedByTemplateIDByOwnerID(ctx context.Context, arg database.GetWorkspaceUsageGroupedByTemplateIDByOwnerIDParams) ([]database.GetWorkspaceUsageGroupedByTemplateIDByOwnerIDRow, error) {
 	obj := rbac.ResourceWorkspace.WithOwner(arg.OwnerID.String())
 	if arg.OrganizationID != uuid.Nil {
 		obj = obj.InOrg(arg.OrganizationID)
@@ -5087,7 +5087,7 @@ func (q *querier) GetWorkspaceUsageGroupedByTemplateIDForOwner(ctx context.Conte
 	if err := q.authorizeContext(ctx, policy.ActionRead, obj); err != nil {
 		return nil, err
 	}
-	return q.db.GetWorkspaceUsageGroupedByTemplateIDForOwner(ctx, arg)
+	return q.db.GetWorkspaceUsageGroupedByTemplateIDByOwnerID(ctx, arg)
 }
 
 func (q *querier) GetWorkspaces(ctx context.Context, arg database.GetWorkspacesParams) ([]database.GetWorkspacesRow, error) {

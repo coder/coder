@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"database/sql"
+	"errors"
 	"maps"
 	"slices"
 	"strings"
@@ -13,13 +14,20 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 )
 
-const listTemplatesPageSize = 10
+const (
+	listTemplatesPageSize = 10
+
+	listTemplatesMinPersonalWorkspacesForRecommendation = 2
+	listTemplatesMinActiveDevelopersForRecommendation   = 2
+	listTemplatesRecentUsageWindow                      = 90 * 24 * time.Hour
+)
 
 const (
 	listTemplatesHintOnlyAvailable  = "only_available_template"
@@ -28,9 +36,17 @@ const (
 	listTemplatesHintNoConfidence   = "no_confident_match"
 )
 
+const (
+	queryScoreExactName        = 4
+	queryScoreNamePrefix       = 3
+	queryScoreNameContains     = 2
+	queryScoreDescriptionMatch = 1
+)
+
 // ListTemplatesOptions configures the list_templates tool.
 type ListTemplatesOptions struct {
 	OwnerID            uuid.UUID
+	Logger             slog.Logger
 	AllowedTemplateIDs func() map[uuid.UUID]bool
 }
 
@@ -50,6 +66,13 @@ type rankedTemplate struct {
 type templateUsage struct {
 	WorkspaceCount int64
 	LastUsedAt     time.Time
+}
+
+type templateRankSignals struct {
+	QueryScore         int
+	WorkspaceCount     int64
+	LastUsedAtUnixNano int64
+	ActiveDevelopers   int64
 }
 
 // ListTemplates returns a tool that lists available workspace templates.
@@ -97,16 +120,30 @@ func ListTemplates(db database.Store, organizationID uuid.UUID, options ListTemp
 
 			query := strings.TrimSpace(args.Query)
 			visibleTemplateCount := len(templates)
-			ranked := candidateRankedTemplates(templates, query)
+			ranked := scoreTemplateCandidates(templates, query)
 
 			templateIDs := make([]uuid.UUID, len(ranked))
 			for i, t := range ranked {
 				templateIDs[i] = t.Template.ID
 			}
-			ownerCounts := loadTemplateActiveDeveloperCounts(ctx, db, templateIDs)
-			usageByTemplate := loadTemplateUsage(
+			ownerCounts, ownerCountsErr := loadTemplateActiveDeveloperCounts(ctx, db, templateIDs)
+			if ownerCountsErr != nil {
+				options.Logger.Warn(ctx, "failed to load template active developer counts",
+					slog.F("template_count", len(templateIDs)),
+					slog.Error(ownerCountsErr),
+				)
+			}
+			usageByTemplate, usageErr := loadTemplateUsage(
 				ctx, db, options.OwnerID, organizationID, templateIDs,
 			)
+			if usageErr != nil {
+				options.Logger.Warn(ctx, "failed to load template usage",
+					slog.F("owner_id", options.OwnerID),
+					slog.F("organization_id", organizationID),
+					slog.F("template_count", len(templateIDs)),
+					slog.Error(usageErr),
+				)
+			}
 
 			for i := range ranked {
 				ranked[i].ActiveDevelopers = ownerCounts[ranked[i].Template.ID]
@@ -115,7 +152,10 @@ func ListTemplates(db database.Store, organizationID uuid.UUID, options ListTemp
 
 			rankTemplates(ranked, query)
 			selectionHint, recommendedID, recommendationReason := selectTemplateRecommendation(
-				ranked, visibleTemplateCount,
+				ranked,
+				visibleTemplateCount,
+				errors.Join(ownerCountsErr, usageErr),
+				time.Now(),
 			)
 
 			// Paginate.
@@ -144,13 +184,14 @@ func ListTemplates(db database.Store, organizationID uuid.UUID, options ListTemp
 			}
 
 			result := map[string]any{
-				"templates":             items,
-				"count":                 len(items),
-				"page":                  page,
-				"total_pages":           totalPages,
-				"total_count":           totalCount,
-				"selection_hint":        selectionHint,
-				"recommendation_reason": recommendationReason,
+				"templates":                items,
+				"count":                    len(items),
+				"page":                     page,
+				"total_pages":              totalPages,
+				"total_count":              totalCount,
+				"available_template_count": visibleTemplateCount,
+				"selection_hint":           selectionHint,
+				"recommendation_reason":    recommendationReason,
 			}
 			if recommendedID != uuid.Nil {
 				result["recommended_template_id"] = recommendedID.String()
@@ -160,29 +201,29 @@ func ListTemplates(db database.Store, organizationID uuid.UUID, options ListTemp
 	)
 }
 
-func candidateRankedTemplates(templates []database.Template, query string) []rankedTemplate {
-	ranked := make([]rankedTemplate, 0, len(templates))
+func scoreTemplateCandidates(templates []database.Template, query string) []rankedTemplate {
+	candidates := make([]rankedTemplate, 0, len(templates))
 	for _, t := range templates {
 		queryScore := templateQueryScore(t, query)
 		if query != "" && queryScore == 0 {
 			continue
 		}
-		ranked = append(ranked, rankedTemplate{
+		candidates = append(candidates, rankedTemplate{
 			Template:   t,
 			QueryScore: queryScore,
 		})
 	}
-	return ranked
+	return candidates
 }
 
 func loadTemplateActiveDeveloperCounts(
 	ctx context.Context,
 	db database.Store,
 	templateIDs []uuid.UUID,
-) map[uuid.UUID]int64 {
+) (map[uuid.UUID]int64, error) {
 	ownerCounts := make(map[uuid.UUID]int64)
 	if len(templateIDs) == 0 {
-		return ownerCounts
+		return ownerCounts, nil
 	}
 
 	// Templates are already filtered with the owner's permissions. The
@@ -190,12 +231,12 @@ func loadTemplateActiveDeveloperCounts(
 	// owners, but it only receives IDs the owner can already see.
 	rows, err := db.GetWorkspaceUniqueOwnerCountByTemplateIDs(dbauthz.AsSystemRestricted(ctx), templateIDs) //nolint:gocritic // see above
 	if err != nil {
-		return ownerCounts
+		return ownerCounts, err
 	}
 	for _, row := range rows {
 		ownerCounts[row.TemplateID] = row.UniqueOwnersSum
 	}
-	return ownerCounts
+	return ownerCounts, nil
 }
 
 func loadTemplateUsage(
@@ -204,19 +245,19 @@ func loadTemplateUsage(
 	ownerID uuid.UUID,
 	organizationID uuid.UUID,
 	templateIDs []uuid.UUID,
-) map[uuid.UUID]templateUsage {
+) (map[uuid.UUID]templateUsage, error) {
 	usageByTemplate := make(map[uuid.UUID]templateUsage)
 	if ownerID == uuid.Nil || len(templateIDs) == 0 {
-		return usageByTemplate
+		return usageByTemplate, nil
 	}
 
-	rows, err := db.GetWorkspaceUsageGroupedByTemplateIDForOwner(ctx, database.GetWorkspaceUsageGroupedByTemplateIDForOwnerParams{
+	rows, err := db.GetWorkspaceUsageGroupedByTemplateIDByOwnerID(ctx, database.GetWorkspaceUsageGroupedByTemplateIDByOwnerIDParams{
 		OwnerID:        ownerID,
 		OrganizationID: organizationID,
 		TemplateIDs:    templateIDs,
 	})
 	if err != nil {
-		return usageByTemplate
+		return usageByTemplate, err
 	}
 	for _, row := range rows {
 		usageByTemplate[row.TemplateID] = templateUsage{
@@ -224,29 +265,22 @@ func loadTemplateUsage(
 			LastUsedAt:     row.LastUsedAt,
 		}
 	}
-	return usageByTemplate
+	return usageByTemplate, nil
 }
 
 func rankTemplates(ranked []rankedTemplate, query string) {
 	slices.SortStableFunc(ranked, func(a, b rankedTemplate) int {
-		if query != "" {
-			if c := cmp.Compare(b.QueryScore, a.QueryScore); c != 0 {
-				return c
-			}
-		}
-		if c := cmp.Compare(b.Usage.WorkspaceCount, a.Usage.WorkspaceCount); c != 0 {
+		if c := compareTemplateRankSignals(
+			templateRankSignalsFor(a),
+			templateRankSignalsFor(b),
+			query,
+		); c != 0 {
 			return c
 		}
-		if c := b.Usage.LastUsedAt.Compare(a.Usage.LastUsedAt); c != 0 {
+		if c := cmp.Compare(a.Template.Name, b.Template.Name); c != 0 {
 			return c
 		}
-		if c := cmp.Compare(b.ActiveDevelopers, a.ActiveDevelopers); c != 0 {
-			return c
-		}
-		if c := strings.Compare(a.Template.Name, b.Template.Name); c != 0 {
-			return c
-		}
-		return strings.Compare(a.Template.ID.String(), b.Template.ID.String())
+		return cmp.Compare(a.Template.ID.String(), b.Template.ID.String())
 	})
 
 	for i := range ranked {
@@ -254,15 +288,51 @@ func rankTemplates(ranked []rankedTemplate, query string) {
 	}
 }
 
+func templateRankSignalsFor(t rankedTemplate) templateRankSignals {
+	return templateRankSignals{
+		QueryScore:         t.QueryScore,
+		WorkspaceCount:     t.Usage.WorkspaceCount,
+		LastUsedAtUnixNano: templateRankTime(t.Usage.LastUsedAt),
+		ActiveDevelopers:   t.ActiveDevelopers,
+	}
+}
+
+func templateRankTime(t time.Time) int64 {
+	if t.IsZero() {
+		return 0
+	}
+	return t.UnixNano()
+}
+
+func compareTemplateRankSignals(a, b templateRankSignals, query string) int {
+	if query != "" {
+		if c := cmp.Compare(b.QueryScore, a.QueryScore); c != 0 {
+			return c
+		}
+	}
+	if c := cmp.Compare(b.WorkspaceCount, a.WorkspaceCount); c != 0 {
+		return c
+	}
+	if c := cmp.Compare(b.LastUsedAtUnixNano, a.LastUsedAtUnixNano); c != 0 {
+		return c
+	}
+	return cmp.Compare(b.ActiveDevelopers, a.ActiveDevelopers)
+}
+
 func selectTemplateRecommendation(
 	ranked []rankedTemplate,
 	visibleTemplateCount int,
+	rankingSignalsErr error,
+	now time.Time,
 ) (string, uuid.UUID, string) {
 	if len(ranked) == 0 {
 		return listTemplatesHintNoConfidence, uuid.Nil, "no_matching_templates"
 	}
 
 	top := ranked[0]
+	if rankingSignalsErr != nil {
+		return listTemplatesHintNoConfidence, uuid.Nil, "ranking_signals_unavailable"
+	}
 	if visibleTemplateCount == 1 && len(ranked) == 1 {
 		return listTemplatesHintOnlyAvailable, top.Template.ID, "only_available_template"
 	}
@@ -272,27 +342,44 @@ func selectTemplateRecommendation(
 	if len(ranked) > 1 && templatesAreAmbiguous(top, ranked[1]) {
 		return listTemplatesHintAmbiguous, uuid.Nil, "top_templates_are_ambiguous"
 	}
-	return listTemplatesHintHighConfidence, top.Template.ID, rankReason(top)
+	if !templateHasConfidentRankingSignal(top, now) {
+		return listTemplatesHintNoConfidence, uuid.Nil, "weak_ranking_signal"
+	}
+	return listTemplatesHintHighConfidence, top.Template.ID, relevanceSignals(top)
 }
 
 func templatesAreAmbiguous(a, b rankedTemplate) bool {
-	return a.QueryScore == b.QueryScore &&
-		a.Usage.WorkspaceCount == b.Usage.WorkspaceCount &&
-		a.Usage.LastUsedAt.Equal(b.Usage.LastUsedAt) &&
-		a.ActiveDevelopers == b.ActiveDevelopers
+	return templateRankSignalsFor(a) == templateRankSignalsFor(b)
 }
 
 func templateHasRankingSignal(t rankedTemplate) bool {
-	return t.QueryScore > 0 || t.Usage.WorkspaceCount > 0 || t.ActiveDevelopers > 0
+	signals := templateRankSignalsFor(t)
+	return signals.QueryScore > 0 || signals.WorkspaceCount > 0 || signals.ActiveDevelopers > 0
+}
+
+func templateHasConfidentRankingSignal(t rankedTemplate, now time.Time) bool {
+	signals := templateRankSignalsFor(t)
+	if signals.QueryScore > 0 {
+		return true
+	}
+	if signals.WorkspaceCount >= listTemplatesMinPersonalWorkspacesForRecommendation {
+		return true
+	}
+	if signals.WorkspaceCount > 0 &&
+		!t.Usage.LastUsedAt.IsZero() &&
+		now.Sub(t.Usage.LastUsedAt) <= listTemplatesRecentUsageWindow {
+		return true
+	}
+	return signals.ActiveDevelopers >= listTemplatesMinActiveDevelopersForRecommendation
 }
 
 func templateItem(t rankedTemplate, recommendedID uuid.UUID) map[string]any {
 	item := map[string]any{
-		"id":              t.Template.ID.String(),
-		"name":            t.Template.Name,
-		"organization_id": t.Template.OrganizationID.String(),
-		"rank":            t.Rank,
-		"rank_reason":     rankReason(t),
+		"id":                t.Template.ID.String(),
+		"name":              t.Template.Name,
+		"organization_id":   t.Template.OrganizationID.String(),
+		"rank":              t.Rank,
+		"relevance_signals": relevanceSignals(t),
 	}
 	if display := strings.TrimSpace(t.Template.DisplayName); display != "" {
 		item["display_name"] = display
@@ -313,15 +400,16 @@ func templateItem(t rankedTemplate, recommendedID uuid.UUID) map[string]any {
 	return item
 }
 
-func rankReason(t rankedTemplate) string {
+func relevanceSignals(t rankedTemplate) string {
+	signals := templateRankSignalsFor(t)
 	switch {
-	case t.QueryScore > 0 && t.Usage.WorkspaceCount > 0:
+	case signals.QueryScore > 0 && signals.WorkspaceCount > 0:
 		return "matches_query_and_used_by_you"
-	case t.QueryScore > 0:
+	case signals.QueryScore > 0:
 		return "matches_query"
-	case t.Usage.WorkspaceCount > 0:
+	case signals.WorkspaceCount > 0:
 		return "used_by_you"
-	case t.ActiveDevelopers > 0:
+	case signals.ActiveDevelopers > 0:
 		return "popular_in_org"
 	default:
 		return "ordered_by_name"
@@ -341,7 +429,7 @@ func templateQueryScore(t database.Template, query string) int {
 			continue
 		}
 		if field == query || compactTemplateSearch(field) == queryCompact {
-			return 4
+			return queryScoreExactName
 		}
 	}
 	for _, field := range []string{t.Name, t.DisplayName} {
@@ -350,7 +438,7 @@ func templateQueryScore(t database.Template, query string) int {
 			continue
 		}
 		if strings.HasPrefix(field, query) || strings.HasPrefix(compactTemplateSearch(field), queryCompact) {
-			return 3
+			return queryScoreNamePrefix
 		}
 	}
 	for _, field := range []string{t.Name, t.DisplayName} {
@@ -359,11 +447,11 @@ func templateQueryScore(t database.Template, query string) int {
 			continue
 		}
 		if strings.Contains(field, query) || strings.Contains(compactTemplateSearch(field), queryCompact) {
-			return 2
+			return queryScoreNameContains
 		}
 	}
 	if strings.Contains(normalizeTemplateSearch(t.Description), query) {
-		return 1
+		return queryScoreDescriptionMatch
 	}
 	return 0
 }
@@ -372,8 +460,10 @@ func normalizeTemplateSearch(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
 }
 
+var templateSearchCompactReplacer = strings.NewReplacer(" ", "", "-", "", "_", "")
+
 func compactTemplateSearch(value string) string {
-	return strings.ReplaceAll(value, " ", "")
+	return templateSearchCompactReplacer.Replace(value)
 }
 
 // asOwner sets up a dbauthz context for the given owner so that

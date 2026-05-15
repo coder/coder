@@ -3110,6 +3110,15 @@ func (s *MethodTestSuite) TestWorkspace() {
 		// No asserts here because SQLFilter.
 		check.Args(ws.OwnerID, emptyPreparedAuthorized{}).Asserts()
 	}))
+	s.Run("GetWorkspaceUsageGroupedByTemplateIDByOwnerID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetWorkspaceUsageGroupedByTemplateIDByOwnerIDParams{
+			OwnerID:        uuid.New(),
+			OrganizationID: uuid.New(),
+			TemplateIDs:    []uuid.UUID{uuid.New()},
+		}
+		dbm.EXPECT().GetWorkspaceUsageGroupedByTemplateIDByOwnerID(gomock.Any(), arg).Return([]database.GetWorkspaceUsageGroupedByTemplateIDByOwnerIDRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceWorkspace.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID), policy.ActionRead)
+	}))
 	s.Run("GetWorkspaceACLByID", s.Mocked(func(dbM *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		ws := testutil.Fake(s.T(), faker, database.Workspace{})
 		dbM.EXPECT().GetWorkspaceByID(gomock.Any(), ws.ID).Return(ws, nil).AnyTimes()
@@ -4763,15 +4772,6 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		ids := []uuid.UUID{uuid.New()}
 		dbm.EXPECT().GetWorkspaceUniqueOwnerCountByTemplateIDs(gomock.Any(), ids).Return([]database.GetWorkspaceUniqueOwnerCountByTemplateIDsRow{}, nil).AnyTimes()
 		check.Args(ids).Asserts(rbac.ResourceSystem, policy.ActionRead)
-	}))
-	s.Run("GetWorkspaceUsageGroupedByTemplateIDForOwner", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.GetWorkspaceUsageGroupedByTemplateIDForOwnerParams{
-			OwnerID:        uuid.New(),
-			OrganizationID: uuid.New(),
-			TemplateIDs:    []uuid.UUID{uuid.New()},
-		}
-		dbm.EXPECT().GetWorkspaceUsageGroupedByTemplateIDForOwner(gomock.Any(), arg).Return([]database.GetWorkspaceUsageGroupedByTemplateIDForOwnerRow{}, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceWorkspace.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID), policy.ActionRead)
 	}))
 	s.Run("GetWorkspaceAgentScriptsByAgentIDs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		ids := []uuid.UUID{uuid.New()}
