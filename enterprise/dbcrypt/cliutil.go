@@ -169,7 +169,10 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 	}
 	log.Info(ctx, "encrypting ai provider settings", slog.F("provider_count", len(aiProviders)))
 	for idx, ap := range aiProviders {
-		if !ap.SettingsKeyID.Valid || ap.SettingsKeyID.String == ciphers[0].HexDigest() {
+		if !ap.Settings.Valid || strings.TrimSpace(ap.Settings.String) == "" {
+			continue
+		}
+		if ap.SettingsKeyID.Valid && ap.SettingsKeyID.String == ciphers[0].HexDigest() {
 			log.Debug(ctx, "skipping ai provider", slog.F("ai_provider_id", ap.ID), slog.F("name", ap.Name), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
 			continue
 		}
@@ -189,7 +192,10 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 	}
 	log.Info(ctx, "encrypting ai provider keys", slog.F("key_count", len(aiProviderKeys)))
 	for idx, apk := range aiProviderKeys {
-		if !apk.ApiKeyKeyID.Valid || apk.ApiKeyKeyID.String == ciphers[0].HexDigest() {
+		if strings.TrimSpace(apk.APIKey) == "" {
+			continue
+		}
+		if apk.ApiKeyKeyID.Valid && apk.ApiKeyKeyID.String == ciphers[0].HexDigest() {
 			log.Debug(ctx, "skipping ai provider key", slog.F("ai_provider_key_id", apk.ID), slog.F("provider_id", apk.ProviderID), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
 			continue
 		}
