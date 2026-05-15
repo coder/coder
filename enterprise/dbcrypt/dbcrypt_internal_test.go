@@ -1120,14 +1120,15 @@ func TestAIProviders(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	const settings = `{"bedrock_region":"us-west-2","bedrock_model":"claude-sonnet"}`
+	//nolint:gosec // test fixture, not real credentials
+	const settings = `{"_type":"bedrock","_version":1,"region":"us-west-2","model":"anthropic.claude-sonnet-4-5-20250929-v1:0","access_key":"AKIA-test","access_key_secret":"test-secret"}`
 
 	insertProvider := func(t *testing.T, crypt *dbCrypt, ciphers []Cipher) database.AIProvider {
 		t.Helper()
 		provider := dbgen.AIProvider(t, crypt, database.AIProvider{
-			Name:     "openai-test",
-			Type:     database.AiProviderTypeOpenai,
-			BaseUrl:  "https://api.openai.com/v1/",
+			Name:     "anthropic-bedrock",
+			Type:     database.AiProviderTypeAnthropic,
+			BaseUrl:  "https://bedrock-runtime.us-west-2.amazonaws.com/",
 			Settings: sql.NullString{String: settings, Valid: true},
 		})
 		requireAIProviderDecrypted(t, provider, ciphers, settings)
@@ -1190,7 +1191,8 @@ func TestAIProviders(t *testing.T) {
 		t.Parallel()
 		db, crypt, ciphers := setup(t)
 		provider := insertProvider(t, crypt, ciphers)
-		const newSettings = `{"bedrock_region":"us-east-1"}`
+		//nolint:gosec // test fixture, not real credentials
+		const newSettings = `{"_type":"bedrock","_version":1,"region":"us-east-1","model":"anthropic.claude-sonnet-4-5-20250929-v1:0","access_key":"AKIA-test","access_key_secret":"test-secret"}`
 		updated, err := crypt.UpdateAIProvider(ctx, database.UpdateAIProviderParams{
 			ID:          provider.ID,
 			DisplayName: provider.DisplayName,
