@@ -415,6 +415,8 @@ const userSkillPath = (user: string, name: string) =>
 	`${userSkillsPath(user)}/${encodeURIComponent(name)}`;
 const userAIProviderKeysPath = (user = "me") =>
 	`/api/experimental/users/${encodeURIComponent(user)}/ai-provider-keys`;
+const workspaceSkillsPath = (workspaceId: string) =>
+	`/api/experimental/workspaces/${encodeURIComponent(workspaceId)}/skills`;
 const mcpServerConfigsPath = "/api/experimental/mcp/servers";
 
 type ChatCostDateParams = {
@@ -3672,6 +3674,15 @@ class ExperimentalApiMethods {
 	): Promise<TypesGen.UserSkillMetadata[]> => {
 		const response = await this.axios.get<TypesGen.UserSkillMetadata[]>(
 			userSkillsPath(user),
+		);
+		return response.data;
+	};
+
+	getWorkspaceSkills = async (
+		workspaceId: string,
+	): Promise<TypesGen.WorkspaceSkillMetadata[]> => {
+		const response = await this.axios.get<TypesGen.WorkspaceSkillMetadata[]>(
+			workspaceSkillsPath(workspaceId),
 		);
 		return response.data;
 	};

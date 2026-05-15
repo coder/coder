@@ -486,6 +486,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		);
 	};
 
+	const attachedWorkspaceId = attachedWorkspace?.id ?? workspace?.id;
+
 	const selectedWorkspace = workspaceOptions?.find(
 		(ws) => ws.id === selectedWorkspaceId,
 	);
@@ -1071,6 +1073,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					onEnter={handleSubmit}
 					sendShortcut={sendShortcut}
 					disabled={isDisabled || isLoading}
+					workspaceId={attachedWorkspaceId}
 					autoFocus
 				/>
 				{/* Warn about invisible Unicode in the message text.

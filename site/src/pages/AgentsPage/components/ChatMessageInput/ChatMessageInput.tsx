@@ -34,6 +34,7 @@ import {
 } from "react";
 import { useQuery } from "react-query";
 import { userSkills } from "#/api/queries/userSkills";
+import { workspaceSkills } from "#/api/queries/workspaceSkills";
 import type * as TypesGen from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
 import { isMobileViewport } from "#/utils/mobile";
@@ -44,15 +45,14 @@ import {
 import { isChatAttachmentFile } from "../../utils/chatAttachments";
 import {
 	filterPersonalSkills,
+	filterSkillsByQuery,
 	isPersonalSkillTriggerToken,
-	personalSkillTriggerText,
 } from "../../utils/personalSkills";
 import {
 	$createFileReferenceNode,
 	FileReferenceNode,
 } from "./FileReferenceNode";
 import { IOSBackspacePlugin } from "./iosBackspace";
-import { PersonalSkillsTriggerMenu } from "./PersonalSkillsTriggerMenu";
 import {
 	createPasteFile,
 	getPasteDataTransfer,
@@ -60,6 +60,12 @@ import {
 	isLargePaste,
 	type PasteCommandEvent,
 } from "./pasteHelpers";
+import {
+	createSkillMenuItem,
+	type SkillMenuItem,
+	SkillsTriggerMenu,
+	skillTriggerText,
+} from "./SkillsTriggerMenu";
 import {
 	type ActiveSkillsTrigger,
 	SkillsTriggerPlugin,
@@ -501,7 +507,15 @@ interface ChatMessageInputProps
 	allowTextAttachmentPaste?: boolean;
 	disabled?: boolean;
 	autoFocus?: boolean;
+	workspaceId?: string;
+	/**
+	 * Story and test seam for deterministic personal skill menu data.
+	 */
 	personalSkillsOverride?: readonly TypesGen.UserSkillMetadata[];
+	/**
+	 * Story and test seam for deterministic workspace skill menu data.
+	 */
+	workspaceSkillsOverride?: readonly TypesGen.WorkspaceSkillMetadata[];
 	"aria-label"?: string;
 }
 
@@ -567,7 +581,9 @@ const ChatMessageInput = ({
 	allowTextAttachmentPaste,
 	disabled,
 	autoFocus,
+	workspaceId,
 	personalSkillsOverride,
+	workspaceSkillsOverride,
 	"aria-label": ariaLabel,
 	ref,
 	...props
@@ -601,14 +617,57 @@ const ChatMessageInput = ({
 		...userSkills(),
 		enabled: skillsMenuOpen && personalSkillsOverride === undefined,
 	});
+	const workspaceSkillsQuery = useQuery({
+		...workspaceSkills(workspaceId ?? ""),
+		enabled:
+			skillsMenuOpen &&
+			Boolean(workspaceId) &&
+			workspaceSkillsOverride === undefined,
+	});
 	const personalSkills = personalSkillsOverride ?? skillsQuery.data ?? [];
-	const filteredPersonalSkills = skillsTrigger
-		? filterPersonalSkills(personalSkills, skillsTrigger.query)
-		: [];
+	const loadedWorkspaceSkills =
+		workspaceSkillsOverride ?? workspaceSkillsQuery.data ?? [];
+	const skillsSearchQuery = skillsTrigger?.query ?? "";
+	const filteredPersonalSkills = filterPersonalSkills(
+		personalSkills,
+		skillsSearchQuery,
+	);
+	const filteredWorkspaceSkills = filterSkillsByQuery(
+		loadedWorkspaceSkills,
+		skillsSearchQuery,
+	);
+	const workspaceSkillNames = new Set(
+		loadedWorkspaceSkills.map((skill) => skill.name),
+	);
+	const collidingSkillNames = new Set(
+		personalSkills
+			.filter((skill) => workspaceSkillNames.has(skill.name))
+			.map((skill) => skill.name),
+	);
+	const personalSkillItems: readonly SkillMenuItem[] =
+		filteredPersonalSkills.map((skill) =>
+			createSkillMenuItem(
+				"personal",
+				skill,
+				collidingSkillNames.has(skill.name),
+			),
+		);
+	const workspaceSkillItems: readonly SkillMenuItem[] =
+		filteredWorkspaceSkills.map((skill) =>
+			createSkillMenuItem(
+				"workspace",
+				skill,
+				collidingSkillNames.has(skill.name),
+			),
+		);
+	const allFilteredSkills: readonly SkillMenuItem[] = [
+		...personalSkillItems,
+		...workspaceSkillItems,
+	];
 	const selectedSkillIndex =
-		filteredPersonalSkills.length === 0
+		allFilteredSkills.length === 0
 			? -1
-			: Math.min(skillsMenuSelectedIndex, filteredPersonalSkills.length - 1);
+			: Math.min(skillsMenuSelectedIndex, allFilteredSkills.length - 1);
 
 	const handleSkillsTriggerChange = (trigger: ActiveSkillsTrigger | null) => {
 		if (
@@ -628,7 +687,7 @@ const ChatMessageInput = ({
 		setSkillsTrigger(trigger);
 	};
 
-	const replaceActiveSkillsTrigger = (skill: TypesGen.UserSkillMetadata) => {
+	const replaceActiveSkillsTrigger = (skill: SkillMenuItem) => {
 		const editor = editorRef.current;
 		const trigger = skillsTrigger;
 		if (!editor || !trigger) {
@@ -668,7 +727,7 @@ const ChatMessageInput = ({
 
 			selection.anchor.set(trigger.nodeKey, trigger.slashOffset, "text");
 			selection.focus.set(trigger.nodeKey, caretOffset, "text");
-			selection.insertText(personalSkillTriggerText(skill));
+			selection.insertText(skillTriggerText(skill));
 		});
 		setSkillsTrigger(null);
 		setSkillsMenuSelectedIndex(0);
@@ -878,7 +937,7 @@ const ChatMessageInput = ({
 				<InsertTextPlugin onEditorReady={handleEditorReady} />
 				<SkillsTriggerPlugin
 					open={skillsMenuOpen}
-					skills={filteredPersonalSkills}
+					skills={allFilteredSkills}
 					selectedIndex={selectedSkillIndex}
 					onSelectedIndexChange={setSkillsMenuSelectedIndex}
 					onTriggerChange={handleSkillsTriggerChange}
@@ -886,15 +945,19 @@ const ChatMessageInput = ({
 				/>
 				<EditableStatePlugin disabled={Boolean(disabled)} />
 				{autoFocus && <AutoFocusPlugin />}
-				<PersonalSkillsTriggerMenu
+				<SkillsTriggerMenu
 					open={skillsMenuOpen}
 					anchorRect={skillsTrigger?.anchorRect ?? null}
-					query={skillsTrigger?.query ?? ""}
-					skills={filteredPersonalSkills}
-					isLoading={skillsMenuOpen && skillsQuery.isLoading}
-					onSelectedIndexChange={setSkillsMenuSelectedIndex}
-					isError={skillsMenuOpen && skillsQuery.isError}
+					query={skillsSearchQuery}
+					personalSkills={personalSkillItems}
+					workspaceSkills={workspaceSkillItems}
+					workspaceSkillsEnabled={Boolean(workspaceId)}
+					isPersonalLoading={skillsMenuOpen && skillsQuery.isLoading}
+					isPersonalError={skillsMenuOpen && skillsQuery.isError}
+					isWorkspaceLoading={skillsMenuOpen && workspaceSkillsQuery.isLoading}
+					isWorkspaceError={skillsMenuOpen && workspaceSkillsQuery.isError}
 					selectedIndex={selectedSkillIndex}
+					onSelectedIndexChange={setSkillsMenuSelectedIndex}
 					onSelect={replaceActiveSkillsTrigger}
 					onClose={() => handleSkillsTriggerChange(null)}
 				/>

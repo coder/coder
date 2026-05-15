@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/google/uuid"
@@ -57,12 +58,19 @@ func TestGetWorkspaceSkills(t *testing.T) {
 	coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
 
 	writeWorkspaceSkill(t, skillsDir, "review-code", "Review code", "Read the diff.")
-	skills, err := expClient.WorkspaceSkills(ctx, workspace.ID)
-	require.NoError(t, err)
-	require.Equal(t, []codersdk.WorkspaceSkillMetadata{{
+	expectedSkills := []codersdk.WorkspaceSkillMetadata{{
 		Name:        "review-code",
 		Description: "Review code",
-	}}, skills)
+	}}
+	var skills []codersdk.WorkspaceSkillMetadata
+	var skillsErr error
+	require.Eventuallyf(t, func() bool {
+		skills, skillsErr = expClient.WorkspaceSkills(ctx, workspace.ID)
+		return skillsErr == nil && reflect.DeepEqual(expectedSkills, skills)
+	}, testutil.WaitLong, testutil.IntervalFast,
+		"expected workspace skills %v, got %v, error %v",
+		expectedSkills, skills, skillsErr,
+	)
 
 	res, err := expClient.Request(ctx, http.MethodGet, "/api/experimental/workspaces/"+workspace.ID.String()+"/skills", nil)
 	require.NoError(t, err)

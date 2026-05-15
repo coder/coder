@@ -30,6 +30,18 @@ const mockSkills: TypesGen.UserSkillMetadata[] = [
 	},
 ];
 
+// Override props keep skill menu stories deterministic without network calls.
+const mockWorkspaceSkills: TypesGen.WorkspaceSkillMetadata[] = [
+	{
+		name: "test-runner",
+		description: "Run the workspace test command.",
+	},
+	{
+		name: "workspace-docs",
+		description: "Use repository documentation conventions.",
+	},
+];
+
 const meta: Meta<typeof ChatMessageInput> = {
 	title: "components/ChatMessageInput/ChatMessageInput",
 	component: ChatMessageInput,
@@ -178,6 +190,55 @@ export const ClickSelectsSkill: Story = {
 			expect(editor.textContent).toBe("/reviewer");
 		});
 		await expectNoVisibleText("Review changed files and suggest fixes.");
+	},
+};
+
+export const OpensWithPersonalAndWorkspaceSkills: Story = {
+	args: {
+		workspaceId: "workspace-1",
+		workspaceSkillsOverride: mockWorkspaceSkills,
+	},
+	play: async ({ canvasElement }) => {
+		await typeInEditor(canvasElement, "/");
+		expect(await findVisibleText("Personal skills")).toBeDefined();
+		expect(await findVisibleText("Workspace skills")).toBeDefined();
+		expect(await findVisibleText("/reviewer")).toBeDefined();
+		expect(await findVisibleText("/test-runner")).toBeDefined();
+	},
+};
+
+export const ArrowDownSelectsWorkspaceSkill: Story = {
+	args: {
+		workspaceId: "workspace-1",
+		workspaceSkillsOverride: mockWorkspaceSkills,
+	},
+	play: async ({ canvasElement }) => {
+		const editor = await typeInEditor(canvasElement, "/");
+		await findVisibleText("/test-runner");
+		await userEvent.keyboard("{ArrowDown}{ArrowDown}{ArrowDown}{Enter}");
+		await waitFor(() => {
+			expect(editor.textContent).toBe("/test-runner");
+		});
+	},
+};
+
+export const CollidingSkillsInsertQualifiedAlias: Story = {
+	args: {
+		workspaceId: "workspace-1",
+		workspaceSkillsOverride: [
+			{
+				name: "reviewer",
+				description: "Workspace-specific review process.",
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const editor = await typeInEditor(canvasElement, "/");
+		expect(await findVisibleText("/personal/reviewer")).toBeDefined();
+		await userEvent.click(await findVisibleText("/workspace/reviewer"));
+		await waitFor(() => {
+			expect(editor.textContent).toBe("/workspace/reviewer");
+		});
 	},
 };
 
