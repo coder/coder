@@ -291,10 +291,6 @@ func SanitizeAnthropicProviderToolHistory(
 				}
 				msg.Content = parts
 			}
-			if messageIndex == immutableIndex {
-				out = appendSanitizedMessagePreservingStructure(out, msg)
-				continue
-			}
 			out = appendSanitizedMessage(out, msg)
 		}
 		current = out
@@ -1033,7 +1029,6 @@ func stripAnthropicProviderToolHistoryFromMessages(
 	affectedMessages map[int]struct{},
 ) ([]fantasy.Message, AnthropicProviderToolSanitizationStats) {
 	var stats AnthropicProviderToolSanitizationStats
-	immutableIndex := latestAssistantMessageIndexWithSignedReasoning(messages)
 	affectedMessages = removeImmutableSignedReasoningMessages(messages, affectedMessages)
 	if len(affectedMessages) == 0 {
 		return messages, stats
@@ -1042,10 +1037,6 @@ func stripAnthropicProviderToolHistoryFromMessages(
 	out := make([]fantasy.Message, 0, len(messages))
 	for messageIndex, message := range messages {
 		if _, affected := affectedMessages[messageIndex]; !affected {
-			if messageIndex == immutableIndex {
-				out = appendSanitizedMessagePreservingStructure(out, message)
-				continue
-			}
 			out = appendSanitizedMessage(out, message)
 			continue
 		}
@@ -1070,10 +1061,6 @@ func stripAnthropicProviderToolHistoryFromMessages(
 			continue
 		}
 		message.Content = parts
-		if messageIndex == immutableIndex {
-			out = appendSanitizedMessagePreservingStructure(out, message)
-			continue
-		}
 		out = appendSanitizedMessage(out, message)
 	}
 	return out, stats
@@ -1081,6 +1068,9 @@ func stripAnthropicProviderToolHistoryFromMessages(
 
 func appendSanitizedMessage(out []fantasy.Message, msg fantasy.Message) []fantasy.Message {
 	if len(out) == 0 || out[len(out)-1].Role != msg.Role {
+		return append(out, msg)
+	}
+	if messageHasAnthropicSignedReasoning(out[len(out)-1]) || messageHasAnthropicSignedReasoning(msg) {
 		return append(out, msg)
 	}
 
@@ -1093,10 +1083,6 @@ func appendSanitizedMessage(out []fantasy.Message, msg fantasy.Message) []fantas
 	last.Content = content
 	last.ProviderOptions = nil
 	return out
-}
-
-func appendSanitizedMessagePreservingStructure(out []fantasy.Message, msg fantasy.Message) []fantasy.Message {
-	return append(out, msg)
 }
 
 func applyMessageProviderOptionsToLastPart(
