@@ -262,7 +262,11 @@ export const updateProfile = (userId: string) => {
 	};
 };
 
-const myAppearanceKey = ["me", "appearance"];
+export const myAppearanceKey = ["me", "appearance"] as const;
+
+type AppearanceMutationContext = {
+	previousAppearanceSettings: UserAppearanceSettings | undefined;
+};
 
 export const appearanceSettings = (
 	metadata: MetadataState<UserAppearanceSettings>,
@@ -280,27 +284,42 @@ export const updateAppearanceSettings = (
 	UserAppearanceSettings,
 	unknown,
 	UpdateUserAppearanceSettingsRequest,
-	unknown
+	AppearanceMutationContext
 > => {
 	return {
 		mutationFn: (req) => API.updateAppearanceSettings(req),
 		onMutate: async (patch) => {
+			await queryClient.cancelQueries({ queryKey: myAppearanceKey });
+			const previousAppearanceSettings =
+				queryClient.getQueryData<UserAppearanceSettings>(myAppearanceKey);
+
 			// Mutate the `queryClient` optimistically to make the theme switcher
 			// more responsive.
-			queryClient.setQueryData(myAppearanceKey, {
+			queryClient.setQueryData<UserAppearanceSettings>(myAppearanceKey, {
 				theme_preference: patch.theme_preference,
 				theme_mode: patch.theme_mode,
 				theme_light: patch.theme_light,
 				theme_dark: patch.theme_dark,
 				terminal_font: patch.terminal_font,
 			});
+			return { previousAppearanceSettings };
 		},
-		onSuccess: async () =>
-			// Could technically invalidate more, but we only ever care about the
-			// `theme_preference` for the `me` query.
-			await queryClient.invalidateQueries({
-				queryKey: myAppearanceKey,
-			}),
+		onError: (_error, _patch, context) => {
+			if (context?.previousAppearanceSettings) {
+				queryClient.setQueryData<UserAppearanceSettings>(
+					myAppearanceKey,
+					context.previousAppearanceSettings,
+				);
+				return;
+			}
+			queryClient.removeQueries({ queryKey: myAppearanceKey, exact: true });
+		},
+		onSuccess: (settings, patch) => {
+			queryClient.setQueryData<UserAppearanceSettings>(myAppearanceKey, {
+				...patch,
+				...settings,
+			});
+		},
 	};
 };
 
