@@ -241,6 +241,10 @@ func (api *API) patchUserSkill(rw http.ResponseWriter, r *http.Request) {
 			httpapi.ResourceNotFound(rw)
 			return
 		}
+		if database.IsCheckViolation(err, userSkillUserDeletedConstraint) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
 		httpapi.InternalServerError(rw, err)
 		return
 	}
