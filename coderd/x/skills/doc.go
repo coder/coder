@@ -46,7 +46,7 @@
 // is less reproducible because old turns do not capture an exact copy of
 // personal skill content.
 //
-// Explicit collision aliases make ambiguous names visible to users and tools.
+// Explicit qualified aliases make ambiguous names visible to users and tools.
 // Admin access improves operability and abuse handling, but it creates a
 // privacy trade-off that must remain clear in product and support expectations.
 package skills
