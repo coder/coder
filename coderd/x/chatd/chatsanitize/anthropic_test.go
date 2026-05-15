@@ -218,7 +218,6 @@ func TestApplyAnthropicProviderToolGuardDoesNotMergeAcrossLatestReasoningAssista
 
 			require.ErrorIs(t, err, chatsanitize.ErrAnthropicProviderToolPromptUnsafe)
 			require.Nil(t, guarded)
-			require.ErrorContains(t, err, chatsanitize.ErrAnthropicProviderToolPromptUnsafe.Error())
 		})
 	}
 }
