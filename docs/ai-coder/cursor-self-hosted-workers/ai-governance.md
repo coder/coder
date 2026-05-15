@@ -8,9 +8,7 @@ how the worker could plug into Coder's [AI Gateway](../ai-gateway/index.md)
 doesn't, and what would have to ship to close the gap.
 
 > [!NOTE]
-> This page is intentionally not listed in the docs manifest. It's a
-> design note shared by link, not a published recipe. The integration
-> it describes is not usable today against the
+> AI Gateway is not usable today against the
 > [System identity](./system-identity.md) recipe; the structural
 > reasons are in
 > [The Cursor architecture mismatch](#the-cursor-architecture-mismatch)

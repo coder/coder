@@ -1100,6 +1100,12 @@
 							"description": "Design history, sub-stages, and open questions tracked alongside the delivery.",
 							"path": "./ai-coder/cursor-self-hosted-workers/plan.md",
 							"state": ["early access"]
+						},
+						{
+							"title": "AI Governance Integration",
+							"description": "Notes on AI Gateway and AI Governance Add-on coverage for Cursor self-hosted workers.",
+							"path": "./ai-coder/cursor-self-hosted-workers/ai-governance.md",
+							"state": ["early access"]
 						}
 					]
 				},
