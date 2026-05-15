@@ -102,7 +102,14 @@ jobs:
           project: b4q6ltmpzh
           token: ${{ secrets.DEPOT_TOKEN }}
           buildx-fallback: true
-          context: "{{defaultContext}}:dogfood/coder/ubuntu-22.04"
+          # Context is the repo root so the Dockerfile can COPY the
+          # project mise.toml that the image installs from. The
+          # github_token secret raises aqua's GitHub API quota during
+          # `mise install`.
+          context: "{{defaultContext}}"
+          file: dogfood/coder/ubuntu-22.04/Dockerfile
+          secrets: |
+            github_token=${{ secrets.GITHUB_TOKEN }}
           pull: true
           save: true
           push: ${{ github.ref == 'refs/heads/main' }}
@@ -118,7 +125,14 @@ jobs:
           project: b4q6ltmpzh
           token: ${{ secrets.DEPOT_TOKEN }}
           buildx-fallback: true
-          context: "{{defaultContext}}:dogfood/coder/ubuntu-26.04"
+          # Context is the repo root so the Dockerfile can COPY the
+          # project mise.toml that the image installs from. The
+          # github_token secret raises aqua's GitHub API quota during
+          # `mise install`.
+          context: "{{defaultContext}}"
+          file: dogfood/coder/ubuntu-26.04/Dockerfile
+          secrets: |
+            github_token=${{ secrets.GITHUB_TOKEN }}
           pull: true
           save: true
           push: ${{ github.ref == 'refs/heads/main' }}
