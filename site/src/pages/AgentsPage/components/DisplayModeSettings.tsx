@@ -115,6 +115,23 @@ export const ThinkingDisplaySettings: FC = () => {
 	);
 };
 
+export const ShellToolDisplaySettings: FC = () => {
+	return (
+		<DisplayModeSettings
+			title="Shell Output Display"
+			description="How shell command output should be displayed by default. 'Auto' opens running commands and completed commands with output, then keeps empty output collapsed. 'Always Expanded' opens shell output by default. 'Always Collapsed' keeps it collapsed."
+			ariaLabel="Shell output display mode"
+			errorMessage="Failed to save your shell output display preference."
+			defaultValue="auto"
+			options={agentDisplayOptions}
+			getMode={(settings) => settings.shell_tool_display_mode}
+			updateSettings={(value) => ({
+				shell_tool_display_mode: value,
+			})}
+		/>
+	);
+};
+
 export const CodeDiffDisplaySettings: FC = () => {
 	return (
 		<DisplayModeSettings

@@ -21,6 +21,13 @@
 - Test both positive and negative cases
 - Use `testutil.WaitLong` for timeouts in tests
 
+### Timing Issues
+
+NEVER use `time.Sleep` to mitigate timing issues. If an issue seems like
+it should use `time.Sleep`, read through https://github.com/coder/quartz
+and specifically the README to better understand how to handle timing
+issues.
+
 ### Test Package Naming
 
 - **Test packages**: Use `package_test` naming (e.g., `identityprovider_test`) for black-box testing
@@ -88,6 +95,11 @@ coderd/
 
 1. **PKCE tests failing** - Verify both authorization code storage and token exchange handle PKCE fields
 2. **Resource indicator validation failing** - Ensure database stores and retrieves resource parameters correctly
+
+### OAuth2 Test Scripts
+
+- Full suite: `./scripts/oauth2/test-mcp-oauth2.sh`
+- Manual testing: `./scripts/oauth2/test-manual-flow.sh`
 
 ### General Issues
 

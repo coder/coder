@@ -837,6 +837,15 @@ aibridge:
   # or re-open the circuit.
   # (default: 3, type: int)
   circuit_breaker_max_requests: 3
+  # Determines the effective group when a user belongs to multiple groups with AI
+  # budgets. "highest" selects the group with the largest spend limit, and is
+  # currently the only supported value.
+  # (default: highest, type: enum[highest])
+  budget_policy: highest
+  # Determines when accumulated AI spend resets to zero, aligned to UTC calendar
+  # boundaries. Only "month" is currently supported.
+  # (default: month, type: enum[month])
+  budget_period: month
 aibridgeproxy:
   # Enable the AI Bridge MITM Proxy for intercepting and decrypting AI provider
   # requests.
@@ -863,8 +872,8 @@ aibridgeproxy:
   # (default: <unset>, type: string)
   key_file: ""
   # Deprecated: This value is now derived automatically from the configured AI
-  # Bridge providers' base URLs. Setting this value has no effect. This option will
-  # be removed in a future release.
+  # providers' base URLs. Setting this value has no effect. This option will be
+  # removed in a future release.
   # (default: <unset>, type: string-array)
   domain_allowlist: []
   # URL of an upstream HTTP proxy to chain tunneled (non-allowlisted) requests
@@ -911,3 +920,12 @@ retention:
   # build are always retained. Set to 0 to disable automatic deletion.
   # (default: 7d, type: duration)
   workspace_agent_logs: 168h0m0s
+templateBuilder:
+  # Disable the template builder feature for guided template creation. When
+  # disabled, all /api/v2/templatebuilder/* endpoints return 404.
+  # (default: <unset>, type: bool)
+  disabled: false
+  # The base URL of the module registry used by the template builder for module
+  # source paths.
+  # (default: https://registry.coder.com, type: string)
+  registryURL: https://registry.coder.com

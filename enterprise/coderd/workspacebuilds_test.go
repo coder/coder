@@ -8,6 +8,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
@@ -43,7 +44,7 @@ func TestWorkspaceBuild(t *testing.T) {
 	coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, tplAv1.ID)
 	require.Equal(t, tplAv1.ID, tplA.ActiveVersionID)
 	tplA = coderdtest.UpdateTemplateMeta(t, ownerClient, tplA.ID, codersdk.UpdateTemplateMeta{
-		RequireActiveVersion: true,
+		RequireActiveVersion: ptr.Ref(true),
 	})
 	require.True(t, tplA.RequireActiveVersion)
 	tplAv2 := coderdtest.CreateTemplateVersion(t, ownerClient, owner.OrganizationID, nil, func(ctvr *codersdk.CreateTemplateVersionRequest) {
@@ -57,7 +58,7 @@ func TestWorkspaceBuild(t *testing.T) {
 	coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, tplBv1.ID)
 	require.Equal(t, tplBv1.ID, tplB.ActiveVersionID)
 	tplB = coderdtest.UpdateTemplateMeta(t, ownerClient, tplB.ID, codersdk.UpdateTemplateMeta{
-		RequireActiveVersion: true,
+		RequireActiveVersion: ptr.Ref(true),
 	})
 	require.True(t, tplB.RequireActiveVersion)
 

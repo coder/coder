@@ -60,10 +60,14 @@ var skillNamePattern = regexp.MustCompile(
 
 // Default values for agent-internal configuration. These are
 // used when the corresponding env vars are unset.
+//
+// DefaultSkillsDir is a comma-separated list so home-scoped
+// skills override project-scoped ones with the same name
+// (discoverSkills picks the first occurrence per skill name).
 const (
 	DefaultInstructionsDir  = "~/.coder"
 	DefaultInstructionsFile = "AGENTS.md"
-	DefaultSkillsDir        = ".agents/skills"
+	DefaultSkillsDir        = "~/.coder/skills,.agents/skills"
 	DefaultSkillMetaFile    = "SKILL.md"
 	DefaultMCPConfigFile    = ".mcp.json"
 )

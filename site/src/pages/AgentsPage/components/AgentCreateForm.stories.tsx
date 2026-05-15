@@ -108,6 +108,7 @@ const meta: Meta<typeof AgentCreateForm> = {
 	decorators: [withDashboardProvider],
 	args: {
 		onCreateChat: fn(),
+		sendShortcut: "enter",
 		isCreating: false,
 		createError: undefined,
 		canCreateChat: true,
@@ -659,7 +660,7 @@ export const OrgPickerTightSpacing: Story = {
 export const OrgChangeConfirmation: Story = {
 	render: () => (
 		<ConfirmDialog
-			open={true}
+			open
 			title="Change organization?"
 			description="Changing organization will remove your current attachments."
 			type="info"

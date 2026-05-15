@@ -768,6 +768,66 @@ func TestRetentionConfigParsing(t *testing.T) {
 	}
 }
 
+func TestAIBudgetConfigParsing(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Defaults", func(t *testing.T) {
+		t.Parallel()
+
+		dv := codersdk.DeploymentValues{}
+		opts := dv.Options()
+
+		require.NoError(t, opts.SetDefaults())
+
+		assert.Equal(t, string(codersdk.AIBudgetPolicyHighest), dv.AI.BridgeConfig.BudgetPolicy)
+		assert.Equal(t, string(codersdk.AIBudgetPeriodMonth), dv.AI.BridgeConfig.BudgetPeriod)
+	})
+
+	t.Run("AcceptsSupportedValues", func(t *testing.T) {
+		t.Parallel()
+
+		dv := codersdk.DeploymentValues{}
+		opts := dv.Options()
+
+		require.NoError(t, opts.SetDefaults())
+		require.NoError(t, opts.ParseEnv([]serpent.EnvVar{
+			{Name: "CODER_AI_BUDGET_POLICY", Value: string(codersdk.AIBudgetPolicyHighest)},
+			{Name: "CODER_AI_BUDGET_PERIOD", Value: string(codersdk.AIBudgetPeriodMonth)},
+		}))
+
+		assert.Equal(t, string(codersdk.AIBudgetPolicyHighest), dv.AI.BridgeConfig.BudgetPolicy)
+		assert.Equal(t, string(codersdk.AIBudgetPeriodMonth), dv.AI.BridgeConfig.BudgetPeriod)
+	})
+
+	t.Run("RejectsUnsupportedPolicy", func(t *testing.T) {
+		t.Parallel()
+
+		dv := codersdk.DeploymentValues{}
+		opts := dv.Options()
+
+		require.NoError(t, opts.SetDefaults())
+		err := opts.ParseEnv([]serpent.EnvVar{
+			{Name: "CODER_AI_BUDGET_POLICY", Value: "invalid"},
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid choice")
+	})
+
+	t.Run("RejectsUnsupportedPeriod", func(t *testing.T) {
+		t.Parallel()
+
+		dv := codersdk.DeploymentValues{}
+		opts := dv.Options()
+
+		require.NoError(t, opts.SetDefaults())
+		err := opts.ParseEnv([]serpent.EnvVar{
+			{Name: "CODER_AI_BUDGET_PERIOD", Value: "invalid"},
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid choice")
+	})
+}
+
 func TestComputeMaxIdleConns(t *testing.T) {
 	t.Parallel()
 
