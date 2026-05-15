@@ -26,10 +26,10 @@
 // and workspace/<name> for the workspace skill. One source must not silently
 // override the other.
 //
-// Site admins can read and modify personal skill content. This is a deliberate
-// privacy trade-off for operability, support, and abuse handling. Audit records
-// intentionally exclude raw Markdown content, but record the actor, target
-// user, and relevant metadata.
+// Site admins can read and modify personal skill content. Personal skills are
+// user-authored instructions, not secret material. Audit records can include
+// raw Markdown content diffs alongside the actor, target user, and relevant
+// metadata.
 //
 // Personal skill edits affect the next chat turn. Old chat turns are not exact
 // snapshots of the personal skill state that existed when they ran.
