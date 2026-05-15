@@ -12,15 +12,19 @@ const rootClassNames = async (page: Page) => {
 	return page.locator("html").evaluate((it) => Array.from(it.classList));
 };
 
-// Assert the light theme without rejecting unrelated root classes.
-const expectLightThemeClasses = (classes: string[]) => {
-	const className = "light";
-	expect(classes).toContain(className);
-	for (const themeClassName of CONCRETE_THEMES.filter(
-		(it) => it !== className,
-	)) {
-		expect(classes).not.toContain(themeClassName);
-	}
+const expectLightThemeClasses = async (page: Page) => {
+	await expect(async () => {
+		const classes = await rootClassNames(page);
+		const className = "light";
+
+		// Assert the light theme without rejecting unrelated root classes.
+		expect(classes).toContain(className);
+		for (const themeClassName of CONCRETE_THEMES.filter(
+			(it) => it !== className,
+		)) {
+			expect(classes).not.toContain(themeClassName);
+		}
+	}).toPass({ timeout: 10_000 });
 };
 
 test("adjust user theme preference", async ({ page }) => {
@@ -28,14 +32,18 @@ test("adjust user theme preference", async ({ page }) => {
 
 	await page.goto("/settings/appearance", { waitUntil: "domcontentloaded" });
 
-	await page.getByText("Light", { exact: true }).click();
-	await expect(page.getByLabel("Light")).toBeChecked();
+	await page.getByRole("combobox", { name: /theme mode/i }).click();
+	await page.getByRole("option", { name: /single theme/i }).click();
 
-	expectLightThemeClasses(await rootClassNames(page));
+	const singleThemeGroup = page.getByRole("group", { name: "Theme" });
+	await expect(singleThemeGroup).toBeVisible();
+	await singleThemeGroup.getByText("Light default", { exact: true }).click();
+
+	await expectLightThemeClasses(page);
 
 	await page.goto("/", { waitUntil: "domcontentloaded" });
 
 	// Make sure the page is still using the light theme after reloading and
 	// navigating away from the settings page.
-	expectLightThemeClasses(await rootClassNames(page));
+	await expectLightThemeClasses(page);
 });

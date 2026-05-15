@@ -6,6 +6,7 @@ import { DARK_THEMES, LIGHT_THEMES, THEME_COPY } from "./themeCopy";
 
 interface SingleModeSectionProps {
 	selected: ConcreteThemeName;
+	name?: string;
 	onSelect: (theme: ConcreteThemeName) => void;
 }
 
@@ -16,6 +17,7 @@ const SINGLE_MODE_ORDER: ConcreteThemeName[] = [
 
 export const SingleModeSection: FC<SingleModeSectionProps> = ({
 	selected,
+	name = "theme-single",
 	onSelect,
 }) => {
 	return (
@@ -25,6 +27,7 @@ export const SingleModeSection: FC<SingleModeSectionProps> = ({
 				{SINGLE_MODE_ORDER.map((theme) => (
 					<SingleTile
 						key={theme}
+						name={name}
 						theme={theme}
 						selected={theme === selected}
 						onSelect={() => onSelect(theme)}
@@ -36,12 +39,18 @@ export const SingleModeSection: FC<SingleModeSectionProps> = ({
 };
 
 interface SingleTileProps {
+	name: string;
 	theme: ConcreteThemeName;
 	selected: boolean;
 	onSelect: () => void;
 }
 
-const SingleTile: FC<SingleTileProps> = ({ theme, selected, onSelect }) => {
+const SingleTile: FC<SingleTileProps> = ({
+	name,
+	theme,
+	selected,
+	onSelect,
+}) => {
 	const copy = THEME_COPY[theme];
 	return (
 		<label
@@ -53,7 +62,7 @@ const SingleTile: FC<SingleTileProps> = ({ theme, selected, onSelect }) => {
 		>
 			<input
 				type="radio"
-				name="theme-single"
+				name={name}
 				value={theme}
 				checked={selected}
 				onChange={onSelect}
@@ -66,8 +75,8 @@ const SingleTile: FC<SingleTileProps> = ({ theme, selected, onSelect }) => {
 				<span
 					aria-hidden="true"
 					className={cn(
-						"mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border border-solid bg-surface-primary",
-						selected ? "border-border-secondary" : "border-border",
+						"mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border border-solid border-border bg-surface-primary",
+						selected && "border-border-secondary",
 					)}
 				>
 					{selected && (
