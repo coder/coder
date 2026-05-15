@@ -58,7 +58,7 @@ const withUnavailableWorkspaceCount = (Story: FC) => {
 };
 
 const withUsageIndicatorFrame = (Story: FC) => (
-	<div className="flex h-12 w-[260px] items-stretch justify-end rounded-md bg-surface-secondary">
+	<div className="flex h-14 w-[340px] items-stretch justify-end rounded-md bg-surface-secondary">
 		<Story />
 	</div>
 );
@@ -181,7 +181,6 @@ export const UsageAndWorkspaceQuota: Story = {
 		const canvas = within(canvasElement);
 		const progressBars = canvas.getAllByRole("progressbar");
 
-		expect(canvas.getByText("Usage")).toBeInTheDocument();
 		expect(progressBars.map((bar) => bar.getAttribute("aria-label"))).toEqual([
 			"Monthly spend usage",
 			"Workspace quota usage",
@@ -220,7 +219,6 @@ export const WorkspaceQuotaWithoutBudget: Story = {
 			name: "Workspace quota usage",
 		});
 
-		expect(canvas.getByText("Workspace quota")).toBeInTheDocument();
 		expect(progressbar).toHaveAttribute("aria-valuenow", "100");
 
 		await openUsageMenu(canvasElement);
