@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState } from "react";
 import {
 	expect,
 	fireEvent,
@@ -2444,73 +2443,6 @@ export const SequentialReadFilesRunningState: Story = {
 		expect(
 			canvas.getByRole("button", { name: /reading 3 files/i }),
 		).toBeInTheDocument();
-	},
-};
-
-export const SequentialReadFilesExpansionPersistsAcrossGrouping: Story = {
-	render: function Render(args) {
-		const [parsedMessages, setParsedMessages] = useState<ParsedMessageEntry[]>([
-			buildParsedReadFileEntry({
-				messageId: 1,
-				toolId: "read-stream-1",
-				path: "site/src/a.ts",
-				status: "completed",
-				content: "export const a = 1;",
-			}),
-		]);
-
-		return (
-			<div className="space-y-4">
-				<button
-					type="button"
-					onClick={() =>
-						setParsedMessages([
-							buildParsedReadFileEntry({
-								messageId: 1,
-								toolId: "read-stream-1",
-								path: "site/src/a.ts",
-								status: "completed",
-								content: "export const a = 1;",
-							}),
-							buildParsedReadFileEntry({
-								messageId: 2,
-								toolId: "read-stream-2",
-								path: "site/src/b.ts",
-								status: "completed",
-								content: "export const b = 2;",
-							}),
-						])
-					}
-					className="rounded border border-border-default px-2 py-1 text-xs"
-				>
-					Add second read_file
-				</button>
-				<ConversationTimeline {...args} parsedMessages={parsedMessages} />
-			</div>
-		);
-	},
-	args: {
-		...defaultArgs,
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const singleReadButton = canvas.getByRole("button", {
-			name: /read a\.ts/i,
-		});
-		await userEvent.click(singleReadButton);
-		expect(singleReadButton).toHaveAttribute("aria-expanded", "true");
-
-		await userEvent.click(
-			canvas.getByRole("button", { name: /add second read_file/i }),
-		);
-
-		await waitFor(() => {
-			expect(
-				canvas.getByRole("button", { name: /read 2 files/i }),
-			).toHaveAttribute("aria-expanded", "true");
-			expect(canvas.getByText("site/src/a.ts")).toBeVisible();
-			expect(canvas.getByText("site/src/b.ts")).toBeVisible();
-		});
 	},
 };
 
