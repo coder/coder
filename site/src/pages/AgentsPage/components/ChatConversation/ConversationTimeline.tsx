@@ -712,9 +712,8 @@ const StickyUserMessage = memo<{
 		const sentinelRef = useRef<HTMLDivElement>(null);
 		const containerRef = useRef<HTMLDivElement>(null);
 		const updateFnRef = useRef<(() => void) | null>(null);
-		// Track streaming state in a ref so the ResizeObserver
-		// callback (created once in a [] effect) can read the
-		// latest value without needing to be re-created.
+		// Ref so the ResizeObserver (created once in a [] effect) reads the latest value.
+
 		const hasActiveStreamRef = useRef(hasActiveStream);
 		useEffect(() => {
 			hasActiveStreamRef.current = hasActiveStream;
@@ -831,10 +830,8 @@ const StickyUserMessage = memo<{
 			// do redundant work on high-refresh-rate displays.
 			let rafId: number | null = null;
 			const onScroll = () => {
-				// Skip updates while a programmatic scroll-jump is
-				// in progress. The sticky update() changes layout
-				// (container.style.top) which triggers a browser
-				// scroll-anchor adjustment that undoes the jump.
+				// Sticky update() changes layout, triggering a browser scroll-anchor adjustment that undoes the jump.
+
 				if (scroller.hasAttribute("data-scroll-lock")) return;
 				if (rafId !== null) return;
 				rafId = requestAnimationFrame(() => {
@@ -848,12 +845,8 @@ const StickyUserMessage = memo<{
 			// In flex-col-reverse, scrollTop stays at 0 when pinned to
 			// bottom so no scroll event fires, but the content wrapper
 			// resizes and this observer catches that.
-			//
-			// During active streaming we skip these updates so that
-			// agent activity (thinking, streaming tokens) does not
-			// cause the pinned prompt to bounce or overlap with other
-			// prompts. Only user-initiated scrolling updates the
-			// sticky state while the agent is active.
+			// During active streaming, skip resize updates so agent output doesn't bounce the pinned prompt.
+
 			const contentEl = scroller.firstElementChild as HTMLElement | null;
 			let contentRafId: number | null = null;
 			const contentObserver = contentEl
@@ -895,9 +888,8 @@ const StickyUserMessage = memo<{
 			updateFnRef.current?.();
 		}, [isStuck]);
 
-		// When streaming ends, run one final position update so
-		// the sticky state catches up with any content growth
-		// that occurred while updates were suppressed.
+		// Final position update after streaming ends to catch up with suppressed resize updates.
+
 		useLayoutEffect(() => {
 			if (!hasActiveStream) {
 				updateFnRef.current?.();
@@ -1079,15 +1071,11 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 	}) => {
 		const lastInChainFlags = computeLastInChainFlags(parsedMessages);
 
-		// Build prompt history entries for the history popover.
-		// This gives every user message a 1-based index and
-		// its plain-text content for the dropdown list.
 		const promptHistory = (() => {
 			const result: PromptHistoryEntry[] = [];
 			let promptIndex = 0;
 			for (const entry of parsedMessages) {
 				if (entry.message.role === "user") {
-					// Skip metadata-only messages that won't be rendered.
 					const { shouldHide } = deriveMessageDisplayState({
 						message: entry.message,
 						parsed: entry.parsed,
@@ -1101,10 +1089,6 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					promptIndex++;
 					const text = getChatMessageTextContent(entry.message.content);
 					const parts = entry.message.content ?? [];
-					// Count file attachments. Uploaded images may lack
-					// media_type (only file_id is set), so treat any
-					// type==="file" part without a known non-image
-					// media_type as a potential attachment.
 					const fileParts = parts.filter((p) => p.type === "file");
 					let label = text ?? "";
 					if (!label && fileParts.length > 0) {

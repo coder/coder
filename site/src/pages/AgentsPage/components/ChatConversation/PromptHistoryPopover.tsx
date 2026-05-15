@@ -52,7 +52,6 @@ export const PromptHistoryPopover: FC<PromptHistoryPopoverProps> = ({
 		onOpenChange?.(next);
 	};
 
-	// Don't render anything if there are fewer than 2 user messages.
 	if (entries.length < 2) {
 		return null;
 	}

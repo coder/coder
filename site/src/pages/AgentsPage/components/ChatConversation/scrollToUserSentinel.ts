@@ -1,5 +1,3 @@
-// Track the current animation so a new scroll request cancels
-// any in-flight animation before starting.
 let activeRafId: number | null = null;
 let activeScroller: HTMLElement | null = null;
 
@@ -10,10 +8,6 @@ const SCROLL_DURATION_MS = 450;
 // layout shift that fights the scroll animation.
 const POPOVER_CLOSE_DELAY_MS = 80;
 
-/**
- * Clean up scroll-lock state on the active scroller. Called both
- * on normal completion and when cancelling an in-flight animation.
- */
 function unlock() {
 	if (activeScroller) {
 		activeScroller.style.overflowAnchor = "";
@@ -23,18 +17,8 @@ function unlock() {
 	}
 }
 
-/**
- * Scroll the chat to a specific user-message sentinel, centered
- * in the viewport. Disables browser scroll-anchoring and the
- * sticky-message scroll handler during the animation to prevent
- * layout-shift snap-back.
- *
- * If called while a previous animation is in flight, the old
- * animation is cancelled and its lock state is cleaned up before
- * the new animation begins.
- */
+/** Scroll to a user-message sentinel. Disables scroll-anchoring during animation to prevent snap-back. */
 export function scrollToUserSentinel(messageId: number): void {
-	// Cancel any in-flight animation and clean up its lock state.
 	if (activeRafId !== null) {
 		cancelAnimationFrame(activeRafId);
 		activeRafId = null;
@@ -58,7 +42,6 @@ export function scrollToUserSentinel(messageId: number): void {
 		scroller.getBoundingClientRect().top -
 		scroller.clientHeight / 2;
 
-	// Respect prefers-reduced-motion: jump instantly.
 	const prefersReduced = window.matchMedia(
 		"(prefers-reduced-motion: reduce)",
 	).matches;
@@ -73,7 +56,6 @@ export function scrollToUserSentinel(messageId: number): void {
 	const start = scroller.scrollTop;
 	const t0 = performance.now();
 
-	// Ease-in-out cubic for a gentle start and gentle stop.
 	const ease = (t: number) =>
 		t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2;
 
@@ -90,18 +72,11 @@ export function scrollToUserSentinel(messageId: number): void {
 	activeRafId = requestAnimationFrame(step);
 }
 
-/**
- * Schedule a scroll after a short delay. Used when closing a popover
- * that needs time to unmount before the scroll starts.
- */
 export function scrollToUserSentinelAfterClose(messageId: number): void {
 	setTimeout(() => scrollToUserSentinel(messageId), POPOVER_CLOSE_DELAY_MS);
 }
 
-/**
- * Reset module-level state. Exported for use in tests only.
- * @internal
- */
+/** @internal */
 export function _resetForTesting(): void {
 	if (activeRafId !== null) {
 		cancelAnimationFrame(activeRafId);
