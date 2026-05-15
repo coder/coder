@@ -2381,6 +2381,7 @@ CREATE TABLE workspace_agents (
     parent_id uuid,
     api_key_scope agent_key_scope_enum DEFAULT 'all'::agent_key_scope_enum NOT NULL,
     deleted boolean DEFAULT false NOT NULL,
+    dlp_policy_id uuid,
     CONSTRAINT max_logs_length CHECK ((logs_length <= 1048576)),
     CONSTRAINT subsystems_not_none CHECK ((NOT ('none'::workspace_agent_subsystem = ANY (subsystems))))
 );
@@ -3743,7 +3744,7 @@ ALTER TABLE ONLY template_version_dlp_policies
     ADD CONSTRAINT template_version_dlp_policies_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY template_version_dlp_policies
-    ADD CONSTRAINT template_version_dlp_policies_template_version_id_key UNIQUE (template_version_id);
+    ADD CONSTRAINT template_version_dlp_policies_template_version_id_name_key UNIQUE (template_version_id, name);
 
 ALTER TABLE ONLY template_version_parameters
     ADD CONSTRAINT template_version_parameters_template_version_id_name_key UNIQUE (template_version_id, name);
@@ -4619,6 +4620,9 @@ ALTER TABLE ONLY workspace_agent_logs
 
 ALTER TABLE ONLY workspace_agent_volume_resource_monitors
     ADD CONSTRAINT workspace_agent_volume_resource_monitors_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_agents
+    ADD CONSTRAINT workspace_agents_dlp_policy_id_fkey FOREIGN KEY (dlp_policy_id) REFERENCES template_version_dlp_policies(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;

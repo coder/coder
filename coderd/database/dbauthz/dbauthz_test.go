@@ -2136,6 +2136,37 @@ func (s *MethodTestSuite) TestOrganization() {
 		dbm.EXPECT().InsertTemplateVersionDLPPolicy(gomock.Any(), arg).Return(database.TemplateVersionDlpPolicy{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceTemplate, policy.ActionUpdate)
 	}))
+	s.Run("UpdateWorkspaceAgentDLPPolicyByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.UpdateWorkspaceAgentDLPPolicyByIDParams{ID: uuid.New(), DlpPolicyID: uuid.NullUUID{UUID: uuid.New(), Valid: true}}
+		dbm.EXPECT().UpdateWorkspaceAgentDLPPolicyByID(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceTemplate, policy.ActionUpdate)
+	}))
+	s.Run("GetTemplateVersionDLPPoliciesByTemplateVersionID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		tpl := testutil.Fake(s.T(), faker, database.Template{})
+		tv := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}, OrganizationID: tpl.OrganizationID, CreatedBy: tpl.CreatedBy})
+		resp := []database.TemplateVersionDlpPolicy{testutil.Fake(s.T(), faker, database.TemplateVersionDlpPolicy{TemplateVersionID: tv.ID})}
+
+		dbm.EXPECT().GetTemplateVersionByID(gomock.Any(), tv.ID).Return(tv, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), tpl.ID).Return(tpl, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateVersionDLPPoliciesByTemplateVersionID(gomock.Any(), tv.ID).Return(resp, nil).AnyTimes()
+		check.Args(tv.ID).Asserts(tpl.RBACObject(), policy.ActionRead).Returns(resp)
+	}))
+	s.Run("GetTemplateVersionDLPPolicyByVersionAndName", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		tpl := testutil.Fake(s.T(), faker, database.Template{})
+		tv := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}, OrganizationID: tpl.OrganizationID, CreatedBy: tpl.CreatedBy})
+		arg := database.GetTemplateVersionDLPPolicyByVersionAndNameParams{TemplateVersionID: tv.ID, Name: "strict"}
+		row := testutil.Fake(s.T(), faker, database.TemplateVersionDlpPolicy{TemplateVersionID: tv.ID, Name: "strict"})
+
+		dbm.EXPECT().GetTemplateVersionByID(gomock.Any(), tv.ID).Return(tv, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateByID(gomock.Any(), tpl.ID).Return(tpl, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateVersionDLPPolicyByVersionAndName(gomock.Any(), arg).Return(row, nil).AnyTimes()
+		check.Args(arg).Asserts(tpl.RBACObject(), policy.ActionRead).Returns(row)
+	}))
+	s.Run("GetTemplateVersionDLPPolicyByAgentID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		agentID := uuid.New()
+		dbm.EXPECT().GetTemplateVersionDLPPolicyByAgentID(gomock.Any(), agentID).Return(testutil.Fake(s.T(), faker, database.TemplateVersionDlpPolicy{}), nil).AnyTimes()
+		check.Args(agentID).Asserts(rbac.ResourceTemplate, policy.ActionRead)
+	}))
 	s.Run("DeleteOrganizationMember", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		o := testutil.Fake(s.T(), faker, database.Organization{})
 		u := testutil.Fake(s.T(), faker, database.User{})

@@ -5817,7 +5817,8 @@ type WorkspaceAgent struct {
 	// Defines the scope of the API key associated with the agent. 'all' allows access to everything, 'no_user_data' restricts it to exclude user data.
 	APIKeyScope AgentKeyScopeEnum `db:"api_key_scope" json:"api_key_scope"`
 	// Indicates whether or not the agent has been deleted. This is currently only applicable to sub agents.
-	Deleted bool `db:"deleted" json:"deleted"`
+	Deleted     bool          `db:"deleted" json:"deleted"`
+	DlpPolicyID uuid.NullUUID `db:"dlp_policy_id" json:"dlp_policy_id"`
 }
 
 // Workspace agent devcontainer configuration

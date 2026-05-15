@@ -25,13 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
-	"github.com/coder/coder/v2/coderd/dlppolicy"
 	"github.com/coder/coder/v2/coderd/dynamicparameters"
-
-
-
-
-
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -130,7 +124,6 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		data.templates[0],
 		api.Options.AllowWorkspaceRenames,
 		appStatus,
-		data.dlpPolicies[workspace.ID],
 	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -351,7 +344,6 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		data.templates[0],
 		api.Options.AllowWorkspaceRenames,
 		appStatus,
-		data.dlpPolicies[workspace.ID],
 	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -883,14 +875,6 @@ func createWorkspace(
 		})
 	}
 
-	dlpPolicy, err := dlppolicy.ForWorkspace(ctx, api.Database, workspace.ID)
-	if err != nil {
-		return codersdk.Workspace{}, httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace DLP policy.",
-			Detail:  err.Error(),
-		})
-	}
-
 	w, err := convertWorkspace(
 		ctx,
 		api.Logger,
@@ -900,7 +884,6 @@ func createWorkspace(
 		template,
 		api.Options.AllowWorkspaceRenames,
 		codersdk.WorkspaceAppStatus{},
-		dlpPolicy,
 	)
 	if err != nil {
 		return codersdk.Workspace{}, httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
@@ -1546,7 +1529,6 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		data.templates[0],
 		api.Options.AllowWorkspaceRenames,
 		appStatus,
-		data.dlpPolicies[workspace.ID],
 	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -2156,7 +2138,6 @@ func (api *API) watchWorkspace(
 			data.templates[0],
 			api.Options.AllowWorkspaceRenames,
 			appStatus,
-			data.dlpPolicies[workspace.ID],
 		)
 		if err != nil {
 			_ = sendEvent(codersdk.ServerSentEvent{
@@ -2557,9 +2538,6 @@ type workspaceData struct {
 	builds       []codersdk.WorkspaceBuild
 	appStatuses  []codersdk.WorkspaceAppStatus
 	allowRenames bool
-	// dlpPolicies maps workspace ID → DLP policy (nil when no policy is
-	// attached). Populated by the caller before calling convertWorkspaces.
-	dlpPolicies map[uuid.UUID]*database.TemplateVersionDlpPolicy
 }
 
 // @Summary Completely clears the workspace's user and group ACLs.
@@ -2708,25 +2686,11 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 		return workspaceData{}, xerrors.Errorf("convert workspace builds: %w", err)
 	}
 
-	// TODO: batch this. The DLP policy is keyed on the build's template
-	// version; in the worst case `convertWorkspaces` is called for workspaces
-	// across many template versions, so N+1 reads are acceptable for the
-	// prototype but should be a single join in production.
-	dlpPolicies := make(map[uuid.UUID]*database.TemplateVersionDlpPolicy, len(workspaces))
-	for _, workspace := range workspaces {
-		p, err := dlppolicy.ForWorkspace(ctx, api.Database, workspace.ID)
-		if err != nil {
-			return workspaceData{}, xerrors.Errorf("get dlp policy for workspace %q: %w", workspace.ID, err)
-		}
-		dlpPolicies[workspace.ID] = p
-	}
-
 	return workspaceData{
 		templates:    templates,
 		appStatuses:  db2sdk.WorkspaceAppStatuses(appStatuses),
 		builds:       apiBuilds,
 		allowRenames: api.Options.AllowWorkspaceRenames,
-		dlpPolicies:  dlpPolicies,
 	}, nil
 }
 
@@ -2776,7 +2740,6 @@ func convertWorkspaces(
 			template,
 			data.allowRenames,
 			appStatus,
-			data.dlpPolicies[workspace.ID],
 		)
 		if err != nil {
 			return nil, xerrors.Errorf("convert workspace: %w", err)
@@ -2796,7 +2759,6 @@ func convertWorkspace(
 	template database.Template,
 	allowRenames bool,
 	latestAppStatus codersdk.WorkspaceAppStatus,
-	dlpPolicy *database.TemplateVersionDlpPolicy,
 ) (codersdk.Workspace, error) {
 	if requesterID == uuid.Nil {
 		return codersdk.Workspace{}, xerrors.Errorf("developer error: requesterID cannot be uuid.Nil!")
@@ -2889,25 +2851,7 @@ func convertWorkspace(
 		IsPrebuild:       workspace.IsPrebuild(),
 		TaskID:           workspace.TaskID,
 		SharedWith:       sharedWorkspaceActors(ctx, logger, workspace),
-		DLPPolicy:        convertDLPPolicy(dlpPolicy),
 	}, nil
-}
-
-// convertDLPPolicy converts the persisted policy row to the SDK shape. Returns
-// nil when the workspace has no policy attached.
-func convertDLPPolicy(p *database.TemplateVersionDlpPolicy) *codersdk.DLPPolicy {
-	if p == nil {
-		return nil
-	}
-	return &codersdk.DLPPolicy{
-		Name:                 p.Name,
-		SSHAccess:            p.SshAccess,
-		WebTerminalAccess:    p.WebTerminalAccess,
-		PortForwardingAccess: p.PortForwardingAccess,
-		DesktopAccess:        p.DesktopAccess,
-		ClipboardAccess:      p.ClipboardAccess,
-		AllowedApplications:  p.AllowedApplications,
-	}
 }
 
 func sharedWorkspaceActors(

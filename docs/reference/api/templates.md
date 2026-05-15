@@ -2447,6 +2447,17 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
         "display_apps": [
           "vscode"
         ],
+        "dlp_policy": {
+          "allowed_applications": [
+            "string"
+          ],
+          "clipboard_access": true,
+          "desktop_access": true,
+          "name": "string",
+          "port_forwarding_access": true,
+          "ssh_access": true,
+          "web_terminal_access": true
+        },
         "environment_variables": {
           "property1": "string",
           "property2": "string"
@@ -2589,6 +2600,14 @@ Status Code **200**
 | `»» directory`                  | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» disconnected_at`            | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»» display_apps`               | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
+| `»» dlp_policy`                 | [codersdk.DLPPolicy](schemas.md#codersdkdlppolicy)                                                     | false    |              | Dlp policy is the data loss prevention policy attached to this agent via `coder_agent.dlp_policy`. Nil when no policy is configured.                                                                                                           |
+| `»»» allowed_applications`      | array                                                                                                  | false    |              | Allowed applications lists the `coder_app` slugs the workspace user is permitted to access. Apps whose slugs are not in this list are blocked.                                                                                                 |
+| `»»» clipboard_access`          | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»»» desktop_access`            | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»»» name`                      | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» port_forwarding_access`    | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»»» ssh_access`                | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»»» web_terminal_access`       | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» environment_variables`      | object                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» [any property]`            | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» expanded_directory`         | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
@@ -3125,6 +3144,17 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
         "display_apps": [
           "vscode"
         ],
+        "dlp_policy": {
+          "allowed_applications": [
+            "string"
+          ],
+          "clipboard_access": true,
+          "desktop_access": true,
+          "name": "string",
+          "port_forwarding_access": true,
+          "ssh_access": true,
+          "web_terminal_access": true
+        },
         "environment_variables": {
           "property1": "string",
           "property2": "string"
@@ -3267,6 +3297,14 @@ Status Code **200**
 | `»» directory`                  | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» disconnected_at`            | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»» display_apps`               | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
+| `»» dlp_policy`                 | [codersdk.DLPPolicy](schemas.md#codersdkdlppolicy)                                                     | false    |              | Dlp policy is the data loss prevention policy attached to this agent via `coder_agent.dlp_policy`. Nil when no policy is configured.                                                                                                           |
+| `»»» allowed_applications`      | array                                                                                                  | false    |              | Allowed applications lists the `coder_app` slugs the workspace user is permitted to access. Apps whose slugs are not in this list are blocked.                                                                                                 |
+| `»»» clipboard_access`          | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»»» desktop_access`            | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»»» name`                      | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» port_forwarding_access`    | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»»» ssh_access`                | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»»» web_terminal_access`       | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» environment_variables`      | object                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» [any property]`            | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» expanded_directory`         | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |

@@ -445,6 +445,7 @@ func WorkspaceAgentEnvironment(workspaceAgent database.WorkspaceAgent) (map[stri
 func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 	dbAgent database.WorkspaceAgent, apps []codersdk.WorkspaceApp, scripts []codersdk.WorkspaceAgentScript, logSources []codersdk.WorkspaceAgentLogSource,
 	agentInactiveDisconnectTimeout time.Duration, agentFallbackTroubleshootingURL string,
+	dlpPolicy *database.TemplateVersionDlpPolicy,
 ) (codersdk.WorkspaceAgent, error) {
 	envs, err := WorkspaceAgentEnvironment(dbAgent)
 	if err != nil {
@@ -496,6 +497,19 @@ func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 		LifecycleState:           codersdk.WorkspaceAgentLifecycle(dbAgent.LifecycleState),
 		Subsystems:               subsystems,
 		DisplayApps:              convertDisplayApps(dbAgent.DisplayApps),
+	}
+	if dlpPolicy != nil {
+		// Don't surface the build-scoped UUID; the frontend identifies a
+		// policy by its template-author-supplied name.
+		workspaceAgent.DLPPolicy = &codersdk.DLPPolicy{
+			Name:                 dlpPolicy.Name,
+			SSHAccess:            dlpPolicy.SshAccess,
+			WebTerminalAccess:    dlpPolicy.WebTerminalAccess,
+			PortForwardingAccess: dlpPolicy.PortForwardingAccess,
+			DesktopAccess:        dlpPolicy.DesktopAccess,
+			ClipboardAccess:      dlpPolicy.ClipboardAccess,
+			AllowedApplications:  dlpPolicy.AllowedApplications,
+		}
 	}
 	node := coordinator.Node(dbAgent.ID)
 	if node != nil {

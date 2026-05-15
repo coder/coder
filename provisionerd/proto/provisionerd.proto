@@ -102,10 +102,7 @@ message CompletedJob {
     bytes module_files_hash = 11;
     bool has_ai_tasks = 12;
     bool has_external_agents = 13;
-    // A template may declare at most one coder_dlp_policy resource. The
-    // policy, if any, applies to every agent in any workspace built from
-    // this template version.
-    optional provisioner.DLPPolicy dlp_policy = 14;
+    repeated provisioner.DLPPolicy dlp_policies = 14;
   }
   message TemplateDryRun {
     repeated provisioner.Resource resources = 1;

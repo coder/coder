@@ -1814,6 +1814,7 @@ export interface ChatFileMetadata {
 export interface ChatFilePart {
 	readonly type: "file";
 	readonly media_type: string;
+	readonly name?: string;
 	readonly data?: string;
 	readonly file_id?: string;
 }
@@ -3657,12 +3658,10 @@ export interface DERPServerConfig {
 
 // From codersdk/workspaceagents.go
 /**
- * DLPPolicy is a data loss prevention policy applied to a workspace. It is
- * declared once per template via a `coder_dlp_policy` resource and applies
- * uniformly to every agent in the workspace. Boolean fields denote whether
- * the corresponding workspace traffic path is permitted. When a path is
- * denied, coderd returns a structured 403 with the policy name in the
- * response detail.
+ * DLPPolicy is a data loss prevention policy applied to a workspace agent.
+ * Boolean fields denote whether the corresponding workspace traffic path is
+ * permitted. When a path is denied, coderd returns a structured 403 with the
+ * policy name in the response detail.
  */
 export interface DLPPolicy {
 	readonly name: string;
@@ -9165,12 +9164,6 @@ export interface Workspace {
 	 */
 	readonly task_id?: string;
 	readonly shared_with?: readonly SharedWorkspaceActor[];
-	/**
-	 * DLPPolicy is the workspace-scoped data loss prevention policy declared
-	 * by the template's single `coder_dlp_policy` resource. Nil when no
-	 * policy is configured (default-permissive).
-	 */
-	readonly dlp_policy?: DLPPolicy;
 }
 
 // From codersdk/workspaces.go
@@ -9222,6 +9215,11 @@ export interface WorkspaceAgent {
 	 * @deprecated Remove in the future!
 	 */
 	readonly startup_script_behavior: WorkspaceAgentStartupScriptBehavior;
+	/**
+	 * DLPPolicy is the data loss prevention policy attached to this agent
+	 * via `coder_agent.dlp_policy`. Nil when no policy is configured.
+	 */
+	readonly dlp_policy?: DLPPolicy;
 }
 
 // From codersdk/workspaceagents.go

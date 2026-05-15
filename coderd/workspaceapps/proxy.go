@@ -805,7 +805,7 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 	// `port_forwarding_access`; coder_app slugs are gated by membership in
 	// `allowed_applications`. The HTML error-page form matches existing
 	// browser-facing denials in this handler.
-	dlp, err := dlppolicy.ForWorkspace(ctx, s.Database, appToken.WorkspaceID)
+	dlp, err := dlppolicy.ForAgent(ctx, s.Database, appToken.AgentID)
 	if err != nil {
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
 			Status:      http.StatusInternalServerError,
@@ -942,7 +942,7 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 
 	// DLP gate. Run before the WebSocket upgrade so we can return a JSON 403
 	// instead of a close code that the dashboard can't surface cleanly.
-	dlp, err := dlppolicy.ForWorkspace(ctx, s.Database, appToken.WorkspaceID)
+	dlp, err := dlppolicy.ForAgent(ctx, s.Database, appToken.AgentID)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
@@ -1072,7 +1072,7 @@ func (s *Server) workspaceAgentDesktop(rw http.ResponseWriter, r *http.Request) 
 	log := s.Logger.With(slog.F("agent_id", appToken.AgentID))
 	log.Debug(ctx, "resolved desktop request")
 
-	dlp, err := dlppolicy.ForWorkspace(ctx, s.Database, appToken.WorkspaceID)
+	dlp, err := dlppolicy.ForAgent(ctx, s.Database, appToken.AgentID)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return

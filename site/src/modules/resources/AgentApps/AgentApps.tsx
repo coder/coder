@@ -38,9 +38,7 @@ export const AgentApps: FC<AgentAppsProps> = ({
 			<DropdownMenuContent align="start">
 				{section.apps.map((app) => (
 					<DropdownMenuItem key={app.slug}>
-						<DLPGate
-							reason={dlpAppDenialReason(workspace.dlp_policy, app.slug)}
-						>
+						<DLPGate reason={dlpAppDenialReason(agent.dlp_policy, app.slug)}>
 							<AppLink grouped app={app} agent={agent} workspace={workspace} />
 						</DLPGate>
 					</DropdownMenuItem>
@@ -51,7 +49,7 @@ export const AgentApps: FC<AgentAppsProps> = ({
 		section.apps.map((app) => (
 			<DLPGate
 				key={app.slug}
-				reason={dlpAppDenialReason(workspace.dlp_policy, app.slug)}
+				reason={dlpAppDenialReason(agent.dlp_policy, app.slug)}
 			>
 				<AppLink app={app} agent={agent} workspace={workspace} />
 			</DLPGate>

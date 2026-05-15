@@ -184,11 +184,9 @@ export const WithDLPPolicyDenyAll: Story = {
 				{ ...M.MockWorkspaceApp, slug: "code-server" },
 				{ ...M.MockWorkspaceApp, slug: "helloworld" },
 			],
-		},
-		workspace: {
-			...M.MockWorkspace,
 			dlp_policy: denyAllPolicy,
 		},
+		workspace: M.MockWorkspace,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -214,11 +212,9 @@ export const WithDLPPolicyAppFilter: Story = {
 				{ ...M.MockWorkspaceApp, slug: "helloworld" },
 				{ ...M.MockWorkspaceApp, slug: "vscode-desktop" },
 			],
-		},
-		workspace: {
-			...M.MockWorkspace,
 			dlp_policy: codeServerOnlyPolicy,
 		},
+		workspace: M.MockWorkspace,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

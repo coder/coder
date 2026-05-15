@@ -24325,14 +24325,6 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
-                "dlp_policy": {
-                    "description": "DLPPolicy is the workspace-scoped data loss prevention policy declared\nby the template's single ` + "`" + `coder_dlp_policy` + "`" + ` resource. Nil when no\npolicy is configured (default-permissive).",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.DLPPolicy"
-                        }
-                    ]
-                },
                 "dormant_at": {
                     "description": "DormantAt being non-nil indicates a workspace that is dormant.\nA dormant workspace is no longer accessible must be activated.\nIt is subject to deletion if it breaches\nthe duration of the time_til_ field on its template.",
                     "type": "string",
@@ -24495,6 +24487,14 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.DisplayApp"
                     }
+                },
+                "dlp_policy": {
+                    "description": "DLPPolicy is the data loss prevention policy attached to this agent\nvia ` + "`" + `coder_agent.dlp_policy` + "`" + `. Nil when no policy is configured.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.DLPPolicy"
+                        }
+                    ]
                 },
                 "environment_variables": {
                     "type": "object",

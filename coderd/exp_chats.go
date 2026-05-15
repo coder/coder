@@ -2262,6 +2262,7 @@ func (api *API) watchChatGit(rw http.ResponseWriter, r *http.Request) {
 		nil,
 		api.AgentInactiveDisconnectTimeout,
 		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
+		nil, // No DLP policy plumbing on chat-internal agent fetches.
 	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -2418,6 +2419,7 @@ func (api *API) watchChatDesktop(rw http.ResponseWriter, r *http.Request) {
 		nil,
 		api.AgentInactiveDisconnectTimeout,
 		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
+		nil, // No DLP policy plumbing on chat-internal agent fetches.
 	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

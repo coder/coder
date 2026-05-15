@@ -2761,19 +2761,27 @@ func (m queryMetricsStore) GetTemplateVersionByTemplateIDAndName(ctx context.Con
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetTemplateVersionDLPPolicyByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) (database.TemplateVersionDlpPolicy, error) {
+func (m queryMetricsStore) GetTemplateVersionDLPPoliciesByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionDlpPolicy, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetTemplateVersionDLPPolicyByTemplateVersionID(ctx, templateVersionID)
-	m.queryLatencies.WithLabelValues("GetTemplateVersionDLPPolicyByTemplateVersionID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTemplateVersionDLPPolicyByTemplateVersionID").Inc()
+	r0, r1 := m.s.GetTemplateVersionDLPPoliciesByTemplateVersionID(ctx, templateVersionID)
+	m.queryLatencies.WithLabelValues("GetTemplateVersionDLPPoliciesByTemplateVersionID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTemplateVersionDLPPoliciesByTemplateVersionID").Inc()
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetTemplateVersionDLPPolicyByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.TemplateVersionDlpPolicy, error) {
+func (m queryMetricsStore) GetTemplateVersionDLPPolicyByAgentID(ctx context.Context, agentID uuid.UUID) (database.TemplateVersionDlpPolicy, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetTemplateVersionDLPPolicyByWorkspaceID(ctx, workspaceID)
-	m.queryLatencies.WithLabelValues("GetTemplateVersionDLPPolicyByWorkspaceID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTemplateVersionDLPPolicyByWorkspaceID").Inc()
+	r0, r1 := m.s.GetTemplateVersionDLPPolicyByAgentID(ctx, agentID)
+	m.queryLatencies.WithLabelValues("GetTemplateVersionDLPPolicyByAgentID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTemplateVersionDLPPolicyByAgentID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetTemplateVersionDLPPolicyByVersionAndName(ctx context.Context, arg database.GetTemplateVersionDLPPolicyByVersionAndNameParams) (database.TemplateVersionDlpPolicy, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTemplateVersionDLPPolicyByVersionAndName(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetTemplateVersionDLPPolicyByVersionAndName").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTemplateVersionDLPPolicyByVersionAndName").Inc()
 	return r0, r1
 }
 
@@ -5390,6 +5398,14 @@ func (m queryMetricsStore) UpdateWorkspaceAgentConnectionByID(ctx context.Contex
 	r0 := m.s.UpdateWorkspaceAgentConnectionByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateWorkspaceAgentConnectionByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateWorkspaceAgentConnectionByID").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UpdateWorkspaceAgentDLPPolicyByID(ctx context.Context, arg database.UpdateWorkspaceAgentDLPPolicyByIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateWorkspaceAgentDLPPolicyByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspaceAgentDLPPolicyByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateWorkspaceAgentDLPPolicyByID").Inc()
 	return r0
 }
 

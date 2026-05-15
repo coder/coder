@@ -4244,18 +4244,25 @@ func (q *querier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, arg
 	return tv, nil
 }
 
-func (q *querier) GetTemplateVersionDLPPolicyByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) (database.TemplateVersionDlpPolicy, error) {
+func (q *querier) GetTemplateVersionDLPPoliciesByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionDlpPolicy, error) {
 	if _, err := q.GetTemplateVersionByID(ctx, templateVersionID); err != nil {
-		return database.TemplateVersionDlpPolicy{}, err
+		return nil, err
 	}
-	return q.db.GetTemplateVersionDLPPolicyByTemplateVersionID(ctx, templateVersionID)
+	return q.db.GetTemplateVersionDLPPoliciesByTemplateVersionID(ctx, templateVersionID)
 }
 
-func (q *querier) GetTemplateVersionDLPPolicyByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (database.TemplateVersionDlpPolicy, error) {
-	if _, err := q.GetWorkspaceByID(ctx, workspaceID); err != nil {
+func (q *querier) GetTemplateVersionDLPPolicyByAgentID(ctx context.Context, agentID uuid.UUID) (database.TemplateVersionDlpPolicy, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate); err != nil {
 		return database.TemplateVersionDlpPolicy{}, err
 	}
-	return q.db.GetTemplateVersionDLPPolicyByWorkspaceID(ctx, workspaceID)
+	return q.db.GetTemplateVersionDLPPolicyByAgentID(ctx, agentID)
+}
+
+func (q *querier) GetTemplateVersionDLPPolicyByVersionAndName(ctx context.Context, arg database.GetTemplateVersionDLPPolicyByVersionAndNameParams) (database.TemplateVersionDlpPolicy, error) {
+	if _, err := q.GetTemplateVersionByID(ctx, arg.TemplateVersionID); err != nil {
+		return database.TemplateVersionDlpPolicy{}, err
+	}
+	return q.db.GetTemplateVersionDLPPolicyByVersionAndName(ctx, arg)
 }
 
 func (q *querier) GetTemplateVersionParameters(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionParameter, error) {
@@ -7478,6 +7485,13 @@ func (q *querier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg da
 		return err
 	}
 	return q.db.UpdateWorkspaceAgentConnectionByID(ctx, arg)
+}
+
+func (q *querier) UpdateWorkspaceAgentDLPPolicyByID(ctx context.Context, arg database.UpdateWorkspaceAgentDLPPolicyByIDParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceTemplate); err != nil {
+		return err
+	}
+	return q.db.UpdateWorkspaceAgentDLPPolicyByID(ctx, arg)
 }
 
 func (q *querier) UpdateWorkspaceAgentDirectoryByID(ctx context.Context, arg database.UpdateWorkspaceAgentDirectoryByIDParams) error {

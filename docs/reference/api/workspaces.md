@@ -58,17 +58,6 @@ of the template will be used.
   "autostart_schedule": "string",
   "created_at": "2019-08-24T14:15:22Z",
   "deleting_at": "2019-08-24T14:15:22Z",
-  "dlp_policy": {
-    "allowed_applications": [
-      "string"
-    ],
-    "clipboard_access": true,
-    "desktop_access": true,
-    "name": "string",
-    "port_forwarding_access": true,
-    "ssh_access": true,
-    "web_terminal_access": true
-  },
   "dormant_at": "2019-08-24T14:15:22Z",
   "favorite": true,
   "health": {
@@ -201,6 +190,17 @@ of the template will be used.
             "display_apps": [
               "vscode"
             ],
+            "dlp_policy": {
+              "allowed_applications": [
+                "string"
+              ],
+              "clipboard_access": true,
+              "desktop_access": true,
+              "name": "string",
+              "port_forwarding_access": true,
+              "ssh_access": true,
+              "web_terminal_access": true
+            },
             "environment_variables": {
               "property1": "string",
               "property2": "string"
@@ -435,17 +435,6 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
   "autostart_schedule": "string",
   "created_at": "2019-08-24T14:15:22Z",
   "deleting_at": "2019-08-24T14:15:22Z",
-  "dlp_policy": {
-    "allowed_applications": [
-      "string"
-    ],
-    "clipboard_access": true,
-    "desktop_access": true,
-    "name": "string",
-    "port_forwarding_access": true,
-    "ssh_access": true,
-    "web_terminal_access": true
-  },
   "dormant_at": "2019-08-24T14:15:22Z",
   "favorite": true,
   "health": {
@@ -578,6 +567,17 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
             "display_apps": [
               "vscode"
             ],
+            "dlp_policy": {
+              "allowed_applications": [
+                "string"
+              ],
+              "clipboard_access": true,
+              "desktop_access": true,
+              "name": "string",
+              "port_forwarding_access": true,
+              "ssh_access": true,
+              "web_terminal_access": true
+            },
             "environment_variables": {
               "property1": "string",
               "property2": "string"
@@ -779,17 +779,6 @@ of the template will be used.
   "autostart_schedule": "string",
   "created_at": "2019-08-24T14:15:22Z",
   "deleting_at": "2019-08-24T14:15:22Z",
-  "dlp_policy": {
-    "allowed_applications": [
-      "string"
-    ],
-    "clipboard_access": true,
-    "desktop_access": true,
-    "name": "string",
-    "port_forwarding_access": true,
-    "ssh_access": true,
-    "web_terminal_access": true
-  },
   "dormant_at": "2019-08-24T14:15:22Z",
   "favorite": true,
   "health": {
@@ -922,6 +911,17 @@ of the template will be used.
             "display_apps": [
               "vscode"
             ],
+            "dlp_policy": {
+              "allowed_applications": [
+                "string"
+              ],
+              "clipboard_access": true,
+              "desktop_access": true,
+              "name": "string",
+              "port_forwarding_access": true,
+              "ssh_access": true,
+              "web_terminal_access": true
+            },
             "environment_variables": {
               "property1": "string",
               "property2": "string"
@@ -1101,17 +1101,6 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
       "autostart_schedule": "string",
       "created_at": "2019-08-24T14:15:22Z",
       "deleting_at": "2019-08-24T14:15:22Z",
-      "dlp_policy": {
-        "allowed_applications": [
-          "string"
-        ],
-        "clipboard_access": true,
-        "desktop_access": true,
-        "name": "string",
-        "port_forwarding_access": true,
-        "ssh_access": true,
-        "web_terminal_access": true
-      },
       "dormant_at": "2019-08-24T14:15:22Z",
       "favorite": true,
       "health": {
@@ -1227,6 +1216,17 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                 "display_apps": [
                   "vscode"
                 ],
+                "dlp_policy": {
+                  "allowed_applications": [
+                    "string"
+                  ],
+                  "clipboard_access": true,
+                  "desktop_access": true,
+                  "name": "string",
+                  "port_forwarding_access": true,
+                  "ssh_access": true,
+                  "web_terminal_access": true
+                },
                 "environment_variables": {
                   "property1": "string",
                   "property2": "string"
@@ -1404,17 +1404,6 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
   "autostart_schedule": "string",
   "created_at": "2019-08-24T14:15:22Z",
   "deleting_at": "2019-08-24T14:15:22Z",
-  "dlp_policy": {
-    "allowed_applications": [
-      "string"
-    ],
-    "clipboard_access": true,
-    "desktop_access": true,
-    "name": "string",
-    "port_forwarding_access": true,
-    "ssh_access": true,
-    "web_terminal_access": true
-  },
   "dormant_at": "2019-08-24T14:15:22Z",
   "favorite": true,
   "health": {
@@ -1547,6 +1536,17 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
             "display_apps": [
               "vscode"
             ],
+            "dlp_policy": {
+              "allowed_applications": [
+                "string"
+              ],
+              "clipboard_access": true,
+              "desktop_access": true,
+              "name": "string",
+              "port_forwarding_access": true,
+              "ssh_access": true,
+              "web_terminal_access": true
+            },
             "environment_variables": {
               "property1": "string",
               "property2": "string"
@@ -1984,17 +1984,6 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
   "autostart_schedule": "string",
   "created_at": "2019-08-24T14:15:22Z",
   "deleting_at": "2019-08-24T14:15:22Z",
-  "dlp_policy": {
-    "allowed_applications": [
-      "string"
-    ],
-    "clipboard_access": true,
-    "desktop_access": true,
-    "name": "string",
-    "port_forwarding_access": true,
-    "ssh_access": true,
-    "web_terminal_access": true
-  },
   "dormant_at": "2019-08-24T14:15:22Z",
   "favorite": true,
   "health": {
@@ -2127,6 +2116,17 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
             "display_apps": [
               "vscode"
             ],
+            "dlp_policy": {
+              "allowed_applications": [
+                "string"
+              ],
+              "clipboard_access": true,
+              "desktop_access": true,
+              "name": "string",
+              "port_forwarding_access": true,
+              "ssh_access": true,
+              "web_terminal_access": true
+            },
             "environment_variables": {
               "property1": "string",
               "property2": "string"

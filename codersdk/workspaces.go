@@ -78,10 +78,6 @@ type Workspace struct {
 	// TaskID, if set, indicates that the workspace is relevant to the given codersdk.Task.
 	TaskID     uuid.NullUUID          `json:"task_id,omitempty"`
 	SharedWith []SharedWorkspaceActor `json:"shared_with,omitempty"`
-	// DLPPolicy is the workspace-scoped data loss prevention policy declared
-	// by the template's single `coder_dlp_policy` resource. Nil when no
-	// policy is configured (default-permissive).
-	DLPPolicy *DLPPolicy `json:"dlp_policy,omitempty"`
 }
 
 func (w Workspace) FullName() string {

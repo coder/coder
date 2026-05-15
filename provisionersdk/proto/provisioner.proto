@@ -190,11 +190,7 @@ message Agent {
   ResourcesMonitoring resources_monitoring = 24;
   repeated Devcontainer devcontainers = 25;
   string api_key_scope = 26;
-  // Field 27 was optional DLPPolicy dlp_policy. DLP policies are now declared
-  // once per template and apply to every agent in the workspace; the policy
-  // is carried on TemplateImport.Complete.dlp_policy instead.
-  reserved 27;
-  reserved "dlp_policy";
+  optional DLPPolicy dlp_policy = 27;
 }
 
 enum AppSharingLevel {
@@ -355,11 +351,11 @@ message AITask {
 }
 
 // DLPPolicy is a template-version-scoped data loss prevention policy
-// declared via a `coder_dlp_policy` resource. A template may declare at most
-// one policy; it applies uniformly to every agent in the resulting
-// workspace. The `name` field is the HCL resource name (e.g. `strict` from
-// `resource "coder_dlp_policy" "strict"`) and is surfaced in denial reasons
-// to identify which policy fired.
+// declared via a `coder_dlp_policy` resource. Agents reference a policy by
+// id via `coder_agent.dlp_policy`. The `name` field is the HCL resource
+// name (e.g. `strict` from `resource "coder_dlp_policy" "strict"`) and is
+// the durable join key used to look up the persisted row at workspace
+// build time.
 message DLPPolicy {
   string id = 1;
   bool ssh_access = 2;
@@ -533,10 +529,7 @@ message GraphComplete {
   bool has_ai_tasks = 7;
   repeated provisioner.AITask ai_tasks = 8;
   bool has_external_agents = 9;
-  // A template may declare at most one coder_dlp_policy resource. The
-  // policy, if any, applies to every agent in any workspace built from this
-  // template version.
-  optional DLPPolicy dlp_policy = 10;
+  repeated DLPPolicy dlp_policies = 10;
 }
 
 message Timing {

@@ -176,14 +176,16 @@ type WorkspaceAgent struct {
 	// of the `coder_script` resource. It's only referenced by old clients.
 	// Deprecated: Remove in the future!
 	StartupScriptBehavior WorkspaceAgentStartupScriptBehavior `json:"startup_script_behavior"`
+
+	// DLPPolicy is the data loss prevention policy attached to this agent
+	// via `coder_agent.dlp_policy`. Nil when no policy is configured.
+	DLPPolicy *DLPPolicy `json:"dlp_policy,omitempty"`
 }
 
-// DLPPolicy is a data loss prevention policy applied to a workspace. It is
-// declared once per template via a `coder_dlp_policy` resource and applies
-// uniformly to every agent in the workspace. Boolean fields denote whether
-// the corresponding workspace traffic path is permitted. When a path is
-// denied, coderd returns a structured 403 with the policy name in the
-// response detail.
+// DLPPolicy is a data loss prevention policy applied to a workspace agent.
+// Boolean fields denote whether the corresponding workspace traffic path is
+// permitted. When a path is denied, coderd returns a structured 403 with the
+// policy name in the response detail.
 type DLPPolicy struct {
 	Name                 string `json:"name"`
 	SSHAccess            bool   `json:"ssh_access"`

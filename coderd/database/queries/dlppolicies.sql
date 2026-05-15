@@ -26,7 +26,7 @@ VALUES (
 	@created_at
 ) RETURNING *;
 
--- name: GetTemplateVersionDLPPolicyByTemplateVersionID :one
+-- name: GetTemplateVersionDLPPoliciesByTemplateVersionID :many
 SELECT
 	*
 FROM
@@ -34,14 +34,20 @@ FROM
 WHERE
 	template_version_id = @template_version_id;
 
--- name: GetTemplateVersionDLPPolicyByWorkspaceID :one
+-- name: GetTemplateVersionDLPPolicyByVersionAndName :one
+SELECT
+	*
+FROM
+	template_version_dlp_policies
+WHERE
+	template_version_id = @template_version_id
+	AND name = @name;
+
+-- name: GetTemplateVersionDLPPolicyByAgentID :one
 SELECT
 	template_version_dlp_policies.*
 FROM
 	template_version_dlp_policies
-	INNER JOIN workspace_builds ON workspace_builds.template_version_id = template_version_dlp_policies.template_version_id
+	INNER JOIN workspace_agents ON workspace_agents.dlp_policy_id = template_version_dlp_policies.id
 WHERE
-	workspace_builds.workspace_id = @workspace_id
-ORDER BY
-	workspace_builds.build_number DESC
-LIMIT 1;
+	workspace_agents.id = @agent_id;

@@ -9500,6 +9500,17 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
             "display_apps": [
               "vscode"
             ],
+            "dlp_policy": {
+              "allowed_applications": [
+                "string"
+              ],
+              "clipboard_access": true,
+              "desktop_access": true,
+              "name": "string",
+              "port_forwarding_access": true,
+              "ssh_access": true,
+              "web_terminal_access": true
+            },
             "environment_variables": {
               "property1": "string",
               "property2": "string"
@@ -10854,6 +10865,17 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
             "display_apps": [
               "vscode"
             ],
+            "dlp_policy": {
+              "allowed_applications": [
+                "string"
+              ],
+              "clipboard_access": true,
+              "desktop_access": true,
+              "name": "string",
+              "port_forwarding_access": true,
+              "ssh_access": true,
+              "web_terminal_access": true
+            },
             "environment_variables": {
               "property1": "string",
               "property2": "string"
@@ -13805,17 +13827,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "autostart_schedule": "string",
   "created_at": "2019-08-24T14:15:22Z",
   "deleting_at": "2019-08-24T14:15:22Z",
-  "dlp_policy": {
-    "allowed_applications": [
-      "string"
-    ],
-    "clipboard_access": true,
-    "desktop_access": true,
-    "name": "string",
-    "port_forwarding_access": true,
-    "ssh_access": true,
-    "web_terminal_access": true
-  },
   "dormant_at": "2019-08-24T14:15:22Z",
   "favorite": true,
   "health": {
@@ -13948,6 +13959,17 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "display_apps": [
               "vscode"
             ],
+            "dlp_policy": {
+              "allowed_applications": [
+                "string"
+              ],
+              "clipboard_access": true,
+              "desktop_access": true,
+              "name": "string",
+              "port_forwarding_access": true,
+              "ssh_access": true,
+              "web_terminal_access": true
+            },
             "environment_variables": {
               "property1": "string",
               "property2": "string"
@@ -14093,7 +14115,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `autostart_schedule`                        | string                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                             |
 | `created_at`                                | string                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                             |
 | `deleting_at`                               | string                                                                  | false    |              | Deleting at indicates the time at which the workspace will be permanently deleted. A workspace is eligible for deletion if it is dormant (a non-nil dormant_at value) and a value has been specified for time_til_dormant_autodelete on its template.                                                                                       |
-| `dlp_policy`                                | [codersdk.DLPPolicy](#codersdkdlppolicy)                                | false    |              | Dlp policy is the workspace-scoped data loss prevention policy declared by the template's single `coder_dlp_policy` resource. Nil when no policy is configured (default-permissive).                                                                                                                                                        |
 | `dormant_at`                                | string                                                                  | false    |              | Dormant at being non-nil indicates a workspace that is dormant. A dormant workspace is no longer accessible must be activated. It is subject to deletion if it breaches the duration of the time_til_ field on its template.                                                                                                                |
 | `favorite`                                  | boolean                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                             |
 | `health`                                    | [codersdk.WorkspaceHealth](#codersdkworkspacehealth)                    | false    |              | Health shows the health of the workspace and information about what is causing an unhealthy status.                                                                                                                                                                                                                                         |
@@ -14234,6 +14255,17 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "display_apps": [
     "vscode"
   ],
+  "dlp_policy": {
+    "allowed_applications": [
+      "string"
+    ],
+    "clipboard_access": true,
+    "desktop_access": true,
+    "name": "string",
+    "port_forwarding_access": true,
+    "ssh_access": true,
+    "web_terminal_access": true
+  },
   "environment_variables": {
     "property1": "string",
     "property2": "string"
@@ -14317,6 +14349,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `directory`                  | string                                                                                       | false    |              |                                                                                                                                                                              |
 | `disconnected_at`            | string                                                                                       | false    |              |                                                                                                                                                                              |
 | `display_apps`               | array of [codersdk.DisplayApp](#codersdkdisplayapp)                                          | false    |              |                                                                                                                                                                              |
+| `dlp_policy`                 | [codersdk.DLPPolicy](#codersdkdlppolicy)                                                     | false    |              | Dlp policy is the data loss prevention policy attached to this agent via `coder_agent.dlp_policy`. Nil when no policy is configured.                                         |
 | `environment_variables`      | object                                                                                       | false    |              |                                                                                                                                                                              |
 | » `[any property]`           | string                                                                                       | false    |              |                                                                                                                                                                              |
 | `expanded_directory`         | string                                                                                       | false    |              |                                                                                                                                                                              |
@@ -15194,6 +15227,17 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "display_apps": [
             "vscode"
           ],
+          "dlp_policy": {
+            "allowed_applications": [
+              "string"
+            ],
+            "clipboard_access": true,
+            "desktop_access": true,
+            "name": "string",
+            "port_forwarding_access": true,
+            "ssh_access": true,
+            "web_terminal_access": true
+          },
           "environment_variables": {
             "property1": "string",
             "property2": "string"
@@ -15664,6 +15708,17 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "display_apps": [
         "vscode"
       ],
+      "dlp_policy": {
+        "allowed_applications": [
+          "string"
+        ],
+        "clipboard_access": true,
+        "desktop_access": true,
+        "name": "string",
+        "port_forwarding_access": true,
+        "ssh_access": true,
+        "web_terminal_access": true
+      },
       "environment_variables": {
         "property1": "string",
         "property2": "string"
@@ -15899,17 +15954,6 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "autostart_schedule": "string",
       "created_at": "2019-08-24T14:15:22Z",
       "deleting_at": "2019-08-24T14:15:22Z",
-      "dlp_policy": {
-        "allowed_applications": [
-          "string"
-        ],
-        "clipboard_access": true,
-        "desktop_access": true,
-        "name": "string",
-        "port_forwarding_access": true,
-        "ssh_access": true,
-        "web_terminal_access": true
-      },
       "dormant_at": "2019-08-24T14:15:22Z",
       "favorite": true,
       "health": {
@@ -16025,6 +16069,17 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                 "display_apps": [
                   "vscode"
                 ],
+                "dlp_policy": {
+                  "allowed_applications": [
+                    "string"
+                  ],
+                  "clipboard_access": true,
+                  "desktop_access": true,
+                  "name": "string",
+                  "port_forwarding_access": true,
+                  "ssh_access": true,
+                  "web_terminal_access": true
+                },
                 "environment_variables": {
                   "property1": "string",
                   "property2": "string"

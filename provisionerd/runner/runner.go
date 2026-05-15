@@ -623,7 +623,7 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 				ModuleFilesHash:   []byte{},
 				HasAiTasks:        startProvision.HasAITasks,
 				HasExternalAgents: startProvision.HasExternalAgents,
-				DlpPolicy:         startProvision.DLPPolicy,
+				DlpPolicies:       startProvision.DLPPolicies,
 			},
 		},
 	}, nil
@@ -687,7 +687,7 @@ type templateImportProvision struct {
 	Plan                  json.RawMessage
 	HasAITasks            bool
 	HasExternalAgents     bool
-	DLPPolicy             *sdkproto.DLPPolicy
+	DLPPolicies           []*sdkproto.DLPPolicy
 }
 
 // Performs a dry-run provision when importing a template.
@@ -756,7 +756,7 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 		Plan:                  planComplete.Plan,
 		HasAITasks:            graphComplete.HasAiTasks,
 		HasExternalAgents:     graphComplete.HasExternalAgents,
-		DLPPolicy:             graphComplete.DlpPolicy,
+		DLPPolicies:           graphComplete.DlpPolicies,
 	}, nil
 }
 

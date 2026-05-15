@@ -1,9 +1,7 @@
-// DLP-KasmVNC template. Declares a single `coder_dlp_policy` stanza that
-// applies to every agent in any workspace built from this template. Mirrors
-// the dlp-strict policy (every gate denied) except that the only allowed
-// coder_app slug is "kasm-vnc", the slug created by the coder/kasmvnc
-// registry module. Lets you confirm that a single allow-listed
-// remote-desktop app works while everything else stays blocked.
+// DLP-KasmVNC template. Mirrors the dlp-strict policy (every gate denied)
+// except that the only allowed coder_app slug is "kasm-vnc", the slug created
+// by the coder/kasmvnc registry module. Lets you confirm that a single
+// allow-listed remote-desktop app works while everything else stays blocked.
 //
 // Base image is codercom/enterprise-base:ubuntu, which already provides a
 // `coder` user with NOPASSWD sudo. XFCE and dbus-x11 are installed at
@@ -45,13 +43,13 @@ resource "coder_dlp_policy" "policy" {
   web_terminal_access    = false
   port_forwarding_access = false
   desktop_access         = false
-  clipboard_access       = false
   allowed_applications   = ["kasm-vnc"]
 }
 
 resource "coder_agent" "main" {
-  arch = data.coder_provisioner.me.arch
-  os   = "linux"
+  arch       = data.coder_provisioner.me.arch
+  os         = "linux"
+  dlp_policy = coder_dlp_policy.policy.id
 
   # XFCE and the kasmvnc registry module's libdatetime-perl prereq are
   # installed by the container entrypoint before the agent starts (see

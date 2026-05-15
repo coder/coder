@@ -933,8 +933,7 @@ func TestWorkspaceAgentClientCoordinate_DLPDenied(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 
 	// Look up the build to find its template version ID, then insert a DLP
-	// policy on that template version. The policy applies to every agent in
-	// any workspace built from this template version.
+	// policy and link the agent to it via dlp_policy_id.
 	agentToken, err := uuid.Parse(r.AgentToken)
 	require.NoError(t, err)
 	ao, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agentToken)
@@ -942,7 +941,7 @@ func TestWorkspaceAgentClientCoordinate_DLPDenied(t *testing.T) {
 	build, err := db.GetWorkspaceBuildByID(dbauthz.AsSystemRestricted(ctx), ao.WorkspaceBuild.ID)
 	require.NoError(t, err)
 
-	_, err = db.InsertTemplateVersionDLPPolicy(dbauthz.AsProvisionerd(ctx), database.InsertTemplateVersionDLPPolicyParams{
+	policy, err := db.InsertTemplateVersionDLPPolicy(dbauthz.AsProvisionerd(ctx), database.InsertTemplateVersionDLPPolicyParams{
 		ID:                   uuid.New(),
 		TemplateVersionID:    build.TemplateVersionID,
 		Name:                 "strict",
@@ -953,6 +952,8 @@ func TestWorkspaceAgentClientCoordinate_DLPDenied(t *testing.T) {
 		CreatedAt:            dbtime.Now(),
 	})
 	require.NoError(t, err)
+
+	dbgen.SetWorkspaceAgentDLPPolicy(t, db, ao.WorkspaceAgent.ID, policy.ID)
 
 	//nolint: bodyclose // closed by ReadBodyAsError
 	resp, err := client.Request(ctx, http.MethodGet,

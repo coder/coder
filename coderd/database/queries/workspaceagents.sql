@@ -93,10 +93,22 @@ INSERT INTO
 		motd_file,
 		display_apps,
 		display_order,
-		api_key_scope
+		api_key_scope,
+		dlp_policy_id
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) RETURNING *;
+
+-- name: UpdateWorkspaceAgentDLPPolicyByID :exec
+-- UpdateWorkspaceAgentDLPPolicyByID is intended for tests and admin-tooling
+-- only. In normal operation `dlp_policy_id` is set at agent insert time and
+-- not modified afterwards.
+UPDATE
+	workspace_agents
+SET
+	dlp_policy_id = $2
+WHERE
+	id = $1;
 
 -- name: UpdateWorkspaceAgentConnectionByID :exec
 UPDATE
