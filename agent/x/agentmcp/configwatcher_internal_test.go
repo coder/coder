@@ -379,7 +379,11 @@ func TestWatcher_SharedParentRefcount(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	dir := t.TempDir()
+	// On macOS, t.TempDir() lives under /var which is a symlink
+	// to /private/var. The watcher canonicalizes paths before
+	// storing parent-dir keys in w.dirs, so the test must look up
+	// the resolved form to match.
+	dir := testutil.TempDirResolved(t)
 	pathA := filepath.Join(dir, "a.mcp.json")
 	pathB := filepath.Join(dir, "b.mcp.json")
 
