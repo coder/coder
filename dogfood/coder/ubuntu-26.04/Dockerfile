@@ -247,7 +247,10 @@ USER coder
 ENV HOMEBREW_PREFIX="/home/linuxbrew/.linuxbrew" \
 	HOMEBREW_CELLAR="/home/linuxbrew/.linuxbrew/Cellar" \
 	HOMEBREW_REPOSITORY="/home/linuxbrew/.linuxbrew/Homebrew"
-ENV PATH="${MISE_DATA_DIR}/shims:${HOMEBREW_PREFIX}/bin:${HOMEBREW_PREFIX}/sbin:/home/coder/go/bin:${PATH}"
+# Pin npm globals to a stable home dir, otherwise they land in
+# mise's version-specific node bin dir which isn't on PATH.
+ENV NPM_CONFIG_PREFIX="/home/coder/.npm-global"
+ENV PATH="/home/coder/.npm-global/bin:${MISE_DATA_DIR}/shims:${HOMEBREW_PREFIX}/bin:${HOMEBREW_PREFIX}/sbin:/home/coder/go/bin:${PATH}"
 
 # Override CARGO_HOME so cargo registry/cache writes go to the coder
 # user's home directory instead of the root-owned /usr/local/cargo.
