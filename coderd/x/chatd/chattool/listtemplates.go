@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/quartz"
 )
 
 const (
@@ -47,6 +48,7 @@ const (
 type ListTemplatesOptions struct {
 	OwnerID            uuid.UUID
 	Logger             slog.Logger
+	Clock              quartz.Clock
 	AllowedTemplateIDs func() map[uuid.UUID]bool
 }
 
@@ -81,6 +83,11 @@ type templateRankSignals struct {
 // usage, and organization-wide popularity.
 // db must not be nil.
 func ListTemplates(db database.Store, organizationID uuid.UUID, options ListTemplatesOptions) fantasy.AgentTool {
+	clock := options.Clock
+	if clock == nil {
+		clock = quartz.NewReal()
+	}
+
 	return fantasy.NewAgentTool(
 		"list_templates",
 		"List available workspace templates as a ranked shortlist. "+
@@ -155,7 +162,7 @@ func ListTemplates(db database.Store, organizationID uuid.UUID, options ListTemp
 				ranked,
 				visibleTemplateCount,
 				errors.Join(ownerCountsErr, usageErr),
-				time.Now(),
+				clock.Now(),
 			)
 
 			// Paginate.
@@ -330,11 +337,14 @@ func selectTemplateRecommendation(
 	}
 
 	top := ranked[0]
-	if rankingSignalsErr != nil {
-		return listTemplatesHintNoConfidence, uuid.Nil, "ranking_signals_unavailable"
-	}
 	if visibleTemplateCount == 1 && len(ranked) == 1 {
 		return listTemplatesHintOnlyAvailable, top.Template.ID, "only_available_template"
+	}
+	if rankingSignalsErr != nil {
+		if templateHasDecisiveQuerySignal(ranked) {
+			return listTemplatesHintHighConfidence, top.Template.ID, relevanceSignals(top)
+		}
+		return listTemplatesHintNoConfidence, uuid.Nil, "ranking_signals_unavailable"
 	}
 	if !templateHasRankingSignal(top) {
 		return listTemplatesHintNoConfidence, uuid.Nil, "no_ranking_signal"
@@ -355,6 +365,13 @@ func templatesAreAmbiguous(a, b rankedTemplate) bool {
 func templateHasRankingSignal(t rankedTemplate) bool {
 	signals := templateRankSignalsFor(t)
 	return signals.QueryScore > 0 || signals.WorkspaceCount > 0 || signals.ActiveDevelopers > 0
+}
+
+func templateHasDecisiveQuerySignal(ranked []rankedTemplate) bool {
+	if len(ranked) == 0 || ranked[0].QueryScore == 0 {
+		return false
+	}
+	return len(ranked) == 1 || ranked[0].QueryScore > ranked[1].QueryScore
 }
 
 func templateHasConfidentRankingSignal(t rankedTemplate, now time.Time) bool {
@@ -450,7 +467,8 @@ func templateQueryScore(t database.Template, query string) int {
 			return queryScoreNameContains
 		}
 	}
-	if strings.Contains(normalizeTemplateSearch(t.Description), query) {
+	desc := normalizeTemplateSearch(t.Description)
+	if strings.Contains(desc, query) || strings.Contains(compactTemplateSearch(desc), queryCompact) {
 		return queryScoreDescriptionMatch
 	}
 	return 0

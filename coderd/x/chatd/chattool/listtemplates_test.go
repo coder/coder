@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestListTemplates_OrganizationFilter(t *testing.T) {
@@ -238,6 +239,17 @@ func TestListTemplates_QueryScoreTiers(t *testing.T) {
 	templates = listTemplateItems(t, result)
 	require.Len(t, templates, 1)
 	require.Equal(t, hyphenated.ID.String(), templates[0]["id"])
+
+	descriptionHyphenated := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		Name:           "ml-tools",
+		Description:    "Includes machine-learning libraries.",
+	})
+	result = runListTemplates(ctx, t, tool, `{"query":"machine learning"}`)
+	templates = listTemplateItems(t, result)
+	require.Len(t, templates, 1)
+	require.Equal(t, descriptionHyphenated.ID.String(), templates[0]["id"])
 }
 
 func TestListTemplates_RanksAllCandidatesBeforePagination(t *testing.T) {
@@ -467,6 +479,9 @@ func TestListTemplates_WeakOrgPopularityDoesNotRecommend(t *testing.T) {
 func TestListTemplates_StalePersonalUsageDoesNotRecommend(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	now := time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC)
+	clock.Set(now).MustWait(ctx)
 	db, _ := dbtestutil.NewDB(t)
 	user := dbgen.User(t, db, database.User{})
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -489,11 +504,12 @@ func TestListTemplates_StalePersonalUsageDoesNotRecommend(t *testing.T) {
 		OwnerID:        user.ID,
 		OrganizationID: org.ID,
 		TemplateID:     oldUsage.ID,
-		LastUsedAt:     time.Now().Add(-180 * 24 * time.Hour),
+		LastUsedAt:     now.Add(-180 * 24 * time.Hour),
 	})
 
 	tool := chattool.ListTemplates(db, org.ID, chattool.ListTemplatesOptions{
 		OwnerID: user.ID,
+		Clock:   clock,
 	})
 	result := runListTemplates(ctx, t, tool, `{}`)
 	templates := listTemplateItems(t, result)
@@ -505,6 +521,53 @@ func TestListTemplates_StalePersonalUsageDoesNotRecommend(t *testing.T) {
 	require.Equal(t, "weak_ranking_signal", result["recommendation_reason"])
 	_, ok := result["recommended_template_id"]
 	require.False(t, ok)
+}
+
+func TestListTemplates_PersonalUsageCountRecommendsStaleTemplate(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	now := time.Date(2026, 5, 15, 12, 0, 0, 0, time.UTC)
+	clock.Set(now).MustWait(ctx)
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+
+	staleUsage := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		Name:           "stale-usage",
+	})
+	unused := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		Name:           "unused",
+	})
+	for range 2 {
+		dbgen.Workspace(t, db, database.WorkspaceTable{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+			TemplateID:     staleUsage.ID,
+			LastUsedAt:     now.Add(-180 * 24 * time.Hour),
+		})
+	}
+
+	tool := chattool.ListTemplates(db, org.ID, chattool.ListTemplatesOptions{
+		OwnerID: user.ID,
+		Clock:   clock,
+	})
+	result := runListTemplates(ctx, t, tool, `{}`)
+	templates := listTemplateItems(t, result)
+	require.Len(t, templates, 2)
+	require.Equal(t, staleUsage.ID.String(), templates[0]["id"])
+	require.Equal(t, unused.ID.String(), templates[1]["id"])
+	require.Equal(t, float64(2), templates[0]["your_workspace_count"])
+	require.Equal(t, "high_confidence_recommendation", result["selection_hint"])
+	require.Equal(t, staleUsage.ID.String(), result["recommended_template_id"])
 }
 
 func TestListTemplates_AmbiguousTopMatches(t *testing.T) {
