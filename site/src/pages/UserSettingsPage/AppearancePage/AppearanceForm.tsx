@@ -1,5 +1,4 @@
-import { type FormikContextType, useFormik } from "formik";
-import { type FC, useEffect, useId, useRef } from "react";
+import { type FC, useEffect, useId, useRef, useState } from "react";
 import {
 	type TerminalFontName,
 	TerminalFontNames,
@@ -64,10 +63,12 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 	initialValues,
 	activeScheme,
 }) => {
+	const [values, setValues] = useState(() => toFormValues(initialValues));
+	const confirmedValuesRef = useRef(values);
 	const submitInFlightRef = useRef(false);
 	const pendingSubmitRef = useRef<AppearanceFormValues | null>(null);
 	const activeSchemeRef = useRef(activeScheme);
-	const formRef = useRef<FormikContextType<AppearanceFormValues> | null>(null);
+	const onSubmitRef = useRef(onSubmit);
 	const themeModeId = useId();
 	const fontGroupId = useId();
 	const fontGroupLabelId = `${fontGroupId}-label`;
@@ -76,62 +77,52 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 	const syncThemeGroupNamePrefix = `${themeModeId}-sync`;
 
 	activeSchemeRef.current = activeScheme;
+	onSubmitRef.current = onSubmit;
 
-	const setSubmitting = (submitting: boolean) => {
-		formRef.current?.setSubmitting(submitting);
+	const applyValues = (next: AppearanceFormValues) => {
+		setValues(next);
 	};
 
-	const resetForm = (values: AppearanceFormValues) => {
-		formRef.current?.resetForm({ values });
-	};
-
-	const fireSubmit = (
-		values: AppearanceFormValues,
-		rollbackTo: AppearanceFormValues,
-	) => {
+	// Optimistic submit queue: only one request is in flight at a time.
+	// Later changes overwrite the pending slot. On success, the queued
+	// draft fires next. On failure, a queued draft still gets a chance to
+	// save, otherwise the form rolls back to the last confirmed state.
+	const fireSubmit = (next: AppearanceFormValues) => {
 		submitInFlightRef.current = true;
-		setSubmitting(true);
 		let submitted: Promise<unknown>;
 		try {
-			submitted = onSubmit(toUpdateRequest(values, activeSchemeRef.current));
+			submitted = onSubmitRef.current(
+				toUpdateRequest(next, activeSchemeRef.current),
+			);
 		} catch (error) {
-			submitInFlightRef.current = false;
-			pendingSubmitRef.current = null;
-			resetForm(rollbackTo);
-			setSubmitting(false);
-			throw error;
+			submitted = Promise.reject(error);
 		}
+
 		void submitted.then(
 			() => {
+				confirmedValuesRef.current = next;
 				submitInFlightRef.current = false;
 				const queued = pendingSubmitRef.current;
 				if (queued !== null) {
 					pendingSubmitRef.current = null;
-					fireSubmit(queued, values);
+					fireSubmit(queued);
 					return;
 				}
-				resetForm(values);
-				setSubmitting(false);
+				applyValues(next);
 			},
 			() => {
 				submitInFlightRef.current = false;
+				const queued = pendingSubmitRef.current;
+				const rollbackTo = confirmedValuesRef.current;
 				pendingSubmitRef.current = null;
-				resetForm(rollbackTo);
-				setSubmitting(false);
+				if (queued !== null) {
+					fireSubmit(queued);
+					return;
+				}
+				applyValues(rollbackTo);
 			},
 		);
 	};
-
-	const form = useFormik<AppearanceFormValues>({
-		initialValues: toFormValues(initialValues),
-		onSubmit: (values) => {
-			fireSubmit(values, formRef.current?.initialValues ?? values);
-		},
-	});
-
-	useEffect(() => {
-		formRef.current = form;
-	}, [form]);
 
 	const {
 		theme_preference,
@@ -142,32 +133,32 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 	} = initialValues;
 
 	useEffect(() => {
+		const next = toFormValues({
+			theme_preference,
+			theme_mode,
+			theme_light,
+			theme_dark,
+			terminal_font,
+		});
+		confirmedValuesRef.current = next;
+		// Preserve the optimistic local draft until the in-flight submit settles.
 		if (submitInFlightRef.current) {
 			return;
 		}
-		formRef.current?.resetForm({
-			values: toFormValues({
-				theme_preference,
-				theme_mode,
-				theme_light,
-				theme_dark,
-				terminal_font,
-			}),
-		});
+		setValues(next);
 	}, [theme_preference, theme_mode, theme_light, theme_dark, terminal_font]);
 
-	const { draft, terminalFont } = form.values;
+	const { draft, terminalFont } = values;
 
 	const submit = (next: AppearanceFormValues) => {
-		const rollbackTo = form.values;
-		void form.setValues(next, false);
+		applyValues(next);
 
-		if (submitInFlightRef.current || isUpdating) {
+		if (submitInFlightRef.current) {
 			pendingSubmitRef.current = next;
 			return;
 		}
 
-		fireSubmit(next, rollbackTo);
+		fireSubmit(next);
 	};
 
 	const onChangeMode = (mode: AppearanceThemeMode) => {
@@ -217,7 +208,7 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 	};
 
 	return (
-		<form onSubmit={form.handleSubmit}>
+		<form onSubmit={(event) => event.preventDefault()}>
 			{Boolean(error) && <ErrorAlert error={error} />}
 
 			<Section

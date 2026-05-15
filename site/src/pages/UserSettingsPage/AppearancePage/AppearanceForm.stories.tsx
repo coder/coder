@@ -5,6 +5,7 @@ import type {
 	UpdateUserAppearanceSettingsRequest,
 	UserAppearanceSettings,
 } from "#/api/typesGenerated";
+import { CONCRETE_THEMES } from "#/theme";
 import { AppearanceForm } from "./AppearanceForm";
 
 const onUpdateTheme = action("update");
@@ -106,8 +107,12 @@ export const SyncDefault: Story = {
 			name: "Dark theme options",
 		});
 
-		expect(within(lightOptions).getAllByRole("radio")).toHaveLength(6);
-		expect(within(darkOptions).getAllByRole("radio")).toHaveLength(6);
+		expect(within(lightOptions).getAllByRole("radio")).toHaveLength(
+			CONCRETE_THEMES.length,
+		);
+		expect(within(darkOptions).getAllByRole("radio")).toHaveLength(
+			CONCRETE_THEMES.length,
+		);
 	},
 };
 
@@ -152,6 +157,50 @@ export const SelectSyncMode: Story = {
 			});
 		});
 		expect(dropdown).toHaveTextContent("Sync with system");
+	},
+};
+
+export const SelectSingleFromSync: Story = {
+	args: {
+		activeScheme: "light",
+		initialValues: {
+			...baseSettings,
+			theme_preference: "light-protan-deuter",
+			theme_mode: "sync",
+			theme_light: "light-protan-deuter",
+			theme_dark: "dark-tritan",
+		},
+		onSubmit: resolvedSubmit(),
+	},
+	play: async ({ canvasElement, args }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		const dropdown = await canvas.findByRole("combobox", {
+			name: "Theme mode",
+		});
+
+		await user.click(dropdown);
+		await user.click(
+			await within(document.body).findByRole("option", {
+				name: "Single theme",
+			}),
+		);
+
+		await waitFor(() => {
+			expect(args.onSubmit).toHaveBeenCalledWith({
+				theme_preference: "light-protan-deuter",
+				theme_mode: "single",
+				theme_light: "light-protan-deuter",
+				theme_dark: "dark-tritan",
+				terminal_font: "geist-mono",
+			});
+		});
+		expect(dropdown).toHaveTextContent("Single theme");
+		expect(
+			await canvas.findByRole("radio", {
+				name: /light protanopia and deuteranopia/i,
+			}),
+		).toBeChecked();
 	},
 };
 

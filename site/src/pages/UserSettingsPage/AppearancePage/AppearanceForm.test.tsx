@@ -4,7 +4,7 @@ import type { UserAppearanceSettings } from "#/api/typesGenerated";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { AppearanceForm } from "./AppearanceForm";
 
-const putResponse = (
+const makeSettings = (
 	overrides: Partial<UserAppearanceSettings> = {},
 ): UserAppearanceSettings => ({
 	theme_preference: "dark",
@@ -34,7 +34,7 @@ describe("appearance form", () => {
 		renderAppearanceForm(
 			<AppearanceForm
 				activeScheme="dark"
-				initialValues={putResponse()}
+				initialValues={makeSettings()}
 				onSubmit={onSubmit}
 			/>,
 		);
@@ -53,7 +53,7 @@ describe("appearance form", () => {
 		});
 
 		await act(async () => {
-			submitResolvers[0]?.(putResponse({ terminal_font: "fira-code" }));
+			submitResolvers[0]?.(makeSettings({ terminal_font: "fira-code" }));
 			await Promise.resolve();
 		});
 
@@ -67,7 +67,65 @@ describe("appearance form", () => {
 		});
 		await act(async () => {
 			submitResolvers[1]?.(
-				putResponse({
+				makeSettings({
+					theme_preference: "light",
+					terminal_font: "fira-code",
+				}),
+			);
+			await Promise.resolve();
+		});
+	});
+
+	it("submits the queued draft after an earlier update fails", async () => {
+		const submitResolvers: Array<{
+			resolve: (value: UserAppearanceSettings) => void;
+			reject: (error: unknown) => void;
+		}> = [];
+		const onSubmit = vi.fn(
+			() =>
+				new Promise<UserAppearanceSettings>((resolve, reject) => {
+					submitResolvers.push({ resolve, reject });
+				}),
+		);
+
+		renderAppearanceForm(
+			<AppearanceForm
+				activeScheme="dark"
+				initialValues={makeSettings()}
+				onSubmit={onSubmit}
+			/>,
+		);
+
+		fireEvent.click(screen.getByText("Fira Code"));
+		fireEvent.click(screen.getByRole("radio", { name: /light default/i }));
+
+		expect(onSubmit).toHaveBeenCalledTimes(1);
+		expect(onSubmit).toHaveBeenLastCalledWith({
+			theme_preference: "dark",
+			theme_mode: "single",
+			theme_light: "light",
+			theme_dark: "dark",
+			terminal_font: "fira-code",
+		});
+
+		await act(async () => {
+			submitResolvers[0]?.reject(new Error("failed"));
+			await Promise.resolve();
+		});
+
+		expect(onSubmit).toHaveBeenCalledTimes(2);
+		expect(onSubmit).toHaveBeenLastCalledWith({
+			theme_preference: "light",
+			theme_mode: "single",
+			theme_light: "light",
+			theme_dark: "dark",
+			terminal_font: "fira-code",
+		});
+		expect(screen.getByRole("radio", { name: /light default/i })).toBeChecked();
+
+		await act(async () => {
+			submitResolvers[1]?.resolve(
+				makeSettings({
 					theme_preference: "light",
 					terminal_font: "fira-code",
 				}),
@@ -88,7 +146,7 @@ describe("appearance form", () => {
 		renderAppearanceForm(
 			<AppearanceForm
 				activeScheme="dark"
-				initialValues={putResponse()}
+				initialValues={makeSettings()}
 				onSubmit={onSubmit}
 			/>,
 		);
@@ -112,15 +170,16 @@ describe("appearance form", () => {
 			rejectSubmit?.(new Error("failed again"));
 			await Promise.resolve();
 		});
+		expect(screen.getByRole("radio", { name: /dark default/i })).toBeChecked();
 	});
 
 	it("resyncs the local draft when initialValues change between renders", () => {
-		const onSubmit = vi.fn(() => Promise.resolve(putResponse()));
+		const onSubmit = vi.fn(() => Promise.resolve(makeSettings()));
 		const { rerender } = render(
 			<TooltipProvider delayDuration={100}>
 				<AppearanceForm
 					activeScheme="dark"
-					initialValues={putResponse({
+					initialValues={makeSettings({
 						theme_preference: "dark",
 						theme_mode: "single",
 						theme_light: "light",
@@ -137,7 +196,7 @@ describe("appearance form", () => {
 			<TooltipProvider delayDuration={100}>
 				<AppearanceForm
 					activeScheme="dark"
-					initialValues={putResponse({
+					initialValues={makeSettings({
 						theme_preference: "light",
 						theme_mode: "single",
 						theme_light: "light",
