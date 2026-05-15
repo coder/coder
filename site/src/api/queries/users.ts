@@ -262,7 +262,7 @@ export const updateProfile = (userId: string) => {
 	};
 };
 
-const myAppearanceKey = ["me", "appearance"];
+export const myAppearanceKey = ["me", "appearance"] as const;
 
 type AppearanceMutationContext = {
 	previousAppearanceSettings: UserAppearanceSettings | undefined;
