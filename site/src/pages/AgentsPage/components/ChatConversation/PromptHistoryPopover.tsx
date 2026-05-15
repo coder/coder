@@ -1,4 +1,4 @@
-import { SquareStackIcon } from "lucide-react";
+import { HistoryIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Button } from "#/components/Button/Button";
 import {
@@ -67,7 +67,7 @@ export const PromptHistoryPopover: FC<PromptHistoryPopoverProps> = ({
 							className="size-6"
 							aria-label="Prompt history"
 						>
-							<SquareStackIcon />
+							<HistoryIcon />
 						</Button>
 					</PopoverTrigger>
 				</TooltipTrigger>
