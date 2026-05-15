@@ -35,6 +35,7 @@ type UsageSectionData = {
 	detail: ReactNode;
 	icon: ReactNode;
 	summaryValue: string;
+	showProgress?: boolean;
 	secondaryDetail?: ReactNode;
 	tooltip?: ReactNode;
 	severity?: UsageSeverity;
@@ -107,14 +108,19 @@ export const UsageIndicator: FC = () => {
 				? `${formatNumber(creditsConsumed)} of ${formatNumber(quota.budget)} credits used`
 				: `${formatNumber(workspaceCount)} ${workspaceCount === 1 ? "workspace" : "workspaces"} using ${formatNumber(creditsConsumed)} of ${formatNumber(quota.budget)} credits`;
 
+		const hasQuotaBudget = quota.budget > 0;
+
 		sections.push({
 			id: "workspace-quota",
 			title: "Workspace quota",
 			progressLabel: "Workspace quota usage",
 			percent: getPercent(creditsConsumed, quota.budget),
-			severity: getSeverity(creditsConsumed, quota.budget),
+			severity: hasQuotaBudget
+				? getSeverity(creditsConsumed, quota.budget)
+				: "normal",
 			icon: <ServerIcon className="size-3.5" />,
-			summaryValue: quota.budget > 0
+			showProgress: hasQuotaBudget,
+			summaryValue: hasQuotaBudget
 				? `${formatNumber(creditsConsumed)} of ${formatNumber(quota.budget)}`
 				: `${formatNumber(creditsConsumed)} of unlimited`,
 			detail: quotaDetail,
@@ -177,13 +183,15 @@ const UsageTriggerProgress: FC<{ sections: readonly UsageSectionData[] }> = ({
 					>
 						{section.icon}
 					</span>
-					<UsageProgress
-						ariaLabel={section.progressLabel}
-						percent={section.percent}
-						severity={section.severity}
-						size="compact"
-						className="w-20"
-					/>
+					{section.showProgress !== false && (
+						<UsageProgress
+							ariaLabel={section.progressLabel}
+							percent={section.percent}
+							severity={section.severity}
+							size="compact"
+							className="w-20"
+						/>
+					)}
 					<span
 						className={cn(
 							"shrink-0 whitespace-nowrap text-xs tabular-nums",

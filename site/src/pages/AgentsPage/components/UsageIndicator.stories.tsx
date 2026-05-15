@@ -215,14 +215,11 @@ export const WorkspaceQuotaWithoutBudget: Story = {
 	],
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const progressbar = canvas.getByRole("progressbar", {
-			name: "Workspace quota usage",
-		});
 
-		expect(progressbar).toHaveAttribute("aria-valuenow", "100");
+		expect(canvas.queryByRole("progressbar")).not.toBeInTheDocument();
+		expect(canvas.getByText("20 of unlimited")).toBeInTheDocument();
 
 		await openUsageMenu(canvasElement);
-		expect(within(document.body).getByText("100%")).toBeInTheDocument();
 		expect(
 			within(document.body).getByText("1 workspace using 20 of 0 credits"),
 		).toBeInTheDocument();
