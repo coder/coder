@@ -28,7 +28,7 @@ func TestSecretValidationBlockerCode(t *testing.T) {
 				Severity: hcl.DiagError,
 				Summary:  "Missing required secrets",
 				Extra: previewtypes.DiagnosticExtra{
-					Code: DiagCodeMissingSecret,
+					Code: DiagCodeMissingSecretEnv,
 				},
 			}},
 			want: "",
@@ -70,7 +70,7 @@ func TestSecretValidationBlockerCode(t *testing.T) {
 					Severity: hcl.DiagError,
 					Summary:  "Missing required secrets",
 					Extra: previewtypes.DiagnosticExtra{
-						Code: DiagCodeMissingSecret,
+						Code: DiagCodeMissingSecretEnv,
 					},
 				},
 				{

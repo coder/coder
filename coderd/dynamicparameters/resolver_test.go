@@ -323,11 +323,22 @@ func TestResolveParameters(t *testing.T) {
 			nil,
 		)
 		require.Error(t, err)
-		resp, ok := httperror.IsResponder(err)
-		require.True(t, ok)
-		_, respErr := resp.Response()
+		var diagErr *dynamicparameters.DiagnosticError
+		require.ErrorAs(t, err, &diagErr,
+			"missing-secret failures must surface as *DiagnosticError so the build endpoint can emit the kinded envelope")
+		_, respErr := diagErr.BuildResponse()
+		// Missing secrets surface as per-secret Validation entries with a
+		// missing_secret_env / missing_secret_file Kind. They also carry a
+		// top-level Message and Detail summary so Go SDK consumers reading
+		// the kindless codersdk.Response have a discriminator without
+		// parsing per-validation Detail strings.
+		require.Equal(t, "Missing required secrets", respErr.Message)
 		require.Contains(t, respErr.Detail, "Missing required secrets")
-		require.Contains(t, respErr.Detail, "env GITHUB_TOKEN: Add a GitHub PAT")
+		require.Contains(t, respErr.Detail, "missing 1 env-var")
+		require.Len(t, respErr.Validations, 1)
+		require.Equal(t, "GITHUB_TOKEN", respErr.Validations[0].Field)
+		require.Equal(t, codersdk.WorkspaceBuildValidationErrorKindMissingSecretEnv, respErr.Validations[0].Kind)
+		require.Contains(t, respErr.Validations[0].Detail, "Add a GitHub PAT")
 	})
 
 	t.Run("FinalRenderErrorSuppressesMissingSecretSynthesis", func(t *testing.T) {

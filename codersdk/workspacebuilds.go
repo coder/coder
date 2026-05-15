@@ -315,3 +315,47 @@ func (c *Client) WorkspaceBuildTimings(ctx context.Context, build uuid.UUID) (Wo
 	var timings WorkspaceBuildTimings
 	return timings, json.NewDecoder(res.Body).Decode(&timings)
 }
+
+// WorkspaceBuildValidationErrorKind categorizes a
+// WorkspaceBuildValidationError when a single Validations slice may mix
+// entries from different sources, so consumers can route each entry to
+// the appropriate UX. A workspace build response may carry both
+// parameter validations and missing coder_secret requirements, and the
+// frontend opens a different dialog per category. When every entry
+// comes from the same source, the field is left unset and consumers
+// apply default rendering.
+type WorkspaceBuildValidationErrorKind string
+
+const (
+	WorkspaceBuildValidationErrorKindMissingSecretEnv  WorkspaceBuildValidationErrorKind = "missing_secret_env"
+	WorkspaceBuildValidationErrorKindMissingSecretFile WorkspaceBuildValidationErrorKind = "missing_secret_file"
+)
+
+// WorkspaceBuildValidationError mirrors ValidationError plus an optional
+// Kind discriminator. It is emitted by workspace build endpoints inside
+// a WorkspaceBuildErrorResponse so the frontend can branch between
+// parameter validation failures and missing coder_secret requirements
+// within a single validations slice.
+type WorkspaceBuildValidationError struct {
+	Field  string                            `json:"field" validate:"required"`
+	Detail string                            `json:"detail" validate:"required"`
+	Kind   WorkspaceBuildValidationErrorKind `json:"kind,omitempty"`
+}
+
+func (e WorkspaceBuildValidationError) Error() string {
+	return fmt.Sprintf("field: %s detail: %s", e.Field, e.Detail)
+}
+
+var _ error = (*WorkspaceBuildValidationError)(nil)
+
+// WorkspaceBuildErrorResponse is the 4xx envelope returned by workspace
+// build endpoints. It is structurally a superset of Response, with a
+// kinded validations slice that lets the frontend distinguish parameter
+// failures from missing coder_secret requirements within a single
+// response. Non-validation 4xx responses from the same handlers use the
+// same envelope with an empty Validations slice.
+type WorkspaceBuildErrorResponse struct {
+	Message     string                          `json:"message"`
+	Detail      string                          `json:"detail,omitempty"`
+	Validations []WorkspaceBuildValidationError `json:"validations,omitempty"`
+}

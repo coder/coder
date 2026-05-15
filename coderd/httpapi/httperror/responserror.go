@@ -22,6 +22,29 @@ func IsResponder(err error) (Responder, bool) {
 	return nil, false
 }
 
+// workspaceBuildResponder is implemented by errors that can render
+// themselves as a workspace-build-shaped 4xx envelope. It is consumed
+// by WriteWorkspaceBuildError. The build envelope is structurally a
+// superset of codersdk.Response and carries per-validation Kind
+// discriminators so the frontend can route entries.
+//
+// The interface is unexported because the only producer is
+// *dynamicparameters.DiagnosticError (via its BuildResponse method) and
+// the only consumer is WriteWorkspaceBuildError in this package.
+// Callers that need to assert the kinded-envelope contract in tests
+// should use errors.As against the concrete producer.
+type workspaceBuildResponder interface {
+	BuildResponse() (int, codersdk.WorkspaceBuildErrorResponse)
+}
+
+func isWorkspaceBuildResponder(err error) (workspaceBuildResponder, bool) {
+	var responseErr workspaceBuildResponder
+	if errors.As(err, &responseErr) {
+		return responseErr, true
+	}
+	return nil, false
+}
+
 func NewResponseError(status int, resp codersdk.Response) error {
 	return &responseError{
 		status:   status,

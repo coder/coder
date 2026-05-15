@@ -2,6 +2,9 @@ package coderd_test
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
 	"os"
 	"sync"
 	"testing"
@@ -405,7 +408,8 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 		preview := testutil.RequireReceive(ctx, t, previews)
 		require.Equal(t, -1, preview.ID)
 		for _, diag := range preview.Diagnostics {
-			require.NotEqual(t, dynamicparameters.DiagCodeMissingSecret, diag.Extra.Code)
+			require.NotEqual(t, dynamicparameters.DiagCodeMissingSecretEnv, diag.Extra.Code)
+			require.NotEqual(t, dynamicparameters.DiagCodeMissingSecretFile, diag.Extra.Code)
 		}
 		require.Equal(t, []codersdk.SecretRequirementStatus{{
 			Env:         "GITHUB_TOKEN",
@@ -623,15 +627,30 @@ func TestDynamicParametersWithTerraformValues(t *testing.T) {
 		require.NoError(t, setup.client.DeleteUserSecret(ctx, codersdk.Me, "github-token"))
 
 		// Start on the now-unsatisfied requirement must still fail;
-		// otherwise we've over-filtered the diagnostic.
-		_, err = setup.client.CreateWorkspaceBuild(ctx, wrk.ID, codersdk.CreateWorkspaceBuildRequest{
-			Transition: codersdk.WorkspaceTransitionStart,
-		})
-		require.Error(t, err, "start must still reject unsatisfied secret requirement")
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Contains(t, sdkErr.Detail, "Missing required secrets")
-		require.Contains(t, sdkErr.Detail, "env GITHUB_TOKEN")
+		// otherwise we've over-filtered the diagnostic. Issue the request
+		// raw so we can decode the kinded build envelope and assert on
+		// the per-validation Kind, which codersdk.Error strips during
+		// its generic Response decoding.
+		startRes, err := setup.client.Request(
+			ctx, http.MethodPost,
+			fmt.Sprintf("/api/v2/workspaces/%s/builds", wrk.ID),
+			codersdk.CreateWorkspaceBuildRequest{Transition: codersdk.WorkspaceTransitionStart},
+		)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = startRes.Body.Close() })
+		require.Equal(t, http.StatusBadRequest, startRes.StatusCode,
+			"start must still reject unsatisfied secret requirement")
+		var startBody codersdk.WorkspaceBuildErrorResponse
+		require.NoError(t, json.NewDecoder(startRes.Body).Decode(&startBody))
+		require.Equal(t, "Missing required secrets", startBody.Message)
+		require.Contains(t, startBody.Detail, "Missing required secrets")
+		require.Contains(t, startBody.Detail, "missing 1 env-var")
+		require.Len(t, startBody.Validations, 1)
+		require.Equal(t, "GITHUB_TOKEN", startBody.Validations[0].Field)
+		require.Equal(t,
+			codersdk.WorkspaceBuildValidationErrorKindMissingSecretEnv,
+			startBody.Validations[0].Kind)
+		require.Contains(t, startBody.Validations[0].Detail, "env GITHUB_TOKEN")
 
 		// Stop must succeed despite the unsatisfied requirement.
 		stop, err := setup.client.CreateWorkspaceBuild(ctx, wrk.ID, codersdk.CreateWorkspaceBuildRequest{

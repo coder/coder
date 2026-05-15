@@ -8,8 +8,31 @@ import {
 	MockWorkspaceBuild,
 	MockWorkspaceBuildParameter1,
 } from "#/testHelpers/entities";
-import { API, getURLWithSearchParams, MissingBuildParameters } from "./api";
+import {
+	API,
+	getURLWithSearchParams,
+	MissingBuildParameters,
+	MissingSecretsError,
+	ParameterValidationError,
+} from "./api";
 import type * as TypesGen from "./typesGenerated";
+
+// buildAxiosError synthesizes the minimum shape that `isApiError` accepts:
+// an Axios-flagged error with a populated `response.data` envelope. Used to
+// drive the validation-classifier branches in `updateWorkspace`.
+const buildAxiosError = (
+	validations: TypesGen.WorkspaceBuildValidationError[],
+	status = 400,
+) => ({
+	isAxiosError: true,
+	response: {
+		status,
+		data: {
+			message: "Unable to validate parameters",
+			validations,
+		},
+	},
+});
 
 const axiosInstance = API.getAxiosInstance();
 
@@ -271,6 +294,98 @@ describe("api.ts", () => {
 						rich_parameter_values: [],
 					},
 				);
+			});
+		});
+
+		describe("validation classification on start failure", () => {
+			beforeEach(() => {
+				vi.spyOn(API, "getTemplate").mockResolvedValue(MockTemplate);
+				vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValue([]);
+			});
+
+			it("throws MissingSecretsError when start fails with only secret validations", async () => {
+				vi.spyOn(API, "postWorkspaceBuild").mockRejectedValueOnce(
+					buildAxiosError([
+						{
+							field: "GITHUB_TOKEN",
+							detail: "env GITHUB_TOKEN: Required GitHub access token",
+							kind: "missing_secret_env",
+						},
+						{
+							field: "~/.github-token",
+							detail: "file ~/.github-token: Required GitHub access token file",
+							kind: "missing_secret_file",
+						},
+					]),
+				);
+
+				let caught: unknown;
+				try {
+					await API.updateWorkspace(MockStoppedWorkspace, [], true);
+				} catch (e) {
+					caught = e;
+				}
+
+				expect(caught).toBeInstanceOf(MissingSecretsError);
+				const secrets = (caught as MissingSecretsError).secrets;
+				expect(secrets).toHaveLength(2);
+				expect(secrets.map((s) => s.kind)).toEqual([
+					"missing_secret_env",
+					"missing_secret_file",
+				]);
+			});
+
+			it("prefers ParameterValidationError when validations mix parameter and secret entries", async () => {
+				vi.spyOn(API, "postWorkspaceBuild").mockRejectedValueOnce(
+					buildAxiosError([
+						{
+							field: "region",
+							detail: "region is required",
+						},
+						{
+							field: "GITHUB_TOKEN",
+							detail: "env GITHUB_TOKEN: Required GitHub access token",
+							kind: "missing_secret_env",
+						},
+					]),
+				);
+
+				let caught: unknown;
+				try {
+					await API.updateWorkspace(MockStoppedWorkspace, [], true);
+				} catch (e) {
+					caught = e;
+				}
+
+				expect(caught).toBeInstanceOf(ParameterValidationError);
+				const validations = (caught as ParameterValidationError).validations;
+				expect(validations).toHaveLength(1);
+				expect(validations[0].field).toBe("region");
+			});
+
+			it("rethrows the original API error when dynamic parameters are disabled", async () => {
+				vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce(
+					[],
+				);
+				const apiError = buildAxiosError([
+					{
+						field: "GITHUB_TOKEN",
+						detail: "env GITHUB_TOKEN: Required GitHub access token",
+						kind: "missing_secret_env",
+					},
+				]);
+				vi.spyOn(API, "postWorkspaceBuild").mockRejectedValueOnce(apiError);
+
+				let caught: unknown;
+				try {
+					await API.updateWorkspace(MockStoppedWorkspace, [], false);
+				} catch (e) {
+					caught = e;
+				}
+
+				expect(caught).toBe(apiError);
+				expect(caught).not.toBeInstanceOf(MissingSecretsError);
+				expect(caught).not.toBeInstanceOf(ParameterValidationError);
 			});
 		});
 	});

@@ -2009,8 +2009,10 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                       |
-|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceBuild](schemas.md#codersdkworkspacebuild) |
+| Status | Meaning                                                          | Description | Schema                                                                                 |
+|--------|------------------------------------------------------------------|-------------|----------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)          | OK          | [codersdk.WorkspaceBuild](schemas.md#codersdkworkspacebuild)                           |
+| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1) | Bad Request | [codersdk.WorkspaceBuildErrorResponse](schemas.md#codersdkworkspacebuilderrorresponse) |
+| 409    | [Conflict](https://tools.ietf.org/html/rfc7231#section-6.5.8)    | Conflict    | [codersdk.WorkspaceBuildErrorResponse](schemas.md#codersdkworkspacebuilderrorresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

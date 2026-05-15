@@ -478,6 +478,34 @@ export class ParameterValidationError extends Error {
 	}
 }
 
+// MissingSecretsError is thrown when an update build fails because the
+// active template version declares coder_secret requirements the workspace
+// owner has not satisfied. The frontend surfaces a secrets-specific dialog
+// that mirrors the dynamic-parameter dialog: a count plus a navigation
+// affordance to the user-secrets management page.
+export class MissingSecretsError extends Error {
+	constructor(public readonly secrets: FieldError[]) {
+		super("Required secrets are missing for new template version");
+	}
+}
+
+// missingSecretKinds is the explicit allowlist of
+// WorkspaceBuildValidationErrorKind values that route a validation
+// entry through the missing-secrets path. We deliberately do not
+// derive this from TypesGen.WorkspaceBuildValidationErrorKinds (the
+// generated array of all kinds) because adding a future kind to the
+// SDK enum would silently include it in this set, causing unrelated
+// workspace-build validation errors to open the secrets dialog. The
+// `satisfies` clause makes the build fail if either literal here is
+// renamed or removed from the SDK enum.
+const missingSecretKinds: ReadonlySet<string> = new Set([
+	"missing_secret_env",
+	"missing_secret_file",
+] as const satisfies readonly TypesGen.WorkspaceBuildValidationErrorKind[]);
+
+const isMissingSecretValidation = (v: FieldError): boolean =>
+	v.kind !== undefined && missingSecretKinds.has(v.kind);
+
 export type GetProvisionerJobsParams = {
 	status?: string;
 	limit?: number;
@@ -2551,8 +2579,18 @@ class ApiMethods {
 				rich_parameter_values: newBuildParameters,
 			});
 		} catch (error) {
-			// If the build failed because of a parameter validation error, then we
-			// throw a special sentinel error that can be caught by the caller.
+			// If the build failed because of a parameter or secret
+			// validation error, throw a sentinel error so the caller
+			// can open the appropriate dialog.
+			//
+			// When the response carries both parameter and missing-secret
+			// validations, the parameter dialog wins because parameters
+			// are the canonical fix path. The missing-secret entries are
+			// not preserved on the parameter error: nothing reads them
+			// today, and once the user resolves parameters and retries,
+			// the backend re-sends the (now-lone) missing-secret
+			// validations and the MissingSecretsError branch fires on
+			// the next attempt.
 			if (
 				isDynamicParametersEnabled &&
 				isApiError(error) &&
@@ -2560,10 +2598,20 @@ class ApiMethods {
 				error.response.data.validations &&
 				error.response.data.validations.length > 0
 			) {
-				throw new ParameterValidationError(
-					activeVersionId,
-					error.response.data.validations,
+				const validations = error.response.data.validations;
+				const parameterValidations = validations.filter(
+					(v) => !isMissingSecretValidation(v),
 				);
+				if (parameterValidations.length > 0) {
+					throw new ParameterValidationError(
+						activeVersionId,
+						parameterValidations,
+					);
+				}
+				const missingSecrets = validations.filter(isMissingSecretValidation);
+				if (missingSecrets.length > 0) {
+					throw new MissingSecretsError(missingSecrets);
+				}
 			}
 			throw error;
 		}

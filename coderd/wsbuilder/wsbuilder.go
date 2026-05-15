@@ -308,6 +308,26 @@ func (e BuildError) Response() (int, codersdk.Response) {
 	}
 }
 
+// BuildResponse renders BuildError as a workspace-build envelope.
+// If the wrapped error implements httperror.WorkspaceBuildResponder
+// (DiagnosticError does), that response is preferred. Otherwise we
+// return the BuildError status/message/detail as a validation-less
+// envelope. errors.As is run against e.Wrapped to avoid recursion
+// because BuildError satisfies WorkspaceBuildResponder itself.
+func (e BuildError) BuildResponse() (int, codersdk.WorkspaceBuildErrorResponse) {
+	var inner interface {
+		BuildResponse() (int, codersdk.WorkspaceBuildErrorResponse)
+	}
+	if errors.As(e.Wrapped, &inner) {
+		return inner.BuildResponse()
+	}
+
+	return e.Status, codersdk.WorkspaceBuildErrorResponse{
+		Message: e.Message,
+		Detail:  e.Error(),
+	}
+}
+
 // Build computes and inserts a new workspace build into the database.  If authFunc is provided, it also performs
 // authorization preflight checks.
 func (b *Builder) Build(

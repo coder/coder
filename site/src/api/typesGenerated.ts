@@ -9627,6 +9627,21 @@ export interface WorkspaceBuild {
 
 // From codersdk/workspacebuilds.go
 /**
+ * WorkspaceBuildErrorResponse is the 4xx envelope returned by workspace
+ * build endpoints. It is structurally a superset of Response, with a
+ * kinded validations slice that lets the frontend distinguish parameter
+ * failures from missing coder_secret requirements within a single
+ * response. Non-validation 4xx responses from the same handlers use the
+ * same envelope with an empty Validations slice.
+ */
+export interface WorkspaceBuildErrorResponse {
+	readonly message: string;
+	readonly detail?: string;
+	readonly validations?: readonly WorkspaceBuildValidationError[];
+}
+
+// From codersdk/workspacebuilds.go
+/**
  * WorkspaceBuildParameter represents a parameter specific for a workspace build.
  */
 export interface WorkspaceBuildParameter {
@@ -9666,6 +9681,28 @@ export interface WorkspaceBuildUpdate {
 	readonly job_status: string;
 	readonly build_number: number;
 }
+
+// From codersdk/workspacebuilds.go
+/**
+ * WorkspaceBuildValidationError mirrors ValidationError plus an optional
+ * Kind discriminator. It is emitted by workspace build endpoints inside
+ * a WorkspaceBuildErrorResponse so the frontend can branch between
+ * parameter validation failures and missing coder_secret requirements
+ * within a single validations slice.
+ */
+export interface WorkspaceBuildValidationError {
+	readonly field: string;
+	readonly detail: string;
+	readonly kind?: WorkspaceBuildValidationErrorKind;
+}
+
+// From codersdk/workspacebuilds.go
+export type WorkspaceBuildValidationErrorKind =
+	| "missing_secret_env"
+	| "missing_secret_file";
+
+export const WorkspaceBuildValidationErrorKinds: WorkspaceBuildValidationErrorKind[] =
+	["missing_secret_env", "missing_secret_file"];
 
 // From codersdk/workspaces.go
 export interface WorkspaceBuildsRequest extends Pagination {

@@ -12344,6 +12344,18 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.WorkspaceBuild"
                         }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceBuildErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceBuildErrorResponse"
+                        }
                     }
                 },
                 "security": [
@@ -25233,6 +25245,23 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.WorkspaceBuildErrorResponse": {
+            "type": "object",
+            "properties": {
+                "detail": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "validations": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceBuildValidationError"
+                    }
+                }
+            }
+        },
         "codersdk.WorkspaceBuildParameter": {
             "type": "object",
             "properties": {
@@ -25267,6 +25296,35 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "codersdk.WorkspaceBuildValidationError": {
+            "type": "object",
+            "required": [
+                "detail",
+                "field"
+            ],
+            "properties": {
+                "detail": {
+                    "type": "string"
+                },
+                "field": {
+                    "type": "string"
+                },
+                "kind": {
+                    "$ref": "#/definitions/codersdk.WorkspaceBuildValidationErrorKind"
+                }
+            }
+        },
+        "codersdk.WorkspaceBuildValidationErrorKind": {
+            "type": "string",
+            "enum": [
+                "missing_secret_env",
+                "missing_secret_file"
+            ],
+            "x-enum-varnames": [
+                "WorkspaceBuildValidationErrorKindMissingSecretEnv",
+                "WorkspaceBuildValidationErrorKindMissingSecretFile"
+            ]
         },
         "codersdk.WorkspaceConnectionLatencyMS": {
             "type": "object",

@@ -3,6 +3,16 @@ import { type AxiosError, type AxiosResponse, isAxiosError } from "axios";
 export interface FieldError {
 	field: string;
 	detail: string;
+	// Kind optionally categorizes the validation error. It exists so a
+	// response that mixes entries from different sources (for example,
+	// parameter validations and missing coder_secret requirements) can
+	// be routed by consumers without inspecting `field` or `detail`. When
+	// every entry in a `validations` array comes from the same source,
+	// callers leave `kind` unset and consumers apply default rendering.
+	// Known values are mirrored from TypesGen as
+	// `WorkspaceBuildValidationErrorKind`; emitted by workspace build
+	// endpoints.
+	kind?: string;
 }
 
 type FieldErrors = Record<FieldError["field"], FieldError["detail"]>;

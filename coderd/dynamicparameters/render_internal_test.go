@@ -387,7 +387,8 @@ func TestDynamicRender_NonOwnerCannotLeakSecretRequirements(t *testing.T) {
 func requireNoMissingSecret(t *testing.T, diags hcl.Diagnostics) {
 	t.Helper()
 	for _, d := range diags {
-		if extra, ok := d.Extra.(previewtypes.DiagnosticExtra); ok && extra.Code == DiagCodeMissingSecret {
+		extra := previewtypes.ExtractDiagnosticExtra(d)
+		if isMissingSecretDiagCode(extra.Code) {
 			t.Fatalf("unexpected missing_secret diagnostic: %s", d.Detail)
 		}
 	}

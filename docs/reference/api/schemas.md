@@ -15217,6 +15217,30 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `status`     | `canceled`, `canceling`, `deleted`, `deleting`, `failed`, `pending`, `running`, `starting`, `stopped`, `stopping` |
 | `transition` | `delete`, `start`, `stop`                                                                                         |
 
+## codersdk.WorkspaceBuildErrorResponse
+
+```json
+{
+  "detail": "string",
+  "message": "string",
+  "validations": [
+    {
+      "detail": "string",
+      "field": "string",
+      "kind": "missing_secret_env"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name          | Type                                                                                      | Required | Restrictions | Description |
+|---------------|-------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `detail`      | string                                                                                    | false    |              |             |
+| `message`     | string                                                                                    | false    |              |             |
+| `validations` | array of [codersdk.WorkspaceBuildValidationError](#codersdkworkspacebuildvalidationerror) | false    |              |             |
+
 ## codersdk.WorkspaceBuildParameter
 
 ```json
@@ -15279,6 +15303,38 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `agent_connection_timings` | array of [codersdk.AgentConnectionTiming](#codersdkagentconnectiontiming) | false    |              |                                                                                                                  |
 | `agent_script_timings`     | array of [codersdk.AgentScriptTiming](#codersdkagentscripttiming)         | false    |              | Agent script timings Consolidate agent-related timing metrics into a single struct when updating the API version |
 | `provisioner_timings`      | array of [codersdk.ProvisionerTiming](#codersdkprovisionertiming)         | false    |              |                                                                                                                  |
+
+## codersdk.WorkspaceBuildValidationError
+
+```json
+{
+  "detail": "string",
+  "field": "string",
+  "kind": "missing_secret_env"
+}
+```
+
+### Properties
+
+| Name     | Type                                                                                     | Required | Restrictions | Description |
+|----------|------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `detail` | string                                                                                   | true     |              |             |
+| `field`  | string                                                                                   | true     |              |             |
+| `kind`   | [codersdk.WorkspaceBuildValidationErrorKind](#codersdkworkspacebuildvalidationerrorkind) | false    |              |             |
+
+## codersdk.WorkspaceBuildValidationErrorKind
+
+```json
+"missing_secret_env"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                    |
+|---------------------------------------------|
+| `missing_secret_env`, `missing_secret_file` |
 
 ## codersdk.WorkspaceConnectionLatencyMS
 
