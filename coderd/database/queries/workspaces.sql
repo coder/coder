@@ -878,6 +878,11 @@ UPDATE workspaces SET favorite = true WHERE id = @id;
 UPDATE workspaces SET favorite = false WHERE id = @id;
 
 -- name: GetWorkspacesAndAgentsByOwnerID :many
+--
+-- Returns workspaces the calling actor is authorized to read, both ones they
+-- own and ones shared with them via user_acl/group_acl. The query relies on
+-- the @authorize_filter (ActionRead against rbac.ResourceWorkspace) for
+-- visibility; the name is preserved to avoid churn in callers and metrics.
 SELECT
 	workspaces.id as id,
 	workspaces.name as name,
@@ -911,9 +916,7 @@ LEFT JOIN LATERAL (
 	WHERE job_id = latest_build.job_id
 ) resources ON true
 WHERE
-	-- Filter by owner_id
-	workspaces.owner_id = @owner_id :: uuid
-	AND workspaces.deleted = false
+	workspaces.deleted = false
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspacesAndAgentsByOwnerID
 	-- @authorize_filter
 GROUP BY workspaces.id, workspaces.name, latest_build.job_status, latest_build.job_id, latest_build.transition;

@@ -21,8 +21,10 @@ import (
 )
 
 type UpdatesQuerier interface {
-	// GetAuthorizedWorkspacesAndAgentsByOwnerID requires a context with an actor set
-	GetWorkspacesAndAgentsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.GetWorkspacesAndAgentsByOwnerIDRow, error)
+	// GetWorkspacesAndAgentsByOwnerID requires a context with an actor set.
+	// Despite the legacy name, it returns every workspace the actor is
+	// authorized to read (owned plus user_acl / group_acl shared).
+	GetWorkspacesAndAgentsByOwnerID(ctx context.Context) ([]database.GetWorkspacesAndAgentsByOwnerIDRow, error)
 	GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUID) (database.Workspace, error)
 }
 
@@ -54,7 +56,7 @@ type sub struct {
 	ps     pubsub.Pubsub
 	logger slog.Logger
 
-	psCancelFn func()
+	psCancelFns []func()
 }
 
 func (s *sub) handleEvent(ctx context.Context, event wspubsub.WorkspaceEvent, err error) {
@@ -74,8 +76,29 @@ func (s *sub) handleEvent(ctx context.Context, event wspubsub.WorkspaceEvent, er
 		s.logger.Warn(ctx, "failed to handle workspace event", slog.Error(err))
 	}
 
+	s.requery(ctx)
+}
+
+// handleBuildUpdate is the all-workspaces channel handler used to pick up
+// state changes for workspaces shared with this user. The payload schema on
+// AllWorkspaceEventChannel is WorkspaceBuildUpdate; we ignore the payload and
+// just trigger a re-query, which produceUpdate will diff against s.prev.
+func (s *sub) handleBuildUpdate(ctx context.Context, _ codersdk.WorkspaceBuildUpdate, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if err != nil {
+		s.logger.Warn(ctx, "failed to handle workspace build update", slog.Error(err))
+	}
+
+	s.requery(ctx)
+}
+
+// requery refreshes the subscriber's view of authorized workspaces and emits
+// any delta to the update channel. Callers must hold s.mu.
+func (s *sub) requery(ctx context.Context) {
 	// Use context containing actor
-	rows, err := s.db.GetWorkspacesAndAgentsByOwnerID(s.ctx, s.userID)
+	rows, err := s.db.GetWorkspacesAndAgentsByOwnerID(s.ctx)
 	if err != nil {
 		s.logger.Warn(ctx, "failed to get workspaces and agents by owner ID", slog.Error(err))
 		return
@@ -96,7 +119,7 @@ func (s *sub) handleEvent(ctx context.Context, event wspubsub.WorkspaceEvent, er
 }
 
 func (s *sub) start(ctx context.Context) (err error) {
-	rows, err := s.db.GetWorkspacesAndAgentsByOwnerID(ctx, s.userID)
+	rows, err := s.db.GetWorkspacesAndAgentsByOwnerID(ctx)
 	if err != nil {
 		return xerrors.Errorf("get workspaces and agents by owner ID: %w", err)
 	}
@@ -106,20 +129,37 @@ func (s *sub) start(ctx context.Context) (err error) {
 	s.ch <- initUpdate
 	s.prev = latest
 
-	cancel, err := s.ps.SubscribeWithErr(wspubsub.WorkspaceEventChannel(s.userID), wspubsub.HandleWorkspaceEvent(s.handleEvent))
+	// Subscribe to events for workspaces owned by this user.
+	ownerCancel, err := s.ps.SubscribeWithErr(
+		wspubsub.WorkspaceEventChannel(s.userID),
+		wspubsub.HandleWorkspaceEvent(s.handleEvent),
+	)
 	if err != nil {
 		return xerrors.Errorf("subscribe to workspace event channel: %w", err)
 	}
+	s.psCancelFns = append(s.psCancelFns, ownerCancel)
 
-	s.psCancelFn = cancel
+	// Also subscribe to the all-workspaces channel so we pick up build events
+	// for workspaces shared with this user via user_acl / group_acl. The
+	// handler re-queries and produceUpdate diffs against s.prev, so extra
+	// wake-ups from unrelated workspaces are cheap.
+	allCancel, err := s.ps.SubscribeWithErr(
+		wspubsub.AllWorkspaceEventChannel,
+		wspubsub.HandleWorkspaceBuildUpdate(s.handleBuildUpdate),
+	)
+	if err != nil {
+		return xerrors.Errorf("subscribe to all workspace event channel: %w", err)
+	}
+	s.psCancelFns = append(s.psCancelFns, allCancel)
+
 	return nil
 }
 
 func (s *sub) Close() error {
 	s.cancelFn()
 
-	if s.psCancelFn != nil {
-		s.psCancelFn()
+	for _, cancel := range s.psCancelFns {
+		cancel()
 	}
 
 	close(s.ch)

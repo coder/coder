@@ -1127,6 +1127,9 @@ func TestGetAuthorizedWorkspacesAndAgentsByOwnerID(t *testing.T) {
 		RBACRoles: []string{rbac.RoleOwner().String()},
 	})
 	user := dbgen.User(t, db, database.User{})
+	// sharedUser is granted ActionRead on succeededID via user_acl, so they
+	// should see exactly that one workspace through the authorized query.
+	sharedUser := dbgen.User(t, db, database.User{})
 	tpl := dbgen.Template(t, db, database.Template{
 		OrganizationID: org.ID,
 		CreatedBy:      owner.ID,
@@ -1165,6 +1168,18 @@ func TestGetAuthorizedWorkspacesAndAgentsByOwnerID(t *testing.T) {
 		CreateAgent:         false,
 	})
 
+	// Grant sharedUser ActionRead on succeededID via user_acl.
+	setupCtx := testutil.Context(t, testutil.WaitMedium)
+	require.NoError(t, db.UpdateWorkspaceACLByID(setupCtx, database.UpdateWorkspaceACLByIDParams{
+		ID: succeededID,
+		UserACL: database.WorkspaceACL{
+			sharedUser.ID.String(): {
+				Permissions: []policy.Action{policy.ActionRead},
+			},
+		},
+		GroupACL: database.WorkspaceACL{},
+	}))
+
 	ownerCheckFn := func(ownerRows []database.GetWorkspacesAndAgentsByOwnerIDRow) {
 		require.Len(t, ownerRows, 4)
 		for _, row := range ownerRows {
@@ -1188,6 +1203,13 @@ func TestGetAuthorizedWorkspacesAndAgentsByOwnerID(t *testing.T) {
 			}
 		}
 	}
+	sharedCheckFn := func(sharedRows []database.GetWorkspacesAndAgentsByOwnerIDRow) {
+		require.Len(t, sharedRows, 1)
+		require.Equal(t, succeededID, sharedRows[0].ID)
+		require.Len(t, sharedRows[0].Agents, 2)
+		require.Equal(t, database.ProvisionerJobStatusSucceeded, sharedRows[0].JobStatus)
+		require.Equal(t, database.WorkspaceTransitionStart, sharedRows[0].Transition)
+	}
 	t.Run("sqlQuerier", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitMedium)
@@ -1197,7 +1219,7 @@ func TestGetAuthorizedWorkspacesAndAgentsByOwnerID(t *testing.T) {
 		preparedUser, err := authorizer.Prepare(ctx, userSubject, policy.ActionRead, rbac.ResourceWorkspace.Type)
 		require.NoError(t, err)
 		userCtx := dbauthz.As(ctx, userSubject)
-		userRows, err := db.GetAuthorizedWorkspacesAndAgentsByOwnerID(userCtx, owner.ID, preparedUser)
+		userRows, err := db.GetAuthorizedWorkspacesAndAgentsByOwnerID(userCtx, preparedUser)
 		require.NoError(t, err)
 		require.Len(t, userRows, 0)
 
@@ -1206,9 +1228,18 @@ func TestGetAuthorizedWorkspacesAndAgentsByOwnerID(t *testing.T) {
 		preparedOwner, err := authorizer.Prepare(ctx, ownerSubject, policy.ActionRead, rbac.ResourceWorkspace.Type)
 		require.NoError(t, err)
 		ownerCtx := dbauthz.As(ctx, ownerSubject)
-		ownerRows, err := db.GetAuthorizedWorkspacesAndAgentsByOwnerID(ownerCtx, owner.ID, preparedOwner)
+		ownerRows, err := db.GetAuthorizedWorkspacesAndAgentsByOwnerID(ownerCtx, preparedOwner)
 		require.NoError(t, err)
 		ownerCheckFn(ownerRows)
+
+		sharedSubject, _, err := httpmw.UserRBACSubject(ctx, db, sharedUser.ID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		preparedShared, err := authorizer.Prepare(ctx, sharedSubject, policy.ActionRead, rbac.ResourceWorkspace.Type)
+		require.NoError(t, err)
+		sharedCtx := dbauthz.As(ctx, sharedSubject)
+		sharedRows, err := db.GetAuthorizedWorkspacesAndAgentsByOwnerID(sharedCtx, preparedShared)
+		require.NoError(t, err)
+		sharedCheckFn(sharedRows)
 	})
 
 	t.Run("dbauthz", func(t *testing.T) {
@@ -1225,13 +1256,21 @@ func TestGetAuthorizedWorkspacesAndAgentsByOwnerID(t *testing.T) {
 		require.NoError(t, err)
 		ownerCtx := dbauthz.As(ctx, ownerSubject)
 
-		userRows, err := authzdb.GetWorkspacesAndAgentsByOwnerID(userCtx, owner.ID)
+		sharedSubject, _, err := httpmw.UserRBACSubject(ctx, authzdb, sharedUser.ID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		sharedCtx := dbauthz.As(ctx, sharedSubject)
+
+		userRows, err := authzdb.GetWorkspacesAndAgentsByOwnerID(userCtx)
 		require.NoError(t, err)
 		require.Len(t, userRows, 0)
 
-		ownerRows, err := authzdb.GetWorkspacesAndAgentsByOwnerID(ownerCtx, owner.ID)
+		ownerRows, err := authzdb.GetWorkspacesAndAgentsByOwnerID(ownerCtx)
 		require.NoError(t, err)
 		ownerCheckFn(ownerRows)
+
+		sharedRows, err := authzdb.GetWorkspacesAndAgentsByOwnerID(sharedCtx)
+		require.NoError(t, err)
+		sharedCheckFn(sharedRows)
 	})
 }
 

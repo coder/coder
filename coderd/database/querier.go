@@ -876,7 +876,12 @@ type sqlcQuerier interface {
 	// It has to be a CTE because the set returning function 'unnest' cannot
 	// be used in a WHERE clause.
 	GetWorkspaces(ctx context.Context, arg GetWorkspacesParams) ([]GetWorkspacesRow, error)
-	GetWorkspacesAndAgentsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]GetWorkspacesAndAgentsByOwnerIDRow, error)
+	//
+	// Returns workspaces the calling actor is authorized to read, both ones they
+	// own and ones shared with them via user_acl/group_acl. The query relies on
+	// the @authorize_filter (ActionRead against rbac.ResourceWorkspace) for
+	// visibility; the name is preserved to avoid churn in callers and metrics.
+	GetWorkspacesAndAgentsByOwnerID(ctx context.Context) ([]GetWorkspacesAndAgentsByOwnerIDRow, error)
 	GetWorkspacesByTemplateID(ctx context.Context, templateID uuid.UUID) ([]WorkspaceTable, error)
 	GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]GetWorkspacesEligibleForTransitionRow, error)
 	GetWorkspacesForWorkspaceMetrics(ctx context.Context) ([]GetWorkspacesForWorkspaceMetricsRow, error)

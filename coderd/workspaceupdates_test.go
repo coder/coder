@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/wspubsub"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/testutil"
@@ -302,6 +303,92 @@ func TestWorkspaceUpdates(t *testing.T) {
 		})
 		require.Equal(t, expected, update)
 	})
+
+	// SharedWorkspaceAppears asserts that a build event on the all-workspaces
+	// channel triggers a re-query and surfaces a workspace shared with the
+	// subscriber via user_acl/group_acl. The workspace is owned by some other
+	// user, so no event ever lands on WorkspaceEventChannel(subscriberID).
+	t.Run("SharedWorkspaceAppears", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// On the initial subscribe the subscriber sees only ws1 (their own).
+		db := &mockWorkspaceStore{
+			orderedRows: []database.GetWorkspacesAndAgentsByOwnerIDRow{
+				{
+					ID:         ws1ID,
+					Name:       "ws1",
+					JobStatus:  database.ProvisionerJobStatusRunning,
+					Transition: database.WorkspaceTransitionStart,
+					Agents: []database.AgentIDNamePair{
+						{ID: agent1ID, Name: "agent1"},
+					},
+				},
+			},
+		}
+
+		ps := &mockPubsub{
+			cbs: map[string]pubsub.ListenerWithErr{},
+		}
+
+		updateProvider := coderd.NewUpdatesProvider(testutil.Logger(t), ps, db, &mockAuthorizer{})
+		t.Cleanup(func() {
+			_ = updateProvider.Close()
+		})
+
+		sub, err := updateProvider.Subscribe(dbauthz.As(ctx, ownerSubject), ownerID)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_ = sub.Close()
+		})
+
+		// Drain the initial snapshot.
+		initial := testutil.TryReceive(ctx, t, sub.Updates())
+		require.Len(t, initial.UpsertedWorkspaces, 1)
+
+		// Simulate a shared workspace becoming visible to the subscriber. The
+		// build happens on a workspace owned by someone else (ws2 / agent2),
+		// so the event is published only on the all-workspaces channel.
+		db.orderedRows = append(db.orderedRows, database.GetWorkspacesAndAgentsByOwnerIDRow{
+			ID:         ws2ID,
+			Name:       "ws2",
+			JobStatus:  database.ProvisionerJobStatusRunning,
+			Transition: database.WorkspaceTransitionStart,
+			Agents: []database.AgentIDNamePair{
+				{ID: agent2ID, Name: "agent2"},
+			},
+		})
+
+		publishWorkspaceBuildUpdate(t, ps, codersdk.WorkspaceBuildUpdate{
+			WorkspaceID:   ws2ID,
+			WorkspaceName: "ws2",
+			BuildID:       uuid.New(),
+			Transition:    "start",
+			JobStatus:     string(codersdk.ProvisionerJobRunning),
+			BuildNumber:   1,
+		})
+
+		update := testutil.TryReceive(ctx, t, sub.Updates())
+		require.Equal(t, &proto.WorkspaceUpdate{
+			UpsertedWorkspaces: []*proto.Workspace{
+				{
+					Id:     ws2IDSlice,
+					Name:   "ws2",
+					Status: proto.Workspace_STARTING,
+				},
+			},
+			UpsertedAgents: []*proto.Agent{
+				{
+					Id:          agent2IDSlice,
+					Name:        "agent2",
+					WorkspaceId: ws2IDSlice,
+				},
+			},
+			DeletedWorkspaces: []*proto.Workspace{},
+			DeletedAgents:     []*proto.Agent{},
+		}, update)
+	})
 }
 
 func publishWorkspaceEvent(t *testing.T, ps pubsub.Pubsub, ownerID uuid.UUID, event *wspubsub.WorkspaceEvent) {
@@ -310,12 +397,18 @@ func publishWorkspaceEvent(t *testing.T, ps pubsub.Pubsub, ownerID uuid.UUID, ev
 	ps.Publish(wspubsub.WorkspaceEventChannel(ownerID), msg)
 }
 
+func publishWorkspaceBuildUpdate(t *testing.T, ps pubsub.Pubsub, update codersdk.WorkspaceBuildUpdate) {
+	msg, err := json.Marshal(update)
+	require.NoError(t, err)
+	ps.Publish(wspubsub.AllWorkspaceEventChannel, msg)
+}
+
 type mockWorkspaceStore struct {
 	orderedRows []database.GetWorkspacesAndAgentsByOwnerIDRow
 }
 
-// GetAuthorizedWorkspacesAndAgentsByOwnerID implements coderd.UpdatesQuerier.
-func (m *mockWorkspaceStore) GetWorkspacesAndAgentsByOwnerID(context.Context, uuid.UUID) ([]database.GetWorkspacesAndAgentsByOwnerIDRow, error) {
+// GetWorkspacesAndAgentsByOwnerID implements coderd.UpdatesQuerier.
+func (m *mockWorkspaceStore) GetWorkspacesAndAgentsByOwnerID(context.Context) ([]database.GetWorkspacesAndAgentsByOwnerIDRow, error) {
 	return m.orderedRows, nil
 }
 

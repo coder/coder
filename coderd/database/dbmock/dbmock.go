@@ -2207,18 +2207,18 @@ func (mr *MockStoreMockRecorder) GetAuthorizedWorkspaces(ctx, arg, prepared any)
 }
 
 // GetAuthorizedWorkspacesAndAgentsByOwnerID mocks base method.
-func (m *MockStore) GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx context.Context, ownerID uuid.UUID, prepared rbac.PreparedAuthorized) ([]database.GetWorkspacesAndAgentsByOwnerIDRow, error) {
+func (m *MockStore) GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx context.Context, prepared rbac.PreparedAuthorized) ([]database.GetWorkspacesAndAgentsByOwnerIDRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAuthorizedWorkspacesAndAgentsByOwnerID", ctx, ownerID, prepared)
+	ret := m.ctrl.Call(m, "GetAuthorizedWorkspacesAndAgentsByOwnerID", ctx, prepared)
 	ret0, _ := ret[0].([]database.GetWorkspacesAndAgentsByOwnerIDRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetAuthorizedWorkspacesAndAgentsByOwnerID indicates an expected call of GetAuthorizedWorkspacesAndAgentsByOwnerID.
-func (mr *MockStoreMockRecorder) GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx, ownerID, prepared any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx, prepared any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthorizedWorkspacesAndAgentsByOwnerID", reflect.TypeOf((*MockStore)(nil).GetAuthorizedWorkspacesAndAgentsByOwnerID), ctx, ownerID, prepared)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthorizedWorkspacesAndAgentsByOwnerID", reflect.TypeOf((*MockStore)(nil).GetAuthorizedWorkspacesAndAgentsByOwnerID), ctx, prepared)
 }
 
 // GetChatAdvisorConfig mocks base method.
@@ -6677,18 +6677,18 @@ func (mr *MockStoreMockRecorder) GetWorkspaces(ctx, arg any) *gomock.Call {
 }
 
 // GetWorkspacesAndAgentsByOwnerID mocks base method.
-func (m *MockStore) GetWorkspacesAndAgentsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.GetWorkspacesAndAgentsByOwnerIDRow, error) {
+func (m *MockStore) GetWorkspacesAndAgentsByOwnerID(ctx context.Context) ([]database.GetWorkspacesAndAgentsByOwnerIDRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetWorkspacesAndAgentsByOwnerID", ctx, ownerID)
+	ret := m.ctrl.Call(m, "GetWorkspacesAndAgentsByOwnerID", ctx)
 	ret0, _ := ret[0].([]database.GetWorkspacesAndAgentsByOwnerIDRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetWorkspacesAndAgentsByOwnerID indicates an expected call of GetWorkspacesAndAgentsByOwnerID.
-func (mr *MockStoreMockRecorder) GetWorkspacesAndAgentsByOwnerID(ctx, ownerID any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetWorkspacesAndAgentsByOwnerID(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspacesAndAgentsByOwnerID", reflect.TypeOf((*MockStore)(nil).GetWorkspacesAndAgentsByOwnerID), ctx, ownerID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspacesAndAgentsByOwnerID", reflect.TypeOf((*MockStore)(nil).GetWorkspacesAndAgentsByOwnerID), ctx)
 }
 
 // GetWorkspacesByTemplateID mocks base method.

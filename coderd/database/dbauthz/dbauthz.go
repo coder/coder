@@ -5216,12 +5216,12 @@ func (q *querier) GetWorkspaces(ctx context.Context, arg database.GetWorkspacesP
 	return q.db.GetAuthorizedWorkspaces(ctx, arg, prep)
 }
 
-func (q *querier) GetWorkspacesAndAgentsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.GetWorkspacesAndAgentsByOwnerIDRow, error) {
+func (q *querier) GetWorkspacesAndAgentsByOwnerID(ctx context.Context) ([]database.GetWorkspacesAndAgentsByOwnerIDRow, error) {
 	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceWorkspace.Type)
 	if err != nil {
 		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
 	}
-	return q.db.GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx, ownerID, prep)
+	return q.db.GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx, prep)
 }
 
 func (q *querier) GetWorkspacesByTemplateID(ctx context.Context, templateID uuid.UUID) ([]database.WorkspaceTable, error) {
@@ -8237,8 +8237,8 @@ func (q *querier) GetAuthorizedWorkspaces(ctx context.Context, arg database.GetW
 	return q.GetWorkspaces(ctx, arg)
 }
 
-func (q *querier) GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx context.Context, ownerID uuid.UUID, _ rbac.PreparedAuthorized) ([]database.GetWorkspacesAndAgentsByOwnerIDRow, error) {
-	return q.GetWorkspacesAndAgentsByOwnerID(ctx, ownerID)
+func (q *querier) GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx context.Context, _ rbac.PreparedAuthorized) ([]database.GetWorkspacesAndAgentsByOwnerIDRow, error) {
+	return q.GetWorkspacesAndAgentsByOwnerID(ctx)
 }
 
 // GetAuthorizedUsers is not required for dbauthz since GetUsers is already
