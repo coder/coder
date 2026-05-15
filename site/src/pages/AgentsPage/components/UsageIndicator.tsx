@@ -108,9 +108,19 @@ export const UsageIndicator: FC = () => {
 			? formatNumber(quota.budget)
 			: "unlimited";
 		const quotaDetail =
-			workspaceCount === undefined
-				? `${formatNumber(creditsConsumed)} of ${budgetLabel} credits used`
-				: `${formatNumber(workspaceCount)} ${workspaceCount === 1 ? "workspace" : "workspaces"} using ${formatNumber(creditsConsumed)} of ${budgetLabel} credits`;
+			workspaceCount === undefined ? (
+				`using ${formatNumber(creditsConsumed)} of ${budgetLabel} credits`
+			) : (
+				<>
+					<div>
+						{formatNumber(workspaceCount)}{" "}
+						{workspaceCount === 1 ? "workspace" : "workspaces"}
+					</div>
+					<div>
+						using {formatNumber(creditsConsumed)} of {budgetLabel} credits
+					</div>
+				</>
+			);
 
 		sections.push({
 			id: "workspace-quota",

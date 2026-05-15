@@ -222,7 +222,7 @@ export const WorkspaceQuotaWithoutBudget: Story = {
 		await openUsageMenu(canvasElement);
 		expect(
 			within(document.body).getByText(
-				"1 workspace using 20 of unlimited credits",
+				"using 20 of unlimited credits",
 			),
 		).toBeInTheDocument();
 	},
