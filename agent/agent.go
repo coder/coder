@@ -868,6 +868,26 @@ func (a *agent) reportLifecycle(ctx context.Context, aAPI proto.DRPCAgentClient2
 	}
 }
 
+// resendLastLifecycleState rewinds the lifecycle reporter so that the most
+// recently observed post-Created state is re-pushed to the server on the next
+// reportLifecycle wake-up. Called when we detect that the agent has
+// reconnected to a new workspace_agent row (new build) so the new row picks
+// up the correct lifecycle state.
+func (a *agent) resendLastLifecycleState() {
+	a.lifecycleMu.Lock()
+	if len(a.lifecycleStates) >= 2 {
+		// Point one before the last so the reporter sends exactly the
+		// latest state. Created (index 0) is intentionally never sent;
+		// the server initializes new rows to Created.
+		a.lifecycleLastReportedIndex = len(a.lifecycleStates) - 2
+	}
+	a.lifecycleMu.Unlock()
+	select {
+	case a.lifecycleUpdate <- struct{}{}:
+	default:
+	}
+}
+
 // setLifecycle sets the lifecycle state and notifies the lifecycle loop.
 // The state is only updated if it's a valid state transition.
 func (a *agent) setLifecycle(state codersdk.WorkspaceAgentLifecycle) {
@@ -1306,6 +1326,18 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 		oldManifest := a.manifest.Swap(&manifest)
 		manifestOK.complete(nil)
 		sentResult = true
+
+		// The server tracks lifecycle state per workspace_agent row, and each
+		// build creates a new row initialized to "created". When the agent
+		// process survives across builds (e.g. a long-lived VM that is
+		// suspended on stop and resumed on start), the new row's lifecycle
+		// state never advances unless we re-emit our current state to it.
+		// Detect a new agent ID in the manifest and force the lifecycle
+		// reporter to replay the most recent state. See
+		// https://github.com/coder/coder/issues/18571.
+		if oldManifest != nil && oldManifest.AgentID != uuid.Nil && oldManifest.AgentID != manifest.AgentID {
+			a.resendLastLifecycleState()
+		}
 
 		// Write secret files after signaling manifest readiness so that network
 		// initialization (which depends on manifestOK) starts as soon as

@@ -173,6 +173,14 @@ func (c *Client) GetLifecycleStates() []codersdk.WorkspaceAgentLifecycle {
 	return c.fakeAgentAPI.GetLifecycleStates()
 }
 
+// SetManifestAgentID swaps the AgentID in the manifest served to the agent on
+// the next manifest fetch. Tests use this to simulate the workspace_agent row
+// changing across reconnects (e.g. a new build after suspend/resume on a
+// long-lived VM).
+func (c *Client) SetManifestAgentID(id uuid.UUID) {
+	c.fakeAgentAPI.SetManifestAgentID(id)
+}
+
 func (c *Client) GetStartup() <-chan *agentproto.Startup {
 	return c.fakeAgentAPI.startupCh
 }
@@ -256,7 +264,18 @@ func (*FakeAgentAPI) UpdateAppStatus(context.Context, *agentproto.UpdateAppStatu
 }
 
 func (f *FakeAgentAPI) GetManifest(context.Context, *agentproto.GetManifestRequest) (*agentproto.Manifest, error) {
+	f.Lock()
+	defer f.Unlock()
 	return f.manifest, nil
+}
+
+// SetManifestAgentID swaps the AgentID in the manifest served by GetManifest.
+// Used to simulate the server-side workspace_agent row changing between
+// reconnects (e.g. a new build after suspend/resume on a long-lived VM).
+func (f *FakeAgentAPI) SetManifestAgentID(id uuid.UUID) {
+	f.Lock()
+	defer f.Unlock()
+	f.manifest.AgentId = id[:]
 }
 
 func (*FakeAgentAPI) GetServiceBanner(context.Context, *agentproto.GetServiceBannerRequest) (*agentproto.ServiceBanner, error) {
