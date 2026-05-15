@@ -206,6 +206,7 @@ func (req CreateAIProviderRequest) Validate() []ValidationError {
 		AIProviderTypeAzure,
 		AIProviderTypeBedrock,
 		AIProviderTypeGoogle,
+		AIProviderTypeOpenAICompat,
 		AIProviderTypeOpenrouter,
 		AIProviderTypeVercel:
 	case "":
@@ -214,7 +215,7 @@ func (req CreateAIProviderRequest) Validate() []ValidationError {
 		validations = append(validations, ValidationError{
 			Field: "type",
 			Detail: fmt.Sprintf(
-				"unsupported provider type %q; expected one of: openai, anthropic, azure, bedrock, google, openrouter, vercel",
+				"unsupported provider type %q; expected one of: openai, anthropic, azure, bedrock, google, openai-compat, openrouter, vercel",
 				req.Type,
 			),
 		})

@@ -64,16 +64,17 @@ func buildProvidersFromDB(
 
 		// aibridge currently has native support for OpenAI and
 		// Anthropic only. The other ai_provider_type values
-		// (azure, google, openrouter, vercel) are routed through
-		// the OpenAI fantasy client because chatd configures these
-		// providers against their OpenAI-compatible endpoints.
-		// Bedrock providers route through the Anthropic fantasy
-		// client with a Bedrock discriminator in Settings; native
-		// gateway-side support for any of these arrives later.
+		// (azure, google, openai-compat, openrouter, vercel) are
+		// routed through the OpenAI fantasy client because chatd
+		// configures these providers against their OpenAI-compatible
+		// endpoints. Bedrock providers route through the Anthropic
+		// fantasy client with a Bedrock discriminator in Settings;
+		// native gateway-side support for any of these arrives later.
 		switch row.Type {
 		case database.AiProviderTypeOpenai,
 			database.AiProviderTypeAzure,
 			database.AiProviderTypeGoogle,
+			database.AiProviderTypeOpenaiCompat,
 			database.AiProviderTypeOpenrouter,
 			database.AiProviderTypeVercel:
 			if firstKey == "" {

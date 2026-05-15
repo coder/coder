@@ -41,6 +41,7 @@ func TestBuildProvidersFromDB_ChatdTypes(t *testing.T) {
 		{database.AiProviderTypeOpenai, "openai-direct", "https://api.openai.com/v1"},
 		{database.AiProviderTypeAzure, "azure-east", "https://east.openai.azure.com/v1"},
 		{database.AiProviderTypeGoogle, "google-gemini", "https://generativelanguage.googleapis.com/v1beta/openai"},
+		{database.AiProviderTypeOpenaiCompat, "openai-compat-custom", "https://llm.internal.example.com/v1"},
 		{database.AiProviderTypeOpenrouter, "openrouter-default", "https://openrouter.ai/api/v1"},
 		{database.AiProviderTypeVercel, "vercel-default", "https://api.v0.dev/v1"},
 	}
