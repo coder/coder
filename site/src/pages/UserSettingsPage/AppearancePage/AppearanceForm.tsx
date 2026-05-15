@@ -1,4 +1,4 @@
-import { type FC, useEffect, useId, useRef, useState } from "react";
+import { type FC, useEffect, useId, useState } from "react";
 import {
 	type TerminalFontName,
 	TerminalFontNames,
@@ -53,7 +53,7 @@ interface AppearanceFormProps {
 	error?: unknown;
 	initialValues: UserAppearanceSettings;
 	activeScheme: "dark" | "light"; // The OS color scheme currently in effect
-	onSubmit: (values: UpdateUserAppearanceSettingsRequest) => Promise<unknown>;
+	onSubmit: (values: UpdateUserAppearanceSettingsRequest) => void;
 }
 
 export const AppearanceForm: FC<AppearanceFormProps> = ({
@@ -64,61 +64,12 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 	activeScheme,
 }) => {
 	const [values, setValues] = useState(() => toFormValues(initialValues));
-	const confirmedValuesRef = useRef(values);
-	const submitInFlightRef = useRef(false);
-	const pendingSubmitRef = useRef<AppearanceFormValues | null>(null);
-	const activeSchemeRef = useRef(activeScheme);
-	const onSubmitRef = useRef(onSubmit);
 	const themeModeId = useId();
 	const fontGroupId = useId();
 	const fontGroupLabelId = `${fontGroupId}-label`;
 	const fontGroupName = `${fontGroupId}-fonts`;
 	const singleThemeGroupName = `${themeModeId}-single`;
 	const syncThemeGroupNamePrefix = `${themeModeId}-sync`;
-
-	activeSchemeRef.current = activeScheme;
-	onSubmitRef.current = onSubmit;
-
-	// Optimistic submit queue: only one request is in flight at a time.
-	// Later changes overwrite the pending slot. On success, the queued
-	// draft fires next. On failure, a queued draft still gets a chance to
-	// save, otherwise the form rolls back to the last confirmed state.
-	const fireSubmit = (next: AppearanceFormValues) => {
-		submitInFlightRef.current = true;
-		let submitted: Promise<unknown>;
-		try {
-			submitted = onSubmitRef.current(
-				toUpdateRequest(next, activeSchemeRef.current),
-			);
-		} catch (error) {
-			submitted = Promise.reject(error);
-		}
-
-		void submitted.then(
-			() => {
-				confirmedValuesRef.current = next;
-				submitInFlightRef.current = false;
-				const queued = pendingSubmitRef.current;
-				if (queued !== null) {
-					pendingSubmitRef.current = null;
-					fireSubmit(queued);
-					return;
-				}
-				setValues(next);
-			},
-			() => {
-				submitInFlightRef.current = false;
-				const queued = pendingSubmitRef.current;
-				const rollbackTo = confirmedValuesRef.current;
-				pendingSubmitRef.current = null;
-				if (queued !== null) {
-					fireSubmit(queued);
-					return;
-				}
-				setValues(rollbackTo);
-			},
-		);
-	};
 
 	const {
 		theme_preference,
@@ -129,6 +80,9 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 	} = initialValues;
 
 	useEffect(() => {
+		if (isUpdating) {
+			return;
+		}
 		const next = toFormValues({
 			theme_preference,
 			theme_mode,
@@ -136,25 +90,21 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 			theme_dark,
 			terminal_font,
 		});
-		// Preserve the optimistic local draft until the in-flight submit settles.
-		if (submitInFlightRef.current) {
-			return;
-		}
-		confirmedValuesRef.current = next;
 		setValues(next);
-	}, [theme_preference, theme_mode, theme_light, theme_dark, terminal_font]);
+	}, [
+		isUpdating,
+		theme_preference,
+		theme_mode,
+		theme_light,
+		theme_dark,
+		terminal_font,
+	]);
 
 	const { draft, terminalFont } = values;
 
 	const submit = (next: AppearanceFormValues) => {
 		setValues(next);
-
-		if (submitInFlightRef.current) {
-			pendingSubmitRef.current = next;
-			return;
-		}
-
-		fireSubmit(next);
+		onSubmit(toUpdateRequest(next, activeScheme));
 	};
 
 	const onChangeMode = (mode: AppearanceThemeMode) => {

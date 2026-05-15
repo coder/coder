@@ -100,10 +100,10 @@ export const SyncDefault: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const lightOptions = await canvas.findByRole("radiogroup", {
+		const lightOptions = await canvas.findByRole("group", {
 			name: "Light theme options",
 		});
-		const darkOptions = await canvas.findByRole("radiogroup", {
+		const darkOptions = await canvas.findByRole("group", {
 			name: "Dark theme options",
 		});
 
@@ -252,7 +252,7 @@ export const SelectDarkThemeInLightSyncSlot: Story = {
 	play: async ({ canvasElement, args }) => {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
-		const lightOptions = await canvas.findByRole("radiogroup", {
+		const lightOptions = await canvas.findByRole("group", {
 			name: "Light theme options",
 		});
 		const darkTritanopia = await within(lightOptions).findByRole("radio", {
@@ -286,7 +286,7 @@ export const SyncHoverPreview: Story = {
 	play: async ({ canvasElement }) => {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
-		const lightOptions = await canvas.findByRole("radiogroup", {
+		const lightOptions = await canvas.findByRole("group", {
 			name: "Light theme options",
 		});
 		const radio = await within(lightOptions).findByRole("radio", {
