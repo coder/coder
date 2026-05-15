@@ -14,6 +14,9 @@ export const AuditLogDescription: FC<AuditLogDescriptionProps> = ({
 	if (auditLog.resource_type === "workspace_build") {
 		return <BuildAuditDescription auditLog={auditLog} />;
 	}
+	if (auditLog.action === "block") {
+		return <BlockAuditLogDescription auditLog={auditLog} />;
+	}
 	if (auditLog.additional_fields?.connection_type) {
 		return <AppSessionAuditLogDescription auditLog={auditLog} />;
 	}
@@ -64,6 +67,33 @@ export const AuditLogDescription: FC<AuditLogDescriptionProps> = ({
 		</span>
 	);
 };
+
+function BlockAuditLogDescription({ auditLog }: AuditLogDescriptionProps) {
+	const user = auditLog.user
+		? auditLog.user.username.trim()
+		: "Unauthenticated user";
+	const target = auditLog.resource_target.trim();
+	const operation =
+		typeof auditLog.additional_fields?.operation === "string"
+			? auditLog.additional_fields.operation
+			: "policy";
+
+	return (
+		<span>
+			<strong>{user}</strong> had a <strong>{operation}</strong> operation
+			blocked on workspace{" "}
+			{auditLog.resource_link ? (
+				<Link asChild showExternalIcon={false} className="text-base px-0">
+					<RouterLink to={auditLog.resource_link}>
+						<strong>{target}</strong>
+					</RouterLink>
+				</Link>
+			) : (
+				<strong>{target}</strong>
+			)}
+		</span>
+	);
+}
 
 function AppSessionAuditLogDescription({ auditLog }: AuditLogDescriptionProps) {
 	const { connection_type, workspace_owner, workspace_name } =

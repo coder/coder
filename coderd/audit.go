@@ -293,6 +293,19 @@ func (api *API) convertAuditLog(ctx context.Context, dblog database.GetAuditLogs
 }
 
 func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {
+	// Block actions record that a policy suppressed an operation on the
+	// resource. The user did not "attempt to block" anything; the system
+	// blocked them. Emit a dedicated template; the frontend substitutes
+	// {user}, {operation} (from additional_fields), and {target}. The
+	// CLI audit reader, which does no operation substitution, will see
+	// the literal "{operation}" placeholder; that is acceptable for a
+	// dashboard-first event.
+	if alog.AuditLog.Action == database.AuditActionBlock {
+		return "{user} had a {operation} operation blocked on " +
+			codersdk.ResourceType(alog.AuditLog.ResourceType).FriendlyString() +
+			" {target}"
+	}
+
 	b := strings.Builder{}
 
 	// NOTE: WriteString always returns a nil error, so we never check it

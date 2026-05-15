@@ -259,7 +259,8 @@ CREATE TYPE audit_action AS ENUM (
     'connect',
     'disconnect',
     'open',
-    'close'
+    'close',
+    'block'
 );
 
 COMMENT ON TYPE audit_action IS 'NOTE: `connect`, `disconnect`, `open`, and `close` are deprecated and no longer used - these events are now tracked in the connection_logs table.';

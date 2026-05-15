@@ -287,22 +287,39 @@ func (s *Server) proxyDesktopRFB(
 	auditCtx, auditCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer auditCancel()
 
+	params := dlppolicy.ClipboardBlockParams{
+		WorkspaceID: token.WorkspaceID,
+		AgentName:   "", // best-effort enrichment below
+		UserID:      token.UserID,
+		IP:          dlppolicy.IPFromRequest(r),
+		UserAgent:   sql.NullString{String: r.UserAgent(), Valid: r.UserAgent() != ""},
+	}
+
+	// Best-effort enrichment with workspace + agent identity. The
+	// audit_logs row requires organization_id and workspace_name; we
+	// look these up under a system-restricted context because the
+	// caller has already authorized the workspace by reaching this
+	// handler.
+	//nolint:gocritic // System-restricted ctx is intentional.
+	row, err := s.Database.GetWorkspaceAgentAndWorkspaceByID(dbauthz.AsSystemRestricted(auditCtx), token.AgentID)
+	if err == nil {
+		params.OrganizationID = row.WorkspaceTable.OrganizationID
+		params.WorkspaceOwnerID = row.WorkspaceTable.OwnerID
+		params.WorkspaceName = row.WorkspaceTable.Name
+		params.AgentName = row.WorkspaceAgent.Name
+	} else {
+		log.Warn(auditCtx, "lookup workspace for dlp clipboard block audit", slog.Error(err))
+	}
+
 	for dir, count := range dropCounts {
 		if count == 0 {
 			continue
 		}
-		reason := fmt.Sprintf(
-			"DLP policy %q dropped %d clipboard message(s) (%d bytes) %s",
-			dlp.Name,
-			count,
-			dropBytes[dir],
-			vncproxy.Direction(dir),
-		)
-		s.logDLPDenial(auditCtx, r, token, dlp,
-			database.ConnectionTypeDesktop,
-			reason,
-			sql.NullString{},
-		)
+		dirParams := params
+		dirParams.Direction = vncproxy.Direction(dir).String()
+		dirParams.Drops = count
+		dirParams.Bytes = dropBytes[dir]
+		dlppolicy.LogClipboardBlock(auditCtx, log, s.Database, dirParams)
 	}
 }
 

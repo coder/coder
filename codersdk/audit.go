@@ -135,6 +135,10 @@ const (
 	AuditActionLogout               AuditAction = "logout"
 	AuditActionRegister             AuditAction = "register"
 	AuditActionRequestPasswordReset AuditAction = "request_password_reset"
+	// AuditActionBlock records that a policy suppressed an action on
+	// the resource. The specific operation (e.g. "clipboard") is
+	// carried on AuditLog.AdditionalFields.operation.
+	AuditActionBlock AuditAction = "block"
 	// Deprecated: Workspace connections are now included in the
 	// connection log.
 	AuditActionConnect AuditAction = "connect"
@@ -168,6 +172,8 @@ func (a AuditAction) Friendly() string {
 		return "registered"
 	case AuditActionRequestPasswordReset:
 		return "password reset requested"
+	case AuditActionBlock:
+		return "blocked"
 	case AuditActionConnect:
 		return "connected"
 	case AuditActionDisconnect:

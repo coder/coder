@@ -114,3 +114,24 @@ export const UnauthenticatedUser: Story = {
 		},
 	},
 };
+
+export const DLPClipboardBlock: Story = {
+	args: {
+		auditLog: {
+			...MockAuditLog,
+			action: "block",
+			resource_type: "workspace",
+			resource_target: "dev-env",
+			status_code: 200,
+			description:
+				"{user} had a {operation} operation blocked on workspace {target}",
+			additional_fields: {
+				operation: "clipboard",
+				direction: "client-to-server",
+				drops: "3",
+				bytes: "56",
+				agent: "main",
+			},
+		},
+	},
+};

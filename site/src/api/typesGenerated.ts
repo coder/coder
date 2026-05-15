@@ -981,6 +981,7 @@ export interface AssignableRoles extends Role {
 
 // From codersdk/audit.go
 export type AuditAction =
+	| "block"
 	| "close"
 	| "connect"
 	| "create"
@@ -996,6 +997,7 @@ export type AuditAction =
 	| "write";
 
 export const AuditActions: AuditAction[] = [
+	"block",
 	"close",
 	"connect",
 	"create",
