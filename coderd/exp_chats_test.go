@@ -1592,9 +1592,15 @@ func TestListChats(t *testing.T) {
 			LastModelConfigID: modelConfig.ID,
 			Title:             "user-name config",
 		})
+		archived := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    firstUser.OrganizationID,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "archived discussion",
+		})
 
 		allIDs := []uuid.UUID{
-			hyphen.ID, underscore.ID, thousandOne.ID,
+			archived.ID, hyphen.ID, underscore.ID, thousandOne.ID,
 			percent.ID, gamma.ID, beta.ID, alpha.ID,
 		}
 
@@ -1649,6 +1655,13 @@ func TestListChats(t *testing.T) {
 				name:    "UnderscoreWildcard",
 				query:   "user_name",
 				wantIDs: []uuid.UUID{hyphen.ID, underscore.ID},
+			},
+			{
+				// Bare "archived" is a title search, not a filter.
+				// Users must write "archived:true" to filter by status.
+				name:    "BareFilterKeyIsTitle",
+				query:   "archived",
+				wantIDs: []uuid.UUID{archived.ID},
 			},
 		}
 
