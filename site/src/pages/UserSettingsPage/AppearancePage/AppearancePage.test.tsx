@@ -4,8 +4,6 @@ import type { UserAppearanceSettings } from "#/api/typesGenerated";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { AppearanceForm } from "./AppearanceForm";
 
-// Helper for building a mock PUT response. The shape is a full
-// UserAppearanceSettings so the TS contract matches the API method.
 const putResponse = (
 	overrides: Partial<UserAppearanceSettings> = {},
 ): UserAppearanceSettings => ({
