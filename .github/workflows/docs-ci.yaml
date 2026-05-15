@@ -4,16 +4,20 @@ on:
   push:
     branches:
       - main
+    # Self-reference removed from both push and pull_request: the `lint`
+    # and `fmt` steps gate on `tj-actions/changed-files` matching
+    # `docs/**` or `**.md`, so a workflow-only edit produced an empty
+    # run. `actionlint` and `make lint/actions` catch YAML problems
+    # before merge regardless. See DOCS-129.
     paths:
       - "docs/**"
       - "**.md"
-      - ".github/workflows/docs-ci.yaml"
 
   pull_request:
+    # Self-reference removed; see comment under `push:` above.
     paths:
       - "docs/**"
       - "**.md"
-      - ".github/workflows/docs-ci.yaml"
 
 permissions:
   contents: read
