@@ -69,14 +69,6 @@ const FAMILY_PAIR = {
 /**
  * Decodes the persisted appearance settings into the form's working
  * state, applying the one-time migration of legacy `auto-*` values.
- *
- * Precedence:
- * 1. New fields (`theme_mode` + slot pair) win when present and valid.
- * 2. Legacy `auto`, `auto-protan-deuter`, `auto-tritan` become sync
- *    mode, reusing valid persisted slots when present.
- * 3. A concrete legacy `theme_preference` becomes single mode with
- *    that theme.
- * 4. Anything else falls back to single mode + DEFAULT_THEME.
  */
 export const migrateLegacyPreference = (
 	settings: AppearanceSettingsLike,
@@ -150,16 +142,6 @@ type AppearanceUpdate = {
 	terminal_font: TerminalFontName;
 };
 
-/**
- * Maps the form draft to the API request. The legacy `theme_preference`
- * field is populated with whichever concrete theme best represents the
- * current selection, so older clients still reading that column see a
- * plausible theme:
- *
- * - Single mode: mirror the single theme exactly.
- * - Sync mode: mirror the slot currently active for the OS scheme. This
- *   keeps legacy readers aligned with what the user sees right now.
- */
 export const draftToUpdate = (
 	draft: ThemeModeDraft,
 	terminalFont: TerminalFontName,
@@ -180,11 +162,6 @@ export const draftToUpdate = (
 	};
 };
 
-/**
- * Seeds a form draft from decoded persisted state. Slots the user
- * isn't actively using are filled with sensible defaults so switching
- * modes later feels continuous rather than destructive.
- */
 export const draftFromState = (
 	state: ThemeModeState,
 	persistedSlots?: { light?: string; dark?: string },

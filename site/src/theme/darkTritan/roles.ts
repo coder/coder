@@ -1,16 +1,6 @@
 import type { Roles } from "../roles";
 import colors from "../tailwindColors";
 
-// Tritanopia reduces blue/yellow discrimination, so the standard amber
-// warning can blur into the sky-blue active/notice accents. Red vs
-// green remains intact, so `error` and `danger` keep their red/orange
-// axis. We follow GitHub Primer's tritanopia palette and shift
-// `success` from green to sky-blue so the success+destructive pair
-// stays consistent with the protan-deuter palette and matches the
-// diff-addition convention users expect from other tritan-aware tools
-// (see primer/primitives' diffBlob.json5: `'dark-tritanopia':
-// '{base.color.blue.4}'`). `warning` shifts to fuchsia because amber
-// and sky-blue blur together under tritanopia.
 const roles: Roles = {
 	danger: {
 		background: colors.orange[950],

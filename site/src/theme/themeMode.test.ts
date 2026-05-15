@@ -289,11 +289,6 @@ describe("draftFromState", () => {
 	});
 
 	it("reuses persisted sync slots when the user is currently in single mode", () => {
-		// Scenario: user previously saved a sync-mode pair of
-		// light-tritan + dark-protan-deuter, then switched to single
-		// mode. Reopening the page must restore those slot picks so
-		// toggling back to sync does not overwrite them with the
-		// family pair of the single theme.
 		expect(
 			draftFromState(
 				{ mode: "single", theme: "dark" },
@@ -322,11 +317,6 @@ describe("draftFromState", () => {
 	});
 
 	it("round-trips every concrete theme as a single-mode draft", () => {
-		// Guards against a future theme being added to CONCRETE_THEMES
-		// without a matching FAMILY_PAIR entry. Mirrors the
-		// SingleModeSection module-load assertion at the unit level.
-		// Importing CONCRETE_THEMES (rather than duplicating the list)
-		// ensures a seventh theme added to the registry is iterated here.
 		for (const theme of CONCRETE_THEMES) {
 			const draft = draftFromState({ mode: "single", theme });
 			expect(draft.mode).toBe("single");
