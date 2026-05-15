@@ -6622,11 +6622,20 @@ func (p *Server) appendRootChatTools(
 		// pre-build and stop-side firings would otherwise spawn a primer
 		// goroutine that dials a missing or dying agent and burns the
 		// full budget for nothing.
-		if updatedChat.WorkspaceID.Valid && updatedChat.AgentID.Valid {
+		//
+		// Read the snapshot from workspaceCtx rather than the
+		// updatedChat parameter: persistInstructionFiles above runs
+		// ensureWorkspaceAgent which calls persistBuildAgentBinding and
+		// setCurrentChat, so by the time we get here the in-memory
+		// snapshot has the freshly bound AgentID even when the
+		// updatedChat parameter (read from the DB before the binding
+		// was persisted) does not.
+		snapshot := opts.workspaceCtx.currentChatSnapshot()
+		if snapshot.WorkspaceID.Valid && snapshot.AgentID.Valid {
 			p.inflight.Add(1)
 			go func() {
 				defer p.inflight.Done()
-				p.primeWorkspaceMCPCache(opts.primerCtx, p.logger, updatedChat.ID, opts.workspaceCtx)
+				p.primeWorkspaceMCPCache(opts.primerCtx, p.logger, snapshot.ID, opts.workspaceCtx)
 			}()
 		}
 	}
