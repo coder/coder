@@ -146,5 +146,19 @@
 			"tailwindDirectives": true
 		}
 	},
+	"overrides": [
+		{
+			// Generated Go types can produce empty interfaces; the
+			// safe fix conflicts with noBannedTypes.
+			"includes": ["**/typesGenerated.ts"],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noEmptyInterface": "off"
+					}
+				}
+			}
+		}
+	],
 	"$schema": "./node_modules/@biomejs/biome/configuration_schema.json"
 }
