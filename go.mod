@@ -90,8 +90,8 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 //    streams close before their terminal events.
 // 9) coder/fantasy#35, preserve Anthropic replay fidelity for signed
 //    reasoning and provider-executed web_search error results.
-// See: https://github.com/coder/fantasy/commits/74307f4aff86a
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260514062729-74307f4aff86
+// See: https://github.com/coder/fantasy/commits/cfca5fd82c5dd
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260514123132-cfca5fd82c5d
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.
