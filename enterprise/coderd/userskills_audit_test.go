@@ -3,7 +3,6 @@ package coderd_test
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -22,9 +21,9 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestUserSkillAuditDiffRedaction(t *testing.T) {
-	// Ensure raw skill Markdown never appears in plaintext in audit diffs. The
-	// enterprise auditor needs to be used because it writes actual diffs.
+func TestUserSkillAuditDiffTracksContent(t *testing.T) {
+	// User skill content is user-authored instruction text, not secret material.
+	// The enterprise auditor needs to be used because it writes actual diffs.
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -51,13 +50,13 @@ func TestUserSkillAuditDiffRedaction(t *testing.T) {
 	member := codersdk.NewExperimentalClient(memberClient)
 	ctx := testutil.Context(t, testutil.WaitMedium)
 
-	initialContent := userSkillMarkdown("audit-redaction", "initial", "initial secret body")
+	initialContent := userSkillMarkdown("audit-tracking", "initial", "initial body")
 	skill, err := member.CreateUserSkill(ctx, codersdk.Me, codersdk.CreateUserSkillRequest{
 		Content: initialContent,
 	})
 	require.NoError(t, err)
 
-	newContent := userSkillMarkdown("audit-redaction", "after", "new secret body")
+	newContent := userSkillMarkdown("audit-tracking", "after", "new body")
 	_, err = member.UpdateUserSkill(ctx, codersdk.Me, skill.Name, codersdk.UpdateUserSkillRequest{
 		Content: newContent,
 	})
@@ -83,11 +82,10 @@ func TestUserSkillAuditDiffRedaction(t *testing.T) {
 		assert.False(t, createDiff["description"].Secret)
 	}
 	if assert.Contains(t, createDiff, "content", "content field missing from create diff") {
-		assert.True(t, createDiff["content"].Secret, "content field must be marked secret")
+		assert.False(t, createDiff["content"].Secret)
 		assert.Equal(t, "", createDiff["content"].Old)
-		assert.Equal(t, "", createDiff["content"].New)
+		assert.Equal(t, initialContent, createDiff["content"].New)
 	}
-	assertAuditDiffExcludesContent(t, createLog.Diff, initialContent)
 
 	var updateDiff audit.Map
 	require.NoError(t, json.Unmarshal(updateLog.Diff, &updateDiff))
@@ -97,26 +95,12 @@ func TestUserSkillAuditDiffRedaction(t *testing.T) {
 		assert.False(t, updateDiff["description"].Secret)
 	}
 	if assert.Contains(t, updateDiff, "content", "content field missing from update diff") {
-		assert.True(t, updateDiff["content"].Secret, "content field must be marked secret")
-		assert.Equal(t, "", updateDiff["content"].Old)
-		assert.Equal(t, "", updateDiff["content"].New)
+		assert.False(t, updateDiff["content"].Secret)
+		assert.Equal(t, initialContent, updateDiff["content"].Old)
+		assert.Equal(t, newContent, updateDiff["content"].New)
 	}
-	assertAuditDiffExcludesContent(t, updateLog.Diff, initialContent)
-	assertAuditDiffExcludesContent(t, updateLog.Diff, newContent)
 	assert.NotContains(t, updateDiff, "created_at")
 	assert.NotContains(t, updateDiff, "updated_at")
-}
-
-func assertAuditDiffExcludesContent(t *testing.T, diff []byte, content string) {
-	t.Helper()
-
-	encoded, err := json.Marshal(content)
-	require.NoError(t, err)
-	encodedContent := string(encoded)
-	diffText := string(diff)
-	assert.NotContains(t, diffText, content)
-	assert.NotContains(t, diffText, encodedContent)
-	assert.NotContains(t, diffText, strings.Trim(encodedContent, `"`))
 }
 
 func userSkillMarkdown(name string, description string, body string) string {
