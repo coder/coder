@@ -8,7 +8,6 @@ import {
 	type FC,
 	Fragment,
 	memo,
-	useCallback,
 	useLayoutEffect,
 	useRef,
 	useState,
@@ -764,13 +763,10 @@ const StickyUserMessage = memo<{
 		const [isTooTall, setIsTooTall] = useState(false);
 		const sentinelRef = useRef<HTMLDivElement>(null);
 		const messageId = message.id;
-		const setSentinelRef = useCallback(
-			(el: HTMLDivElement | null) => {
-				sentinelRef.current = el;
-				registerSentinel?.(messageId, el);
-			},
-			[messageId, registerSentinel],
-		);
+		const setSentinelRef = (el: HTMLDivElement | null) => {
+			sentinelRef.current = el;
+			registerSentinel?.(messageId, el);
+		};
 		const containerRef = useRef<HTMLDivElement>(null);
 		const updateFnRef = useRef<(() => void) | null>(null);
 
@@ -1110,22 +1106,19 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		isAwaitingFirstStreamChunk,
 	}) => {
 		const sentinelsRef = useRef<Map<number, HTMLDivElement>>(new Map());
-		const registerSentinel = useCallback(
-			(messageId: number, el: HTMLDivElement | null) => {
-				if (el) {
-					sentinelsRef.current.set(messageId, el);
-				} else {
-					sentinelsRef.current.delete(messageId);
-				}
-			},
-			[],
-		);
-		const jumpToUserMessage = useCallback((messageId: number) => {
+		const registerSentinel = (messageId: number, el: HTMLDivElement | null) => {
+			if (el) {
+				sentinelsRef.current.set(messageId, el);
+			} else {
+				sentinelsRef.current.delete(messageId);
+			}
+		};
+		const jumpToUserMessage = (messageId: number) => {
 			sentinelsRef.current.get(messageId)?.scrollIntoView({
 				behavior: "smooth",
 				block: "start",
 			});
-		}, []);
+		};
 
 		const lastInChainFlags = computeLastInChainFlags(parsedMessages);
 
