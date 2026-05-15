@@ -98,31 +98,32 @@ func TestAIProviderSettings_Unmarshal(t *testing.T) {
 		t.Parallel()
 		var s codersdk.AIProviderSettings
 		err := json.Unmarshal([]byte(`{"_version":1,"region":"us-east-1"}`), &s)
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "_type")
+		require.ErrorContains(t, err, "missing _type discriminator")
 	})
 
 	t.Run("UnsupportedVersion", func(t *testing.T) {
 		t.Parallel()
 		var s codersdk.AIProviderSettings
 		err := json.Unmarshal([]byte(`{"_type":"bedrock","_version":99}`), &s)
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "version")
+		require.ErrorContains(t, err, `unsupported "bedrock" settings version 99`)
+		require.ErrorContains(t, err, "expected 1")
 	})
 
 	t.Run("UnknownType", func(t *testing.T) {
 		t.Parallel()
 		var s codersdk.AIProviderSettings
 		err := json.Unmarshal([]byte(`{"_type":"copilot","_version":1}`), &s)
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "unknown")
+		require.ErrorContains(t, err, `unknown settings type "copilot"`)
 	})
 
 	t.Run("MalformedHeader", func(t *testing.T) {
 		t.Parallel()
+		// _type must be a string; passing a number triggers the
+		// header decode path before any discriminator routing.
 		var s codersdk.AIProviderSettings
 		err := json.Unmarshal([]byte(`{"_type": 1}`), &s)
-		require.Error(t, err)
+		require.ErrorContains(t, err, "decode settings header")
+		require.ErrorContains(t, err, "_type")
 	})
 
 	t.Run("ResetsBetweenCalls", func(t *testing.T) {
