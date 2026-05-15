@@ -889,11 +889,12 @@ const StickyUserMessage = memo<{
 		}, [isStuck]);
 
 		// Final position update after streaming ends to catch up with suppressed resize updates.
-
+		const wasStreamingRef = useRef(false);
 		useLayoutEffect(() => {
-			if (!hasActiveStream) {
+			if (wasStreamingRef.current && !hasActiveStream) {
 				updateFnRef.current?.();
 			}
+			wasStreamingRef.current = hasActiveStream;
 		}, [hasActiveStream]);
 
 		const handleEditUserMessage = onEditUserMessage
