@@ -19,6 +19,8 @@ ORDER BY
     created_at ASC,
     id ASC;
 
+-- GetUserAIProviderKeys is used by dbcrypt key rotation. Request paths should use
+-- user-scoped lookups instead of this bulk accessor.
 -- name: GetUserAIProviderKeys :many
 SELECT
     *
@@ -30,6 +32,9 @@ ORDER BY
     created_at ASC,
     id ASC;
 
+-- UpsertUserAIProviderKey preserves the original id and created_at when the
+-- user/provider pair already exists. On conflict, callers provide id and
+-- created_at for the insert path only.
 -- name: UpsertUserAIProviderKey :one
 INSERT INTO user_ai_provider_keys (
     id,
