@@ -1174,6 +1174,138 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION sync_chat_provider_to_ai_provider() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    provider_key_id uuid;
+BEGIN
+    IF (TG_OP = 'DELETE') THEN
+        UPDATE ai_providers
+        SET
+            enabled = FALSE,
+            deleted = TRUE,
+            updated_at = NOW()
+        WHERE id = OLD.id;
+
+        DELETE FROM ai_provider_keys
+        WHERE provider_id = OLD.id;
+
+        RETURN OLD;
+    END IF;
+
+    INSERT INTO ai_providers (
+        id,
+        type,
+        name,
+        display_name,
+        enabled,
+        base_url,
+        created_at,
+        updated_at,
+        deleted
+    ) VALUES (
+        NEW.id,
+        NEW.provider::ai_provider_type,
+        'agents-' || NEW.provider,
+        NULLIF(NEW.display_name, ''),
+        NEW.enabled,
+        NEW.base_url,
+        NEW.created_at,
+        NEW.updated_at,
+        FALSE
+    )
+    ON CONFLICT (id) DO UPDATE
+    SET
+        type = EXCLUDED.type,
+        name = EXCLUDED.name,
+        display_name = EXCLUDED.display_name,
+        enabled = EXCLUDED.enabled,
+        base_url = EXCLUDED.base_url,
+        updated_at = EXCLUDED.updated_at,
+        deleted = FALSE;
+
+    SELECT apk.id INTO provider_key_id
+    FROM ai_provider_keys apk
+    WHERE apk.provider_id = NEW.id
+    ORDER BY apk.created_at ASC, apk.id ASC
+    LIMIT 1;
+
+    IF (NEW.api_key = '') THEN
+        IF provider_key_id IS NOT NULL THEN
+            DELETE FROM ai_provider_keys
+            WHERE id = provider_key_id;
+        END IF;
+        RETURN NEW;
+    END IF;
+
+    IF provider_key_id IS NULL THEN
+        INSERT INTO ai_provider_keys (
+            id,
+            provider_id,
+            api_key,
+            api_key_key_id,
+            created_at,
+            updated_at
+        ) VALUES (
+            gen_random_uuid(),
+            NEW.id,
+            NEW.api_key,
+            NEW.api_key_key_id,
+            NEW.created_at,
+            NEW.updated_at
+        );
+    ELSE
+        UPDATE ai_provider_keys
+        SET
+            api_key = NEW.api_key,
+            api_key_key_id = NEW.api_key_key_id,
+            updated_at = NEW.updated_at
+        WHERE id = provider_key_id;
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION sync_user_chat_provider_key_to_ai_provider_key() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    IF (TG_OP = 'DELETE') THEN
+        DELETE FROM user_ai_provider_keys
+        WHERE user_id = OLD.user_id
+            AND ai_provider_id = OLD.chat_provider_id;
+        RETURN OLD;
+    END IF;
+
+    INSERT INTO user_ai_provider_keys (
+        id,
+        user_id,
+        ai_provider_id,
+        api_key,
+        api_key_key_id,
+        created_at,
+        updated_at
+    ) VALUES (
+        NEW.id,
+        NEW.user_id,
+        NEW.chat_provider_id,
+        NEW.api_key,
+        NEW.api_key_key_id,
+        NEW.created_at,
+        NEW.updated_at
+    )
+    ON CONFLICT (user_id, ai_provider_id) DO UPDATE
+    SET
+        api_key = EXCLUDED.api_key,
+        api_key_key_id = EXCLUDED.api_key_key_id,
+        updated_at = EXCLUDED.updated_at;
+
+    RETURN NEW;
+END;
+$$;
+
 CREATE TABLE ai_model_prices (
     provider text NOT NULL,
     model text NOT NULL,
@@ -4196,8 +4328,6 @@ CREATE INDEX idx_usage_events_select_for_publishing ON usage_events USING btree 
 
 CREATE INDEX idx_user_ai_provider_keys_ai_provider_id ON user_ai_provider_keys USING btree (ai_provider_id);
 
-CREATE INDEX idx_user_ai_provider_keys_user_id ON user_ai_provider_keys USING btree (user_id);
-
 CREATE INDEX idx_user_deleted_deleted_at ON user_deleted USING btree (deleted_at);
 
 CREATE INDEX idx_user_status_changes_changed_at ON user_status_changes USING btree (changed_at);
@@ -4359,6 +4489,10 @@ CREATE TRIGGER protect_deleting_organizations BEFORE UPDATE ON organizations FOR
 CREATE TRIGGER remove_organization_member_custom_role BEFORE DELETE ON custom_roles FOR EACH ROW EXECUTE FUNCTION remove_organization_member_role();
 
 COMMENT ON TRIGGER remove_organization_member_custom_role ON custom_roles IS 'When a custom_role is deleted, this trigger removes the role from all organization members.';
+
+CREATE TRIGGER sync_chat_provider_to_ai_provider AFTER INSERT OR DELETE OR UPDATE ON chat_providers FOR EACH ROW EXECUTE FUNCTION sync_chat_provider_to_ai_provider();
+
+CREATE TRIGGER sync_user_chat_provider_key_to_ai_provider_key AFTER INSERT OR DELETE OR UPDATE ON user_chat_provider_keys FOR EACH ROW EXECUTE FUNCTION sync_user_chat_provider_key_to_ai_provider_key();
 
 CREATE TRIGGER trigger_aggregate_usage_event AFTER INSERT ON usage_events FOR EACH ROW EXECUTE FUNCTION aggregate_usage_event();
 

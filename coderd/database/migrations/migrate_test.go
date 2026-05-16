@@ -1186,6 +1186,143 @@ func TestMigration000475AgentsAccessOrgRole(t *testing.T) {
 	)
 }
 
+func TestMigration000501AIProvidersBackfill(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion = 501
+
+	sqlDB := testSQLDB(t)
+
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == migrationVersion-1 {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	userID := uuid.New()
+	providerID := uuid.New()
+	userKeyID := uuid.New()
+	modelConfigID := uuid.New()
+
+	tx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer tx.Rollback()
+
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		userID, "ai-provider-backfill", "ai-provider-backfill@test.com", []byte{}, now, now, "active", pq.StringArray{}, "password",
+	)
+	require.NoError(t, err)
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO chat_providers (id, provider, display_name, api_key, enabled, base_url, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		providerID, "openai", "OpenAI", "sk-provider", true, "https://api.openai.example.com/v1", now, now,
+	)
+	require.NoError(t, err)
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO user_chat_provider_keys (id, user_id, chat_provider_id, api_key, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6)`,
+		userKeyID, userID, providerID, "sk-user", now, now,
+	)
+	require.NoError(t, err)
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO chat_model_configs (id, provider, model, display_name, enabled, context_limit, compression_threshold, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		modelConfigID, "openai", "gpt-4", "GPT 4", true, 100000, 70, now, now,
+	)
+	require.NoError(t, err)
+	require.NoError(t, tx.Commit())
+
+	version, more, err := next()
+	require.NoError(t, err)
+	require.True(t, more)
+	require.EqualValues(t, migrationVersion, version)
+
+	var provider struct {
+		Typ         string
+		Name        string
+		DisplayName sql.NullString
+		Enabled     bool
+		BaseURL     string
+	}
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT type, name, display_name, enabled, base_url
+		FROM ai_providers
+		WHERE id = $1
+	`, providerID).Scan(&provider.Typ, &provider.Name, &provider.DisplayName, &provider.Enabled, &provider.BaseURL)
+	require.NoError(t, err)
+	require.Equal(t, "openai", provider.Typ)
+	require.Equal(t, "agents-openai", provider.Name)
+	require.Equal(t, sql.NullString{String: "OpenAI", Valid: true}, provider.DisplayName)
+	require.True(t, provider.Enabled)
+	require.Equal(t, "https://api.openai.example.com/v1", provider.BaseURL)
+
+	var providerKeyCount int
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM ai_provider_keys
+		WHERE provider_id = $1 AND api_key = 'sk-provider'
+	`, providerID).Scan(&providerKeyCount)
+	require.NoError(t, err)
+	require.Equal(t, 1, providerKeyCount)
+
+	var userKeyCount int
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM user_ai_provider_keys
+		WHERE id = $1 AND user_id = $2 AND ai_provider_id = $3 AND api_key = 'sk-user'
+	`, userKeyID, userID, providerID).Scan(&userKeyCount)
+	require.NoError(t, err)
+	require.Equal(t, 1, userKeyCount)
+
+	var aiProviderID sql.NullString
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT ai_provider_id::text FROM chat_model_configs WHERE id = $1`,
+		modelConfigID,
+	).Scan(&aiProviderID)
+	require.NoError(t, err)
+	require.Equal(t, sql.NullString{String: providerID.String(), Valid: true}, aiProviderID)
+
+	_, err = sqlDB.ExecContext(ctx, `DELETE FROM chat_providers WHERE id = $1`, providerID)
+	require.NoError(t, err)
+
+	var deleted bool
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT deleted FROM ai_providers WHERE id = $1`,
+		providerID,
+	).Scan(&deleted)
+	require.NoError(t, err)
+	require.True(t, deleted)
+
+	downSQL, err := os.ReadFile("000501_ai_providers_backfill.down.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err)
+
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM ai_providers WHERE id = $1`,
+		providerID,
+	).Scan(&providerKeyCount)
+	require.NoError(t, err)
+	require.Zero(t, providerKeyCount)
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT ai_provider_id::text FROM chat_model_configs WHERE id = $1`,
+		modelConfigID,
+	).Scan(&aiProviderID)
+	require.NoError(t, err)
+	require.False(t, aiProviderID.Valid)
+}
+
 func TestMigration000498SoftDeleteStaleWorkspaceAgents(t *testing.T) {
 	t.Parallel()
 

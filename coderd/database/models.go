@@ -4679,7 +4679,7 @@ type ChatModelConfig struct {
 	ContextLimit         int64           `db:"context_limit" json:"context_limit"`
 	CompressionThreshold int32           `db:"compression_threshold" json:"compression_threshold"`
 	Options              json.RawMessage `db:"options" json:"options"`
-	AiProviderID         uuid.NullUUID   `db:"ai_provider_id" json:"ai_provider_id"`
+	AIProviderID         uuid.NullUUID   `db:"ai_provider_id" json:"ai_provider_id"`
 }
 
 type ChatProvider struct {
@@ -5697,7 +5697,7 @@ type User struct {
 type UserAiProviderKey struct {
 	ID           uuid.UUID `db:"id" json:"id"`
 	UserID       uuid.UUID `db:"user_id" json:"user_id"`
-	AiProviderID uuid.UUID `db:"ai_provider_id" json:"ai_provider_id"`
+	AIProviderID uuid.UUID `db:"ai_provider_id" json:"ai_provider_id"`
 	// User-owned API key used to authenticate with the upstream AI provider. Encrypted at rest via dbcrypt when api_key_key_id is set.
 	APIKey string `db:"api_key" json:"api_key"`
 	// The ID of the key used to encrypt the user-owned provider API key. If this is NULL, the API key is not encrypted.

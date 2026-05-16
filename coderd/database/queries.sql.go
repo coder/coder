@@ -4999,7 +4999,7 @@ func (q *sqlQuerier) GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (
 		&i.ContextLimit,
 		&i.CompressionThreshold,
 		&i.Options,
-		&i.AiProviderID,
+		&i.AIProviderID,
 	)
 	return i, err
 }
@@ -5043,7 +5043,7 @@ func (q *sqlQuerier) GetChatModelConfigs(ctx context.Context) ([]ChatModelConfig
 			&i.ContextLimit,
 			&i.CompressionThreshold,
 			&i.Options,
-			&i.AiProviderID,
+			&i.AIProviderID,
 		); err != nil {
 			return nil, err
 		}
@@ -5087,7 +5087,7 @@ func (q *sqlQuerier) GetDefaultChatModelConfig(ctx context.Context) (ChatModelCo
 		&i.ContextLimit,
 		&i.CompressionThreshold,
 		&i.Options,
-		&i.AiProviderID,
+		&i.AIProviderID,
 	)
 	return i, err
 }
@@ -5127,7 +5127,7 @@ func (q *sqlQuerier) GetEnabledChatModelConfigByID(ctx context.Context, id uuid.
 		&i.ContextLimit,
 		&i.CompressionThreshold,
 		&i.Options,
-		&i.AiProviderID,
+		&i.AIProviderID,
 	)
 	return i, err
 }
@@ -5175,7 +5175,7 @@ func (q *sqlQuerier) GetEnabledChatModelConfigs(ctx context.Context) ([]ChatMode
 			&i.ContextLimit,
 			&i.CompressionThreshold,
 			&i.Options,
-			&i.AiProviderID,
+			&i.AIProviderID,
 		); err != nil {
 			return nil, err
 		}
@@ -5261,7 +5261,7 @@ func (q *sqlQuerier) InsertChatModelConfig(ctx context.Context, arg InsertChatMo
 		&i.ContextLimit,
 		&i.CompressionThreshold,
 		&i.Options,
-		&i.AiProviderID,
+		&i.AIProviderID,
 	)
 	return i, err
 }
@@ -5346,7 +5346,7 @@ func (q *sqlQuerier) UpdateChatModelConfig(ctx context.Context, arg UpdateChatMo
 		&i.ContextLimit,
 		&i.CompressionThreshold,
 		&i.Options,
-		&i.AiProviderID,
+		&i.AIProviderID,
 	)
 	return i, err
 }
@@ -26323,11 +26323,23 @@ WHERE
 
 type DeleteUserAIProviderKeyParams struct {
 	UserID       uuid.UUID `db:"user_id" json:"user_id"`
-	AiProviderID uuid.UUID `db:"ai_provider_id" json:"ai_provider_id"`
+	AIProviderID uuid.UUID `db:"ai_provider_id" json:"ai_provider_id"`
 }
 
 func (q *sqlQuerier) DeleteUserAIProviderKey(ctx context.Context, arg DeleteUserAIProviderKeyParams) error {
-	_, err := q.db.ExecContext(ctx, deleteUserAIProviderKey, arg.UserID, arg.AiProviderID)
+	_, err := q.db.ExecContext(ctx, deleteUserAIProviderKey, arg.UserID, arg.AIProviderID)
+	return err
+}
+
+const deleteUserAIProviderKeysByProviderID = `-- name: DeleteUserAIProviderKeysByProviderID :exec
+DELETE FROM
+    user_ai_provider_keys
+WHERE
+    ai_provider_id = $1::uuid
+`
+
+func (q *sqlQuerier) DeleteUserAIProviderKeysByProviderID(ctx context.Context, aiProviderID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteUserAIProviderKeysByProviderID, aiProviderID)
 	return err
 }
 
@@ -26343,16 +26355,16 @@ WHERE
 
 type GetUserAIProviderKeyByProviderIDParams struct {
 	UserID       uuid.UUID `db:"user_id" json:"user_id"`
-	AiProviderID uuid.UUID `db:"ai_provider_id" json:"ai_provider_id"`
+	AIProviderID uuid.UUID `db:"ai_provider_id" json:"ai_provider_id"`
 }
 
 func (q *sqlQuerier) GetUserAIProviderKeyByProviderID(ctx context.Context, arg GetUserAIProviderKeyByProviderIDParams) (UserAiProviderKey, error) {
-	row := q.db.QueryRowContext(ctx, getUserAIProviderKeyByProviderID, arg.UserID, arg.AiProviderID)
+	row := q.db.QueryRowContext(ctx, getUserAIProviderKeyByProviderID, arg.UserID, arg.AIProviderID)
 	var i UserAiProviderKey
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
-		&i.AiProviderID,
+		&i.AIProviderID,
 		&i.APIKey,
 		&i.ApiKeyKeyID,
 		&i.CreatedAt,
@@ -26387,7 +26399,7 @@ func (q *sqlQuerier) GetUserAIProviderKeys(ctx context.Context) ([]UserAiProvide
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserID,
-			&i.AiProviderID,
+			&i.AIProviderID,
 			&i.APIKey,
 			&i.ApiKeyKeyID,
 			&i.CreatedAt,
@@ -26431,7 +26443,7 @@ func (q *sqlQuerier) GetUserAIProviderKeysByUserID(ctx context.Context, userID u
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserID,
-			&i.AiProviderID,
+			&i.AIProviderID,
 			&i.APIKey,
 			&i.ApiKeyKeyID,
 			&i.CreatedAt,
@@ -26475,7 +26487,7 @@ func (q *sqlQuerier) UpdateEncryptedUserAIProviderKey(ctx context.Context, arg U
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
-		&i.AiProviderID,
+		&i.AIProviderID,
 		&i.APIKey,
 		&i.ApiKeyKeyID,
 		&i.CreatedAt,
@@ -26490,10 +26502,10 @@ UPDATE
 SET
     api_key = $1::text,
     api_key_key_id = $2::text,
-    updated_at = $3::timestamptz
+    updated_at = NOW()
 WHERE
-    user_id = $4::uuid
-    AND ai_provider_id = $5::uuid
+    user_id = $3::uuid
+    AND ai_provider_id = $4::uuid
 RETURNING
     id, user_id, ai_provider_id, api_key, api_key_key_id, created_at, updated_at
 `
@@ -26501,24 +26513,22 @@ RETURNING
 type UpdateUserAIProviderKeyParams struct {
 	APIKey       string         `db:"api_key" json:"api_key"`
 	ApiKeyKeyID  sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
-	UpdatedAt    time.Time      `db:"updated_at" json:"updated_at"`
 	UserID       uuid.UUID      `db:"user_id" json:"user_id"`
-	AiProviderID uuid.UUID      `db:"ai_provider_id" json:"ai_provider_id"`
+	AIProviderID uuid.UUID      `db:"ai_provider_id" json:"ai_provider_id"`
 }
 
 func (q *sqlQuerier) UpdateUserAIProviderKey(ctx context.Context, arg UpdateUserAIProviderKeyParams) (UserAiProviderKey, error) {
 	row := q.db.QueryRowContext(ctx, updateUserAIProviderKey,
 		arg.APIKey,
 		arg.ApiKeyKeyID,
-		arg.UpdatedAt,
 		arg.UserID,
-		arg.AiProviderID,
+		arg.AIProviderID,
 	)
 	var i UserAiProviderKey
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
-		&i.AiProviderID,
+		&i.AIProviderID,
 		&i.APIKey,
 		&i.ApiKeyKeyID,
 		&i.CreatedAt,
@@ -26557,7 +26567,7 @@ RETURNING
 type UpsertUserAIProviderKeyParams struct {
 	ID           uuid.UUID      `db:"id" json:"id"`
 	UserID       uuid.UUID      `db:"user_id" json:"user_id"`
-	AiProviderID uuid.UUID      `db:"ai_provider_id" json:"ai_provider_id"`
+	AIProviderID uuid.UUID      `db:"ai_provider_id" json:"ai_provider_id"`
 	APIKey       string         `db:"api_key" json:"api_key"`
 	ApiKeyKeyID  sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
 	CreatedAt    time.Time      `db:"created_at" json:"created_at"`
@@ -26571,7 +26581,7 @@ func (q *sqlQuerier) UpsertUserAIProviderKey(ctx context.Context, arg UpsertUser
 	row := q.db.QueryRowContext(ctx, upsertUserAIProviderKey,
 		arg.ID,
 		arg.UserID,
-		arg.AiProviderID,
+		arg.AIProviderID,
 		arg.APIKey,
 		arg.ApiKeyKeyID,
 		arg.CreatedAt,
@@ -26581,7 +26591,7 @@ func (q *sqlQuerier) UpsertUserAIProviderKey(ctx context.Context, arg UpsertUser
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
-		&i.AiProviderID,
+		&i.AIProviderID,
 		&i.APIKey,
 		&i.ApiKeyKeyID,
 		&i.CreatedAt,

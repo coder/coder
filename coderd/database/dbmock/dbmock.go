@@ -1348,6 +1348,20 @@ func (mr *MockStoreMockRecorder) DeleteUserAIProviderKey(ctx, arg any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUserAIProviderKey", reflect.TypeOf((*MockStore)(nil).DeleteUserAIProviderKey), ctx, arg)
 }
 
+// DeleteUserAIProviderKeysByProviderID mocks base method.
+func (m *MockStore) DeleteUserAIProviderKeysByProviderID(ctx context.Context, aiProviderID uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteUserAIProviderKeysByProviderID", ctx, aiProviderID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteUserAIProviderKeysByProviderID indicates an expected call of DeleteUserAIProviderKeysByProviderID.
+func (mr *MockStoreMockRecorder) DeleteUserAIProviderKeysByProviderID(ctx, aiProviderID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUserAIProviderKeysByProviderID", reflect.TypeOf((*MockStore)(nil).DeleteUserAIProviderKeysByProviderID), ctx, aiProviderID)
+}
+
 // DeleteUserChatCompactionThreshold mocks base method.
 func (m *MockStore) DeleteUserChatCompactionThreshold(ctx context.Context, arg database.DeleteUserChatCompactionThresholdParams) error {
 	m.ctrl.T.Helper()

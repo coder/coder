@@ -1318,7 +1318,7 @@ func TestUserAIProviderKeys(t *testing.T) {
 		key, err := crypt.UpsertUserAIProviderKey(ctx, database.UpsertUserAIProviderKeyParams{
 			ID:           uuid.New(),
 			UserID:       user.ID,
-			AiProviderID: provider.ID,
+			AIProviderID: provider.ID,
 			APIKey:       initialAPIKey,
 			CreatedAt:    now,
 			UpdatedAt:    now,
@@ -1333,7 +1333,7 @@ func TestUserAIProviderKeys(t *testing.T) {
 		t.Helper()
 		key, err := store.GetUserAIProviderKeyByProviderID(ctx, database.GetUserAIProviderKeyByProviderIDParams{
 			UserID:       userID,
-			AiProviderID: providerID,
+			AIProviderID: providerID,
 		})
 		require.NoError(t, err)
 		return key
@@ -1346,7 +1346,7 @@ func TestUserAIProviderKeys(t *testing.T) {
 
 		got, err := crypt.GetUserAIProviderKeyByProviderID(ctx, database.GetUserAIProviderKeyByProviderIDParams{
 			UserID:       key.UserID,
-			AiProviderID: provider.ID,
+			AIProviderID: provider.ID,
 		})
 		require.NoError(t, err)
 		require.Equal(t, key.ID, got.ID)
@@ -1367,7 +1367,7 @@ func TestUserAIProviderKeys(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, keys, 1)
 		require.Equal(t, key.ID, keys[0].ID)
-		require.Equal(t, provider.ID, keys[0].AiProviderID)
+		require.Equal(t, provider.ID, keys[0].AIProviderID)
 		require.Equal(t, initialAPIKey, keys[0].APIKey)
 		require.Equal(t, ciphers[0].HexDigest(), keys[0].ApiKeyKeyID.String)
 	})
@@ -1382,7 +1382,7 @@ func TestUserAIProviderKeys(t *testing.T) {
 		require.Len(t, keys, 1)
 		require.Equal(t, key.ID, keys[0].ID)
 		require.Equal(t, key.UserID, keys[0].UserID)
-		require.Equal(t, provider.ID, keys[0].AiProviderID)
+		require.Equal(t, provider.ID, keys[0].AIProviderID)
 		require.Equal(t, initialAPIKey, keys[0].APIKey)
 		require.Equal(t, ciphers[0].HexDigest(), keys[0].ApiKeyKeyID.String)
 	})
@@ -1396,7 +1396,7 @@ func TestUserAIProviderKeys(t *testing.T) {
 		updated, err := crypt.UpsertUserAIProviderKey(ctx, database.UpsertUserAIProviderKeyParams{
 			ID:           uuid.New(),
 			UserID:       key.UserID,
-			AiProviderID: provider.ID,
+			AIProviderID: provider.ID,
 			APIKey:       updatedAPIKey,
 			CreatedAt:    key.CreatedAt.Add(time.Minute),
 			UpdatedAt:    updatedAt,
@@ -1417,17 +1417,15 @@ func TestUserAIProviderKeys(t *testing.T) {
 		t.Parallel()
 		db, crypt, ciphers := setup(t)
 		provider, key := insertProviderAndKey(t, crypt, ciphers)
-		updatedAt := key.UpdatedAt.Add(time.Minute)
 
 		updated, err := crypt.UpdateUserAIProviderKey(ctx, database.UpdateUserAIProviderKeyParams{
 			UserID:       key.UserID,
-			AiProviderID: provider.ID,
+			AIProviderID: provider.ID,
 			APIKey:       updatedAPIKey,
-			UpdatedAt:    updatedAt,
 		})
 		require.NoError(t, err)
 		require.Equal(t, key.ID, updated.ID)
-		require.Equal(t, updatedAt, updated.UpdatedAt)
+		require.WithinDuration(t, dbtime.Now(), updated.UpdatedAt, time.Minute)
 		require.Equal(t, updatedAPIKey, updated.APIKey)
 		require.Equal(t, ciphers[0].HexDigest(), updated.ApiKeyKeyID.String)
 
