@@ -12,44 +12,10 @@ import (
 func TestParsePersonalSkillMarkdown(t *testing.T) {
 	t.Parallel()
 
-	t.Run("AcceptsNonKebabCaseName", func(t *testing.T) {
-		t.Parallel()
-
-		content, err := skills.ParsePersonalSkillMarkdown([]byte(
-			"---\nname: NotKebab\ndescription: Parser accepts this\n---\nBody.\n",
-		))
-
-		require.NoError(t, err)
-		require.Equal(t, "NotKebab", content.Name)
-		require.Equal(t, "Parser accepts this", content.Description)
-		require.Equal(t, "Body.", content.Body)
-	})
-
-	t.Run("AcceptsOversizedContent", func(t *testing.T) {
-		t.Parallel()
-
-		raw := []byte(personalSkillMarkdownForTest(
-			"oversized-skill",
-			"Parser accepts oversized content.",
-			strings.Repeat("a", skills.MaxPersonalSkillSizeBytes),
-		))
-		require.Greater(t, len(raw), skills.MaxPersonalSkillSizeBytes)
-
-		content, err := skills.ParsePersonalSkillMarkdown(raw)
-
-		require.NoError(t, err)
-		require.Equal(t, "oversized-skill", content.Name)
-		require.Len(t, content.Body, skills.MaxPersonalSkillSizeBytes)
-	})
-}
-
-func TestValidatePersonalSkillMarkdown(t *testing.T) {
-	t.Parallel()
-
 	t.Run("ValidWithDescription", func(t *testing.T) {
 		t.Parallel()
 
-		content, err := skills.ValidatePersonalSkillMarkdown([]byte(
+		content, err := skills.ParsePersonalSkillMarkdown([]byte(
 			"---\nname: my-skill\ndescription: Does a thing\n---\nUse this skill.\n",
 		))
 
@@ -63,7 +29,7 @@ func TestValidatePersonalSkillMarkdown(t *testing.T) {
 	t.Run("ValidWithoutDescription", func(t *testing.T) {
 		t.Parallel()
 
-		content, err := skills.ValidatePersonalSkillMarkdown([]byte(
+		content, err := skills.ParsePersonalSkillMarkdown([]byte(
 			"---\nname: my-skill\n---\nUse this skill.\n",
 		))
 
@@ -77,7 +43,7 @@ func TestValidatePersonalSkillMarkdown(t *testing.T) {
 	t.Run("MissingOpeningDelimiter", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := skills.ValidatePersonalSkillMarkdown([]byte("name: my-skill\n---\nBody.\n"))
+		_, err := skills.ParsePersonalSkillMarkdown([]byte("name: my-skill\n---\nBody.\n"))
 
 		require.ErrorContains(t, err, "missing opening frontmatter delimiter")
 	})
@@ -85,7 +51,7 @@ func TestValidatePersonalSkillMarkdown(t *testing.T) {
 	t.Run("MissingClosingDelimiter", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := skills.ValidatePersonalSkillMarkdown([]byte("---\nname: my-skill\nBody.\n"))
+		_, err := skills.ParsePersonalSkillMarkdown([]byte("---\nname: my-skill\nBody.\n"))
 
 		require.ErrorContains(t, err, "missing closing frontmatter delimiter")
 	})
@@ -93,7 +59,7 @@ func TestValidatePersonalSkillMarkdown(t *testing.T) {
 	t.Run("MissingName", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := skills.ValidatePersonalSkillMarkdown([]byte(
+		_, err := skills.ParsePersonalSkillMarkdown([]byte(
 			"---\ndescription: No name\n---\nBody.\n",
 		))
 
@@ -104,7 +70,7 @@ func TestValidatePersonalSkillMarkdown(t *testing.T) {
 	t.Run("NonKebabCaseName", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := skills.ValidatePersonalSkillMarkdown([]byte(
+		_, err := skills.ParsePersonalSkillMarkdown([]byte(
 			"---\nname: Not_Kebab\n---\nBody.\n",
 		))
 
@@ -115,7 +81,7 @@ func TestValidatePersonalSkillMarkdown(t *testing.T) {
 	t.Run("NameTooLong", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := skills.ValidatePersonalSkillMarkdown([]byte(personalSkillMarkdownForTest(
+		_, err := skills.ParsePersonalSkillMarkdown([]byte(personalSkillMarkdownForTest(
 			strings.Repeat("a", skills.MaxPersonalSkillNameBytes+1),
 			"Too long",
 			"Body.",
@@ -128,7 +94,7 @@ func TestValidatePersonalSkillMarkdown(t *testing.T) {
 	t.Run("EmptyBody", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := skills.ValidatePersonalSkillMarkdown([]byte(
+		_, err := skills.ParsePersonalSkillMarkdown([]byte(
 			"---\nname: my-skill\n---\n\n",
 		))
 
@@ -140,7 +106,7 @@ func TestValidatePersonalSkillMarkdown(t *testing.T) {
 		t.Parallel()
 
 		raw := []byte(strings.Repeat("a", skills.MaxPersonalSkillSizeBytes+1))
-		_, err := skills.ValidatePersonalSkillMarkdown(raw)
+		_, err := skills.ParsePersonalSkillMarkdown(raw)
 
 		require.ErrorIs(t, err, skills.ErrSkillTooLarge)
 	})

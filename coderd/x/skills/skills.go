@@ -62,15 +62,45 @@ type ResolvedSkill struct {
 	Alias string
 }
 
-// ParsePersonalSkillMarkdown parses raw personal skill Markdown. It returns
-// source-aware metadata and the body after frontmatter.
+// ParsePersonalSkillMarkdown parses raw personal skill Markdown and enforces
+// the personal skill contract. The raw size must not exceed
+// MaxPersonalSkillSizeBytes, frontmatter must contain a valid kebab-case name,
+// the skill name must not exceed MaxPersonalSkillNameBytes, and the body after
+// frontmatter must be non-empty.
 func ParsePersonalSkillMarkdown(raw []byte) (ParsedSkill, error) {
+	if len(raw) > MaxPersonalSkillSizeBytes {
+		return ParsedSkill{}, xerrors.Errorf(
+			"%w: got %d bytes, maximum is %d bytes",
+			ErrSkillTooLarge,
+			len(raw),
+			MaxPersonalSkillSizeBytes,
+		)
+	}
+
 	name, description, body, err := workspacesdk.ParseSkillFrontmatter(string(raw))
 	if err != nil {
 		if xerrors.Is(err, workspacesdk.ErrFrontmatterNameRequired) {
 			return ParsedSkill{}, xerrors.Errorf("%w: frontmatter must contain a 'name' field", ErrInvalidSkillName)
 		}
 		return ParsedSkill{}, xerrors.Errorf("parse skill frontmatter: %w", err)
+	}
+	if !workspacesdk.SkillNamePattern.MatchString(name) {
+		return ParsedSkill{}, xerrors.Errorf(
+			"%w: %q must match %s",
+			ErrInvalidSkillName,
+			name,
+			workspacesdk.SkillNameRegex,
+		)
+	}
+	nameBytes := len(name)
+	if nameBytes > MaxPersonalSkillNameBytes {
+		return ParsedSkill{}, xerrors.Errorf(
+			"%w: %q is %d bytes, maximum is %d bytes",
+			ErrInvalidSkillName,
+			name,
+			nameBytes,
+			MaxPersonalSkillNameBytes,
+		)
 	}
 	if strings.TrimSpace(body) == "" {
 		return ParsedSkill{}, xerrors.Errorf(
@@ -88,47 +118,6 @@ func ParsePersonalSkillMarkdown(raw []byte) (ParsedSkill, error) {
 		},
 		Body: body,
 	}, nil
-}
-
-// ValidatePersonalSkillMarkdown parses raw personal skill Markdown and
-// enforces upload constraints. The raw size must not exceed
-// MaxPersonalSkillSizeBytes, frontmatter must contain a valid kebab-case name,
-// the skill name must not exceed MaxPersonalSkillNameBytes, and the body after
-// frontmatter must be non-empty.
-func ValidatePersonalSkillMarkdown(raw []byte) (ParsedSkill, error) {
-	if len(raw) > MaxPersonalSkillSizeBytes {
-		return ParsedSkill{}, xerrors.Errorf(
-			"%w: got %d bytes, maximum is %d bytes",
-			ErrSkillTooLarge,
-			len(raw),
-			MaxPersonalSkillSizeBytes,
-		)
-	}
-
-	parsed, err := ParsePersonalSkillMarkdown(raw)
-	if err != nil {
-		return ParsedSkill{}, err
-	}
-	if !workspacesdk.SkillNamePattern.MatchString(parsed.Name) {
-		return ParsedSkill{}, xerrors.Errorf(
-			"%w: %q must match %s",
-			ErrInvalidSkillName,
-			parsed.Name,
-			workspacesdk.SkillNameRegex,
-		)
-	}
-	nameBytes := len(parsed.Name)
-	if nameBytes > MaxPersonalSkillNameBytes {
-		return ParsedSkill{}, xerrors.Errorf(
-			"%w: %q is %d bytes, maximum is %d bytes",
-			ErrInvalidSkillName,
-			parsed.Name,
-			nameBytes,
-			MaxPersonalSkillNameBytes,
-		)
-	}
-
-	return parsed, nil
 }
 
 // MergeSkills combines personal and workspace skills into a deterministic list
