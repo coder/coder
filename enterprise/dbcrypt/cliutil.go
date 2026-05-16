@@ -477,6 +477,8 @@ DELETE FROM external_auth_links
 	OR oauth_refresh_token_key_id IS NOT NULL;
 DELETE FROM user_chat_provider_keys
 	WHERE api_key_key_id IS NOT NULL;
+DELETE FROM user_ai_provider_keys
+	WHERE api_key_key_id IS NOT NULL;
 DELETE FROM user_secrets
 	WHERE value_key_id IS NOT NULL;
 UPDATE chat_providers
