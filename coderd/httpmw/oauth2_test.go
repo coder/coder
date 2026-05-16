@@ -50,7 +50,7 @@ func TestOAuth2(t *testing.T) {
 		t.Parallel()
 		req := httptest.NewRequest("GET", "/", nil)
 		res := httptest.NewRecorder()
-		httpmw.ExtractOAuth2(nil, nil, codersdk.HTTPCookieConfig{}, nil, nil, nil)(nil).ServeHTTP(res, req)
+		httpmw.ExtractOAuth2(nil, nil, codersdk.HTTPCookieConfig{}, nil, nil, nil, "")(nil).ServeHTTP(res, req)
 		require.Equal(t, http.StatusBadRequest, res.Result().StatusCode)
 	})
 	t.Run("RedirectWithoutCode", func(t *testing.T) {
@@ -58,7 +58,7 @@ func TestOAuth2(t *testing.T) {
 		req := httptest.NewRequest("GET", "/?redirect="+url.QueryEscape("/dashboard"), nil)
 		res := httptest.NewRecorder()
 		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline)
-		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, nil, nil, nil)(nil).ServeHTTP(res, req)
+		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, nil, nil, nil, "")(nil).ServeHTTP(res, req)
 		location := res.Header().Get("Location")
 		if !assert.NotEmpty(t, location) {
 			return
@@ -82,7 +82,7 @@ func TestOAuth2(t *testing.T) {
 		req := httptest.NewRequest("GET", "/?redirect="+url.QueryEscape(uri.String()), nil)
 		res := httptest.NewRecorder()
 		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline)
-		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, nil, nil, nil)(nil).ServeHTTP(res, req)
+		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, nil, nil, nil, "")(nil).ServeHTTP(res, req)
 		location := res.Header().Get("Location")
 		if !assert.NotEmpty(t, location) {
 			return
@@ -97,7 +97,7 @@ func TestOAuth2(t *testing.T) {
 		req := httptest.NewRequest("GET", "/?code=something", nil)
 		res := httptest.NewRecorder()
 		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline)
-		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, nil, nil, nil)(nil).ServeHTTP(res, req)
+		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, nil, nil, nil, "")(nil).ServeHTTP(res, req)
 		require.Equal(t, http.StatusBadRequest, res.Result().StatusCode)
 	})
 	t.Run("NoStateCookie", func(t *testing.T) {
@@ -105,7 +105,7 @@ func TestOAuth2(t *testing.T) {
 		req := httptest.NewRequest("GET", "/?code=something&state=test", nil)
 		res := httptest.NewRecorder()
 		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline)
-		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, nil, nil, nil)(nil).ServeHTTP(res, req)
+		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, nil, nil, nil, "")(nil).ServeHTTP(res, req)
 		require.Equal(t, http.StatusUnauthorized, res.Result().StatusCode)
 	})
 	t.Run("MismatchedState", func(t *testing.T) {
@@ -117,7 +117,7 @@ func TestOAuth2(t *testing.T) {
 		})
 		res := httptest.NewRecorder()
 		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline)
-		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, nil, nil, nil)(nil).ServeHTTP(res, req)
+		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, nil, nil, nil, "")(nil).ServeHTTP(res, req)
 		require.Equal(t, http.StatusUnauthorized, res.Result().StatusCode)
 	})
 	t.Run("ExchangeCodeAndState", func(t *testing.T) {
@@ -133,7 +133,7 @@ func TestOAuth2(t *testing.T) {
 		})
 		res := httptest.NewRecorder()
 		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline)
-		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, nil, nil, nil)(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, nil, nil, nil, "")(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 			state := httpmw.OAuth2(r)
 			require.Equal(t, "/dashboard", state.Redirect)
 		})).ServeHTTP(res, req)
@@ -144,7 +144,7 @@ func TestOAuth2(t *testing.T) {
 		res := httptest.NewRecorder()
 		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline, oauth2.SetAuthURLParam("foo", "bar"))
 		authOpts := map[string]string{"foo": "bar"}
-		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, authOpts, nil, nil)(nil).ServeHTTP(res, req)
+		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, authOpts, nil, nil, "")(nil).ServeHTTP(res, req)
 		location := res.Header().Get("Location")
 		// Ideally we would also assert that the location contains the query params
 		// we set in the auth URL but this would essentially be testing the oauth2 package.
@@ -160,7 +160,7 @@ func TestOAuth2(t *testing.T) {
 		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{
 			Secure:   true,
 			SameSite: "none",
-		}, nil, nil, nil)(nil).ServeHTTP(res, req)
+		}, nil, nil, nil, "")(nil).ServeHTTP(res, req)
 
 		found := false
 		for _, cookie := range res.Result().Cookies() {
@@ -197,7 +197,7 @@ func TestOAuth2DynamicRedirect(t *testing.T) {
 			oauth2.SetAuthURLParam("redirect_uri", wantAltURI),
 		)
 		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, nil, nil,
-			[]string{primaryHost, altHost})(nil).ServeHTTP(res, req)
+			[]string{primaryHost, altHost}, "")(nil).ServeHTTP(res, req)
 
 		require.Equal(t, http.StatusTemporaryRedirect, res.Result().StatusCode)
 
@@ -222,7 +222,7 @@ func TestOAuth2DynamicRedirect(t *testing.T) {
 		// before AuthCodeURL is called.
 		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline)
 		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, nil, nil,
-			[]string{primaryHost, altHost})(nil).ServeHTTP(res, req)
+			[]string{primaryHost, altHost}, "")(nil).ServeHTTP(res, req)
 
 		require.Equal(t, http.StatusBadRequest, res.Result().StatusCode)
 		for _, c := range res.Result().Cookies() {
@@ -246,7 +246,7 @@ func TestOAuth2DynamicRedirect(t *testing.T) {
 			oauth2.SetAuthURLParam("redirect_uri", expectedURI),
 		)
 		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, nil, nil,
-			[]string{altHost})(nil).ServeHTTP(res, req)
+			[]string{altHost}, "")(nil).ServeHTTP(res, req)
 
 		require.Equal(t, http.StatusTemporaryRedirect, res.Result().StatusCode)
 	})
@@ -269,7 +269,7 @@ func TestOAuth2DynamicRedirect(t *testing.T) {
 			},
 		}
 		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, nil, nil,
-			[]string{primaryHost, altHost})(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+			[]string{primaryHost, altHost}, "")(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 			state := httpmw.OAuth2(r)
 			require.Equal(t, "/dashboard", state.Redirect)
 		})).ServeHTTP(res, req)
@@ -287,7 +287,7 @@ func TestOAuth2DynamicRedirect(t *testing.T) {
 
 		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline)
 		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, nil, nil,
-			[]string{primaryHost})(nil).ServeHTTP(res, req)
+			[]string{primaryHost}, "")(nil).ServeHTTP(res, req)
 
 		require.Equal(t, http.StatusBadRequest, res.Result().StatusCode)
 	})
@@ -301,7 +301,7 @@ func TestOAuth2DynamicRedirect(t *testing.T) {
 		// With no allowlist, AuthCodeURL must be invoked with only the base
 		// AccessTypeOffline option; no redirect_uri override should be added.
 		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline)
-		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, nil, nil, nil)(nil).ServeHTTP(res, req)
+		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, nil, nil, nil, "")(nil).ServeHTTP(res, req)
 
 		require.Equal(t, http.StatusTemporaryRedirect, res.Result().StatusCode)
 		for _, c := range res.Result().Cookies() {

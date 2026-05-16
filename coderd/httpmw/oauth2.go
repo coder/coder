@@ -55,7 +55,15 @@ func OAuth2(r *http.Request) OAuth2State {
 // for the token exchange, as required by RFC 6749 section 4.1.3. Pass nil
 // to preserve the legacy behavior of using the redirect_uri baked into
 // config at startup.
-func ExtractOAuth2(config promoauth.OAuth2Config, client *http.Client, cookieCfg codersdk.HTTPCookieConfig, authURLOpts map[string]string, pkceMethods []promoauth.Oauth2PKCEChallengeMethod, redirectAllowedHosts []string) func(http.Handler) http.Handler {
+//
+// redirectDefaultScheme is the scheme used when constructing the dynamic
+// redirect_uri. It is populated from the configured AccessURL and takes
+// precedence over r.TLS / X-Forwarded-Proto because some reverse proxies
+// report the inner-hop scheme (e.g. "http") rather than the original
+// client-facing scheme, which would produce a redirect_uri the IdP
+// rejects. When empty (no AccessURL configured), the scheme is derived
+// from the request as a fallback for local-dev contexts.
+func ExtractOAuth2(config promoauth.OAuth2Config, client *http.Client, cookieCfg codersdk.HTTPCookieConfig, authURLOpts map[string]string, pkceMethods []promoauth.Oauth2PKCEChallengeMethod, redirectAllowedHosts []string, redirectDefaultScheme string) func(http.Handler) http.Handler {
 	opts := make([]oauth2.AuthCodeOption, 0, len(authURLOpts)+1)
 	opts = append(opts, oauth2.AccessTypeOffline)
 	for k, v := range authURLOpts {
@@ -150,7 +158,7 @@ func ExtractOAuth2(config promoauth.OAuth2Config, client *http.Client, cookieCfg
 					})
 					return
 				}
-				dynamicRedirectURI = buildDynamicRedirectURI(r)
+				dynamicRedirectURI = buildDynamicRedirectURI(r, redirectDefaultScheme)
 			}
 
 			if code == "" {
@@ -503,20 +511,27 @@ func uriFromURL(u string) string {
 // callback path is whatever path the middleware is mounted at, which today
 // is /api/v2/users/oidc/callback for OIDC.
 //
-// Scheme detection trusts X-Forwarded-Proto when r.TLS is unset to support
-// the common deployment shape where Coder runs behind a TLS-terminating
-// proxy. A spoofed X-Forwarded-Proto cannot meaningfully attack the OIDC
-// flow because the resulting redirect_uri must still match an entry the
-// OIDC provider has registered; mismatches cause the IdP to reject the
-// request before any code is issued.
-func buildDynamicRedirectURI(r *http.Request) string {
-	scheme := "https"
-	if r.TLS == nil {
-		if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
-			scheme = proto
-		} else {
-			scheme = "http"
-		}
+// Scheme selection (in order):
+//  1. defaultScheme (from configured AccessURL) when provided. This is the
+//     operator-defined source of truth, identical to what the static OIDC
+//     path uses today. It takes precedence because some upstream proxies
+//     set X-Forwarded-Proto to the inner-hop scheme (e.g. "http" between
+//     proxy and coderd) rather than the original client-facing scheme,
+//     which would produce a redirect_uri the IdP rejects.
+//  2. r.TLS != nil  -> "https" (request arrived over TLS at this server).
+//  3. X-Forwarded-Proto when set.
+//  4. "http" as a last resort.
+func buildDynamicRedirectURI(r *http.Request, defaultScheme string) string {
+	var scheme string
+	switch {
+	case defaultScheme != "":
+		scheme = defaultScheme
+	case r.TLS != nil:
+		scheme = "https"
+	case r.Header.Get("X-Forwarded-Proto") != "":
+		scheme = r.Header.Get("X-Forwarded-Proto")
+	default:
+		scheme = "http"
 	}
 	return scheme + "://" + r.Host + r.URL.Path
 }

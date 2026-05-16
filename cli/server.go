@@ -206,6 +206,10 @@ func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.De
 			logger.Warn(ctx, "ignoring CODER_OIDC_REDIRECT_ALLOWED_HOSTS because CODER_OIDC_REDIRECT_URL is set")
 		}
 	}
+	// Capture the configured scheme for the dynamic-host code path so that
+	// the dynamic redirect_uri uses the same scheme as the static one even
+	// when upstream proxies report a misleading X-Forwarded-Proto.
+	redirectDefaultScheme := redirectURL.Scheme
 
 	// If the scopes contain 'groups', we enable group support.
 	// Do not override any custom value set by the user.
@@ -270,6 +274,9 @@ func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.De
 	var redirectAllowedHosts []string
 	if vals.OIDC.RedirectURL.String() == "" {
 		redirectAllowedHosts = vals.OIDC.RedirectAllowedHosts.Value()
+	} else {
+		// Static-override mode does not need the dynamic default scheme.
+		redirectDefaultScheme = ""
 	}
 
 	return &coderd.OIDCConfig{
@@ -281,20 +288,21 @@ func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.De
 			// matches the issuer URL. This is not recommended.
 			SkipIssuerCheck: vals.OIDC.SkipIssuerChecks.Value(),
 		}),
-		EmailDomain:          vals.OIDC.EmailDomain,
-		AllowSignups:         vals.OIDC.AllowSignups.Value(),
-		UsernameField:        vals.OIDC.UsernameField.String(),
-		NameField:            vals.OIDC.NameField.String(),
-		EmailField:           vals.OIDC.EmailField.String(),
-		AuthURLParams:        vals.OIDC.AuthURLParams.Value,
-		SecondaryClaims:      secondaryClaimsSrc,
-		SignInText:           vals.OIDC.SignInText.String(),
-		SignupsDisabledText:  vals.OIDC.SignupsDisabledText.String(),
-		IconURL:              vals.OIDC.IconURL.String(),
-		IgnoreEmailVerified:  vals.OIDC.IgnoreEmailVerified.Value(),
-		PKCEMethods:          pkceSupport.CodeChallengeMethodsSupported,
-		EmailFallback:        vals.OIDC.EmailFallback.Value(),
-		RedirectAllowedHosts: redirectAllowedHosts,
+		EmailDomain:           vals.OIDC.EmailDomain,
+		AllowSignups:          vals.OIDC.AllowSignups.Value(),
+		UsernameField:         vals.OIDC.UsernameField.String(),
+		NameField:             vals.OIDC.NameField.String(),
+		EmailField:            vals.OIDC.EmailField.String(),
+		AuthURLParams:         vals.OIDC.AuthURLParams.Value,
+		SecondaryClaims:       secondaryClaimsSrc,
+		SignInText:            vals.OIDC.SignInText.String(),
+		SignupsDisabledText:   vals.OIDC.SignupsDisabledText.String(),
+		IconURL:               vals.OIDC.IconURL.String(),
+		IgnoreEmailVerified:   vals.OIDC.IgnoreEmailVerified.Value(),
+		PKCEMethods:           pkceSupport.CodeChallengeMethodsSupported,
+		EmailFallback:         vals.OIDC.EmailFallback.Value(),
+		RedirectAllowedHosts:  redirectAllowedHosts,
+		RedirectDefaultScheme: redirectDefaultScheme,
 	}, nil
 }
 

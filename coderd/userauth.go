@@ -1198,6 +1198,14 @@ type OIDCConfig struct {
 	// (case-insensitive, ignoring port) one of the hostnames in this list,
 	// otherwise the OIDC flow is rejected.
 	RedirectAllowedHosts []string
+	// RedirectDefaultScheme is the scheme to use in the dynamically built
+	// redirect_uri. It is populated from the configured AccessURL (or
+	// OIDC.RedirectURL if explicitly overridden) so that the dynamic path
+	// uses the same scheme as the static path. It takes precedence over
+	// X-Forwarded-Proto because some reverse proxies report the inner-hop
+	// scheme (e.g. "http") rather than the original client-facing scheme,
+	// which would produce a redirect_uri the IdP rejects.
+	RedirectDefaultScheme string
 }
 
 // PKCESupported is to prevent nil pointer dereference.
