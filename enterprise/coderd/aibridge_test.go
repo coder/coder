@@ -2816,6 +2816,7 @@ func TestGroupAIBudget(t *testing.T) {
 			Action:         database.AuditActionWrite,
 			ResourceID:     group.ID,
 			ResourceType:   database.ResourceTypeGroupAiBudget,
+			ResourceTarget: group.Name,
 			OrganizationID: owner.OrganizationID,
 		}))
 
@@ -2826,6 +2827,7 @@ func TestGroupAIBudget(t *testing.T) {
 			Action:         database.AuditActionDelete,
 			ResourceID:     group.ID,
 			ResourceType:   database.ResourceTypeGroupAiBudget,
+			ResourceTarget: group.Name,
 			OrganizationID: owner.OrganizationID,
 		}))
 	})
