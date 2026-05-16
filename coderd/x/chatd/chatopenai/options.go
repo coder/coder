@@ -147,6 +147,7 @@ func ReasoningEffortFromChat(value *string) *fantasyopenai.ReasoningEffort {
 
 	effort := chatutil.NormalizedEnumValue(
 		normalized,
+		string(fantasyopenai.ReasoningEffortNone),
 		string(fantasyopenai.ReasoningEffortMinimal),
 		string(fantasyopenai.ReasoningEffortLow),
 		string(fantasyopenai.ReasoningEffortMedium),

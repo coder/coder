@@ -2030,6 +2030,15 @@ export const ModelFormOpenAICompat: Story = {
 		await expect(
 			await body.findByLabelText(/Reasoning Effort/i),
 		).toBeInTheDocument();
+		await expect(
+			await body.findByLabelText(/Parallel Tool Calls/i),
+		).toBeInTheDocument();
+		await expect(
+			await body.findByLabelText(/Max Completion Tokens/i),
+		).toBeInTheDocument();
+		await expect(
+			await body.findByLabelText(/Prompt Cache Key/i),
+		).toBeInTheDocument();
 	},
 };
 

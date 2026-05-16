@@ -1257,9 +1257,19 @@ type ChatModelGoogleProviderOptions struct {
 }
 
 // ChatModelOpenAICompatProviderOptions configures OpenAI-compatible behavior.
+//
+// Every field on this struct must be a nilable type (pointer, slice, or map)
+// so JSON omitempty can distinguish an unset field from an explicit zero
+// value. Adding a bare bool, int, or string field would silently lose user
+// intent because false, 0, and "" would be indistinguishable from unset at the
+// SDK boundary and on the wire.
 type ChatModelOpenAICompatProviderOptions struct {
-	User            *string `json:"user,omitempty" description:"Unique identifier for the end user for abuse monitoring" hidden:"true"`
-	ReasoningEffort *string `json:"reasoning_effort,omitempty" description:"Controls the level of reasoning effort" enum:"none,minimal,low,medium,high,xhigh"`
+	User                *string        `json:"user,omitempty" description:"Unique identifier for the end user for abuse monitoring" hidden:"true"`
+	ParallelToolCalls   *bool          `json:"parallel_tool_calls,omitempty" description:"Whether the model may make multiple tool calls in parallel"`
+	ReasoningEffort     *string        `json:"reasoning_effort,omitempty" description:"Controls the level of reasoning effort" enum:"none,minimal,low,medium,high,xhigh"`
+	MaxCompletionTokens *int64         `json:"max_completion_tokens,omitempty" description:"Upper bound on tokens the model may generate"`
+	PromptCacheKey      *string        `json:"prompt_cache_key,omitempty" description:"Key for enabling cross-request prompt caching"`
+	ExtraBody           map[string]any `json:"extra_body,omitempty" description:"Additional fields to include in the request body" hidden:"true"`
 }
 
 // ChatModelReasoningOptions configures reasoning behavior for model

@@ -357,6 +357,10 @@ describe("extractModelConfigFormState", () => {
 				provider_options: {
 					openaicompat: {
 						reasoning_effort: "low",
+						parallel_tool_calls: true,
+						max_completion_tokens: 1024,
+						prompt_cache_key: "compat-cache-key",
+						extra_body: { custom_field: "custom-value" },
 						user: "compat-user",
 					},
 				},
@@ -365,6 +369,12 @@ describe("extractModelConfigFormState", () => {
 		const result = extractModelConfigFormState(model);
 		const openaicompat = result.openaicompat as Record<string, unknown>;
 		expect(openaicompat.reasoningEffort).toBe("low");
+		expect(openaicompat.parallelToolCalls).toBe("true");
+		expect(openaicompat.maxCompletionTokens).toBe("1024");
+		expect(openaicompat.promptCacheKey).toBe("compat-cache-key");
+		expect(openaicompat.extraBody).toBe(
+			JSON.stringify({ custom_field: "custom-value" }, null, 2),
+		);
 		expect(openaicompat.user).toBe("compat-user");
 	});
 
@@ -902,6 +912,10 @@ describe("buildModelConfigFromForm", () => {
 				formWith({
 					openaicompat: {
 						reasoningEffort: "low",
+						parallelToolCalls: "true",
+						maxCompletionTokens: "2048",
+						promptCacheKey: "compat-cache-key",
+						extraBody: JSON.stringify({ custom_field: "custom-value" }),
 						user: "compat-user",
 					},
 				}),
@@ -909,6 +923,10 @@ describe("buildModelConfigFromForm", () => {
 			expect(result.fieldErrors).toEqual({});
 			expect(result.modelConfig?.provider_options?.openaicompat).toEqual({
 				reasoning_effort: "low",
+				parallel_tool_calls: true,
+				max_completion_tokens: 2048,
+				prompt_cache_key: "compat-cache-key",
+				extra_body: { custom_field: "custom-value" },
 				user: "compat-user",
 			});
 		});
@@ -921,6 +939,23 @@ describe("buildModelConfigFromForm", () => {
 			expect(result.fieldErrors["openaicompat.reasoningEffort"]).toContain(
 				"invalid value",
 			);
+		});
+
+		it("omits blank optional openaicompat fields", () => {
+			const result = buildModelConfigFromForm(
+				"openaicompat",
+				formWith({
+					temperature: "0.5",
+					openaicompat: {
+						parallelToolCalls: "",
+						maxCompletionTokens: " ",
+						promptCacheKey: "   ",
+						extraBody: "   ",
+					},
+				}),
+			);
+			expect(result.fieldErrors).toEqual({});
+			expect(result.modelConfig?.provider_options).toBeUndefined();
 		});
 
 		it("does not set provider_options when all fields empty", () => {

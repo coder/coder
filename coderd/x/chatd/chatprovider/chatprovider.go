@@ -943,8 +943,20 @@ func MergeMissingProviderOptions(
 			if dstCompat.User == nil {
 				dstCompat.User = defaultCompat.User
 			}
+			if dstCompat.ParallelToolCalls == nil {
+				dstCompat.ParallelToolCalls = defaultCompat.ParallelToolCalls
+			}
 			if dstCompat.ReasoningEffort == nil {
 				dstCompat.ReasoningEffort = defaultCompat.ReasoningEffort
+			}
+			if dstCompat.MaxCompletionTokens == nil {
+				dstCompat.MaxCompletionTokens = defaultCompat.MaxCompletionTokens
+			}
+			if dstCompat.PromptCacheKey == nil {
+				dstCompat.PromptCacheKey = defaultCompat.PromptCacheKey
+			}
+			if dstCompat.ExtraBody == nil {
+				dstCompat.ExtraBody = defaultCompat.ExtraBody
 			}
 
 		case fantasyopenrouter.Name:
@@ -1426,8 +1438,12 @@ func openAICompatProviderOptionsFromChatConfig(
 	options *codersdk.ChatModelOpenAICompatProviderOptions,
 ) *fantasyopenaicompat.ProviderOptions {
 	return &fantasyopenaicompat.ProviderOptions{
-		User:            chatutil.NormalizedStringPointer(options.User),
-		ReasoningEffort: chatopenai.ReasoningEffortFromChat(options.ReasoningEffort),
+		User:                chatutil.NormalizedStringPointer(options.User),
+		ParallelToolCalls:   options.ParallelToolCalls,
+		ReasoningEffort:     chatopenai.ReasoningEffortFromChat(options.ReasoningEffort),
+		MaxCompletionTokens: options.MaxCompletionTokens,
+		PromptCacheKey:      options.PromptCacheKey,
+		ExtraBody:           options.ExtraBody,
 	}
 }
 

@@ -296,7 +296,7 @@ func TestReasoningEffortFromChat(t *testing.T) {
 		{name: "Medium", value: ptr("medium"), want: ptr(fantasyopenai.ReasoningEffortMedium)},
 		{name: "High", value: ptr("high"), want: ptr(fantasyopenai.ReasoningEffortHigh)},
 		{name: "XHigh", value: ptr("xhigh"), want: ptr(fantasyopenai.ReasoningEffortXHigh)},
-		{name: "NoneUnsupported", value: ptr("none")},
+		{name: "None", value: ptr("none"), want: ptr(fantasyopenai.ReasoningEffortNone)},
 		{name: "Invalid", value: ptr("max")},
 	}
 

@@ -14,6 +14,7 @@ export const formatProviderLabel = (provider: string): string => {
 		case "openai-compat":
 		case "openai-compatible":
 		case "openai_compatible":
+		case "openaicompat":
 			return "OpenAI-compatible";
 		case "openrouter":
 			return "OpenRouter";

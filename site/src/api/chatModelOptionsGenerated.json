@@ -419,6 +419,14 @@
 					"hidden": true
 				},
 				{
+					"json_name": "parallel_tool_calls",
+					"go_name": "ParallelToolCalls",
+					"type": "boolean",
+					"description": "Whether the model may make multiple tool calls in parallel",
+					"required": false,
+					"input_type": "select"
+				},
+				{
 					"json_name": "reasoning_effort",
 					"go_name": "ReasoningEffort",
 					"type": "string",
@@ -426,6 +434,31 @@
 					"required": false,
 					"enum": ["none", "minimal", "low", "medium", "high", "xhigh"],
 					"input_type": "select"
+				},
+				{
+					"json_name": "max_completion_tokens",
+					"go_name": "MaxCompletionTokens",
+					"type": "integer",
+					"description": "Upper bound on tokens the model may generate",
+					"required": false,
+					"input_type": "input"
+				},
+				{
+					"json_name": "prompt_cache_key",
+					"go_name": "PromptCacheKey",
+					"type": "string",
+					"description": "Key for enabling cross-request prompt caching",
+					"required": false,
+					"input_type": "input"
+				},
+				{
+					"json_name": "extra_body",
+					"go_name": "ExtraBody",
+					"type": "object",
+					"description": "Additional fields to include in the request body",
+					"required": false,
+					"input_type": "json",
+					"hidden": true
 				}
 			]
 		},
