@@ -3081,6 +3081,7 @@ CREATE TABLE user_skills (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     updated_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT user_skills_content_size CHECK ((octet_length(content) <= 65536)),
+    CONSTRAINT user_skills_description_size CHECK ((octet_length(description) <= 4096)),
     CONSTRAINT user_skills_name_format CHECK ((name ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text)),
     CONSTRAINT user_skills_name_size CHECK ((octet_length(name) <= 256))
 );

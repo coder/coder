@@ -9,6 +9,7 @@ CREATE TABLE user_skills (
     updated_at timestamptz NOT NULL DEFAULT now(),
     CONSTRAINT user_skills_name_size CHECK (octet_length(name) <= 256),
     CONSTRAINT user_skills_name_format CHECK (name ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
+    CONSTRAINT user_skills_description_size CHECK (octet_length(description) <= 4096),
     CONSTRAINT user_skills_content_size CHECK (octet_length(content) <= 65536)
 );
 

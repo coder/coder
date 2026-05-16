@@ -27,6 +27,9 @@ const (
 	// otherwise valid raw skill content.
 	maxPersonalSkillRequestBytes = skills.MaxPersonalSkillSizeBytes*personalSkillJSONEscapeExpansion + personalSkillRequestEnvelopeBytes
 
+	// These names are raised by trigger functions with USING CONSTRAINT.
+	// They are not table CHECK constraints, so dbgen does not emit them in
+	// check_constraint.go.
 	userSkillsPerUserLimitConstraint database.CheckConstraint = "user_skills_per_user_limit"
 	userSkillUserDeletedConstraint   database.CheckConstraint = "user_skill_user_deleted"
 )
@@ -63,7 +66,7 @@ func (api *API) postUserSkill(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	parsedSkill, err := skills.ValidatePersonalSkillMarkdown([]byte(req.Content))
+	parsedSkill, err := skills.ParsePersonalSkillMarkdown([]byte(req.Content))
 	if err != nil {
 		writeInvalidUserSkillContent(ctx, rw, err)
 		return
@@ -77,11 +80,15 @@ func (api *API) postUserSkill(rw http.ResponseWriter, r *http.Request) {
 	}
 	skill, err := api.Database.InsertUserSkill(ctx, params)
 	if err != nil {
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
+		if httpapi.IsUnauthorizedError(err) {
+			httpapi.Forbidden(rw)
 			return
 		}
 		if database.IsCheckViolation(err, userSkillUserDeletedConstraint) {
+			writeCannotCreateUserSkillForDeletedUser(ctx, rw)
+			return
+		}
+		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
 			return
 		}
@@ -195,7 +202,7 @@ func (api *API) patchUserSkill(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	parsedSkill, err := skills.ValidatePersonalSkillMarkdown([]byte(req.Content))
+	parsedSkill, err := skills.ParsePersonalSkillMarkdown([]byte(req.Content))
 	if err != nil {
 		writeInvalidUserSkillContent(ctx, rw, err)
 		return
@@ -216,8 +223,9 @@ func (api *API) patchUserSkill(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var (
-		skill    database.UserSkill
-		oldSkill database.UserSkill
+		skill              database.UserSkill
+		oldSkill           database.UserSkill
+		unauthorizedUpdate bool
 	)
 	err = api.Database.InTx(func(tx database.Store) error {
 		fetched, err := tx.GetUserSkillByUserIDAndName(ctx, database.GetUserSkillByUserIDAndNameParams{
@@ -230,6 +238,9 @@ func (api *API) patchUserSkill(rw http.ResponseWriter, r *http.Request) {
 
 		updated, err := tx.UpdateUserSkillByUserIDAndName(ctx, params)
 		if err != nil {
+			if httpapi.IsUnauthorizedError(err) {
+				unauthorizedUpdate = true
+			}
 			return xerrors.Errorf("update user skill: %w", err)
 		}
 		oldSkill = fetched
@@ -237,11 +248,15 @@ func (api *API) patchUserSkill(rw http.ResponseWriter, r *http.Request) {
 		return nil
 	}, nil)
 	if err != nil {
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
+		if database.IsCheckViolation(err, userSkillUserDeletedConstraint) {
+			writeCannotModifyUserSkillForDeletedUser(ctx, rw)
 			return
 		}
-		if database.IsCheckViolation(err, userSkillUserDeletedConstraint) {
+		if unauthorizedUpdate {
+			httpapi.Forbidden(rw)
+			return
+		}
+		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
 			return
 		}
@@ -298,6 +313,20 @@ func (api *API) deleteUserSkill(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+func writeCannotCreateUserSkillForDeletedUser(ctx context.Context, rw http.ResponseWriter) {
+	httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+		Message: "Cannot create skills for deleted users.",
+		Detail:  "This user has been deleted and cannot be modified.",
+	})
+}
+
+func writeCannotModifyUserSkillForDeletedUser(ctx context.Context, rw http.ResponseWriter) {
+	httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+		Message: "Cannot modify skills for deleted users.",
+		Detail:  "This user has been deleted and cannot be modified.",
+	})
+}
+
 func writeUserSkillLimitReached(ctx context.Context, rw http.ResponseWriter) {
 	httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 		Message: "Personal skill limit reached.",
@@ -317,6 +346,8 @@ func writeInvalidUserSkillContent(ctx context.Context, rw http.ResponseWriter, e
 		message = "Skill body is required."
 	case errors.Is(err, skills.ErrSkillTooLarge):
 		message = "Skill content is too large."
+	case errors.Is(err, skills.ErrSkillDescriptionTooLarge):
+		message = "Skill description is too large."
 	}
 	httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 		Message: message,
