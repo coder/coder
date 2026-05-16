@@ -36,6 +36,5 @@ BEGIN
 END;
 $$;
 
-DROP INDEX IF EXISTS idx_user_ai_provider_keys_user_id;
 DROP INDEX IF EXISTS idx_user_ai_provider_keys_ai_provider_id;
 DROP TABLE IF EXISTS user_ai_provider_keys;

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
@@ -234,6 +235,25 @@ func genData(t *testing.T, db database.Store) []database.User {
 					OAuthAccessToken:  "access-" + usr.ID.String(),
 					OAuthRefreshToken: "refresh-" + usr.ID.String(),
 				})
+				provider := dbgen.AIProvider(t, db, database.AIProvider{
+					Name:     "ai-provider-" + usr.ID.String(),
+					Settings: sql.NullString{String: "settings-" + usr.ID.String(), Valid: true},
+				})
+				_ = dbgen.AIProviderKey(t, db, database.AIProviderKey{
+					ProviderID: provider.ID,
+					APIKey:     "provider-key-" + usr.ID.String(),
+				})
+				now := time.Now()
+				_, err := db.UpsertUserAIProviderKey(context.Background(), database.UpsertUserAIProviderKeyParams{
+					ID:           uuid.New(),
+					UserID:       usr.ID,
+					AIProviderID: provider.ID,
+					APIKey:       "user-ai-provider-key-" + usr.ID.String(),
+					CreatedAt:    now,
+					UpdatedAt:    now,
+				})
+				require.NoError(t, err)
+
 				// Deleted users cannot have user_links or user_secrets.
 				if !deleted {
 					// Fun fact: our schema allows _all_ login types to have
@@ -302,6 +322,36 @@ func requireEncryptedWithCipher(ctx context.Context, t *testing.T, db database.S
 		requireEncryptedEquals(t, c, "value-"+userID.String(), s.Value)
 		require.Equal(t, c.HexDigest(), s.ValueKeyID.String)
 	}
+
+	providers, err := db.GetAIProviders(ctx, database.GetAIProvidersParams{
+		IncludeDeleted:  true,
+		IncludeDisabled: true,
+	})
+	require.NoError(t, err, "failed to get ai providers")
+	providerName := "ai-provider-" + userID.String()
+	var provider database.AIProvider
+	for _, p := range providers {
+		if p.Name == providerName {
+			provider = p
+			break
+		}
+	}
+	require.NotEqual(t, uuid.Nil, provider.ID, "expected ai provider for user %s", userID)
+	require.True(t, provider.Settings.Valid)
+	requireEncryptedEquals(t, c, "settings-"+userID.String(), provider.Settings.String)
+	require.Equal(t, c.HexDigest(), provider.SettingsKeyID.String)
+
+	providerKeys, err := db.GetAIProviderKeysByProviderID(ctx, provider.ID)
+	require.NoError(t, err, "failed to get ai provider keys for provider %s", provider.ID)
+	require.Len(t, providerKeys, 1)
+	requireEncryptedEquals(t, c, "provider-key-"+userID.String(), providerKeys[0].APIKey)
+	require.Equal(t, c.HexDigest(), providerKeys[0].ApiKeyKeyID.String)
+
+	userAIProviderKeys, err := db.GetUserAIProviderKeysByUserID(ctx, userID)
+	require.NoError(t, err, "failed to get user ai provider keys for user %s", userID)
+	require.Len(t, userAIProviderKeys, 1)
+	requireEncryptedEquals(t, c, "user-ai-provider-key-"+userID.String(), userAIProviderKeys[0].APIKey)
+	require.Equal(t, c.HexDigest(), userAIProviderKeys[0].ApiKeyKeyID.String)
 }
 
 // nullCipher is a dbcrypt.Cipher that does not encrypt or decrypt.

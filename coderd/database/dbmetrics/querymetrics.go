@@ -793,6 +793,14 @@ func (m queryMetricsStore) DeleteUserAIProviderKey(ctx context.Context, arg data
 	return r0
 }
 
+func (m queryMetricsStore) DeleteUserAIProviderKeysByProviderID(ctx context.Context, aiProviderID uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteUserAIProviderKeysByProviderID(ctx, aiProviderID)
+	m.queryLatencies.WithLabelValues("DeleteUserAIProviderKeysByProviderID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteUserAIProviderKeysByProviderID").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) DeleteUserChatCompactionThreshold(ctx context.Context, arg database.DeleteUserChatCompactionThresholdParams) error {
 	start := time.Now()
 	r0 := m.s.DeleteUserChatCompactionThreshold(ctx, arg)

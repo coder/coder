@@ -18,9 +18,6 @@ COMMENT ON COLUMN user_ai_provider_keys.api_key_key_id IS 'The ID of the key use
 CREATE INDEX idx_user_ai_provider_keys_ai_provider_id
     ON user_ai_provider_keys (ai_provider_id);
 
-CREATE INDEX idx_user_ai_provider_keys_user_id
-    ON user_ai_provider_keys (user_id);
-
 -- user_ai_provider_keys.user_id has ON DELETE CASCADE, but user deletion
 -- normally soft-deletes the users row, so the FK cascade does not fire.
 CREATE OR REPLACE FUNCTION delete_deleted_user_resources() RETURNS trigger

@@ -2271,6 +2271,13 @@ func (q *querier) DeleteUserAIProviderKey(ctx context.Context, arg database.Dele
 	return q.db.DeleteUserAIProviderKey(ctx, arg)
 }
 
+func (q *querier) DeleteUserAIProviderKeysByProviderID(ctx context.Context, aiProviderID uuid.UUID) error {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAIProvider); err != nil {
+		return err
+	}
+	return q.db.DeleteUserAIProviderKeysByProviderID(ctx, aiProviderID)
+}
+
 func (q *querier) DeleteUserChatCompactionThreshold(ctx context.Context, arg database.DeleteUserChatCompactionThresholdParams) error {
 	u, err := q.db.GetUserByID(ctx, arg.UserID)
 	if err != nil {

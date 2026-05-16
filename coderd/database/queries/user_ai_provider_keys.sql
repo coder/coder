@@ -67,7 +67,7 @@ UPDATE
 SET
     api_key = @api_key::text,
     api_key_key_id = sqlc.narg('api_key_key_id')::text,
-    updated_at = @updated_at::timestamptz
+    updated_at = NOW()
 WHERE
     user_id = @user_id::uuid
     AND ai_provider_id = @ai_provider_id::uuid
@@ -80,6 +80,12 @@ DELETE FROM
 WHERE
     user_id = @user_id::uuid
     AND ai_provider_id = @ai_provider_id::uuid;
+
+-- name: DeleteUserAIProviderKeysByProviderID :exec
+DELETE FROM
+    user_ai_provider_keys
+WHERE
+    ai_provider_id = @ai_provider_id::uuid;
 
 -- name: UpdateEncryptedUserAIProviderKey :one
 UPDATE
