@@ -740,7 +740,7 @@ func (api *API) upsertGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
 		ctx               = r.Context()
 		group             = httpmw.GroupParam(r)
 		auditor           = api.AGPL.Auditor.Load()
-		aReq, commitAudit = audit.InitRequest[database.GroupAiBudget](rw, &audit.RequestParams{
+		aReq, commitAudit = audit.InitRequest[database.AuditableGroupAiBudget](rw, &audit.RequestParams{
 			Audit:          *auditor,
 			Log:            api.Logger,
 			Request:        r,
@@ -763,7 +763,7 @@ func (api *API) upsertGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-	aReq.Old = oldBudget
+	aReq.Old = oldBudget.Auditable(group.Name)
 
 	newBudget, err := api.Database.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{
 		GroupID:          group.ID,
@@ -778,7 +778,7 @@ func (api *API) upsertGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-	aReq.New = newBudget
+	aReq.New = newBudget.Auditable(group.Name)
 
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.GroupAIBudget(newBudget))
 }
@@ -795,7 +795,7 @@ func (api *API) deleteGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
 		ctx               = r.Context()
 		group             = httpmw.GroupParam(r)
 		auditor           = api.AGPL.Auditor.Load()
-		aReq, commitAudit = audit.InitRequest[database.GroupAiBudget](rw, &audit.RequestParams{
+		aReq, commitAudit = audit.InitRequest[database.AuditableGroupAiBudget](rw, &audit.RequestParams{
 			Audit:          *auditor,
 			Log:            api.Logger,
 			Request:        r,
@@ -815,7 +815,7 @@ func (api *API) deleteGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-	aReq.Old = deleted
+	aReq.Old = deleted.Auditable(group.Name)
 
 	rw.WriteHeader(http.StatusNoContent)
 }
