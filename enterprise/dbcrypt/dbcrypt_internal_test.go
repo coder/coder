@@ -1292,6 +1292,170 @@ func TestAIProviderKeys(t *testing.T) {
 	})
 }
 
+func TestUserAIProviderKeys(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	const (
+		//nolint:gosec // test credentials
+		initialAPIKey = "sk-initial-ai-provider-key-value"
+		//nolint:gosec // test credentials
+		updatedAPIKey = "sk-updated-ai-provider-key-value"
+		//nolint:gosec // test credentials
+		rotatedAPIKey = "sk-rotated-ai-provider-key-value"
+	)
+
+	insertProviderAndKey := func(
+		t *testing.T,
+		crypt *dbCrypt,
+		ciphers []Cipher,
+	) (database.AIProvider, database.UserAiProviderKey) {
+		t.Helper()
+		user := dbgen.User(t, crypt, database.User{})
+		provider := dbgen.AIProvider(t, crypt, database.AIProvider{})
+		now := dbtime.Now()
+
+		key, err := crypt.UpsertUserAIProviderKey(ctx, database.UpsertUserAIProviderKeyParams{
+			ID:           uuid.New(),
+			UserID:       user.ID,
+			AiProviderID: provider.ID,
+			APIKey:       initialAPIKey,
+			CreatedAt:    now,
+			UpdatedAt:    now,
+		})
+		require.NoError(t, err)
+		require.Equal(t, initialAPIKey, key.APIKey)
+		require.Equal(t, ciphers[0].HexDigest(), key.ApiKeyKeyID.String)
+		return provider, key
+	}
+
+	getRawUserAIProviderKey := func(t *testing.T, store database.Store, userID uuid.UUID, providerID uuid.UUID) database.UserAiProviderKey {
+		t.Helper()
+		key, err := store.GetUserAIProviderKeyByProviderID(ctx, database.GetUserAIProviderKeyByProviderIDParams{
+			UserID:       userID,
+			AiProviderID: providerID,
+		})
+		require.NoError(t, err)
+		return key
+	}
+
+	t.Run("UpsertUserAIProviderKeyCreatesValue", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		provider, key := insertProviderAndKey(t, crypt, ciphers)
+
+		got, err := crypt.GetUserAIProviderKeyByProviderID(ctx, database.GetUserAIProviderKeyByProviderIDParams{
+			UserID:       key.UserID,
+			AiProviderID: provider.ID,
+		})
+		require.NoError(t, err)
+		require.Equal(t, key.ID, got.ID)
+		require.Equal(t, initialAPIKey, got.APIKey)
+		require.Equal(t, ciphers[0].HexDigest(), got.ApiKeyKeyID.String)
+
+		rawKey := getRawUserAIProviderKey(t, db, key.UserID, provider.ID)
+		require.NotEqual(t, initialAPIKey, rawKey.APIKey)
+		requireEncryptedEquals(t, ciphers[0], rawKey.APIKey, initialAPIKey)
+	})
+
+	t.Run("GetUserAIProviderKeysByUserID", func(t *testing.T) {
+		t.Parallel()
+		_, crypt, ciphers := setup(t)
+		provider, key := insertProviderAndKey(t, crypt, ciphers)
+
+		keys, err := crypt.GetUserAIProviderKeysByUserID(ctx, key.UserID)
+		require.NoError(t, err)
+		require.Len(t, keys, 1)
+		require.Equal(t, key.ID, keys[0].ID)
+		require.Equal(t, provider.ID, keys[0].AiProviderID)
+		require.Equal(t, initialAPIKey, keys[0].APIKey)
+		require.Equal(t, ciphers[0].HexDigest(), keys[0].ApiKeyKeyID.String)
+	})
+
+	t.Run("GetUserAIProviderKeys", func(t *testing.T) {
+		t.Parallel()
+		_, crypt, ciphers := setup(t)
+		provider, key := insertProviderAndKey(t, crypt, ciphers)
+
+		keys, err := crypt.GetUserAIProviderKeys(ctx)
+		require.NoError(t, err)
+		require.Len(t, keys, 1)
+		require.Equal(t, key.ID, keys[0].ID)
+		require.Equal(t, key.UserID, keys[0].UserID)
+		require.Equal(t, provider.ID, keys[0].AiProviderID)
+		require.Equal(t, initialAPIKey, keys[0].APIKey)
+		require.Equal(t, ciphers[0].HexDigest(), keys[0].ApiKeyKeyID.String)
+	})
+
+	t.Run("UpsertUserAIProviderKeyUpdatesValue", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		provider, key := insertProviderAndKey(t, crypt, ciphers)
+		updatedAt := key.UpdatedAt.Add(time.Minute)
+
+		updated, err := crypt.UpsertUserAIProviderKey(ctx, database.UpsertUserAIProviderKeyParams{
+			ID:           uuid.New(),
+			UserID:       key.UserID,
+			AiProviderID: provider.ID,
+			APIKey:       updatedAPIKey,
+			CreatedAt:    key.CreatedAt.Add(time.Minute),
+			UpdatedAt:    updatedAt,
+		})
+		require.NoError(t, err)
+		require.Equal(t, key.ID, updated.ID)
+		require.Equal(t, key.CreatedAt, updated.CreatedAt)
+		require.Equal(t, updatedAt, updated.UpdatedAt)
+		require.Equal(t, updatedAPIKey, updated.APIKey)
+		require.Equal(t, ciphers[0].HexDigest(), updated.ApiKeyKeyID.String)
+
+		rawKey := getRawUserAIProviderKey(t, db, key.UserID, provider.ID)
+		require.NotEqual(t, updatedAPIKey, rawKey.APIKey)
+		requireEncryptedEquals(t, ciphers[0], rawKey.APIKey, updatedAPIKey)
+	})
+
+	t.Run("UpdateUserAIProviderKey", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		provider, key := insertProviderAndKey(t, crypt, ciphers)
+		updatedAt := key.UpdatedAt.Add(time.Minute)
+
+		updated, err := crypt.UpdateUserAIProviderKey(ctx, database.UpdateUserAIProviderKeyParams{
+			UserID:       key.UserID,
+			AiProviderID: provider.ID,
+			APIKey:       updatedAPIKey,
+			UpdatedAt:    updatedAt,
+		})
+		require.NoError(t, err)
+		require.Equal(t, key.ID, updated.ID)
+		require.Equal(t, updatedAt, updated.UpdatedAt)
+		require.Equal(t, updatedAPIKey, updated.APIKey)
+		require.Equal(t, ciphers[0].HexDigest(), updated.ApiKeyKeyID.String)
+
+		rawKey := getRawUserAIProviderKey(t, db, key.UserID, provider.ID)
+		require.NotEqual(t, updatedAPIKey, rawKey.APIKey)
+		requireEncryptedEquals(t, ciphers[0], rawKey.APIKey, updatedAPIKey)
+	})
+
+	t.Run("UpdateEncryptedUserAIProviderKey", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		provider, key := insertProviderAndKey(t, crypt, ciphers)
+
+		updated, err := crypt.UpdateEncryptedUserAIProviderKey(ctx, database.UpdateEncryptedUserAIProviderKeyParams{
+			ID:     key.ID,
+			APIKey: rotatedAPIKey,
+		})
+		require.NoError(t, err)
+		require.Equal(t, key.ID, updated.ID)
+		require.Equal(t, rotatedAPIKey, updated.APIKey)
+		require.Equal(t, ciphers[0].HexDigest(), updated.ApiKeyKeyID.String)
+
+		rawKey := getRawUserAIProviderKey(t, db, key.UserID, provider.ID)
+		require.NotEqual(t, rotatedAPIKey, rawKey.APIKey)
+		requireEncryptedEquals(t, ciphers[0], rawKey.APIKey, rotatedAPIKey)
+	})
+}
+
 func TestMCPServerUserTokens(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
