@@ -729,6 +729,8 @@ type sqlcQuerier interface {
 	GetTotalUsageDCManagedAgentsV1(ctx context.Context, arg GetTotalUsageDCManagedAgentsV1Params) (int64, error)
 	GetUnexpiredLicenses(ctx context.Context) ([]License, error)
 	GetUserAIProviderKeyByProviderID(ctx context.Context, arg GetUserAIProviderKeyByProviderIDParams) (UserAiProviderKey, error)
+	// GetUserAIProviderKeys is used by dbcrypt key rotation. Request paths should use
+	// user-scoped lookups instead of this bulk accessor.
 	GetUserAIProviderKeys(ctx context.Context) ([]UserAiProviderKey, error)
 	GetUserAIProviderKeysByUserID(ctx context.Context, userID uuid.UUID) ([]UserAiProviderKey, error)
 	// Returns user IDs from the provided list that are consuming an AI seat.
@@ -1393,6 +1395,9 @@ type sqlcQuerier interface {
 	// used to store the data, and the minutes are summed for each user and template
 	// combination. The result is stored in the template_usage_stats table.
 	UpsertTemplateUsageStats(ctx context.Context) error
+	// UpsertUserAIProviderKey preserves the original id and created_at when the
+	// user/provider pair already exists. On conflict, callers provide id and
+	// created_at for the insert path only.
 	UpsertUserAIProviderKey(ctx context.Context, arg UpsertUserAIProviderKeyParams) (UserAiProviderKey, error)
 	UpsertUserChatDebugLoggingEnabled(ctx context.Context, arg UpsertUserChatDebugLoggingEnabledParams) error
 	UpsertUserChatPersonalModelOverride(ctx context.Context, arg UpsertUserChatPersonalModelOverrideParams) error

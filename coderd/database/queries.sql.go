@@ -26373,6 +26373,8 @@ ORDER BY
     id ASC
 `
 
+// GetUserAIProviderKeys is used by dbcrypt key rotation. Request paths should use
+// user-scoped lookups instead of this bulk accessor.
 func (q *sqlQuerier) GetUserAIProviderKeys(ctx context.Context) ([]UserAiProviderKey, error) {
 	rows, err := q.db.QueryContext(ctx, getUserAIProviderKeys)
 	if err != nil {
@@ -26562,6 +26564,9 @@ type UpsertUserAIProviderKeyParams struct {
 	UpdatedAt    time.Time      `db:"updated_at" json:"updated_at"`
 }
 
+// UpsertUserAIProviderKey preserves the original id and created_at when the
+// user/provider pair already exists. On conflict, callers provide id and
+// created_at for the insert path only.
 func (q *sqlQuerier) UpsertUserAIProviderKey(ctx context.Context, arg UpsertUserAIProviderKeyParams) (UserAiProviderKey, error) {
 	row := q.db.QueryRowContext(ctx, upsertUserAIProviderKey,
 		arg.ID,
