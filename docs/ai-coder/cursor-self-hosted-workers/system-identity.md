@@ -1,12 +1,25 @@
-# System identity: a pool of bot workers
+# Worker Pool (Cursor Enterprise)
 
-Publish a Coder template that runs a pool of Cursor private workers
-under a **system (bot) identity**. Coder maintains warm worker
-workspaces per repository; when a Cursor session for that repo
-arrives, Cursor's label-based routing assigns it to a free worker
-in the matching pool. The workspace, the git push credential (which
-is blocked by default), and the worker's Cursor identity are all the
-same service account, fleet-wide.
+Publish a Coder template that runs a centrally-operated pool of Cursor
+private workers under a shared **bot identity**. Coder maintains warm
+worker workspaces per repository; when a Cursor session for that repo
+arrives, Cursor's label-based routing assigns it to a free worker in
+the matching pool. The workspace, the git push credential (which is
+blocked by default), and the worker's Cursor identity are all the same
+service account, fleet-wide.
+
+> [!IMPORTANT]
+> **Worker Pool requires a Cursor Enterprise plan.** Pool workers
+> authenticate with a service-account API key, and service accounts
+> are an Enterprise-only feature. Team plan teams cannot register pool
+> workers; their workers register as personal machines instead. For
+> Team plan deployments, see [Personal Workers](./personal-workers.md).
+>
+> **Worker Pool runs every session under a shared bot identity today.**
+> Per-user identity on pool workers is planned via per-session
+> sub-tokens; see [User Identity](./user-identity.md). If you need
+> per-user identity right now, use
+> [Personal Workers](./personal-workers.md).
 
 <img src="../../images/guides/cursor-self-hosted-workers/system-identity-flow.svg" alt="Coder maintains warm worker workspaces per repository. When a Cursor session arrives, Cursor's label-based routing matches it to a free worker bound to the requested repo. When work drains the workspace is deleted and the reconciler queues a replacement." />
 

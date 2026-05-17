@@ -1084,14 +1084,20 @@
 					"state": ["early access"],
 					"children": [
 						{
-							"title": "System Identity",
-							"description": "A self-healing pool of bot-owned Cursor workers. Each worker is one Coder workspace bound to one repo.",
+							"title": "Worker Pool",
+							"description": "Admin-operated central pool of bot-owned Cursor workers. Requires Cursor Enterprise.",
 							"path": "./ai-coder/cursor-self-hosted-workers/system-identity.md",
 							"state": ["early access"]
 						},
 						{
-							"title": "User Identity",
-							"description": "Per-developer attribution for Cursor workers on Coder. Not yet available.",
+							"title": "Personal Workers",
+							"description": "One Coder workspace per developer, started with their personal Cursor API key. Works on Cursor Team plan and above.",
+							"path": "./ai-coder/cursor-self-hosted-workers/personal-workers.md",
+							"state": ["early access"]
+						},
+						{
+							"title": "User Identity (planned)",
+							"description": "Per-developer attribution on Worker Pool. Not yet available.",
 							"path": "./ai-coder/cursor-self-hosted-workers/user-identity.md",
 							"state": ["early access"]
 						},

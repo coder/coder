@@ -145,58 +145,69 @@ you already use carry over:
 | [AI Gateway](../ai-gateway/index.md)         | Egress proxy for LLM traffic with audit and policy.                       | **Not applicable today.** The worker doesn't make model-provider calls; the agent loop runs in Cursor's cloud, so there is no traffic for AI Gateway to intercept. See [AI Governance Integration](./ai-governance.md) for the full breakdown. |
 | [Agent Firewall](../agent-firewall/index.md) | Process-level egress and command policy inside a workspace.               | Optional. Apply it to the worker workspace for extra guardrails on what sessions can reach or run.                                                                                 |
 
-## Identity models
+## Two paths
 
-Coder supports running Cursor workers under two different identity
-models. They share the same template, image, and pool; they differ in
-who owns the workspace and whose credentials the worker uses.
+Coder supports two operational models for running Cursor workers. Pick
+based on your Cursor plan and whether you want a centrally-operated
+pool or per-developer workspaces.
 
-### System identity (Works Today)
+### Worker Pool (Cursor Enterprise)
 
-Coder (or an external daemon) maintains N warm bot-owned workspaces
-per repo. When a Cursor session for that repo arrives, Cursor's
-label-based routing matches it to a free worker in the matching pool.
-The workspace, the git credential, and the worker's Cursor identity
-are all the same service account, fleet-wide.
+An admin publishes one template and a fleet of warm bot-owned
+workspaces per repo. Cursor's label-based routing matches each session
+to a free worker in the matching pool. Centralized image, centralized
+network egress, centralized capacity planning.
 
-Because there is no per-user identity to attribute commits to, **git
-pushes are deliberately blocked** at startup
-(`remote.origin.pushurl = no_push`). Workers can read and search the
-repo and produce diffs in the session UI; they cannot create branches
-or open pull requests. The per-human signal lives in Cursor's session
-log, keyed by the worker's `activeBcId`.
+- **Requires Cursor Enterprise.** Pool workers authenticate with a
+  service-account API key, and service accounts are Enterprise-only.
+- **Identity is bot, fleet-wide.** Every session runs under the same
+  service account. Git pushes are blocked at startup
+  (`remote.origin.pushurl = no_push`) because there is no per-user
+  identity to attribute commits to. The per-human signal lives in
+  Cursor's session log, keyed by the worker's `activeBcId`.
+- **Per-user identity is planned**, not shipped. See
+  [User Identity](./user-identity.md) for the design and what gates it.
 
-See [System identity](./system-identity.md) for the copyable Terraform
+See [Worker Pool](./system-identity.md) for the copyable Terraform
 recipe and the known limitations.
 
-### User identity (Planned)
+### Personal Workers (any Cursor plan)
 
-A routing component pre-binds each worker workspace to the developer
-who started the session. The workspace owner is the human, Coder
-external auth wires their git push token automatically, and audit log
-entries attribute to them.
+Each developer creates their own Coder workspace and pastes in their
+personal Cursor API key. The workspace runs as the developer, the
+worker registers as that developer's personal machine, and Cursor
+routes only that developer's sessions to it.
 
-User identity depends on Cursor API pieces that are still being
-finalized: a team service-account key with `agent:*` scope, the
-`POST /v1/sub-tokens` per-user token mint, and a stable shape for
-`GET /v0/private-workers/pending-requests`. The
-[System identity](./system-identity.md) recipe you ship today is the
-foundation; turning on user identity means swapping the single
-service-account key for per-request sub-tokens and pointing workspace
-creation at the matching Coder user.
+- **Works on Cursor Team plan and above.** No service account needed.
+- **Per-user identity end to end.** Workspace owner is the human, Coder
+  external auth wires their git push token, audit log entries
+  attribute to them, the worker registers under their Cursor identity.
+- **No shared inventory.** Alice's workers don't serve Bob's sessions.
+  Each developer manages their own capacity.
+- **Sessions trigger by name.** Developers use `worker=<name>` or
+  `machine=<name>` from Slack, GitHub, Linear, or the Cloud Agents
+  dashboard.
 
-See [User identity](./user-identity.md) for the design and what stays
-the same.
+See [Personal Workers](./personal-workers.md) for the recipe.
+
+### Picking between them
+
+| If your team...                                                  | Use                                              |
+|------------------------------------------------------------------|--------------------------------------------------|
+| Is on Cursor Enterprise and wants central admin control          | [Worker Pool](./system-identity.md)              |
+| Is on Cursor Team plan                                           | [Personal Workers](./personal-workers.md)        |
+| Wants per-user identity (git push, audit) today                  | [Personal Workers](./personal-workers.md)        |
+| Wants Worker Pool with per-user identity                         | Wait for [User Identity](./user-identity.md)     |
+| Wants both (org-managed pool + power users on personal workers)  | Both. They share the same image; only the template differs. |
 
 ## Where to next
 
-- [System identity](./system-identity.md): the recipe for a
-  self-healing pool of bot workers, with a primary path on Coder
-  prebuilds and an alternative path on an external daemon for OSS
-  Coder.
-- [User identity](./user-identity.md): per-developer attribution. On
-  the Coder + Cursor roadmap; not yet available.
-- [Implementation notes](./plan.md): the staged plan, the sub-stages
-  within system identity (per-creator credentials, AI Gateway routing,
-  custom checkout, tool allowlists), and the open questions tracked
-  alongside this delivery.
+- [Worker Pool](./system-identity.md): admin-operated central pool,
+  requires Cursor Enterprise. Bot identity, label-routed.
+- [Personal Workers](./personal-workers.md): one workspace per
+  developer, per-user identity, works on Cursor Team plan.
+- [User Identity](./user-identity.md): per-developer attribution on
+  Worker Pool. On the Coder + Cursor roadmap; not yet available.
+- [AI Governance Integration](./ai-governance.md): how the two paths
+  affect Coder AI Gateway coverage.
+- [Implementation Notes](./plan.md): staged plan and open questions.
