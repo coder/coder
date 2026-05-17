@@ -116,6 +116,58 @@ func TestOrgSharingPermissions(t *testing.T) {
 }
 
 //nolint:tparallel,paralleltest
+func TestChatSharingPermissions(t *testing.T) {
+	target := rbac.Permission{
+		Negate:       true,
+		ResourceType: rbac.ResourceChat.Type,
+		Action:       policy.ActionShare,
+	}
+	orgID := uuid.New()
+	userID := uuid.NewString()
+	resource := rbac.ResourceChat.WithID(uuid.New()).InOrg(orgID).WithOwner(userID)
+
+	authorizeAgentsAccessUser := func(t *testing.T) error {
+		t.Helper()
+
+		memberRole, err := rbac.RoleByName(rbac.RoleMember())
+		require.NoError(t, err)
+		agentsRole, err := rbac.RoleByName(rbac.ScopedRoleAgentsAccess(orgID))
+		require.NoError(t, err)
+
+		auth := rbac.NewStrictAuthorizer(prometheus.NewRegistry())
+		return auth.Authorize(context.Background(), rbac.Subject{
+			ID:    userID,
+			Roles: rbac.Roles{memberRole, agentsRole},
+			Scope: rbac.ScopeAll,
+		}, policy.ActionShare, resource)
+	}
+
+	t.Run("Default", func(t *testing.T) {
+		rbac.ReloadBuiltinRoles(nil)
+		t.Cleanup(func() { rbac.ReloadBuiltinRoles(nil) })
+
+		memberRole, err := rbac.RoleByName(rbac.RoleMember())
+		require.NoError(t, err)
+		assert.False(t, permissionGranted(memberRole.Site, target))
+		require.NoError(t, authorizeAgentsAccessUser(t))
+	})
+
+	t.Run("Disabled", func(t *testing.T) {
+		rbac.ReloadBuiltinRoles(&rbac.RoleOptions{
+			NoChatSharing: true,
+		})
+		t.Cleanup(func() { rbac.ReloadBuiltinRoles(nil) })
+
+		memberRole, err := rbac.RoleByName(rbac.RoleMember())
+		require.NoError(t, err)
+		assert.True(t, permissionGranted(memberRole.Site, target))
+
+		err = authorizeAgentsAccessUser(t)
+		require.ErrorAs(t, err, &rbac.UnauthorizedError{})
+	})
+}
+
+//nolint:tparallel,paralleltest
 func TestOwnerExec(t *testing.T) {
 	owner := rbac.Subject{
 		ID:    uuid.NewString(),

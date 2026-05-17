@@ -14294,6 +14294,8 @@ func requireSDKError(t *testing.T, err error, expectedStatus int) *codersdk.Erro
 func TestChatReadOnlySharedWriteHandlers(t *testing.T) {
 	t.Parallel()
 
+	const sharedChatText = "read only shared chat"
+
 	setup := func(t *testing.T) (
 		ctx context.Context,
 		ownerClient *codersdk.ExperimentalClient,
@@ -14320,7 +14322,7 @@ func TestChatReadOnlySharedWriteHandlers(t *testing.T) {
 			OrganizationID: owner.OrganizationID,
 			Content: []codersdk.ChatInputPart{{
 				Type: codersdk.ChatInputPartTypeText,
-				Text: "read only shared chat",
+				Text: sharedChatText,
 			}},
 		})
 		require.NoError(t, err)
@@ -14339,6 +14341,34 @@ func TestChatReadOnlySharedWriteHandlers(t *testing.T) {
 		require.NoError(t, err)
 		return ctx, ownerClient, sharedClient, chat, db
 	}
+
+	t.Run("GetChatAndMessages", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, _, sharedClient, chat, _ := setup(t)
+
+		gotChat, err := sharedClient.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, chat.ID, gotChat.ID)
+
+		messagesResult, err := sharedClient.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		require.NotEmpty(t, messagesResult.Messages)
+
+		foundUserMessage := false
+		for _, message := range messagesResult.Messages {
+			if message.Role != codersdk.ChatMessageRoleUser {
+				continue
+			}
+			for _, part := range message.Content {
+				if part.Type == codersdk.ChatMessagePartTypeText && part.Text == sharedChatText {
+					foundUserMessage = true
+					break
+				}
+			}
+		}
+		require.True(t, foundUserMessage)
+	})
 
 	t.Run("PatchChat", func(t *testing.T) {
 		t.Parallel()

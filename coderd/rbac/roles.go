@@ -243,6 +243,7 @@ var builtInRoles map[string]func(orgID uuid.UUID) Role
 type RoleOptions struct {
 	NoOwnerWorkspaceExec bool
 	NoWorkspaceSharing   bool
+	NoChatSharing        bool
 }
 
 // ReservedRoleName exists because the database should only allow unique role
@@ -269,6 +270,13 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		denyPermissions = append(denyPermissions, Permission{
 			Negate:       true,
 			ResourceType: ResourceWorkspace.Type,
+			Action:       policy.ActionShare,
+		})
+	}
+	if opts.NoChatSharing {
+		denyPermissions = append(denyPermissions, Permission{
+			Negate:       true,
+			ResourceType: ResourceChat.Type,
 			Action:       policy.ActionShare,
 		})
 	}
