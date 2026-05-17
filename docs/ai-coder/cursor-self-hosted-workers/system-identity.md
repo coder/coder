@@ -23,43 +23,30 @@ service account, fleet-wide.
 
 <img src="../../images/guides/cursor-self-hosted-workers/system-identity-flow.svg" alt="Coder maintains warm worker workspaces per repository. When a Cursor session arrives, Cursor's label-based routing matches it to a free worker bound to the requested repo. When work drains the workspace is deleted and the reconciler queues a replacement." />
 
-> [!TIP]
-> The primitives this guide depends on (templates, prebuilds on
-> Premium, sensitive Terraform variables, agent metadata) are already
-> there. The recipe is a good fit for a scoped POC, a single Cursor
-> team's pool over a small set of repos, or a fleet that runs Cursor
-> Background Agents as a build agent.
->
-> The routing layer described in [User identity](./user-identity.md)
-> will lift the workspace-owner limitation below: it spawns a workspace
-> per Cursor user on demand instead of capping at the pool size, and
-> the workspace owner becomes the human so external auth, the audit
-> log, and the commit author can all use the developer's identity. The
-> template, image, and pool you publish here stay; the routing layer
-> goes in front.
+## How it works
 
-## Two reconciler choices: pick one
+A Worker Pool is a set of warm Coder workspaces, each running one
+`cursor-agent worker` process bound to one git repository. Cursor sees
+them all as members of the same fleet, authenticated by the same
+service-account API key. When a developer triggers a Cloud Agent
+session against a repo, Cursor's label-based routing picks any free
+worker whose `repo=` label matches and runs the session there.
 
-The recipe is the same on the inside of the workspace (same image,
-same `cursor-agent worker start` command, same metadata blocks). The
-only difference is **what keeps the pool warm**:
+From the platform team's perspective, a pool is one Terraform template
+plus one preset per repository. Coder keeps the configured number of
+workspaces warm; when one drains, Coder replaces it. Operators size,
+image, network, and rotate the fleet the same way they would any other
+internal service.
 
-- **Primary path: Coder prebuilds.** A `coder_workspace_preset` with
-  `prebuilds { instances = N }` per repo. Coder's reconciler handles
-  scaling, recycling, and template-version rotation. Requires Coder
-  Premium.
-- **Alternative path: external daemon.** A small Go binary
-  (`cursor-worker-pool-daemon`) polls Cursor's fleet API and Coder's
-  workspace API on a timer, deletes stale or outdated workers, and
-  spawns replacements. Runs on any Coder deployment, OSS included.
-
-The two paths converge under [User identity](./user-identity.md):
-prebuilds is the natural inventory primitive for the per-user claim,
-and the daemon's responsibilities collapse into a smaller routing
-service.
-
-This page documents the prebuilds path in full and links to the daemon
-path as an alternative.
+> [!NOTE]
+> **Dynamic per-session sizing is on the roadmap.** Today, the pool
+> size is a fixed `instances = N` per preset. A future Coder release
+> will scale pool size in response to Cursor's pending-request signal,
+> so workspaces spawn on demand instead of being pre-provisioned. The
+> template you publish today is the foundation; dynamic sizing turns
+> on without re-authoring the recipe. See
+> [User Identity](./user-identity.md) for the related per-user claim
+> work.
 
 ## Limitations
 
@@ -104,8 +91,7 @@ If the second is a blocker for your team, wait for
 ## Prerequisites
 
 - A Coder deployment with **Coder Premium** for the prebuilds path
-  below. The [alternative daemon path](#alternative-external-daemon)
-  runs on any Coder.
+  below.
 - A Cursor team admin who can issue a service-account API key at
   `cursor.com > Settings > Team > API Keys`.
 - A workspace base image that can install `cursor-agent`. The example
@@ -449,63 +435,19 @@ tail -f ~/cursor-agent.log
 
 | Symptom                                      | Cause and fix                                                                                                                                                                                                                                       |
 |----------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Prebuilds never come up                      | Confirm your deployment is on **Coder Premium** (prebuilds is an enterprise feature). Check `coder server` logs for `prebuilds` errors. For OSS, use the [alternative daemon path](#alternative-external-daemon).                                   |
+| Prebuilds never come up                      | Confirm your deployment is on **Coder Premium** (prebuilds is an enterprise feature). Check `coder server` logs for `prebuilds` errors.                                                                                                                                            |
 | Workers appear in Cursor but never get claimed | The `git_repo_url` parameter doesn't match the repo a developer is asking for. Cursor's routing only matches a session to a worker whose `repo=` label is the same repo. Create a preset per repo.                                            |
 | `git push` fails with "Permission denied"    | Expected. System identity blocks pushes on purpose. Sessions can read, search, and propose diffs; pull requests are not supported until [User identity](./user-identity.md).                                                                       |
 | Worker process is `stopped` but workspace is healthy | `cursor-agent worker start` exited. Tail `~/cursor-agent.log` for the reason. Common causes: invalid `--worker-dir` (not a git repo), service-account key revoked, network egress to `api.cursor.com` blocked.                                  |
 | Same worker keeps getting claimed             | Cursor's routing matches by label, not by recency. If you have one preset of `instances = 1`, every session for that repo goes to the same workspace until it's busy. Bump `instances` for parallel sessions. The ordering between multiple matching workers isn't documented; don't depend on a specific tie-breaker.                            |
 
-## Alternative: external daemon
-
-If you are on OSS Coder or want a readable, external reconciler you
-can modify, use [`cursor-worker-pool-daemon`][daemon]. It does the
-same job as Coder prebuilds: poll Cursor's fleet API and Coder's
-workspace list, delete stale workers, create replacements.
-
-[daemon]: https://github.com/coder/coder
-
-The trade-offs:
-
-- **Pro:** runs on any Coder deployment. Reconciliation logic is
-  small (about 500 lines of Go) and you can read it. Auto-update on
-  template version is explicit.
-- **Con:** another binary to deploy. The workspace's identity is a
-  regular Coder user named `--pool-owner`, not Coder's synthetic
-  prebuilds service account.
-
-The Terraform template is the same as above with two differences:
-
-- Drop the `coder_workspace_preset` blocks. The daemon creates
-  workspaces directly via the Coder API; presets are not needed.
-- The daemon's `--template name=N` flag is keyed on template name, so
-  pools are sized per **template**, not per preset. The simplest shape
-  is one template per repo and one `--template` flag per pool; if you
-  want a single template, you can pass the repo to the daemon via
-  `rich_parameter_values` on workspace create. The flag is repeatable,
-  so one daemon can manage many pools.
-
-Run the daemon as a long-lived process next to your Coder deployment:
-
-```bash
-cursor-worker-pool-daemon \
-  --coder-url    https://coder.example.com \
-  --coder-token  "$CODER_TOKEN" \
-  --cursor-api-key "$CURSOR_API_KEY" \
-  --org          your-org \
-  --pool-owner   cursor-worker-pool \
-  --template     cursor-self-hosted-workers-coder=3 \
-  --template     cursor-self-hosted-workers-internal-app=2
-```
-
-See the daemon's README for the full flag set and Coder service-account
-setup. The verification, logs, sizing, and rotation guidance above all
-still apply; the only thing that changes is "who maintains the pool."
-
 ## Where to next
 
-- [User identity](./user-identity.md): per-developer attribution. On
-  the Coder + Cursor roadmap; not yet available.
-- [Implementation notes](./plan.md): the staged plan, the sub-stages
-  within system identity (per-creator credentials, AI Gateway routing,
-  custom checkout, tool allowlists), and the open questions tracked
-  alongside this delivery.
+- [Personal Workers](./personal-workers.md): one workspace per
+  developer with per-user identity. The path for Cursor Team plans, or
+  for users on Enterprise who want their own machines alongside the
+  shared pool.
+- [User Identity](./user-identity.md): per-developer attribution on
+  Worker Pool. Planned; not yet available.
+- [Implementation Notes](./plan.md): the staged plan and open questions
+  tracked alongside this delivery.
