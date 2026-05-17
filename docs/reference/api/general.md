@@ -147,6 +147,11 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "host": "string",
       "port": "string"
     },
+    "agent": {
+      "support_bundle_additional_log_paths": [
+        "string"
+      ]
+    },
     "agent_fallback_troubleshooting_url": {
       "forceQuery": true,
       "fragment": "string",

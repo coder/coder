@@ -129,6 +129,22 @@ func (mr *MockAgentConnMockRecorder) ContextConfig(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ContextConfig", reflect.TypeOf((*MockAgentConn)(nil).ContextConfig), ctx)
 }
 
+// DebugLogFiles mocks base method.
+func (m *MockAgentConn) DebugLogFiles(ctx context.Context, opts workspacesdk.DebugLogFilesOptions) (io.ReadCloser, http.Header, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DebugLogFiles", ctx, opts)
+	ret0, _ := ret[0].(io.ReadCloser)
+	ret1, _ := ret[1].(http.Header)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// DebugLogFiles indicates an expected call of DebugLogFiles.
+func (mr *MockAgentConnMockRecorder) DebugLogFiles(ctx, opts any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DebugLogFiles", reflect.TypeOf((*MockAgentConn)(nil).DebugLogFiles), ctx, opts)
+}
+
 // DebugLogs mocks base method.
 func (m *MockAgentConn) DebugLogs(ctx context.Context) ([]byte, error) {
 	m.ctrl.T.Helper()
@@ -142,6 +158,22 @@ func (m *MockAgentConn) DebugLogs(ctx context.Context) ([]byte, error) {
 func (mr *MockAgentConnMockRecorder) DebugLogs(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DebugLogs", reflect.TypeOf((*MockAgentConn)(nil).DebugLogs), ctx)
+}
+
+// DebugLogsWithOptions mocks base method.
+func (m *MockAgentConn) DebugLogsWithOptions(ctx context.Context, opts workspacesdk.DebugLogsOptions) ([]byte, http.Header, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DebugLogsWithOptions", ctx, opts)
+	ret0, _ := ret[0].([]byte)
+	ret1, _ := ret[1].(http.Header)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// DebugLogsWithOptions indicates an expected call of DebugLogsWithOptions.
+func (mr *MockAgentConnMockRecorder) DebugLogsWithOptions(ctx, opts any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DebugLogsWithOptions", reflect.TypeOf((*MockAgentConn)(nil).DebugLogsWithOptions), ctx, opts)
 }
 
 // DebugMagicsock mocks base method.

@@ -88,6 +88,9 @@ type Agent struct {
 	ConnectionInfo      *workspacesdk.AgentConnectionInfo              `json:"connection_info"`
 	ListeningPorts      *codersdk.WorkspaceAgentListeningPortsResponse `json:"listening_ports"`
 	Logs                []byte                                         `json:"logs"`
+	LogsTruncated       bool                                           `json:"logs_truncated"`
+	LogFiles            map[string][]byte                              `json:"log_files"`
+	LogFilesTruncated   bool                                           `json:"log_files_truncated"`
 	ClientMagicsockHTML []byte                                         `json:"client_magicsock_html"`
 	AgentMagicsockHTML  []byte                                         `json:"agent_magicsock_html"`
 	Manifest            *agentsdk.Manifest                             `json:"manifest"`
@@ -665,11 +668,31 @@ func connectedAgentInfo(ctx context.Context, client *codersdk.Client, log slog.L
 	})
 
 	eg.Go(func() error {
-		logBytes, err := conn.DebugLogs(ctx)
+		logBytes, header, err := conn.DebugLogsWithOptions(ctx, workspacesdk.DebugLogsOptions{IncludeRotated: true})
 		if err != nil {
 			return xerrors.Errorf("fetch coder agent logs: %w", err)
 		}
 		a.Logs = logBytes
+		a.LogsTruncated = strings.EqualFold(header.Get(codersdk.SupportBundleLogsTruncatedHeader), "true")
+		return nil
+	})
+
+	eg.Go(func() error {
+		body, header, err := conn.DebugLogFiles(ctx, workspacesdk.DebugLogFilesOptions{})
+		if err != nil {
+			if cerr, ok := codersdk.AsError(err); ok && cerr.StatusCode() == http.StatusNotFound {
+				log.Warn(ctx, "agent does not support debug log files")
+				return nil
+			}
+			return xerrors.Errorf("fetch coder agent log files: %w", err)
+		}
+		defer body.Close()
+		logFiles, err := readDebugLogFilesArchive(body)
+		a.LogFiles = logFiles
+		if err != nil {
+			return xerrors.Errorf("read coder agent log files archive: %w", err)
+		}
+		a.LogFilesTruncated = strings.EqualFold(header.Get(codersdk.SupportBundleLogsTruncatedHeader), "true")
 		return nil
 	})
 
@@ -683,6 +706,48 @@ func connectedAgentInfo(ctx context.Context, client *codersdk.Client, log slog.L
 	})
 
 	return closer
+}
+
+func readDebugLogFilesArchive(r io.Reader) (map[string][]byte, error) {
+	gzr, err := gzip.NewReader(r)
+	if err != nil {
+		return nil, xerrors.Errorf("create gzip reader: %w", err)
+	}
+	defer gzr.Close()
+
+	files := map[string][]byte{}
+	tr := tar.NewReader(gzr)
+	for {
+		hdr, err := tr.Next()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return files, xerrors.Errorf("read tar header: %w", err)
+		}
+		if hdr.Typeflag != tar.TypeReg {
+			continue
+		}
+		name, ok := safeDebugLogFileArchiveName(hdr.Name)
+		if !ok {
+			continue
+		}
+		data, err := io.ReadAll(tr)
+		if err != nil {
+			return files, xerrors.Errorf("read tar file %q: %w", hdr.Name, err)
+		}
+		files[name] = data
+	}
+	return files, nil
+}
+
+func safeDebugLogFileArchiveName(name string) (string, bool) {
+	name = strings.ReplaceAll(name, "\\", "/")
+	clean := path.Clean(name)
+	if clean == "." || clean == ".." || path.IsAbs(clean) || strings.HasPrefix(clean, "../") {
+		return "", false
+	}
+	return clean, true
 }
 
 func PprofInfo(ctx context.Context, client *codersdk.Client, log slog.Logger) *PprofCollection {

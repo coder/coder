@@ -1432,6 +1432,22 @@
 |---------------------------|
 | `enter`, `modifier_enter` |
 
+## codersdk.AgentConfig
+
+```json
+{
+  "support_bundle_additional_log_paths": [
+    "string"
+  ]
+}
+```
+
+### Properties
+
+| Name                                  | Type            | Required | Restrictions | Description |
+|---------------------------------------|-----------------|----------|--------------|-------------|
+| `support_bundle_additional_log_paths` | array of string | false    |              |             |
+
 ## codersdk.AgentConnectionTiming
 
 ```json
@@ -5283,6 +5299,11 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "host": "string",
       "port": "string"
     },
+    "agent": {
+      "support_bundle_additional_log_paths": [
+        "string"
+      ]
+    },
     "agent_fallback_troubleshooting_url": {
       "forceQuery": true,
       "fragment": "string",
@@ -5881,6 +5902,11 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "host": "string",
     "port": "string"
   },
+  "agent": {
+    "support_bundle_additional_log_paths": [
+      "string"
+    ]
+  },
   "agent_fallback_troubleshooting_url": {
     "forceQuery": true,
     "fragment": "string",
@@ -6382,6 +6408,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `access_url`                                   | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                    |
 | `additional_csp_policy`                        | array of string                                                                                      | false    |              |                                                                    |
 | `address`                                      | [serpent.HostPort](#serpenthostport)                                                                 | false    |              | Deprecated: Use HTTPAddress or TLS.Address instead.                |
+| `agent`                                        | [codersdk.AgentConfig](#codersdkagentconfig)                                                         | false    |              |                                                                    |
 | `agent_fallback_troubleshooting_url`           | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                    |
 | `agent_stat_refresh_interval`                  | integer                                                                                              | false    |              |                                                                    |
 | `ai`                                           | [codersdk.AIConfig](#codersdkaiconfig)                                                               | false    |              |                                                                    |

@@ -870,6 +870,14 @@ export const AgentChatSendShortcuts: AgentChatSendShortcut[] = [
 	"modifier_enter",
 ];
 
+// From codersdk/deployment.go
+/**
+ * AgentConfig configures deployment-wide workspace agent behavior.
+ */
+export interface AgentConfig {
+	readonly support_bundle_additional_log_paths: string;
+}
+
 // From codersdk/workspacebuilds.go
 export interface AgentConnectionTiming {
 	readonly started_at: string;
@@ -3818,6 +3826,7 @@ export interface DeploymentValues {
 	readonly external_auth?: SerpentStruct<ExternalAuthConfig[]>;
 	readonly external_auth_github_default_provider_enable?: boolean;
 	readonly config_ssh?: SSHConfig;
+	readonly agent?: AgentConfig;
 	readonly wgtunnel_host?: string;
 	readonly disable_owner_workspace_exec?: boolean;
 	readonly disable_workspace_sharing?: boolean;
@@ -7246,6 +7255,13 @@ export const SubdomainAppSessionTokenCookie =
 export interface SubmitToolResultsRequest {
 	readonly results: readonly ToolResult[];
 }
+
+// From codersdk/client.go
+/**
+ * SupportBundleLogsTruncatedHeader is set when support bundle log collection
+ * reached a size or file-count cap and omitted some logs.
+ */
+export const SupportBundleLogsTruncatedHeader = "X-Coder-Logs-Truncated";
 
 // From codersdk/deployment.go
 export interface SupportConfig {

@@ -139,6 +139,9 @@ func TestManifest(t *testing.T) {
 				SubagentID:      uuid.NullUUID{Valid: true, UUID: uuid.New()},
 			},
 		},
+		SupportBundleAdditionalLogPaths: []string{
+			"/var/log/custom",
+		},
 	}
 	p, err := agentsdk.ProtoFromManifest(manifest)
 	require.NoError(t, err)
@@ -163,6 +166,7 @@ func TestManifest(t *testing.T) {
 	require.Equal(t, manifest.Metadata, back.Metadata)
 	require.Equal(t, manifest.Scripts, back.Scripts)
 	require.Equal(t, manifest.Devcontainers, back.Devcontainers)
+	require.Equal(t, manifest.SupportBundleAdditionalLogPaths, back.SupportBundleAdditionalLogPaths)
 }
 
 func TestSubsystems(t *testing.T) {

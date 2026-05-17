@@ -15086,6 +15086,17 @@ const docTemplate = `{
                 "AgentChatSendShortcutModifierEnter"
             ]
         },
+        "codersdk.AgentConfig": {
+            "type": "object",
+            "properties": {
+                "support_bundle_additional_log_paths": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "codersdk.AgentConnectionTiming": {
             "type": "object",
             "properties": {
@@ -17837,6 +17848,9 @@ const docTemplate = `{
                             "$ref": "#/definitions/serpent.HostPort"
                         }
                     ]
+                },
+                "agent": {
+                    "$ref": "#/definitions/codersdk.AgentConfig"
                 },
                 "agent_fallback_troubleshooting_url": {
                     "$ref": "#/definitions/serpent.URL"

@@ -99,6 +99,8 @@ type AgentConn interface {
 	Close() error
 	ContextConfig(ctx context.Context) (ContextConfigResponse, error)
 	DebugLogs(ctx context.Context) ([]byte, error)
+	DebugLogsWithOptions(ctx context.Context, opts DebugLogsOptions) ([]byte, http.Header, error)
+	DebugLogFiles(ctx context.Context, opts DebugLogFilesOptions) (io.ReadCloser, http.Header, error)
 	DebugMagicsock(ctx context.Context) ([]byte, error)
 	DebugManifest(ctx context.Context) ([]byte, error)
 	DialContext(ctx context.Context, network string, addr string) (net.Conn, error)
@@ -443,23 +445,68 @@ func (c *agentConn) DebugManifest(ctx context.Context) ([]byte, error) {
 	return bs, nil
 }
 
-// DebugLogs returns up to the last 10MB of `/tmp/coder-agent.log`
+type DebugLogsOptions struct {
+	IncludeRotated bool
+}
+
+type DebugLogFilesOptions struct {
+	MaxAge time.Duration
+}
+
+// DebugLogs returns up to the last 10MB of `/tmp/coder-agent.log`.
 func (c *agentConn) DebugLogs(ctx context.Context) ([]byte, error) {
+	bs, _, err := c.DebugLogsWithOptions(ctx, DebugLogsOptions{})
+	return bs, err
+}
+
+// DebugLogsWithOptions returns the agent debug log with optional rotated logs.
+func (c *agentConn) DebugLogsWithOptions(ctx context.Context, opts DebugLogsOptions) ([]byte, http.Header, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
-	res, err := c.apiRequest(ctx, http.MethodGet, "/debug/logs", nil)
+	path := debugLogsPath(opts)
+	res, err := c.apiRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
-		return nil, xerrors.Errorf("do request: %w", err)
+		return nil, nil, xerrors.Errorf("do request: %w", err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, codersdk.ReadBodyAsError(res)
+		return nil, nil, codersdk.ReadBodyAsError(res)
 	}
 	bs, err := io.ReadAll(res.Body)
 	if err != nil {
-		return nil, xerrors.Errorf("read response body: %w", err)
+		return nil, nil, xerrors.Errorf("read response body: %w", err)
 	}
-	return bs, nil
+	return bs, res.Header.Clone(), nil
+}
+
+func debugLogsPath(opts DebugLogsOptions) string {
+	query := neturl.Values{}
+	if opts.IncludeRotated {
+		query.Set("include_rotated", "true")
+	}
+	return agentAPIPath("/debug/logs", query)
+}
+
+func (c *agentConn) DebugLogFiles(ctx context.Context, opts DebugLogFilesOptions) (io.ReadCloser, http.Header, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodGet, debugLogFilesPath(opts), nil)
+	if err != nil {
+		return nil, nil, xerrors.Errorf("do request: %w", err)
+	}
+	if res.StatusCode != http.StatusOK {
+		defer res.Body.Close()
+		return nil, nil, codersdk.ReadBodyAsError(res)
+	}
+	return res.Body, res.Header.Clone(), nil
+}
+
+func debugLogFilesPath(opts DebugLogFilesOptions) string {
+	query := neturl.Values{}
+	if opts.MaxAge > 0 {
+		query.Set("max_age", opts.MaxAge.String())
+	}
+	return agentAPIPath("/debug/logs/files", query)
 }
 
 // PrometheusMetrics returns a response from the agent's prometheus metrics endpoint

@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -258,6 +259,10 @@ func assertBundleContents(t *testing.T, path string, wantWorkspace bool, wantAge
 	defer r.Close()
 	for _, f := range r.File {
 		assertDoesNotContain(t, f, badValues...)
+		if strings.HasPrefix(f.Name, "agent/log_files/") {
+			_ = readBytesFromZip(t, f)
+			continue
+		}
 		switch f.Name {
 		case "deployment/buildinfo.json":
 			var v codersdk.BuildInfoResponse

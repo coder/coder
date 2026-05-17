@@ -230,6 +230,14 @@ AI BRIDGE PROXY OPTIONS:
           certificates not trusted by the system. If not provided, the system
           certificate pool is used.
 
+AGENT OPTIONS: 
+Configure workspace agent behavior.
+
+      --agent-support-bundle-additional-log-paths string-array, $CODER_AGENT_SUPPORT_BUNDLE_ADDITIONAL_LOG_PATHS
+          Additional workspace log file paths or glob patterns to collect in
+          support bundles. Matched directories are walked recursively for recent
+          .log files under the workspace user's home directory.
+
 CHAT OPTIONS: 
 Configure the background chat processing daemon.
 

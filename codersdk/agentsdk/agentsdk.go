@@ -123,18 +123,19 @@ type Manifest struct {
 	// GitAuthConfigs stores the number of Git configurations
 	// the Coder deployment has. If this number is >0, we
 	// set up special configuration in the workspace.
-	GitAuthConfigs           int                                          `json:"git_auth_configs"`
-	VSCodePortProxyURI       string                                       `json:"vscode_port_proxy_uri"`
-	Apps                     []codersdk.WorkspaceApp                      `json:"apps"`
-	DERPMap                  *tailcfg.DERPMap                             `json:"derpmap"`
-	DERPForceWebSockets      bool                                         `json:"derp_force_websockets"`
-	EnvironmentVariables     map[string]string                            `json:"environment_variables"`
-	Directory                string                                       `json:"directory"`
-	MOTDFile                 string                                       `json:"motd_file"`
-	DisableDirectConnections bool                                         `json:"disable_direct_connections"`
-	Metadata                 []codersdk.WorkspaceAgentMetadataDescription `json:"metadata"`
-	Scripts                  []codersdk.WorkspaceAgentScript              `json:"scripts"`
-	Devcontainers            []codersdk.WorkspaceAgentDevcontainer        `json:"devcontainers"`
+	GitAuthConfigs                  int                                          `json:"git_auth_configs"`
+	VSCodePortProxyURI              string                                       `json:"vscode_port_proxy_uri"`
+	Apps                            []codersdk.WorkspaceApp                      `json:"apps"`
+	DERPMap                         *tailcfg.DERPMap                             `json:"derpmap"`
+	DERPForceWebSockets             bool                                         `json:"derp_force_websockets"`
+	EnvironmentVariables            map[string]string                            `json:"environment_variables"`
+	Directory                       string                                       `json:"directory"`
+	MOTDFile                        string                                       `json:"motd_file"`
+	DisableDirectConnections        bool                                         `json:"disable_direct_connections"`
+	Metadata                        []codersdk.WorkspaceAgentMetadataDescription `json:"metadata"`
+	Scripts                         []codersdk.WorkspaceAgentScript              `json:"scripts"`
+	Devcontainers                   []codersdk.WorkspaceAgentDevcontainer        `json:"devcontainers"`
+	SupportBundleAdditionalLogPaths []string                                     `json:"support_bundle_additional_log_paths"`
 }
 
 // WorkspaceSecret is a user secret for injection into a workspace.

@@ -1,8 +1,10 @@
 package agent_test
 
 import (
+	"archive/tar"
 	"bufio"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
@@ -3457,6 +3459,14 @@ func TestAgent_DebugServer(t *testing.T) {
 	randLogStr, err := cryptorand.String(32)
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(logPath, []byte(randLogStr), 0o600))
+	newRotatedLogPath := filepath.Join(logDir, "coder-agent-2026-05-17T20-00-00.000.log")
+	oldRotatedLogPath := filepath.Join(logDir, "coder-agent-2026-05-17T19-00-00.000.log")
+	require.NoError(t, os.WriteFile(newRotatedLogPath, []byte("new rotated log"), 0o600))
+	require.NoError(t, os.WriteFile(oldRotatedLogPath, []byte("old rotated log"), 0o600))
+	newRotatedModTime := time.Now().Add(-time.Minute)
+	oldRotatedModTime := time.Now().Add(-2 * time.Minute)
+	require.NoError(t, os.Chtimes(newRotatedLogPath, newRotatedModTime, newRotatedModTime))
+	require.NoError(t, os.Chtimes(oldRotatedLogPath, oldRotatedModTime, oldRotatedModTime))
 	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
 	//nolint:dogsled
 	conn, _, _, _, agnt := setupAgentWithSecrets(t, agentsdk.Manifest{
@@ -3604,7 +3614,102 @@ func TestAgent_DebugServer(t *testing.T) {
 		require.NoError(t, err)
 		require.NotEmpty(t, string(resBody))
 		require.Contains(t, string(resBody), randLogStr)
+		require.NotContains(t, string(resBody), "new rotated log")
 	})
+
+	t.Run("LogsIncludeRotated", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/debug/logs?include_rotated=true", nil)
+		require.NoError(t, err)
+
+		res, err := srv.Client().Do(req)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		defer res.Body.Close()
+		resBody, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		body := string(resBody)
+		require.Contains(t, body, randLogStr)
+		require.Contains(t, body, "coder-agent.log")
+		require.Contains(t, body, "coder-agent-2026-05-17T20-00-00.000.log")
+		require.Contains(t, body, "new rotated log")
+		require.Contains(t, body, "old rotated log")
+		require.Less(t, strings.Index(body, "new rotated log"), strings.Index(body, "old rotated log"))
+	})
+}
+
+func TestAgent_DebugLogFiles(t *testing.T) {
+	ctx := testutil.Context(t, testutil.WaitLong)
+	home := t.TempDir()
+	xdgDataHome := filepath.Join(home, ".xdg")
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("XDG_DATA_HOME", xdgDataHome)
+
+	writeLog := func(rel string, contents string, modTime time.Time) {
+		t.Helper()
+		logPath := filepath.Join(home, rel)
+		require.NoError(t, os.MkdirAll(filepath.Dir(logPath), 0o700))
+		require.NoError(t, os.WriteFile(logPath, []byte(contents), 0o600))
+		require.NoError(t, os.Chtimes(logPath, modTime, modTime))
+	}
+	now := time.Now()
+	writeLog(filepath.Join(".kiro-server", "data", "logs", "session", "window1", "renderer.log"), "kiro log", now)
+	writeLog(filepath.Join(".cursor-server", "data", "logs", "session", "window1", "old.log"), "old cursor log", now.Add(-96*time.Hour))
+	writeLog(filepath.Join(".xdg", "code-server", "coder-logs", "code.log"), "code-server log", now)
+	writeLog(filepath.Join("custom", "logs", "custom.log"), "custom log", now)
+
+	logDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(logDir, "coder-agent.log"), []byte("agent log"), 0o600))
+	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
+	//nolint:dogsled
+	conn, _, _, _, agnt := setupAgent(t, agentsdk.Manifest{
+		DERPMap:                         derpMap,
+		SupportBundleAdditionalLogPaths: []string{filepath.Join(home, "custom", "logs")},
+	}, 0, func(_ *agenttest.Client, o *agent.Options) {
+		o.LogDir = logDir
+	})
+	ok := conn.AwaitReachable(ctx)
+	require.True(t, ok)
+	_ = conn.Close()
+
+	srv := httptest.NewServer(agnt.HTTPDebug())
+	t.Cleanup(srv.Close)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/debug/logs/files?max_age=72h", nil)
+	require.NoError(t, err)
+	res, err := srv.Client().Do(req)
+	require.NoError(t, err)
+	defer res.Body.Close()
+	require.Equal(t, http.StatusOK, res.StatusCode)
+
+	files := readDebugLogFilesArchiveForTest(t, res.Body)
+	require.Len(t, files, 3)
+	require.Equal(t, "kiro log", string(files[path.Join(".kiro-server", "data", "logs", "session", "window1", "renderer.log")]))
+	require.Equal(t, "code-server log", string(files[path.Join(".xdg", "code-server", "coder-logs", "code.log")]))
+	require.Equal(t, "custom log", string(files[path.Join("custom", "logs", "custom.log")]))
+	require.NotContains(t, files, path.Join(".cursor-server", "data", "logs", "session", "window1", "old.log"))
+}
+
+func readDebugLogFilesArchiveForTest(t *testing.T, r io.Reader) map[string][]byte {
+	t.Helper()
+	gzr, err := gzip.NewReader(r)
+	require.NoError(t, err)
+	defer gzr.Close()
+	tr := tar.NewReader(gzr)
+	files := map[string][]byte{}
+	for {
+		hdr, err := tr.Next()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		require.NoError(t, err)
+		data, err := io.ReadAll(tr)
+		require.NoError(t, err)
+		files[hdr.Name] = data
+	}
+	return files
 }
 
 func TestAgent_ScriptLogging(t *testing.T) {

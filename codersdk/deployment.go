@@ -654,6 +654,7 @@ type DeploymentValues struct {
 	ExternalAuthConfigs                     serpent.Struct[[]ExternalAuthConfig] `json:"external_auth,omitempty" typescript:",notnull"`
 	ExternalAuthGithubDefaultProviderEnable serpent.Bool                         `json:"external_auth_github_default_provider_enable,omitempty" typescript:",notnull"`
 	SSHConfig                               SSHConfig                            `json:"config_ssh,omitempty" typescript:",notnull"`
+	Agent                                   AgentConfig                          `json:"agent,omitempty" typescript:",notnull"`
 	WgtunnelHost                            serpent.String                       `json:"wgtunnel_host,omitempty" typescript:",notnull"`
 	DisableOwnerWorkspaceExec               serpent.Bool                         `json:"disable_owner_workspace_exec,omitempty" typescript:",notnull"`
 	DisableWorkspaceSharing                 serpent.Bool                         `json:"disable_workspace_sharing,omitempty" typescript:",notnull"`
@@ -690,6 +691,11 @@ type SSHConfig struct {
 	// SSHConfigOptions are additional options to add to the ssh config file.
 	// This will override defaults.
 	SSHConfigOptions serpent.StringArray
+}
+
+// AgentConfig configures deployment-wide workspace agent behavior.
+type AgentConfig struct {
+	SupportBundleAdditionalLogPaths serpent.StringArray `json:"support_bundle_additional_log_paths" typescript:",notnull"`
 }
 
 func (c SSHConfig) ParseOptions() (map[string]string, error) {
@@ -1413,6 +1419,11 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Description: "These options change the behavior of how clients interact with the Coder. " +
 				"Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.",
 			YAML: "client",
+		}
+		deploymentGroupAgent = serpent.Group{
+			Name:        "Agent",
+			Description: `Configure workspace agent behavior.`,
+			YAML:        "agent",
 		}
 		deploymentGroupConfig = serpent.Group{
 			Name:        "Config",
@@ -3214,6 +3225,15 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "externalAuthGithubDefaultProviderEnable",
 			Value:       &c.ExternalAuthGithubDefaultProviderEnable,
 			Default:     "true",
+		},
+		{
+			Name:        "Agent Support Bundle Additional Log Paths",
+			Description: "Additional workspace log file paths or glob patterns to collect in support bundles. Matched directories are walked recursively for recent .log files under the workspace user's home directory.",
+			Flag:        "agent-support-bundle-additional-log-paths",
+			Env:         "CODER_AGENT_SUPPORT_BUNDLE_ADDITIONAL_LOG_PATHS",
+			YAML:        "supportBundleAdditionalLogPaths",
+			Value:       &c.Agent.SupportBundleAdditionalLogPaths,
+			Group:       &deploymentGroupAgent,
 		},
 		{
 			Name:        "Custom wgtunnel Host",
