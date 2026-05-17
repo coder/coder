@@ -43,14 +43,14 @@ For an admin-operated central pool, see [Worker Pool](./system-identity.md).
 
 ## Identity model
 
-| Layer              | Identity                                                       |
-|--------------------|----------------------------------------------------------------|
-| Coder workspace    | Owned by the developer                                         |
-| Git author         | The developer                                                  |
-| Git push           | Enabled via Coder external auth                                |
-| Cursor worker      | Authenticated with the developer's personal API key            |
-| Coder audit log    | Attributes to the developer                                    |
-| Per-session signal | `activeBcId` in Cursor's fleet API, same as Worker Pool        |
+| Layer              | Identity                                                |
+|--------------------|---------------------------------------------------------|
+| Coder workspace    | Owned by the developer                                  |
+| Git author         | The developer                                           |
+| Git push           | Enabled via Coder external auth                         |
+| Cursor worker      | Authenticated with the developer's personal API key     |
+| Coder audit log    | Attributes to the developer                             |
+| Per-session signal | `activeBcId` in Cursor's fleet API, same as Worker Pool |
 
 ## Prerequisites
 
@@ -299,13 +299,13 @@ template. Existing workspaces upgrade on next restart.
 
 ## Common pitfalls
 
-| Symptom                                                | Cause and fix                                                                                                                                                                                                                                       |
-|--------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `worker=<name>` request rejected with "different repository" | The developer asked Cursor to run on `worker=foo` but `foo` was started in a checkout of a different repo. Start a new workspace for the target repo.                                                                                                |
-| Cursor UI doesn't show the worker                      | The personal API key in the workspace parameter doesn't match the Cursor account the developer triggers from. Confirm the same Cursor user owns both.                                                                                                |
-| Request runs on Cursor-managed infra instead           | The trigger didn't include `worker=<name>` or `machine=<name>`. These are the only triggers that target a personal machine. `self_hosted=true` and `pool=<name>` target Worker Pool, not personal machines.                                          |
-| Multiple users want to share a workspace               | Personal Workers is one-user-per-workspace by design. For shared inventory use [Worker Pool](./system-identity.md) (requires Cursor Enterprise).                                                                                                     |
-| Worker stays connected after the developer logs off    | Set `coder stop` on a TTL via the template, or document the expectation that developers stop their workspaces when done. Personal Workers has no `--idle-release-timeout` analogue because there's no pool draining; the workspace lifetime is the worker lifetime. |
+| Symptom                                                      | Cause and fix                                                                                                                                                                                                                                                       |
+|--------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `worker=<name>` request rejected with "different repository" | The developer asked Cursor to run on `worker=foo` but `foo` was started in a checkout of a different repo. Start a new workspace for the target repo.                                                                                                               |
+| Cursor UI doesn't show the worker                            | The personal API key in the workspace parameter doesn't match the Cursor account the developer triggers from. Confirm the same Cursor user owns both.                                                                                                               |
+| Request runs on Cursor-managed infra instead                 | The trigger didn't include `worker=<name>` or `machine=<name>`. These are the only triggers that target a personal machine. `self_hosted=true` and `pool=<name>` target Worker Pool, not personal machines.                                                         |
+| Multiple users want to share a workspace                     | Personal Workers is one-user-per-workspace by design. For shared inventory use [Worker Pool](./system-identity.md) (requires Cursor Enterprise).                                                                                                                    |
+| Worker stays connected after the developer logs off          | Set `coder stop` on a TTL via the template, or document the expectation that developers stop their workspaces when done. Personal Workers has no `--idle-release-timeout` analogue because there's no pool draining; the workspace lifetime is the worker lifetime. |
 
 ## Where to next
 

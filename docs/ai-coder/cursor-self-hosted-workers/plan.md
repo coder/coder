@@ -281,14 +281,14 @@ This is purely an image and settings exercise; no product work.
 
 ## Sequencing and review
 
-| Stage             | Pages                                  | Reviewers                   | Notes                                                                |
-|-------------------|----------------------------------------|-----------------------------|----------------------------------------------------------------------|
-| System identity   | overview, system-identity, plan        | docs, AI team, platform-eng | Ship as a single PR. Don't gate on User identity. Includes the prebuilds primary path and the daemon alternative. |
-| Stage A           | per-creator credentials page           | infra, security             | Pair with a reference wrapper script.                                |
-| Stage B           | lifecycle hooks page                   | infra, source-control       | Pair with a Coder template that demonstrates the cache volume layout. |
-| Stage C           | AI Gateway integration page            | AI Gateway maintainers      | Behind AI Governance Add-on entitlement. Blocked on Cursor exposing a worker-side hook that mediates model calls. See [AI Governance integration (notes)](./ai-governance.md).            |
-| Stage D           | permissions and allowlists page        | security, AI team           | Cribs from the Cursor docs + existing settings content.              |
-| User identity     | middleware reference, plan diff        | platform-eng, AI team       | Depends on Cursor publishing `agent:*` and stable pending-requests; either middleware or in-tree `coderd` integration on Coder's side. |
+| Stage           | Pages                           | Reviewers                   | Notes                                                                                                                                                                          |
+|-----------------|---------------------------------|-----------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| System identity | overview, system-identity, plan | docs, AI team, platform-eng | Ship as a single PR. Don't gate on User identity. Includes the prebuilds primary path and the daemon alternative.                                                              |
+| Stage A         | per-creator credentials page    | infra, security             | Pair with a reference wrapper script.                                                                                                                                          |
+| Stage B         | lifecycle hooks page            | infra, source-control       | Pair with a Coder template that demonstrates the cache volume layout.                                                                                                          |
+| Stage C         | AI Gateway integration page     | AI Gateway maintainers      | Behind AI Governance Add-on entitlement. Blocked on Cursor exposing a worker-side hook that mediates model calls. See [AI Governance integration (notes)](./ai-governance.md). |
+| Stage D         | permissions and allowlists page | security, AI team           | Cribs from the Cursor docs + existing settings content.                                                                                                                        |
+| User identity   | middleware reference, plan diff | platform-eng, AI team       | Depends on Cursor publishing `agent:*` and stable pending-requests; either middleware or in-tree `coderd` integration on Coder's side.                                         |
 
 ## Risks and open issues
 
@@ -479,23 +479,28 @@ synthetic prebuilds service account. We use that as the inventory
 for System identity, but we hit a real limitation: **the prebuilds
 service account cannot complete an OAuth flow**, so
 `coder_external_auth` resolves to nothing inside a prebuilt
-workspace.
+workspace. User secrets are similarly disabled.
 
-The workaround System identity ships with is "block pushes." That is
-fine for system identity, but it means we cannot use Coder's
-external-auth refresh story for the bot.
+The workaround System identity ships with is "block pushes" plus
+"pass the Cursor team API key as a sensitive Terraform variable."
+That is fine for system identity, but it means we cannot use Coder's
+external-auth refresh story for the bot, and the same workaround
+leaks into `Pool: user identity` and `Router`: both store secrets
+as template variables on prebuilds-owned workspaces.
 
 The product change that would close this gap: **let prebuilds be
 configured to use a specific operator-supplied service-account user**
 instead of the built-in synthetic one. The operator can grant that
-user external-auth normally, and every prebuild inherits the link.
-The prebuild becomes a credentialed bot workspace, not just an
-anonymous warm body.
+user external-auth and user secrets normally, and every prebuild
+inherits the link. The prebuild becomes a credentialed bot
+workspace, not just an anonymous warm body.
 
 This is a small, contained change. It also makes prebuilds useful
 for other non-claim use cases (background data processing, scheduled
 maintenance) where "we want N workspaces owned by a bot to do work"
 is the actual goal.
+
+Tracked in [coder/coder#25419](https://github.com/coder/coder/issues/25419).
 
 ### Configurable workspace naming format for prebuilds
 
@@ -531,6 +536,13 @@ to "a config block in the template."
 This is the most useful product addition for the autoscaled fleet
 case and would let us ship a single integration story rather than
 "two phases, one of which is middleware you write."
+
+Until that lands, the validation template in this guide runs the
+router itself as a singleton prebuild (`prebuilds { instances = 1 }`),
+so the reconciler keeps the routing service alive without a separate
+deployment to operate. That's a useful intermediate shape: the
+deployment surface area is zero new infrastructure, just one more
+preset on the same template that runs the workers.
 
 ### AI Gateway client preset for worker children
 

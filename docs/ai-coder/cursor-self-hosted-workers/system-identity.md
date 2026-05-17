@@ -105,17 +105,27 @@ If the second is a blocker for your team, wait for
 Every commit and push from this pool is the **bot identity**, not the
 human. This is intentional:
 
-| Layer            | Identity                                                       |
-|------------------|----------------------------------------------------------------|
-| Coder workspace  | Owned by Coder's prebuilds service account                     |
-| Git author       | Workspace owner (the prebuilds service account)                |
-| Git push         | Blocked (`remote.origin.pushurl = no_push`)                    |
-| Cursor worker    | Authenticated with the team service-account API key            |
+| Layer            | Identity                                                                |
+|------------------|-------------------------------------------------------------------------|
+| Coder workspace  | Owned by Coder's prebuilds service account                              |
+| Git author       | Workspace owner (the prebuilds service account)                         |
+| Git push         | Blocked (`remote.origin.pushurl = no_push`)                             |
+| Cursor worker    | Authenticated with the team service-account API key                     |
 | Per-human signal | `activeBcId` in the fleet API; full attribution in Cursor's session log |
 
 If you need per-user git attribution, audit log entries attributed to
 the human, or to lift the push block, see
 [User identity](./user-identity.md).
+
+> [!NOTE]
+> Today the synthetic `prebuilds` service account owns the warm
+> workspaces. Coder external auth and user secrets are disabled on
+> prebuilds, so the Cursor service-account key has to ride in as a
+> sensitive Terraform variable on the template rather than through
+> normal secret management. Allowing prebuilds to optionally run as a
+> configurable service account, with external auth and user secrets
+> available, would clean this up. Tracked in
+> [coder/coder#25419](https://github.com/coder/coder/issues/25419).
 
 ## Step 1: Create the Cursor service account and pool
 
@@ -408,8 +418,8 @@ that repo; trim if warm workers sit idle for hours.
 
 ### Rotation
 
-| Secret           | Rotate by                                                                                                                                                                |
-|------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Secret           | Rotate by                                                                                                                                                                 |
+|------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `cursor_api_key` | Mint a new service-account key in `cursor.com`, re-push the template with `--variable cursor_api_key=...`, revoke the old one. Active workers exit on next token refresh. |
 
 ### Upgrade `cursor-agent`
@@ -433,13 +443,13 @@ tail -f ~/cursor-agent.log
 
 ## Common pitfalls
 
-| Symptom                                      | Cause and fix                                                                                                                                                                                                                                       |
-|----------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Prebuilds never come up                      | Confirm your deployment is on **Coder Premium** (prebuilds is an enterprise feature). Check `coder server` logs for `prebuilds` errors.                                                                                                                                            |
-| Workers appear in Cursor but never get claimed | The `git_repo_url` parameter doesn't match the repo a developer is asking for. Cursor's routing only matches a session to a worker whose `repo=` label is the same repo. Create a preset per repo.                                            |
-| `git push` fails with "Permission denied"    | Expected. System identity blocks pushes on purpose. Sessions can read, search, and propose diffs; pull requests are not supported until [User identity](./user-identity.md).                                                                       |
-| Worker process is `stopped` but workspace is healthy | `cursor-agent worker start` exited. Tail `~/cursor-agent.log` for the reason. Common causes: invalid `--worker-dir` (not a git repo), service-account key revoked, network egress to `api.cursor.com` blocked.                                  |
-| Same worker keeps getting claimed             | Cursor's routing matches by label, not by recency. If you have one preset of `instances = 1`, every session for that repo goes to the same workspace until it's busy. Bump `instances` for parallel sessions. The ordering between multiple matching workers isn't documented; don't depend on a specific tie-breaker.                            |
+| Symptom                                              | Cause and fix                                                                                                                                                                                                                                                                                                          |
+|------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Prebuilds never come up                              | Confirm your deployment is on **Coder Premium** (prebuilds is an enterprise feature). Check `coder server` logs for `prebuilds` errors.                                                                                                                                                                                |
+| Workers appear in Cursor but never get claimed       | The `git_repo_url` parameter doesn't match the repo a developer is asking for. Cursor's routing only matches a session to a worker whose `repo=` label is the same repo. Create a preset per repo.                                                                                                                     |
+| `git push` fails with "Permission denied"            | Expected. System identity blocks pushes on purpose. Sessions can read, search, and propose diffs; pull requests are not supported until [User identity](./user-identity.md).                                                                                                                                           |
+| Worker process is `stopped` but workspace is healthy | `cursor-agent worker start` exited. Tail `~/cursor-agent.log` for the reason. Common causes: invalid `--worker-dir` (not a git repo), service-account key revoked, network egress to `api.cursor.com` blocked.                                                                                                         |
+| Same worker keeps getting claimed                    | Cursor's routing matches by label, not by recency. If you have one preset of `instances = 1`, every session for that repo goes to the same workspace until it's busy. Bump `instances` for parallel sessions. The ordering between multiple matching workers isn't documented; don't depend on a specific tie-breaker. |
 
 ## Where to next
 

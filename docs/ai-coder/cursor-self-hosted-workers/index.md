@@ -69,19 +69,19 @@ reach: internal Git, package registries, databases, build tooling.
 bound to one repository. A pool of N workers for a repo is N
 workspaces of the same shape; a second repo is a second pool.
 
-| Cursor concept                       | Coder primitive                                                                     |
-|--------------------------------------|-------------------------------------------------------------------------------------|
-| One worker                           | **One workspace**                                                                   |
-| Pool of N workers for one repo       | **N workspaces** with a shared template and one preset (per repo)                   |
-| Multiple pools across repos          | **Multiple presets on one template**, one per repo                                  |
-| Worker image                         | Workspace template + image                                                          |
-| Worker process                       | `cursor-agent worker start` under `coder_agent.startup_script`                      |
-| Service-account API key              | Sensitive Terraform variable                                                        |
-| "Reconciler refills the pool"        | Coder prebuilds, or an external `cursor-worker-pool-daemon` for OSS                 |
-| Per-session checkout                 | `$HOME/workspace`, populated by `git clone` in `startup_script`                     |
-| Internal Git, registries, services   | Whatever the workspace can already reach                                            |
-| Wrapper scripts and lifecycle hooks  | Files in the workspace image, invoked before `cursor-agent`                         |
-| `/healthz`, `/readyz` (cursor-agent) | `coder_agent.metadata` blocks that curl `:8080`                                     |
+| Cursor concept                       | Coder primitive                                                     |
+|--------------------------------------|---------------------------------------------------------------------|
+| One worker                           | **One workspace**                                                   |
+| Pool of N workers for one repo       | **N workspaces** with a shared template and one preset (per repo)   |
+| Multiple pools across repos          | **Multiple presets on one template**, one per repo                  |
+| Worker image                         | Workspace template + image                                          |
+| Worker process                       | `cursor-agent worker start` under `coder_agent.startup_script`      |
+| Service-account API key              | Sensitive Terraform variable                                        |
+| "Reconciler refills the pool"        | Coder prebuilds, or an external `cursor-worker-pool-daemon` for OSS |
+| Per-session checkout                 | `$HOME/workspace`, populated by `git clone` in `startup_script`     |
+| Internal Git, registries, services   | Whatever the workspace can already reach                            |
+| Wrapper scripts and lifecycle hooks  | Files in the workspace image, invoked before `cursor-agent`         |
+| `/healthz`, `/readyz` (cursor-agent) | `coder_agent.metadata` blocks that curl `:8080`                     |
 
 ## Why run them on Coder
 
@@ -139,11 +139,11 @@ you already use carry over:
 
 ## How it relates to Coder Agents and AI Gateway
 
-| Coder feature                                | What it does                                                              | Relationship to self-hosted workers                                                                                                                                                |
-|----------------------------------------------|---------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [Coder Agents](../agents/index.md)           | Coder's own agent that runs in the control plane and talks to workspaces. | Independent. You can use both, or pick whichever fits per use case.                                                                                                                |
+| Coder feature                                | What it does                                                              | Relationship to self-hosted workers                                                                                                                                                                                                            |
+|----------------------------------------------|---------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [Coder Agents](../agents/index.md)           | Coder's own agent that runs in the control plane and talks to workspaces. | Independent. You can use both, or pick whichever fits per use case.                                                                                                                                                                            |
 | [AI Gateway](../ai-gateway/index.md)         | Egress proxy for LLM traffic with audit and policy.                       | **Not applicable today.** The worker doesn't make model-provider calls; the agent loop runs in Cursor's cloud, so there is no traffic for AI Gateway to intercept. See [AI Governance Integration](./ai-governance.md) for the full breakdown. |
-| [Agent Firewall](../agent-firewall/index.md) | Process-level egress and command policy inside a workspace.               | Optional. Apply it to the worker workspace for extra guardrails on what sessions can reach or run.                                                                                 |
+| [Agent Firewall](../agent-firewall/index.md) | Process-level egress and command policy inside a workspace.               | Optional. Apply it to the worker workspace for extra guardrails on what sessions can reach or run.                                                                                                                                             |
 
 ## Two paths
 
@@ -192,13 +192,13 @@ See [Personal Workers](./personal-workers.md) for the recipe.
 
 ### Picking between them
 
-| If your team...                                                  | Use                                              |
-|------------------------------------------------------------------|--------------------------------------------------|
-| Is on Cursor Enterprise and wants central admin control          | [Worker Pool](./system-identity.md)              |
-| Is on Cursor Team plan                                           | [Personal Workers](./personal-workers.md)        |
-| Wants per-user identity (git push, audit) today                  | [Personal Workers](./personal-workers.md)        |
-| Wants Worker Pool with per-user identity                         | Wait for [User Identity](./user-identity.md)     |
-| Wants both (org-managed pool + power users on personal workers)  | Both. They share the same image; only the template differs. |
+| If your team...                                                 | Use                                                         |
+|-----------------------------------------------------------------|-------------------------------------------------------------|
+| Is on Cursor Enterprise and wants central admin control         | [Worker Pool](./system-identity.md)                         |
+| Is on Cursor Team plan                                          | [Personal Workers](./personal-workers.md)                   |
+| Wants per-user identity (git push, audit) today                 | [Personal Workers](./personal-workers.md)                   |
+| Wants Worker Pool with per-user identity                        | Wait for [User Identity](./user-identity.md)                |
+| Wants both (org-managed pool + power users on personal workers) | Both. They share the same image; only the template differs. |
 
 ## Where to next
 
