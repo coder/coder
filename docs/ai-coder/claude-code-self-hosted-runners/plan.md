@@ -511,27 +511,39 @@ follow-ons and we want them captured.
 
 ### Service-account-owned prebuilds
 
+Tracked at
+[coder/coder#25419](https://github.com/coder/coder/issues/25419).
+
 Coder's prebuilds primitive maintains N warm workspaces owned by a
-synthetic prebuilds service account. We use that as the inventory for
-System identity, but we hit a real limitation: **the prebuilds service account
-cannot complete an OAuth flow**, so `coder_external_auth` resolves to
-nothing inside a prebuilt workspace.
+synthetic `prebuilds@system` user. We use that as the inventory for
+System identity, but we hit two real limitations:
 
-The workaround System identity ships with is "deliver a bot PAT via a sensitive
-template variable." That is fine for system identity, but it means we
-cannot use Coder's external-auth refresh story for the bot.
+- The `prebuilds@system` user cannot complete an OAuth flow, so
+  `coder_external_auth` resolves to nothing inside a prebuilt
+  workspace. The workaround System identity ships with is "deliver a
+  bot PAT via a sensitive template variable," which works for system
+  identity but locks out Coder's external-auth refresh story.
+- `prebuilds@system` is flagged as a Coder system user. Other Coder
+  features intentionally refuse to act on system users; the most
+  immediate impact for this recipe is that AI Gateway rejects API
+  tokens owned by system users, which makes the
+  [AI Governance integration](./ai-governance.md) unusable on top of
+  the System identity recipe today.
 
-The product change that would close this gap: **let prebuilds be
+The product change that would close both: **let prebuilds be
 configured to use a specific operator-supplied service-account user**
-instead of the built-in synthetic one. The operator can grant that user
-external-auth normally, and every prebuild inherits the link. The
-prebuild becomes a credentialed bot workspace, not just an anonymous
-warm body.
+instead of the built-in synthetic one. The operator creates a normal
+Coder user (with the Service Account flag), grants it external-auth
+normally, and every prebuild inherits the link. The prebuild becomes
+a credentialed, non-system bot workspace, not just an anonymous warm
+body.
 
-This is a small, contained change. It also makes prebuilds useful for
-other non-claim use cases (background data processing, scheduled
-maintenance) where "we want N workspaces owned by a bot to do work" is
-the actual goal, not "we want N workspaces ready to be claimed by
+This is a small, contained change with broad payoff. It unblocks the
+bot-PAT-via-variable workaround in System identity, unblocks AI
+Gateway for the recipe, and makes prebuilds useful for other
+non-claim use cases (background data processing, scheduled
+maintenance) where "we want N workspaces owned by a bot to do work"
+is the actual goal, not "we want N workspaces ready to be claimed by
 humans."
 
 ### First-class headless workspace pool primitive

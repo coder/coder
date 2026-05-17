@@ -24,9 +24,15 @@ structurally broken against [System identity](./system-identity.md).
 The blocker is that AI Gateway rejects API tokens owned by Coder
 system users; the System identity runner workspace is owned by
 `prebuilds@system`, so the only token it has access to is a
-system-user token AI Gateway will not honor. Either user identity has
-to ship, or AI Gateway has to grow a delegated-attribution mechanism
-that doesn't exist today.
+system-user token AI Gateway will not honor. The most concrete
+near-term unblock is
+[coder/coder#25419](https://github.com/coder/coder/issues/25419),
+which would let prebuilds run as an operator-supplied service-account
+user instead of `prebuilds@system`; that gives the runner workspace a
+non-system-user owner whose tokens AI Gateway will accept. The
+full-human-attribution end-state still needs user identity (or a
+delegate-header mechanism); see
+[the gap-closing paths below](#per-human-attribution-gap).
 
 The wrapper-script change itself is well understood and exactly
 mirrors the existing
@@ -129,23 +135,37 @@ Concrete consequences for System identity:
   API access. That would expand the System identity blast radius
   past where the rest of the recipe is comfortable.
 
-Three paths could close this gap; none of them exist today:
+Four paths could close this gap; none of them exist today:
 
-1. **Wait for [User identity](./user-identity.md).** When the routing
+1. **Service-account-owned prebuilds**
+   ([coder/coder#25419](https://github.com/coder/coder/issues/25419)).
+   The prebuilds primitive grows an option to run as an
+   operator-supplied service-account user (a normal Coder user with a
+   Service Account flag) instead of the synthetic `prebuilds@system`.
+   That sidesteps the `ErrSystemUser` rejection because the workspace
+   owner is no longer a system user. AI Gateway interceptions would
+   attribute to the service-account user, which is *bot attribution
+   that works in AI Gateway* but is **not** per-human attribution. To
+   reach per-human, this still needs to combine with one of the
+   options below, but it's the smallest concrete change that
+   unblocks AI Gateway coverage at all, and it has a proposal
+   already.
+2. **Wait for [User identity](./user-identity.md).** When the routing
    layer claims a prebuild on behalf of the human, the workspace
    owner becomes the human and
    `data.coder_workspace_owner.me.session_token` is the human's
    token. AI Gateway then "just works" with no further change. This
-   is the cleanest answer and the one we'd recommend a customer
-   wait for.
-2. **AI Gateway accepts a delegate header from system users.** A new
-   header (e.g. `X-Coder-AI-Governance-Delegated-User: <user-id>`)
-   honored only when the bearer token is owned by a system user and
-   has an appropriate scope. The interception's `initiator_id` would
-   become the delegated user. This is a small, contained product
-   change (a handful of lines plus a scope) but it is real product
-   work; no draft today.
-3. **Anthropic JWT subject lookup.** A coderd endpoint that resolves
+   is the cleanest end-state and the one we'd recommend a customer
+   wait for if per-human attribution is the requirement.
+3. **AI Gateway accepts a delegate header from service-account
+   tokens.** A new header (e.g.
+   `X-Coder-AI-Governance-Delegated-User: <user-id>`) honored when
+   the bearer token is owned by a service-account user (whether
+   system or operator-supplied) and has an appropriate scope. The
+   interception's `initiator_id` becomes the delegated user. This
+   stacks on top of option 1 to get per-human attribution without
+   needing the full User identity routing layer to ship first.
+4. **Anthropic JWT subject lookup.** A coderd endpoint that resolves
    `act.sub` / `act.email` from the Anthropic JWT to a Coder user,
    then issues a short-lived token attributable to that user. Larger
    surface; not drafted either.

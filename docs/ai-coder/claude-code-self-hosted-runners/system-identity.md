@@ -43,6 +43,10 @@ Read these first; the rest of this page assumes they fit your team.
   to each commit as a trailer; the rest lives in Anthropic's session
   log. Coder external auth is unavailable inside prebuilt workspaces,
   so the bot git credential ships as a Terraform variable.
+  [coder/coder#25419](https://github.com/coder/coder/issues/25419) would
+  let prebuilds run as an operator-supplied service-account user that
+  *can* complete an OAuth flow, replacing the variable-PAT workaround
+  with real Coder external-auth.
 - **Stalled sessions are dropped.** Once the runner's active session
   count hits zero it drains; half-finished working trees are lost.
   Park long-running interactive sessions in a regular Coder workspace
