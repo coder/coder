@@ -3632,7 +3632,7 @@ func TestRun_AnthropicProviderToolPreRequestGuard(t *testing.T) {
 	t.Run("direct guard textifies orphaned provider result", func(t *testing.T) {
 		t.Parallel()
 
-		guarded := chatsanitize.ApplyAnthropicProviderToolGuard(
+		guarded, err := chatsanitize.ApplyAnthropicProviderToolGuard(
 			context.Background(),
 			slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 			fantasyanthropic.Name,
@@ -3651,6 +3651,7 @@ func TestRun_AnthropicProviderToolPreRequestGuard(t *testing.T) {
 				},
 			},
 		)
+		require.NoError(t, err)
 
 		requireNoProviderExecutedToolResultPrompt(t, guarded)
 		requireAnthropicProviderToolPromptSafe(t, guarded)
@@ -3670,13 +3671,14 @@ func TestRun_AnthropicProviderToolPreRequestGuard(t *testing.T) {
 		content := []fantasy.MessagePart{fantasy.TextPart{Text: "keep"}}
 		content = append(content, providerPair("ws-one")...)
 		content = append(content, providerPair("ws-two")...)
-		guarded := chatsanitize.ApplyAnthropicProviderToolGuard(
+		guarded, err := chatsanitize.ApplyAnthropicProviderToolGuard(
 			context.Background(),
 			slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 			fantasyanthropic.Name,
 			"claude-test",
 			[]fantasy.Message{{Role: fantasy.MessageRoleAssistant, Content: content}},
 		)
+		require.NoError(t, err)
 
 		requireAnthropicProviderToolPromptSafe(t, guarded)
 		require.Len(t, guarded, 1)
@@ -3696,13 +3698,14 @@ func TestRun_AnthropicProviderToolPreRequestGuard(t *testing.T) {
 				Content: providerPair("ws-other-provider"),
 			},
 		}
-		guarded := chatsanitize.ApplyAnthropicProviderToolGuard(
+		guarded, err := chatsanitize.ApplyAnthropicProviderToolGuard(
 			context.Background(),
 			slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 			"fake",
 			"fake-model",
 			prompt,
 		)
+		require.NoError(t, err)
 		require.Equal(t, prompt, guarded)
 	})
 
@@ -3712,7 +3715,7 @@ func TestRun_AnthropicProviderToolPreRequestGuard(t *testing.T) {
 		logSink := testutil.NewFakeSink(t)
 		logger := logSink.Logger()
 		logPair := providerPair("ws-log")
-		guarded := chatsanitize.ApplyAnthropicProviderToolGuard(
+		guarded, err := chatsanitize.ApplyAnthropicProviderToolGuard(
 			context.Background(),
 			logger,
 			fantasyanthropic.Name,
@@ -3727,6 +3730,7 @@ func TestRun_AnthropicProviderToolPreRequestGuard(t *testing.T) {
 				},
 			},
 		)
+		require.NoError(t, err)
 
 		requireNoProviderExecutedToolCallPrompt(t, guarded)
 		requireNoProviderExecutedToolResultPrompt(t, guarded)
@@ -3739,6 +3743,60 @@ func TestRun_AnthropicProviderToolPreRequestGuard(t *testing.T) {
 		require.Equal(t, "pre_request_guard", requireLogField(t, entries[0], "phase"))
 		require.Equal(t, 1, requireLogField(t, entries[0], "removed_tool_calls"))
 		require.Equal(t, 1, requireLogField(t, entries[0], "removed_tool_results"))
+	})
+	t.Run("run fails before provider call when latest signed assistant is unreplayable", func(t *testing.T) {
+		t.Parallel()
+
+		streamCalls := 0
+		model := &chattest.FakeModel{
+			ProviderName: fantasyanthropic.Name,
+			ModelName:    "claude-test",
+			StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+				streamCalls++
+				return finishingStream(), nil
+			},
+		}
+
+		err := Run(context.Background(), RunOptions{
+			Model: model,
+			Messages: []fantasy.Message{
+				textMessage(fantasy.MessageRoleUser, "search"),
+				{
+					Role: fantasy.MessageRoleAssistant,
+					Content: []fantasy.MessagePart{
+						fantasy.ReasoningPart{
+							ProviderOptions: fantasy.ProviderOptions{
+								fantasyanthropic.Name: &fantasyanthropic.ReasoningOptionMetadata{
+									RedactedData: "redacted-payload",
+								},
+							},
+						},
+						fantasy.ToolCallPart{
+							ToolCallID:       "ws-orphan",
+							ToolName:         "web_search",
+							Input:            `{"query":"coder"}`,
+							ProviderExecuted: true,
+						},
+						fantasy.TextPart{Text: "partial"},
+					},
+				},
+				textMessage(fantasy.MessageRoleUser, "continue"),
+			},
+			Logger:   slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+			MaxSteps: 1,
+			PersistStep: func(_ context.Context, _ PersistedStep) error {
+				return nil
+			},
+		})
+		require.Error(t, err)
+		require.Zero(t, streamCalls)
+		require.Equal(t, chaterror.ClassifiedError{
+			Message:   "The chat continuation failed due to an internal state mismatch. This is not a configuration or billing issue. Start a new chat to continue.",
+			Detail:    "Anthropic replay diagnostic: match=provider_tool_guard_postcondition_failed.",
+			Kind:      codersdk.ChatErrorKindGeneric,
+			Provider:  "anthropic",
+			Retryable: false,
+		}, chaterror.Classify(err))
 	})
 }
 
