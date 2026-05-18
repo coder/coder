@@ -4073,6 +4073,227 @@ func TestPersistToolResultWithBinaryData(t *testing.T) {
 	require.True(t, foundToolResultInSecondCall, "expected second streamed model call to include execute tool output")
 }
 
+func TestExecuteToolStreamsResultDeltas(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	const command = "printf stream"
+	const output = "stream \"coder\"\n"
+
+	var streamedCallCount atomic.Int32
+	var streamedCallsMu sync.Mutex
+	var finalCallMessages []chattest.OpenAIMessage
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("Execute streaming test")
+		}
+		if streamedCallCount.Add(1) == 1 {
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk("execute", `{"command":"printf stream"}`),
+			)
+		}
+		streamedCallsMu.Lock()
+		finalCallMessages = append([]chattest.OpenAIMessage(nil), req.Messages...)
+		streamedCallsMu.Unlock()
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+	})
+
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	mockConn.EXPECT().
+		SetExtraHeaders(gomock.Any()).
+		AnyTimes()
+	mockConn.EXPECT().
+		ContextConfig(gomock.Any()).
+		Return(workspacesdk.ContextConfigResponse{}, xerrors.New("not supported")).
+		AnyTimes()
+	mockConn.EXPECT().
+		ListMCPTools(gomock.Any()).
+		Return(workspacesdk.ListMCPToolsResponse{}, nil).
+		AnyTimes()
+	mockConn.EXPECT().
+		LS(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(workspacesdk.LSResponse{}, nil).
+		AnyTimes()
+	mockConn.EXPECT().
+		ReadFile(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(io.NopCloser(strings.NewReader("")), "", nil).
+		AnyTimes()
+	mockConn.EXPECT().
+		StartProcess(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, req workspacesdk.StartProcessRequest) (workspacesdk.StartProcessResponse, error) {
+			require.Equal(t, command, req.Command)
+			return workspacesdk.StartProcessResponse{ID: "proc-stream", Started: true}, nil
+		}).
+		Times(1)
+
+	releaseOutput := make(chan struct{})
+	var releaseOutputOnce sync.Once
+	release := func() {
+		releaseOutputOnce.Do(func() {
+			close(releaseOutput)
+		})
+	}
+	t.Cleanup(release)
+	mockConn.EXPECT().
+		ProcessOutput(gomock.Any(), "proc-stream", gomock.Nil()).
+		DoAndReturn(func(_ context.Context, _ string, _ *workspacesdk.ProcessOutputOptions) (workspacesdk.ProcessOutputResponse, error) {
+			select {
+			case <-releaseOutput:
+			case <-ctx.Done():
+				return workspacesdk.ProcessOutputResponse{}, ctx.Err()
+			}
+			return workspacesdk.ProcessOutputResponse{
+				Output:   output,
+				Running:  false,
+				ExitCode: ptrRef(0),
+			}, nil
+		}).
+		AnyTimes()
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return mockConn, func() {}, nil
+		}
+	})
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "execute-streaming-tool-result",
+		ModelConfigID:  model.ID,
+		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("Run printf stream."),
+		},
+	})
+	require.NoError(t, err)
+
+	_, liveEvents, cancelLive, ok := server.Subscribe(ctx, chat.ID, nil, 0)
+	require.True(t, ok)
+	var (
+		livePartsMu       sync.Mutex
+		liveExecuteDeltas []string
+		liveExecuteResets int
+		liveCollectorDone = make(chan struct{})
+	)
+	go func() {
+		defer close(liveCollectorDone)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case event, eventsOK := <-liveEvents:
+				if !eventsOK {
+					return
+				}
+				if event.Type != codersdk.ChatStreamEventTypeMessagePart ||
+					event.MessagePart == nil {
+					continue
+				}
+				part := event.MessagePart.Part
+				if event.MessagePart.Role != codersdk.ChatMessageRoleTool ||
+					part.Type != codersdk.ChatMessagePartTypeToolResult ||
+					part.ToolName != "execute" {
+					continue
+				}
+				livePartsMu.Lock()
+				if part.ResultReset {
+					liveExecuteResets++
+				}
+				if part.ResultDelta != "" {
+					liveExecuteDeltas = append(liveExecuteDeltas, part.ResultDelta)
+				}
+				livePartsMu.Unlock()
+			}
+		}
+	}()
+
+	release()
+
+	var chatResult database.Chat
+	require.Eventually(t, func() bool {
+		got, getErr := db.GetChatByID(ctx, chat.ID)
+		if getErr != nil {
+			return false
+		}
+		chatResult = got
+		return got.Status == database.ChatStatusWaiting || got.Status == database.ChatStatusError
+	}, testutil.WaitLong, testutil.IntervalFast)
+	if chatResult.Status == database.ChatStatusError {
+		require.FailNowf(t, "chat run failed", "last_error=%q", chatLastErrorMessage(chatResult.LastError))
+	}
+	require.GreaterOrEqual(t, streamedCallCount.Load(), int32(2))
+
+	require.Eventually(t, func() bool {
+		livePartsMu.Lock()
+		defer livePartsMu.Unlock()
+		return len(liveExecuteDeltas) > 0
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	cancelLive()
+	<-liveCollectorDone
+	livePartsMu.Lock()
+	collectedExecuteDeltas := append([]string(nil), liveExecuteDeltas...)
+	collectedExecuteResets := liveExecuteResets
+	livePartsMu.Unlock()
+
+	require.Zero(t, collectedExecuteResets)
+	var streamed map[string]string
+	require.NoError(t, json.Unmarshal([]byte(strings.Join(collectedExecuteDeltas, "")+`"}`), &streamed))
+	require.Equal(t, output, streamed["output"])
+
+	streamedCallsMu.Lock()
+	gotFinalMessages := append([]chattest.OpenAIMessage(nil), finalCallMessages...)
+	streamedCallsMu.Unlock()
+	require.NotEmpty(t, gotFinalMessages, "parent must make a follow-up call after the execute result")
+
+	var foundToolResultInFinalCall bool
+	for _, message := range gotFinalMessages {
+		if message.Role != "tool" || !json.Valid([]byte(message.Content)) {
+			continue
+		}
+		var result chattool.ExecuteResult
+		if err := json.Unmarshal([]byte(message.Content), &result); err != nil {
+			continue
+		}
+		if result.Output == output {
+			foundToolResultInFinalCall = true
+			break
+		}
+	}
+	require.True(t, foundToolResultInFinalCall, "expected follow-up model call to include execute tool output")
+
+	persisted, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+	var toolMessage *database.ChatMessage
+	for i := range persisted {
+		require.NotContains(t, string(persisted[i].Content.RawMessage), "result_delta")
+		if persisted[i].Role == database.ChatMessageRoleTool {
+			toolMessage = &persisted[i]
+		}
+	}
+	require.NotNil(t, toolMessage)
+	parts, err := chatprompt.ParseContent(*toolMessage)
+	require.NoError(t, err)
+	require.Len(t, parts, 1)
+	require.Empty(t, parts[0].ResultDelta)
+	var result chattool.ExecuteResult
+	require.NoError(t, json.Unmarshal(parts[0].Result, &result))
+	require.True(t, result.Success)
+	require.Equal(t, output, result.Output)
+	require.Equal(t, 0, result.ExitCode)
+}
+
 func TestRequiresActionChatPersistsWaitingStatusLabel(t *testing.T) {
 	t.Parallel()
 

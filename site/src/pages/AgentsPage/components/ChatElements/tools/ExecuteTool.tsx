@@ -9,7 +9,7 @@ import {
 	TriangleAlertIcon,
 } from "lucide-react";
 import type React from "react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
@@ -224,8 +224,26 @@ const ShellTranscriptBody: React.FC<{
 	output: string;
 	isError: boolean;
 }> = ({ command, output, isError }) => {
+	const rootRef = useRef<HTMLDivElement | null>(null);
+
+	useEffect(() => {
+		if (output.length === 0) {
+			return;
+		}
+
+		const viewport = rootRef.current?.querySelector(
+			"[data-radix-scroll-area-viewport]",
+		);
+		if (!(viewport instanceof HTMLElement)) {
+			return;
+		}
+
+		viewport.scrollTop = viewport.scrollHeight;
+	}, [output]);
+
 	return (
 		<ScrollArea
+			ref={rootRef}
 			className="col-start-1 col-span-2 mt-2 rounded-xl bg-surface-secondary/60 text-2xs"
 			viewportClassName="max-h-64"
 			scrollBarClassName="w-1.5"

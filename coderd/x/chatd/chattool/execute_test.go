@@ -3,7 +3,9 @@ package chattool_test
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
+	"time"
 
 	"charm.land/fantasy"
 	"github.com/stretchr/testify/assert"
@@ -15,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestExecuteTool(t *testing.T) {
@@ -263,6 +266,145 @@ func TestExecuteTool(t *testing.T) {
 		var resultMap map[string]any
 		require.NoError(t, json.Unmarshal([]byte(resp.Content), &resultMap))
 		assert.NotContains(t, resultMap, "model_intent")
+	})
+
+	t.Run("ForegroundStreamsOutputDeltas", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		clock := quartz.NewMock(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			Return(workspacesdk.StartProcessResponse{ID: "proc-1"}, nil)
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Nil()).
+			Return(workspacesdk.ProcessOutputResponse{
+				Running: true,
+				Output:  "hello",
+			}, nil)
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Nil()).
+			Return(workspacesdk.ProcessOutputResponse{
+				Running:  false,
+				ExitCode: ptr(0),
+				Output:   "hello \"coder\"\n",
+			}, nil)
+
+		var deltas []string
+		tool := newStreamingExecuteTool(t, mockConn, clock, func(toolCallID string, delta string) {
+			require.Equal(t, "call-stream", toolCallID)
+			deltas = append(deltas, delta)
+		}, nil)
+		trap := clock.Trap().NewTimer("execute", "process-output-poll")
+
+		type runResult struct {
+			resp fantasy.ToolResponse
+			err  error
+		}
+		done := make(chan runResult, 1)
+		go func() {
+			resp, err := tool.Run(ctx, fantasy.ToolCall{
+				ID:    "call-stream",
+				Name:  "execute",
+				Input: `{"command":"printf hello"}`,
+			})
+			done <- runResult{resp: resp, err: err}
+		}()
+
+		trap.MustWait(ctx).MustRelease(ctx)
+		trap.Close()
+		clock.Advance(time.Second).MustWait(ctx)
+
+		var got runResult
+		select {
+		case got = <-done:
+		case <-ctx.Done():
+			t.Fatal("timed out waiting for execute tool")
+		}
+		require.NoError(t, got.err)
+		assert.False(t, got.resp.IsError)
+
+		var result chattool.ExecuteResult
+		require.NoError(t, json.Unmarshal([]byte(got.resp.Content), &result))
+		assert.True(t, result.Success)
+		assert.Equal(t, 0, result.ExitCode)
+		assert.Equal(t, "hello \"coder\"\n", result.Output)
+
+		var streamed map[string]string
+		require.NoError(t, json.Unmarshal([]byte(strings.Join(deltas, "")+`"}`), &streamed))
+		assert.Equal(t, "hello \"coder\"\n", streamed["output"])
+	})
+
+	t.Run("ForegroundStreamingResetsWhenSnapshotIsNotAppendOnly", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		clock := quartz.NewMock(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			Return(workspacesdk.StartProcessResponse{ID: "proc-1"}, nil)
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Nil()).
+			Return(workspacesdk.ProcessOutputResponse{
+				Running: true,
+				Output:  "before",
+			}, nil)
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Nil()).
+			Return(workspacesdk.ProcessOutputResponse{
+				Running:  false,
+				ExitCode: ptr(0),
+				Output:   "after",
+			}, nil)
+
+		var deltas []string
+		var resets int
+		tool := newStreamingExecuteTool(t, mockConn, clock, func(toolCallID string, delta string) {
+			require.Equal(t, "call-stream", toolCallID)
+			deltas = append(deltas, delta)
+		}, func(toolCallID string) {
+			require.Equal(t, "call-stream", toolCallID)
+			resets++
+		})
+		trap := clock.Trap().NewTimer("execute", "process-output-poll")
+
+		type runResult struct {
+			resp fantasy.ToolResponse
+			err  error
+		}
+		done := make(chan runResult, 1)
+		go func() {
+			resp, err := tool.Run(ctx, fantasy.ToolCall{
+				ID:    "call-stream",
+				Name:  "execute",
+				Input: `{"command":"printf hello"}`,
+			})
+			done <- runResult{resp: resp, err: err}
+		}()
+
+		trap.MustWait(ctx).MustRelease(ctx)
+		trap.Close()
+		clock.Advance(time.Second).MustWait(ctx)
+
+		var got runResult
+		select {
+		case got = <-done:
+		case <-ctx.Done():
+			t.Fatal("timed out waiting for execute tool")
+		}
+		require.NoError(t, got.err)
+		assert.False(t, got.resp.IsError)
+
+		var result chattool.ExecuteResult
+		require.NoError(t, json.Unmarshal([]byte(got.resp.Content), &result))
+		assert.True(t, result.Success)
+		assert.Equal(t, "after", result.Output)
+		assert.Equal(t, 1, resets)
+		assert.Equal(t, []string{`{"output":"before`, `{"output":"after`}, deltas)
 	})
 
 	t.Run("ForegroundNonZeroExit", func(t *testing.T) {
@@ -635,6 +777,25 @@ func newExecuteTool(t *testing.T, mockConn *agentconnmock.MockAgentConn) fantasy
 		GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, error) {
 			return mockConn, nil
 		},
+	})
+}
+
+func newStreamingExecuteTool(
+	t *testing.T,
+	mockConn *agentconnmock.MockAgentConn,
+	clock quartz.Clock,
+	publishDelta func(toolCallID string, delta string),
+	publishReset func(toolCallID string),
+) fantasy.AgentTool {
+	t.Helper()
+	return chattool.Execute(chattool.ExecuteOptions{
+		GetWorkspaceConn: func(_ context.Context) (workspacesdk.AgentConn, error) {
+			return mockConn, nil
+		},
+		PublishResultDelta:        publishDelta,
+		PublishResultReset:        publishReset,
+		Clock:                     clock,
+		ProcessOutputPollInterval: time.Second,
 	})
 }
 

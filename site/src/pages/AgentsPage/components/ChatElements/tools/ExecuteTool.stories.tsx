@@ -1,9 +1,32 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { userEvent, within } from "storybook/test";
+import { type ComponentProps, useEffect, useState } from "react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import { ExecuteTool } from "./ExecuteTool";
 
 const longCommand =
 	"find /home/coder/project/src -type f -name '*.ts' -not -path '*/node_modules/*' -not -path '*/.git/*' | xargs grep -l 'deprecated' | sort | head -50";
+
+const initialStreamingOutput = Array.from(
+	{ length: 40 },
+	(_, index) => `stream line ${index + 1}`,
+).join("\n");
+const completeStreamingOutput = Array.from(
+	{ length: 80 },
+	(_, index) => `stream line ${index + 1}`,
+).join("\n");
+
+const StreamingOutputHarness = (props: ComponentProps<typeof ExecuteTool>) => {
+	const [output, setOutput] = useState(initialStreamingOutput);
+
+	useEffect(() => {
+		const timerId = setTimeout(() => {
+			setOutput(completeStreamingOutput);
+		}, 50);
+		return () => clearTimeout(timerId);
+	}, []);
+
+	return <ExecuteTool {...props} output={output} />;
+};
 
 const meta: Meta<typeof ExecuteTool> = {
 	title: "components/ai-elements/tool/ExecuteTool",
@@ -110,6 +133,30 @@ export const Running: Story = {
 		status: "running",
 		output:
 			"=== RUN   TestWorkspaceAgent\n--- PASS: TestWorkspaceAgent (0.42s)",
+	},
+};
+
+export const RunningOutputFollowsLatestText: Story = {
+	args: {
+		command: "for i in $(seq 1 80); do echo stream line $i; done",
+		status: "running",
+		output: initialStreamingOutput,
+	},
+	render: (args) => <StreamingOutputHarness {...args} />,
+	play: async ({ canvasElement }) => {
+		const viewport = canvasElement.querySelector(
+			"[data-radix-scroll-area-viewport]",
+		);
+		if (!(viewport instanceof HTMLElement)) {
+			throw new Error("Expected shell output scroll viewport.");
+		}
+		viewport.scrollTop = 0;
+		await waitFor(() => {
+			expect(canvasElement).toHaveTextContent("stream line 80");
+		});
+		await waitFor(() => {
+			expect(viewport.scrollTop).toBeGreaterThan(0);
+		});
 	},
 };
 

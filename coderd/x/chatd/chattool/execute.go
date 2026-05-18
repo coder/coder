@@ -11,6 +11,7 @@ import (
 	"charm.land/fantasy"
 
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/quartz"
 )
 
 const (
@@ -25,6 +26,10 @@ const (
 	// request is allowed to take when retrieving a process
 	// output snapshot after a blocking wait times out.
 	snapshotTimeout = 30 * time.Second
+
+	// defaultProcessOutputPollInterval balances responsiveness with
+	// the cost of fetching whole retained snapshots from the agent.
+	defaultProcessOutputPollInterval = 250 * time.Millisecond
 )
 
 // nonInteractiveEnvVars are set on every process to prevent
@@ -64,8 +69,39 @@ type ExecuteResult struct {
 
 // ExecuteOptions configures the execute tool.
 type ExecuteOptions struct {
-	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
-	DefaultTimeout   time.Duration
+	GetWorkspaceConn          func(context.Context) (workspacesdk.AgentConn, error)
+	DefaultTimeout            time.Duration
+	PublishResultDelta        func(toolCallID string, delta string)
+	PublishResultReset        func(toolCallID string)
+	Clock                     quartz.Clock
+	ProcessOutputPollInterval time.Duration
+}
+
+type executeToolOptions struct {
+	defaultTimeout            time.Duration
+	toolCallID                string
+	publishResultDelta        func(toolCallID string, delta string)
+	publishResultReset        func(toolCallID string)
+	clock                     quartz.Clock
+	processOutputPollInterval time.Duration
+}
+
+func (o executeToolOptions) streamResults() bool {
+	return o.toolCallID != "" && o.publishResultDelta != nil
+}
+
+func (o executeToolOptions) clockOrReal() quartz.Clock {
+	if o.clock != nil {
+		return o.clock
+	}
+	return quartz.NewReal()
+}
+
+func (o executeToolOptions) pollInterval() time.Duration {
+	if o.processOutputPollInterval > 0 {
+		return o.processOutputPollInterval
+	}
+	return defaultProcessOutputPollInterval
 }
 
 // ProcessToolOptions configures a process management tool
@@ -93,7 +129,7 @@ func Execute(options ExecuteOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		ExecuteToolName,
 		"Execute a shell command in the workspace. Runs the command and waits for completion up to the timeout (default 10s, override with the timeout parameter e.g. '30s', '5m'). If the command exceeds the timeout, the response includes a background_process_id; use process_output with that ID to re-attach and wait for the result. Use run_in_background=true for persistent processes (dev servers, file watchers) or when you want to continue other work while the command runs. Never use shell '&' for backgrounding.",
-		func(ctx context.Context, args ExecuteArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+		func(ctx context.Context, args ExecuteArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.GetWorkspaceConn == nil {
 				return fantasy.NewTextErrorResponse("workspace connection resolver is not configured"), nil
 			}
@@ -101,7 +137,14 @@ func Execute(options ExecuteOptions) fantasy.AgentTool {
 			if err != nil {
 				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
-			return executeTool(ctx, conn, args, options.DefaultTimeout), nil
+			return executeTool(ctx, conn, args, executeToolOptions{
+				defaultTimeout:            options.DefaultTimeout,
+				toolCallID:                call.ID,
+				publishResultDelta:        options.PublishResultDelta,
+				publishResultReset:        options.PublishResultReset,
+				clock:                     options.Clock,
+				processOutputPollInterval: options.ProcessOutputPollInterval,
+			}), nil
 		},
 	)
 }
@@ -110,7 +153,7 @@ func executeTool(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
 	args ExecuteArgs,
-	optTimeout time.Duration,
+	options executeToolOptions,
 ) fantasy.ToolResponse {
 	if args.Command == "" {
 		return fantasy.NewTextErrorResponse("command is required")
@@ -143,7 +186,7 @@ func executeTool(
 	if background {
 		return executeBackground(ctx, conn, args.Command, workDir, env)
 	}
-	return executeForeground(ctx, conn, args, optTimeout, workDir, env)
+	return executeForeground(ctx, conn, args, options, workDir, env)
 }
 
 // executeBackground starts a process in the background and
@@ -182,11 +225,11 @@ func executeForeground(
 	ctx context.Context,
 	conn workspacesdk.AgentConn,
 	args ExecuteArgs,
-	optTimeout time.Duration,
+	options executeToolOptions,
 	workDir string,
 	env map[string]string,
 ) fantasy.ToolResponse {
-	timeout := optTimeout
+	timeout := options.defaultTimeout
 	if timeout <= 0 {
 		timeout = defaultTimeout
 	}
@@ -203,7 +246,8 @@ func executeForeground(
 	cmdCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	start := time.Now()
+	clock := options.clockOrReal()
+	start := clock.Now()
 
 	resp, err := conn.StartProcess(cmdCtx, workspacesdk.StartProcessRequest{
 		Command:    args.Command,
@@ -215,8 +259,13 @@ func executeForeground(
 		return errorResult(fmt.Sprintf("start process: %v", err))
 	}
 
-	result := waitForProcess(cmdCtx, ctx, conn, resp.ID, timeout)
-	result.WallDurationMs = time.Since(start).Milliseconds()
+	var result ExecuteResult
+	if options.streamResults() {
+		result = streamProcessOutput(cmdCtx, ctx, conn, resp.ID, timeout, options)
+	} else {
+		result = waitForProcess(cmdCtx, ctx, conn, resp.ID, timeout)
+	}
+	result.WallDurationMs = clock.Since(start).Milliseconds()
 
 	// Add an advisory note for file-dump commands.
 	if note := detectFileDump(args.Command); note != "" {
@@ -238,6 +287,165 @@ func truncateOutput(output string) string {
 		output = strings.ToValidUTF8(output[:maxOutputToModel], "")
 	}
 	return output
+}
+
+type streamProcessOutputRecoveryReason int
+
+const (
+	streamProcessOutputRecoveryError streamProcessOutputRecoveryReason = iota
+	streamProcessOutputRecoveryTimeout
+)
+
+type executeOutputStreamer struct {
+	toolCallID         string
+	publishResultDelta func(toolCallID string, delta string)
+	publishResultReset func(toolCallID string)
+	started            bool
+	output             string
+}
+
+func newExecuteOutputStreamer(options executeToolOptions) executeOutputStreamer {
+	return executeOutputStreamer{
+		toolCallID:         options.toolCallID,
+		publishResultDelta: options.publishResultDelta,
+		publishResultReset: options.publishResultReset,
+	}
+}
+
+func (s *executeOutputStreamer) publish(output string) {
+	if s.publishResultDelta == nil || s.toolCallID == "" {
+		return
+	}
+	output = truncateOutput(output)
+	if output == s.output {
+		return
+	}
+	if !strings.HasPrefix(output, s.output) {
+		if !s.started || s.publishResultReset == nil {
+			return
+		}
+		s.publishResultReset(s.toolCallID)
+		s.started = false
+		s.output = ""
+	}
+	delta := strings.TrimPrefix(output, s.output)
+	if delta == "" {
+		return
+	}
+	encoded := jsonStringFragment(delta)
+	if !s.started {
+		encoded = `{"output":"` + encoded
+		s.started = true
+	}
+	s.publishResultDelta(s.toolCallID, encoded)
+	s.output = output
+}
+
+func jsonStringFragment(value string) string {
+	data, _ := json.Marshal(value)
+	return string(data[1 : len(data)-1])
+}
+
+func streamProcessOutput(
+	ctx context.Context,
+	parentCtx context.Context,
+	conn workspacesdk.AgentConn,
+	processID string,
+	timeout time.Duration,
+	options executeToolOptions,
+) ExecuteResult {
+	streamer := newExecuteOutputStreamer(options)
+	clock := options.clockOrReal()
+	pollInterval := options.pollInterval()
+	for {
+		resp, err := conn.ProcessOutput(ctx, processID, nil)
+		if err != nil {
+			reason := streamProcessOutputRecoveryError
+			if ctx.Err() != nil {
+				reason = streamProcessOutputRecoveryTimeout
+			}
+			return recoverStreamProcessOutput(parentCtx, conn, processID, timeout, err, reason, &streamer)
+		}
+		streamer.publish(resp.Output)
+		if !resp.Running {
+			return processOutputResult(resp)
+		}
+		if ctx.Err() != nil {
+			return runningProcessResult(resp, processID, fmt.Sprintf("command timed out after %s", timeout))
+		}
+
+		timer := clock.NewTimer(pollInterval, "execute", "process-output-poll")
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return recoverStreamProcessOutput(parentCtx, conn, processID, timeout, ctx.Err(), streamProcessOutputRecoveryTimeout, &streamer)
+		case <-timer.C:
+			timer.Stop()
+		}
+	}
+}
+
+func recoverStreamProcessOutput(
+	parentCtx context.Context,
+	conn workspacesdk.AgentConn,
+	processID string,
+	timeout time.Duration,
+	origErr error,
+	reason streamProcessOutputRecoveryReason,
+	streamer *executeOutputStreamer,
+) ExecuteResult {
+	bgCtx, bgCancel := context.WithTimeout(parentCtx, snapshotTimeout)
+	defer bgCancel()
+	resp, err := conn.ProcessOutput(bgCtx, processID, nil)
+	if err != nil {
+		errMsg := fmt.Sprintf("get process output: %v; use process_output with ID %s to retry", origErr, processID)
+		if reason == streamProcessOutputRecoveryTimeout {
+			errMsg = fmt.Sprintf("command timed out after %s; failed to get output: %v", timeout, err)
+		}
+		return ExecuteResult{
+			Success:             false,
+			ExitCode:            -1,
+			Error:               errMsg,
+			BackgroundProcessID: processID,
+		}
+	}
+
+	streamer.publish(resp.Output)
+	if !resp.Running {
+		return processOutputResult(resp)
+	}
+
+	errMsg := fmt.Sprintf("command timed out after %s", timeout)
+	if reason != streamProcessOutputRecoveryTimeout {
+		errMsg = fmt.Sprintf("get process output: %v (process still running, use process_output to check later)", origErr)
+	}
+	return runningProcessResult(resp, processID, errMsg)
+}
+
+func processOutputResult(resp workspacesdk.ProcessOutputResponse) ExecuteResult {
+	exitCode := 0
+	if resp.ExitCode != nil {
+		exitCode = *resp.ExitCode
+	}
+	output := truncateOutput(resp.Output)
+	return ExecuteResult{
+		Success:   exitCode == 0,
+		Output:    output,
+		ExitCode:  exitCode,
+		Truncated: resp.Truncated,
+	}
+}
+
+func runningProcessResult(resp workspacesdk.ProcessOutputResponse, processID string, errMsg string) ExecuteResult {
+	output := truncateOutput(resp.Output)
+	return ExecuteResult{
+		Success:             false,
+		Output:              output,
+		ExitCode:            -1,
+		Error:               errMsg,
+		Truncated:           resp.Truncated,
+		BackgroundProcessID: processID,
+	}
 }
 
 // waitForProcess waits for process completion using the

@@ -7720,6 +7720,28 @@ func (p *Server) runChat(
 		}),
 		chattool.Execute(chattool.ExecuteOptions{
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
+			PublishResultDelta: func(toolCallID string, delta string) {
+				if toolCallID == "" || delta == "" {
+					return
+				}
+				p.publishMessagePart(chat.ID, codersdk.ChatMessageRoleTool, codersdk.ChatMessagePart{
+					Type:        codersdk.ChatMessagePartTypeToolResult,
+					ToolCallID:  toolCallID,
+					ToolName:    "execute",
+					ResultDelta: delta,
+				})
+			},
+			PublishResultReset: func(toolCallID string) {
+				if toolCallID == "" {
+					return
+				}
+				p.publishMessagePart(chat.ID, codersdk.ChatMessageRoleTool, codersdk.ChatMessagePart{
+					Type:        codersdk.ChatMessagePartTypeToolResult,
+					ToolCallID:  toolCallID,
+					ToolName:    "execute",
+					ResultReset: true,
+				})
+			},
 		}),
 		chattool.ProcessOutput(chattool.ProcessToolOptions{
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
