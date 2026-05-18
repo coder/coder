@@ -13839,38 +13839,40 @@ func TestGetChatsFilterByTitle(t *testing.T) {
 	underscore := createRoot("user_name config")
 	hyphen := createRoot("user-name config")
 
-	// Substring match
-	ids := getChatIDs("project")
-	require.ElementsMatch(t, []uuid.UUID{alpha.ID, beta.ID}, ids)
+	allIDs := []uuid.UUID{alpha.ID, beta.ID, gamma.ID, percent.ID, thousandOne.ID, underscore.ID, hyphen.ID}
 
-	// Single result
-	ids = getChatIDs("gamma")
-	require.ElementsMatch(t, []uuid.UUID{gamma.ID}, ids)
+	tests := []struct {
+		name    string
+		query   string
+		wantIDs []uuid.UUID
+	}{
+		{"SubstringMatch", "project", []uuid.UUID{alpha.ID, beta.ID}},
+		{"SingleResult", "gamma", []uuid.UUID{gamma.ID}},
+		{"CaseInsensitive", "ALPHA", []uuid.UUID{alpha.ID}},
+		{"MultiWord", "alpha project", []uuid.UUID{alpha.ID}},
+		{"NoMatch", "nonexistent", nil},
+		{"EmptyReturnsAll", "", allIDs},
+		// The % in "100%" acts as a wildcard since we don't escape ILIKE
+		// metacharacters. Pattern '%100%%' matches both titles.
+		{"PercentWildcard", "100%", []uuid.UUID{percent.ID, thousandOne.ID}},
+		// The _ in "user_name" acts as a single-char wildcard, matching
+		// both "user_name" and "user-name".
+		{"UnderscoreWildcard", "user_name", []uuid.UUID{underscore.ID, hyphen.ID}},
+	}
 
-	// Case insensitive
-	ids = getChatIDs("ALPHA")
-	require.ElementsMatch(t, []uuid.UUID{alpha.ID}, ids)
-
-	// Multi-word substring
-	ids = getChatIDs("alpha project")
-	require.ElementsMatch(t, []uuid.UUID{alpha.ID}, ids)
-
-	// No match
-	ids = getChatIDs("nonexistent")
-	require.Empty(t, ids)
-
-	// Empty title query returns all
-	ids = getChatIDs("")
-	require.ElementsMatch(t, []uuid.UUID{alpha.ID, beta.ID, gamma.ID, percent.ID, thousandOne.ID, underscore.ID, hyphen.ID}, ids)
-
-	// ILIKE % wildcard: "100%" pattern matches both "100% complete" and "1001 things"
-	ids = getChatIDs("100%")
-	require.ElementsMatch(t, []uuid.UUID{percent.ID, thousandOne.ID}, ids)
-
-	// ILIKE _ wildcard: "user_name" matches both "user_name" and "user-name"
-	ids = getChatIDs("user_name")
-	require.ElementsMatch(t, []uuid.UUID{underscore.ID, hyphen.ID}, ids)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ids := getChatIDs(tt.query)
+			if tt.wantIDs == nil {
+				require.Empty(t, ids)
+			} else {
+				require.ElementsMatch(t, tt.wantIDs, ids)
+			}
+		})
+	}
 }
+
 
 func TestGetChatsFilterByUnread(t *testing.T) {
 	t.Parallel()
