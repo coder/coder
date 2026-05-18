@@ -74,6 +74,9 @@ COPY "$TERRAFORM_CODER_PROVIDER_ZIP" "${TERRAFORM_PLUGINS_DIR}/registry.terrafor
 COPY terraform-filesystem-mirror.tfrc /opt/terraform/config.tfrc
 ENV TF_CLI_CONFIG_FILE=/opt/terraform/config.tfrc
 
+# Remove python3-urllib3 to address CVE-2026-44431.
+RUN rpm -e --nodeps python3-urllib3 2>/dev/null || true
+
 # Uninstall the build dependencies.
 RUN microdnf remove --assumeyes \
       tar \
