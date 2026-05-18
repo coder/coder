@@ -46,7 +46,8 @@ jobs:
         github.event.action == 'ready_for_review' ||
         github.event_name == 'workflow_dispatch'
       ) &&
-      (github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch')
+      (github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch') &&
+      (github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository)
     timeout-minutes: 30
     permissions:
       contents: read
@@ -213,11 +214,10 @@ jobs:
       - name: Run doc-check via Coder Agent Chat
         if: steps.check-secrets.outputs.skip != 'true'
         # Pin to v0 tag once tagged.
-        uses: coder/agents-chat-action@7fc11ff850800d5f60fd47306099d75996a674dd
+        uses: coder/agents-chat-action@4a306258d449f8a34df7be77be2c6fc63397ad57
         with:
           coder-url: ${{ secrets.DOC_CHECK_CODER_URL }}
           coder-token: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
-          coder-username: doc-check-bot
           chat-prompt: ${{ steps.extract-context.outputs.chat_prompt }}
           github-url: ${{ steps.determine-context.outputs.pr_url }}
           github-token: ${{ github.token }}
