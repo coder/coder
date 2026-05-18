@@ -28,18 +28,6 @@ import (
 // are safe in URLs.
 var aiProviderNameRegex = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
-// reservedAIProviderNames are paths under /api/v2/aibridge that must not
-// collide with provider names. The aibridged catch-all route uses provider
-// name as the first path segment, so any name that overlaps with a fixed
-// route would shadow it.
-var reservedAIProviderNames = map[string]struct{}{
-	"proxy":         {},
-	"interceptions": {},
-	"sessions":      {},
-	"models":        {},
-	"clients":       {},
-}
-
 // The on-disk shape of ai_providers.settings is the same discriminated
 // JSON form that codersdk.AIProviderSettings serializes to: an object
 // carrying _type and _version discriminator keys alongside the
@@ -523,7 +511,7 @@ func (api *API) aiProviderKeysDelete(rw http.ResponseWriter, r *http.Request) {
 
 // lookupAIProvider resolves a UUID-or-name path parameter against a Store.
 // Soft-deleted providers are not returned; lookup by name searches active
-// rows only so reserved names cannot mask a deleted row's identity.
+// rows only.
 func lookupAIProvider(ctx context.Context, store database.Store, idOrName string) (database.AIProvider, error) {
 	if id, err := uuid.Parse(idOrName); err == nil {
 		row, err := store.GetAIProviderByID(ctx, id)
@@ -617,13 +605,6 @@ func validateAIProviderName(name string) []codersdk.ValidationError {
 			Field:  "name",
 			Detail: "name must match ^[a-z0-9]+(-[a-z0-9]+)*$ (lowercase alphanumeric, hyphens between words)",
 		})
-	default:
-		if _, ok := reservedAIProviderNames[strings.ToLower(name)]; ok {
-			validations = append(validations, codersdk.ValidationError{
-				Field:  "name",
-				Detail: fmt.Sprintf("%q is a reserved provider name", name),
-			})
-		}
 	}
 	return validations
 }

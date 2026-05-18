@@ -200,25 +200,6 @@ func TestAIProvidersCRUD(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 	})
 
-	t.Run("ReservedName", func(t *testing.T) {
-		t.Parallel()
-		client, _ := coderdenttest.New(t, aibridgeOpts(t))
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		for _, name := range []string{"proxy", "interceptions", "sessions", "models", "clients"} {
-			_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
-				Type:    codersdk.AIProviderTypeOpenAI,
-				Name:    name,
-				Enabled: true,
-				BaseURL: "https://api.openai.com/v1",
-			})
-			require.Errorf(t, err, "expected reserved name %q to be rejected", name)
-			var sdkErr *codersdk.Error
-			require.ErrorAs(t, err, &sdkErr)
-			require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode(), "name %q", name)
-		}
-	})
-
 	t.Run("InvalidType", func(t *testing.T) {
 		t.Parallel()
 		client, _ := coderdenttest.New(t, aibridgeOpts(t))
