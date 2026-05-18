@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
-import { FilterDropdown, SearchBar } from "./FilterDropdown";
+import { FilterDropdown, SearchButton } from "./FilterDropdown";
 
 const meta: Meta<typeof FilterDropdown> = {
 	title: "pages/AgentsPage/FilterDropdown",
@@ -32,50 +32,24 @@ export const OpensFilterMenu: Story = {
 	},
 };
 
-const searchMeta: Meta<typeof SearchBar> = {
-	title: "pages/AgentsPage/SearchBar",
-	component: SearchBar,
+const searchButtonMeta: Meta<typeof SearchButton> = {
+	title: "pages/AgentsPage/SearchButton",
+	component: SearchButton,
 	args: {
-		isOpen: false,
-		onToggle: fn(),
-		searchQuery: "",
-		onSearchChange: fn(),
-		resultCount: 0,
-		totalCount: 12,
+		onClick: fn(),
 	},
 };
 
-type SearchStory = StoryObj<typeof SearchBar>;
+type SearchButtonStory = StoryObj<typeof SearchButton>;
 
-export const SearchClosed: SearchStory = {
-	...searchMeta,
-	render: (args) => <SearchBar {...args} />,
+export const SearchButtonDefault: SearchButtonStory = {
+	...searchButtonMeta,
+	render: (args) => <SearchButton {...args} />,
 };
 
-export const SearchOpenEmpty: SearchStory = {
-	...searchMeta,
-	render: (args) => <SearchBar {...args} />,
-	args: {
-		...searchMeta.args,
-		isOpen: true,
-	},
-};
-
-export const SearchWithResults: SearchStory = {
-	...searchMeta,
-	render: (args) => <SearchBar {...args} />,
-	args: {
-		...searchMeta.args,
-		isOpen: true,
-		searchQuery: "Fix",
-		resultCount: 4,
-		totalCount: 12,
-	},
-};
-
-export const OpensSearchInput: SearchStory = {
-	...searchMeta,
-	render: (args) => <SearchBar {...args} />,
+export const ClicksSearchButton: SearchButtonStory = {
+	...searchButtonMeta,
+	render: (args) => <SearchButton {...args} />,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(

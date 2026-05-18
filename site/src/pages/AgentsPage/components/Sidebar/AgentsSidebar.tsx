@@ -43,6 +43,7 @@ import {
 	PlugIcon,
 	ReceiptTextIcon,
 	RefreshCwIcon,
+	SearchIcon,
 	ServerIcon,
 	Settings2Icon,
 	SettingsIcon,
@@ -109,7 +110,7 @@ import { asNonEmptyString } from "../ChatConversation/blockUtils";
 import type { ModelSelectorOption } from "../ChatElements";
 import { asString } from "../ChatElements/runtimeTypeUtils";
 import { UsageIndicator } from "../UsageIndicator";
-import { FilterDropdown, SearchBar } from "./FilterDropdown";
+import { FilterDropdown, SearchButton } from "./FilterDropdown";
 import { RenameChatDialog } from "./RenameChatDialog";
 
 type SidebarView =
@@ -1076,6 +1077,27 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 			return !prev;
 		});
 	}, []);
+	const searchInputRef = useRef<HTMLInputElement>(null);
+
+	useEffect(() => {
+		if (searchOpen) {
+			const id = window.setTimeout(() => searchInputRef.current?.focus(), 50);
+			return () => window.clearTimeout(id);
+		}
+	}, [searchOpen]);
+
+	useEffect(() => {
+		if (!searchOpen) return;
+		const handler = (e: KeyboardEvent) => {
+			if (e.key === "Escape") {
+				setSearchQuery("");
+				setSearchOpen(false);
+			}
+		};
+		document.addEventListener("keydown", handler);
+		return () => document.removeEventListener("keydown", handler);
+	}, [searchOpen]);
+
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
 	const [collapsedSections, setCollapsedSections] = useState<
 		Record<string, boolean>
@@ -1298,6 +1320,88 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 					/>
 				</div>
 				<div className="relative min-h-0 flex-1">
+					{searchOpen && (
+						<div className="absolute inset-0 z-10 flex flex-col bg-surface-primary">
+							{/* Search input */}
+							<div className="flex flex-col gap-1 px-3 pt-3">
+								<div className="flex items-center gap-1.5 rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2">
+									<SearchIcon className="h-4 w-4 shrink-0 text-content-secondary" />
+									<input
+										ref={searchInputRef}
+										type="text"
+										value={searchQuery}
+										onChange={(e) => setSearchQuery(e.target.value)}
+										placeholder="Search..."
+										aria-label="Search agents"
+										className="min-w-0 flex-1 border-none bg-transparent p-0 text-sm text-content-primary outline-none placeholder:text-content-secondary"
+									/>
+									<FilterDropdown
+										archivedFilter={archivedFilter}
+										onArchivedFilterChange={onArchivedFilterChange}
+									/>
+								</div>
+								<span className="text-[11px] text-content-secondary">
+									(searching titles)
+								</span>
+							</div>
+							{/* Results count */}
+							<div className="px-3 pb-1 pt-3">
+								<span className="text-sm text-content-primary">
+									<strong>{visibleRootIDs.length}</strong> results
+								</span>
+							</div>
+							{/* Results list */}
+							<div className="relative min-h-0 flex-1">
+								<ScrollArea
+									className="h-full [&_[data-radix-scroll-area-viewport]>div]:!block"
+									scrollBarClassName="w-1.5"
+								>
+									<div className="flex flex-col gap-0.5 px-2 py-1">
+										<ChatTreeContext value={chatTreeCtx}>
+											{visibleRootIDs.map((id) => {
+												const chat = chatById.get(id);
+												if (!chat) return null;
+												return (
+													<ChatTreeNode
+														key={chat.id}
+														chat={chat}
+														isChildNode={false}
+													/>
+												);
+											})}
+										</ChatTreeContext>
+									</div>
+								</ScrollArea>
+							</div>
+							{/* Bottom bar */}
+							<div className="border-0 border-t border-solid border-border-default px-2 py-2">
+								<div className="flex items-center gap-2">
+									<Button asChild variant="outline" size="sm">
+										<Link
+											to={`/agents${location.search}`}
+											onClick={() => {
+												onBeforeNewAgent?.();
+												toggleSearch();
+											}}
+										>
+											<SquarePenIcon className="h-4 w-4" />
+											New chat
+										</Link>
+									</Button>
+									<Button asChild variant="outline" size="sm">
+										<Link
+											to="/agents/settings"
+											state={{ from: location.pathname + location.search }}
+											onClick={toggleSearch}
+										>
+											<SettingsIcon className="h-4 w-4" />
+											Settings
+										</Link>
+									</Button>
+								</div>
+							</div>
+						</div>
+					)}
 					<ScrollArea
 						className="h-full [&_[data-radix-scroll-area-viewport]>div]:!block"
 						scrollBarClassName="w-1.5"
@@ -1341,61 +1445,36 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							) : (
 								<ChatTreeContext value={chatTreeCtx}>
 									{visibleRootIDs.length === 0 ? (
-										<>
-											{totalRootCount > 0 && (
-												<div className="mb-2 flex items-center justify-end gap-0.5 pr-1.5">
-													<SearchBar
-														isOpen={searchOpen}
-														onToggle={toggleSearch}
-														searchQuery={searchQuery}
-														onSearchChange={setSearchQuery}
-														resultCount={0}
-														totalCount={totalRootCount}
-													/>
-													<FilterDropdown
-														archivedFilter={archivedFilter}
-														onArchivedFilterChange={onArchivedFilterChange}
-													/>
-												</div>
-											)}
-											<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
-												<p className="m-0">
-													{normalizedSearch
-														? "No matching agents"
-														: archivedFilter === "archived"
-															? "No archived agents"
-															: "No agents yet"}
-												</p>
-												<button
-													type="button"
-													className="mt-2 cursor-pointer border-none bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary hover:underline"
-													onClick={() =>
-														onArchivedFilterChange?.(
-															archivedFilter === "archived"
-																? "active"
-																: "archived",
-														)
-													}
-												>
-													{archivedFilter === "archived"
-														? "← Back to active"
-														: "View archived →"}
-												</button>
-											</div>
-										</>
+										<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
+											<p className="m-0">
+												{normalizedSearch
+													? "No matching agents"
+													: archivedFilter === "archived"
+														? "No archived agents"
+														: "No agents yet"}
+											</p>
+											<button
+												type="button"
+												className="mt-2 cursor-pointer border-none bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary hover:underline"
+												onClick={() =>
+													onArchivedFilterChange?.(
+														archivedFilter === "archived"
+															? "active"
+															: "archived",
+													)
+												}
+											>
+												{archivedFilter === "archived"
+													? "← Back to active"
+													: "View archived →"}
+											</button>
+										</div>
 									) : (
 										<div>
 											{visibleRootIDs.length > 0 && (
 												<div className="pb-2">
-													<div className="mb-2 flex items-center justify-end gap-0.5 pr-1.5">
-														<SearchBar
-															isOpen={searchOpen}
-															onToggle={toggleSearch}
-															searchQuery={searchQuery}
-															onSearchChange={setSearchQuery}
-															resultCount={visibleRootIDs.length}
-															totalCount={totalRootCount}
-														/>
+													<div className="mb-2 flex h-5 items-center justify-end gap-0.5 pr-1.5">
+														<SearchButton onClick={toggleSearch} />
 														<FilterDropdown
 															archivedFilter={archivedFilter}
 															onArchivedFilterChange={onArchivedFilterChange}
