@@ -30,8 +30,8 @@ export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
 	if (
 		!canViewAuditLog &&
 		!canViewConnectionLog &&
-		!canViewOrganizations &&
 		!canViewDeployment &&
+		!canViewOrganizations &&
 		!canViewHealth &&
 		!canViewAIBridge
 	) {
@@ -63,7 +63,6 @@ export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
 
 const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
 	canViewDeployment,
-	canViewOrganizations,
 	canViewAuditLog,
 	canViewHealth,
 	canViewConnectionLog,
@@ -76,11 +75,9 @@ const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
 					<Link to="/deployment">Deployment</Link>
 				</DropdownMenuItem>
 			)}
-			{canViewOrganizations && (
-				<DropdownMenuItem asChild>
-					<Link to="/organizations">Organizations</Link>
-				</DropdownMenuItem>
-			)}
+			<DropdownMenuItem asChild>
+				<Link to="/organizations">Organizations</Link>
+			</DropdownMenuItem>
 			{canViewAuditLog && (
 				<DropdownMenuItem asChild>
 					<Link to={linkToAuditing}>Audit Logs</Link>

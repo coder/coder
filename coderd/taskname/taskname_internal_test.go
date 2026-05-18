@@ -157,6 +157,21 @@ func TestExtractJSON(t *testing.T) {
 			expected: "{\n  \"display_name\": \"Fix bug\",\n  \"task_name\": \"fix-bug\"\n}",
 		},
 		{
+			name:     "FencedJSONWithTrailingText",
+			input:    "```json\n{\"display_name\": \"Fix bug\", \"task_name\": \"fix-bug\"}\n```\n\nDone.",
+			expected: `{"display_name": "Fix bug", "task_name": "fix-bug"}`,
+		},
+		{
+			name:     "BareJSONWithTrailingFence",
+			input:    "{\"display_name\": \"Fix bug\", \"task_name\": \"fix-bug\"}\n```",
+			expected: `{"display_name": "Fix bug", "task_name": "fix-bug"}`,
+		},
+		{
+			name:     "BareJSONWithTrailingText",
+			input:    "{\"display_name\": \"Fix bug\", \"task_name\": \"fix-bug\"}\n\nDone.",
+			expected: `{"display_name": "Fix bug", "task_name": "fix-bug"}`,
+		},
+		{
 			name:     "FencedNoNewlinePassthrough",
 			input:    "```json{\"display_name\": \"Fix bug\", \"task_name\": \"fix-bug\"}```",
 			expected: "```json{\"display_name\": \"Fix bug\", \"task_name\": \"fix-bug\"}```",
@@ -232,6 +247,18 @@ func TestGenerateFromAnthropicMock(t *testing.T) {
 		{
 			name:                "FencedNoLanguage",
 			responseText:        "```\n{\"display_name\": \"Setup CI\", \"task_name\": \"setup-ci\"}\n```",
+			expectedDisplayName: "Setup CI",
+			expectedNamePrefix:  "setup-ci-",
+		},
+		{
+			name:                "FencedJSONWithTrailingText",
+			responseText:        "```json\n{\"display_name\": \"Debug auth\", \"task_name\": \"debug-auth\"}\n```\n\nDone.",
+			expectedDisplayName: "Debug auth",
+			expectedNamePrefix:  "debug-auth-",
+		},
+		{
+			name:                "BareJSONWithTrailingFence",
+			responseText:        "{\"display_name\": \"Setup CI\", \"task_name\": \"setup-ci\"}\n```",
 			expectedDisplayName: "Setup CI",
 			expectedNamePrefix:  "setup-ci-",
 		},

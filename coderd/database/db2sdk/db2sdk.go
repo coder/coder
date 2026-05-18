@@ -1418,6 +1418,15 @@ func flattenAndSum(sums map[string]int64, prefix string, m map[string]json.RawMe
 	}
 }
 
+func GroupAIBudget(b database.GroupAiBudget) codersdk.GroupAIBudget {
+	return codersdk.GroupAIBudget{
+		GroupID:          b.GroupID,
+		SpendLimitMicros: b.SpendLimitMicros,
+		CreatedAt:        b.CreatedAt,
+		UpdatedAt:        b.UpdatedAt,
+	}
+}
+
 func InvalidatedPresets(invalidatedPresets []database.UpdatePresetsLastInvalidatedAtRow) []codersdk.InvalidatedPreset {
 	var presets []codersdk.InvalidatedPreset
 	for _, p := range invalidatedPresets {
@@ -1666,6 +1675,9 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 		Labels:            labels,
 		ClientType:        codersdk.ChatClientType(c.ClientType),
 		LastError:         lastError,
+	}
+	if c.LastTurnSummary.Valid {
+		chat.LastTurnSummary = &c.LastTurnSummary.String
 	}
 	if c.PlanMode.Valid {
 		chat.PlanMode = codersdk.ChatPlanMode(c.PlanMode.ChatPlanMode)

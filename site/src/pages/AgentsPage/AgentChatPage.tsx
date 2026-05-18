@@ -37,7 +37,7 @@ import {
 	userCompactionThresholds,
 } from "#/api/queries/chats";
 import { deploymentSSHConfig } from "#/api/queries/deployment";
-import { user as userQuery } from "#/api/queries/users";
+import { preferenceSettings, user as userQuery } from "#/api/queries/users";
 import {
 	workspaceById,
 	workspaceByIdKey,
@@ -80,6 +80,7 @@ import {
 } from "./components/MCPServerPicker";
 import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useGitWatcher } from "./hooks/useGitWatcher";
+import { getAgentChatSendShortcut } from "./utils/agentChatSendShortcut";
 import { type ParsedDraft, parseStoredDraft } from "./utils/draftStorage";
 import {
 	countConfiguredProviderConfigs,
@@ -102,8 +103,6 @@ export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 /** @internal Exported for testing. */
 export const draftInputStorageKeyPrefix = "agents.draft-input.";
-/** @internal localStorage key prefix for the per-chat active sidebar tab. Exported for testing. */
-export const lastActiveSidebarTabStorageKeyPrefix = "agents.last-active-tab.";
 
 const clearChatPlanMode = "" satisfies ChatPlanModeOrClear;
 
@@ -123,49 +122,6 @@ export function getPersistedDraftInputValue(
 	return parseStoredDraft(
 		localStorage.getItem(`${draftInputStorageKeyPrefix}${chatID}`),
 	).text;
-}
-
-/**
- * Read the persisted active sidebar tab ID for a given chat. Returns
- * `null` when no value is stored or the chat ID is missing.
- */
-export function getPersistedSidebarTabId(
-	chatID: string | undefined,
-): string | null {
-	if (!chatID) {
-		return null;
-	}
-	return localStorage.getItem(
-		`${lastActiveSidebarTabStorageKeyPrefix}${chatID}`,
-	);
-}
-
-/**
- * Persist the active sidebar tab ID for a given chat so it can be
- * restored across session switches. No-op when the chat ID is missing.
- */
-export function savePersistedSidebarTabId(
-	chatID: string | undefined,
-	tabID: string,
-): void {
-	if (!chatID) {
-		return;
-	}
-	localStorage.setItem(
-		`${lastActiveSidebarTabStorageKeyPrefix}${chatID}`,
-		tabID,
-	);
-}
-
-/**
- * Remove the persisted active sidebar tab ID for a given chat. Called
- * when a chat is archived so a future unarchive starts fresh.
- */
-export function clearPersistedSidebarTabId(chatID: string | undefined): void {
-	if (!chatID) {
-		return;
-	}
-	localStorage.removeItem(`${lastActiveSidebarTabStorageKeyPrefix}${chatID}`);
 }
 
 /** @internal Exported for testing. */
@@ -189,6 +145,68 @@ export const restoreOptimisticRequestSnapshot = (
 		store.setStreamState(snapshot.streamState);
 		store.setStreamError(snapshot.streamError);
 	});
+};
+
+/**
+ * Runs the optimistic queued-message promotion flow.
+ *
+ * The promote endpoint returns 202 Accepted with no message body, so the
+ * actual user message is delivered via SSE or the messages REST endpoint.
+ * Suppress the promoted ID so the transient reordered queue published by
+ * the running-case backend does not flash the message back into the
+ * visible queue. Roll back queue, status, and suppression on API error.
+ *
+ * @internal Exported for testing.
+ */
+export const runPromoteQueuedMessage = async (params: {
+	id: number;
+	store: Pick<
+		ChatStore,
+		| "batch"
+		| "clearStreamError"
+		| "clearStreamState"
+		| "getSnapshot"
+		| "setChatStatus"
+		| "setQueuedMessages"
+		| "setStreamError"
+		| "setStreamState"
+		| "suppressQueuedMessageID"
+		| "unsuppressQueuedMessageID"
+	>;
+	promoteQueuedMessage: (id: number) => Promise<void>;
+	agentId: string | undefined;
+	clearChatErrorReason: (chatID: string) => void;
+	handleUsageLimitError: (error: unknown) => void;
+}): Promise<void> => {
+	const {
+		id,
+		store,
+		promoteQueuedMessage,
+		agentId,
+		clearChatErrorReason,
+		handleUsageLimitError,
+	} = params;
+	const previousSnapshot = store.getSnapshot();
+	store.batch(() => {
+		store.suppressQueuedMessageID(id);
+		store.setQueuedMessages(
+			previousSnapshot.queuedMessages.filter((message) => message.id !== id),
+		);
+		store.clearStreamState();
+		store.clearStreamError();
+		store.setChatStatus("pending");
+	});
+	if (agentId) {
+		clearChatErrorReason(agentId);
+	}
+	try {
+		await promoteQueuedMessage(id);
+	} catch (error) {
+		store.unsuppressQueuedMessageID(id);
+		restoreOptimisticRequestSnapshot(store, previousSnapshot);
+		handleUsageLimitError(error);
+		throw error;
+	}
 };
 
 export async function submitEditAndScroll({
@@ -283,7 +301,7 @@ export function useConversationEditingState(deps: {
 		: null;
 	const [{ editorInitialValue, initialEditorState }, setDraftState] = useState(
 		() => {
-			if (typeof window === "undefined" || !draftStorageKey) {
+			if (!draftStorageKey) {
 				return { editorInitialValue: "", initialEditorState: undefined };
 			}
 			const draft = parseStoredDraft(localStorage.getItem(draftStorageKey));
@@ -706,6 +724,7 @@ const AgentChatPage: FC = () => {
 		enabled: permissions.editDeploymentConfig,
 	});
 	const userThresholdsQuery = useQuery(userCompactionThresholds());
+	const preferencesQuery = useQuery(preferenceSettings());
 	const desktopEnabledQuery = useQuery(chatDesktopEnabled());
 	const userDebugLoggingQuery = useQuery(userChatDebugLogging());
 	const mcpServersQuery = useQuery(mcpServerConfigs());
@@ -1139,30 +1158,15 @@ const AgentChatPage: FC = () => {
 		}
 	};
 
-	const handlePromoteQueuedMessage = async (id: number) => {
-		const previousSnapshot = store.getSnapshot();
-		store.setQueuedMessages(
-			previousSnapshot.queuedMessages.filter((message) => message.id !== id),
-		);
-		store.clearStreamState();
-		if (agentId) {
-			clearChatErrorReason(agentId);
-		}
-		store.clearStreamError();
-		store.setChatStatus("pending");
-		try {
-			const promotedMessage = await promoteQueuedMessage(id);
-			// Insert the promoted message into the store and cache
-			// immediately so it appears in the timeline without
-			// waiting for the WebSocket to deliver it.
-			store.upsertDurableMessage(promotedMessage);
-			upsertCacheMessages([promotedMessage]);
-		} catch (error) {
-			restoreOptimisticRequestSnapshot(store, previousSnapshot);
-			handleUsageLimitError(error);
-			throw error;
-		}
-	};
+	const handlePromoteQueuedMessage = (id: number) =>
+		runPromoteQueuedMessage({
+			id,
+			store,
+			promoteQueuedMessage,
+			agentId,
+			clearChatErrorReason,
+			handleUsageLimitError,
+		});
 
 	const editing = useConversationEditingState({
 		chatID: agentId,
@@ -1325,10 +1329,28 @@ const AgentChatPage: FC = () => {
 		]);
 
 		if (editedMessageID !== undefined) {
-			const request: TypesGen.EditChatMessageRequest = { content };
 			const originalEditedMessage = chatMessagesList?.find(
 				(existingMessage) => existingMessage.id === editedMessageID,
 			);
+			const originalModelConfigID = originalEditedMessage?.model_config_id;
+			const pickerModelConfigID = effectiveSelectedModel || undefined;
+			const originalIsSelectable =
+				originalModelConfigID !== undefined &&
+				modelOptions.some((opt) => opt.id === originalModelConfigID);
+			// Only override the original model when the user has switched to
+			// a different selectable option. If the original is no longer
+			// selectable, the picker is showing a fallback we should not
+			// silently use; let the backend preserve the original.
+			const editSelectedModelConfigID =
+				pickerModelConfigID &&
+				originalIsSelectable &&
+				pickerModelConfigID !== originalModelConfigID
+					? pickerModelConfigID
+					: undefined;
+			const request: TypesGen.EditChatMessageRequest = {
+				content,
+				model_config_id: editSelectedModelConfigID,
+			};
 			const optimisticMessage = originalEditedMessage
 				? buildOptimisticEditedMessage({
 						requestContent: request.content,
@@ -1357,6 +1379,12 @@ const AgentChatPage: FC = () => {
 					handleUsageLimitError(error);
 				},
 			});
+			if (editSelectedModelConfigID) {
+				localStorage.setItem(
+					lastModelConfigIDStorageKey,
+					editSelectedModelConfigID,
+				);
+			}
 			return;
 		}
 
@@ -1460,6 +1488,10 @@ const AgentChatPage: FC = () => {
 	if (chatQuery.isLoading || chatMessagesQuery.isLoading) {
 		return (
 			<AgentChatPageLoadingView
+				sendShortcut={getAgentChatSendShortcut(
+					preferencesQuery.data?.agent_chat_send_shortcut,
+					preferencesQuery.isLoading,
+				)}
 				titleElement={titleElement}
 				isInputDisabled={isInputDisabled}
 				effectiveSelectedModel={effectiveSelectedModel}
@@ -1490,6 +1522,10 @@ const AgentChatPage: FC = () => {
 	return (
 		<AgentChatPageView
 			agentId={agentId}
+			sendShortcut={getAgentChatSendShortcut(
+				preferencesQuery.data?.agent_chat_send_shortcut,
+				preferencesQuery.isLoading,
+			)}
 			organizationId={chatQuery.data?.organization_id}
 			chatTitle={chatTitle}
 			parentChat={parentChat}

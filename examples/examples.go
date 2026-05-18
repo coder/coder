@@ -40,6 +40,7 @@ var (
 	//go:embed templates/kubernetes
 	//go:embed templates/kubernetes-devcontainer
 	//go:embed templates/nomad-docker
+	//go:embed templates/quickstart
 	//go:embed templates/scratch
 	//go:embed templates/tasks-docker
 	files embed.FS

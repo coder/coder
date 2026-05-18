@@ -80,7 +80,7 @@ export const SelectMenuSearch: FC<SearchFieldProps> = ({
 				"w-full border border-solid border-border [&_input]:text-sm",
 				className,
 			)}
-			autoFocus={true}
+			autoFocus
 			{...props}
 		/>
 	);

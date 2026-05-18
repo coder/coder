@@ -802,9 +802,9 @@ func TestAPIKey(t *testing.T) {
 			r     = httptest.NewRequest("GET", "/", nil)
 			rw    = httptest.NewRecorder()
 
-			count   int64
+			count   atomic.Int64
 			handler = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-				atomic.AddInt64(&count, 1)
+				count.Add(1)
 
 				apiKey, ok := httpmw.APIKeyOptional(r)
 				assert.False(t, ok)
@@ -823,7 +823,7 @@ func TestAPIKey(t *testing.T) {
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusOK, res.StatusCode)
-		require.EqualValues(t, 1, atomic.LoadInt64(&count))
+		require.EqualValues(t, 1, count.Load())
 	})
 
 	t.Run("Tokens", func(t *testing.T) {

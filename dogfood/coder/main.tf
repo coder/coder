@@ -508,7 +508,6 @@ resource "coder_agent" "dev" {
   env = merge(
     {
       OIDC_TOKEN : data.coder_workspace_owner.me.oidc_access_token,
-      CODER_AGENT_EXP_MCP_CONFIG_FILES : "~/.mcp.json,.mcp.json",
     },
     data.coder_parameter.enable_ai_gateway.value ? {
       ANTHROPIC_BASE_URL : "https://dev.coder.com/api/v2/aibridge/anthropic",
@@ -754,6 +753,38 @@ resource "docker_volume" "home_volume" {
   }
 }
 
+resource "coder_metadata" "homebrew_volume" {
+  resource_id = docker_volume.homebrew_volume.id
+  hide        = true # Hide it as it only backs Homebrew state.
+}
+
+resource "docker_volume" "homebrew_volume" {
+  name = "coder-${data.coder_workspace.me.id}-homebrew"
+  # Protect the volume from being deleted due to changes in attributes.
+  lifecycle {
+    ignore_changes = all
+  }
+  # Add labels in Docker to keep track of orphan resources.
+  labels {
+    label = "coder.owner"
+    value = data.coder_workspace_owner.me.name
+  }
+  labels {
+    label = "coder.owner_id"
+    value = data.coder_workspace_owner.me.id
+  }
+  labels {
+    label = "coder.workspace_id"
+    value = data.coder_workspace.me.id
+  }
+  # This field becomes outdated if the workspace is renamed but can
+  # be useful for debugging or cleaning out dangling volumes.
+  labels {
+    label = "coder.workspace_name_at_creation"
+    value = data.coder_workspace.me.name
+  }
+}
+
 resource "coder_metadata" "docker_volume" {
   resource_id = docker_volume.docker_volume.id
   hide        = true # Hide it as it is not useful to see in the UI.
@@ -798,6 +829,7 @@ resource "docker_image" "dogfood" {
     filesha1("ubuntu-22.04/Dockerfile"),
     filesha1("ubuntu-26.04/Dockerfile"),
     filesha1("nix.hash"),
+    filesha1("mise.hash"),
   ]
   keep_locally = true
 }
@@ -823,6 +855,7 @@ resource "docker_container" "workspace" {
   # CPU limits are unnecessary since Docker will load balance automatically
   memory  = data.coder_workspace_owner.me.name == "code-asher" ? 65536 : 32768
   runtime = "sysbox-runc"
+  restart = "unless-stopped"
 
   # Ensure the workspace is given time to:
   # - Execute shutdown scripts
@@ -840,6 +873,7 @@ resource "docker_container" "workspace" {
     "CODER_PROC_OOM_SCORE=10",
     "CODER_PROC_NICE_SCORE=1",
     "CODER_AGENT_DEVCONTAINERS_ENABLE=1",
+    "CODER_AGENT_EXP_MCP_CONFIG_FILES=~/.mcp.json,.mcp.json",
   ]
   host {
     host = "host.docker.internal"
@@ -848,6 +882,13 @@ resource "docker_container" "workspace" {
   volumes {
     container_path = "/home/coder/"
     volume_name    = docker_volume.home_volume.name
+    read_only      = false
+  }
+  # Homebrew is baked into this path. A Docker named volume copies the
+  # image contents on first mount, then persists user-installed formulae.
+  volumes {
+    container_path = "/home/linuxbrew/"
+    volume_name    = docker_volume.homebrew_volume.name
     read_only      = false
   }
   volumes {

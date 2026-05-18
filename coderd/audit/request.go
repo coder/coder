@@ -134,6 +134,13 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return typed.Name
 	case database.AiSeatState:
 		return "AI Seat"
+	case database.AIProvider:
+		return typed.Name
+	case database.AIProviderKey:
+		// Provider keys have no user-facing name; show the parent
+		// provider's UUID so the row can be correlated back to its
+		// provider in the audit UI.
+		return typed.ProviderID.String()
 	case database.Chat:
 		// Chat titles can contain sensitive content (secrets, internal
 		// project names), so we use a short UUID prefix as a display
@@ -210,6 +217,10 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.ID
 	case database.AiSeatState:
 		return typed.UserID
+	case database.AIProvider:
+		return typed.ID
+	case database.AIProviderKey:
+		return typed.ID
 	case database.Chat:
 		return typed.ID
 	case database.UserSecret:
@@ -271,6 +282,10 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeTask
 	case database.AiSeatState:
 		return database.ResourceTypeAiSeat
+	case database.AIProvider:
+		return database.ResourceTypeAiProvider
+	case database.AIProviderKey:
+		return database.ResourceTypeAiProviderKey
 	case database.Chat:
 		return database.ResourceTypeChat
 	case database.UserSecret:
@@ -334,6 +349,12 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 	case database.TaskTable:
 		return true
 	case database.AiSeatState:
+		return false
+	case database.AIProvider:
+		// AI providers are deployment-scoped, not org-scoped.
+		return false
+	case database.AIProviderKey:
+		// AI provider keys are deployment-scoped, not org-scoped.
 		return false
 	case database.Chat:
 		// Chats always have a non-null organization_id (since

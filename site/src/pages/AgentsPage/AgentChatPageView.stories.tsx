@@ -16,7 +16,6 @@ import {
 	withProxyProvider,
 	withWebSocket,
 } from "#/testHelpers/storybook";
-import { lastActiveSidebarTabStorageKeyPrefix } from "./AgentChatPage";
 import {
 	AgentChatPageLoadingView,
 	AgentChatPageNotFoundView,
@@ -28,6 +27,7 @@ import {
 	useChatSelector,
 } from "./components/ChatConversation/chatStore";
 import type { ModelSelectorOption } from "./components/ChatElements";
+import { lastActiveSidebarTabStorageKeyPrefix } from "./utils/sidebarTabStorage";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 // ---------------------------------------------------------------------------
@@ -63,6 +63,7 @@ const buildChat = (overrides: Partial<TypesGen.Chat> = {}): TypesGen.Chat => ({
 	pin_order: 0,
 	has_unread: false,
 	client_type: "ui",
+	last_turn_summary: null,
 	children: [],
 	...overrides,
 });
@@ -131,6 +132,7 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 
 	const props = {
 		agentId: AGENT_ID,
+		sendShortcut: "enter" as const,
 		organizationId: "test-org-id",
 		chatTitle: "Help me refactor",
 		persistedError: undefined as ChatDetailError | undefined,
@@ -619,6 +621,7 @@ export const WorkspaceNoAgent: Story = {
 export const Loading: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
+			sendShortcut="enter"
 			titleElement={<title>Loading — Agents</title>}
 			isInputDisabled
 			effectiveSelectedModel={defaultModelConfigID}
@@ -637,6 +640,7 @@ export const Loading: Story = {
 export const LoadingWithModelOptions: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
+			sendShortcut="enter"
 			titleElement={<title>Loading — Agents</title>}
 			isInputDisabled={false}
 			effectiveSelectedModel={defaultModelConfigID}
@@ -654,6 +658,7 @@ export const LoadingWithModelOptions: Story = {
 export const LoadingWithRightPanel: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
+			sendShortcut="enter"
 			titleElement={<title>Loading — Agents</title>}
 			isInputDisabled
 			effectiveSelectedModel={defaultModelConfigID}
@@ -672,6 +677,7 @@ export const LoadingWithRightPanel: Story = {
 export const LoadingSidebarCollapsed: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
+			sendShortcut="enter"
 			titleElement={<title>Loading — Agents</title>}
 			isInputDisabled
 			effectiveSelectedModel={defaultModelConfigID}

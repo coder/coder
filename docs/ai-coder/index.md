@@ -24,8 +24,7 @@ deployment.
 Coder Agents is a native AI coding agent built into Coder. The agent loop runs
 in the Coder control plane on your infrastructure rather than inside the
 workspace, so workspaces can be completely network isolated. Developers
-interact with agents through the web UI, the CLI (`coder agents`), or the
-REST API.
+interact with agents through the web UI or the REST API.
 
 ![Coder Agents chat interface with git diff sidebar](../images/agents-hero-image.png)
 

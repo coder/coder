@@ -6,6 +6,7 @@ Agents, preparing your deployment, and running your first Coder Agent.
 > [!NOTE]
 > Coder Agents is in Beta. APIs, behavior, and configuration may change
 > between releases without notice; pin a release before broad rollout.
+> Use **Coder version 2.33.1 or greater**.
 
 ## Prerequisites
 

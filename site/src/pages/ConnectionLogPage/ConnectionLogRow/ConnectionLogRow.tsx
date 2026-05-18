@@ -72,7 +72,7 @@ export const ConnectionLogRow: FC<ConnectionLogRowProps> = ({
 								)}
 								<Tooltip>
 									<TooltipTrigger asChild>
-										<InfoIcon className="text-content-link" />
+										<InfoIcon className="size-icon-sm text-content-secondary" />
 									</TooltipTrigger>
 									<TooltipContent side="bottom">
 										<div className="flex flex-col gap-2">

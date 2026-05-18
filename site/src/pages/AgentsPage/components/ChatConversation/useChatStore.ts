@@ -7,7 +7,11 @@ import {
 } from "react";
 import { type InfiniteData, useQueryClient } from "react-query";
 import { watchChat } from "#/api/api";
-import { chatMessagesKey, updateInfiniteChatsCache } from "#/api/queries/chats";
+import {
+	chatMessagesKey,
+	chatPromptsKey,
+	updateInfiniteChatsCache,
+} from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { OneWayMessageEvent } from "#/utils/OneWayWebSocket";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
@@ -168,6 +172,14 @@ export const useChatStore = (
 					],
 				};
 			});
+			// Refresh the dedicated prompt-history cache when a user message arrives.
+			const hasNewUserPrompt = messages.some((msg) => msg.role === "user");
+			if (hasNewUserPrompt) {
+				void queryClient.invalidateQueries({
+					queryKey: chatPromptsKey(chatID),
+					exact: true,
+				});
+			}
 		},
 		[chatID, queryClient],
 	);
@@ -237,6 +249,10 @@ export const useChatStore = (
 		wsQueueUpdateReceivedRef.current = false;
 		wsStatusReceivedRef.current = false;
 		store.setQueuedMessages([]);
+		// Suppression entries are scoped to the current chat; clear
+		// them on chat change so a stale promote suppression doesn't
+		// hide queued messages in another chat.
+		store.clearSuppressedQueuedMessageIDs();
 		if (!chatID) {
 			return;
 		}
@@ -258,7 +274,7 @@ export const useChatStore = (
 			return;
 		}
 		queuedMessagesHydratedChatIDRef.current = chatID;
-		store.setQueuedMessages(chatQueuedMessages);
+		store.applyAuthoritativeQueuedMessages(chatQueuedMessages);
 	}, [chatMessagesData, chatID, chatQueuedMessages, store]);
 
 	useEffect(() => {
@@ -473,7 +489,9 @@ export const useChatStore = (
 								continue;
 							}
 							wsQueueUpdateReceivedRef.current = true;
-							store.setQueuedMessages(streamEvent.queued_messages);
+							store.applyAuthoritativeQueuedMessages(
+								streamEvent.queued_messages,
+							);
 							updateChatQueuedMessages(streamEvent.queued_messages);
 							continue;
 						case "status": {

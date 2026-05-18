@@ -43,7 +43,7 @@ export const UserMessageContent: FC<{
 	onTextFileClick,
 }) => {
 	return (
-		<Message className="w-full max-w-none">
+		<Message className="w-fit max-w-[min(80vw,80%)]">
 			<MessageContent
 				className={cn(
 					"rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans shadow-sm transition-shadow",

@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useEffect, useState } from "react";
 import { useLocation } from "react-router";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
@@ -69,6 +70,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	pin_order: 0,
 	has_unread: false,
 	client_type: "ui",
+	last_turn_summary: null,
 	children: [],
 	...overrides,
 });
@@ -123,6 +125,169 @@ const meta: Meta<typeof AgentsSidebar> = {
 
 export default meta;
 type Story = StoryObj<typeof AgentsSidebar>;
+
+export const ChatWithTurnSummary: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "chat-turn-summary",
+				title: "Update workspace template",
+				last_turn_summary: "Added Docker and Terraform validation",
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(
+			canvas.getByText("Added Docker and Terraform validation"),
+		).toBeInTheDocument();
+		expect(canvas.queryByText("GPT-4o")).not.toBeInTheDocument();
+	},
+};
+
+/**
+ * While the chat is streaming again the cached last_turn_summary still
+ * holds the previous turn's text. The sidebar replaces it with a live
+ * "{model} streaming…" label so the status does not look stuck.
+ */
+export const ChatStreamingOverridesTurnSummary: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "chat-streaming-running",
+				title: "Update workspace template",
+				status: "running",
+				last_turn_summary: "Added Docker and Terraform validation",
+			}),
+			buildChat({
+				id: "chat-streaming-pending",
+				title: "Queued continuation",
+				status: "pending",
+				last_turn_summary: "Added Docker and Terraform validation",
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(canvas.getAllByText("GPT-4o streaming…")).toHaveLength(2);
+		expect(
+			canvas.queryByText("Added Docker and Terraform validation"),
+		).not.toBeInTheDocument();
+	},
+};
+
+/**
+ * After streaming ends the server flips status to "waiting" synchronously,
+ * but the new last_turn_summary is generated asynchronously and arrives a
+ * split second later. The previous turn's text would otherwise flash for
+ * that beat. The row remembers the summary observed while streaming and
+ * suppresses it on the post-stream render until the new summary lands.
+ */
+export const StaleTurnSummaryAfterStreamingIsSuppressed: Story = {
+	parameters: {
+		layout: "fullscreen",
+		user: MockUserOwner,
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+		chromatic: { disableSnapshot: true },
+	},
+	render: (args) => {
+		const initialSummary = "Added Docker and Terraform validation";
+		const freshSummary = "Validated provider configs and exited cleanly";
+		const [phase, setPhase] = useState<
+			"streaming" | "stale-after-stream" | "fresh"
+		>("streaming");
+		useEffect(() => {
+			if (phase !== "streaming") {
+				return;
+			}
+			const id = setTimeout(() => setPhase("stale-after-stream"), 50);
+			return () => clearTimeout(id);
+		}, [phase]);
+		const chats = [
+			buildChat({
+				id: "chat-stale-summary",
+				title: "Update workspace template",
+				status: phase === "streaming" ? "running" : "waiting",
+				last_turn_summary: phase === "fresh" ? freshSummary : initialSummary,
+			}),
+		];
+		return (
+			<div data-testid="flicker-harness" data-phase={phase}>
+				<button
+					data-testid="advance-to-fresh"
+					type="button"
+					onClick={() => setPhase("fresh")}
+				>
+					advance
+				</button>
+				<AgentsSidebar {...args} chats={chats} />
+			</div>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// Phase 1: chat is streaming, the cached summary is suppressed in
+		// favor of the live streaming label.
+		await expect(canvas.getByText("GPT-4o streaming…")).toBeInTheDocument();
+
+		// Phase 2: status flips to waiting while the previous summary is
+		// still cached server-side. The stale text must not flash; the
+		// fallback (model name) shows instead.
+		await waitFor(() => {
+			expect(canvas.getByTestId("flicker-harness")).toHaveAttribute(
+				"data-phase",
+				"stale-after-stream",
+			);
+		});
+		await expect(
+			canvas.queryByText("GPT-4o streaming…"),
+		).not.toBeInTheDocument();
+		await expect(
+			canvas.queryByText("Added Docker and Terraform validation"),
+		).not.toBeInTheDocument();
+		await expect(canvas.getByText("GPT-4o")).toBeInTheDocument();
+
+		// Phase 3: the async finalizer updates the summary. The new text
+		// is displayed, and the stale-suppression guard is cleared.
+		await userEvent.click(canvas.getByTestId("advance-to-fresh"));
+		await expect(
+			canvas.getByText("Validated provider configs and exited cleanly"),
+		).toBeInTheDocument();
+	},
+};
+
+export const ChatWithTurnSummaryAndError: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "chat-turn-summary-error",
+				title: "Fix workspace startup",
+				status: "error",
+				last_error: {
+					message: "Workspace startup failed",
+					retryable: false,
+				},
+				last_turn_summary: "Recreated the workspace image",
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(
+			canvas.getByText("Workspace startup failed"),
+		).toBeInTheDocument();
+		expect(
+			canvas.queryByText("Recreated the workspace image"),
+		).not.toBeInTheDocument();
+	},
+};
 
 export const RunningDelegatedChat: Story = {
 	args: {
@@ -426,6 +591,146 @@ export const MixedCacheDoesNotDuplicateChild: Story = {
 // Use a fixed offset so the value always falls in the "Today" bucket
 // without embedding a literal date that drifts across calendar days.
 const recentTimestamp = new Date(Date.now() - 60_000).toISOString();
+
+const timestampAtLocalNoon = (dayOffset: number) => {
+	const date = new Date();
+	date.setHours(12, 0, 0, 0);
+	date.setDate(date.getDate() + dayOffset);
+	return date.toISOString();
+};
+const todayTimestamp = timestampAtLocalNoon(0);
+const yesterdayTimestamp = timestampAtLocalNoon(-1);
+const thisWeekTimestamp = timestampAtLocalNoon(-3);
+
+const sectionHeaderChats = [
+	buildChat({
+		id: "pinned-section-one",
+		title: "Pinned section one",
+		pin_order: 1,
+		updated_at: todayTimestamp,
+	}),
+	buildChat({
+		id: "pinned-section-two",
+		title: "Pinned section two",
+		pin_order: 2,
+		updated_at: todayTimestamp,
+	}),
+	buildChat({
+		id: "today-section-one",
+		title: "Today section one",
+		updated_at: todayTimestamp,
+	}),
+	buildChat({
+		id: "today-section-two",
+		title: "Today section two",
+		updated_at: todayTimestamp,
+	}),
+	buildChat({
+		id: "yesterday-section-one",
+		title: "Yesterday section one",
+		updated_at: yesterdayTimestamp,
+	}),
+	buildChat({
+		id: "week-section-one",
+		title: "This week section one",
+		updated_at: thisWeekTimestamp,
+	}),
+];
+
+export const SectionHeadersCollapse: Story = {
+	args: {
+		chats: sectionHeaderChats,
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(canvas.getByText("Pinned (2)")).toBeInTheDocument();
+		await expect(canvas.getByText("Today (2)")).toBeInTheDocument();
+		await expect(canvas.getByText("Yesterday (1)")).toBeInTheDocument();
+		await expect(canvas.getByText("This Week (1)")).toBeInTheDocument();
+
+		const pinnedToggle = canvas.getByRole("button", {
+			name: "Collapse Pinned section",
+		});
+		await userEvent.click(pinnedToggle);
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("button", { name: "Expand Pinned section" }),
+			).toHaveAttribute("aria-expanded", "false");
+			expect(canvas.queryByText("Pinned section one")).not.toBeInTheDocument();
+			expect(canvas.queryByText("Pinned section two")).not.toBeInTheDocument();
+		});
+		expect(canvas.getByText("Today section one")).toBeInTheDocument();
+
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Expand Pinned section" }),
+		);
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("button", { name: "Collapse Pinned section" }),
+			).toHaveAttribute("aria-expanded", "true");
+			expect(canvas.getByText("Pinned section one")).toBeInTheDocument();
+			expect(canvas.getByText("Pinned section two")).toBeInTheDocument();
+		});
+
+		const todayToggle = canvas.getByRole("button", {
+			name: "Collapse Today section",
+		});
+		await userEvent.click(todayToggle);
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("button", { name: "Expand Today section" }),
+			).toHaveAttribute("aria-expanded", "false");
+			expect(canvas.queryByText("Today section one")).not.toBeInTheDocument();
+			expect(canvas.queryByText("Today section two")).not.toBeInTheDocument();
+		});
+		expect(canvas.getByText("Yesterday section one")).toBeInTheDocument();
+
+		await userEvent.click(canvas.getByTestId("agents-section-toggle-Today"));
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("button", { name: "Collapse Today section" }),
+			).toHaveAttribute("aria-expanded", "true");
+			expect(canvas.getByText("Today section one")).toBeInTheDocument();
+			expect(canvas.getByText("Today section two")).toBeInTheDocument();
+		});
+	},
+};
+
+export const SidebarFilterMenu: Story = {
+	args: {
+		chats: sectionHeaderChats,
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Filter agents" }),
+		);
+		await expect(
+			await body.findByRole("menuitem", { name: /Archived/i }),
+		).toBeInTheDocument();
+		await userEvent.keyboard("{Escape}");
+		await waitFor(() => {
+			expect(
+				body.queryByRole("menuitem", { name: /Archived/i }),
+			).not.toBeInTheDocument();
+		});
+	},
+};
 
 export const RenameChatAvailableDuringRegeneration: Story = {
 	args: {
@@ -1462,7 +1767,7 @@ export const PinnedChatsSection: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await waitFor(() => {
-			expect(canvas.getByText("Pinned")).toBeInTheDocument();
+			expect(canvas.getByText("Pinned (1)")).toBeInTheDocument();
 			expect(canvas.getByText("My pinned agent")).toBeInTheDocument();
 		});
 
@@ -1471,7 +1776,7 @@ export const PinnedChatsSection: Story = {
 		expect(allPinnedLinks).toHaveLength(1);
 
 		// Unpinned chats appear under their time group, not Pinned.
-		expect(canvas.getByText("Today")).toBeInTheDocument();
+		expect(canvas.getByText("Today (2)")).toBeInTheDocument();
 		expect(canvas.getByText("Regular agent one")).toBeInTheDocument();
 	},
 };
@@ -1543,37 +1848,6 @@ export const UnpinContextMenu: Story = {
 	},
 };
 
-export const FilterOnPinnedHeader: Story = {
-	args: {
-		chats: [
-			buildChat({
-				id: "pinned-filter",
-				title: "Pinned Chat",
-				updated_at: recentTimestamp,
-				pin_order: 1,
-			}),
-			buildChat({
-				id: "unpinned-filter",
-				title: "Unpinned Chat",
-				updated_at: recentTimestamp,
-			}),
-		],
-	},
-	parameters: {
-		reactRouter: reactRouterParameters({
-			location: { path: "/agents" },
-			routing: agentsRouting,
-		}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await waitFor(() => {
-			expect(canvas.getByText("Pinned")).toBeInTheDocument();
-			expect(canvas.getByLabelText("Filter agents")).toBeInTheDocument();
-		});
-	},
-};
-
 export const FilterOnTimeGroupNoPins: Story = {
 	args: {
 		chats: [
@@ -1593,7 +1867,7 @@ export const FilterOnTimeGroupNoPins: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await waitFor(() => {
-			expect(canvas.getByText("Today")).toBeInTheDocument();
+			expect(canvas.getByText("Today (1)")).toBeInTheDocument();
 			expect(canvas.getByLabelText("Filter agents")).toBeInTheDocument();
 		});
 	},

@@ -3135,6 +3135,22 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	/**
+	 * Lists the user-authored prompts in a chat, newest first.
+	 * Powers the composer's up/down arrow prompt-history cycle.
+	 */
+	getChatPrompts = async (
+		chatId: string,
+		opts?: { limit?: number },
+	): Promise<TypesGen.ChatPromptsResponse> => {
+		const url = getURLWithSearchParams(
+			`/api/experimental/chats/${chatId}/prompts`,
+			opts,
+		);
+		const response = await this.axios.get<TypesGen.ChatPromptsResponse>(url);
+		return response.data;
+	};
+
 	createChat = async (
 		req: TypesGen.CreateChatRequest,
 	): Promise<TypesGen.Chat> => {
@@ -3207,11 +3223,10 @@ class ExperimentalApiMethods {
 	promoteChatQueuedMessage = async (
 		chatId: string,
 		queuedMessageId: number,
-	): Promise<TypesGen.ChatMessage> => {
-		const response = await this.axios.post<TypesGen.ChatMessage>(
+	): Promise<void> => {
+		await this.axios.post(
 			`/api/experimental/chats/${chatId}/queue/${queuedMessageId}/promote`,
 		);
-		return response.data;
 	};
 
 	getChatDiffContents = async (

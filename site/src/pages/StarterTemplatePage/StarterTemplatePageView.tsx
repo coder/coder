@@ -1,4 +1,3 @@
-import { useTheme } from "@emotion/react";
 import { ExternalLinkIcon, PlusIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link } from "react-router";
@@ -24,8 +23,6 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
 	starterTemplate,
 	error,
 }) => {
-	const theme = useTheme();
-
 	if (error) {
 		return (
 			<Margins>
@@ -72,11 +69,7 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
 			</PageHeader>
 
 			<div
-				css={{
-					background: theme.palette.background.paper,
-					border: `1px solid ${theme.palette.divider}`,
-					borderRadius: 8,
-				}}
+				className="bg-surface-secondary border border-solid border-border rounded-lg"
 				id="readme"
 			>
 				<div className="px-10 pt-10 pb-16 max-w-[800px] mx-auto">

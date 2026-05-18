@@ -1,0 +1,73 @@
+[settings]
+lockfile = true
+
+[tools]
+# Languages and runtimes.
+bun = "1.2.15"
+go = "1.26.2"
+node = "22.19.0"
+pnpm = "10.33.2"
+
+# Codegen and proto toolchain.
+"go:go.uber.org/mock/mockgen" = "v0.6.0"
+"go:storj.io/drpc/cmd/protoc-gen-go-drpc" = "v0.0.34"
+protoc = "23.4"
+protoc-gen-go = "1.30.0"
+
+# Go development tools.
+"go:github.com/golang-migrate/migrate/v4/cmd/migrate" = "v4.19.0"
+"go:github.com/goreleaser/nfpm/v2/cmd/nfpm" = "v2.35.1"
+"go:github.com/mikefarah/yq/v4" = "v4.44.3"
+"go:github.com/quasilyte/go-ruleguard/cmd/ruleguard" = "v0.3.13"
+"go:github.com/swaggo/swag/cmd/swag" = "v1.16.2"
+"go:golang.org/x/tools/cmd/goimports" = "v0.41.0"
+"go:golang.org/x/tools/gopls" = "v0.21.0"
+"go:gotest.tools/gotestsum" = "v1.9.0"
+"go:mvdan.cc/sh/v3/cmd/shfmt" = "v3.12.0"
+
+# Infrastructure, release, and lint CLIs.
+"aqua:ahmetb/kubectx/kubens" = "0.9.4"
+cosign = "2.4.3"
+golangci-lint = "1.64.8"
+kubectx = "0.9.4"
+syft = "1.20.0"
+terraform = "1.15.2"
+
+# Developer-environment niceties for the dogfood image. Non-dogfood
+# users who run `mise install` here will pull these too; they are
+# small, optional conveniences, and mise does nothing without the
+# user's explicit `mise install` invocation.
+#
+# `gh` is intentionally absent from this manifest: the dogfood
+# image ships a wrapper at /usr/local/bin/gh that bridges
+# `coder external-auth` into `gh`, and a mise shim earlier in
+# PATH would bypass it.
+"aqua:crate-ci/typos" = "1.46.1"
+"aqua:jj-vcs/jj" = "0.41.0"
+"aqua:watchexec/watchexec" = "2.5.1"
+doctl = "1.158.0"
+lazygit = "0.61.1"
+
+# Pre-installs the binary so the upstream devcontainers-cli coder
+# module's `command -v devcontainer` short-circuit fires
+"npm:@devcontainers/cli" = "0.87.0"
+
+# helm publishes binaries at get.helm.sh, not on GitHub. Mise's aqua
+# plugin templates the URL without the `v` prefix (404), and the
+# github backend can't find the binary (helm only publishes signatures
+# on GitHub). The http backend with a templated URL covers
+# linux/macos cleanly. Windows is omitted (different extension);
+# the dogfood image is linux/amd64-only and nobody on the team runs
+# helm via mise on Windows.
+[tools."http:helm"]
+version = "3.12.0"
+url = 'https://get.helm.sh/helm-v{{version}}-{{os(macos="darwin")}}-{{arch(x64="amd64")}}.tar.gz'
+
+# sqlc (coder fork) bundles sqlite via cgo, so the `go install` build
+# needs CGO_ENABLED=1. Scope it with `install_env` so it only applies
+# during install. A top-level `[env]` would re-export CGO_ENABLED=1
+# through every mise shim at runtime and break cross-compilation of
+# coderd (scripts/build_go.sh expects cgo=0 for slim builds).
+[tools."go:github.com/coder/sqlc/cmd/sqlc"]
+version = "337309bfb9524f38466a5090e310040fc7af0203"
+install_env = { CGO_ENABLED = "1" }

@@ -168,6 +168,10 @@ _gen/bin/apikeyscopesgen: $(wildcard scripts/apikeyscopesgen/*.go) $(RBAC_GO_FIL
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/apikeyscopesgen
 
+_gen/bin/aibridgepricesgen: $(wildcard scripts/aibridgepricesgen/*.go) | _gen
+	@mkdir -p _gen/bin
+	go build -o $@ ./scripts/aibridgepricesgen
+
 _gen/bin/metricsdocgen: $(wildcard scripts/metricsdocgen/*.go) | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/metricsdocgen
@@ -724,7 +728,7 @@ endif
 # GitHub Actions linters are run in a separate CI job (lint-actions) that only
 # triggers when workflow files change, so we skip them here when CI=true.
 LINT_ACTIONS_TARGETS := $(if $(CI),,lint/actions/actionlint)
-lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/check-scopes lint/migrations lint/bootstrap lint/emdash $(LINT_ACTIONS_TARGETS)
+lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/check-scopes lint/migrations lint/bootstrap lint/architecture lint/emdash lint/agents $(LINT_ACTIONS_TARGETS)
 .PHONY: lint
 
 # Subset of lint that does not require Go or Node toolchains.
@@ -741,11 +745,9 @@ lint/ts: site/node_modules/.installed
 .PHONY: lint/ts
 
 lint/go:
-	./scripts/check_enterprise_imports.sh
-	./scripts/check_codersdk_imports.sh
-	linter_ver=$$(grep -oE 'GOLANGCI_LINT_VERSION=\S+' dogfood/coder/ubuntu-26.04/Dockerfile | cut -d '=' -f 2)
+	linter_ver=$$(grep -Eo '^golangci-lint = "[^"]+"' mise.toml | sed -E 's/.*"([^"]+)"/\1/')
 	go run github.com/golangci/golangci-lint/cmd/golangci-lint@v$$linter_ver run
-	go tool github.com/coder/paralleltestctx/cmd/paralleltestctx -custom-funcs="testutil.Context" ./...
+	go tool github.com/coder/paralleltestctx/cmd/paralleltestctx -custom-funcs="testutil.Context,chatdTestContext" ./...
 	go run ./scripts/intxcheck ./...
 .PHONY: lint/go
 
@@ -767,6 +769,13 @@ lint/emdash:
 	bash scripts/check_emdash.sh
 .PHONY: lint/emdash
 
+lint/architecture:
+	./scripts/check_architecture.sh
+.PHONY: lint/architecture
+
+lint/agents:
+	./scripts/check_agents_structure.sh
+.PHONY: lint/agents
 
 lint/helm:
 	cd helm/
@@ -988,6 +997,16 @@ gen: gen/db gen/golden-files $(GEN_FILES)
 
 gen/db: $(DB_GEN_FILES)
 .PHONY: gen/db
+
+# Refresh the AI Bridge pricing seed file from models.dev. Kept out of
+# `make gen`. Phony so each invocation regenerates.
+coderd/aibridge/prices/data/prices.json: _gen/bin/aibridgepricesgen | _gen
+	@mkdir -p $(dir $@)
+	$(call atomic_write,_gen/bin/aibridgepricesgen)
+.PHONY: coderd/aibridge/prices/data/prices.json
+
+gen/aibridge-prices: coderd/aibridge/prices/data/prices.json
+.PHONY: gen/aibridge-prices
 
 gen/golden-files: \
 	agent/unit/testdata/.gen-golden \
@@ -1615,6 +1634,9 @@ endif
 
 dogfood/coder/nix.hash: flake.nix flake.lock
 	sha256sum flake.nix flake.lock >./dogfood/coder/nix.hash
+
+dogfood/coder/mise.hash: mise.toml mise.lock
+	sha256sum mise.toml mise.lock >./dogfood/coder/mise.hash
 
 # Count the number of test databases created per test package.
 count-test-databases:

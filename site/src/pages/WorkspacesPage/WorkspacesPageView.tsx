@@ -196,10 +196,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 
 			{pageNumberIsInvalid ? (
 				<EmptyState
-					css={(theme) => ({
-						border: `1px solid ${theme.palette.divider}`,
-						borderRadius: theme.shape.borderRadius,
-					})}
+					className="border border-solid border-border rounded-lg"
 					message="Page not found"
 					description="The page you are trying to access does not exist."
 					cta={

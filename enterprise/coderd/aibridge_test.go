@@ -2603,3 +2603,201 @@ func TestAIBridgeAllowBYOK(t *testing.T) {
 		})
 	}
 }
+
+func TestGroupAIBudget(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Upsert", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient, group := setupGroupAIBudgetTest(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// First upsert creates the budget.
+		newBudget, err := adminClient.UpsertGroupAIBudget(ctx, group.ID, codersdk.UpsertGroupAIBudgetRequest{
+			SpendLimitMicros: 500_000_000,
+		})
+		require.NoError(t, err)
+		require.Equal(t, group.ID, newBudget.GroupID)
+		require.EqualValues(t, 500_000_000, newBudget.SpendLimitMicros)
+
+		// Second upsert updates the existing budget.
+		updatedBudget, err := adminClient.UpsertGroupAIBudget(ctx, group.ID, codersdk.UpsertGroupAIBudgetRequest{
+			SpendLimitMicros: 1_000_000_000,
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 1_000_000_000, updatedBudget.SpendLimitMicros)
+
+		// GET returns the latest value.
+		currentBudget, err := adminClient.GroupAIBudget(ctx, group.ID)
+		require.NoError(t, err)
+		require.EqualValues(t, 1_000_000_000, currentBudget.SpendLimitMicros)
+	})
+
+	t.Run("GetWhenAbsent_404", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient, group := setupGroupAIBudgetTest(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		_, err := adminClient.GroupAIBudget(ctx, group.ID)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+	})
+
+	t.Run("DeleteWhenAbsent_404", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient, group := setupGroupAIBudgetTest(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		err := adminClient.DeleteGroupAIBudget(ctx, group.ID)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+	})
+
+	t.Run("DeleteWhenPresent", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient, group := setupGroupAIBudgetTest(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		_, err := adminClient.UpsertGroupAIBudget(ctx, group.ID, codersdk.UpsertGroupAIBudgetRequest{
+			SpendLimitMicros: 500_000_000,
+		})
+		require.NoError(t, err)
+
+		require.NoError(t, adminClient.DeleteGroupAIBudget(ctx, group.ID))
+
+		_, err = adminClient.GroupAIBudget(ctx, group.ID)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+	})
+
+	t.Run("RejectsNegativeSpendLimit", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient, group := setupGroupAIBudgetTest(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		_, err := adminClient.UpsertGroupAIBudget(ctx, group.ID, codersdk.UpsertGroupAIBudgetRequest{
+			SpendLimitMicros: -1,
+		})
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+
+	t.Run("AcceptsZeroSpendLimitToBlock", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient, group := setupGroupAIBudgetTest(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// 0 is a valid value: it blocks all spend for the group's members.
+		budget, err := adminClient.UpsertGroupAIBudget(ctx, group.ID, codersdk.UpsertGroupAIBudgetRequest{
+			SpendLimitMicros: 0,
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 0, budget.SpendLimitMicros)
+	})
+
+	t.Run("UnknownGroup_404", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient, _ := setupGroupAIBudgetTest(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		_, err := adminClient.GroupAIBudget(ctx, uuid.New())
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+	})
+
+	t.Run("GroupMemberCanReadButNotWrite", func(t *testing.T) {
+		t.Parallel()
+
+		dv := coderdtest.DeploymentValues(t)
+		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{DeploymentValues: dv},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureTemplateRBAC: 1,
+					codersdk.FeatureAIBridge:     1,
+				},
+			},
+		})
+		adminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
+		memberClient, member := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		group, err := adminClient.CreateGroup(ctx, owner.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "budget-group",
+		})
+		require.NoError(t, err)
+
+		// Add the member to the group so the Group.RBACObject ACL grants them read.
+		_, err = adminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+			AddUsers: []string{member.ID.String()},
+		})
+		require.NoError(t, err)
+
+		// Admin sets the budget so there is a row to read.
+		_, err = adminClient.UpsertGroupAIBudget(ctx, group.ID, codersdk.UpsertGroupAIBudgetRequest{
+			SpendLimitMicros: 500_000_000,
+		})
+		require.NoError(t, err)
+
+		// Group members can read the budget.
+		got, err := memberClient.GroupAIBudget(ctx, group.ID)
+		require.NoError(t, err)
+		require.EqualValues(t, 500_000_000, got.SpendLimitMicros)
+
+		// Group members cannot write the budget.
+		_, err = memberClient.UpsertGroupAIBudget(ctx, group.ID, codersdk.UpsertGroupAIBudgetRequest{
+			SpendLimitMicros: 1_000_000_000,
+		})
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+
+		// Group members cannot delete the budget.
+		err = memberClient.DeleteGroupAIBudget(ctx, group.ID)
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+
+		// The failed upsert and delete left the budget untouched.
+		got, err = memberClient.GroupAIBudget(ctx, group.ID)
+		require.NoError(t, err)
+		require.EqualValues(t, 500_000_000, got.SpendLimitMicros)
+	})
+}
+
+// setupGroupAIBudgetTest returns an Admin client along with a newly created group inside it.
+func setupGroupAIBudgetTest(t *testing.T) (adminClient *codersdk.Client, group codersdk.Group) {
+	t.Helper()
+
+	dv := coderdtest.DeploymentValues(t)
+	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{DeploymentValues: dv},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+				codersdk.FeatureAIBridge:     1,
+			},
+		},
+	})
+	adminClient, _ = coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	g, err := adminClient.CreateGroup(ctx, owner.OrganizationID, codersdk.CreateGroupRequest{
+		Name: "budget-test-group",
+	})
+	require.NoError(t, err)
+	return adminClient, g
+}

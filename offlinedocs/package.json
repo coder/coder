@@ -20,7 +20,7 @@
 		"framer-motion": "^10.18.0",
 		"front-matter": "4.0.2",
 		"lodash": "4.18.1",
-		"next": "15.5.15",
+		"next": "15.5.18",
 		"react": "18.3.1",
 		"react-dom": "18.3.1",
 		"react-icons": "4.12.0",
@@ -47,7 +47,14 @@
 	"pnpm": {
 		"overrides": {
 			"@babel/runtime": "7.26.10",
-			"brace-expansion": "1.1.12"
+			"brace-expansion": "1.1.13",
+			"minimatch": "5.1.8",
+			"glob@>=10": "10.5.0",
+			"postcss": "8.5.10",
+			"js-yaml": "3.14.2",
+			"yaml": "1.10.3",
+			"flatted": "3.4.2",
+			"mdast-util-to-hast": "13.2.1"
 		}
 	}
 }

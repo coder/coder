@@ -289,11 +289,8 @@ const ProvisionersPage = lazy(
 			"./pages/OrganizationSettingsPage/OrganizationProvisionersPage/OrganizationProvisionersPage"
 		),
 );
-const TemplateEmbedExperimentRouter = lazy(
-	() =>
-		import(
-			"./pages/TemplatePage/TemplateEmbedPage/TemplateEmbedExperimentRouter"
-		),
+const TemplateEmbedPage = lazy(
+	() => import("./pages/TemplatePage/TemplateEmbedPage/TemplateEmbedPage"),
 );
 const TemplateInsightsPage = lazy(
 	() =>
@@ -408,6 +405,7 @@ import {
 	AgentsPageSkeleton,
 } from "./pages/AgentsPage/components/AgentsSkeletons";
 
+const CoderCupPage = lazy(() => import("./pages/CoderCupPage/CoderCupPage"));
 const TasksPage = lazy(() => import("./pages/TasksPage/TasksPage"));
 const TaskPage = lazy(() => import("./pages/TaskPage/TaskPage"));
 const AIBridgeLayout = lazy(
@@ -447,7 +445,7 @@ const templateRouter = () => {
 					<Route path="files" element={<TemplateFilesPage />} />
 					<Route path="resources" element={<TemplateResourcesPage />} />
 					<Route path="versions" element={<TemplateVersionsPage />} />
-					<Route path="embed" element={<TemplateEmbedExperimentRouter />} />
+					<Route path="embed" element={<TemplateEmbedPage />} />
 					<Route path="insights" element={<TemplateInsightsPage />} />
 					<Route path="prebuilds" element={<TemplatePrebuildsPage />} />
 				</Route>
@@ -716,6 +714,7 @@ export const router = createBrowserRouter(
 					element={<TerminalPage />}
 				/>
 				<Route path="/cli-auth" element={<CliAuthPage />} />
+				<Route path="/coder-cup" element={<CoderCupPage />} />
 				<Route path="/icons" element={<IconsPage />} />
 				<Route path="/tasks/:username/:taskId" element={<TaskPage />} />
 				<Route

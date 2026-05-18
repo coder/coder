@@ -2,6 +2,7 @@ import themes, {
 	baseModeFor,
 	CONCRETE_THEMES,
 	isConcreteThemeName,
+	legacyAutoToSync,
 	resolveThemeName,
 } from ".";
 
@@ -71,8 +72,10 @@ describe("isConcreteThemeName", () => {
 		}
 	});
 
-	it("rejects the auto preference (embeds require a concrete theme)", () => {
+	it("rejects legacy auto-family preferences", () => {
 		expect(isConcreteThemeName("auto")).toBe(false);
+		expect(isConcreteThemeName("auto-protan-deuter")).toBe(false);
+		expect(isConcreteThemeName("auto-tritan")).toBe(false);
 	});
 
 	it("rejects non-string and empty values", () => {
@@ -81,6 +84,34 @@ describe("isConcreteThemeName", () => {
 		expect(isConcreteThemeName(null)).toBe(false);
 		expect(isConcreteThemeName(42)).toBe(false);
 		expect(isConcreteThemeName({})).toBe(false);
+	});
+});
+
+describe("legacyAutoToSync", () => {
+	it("maps each legacy auto value to its sync pair", () => {
+		expect(legacyAutoToSync("auto")).toEqual({
+			mode: "sync",
+			light: "light",
+			dark: "dark",
+		});
+		expect(legacyAutoToSync("auto-protan-deuter")).toEqual({
+			mode: "sync",
+			light: "light-protan-deuter",
+			dark: "dark-protan-deuter",
+		});
+		expect(legacyAutoToSync("auto-tritan")).toEqual({
+			mode: "sync",
+			light: "light-tritan",
+			dark: "dark-tritan",
+		});
+	});
+
+	it("returns null for concrete theme names and unrelated values", () => {
+		expect(legacyAutoToSync("dark")).toBeNull();
+		expect(legacyAutoToSync("dark-tritan")).toBeNull();
+		expect(legacyAutoToSync("")).toBeNull();
+		expect(legacyAutoToSync(undefined)).toBeNull();
+		expect(legacyAutoToSync("garbage")).toBeNull();
 	});
 });
 
@@ -118,6 +149,21 @@ describe("colorblind role palettes", () => {
 		);
 		expect(themes["dark-tritan"].roles.danger).toEqual(
 			themes.dark.roles.danger,
+		);
+	});
+
+	it("shifts tritan success off the base green role onto sky-blue", () => {
+		expect(themes["light-tritan"].roles.success).not.toEqual(
+			themes.light.roles.success,
+		);
+		expect(themes["dark-tritan"].roles.success).not.toEqual(
+			themes.dark.roles.success,
+		);
+		expect(themes["light-tritan"].roles.success).toEqual(
+			themes["light-protan-deuter"].roles.success,
+		);
+		expect(themes["dark-tritan"].roles.success).toEqual(
+			themes["dark-protan-deuter"].roles.success,
 		);
 	});
 });

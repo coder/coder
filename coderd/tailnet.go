@@ -401,7 +401,7 @@ func (m *MultiAgentController) New(client tailnet.CoordinatorClient) tailnet.Clo
 	defer m.mu.Unlock()
 	m.coordination = b
 	for agentID := range m.connectionTimes {
-		err := client.Send(&proto.CoordinateRequest{
+		err := b.SendRequest(&proto.CoordinateRequest{
 			AddTunnel: &proto.CoordinateRequest_Tunnel{Id: agentID[:]},
 		})
 		if err != nil {
@@ -426,13 +426,13 @@ func (m *MultiAgentController) ensureAgent(agentID uuid.UUID) error {
 		m.logger.Debug(context.Background(),
 			"subscribing to agent", slog.F("agent_id", agentID))
 		if m.coordination != nil {
-			err := m.coordination.Client.Send(&proto.CoordinateRequest{
+			err := m.coordination.SendRequest(&proto.CoordinateRequest{
 				AddTunnel: &proto.CoordinateRequest_Tunnel{Id: agentID[:]},
 			})
 			if err != nil {
 				err = xerrors.Errorf("subscribe agent: %w", err)
 				m.coordination.SendErr(err)
-				_ = m.coordination.Client.Close()
+				_ = m.coordination.CloseClient()
 				m.coordination = nil
 				return err
 			}
@@ -494,7 +494,7 @@ func (m *MultiAgentController) doExpireOldAgents(ctx context.Context, cutoff tim
 		// connections, remove the agent.
 		if time.Since(lastConnection) > cutoff && len(m.tickets[agentID]) == 0 {
 			if m.coordination != nil {
-				err := m.coordination.Client.Send(&proto.CoordinateRequest{
+				err := m.coordination.SendRequest(&proto.CoordinateRequest{
 					RemoveTunnel: &proto.CoordinateRequest_Tunnel{Id: agentID[:]},
 				})
 				if err != nil {
@@ -502,7 +502,7 @@ func (m *MultiAgentController) doExpireOldAgents(ctx context.Context, cutoff tim
 					m.coordination.SendErr(xerrors.Errorf("unsubscribe expired agent: %w", err))
 					// close the client because we do not want to do a graceful disconnect by
 					// closing the coordination.
-					_ = m.coordination.Client.Close()
+					_ = m.coordination.CloseClient()
 					m.coordination = nil
 					// Here we continue deleting any inactive agents: there is no point in
 					// re-establishing tunnels to expired agents when we eventually reconnect.

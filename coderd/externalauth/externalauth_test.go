@@ -767,6 +767,17 @@ func TestValidateToken(t *testing.T) {
 		}
 	}
 
+	// newValidateCtx returns a context carrying a dedicated http.Client per
+	// subtest. Without this, parallel subtests share http.DefaultTransport,
+	// and httptest.Server.Close() calls http.DefaultTransport.CloseIdleConnections
+	// which can break in-flight requests of sibling subtests.
+	newValidateCtx := func(t *testing.T) context.Context {
+		t.Helper()
+		tp := &http.Transport{}
+		t.Cleanup(tp.CloseIdleConnections)
+		return oidc.ClientContext(context.Background(), &http.Client{Transport: tp})
+	}
+
 	// RateLimitRemaining: 403 with X-RateLimit-Remaining: 0 should be
 	// treated as rate-limited, not as an invalid token.
 	t.Run("RateLimitRemaining", func(t *testing.T) {
@@ -780,7 +791,7 @@ func TestValidateToken(t *testing.T) {
 		t.Cleanup(srv.Close)
 
 		config := newValidateConfig(t, srv.URL)
-		valid, user, err := config.ValidateToken(context.Background(), newToken())
+		valid, user, err := config.ValidateToken(newValidateCtx(t), newToken())
 
 		require.NoError(t, err)
 		assert.True(t, valid, "rate-limited 403 should be treated as optimistically valid")
@@ -799,7 +810,7 @@ func TestValidateToken(t *testing.T) {
 		t.Cleanup(srv.Close)
 
 		config := newValidateConfig(t, srv.URL)
-		valid, user, err := config.ValidateToken(context.Background(), newToken())
+		valid, user, err := config.ValidateToken(newValidateCtx(t), newToken())
 
 		require.NoError(t, err)
 		assert.True(t, valid, "rate-limited 403 with Retry-After should be optimistically valid")
@@ -821,7 +832,7 @@ func TestValidateToken(t *testing.T) {
 		t.Cleanup(srv.Close)
 
 		config := newValidateConfig(t, srv.URL)
-		valid, user, err := config.ValidateToken(context.Background(), newToken())
+		valid, user, err := config.ValidateToken(newValidateCtx(t), newToken())
 
 		require.NoError(t, err)
 		assert.False(t, valid, "403 with non-zero rate limit remaining means token is invalid")
@@ -839,7 +850,7 @@ func TestValidateToken(t *testing.T) {
 		t.Cleanup(srv.Close)
 
 		config := newValidateConfig(t, srv.URL)
-		valid, user, err := config.ValidateToken(context.Background(), newToken())
+		valid, user, err := config.ValidateToken(newValidateCtx(t), newToken())
 
 		require.NoError(t, err)
 		assert.False(t, valid, "plain 403 without rate-limit headers means token is invalid")
@@ -857,7 +868,7 @@ func TestValidateToken(t *testing.T) {
 		t.Cleanup(srv.Close)
 
 		config := newValidateConfig(t, srv.URL)
-		valid, user, err := config.ValidateToken(context.Background(), newToken())
+		valid, user, err := config.ValidateToken(newValidateCtx(t), newToken())
 
 		require.NoError(t, err)
 		assert.False(t, valid, "401 always means token is invalid")
@@ -878,7 +889,7 @@ func TestValidateToken(t *testing.T) {
 		t.Cleanup(srv.Close)
 
 		config := newValidateConfig(t, srv.URL)
-		valid, user, err := config.ValidateToken(context.Background(), newToken())
+		valid, user, err := config.ValidateToken(newValidateCtx(t), newToken())
 
 		require.NoError(t, err)
 		assert.False(t, valid, "401 is always invalid, even with rate-limit headers")
@@ -897,7 +908,7 @@ func TestValidateToken(t *testing.T) {
 		t.Cleanup(srv.Close)
 
 		config := newValidateConfig(t, srv.URL)
-		valid, user, err := config.ValidateToken(context.Background(), newToken())
+		valid, user, err := config.ValidateToken(newValidateCtx(t), newToken())
 
 		require.NoError(t, err)
 		assert.True(t, valid, "429 should be treated as optimistically valid")

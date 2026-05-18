@@ -562,11 +562,8 @@ export interface GraphComplete {
   externalAuthProviders: ExternalAuthProviderResource[];
   presets: Preset[];
   /**
-   * Whether a template has any `coder_ai_task` resources defined, even if not planned for creation.
-   * During a template import, a plan is run which may not yield in any `coder_ai_task` resources, but nonetheless we
-   * still need to know that such resources are defined.
-   *
-   * See `hasAITaskResources` in provisioner/terraform/resources.go for more details.
+   * Whether actual `coder_ai_task` resource instances exist.
+   * Resources defined with count = 0 do not set this flag.
    */
   hasAiTasks: boolean;
   aiTasks: AITask[];

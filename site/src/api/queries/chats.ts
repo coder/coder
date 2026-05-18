@@ -20,6 +20,8 @@ export const chatsKey = ["chats"] as const;
 export const chatKey = (chatId: string) => ["chats", chatId] as const;
 export const chatMessagesKey = (chatId: string) =>
 	["chats", chatId, "messages"] as const;
+export const chatPromptsKey = (chatId: string) =>
+	["chats", chatId, "prompts"] as const;
 
 export const chatsByWorkspaceKeyPrefix = [...chatsKey, "by-workspace"] as const;
 
@@ -260,6 +262,7 @@ export const mergeWatchedChatSummary = (
 ): TypesGen.Chat => {
 	const isTitleEvent = eventKind === "title_change";
 	const isStatusEvent = eventKind === "status_change";
+	const isSummaryEvent = eventKind === "summary_change";
 	const isDiffStatusEvent = eventKind === "diff_status_change";
 	const updatedAtComparison = compareUpdatedAtInstants(
 		cachedChat.updated_at,
@@ -286,6 +289,10 @@ export const mergeWatchedChatSummary = (
 	const nextLastModelConfigId = isFreshEnough
 		? watchedChat.last_model_config_id
 		: cachedChat.last_model_config_id;
+	const nextLastTurnSummary =
+		isFreshEnough || isSummaryEvent
+			? watchedChat.last_turn_summary
+			: cachedChat.last_turn_summary;
 	const nextHasUnread =
 		isFreshEnough && isStatusEvent && watchedChat.id !== activeChatId
 			? true
@@ -303,6 +310,7 @@ export const mergeWatchedChatSummary = (
 		nextWorkspaceId === cachedChat.workspace_id &&
 		nextBuildId === cachedChat.build_id &&
 		nextLastModelConfigId === cachedChat.last_model_config_id &&
+		nextLastTurnSummary === cachedChat.last_turn_summary &&
 		nextHasUnread === cachedChat.has_unread &&
 		nextUpdatedAt === cachedChat.updated_at
 	) {
@@ -317,6 +325,7 @@ export const mergeWatchedChatSummary = (
 		workspace_id: nextWorkspaceId,
 		build_id: nextBuildId,
 		last_model_config_id: nextLastModelConfigId,
+		last_turn_summary: nextLastTurnSummary,
 		has_unread: nextHasUnread,
 		updated_at: nextUpdatedAt,
 	};
@@ -551,6 +560,19 @@ export const chatMessagesForInfiniteScroll = (chatId: string) => ({
 		// Use its ID as the cursor for the next (older) page.
 		return lastPage.messages[lastPage.messages.length - 1].id;
 	},
+});
+
+// Cap requested prompts to keep the response small; well under the server-side maximum.
+const PROMPT_HISTORY_LIMIT = 500;
+
+const PROMPTS_STALE_MS = 30_000;
+
+export const chatPromptsQuery = (chatId: string) => ({
+	queryKey: chatPromptsKey(chatId),
+	queryFn: () =>
+		API.experimental.getChatPrompts(chatId, { limit: PROMPT_HISTORY_LIMIT }),
+	staleTime: PROMPTS_STALE_MS,
+	enabled: chatId !== "",
 });
 
 export const archiveChat = (queryClient: QueryClient) => ({
@@ -1142,6 +1164,10 @@ export const createChatMessage = (
 		API.experimental.createChatMessage(chatId, req),
 	onSuccess: () => {
 		void invalidateChatDebugRuns(queryClient, chatId);
+		void queryClient.invalidateQueries({
+			queryKey: chatPromptsKey(chatId),
+			exact: true,
+		});
 	},
 });
 
@@ -1229,6 +1255,10 @@ export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 		// truncation.
 		void queryClient.invalidateQueries({
 			queryKey: chatKey(chatId),
+			exact: true,
+		});
+		void queryClient.invalidateQueries({
+			queryKey: chatPromptsKey(chatId),
 			exact: true,
 		});
 		void invalidateChatDebugRuns(queryClient, chatId);

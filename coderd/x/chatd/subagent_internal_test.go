@@ -1429,8 +1429,7 @@ func TestResolveExploreToolSnapshot(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t)
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 
-	ctx := chatdTestContext(t)
-	user, org, model := seedInternalChatDeps(t, db)
+	user, _, _ := seedInternalChatDeps(t, db)
 	approvedMCP := insertInternalMCPServerConfig(
 		t, db, user.ID, "approved-"+uuid.NewString(), true,
 	)
@@ -1438,42 +1437,33 @@ func TestResolveExploreToolSnapshot(t *testing.T) {
 		t, db, user.ID, "blocked-"+uuid.NewString(), false,
 	)
 
-	askParentRef, err := server.CreateChat(ctx, CreateOptions{
-		OrganizationID: org.ID,
-		OwnerID:        user.ID,
-		Title:          "ask-parent",
-		ModelConfigID:  model.ID,
-		MCPServerIDs:   []uuid.UUID{approvedMCP.ID, blockedMCP.ID},
-		InitialUserContent: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("hello"),
-		},
-	})
-	require.NoError(t, err)
-	askParent, err := db.GetChatByID(ctx, askParentRef.ID)
-	require.NoError(t, err)
-
-	planParentRef, err := server.CreateChat(ctx, CreateOptions{
-		OrganizationID: org.ID,
-		OwnerID:        user.ID,
-		Title:          "plan-parent",
-		ModelConfigID:  model.ID,
+	// Build parent chats in memory rather than via server.CreateChat.
+	// resolveExploreToolSnapshot only reads ID, MCPServerIDs, PlanMode,
+	// ParentChatID, and Mode from its parent argument, so persisting
+	// the chats is unnecessary. Skipping CreateChat avoids waking the
+	// background acquireLoop, which would otherwise try to dial the
+	// fake MCP URLs and call OpenAI with the dbgen test API key. Those
+	// side effects were the root cause of the flake tracked in
+	// CODAGT-367.
+	askParent := database.Chat{
+		ID:           uuid.New(),
+		MCPServerIDs: []uuid.UUID{approvedMCP.ID, blockedMCP.ID},
+	}
+	planParent := database.Chat{
+		ID: uuid.New(),
 		PlanMode: database.NullChatPlanMode{
 			ChatPlanMode: database.ChatPlanModePlan,
 			Valid:        true,
 		},
 		MCPServerIDs: []uuid.UUID{approvedMCP.ID, blockedMCP.ID},
-		InitialUserContent: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("hello"),
-		},
-	})
-	require.NoError(t, err)
-	planParent, err := db.GetChatByID(ctx, planParentRef.ID)
-	require.NoError(t, err)
+	}
 
 	subagentPlanParent := planParent
+	subagentPlanParent.ID = uuid.New()
 	subagentPlanParent.ParentChatID = uuid.NullUUID{UUID: uuid.New(), Valid: true}
 
 	exploreParent := askParent
+	exploreParent.ID = uuid.New()
 	exploreParent.Mode = database.NullChatMode{ChatMode: database.ChatModeExplore, Valid: true}
 	exploreParent.ParentChatID = uuid.NullUUID{UUID: uuid.New(), Valid: true}
 	exploreParent.MCPServerIDs = []uuid.UUID{approvedMCP.ID}
@@ -1510,6 +1500,7 @@ func TestResolveExploreToolSnapshot(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			ctx := chatdTestContext(t)
 			gotMCPServerIDs, err := server.resolveExploreToolSnapshot(
 				ctx,
 				tt.parent,
@@ -1750,6 +1741,17 @@ func TestSpawnAgent_ExploreFallsBackWhenOverrideCredentialsAreUnavailable(t *tes
 	require.Equal(t, currentTurnModel.ID, childChat.LastModelConfigID)
 }
 
+func TestDefaultSystemPromptPlanningGuidance_SteersSubagentSelection(t *testing.T) {
+	t.Parallel()
+
+	require.Contains(t, defaultSystemPromptPlanningGuidance, `Prefer type="general" for substantial delegated research, analysis, reasoning, review, planning support, or implementation`)
+	require.Contains(t, defaultSystemPromptPlanningGuidance, `Use type="general" even for read-only work when the task is open-ended, multi-step, parallel, requires synthesis, or may later need edits`)
+	require.Contains(t, defaultSystemPromptPlanningGuidance, `Use type="explore" only for narrow repository-local read-only code discovery or code tracing`)
+	require.Contains(t, defaultSystemPromptPlanningGuidance, `Do not use type="explore" for generic research, broad architecture analysis, planning synthesis, external or web research, parallel research, or tasks that may need edits`)
+	require.NotContains(t, defaultSystemPromptPlanningGuidance, "research the codebase")
+	require.NotContains(t, defaultSystemPromptPlanningGuidance, "Reserve type=\"general\" for writable delegated work")
+}
+
 func TestSpawnAgent_DescriptionListsAllAvailableTypes(t *testing.T) {
 	t.Parallel()
 
@@ -1772,6 +1774,30 @@ func TestSpawnAgent_DescriptionListsAllAvailableTypes(t *testing.T) {
 	require.Contains(t, description, subagentTypeGeneral)
 	require.Contains(t, description, subagentTypeExplore)
 	require.Contains(t, description, subagentTypeComputerUse)
+}
+
+func TestSpawnAgent_DescriptionSteersGeneralForSubstantialResearch(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(t, db)
+	parentChat := createInternalParentChat(
+		ctx, t, server, db, org.ID, user.ID, model.ID, "parent-description-selection-guidance",
+	)
+
+	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
+	tool := findToolByName(tools, spawnAgentToolName)
+	require.NotNil(t, tool, "spawn_agent tool must be present")
+	description := tool.Info().Description
+
+	require.Contains(t, description, `Prefer type="general" for substantial delegated research, analysis, reasoning, review, planning support, or implementation`)
+	require.Contains(t, description, "even when the child should only report findings")
+	require.Contains(t, description, `When using type="general" for read-only work, explicitly instruct the child not to modify files and to return findings`)
+	require.Contains(t, description, `Use type="explore" only for narrow repository-local read-only code discovery or code tracing`)
+	require.Contains(t, description, `Do not use type="explore" for generic research, broad architecture analysis, planning synthesis, external or web research, parallel research, or tasks that may need edits`)
 }
 
 func TestSpawnAgent_DescriptionIncludesComputerUseWithMissingProviderKey(t *testing.T) {
@@ -1829,6 +1855,10 @@ func TestSpawnAgent_PlanModeDescriptionOmitsComputerUse(t *testing.T) {
 	require.Contains(t, description, subagentTypeGeneral)
 	require.Contains(t, description, subagentTypeExplore)
 	require.NotContains(t, description, subagentTypeComputerUse)
+	require.Contains(t, description, `type="general" is for non-mutating substantial investigation and planning support`)
+	require.Contains(t, description, `type="explore" is for narrow repository-local lookup or tracing`)
+	require.Contains(t, description, `only type="general" should be used for cloning repositories or non-local investigation`)
+	require.NotContains(t, description, "Both may use shell commands for exploration, such as cloning repositories")
 	require.Contains(t, description, "must not implement changes or intentionally modify workspace files")
 }
 
@@ -1873,6 +1903,10 @@ func TestPlanningOverlaySubagentGuidance_UsesPlanModeSafeDescriptions(t *testing
 
 	require.Contains(t, guidance, subagentTypeGeneral)
 	require.Contains(t, guidance, subagentTypeExplore)
+	require.Contains(t, guidance, `Use type="general" for substantial investigation, reasoning, and planning support`)
+	require.Contains(t, guidance, `Use type="explore" only for narrow repository-local lookup or tracing`)
+	require.Contains(t, guidance, "general (non-mutating substantial investigation, analysis, and planning support)")
+	require.Contains(t, guidance, "explore (narrow repository-local codebase lookup and code tracing)")
 	require.NotContains(t, guidance, subagentTypeComputerUse)
 	require.NotContains(t, guidance, "modify")
 	require.NotContains(t, guidance, "may inspect or modify workspace files")
@@ -2076,6 +2110,7 @@ func TestSpawnAgent_BlankTypeReturnsValidOptions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			ctx := chatdTestContext(t)
 			resp := runSpawnAgentTool(ctx, t, server, parentChat, spawnAgentArgs{
 				Type:   tt.subagentType,
 				Prompt: "delegate work",
@@ -2294,6 +2329,7 @@ func TestSubagentLifecycleToolErrorsIncludePersistedSubagentType(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
+			ctx := chatdTestContext(t)
 			result := requireToolResponseMap(t, runSubagentTool(
 				ctx,
 				t,

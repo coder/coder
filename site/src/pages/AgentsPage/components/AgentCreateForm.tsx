@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { isApiError } from "#/api/errors";
 import { permittedOrganizations } from "#/api/queries/organizations";
 import type * as TypesGen from "#/api/typesGenerated";
+import type { AgentChatSendShortcut } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -22,6 +23,7 @@ import { useFileAttachments } from "../hooks/useFileAttachments";
 import { parseStoredDraft } from "../utils/draftStorage";
 import {
 	getModelSelectorPlaceholder,
+	getProviderForModelOption,
 	hasConfiguredModelsInCatalog,
 	hasUserFixableProviders,
 } from "../utils/modelOptions";
@@ -124,6 +126,7 @@ export function useEmptyStateDraft() {
 
 interface AgentCreateFormProps {
 	onCreateChat: (options: CreateChatOptions) => Promise<void>;
+	sendShortcut: AgentChatSendShortcut;
 	isCreating: boolean;
 	createError: unknown;
 	canCreateChat: boolean;
@@ -145,6 +148,7 @@ interface AgentCreateFormProps {
 
 export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	onCreateChat,
+	sendShortcut,
 	isCreating,
 	createError,
 	canCreateChat,
@@ -382,7 +386,10 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 		handleAttach,
 		handleRemoveAttachment,
 		resetAttachments,
-	} = useFileAttachments(organizationId || undefined, { persist: true });
+	} = useFileAttachments(organizationId || undefined, {
+		persist: true,
+		provider: getProviderForModelOption(modelOptions, selectedModel),
+	});
 
 	const handleSendWithAttachments = async (message: string) => {
 		const fileIds: string[] = [];
@@ -505,6 +512,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 					{agentSetupNotice}
 					<AgentChatInput
 						onSend={handleSendWithAttachments}
+						sendShortcut={sendShortcut}
 						placeholder="Ask Coder to build, fix bugs, or explore your project..."
 						isDisabled={
 							isCreating || isForbidden || isPersonalModelOverridesLoading
