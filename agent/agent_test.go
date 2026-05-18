@@ -3656,15 +3656,39 @@ func TestAgent_DebugServer(t *testing.T) {
 		require.Contains(t, body, "old rotated log")
 		require.Less(t, strings.Index(body, "new rotated log"), strings.Index(body, "old rotated log"))
 	})
+
+	//nolint:paralleltest // This subtest mutates the shared logDir.
+	t.Run("LogsIncludeRotatedTruncationHeader", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+		bigRotatedLogPath := filepath.Join(logDir, "coder-agent-2026-05-18T00-00-00.000.log")
+		bigRotatedFile, err := os.Create(bigRotatedLogPath)
+		require.NoError(t, err)
+		_, err = bigRotatedFile.WriteString("huge rotated log\n")
+		require.NoError(t, err)
+		require.NoError(t, bigRotatedFile.Truncate(100*1024*1024+1))
+		require.NoError(t, bigRotatedFile.Close())
+		now := time.Now()
+		require.NoError(t, os.Chtimes(bigRotatedLogPath, now, now))
+		t.Cleanup(func() {
+			require.NoError(t, os.Remove(bigRotatedLogPath))
+		})
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, srv.URL+"/debug/logs?include_rotated=true", nil)
+		require.NoError(t, err)
+
+		res, err := srv.Client().Do(req)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		require.Equal(t, "true", res.Header.Get(codersdk.SupportBundleLogsTruncatedHeader))
+	})
 }
 
 func TestAgent_DebugLogFiles(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	home := t.TempDir()
-	xdgDataHome := filepath.Join(home, ".xdg")
 	t.Setenv("HOME", home)
 	t.Setenv("USERPROFILE", home)
-	t.Setenv("XDG_DATA_HOME", xdgDataHome)
 
 	writeLog := func(rel string, contents string, modTime time.Time) {
 		t.Helper()
