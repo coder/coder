@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"charm.land/fantasy"
+	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
@@ -87,6 +88,69 @@ func TestIsResponsesStoreEnabledIgnoresMalformedNonOpenAIKey(t *testing.T) {
 	}
 
 	require.False(t, chatopenai.IsResponsesStoreEnabled(opts))
+}
+
+func TestStripResponsesItemReferences(t *testing.T) {
+	t.Parallel()
+
+	prompt := []fantasy.Message{
+		{
+			Role: fantasy.MessageRoleAssistant,
+			Content: []fantasy.MessagePart{
+				fantasy.ReasoningPart{
+					Text: "thinking",
+					ProviderOptions: fantasy.ProviderOptions{
+						fantasyopenai.Name: &fantasyopenai.ResponsesReasoningMetadata{
+							ItemID:  "rs_stale",
+							Summary: []string{"summary"},
+						},
+						fantasyanthropic.Name: &fantasyanthropic.ReasoningOptionMetadata{
+							Signature: "sig",
+						},
+					},
+				},
+				fantasy.ToolResultPart{
+					ToolCallID:       "ws_stale",
+					ProviderExecuted: true,
+					ProviderOptions: fantasy.ProviderOptions{
+						fantasyopenai.Name: &fantasyopenai.WebSearchCallMetadata{
+							ItemID: "ws_stale",
+							Action: &fantasyopenai.WebSearchAction{Type: "search", Query: "coder"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	stripped := chatopenai.StripResponsesItemReferences(prompt)
+
+	require.NotSame(t, &prompt[0], &stripped[0])
+	reasoning, ok := fantasy.AsMessagePart[fantasy.ReasoningPart](stripped[0].Content[0])
+	require.True(t, ok)
+	require.Equal(t, "thinking", reasoning.Text)
+	openaiReasoning := fantasyopenai.GetReasoningMetadata(reasoning.ProviderOptions)
+	require.NotNil(t, openaiReasoning)
+	require.Empty(t, openaiReasoning.ItemID)
+	require.Equal(t, []string{"summary"}, openaiReasoning.Summary)
+	anthropicReasoning := fantasyanthropic.GetReasoningMetadata(reasoning.ProviderOptions)
+	require.NotNil(t, anthropicReasoning)
+	require.Equal(t, "sig", anthropicReasoning.Signature)
+
+	toolResult, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](stripped[0].Content[1])
+	require.True(t, ok)
+	openaiWebSearch, ok := toolResult.ProviderOptions[fantasyopenai.Name].(*fantasyopenai.WebSearchCallMetadata)
+	require.True(t, ok)
+	require.Empty(t, openaiWebSearch.ItemID)
+	require.NotNil(t, openaiWebSearch.Action)
+	require.Equal(t, "coder", openaiWebSearch.Action.Query)
+
+	originalReasoning := fantasyopenai.GetReasoningMetadata(prompt[0].Content[0].Options())
+	require.NotNil(t, originalReasoning)
+	require.Equal(t, "rs_stale", originalReasoning.ItemID)
+	originalWebSearch, ok := prompt[0].Content[1].Options()[fantasyopenai.Name].(*fantasyopenai.WebSearchCallMetadata)
+	require.True(t, ok)
+	require.Equal(t, "ws_stale", originalWebSearch.ItemID)
 }
 
 func TestShouldActivateChainMode(t *testing.T) {

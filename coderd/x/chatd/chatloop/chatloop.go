@@ -372,6 +372,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 	tools := buildToolDefinitions(opts.Tools, opts.ActiveTools, opts.ProviderTools)
 
 	messages := opts.Messages
+	suppressResponsesItemReferences := false
 	var lastUsage fantasy.Usage
 	var lastProviderMetadata fantasy.ProviderMetadata
 	needsFullHistoryReload := false
@@ -428,6 +429,9 @@ func Run(ctx context.Context, opts RunOptions) error {
 			)
 			if prepareErr != nil {
 				return xerrors.Errorf("prepare prompt: %w", prepareErr)
+			}
+			if suppressResponsesItemReferences {
+				prepared = chatopenai.StripResponsesItemReferences(prepared)
 			}
 			opts.Metrics.MessageCount.WithLabelValues(provider, modelName).Observe(float64(len(prepared)))
 			opts.Metrics.PromptSizeBytes.WithLabelValues(provider, modelName).Observe(float64(EstimatePromptSize(prepared)))
@@ -489,6 +493,8 @@ func Run(ctx context.Context, opts RunOptions) error {
 				classified = classified.WithProvider(provider)
 				opts.Metrics.RecordStreamRetry(provider, modelName, classified)
 				if classified.ChainBroken {
+					suppressResponsesItemReferences = true
+					call.Prompt = chatopenai.StripResponsesItemReferences(call.Prompt)
 					if chatopenai.HasPreviousResponseID(opts.ProviderOptions) {
 						opts.ProviderOptions = chatopenai.ClearPreviousResponseID(opts.ProviderOptions)
 					}
@@ -522,7 +528,7 @@ func Run(ctx context.Context, opts RunOptions) error {
 								retryPrepareErr = prepareErr
 							} else {
 								messages = reloadedCanonical
-								call.Prompt = retryPrompt
+								call.Prompt = chatopenai.StripResponsesItemReferences(retryPrompt)
 							}
 						}
 					}

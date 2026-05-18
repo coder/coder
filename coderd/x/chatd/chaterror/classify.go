@@ -352,18 +352,18 @@ func streamIncompleteMessage(provider string) string {
 	return providerSubject(provider) + " stream closed unexpectedly before the response completed."
 }
 
-// chainBrokenClassification recognizes the OpenAI error
-// "Previous response with id ... not found" returned when a
-// chained turn references a previous_response_id the provider no
-// longer recognizes.
+// chainBrokenClassification recognizes OpenAI errors returned when a
+// chained turn references stored Responses API state that the provider
+// no longer recognizes.
 func chainBrokenClassification(
 	lowerMessage string,
 	provider string,
 	statusCode int,
 	structured providerErrorDetails,
 ) (ClassifiedError, bool) {
-	if !(strings.Contains(lowerMessage, "previous response with id") &&
-		strings.Contains(lowerMessage, "not found")) {
+	lowerDetail := strings.ToLower(structured.detail)
+	if !isResponsesStateNotFound(lowerMessage, statusCode) &&
+		!isResponsesStateNotFound(lowerDetail, statusCode) {
 		return ClassifiedError{}, false
 	}
 	// This class of error has so far only been observed with OpenAI.
@@ -379,6 +379,20 @@ func chainBrokenClassification(
 		RetryAfter:  structured.retryAfter,
 		ChainBroken: true,
 	}), true
+}
+
+func isResponsesStateNotFound(message string, statusCode int) bool {
+	if strings.Contains(message, "previous response with id") &&
+		strings.Contains(message, "not found") {
+		return true
+	}
+	if statusCode != 0 && statusCode != 404 {
+		return false
+	}
+	if !(strings.Contains(message, "item with id") && strings.Contains(message, "not found")) {
+		return false
+	}
+	return containsAny(message, "rs_", "msg_", "ws_")
 }
 
 func responsesAPIDiagnostic(lowerMessage, detail string) (string, bool) {

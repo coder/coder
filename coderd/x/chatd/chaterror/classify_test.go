@@ -1019,10 +1019,44 @@ func TestClassify_ChainBroken(t *testing.T) {
 			wantStatusCode:  404,
 		},
 		{
+			name: "OpenAIReasoningItemNotFoundProviderError",
+			err: testProviderError(
+				"Item with id 'rs_0d3b694947efe551006a0ae902a9bc8190a3c90b4fb62629e6' not found.",
+				404,
+				nil,
+			),
+			wantChainBroken: true,
+			wantRetryable:   true,
+			wantProvider:    "openai",
+			wantStatusCode:  404,
+		},
+		{
+			name: "OpenAIStoredItemNotPersistedProviderDetail",
+			err: testProviderError(
+				"",
+				404,
+				nil,
+				testProviderResponseDump("{\"error\":{\"message\":\"Item with id 'msg_abc' not found. Items are not persisted when store is set to false.\"}}"),
+			),
+			wantChainBroken: true,
+			wantRetryable:   true,
+			wantProvider:    "openai",
+			wantStatusCode:  404,
+		},
+		{
 			name: "PreviousResponseWithoutNotFoundIsNotChainBroken",
 			err: testProviderError(
 				"Previous response with id 'resp_abc' is invalid.",
 				400,
+				nil,
+			),
+			wantChainBroken: false,
+		},
+		{
+			name: "UnrelatedFileItemNotFoundIsNotChainBroken",
+			err: testProviderError(
+				"Item with id 'file_abc' not found.",
+				404,
 				nil,
 			),
 			wantChainBroken: false,
