@@ -153,6 +153,11 @@ func calculateRCFromBranch(ref, commitSHA string) (CalculateResult, error) {
 		return CalculateResult{}, err
 	}
 
+	// Fail if there are open PRs targeting this release branch.
+	if err := checkOpenPRs(ref); err != nil {
+		return CalculateResult{}, err
+	}
+
 	allTags, err := listSemverTags()
 	if err != nil {
 		return CalculateResult{}, err
@@ -205,6 +210,11 @@ func calculateRelease(ref string) (CalculateResult, error) {
 	headSHA, err := gitOutput("rev-parse", fmt.Sprintf("origin/%s", ref))
 	if err != nil {
 		return CalculateResult{}, xerrors.Errorf("resolve branch %s: %w", ref, err)
+	}
+
+	// Fail if there are open PRs targeting this release branch.
+	if err := checkOpenPRs(ref); err != nil {
+		return CalculateResult{}, err
 	}
 
 	allTags, err := listSemverTags()

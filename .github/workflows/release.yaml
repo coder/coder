@@ -109,6 +109,15 @@ jobs:
           target_ref=$(echo "$output" | jq -r '.target_ref')
           create_branch=$(echo "$output" | jq -r '.create_branch // empty')
 
+          # Validate required outputs are non-empty.
+          for var in version previous_version channel target_ref; do
+            eval "val=\$$var"
+            if [[ -z "$val" || "$val" == "null" ]]; then
+              echo "::error::calculate-version returned empty or null '$var'"
+              exit 1
+            fi
+          done
+
           {
             echo "version=$version"
             echo "previous_version=$previous_version"
@@ -117,11 +126,16 @@ jobs:
             echo "create_branch=$create_branch"
           } >> "$GITHUB_OUTPUT"
 
-          echo "Version: $version"
-          echo "Previous version: $previous_version"
-          echo "Channel: $channel"
-          echo "Target ref: $target_ref"
-          echo "Create branch: $create_branch"
+          echo "### Release preparation" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Version | \`$version\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Previous | \`$previous_version\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Channel | \`$channel\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Target ref | \`$target_ref\` |" >> "$GITHUB_STEP_SUMMARY"
+          if [[ -n "$create_branch" ]]; then
+            echo "| Create branch | \`$create_branch\` |" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Create and push tag
         if: ${{ !inputs.dry_run }}
@@ -145,7 +159,12 @@ jobs:
           TARGET_REF: ${{ steps.prepare.outputs.target_ref }}
         run: |
           set -euo pipefail
-          git tag -a "$VERSION" -m "Release $VERSION" "$TARGET_REF" 2>/dev/null || true
+          # Create the tag if it doesn't already exist (idempotent).
+          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "Tag $VERSION already exists locally, skipping."
+          else
+            git tag -a "$VERSION" -m "Release $VERSION" "$TARGET_REF"
+          fi
 
       - name: Create release branch
         if: ${{ steps.prepare.outputs.create_branch != '' && !inputs.dry_run }}
@@ -234,7 +253,10 @@ jobs:
           if [[ "$DRY_RUN" == "true" ]]; then
             # For dry-run, checkout the target ref and recreate local tag
             git checkout "$TARGET_REF"
-            git tag -a "$VERSION" -m "Release $VERSION" "$TARGET_REF" 2>/dev/null || true
+            # Recreate local tag if it doesn't exist (idempotent).
+            if ! git rev-parse "$VERSION" >/dev/null 2>&1; then
+              git tag -a "$VERSION" -m "Release $VERSION" "$TARGET_REF"
+            fi
           else
             git checkout "refs/tags/$VERSION"
           fi

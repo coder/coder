@@ -3,8 +3,11 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
+
+	"golang.org/x/xerrors"
 )
 
 // ghOutput runs a gh CLI command and returns trimmed stdout.
@@ -45,6 +48,7 @@ func ghBuildPRMetadataMap(commits []commitEntry) prMetadataMaps {
 			"--repo", fmt.Sprintf("%s/%s", owner, repo),
 			"--json", "number,labels,author")
 		if err != nil {
+			fmt.Fprintf(os.Stderr, "warning: failed to fetch PR #%d metadata: %v\n", prNum, err)
 			continue
 		}
 
@@ -58,6 +62,7 @@ func ghBuildPRMetadataMap(commits []commitEntry) prMetadataMaps {
 			} `json:"author"`
 		}
 		if err := json.Unmarshal([]byte(out), &result); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: failed to parse PR #%d metadata: %v\n", prNum, err)
 			continue
 		}
 
@@ -73,4 +78,46 @@ func ghBuildPRMetadataMap(commits []commitEntry) prMetadataMaps {
 	}
 
 	return m
+}
+
+// openPR represents an open pull request targeting a branch.
+type openPR struct {
+	Number int    `json:"number"`
+	Title  string `json:"title"`
+	Author struct {
+		Login string `json:"login"`
+	} `json:"author"`
+	URL string `json:"url"`
+}
+
+// checkOpenPRs verifies that no pull requests are open against the
+// given branch. If any are found, it returns an error listing them
+// with instructions to merge or close before releasing.
+func checkOpenPRs(branch string) error {
+	out, err := ghOutput("pr", "list",
+		"--repo", fmt.Sprintf("%s/%s", owner, repo),
+		"--base", branch,
+		"--state", "open",
+		"--json", "number,title,author,url",
+		"--limit", "100")
+	if err != nil {
+		return xerrors.Errorf("failed to list open PRs for branch %s: %w", branch, err)
+	}
+
+	var prs []openPR
+	if err := json.Unmarshal([]byte(out), &prs); err != nil {
+		return xerrors.Errorf("failed to parse open PRs response: %w", err)
+	}
+
+	if len(prs) == 0 {
+		return nil
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "found %d open pull request(s) targeting %s that must be merged or closed before releasing:\n\n", len(prs), branch)
+	for _, pr := range prs {
+		fmt.Fprintf(&b, "  - #%d: %s (by @%s)\n    %s\n", pr.Number, pr.Title, pr.Author.Login, pr.URL)
+	}
+	fmt.Fprintf(&b, "\nMerge or close these pull requests, then re-run the release workflow.")
+	return xerrors.New(b.String())
 }
