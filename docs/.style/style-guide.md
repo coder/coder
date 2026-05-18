@@ -88,6 +88,40 @@ The repo-root `.vale.ini` configures Vale to read styles from
 See [DOCS-40](https://linear.app/codercom/issue/DOCS-40) for the rationale
 behind the cherry-picked base styles and the severity policy.
 
+### Running Vale locally
+
+The canonical entry point is `make lint/prose`. The first run downloads
+the pinned Vale binary and the configured style packages; subsequent
+runs reuse them. The target wraps Vale in `|| true` so warnings do not
+break `make lint`, matching the v1 non-blocking policy.
+
+### Severity policy (v1)
+
+Every rule lands at `warning`. CI is non-blocking through
+`continue-on-error: true` on the prose step. A rule promotes to `error`
+only when (a) it is objectively correct (typo, brand-name casing, banned
+substitution) and (b) the existing-content violation count reaches zero.
+Judgment-based rules (Wordiness, Weasel, ThereIs) stay at `suggestion`
+and never promote to `error`.
+
+### Active rule set
+
+The curated set documented in `.vale.ini`:
+
+- **Google** (base): all rules except `EmDash` (conflicts with our em-dash
+  ban), `Latin` (i.e. and e.g. are fine in technical writing), and `Spacing`
+  (fires aggressively on codersdk type names in the auto-generated API
+  reference; re-enable once the Go generators emit proper spacing).
+  `Parens` is softened to `suggestion` and `WordList` stays at `warning`.
+- **write-good** (base, with disables): `Passive` and `E-Prime` are off.
+  `TooWordy` and `ThereIs` stay at `suggestion`; `Weasel` is at `warning`.
+- **alex** (cherry-picked): `Ablist`, `Condescending`, `LGBTQ`,
+  `ProfanityLikely`, `Race`, `Suicide` at `warning`. The `ProfanityMaybe`
+  and `ProfanityUnlikely` rules fire on technical terms like `execute`,
+  `kill`, `failed`, and `attack`, so they are left off.
+- **Coder** (custom): empty in v1. Rules land through the rule-specific
+  tickets in this project (see `docs/.style/styles/Coder/README.md`).
+
 ## Editor setup
 
 To be filled in by

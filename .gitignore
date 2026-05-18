@@ -13,6 +13,15 @@ node_modules/
 vendor/
 yarn-error.log
 
+# Vale (prose linter) pulls package contents into docs/.style/styles/ on
+# `vale sync`. Each package directory and the sync sentinel are gitignored
+# so the synced content does not bloat the repo. The Coder/ directory next
+# to them is tracked because it holds our custom rules.
+docs/.style/.vale-synced
+docs/.style/styles/Google/
+docs/.style/styles/alex/
+docs/.style/styles/write-good/
+
 # Test output files
 test-output/
 

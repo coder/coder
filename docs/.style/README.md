@@ -66,3 +66,24 @@ Open a PR against `docs/.style/style-guide.md`. The rule-specific tickets
 in the
 [Docs style guide](https://linear.app/codercom/project/docs-style-guide-7828445b9afc)
 project fill in the body section by section.
+
+## Running Vale locally
+
+The canonical entry point is `make lint/prose`. The first run downloads
+the pinned Vale binary and the configured style packages (Google, alex,
+write-good) into `docs/.style/styles/`; subsequent runs are fast.
+
+```shell
+make lint/prose
+```
+
+The target wraps Vale in `|| true` so warnings do not fail the build. To
+see Vale's raw exit code, invoke the binary directly:
+
+```shell
+make docs/.style/.vale-synced
+./build/vale-*/vale docs/    # or pass specific files
+```
+
+`.vale.ini` at the repo root selects the curated rule set. See its
+inline comments for the rationale on each enabled or disabled rule.

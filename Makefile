@@ -835,6 +835,60 @@ lint/typos: build/typos-$(TYPOS_VERSION)
 	build/typos-$(TYPOS_VERSION) --config .github/workflows/typos.toml
 .PHONY: lint/typos
 
+# Vale (prose linter).
+#
+# Pinned through mise.toml so dogfood image users and the Makefile install
+# path stay in sync. The aqua identifier is `"aqua:errata-ai/vale" = "X.Y.Z"`;
+# the grep below extracts the version. Keep that pin authoritative.
+VALE_VERSION := $(shell grep -oP '"aqua:errata-ai/vale"\s*=\s*"\K[0-9.]+' mise.toml)
+
+# Map uname values to Vale release asset names. Vale ships:
+#   vale_X.Y.Z_Linux_64-bit.tar.gz   (linux amd64)
+#   vale_X.Y.Z_Linux_arm64.tar.gz    (linux arm64)
+#   vale_X.Y.Z_macOS_64-bit.tar.gz   (macos amd64)
+#   vale_X.Y.Z_macOS_arm64.tar.gz    (macos arm64)
+VALE_ARCH := $(shell uname -m)
+ifeq ($(VALE_ARCH),x86_64)
+VALE_ARCH := 64-bit
+endif
+ifeq ($(VALE_ARCH),arm64)
+VALE_ARCH := arm64
+endif
+ifeq ($(VALE_ARCH),aarch64)
+VALE_ARCH := arm64
+endif
+ifeq ($(shell uname -s),Darwin)
+VALE_OS := macOS
+else
+VALE_OS := Linux
+endif
+
+build/vale-$(VALE_VERSION):
+	mkdir -p build/
+	curl -sSfL "https://github.com/errata-ai/vale/releases/download/v$(VALE_VERSION)/vale_$(VALE_VERSION)_$(VALE_OS)_$(VALE_ARCH).tar.gz" \
+		| tar -xzf - -C build/ ./vale
+	mv build/vale "$@"
+
+# `vale sync` pulls the packages listed in .vale.ini's Packages directive
+# into StylesPath (docs/.style/styles/). The .vale-synced sentinel makes
+# sync idempotent across `make lint/prose` calls and lets warm checkouts
+# skip the re-sync entirely. Touch any time .vale.ini changes to force a
+# re-sync.
+docs/.style/.vale-synced: .vale.ini build/vale-$(VALE_VERSION)
+	@echo "$(GREEN)==>$(RESET) $(BOLD)vale sync$(RESET)"
+	build/vale-$(VALE_VERSION) sync
+	@touch $@
+
+# v1 severity policy lands every rule at warning. Vale exits non-zero when
+# alerts at MinAlertLevel or above are found, so the `|| true` keeps
+# `make lint/prose` from failing while the cleanup PRs land. Promote rules
+# to error (and remove the wrapper) when their existing-content violation
+# count reaches zero. See DOCS-40.
+lint/prose: docs/.style/.vale-synced
+	@echo "$(GREEN)==>$(RESET) $(BOLD)lint/prose$(RESET)"
+	build/vale-$(VALE_VERSION) docs/ || true
+.PHONY: lint/prose
+
 # pre-commit and pre-push mirror CI checks locally.
 #
 # pre-commit runs checks that don't need external services (Docker,

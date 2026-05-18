@@ -1,3 +1,8 @@
 {
-	"ignores": ["PLAN.md"],
+	"ignores": [
+		"PLAN.md",
+		"docs/.style/styles/Google/**",
+		"docs/.style/styles/alex/**",
+		"docs/.style/styles/write-good/**"
+	],
 }
