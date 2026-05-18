@@ -19,6 +19,7 @@ import (
 	"tailscale.com/tailcfg"
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
+	aibridgeutils "github.com/coder/coder/v2/aibridge/utils"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth/gitprovider"
@@ -42,11 +43,13 @@ func APIAllowListTarget(entry rbac.AllowListElement) codersdk.APIAllowListTarget
 	}
 }
 
-// AIProvider converts a database row into the codersdk type. The caller
-// is responsible for ensuring the row has been decrypted (i.e. fetched
-// through the dbcrypt-wrapped store). Write-only fields on Settings are
-// stripped so the result is safe to echo back in API responses.
-func AIProvider(row database.AIProvider) (codersdk.AIProvider, error) {
+// AIProvider converts a database row plus its API keys into the
+// codersdk shape. The caller is responsible for ensuring the row and
+// keys have been decrypted (i.e. fetched through the dbcrypt-wrapped
+// store). Each api_key is masked via aibridge utils.MaskSecret and
+// write-only fields on Settings are stripped, so the result is safe
+// to echo back in API responses.
+func AIProvider(row database.AIProvider, keys []database.AIProviderKey) (codersdk.AIProvider, error) {
 	display := row.Name
 	if row.DisplayName.Valid && row.DisplayName.String != "" {
 		display = row.DisplayName.String
@@ -58,6 +61,7 @@ func AIProvider(row database.AIProvider) (codersdk.AIProvider, error) {
 		DisplayName: display,
 		Enabled:     row.Enabled,
 		BaseURL:     row.BaseUrl,
+		APIKeys:     maskAIProviderKeys(keys),
 		CreatedAt:   row.CreatedAt,
 		UpdatedAt:   row.UpdatedAt,
 	}
@@ -83,15 +87,16 @@ func AIProviderSettings(col sql.NullString) (codersdk.AIProviderSettings, error)
 	return s, nil
 }
 
-// AIProviderKey converts an ai_provider_keys row into the codersdk
-// shape. The plaintext api_key is intentionally not included.
-func AIProviderKey(row database.AIProviderKey) codersdk.AIProviderKey {
-	return codersdk.AIProviderKey{
-		ID:         row.ID,
-		ProviderID: row.ProviderID,
-		CreatedAt:  row.CreatedAt,
-		UpdatedAt:  row.UpdatedAt,
+// maskAIProviderKeys returns a non-nil, ordering-preserving slice of
+// masked key strings derived from the supplied database rows. The
+// resulting strings are never reversible to plaintext, so they are
+// safe to embed in API responses.
+func maskAIProviderKeys(keys []database.AIProviderKey) []string {
+	out := make([]string, 0, len(keys))
+	for _, k := range keys {
+		out = append(out, aibridgeutils.MaskSecret(k.APIKey))
 	}
+	return out
 }
 
 // redactAIProviderSettings strips write-only fields from a settings

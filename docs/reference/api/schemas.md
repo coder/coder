@@ -1302,6 +1302,9 @@
 
 ```json
 {
+  "api_keys": [
+    "string"
+  ],
   "base_url": "string",
   "created_at": "2019-08-24T14:15:22Z",
   "display_name": "string",
@@ -1318,6 +1321,7 @@
 
 | Name           | Type                                                       | Required | Restrictions | Description |
 |----------------|------------------------------------------------------------|----------|--------------|-------------|
+| `api_keys`     | array of string                                            | false    |              |             |
 | `base_url`     | string                                                     | false    |              |             |
 | `created_at`   | string                                                     | false    |              |             |
 | `display_name` | string                                                     | false    |              |             |
@@ -1353,26 +1357,6 @@
 | `dump_dir`                 | string | false    |              | Dump dir is the directory path for dumping API requests and responses.                     |
 | `name`                     | string | false    |              | Name is the unique instance identifier used for routing. Defaults to Type if not provided. |
 | `type`                     | string | false    |              | Type is the provider type: "openai", "anthropic", or "copilot".                            |
-
-## codersdk.AIProviderKey
-
-```json
-{
-  "created_at": "2019-08-24T14:15:22Z",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "provider_id": "fe3d49af-4061-436b-ae60-f7044f252a44",
-  "updated_at": "2019-08-24T14:15:22Z"
-}
-```
-
-### Properties
-
-| Name          | Type   | Required | Restrictions | Description |
-|---------------|--------|----------|--------------|-------------|
-| `created_at`  | string | false    |              |             |
-| `id`          | string | false    |              |             |
-| `provider_id` | string | false    |              |             |
-| `updated_at`  | string | false    |              |             |
 
 ## codersdk.AIProviderSettings
 
@@ -4214,24 +4198,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `password` | string                                   | true     |              |                                          |
 | `to_type`  | [codersdk.LoginType](#codersdklogintype) | true     |              | To type is the login type to convert to. |
 
-## codersdk.CreateAIProviderKeyRequest
-
-```json
-{
-  "api_key": "string"
-}
-```
-
-### Properties
-
-| Name      | Type   | Required | Restrictions | Description |
-|-----------|--------|----------|--------------|-------------|
-| `api_key` | string | false    |              |             |
-
 ## codersdk.CreateAIProviderRequest
 
 ```json
 {
+  "api_keys": [
+    "string"
+  ],
   "base_url": "string",
   "display_name": "string",
   "enabled": true,
@@ -4245,6 +4218,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name           | Type                                                       | Required | Restrictions | Description |
 |----------------|------------------------------------------------------------|----------|--------------|-------------|
+| `api_keys`     | array of string                                            | false    |              |             |
 | `base_url`     | string                                                     | false    |              |             |
 | `display_name` | string                                                     | false    |              |             |
 | `enabled`      | boolean                                                    | false    |              |             |
@@ -12800,6 +12774,9 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ```json
 {
+  "api_keys": [
+    "string"
+  ],
   "base_url": "string",
   "display_name": "string",
   "enabled": true,
@@ -12811,6 +12788,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 | Name           | Type                                                       | Required | Restrictions | Description |
 |----------------|------------------------------------------------------------|----------|--------------|-------------|
+| `api_keys`     | array of string                                            | false    |              |             |
 | `base_url`     | string                                                     | false    |              |             |
 | `display_name` | string                                                     | false    |              |             |
 | `enabled`      | boolean                                                    | false    |              |             |

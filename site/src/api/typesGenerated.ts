@@ -301,9 +301,9 @@ export interface AIConfig {
 // From codersdk/aiproviders.go
 /**
  * AIProvider represents an AI provider configuration row as returned
- * by the API. API keys are stored in a separate ai_provider_keys
- * table and managed via the keys sub-endpoints; secret fields on
- * Settings are never included in responses.
+ * by the API. APIKeys are returned in masked form (see aibridge/utils
+ * MaskSecret); secret fields on Settings are never included in
+ * responses.
  */
 export interface AIProvider {
 	readonly id: string;
@@ -312,6 +312,7 @@ export interface AIProvider {
 	readonly display_name: string;
 	readonly enabled: boolean;
 	readonly base_url: string;
+	readonly api_keys: readonly string[];
 	readonly settings: AIProviderSettings;
 	readonly created_at: string;
 	readonly updated_at: string;
@@ -385,19 +386,6 @@ export interface AIProviderConfig {
 	readonly bedrock_region?: string;
 	readonly bedrock_model?: string;
 	readonly bedrock_small_fast_model?: string;
-}
-
-// From codersdk/aiproviders.go
-/**
- * AIProviderKey represents a single API key registered against an
- * AI provider, as returned by the API. The plaintext APIKey is
- * write-only and never included in responses.
- */
-export interface AIProviderKey {
-	readonly id: string;
-	readonly provider_id: string;
-	readonly created_at: string;
-	readonly updated_at: string;
 }
 
 // From codersdk/aiproviders.go
@@ -3124,22 +3112,10 @@ export interface ConvertLoginRequest {
 
 // From codersdk/aiproviders.go
 /**
- * CreateAIProviderKeyRequest is the payload for adding an API key to
- * an AI provider. Only meaningful for openai and anthropic providers;
- * Bedrock providers reject this call because they use the access
- * credentials stored in Settings.
- */
-export interface CreateAIProviderKeyRequest {
-	readonly api_key: string;
-}
-
-// From codersdk/aiproviders.go
-/**
  * CreateAIProviderRequest is the payload for creating a new AI
- * provider. Name, Type, and BaseURL are required. API keys for
- * OpenAI/Anthropic providers are added via the keys sub-endpoint
- * after the provider is created; Bedrock providers carry their
- * credentials in Settings and do not use the keys sub-endpoint.
+ * provider. Name, Type, and BaseURL are required. APIKeys carries
+ * the plaintext keys for OpenAI/Anthropic providers; Bedrock
+ * providers authenticate via Settings and must omit APIKeys.
  */
 export interface CreateAIProviderRequest {
 	readonly type: AIProviderType;
@@ -3147,6 +3123,7 @@ export interface CreateAIProviderRequest {
 	readonly display_name?: string;
 	readonly enabled: boolean;
 	readonly base_url: string;
+	readonly api_keys?: readonly string[];
 	readonly settings?: AIProviderSettings;
 }
 
@@ -8224,12 +8201,15 @@ export interface TransitionStats {
  * UpdateAIProviderRequest is the payload for partially updating an
  * AI provider. At least one field must be non-nil. Pointer fields
  * distinguish "not sent" (nil) from "set to empty/zero" (a pointer
- * to the zero value).
+ * to the zero value). When APIKeys is non-nil, the provider's
+ * existing keys are replaced with the supplied set (an empty slice
+ * clears all keys).
  */
 export interface UpdateAIProviderRequest {
 	readonly display_name?: string;
 	readonly enabled?: boolean;
 	readonly base_url?: string;
+	readonly api_keys?: string[];
 	readonly settings?: AIProviderSettings;
 }
 

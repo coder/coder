@@ -1091,88 +1091,6 @@ const docTemplate = `{
                 ]
             }
         },
-        "/api/v2/ai/providers/{idOrName}/keys": {
-            "post": {
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "AI Providers"
-                ],
-                "summary": "Create an AI provider key",
-                "operationId": "create-an-ai-provider-key",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Provider ID or name",
-                        "name": "idOrName",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Create AI provider key request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.CreateAIProviderKeyRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.AIProviderKey"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
-        "/api/v2/ai/providers/{idOrName}/keys/{keyID}": {
-            "delete": {
-                "tags": [
-                    "AI Providers"
-                ],
-                "summary": "Delete an AI provider key",
-                "operationId": "delete-an-ai-provider-key",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Provider ID or name",
-                        "name": "idOrName",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Key ID",
-                        "name": "keyID",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
         "/api/v2/aibridge/clients": {
             "get": {
                 "produces": [
@@ -14752,6 +14670,12 @@ const docTemplate = `{
         "codersdk.AIProvider": {
             "type": "object",
             "properties": {
+                "api_keys": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "base_url": {
                     "type": "string"
                 },
@@ -14811,27 +14735,6 @@ const docTemplate = `{
                 "type": {
                     "description": "Type is the provider type: \"openai\", \"anthropic\", or \"copilot\".",
                     "type": "string"
-                }
-            }
-        },
-        "codersdk.AIProviderKey": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "provider_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "updated_at": {
-                    "type": "string",
-                    "format": "date-time"
                 }
             }
         },
@@ -17110,17 +17013,15 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.CreateAIProviderKeyRequest": {
-            "type": "object",
-            "properties": {
-                "api_key": {
-                    "type": "string"
-                }
-            }
-        },
         "codersdk.CreateAIProviderRequest": {
             "type": "object",
             "properties": {
+                "api_keys": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "base_url": {
                     "type": "string"
                 },
@@ -23764,6 +23665,12 @@ const docTemplate = `{
         "codersdk.UpdateAIProviderRequest": {
             "type": "object",
             "properties": {
+                "api_keys": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "base_url": {
                     "type": "string"
                 },

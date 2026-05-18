@@ -1,9 +1,9 @@
 package coderd_test
 
 import (
-	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -369,10 +369,69 @@ func TestAIProvidersCRUD(t *testing.T) {
 	})
 }
 
-func TestAIProviderKeysCRUD(t *testing.T) {
+func TestAIProvidersKeyManagement(t *testing.T) {
 	t.Parallel()
 
-	t.Run("CreateDelete", func(t *testing.T) {
+	t.Run("CreateWithKeysReturnsMasked", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		const (
+			primary   = "sk-openai-primary-fixture-aaaaaa"   //nolint:gosec // test fixture, not a real credential
+			secondary = "sk-openai-secondary-fixture-bbbbbb" //nolint:gosec // test fixture, not a real credential
+		)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "keys-openai",
+			Enabled: true,
+			BaseURL: "https://api.openai.com/v1",
+			APIKeys: []string{primary, secondary},
+		})
+		require.NoError(t, err)
+		require.Len(t, provider.APIKeys, 2)
+		// Masked form preserves prefix and suffix while hiding the
+		// middle, so it's enough for an operator to recognize the key
+		// without recovering the plaintext.
+		require.True(t, strings.HasPrefix(provider.APIKeys[0], "sk-o"))
+		require.True(t, strings.HasSuffix(provider.APIKeys[0], "aaaa"))
+		require.NotContains(t, provider.APIKeys[0], primary)
+		require.NotContains(t, provider.APIKeys[1], secondary)
+	})
+
+	t.Run("ResponseHidesPlaintext", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		const plaintext = "sk-openai-extra-secret-cccccccccccc" //nolint:gosec // test fixture, not a real credential
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "keys-secret",
+			Enabled: true,
+			BaseURL: "https://api.openai.com/v1",
+			APIKeys: []string{plaintext},
+		})
+		require.NoError(t, err)
+
+		// Inspect the raw HTTP body of the GET response. The masked
+		// form must replace the plaintext entirely on the wire.
+		res, err := client.Request(ctx, http.MethodGet, "/api/v2/ai/providers/keys-secret", nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		bodyBytes, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		require.NotContains(t, string(bodyBytes), plaintext)
+	})
+
+	t.Run("UpdateReplacesKeys", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
@@ -381,44 +440,120 @@ func TestAIProviderKeysCRUD(t *testing.T) {
 		//nolint:gocritic // Owner role is the audience for this endpoint.
 		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
 			Type:    codersdk.AIProviderTypeOpenAI,
-			Name:    "keys-openai",
+			Name:    "keys-replace",
 			Enabled: true,
 			BaseURL: "https://api.openai.com/v1",
+			APIKeys: []string{"sk-openai-original-ddddddddddddddd"}, //nolint:gosec // test fixture, not a real credential
 		})
 		require.NoError(t, err)
+		require.Len(t, provider.APIKeys, 1)
+		originalMasked := provider.APIKeys[0]
 
-		// Create two keys to exercise multi-key failover seeding.
-		first, err := client.CreateAIProviderKey(ctx, provider.Name, codersdk.CreateAIProviderKeyRequest{
-			APIKey: "sk-openai-primary", //nolint:gosec // test fixture, not a real credential
+		replacement := []string{
+			"sk-openai-rotated-eeeeeeeeeeeeeeeeeee",     //nolint:gosec // test fixture, not a real credential
+			"sk-openai-rotated-second-ffffffffffffffff", //nolint:gosec // test fixture, not a real credential
+		}
+		updated, err := client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
+			APIKeys: &replacement,
 		})
 		require.NoError(t, err)
-		require.NotEqual(t, [16]byte{}, first.ID)
-		require.Equal(t, provider.ID, first.ProviderID)
-
-		second, err := client.CreateAIProviderKey(ctx, provider.Name, codersdk.CreateAIProviderKeyRequest{
-			APIKey: "sk-openai-secondary", //nolint:gosec // test fixture, not a real credential
-		})
-		require.NoError(t, err)
-		require.NotEqual(t, first.ID, second.ID)
-
-		// Delete the first key; the second remains and the request
-		// succeeds with 204.
-		err = client.DeleteAIProviderKey(ctx, provider.Name, first.ID)
-		require.NoError(t, err)
+		require.Len(t, updated.APIKeys, 2)
+		require.NotContains(t, updated.APIKeys, originalMasked)
 	})
 
-	t.Run("BedrockProviderRejected", func(t *testing.T) {
+	t.Run("UpdateClearsKeys", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "keys-clear",
+			Enabled: true,
+			BaseURL: "https://api.openai.com/v1",
+			APIKeys: []string{"sk-openai-tobedeleted-gggggggggggggg"}, //nolint:gosec // test fixture, not a real credential
+		})
+		require.NoError(t, err)
+		require.Len(t, provider.APIKeys, 1)
+
+		empty := []string{}
+		updated, err := client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
+			APIKeys: &empty,
+		})
+		require.NoError(t, err)
+		require.Empty(t, updated.APIKeys)
+	})
+
+	t.Run("UpdateWithoutKeysPreserves", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "keys-preserve",
+			Enabled: true,
+			BaseURL: "https://api.openai.com/v1",
+			APIKeys: []string{"sk-openai-keepme-hhhhhhhhhhhhhhhh"}, //nolint:gosec // test fixture, not a real credential
+		})
+		require.NoError(t, err)
+		require.Len(t, provider.APIKeys, 1)
+		originalMasked := provider.APIKeys[0]
+
+		// PATCH with no APIKeys field must leave keys untouched.
+		newDisplay := "Keep Display"
+		updated, err := client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
+			DisplayName: &newDisplay,
+		})
+		require.NoError(t, err)
+		require.Equal(t, []string{originalMasked}, updated.APIKeys)
+	})
+
+	t.Run("BedrockRejectsCreateWithKeys", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Bedrock providers authenticate via the settings blob (AWS
-		// access key + secret), so adding a key would be silently unused.
+		// access key + secret), so an api_keys list would be silently
+		// unused.
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeAnthropic,
+			Name:    "keys-bedrock-create",
+			Enabled: true,
+			BaseURL: "https://bedrock-runtime.us-east-1.amazonaws.com/",
+			APIKeys: []string{"sk-should-be-rejected"}, //nolint:gosec // test fixture, not a real credential
+			Settings: codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region:          "us-east-1",
+					Model:           "anthropic.claude-3-5-sonnet",
+					AccessKey:       "AKIA-test", //nolint:gosec // test fixture, not a real credential
+					AccessKeySecret: "bedrock-test-secret",
+				},
+			},
+		})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+
+	t.Run("BedrockRejectsUpdateWithKeys", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
 		//nolint:gocritic // Owner role is the audience for this endpoint.
 		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
 			Type:    codersdk.AIProviderTypeAnthropic,
-			Name:    "keys-bedrock",
+			Name:    "keys-bedrock-update",
 			Enabled: true,
 			BaseURL: "https://bedrock-runtime.us-east-1.amazonaws.com/",
 			Settings: codersdk.AIProviderSettings{
@@ -432,8 +567,9 @@ func TestAIProviderKeysCRUD(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		_, err = client.CreateAIProviderKey(ctx, provider.Name, codersdk.CreateAIProviderKeyRequest{
-			APIKey: "sk-should-be-rejected", //nolint:gosec // test fixture, not a real credential
+		rejected := []string{"sk-bedrock-no"} //nolint:gosec // test fixture, not a real credential
+		_, err = client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
+			APIKeys: &rejected,
 		})
 		require.Error(t, err)
 		var sdkErr *codersdk.Error
@@ -441,104 +577,24 @@ func TestAIProviderKeysCRUD(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 	})
 
-	t.Run("RequiresAPIKey", func(t *testing.T) {
+	t.Run("EmptyKeyRejected", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		//nolint:gocritic // Owner role is the audience for this endpoint.
-		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+		_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
 			Type:    codersdk.AIProviderTypeOpenAI,
-			Name:    "keys-empty-body",
+			Name:    "keys-empty-element",
 			Enabled: true,
 			BaseURL: "https://api.openai.com/v1",
-		})
-		require.NoError(t, err)
-
-		_, err = client.CreateAIProviderKey(ctx, provider.Name, codersdk.CreateAIProviderKeyRequest{
-			APIKey: "   ",
+			APIKeys: []string{"   "},
 		})
 		require.Error(t, err)
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-	})
-
-	t.Run("DeleteCrossProviderForbidden", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		// Two distinct providers, each with their own key.
-		//nolint:gocritic // Owner role is the audience for this endpoint.
-		providerA, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
-			Type:    codersdk.AIProviderTypeOpenAI,
-			Name:    "keys-a",
-			Enabled: true,
-			BaseURL: "https://api.openai.com/v1",
-		})
-		require.NoError(t, err)
-
-		providerB, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
-			Type:    codersdk.AIProviderTypeOpenAI,
-			Name:    "keys-b",
-			Enabled: true,
-			BaseURL: "https://api.openai.com/v1",
-		})
-		require.NoError(t, err)
-
-		key, err := client.CreateAIProviderKey(ctx, providerA.Name, codersdk.CreateAIProviderKeyRequest{
-			APIKey: "sk-openai-a", //nolint:gosec // test fixture, not a real credential
-		})
-		require.NoError(t, err)
-
-		// Attempting to delete A's key under B's path returns 404. The
-		// handler intentionally hides the key's existence to avoid
-		// leaking IDs across providers.
-		err = client.DeleteAIProviderKey(ctx, providerB.Name, key.ID)
-		require.Error(t, err)
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
-
-		// Deleting under provider A succeeds, confirming the key was
-		// still attached to A all along.
-		require.NoError(t, client.DeleteAIProviderKey(ctx, providerA.Name, key.ID))
-	})
-
-	t.Run("KeyResponseHidesSecret", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		//nolint:gocritic // Owner role is the audience for this endpoint.
-		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
-			Type:    codersdk.AIProviderTypeOpenAI,
-			Name:    "keys-secret",
-			Enabled: true,
-			BaseURL: "https://api.openai.com/v1",
-		})
-		require.NoError(t, err)
-
-		// Inspect the raw HTTP body of the create response. The
-		// api_key field is intentionally omitted from the response
-		// shape, so the plaintext should never appear over the wire.
-		res, err := client.Request(ctx, http.MethodPost,
-			fmt.Sprintf("/api/v2/ai/providers/%s/keys", provider.Name),
-			codersdk.CreateAIProviderKeyRequest{
-				APIKey: "sk-openai-extra-secret", //nolint:gosec // test fixture, not a real credential
-			})
-		require.NoError(t, err)
-		defer res.Body.Close()
-		require.Equal(t, http.StatusCreated, res.StatusCode)
-		bodyBytes, err := io.ReadAll(res.Body)
-		require.NoError(t, err)
-		body := string(bodyBytes)
-		require.NotContains(t, body, "sk-openai-extra-secret")
-		require.NotContains(t, body, "api_key")
 	})
 
 	t.Run("NonOwnerForbidden", func(t *testing.T) {
@@ -558,28 +614,13 @@ func TestAIProviderKeysCRUD(t *testing.T) {
 
 		memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, firstUser.OrganizationID)
 
-		_, err = memberClient.CreateAIProviderKey(ctx, provider.Name, codersdk.CreateAIProviderKeyRequest{
-			APIKey: "sk-not-allowed", //nolint:gosec // test fixture, not a real credential
+		patch := []string{"sk-not-allowed"} //nolint:gosec // test fixture, not a real credential
+		_, err = memberClient.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
+			APIKeys: &patch,
 		})
 		require.Error(t, err)
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
-	})
-
-	t.Run("ProviderNotFound", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		//nolint:gocritic // Owner role is the audience for this endpoint.
-		_, err := client.CreateAIProviderKey(ctx, "missing", codersdk.CreateAIProviderKeyRequest{
-			APIKey: "sk-noop", //nolint:gosec // test fixture, not a real credential
-		})
-		require.Error(t, err)
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 	})
 }
