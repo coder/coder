@@ -1,5 +1,11 @@
 # Documentation Style Guide
 
+> **For prose rules**, read the canonical Coder documentation style guide at
+> [`docs/.style/style-guide.md`](../../docs/.style/style-guide.md). That guide
+> is what the Vale rules in `docs/.style/styles/Coder/` enforce. This file
+> focuses on **structure, research, and content patterns** observed in the
+> repo and is meant to ride alongside the prose guide, not replace it.
+
 This guide documents documentation patterns observed in the Coder repository, based on analysis of existing admin guides, tutorials, and reference documentation. This is specifically for documentation files in the `docs/` directory - see [CONTRIBUTING.md](../../docs/about/contributing/CONTRIBUTING.md) for general contribution guidelines.
 
 ## Research Before Writing

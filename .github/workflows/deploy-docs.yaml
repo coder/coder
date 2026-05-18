@@ -34,7 +34,14 @@ on:
       # Intentionally only docs/**. Edits to this workflow file must not
       # auto-trigger a production reindex; use workflow_dispatch instead.
       # See DOCS-121 (incident) and DOCS-124 (fix).
+      #
+      # docs/.style/** is contributor tooling and never deploys to
+      # coder.com/docs. Negating it here skips the workflow on .style-only
+      # commits. GitHub Actions only suppresses when every changed file
+      # matches a negation, so mixed commits still trigger; the surgical
+      # diff step below drops .style paths from the payload.
       - "docs/**"
+      - "!docs/.style/**"
   workflow_dispatch:
     inputs:
       action:
@@ -154,7 +161,11 @@ jobs:
           # + save) from deleted/renamed-old-side (delete only), and
           # so paths containing whitespace or quotes survive intact.
           DIFF_FILE=$(mktemp)
-          git diff --name-status -z "$BEFORE_SHA" "$AFTER_SHA" -- 'docs/**/*.md' > "$DIFF_FILE"
+          # 'docs/**/*.md' to keep markdown-only paths, ':(exclude)docs/.style/**'
+          # so contributor-tooling pages never reach the surgical-reindex payload
+          # on mixed commits. The trigger filter already short-circuits .style-only
+          # pushes; this is defense in depth.
+          git diff --name-status -z "$BEFORE_SHA" "$AFTER_SHA" -- 'docs/**/*.md' ':(exclude)docs/.style/**' > "$DIFF_FILE"
           # Parse the NUL-delimited diff into <path>\t<status> lines.
           # `--name-status -z` uses NUL between fields and between
           # records, with a special twist for renames: the record is

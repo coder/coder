@@ -11,6 +11,7 @@ Rule #1: If you want exception to ANY rule, YOU MUST STOP and get explicit permi
 - Language and area docs: Use [Modern Go](.claude/docs/GO.md), [Testing Patterns and Best Practices](.claude/docs/TESTING.md), [Database Development Patterns](.claude/docs/DATABASE.md), [OAuth2 Development Guide](.claude/docs/OAUTH2.md), [Coder Architecture](.claude/docs/ARCHITECTURE.md), [Troubleshooting Guide](.claude/docs/TROUBLESHOOTING.md), [Documentation Style Guide](.claude/docs/DOCS_STYLE_GUIDE.md), and [Pull Request Description Style Guide](.claude/docs/PR_STYLE_GUIDE.md) when that area is in scope.
 - Compatibility: `.agents/docs` symlinks to `.claude/docs` for agent runtimes that look there.
 - Frontend: Read [Frontend Development Guidelines](site/AGENTS.md) before changing anything under `site/`.
+- Docs prose: When editing anything under `docs/`, read [Coder documentation style guide](docs/.style/style-guide.md). The repo-root [.claude/docs/DOCS_STYLE_GUIDE.md](.claude/docs/DOCS_STYLE_GUIDE.md) covers structure and research patterns; the new style guide covers prose rules.
 
 ## Foundational rules
 
