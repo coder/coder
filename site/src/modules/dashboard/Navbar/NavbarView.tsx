@@ -5,8 +5,7 @@ import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
-import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
-import { CoderIcon } from "#/components/Icons/CoderIcon";
+import { ProductLogo } from "#/components/Icons/ProductLogo";
 import {
 	Tooltip,
 	TooltipContent,
@@ -14,7 +13,6 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import type { ProxyContextValue } from "#/contexts/ProxyContext";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { NotificationsInbox } from "#/modules/notifications/NotificationsInbox/NotificationsInbox";
 import { getPrereleaseFlag } from "#/utils/buildInfo";
 import { cn } from "#/utils/cn";
@@ -25,7 +23,6 @@ import { SupportIcon } from "./SupportIcon";
 import { UserDropdown } from "./UserDropdown/UserDropdown";
 
 interface NavbarViewProps {
-	logo_url?: string;
 	user: TypesGen.User;
 	buildInfo?: TypesGen.BuildInfoResponse;
 	supportLinks: readonly TypesGen.LinkConfig[];
@@ -48,7 +45,6 @@ const linkStyles = {
 
 export const NavbarView: FC<NavbarViewProps> = ({
 	user,
-	logo_url,
 	buildInfo,
 	supportLinks,
 	onSignOut,
@@ -84,14 +80,14 @@ export const NavbarView: FC<NavbarViewProps> = ({
 			}}
 		>
 			<NavLink to="/workspaces">
-				{logo_url ? (
-					<ExternalImage className="h-7" src={logo_url} alt="Custom Logo" />
-				) : (
-					<CoderIcon className="h-7 w-7 fill-content-primary" />
-				)}
+				<ProductLogo className="h-7" />
 			</NavLink>
 
-			<NavItems className="ml-4" user={user} canCreateChat={canCreateChat} />
+			<NavItems
+				className="ml-4 hidden md:flex"
+				user={user}
+				canCreateChat={canCreateChat}
+			/>
 
 			{prerelease && buildInfo?.version && (
 				<a
@@ -272,12 +268,7 @@ function idleTasksLabel(count: number) {
 }
 
 const AgentsNavItem: FC<{ canCreateChat: boolean }> = ({ canCreateChat }) => {
-	const { experiments, buildInfo } = useDashboard();
-	const prerelease = getPrereleaseFlag(buildInfo);
-	const experimentEnabled =
-		experiments.includes("agents") || prerelease === "devel";
-
-	if (!experimentEnabled || !canCreateChat) {
+	if (!canCreateChat) {
 		return null;
 	}
 

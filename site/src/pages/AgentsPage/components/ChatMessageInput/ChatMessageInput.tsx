@@ -29,8 +29,14 @@ import {
 	useLayoutEffect,
 	useRef,
 } from "react";
+import type { AgentChatSendShortcut } from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
 import { isMobileViewport } from "#/utils/mobile";
+import {
+	DEFAULT_AGENT_CHAT_SEND_SHORTCUT,
+	MODIFIER_AGENT_CHAT_SEND_SHORTCUT,
+} from "../../utils/agentChatSendShortcut";
+import { isChatAttachmentFile } from "../../utils/chatAttachments";
 import {
 	$createFileReferenceNode,
 	FileReferenceNode,
@@ -201,16 +207,16 @@ const PasteSanitizationPlugin: FC<{
 					}
 					// Native paste event (ClipboardEvent).
 
-					// Check for image files in the clipboard (e.g.
+					// Check for attachable files in the clipboard (e.g.
 					// pasted screenshots). Forward them to the parent
 					// via callback instead of inserting text.
 					if (onFilePaste && dataTransfer?.files.length) {
-						const images = Array.from(dataTransfer.files).filter((f) =>
-							f.type.startsWith("image/"),
+						const attachable = Array.from(dataTransfer.files).filter(
+							isChatAttachmentFile,
 						);
-						if (images.length > 0) {
+						if (attachable.length > 0) {
 							event.preventDefault();
-							for (const file of images) {
+							for (const file of attachable) {
 								onFilePaste(file);
 							}
 							return true;
@@ -256,21 +262,40 @@ const PasteSanitizationPlugin: FC<{
 	return null;
 };
 
-// Handles Enter key behavior: plain Enter submits via the onEnter
-// callback, Shift+Enter inserts a newline. On mobile viewports, Enter
-// always inserts a newline; users submit via the send button because
+// Handles Enter key behavior. By default, plain Enter submits via
+// the onEnter callback, and Shift+Enter inserts a newline. When the
+// modifier shortcut is selected, Cmd/Ctrl+Enter submits instead, and
+// plain Enter inserts a newline. On mobile viewports, Enter always
+// inserts a newline; users submit via the send button because
 // Shift+Enter is cumbersome on touch keyboards (CODAGT-210).
-const EnterKeyPlugin: FC<{ onEnter?: () => void }> = function EnterKeyPlugin({
-	onEnter,
-}) {
+const EnterKeyPlugin: FC<{
+	onEnter?: () => void;
+	sendShortcut: AgentChatSendShortcut;
+}> = function EnterKeyPlugin({ onEnter, sendShortcut }) {
 	const [editor] = useLexicalComposerContext();
 
 	useEffect(() => {
 		return editor.registerCommand(
 			KEY_ENTER_COMMAND,
 			(event: KeyboardEvent | null) => {
-				if (event?.shiftKey || isMobileViewport()) {
-					return false;
+				const shouldInsertLineBreak =
+					event?.shiftKey ||
+					isMobileViewport() ||
+					(sendShortcut === MODIFIER_AGENT_CHAT_SEND_SHORTCUT &&
+						!(event?.metaKey || event?.ctrlKey));
+				if (shouldInsertLineBreak) {
+					event?.preventDefault();
+					editor.update(() => {
+						let selection = $getSelection();
+						if (!$isRangeSelection(selection)) {
+							$getRoot().selectEnd();
+							selection = $getSelection();
+						}
+						if ($isRangeSelection(selection)) {
+							selection.insertLineBreak();
+						}
+					});
+					return true;
 				}
 				if (onEnter) {
 					event?.preventDefault();
@@ -280,7 +305,7 @@ const EnterKeyPlugin: FC<{ onEnter?: () => void }> = function EnterKeyPlugin({
 			},
 			COMMAND_PRIORITY_HIGH,
 		);
-	}, [editor, onEnter]);
+	}, [editor, onEnter, sendShortcut]);
 
 	return null;
 };
@@ -455,6 +480,7 @@ interface ChatMessageInputProps
 	remountKey?: number;
 	rows?: number;
 	onEnter?: () => void;
+	sendShortcut?: AgentChatSendShortcut;
 	onFilePaste?: (file: File) => void;
 	allowTextAttachmentPaste?: boolean;
 	disabled?: boolean;
@@ -485,6 +511,7 @@ const ChatMessageInput = ({
 	remountKey,
 	rows,
 	onEnter,
+	sendShortcut = DEFAULT_AGENT_CHAT_SEND_SHORTCUT,
 	onFilePaste,
 	allowTextAttachmentPaste,
 	disabled,
@@ -705,7 +732,10 @@ const ChatMessageInput = ({
 					onFilePaste={onFilePaste}
 					allowTextAttachmentPaste={allowTextAttachmentPaste}
 				/>
-				<EnterKeyPlugin onEnter={disabled ? undefined : onEnter} />
+				<EnterKeyPlugin
+					onEnter={disabled ? undefined : onEnter}
+					sendShortcut={sendShortcut}
+				/>
 				<ContentChangePlugin onChange={onChange} />
 				<ValueSyncPlugin
 					initialValue={initialValue}

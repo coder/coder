@@ -29,5 +29,6 @@ ignorePatterns:
   - pattern: "developer.hashicorp.com/terraform/language"
   - pattern: "platform.openai.com"
   - pattern: "api.openai.com"
+  - pattern: "openai.com"
 aliveStatusCodes:
   - 200

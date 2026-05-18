@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import Checkbox from "@mui/material/Checkbox";
 import { EllipsisVerticalIcon } from "lucide-react";
 import type { FC } from "react";
@@ -39,12 +38,12 @@ export const AnnouncementBannerItem: FC<AnnouncementBannerItemProps> = ({
 				/>
 			</TableCell>
 
-			<TableCell css={!enabled && styles.disabled}>
+			<TableCell className={!enabled ? "text-content-disabled" : ""}>
 				{message || <em>No message</em>}
 			</TableCell>
 
 			<TableCell>
-				<div css={styles.colorSample} style={{ backgroundColor }}></div>
+				<div className="size-6 rounded-sm" style={{ backgroundColor }} />
 			</TableCell>
 
 			<TableCell>
@@ -71,15 +70,3 @@ export const AnnouncementBannerItem: FC<AnnouncementBannerItemProps> = ({
 		</TableRow>
 	);
 };
-
-const styles = {
-	disabled: (theme) => ({
-		color: theme.roles.inactive.fill.outline,
-	}),
-
-	colorSample: {
-		width: 24,
-		height: 24,
-		borderRadius: 4,
-	},
-} satisfies Record<string, Interpolation<Theme>>;

@@ -549,6 +549,13 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				r.Patch("/", api.patchGroup)
 				r.Delete("/", api.deleteGroup)
 				r.Get("/members", api.groupMembers)
+				r.Route("/ai/budget", func(r chi.Router) {
+					// AI cost controls are a paid feature (AI Governance add-on).
+					r.Use(api.RequireFeatureMW(codersdk.FeatureAIBridge))
+					r.Get("/", api.groupAIBudget)
+					r.Put("/", api.upsertGroupAIBudget)
+					r.Delete("/", api.deleteGroupAIBudget)
+				})
 			})
 		})
 		r.Route("/workspace-quota", func(r chi.Router) {
@@ -1288,7 +1295,7 @@ func derpMapper(logger slog.Logger, proxyHealth *proxyhealth.ProxyHealth) func(*
 // @Produce json
 // @Tags Enterprise
 // @Success 200 {object} codersdk.Entitlements
-// @Router /entitlements [get]
+// @Router /api/v2/entitlements [get]
 func (api *API) serveEntitlements(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	httpapi.Write(ctx, rw, http.StatusOK, api.Entitlements.AsJSON())

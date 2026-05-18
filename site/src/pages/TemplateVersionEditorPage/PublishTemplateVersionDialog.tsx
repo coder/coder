@@ -17,7 +17,6 @@ import {
 	HelpPopoverText,
 	HelpPopoverTitle,
 } from "#/components/HelpPopover/HelpPopover";
-import { Stack } from "#/components/Stack/Stack";
 import type { PublishVersionData } from "#/pages/TemplateVersionEditorPage/types";
 import { docs } from "#/utils/docs";
 import { getFormHelpers } from "#/utils/formUtils";
@@ -74,7 +73,7 @@ export const PublishTemplateVersionDialog: FC<
 			title="Publish new version"
 			description={
 				<form id="publish-version" onSubmit={form.handleSubmit}>
-					<Stack>
+					<div className="flex flex-col gap-4">
 						<p>You are about to publish a new version of this template.</p>
 						<FormFields>
 							<TextField
@@ -93,7 +92,7 @@ export const PublishTemplateVersionDialog: FC<
 								rows={5}
 							/>
 
-							<Stack direction="row">
+							<div className="flex flex-row gap-4">
 								<FormControlLabel
 									label="Promote to active version"
 									control={
@@ -135,9 +134,9 @@ export const PublishTemplateVersionDialog: FC<
 										</HelpPopoverLinksGroup>
 									</HelpPopoverContent>
 								</HelpPopover>
-							</Stack>
+							</div>
 						</FormFields>
-					</Stack>
+					</div>
 				</form>
 			}
 		/>

@@ -1,57 +1,140 @@
 import {
+	ArrowLeftIcon,
 	BarChart3Icon,
-	ChevronLeftIcon,
+	BellIcon,
+	BellOffIcon,
+	EllipsisIcon,
 	PanelLeftIcon,
 	SettingsIcon,
+	Volume2Icon,
+	VolumeOffIcon,
 } from "lucide-react";
 import type { FC, ReactNode } from "react";
-import { Link, NavLink, useLocation, useOutletContext } from "react-router";
+import { useEffect, useState } from "react";
+import {
+	Link,
+	NavLink,
+	type To,
+	useLocation,
+	useOutletContext,
+} from "react-router";
+import { toast } from "sonner";
+import { getErrorMessage } from "#/api/errors";
 import { Button } from "#/components/Button/Button";
-import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
-import { CoderIcon } from "#/components/Icons/CoderIcon";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
-import { cn } from "#/utils/cn";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "#/components/DropdownMenu/DropdownMenu";
+import { FeatureStageBadge } from "#/components/FeatureStageBadge/FeatureStageBadge";
+import { ProductLogo } from "#/components/Icons/ProductLogo";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
 import type { AgentsOutletContext } from "../AgentsPageView";
-import { isSettingsView, sidebarViewFromPath } from "./Sidebar/AgentsSidebar";
+import { getChimeEnabled, setChimeEnabled } from "../utils/chime";
 
 interface AgentPageHeaderProps {
 	children?: ReactNode;
 	/** When set, shows a back link on mobile instead of the logo
 	 *  and hides the settings/analytics nav buttons. */
-	mobileBack?: { to: string; label: string };
+	mobileBack?: { to: To; label: string };
+	chimeEnabled?: boolean;
+	onToggleChime?: () => void;
+	webPush?: ReturnType<typeof useWebpushNotifications>;
+	onToggleNotifications?: () => Promise<void> | void;
 }
 
 export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 	children,
 	mobileBack,
+	chimeEnabled: controlledChimeEnabled,
+	onToggleChime,
+	webPush: controlledWebPush,
+	onToggleNotifications,
 }) => {
 	const { isSidebarCollapsed, onExpandSidebar } =
 		useOutletContext<AgentsOutletContext>();
-	const { appearance } = useDashboard();
-	const logoUrl = appearance.logo_url;
 	const location = useLocation();
-	const sidebarView = sidebarViewFromPath(location.pathname);
 
-	const isSettingsPanel = isSettingsView(sidebarView);
+	const [internalChimeEnabled, setInternalChimeEnabled] =
+		useState(getChimeEnabled);
+	const internalWebPush = useWebpushNotifications();
+	const chimeEnabled = controlledChimeEnabled ?? internalChimeEnabled;
+	const webPush = controlledWebPush ?? internalWebPush;
+	const [isDesktop, setIsDesktop] = useState<boolean>(() => {
+		return window.matchMedia("(min-width: 640px)").matches;
+	});
+
+	useEffect(() => {
+		const mediaQuery = window.matchMedia("(min-width: 640px)");
+		const onMediaChange = (event: MediaQueryListEvent) => {
+			setIsDesktop(event.matches);
+		};
+
+		setIsDesktop(mediaQuery.matches);
+		if (typeof mediaQuery.addEventListener === "function") {
+			mediaQuery.addEventListener("change", onMediaChange);
+		} else {
+			mediaQuery.addListener(onMediaChange);
+		}
+		return () => {
+			if (typeof mediaQuery.removeEventListener === "function") {
+				mediaQuery.removeEventListener("change", onMediaChange);
+			} else {
+				mediaQuery.removeListener(onMediaChange);
+			}
+		};
+	}, []);
+
+	const handleChimeToggle = () => {
+		if (onToggleChime) {
+			onToggleChime();
+			return;
+		}
+		const next = !chimeEnabled;
+		setInternalChimeEnabled(next);
+		setChimeEnabled(next);
+	};
+
+	const handleNotificationToggle = async () => {
+		if (onToggleNotifications) {
+			await onToggleNotifications();
+			return;
+		}
+		try {
+			if (webPush.subscribed) {
+				await webPush.unsubscribe();
+			} else {
+				await webPush.subscribe();
+			}
+		} catch (error) {
+			const action = webPush.subscribed ? "disable" : "enable";
+			toast.error(getErrorMessage(error, `Failed to ${action} notifications.`));
+		}
+	};
 
 	return (
-		<div className="flex shrink-0 items-center gap-2 px-4 pt-3 pb-0.5 md:py-0.5">
+		<div className="order-first flex shrink-0 items-center gap-2 pl-4 pr-2 pt-3 pb-0.5 sm:order-none sm:px-4 sm:py-0.5">
 			{mobileBack ? (
-				<Link
-					to={mobileBack.to}
-					className="inline-flex shrink-0 items-center gap-1 text-sm text-content-secondary no-underline hover:text-content-primary md:hidden"
+				<Button
+					asChild
+					variant="subtle"
+					size="icon"
+					aria-label={mobileBack.label}
+					className="h-7 w-7 shrink-0 sm:hidden"
 				>
-					<ChevronLeftIcon className="h-4 w-4" />
-					{mobileBack.label}
-				</Link>
+					<Link to={mobileBack.to}>
+						<ArrowLeftIcon />
+					</Link>
+				</Button>
 			) : (
-				<NavLink to="/workspaces" className="inline-flex shrink-0 md:hidden">
-					{logoUrl ? (
-						<ExternalImage className="h-6" src={logoUrl} alt="Logo" />
-					) : (
-						<CoderIcon className="h-6 w-6 fill-content-primary" />
-					)}
-				</NavLink>
+				<div className="inline-flex shrink-0 items-center gap-2 sm:hidden">
+					<NavLink to="/workspaces" className="inline-flex">
+						<ProductLogo className="size-6" />
+					</NavLink>
+					<FeatureStageBadge contentType="beta" size="xs" />
+				</div>
 			)}
 			{isSidebarCollapsed && (
 				<Button
@@ -59,47 +142,85 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 					size="icon"
 					onClick={onExpandSidebar}
 					aria-label="Expand sidebar"
-					className="hidden h-7 w-7 min-w-0 shrink-0 md:inline-flex"
+					className="hidden h-7 w-7 min-w-0 shrink-0 sm:inline-flex"
 				>
 					<PanelLeftIcon />
 				</Button>
 			)}
 			<div className="min-w-0 flex-1" />
-			{/* Mobile-only nav buttons mirroring the sidebar toolbar
-			 * which is hidden below the md breakpoint. */}
-			{!mobileBack && (
-				<div className="flex items-center gap-0.5 md:hidden">
-					<Button
-						asChild
-						variant="subtle"
-						size="icon"
-						aria-label="Settings"
-						className={cn(
-							"h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary",
-							isSettingsPanel && "text-content-primary",
-						)}
+			{children && isDesktop && (
+				<div className="hidden items-center gap-2 sm:flex">{children}</div>
+			)}
+			{/* Mobile: meatball menu with all actions */}
+			{!mobileBack && !isDesktop && (
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<Button
+							variant="subtle"
+							size="icon"
+							aria-label="More options"
+							className="h-7 w-7 text-content-secondary hover:text-content-primary sm:hidden"
+						>
+							<EllipsisIcon />
+						</Button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent
+						align="end"
+						className="mobile-full-width-dropdown mobile-full-width-dropdown-top [&_[role=menuitem]]:text-sm"
 					>
-						<Link to="/agents/settings" state={{ from: location.pathname }}>
-							<SettingsIcon />
-						</Link>
-					</Button>
-					<Button
-						asChild
-						variant="subtle"
-						size="icon"
-						aria-label="Analytics"
-						className={cn(
-							"h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary",
-							sidebarView.panel === "analytics" && "text-content-primary",
+						<DropdownMenuItem asChild>
+							<Link
+								to="/agents/settings"
+								state={{ from: location.pathname + location.search }}
+							>
+								<SettingsIcon className="size-icon-sm" />
+								Settings
+							</Link>
+						</DropdownMenuItem>
+						<DropdownMenuItem asChild>
+							<Link
+								to={{ pathname: "/agents/analytics", search: location.search }}
+							>
+								<BarChart3Icon className="size-icon-sm" />
+								Analytics
+							</Link>
+						</DropdownMenuItem>
+						<DropdownMenuItem
+							onSelect={(e) => {
+								e.preventDefault();
+								handleChimeToggle();
+							}}
+						>
+							{chimeEnabled ? (
+								<Volume2Icon className="size-icon-sm" />
+							) : (
+								<VolumeOffIcon className="size-icon-sm" />
+							)}
+							{chimeEnabled ? "Turn sound off" : "Turn sound on"}
+						</DropdownMenuItem>
+						{webPush.enabled && (
+							<DropdownMenuItem
+								onSelect={(e) => {
+									e.preventDefault();
+									void handleNotificationToggle();
+								}}
+								disabled={webPush.loading}
+							>
+								{webPush.loading ? (
+									<Spinner size="sm" loading className="size-icon-sm" />
+								) : webPush.subscribed ? (
+									<BellIcon className="size-icon-sm" />
+								) : (
+									<BellOffIcon className="size-icon-sm" />
+								)}
+								{webPush.subscribed
+									? "Turn notifications off"
+									: "Turn notifications on"}
+							</DropdownMenuItem>
 						)}
-					>
-						<Link to="/agents/analytics">
-							<BarChart3Icon />
-						</Link>
-					</Button>
-				</div>
-			)}{" "}
-			{children && <div className="flex items-center gap-2">{children}</div>}
+					</DropdownMenuContent>
+				</DropdownMenu>
+			)}
 		</div>
 	);
 };

@@ -117,6 +117,7 @@ func TestParseSkillFrontmatter(t *testing.T) {
 		_, _, _, err := workspacesdk.ParseSkillFrontmatter(
 			"---\ndescription: no name\n---\n",
 		)
+		require.ErrorIs(t, err, workspacesdk.ErrFrontmatterNameRequired)
 		require.ErrorContains(t, err, "frontmatter missing required 'name' field")
 	})
 

@@ -9,6 +9,7 @@ import {
 	isSettingsView,
 	sidebarViewFromPath,
 } from "./components/Sidebar/AgentsSidebar";
+import { ResizableAgentsSidebarFrame } from "./components/Sidebar/ResizableAgentsSidebarFrame";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 export interface AgentsOutletContext {
@@ -40,7 +41,6 @@ interface AgentsPageViewProps {
 	chatList: TypesGen.Chat[];
 	catalogModelOptions: readonly ModelSelectorOption[];
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
-	logoUrl: string;
 	handleNewAgent: () => void;
 	isCreating: boolean;
 	isArchiving: boolean;
@@ -68,6 +68,7 @@ interface AgentsPageViewProps {
 	onRenameTitle: (chatId: string, title: string) => Promise<void>;
 	regeneratingTitleChatIds: readonly string[];
 	onToggleSidebarCollapsed: () => void;
+	isPersonalModelOverridesEnabled?: boolean;
 	isAgentsAdmin: boolean;
 	hasNextPage: boolean | undefined;
 	onLoadMore: () => void;
@@ -81,7 +82,6 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	chatList,
 	catalogModelOptions,
 	modelConfigs,
-	logoUrl,
 	handleNewAgent,
 	isCreating,
 	isArchiving,
@@ -106,6 +106,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	onRenameTitle,
 	regeneratingTitleChatIds,
 	onToggleSidebarCollapsed,
+	isPersonalModelOverridesEnabled,
 	isAgentsAdmin,
 	hasNextPage,
 	onLoadMore,
@@ -156,17 +157,20 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	};
 
 	return (
-		<div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary md:flex-row">
+		<div
+			data-testid="agents-page-layout"
+			className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary sm:flex-row"
+		>
 			<title>{pageTitle("Agents")}</title>
-			<div
+			<ResizableAgentsSidebarFrame
 				className={cn(
-					"md:h-full md:w-[320px] md:min-h-0 md:border-b-0",
+					"sm:h-full sm:min-h-0 sm:border-b-0",
 					agentId
-						? "hidden md:block shrink-0 h-[42dvh] min-h-[240px] border-b border-border-default"
+						? "hidden sm:block shrink-0 h-[42dvh] min-h-[240px] border-b border-border-default"
 						: isSettingsDetail || isAnalytics
-							? "hidden md:block shrink-0"
-							: "order-2 md:order-none flex-1 min-h-0 border-t border-border-default md:flex-none md:border-t-0",
-					isSidebarCollapsed && "md:hidden",
+							? "hidden sm:block shrink-0"
+							: "order-2 sm:order-none flex-1 min-h-0 border-b border-border-default sm:flex-none sm:border-t-0 sm:border-b-0",
+					isSidebarCollapsed && "sm:hidden",
 				)}
 			>
 				<AgentsSidebar
@@ -174,7 +178,6 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					chatErrorReasons={sidebarChatErrorReasons}
 					modelOptions={catalogModelOptions}
 					modelConfigs={modelConfigs}
-					logoUrl={logoUrl}
 					onArchiveAgent={requestArchiveAgent}
 					onUnarchiveAgent={requestUnarchiveAgent}
 					onArchiveAndDeleteWorkspace={requestArchiveAndDeleteWorkspace}
@@ -197,17 +200,19 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					archivedFilter={archivedFilter}
 					onArchivedFilterChange={onArchivedFilterChange}
 					onCollapse={onCollapseSidebar}
+					isPersonalModelOverridesEnabled={isPersonalModelOverridesEnabled}
 					isAdmin={isAgentsAdmin}
 				/>
-			</div>
+			</ResizableAgentsSidebarFrame>
 			<div
+				data-testid="agents-main-panel"
 				className={cn(
 					"min-h-0 min-w-0 flex-1 flex-col bg-surface-primary",
-					isSettingsIndex ? "hidden md:flex" : "flex",
+					isSettingsIndex ? "hidden sm:flex" : "flex",
 					!agentId &&
 						!isSettingsDetail &&
 						sidebarView.panel === "chats" &&
-						"order-1 md:order-none flex-none md:flex-1",
+						"contents sm:flex sm:flex-1 sm:flex-col",
 				)}
 			>
 				<Outlet context={outletContextValue} />

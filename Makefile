@@ -104,20 +104,45 @@ CLIDOCGEN_INPUTS := \
 	scripts/clidocgen/command.tpl \
 	$(CLIDOC_SRC_FILES)
 
+# Helper binaries that import repo packages need their compile-time inputs on
+# the binary target. Most generated outputs keep these binaries as order-only
+# prereqs, so stale binaries otherwise survive source changes.
+RBAC_GO_FILES := \
+	$(wildcard coderd/rbac/*.go) \
+	$(wildcard coderd/rbac/policy/*.go)
+
+DBDUMP_INPUTS := \
+	$(wildcard coderd/database/migrations/*.go) \
+	$(wildcard coderd/database/migrations/*.sql)
+
+# Exclude generated RBAC files to avoid cycles with typegen outputs. The
+# output rules still order generated RBAC prerequisites where needed.
+TYPEGEN_RBAC_GO_FILES := \
+	$(filter-out coderd/rbac/%_gen.go,$(wildcard coderd/rbac/*.go)) \
+	$(wildcard coderd/rbac/policy/*.go)
+
+TYPEGEN_INPUTS := \
+	$(wildcard scripts/typegen/*.go) \
+	$(wildcard scripts/typegen/*.gotmpl) \
+	$(wildcard scripts/typegen/*.tstmpl) \
+	$(TYPEGEN_RBAC_GO_FILES) \
+	$(wildcard coderd/util/strings/*.go) \
+	codersdk/countries.go
+
 # Helper binary targets. Built with go build -o to avoid caching
 # link-stage executables in GOCACHE. Each binary is a real Make
 # target so parallel -j builds serialize correctly instead of
 # racing on the same output path.
 
-_gen/bin/apitypings: $(wildcard scripts/apitypings/*.go) | _gen
+_gen/bin/apitypings: $(wildcard scripts/apitypings/*.go) $(wildcard codersdk/*.go) | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/apitypings
 
-_gen/bin/auditdocgen: $(wildcard scripts/auditdocgen/*.go) | _gen
+_gen/bin/auditdocgen: $(wildcard scripts/auditdocgen/*.go) $(wildcard enterprise/audit/*.go) | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/auditdocgen
 
-_gen/bin/check-scopes: $(wildcard scripts/check-scopes/*.go) | _gen
+_gen/bin/check-scopes: $(wildcard scripts/check-scopes/*.go) $(RBAC_GO_FILES) | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/check-scopes
 
@@ -127,7 +152,7 @@ _gen/bin/clidocgen: $(CLIDOCGEN_INPUTS) | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/clidocgen
 
-_gen/bin/dbdump: $(wildcard coderd/database/gen/dump/*.go) | _gen
+_gen/bin/dbdump: $(wildcard coderd/database/gen/dump/*.go) $(DBDUMP_INPUTS) | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./coderd/database/gen/dump
 
@@ -139,9 +164,13 @@ _gen/bin/gensite: $(wildcard scripts/gensite/*.go) | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/gensite
 
-_gen/bin/apikeyscopesgen: $(wildcard scripts/apikeyscopesgen/*.go) | _gen
+_gen/bin/apikeyscopesgen: $(wildcard scripts/apikeyscopesgen/*.go) $(RBAC_GO_FILES) | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/apikeyscopesgen
+
+_gen/bin/aibridgepricesgen: $(wildcard scripts/aibridgepricesgen/*.go) | _gen
+	@mkdir -p _gen/bin
+	go build -o $@ ./scripts/aibridgepricesgen
 
 _gen/bin/metricsdocgen: $(wildcard scripts/metricsdocgen/*.go) | _gen
 	@mkdir -p _gen/bin
@@ -155,7 +184,7 @@ _gen/bin/modeloptionsgen: $(wildcard scripts/modeloptionsgen/*.go) $(wildcard co
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/modeloptionsgen
 
-_gen/bin/typegen: $(wildcard scripts/typegen/*.go) | _gen
+_gen/bin/typegen: $(TYPEGEN_INPUTS) | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/typegen
 
@@ -699,7 +728,7 @@ endif
 # GitHub Actions linters are run in a separate CI job (lint-actions) that only
 # triggers when workflow files change, so we skip them here when CI=true.
 LINT_ACTIONS_TARGETS := $(if $(CI),,lint/actions/actionlint)
-lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/check-scopes lint/migrations lint/bootstrap lint/emdash $(LINT_ACTIONS_TARGETS)
+lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/check-scopes lint/migrations lint/bootstrap lint/architecture lint/emdash lint/agents $(LINT_ACTIONS_TARGETS)
 .PHONY: lint
 
 # Subset of lint that does not require Go or Node toolchains.
@@ -716,11 +745,9 @@ lint/ts: site/node_modules/.installed
 .PHONY: lint/ts
 
 lint/go:
-	./scripts/check_enterprise_imports.sh
-	./scripts/check_codersdk_imports.sh
-	linter_ver=$$(grep -oE 'GOLANGCI_LINT_VERSION=\S+' dogfood/coder/ubuntu-26.04/Dockerfile | cut -d '=' -f 2)
+	linter_ver=$$(grep -Eo '^golangci-lint = "[^"]+"' mise.toml | sed -E 's/.*"([^"]+)"/\1/')
 	go run github.com/golangci/golangci-lint/cmd/golangci-lint@v$$linter_ver run
-	go tool github.com/coder/paralleltestctx/cmd/paralleltestctx -custom-funcs="testutil.Context" ./...
+	go tool github.com/coder/paralleltestctx/cmd/paralleltestctx -custom-funcs="testutil.Context,chatdTestContext" ./...
 	go run ./scripts/intxcheck ./...
 .PHONY: lint/go
 
@@ -742,6 +769,13 @@ lint/emdash:
 	bash scripts/check_emdash.sh
 .PHONY: lint/emdash
 
+lint/architecture:
+	./scripts/check_architecture.sh
+.PHONY: lint/architecture
+
+lint/agents:
+	./scripts/check_agents_structure.sh
+.PHONY: lint/agents
 
 lint/helm:
 	cd helm/
@@ -781,6 +815,10 @@ TYPOS_VERSION := $(shell grep -oP 'crate-ci/typos@\S+\s+\#\s+v\K[0-9.]+' .github
 
 # Map uname values to typos release asset names.
 TYPOS_ARCH := $(shell uname -m)
+# typos release assets use aarch64, but macOS ARM reports arm64 via uname -m.
+ifeq ($(TYPOS_ARCH),arm64)
+TYPOS_ARCH := aarch64
+endif
 ifeq ($(shell uname -s),Darwin)
 TYPOS_OS := apple-darwin
 else
@@ -881,8 +919,15 @@ pre-push:
 	$(MAKE) --no-print-directory -j$(PARALLEL_JOBS) MAKE_TIMED=1 MAKE_LOGDIR=$$logdir \
 		test \
 		test-js \
-		test-storybook \
 		site/out/index.html
+	# Storybook tests run after Go tests and the site build to avoid
+	# CPU starvation. Rolldown's tokio workers in Vite's transform
+	# pipeline stall when competing with Go compilation and the
+	# production build, causing browser import() calls to hang
+	# indefinitely (vitest has no import-phase timeout).
+	echo "test storybook:"
+	$(MAKE) --no-print-directory MAKE_TIMED=1 MAKE_LOGDIR=$$logdir \
+		test-storybook
 	rm -rf $$logdir
 	echo "$(GREEN)✓ pre-push passed$(RESET) ($$(( $$(date +%s) - $$start ))s)"
 .PHONY: pre-push
@@ -952,6 +997,16 @@ gen: gen/db gen/golden-files $(GEN_FILES)
 
 gen/db: $(DB_GEN_FILES)
 .PHONY: gen/db
+
+# Refresh the AI Bridge pricing seed file from models.dev. Kept out of
+# `make gen`. Phony so each invocation regenerates.
+coderd/aibridge/prices/data/prices.json: _gen/bin/aibridgepricesgen | _gen
+	@mkdir -p $(dir $@)
+	$(call atomic_write,_gen/bin/aibridgepricesgen)
+.PHONY: coderd/aibridge/prices/data/prices.json
+
+gen/aibridge-prices: coderd/aibridge/prices/data/prices.json
+.PHONY: gen/aibridge-prices
 
 gen/golden-files: \
 	agent/unit/testdata/.gen-golden \
@@ -1024,7 +1079,7 @@ gen/mark-fresh:
 
 # Runs migrations to output a dump of the database schema after migrations are
 # applied.
-coderd/database/dump.sql: coderd/database/gen/dump/main.go $(wildcard coderd/database/migrations/*.sql) | _gen/bin/dbdump
+coderd/database/dump.sql: coderd/database/gen/dump/main.go $(DBDUMP_INPUTS) | _gen/bin/dbdump
 	_gen/bin/dbdump
 	touch "$@"
 
@@ -1142,7 +1197,10 @@ enterprise/aibridged/proto/aibridged.pb.go: enterprise/aibridged/proto/aibridged
 		--go-drpc_opt=paths=source_relative \
 		./enterprise/aibridged/proto/aibridged.proto
 
-site/src/api/typesGenerated.ts: site/node_modules/.installed $(wildcard scripts/apitypings/*) $(shell find ./codersdk $(FIND_EXCLUSIONS) -type f -name '*.go') | _gen _gen/bin/apitypings
+site/src/api/typesGenerated.ts: site/node_modules/.installed $(wildcard scripts/apitypings/*) \
+		$(shell find ./codersdk $(FIND_EXCLUSIONS) -type f -name '*.go') \
+		$(wildcard coderd/healthcheck/health/*.go) \
+		$(wildcard codersdk/healthsdk/*.go) | _gen _gen/bin/apitypings
 	$(call atomic_write,_gen/bin/apitypings,./scripts/biome_format.sh)
 
 site/e2e/provisionerGenerated.ts: site/node_modules/.installed provisionerd/proto/provisionerd.pb.go provisionersdk/proto/provisioner.pb.go
@@ -1576,6 +1634,9 @@ endif
 
 dogfood/coder/nix.hash: flake.nix flake.lock
 	sha256sum flake.nix flake.lock >./dogfood/coder/nix.hash
+
+dogfood/coder/mise.hash: mise.toml mise.lock
+	sha256sum mise.toml mise.lock >./dogfood/coder/mise.hash
 
 # Count the number of test databases created per test package.
 count-test-databases:

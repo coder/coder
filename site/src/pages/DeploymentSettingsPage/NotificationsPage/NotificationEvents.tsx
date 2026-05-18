@@ -17,7 +17,6 @@ import {
 import type { DeploymentValues } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
-import { Stack } from "#/components/Stack/Stack";
 import {
 	Tooltip,
 	TooltipContent,
@@ -67,7 +66,7 @@ export const NotificationEvents: FC<NotificationEventsProps> = ({
 	]);
 
 	return (
-		<Stack spacing={4}>
+		<div className="flex flex-col gap-8">
 			{hasWebhookNotifications && !isWebhookConfigured && (
 				<Alert
 					severity="warning"
@@ -140,7 +139,7 @@ export const NotificationEvents: FC<NotificationEventsProps> = ({
 					</List>
 				</Card>
 			))}
-		</Stack>
+		</div>
 	);
 };
 

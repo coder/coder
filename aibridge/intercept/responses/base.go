@@ -4,7 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -13,8 +16,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 	"github.com/openai/openai-go/v3/responses"
+	"github.com/openai/openai-go/v3/shared"
 	"github.com/openai/openai-go/v3/shared/constant"
 	"github.com/tidwall/gjson"
 	"go.opentelemetry.io/otel/attribute"
@@ -26,9 +31,11 @@ import (
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/apidump"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
+	"github.com/coder/coder/v2/aibridge/utils"
 	"github.com/coder/quartz"
 )
 
@@ -53,11 +60,19 @@ type responsesInterceptionBase struct {
 	credential intercept.CredentialInfo
 }
 
+// newResponsesService builds the SDK service used for upstream
+// calls. BYOK auth is set here. Centralized auth is set
+// per-attempt by the failover loop.
 func (i *responsesInterceptionBase) newResponsesService() responses.ResponseService {
-	opts := []option.RequestOption{option.WithBaseURL(i.cfg.BaseURL), option.WithAPIKey(i.cfg.Key)}
-	if i.cfg.MaxRetries != nil {
-		opts = append(opts, option.WithMaxRetries(*i.cfg.MaxRetries))
+	// TODO(ssncferreira): validate auth is configured per
+	// https://github.com/coder/aibridge/issues/266.
+
+	var opts []option.RequestOption
+	// BYOK auth.
+	if i.cfg.KeyPool == nil {
+		opts = append(opts, option.WithAPIKey(i.cfg.Key))
 	}
+	opts = append(opts, option.WithBaseURL(i.cfg.BaseURL))
 
 	// Add extra headers if configured.
 	// Some providers require additional headers that are not added by the SDK.
@@ -125,6 +140,117 @@ func (i *responsesInterceptionBase) validateRequest(ctx context.Context, w http.
 	}
 
 	return nil
+}
+
+// writeUpstreamError marshals and writes a given error.
+func (i *responsesInterceptionBase) writeUpstreamError(w http.ResponseWriter, oaiErr *ResponseError) {
+	if oaiErr == nil {
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	// Set Retry-After when a cooldown is configured.
+	if oaiErr.RetryAfter > 0 {
+		w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(oaiErr.RetryAfter.Seconds()))))
+	}
+	w.WriteHeader(oaiErr.StatusCode)
+
+	out, err := json.Marshal(oaiErr)
+	if err != nil {
+		i.logger.Warn(context.Background(), "failed to marshal upstream error", slog.Error(err), slog.F("error_payload", fmt.Sprintf("%+v", oaiErr)))
+		// Response has to match expected format.
+		_, _ = w.Write([]byte(`{
+	"error": {
+		"type": "error",
+		"message":"error marshaling upstream error",
+		"code": "server_error"
+	}
+}`))
+	} else {
+		_, _ = w.Write(out)
+	}
+}
+
+// For centralized requests, markKeyOnError extracts an OpenAI
+// SDK error from err and marks the key based on its status
+// code. Returns true if the status was a key-specific failover
+// trigger so callers can retry with the next key.
+func (i *responsesInterceptionBase) markKeyOnError(ctx context.Context, key *keypool.Key, err error) bool {
+	if i.cfg.KeyPool == nil {
+		return false
+	}
+	var apiErr *openai.Error
+	if !errors.As(err, &apiErr) {
+		return false
+	}
+	return keypool.MarkKeyOnStatus(
+		ctx, key, apiErr.Response,
+		i.logger, i.providerName,
+	)
+}
+
+// ProcessKeyPoolError translates a keypool exhaustion error
+// into a developer-facing ResponseError shaped for the OpenAI
+// API. Returns nil if err is not an exhaustion error.
+func ProcessKeyPoolError(err error) *ResponseError {
+	var transient *keypool.TransientKeyPoolError
+	switch {
+	case errors.As(err, &transient):
+		return newErrorResponse(
+			"all configured keys are rate-limited",
+			intercept.OpenAIErrTypeRateLimit,
+			intercept.OpenAIErrCodeRateLimit,
+			http.StatusTooManyRequests,
+			transient.RetryAfter,
+		)
+	case errors.Is(err, keypool.ErrPermanentKeyPool):
+		return newErrorResponse(
+			"all configured keys failed authentication",
+			intercept.OpenAIErrTypeAPI,
+			intercept.OpenAIErrCodeServer,
+			http.StatusBadGateway,
+			0,
+		)
+	default:
+		return nil
+	}
+}
+
+func newErrorResponse(msg, errType, code string, status int, retryAfter time.Duration) *ResponseError {
+	return &ResponseError{
+		ErrorObject: &shared.ErrorObject{
+			Code:    code,
+			Message: msg,
+			Type:    errType,
+		},
+		StatusCode: status,
+		RetryAfter: retryAfter,
+	}
+}
+
+var _ error = &ResponseError{}
+
+type ResponseError struct {
+	ErrorObject *shared.ErrorObject `json:"error"`
+	StatusCode  int                 `json:"-"`
+	RetryAfter  time.Duration       `json:"-"`
+}
+
+func (e *ResponseError) Error() string {
+	if e.ErrorObject == nil {
+		return ""
+	}
+	return e.ErrorObject.Message
+}
+
+// ToResponse marshals e into an *http.Response shaped for the
+// OpenAI API.
+func (e *ResponseError) ToResponse() *http.Response {
+	body, err := json.Marshal(e)
+	if err != nil {
+		body = []byte(`{"error":{"type":"error","message":"error marshaling upstream error","code":"server_error"}}`)
+	}
+	return utils.NewJSONErrorResponse(e.StatusCode, e.RetryAfter, body)
 }
 
 // sendCustomErr sends custom responses.Error error to the client
@@ -261,7 +387,6 @@ func (i *responsesInterceptionBase) recordTokenUsage(ctx context.Context, respon
 		Output:               usage.OutputTokens,
 		CacheReadInputTokens: usage.InputTokensDetails.CachedTokens,
 		ExtraTokenTypes: map[string]int64{
-			"input_cached":     usage.InputTokensDetails.CachedTokens, // TODO: remove from ExtraTokenTypes (https://github.com/coder/aibridge/issues/243)
 			"output_reasoning": usage.OutputTokensDetails.ReasoningTokens,
 			"total_tokens":     usage.TotalTokens,
 		},

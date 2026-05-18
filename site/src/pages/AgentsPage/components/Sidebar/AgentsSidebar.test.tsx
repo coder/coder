@@ -1,10 +1,12 @@
-import { act, render } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { FC, PropsWithChildren } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
+import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
 import {
@@ -64,7 +66,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	pin_order: 0,
 	has_unread: false,
 	client_type: "ui",
-	last_error: null,
+	last_turn_summary: null,
 	mcp_server_ids: [],
 	labels: {},
 	children: [],
@@ -90,11 +92,13 @@ const Wrapper: FC<PropsWithChildren> = ({ children }) => {
 	return (
 		<QueryClientProvider client={queryClient}>
 			<ThemeOverride theme={themes[DEFAULT_THEME]}>
-				<MemoryRouter initialEntries={["/agents"]}>
-					<DashboardContext.Provider value={dashboardValue}>
-						{children}
-					</DashboardContext.Provider>
-				</MemoryRouter>
+				<TooltipProvider>
+					<MemoryRouter initialEntries={["/agents"]}>
+						<DashboardContext.Provider value={dashboardValue}>
+							{children}
+						</DashboardContext.Provider>
+					</MemoryRouter>
+				</TooltipProvider>
 			</ThemeOverride>
 		</QueryClientProvider>
 	);
@@ -118,6 +122,47 @@ const defaultProps: React.ComponentProps<typeof AgentsSidebar> = {
 };
 
 // ---- Tests ----
+
+describe("AgentsSidebar archived filter", () => {
+	it("calls the filter change callback from the dropdown", async () => {
+		const user = userEvent.setup();
+		const onArchivedFilterChange = vi.fn();
+
+		render(
+			<Wrapper>
+				<AgentsSidebar
+					{...defaultProps}
+					onArchivedFilterChange={onArchivedFilterChange}
+				/>
+			</Wrapper>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Filter agents" }));
+		await user.click(screen.getByRole("menuitem", { name: /archived/i }));
+
+		expect(onArchivedFilterChange).toHaveBeenCalledWith("archived");
+	});
+
+	it("calls the filter change callback from the empty-state link", async () => {
+		const user = userEvent.setup();
+		const onArchivedFilterChange = vi.fn();
+
+		render(
+			<Wrapper>
+				<AgentsSidebar
+					{...defaultProps}
+					chats={[]}
+					archivedFilter="archived"
+					onArchivedFilterChange={onArchivedFilterChange}
+				/>
+			</Wrapper>,
+		);
+
+		await user.click(screen.getByRole("button", { name: /back to active/i }));
+
+		expect(onArchivedFilterChange).toHaveBeenCalledWith("active");
+	});
+});
 
 describe("AgentsSidebar load-more behavior", () => {
 	beforeEach(() => {
@@ -289,7 +334,7 @@ describe("AgentsSidebar load-more behavior", () => {
 					{...defaultProps}
 					hasNextPage
 					onLoadMore={onLoadMore}
-					isFetchingNextPage={true}
+					isFetchingNextPage
 				/>
 			</Wrapper>,
 		);
@@ -476,5 +521,106 @@ describe("AgentsSidebar model display names", () => {
 		// to the actual model display name, not "Default model".
 		expect(getByText("GPT-4o")).toBeInTheDocument();
 		expect(queryByText("Default model")).not.toBeInTheDocument();
+	});
+});
+
+describe("AgentsSidebar subtitles", () => {
+	const modelOptions = [
+		{
+			id: "model-1",
+			provider: "openai",
+			model: "gpt-4o",
+			displayName: "GPT-4o",
+		},
+	];
+
+	it("shows the last turn summary when present and no error exists", () => {
+		render(
+			<Wrapper>
+				<AgentsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "summary-chat",
+							title: "Summary chat",
+							last_turn_summary: "Updated the Terraform template",
+						}),
+					]}
+					modelOptions={modelOptions}
+				/>
+			</Wrapper>,
+		);
+
+		expect(
+			screen.getByText("Updated the Terraform template"),
+		).toBeInTheDocument();
+		expect(screen.queryByText("GPT-4o")).not.toBeInTheDocument();
+	});
+
+	it("shows the error when both error and last turn summary exist", () => {
+		render(
+			<Wrapper>
+				<AgentsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "summary-error-chat",
+							title: "Summary error chat",
+							status: "error",
+							last_error: {
+								message: "Workspace startup failed",
+								retryable: false,
+							},
+							last_turn_summary: "Provisioned a workspace",
+						}),
+					]}
+					modelOptions={modelOptions}
+				/>
+			</Wrapper>,
+		);
+
+		expect(screen.getByText("Workspace startup failed")).toBeInTheDocument();
+		expect(
+			screen.queryByText("Provisioned a workspace"),
+		).not.toBeInTheDocument();
+	});
+
+	it("falls back to the model name when no last turn summary exists", () => {
+		render(
+			<Wrapper>
+				<AgentsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "model-fallback-chat",
+							title: "Model fallback chat",
+						}),
+					]}
+					modelOptions={modelOptions}
+				/>
+			</Wrapper>,
+		);
+
+		expect(screen.getByText("GPT-4o")).toBeInTheDocument();
+	});
+
+	it("falls back to the model name when the last turn summary is blank", () => {
+		render(
+			<Wrapper>
+				<AgentsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "blank-summary-chat",
+							title: "Blank summary chat",
+							last_turn_summary: "   ",
+						}),
+					]}
+					modelOptions={modelOptions}
+				/>
+			</Wrapper>,
+		);
+
+		expect(screen.getByText("GPT-4o")).toBeInTheDocument();
 	});
 });

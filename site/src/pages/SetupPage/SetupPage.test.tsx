@@ -124,7 +124,7 @@ describe("Setup Page", () => {
 
 	it("calls sendBeacon with telemetry", async () => {
 		const sendBeacon = vi.fn();
-		Object.defineProperty(window.navigator, "sendBeacon", {
+		Object.defineProperty(navigator, "sendBeacon", {
 			value: sendBeacon,
 		});
 		renderWithRouter(

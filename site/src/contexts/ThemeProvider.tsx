@@ -16,55 +16,28 @@ import {
 	type PropsWithChildren,
 	type ReactNode,
 	useEffect,
-	useMemo,
-	useState,
 } from "react";
 import { useQuery } from "react-query";
 import { appearanceSettings } from "#/api/queries/users";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
-import themes, { DEFAULT_THEME, type Theme } from "#/theme";
+import themes, { baseModeFor, CONCRETE_THEMES, type Theme } from "#/theme";
+import {
+	migrateLegacyPreference,
+	resolveActiveThemeName,
+} from "#/theme/themeMode";
+import { usePreferredColorScheme } from "#/theme/usePreferredColorScheme";
 
-/**
- *
- */
 export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 	const { metadata } = useEmbeddedMetadata();
 	const appearanceSettingsQuery = useQuery(
 		appearanceSettings(metadata.userAppearance),
 	);
-	const themeQuery = useMemo(
-		() => window.matchMedia?.("(prefers-color-scheme: light)"),
-		[],
-	);
-	const [preferredColorScheme, setPreferredColorScheme] = useState<
-		"dark" | "light"
-	>(themeQuery?.matches ? "light" : "dark");
+	const preferredColorScheme = usePreferredColorScheme();
 
-	useEffect(() => {
-		if (!themeQuery) {
-			return;
-		}
-
-		const listener = (event: MediaQueryListEvent) => {
-			setPreferredColorScheme(event.matches ? "light" : "dark");
-		};
-
-		// `addEventListener` here is a recent API that isn't mocked in tests.
-		themeQuery.addEventListener?.("change", listener);
-		return () => {
-			themeQuery.removeEventListener?.("change", listener);
-		};
-	}, [themeQuery]);
-
-	// We might not be logged in yet, or the `theme_preference` could be an empty string.
-	// Prefer JS-fetched value, fall back to server-rendered meta tag, then default.
-	const themePreference =
-		appearanceSettingsQuery.data?.theme_preference ||
-		metadata.userAppearance?.value?.theme_preference ||
-		DEFAULT_THEME;
-	// The janky casting here is fine because of the much more type safe fallback
-	// We need to support `themePreference` being wrong anyway because the database
-	// value could be anything, like an empty string.
+	const settings =
+		appearanceSettingsQuery.data ?? metadata.userAppearance?.value ?? {};
+	const state = migrateLegacyPreference(settings);
+	const concreteName = resolveActiveThemeName(state, preferredColorScheme);
 
 	useEffect(() => {
 		const root = document.documentElement;
@@ -72,22 +45,17 @@ export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 		if (root.dataset.embedTheme) {
 			return;
 		}
-		if (themePreference === "auto") {
-			root.classList.add(preferredColorScheme);
-		} else {
-			root.classList.add(themePreference);
-		}
+		root.classList.add(concreteName);
+		root.classList.add(baseModeFor(concreteName));
 
 		return () => {
 			if (!root.dataset.embedTheme) {
-				root.classList.remove("light", "dark");
+				root.classList.remove(...CONCRETE_THEMES);
 			}
 		};
-	}, [themePreference, preferredColorScheme]);
+	}, [concreteName]);
 
-	const theme =
-		themes[themePreference as keyof typeof themes] ??
-		themes[preferredColorScheme];
+	const theme = themes[concreteName];
 
 	return (
 		<StyledEngineProvider injectFirst>

@@ -12,7 +12,6 @@ import {
 	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
-import { Stack } from "#/components/Stack/Stack";
 import {
 	Tooltip,
 	TooltipContent,
@@ -32,17 +31,15 @@ export const ObservabilitySettingsPageView: FC<
 	ObservabilitySettingsPageViewProps
 > = ({ options, featureAuditLogEnabled, isPremium }) => {
 	return (
-		<Stack direction="column" spacing={6}>
+		<div className="flex flex-col gap-12">
 			<div>
-				<SettingsHeader>
+				<SettingsHeader
+					actions={<SettingsHeaderDocsLink href={docs("/admin/monitoring")} />}
+				>
 					<SettingsHeaderTitle>Observability</SettingsHeaderTitle>
 				</SettingsHeader>
 
-				<SettingsHeader
-					actions={
-						<SettingsHeaderDocsLink href={docs("/admin/security/audit-logs")} />
-					}
-				>
+				<SettingsHeader>
 					<SettingsHeaderTitle hierarchy="secondary" level="h2">
 						Audit Logging
 					</SettingsHeaderTitle>
@@ -94,6 +91,6 @@ export const ObservabilitySettingsPageView: FC<
 					)}
 				/>
 			</div>
-		</Stack>
+		</div>
 	);
 };

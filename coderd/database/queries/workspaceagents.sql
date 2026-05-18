@@ -22,6 +22,38 @@ WHERE
 ORDER BY
 	created_at DESC;
 
+-- name: GetWorkspaceBuildAgentsByInstanceID :many
+SELECT
+	sqlc.embed(workspace_agents),
+	workspace_builds.id AS workspace_build_id,
+	sqlc.embed(workspaces)
+FROM
+	workspace_agents
+JOIN
+	workspace_resources
+ON
+	workspace_resources.id = workspace_agents.resource_id
+JOIN
+	workspace_builds
+ON
+	workspace_builds.job_id = workspace_resources.job_id
+JOIN
+	provisioner_jobs
+ON
+	provisioner_jobs.id = workspace_builds.job_id
+JOIN
+	workspaces
+ON
+	workspaces.id = workspace_builds.workspace_id
+WHERE
+	workspace_agents.auth_instance_id = @auth_instance_id :: TEXT
+	AND workspace_agents.deleted = FALSE
+	AND workspace_agents.parent_id IS NULL
+	AND provisioner_jobs.type = 'workspace_build'::provisioner_job_type
+	AND workspaces.deleted = FALSE
+ORDER BY
+	workspace_agents.created_at DESC;
+
 -- name: GetWorkspaceAgentsByResourceIDs :many
 SELECT
 	*
@@ -485,3 +517,38 @@ WHERE
 	AND workspaces.deleted = FALSE
 	AND users.deleted = FALSE
 LIMIT 1;
+
+-- name: SoftDeletePriorWorkspaceAgents :exec
+-- Marks agents from all prior builds of this workspace as deleted,
+-- preserving only agents belonging to @current_build_id. Called from
+-- provisionerdserver when a workspace build completes, after the new
+-- build's agents have been inserted, so running agents are not
+-- deleted while a build is still queued or provisioning.
+UPDATE workspace_agents
+SET deleted = TRUE
+WHERE id IN (
+    SELECT wa.id
+    FROM workspace_agents wa
+    JOIN workspace_resources wr ON wr.id = wa.resource_id
+    JOIN workspace_builds wb ON wb.job_id = wr.job_id
+    WHERE wb.workspace_id = @workspace_id
+      AND wb.id <> @current_build_id
+      AND wa.deleted = FALSE
+);
+
+-- name: SoftDeleteWorkspaceAgentsByWorkspaceID :exec
+-- Marks every non-deleted agent belonging to the given workspace as
+-- deleted. Called alongside UpdateWorkspaceDeletedByID when a workspace
+-- itself is soft-deleted, so the agent instance-identity auth path
+-- (which filters on workspace_agents.deleted) doesn't keep seeing
+-- orphaned rows.
+UPDATE workspace_agents
+SET deleted = TRUE
+WHERE id IN (
+    SELECT wa.id
+    FROM workspace_agents wa
+    JOIN workspace_resources wr ON wr.id = wa.resource_id
+    JOIN workspace_builds wb ON wb.job_id = wr.job_id
+    WHERE wb.workspace_id = @workspace_id
+      AND wa.deleted = FALSE
+);

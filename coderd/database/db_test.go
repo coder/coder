@@ -5,9 +5,11 @@ import (
 	"database/sql"
 	"testing"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -80,6 +82,33 @@ func TestNestedInTx(t *testing.T) {
 	user, err := db.GetUserByID(context.Background(), uid)
 	require.NoError(t, err, "user exists")
 	require.Equal(t, uid, user.ID, "user id expected")
+}
+
+func TestInTx_CapturesRollbackError(t *testing.T) {
+	t.Parallel()
+
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = sqlDB.Close() })
+
+	db := database.New(sqlDB)
+
+	callbackErr := xerrors.New("callback failed")
+	rollbackErr := xerrors.New("rollback failed")
+
+	mock.ExpectBegin()
+	mock.ExpectRollback().WillReturnError(rollbackErr)
+
+	err = db.InTx(func(_ database.Store) error {
+		return callbackErr
+	}, nil)
+	require.EqualError(t, err, "defer (rollback failed): execute transaction: callback failed")
+	require.ErrorIs(t, err, callbackErr,
+		"returned error should still match the callback error when rollback fails")
+	require.NotErrorIs(t, err, rollbackErr,
+		"rollback failure should be reported in the message, not wrapped in the error chain")
+
+	require.NoError(t, mock.ExpectationsWereMet())
 }
 
 func testSQLDB(t testing.TB) *sql.DB {

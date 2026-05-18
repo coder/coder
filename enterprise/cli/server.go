@@ -168,7 +168,7 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 		if bridgeEnabled || proxyEnabled {
 			providers, err := buildProviders(options.DeploymentValues.AI.BridgeConfig)
 			if err != nil {
-				return nil, nil, xerrors.Errorf("build aibridge providers: %w", err)
+				return nil, nil, xerrors.Errorf("build AI providers: %w", err)
 			}
 
 			// In-memory aibridge daemon.

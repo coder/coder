@@ -3,6 +3,7 @@ import { toast } from "sonner";
 
 const CLIPBOARD_TIMEOUT_MS = 1_000;
 export const COPY_FAILED_MESSAGE = "Failed to copy text to clipboard";
+const DIALOG_SELECTOR = 'dialog[open], [role="dialog"], [role="alertdialog"]';
 export const HTTP_FALLBACK_DATA_ID = "http-fallback";
 
 export type UseClipboardInput = Readonly<{
@@ -61,7 +62,7 @@ export const useClipboard = (
 			};
 
 			try {
-				await window.navigator.clipboard.writeText(textToCopy);
+				await navigator.clipboard.writeText(textToCopy);
 				markSuccess();
 			} catch (err) {
 				const fallbackCopySuccessful = simulateClipboardWrite(textToCopy);
@@ -99,6 +100,14 @@ export const useClipboard = (
 function simulateClipboardWrite(textToCopy: string): boolean {
 	const previousFocusTarget = document.activeElement;
 	const dummyInput = document.createElement("input");
+	// Keep the dummy input inside an open dialog so focus traps allow
+	// execCommand("copy") to select it.
+	const activeDialog =
+		previousFocusTarget instanceof HTMLElement
+			? previousFocusTarget.closest(DIALOG_SELECTOR)
+			: undefined;
+	const dummyInputContainer =
+		activeDialog ?? document.querySelector(DIALOG_SELECTOR) ?? document.body;
 
 	// Have to add test ID to dummy element for mocking purposes in tests
 	dummyInput.setAttribute("data-testid", HTTP_FALLBACK_DATA_ID);
@@ -119,7 +128,7 @@ function simulateClipboardWrite(textToCopy: string): boolean {
 	style.padding = "0";
 	style.border = "0";
 
-	document.body.appendChild(dummyInput);
+	dummyInputContainer.appendChild(dummyInput);
 	dummyInput.value = textToCopy;
 	dummyInput.focus();
 	dummyInput.select();

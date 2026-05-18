@@ -22,8 +22,12 @@ type EditFilesArgs struct {
 func EditFiles(options EditFilesOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"edit_files",
-		"Perform search-and-replace edits on one or more files in the workspace."+
-			" Each file can have multiple edits applied atomically.",
+		"Perform search-and-replace edits on one or more files. Matching"+
+			" is fuzzy (tolerates whitespace and indentation differences) and"+
+			" preserves the file's existing indentation and line endings."+
+			" Errors if search matches zero locations, or more than one unless"+
+			" replace_all is set. All edits in a batch are validated before any"+
+			" file is written.",
 		func(ctx context.Context, args EditFilesArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			var planPath string
 			if options.IsPlanTurn && len(args.Files) > 0 {

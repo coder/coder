@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -394,7 +393,7 @@ func NewMultiReplicaSubscribeFn(
 			case mergedEvents <- codersdk.ChatStreamEvent{
 				Type:   codersdk.ChatStreamEventTypeError,
 				ChatID: chatID,
-				Error:  &codersdk.ChatStreamError{Message: msg},
+				Error:  &codersdk.ChatError{Message: msg},
 			}:
 			case <-ctx.Done():
 			}
@@ -853,8 +852,9 @@ func buildRelayURL(address string, chatID uuid.UUID) (string, error) {
 	u.Path = fmt.Sprintf("/api/experimental/chats/%s/stream", chatID)
 	q := u.Query()
 	// Relays only need live message_part events, not the full
-	// history; pass after_id=MaxInt64 so the peer skips its snapshot.
-	q.Set("after_id", strconv.FormatInt(math.MaxInt64, 10))
+	// history; pass the relay sentinel so the peer skips its
+	// durable DB snapshot and delivers in-flight parts only.
+	q.Set("after_id", strconv.FormatInt(osschatd.RelaySentinelAfterID, 10))
 	u.RawQuery = q.Encode()
 	return u.String(), nil
 }

@@ -2,7 +2,7 @@ import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useParams, useSearchParams } from "react-router";
 import { toast } from "sonner";
-import { getErrorMessage } from "#/api/errors";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { groupsByUserIdInOrganization } from "#/api/queries/groups";
 import {
 	addOrganizationMember,
@@ -18,13 +18,13 @@ import type {
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { useFilter } from "#/components/Filter/Filter";
-import { Stack } from "#/components/Stack/Stack";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { shouldShowAISeatColumn } from "#/modules/dashboard/entitlements";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useOrganizationSettings } from "#/modules/management/OrganizationSettingsLayout";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import { RoleSelectorDialog } from "#/modules/roles/RoleSelectorDialog";
 import { pageTitle } from "#/utils/page";
 import { OrganizationMembersPageView } from "./OrganizationMembersPageView";
 
@@ -63,15 +63,18 @@ const OrganizationMembersPage: FC = () => {
 	const addMemberMutation = useMutation(
 		addOrganizationMember(queryClient, organizationName),
 	);
-	const removeMemberMutation = useMutation(
-		removeOrganizationMember(queryClient, organizationName),
-	);
+
+	const [memberToEditRoles, setMemberToEditRoles] =
+		useState<OrganizationMemberWithUserData>();
 	const updateMemberRolesMutation = useMutation(
 		updateOrganizationMemberRoles(queryClient, organizationName),
 	);
 
-	const [memberToDelete, setMemberToDelete] =
+	const [memberToRemove, setMemberToRemove] =
 		useState<OrganizationMemberWithUserData>();
+	const removeMemberMutation = useMutation(
+		removeOrganizationMember(queryClient, organizationName),
+	);
 
 	if (!organization) {
 		return <EmptyState message="Organization not found" />;
@@ -96,23 +99,18 @@ const OrganizationMembersPage: FC = () => {
 		<>
 			{title}
 			<OrganizationMembersPageView
-				allAvailableRoles={organizationRolesQuery.data}
-				canEditMembers={organizationPermissions.editMembers}
-				canViewMembers={organizationPermissions.viewMembers}
-				filterProps={{ filter: filterProps }}
 				error={
 					membersQuery.error ??
 					organizationRolesQuery.error ??
-					groupsByUserIdQuery.error ??
 					addMemberMutation.error ??
 					removeMemberMutation.error ??
 					updateMemberRolesMutation.error
 				}
-				isUpdatingMemberRoles={updateMemberRolesMutation.isPending}
-				showAISeatColumn={showAISeatColumn}
-				me={me}
-				members={members}
+				filterProps={{ filter: filterProps }}
+				organizationName={organizationName}
 				membersQuery={membersQuery}
+				members={members}
+				showAISeatColumn={showAISeatColumn}
 				addMembers={async (users: User[]) => {
 					// TODO: Replace with a batch endpoint (POST /organizations/{org}/members)
 					// to add all users in a single request instead of N individual calls.
@@ -122,28 +120,49 @@ const OrganizationMembersPage: FC = () => {
 					);
 					void membersQuery.refetch();
 				}}
-				removeMember={setMemberToDelete}
-				updateMemberRoles={async (
-					member: OrganizationMemberWithUserData,
-					newRoles: string[],
-				) => {
-					await updateMemberRolesMutation.mutateAsync({
-						userId: member.user_id,
-						roles: newRoles,
-					});
+				onEditMemberRoles={setMemberToEditRoles}
+				isUpdatingMemberRoles={updateMemberRolesMutation.isPending}
+				removeMember={setMemberToRemove}
+				me={me.id}
+				canEditMembers={organizationPermissions.editMembers}
+				canViewMembers={organizationPermissions.viewMembers}
+				canViewActivity={entitlements.features.audit_log.enabled}
+			/>
+
+			<RoleSelectorDialog
+				key={memberToEditRoles?.username}
+				user={memberToEditRoles}
+				availableRoles={organizationRolesQuery.data}
+				onCancel={() => setMemberToEditRoles(undefined)}
+				onUpdateRoles={async (roles) => {
+					try {
+						await updateMemberRolesMutation.mutateAsync({
+							userId: memberToEditRoles!.user_id,
+							roles,
+						});
+						toast.success(
+							`${memberToEditRoles!.username}'s roles have been updated.`,
+						);
+						setMemberToEditRoles(undefined);
+					} catch (e) {
+						toast.error(getErrorMessage(e, "Error updating member roles."), {
+							description: getErrorDetail(e),
+						});
+					}
 				}}
+				isUpdatingRoles={updateMemberRolesMutation.isPending}
 			/>
 
 			<ConfirmDialog
 				type="delete"
-				open={memberToDelete !== undefined}
-				onClose={() => setMemberToDelete(undefined)}
+				open={memberToRemove !== undefined}
+				onClose={() => setMemberToRemove(undefined)}
 				title="Remove member"
 				confirmText="Remove"
 				onConfirm={() => {
-					if (memberToDelete) {
+					if (memberToRemove) {
 						const mutation = removeMemberMutation.mutateAsync(
-							memberToDelete.user_id,
+							memberToRemove.user_id,
 							{
 								onSuccess: () => {
 									membersQuery.refetch();
@@ -151,19 +170,19 @@ const OrganizationMembersPage: FC = () => {
 							},
 						);
 						toast.promise(mutation, {
-							loading: `Removing member "${memberToDelete.username}" from organization "${organization.display_name}"...`,
-							success: `User "${memberToDelete.username}" removed from organization "${organization.display_name}" successfully.`,
+							loading: `Removing "${memberToRemove.username}" from "${organization.display_name}"...`,
+							success: `"${memberToRemove.username}" has been removed from "${organization.display_name}".`,
 							error: (error) =>
 								getErrorMessage(
 									error,
-									`Failed to remove user "${memberToDelete.username}" from organization "${organization.display_name}".`,
+									`Failed to remove "${memberToRemove.username}" from "${organization.display_name}".`,
 								),
 						});
-						setMemberToDelete(undefined);
+						setMemberToRemove(undefined);
 					}
 				}}
 				description={
-					<Stack>
+					<div className="flex flex-col gap-4">
 						<p>
 							Removing this member will:
 							<ul>
@@ -177,7 +196,7 @@ const OrganizationMembersPage: FC = () => {
 						</p>
 
 						<p className="pb-5">Are you sure you want to remove this member?</p>
-					</Stack>
+					</div>
 				}
 			/>
 		</>

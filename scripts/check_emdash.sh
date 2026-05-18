@@ -23,6 +23,9 @@ pattern="${emdash}|${endash}"
 # Git exclude_pathspecs excluded from the check. Used in both ls-files and diff comparison.
 exclude_pathspecs=(
 	":(exclude)aibridge/fixtures/**/*.txtar"
+	# Generated CLI golden files embed serpent's emdash-bordered footer.
+	":(exclude)cli/testdata/*.golden"
+	":(exclude)enterprise/cli/testdata/*.golden"
 )
 
 scan_all_files() {

@@ -49,7 +49,7 @@ func TestListTemplates_OrganizationFilter(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		tool := chattool.ListTemplates(orgA.ID, db, chattool.ListTemplatesOptions{
+		tool := chattool.ListTemplates(db, orgA.ID, chattool.ListTemplatesOptions{
 			OwnerID: user.ID,
 		})
 
@@ -69,7 +69,7 @@ func TestListTemplates_OrganizationFilter(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		tool := chattool.ListTemplates(uuid.Nil, db, chattool.ListTemplatesOptions{
+		tool := chattool.ListTemplates(db, uuid.Nil, chattool.ListTemplatesOptions{
 			OwnerID: user.ID,
 			// Pass uuid.Nil to skip org filtering.
 		})
@@ -89,7 +89,7 @@ func TestListTemplates_OrganizationFilter(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		// Tool scoped to orgA, but requesting a template in orgB.
-		tool := chattool.ReadTemplate(orgA.ID, db, chattool.ReadTemplateOptions{
+		tool := chattool.ReadTemplate(db, orgA.ID, chattool.ReadTemplateOptions{
 			OwnerID: user.ID,
 		})
 
@@ -105,7 +105,7 @@ func TestListTemplates_OrganizationFilter(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		// Tool scoped to orgA, requesting a template in orgA.
-		tool := chattool.ReadTemplate(orgA.ID, db, chattool.ReadTemplateOptions{
+		tool := chattool.ReadTemplate(db, orgA.ID, chattool.ReadTemplateOptions{
 			OwnerID: user.ID,
 		})
 
@@ -147,7 +147,7 @@ func TestTemplateAllowlistEnforcement(t *testing.T) {
 
 	t.Run("ListTemplates", func(t *testing.T) {
 		t.Run("NoAllowlist", func(t *testing.T) {
-			tool := chattool.ListTemplates(uuid.Nil, db, chattool.ListTemplatesOptions{
+			tool := chattool.ListTemplates(db, uuid.Nil, chattool.ListTemplatesOptions{
 				OwnerID: user.ID,
 			})
 
@@ -160,7 +160,7 @@ func TestTemplateAllowlistEnforcement(t *testing.T) {
 		})
 
 		t.Run("EmptyAllowlist", func(t *testing.T) {
-			tool := chattool.ListTemplates(uuid.Nil, db, chattool.ListTemplatesOptions{
+			tool := chattool.ListTemplates(db, uuid.Nil, chattool.ListTemplatesOptions{
 				OwnerID:            user.ID,
 				AllowedTemplateIDs: func() map[uuid.UUID]bool { return map[uuid.UUID]bool{} },
 			})
@@ -174,7 +174,7 @@ func TestTemplateAllowlistEnforcement(t *testing.T) {
 		})
 
 		t.Run("OneMatch", func(t *testing.T) {
-			tool := chattool.ListTemplates(uuid.Nil, db, chattool.ListTemplatesOptions{
+			tool := chattool.ListTemplates(db, uuid.Nil, chattool.ListTemplatesOptions{
 				OwnerID:            user.ID,
 				AllowedTemplateIDs: func() map[uuid.UUID]bool { return map[uuid.UUID]bool{t1.ID: true} },
 			})
@@ -190,7 +190,7 @@ func TestTemplateAllowlistEnforcement(t *testing.T) {
 		})
 
 		t.Run("NoMatches", func(t *testing.T) {
-			tool := chattool.ListTemplates(uuid.Nil, db, chattool.ListTemplatesOptions{
+			tool := chattool.ListTemplates(db, uuid.Nil, chattool.ListTemplatesOptions{
 				OwnerID:            user.ID,
 				AllowedTemplateIDs: func() map[uuid.UUID]bool { return map[uuid.UUID]bool{uuid.New(): true} },
 			})
@@ -206,7 +206,7 @@ func TestTemplateAllowlistEnforcement(t *testing.T) {
 
 	t.Run("ReadTemplate", func(t *testing.T) {
 		t.Run("Allowed", func(t *testing.T) {
-			tool := chattool.ReadTemplate(org.ID, db, chattool.ReadTemplateOptions{
+			tool := chattool.ReadTemplate(db, org.ID, chattool.ReadTemplateOptions{
 				OwnerID:            user.ID,
 				AllowedTemplateIDs: func() map[uuid.UUID]bool { return map[uuid.UUID]bool{t1.ID: true} },
 			})
@@ -221,7 +221,7 @@ func TestTemplateAllowlistEnforcement(t *testing.T) {
 		})
 
 		t.Run("Disallowed", func(t *testing.T) {
-			tool := chattool.ReadTemplate(org.ID, db, chattool.ReadTemplateOptions{
+			tool := chattool.ReadTemplate(db, org.ID, chattool.ReadTemplateOptions{
 				OwnerID:            user.ID,
 				AllowedTemplateIDs: func() map[uuid.UUID]bool { return map[uuid.UUID]bool{uuid.New(): true} },
 			})
@@ -233,7 +233,7 @@ func TestTemplateAllowlistEnforcement(t *testing.T) {
 		})
 
 		t.Run("NoAllowlist", func(t *testing.T) {
-			tool := chattool.ReadTemplate(org.ID, db, chattool.ReadTemplateOptions{
+			tool := chattool.ReadTemplate(db, org.ID, chattool.ReadTemplateOptions{
 				OwnerID: user.ID,
 			})
 			input := `{"template_id":"` + t2.ID.String() + `"}`
@@ -245,8 +245,21 @@ func TestTemplateAllowlistEnforcement(t *testing.T) {
 
 	t.Run("CreateWorkspace", func(t *testing.T) {
 		t.Run("Allowed", func(t *testing.T) {
+			// CreateWorkspace requires a real chat row so the existing
+			// workspace lookup can fall through to creation.
+			model := seedModelConfig(t, db)
+			chat, err := db.InsertChat(ctx, database.InsertChatParams{
+				OrganizationID:    org.ID,
+				OwnerID:           user.ID,
+				LastModelConfigID: model.ID,
+				Title:             "allowed-create",
+				Status:            database.ChatStatusWaiting,
+				ClientType:        database.ChatClientTypeApi,
+			})
+			require.NoError(t, err)
+
 			createCalled := false
-			tool := chattool.CreateWorkspace(org.ID, db, chattool.CreateWorkspaceOptions{
+			tool := chattool.CreateWorkspace(db, org.ID, chat.ID, chattool.CreateWorkspaceOptions{
 				OwnerID:            user.ID,
 				AllowedTemplateIDs: func() map[uuid.UUID]bool { return map[uuid.UUID]bool{t1.ID: true} },
 
@@ -268,10 +281,10 @@ func TestTemplateAllowlistEnforcement(t *testing.T) {
 		})
 
 		t.Run("Disallowed", func(t *testing.T) {
-			createCalled := false
-			tool := chattool.CreateWorkspace(uuid.Nil, db, chattool.CreateWorkspaceOptions{
+			var createCalled bool
+			tool := chattool.CreateWorkspace(db, org.ID, uuid.New(), chattool.CreateWorkspaceOptions{
 				OwnerID:            user.ID,
-				AllowedTemplateIDs: func() map[uuid.UUID]bool { return map[uuid.UUID]bool{uuid.New(): true} },
+				AllowedTemplateIDs: func() map[uuid.UUID]bool { return map[uuid.UUID]bool{t2.ID: true} },
 				CreateFn: func(_ context.Context, _ uuid.UUID, _ codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
 					createCalled = true
 					t.Fatal("CreateFn should not be called for blocked template")

@@ -1,10 +1,10 @@
 import { BlocksIcon, HistoryIcon } from "lucide-react";
 import type { FC } from "react";
-import { useNavigate } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { SidebarIconButton } from "#/components/FullPageLayout/Sidebar";
 import { useSearchParamsKey } from "#/hooks/useSearchParamsKey";
+import { linkToTemplate, useLinks } from "#/modules/navigation";
 import { ProvisionerStatusAlert } from "#/modules/provisioners/ProvisionerStatusAlert";
 import { AgentRow } from "#/modules/resources/AgentRow";
 import { WorkspaceTimings } from "#/modules/workspaces/WorkspaceTiming/WorkspaceTimings";
@@ -64,7 +64,12 @@ export const Workspace: FC<WorkspaceProps> = ({
 	handleRetry,
 	handleDebug,
 }) => {
-	const navigate = useNavigate();
+	const getLink = useLinks();
+	const createWorkspaceLink = `${getLink(
+		linkToTemplate(workspace.organization_name, workspace.template_name),
+	)}/workspace`;
+	const templateName =
+		workspace.template_display_name || workspace.template_name;
 
 	const transitionStats =
 		template !== undefined
@@ -153,20 +158,21 @@ export const Workspace: FC<WorkspaceProps> = ({
 					)}
 				</div>
 
-				<div className="relative w-full overflow-y-auto bg-[radial-gradient(circle_at_1px_1px,hsl(var(--content-disabled))_0,transparent_1px)] bg-[-2px_-2px] bg-[length:16px_16px] p-8">
+				<div className="relative w-full overflow-y-auto bg-[radial-gradient(circle_at_1px_1px,hsl(var(--content-disabled))_0,transparent_1px)] bg-[-2px_-2px] bg-[length:16px_16px] p-4 md:p-8">
 					<div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-surface-primary to-transparent"></div>
 
 					<div className="relative z-10">
 						{selectedResource && (
 							<ResourceMetadata
 								resource={selectedResource}
-								className="-mx-8 -mt-8 mb-6"
+								className="-mx-4 -mt-4 mb-6 md:-mx-8 md:-mt-8"
 							/>
 						)}
 						<div className="flex flex-col gap-6 max-w-[1200px] m-auto">
 							{workspace.latest_build.status === "deleted" && (
 								<WorkspaceDeletedBanner
-									handleClick={() => navigate("/templates")}
+									createWorkspaceLink={createWorkspaceLink}
+									templateName={templateName}
 								/>
 							)}
 
@@ -219,7 +225,6 @@ export const Workspace: FC<WorkspaceProps> = ({
 												)}
 												workspace={workspace}
 												template={template}
-												agentScriptTimings={timings?.agent_script_timings}
 												onUpdateAgent={handleUpdate} // On updating the workspace the agent version is also updated
 											/>
 										))}

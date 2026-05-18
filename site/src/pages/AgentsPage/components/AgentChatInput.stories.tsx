@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
+import { withProxyProvider } from "#/testHelpers/storybook";
 import {
 	AgentChatInput,
 	type AgentContextUsage,
@@ -25,8 +26,10 @@ const defaultModelOptions = [
 const meta: Meta<typeof AgentChatInput> = {
 	title: "pages/AgentsPage/AgentChatInput",
 	component: AgentChatInput,
+	decorators: [withProxyProvider()],
 	args: {
 		onSend: fn(),
+		sendShortcut: "enter",
 		onContentChange: fn(),
 		onModelChange: fn(),
 		initialValue: "",
@@ -42,7 +45,134 @@ const meta: Meta<typeof AgentChatInput> = {
 export default meta;
 type Story = StoryObj<typeof AgentChatInput>;
 
+const promptHistory = [
+	"Most recent prompt",
+	"Middle prompt",
+	"Oldest prompt",
+] as const;
+
+const getEditor = (canvasElement: HTMLElement) =>
+	within(canvasElement).getByTestId("chat-message-input");
+
+const expectEditorText = async (editor: HTMLElement, text: string) => {
+	await waitFor(() => {
+		expect(editor.textContent).toBe(text);
+	});
+};
+
 export const Default: Story = {};
+
+export const PromptHistoryCycling: Story = {
+	args: {
+		userPromptHistory: promptHistory,
+	},
+	play: async ({ canvasElement }) => {
+		const editor = getEditor(canvasElement);
+		await expectEditorText(editor, "");
+		await userEvent.click(editor);
+
+		await userEvent.keyboard("{ArrowUp}");
+		await expectEditorText(editor, "Most recent prompt");
+		await userEvent.keyboard("{ArrowUp}");
+		await expectEditorText(editor, "Middle prompt");
+		await userEvent.keyboard("{ArrowUp}");
+		await expectEditorText(editor, "Oldest prompt");
+		await userEvent.keyboard("{ArrowUp}");
+		await expectEditorText(editor, "Oldest prompt");
+
+		await userEvent.keyboard("{ArrowDown}");
+		await expectEditorText(editor, "Middle prompt");
+		await userEvent.keyboard("{ArrowDown}");
+		await expectEditorText(editor, "Most recent prompt");
+		await userEvent.keyboard("{ArrowDown}");
+		await expectEditorText(editor, "");
+
+		await userEvent.keyboard("{ArrowUp}");
+		await expectEditorText(editor, "Most recent prompt");
+		await userEvent.keyboard("{Escape}");
+		await expectEditorText(editor, "");
+	},
+};
+
+export const PromptHistoryCyclingExitsOnTyping: Story = {
+	args: {
+		userPromptHistory: promptHistory,
+	},
+	play: async ({ canvasElement }) => {
+		const editor = getEditor(canvasElement);
+		await expectEditorText(editor, "");
+		await userEvent.click(editor);
+
+		await userEvent.keyboard("{ArrowUp}");
+		await expectEditorText(editor, "Most recent prompt");
+		await userEvent.keyboard("!");
+		await expectEditorText(editor, "Most recent prompt!");
+		await userEvent.keyboard("{ArrowUp}");
+		await expectEditorText(editor, "Most recent prompt!");
+
+		await userEvent.keyboard("{Control>}a{/Control}{Backspace}");
+		await expectEditorText(editor, "");
+		await userEvent.keyboard("{ArrowUp}");
+		await expectEditorText(editor, "Most recent prompt");
+		await userEvent.keyboard("{ArrowDown}");
+		await expectEditorText(editor, "");
+	},
+};
+
+export const NoPromptHistoryUpArrowIsNoOp: Story = {
+	args: {
+		userPromptHistory: [],
+	},
+	play: async ({ canvasElement }) => {
+		const editor = getEditor(canvasElement);
+		await expectEditorText(editor, "");
+		await userEvent.click(editor);
+		await userEvent.keyboard("{ArrowUp}");
+		await expectEditorText(editor, "");
+	},
+};
+
+export const PromptHistorySuppressedWhileEditingHistoryMessage: Story = {
+	args: {
+		isEditingHistoryMessage: true,
+		userPromptHistory: promptHistory,
+	},
+	play: async ({ canvasElement }) => {
+		const editor = getEditor(canvasElement);
+		await expectEditorText(editor, "");
+		await userEvent.click(editor);
+		await userEvent.keyboard("{ArrowUp}");
+		await expectEditorText(editor, "");
+	},
+};
+
+export const PromptHistorySuppressedWhileDisabled: Story = {
+	args: {
+		isDisabled: true,
+		userPromptHistory: promptHistory,
+	},
+	play: async ({ canvasElement }) => {
+		const editor = getEditor(canvasElement);
+		await expectEditorText(editor, "");
+		await userEvent.click(editor);
+		await userEvent.keyboard("{ArrowUp}");
+		await expectEditorText(editor, "");
+	},
+};
+
+export const PromptHistorySuppressedWhileLoading: Story = {
+	args: {
+		isLoading: true,
+		userPromptHistory: promptHistory,
+	},
+	play: async ({ canvasElement }) => {
+		const editor = getEditor(canvasElement);
+		await expectEditorText(editor, "");
+		await userEvent.click(editor);
+		await userEvent.keyboard("{ArrowUp}");
+		await expectEditorText(editor, "");
+	},
+};
 
 export const DisablesSendUntilInput: Story = {
 	play: async ({ canvasElement }) => {
@@ -81,6 +211,54 @@ export const SendsAndClearsInput: Story = {
 	},
 };
 
+export const EnterSendsByDefault: Story = {
+	args: {
+		onSend: fn(),
+		initialValue: "Run focused tests",
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const editor = canvas.getByTestId("chat-message-input");
+		await waitFor(() => {
+			expect(editor.textContent).toBe("Run focused tests");
+		});
+
+		await userEvent.click(editor);
+		await userEvent.keyboard("{Enter}");
+
+		await waitFor(() => {
+			expect(args.onSend).toHaveBeenCalledWith("Run focused tests");
+		});
+	},
+};
+
+export const ModifierEnterSendsWhenRequired: Story = {
+	args: {
+		onSend: fn(),
+		sendShortcut: "modifier_enter",
+		initialValue: "Run focused tests",
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const editor = canvas.getByTestId("chat-message-input");
+		await waitFor(() => {
+			expect(editor.textContent).toBe("Run focused tests");
+		});
+
+		await userEvent.click(editor);
+		await userEvent.keyboard("{Enter}");
+		expect(args.onSend).not.toHaveBeenCalled();
+		await waitFor(() => {
+			expect(editor.querySelectorAll("br").length).toBeGreaterThan(0);
+		});
+
+		await userEvent.keyboard("{Control>}{Enter}{/Control}");
+		await waitFor(() => {
+			expect(args.onSend).toHaveBeenCalledWith("Run focused tests");
+		});
+	},
+};
+
 /**
  * CODAGT-210: On mobile viewports, Enter must insert a newline rather
  * than submit the message, because Shift+Enter is cumbersome on
@@ -93,7 +271,7 @@ export const MobileEnterInsertsNewline: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		const originalMatchMedia = window.matchMedia;
-		window.matchMedia = ((query: string) =>
+		window.matchMedia = (query: string) =>
 			({
 				matches: query === "(max-width: 639px)",
 				media: query,
@@ -103,7 +281,7 @@ export const MobileEnterInsertsNewline: Story = {
 				dispatchEvent: () => true,
 				addListener: () => undefined,
 				removeListener: () => undefined,
-			}) as MediaQueryList) as typeof window.matchMedia;
+			}) as MediaQueryList;
 
 		try {
 			const canvas = within(canvasElement);
@@ -529,6 +707,7 @@ const makeMCPServer = (
 	enabled: overrides.enabled ?? true,
 	model_intent: overrides.model_intent ?? false,
 	allow_in_plan_mode: overrides.allow_in_plan_mode ?? false,
+	forward_coder_headers: overrides.forward_coder_headers ?? false,
 	created_at: overrides.created_at ?? now,
 	updated_at: overrides.updated_at ?? now,
 	auth_connected: overrides.auth_connected ?? false,
@@ -650,9 +829,46 @@ export const PlanningIndicator: Story = {
 		planModeEnabled: true,
 		onPlanModeToggle: fn(),
 	},
+	parameters: {
+		viewport: { defaultViewport: "desktopZoom200" },
+		chromatic: { viewports: [720] },
+	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("Planning")).toBeVisible();
+		expect(
+			canvas.getByRole("button", { name: "Disable plan mode" }),
+		).toBeVisible();
+	},
+};
+
+export const DisablePlanModeFromBadge: Story = {
+	args: {
+		planModeEnabled: true,
+		onPlanModeToggle: fn(),
+	},
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		const dismiss = canvas.getByRole("button", {
+			name: "Disable plan mode",
+		});
+		await userEvent.click(dismiss);
+		expect(args.onPlanModeToggle).toHaveBeenCalledTimes(1);
+		expect(args.onPlanModeToggle).toHaveBeenCalledWith(false);
+	},
+};
+
+export const PlanningIndicatorWithoutToggle: Story = {
+	args: {
+		planModeEnabled: true,
+		onPlanModeToggle: undefined,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Planning")).toBeVisible();
+		expect(
+			canvas.queryByRole("button", { name: "Disable plan mode" }),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -681,6 +897,7 @@ export const DetailPageWorkspacePicker: Story = {
 				id: "ws-detail",
 				name: "agents-workspace",
 				owner_name: "mike",
+				organization_id: "org-1",
 			},
 		],
 		selectedWorkspaceId: "ws-detail",
@@ -771,7 +988,12 @@ export const OverflowBadges: Story = {
 			pagerdutyMCP.id,
 		],
 		workspaceOptions: [
-			{ id: "ws-1", name: "my-long-workspace-name", owner_name: "admin" },
+			{
+				id: "ws-1",
+				name: "my-long-workspace-name",
+				owner_name: "admin",
+				organization_id: "org-1",
+			},
 		],
 		selectedWorkspaceId: "ws-1",
 		onWorkspaceChange: fn(),

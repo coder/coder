@@ -1,5 +1,10 @@
 # Auditing AI Sessions
 
+> [!NOTE]
+> AI Gateway requires the [AI Governance Add-On](../ai-governance.md).
+> As of Coder v2.32, deployments without the add-on will not be able to
+> access AI Gateway.
+
 AI Gateway groups intercepted requests into **sessions** and **threads** to show
 the causal relationships between human prompts and agent actions. This
 structure gives auditors clear provenance over who initiated what, and why.

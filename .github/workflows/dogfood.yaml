@@ -1,6 +1,28 @@
 name: dogfood
 
 on:
+  # Self-reference on `.github/workflows/dogfood.yaml` is intentional.
+  # The runtime cost is bounded and the matrix runs validate the
+  # workflow itself end to end. See DOCS-129 for the broader
+  # workflow-self-reference audit.
+  #
+  # Effects vary by event:
+  #
+  #   PRs: `build_image` builds the image variants but never pushes
+  #   (each `depot/build-push-action` step's `push:` and the
+  #   `Push Nix image` step are gated on `github.ref ==
+  #   'refs/heads/main'`). `deploy_template` runs `terraform init` +
+  #   `validate` only; the apply step and SHA/title gathering are
+  #   gated on main.
+  #
+  #   Pushes to main: `build_image` retags rolling tags on
+  #   `codercom/oss-dogfood` (`:latest`, `:22.04`, `:26.04`),
+  #   `codercom/oss-dogfood-vscode-coder` (`:latest`), and
+  #   `codercom/oss-dogfood-nix` (`:latest`), plus a per-branch tag on
+  #   each. `deploy_template` runs `terraform apply` and creates new
+  #   `coderd_template` versions on dev.coder.com whose `name` is the
+  #   commit short SHA. Content is unchanged when neither `dogfood/**`
+  #   nor the flake files changed, so the new versions are cosmetic.
   push:
     branches:
       - main
@@ -31,7 +53,7 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-4' || 'ubuntu-latest' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
         with:
           egress-policy: audit
 
@@ -91,7 +113,7 @@ jobs:
 
       - name: Login to DockerHub
         if: github.ref == 'refs/heads/main'
-        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
@@ -102,7 +124,14 @@ jobs:
           project: b4q6ltmpzh
           token: ${{ secrets.DEPOT_TOKEN }}
           buildx-fallback: true
-          context: "{{defaultContext}}:dogfood/coder/ubuntu-22.04"
+          # Context is the repo root so the Dockerfile can COPY the
+          # project mise.toml that the image installs from. The
+          # github_token secret raises aqua's GitHub API quota during
+          # `mise install`.
+          context: "{{defaultContext}}"
+          file: dogfood/coder/ubuntu-22.04/Dockerfile
+          secrets: |
+            github_token=${{ secrets.GITHUB_TOKEN }}
           pull: true
           save: true
           push: ${{ github.ref == 'refs/heads/main' }}
@@ -118,7 +147,14 @@ jobs:
           project: b4q6ltmpzh
           token: ${{ secrets.DEPOT_TOKEN }}
           buildx-fallback: true
-          context: "{{defaultContext}}:dogfood/coder/ubuntu-26.04"
+          # Context is the repo root so the Dockerfile can COPY the
+          # project mise.toml that the image installs from. The
+          # github_token secret raises aqua's GitHub API quota during
+          # `mise install`.
+          context: "{{defaultContext}}"
+          file: dogfood/coder/ubuntu-26.04/Dockerfile
+          secrets: |
+            github_token=${{ secrets.GITHUB_TOKEN }}
           pull: true
           save: true
           push: ${{ github.ref == 'refs/heads/main' }}
@@ -165,7 +201,7 @@ jobs:
       id-token: write
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@fe104658747b27e96e4f7e80cd0a94068e53901d # v2.16.1
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
         with:
           egress-policy: audit
 
@@ -223,6 +259,7 @@ jobs:
           CODER_SESSION_TOKEN: ${{ secrets.CODER_SESSION_TOKEN }}
           # Template source & details
           TF_VAR_CODER_DOGFOOD_ANTHROPIC_API_KEY: ${{ secrets.CODER_DOGFOOD_ANTHROPIC_API_KEY }}
+          TF_VAR_CODER_DOGFOOD_OPENAI_API_KEY: ${{ secrets.CODER_DOGFOOD_OPENAI_API_KEY }}
           TF_VAR_CODER_TEMPLATE_NAME: ${{ secrets.CODER_TEMPLATE_NAME }}
           TF_VAR_CODER_TEMPLATE_VERSION: ${{ steps.vars.outputs.sha_short }}
           TF_VAR_CODER_TEMPLATE_DIR: ./coder

@@ -83,6 +83,41 @@ export const Uploading: Story = {
 	},
 };
 
+export const PendingUpload: Story = {
+	args: (() => {
+		const file = createMockFile("pending.png", "image/png");
+		return {
+			attachments: [file],
+			uploadStates: new Map<File, UploadState>([[file, { status: "pending" }]]),
+			previewUrls: new Map<File, string>([[file, TINY_PNG]]),
+		};
+	})(),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByTitle("Loading spinner")).toBeInTheDocument();
+	},
+};
+
+export const DraftWarning: Story = {
+	args: (() => {
+		const file = createMockFile("large-draft.txt", "text/plain");
+		const warning =
+			"This file is attached for now, but it could not be saved as a draft.";
+		return {
+			attachments: [file],
+			uploadStates: new Map<File, UploadState>([
+				[file, { status: "uploading", draftWarning: warning }],
+			]),
+		};
+	})(),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findByText(/could not be saved as a draft/i),
+		).toBeInTheDocument();
+	},
+};
+
 export const UploadError: Story = {
 	args: (() => {
 		const file = createMockFile("broken.png", "image/png");
@@ -118,7 +153,7 @@ export const FileTooLarge: Story = {
 					file,
 					{
 						status: "error",
-						error: "File too large (12.4 MB). Maximum is 10 MB.",
+						error: "File too large (12.4 MiB). Maximum is 10 MiB.",
 					},
 				],
 			]),
@@ -171,6 +206,7 @@ export const TextAttachment: Story = {
 		expect(args.onTextPreview).toHaveBeenCalledWith(
 			"This is the pasted text content.\nIt has multiple lines.\nAnd should be displayed in a readable card format.",
 			"clipboard.txt",
+			"text/plain",
 		);
 	},
 };

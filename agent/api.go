@@ -6,6 +6,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
+	"github.com/coder/coder/v2/agent/agentchat"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/tracing"
@@ -20,6 +21,7 @@ func (a *agent) apiHandler() http.Handler {
 		httpmw.Recover(a.logger),
 		tracing.StatusWriterMiddleware,
 		loggermw.Logger(a.logger),
+		agentchat.Middleware,
 	)
 	r.Get("/", func(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Response{

@@ -7,7 +7,6 @@ import type { AuthorizationResponse, Template } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
 import { Margins } from "#/components/Margins/Margins";
-import { Stack } from "#/components/Stack/Stack";
 import { pageTitle } from "#/utils/page";
 import { Sidebar } from "./Sidebar";
 
@@ -54,7 +53,7 @@ export const TemplateSettingsLayout: FC = () => {
 			<title>{pageTitle(templateName, "Settings")}</title>
 
 			<Margins>
-				<Stack className="py-12" direction="row" spacing={10}>
+				<div className="flex flex-row gap-20 py-12">
 					{templateQuery.isError || permissionsQuery.isError ? (
 						<ErrorAlert error={templateQuery.error} />
 					) : (
@@ -72,7 +71,7 @@ export const TemplateSettingsLayout: FC = () => {
 							</Suspense>
 						</TemplateSettings.Provider>
 					)}
-				</Stack>
+				</div>
 			</Margins>
 		</>
 	);

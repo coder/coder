@@ -14,6 +14,7 @@ import { getChatFileURL } from "../../utils/chatAttachments";
 import { encodeInlineTextAttachment } from "../../utils/fetchTextAttachment";
 import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
+import type { ParsedMessageEntry } from "./types";
 
 // 1×1 solid coral (#FF6B6B) PNG encoded as base64.
 const TEST_PNG_B64 =
@@ -235,6 +236,13 @@ const buildStoryArgs = (...messages: TypesGen.ChatMessage[]) => ({
 	parsedMessages: buildMessages(messages),
 });
 
+const LONG_USER_MESSAGE = [
+	"This is a deliberately long user message that should stay pinned to the",
+	"right edge while the bubble stops short of filling the entire timeline",
+	"column. It gives the Storybook test enough content to exercise the",
+	"maximum width cap.",
+].join(" ");
+
 const findAttachmentTile = async (
 	canvas: ReturnType<typeof within>,
 	label: string,
@@ -242,6 +250,20 @@ const findAttachmentTile = async (
 	const tile = await canvas.findByRole("img", { name: label });
 	expect(canvas.getByText(label)).toBeInTheDocument();
 	return tile;
+};
+
+const expectNoCopyMessageButtonForElement = (element: HTMLElement) => {
+	const messageRow = element.closest(
+		'[data-role="user"], [data-role="assistant"]',
+	);
+	expect(messageRow).not.toBeNull();
+	const messageWrapper = messageRow?.parentElement;
+	expect(messageWrapper).not.toBeNull();
+	expect(
+		within(messageWrapper as HTMLElement).queryByRole("button", {
+			name: "Copy message",
+		}),
+	).not.toBeInTheDocument();
 };
 
 const hoverAndExpectTooltip = async (
@@ -291,6 +313,38 @@ const meta: Meta<typeof ConversationTimeline> = {
 export default meta;
 type Story = StoryObj<typeof ConversationTimeline>;
 
+/**
+ * User bubbles should stay right-aligned, shrink to fit short content,
+ * and cap long content so the timeline keeps some breathing room.
+ */
+export const UserMessageBubbleAlignment: Story = {
+	args: buildStoryArgs(
+		buildUserMessage({
+			text: LONG_USER_MESSAGE,
+		}),
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const messageText = canvas.getByText(/deliberately long user message/i);
+		const userRow = messageText.closest('[data-role="user"]');
+		expect(userRow).not.toBeNull();
+
+		const bubble = userRow?.firstElementChild;
+		expect(bubble).not.toBeNull();
+
+		await userEvent.hover(userRow?.parentElement as HTMLElement);
+		const actions = await canvas.findByTestId("message-actions");
+
+		const rowRect = (userRow as HTMLElement).getBoundingClientRect();
+		const bubbleRect = (bubble as HTMLElement).getBoundingClientRect();
+		const actionsRect = actions.getBoundingClientRect();
+
+		expect(bubbleRect.width).toBeLessThanOrEqual(rowRect.width * 0.81);
+		expect(Math.abs(rowRect.right - bubbleRect.right)).toBeLessThanOrEqual(2);
+		expect(Math.abs(rowRect.right - actionsRect.right)).toBeLessThanOrEqual(2);
+	},
+};
+
 /** Regression guard: a single image attachment must not be duplicated. */
 export const UserMessageWithSingleImage: Story = {
 	args: {
@@ -326,6 +380,7 @@ export const UserMessageWithSingleImage: Story = {
 		const canvas = within(canvasElement);
 		const images = canvas.getAllByRole("img", { name: "Attached image" });
 		expect(images).toHaveLength(1);
+		expectNoCopyMessageButtonForElement(images[0]);
 	},
 };
 
@@ -363,6 +418,7 @@ export const UserMessageWithMultipleImages: Story = {
 		const canvas = within(canvasElement);
 		const images = canvas.getAllByRole("img", { name: "Attached image" });
 		expect(images).toHaveLength(3);
+		expectNoCopyMessageButtonForElement(images[0]);
 	},
 };
 
@@ -383,6 +439,7 @@ export const UserMessageWithFileIdImage: Story = {
 			"src",
 			getChatFileURL("storybook-test-image"),
 		);
+		expectNoCopyMessageButtonForElement(images[0]);
 	},
 };
 
@@ -403,6 +460,7 @@ export const UserMessageWithExpiredImage: Story = {
 		expect(
 			canvas.queryByRole("button", { name: "View Attached image" }),
 		).not.toBeInTheDocument();
+		expectNoCopyMessageButtonForElement(expiredTile);
 
 		// The tooltip explains the retention policy generically so the
 		// copy survives any operator-chosen retention window.
@@ -432,6 +490,7 @@ export const UserMessageWithRepeatedExpiredImage: Story = {
 		const images = canvas.getAllByRole("img", { name: "Attached image" });
 		expect(images).toHaveLength(2);
 		fireEvent.error(images[0]);
+		fireEvent.error(images[1]);
 		await waitFor(() =>
 			expect(
 				canvas.getAllByRole("img", { name: "Image expired" }),
@@ -441,6 +500,53 @@ export const UserMessageWithRepeatedExpiredImage: Story = {
 		expect(
 			canvas.queryByRole("button", { name: "View Attached image" }),
 		).not.toBeInTheDocument();
+		for (const tile of canvas.getAllByRole("img", { name: "Image expired" })) {
+			expectNoCopyMessageButtonForElement(tile);
+		}
+	},
+};
+
+/** Duplicate file IDs with a non-expired probe reuse the first result. */
+export const UserMessageWithRepeatedFailedImage: Story = {
+	args: buildStoryArgs(
+		buildUserMessage({
+			id: 1,
+			text: "First reference to the failed upload",
+			files: [buildImageAttachmentPart("storybook-failed-image")],
+		}),
+		buildUserMessage({
+			id: 2,
+			text: "Second reference to the same failed upload",
+			files: [buildImageAttachmentPart("storybook-failed-image")],
+		}),
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const images = canvas.getAllByRole("img", { name: "Attached image" });
+		expect(images).toHaveLength(2);
+		fireEvent.error(images[0]);
+		fireEvent.error(images[1]);
+		await waitFor(() =>
+			expect(
+				canvas.getAllByRole("img", { name: "Image failed to load" }),
+			).toHaveLength(2),
+		);
+		expect(getAttachmentFetchCount("storybook-failed-image")).toBe(1);
+		expect(
+			canvas.queryByRole("button", { name: "View Attached image" }),
+		).not.toBeInTheDocument();
+
+		const tiles = await waitFor(() => {
+			const t = canvas.getAllByRole("img", { name: "Image failed to load" });
+			for (const tile of t) {
+				expect(tile).toHaveAttribute("data-state");
+			}
+			return t;
+		});
+		for (const tile of tiles) {
+			expectNoCopyMessageButtonForElement(tile);
+			await hoverAndExpectTooltip(tile, FAILED_ATTACHMENT_API_MESSAGE);
+		}
 	},
 };
 
@@ -456,11 +562,12 @@ export const UserMessageWithFailedRemoteImage: Story = {
 		const canvas = within(canvasElement);
 		const image = canvas.getByRole("img", { name: "Attached image" });
 		fireEvent.error(image);
-		await findAttachmentTile(canvas, "Image failed to load");
+		const failedTile = await findAttachmentTile(canvas, "Image failed to load");
 		expect(canvas.getByText("This image failed to load")).toBeInTheDocument();
 		expect(
 			canvas.queryByRole("button", { name: "View Attached image" }),
 		).not.toBeInTheDocument();
+		expectNoCopyMessageButtonForElement(failedTile);
 
 		// When the probe returns a structured error body, the tooltip
 		// surfaces the API's message so the viewer has something
@@ -488,7 +595,8 @@ export const UserMessageWithUndisplayableRemoteImage: Story = {
 		const canvas = within(canvasElement);
 		const image = canvas.getByRole("img", { name: "Attached image" });
 		fireEvent.error(image);
-		await findAttachmentTile(canvas, "Image failed to load");
+		const failedTile = await findAttachmentTile(canvas, "Image failed to load");
+		expectNoCopyMessageButtonForElement(failedTile);
 		await hoverAndExpectTooltip(
 			await waitForTooltipWrappedAttachmentTile(canvas, "Image failed to load"),
 			UNDISPLAYABLE_REMOTE_ATTACHMENT_MESSAGE,
@@ -508,13 +616,14 @@ export const UserMessageWithInvalidInlineImage: Story = {
 		const canvas = within(canvasElement);
 		const image = canvas.getByRole("img", { name: "Attached image" });
 		fireEvent.error(image);
-		await findAttachmentTile(canvas, "Image failed to load");
+		const failedTile = await findAttachmentTile(canvas, "Image failed to load");
 		expect(
 			canvas.getByText("Inline image data is corrupt"),
 		).toBeInTheDocument();
 		expect(
 			canvas.queryByRole("button", { name: "View Attached image" }),
 		).not.toBeInTheDocument();
+		expectNoCopyMessageButtonForElement(failedTile);
 	},
 };
 
@@ -532,6 +641,9 @@ export const UserMessageWithTextAttachment: Story = {
 		});
 		expect(textButton).toBeInTheDocument();
 		expect(textButton).toHaveTextContent(/Pasted text/i);
+		expect(
+			canvas.queryByRole("button", { name: "Copy message" }),
+		).not.toBeInTheDocument();
 		await userEvent.click(textButton);
 		expect(
 			await canvas.findByText(/Quarterly revenue increased 18%/i),
@@ -565,6 +677,9 @@ export const UserMessageWithJSONAttachment: Story = {
 			name: "View report.json",
 		});
 		expect(textButton).toHaveTextContent("report.json");
+		expect(
+			canvas.queryByRole("button", { name: "Copy message" }),
+		).not.toBeInTheDocument();
 		await userEvent.click(textButton);
 		expect(await canvas.findByText(/"status":"ok"/i)).toBeInTheDocument();
 	},
@@ -600,6 +715,9 @@ export const UserMessageWithDownloadableFile: Story = {
 			"/api/experimental/chats/files/storybook-user-deployment-report",
 		);
 		expect(canvas.getByText("deployment-report.pdf")).toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: "Copy message" }),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -621,6 +739,7 @@ export const UserMessageWithMultipleTextAttachments: Story = {
 			name: "View text attachment",
 		});
 		expect(textButtons).toHaveLength(3);
+		expectNoCopyMessageButtonForElement(textButtons[0]);
 	},
 };
 
@@ -636,6 +755,7 @@ export const UserMessageWithTextAttachmentOnly: Story = {
 			name: "View text attachment",
 		});
 		expect(textButton).toHaveTextContent(/Pasted text/i);
+		expectNoCopyMessageButtonForElement(textButton);
 		await userEvent.click(textButton);
 		expect(
 			await canvas.findByText(/Runbook note: restart the worker/i),
@@ -655,6 +775,7 @@ export const UserMessageWithExpiredTextAttachment: Story = {
 		const textButton = await canvas.findByRole("button", {
 			name: "View text attachment",
 		});
+		expectNoCopyMessageButtonForElement(textButton);
 		await userEvent.click(textButton);
 		const expiredTile = await findAttachmentTile(canvas, "Attachment expired");
 		expect(
@@ -683,6 +804,7 @@ export const UserMessageWithFailedTextAttachment: Story = {
 		const textButton = await canvas.findByRole("button", {
 			name: "View text attachment",
 		});
+		expectNoCopyMessageButtonForElement(textButton);
 		await userEvent.click(textButton);
 		await findAttachmentTile(canvas, "Attachment failed to load");
 		expect(
@@ -729,6 +851,7 @@ export const UserMessageWithInlineTextAttachment: Story = {
 			name: "View text attachment",
 		});
 		expect(textButton).toHaveTextContent(/Pasted text/i);
+		expectNoCopyMessageButtonForElement(textButton);
 		await userEvent.click(textButton);
 		expect(
 			await canvas.findByText(/Inline deployment note/i),
@@ -766,6 +889,7 @@ export const UserMessageWithFailedTextAttachmentNonJSONBody: Story = {
 		const textButton = await canvas.findByRole("button", {
 			name: "View preview.txt",
 		});
+		expectNoCopyMessageButtonForElement(textButton);
 		await userEvent.click(textButton);
 		await findAttachmentTile(canvas, "Attachment failed to load");
 		expect(
@@ -794,6 +918,7 @@ export const UserMessageWithMixedAttachments: Story = {
 			name: "View text attachment",
 		});
 		expect(textButtons).toHaveLength(1);
+		expectNoCopyMessageButtonForElement(images[0]);
 	},
 };
 
@@ -850,6 +975,9 @@ export const AssistantMessageWithImage: Story = {
 		expect(
 			canvas.queryByRole("link", { name: "Download generated-image.png" }),
 		).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: "Copy message" }),
+		).not.toBeInTheDocument();
 		const viewButton = canvas.getByRole("button", {
 			name: "View generated-image.png",
 		});
@@ -890,6 +1018,9 @@ export const AssistantMessageWithUnnamedDownloadableFile: Story = {
 		expect(downloadLink).toBeInTheDocument();
 		expect(downloadLink).toHaveAttribute("download", "attachment.pdf");
 		expect(canvas.getByText("Attached file")).toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: "Copy message" }),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -925,6 +1056,7 @@ export const UserMessageWithImagesAndFileRefs: Story = {
 		const images = canvas.getAllByRole("img", { name: "Attached image" });
 		expect(images).toHaveLength(1);
 		expect(canvas.getByText(/main\.go/)).toBeInTheDocument();
+		expectNoCopyMessageButtonForElement(images[0]);
 	},
 };
 
@@ -1007,6 +1139,45 @@ export const UserMessageWithMultipleInlineFileRefs: Story = {
 	},
 };
 
+export const MetadataOnlyUserMessageDoesNotLeaveStickyGap: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "assistant",
+				content: [{ type: "text", text: "Before hidden metadata." }],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "user",
+				content: [
+					{
+						type: "context-file",
+						context_file_path: "/home/coder/coder/AGENTS.md",
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 3,
+				role: "assistant",
+				content: [{ type: "text", text: "After hidden metadata." }],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Before hidden metadata.")).toBeVisible();
+		expect(canvas.getByText("After hidden metadata.")).toBeVisible();
+		expect(canvasElement.querySelectorAll("[data-user-sentinel]")).toHaveLength(
+			0,
+		);
+	},
+};
+
 /**
  * Verifies the structural requirements for sticky user messages
  * in the flat (section-less) message list:
@@ -1078,6 +1249,125 @@ export const StickyUserMessageStructure: Story = {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("First prompt")).toBeVisible();
 		expect(canvas.getByText("Second prompt")).toBeVisible();
+	},
+};
+
+/**
+ * Each user message exposes left/right chevron buttons in its
+ * action row so users can jump the transcript between user prompts.
+ * Disabled at the ends of the conversation; otherwise the click
+ * smooth-scrolls the bubble's `data-user-sentinel` to the top of
+ * the scroller.
+ */
+export const UserMessageJumpArrows: Story = {
+	decorators: [
+		(Story) => (
+			<div
+				className="overflow-y-auto mx-auto w-full max-w-3xl"
+				style={{ height: 320 }}
+			>
+				<Story />
+			</div>
+		),
+	],
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [{ type: "text", text: "First prompt" }],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "assistant",
+				content: [
+					{
+						type: "text",
+						text: "a".repeat(800),
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 3,
+				role: "user",
+				content: [{ type: "text", text: "Second prompt" }],
+			},
+			{
+				...baseMessage,
+				id: 4,
+				role: "assistant",
+				content: [
+					{
+						type: "text",
+						text: "b".repeat(800),
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 5,
+				role: "user",
+				content: [{ type: "text", text: "Third prompt" }],
+			},
+		]),
+		onEditUserMessage: fn(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// Reveal the hover-only action rows so we can interact with
+		// the chevron buttons without dispatching real hover events.
+		for (const el of canvasElement.querySelectorAll("[class]")) {
+			if (
+				el instanceof HTMLElement &&
+				el.className.includes("group-hover/msg:opacity-100")
+			) {
+				el.style.opacity = "1";
+			}
+		}
+
+		const prevButtons = canvas.getAllByRole("button", {
+			name: "Jump to previous user message",
+		});
+		const nextButtons = canvas.getAllByRole("button", {
+			name: "Jump to next user message",
+		});
+		expect(prevButtons).toHaveLength(3);
+		expect(nextButtons).toHaveLength(3);
+
+		// First user prompt: previous disabled, next enabled.
+		expect(prevButtons[0]).toBeDisabled();
+		expect(nextButtons[0]).toBeEnabled();
+
+		// Middle user prompt: both directions enabled.
+		expect(prevButtons[1]).toBeEnabled();
+		expect(nextButtons[1]).toBeEnabled();
+
+		// Last user prompt: previous enabled, next disabled.
+		expect(prevButtons[2]).toBeEnabled();
+		expect(nextButtons[2]).toBeDisabled();
+
+		// Clicking Next on the first prompt scrolls the second user
+		// prompt's sentinel into view via its registered ref.
+		const sentinels = Array.from(
+			canvasElement.querySelectorAll<HTMLElement>("[data-user-sentinel]"),
+		);
+		expect(sentinels).toHaveLength(3);
+		const targetSpy = spyOn(sentinels[1], "scrollIntoView");
+
+		await userEvent.click(nextButtons[0]);
+
+		await waitFor(() => {
+			expect(targetSpy).toHaveBeenCalledTimes(1);
+		});
+		expect(targetSpy).toHaveBeenCalledWith({
+			behavior: "smooth",
+			block: "start",
+		});
 	},
 };
 
@@ -1605,5 +1895,436 @@ export const NoRenderableContentFallbackSpacing: Story = {
 		expect(
 			document.querySelector('[data-testid="assistant-bottom-spacer"]'),
 		).toBeInTheDocument();
+	},
+};
+
+/**
+ * Regression: action bar must appear on the last *visible* assistant
+ * message even when invisible assistant messages (provider-executed
+ * tool-result-only) follow it before the next user turn.
+ */
+export const AssistantActionBarAfterHiddenMessages: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [{ type: "text", text: "Help me refactor" }],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "assistant",
+				content: [
+					{ type: "text", text: "Here is the **refactored** version." },
+				],
+			},
+			{
+				...baseMessage,
+				id: 3,
+				role: "assistant",
+				content: [
+					{
+						type: "tool-result",
+						tool_call_id: "provider-tool-1",
+						result: { output: "done" },
+						provider_executed: true,
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 4,
+				role: "user",
+				content: [{ type: "text", text: "Thanks!" }],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Force the hover-reveal action bars visible using stable test IDs.
+		for (const el of canvasElement.querySelectorAll(
+			'[data-testid="message-actions"]',
+		)) {
+			if (el instanceof HTMLElement) {
+				el.style.opacity = "1";
+			}
+		}
+		// 2 user messages + 1 visible assistant = 3 action bars.
+		// The invisible provider-executed tool-result message (id=3)
+		// must not prevent the assistant (id=2) from showing its bar.
+		const actions = canvas.getAllByTestId("message-actions");
+		expect(actions).toHaveLength(3);
+	},
+};
+
+export const ToolDisplayModesFromPreferences: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["me", "preferences"],
+				data: {
+					task_notification_alert_dismissed: false,
+					thinking_display_mode: "auto" as const,
+					shell_tool_display_mode: "always_collapsed" as const,
+					code_diff_display_mode: "always_collapsed" as const,
+					agent_chat_send_shortcut: "enter" as const,
+				},
+			},
+		],
+	},
+	args: {
+		...defaultArgs,
+		parsedMessages: [
+			{
+				message: {
+					...baseMessage,
+					id: 1,
+					role: "assistant",
+					content: [],
+				},
+				parsed: {
+					markdown: "",
+					reasoning: "",
+					toolCalls: [],
+					toolResults: [],
+					tools: [
+						{
+							id: "execute-tool",
+							name: "execute",
+							args: { command: "pnpm test" },
+							result: { output: "tests passed" },
+							isError: false,
+							status: "completed",
+						},
+						{
+							id: "edit-tool",
+							name: "edit_files",
+							args: {
+								files: [
+									{
+										path: "src/config.ts",
+										edits: [
+											{
+												search: "const timeout = 30;",
+												replace: "const timeout = 60;",
+											},
+										],
+									},
+								],
+							},
+							result: { ok: true },
+							isError: false,
+							status: "completed",
+						},
+					],
+					blocks: [
+						{ type: "tool", id: "execute-tool" },
+						{ type: "tool", id: "edit-tool" },
+					],
+					sources: [],
+				},
+			},
+		] satisfies ParsedMessageEntry[],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("pnpm test")).toBeVisible();
+		expect(canvas.queryByText("tests passed")).not.toBeInTheDocument();
+		expect(canvas.getByText(/Edited config\.ts/)).toBeVisible();
+		expect(canvas.queryAllByTestId("edit-file-diff")).toHaveLength(0);
+
+		const commandOutputButton = canvas.getByRole("button", {
+			name: "Expand command output",
+		});
+		expect(commandOutputButton).toHaveAttribute("aria-expanded", "false");
+		await userEvent.click(commandOutputButton);
+		await waitFor(() => {
+			expect(canvas.getByText("tests passed")).toBeVisible();
+		});
+
+		const editFilesButton = canvas.getByRole("button", {
+			name: /Edited config\.ts/,
+		});
+		expect(editFilesButton).toHaveAttribute("aria-expanded", "false");
+		await userEvent.click(editFilesButton);
+		await waitFor(() => {
+			expect(canvas.getAllByTestId("edit-file-diff")).toHaveLength(1);
+		});
+	},
+};
+
+/**
+ * A completed thinking block with always_expanded mode should show
+ * its content without user interaction.
+ */
+export const ThinkingBlockAlwaysExpanded: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["me", "preferences"],
+				data: {
+					task_notification_alert_dismissed: false,
+					thinking_display_mode: "always_expanded" as const,
+					shell_tool_display_mode: "auto" as const,
+					code_diff_display_mode: "auto" as const,
+					agent_chat_send_shortcut: "enter" as const,
+				},
+			},
+		],
+	},
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "assistant",
+				content: [
+					{
+						type: "reasoning",
+						text: "Let me think about this step by step.",
+					},
+					{
+						type: "text",
+						text: "Here is the answer.",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Thinking")).toBeInTheDocument();
+		await waitFor(() => {
+			expect(
+				canvas.getByText(/Let me think about this step by step/),
+			).toBeVisible();
+		});
+	},
+};
+
+/**
+ * A completed thinking block with always_collapsed mode should
+ * hide its content until the user clicks.
+ */
+export const ThinkingBlockAlwaysCollapsed: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["me", "preferences"],
+				data: {
+					task_notification_alert_dismissed: false,
+					thinking_display_mode: "always_collapsed" as const,
+					shell_tool_display_mode: "auto" as const,
+					code_diff_display_mode: "auto" as const,
+					agent_chat_send_shortcut: "enter" as const,
+				},
+			},
+		],
+	},
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "assistant",
+				content: [
+					{
+						type: "reasoning",
+						text: "Let me think about this step by step.",
+					},
+					{
+						type: "text",
+						text: "Here is the answer.",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Thinking")).toBeInTheDocument();
+		expect(
+			canvas.queryByText(/Let me think about this step by step/),
+		).not.toBeInTheDocument();
+		await userEvent.click(canvas.getByText("Thinking"));
+		await waitFor(() => {
+			expect(
+				canvas.getByText(/Let me think about this step by step/),
+			).toBeVisible();
+		});
+	},
+};
+
+/** Collapsed thinking should visually align with adjacent tool calls. */
+export const ThinkingBlockWithToolCall: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["me", "preferences"],
+				data: {
+					task_notification_alert_dismissed: false,
+					thinking_display_mode: "always_collapsed" as const,
+					shell_tool_display_mode: "auto" as const,
+					code_diff_display_mode: "auto" as const,
+					agent_chat_send_shortcut: "enter" as const,
+				},
+			},
+		],
+	},
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "assistant",
+				content: [
+					{
+						type: "reasoning",
+						text: "I need to inspect the package metadata before answering.",
+					},
+					{
+						type: "tool-call",
+						tool_call_id: "tool-1",
+						tool_name: "read_file",
+						args: { path: "package.json" },
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						tool_call_id: "tool-1",
+						result: { content: '{"name":"coder"}' },
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: /thinking/i }),
+		).toBeInTheDocument();
+		expect(
+			canvas.getByRole("button", { name: /read package\.json/i }),
+		).toBeInTheDocument();
+	},
+};
+
+/**
+ * A completed thinking block with auto mode should be collapsed
+ * (non-streaming state means auto collapses).
+ */
+export const ThinkingBlockAutoMode: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["me", "preferences"],
+				data: {
+					task_notification_alert_dismissed: false,
+					thinking_display_mode: "auto" as const,
+					shell_tool_display_mode: "auto" as const,
+					code_diff_display_mode: "auto" as const,
+					agent_chat_send_shortcut: "enter" as const,
+				},
+			},
+		],
+	},
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "assistant",
+				content: [
+					{
+						type: "reasoning",
+						text: "Let me think about this step by step.",
+					},
+					{
+						type: "text",
+						text: "Here is the answer.",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Thinking")).toBeInTheDocument();
+		expect(
+			canvas.queryByText(/Let me think about this step by step/),
+		).not.toBeInTheDocument();
+		await userEvent.click(canvas.getByText("Thinking"));
+		await waitFor(() => {
+			expect(
+				canvas.getByText(/Let me think about this step by step/),
+			).toBeVisible();
+		});
+	},
+};
+
+/**
+ * A completed thinking block with preview mode should be collapsed
+ * (non-streaming state means preview collapses).
+ */
+export const ThinkingBlockPreviewMode: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["me", "preferences"],
+				data: {
+					task_notification_alert_dismissed: false,
+					thinking_display_mode: "preview" as const,
+					shell_tool_display_mode: "auto" as const,
+					code_diff_display_mode: "auto" as const,
+					agent_chat_send_shortcut: "enter" as const,
+				},
+			},
+		],
+	},
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "assistant",
+				content: [
+					{
+						type: "reasoning",
+						text: "Let me think about this step by step.",
+					},
+					{
+						type: "text",
+						text: "Here is the answer.",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Thinking")).toBeInTheDocument();
+		expect(
+			canvas.queryByText(/Let me think about this step by step/),
+		).not.toBeInTheDocument();
+		await userEvent.click(canvas.getByText("Thinking"));
+		await waitFor(() => {
+			expect(
+				canvas.getByText(/Let me think about this step by step/),
+			).toBeVisible();
+		});
 	},
 };

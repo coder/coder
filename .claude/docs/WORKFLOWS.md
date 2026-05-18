@@ -103,6 +103,17 @@
 4. **Add tests** in `coderd/*_test.go` files
 5. **Update OpenAPI** by running `make gen`
 
+### API Design Guardrails
+
+- Add swagger annotations when introducing new HTTP endpoints. Do this in
+  the same change as the handler so the docs do not get missed before
+  release.
+- For user-scoped or resource-scoped routes, prefer path parameters over
+  query parameters when that matches existing route patterns.
+- For experimental or unstable API paths, skip public doc generation with
+  `// @x-apidocgen {"skip": true}` after the `@Router` annotation. This
+  keeps them out of the published API reference until they stabilize.
+
 ## Testing Workflows
 
 ### Test Execution
@@ -121,6 +132,46 @@
 - Always use `t.Parallel()` in tests
 
 ## Git Workflow
+
+### Git Hooks
+
+**You MUST install and use the git hooks. NEVER bypass them with
+`--no-verify`. Skipping hooks wastes CI cycles and is unacceptable.**
+
+The first run will be slow as caches warm up. Consecutive runs are
+**significantly faster** (often 10x) thanks to Go build cache,
+generated file timestamps, and warm node_modules. This is NOT a
+reason to skip them. Wait for hooks to complete before proceeding,
+no matter how long they take.
+
+```sh
+git config core.hooksPath scripts/githooks
+```
+
+Two hooks run automatically:
+
+- **pre-commit**: Classifies staged files by type and runs either
+  the full `make pre-commit` or the lightweight `make pre-commit-light`
+  depending on whether Go, TypeScript, SQL, proto, or Makefile
+  changes are present. Falls back to the full target when
+  `CODER_HOOK_RUN_ALL=1` is set. A markdown-only commit takes
+  seconds; a Go change takes several minutes.
+- **pre-push**: Classifies changed files (vs remote branch or
+  merge-base) and runs `make pre-push` when Go, TypeScript, SQL,
+  proto, or Makefile changes are detected. Skips tests entirely
+  for lightweight changes. Allowlisted in
+  `scripts/githooks/pre-push`. Runs only for developers who opt
+  in. Falls back to `make pre-push` when the diff range can't
+  be determined or `CODER_HOOK_RUN_ALL=1` is set. Allow at least
+  15 minutes for a full run.
+
+`git commit` and `git push` will appear to hang while hooks run.
+This is normal. Do not interrupt, retry, or reduce the timeout.
+
+NEVER run `git config core.hooksPath` to change or disable hooks.
+
+If a hook fails, fix the issue and retry. Do not work around the
+failure by skipping the hook.
 
 ### Working on PR branches
 

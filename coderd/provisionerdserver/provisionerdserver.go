@@ -591,6 +591,26 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			}
 		}
 
+		// Fetch user secrets for build-time injection, but only on start
+		// transitions where the workspace actually needs them.
+		var userSecrets []*sdkproto.UserSecretValue
+		if workspaceBuild.Transition == database.WorkspaceTransitionStart {
+			dbSecrets, err := s.Database.ListUserSecretsWithValues(ctx, owner.ID)
+			if err != nil {
+				return nil, failJob(fmt.Sprintf("get user secrets: %s", err))
+			}
+			for _, secret := range dbSecrets {
+				if secret.EnvName == "" && secret.FilePath == "" {
+					continue
+				}
+				userSecrets = append(userSecrets, &sdkproto.UserSecretValue{
+					EnvName:  secret.EnvName,
+					FilePath: secret.FilePath,
+					Value:    []byte(secret.Value),
+				})
+			}
+		}
+
 		transition, err := convertWorkspaceTransition(workspaceBuild.Transition)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("convert workspace transition: %s", err))
@@ -773,7 +793,8 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					TaskPrompt:                    task.Prompt,
 					TemplateVersionModulesFile:    versionModulesFile,
 				},
-				LogLevel: input.LogLevel,
+				LogLevel:    input.LogLevel,
+				UserSecrets: userSecrets,
 			},
 		}
 	case database.ProvisionerJobTypeTemplateVersionDryRun:
@@ -2122,6 +2143,20 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 				return xerrors.Errorf("insert provisioner job: %w", err)
 			}
 		}
+
+		// Soft-delete agents from prior builds now that this build's
+		// agents have been inserted. Waiting until completion (rather
+		// than build creation) avoids bricking running workspaces
+		// whose agents would otherwise be deleted while the new build
+		// is still queued or provisioning. See #25155.
+		err = db.SoftDeletePriorWorkspaceAgents(ctx, database.SoftDeletePriorWorkspaceAgentsParams{
+			WorkspaceID:    workspaceBuild.WorkspaceID,
+			CurrentBuildID: workspaceBuild.ID,
+		})
+		if err != nil {
+			return xerrors.Errorf("soft delete prior workspace agents: %w", err)
+		}
+
 		for _, module := range jobType.WorkspaceBuild.Modules {
 			if err := InsertWorkspaceModule(ctx, db, job.ID, workspaceBuild.Transition, module, telemetrySnapshot); err != nil {
 				return xerrors.Errorf("insert provisioner job module: %w", err)
@@ -2368,6 +2403,14 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		})
 		if err != nil {
 			return xerrors.Errorf("update workspace deleted: %w", err)
+		}
+
+		// Soft-delete any agents tied to this workspace so the
+		// aws-instance-identity handler (which filters on
+		// workspace_agents.deleted) doesn't keep seeing orphaned rows
+		// after the workspace itself is deleted. See #25155.
+		if err := db.SoftDeleteWorkspaceAgentsByWorkspaceID(ctx, workspaceBuild.WorkspaceID); err != nil {
+			return xerrors.Errorf("soft delete workspace agents: %w", err)
 		}
 
 		// A user might delete their task workspace directly, instead of

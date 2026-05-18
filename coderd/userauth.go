@@ -86,7 +86,7 @@ func (o *OAuthConvertStateClaims) Validate(e jwt.Expected) error {
 // @Param request body codersdk.ConvertLoginRequest true "Convert request"
 // @Param user path string true "User ID, name, or me"
 // @Success 201 {object} codersdk.OAuthConversionResponse
-// @Router /users/{user}/convert-login [post]
+// @Router /api/v2/users/{user}/convert-login [post]
 func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 	var (
 		user              = httpmw.UserParam(r)
@@ -225,7 +225,7 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 // @Tags Authorization
 // @Param request body codersdk.RequestOneTimePasscodeRequest true "One-time passcode request"
 // @Success 204
-// @Router /users/otp/request [post]
+// @Router /api/v2/users/otp/request [post]
 func (api *API) postRequestOneTimePasscode(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -331,7 +331,7 @@ func (api *API) notifyUserRequestedOneTimePasscode(ctx context.Context, user dat
 // @Tags Authorization
 // @Param request body codersdk.ChangePasswordWithOneTimePasscodeRequest true "Change password request"
 // @Success 204
-// @Router /users/otp/change-password [post]
+// @Router /api/v2/users/otp/change-password [post]
 func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r *http.Request) {
 	var (
 		err               error
@@ -465,7 +465,7 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 // @Tags Authorization
 // @Param request body codersdk.ValidateUserPasswordRequest true "Validate user password request"
 // @Success 200 {object} codersdk.ValidateUserPasswordResponse
-// @Router /users/validate-password [post]
+// @Router /api/v2/users/validate-password [post]
 func (*API) validateUserPassword(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx     = r.Context()
@@ -499,7 +499,7 @@ func (*API) validateUserPassword(rw http.ResponseWriter, r *http.Request) {
 // @Tags Authorization
 // @Param request body codersdk.LoginWithPasswordRequest true "Login request"
 // @Success 201 {object} codersdk.LoginWithPasswordResponse
-// @Router /users/login [post]
+// @Router /api/v2/users/login [post]
 func (api *API) postLogin(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -684,7 +684,7 @@ func ActivateDormantUser(logger slog.Logger, auditor *atomic.Pointer[audit.Audit
 // @Produce json
 // @Tags Users
 // @Success 200 {object} codersdk.Response
-// @Router /users/logout [post]
+// @Router /api/v2/users/logout [post]
 func (api *API) postLogout(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -796,7 +796,7 @@ func (c *GithubOAuth2Config) AuthCodeURL(state string, opts ...oauth2.AuthCodeOp
 // @Produce json
 // @Tags Users
 // @Success 200 {object} codersdk.AuthMethods
-// @Router /users/authmethods [get]
+// @Router /api/v2/users/authmethods [get]
 func (api *API) userAuthMethods(rw http.ResponseWriter, r *http.Request) {
 	var signInText string
 	var iconURL string
@@ -831,7 +831,7 @@ func (api *API) userAuthMethods(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Users
 // @Success 200 {object} codersdk.ExternalAuthDevice
-// @Router /users/oauth2/github/device [get]
+// @Router /api/v2/users/oauth2/github/device [get]
 func (api *API) userOAuth2GithubDevice(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -877,7 +877,7 @@ func (api *API) userOAuth2GithubDevice(rw http.ResponseWriter, r *http.Request) 
 // @Security CoderSessionToken
 // @Tags Users
 // @Success 307
-// @Router /users/oauth2/github/callback [get]
+// @Router /api/v2/users/oauth2/github/callback [get]
 func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 	var (
 		// userOAuth2Github is a system function.
@@ -1192,7 +1192,7 @@ func (o *OIDCConfig) PKCESupported() []promoauth.Oauth2PKCEChallengeMethod {
 // @Security CoderSessionToken
 // @Tags Users
 // @Success 307
-// @Router /users/oidc/callback [get]
+// @Router /api/v2/users/oidc/callback [get]
 func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 	var (
 		// userOIDC is a system function.

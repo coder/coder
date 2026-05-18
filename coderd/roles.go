@@ -5,7 +5,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -23,7 +22,7 @@ import (
 // @Produce json
 // @Tags Members
 // @Success 200 {array} codersdk.AssignableRoles
-// @Router /users/roles [get]
+// @Router /api/v2/users/roles [get]
 func (api *API) AssignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	actorRoles := httpmw.UserAuthorization(r.Context())
@@ -45,12 +44,6 @@ func (api *API) AssignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	siteRoles := rbac.SiteBuiltInRoles()
-	// Include the agents-access role only when the agents
-	// experiment is enabled or this is a dev build, matching
-	// the RequireExperimentWithDevBypass gate on chat routes.
-	if api.Experiments.Enabled(codersdk.ExperimentAgents) || buildinfo.IsDev() {
-		siteRoles = append(siteRoles, rbac.AgentsAccessRole())
-	}
 
 	httpapi.Write(ctx, rw, http.StatusOK,
 		assignableRoles(actorRoles.Roles, siteRoles, dbCustomRoles))
@@ -65,7 +58,7 @@ func (api *API) AssignableSiteRoles(rw http.ResponseWriter, r *http.Request) {
 // @Tags Members
 // @Param organization path string true "Organization ID" format(uuid)
 // @Success 200 {array} codersdk.AssignableRoles
-// @Router /organizations/{organization}/members/roles [get]
+// @Router /api/v2/organizations/{organization}/members/roles [get]
 func (api *API) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)

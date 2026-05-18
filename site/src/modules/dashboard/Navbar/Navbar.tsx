@@ -38,7 +38,6 @@ export const Navbar: FC = () => {
 	return (
 		<NavbarView
 			user={me}
-			logo_url={appearance.logo_url}
 			buildInfo={buildInfoQuery.data}
 			supportLinks={Array.from(uniqueLinks.values())}
 			onSignOut={signOut}

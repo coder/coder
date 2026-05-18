@@ -1,55 +1,26 @@
 # AI Agent Guidelines for aibridge
 
+> This is a package-level guide for the `aibridge/` subdirectory inside
+> the coder/coder repository.
+>
+> Read the repo-root `AGENTS.md` and `CLAUDE.md` first. They are the
+> source of truth for all shared conventions: tone, foundational rules,
+> essential commands, git hooks, code style, Go patterns, testing
+> patterns, LSP navigation, and PR style. This file documents only what
+> is specific to the `aibridge/` package; it never relaxes a root rule.
+>
 > For local overrides, create `AGENTS.local.md` (gitignored).
-
-You are an experienced, pragmatic software engineer. Simple solutions
-over clever ones. Readability is a primary concern.
-
-## Tone & Relationship
-
-We're colleagues. Push back on bad ideas and speak up when something
-doesn't make sense. Honesty over agreeableness.
-
-- Disagree when I'm wrong. Act as a critical peer reviewer.
-- Call out bad ideas, unreasonable expectations, and mistakes.
-- **Ask for clarification** instead of assuming. Say when you don't know something.
-- Architectural decisions require discussion; routine fixes do not.
-
-## Foundational Rules
-
-- Doing it right is better than doing it fast.
-- YAGNI. Don't add features we don't need right now.
-- Make the smallest reasonable changes to achieve the goal.
-- Reduce code duplication, even if it takes extra effort.
-- Match the style of surrounding code. Consistency within a file matters.
-- Fix bugs immediately when you find them.
-
-## Essential Commands
-
-| Task        | Command          | Notes                                      |
-|-------------|------------------|--------------------------------------------|
-| Test        | `make test`      | All tests, no race detector                |
-| Test (race) | `make test-race` | CGO_ENABLED=1, use for CI                  |
-| Coverage    | `make coverage`  | Prints summary to stdout                   |
-| Format      | `make fmt`       | gofumpt; single file: `make fmt FILE=path` |
-| Mocks       | `make mocks`     | Regenerate from `mcp/api.go`               |
-
-**Always use these commands** instead of running `go test` or `gofumpt` directly.
-
-## Code Navigation
-
-Use LSP tools (go to definition, find references, hover) **before** resorting to grep.
-This codebase has 90+ Go files across multiple packages, so LSP is faster and more accurate.
 
 ## Architecture Overview
 
-AI Bridge is a smart gateway that sits between AI clients (Claude Code, Cursor,
-etc.) and upstream providers (Anthropic, OpenAI). It intercepts all AI traffic
-to provide centralized authn/z, auditing, token attribution, and MCP tool
-administration. It runs as part of `coderd` (the Coder control plane). Users
-authenticate with their Coder session tokens.
+AI Bridge is a smart gateway that sits between AI clients (Claude Code,
+Cursor, etc.) and upstream providers (Anthropic, OpenAI). It intercepts
+all AI traffic to provide centralized authn/z, auditing, token
+attribution, and MCP tool administration. It runs as part of `coderd`
+(the Coder control plane). Users authenticate with their Coder session
+tokens.
 
-```
+```text
 ┌─────────────┐     ┌──────────────────────────────────────────┐
 │  AI Client   │     │               aibridge                   │
 │ (Claude Code,│────▶│  RequestBridge (http.Handler)             │
@@ -67,52 +38,62 @@ authenticate with their Coder session tokens.
                            └──────────────┘
 ```
 
-Key packages:
-- `intercept/`: request/response interception, per-provider subdirs (`messages/`, `responses/`, `chatcompletions/`)
-- `provider/`: upstream provider definitions (Anthropic, OpenAI, Copilot)
+The wire-up between aibridge and coderd lives in
+`enterprise/aibridged/`. That package is outside the scope of this
+guide.
+
+Key packages within `aibridge/`:
+
+- `intercept/`: request/response interception, per-provider subdirs
+  (`messages/`, `responses/`, `chatcompletions/`)
+- `provider/`: upstream provider definitions (Anthropic, OpenAI,
+  Copilot)
 - `mcp/`: MCP protocol integration
 - `circuitbreaker/`: circuit breaker for upstream calls
 - `context/`: request-scoped context helpers
 - `internal/integrationtest/`: integration tests with mock upstreams
 
-## Go Patterns
+## Commands
 
-- Follow the [Uber Go Style Guide](https://github.com/uber-go/guide/blob/master/style.md).
-- Use `gofumpt` for formatting (enforced by `make fmt`).
-- Prefer table-driven tests.
-- **Never use `time.Sleep` in tests**. Use `github.com/coder/quartz` or channels/contexts for synchronization.
-- Use unique identifiers in tests: `fmt.Sprintf("test-%s-%d", t.Name(), time.Now().UnixNano())`.
-- Test observable behavior, not implementation details.
+Use the repo-root commands documented in the root `AGENTS.md`. The
+notes below are aibridge-specific:
+
+- Run only aibridge tests with `go test ./aibridge/...`. The root
+  `make test` runs the full coder/coder suite.
+- Regenerate the MCP mock with `go generate ./aibridge/mcpmock/` after
+  changing `aibridge/mcp/api.go`. The repo-root `make gen` does not
+  include this target.
 
 ## Streaming Code
 
-This codebase heavily uses SSE streaming. When modifying interceptors:
+This package heavily uses SSE streaming. When modifying interceptors:
+
 - Always handle both blocking and streaming paths.
-- Test with `*_test.go` files in the same package. They cover edge cases for chunked responses.
-- Be careful with goroutine lifecycle. Ensure proper cleanup on context cancellation.
+- Test with `*_test.go` files in the same package. They cover edge
+  cases for chunked responses.
+- Be careful with goroutine lifecycle. Ensure proper cleanup on context
+  cancellation.
 
-## Commit Style
+## Commit and PR Scope
 
-```
-type(scope): message
-```
+Follow the commit and PR style in the root `AGENTS.md` and
+`.claude/docs/PR_STYLE_GUIDE.md`. Format: `type(scope): message`. The
+scope must be a real filesystem path containing every changed file.
 
-- `scope` = real package path (e.g., `intercept/messages`, `provider`, `circuitbreaker`)
-- Comments: full sentences, max 80 chars, explain **why** not what.
+For changes inside `aibridge/`, the scope is the path from the repo
+root, for example:
 
-## Do NOT
+- `feat(aibridge/intercept/messages): add cache token tracking`
+- `fix(aibridge/provider): handle nil response body`
+- `refactor(aibridge/mcp): extract tool filtering`
 
-- Rewrite comments or refactor code that isn't related to your task.
-- Remove context from error messages.
-- Use `--no-verify` on git operations.
-- Add `//nolint` without a justification comment.
-- Introduce new dependencies without discussion.
+Use a broader scope, or omit the scope, when changes span beyond
+`aibridge/`.
 
 ## Common Pitfalls
 
-| Problem                       | Fix                                                              |
-|-------------------------------|------------------------------------------------------------------|
-| Race in streaming tests       | Use `t.Cleanup()` and proper synchronization, never `time.Sleep` |
-| Mock not updated              | Run `make mocks` after changing `mcp/api.go`                     |
-| Formatting failures           | Run `make fmt` before committing                                 |
-| `retract` directive in go.mod | Don't remove. It's intentional (v1.0.8 conflict marker)          |
+| Problem                 | Fix                                                                         |
+|-------------------------|-----------------------------------------------------------------------------|
+| Race in streaming tests | Use `t.Cleanup()` and proper synchronization, never `time.Sleep`.           |
+| `mcpmock` out of date   | Run `go generate ./aibridge/mcpmock/` after changing `aibridge/mcp/api.go`. |
+| Formatting failures     | Run `make fmt` from the repo root before committing.                        |

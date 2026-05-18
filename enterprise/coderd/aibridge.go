@@ -92,7 +92,10 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 }
 
 // aiBridgeListInterceptions returns all AI Bridge interceptions a user can read.
-// Optional filters with query params
+// Optional filters with query params.
+//
+// Deprecated: Use /aibridge/sessions instead, which provides richer
+// session-level aggregation including threads and agentic actions.
 //
 // @Summary List AI Bridge interceptions
 // @ID list-ai-bridge-interceptions
@@ -104,7 +107,8 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 // @Param after_id query string false "Cursor pagination after ID (cannot be used with offset)"
 // @Param offset query int false "Offset pagination (cannot be used with after_id)"
 // @Success 200 {object} codersdk.AIBridgeListInterceptionsResponse
-// @Router /aibridge/interceptions [get]
+// @Router /api/v2/aibridge/interceptions [get]
+// @Deprecated Use /aibridge/sessions instead.
 func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -217,7 +221,7 @@ func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Reques
 // @Param after_session_id query string false "Cursor pagination after session ID (cannot be used with offset)"
 // @Param offset query int false "Offset pagination (cannot be used with after_session_id)"
 // @Success 200 {object} codersdk.AIBridgeListSessionsResponse
-// @Router /aibridge/sessions [get]
+// @Router /api/v2/aibridge/sessions [get]
 func (api *API) aiBridgeListSessions(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -342,7 +346,7 @@ func (api *API) aiBridgeListSessions(rw http.ResponseWriter, r *http.Request) {
 // @Param before_id query string false "Thread pagination cursor (backward/newer)"
 // @Param limit query int false "Number of threads per page (default 50)"
 // @Success 200 {object} codersdk.AIBridgeSessionThreadsResponse
-// @Router /aibridge/sessions/{session_id} [get]
+// @Router /api/v2/aibridge/sessions/{session_id} [get]
 func (api *API) aiBridgeGetSessionThreads(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -529,7 +533,7 @@ func (api *API) aiBridgeGetSessionThreads(rw http.ResponseWriter, r *http.Reques
 // @Produce json
 // @Tags AI Bridge
 // @Success 200 {array} string
-// @Router /aibridge/models [get]
+// @Router /api/v2/aibridge/models [get]
 func (api *API) aiBridgeListModels(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -581,7 +585,7 @@ func (api *API) aiBridgeListModels(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags AI Bridge
 // @Success 200 {array} string
-// @Router /aibridge/clients [get]
+// @Router /api/v2/aibridge/clients [get]
 func (api *API) aiBridgeListClients(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -692,4 +696,91 @@ func populatedAndConvertAIBridgeInterceptions(ctx context.Context, db database.S
 	}
 
 	return items, nil
+}
+
+// @Summary Get group AI budget
+// @ID get-group-ai-budget
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param group path string true "Group ID" format(uuid)
+// @Success 200 {object} codersdk.GroupAIBudget
+// @Router /api/v2/groups/{group}/ai/budget [get]
+func (api *API) groupAIBudget(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	group := httpmw.GroupParam(r)
+
+	budget, err := api.Database.GetGroupAIBudget(ctx, group.ID)
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		api.Logger.Error(ctx, "get group AI budget", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.GroupAIBudget(budget))
+}
+
+// @Summary Upsert group AI budget
+// @ID upsert-group-ai-budget
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Enterprise
+// @Param group path string true "Group ID" format(uuid)
+// @Param request body codersdk.UpsertGroupAIBudgetRequest true "Upsert group AI budget request"
+// @Success 200 {object} codersdk.GroupAIBudget
+// @Router /api/v2/groups/{group}/ai/budget [put]
+func (api *API) upsertGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	group := httpmw.GroupParam(r)
+
+	var req codersdk.UpsertGroupAIBudgetRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	budget, err := api.Database.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{
+		GroupID:          group.ID,
+		SpendLimitMicros: req.SpendLimitMicros,
+	})
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		api.Logger.Error(ctx, "upsert group AI budget", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.GroupAIBudget(budget))
+}
+
+// @Summary Delete group AI budget
+// @ID delete-group-ai-budget
+// @Security CoderSessionToken
+// @Tags Enterprise
+// @Param group path string true "Group ID" format(uuid)
+// @Success 204
+// @Router /api/v2/groups/{group}/ai/budget [delete]
+func (api *API) deleteGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	group := httpmw.GroupParam(r)
+
+	_, err := api.Database.DeleteGroupAIBudget(ctx, group.ID)
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		api.Logger.Error(ctx, "delete group AI budget", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
 }

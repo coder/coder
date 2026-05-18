@@ -15,9 +15,12 @@ import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
-import { Stack } from "#/components/Stack/Stack";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
 import { docs } from "#/utils/docs";
-import { Section } from "../Section";
 
 type LoginTypeConfirmation =
 	| {
@@ -36,10 +39,10 @@ export const redirectToOIDCAuth = (
 ) => {
 	switch (toType) {
 		case "github":
-			window.location.href = `/api/v2/users/oauth2/github/callback?oidc_merge_state=${stateString}&redirect=${redirectTo}`;
+			location.href = `/api/v2/users/oauth2/github/callback?oidc_merge_state=${stateString}&redirect=${redirectTo}`;
 			break;
 		case "oidc":
-			window.location.href = `/api/v2/users/oidc/callback?oidc_merge_state=${stateString}&redirect=${redirectTo}`;
+			location.href = `/api/v2/users/oidc/callback?oidc_merge_state=${stateString}&redirect=${redirectTo}`;
 			break;
 		default:
 			throw new Error(`Unknown login type ${toType}`);
@@ -135,65 +138,68 @@ export const SingleSignOnSection: FC<SingleSignOnSectionProps> = ({
 	const noSsoEnabled = !authMethods.github.enabled && !authMethods.oidc.enabled;
 
 	return (
-		<>
-			<Section
-				id="sso-section"
-				title="Single Sign On"
-				description="Authenticate in Coder using one-click"
-			>
-				<div className="grid gap-4">
-					{userLoginType.login_type === "password" ? (
-						<>
-							{authMethods.github.enabled && (
-								<Button
-									variant="outline"
-									size="lg"
-									className="w-full"
-									disabled={isUpdating}
-									onClick={() => openConfirmation("github")}
-								>
-									<ExternalImage src="/icon/github.svg" />
-									GitHub
-								</Button>
-							)}
+		<div id="sso-section" data-testid="sso-section">
+			<SettingsHeader>
+				<SettingsHeaderTitle hierarchy="secondary">
+					Single Sign On
+				</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Authenticate in Coder using one-click.
+				</SettingsHeaderDescription>
+			</SettingsHeader>
 
-							{authMethods.oidc.enabled && (
-								<Button
-									variant="outline"
-									size="lg"
-									className="w-full"
-									disabled={isUpdating}
-									onClick={() => openConfirmation("oidc")}
-								>
-									<OIDCIcon oidcAuth={authMethods.oidc} />
-									{getOIDCLabel(authMethods.oidc)}
-								</Button>
-							)}
+			<div className="grid gap-4">
+				{userLoginType.login_type === "password" ? (
+					<>
+						{authMethods.github.enabled && (
+							<Button
+								variant="outline"
+								size="lg"
+								className="w-full"
+								disabled={isUpdating}
+								onClick={() => openConfirmation("github")}
+							>
+								<ExternalImage src="/icon/github.svg" />
+								GitHub
+							</Button>
+						)}
 
-							{noSsoEnabled && <SSOEmptyState />}
-						</>
-					) : (
-						<div className="bg-surface-secondary rounded-md border border-border border-solid p-4 flex gap-4 items-center text-sm">
-							<CircleCheckIcon className="text-content-success size-icon-xs" />
-							<span>
-								Authenticated with{" "}
-								<strong>
-									{userLoginType.login_type === "github"
-										? "GitHub"
-										: getOIDCLabel(authMethods.oidc)}
-								</strong>
-							</span>
-							<div className="leading-none ml-auto">
-								{userLoginType.login_type === "github" ? (
-									<ExternalImage src="/icon/github.svg" className="size-4" />
-								) : (
-									<OIDCIcon oidcAuth={authMethods.oidc} />
-								)}
-							</div>
+						{authMethods.oidc.enabled && (
+							<Button
+								variant="outline"
+								size="lg"
+								className="w-full"
+								disabled={isUpdating}
+								onClick={() => openConfirmation("oidc")}
+							>
+								<OIDCIcon oidcAuth={authMethods.oidc} />
+								{getOIDCLabel(authMethods.oidc)}
+							</Button>
+						)}
+
+						{noSsoEnabled && <SSOEmptyState />}
+					</>
+				) : (
+					<div className="bg-surface-secondary rounded-md border border-border border-solid p-4 flex gap-4 items-center text-sm">
+						<CircleCheckIcon className="text-content-success size-icon-xs" />
+						<span>
+							Authenticated with{" "}
+							<strong>
+								{userLoginType.login_type === "github"
+									? "GitHub"
+									: getOIDCLabel(authMethods.oidc)}
+							</strong>
+						</span>
+						<div className="leading-none ml-auto">
+							{userLoginType.login_type === "github" ? (
+								<ExternalImage src="/icon/github.svg" className="size-4" />
+							) : (
+								<OIDCIcon oidcAuth={authMethods.oidc} />
+							)}
 						</div>
-					)}
-				</div>
-			</Section>
+					</div>
+				)}
+			</div>
 
 			<ConfirmLoginTypeChangeModal
 				open={isConfirming}
@@ -202,7 +208,7 @@ export const SingleSignOnSection: FC<SingleSignOnSectionProps> = ({
 				onClose={closeConfirmation}
 				onConfirm={confirm}
 			/>
-		</>
+		</div>
 	);
 };
 
@@ -216,7 +222,11 @@ const OIDCIcon: FC<OIDCIconProps> = ({ oidcAuth }) => {
 	}
 
 	return (
-		<img alt="Open ID Connect icon" src={oidcAuth.iconUrl} className="size-4" />
+		<ExternalImage
+			alt="Open ID Connect icon"
+			src={oidcAuth.iconUrl}
+			className="size-4"
+		/>
 	);
 };
 
@@ -258,7 +268,7 @@ const ConfirmLoginTypeChangeModal: FC<ConfirmLoginTypeChangeModalProps> = ({
 			title="Change login type"
 			confirmLoading={loading}
 			description={
-				<Stack spacing={4}>
+				<div className="flex flex-col gap-8">
 					<p>
 						After changing your login type, you will not be able to change it
 						again. Are you sure you want to proceed and change your login type?
@@ -283,7 +293,7 @@ const ConfirmLoginTypeChangeModal: FC<ConfirmLoginTypeChangeModalProps> = ({
 						label="Confirm your password"
 						type="password"
 					/>
-				</Stack>
+				</div>
 			}
 		/>
 	);
