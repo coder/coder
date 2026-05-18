@@ -285,6 +285,137 @@ func FilterPromptForChainMode(
 	return filtered
 }
 
+// StripResponsesItemReferences returns a prompt copy with OpenAI Responses
+// item IDs removed from provider metadata that fantasy would otherwise replay
+// as item_reference input. This is used after OpenAI reports stale stored
+// response state so recovery can replay visible history without asking OpenAI
+// to resolve the stale reasoning or provider-tool items again.
+func StripResponsesItemReferences(prompt []fantasy.Message) []fantasy.Message {
+	stripped := slices.Clone(prompt)
+	changed := false
+	for i, msg := range stripped {
+		updated, ok := stripResponsesItemReferencesFromMessage(msg)
+		if !ok {
+			continue
+		}
+		stripped[i] = updated
+		changed = true
+	}
+	if !changed {
+		return prompt
+	}
+	return stripped
+}
+
+func stripResponsesItemReferencesFromMessage(msg fantasy.Message) (fantasy.Message, bool) {
+	content := slices.Clone(msg.Content)
+	changed := false
+	for i, part := range content {
+		updated, ok := stripResponsesItemReferencesFromPart(part)
+		if !ok {
+			continue
+		}
+		content[i] = updated
+		changed = true
+	}
+	if !changed {
+		return msg, false
+	}
+	msg.Content = content
+	return msg, true
+}
+
+func stripResponsesItemReferencesFromPart(part fantasy.MessagePart) (fantasy.MessagePart, bool) {
+	switch p := part.(type) {
+	case fantasy.ReasoningPart:
+		providerOptions, changed := stripResponsesItemID(p.ProviderOptions)
+		if !changed {
+			return part, false
+		}
+		p.ProviderOptions = providerOptions
+		return p, true
+	case *fantasy.ReasoningPart:
+		if p == nil {
+			return part, false
+		}
+		providerOptions, changed := stripResponsesItemID(p.ProviderOptions)
+		if !changed {
+			return part, false
+		}
+		clone := *p
+		clone.ProviderOptions = providerOptions
+		return &clone, true
+	case fantasy.ToolCallPart:
+		providerOptions, changed := stripResponsesItemID(p.ProviderOptions)
+		if !changed {
+			return part, false
+		}
+		p.ProviderOptions = providerOptions
+		return p, true
+	case *fantasy.ToolCallPart:
+		if p == nil {
+			return part, false
+		}
+		providerOptions, changed := stripResponsesItemID(p.ProviderOptions)
+		if !changed {
+			return part, false
+		}
+		clone := *p
+		clone.ProviderOptions = providerOptions
+		return &clone, true
+	case fantasy.ToolResultPart:
+		providerOptions, changed := stripResponsesItemID(p.ProviderOptions)
+		if !changed {
+			return part, false
+		}
+		p.ProviderOptions = providerOptions
+		return p, true
+	case *fantasy.ToolResultPart:
+		if p == nil {
+			return part, false
+		}
+		providerOptions, changed := stripResponsesItemID(p.ProviderOptions)
+		if !changed {
+			return part, false
+		}
+		clone := *p
+		clone.ProviderOptions = providerOptions
+		return &clone, true
+	default:
+		return part, false
+	}
+}
+
+func stripResponsesItemID(providerOptions fantasy.ProviderOptions) (fantasy.ProviderOptions, bool) {
+	entry, ok := providerOptions[fantasyopenai.Name]
+	if !ok {
+		return providerOptions, false
+	}
+
+	switch metadata := entry.(type) {
+	case *fantasyopenai.ResponsesReasoningMetadata:
+		if metadata == nil || metadata.ItemID == "" {
+			return providerOptions, false
+		}
+		metadataClone := *metadata
+		metadataClone.ItemID = ""
+		cloned := maps.Clone(providerOptions)
+		cloned[fantasyopenai.Name] = &metadataClone
+		return cloned, true
+	case *fantasyopenai.WebSearchCallMetadata:
+		if metadata == nil || metadata.ItemID == "" {
+			return providerOptions, false
+		}
+		metadataClone := *metadata
+		metadataClone.ItemID = ""
+		cloned := maps.Clone(providerOptions)
+		cloned[fantasyopenai.Name] = &metadataClone
+		return cloned, true
+	default:
+		return providerOptions, false
+	}
+}
+
 func userMessageContributesToChainMode(msg database.ChatMessage) bool {
 	parts, err := chatprompt.ParseContent(msg)
 	if err != nil {

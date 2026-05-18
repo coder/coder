@@ -94,6 +94,128 @@ func TestRun_ChainBrokenRecovers(t *testing.T) {
 	)
 }
 
+func TestRun_ResponsesItemNotFoundRecoversWithStrippedReferences(t *testing.T) {
+	t.Parallel()
+
+	var (
+		streamCalls   int
+		secondCallOpt fantasy.ProviderOptions
+		secondPrompt  []fantasy.Message
+	)
+	model := &chattest.FakeModel{
+		ProviderName: fantasyopenai.Name,
+		StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+			streamCalls++
+			switch streamCalls {
+			case 1:
+				return nil, chainBrokenError()
+			default:
+				secondCallOpt = call.ProviderOptions
+				secondPrompt = call.Prompt
+				return finishingStream(), nil
+			}
+		},
+	}
+
+	reloadedHistory := []fantasy.Message{
+		textMessage(fantasy.MessageRoleUser, "search"),
+		staleOpenAIResponsesMessage(),
+		textMessage(fantasy.MessageRoleUser, "continue"),
+	}
+
+	err := Run(context.Background(), RunOptions{
+		Model:                model,
+		MaxSteps:             1,
+		ContextLimitFallback: 4096,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "chain-filtered"),
+		},
+		ProviderOptions: chainModeProviderOptions("resp_poisoned"),
+		PersistStep: func(_ context.Context, _ PersistedStep) error {
+			return nil
+		},
+		DisableChainMode: func() {},
+		ReloadMessages: func(_ context.Context) ([]fantasy.Message, error) {
+			return reloadedHistory, nil
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 2, streamCalls)
+	require.False(t, chatopenai.HasPreviousResponseID(secondCallOpt))
+	requireResponsesStoreEnabled(t, secondCallOpt)
+	requireResponsesItemReferencesStripped(t, secondPrompt)
+	// Original reloaded history is not mutated.
+	requireResponsesItemReferencesPresent(t, reloadedHistory)
+}
+
+func TestRun_ResponsesItemSuppressionPersistsAfterRecovery(t *testing.T) {
+	t.Parallel()
+
+	var (
+		streamCalls int
+		prompts     [][]fantasy.Message
+	)
+	model := &chattest.FakeModel{
+		ProviderName: fantasyopenai.Name,
+		StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+			streamCalls++
+			switch streamCalls {
+			case 1:
+				return nil, chainBrokenError()
+			case 2:
+				prompts = append(prompts, call.Prompt)
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc-1", ToolCallName: "read_file"},
+					{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc-1", Delta: `{"path":"main.go"}`},
+					{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc-1"},
+					{
+						Type:          fantasy.StreamPartTypeToolCall,
+						ID:            "tc-1",
+						ToolCallName:  "read_file",
+						ToolCallInput: `{"path":"main.go"}`,
+					},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
+				}), nil
+			default:
+				prompts = append(prompts, call.Prompt)
+				return finishingStream(), nil
+			}
+		},
+	}
+
+	err := Run(context.Background(), RunOptions{
+		Model:                model,
+		MaxSteps:             3,
+		ContextLimitFallback: 4096,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "chain-filtered"),
+		},
+		Tools: []fantasy.AgentTool{
+			newNoopTool("read_file"),
+		},
+		ProviderOptions: chainModeProviderOptions("resp_poisoned"),
+		PersistStep: func(_ context.Context, _ PersistedStep) error {
+			return nil
+		},
+		DisableChainMode: func() {},
+		ReloadMessages: func(_ context.Context) ([]fantasy.Message, error) {
+			return []fantasy.Message{
+				textMessage(fantasy.MessageRoleUser, "search"),
+				staleOpenAIResponsesMessage(),
+				textMessage(fantasy.MessageRoleUser, "continue"),
+			}, nil
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 3, streamCalls)
+	require.Len(t, prompts, 2)
+	for _, prompt := range prompts {
+		requireResponsesItemReferencesStripped(t, prompt)
+	}
+}
+
 func TestRun_ChainBrokenRecoveryPreparesReloadedMessages(t *testing.T) {
 	t.Parallel()
 
@@ -708,6 +830,94 @@ func chainBrokenError() error {
 		StatusCode:  404,
 		RequestBody: []byte(`{"previous_response_id":"resp_abc"}`),
 	}
+}
+
+func staleOpenAIResponsesMessage() fantasy.Message {
+	return fantasy.Message{
+		Role: fantasy.MessageRoleAssistant,
+		Content: []fantasy.MessagePart{
+			fantasy.ReasoningPart{
+				Text: "thinking",
+				ProviderOptions: fantasy.ProviderOptions{
+					fantasyopenai.Name: &fantasyopenai.ResponsesReasoningMetadata{
+						ItemID:  "rs_stale",
+						Summary: []string{"summary"},
+					},
+				},
+			},
+			fantasy.ToolResultPart{
+				ToolCallID:       "ws_stale",
+				ProviderExecuted: true,
+				ProviderOptions: fantasy.ProviderOptions{
+					fantasyopenai.Name: &fantasyopenai.WebSearchCallMetadata{
+						ItemID: "ws_stale",
+						Action: &fantasyopenai.WebSearchAction{Type: "search", Query: "coder"},
+					},
+				},
+			},
+		},
+	}
+}
+
+func requireResponsesStoreEnabled(t *testing.T, providerOptions fantasy.ProviderOptions) {
+	t.Helper()
+	entry, ok := providerOptions[fantasyopenai.Name]
+	require.True(t, ok)
+	options, ok := entry.(*fantasyopenai.ResponsesProviderOptions)
+	require.True(t, ok)
+	require.NotNil(t, options.Store)
+	require.True(t, *options.Store)
+}
+
+func requireResponsesItemReferencesStripped(t *testing.T, prompt []fantasy.Message) {
+	t.Helper()
+	reasoning, webSearch := requireResponsesMetadata(t, prompt)
+	require.Empty(t, reasoning.ItemID)
+	require.Empty(t, webSearch.ItemID)
+}
+
+func requireResponsesItemReferencesPresent(t *testing.T, prompt []fantasy.Message) {
+	t.Helper()
+	reasoning, webSearch := requireResponsesMetadata(t, prompt)
+	require.Equal(t, "rs_stale", reasoning.ItemID)
+	require.Equal(t, "ws_stale", webSearch.ItemID)
+}
+
+func requireResponsesMetadata(t *testing.T, prompt []fantasy.Message) (*fantasyopenai.ResponsesReasoningMetadata, *fantasyopenai.WebSearchCallMetadata) {
+	t.Helper()
+	for _, msg := range prompt {
+		for _, part := range msg.Content {
+			reasoning, ok := part.(fantasy.ReasoningPart)
+			if !ok {
+				continue
+			}
+			metadata := fantasyopenai.GetReasoningMetadata(reasoning.ProviderOptions)
+			if metadata == nil {
+				continue
+			}
+			webSearch := findResponsesWebSearchMetadata(prompt)
+			require.NotNil(t, webSearch)
+			return metadata, webSearch
+		}
+	}
+	require.FailNow(t, "missing OpenAI reasoning metadata")
+	return nil, nil
+}
+
+func findResponsesWebSearchMetadata(prompt []fantasy.Message) *fantasyopenai.WebSearchCallMetadata {
+	for _, msg := range prompt {
+		for _, part := range msg.Content {
+			entry, ok := part.Options()[fantasyopenai.Name]
+			if !ok {
+				continue
+			}
+			metadata, ok := entry.(*fantasyopenai.WebSearchCallMetadata)
+			if ok {
+				return metadata
+			}
+		}
+	}
+	return nil
 }
 
 // finishingStream returns a stream that emits a single Finish part.
