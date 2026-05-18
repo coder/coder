@@ -239,6 +239,12 @@ func (g *gitlabProvider) FetchPullRequestDiff(
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusTooManyRequests {
+			retryAfter := parseGitLabRetryAfter(resp.Header, g.clock)
+			if retryAfter > 0 {
+				return "", &RateLimitError{RetryAfter: g.clock.Now().Add(retryAfter + RateLimitPadding)}
+			}
+		}
 		return "", g.wrapError(
 			xerrors.Errorf("unexpected status %d", resp.StatusCode),
 			"get merge request raw diffs",

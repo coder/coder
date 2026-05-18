@@ -4145,7 +4145,7 @@ func (api *API) getCachedChatDiffStatus(
 // resolveExternalAuth finds the external auth config matching the
 // given remote origin URL and returns both the provider type string
 // (e.g. "github") and the gitprovider.Provider. Returns ("", nil)
-// if no matching config is found.
+// if no matching config is found or no provider could be constructed.
 func (api *API) resolveExternalAuth(ctx context.Context, origin string) (providerType string, gp gitprovider.Provider) {
 	origin = strings.TrimSpace(origin)
 	if origin == "" {

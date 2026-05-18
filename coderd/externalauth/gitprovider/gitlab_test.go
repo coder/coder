@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/externalauth/gitprovider"
+	"github.com/coder/quartz"
 )
 
 func TestGitLabFetchPullRequestStatus(t *testing.T) {
@@ -165,6 +167,38 @@ func TestGitLabFetchBranchDiff(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "timed out")
 	})
+
+	t.Run("TooLarge", func(t *testing.T) {
+		t.Parallel()
+
+		buf := make([]byte, gitprovider.MaxDiffSize+1024)
+		for i := range buf {
+			buf[i] = 'x'
+		}
+		oversizeDiff := string(buf)
+		mux := http.NewServeMux()
+		mux.HandleFunc("/api/v4/projects/owner%2Frepo", func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"default_branch":"main"}`))
+		})
+		mux.HandleFunc("/api/v4/projects/owner%2Frepo/repository/compare", func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = fmt.Fprintf(w, `{"diffs":[{"old_path":"big.txt","new_path":"big.txt","diff":"%s"}]}`, oversizeDiff)
+		})
+
+		srv := httptest.NewServer(mux)
+		defer srv.Close()
+
+		gp, err := gitprovider.New("gitlab", srv.URL, srv.Client())
+		require.NoError(t, err)
+
+		_, err = gp.FetchBranchDiff(
+			t.Context(),
+			"test-token",
+			gitprovider.BranchRef{Owner: "owner", Repo: "repo", Branch: "feat"},
+		)
+		assert.ErrorIs(t, err, gitprovider.ErrDiffTooLarge)
+	})
 }
 
 func TestGitLabResolveBranchPullRequest(t *testing.T) {
@@ -228,6 +262,8 @@ func TestGitLabRateLimit(t *testing.T) {
 	t.Run("429WithRetryAfter", func(t *testing.T) {
 		t.Parallel()
 
+		mClock := quartz.NewMock(t)
+
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Retry-After", "120")
 			w.WriteHeader(http.StatusTooManyRequests)
@@ -235,7 +271,7 @@ func TestGitLabRateLimit(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		gp, err := gitprovider.New("gitlab", srv.URL, srv.Client())
+		gp, err := gitprovider.New("gitlab", srv.URL, srv.Client(), gitprovider.WithClock(mClock))
 		require.NoError(t, err)
 
 		_, err = gp.FetchPullRequestStatus(
@@ -248,14 +284,16 @@ func TestGitLabRateLimit(t *testing.T) {
 		rlErr, ok := errors.AsType[*gitprovider.RateLimitError](err)
 		require.True(t, ok, "error should be *RateLimitError, got: %T", err)
 
-		expected := time.Now().Add(120 * time.Second)
-		assert.WithinDuration(t, expected.Add(gitprovider.RateLimitPadding), rlErr.RetryAfter, 5*time.Second)
+		expected := mClock.Now().Add(120*time.Second + gitprovider.RateLimitPadding)
+		assert.True(t, rlErr.RetryAfter.Equal(expected), "expected %v, got %v", expected, rlErr.RetryAfter)
 	})
 
 	t.Run("403WithRateLimitReset", func(t *testing.T) {
 		t.Parallel()
 
-		resetTime := time.Now().Add(60 * time.Second)
+		mClock := quartz.NewMock(t)
+
+		resetTime := mClock.Now().Add(60 * time.Second)
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("RateLimit-Reset", fmt.Sprintf("%d", resetTime.Unix()))
 			w.WriteHeader(http.StatusForbidden)
@@ -263,7 +301,7 @@ func TestGitLabRateLimit(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		gp, err := gitprovider.New("gitlab", srv.URL, srv.Client())
+		gp, err := gitprovider.New("gitlab", srv.URL, srv.Client(), gitprovider.WithClock(mClock))
 		require.NoError(t, err)
 
 		_, err = gp.FetchPullRequestStatus(
@@ -275,7 +313,39 @@ func TestGitLabRateLimit(t *testing.T) {
 
 		rlErr, ok := errors.AsType[*gitprovider.RateLimitError](err)
 		require.True(t, ok, "error should be *RateLimitError, got: %T", err)
-		assert.WithinDuration(t, resetTime.Add(gitprovider.RateLimitPadding), rlErr.RetryAfter, 5*time.Second)
+
+		expected := resetTime.Add(gitprovider.RateLimitPadding)
+		assert.True(t, rlErr.RetryAfter.Equal(expected), "expected %v, got %v", expected, rlErr.RetryAfter)
+	})
+
+	t.Run("429OnRawDiffEndpoint", func(t *testing.T) {
+		t.Parallel()
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if strings.Contains(r.URL.Path, "raw_diffs") {
+				w.Header().Set("Retry-After", "60")
+				w.WriteHeader(http.StatusTooManyRequests)
+				return
+			}
+			w.WriteHeader(http.StatusNotFound)
+		}))
+		defer srv.Close()
+
+		gp, err := gitprovider.New("gitlab", srv.URL, srv.Client())
+		require.NoError(t, err)
+
+		_, err = gp.FetchPullRequestDiff(
+			t.Context(),
+			"test-token",
+			gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 1},
+		)
+		require.Error(t, err)
+
+		rlErr, ok := errors.AsType[*gitprovider.RateLimitError](err)
+		require.True(t, ok, "error should be *RateLimitError, got: %T", err)
+
+		expected := time.Now().Add(60 * time.Second)
+		assert.WithinDuration(t, expected.Add(gitprovider.RateLimitPadding), rlErr.RetryAfter, 5*time.Second)
 	})
 
 	t.Run("403WithoutRateLimitHeaders", func(t *testing.T) {
@@ -343,32 +413,4 @@ func TestGitLabSelfHosted(t *testing.T) {
 		result := gp.BuildPullRequestURL(gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 42})
 		assert.Equal(t, "https://gitlab.corp.com/org/repo/-/merge_requests/42", result)
 	})
-}
-
-func TestGitLabCompareTimeout(t *testing.T) {
-	t.Parallel()
-
-	mux := http.NewServeMux()
-	mux.HandleFunc("/api/v4/projects/owner%2Frepo", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"id": 1, "path_with_namespace": "owner/repo", "default_branch": "main"}`))
-	})
-	mux.HandleFunc("/api/v4/projects/owner%2Frepo/repository/compare", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"compare_timeout": true, "diffs": [], "commits": []}`))
-	})
-
-	srv := httptest.NewServer(mux)
-	defer srv.Close()
-
-	gp, err := gitprovider.New("gitlab", srv.URL, srv.Client())
-	require.NoError(t, err)
-
-	_, err = gp.FetchBranchDiff(t.Context(), "test-token", gitprovider.BranchRef{
-		Owner:  "owner",
-		Repo:   "repo",
-		Branch: "feature-branch",
-	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "timed out")
 }
