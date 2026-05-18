@@ -50,6 +50,7 @@ func newGitLabVCR(t *testing.T, cassetteName string) *recorder.Recorder {
 
 			allowedResponseHeaders := map[string]struct{}{
 				"Content-Type": {},
+				"X-Total":      {},
 			}
 			for h := range i.Response.Headers {
 				if _, ok := allowedResponseHeaders[h]; !ok {
@@ -76,21 +77,21 @@ func newGitLabVCR(t *testing.T, cassetteName string) *recorder.Recorder {
 //
 // Fixtures:
 //
-//  1. https://gitlab.com/johnstcn/dotfiles/-/merge_requests/1
-//     Simple owner/repo layout (single-level namespace).
-//     State: open. Same-repo MR, 794 files, has conflicts (null base_sha).
-//
-//  2. https://gitlab.com/johnstcn/dotfiles/-/merge_requests/2
-//     Simple owner/repo layout (single-level namespace).
+//  1. https://gitlab.com/test-group9945421/test-project/-/merge_requests/3
+//     Simple namespace (single-level group).
 //     State: open. Same-repo MR, 1 file, mergeable.
 //
-//  3. https://gitlab.com/gitlab-org/api/client-go/-/merge_requests/2883
-//     Nested group (multi-level namespace: gitlab-org/api).
-//     State: merged. Same-repo MR, 1 file changed.
+//  2. https://gitlab.com/test-group9945421/test-project/-/merge_requests/2
+//     Simple namespace (single-level group).
+//     State: open. Same-repo MR, 1 file, has conflicts.
 //
-//  4. https://gitlab.com/gitlab-org/api/client-go/-/merge_requests/2654
-//     Nested group, state: closed (not merged). Forked MR, 21 files.
-//     Exercises closed-state mapping and cross-fork handling.
+//  3. https://gitlab.com/test-group9945421/test-subgroup/another-test-project/-/merge_requests/1
+//     Nested group (multi-level namespace: test-group9945421/test-subgroup).
+//     State: merged. Same-repo MR, 1 file. Source branch deleted after merge.
+//
+//  4. https://gitlab.com/test-group9945421/test-subgroup/another-test-project/-/merge_requests/3
+//     Nested group. State: closed (not merged). From a fork.
+//     Source branch "forked" does not exist on the target project.
 func TestGitLabIntegration(t *testing.T) {
 	t.Parallel()
 
@@ -119,75 +120,75 @@ func TestGitLabIntegration(t *testing.T) {
 		}{
 			{
 				name:             "HTTPS simple",
-				raw:              "https://gitlab.com/johnstcn/dotfiles.git",
+				raw:              "https://gitlab.com/test-group9945421/test-project.git",
 				expectOK:         true,
-				expectOwner:      "johnstcn",
-				expectRepo:       "dotfiles",
-				expectNormalized: "https://gitlab.com/johnstcn/dotfiles",
+				expectOwner:      "test-group9945421",
+				expectRepo:       "test-project",
+				expectNormalized: "https://gitlab.com/test-group9945421/test-project",
 			},
 			{
 				name:             "HTTPS no .git",
-				raw:              "https://gitlab.com/johnstcn/dotfiles",
+				raw:              "https://gitlab.com/test-group9945421/test-project",
 				expectOK:         true,
-				expectOwner:      "johnstcn",
-				expectRepo:       "dotfiles",
-				expectNormalized: "https://gitlab.com/johnstcn/dotfiles",
+				expectOwner:      "test-group9945421",
+				expectRepo:       "test-project",
+				expectNormalized: "https://gitlab.com/test-group9945421/test-project",
 			},
 			{
 				name:             "HTTPS trailing slash",
-				raw:              "https://gitlab.com/johnstcn/dotfiles/",
+				raw:              "https://gitlab.com/test-group9945421/test-project/",
 				expectOK:         true,
-				expectOwner:      "johnstcn",
-				expectRepo:       "dotfiles",
-				expectNormalized: "https://gitlab.com/johnstcn/dotfiles",
+				expectOwner:      "test-group9945421",
+				expectRepo:       "test-project",
+				expectNormalized: "https://gitlab.com/test-group9945421/test-project",
 			},
 			{
 				name:             "SSH",
-				raw:              "git@gitlab.com:johnstcn/dotfiles.git",
+				raw:              "git@gitlab.com:test-group9945421/test-project.git",
 				expectOK:         true,
-				expectOwner:      "johnstcn",
-				expectRepo:       "dotfiles",
-				expectNormalized: "https://gitlab.com/johnstcn/dotfiles",
+				expectOwner:      "test-group9945421",
+				expectRepo:       "test-project",
+				expectNormalized: "https://gitlab.com/test-group9945421/test-project",
 			},
 			{
 				name:             "SSH prefix",
-				raw:              "ssh://git@gitlab.com/johnstcn/dotfiles.git",
+				raw:              "ssh://git@gitlab.com/test-group9945421/test-project.git",
 				expectOK:         true,
-				expectOwner:      "johnstcn",
-				expectRepo:       "dotfiles",
-				expectNormalized: "https://gitlab.com/johnstcn/dotfiles",
+				expectOwner:      "test-group9945421",
+				expectRepo:       "test-project",
+				expectNormalized: "https://gitlab.com/test-group9945421/test-project",
 			},
 			{
 				name:             "Nested group HTTPS",
-				raw:              "https://gitlab.com/gitlab-org/api/client-go.git",
+				raw:              "https://gitlab.com/test-group9945421/test-subgroup/another-test-project.git",
 				expectOK:         true,
-				expectOwner:      "gitlab-org/api",
-				expectRepo:       "client-go",
-				expectNormalized: "https://gitlab.com/gitlab-org/api/client-go",
+				expectOwner:      "test-group9945421/test-subgroup",
+				expectRepo:       "another-test-project",
+				expectNormalized: "https://gitlab.com/test-group9945421/test-subgroup/another-test-project",
 			},
 			{
 				name:             "Nested group HTTPS no .git",
-				raw:              "https://gitlab.com/gitlab-org/api/client-go",
+				raw:              "https://gitlab.com/test-group9945421/test-subgroup/another-test-project",
 				expectOK:         true,
-				expectOwner:      "gitlab-org/api",
-				expectRepo:       "client-go",
-				expectNormalized: "https://gitlab.com/gitlab-org/api/client-go",
+				expectOwner:      "test-group9945421/test-subgroup",
+				expectRepo:       "another-test-project",
+				expectNormalized: "https://gitlab.com/test-group9945421/test-subgroup/another-test-project",
 			},
 			{
 				name:             "Nested group SSH",
-				raw:              "git@gitlab.com:gitlab-org/api/client-go.git",
+				raw:              "git@gitlab.com:test-group9945421/test-subgroup/another-test-project.git",
 				expectOK:         true,
-				expectOwner:      "gitlab-org/api",
-				expectRepo:       "client-go",
-				expectNormalized: "https://gitlab.com/gitlab-org/api/client-go",
+				expectOwner:      "test-group9945421/test-subgroup",
+				expectRepo:       "another-test-project",
+				expectNormalized: "https://gitlab.com/test-group9945421/test-subgroup/another-test-project",
 			},
 			{
 				name:             "Nested group SSH prefix",
-				raw:              "ssh://git@gitlab.com/gitlab-org/api/client-go.git",
+				raw:              "ssh://git@gitlab.com/test-group9945421/test-subgroup/another-test-project.git",
 				expectOK:         true,
-				expectOwner:      "gitlab-org/api",
-				expectRepo:       "client-go",
-				expectNormalized: "https://gitlab.com/gitlab-org/api/client-go",
+				expectOwner:      "test-group9945421/test-subgroup",
+				expectRepo:       "another-test-project",
+				expectNormalized: "https://gitlab.com/test-group9945421/test-subgroup/another-test-project",
 			},
 			{
 				name:     "GitHub does not match",
@@ -233,51 +234,51 @@ func TestGitLabIntegration(t *testing.T) {
 		}{
 			{
 				name:         "Simple namespace",
-				raw:          "https://gitlab.com/johnstcn/dotfiles/-/merge_requests/1",
+				raw:          "https://gitlab.com/test-group9945421/test-project/-/merge_requests/3",
 				expectOK:     true,
-				expectOwner:  "johnstcn",
-				expectRepo:   "dotfiles",
-				expectNumber: 1,
+				expectOwner:  "test-group9945421",
+				expectRepo:   "test-project",
+				expectNumber: 3,
 			},
 			{
 				name:         "Nested group",
-				raw:          "https://gitlab.com/gitlab-org/api/client-go/-/merge_requests/2883",
+				raw:          "https://gitlab.com/test-group9945421/test-subgroup/another-test-project/-/merge_requests/1",
 				expectOK:     true,
-				expectOwner:  "gitlab-org/api",
-				expectRepo:   "client-go",
-				expectNumber: 2883,
-			},
-			{
-				name:         "Nested group second MR",
-				raw:          "https://gitlab.com/gitlab-org/api/client-go/-/merge_requests/2654",
-				expectOK:     true,
-				expectOwner:  "gitlab-org/api",
-				expectRepo:   "client-go",
-				expectNumber: 2654,
-			},
-			{
-				name:         "With query string",
-				raw:          "https://gitlab.com/johnstcn/dotfiles/-/merge_requests/1?tab=diffs",
-				expectOK:     true,
-				expectOwner:  "johnstcn",
-				expectRepo:   "dotfiles",
+				expectOwner:  "test-group9945421/test-subgroup",
+				expectRepo:   "another-test-project",
 				expectNumber: 1,
 			},
 			{
-				name:         "With fragment",
-				raw:          "https://gitlab.com/gitlab-org/api/client-go/-/merge_requests/2883#note_123",
+				name:         "Nested group second MR",
+				raw:          "https://gitlab.com/test-group9945421/test-subgroup/another-test-project/-/merge_requests/3",
 				expectOK:     true,
-				expectOwner:  "gitlab-org/api",
-				expectRepo:   "client-go",
-				expectNumber: 2883,
+				expectOwner:  "test-group9945421/test-subgroup",
+				expectRepo:   "another-test-project",
+				expectNumber: 3,
+			},
+			{
+				name:         "With query string",
+				raw:          "https://gitlab.com/test-group9945421/test-project/-/merge_requests/3?tab=diffs",
+				expectOK:     true,
+				expectOwner:  "test-group9945421",
+				expectRepo:   "test-project",
+				expectNumber: 3,
+			},
+			{
+				name:         "With fragment",
+				raw:          "https://gitlab.com/test-group9945421/test-subgroup/another-test-project/-/merge_requests/1#note_123",
+				expectOK:     true,
+				expectOwner:  "test-group9945421/test-subgroup",
+				expectRepo:   "another-test-project",
+				expectNumber: 1,
 			},
 			{
 				name:         "With path suffix (diffs tab)",
-				raw:          "https://gitlab.com/gitlab-org/api/client-go/-/merge_requests/2654/diffs",
+				raw:          "https://gitlab.com/test-group9945421/test-subgroup/another-test-project/-/merge_requests/3/diffs",
 				expectOK:     true,
-				expectOwner:  "gitlab-org/api",
-				expectRepo:   "client-go",
-				expectNumber: 2654,
+				expectOwner:  "test-group9945421/test-subgroup",
+				expectRepo:   "another-test-project",
+				expectNumber: 3,
 			},
 			{
 				name:     "GitHub PR does not match",
@@ -286,7 +287,7 @@ func TestGitLabIntegration(t *testing.T) {
 			},
 			{
 				name:     "Not a MR URL",
-				raw:      "https://gitlab.com/johnstcn/dotfiles/-/issues/1",
+				raw:      "https://gitlab.com/test-group9945421/test-project/-/issues/1",
 				expectOK: false,
 			},
 			{
@@ -320,23 +321,23 @@ func TestGitLabIntegration(t *testing.T) {
 		}{
 			{
 				name:     "Simple, already normalized",
-				raw:      "https://gitlab.com/johnstcn/dotfiles/-/merge_requests/1",
-				expected: "https://gitlab.com/johnstcn/dotfiles/-/merge_requests/1",
+				raw:      "https://gitlab.com/test-group9945421/test-project/-/merge_requests/3",
+				expected: "https://gitlab.com/test-group9945421/test-project/-/merge_requests/3",
 			},
 			{
 				name:     "Simple with query and fragment",
-				raw:      "https://gitlab.com/johnstcn/dotfiles/-/merge_requests/1?tab=diffs#note_123",
-				expected: "https://gitlab.com/johnstcn/dotfiles/-/merge_requests/1",
+				raw:      "https://gitlab.com/test-group9945421/test-project/-/merge_requests/3?tab=diffs#note_123",
+				expected: "https://gitlab.com/test-group9945421/test-project/-/merge_requests/3",
 			},
 			{
 				name:     "Nested group with query",
-				raw:      "https://gitlab.com/gitlab-org/api/client-go/-/merge_requests/2883?diff_id=1234",
-				expected: "https://gitlab.com/gitlab-org/api/client-go/-/merge_requests/2883",
+				raw:      "https://gitlab.com/test-group9945421/test-subgroup/another-test-project/-/merge_requests/1?diff_id=1234",
+				expected: "https://gitlab.com/test-group9945421/test-subgroup/another-test-project/-/merge_requests/1",
 			},
 			{
 				name:     "Nested group with path suffix",
-				raw:      "https://gitlab.com/gitlab-org/api/client-go/-/merge_requests/2654/diffs",
-				expected: "https://gitlab.com/gitlab-org/api/client-go/-/merge_requests/2654",
+				raw:      "https://gitlab.com/test-group9945421/test-subgroup/another-test-project/-/merge_requests/3/diffs",
+				expected: "https://gitlab.com/test-group9945421/test-subgroup/another-test-project/-/merge_requests/3",
 			},
 			{
 				name:     "Not a MR URL",
@@ -371,43 +372,43 @@ func TestGitLabIntegration(t *testing.T) {
 		}{
 			{
 				name:     "Simple namespace",
-				owner:    "johnstcn",
-				repo:     "dotfiles",
+				owner:    "test-group9945421",
+				repo:     "test-project",
 				branch:   "main",
-				expected: "https://gitlab.com/johnstcn/dotfiles/-/tree/main",
+				expected: "https://gitlab.com/test-group9945421/test-project/-/tree/main",
 			},
 			{
 				name:     "Nested group",
-				owner:    "gitlab-org/api",
-				repo:     "client-go",
+				owner:    "test-group9945421/test-subgroup",
+				repo:     "another-test-project",
 				branch:   "main",
-				expected: "https://gitlab.com/gitlab-org/api/client-go/-/tree/main",
+				expected: "https://gitlab.com/test-group9945421/test-subgroup/another-test-project/-/tree/main",
 			},
 			{
-				name:     "Branch with slashes",
-				owner:    "gitlab-org/api",
-				repo:     "client-go",
-				branch:   "add-missing-deprecation-replacement",
-				expected: "https://gitlab.com/gitlab-org/api/client-go/-/tree/add-missing-deprecation-replacement",
+				name:     "Branch with special name",
+				owner:    "test-group9945421/test-subgroup",
+				repo:     "another-test-project",
+				branch:   "johnstcn-main-patch-54711",
+				expected: "https://gitlab.com/test-group9945421/test-subgroup/another-test-project/-/tree/johnstcn-main-patch-54711",
 			},
 			{
 				name:     "Empty owner",
 				owner:    "",
-				repo:     "dotfiles",
+				repo:     "test-project",
 				branch:   "main",
 				expected: "",
 			},
 			{
 				name:     "Empty repo",
-				owner:    "johnstcn",
+				owner:    "test-group9945421",
 				repo:     "",
 				branch:   "main",
 				expected: "",
 			},
 			{
 				name:     "Empty branch",
-				owner:    "johnstcn",
-				repo:     "dotfiles",
+				owner:    "test-group9945421",
+				repo:     "test-project",
 				branch:   "",
 				expected: "",
 			},
@@ -433,25 +434,25 @@ func TestGitLabIntegration(t *testing.T) {
 		}{
 			{
 				name:     "Simple namespace",
-				owner:    "johnstcn",
-				repo:     "dotfiles",
-				expected: "https://gitlab.com/johnstcn/dotfiles",
+				owner:    "test-group9945421",
+				repo:     "test-project",
+				expected: "https://gitlab.com/test-group9945421/test-project",
 			},
 			{
 				name:     "Nested group",
-				owner:    "gitlab-org/api",
-				repo:     "client-go",
-				expected: "https://gitlab.com/gitlab-org/api/client-go",
+				owner:    "test-group9945421/test-subgroup",
+				repo:     "another-test-project",
+				expected: "https://gitlab.com/test-group9945421/test-subgroup/another-test-project",
 			},
 			{
 				name:     "Empty owner",
 				owner:    "",
-				repo:     "dotfiles",
+				repo:     "test-project",
 				expected: "",
 			},
 			{
 				name:     "Empty repo",
-				owner:    "johnstcn",
+				owner:    "test-group9945421",
 				repo:     "",
 				expected: "",
 			},
@@ -476,27 +477,27 @@ func TestGitLabIntegration(t *testing.T) {
 		}{
 			{
 				name:     "Simple namespace",
-				ref:      gitprovider.PRRef{Owner: "johnstcn", Repo: "dotfiles", Number: 1},
-				expected: "https://gitlab.com/johnstcn/dotfiles/-/merge_requests/1",
+				ref:      gitprovider.PRRef{Owner: "test-group9945421", Repo: "test-project", Number: 3},
+				expected: "https://gitlab.com/test-group9945421/test-project/-/merge_requests/3",
 			},
 			{
 				name:     "Nested group",
-				ref:      gitprovider.PRRef{Owner: "gitlab-org/api", Repo: "client-go", Number: 2883},
-				expected: "https://gitlab.com/gitlab-org/api/client-go/-/merge_requests/2883",
+				ref:      gitprovider.PRRef{Owner: "test-group9945421/test-subgroup", Repo: "another-test-project", Number: 1},
+				expected: "https://gitlab.com/test-group9945421/test-subgroup/another-test-project/-/merge_requests/1",
 			},
 			{
 				name:     "Empty owner",
-				ref:      gitprovider.PRRef{Owner: "", Repo: "dotfiles", Number: 1},
+				ref:      gitprovider.PRRef{Owner: "", Repo: "test-project", Number: 3},
 				expected: "",
 			},
 			{
 				name:     "Empty repo",
-				ref:      gitprovider.PRRef{Owner: "johnstcn", Repo: "", Number: 1},
+				ref:      gitprovider.PRRef{Owner: "test-group9945421", Repo: "", Number: 3},
 				expected: "",
 			},
 			{
 				name:     "Zero number",
-				ref:      gitprovider.PRRef{Owner: "johnstcn", Repo: "dotfiles", Number: 0},
+				ref:      gitprovider.PRRef{Owner: "test-group9945421", Repo: "test-project", Number: 0},
 				expected: "",
 			},
 		}
@@ -528,56 +529,52 @@ func TestGitLabIntegration(t *testing.T) {
 			expectChanges int32
 		}{
 			{
-				// Open MR in simple namespace, 794 files, has conflicts.
-				name:          "simple_namespace_open_with_conflicts",
-				ref:           gitprovider.PRRef{Owner: "johnstcn", Repo: "dotfiles", Number: 1},
+				name:          "open_mergeable",
+				ref:           gitprovider.PRRef{Owner: "test-group9945421", Repo: "test-project", Number: 3},
 				expectState:   gitprovider.PRStateOpen,
 				expectAuthor:  "johnstcn",
-				expectHead:    "806769254e513400a9ef53cd7fd51e236b61eef9",
+				expectHead:    "da57fca657e02c1fbe131402f927d134a34b257b",
 				expectBase:    "main",
-				expectBranch:  "github",
-				expectTitle:   "Migrate from Ansible back to shell scripts",
-				expectDraft:   false,
-				expectChanges: 794,
-			},
-			{
-				// Open MR in simple namespace, 1 file, mergeable.
-				name:          "simple_namespace_open_mergeable",
-				ref:           gitprovider.PRRef{Owner: "johnstcn", Repo: "dotfiles", Number: 2},
-				expectState:   gitprovider.PRStateOpen,
-				expectAuthor:  "johnstcn",
-				expectHead:    "039b0a471e3afd3119c0baa526412ab8ec0bb56b",
-				expectBase:    "main",
-				expectBranch:  "johnstcn-main-patch-16936",
-				expectTitle:   "Edit install.sh",
+				expectBranch:  "johnstcn-main-patch-98822",
+				expectTitle:   "Open mergeable",
 				expectDraft:   false,
 				expectChanges: 1,
 			},
 			{
-				// Merged MR in nested group, same-repo, 1 file.
-				name:          "nested_group_merged",
-				ref:           gitprovider.PRRef{Owner: "gitlab-org/api", Repo: "client-go", Number: 2883},
+				name:          "open_with_conflicts",
+				ref:           gitprovider.PRRef{Owner: "test-group9945421", Repo: "test-project", Number: 2},
+				expectState:   gitprovider.PRStateOpen,
+				expectAuthor:  "johnstcn",
+				expectHead:    "642379758fa148ff24cba5f676226a3f8e560d73",
+				expectBase:    "main",
+				expectBranch:  "johnstcn-main-patch-84369",
+				expectTitle:   "Open with conflicts",
+				expectDraft:   false,
+				expectChanges: 1,
+			},
+			{
+				name:          "nested_merged",
+				ref:           gitprovider.PRRef{Owner: "test-group9945421/test-subgroup", Repo: "another-test-project", Number: 1},
 				expectState:   gitprovider.PRStateMerged,
-				expectAuthor:  "heidi.berry",
-				expectHead:    "f793022bc000a737f4fca46a4eed1c4a3ea353d2",
+				expectAuthor:  "johnstcn",
+				expectHead:    "ff919f3dc418e4fbffb6fbded7b4c9ae60a4531b",
 				expectBase:    "main",
-				expectBranch:  "add-missing-deprecation-replacement",
-				expectTitle:   "fix: Add PublicJobs to CreateProjectOptions",
+				expectBranch:  "johnstcn-main-patch-54711",
+				expectTitle:   "Nested merged",
 				expectDraft:   false,
 				expectChanges: 1,
 			},
 			{
-				// Closed (not merged) MR from a fork, 21 files.
-				name:          "nested_group_closed_from_fork",
-				ref:           gitprovider.PRRef{Owner: "gitlab-org/api", Repo: "client-go", Number: 2654},
+				name:          "nested_closed_from_fork",
+				ref:           gitprovider.PRRef{Owner: "test-group9945421/test-subgroup", Repo: "another-test-project", Number: 3},
 				expectState:   gitprovider.PRStateClosed,
-				expectAuthor:  "amrkhald777",
-				expectHead:    "868041db85955c58393306e7c21c480f243b3a18",
+				expectAuthor:  "johnstcn",
+				expectHead:    "6b743c6728fa248e3654657e0e576eafcf472953",
 				expectBase:    "main",
-				expectBranch:  "convert-examples-to-testable-examples",
-				expectTitle:   "feat: convert examples to testable examples for pkg.go.dev",
+				expectBranch:  "forked",
+				expectTitle:   "Nested closed from fork",
 				expectDraft:   false,
-				expectChanges: 21,
+				expectChanges: 1,
 			},
 		}
 
@@ -635,27 +632,24 @@ func TestGitLabIntegration(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
-			name      string
-			ref       gitprovider.PRRef
-			emptyDiff bool // true if GitLab cannot compute a diff (e.g. null base_sha)
+			name string
+			ref  gitprovider.PRRef
 		}{
 			{
-				// MR !1 has conflicts and null base_sha; GitLab returns empty.
-				name:      "simple_namespace_open_with_conflicts_empty_diff",
-				ref:       gitprovider.PRRef{Owner: "johnstcn", Repo: "dotfiles", Number: 1},
-				emptyDiff: true,
+				name: "open_mergeable",
+				ref:  gitprovider.PRRef{Owner: "test-group9945421", Repo: "test-project", Number: 3},
 			},
 			{
-				name: "simple_namespace_open_mergeable",
-				ref:  gitprovider.PRRef{Owner: "johnstcn", Repo: "dotfiles", Number: 2},
+				name: "open_with_conflicts",
+				ref:  gitprovider.PRRef{Owner: "test-group9945421", Repo: "test-project", Number: 2},
 			},
 			{
-				name: "nested_group_merged",
-				ref:  gitprovider.PRRef{Owner: "gitlab-org/api", Repo: "client-go", Number: 2883},
+				name: "nested_merged",
+				ref:  gitprovider.PRRef{Owner: "test-group9945421/test-subgroup", Repo: "another-test-project", Number: 1},
 			},
 			{
-				name: "nested_group_closed_from_fork",
-				ref:  gitprovider.PRRef{Owner: "gitlab-org/api", Repo: "client-go", Number: 2654},
+				name: "nested_closed_from_fork",
+				ref:  gitprovider.PRRef{Owner: "test-group9945421/test-subgroup", Repo: "another-test-project", Number: 3},
 			},
 		}
 
@@ -671,12 +665,8 @@ func TestGitLabIntegration(t *testing.T) {
 
 				diff, err := vcrProvider.FetchPullRequestDiff(ctx, token, tt.ref)
 				require.NoError(t, err)
-				if tt.emptyDiff {
-					assert.Empty(t, diff)
-				} else {
-					assert.NotEmpty(t, diff)
-					assert.Contains(t, diff, "diff --git")
-				}
+				assert.NotEmpty(t, diff)
+				assert.Contains(t, diff, "diff --git")
 			})
 		}
 	})
@@ -690,35 +680,30 @@ func TestGitLabIntegration(t *testing.T) {
 			expectNil bool // true if branch is known-deleted or from a fork
 		}{
 			{
-				// The MR source branch "github" exists and is open.
-				name: "simple_namespace_open_mr_branch",
+				name: "open_mr_branch",
 				ref: gitprovider.BranchRef{
-					Owner:  "johnstcn",
-					Repo:   "dotfiles",
-					Branch: "github",
+					Owner:  "test-group9945421",
+					Repo:   "test-project",
+					Branch: "johnstcn-main-patch-98822",
 				},
 				expectNil: false,
 			},
 			{
-				name: "nested_group_source_branch_removed_after_merge",
+				name: "nested_branch_deleted_after_merge",
 				ref: gitprovider.BranchRef{
-					Owner:  "gitlab-org/api",
-					Repo:   "client-go",
-					Branch: "add-missing-deprecation-replacement",
+					Owner:  "test-group9945421/test-subgroup",
+					Repo:   "another-test-project",
+					Branch: "johnstcn-main-patch-54711",
 				},
-				// MR 2883 had should_remove_source_branch=true,
-				// so the branch should be gone. No open MR expected.
 				expectNil: true,
 			},
 			{
-				name: "nested_group_branch_from_fork",
+				name: "nested_fork_branch_not_on_target",
 				ref: gitprovider.BranchRef{
-					Owner:  "gitlab-org/api",
-					Repo:   "client-go",
-					Branch: "convert-examples-to-testable-examples",
+					Owner:  "test-group9945421/test-subgroup",
+					Repo:   "another-test-project",
+					Branch: "forked",
 				},
-				// MR 2654 was from a fork (source_project_id=null).
-				// The branch does not exist on the target project.
 				expectNil: true,
 			},
 		}
@@ -756,29 +741,29 @@ func TestGitLabIntegration(t *testing.T) {
 			expectErr bool // true if branch no longer exists
 		}{
 			{
-				name: "simple_namespace_open_mr_branch",
+				name: "open_mr_branch",
 				ref: gitprovider.BranchRef{
-					Owner:  "johnstcn",
-					Repo:   "dotfiles",
-					Branch: "github",
+					Owner:  "test-group9945421",
+					Repo:   "test-project",
+					Branch: "johnstcn-main-patch-98822",
 				},
 			},
 			{
-				name: "nested_group_source_branch_deleted_after_merge",
+				name: "nested_branch_deleted_after_merge",
 				ref: gitprovider.BranchRef{
-					Owner:  "gitlab-org/api",
-					Repo:   "client-go",
-					Branch: "add-missing-deprecation-replacement",
+					Owner:  "test-group9945421/test-subgroup",
+					Repo:   "another-test-project",
+					Branch: "johnstcn-main-patch-54711",
 				},
 				// Branch was removed after merge.
 				expectErr: true,
 			},
 			{
-				name: "nested_group_branch_from_fork_not_on_target",
+				name: "nested_fork_branch_not_on_target",
 				ref: gitprovider.BranchRef{
-					Owner:  "gitlab-org/api",
-					Repo:   "client-go",
-					Branch: "convert-examples-to-testable-examples",
+					Owner:  "test-group9945421/test-subgroup",
+					Repo:   "another-test-project",
+					Branch: "forked",
 				},
 				// Branch only existed in the fork, not on the target repo.
 				expectErr: true,
