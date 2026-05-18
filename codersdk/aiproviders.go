@@ -6,11 +6,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 )
+
+// AIProviderNameRegex mirrors the CHECK constraint on ai_providers.name.
+// Provider names are lowercase alphanumeric with hyphen separators so
+// they are safe in URLs.
+var AIProviderNameRegex = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
 // AIProviderType identifies the protocol Coder uses to communicate
 // with an upstream AI provider.
@@ -176,6 +184,29 @@ type CreateAIProviderRequest struct {
 	Settings    AIProviderSettings `json:"settings,omitzero"`
 }
 
+// Validate returns the field-level validation errors for a create
+// request. An empty slice indicates the request is valid.
+func (req CreateAIProviderRequest) Validate() []ValidationError {
+	var validations []ValidationError
+	switch req.Type {
+	case AIProviderTypeOpenAI, AIProviderTypeAnthropic:
+	case "":
+		validations = append(validations, ValidationError{Field: "type", Detail: "type is required"})
+	default:
+		validations = append(validations, ValidationError{
+			Field:  "type",
+			Detail: fmt.Sprintf("unsupported provider type %q; expected one of: openai, anthropic", req.Type),
+		})
+	}
+	validations = append(validations, validateAIProviderName(req.Name)...)
+	if req.BaseURL == "" {
+		validations = append(validations, ValidationError{Field: "base_url", Detail: "base_url is required"})
+	} else {
+		validations = append(validations, validateAIProviderBaseURL(req.BaseURL)...)
+	}
+	return validations
+}
+
 // UpdateAIProviderRequest is the payload for partially updating an
 // AI provider. At least one field must be non-nil. Pointer fields
 // distinguish "not sent" (nil) from "set to empty/zero" (a pointer
@@ -185,6 +216,59 @@ type UpdateAIProviderRequest struct {
 	Enabled     *bool               `json:"enabled,omitempty"`
 	BaseURL     *string             `json:"base_url,omitempty"`
 	Settings    *AIProviderSettings `json:"settings,omitempty"`
+}
+
+// Validate returns the field-level validation errors for an update
+// request. An empty slice indicates the request is valid. Callers
+// should reject empty patches with IsEmpty before invoking Validate.
+func (req UpdateAIProviderRequest) Validate() []ValidationError {
+	var validations []ValidationError
+	if req.BaseURL != nil {
+		if *req.BaseURL == "" {
+			validations = append(validations, ValidationError{Field: "base_url", Detail: "base_url cannot be empty"})
+		} else {
+			validations = append(validations, validateAIProviderBaseURL(*req.BaseURL)...)
+		}
+	}
+	return validations
+}
+
+// IsEmpty reports whether the patch carries no fields.
+func (req UpdateAIProviderRequest) IsEmpty() bool {
+	return req.DisplayName == nil && req.Enabled == nil && req.BaseURL == nil && req.Settings == nil
+}
+
+func validateAIProviderName(name string) []ValidationError {
+	var validations []ValidationError
+	switch {
+	case name == "":
+		validations = append(validations, ValidationError{Field: "name", Detail: "name is required"})
+	case !AIProviderNameRegex.MatchString(name):
+		validations = append(validations, ValidationError{
+			Field:  "name",
+			Detail: "name must match ^[a-z0-9]+(-[a-z0-9]+)*$ (lowercase alphanumeric, hyphens between words)",
+		})
+	}
+	return validations
+}
+
+func validateAIProviderBaseURL(raw string) []ValidationError {
+	var validations []ValidationError
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		validations = append(validations, ValidationError{
+			Field:  "base_url",
+			Detail: "base_url must be an absolute URL (e.g. https://api.example.com/)",
+		})
+		return validations
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		validations = append(validations, ValidationError{
+			Field:  "base_url",
+			Detail: fmt.Sprintf("base_url scheme must be http or https, got %q", parsed.Scheme),
+		})
+	}
+	return validations
 }
 
 // AIProviderKey represents a single API key registered against an
@@ -203,6 +287,16 @@ type AIProviderKey struct {
 // credentials stored in Settings.
 type CreateAIProviderKeyRequest struct {
 	APIKey string `json:"api_key"`
+}
+
+// Validate returns the field-level validation errors for a key create
+// request. An empty slice indicates the request is valid.
+func (req CreateAIProviderKeyRequest) Validate() []ValidationError {
+	var validations []ValidationError
+	if strings.TrimSpace(req.APIKey) == "" {
+		validations = append(validations, ValidationError{Field: "api_key", Detail: "api_key is required"})
+	}
+	return validations
 }
 
 // AIProviders lists all (non-deleted) AI providers.

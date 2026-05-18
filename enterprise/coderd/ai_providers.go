@@ -7,9 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
-	"regexp"
-	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -24,11 +21,6 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 )
-
-// aiProviderNameRegex mirrors the CHECK constraint on ai_providers.name.
-// Provider names are lowercase alphanumeric with hyphen separators so they
-// are safe in URLs.
-var aiProviderNameRegex = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
 // The on-disk shape of ai_providers.settings is the same discriminated
 // JSON form that codersdk.AIProviderSettings serializes to: an object
@@ -156,7 +148,7 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if validations := validateCreateAIProviderRequest(req); len(validations) > 0 {
+	if validations := req.Validate(); len(validations) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid AI provider request.",
 			Validations: validations,
@@ -248,13 +240,13 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.DisplayName == nil && req.Enabled == nil && req.BaseURL == nil && req.Settings == nil {
+	if req.IsEmpty() {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "At least one field must be provided.",
 		})
 		return
 	}
-	if validations := validateUpdateAIProviderRequest(req); len(validations) > 0 {
+	if validations := req.Validate(); len(validations) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid AI provider request.",
 			Validations: validations,
@@ -404,12 +396,10 @@ func (api *API) aiProviderKeysCreate(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if strings.TrimSpace(req.APIKey) == "" {
+	if validations := req.Validate(); len(validations) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid AI provider key request.",
-			Validations: []codersdk.ValidationError{
-				{Field: "api_key", Detail: "api_key is required"},
-			},
+			Message:     "Invalid AI provider key request.",
+			Validations: validations,
 		})
 		return
 	}
@@ -540,7 +530,7 @@ func lookupAIProvider(ctx context.Context, store database.Store, idOrName string
 		}
 		return row, nil
 	}
-	if !aiProviderNameRegex.MatchString(idOrName) {
+	if !codersdk.AIProviderNameRegex.MatchString(idOrName) {
 		// The regex check protects against accidental/malicious lookups
 		// against rows that should be impossible to insert.
 		return database.AIProvider{}, sql.ErrNoRows
@@ -576,78 +566,6 @@ func isBedrockProvider(row database.AIProvider) bool {
 		return false
 	}
 	return s.Bedrock != nil
-}
-
-// validateCreateAIProviderRequest returns the field-level validation errors
-// for a create request. An empty slice indicates the request is valid.
-func validateCreateAIProviderRequest(req codersdk.CreateAIProviderRequest) []codersdk.ValidationError {
-	var validations []codersdk.ValidationError
-	switch req.Type {
-	case codersdk.AIProviderTypeOpenAI, codersdk.AIProviderTypeAnthropic:
-	case "":
-		validations = append(validations, codersdk.ValidationError{Field: "type", Detail: "type is required"})
-	default:
-		validations = append(validations, codersdk.ValidationError{
-			Field:  "type",
-			Detail: fmt.Sprintf("unsupported provider type %q; expected one of: openai, anthropic", req.Type),
-		})
-	}
-	if errs := validateAIProviderName(req.Name); len(errs) > 0 {
-		validations = append(validations, errs...)
-	}
-	if req.BaseURL == "" {
-		validations = append(validations, codersdk.ValidationError{Field: "base_url", Detail: "base_url is required"})
-	} else if errs := validateAIProviderBaseURL(req.BaseURL); len(errs) > 0 {
-		validations = append(validations, errs...)
-	}
-	return validations
-}
-
-// validateUpdateAIProviderRequest validates only the fields that were
-// supplied in the request.
-func validateUpdateAIProviderRequest(req codersdk.UpdateAIProviderRequest) []codersdk.ValidationError {
-	var validations []codersdk.ValidationError
-	if req.BaseURL != nil {
-		if *req.BaseURL == "" {
-			validations = append(validations, codersdk.ValidationError{Field: "base_url", Detail: "base_url cannot be empty"})
-		} else if errs := validateAIProviderBaseURL(*req.BaseURL); len(errs) > 0 {
-			validations = append(validations, errs...)
-		}
-	}
-	return validations
-}
-
-func validateAIProviderName(name string) []codersdk.ValidationError {
-	var validations []codersdk.ValidationError
-	switch {
-	case name == "":
-		validations = append(validations, codersdk.ValidationError{Field: "name", Detail: "name is required"})
-	case !aiProviderNameRegex.MatchString(name):
-		validations = append(validations, codersdk.ValidationError{
-			Field:  "name",
-			Detail: "name must match ^[a-z0-9]+(-[a-z0-9]+)*$ (lowercase alphanumeric, hyphens between words)",
-		})
-	}
-	return validations
-}
-
-func validateAIProviderBaseURL(raw string) []codersdk.ValidationError {
-	var validations []codersdk.ValidationError
-	parsed, err := url.Parse(raw)
-	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
-		validations = append(validations, codersdk.ValidationError{
-			Field:  "base_url",
-			Detail: "base_url must be an absolute URL (e.g. https://api.example.com/)",
-		})
-		return validations
-	}
-	if parsed.Scheme != "http" && parsed.Scheme != "https" {
-		validations = append(validations, codersdk.ValidationError{
-			Field:  "base_url",
-			Detail: fmt.Sprintf("base_url scheme must be http or https, got %q", parsed.Scheme),
-		})
-	}
-	return validations
 }
 
 // dbAIProviderKeyToSDK converts an ai_provider_keys row into the codersdk
