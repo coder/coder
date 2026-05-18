@@ -20006,6 +20006,7 @@
 				"ai_seat",
 				"ai_provider",
 				"ai_provider_key",
+				"group_ai_budget",
 				"chat",
 				"user_secret"
 			],
@@ -20039,6 +20040,7 @@
 				"ResourceTypeAISeat",
 				"ResourceTypeAIProvider",
 				"ResourceTypeAIProviderKey",
+				"ResourceTypeGroupAIBudget",
 				"ResourceTypeChat",
 				"ResourceTypeUserSecret"
 			]
