@@ -841,15 +841,6 @@ ai_gateway:
   # or re-open the circuit.
   # (default: 3, type: int)
   circuit_breaker_max_requests: 3
-  # Determines the effective group when a user belongs to multiple groups with AI
-  # budgets. "highest" selects the group with the largest spend limit, and is
-  # currently the only supported value.
-  # (default: highest, type: enum[highest])
-  budget_policy: highest
-  # Determines when accumulated AI spend resets to zero, aligned to UTC calendar
-  # boundaries. Only "month" is currently supported.
-  # (default: month, type: enum[month])
-  budget_period: month
 aibridge:
   # Deprecated: use --ai-gateway-enabled or CODER_AI_GATEWAY_ENABLED instead.
   # Whether to start an in-memory aibridged instance.
@@ -953,6 +944,16 @@ aibridge:
   # circuit.
   # (default: 3, type: int)
   circuit_breaker_max_requests: 3
+ai_governance:
+  # Determines the effective group when a user belongs to multiple groups with AI
+  # budgets. "highest" selects the group with the largest spend limit, and is
+  # currently the only supported value.
+  # (default: highest, type: enum[highest])
+  budget_policy: highest
+  # Determines when accumulated AI spend resets to zero, aligned to UTC calendar
+  # boundaries. Only "month" is currently supported.
+  # (default: month, type: enum[month])
+  budget_period: month
 ai_gateway_proxy:
   # Enable the AI Gateway MITM Proxy for intercepting and decrypting AI provider
   # requests.

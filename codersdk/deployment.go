@@ -1487,6 +1487,10 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Name: "AI Gateway Proxy",
 			YAML: "ai_gateway_proxy",
 		}
+		deploymentGroupAIGovernance = serpent.Group{
+			Name: "AI Governance",
+			YAML: "ai_governance",
+		}
 		deploymentGroupAIBridge = serpent.Group{
 			Name: "AI Bridge (Deprecated)",
 			YAML: "aibridge",
@@ -4239,7 +4243,7 @@ Write out the current server config as YAML to stdout.`,
 			Env:         "CODER_AI_BUDGET_POLICY",
 			Value:       serpent.EnumOf(&c.AI.BridgeConfig.BudgetPolicy, AIBudgetPolicies...),
 			Default:     string(AIBudgetPolicyHighest),
-			Group:       &deploymentGroupAIGateway,
+			Group:       &deploymentGroupAIGovernance,
 			YAML:        "budget_policy",
 		},
 		{
@@ -4249,7 +4253,7 @@ Write out the current server config as YAML to stdout.`,
 			Env:         "CODER_AI_BUDGET_PERIOD",
 			Value:       serpent.EnumOf(&c.AI.BridgeConfig.BudgetPeriod, AIBudgetPeriods...),
 			Default:     string(AIBudgetPeriodMonth),
-			Group:       &deploymentGroupAIGateway,
+			Group:       &deploymentGroupAIGovernance,
 			YAML:        "budget_period",
 		},
 

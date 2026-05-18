@@ -105,15 +105,6 @@ OPTIONS:
           check is performed once per day.
 
 AI GATEWAY OPTIONS: 
-      --ai-budget-period month, $CODER_AI_BUDGET_PERIOD (default: month)
-          Determines when accumulated AI spend resets to zero, aligned to UTC
-          calendar boundaries. Only "month" is currently supported.
-
-      --ai-budget-policy highest, $CODER_AI_BUDGET_POLICY (default: highest)
-          Determines the effective group when a user belongs to multiple groups
-          with AI budgets. "highest" selects the group with the largest spend
-          limit, and is currently the only supported value.
-
       --ai-gateway-allow-byok bool, $CODER_AI_GATEWAY_ALLOW_BYOK (default: true)
           Allow users to provide their own LLM API keys or subscriptions. When
           disabled, only centralized key authentication is permitted.
@@ -234,6 +225,16 @@ AI GATEWAY PROXY OPTIONS:
           TLS connection. Only needed for HTTPS upstream proxies with
           certificates not trusted by the system. If not provided, the system
           certificate pool is used.
+
+AI GOVERNANCE OPTIONS: 
+      --ai-budget-period month, $CODER_AI_BUDGET_PERIOD (default: month)
+          Determines when accumulated AI spend resets to zero, aligned to UTC
+          calendar boundaries. Only "month" is currently supported.
+
+      --ai-budget-policy highest, $CODER_AI_BUDGET_POLICY (default: highest)
+          Determines the effective group when a user belongs to multiple groups
+          with AI budgets. "highest" selects the group with the largest spend
+          limit, and is currently the only supported value.
 
 CHAT OPTIONS: 
 Configure the background chat processing daemon.
