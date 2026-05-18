@@ -599,20 +599,20 @@ func encodeAIProviderSettings(s codersdk.AIProviderSettings) (sql.NullString, er
 // preserved when the patch leaves them blank so callers can rotate
 // non-secret fields without resending the secret.
 func mergeAIProviderSettings(existing, patch codersdk.AIProviderSettings) codersdk.AIProviderSettings {
-	if patch.Bedrock != nil {
-		merged := *patch.Bedrock
-		if existing.Bedrock != nil {
-			if merged.AccessKey == "" {
-				merged.AccessKey = existing.Bedrock.AccessKey
-			}
-			if merged.AccessKeySecret == "" {
-				merged.AccessKeySecret = existing.Bedrock.AccessKeySecret
-			}
-		}
-		return codersdk.AIProviderSettings{Bedrock: &merged}
+	if patch.Bedrock == nil {
+		// Patch carries no type-specific data; treat as a clear.
+		return codersdk.AIProviderSettings{}
 	}
-	// Patch carries no type-specific data; treat as a clear.
-	return codersdk.AIProviderSettings{}
+	merged := *patch.Bedrock
+	if existing.Bedrock != nil {
+		if merged.AccessKey == "" {
+			merged.AccessKey = existing.Bedrock.AccessKey
+		}
+		if merged.AccessKeySecret == "" {
+			merged.AccessKeySecret = existing.Bedrock.AccessKeySecret
+		}
+	}
+	return codersdk.AIProviderSettings{Bedrock: &merged}
 }
 
 func strDeref(p *string, fallback string) string {

@@ -222,15 +222,13 @@ type UpdateAIProviderRequest struct {
 // request. An empty slice indicates the request is valid. Callers
 // should reject empty patches with IsEmpty before invoking Validate.
 func (req UpdateAIProviderRequest) Validate() []ValidationError {
-	var validations []ValidationError
-	if req.BaseURL != nil {
-		if *req.BaseURL == "" {
-			validations = append(validations, ValidationError{Field: "base_url", Detail: "base_url cannot be empty"})
-		} else {
-			validations = append(validations, validateAIProviderBaseURL(*req.BaseURL)...)
-		}
+	if req.BaseURL == nil {
+		return nil
 	}
-	return validations
+	if *req.BaseURL == "" {
+		return []ValidationError{{Field: "base_url", Detail: "base_url cannot be empty"}}
+	}
+	return validateAIProviderBaseURL(*req.BaseURL)
 }
 
 // IsEmpty reports whether the patch carries no fields.
