@@ -913,8 +913,6 @@ func staleOpenAIResponsesMessage() fantasy.Message {
 	}
 }
 
-
-
 func requireResponsesItemReferencesStripped(t *testing.T, prompt []fantasy.Message) {
 	t.Helper()
 	reasoning, webSearch := requireResponsesMetadata(t, prompt)
