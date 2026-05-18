@@ -1258,25 +1258,25 @@ func TestSearchChats(t *testing.T) {
 			},
 		},
 		{
-			Name:  "ChatStatusUnread",
-			Query: "chat_status:unread",
+			Name:  "HasUnreadTrue",
+			Query: "has_unread:true",
 			Expected: database.GetChatsParams{
 				Archived:  sql.NullBool{Bool: false, Valid: true},
 				HasUnread: sql.NullBool{Bool: true, Valid: true},
 			},
 		},
 		{
-			Name:  "ChatStatusUnreadCaseInsensitive",
-			Query: "chat_status:UNREAD",
+			Name:  "HasUnreadFalse",
+			Query: "has_unread:false",
 			Expected: database.GetChatsParams{
 				Archived:  sql.NullBool{Bool: false, Valid: true},
-				HasUnread: sql.NullBool{Bool: true, Valid: true},
+				HasUnread: sql.NullBool{Bool: false, Valid: true},
 			},
 		},
 		{
-			Name:                  "ChatStatusInvalid",
-			Query:                 "chat_status:read",
-			ExpectedErrorContains: "chat_status",
+			Name:                  "HasUnreadInvalid",
+			Query:                 "has_unread:bogus",
+			ExpectedErrorContains: "has_unread",
 		},
 		{
 			Name:  "PRStatusDraft",

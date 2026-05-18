@@ -1673,7 +1673,7 @@ func TestListChats(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
-		// Verify that chat_status:unread filter is wired through the endpoint.
+		// Verify that has_unread:true filter is wired through the endpoint.
 		// Exhaustive query logic is tested in TestGetChatsFilterByUnread.
 		unreadChat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    user.OrganizationID,
@@ -1704,14 +1704,23 @@ func TestListChats(t *testing.T) {
 		})
 		require.NoError(t, err)
 
+		// Create a second chat with NO unread messages to prove filtering works.
+		_ = dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    user.OrganizationID,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "read chat",
+			Status:            database.ChatStatusCompleted,
+		})
+
 		t.Run("MatchesUnread", func(t *testing.T) {
-			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "chat_status:unread"})
+			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "has_unread:true"})
 			require.NoError(t, err)
 			requireRootIDs(t, chats, unreadChat.ID)
 		})
 
-		t.Run("InvalidChatStatus", func(t *testing.T) {
-			_, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "chat_status:bogus"})
+		t.Run("InvalidHasUnread", func(t *testing.T) {
+			_, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "has_unread:bogus"})
 			requireSDKError(t, err, http.StatusBadRequest)
 		})
 	})

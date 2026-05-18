@@ -547,7 +547,7 @@ func Tasks(ctx context.Context, db database.Store, query string, actorID uuid.UU
 //     are rejected; use title:<value> for title filtering)
 //   - archived: boolean (default: false, excludes archived chats unless
 //     explicitly set)
-//   - chat_status: string (currently only unread)
+//   - has_unread: nullable boolean (filter by unread message status)
 //   - pr_status: repeated or comma-separated list of draft, open,
 //     merged, closed
 //   - diff_url: string (matches chats whose linked diff URL equals the
@@ -576,17 +576,7 @@ func Chats(query string) (database.GetChatsParams, []codersdk.ValidationError) {
 
 	parser := httpapi.NewQueryParamParser()
 	filter.Archived = parser.NullableBoolean(values, filter.Archived, "archived")
-	if chatStatus := parser.String(values, "", "chat_status"); chatStatus != "" {
-		normalizedChatStatus := strings.ToLower(strings.TrimSpace(chatStatus))
-		if normalizedChatStatus != "unread" {
-			parser.Errors = append(parser.Errors, codersdk.ValidationError{
-				Field:  "chat_status",
-				Detail: fmt.Sprintf("Query param %q has invalid value: %q is not a valid value", "chat_status", chatStatus),
-			})
-		} else {
-			filter.HasUnread = sql.NullBool{Bool: true, Valid: true}
-		}
-	}
+	filter.HasUnread = parser.NullableBoolean(values, filter.HasUnread, "has_unread")
 	filter.PullRequestStatuses = httpapi.ParseCustomList(parser, values, nil, "pr_status", func(v string) (string, error) {
 		normalizedPRStatus := strings.ToLower(strings.TrimSpace(v))
 		switch normalizedPRStatus {
