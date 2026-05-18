@@ -17,10 +17,10 @@ Experimental: this endpoint is subject to change.
 
 ### Parameters
 
-| Name    | In    | Type   | Required | Description                                                                 |
-|---------|-------|--------|----------|-----------------------------------------------------------------------------|
-| `q`     | query | string | false    | Search query. Supports archived:bool and diff_url:<url> terms (quote URLs). |
-| `label` | query | string | false    | Filter by label as key:value. Repeat for multiple (AND logic).              |
+| Name    | In    | Type   | Required | Description                                                                                                                                                                                      |
+|---------|-------|--------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `q`     | query | string | false    | Search query. Bare terms filter by title (case-insensitive substring); quotes are not stripped and become literal match characters. Also supports archived:bool and diff_url:<url> (quote URLs). |
+| `label` | query | string | false    | Filter by label as key:value. Repeat for multiple (AND logic).                                                                                                                                   |
 
 ### Example responses
 

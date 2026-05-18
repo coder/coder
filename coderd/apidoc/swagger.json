@@ -59,7 +59,7 @@
 				"parameters": [
 					{
 						"type": "string",
-						"description": "Search query. Supports archived:bool and diff_url:\u003curl\u003e terms (quote URLs).",
+						"description": "Search query. Bare terms filter by title (case-insensitive substring); quotes are not stripped and become literal match characters. Also supports archived:bool and diff_url:\u003curl\u003e (quote URLs).",
 						"name": "q",
 						"in": "query"
 					},
