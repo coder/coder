@@ -1,7 +1,6 @@
 import { type FormikTouched, useFormik } from "formik";
 import { UploadIcon } from "lucide-react";
 import { type FC, useRef, useState } from "react";
-import { toast } from "sonner";
 import type {
 	CreateUserSecretRequest,
 	UpdateUserSecretRequest,
@@ -23,10 +22,6 @@ import { Textarea } from "#/components/Textarea/Textarea";
 import { cn } from "#/utils/cn";
 import { getFormHelpers } from "#/utils/formUtils";
 import {
-	importUserSecretsSequential,
-	parseSecretImport,
-} from "./importSecrets";
-import {
 	buildCreateUserSecretRequest,
 	buildUpdateUserSecretRequest,
 	createSecretValidationSchema,
@@ -37,10 +32,6 @@ import {
 	updateSecretValidationSchema,
 } from "./secretForm";
 
-export type CreateSecretOptions = {
-	showToast?: boolean;
-};
-
 type SecretDialogProps = {
 	open: boolean;
 	secret?: UserSecret;
@@ -49,7 +40,6 @@ type SecretDialogProps = {
 	onClose: () => void;
 	onCreateSecret: (
 		request: CreateUserSecretRequest,
-		options?: CreateSecretOptions,
 	) => Promise<unknown> | unknown;
 	onUpdateSecret: (
 		name: string,
@@ -68,8 +58,6 @@ const emptyValues: SecretFormValues = {
 const infoText =
 	"Secrets are encrypted and cannot be retrieved after creation. Make sure to save the secret value in a secure location.";
 
-const importSecretFileTypes = ".env,.json,.yaml,.yml";
-
 export const SecretDialog: FC<SecretDialogProps> = ({
 	open,
 	secret,
@@ -80,7 +68,6 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 	onUpdateSecret,
 }) => {
 	const isEdit = Boolean(secret);
-	const [isImporting, setIsImporting] = useState(false);
 	const [replacementFileName, setReplacementFileName] = useState("");
 	const initialValues = secret
 		? {
@@ -126,7 +113,7 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 		? buildUpdateUserSecretRequest(secret, form.values)
 		: undefined;
 	const hasUpdate = request ? Object.keys(request).length > 0 : false;
-	const isBusy = isSubmitting || form.isSubmitting || isImporting;
+	const isBusy = isSubmitting || form.isSubmitting;
 	const confirmDisabled =
 		isBusy || !form.isValid || (secret ? !hasUpdate : !form.dirty);
 	const getFieldHelpers = getFormHelpers(form);
@@ -137,10 +124,6 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 			open={open}
 			onOpenChange={(nextOpen) => {
 				if (!nextOpen) {
-					if (isImporting) {
-						return;
-					}
-
 					form.resetForm();
 					setReplacementFileName("");
 					onClose();
@@ -201,65 +184,6 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 						</>
 					) : (
 						<>
-							<UploadBlock
-								description="Import a single or multiple secrets at once with a .env, .json, .yaml, or .yml file."
-								accept={importSecretFileTypes}
-								disabled={isImporting}
-								loading={isImporting}
-								onFile={async (file) => {
-									form.setStatus(undefined);
-									setIsImporting(true);
-									try {
-										const requests = parseSecretImport(
-											await file.text(),
-											file.name,
-										);
-										if (requests.length === 0) {
-											form.setStatus("No secrets found to import.");
-											return;
-										}
-
-										const results = await importUserSecretsSequential(
-											requests,
-											async (request) =>
-												(await onCreateSecret(request, {
-													showToast: false,
-												})) as UserSecret,
-										);
-										const failures = results.filter(
-											(result) => result.status === "failure",
-										);
-										if (failures.length > 0) {
-											const successCount = results.length - failures.length;
-											const message =
-												successCount > 0
-													? `Imported ${successCount} of ${results.length} secrets.`
-													: "No secrets imported.";
-											const description = `Failed to import ${formatSecretNameList(
-												failures.map((failure) => failure.name),
-											)}.`;
-											toast.error(message, { description });
-											form.setStatus(`${message} ${description}`);
-											return;
-										}
-
-										toast.success(
-											`Imported ${formatSecretCount(results.length)} successfully.`,
-										);
-										form.resetForm();
-										onClose();
-									} catch (error) {
-										form.setStatus(messageFromUnknown(error));
-									} finally {
-										setIsImporting(false);
-									}
-								}}
-							/>
-							<div className="flex items-center gap-3 text-xs uppercase text-content-secondary">
-								<div className="h-px flex-1 bg-border" />
-								or add individually
-								<div className="h-px flex-1 bg-border" />
-							</div>
 							<SecretFields getFieldHelpers={getFieldHelpers} showValue />
 							<SecretDescriptionField field={getFieldHelpers("description")} />
 						</>
@@ -366,19 +290,13 @@ const SecretDescriptionField: FC<SecretDescriptionFieldProps> = ({ field }) => {
 
 type UploadBlockProps = {
 	description: string;
-	accept?: string;
-	buttonLabel?: string;
-	disabled?: boolean;
-	loading?: boolean;
+	buttonLabel: string;
 	onFile: (file: File) => Promise<void> | void;
 };
 
 const UploadBlock: FC<UploadBlockProps> = ({
 	description,
-	accept,
-	buttonLabel = "Upload",
-	disabled,
-	loading,
+	buttonLabel,
 	onFile,
 }) => {
 	const inputRef = useRef<HTMLInputElement>(null);
@@ -394,13 +312,9 @@ const UploadBlock: FC<UploadBlockProps> = ({
 				<Button
 					type="button"
 					variant="outline"
-					disabled={disabled || loading}
-					aria-busy={loading || undefined}
 					onClick={() => inputRef.current?.click()}
 				>
-					<Spinner loading={loading}>
-						<UploadIcon />
-					</Spinner>
+					<UploadIcon />
 					{buttonLabel}
 				</Button>
 			</div>
@@ -411,12 +325,10 @@ const UploadBlock: FC<UploadBlockProps> = ({
 				type="file"
 				tabIndex={-1}
 				aria-hidden="true"
-				accept={accept}
-				disabled={disabled || loading}
 				onChange={async (event) => {
 					const file = event.currentTarget.files?.[0];
 					event.currentTarget.value = "";
-					if (file && !disabled && !loading) {
+					if (file) {
 						await onFile(file);
 					}
 				}}
@@ -424,28 +336,6 @@ const UploadBlock: FC<UploadBlockProps> = ({
 		</div>
 	);
 };
-
-function formatSecretCount(count: number): string {
-	return `${count} ${count === 1 ? "secret" : "secrets"}`;
-}
-
-function formatSecretNameList(names: readonly string[]): string {
-	const maxNames = 3;
-	const formattedNames = names.slice(0, maxNames).map(formatSecretName);
-	const remainingNames = names.length - formattedNames.length;
-	if (remainingNames > 0) {
-		return `${formattedNames.join(", ")}, and ${remainingNames} more`;
-	}
-	return formattedNames.join(", ");
-}
-
-function formatSecretName(name: string): string {
-	const maxLength = 80;
-	if (name.length <= maxLength) {
-		return name;
-	}
-	return `${name.slice(0, maxLength - 3)}...`;
-}
 
 function touchedFromFieldErrors(
 	fieldErrors: SecretFieldErrors,
@@ -456,5 +346,7 @@ function touchedFromFieldErrors(
 }
 
 function messageFromUnknown(error: unknown): string {
-	return error instanceof Error ? error.message : "Unable to import secrets.";
+	return error instanceof Error
+		? error.message
+		: "Unable to read secret value file.";
 }

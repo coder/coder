@@ -102,67 +102,6 @@ want to store a trailing newline:
 echo -n "$API_KEY" | coder secret create api-key --env API_KEY
 ```
 
-### Import secrets in the dashboard
-
-To import one or more secrets from a file, navigate to **User settings** >
-**Secrets**, click **Add secret**, then click **Upload**. The dashboard supports
-`.env`, `.json`, `.yaml`, and `.yml` files.
-
-For `.env` files, add one secret per line:
-
-```dotenv
-GITHUB_TOKEN=example-value
-ANTHROPIC_API_KEY=another-example-value
-```
-
-For each line, Coder uses the text before the first `=` as both the secret name
-and environment variable target. The value is everything after the first `=`.
-Blank lines and lines beginning with `#` are ignored.
-
-For JSON and YAML object files, Coder uses each key as both the secret name and
-environment variable target:
-
-```json
-{
-  "GITHUB_TOKEN": "example-value",
-  "ANTHROPIC_API_KEY": "another-example-value"
-}
-```
-
-```yaml
-GITHUB_TOKEN: example-value
-ANTHROPIC_API_KEY: another-example-value
-```
-
-Use a JSON or YAML array when you need to set optional metadata or file targets.
-Each item must include `name` and `value`. Items may include `description`,
-`env_name`, and `file_path`:
-
-```json
-[
-  {
-    "name": "github",
-    "value": "example-value",
-    "env_name": "GITHUB_TOKEN",
-    "description": "GitHub token",
-    "file_path": "~/secrets/github"
-  }
-]
-```
-
-```yaml
-- name: github
-  value: example-value
-  env_name: GITHUB_TOKEN
-  description: GitHub token
-  file_path: ~/secrets/github
-```
-
-> [!NOTE]
-> YAML parses unquoted values such as `true`, `false`, and `123` as booleans or
-> numbers. Secret imports require string values, so quote values that look like
-> booleans or numbers, for example `TOKEN: "123"` or `ENABLED: "true"`.
-
 ## Update a secret
 
 Use `coder secret update` to update a secret value, description, environment

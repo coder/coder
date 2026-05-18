@@ -16,7 +16,7 @@ import {
 } from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { docs } from "#/utils/docs";
-import { type CreateSecretOptions, SecretDialog } from "./SecretDialog";
+import { SecretDialog } from "./SecretDialog";
 import { SecretsTable } from "./SecretsTable";
 
 type SecretsPageViewProps = {
@@ -31,7 +31,6 @@ type SecretsPageViewProps = {
 	onRefresh: () => void;
 	onCreateSecret: (
 		request: CreateUserSecretRequest,
-		options?: CreateSecretOptions,
 	) => Promise<unknown> | unknown;
 	onUpdateSecret: (
 		name: string,

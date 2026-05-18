@@ -399,150 +399,30 @@ export const DeleteAndCancel: Story = {
 	},
 };
 
-const envUploadRequests: CapturedCreateRequest[] = [];
-
-export const EnvUploadImportSubmit: Story = {
-	args: {
-		onCreateSecret: async (request: CreateUserSecretRequest) => {
-			envUploadRequests.push(captureCreateRequest(request));
-			return createSecretFromRequest(request);
-		},
-	},
+export const UploadValueControlKeyboardOperable: Story = {
 	play: async ({ canvasElement }) => {
-		envUploadRequests.length = 0;
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 		const body = within(canvasElement.ownerDocument.body);
+		const secret = visibleSecrets[0] as UserSecret;
 
-		await user.click(canvas.getByRole("button", { name: "Add secret" }));
-		const dialog = await body.findByRole("dialog");
-		await user.upload(
-			uploadInput(dialog),
-			new File([`EXAMPLE_TOKEN=${placeholderInput}`], "secrets.env", {
-				type: "text/plain",
+		await user.click(
+			canvas.getByRole("button", {
+				name: `Open secret actions for ${secret.name}`,
 			}),
 		);
-
-		await waitFor(() => expect(envUploadRequests).toHaveLength(1));
-		expect(envUploadRequests[0]).toEqual({
-			name: "EXAMPLE_TOKEN",
-			env_name: "EXAMPLE_TOKEN",
-			hasValue: true,
-		});
-		await waitForDialogToClose(body);
-		expectNoValueField(body);
-	},
-};
-
-const jsonUploadRequests: CapturedCreateRequest[] = [];
-
-export const JsonUploadImportSubmit: Story = {
-	args: {
-		onCreateSecret: async (request: CreateUserSecretRequest) => {
-			jsonUploadRequests.push(captureCreateRequest(request));
-			return createSecretFromRequest(request);
-		},
-	},
-	play: async ({ canvasElement }) => {
-		jsonUploadRequests.length = 0;
-		const user = userEvent.setup();
-		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
-
-		await user.click(canvas.getByRole("button", { name: "Add secret" }));
-		const dialog = await body.findByRole("dialog");
-		await user.upload(
-			uploadInput(dialog),
-			new File(
-				[
-					JSON.stringify([
-						{
-							name: "json-secret",
-							env_name: "JSON_SECRET",
-							description: "Imported from JSON",
-							value: placeholderInput,
-						},
-					]),
-				],
-				"secrets.json",
-				{ type: "application/json" },
-			),
+		await user.click(
+			await body.findByRole("menuitem", { name: "Edit secret..." }),
 		);
-
-		await waitFor(() => expect(jsonUploadRequests).toHaveLength(1));
-		expect(jsonUploadRequests[0]).toEqual({
-			name: "json-secret",
-			env_name: "JSON_SECRET",
-			description: "Imported from JSON",
-			hasValue: true,
-		});
-		await waitForDialogToClose(body);
-		expectNoValueField(body);
-	},
-};
-
-const yamlUploadRequests: CapturedCreateRequest[] = [];
-
-export const YamlUploadImportSubmit: Story = {
-	args: {
-		onCreateSecret: async (request: CreateUserSecretRequest) => {
-			yamlUploadRequests.push(captureCreateRequest(request));
-			return createSecretFromRequest(request);
-		},
-	},
-	play: async ({ canvasElement }) => {
-		yamlUploadRequests.length = 0;
-		const user = userEvent.setup();
-		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
-
-		await user.click(canvas.getByRole("button", { name: "Add secret" }));
-		const dialog = await body.findByRole("dialog");
-		await user.upload(
-			uploadInput(dialog),
-			new File(
-				[
-					[
-						"- name: yaml-secret",
-						"  env_name: YAML_SECRET",
-						"  file_path: ~/secrets/yaml-secret",
-						"  description: Imported from YAML",
-						`  value: ${placeholderInput}`,
-					].join("\n"),
-				],
-				"secrets.yaml",
-				{ type: "application/yaml" },
-			),
-		);
-
-		await waitFor(() => expect(yamlUploadRequests).toHaveLength(1));
-		expect(yamlUploadRequests[0]).toEqual({
-			name: "yaml-secret",
-			env_name: "YAML_SECRET",
-			file_path: "~/secrets/yaml-secret",
-			description: "Imported from YAML",
-			hasValue: true,
-		});
-		await waitForDialogToClose(body);
-		expectNoValueField(body);
-	},
-};
-
-export const UploadControlKeyboardOperable: Story = {
-	play: async ({ canvasElement }) => {
-		const user = userEvent.setup();
-		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
-
-		await user.click(canvas.getByRole("button", { name: "Add secret" }));
-		const dialog = within(await body.findByRole("dialog"));
-		const input = uploadInput(await body.findByRole("dialog"));
+		const dialogElement = await body.findByRole("dialog");
+		const dialog = within(dialogElement);
+		const input = uploadInput(dialogElement);
 		const inputClick = fn();
 		input.click = () => {
 			inputClick();
 		};
 
-		const uploadButton = dialog.getByRole("button", { name: "Upload" });
+		const uploadButton = dialog.getByRole("button", { name: "Upload value" });
 		uploadButton.focus();
 		await expect(uploadButton).toHaveFocus();
 		await user.keyboard("{Enter}");
