@@ -171,7 +171,7 @@ interface AgentsSidebarProps {
 	onUnpinAgent: (chatId: string) => void;
 	onReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
 	onRenameTitle?: (chatId: string, title: string) => Promise<void>;
-	onProposeTitle?: (chatId: string) => Promise<string>;
+	onProposeTitle?: (chatId: string, signal?: AbortSignal) => Promise<string>;
 	onBeforeNewAgent?: () => void;
 	isCreating: boolean;
 	isArchiving?: boolean;

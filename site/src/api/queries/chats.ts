@@ -1024,13 +1024,19 @@ export const regenerateChatTitle = (queryClient: QueryClient) => ({
 	},
 });
 
+type ProposeChatTitleVariables = {
+	chatId: string;
+	signal?: AbortSignal;
+};
+
 export const proposeChatTitle = (queryClient: QueryClient) => ({
-	mutationFn: (chatId: string) => API.experimental.proposeChatTitle(chatId),
+	mutationFn: ({ chatId, signal }: ProposeChatTitleVariables) =>
+		API.experimental.proposeChatTitle(chatId, signal),
 
 	onSettled: (
 		_data: { title: string } | undefined,
 		_error: unknown,
-		chatId: string,
+		{ chatId }: ProposeChatTitleVariables,
 	) => {
 		void invalidateChatDebugRuns(queryClient, chatId);
 	},

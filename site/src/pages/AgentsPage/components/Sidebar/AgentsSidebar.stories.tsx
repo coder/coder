@@ -952,7 +952,10 @@ export const RenameChatGenerateFillsInput: Story = {
 		);
 		expect(body.getByRole("button", { name: "Generate" })).toBeEnabled();
 		expect(body.getByRole("button", { name: "Save" })).toBeEnabled();
-		expect(args.onProposeTitle).toHaveBeenCalledWith("rename-generate");
+		expect(args.onProposeTitle).toHaveBeenCalledWith(
+			"rename-generate",
+			expect.any(AbortSignal),
+		);
 		expect(args.onRenameTitle).not.toHaveBeenCalled();
 	},
 };
@@ -1209,6 +1212,123 @@ export const RenameChatGenerateLateResponseDoesNotClobberSameChatReopen: Story =
 			expect(body.queryByRole("alert")).not.toBeInTheDocument();
 		},
 	};
+
+export const RenameChatGenerateCancelMidFlightRestoresButton: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "rename-generate-cancel-mid",
+				title: "Original title",
+				updated_at: recentTimestamp,
+			}),
+		],
+		// Mock that only settles when the caller aborts the request,
+		// matching how the propose endpoint behaves with an AbortSignal.
+		onProposeTitle: fn(
+			(_chatId: string, signal?: AbortSignal) =>
+				new Promise<string>((_resolve, reject) => {
+					signal?.addEventListener("abort", () => {
+						reject(
+							Object.assign(new Error("canceled"), { code: "ERR_CANCELED" }),
+						);
+					});
+				}),
+		),
+		onRenameTitle: fn(() => Promise.resolve()),
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: "Open actions for Original title",
+			}),
+		);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: "Rename chat" }),
+		);
+
+		const input = await body.findByRole<HTMLInputElement>("textbox", {
+			name: "Chat title",
+		});
+		await userEvent.click(body.getByRole("button", { name: "Generate" }));
+
+		// While generating, the header button switches to a Cancel
+		// affordance with its own accessible name so it does not
+		// collide with the footer Cancel button.
+		const cancelButton = await body.findByRole("button", {
+			name: "Cancel title generation",
+		});
+		expect(cancelButton).toBeEnabled();
+
+		await userEvent.click(cancelButton);
+
+		// Dialog stays open, input is unchanged, the button returns
+		// to the generate affordance, and no error alert appears.
+		await waitFor(() => {
+			expect(body.getByRole("button", { name: "Generate" })).toBeEnabled();
+		});
+		expect(input).toHaveValue("Original title");
+		expect(body.queryByRole("alert")).not.toBeInTheDocument();
+	},
+};
+
+export const RenameChatGenerateTimeoutShowsFriendlyMessage: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "rename-generate-timeout",
+				title: "Original title",
+				updated_at: recentTimestamp,
+			}),
+		],
+		// Match the friendly 504 copy the backend writes when title
+		// generation runs past its budget.
+		onProposeTitle: fn(async () => {
+			throw new Error(
+				"Title generation timed out. Try again or rename manually.",
+			);
+		}),
+		onRenameTitle: fn(() => Promise.resolve()),
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: "Open actions for Original title",
+			}),
+		);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: "Rename chat" }),
+		);
+
+		await body.findByRole<HTMLInputElement>("textbox", {
+			name: "Chat title",
+		});
+		await userEvent.click(body.getByRole("button", { name: "Generate" }));
+
+		const alert = await body.findByRole("alert");
+		expect(alert).toHaveTextContent(
+			"Title generation timed out. Try again or rename manually.",
+		);
+		expect(body.getByRole("button", { name: "Generate" })).toBeEnabled();
+	},
+};
 
 export const ActiveFilterShowsActiveAgents: Story = {
 	args: {

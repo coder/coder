@@ -1357,7 +1357,7 @@ describe("mutation invalidation scope", () => {
 			seedAllActiveQueries(queryClient, chatId);
 
 			const mutation = proposeChatTitle(queryClient);
-			await mutation.onSettled(undefined, error, chatId);
+			await mutation.onSettled(undefined, error, { chatId });
 
 			expect(
 				queryClient.getQueryState(chatDebugRunsKey(chatId))?.isInvalidated,

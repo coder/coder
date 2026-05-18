@@ -46,6 +46,15 @@ const (
 	// recentTurnWindow is the number of most recent turns included
 	// alongside the first user turn in manual title context.
 	recentTurnWindow = 3
+	// manualTitleAttemptTimeout bounds a single model call during
+	// manual title generation. The auto-title path uses the same value
+	// for its single attempt.
+	manualTitleAttemptTimeout = 30 * time.Second
+	// manualTitleTotalTimeout bounds the entire candidate walk for a
+	// manual title request. Tuned to allow three per-attempt timeouts
+	// to elapse without exceeding the budget, so transient slowness on
+	// one provider lets us reach a faster one.
+	manualTitleTotalTimeout = 90 * time.Second
 )
 
 // preferredTitleModels are lightweight models used for title
@@ -87,6 +96,31 @@ func selectPreferredConfiguredShortTextModelConfig(
 		}
 	}
 	return database.ChatModelConfig{}, false
+}
+
+// selectAllConfiguredShortTextModelConfigs returns every enabled model
+// config that matches a preferredTitleModels entry, ordered by the
+// preferredTitleModels list. Each (provider, model) pair appears at
+// most once. The manual title candidate walk uses this so a slow or
+// unavailable provider falls back to another configured one before
+// dropping to the chat's own model.
+func selectAllConfiguredShortTextModelConfigs(
+	configs []database.ChatModelConfig,
+) []database.ChatModelConfig {
+	out := make([]database.ChatModelConfig, 0, len(preferredTitleModels))
+	for _, preferred := range preferredTitleModels {
+		for _, config := range configs {
+			if chatprovider.NormalizeProvider(config.Provider) != preferred.provider {
+				continue
+			}
+			if !strings.EqualFold(strings.TrimSpace(config.Model), preferred.model) {
+				continue
+			}
+			out = append(out, config)
+			break
+		}
+	}
+	return out
 }
 
 func normalizeShortTextOutput(text string) string {
@@ -762,11 +796,21 @@ func renderManualTitlePrompt(
 	return prompt.String()
 }
 
-func generateManualTitle(
-	ctx context.Context,
+// manualTitlePromptInputs holds the rendered system prompt and user
+// input for a manual title generation. The candidate walk computes
+// these once and reuses them across attempts.
+type manualTitlePromptInputs struct {
+	systemPrompt string
+	userInput    string
+}
+
+// buildManualTitlePromptInputs renders the prompt pieces for a manual
+// title generation. It returns ok=false when there is no user message
+// to summarize, so the caller can short-circuit without contacting a
+// model.
+func buildManualTitlePromptInputs(
 	messages []database.ChatMessage,
-	fallbackModel fantasy.LanguageModel,
-) (string, fantasy.Usage, error) {
+) (manualTitlePromptInputs, bool) {
 	turns := extractManualTitleTurns(messages)
 	selected := selectManualTitleTurnIndexes(turns)
 
@@ -774,7 +818,7 @@ func generateManualTitle(
 		return turn.role == string(database.ChatMessageRoleUser)
 	})
 	if firstUserIndex == -1 {
-		return "", fantasy.Usage{}, nil
+		return manualTitlePromptInputs{}, false
 	}
 	firstUserText := truncateRunes(turns[firstUserIndex].text, maxLatestUserMessageRunes)
 
@@ -785,20 +829,45 @@ func generateManualTitle(
 		latestUserMsg,
 	)
 
-	titleCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-
 	userInput := strings.TrimSpace(latestUserMsg)
 	if userInput == "" {
 		userInput = strings.TrimSpace(firstUserText)
 	}
+	return manualTitlePromptInputs{
+		systemPrompt: systemPrompt,
+		userInput:    userInput,
+	}, true
+}
 
-	title, usage, err := generateStructuredTitleWithUsage(
-		titleCtx,
-		fallbackModel,
-		systemPrompt,
-		userInput,
+// generateManualTitleOnce performs one structured-title call against
+// the given model, applying the per-attempt deadline so a stuck or
+// slow provider cannot consume the full manual title budget.
+func generateManualTitleOnce(
+	ctx context.Context,
+	inputs manualTitlePromptInputs,
+	model fantasy.LanguageModel,
+) (string, fantasy.Usage, error) {
+	attemptCtx, cancel := context.WithTimeout(ctx, manualTitleAttemptTimeout)
+	defer cancel()
+	return generateStructuredTitleWithUsage(
+		attemptCtx,
+		model,
+		inputs.systemPrompt,
+		inputs.userInput,
 	)
+}
+
+func generateManualTitle(
+	ctx context.Context,
+	messages []database.ChatMessage,
+	fallbackModel fantasy.LanguageModel,
+) (string, fantasy.Usage, error) {
+	inputs, ok := buildManualTitlePromptInputs(messages)
+	if !ok {
+		return "", fantasy.Usage{}, nil
+	}
+
+	title, usage, err := generateManualTitleOnce(ctx, inputs, fallbackModel)
 	if err != nil {
 		return "", usage, err
 	}

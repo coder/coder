@@ -3175,9 +3175,14 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
-	proposeChatTitle = async (chatId: string): Promise<{ title: string }> => {
+	proposeChatTitle = async (
+		chatId: string,
+		signal?: AbortSignal,
+	): Promise<{ title: string }> => {
 		const response = await this.axios.post<{ title: string }>(
 			`/api/experimental/chats/${chatId}/title/propose`,
+			undefined,
+			{ signal },
 		);
 		return response.data;
 	};

@@ -114,6 +114,35 @@ func maybeWriteLimitErr(ctx context.Context, rw http.ResponseWriter, err error) 
 	return false
 }
 
+// statusClientClosedRequest is nginx's non-standard 499 status code,
+// used here to distinguish a client-initiated cancel from a server-
+// side failure when the manual title generation context is canceled.
+const statusClientClosedRequest = 499
+
+// maybeWriteManualTitleTimeoutErr translates context-cancel or
+// context-deadline errors from the manual title pipeline into
+// friendly 499/504 responses. Returns true when the response was
+// written.
+func maybeWriteManualTitleTimeoutErr(
+	ctx context.Context,
+	rw http.ResponseWriter,
+	err error,
+) bool {
+	switch {
+	case errors.Is(err, context.Canceled):
+		httpapi.Write(ctx, rw, statusClientClosedRequest, codersdk.Response{
+			Message: "Title generation was canceled.",
+		})
+		return true
+	case errors.Is(err, context.DeadlineExceeded):
+		httpapi.Write(ctx, rw, http.StatusGatewayTimeout, codersdk.Response{
+			Message: "Title generation timed out. Try again or rename manually.",
+		})
+		return true
+	}
+	return false
+}
+
 func publishChatTitleChange(logger slog.Logger, ps dbpubsub.Pubsub, chat database.Chat) {
 	if ps == nil {
 		return
@@ -3579,6 +3608,9 @@ func (api *API) regenerateChatTitle(rw http.ResponseWriter, r *http.Request) {
 			httpapi.ResourceNotFound(rw)
 			return
 		}
+		if maybeWriteManualTitleTimeoutErr(ctx, rw, err) {
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to regenerate chat title.",
 			Detail:  err.Error(),
@@ -3630,6 +3662,9 @@ func (api *API) proposeChatTitle(rw http.ResponseWriter, r *http.Request) {
 		}
 		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
+			return
+		}
+		if maybeWriteManualTitleTimeoutErr(ctx, rw, err) {
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

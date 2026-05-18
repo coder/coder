@@ -8,8 +8,10 @@ import (
 	"time"
 
 	"charm.land/fantasy"
+	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -592,6 +594,228 @@ func Test_selectPreferredConfiguredShortTextModelConfig(t *testing.T) {
 		}})
 		require.False(t, ok)
 		require.Equal(t, database.ChatModelConfig{}, got)
+	})
+}
+
+func Test_walkManualTitleCandidates(t *testing.T) {
+	t.Parallel()
+
+	inputs := manualTitlePromptInputs{
+		systemPrompt: "system",
+		userInput:    "user",
+	}
+
+	// errCandidateUnreachable lets fatal-on-call candidates return a
+	// sentinel error from the unreachable path after t.Fatalf, which
+	// makes the linter happy without changing test semantics.
+	errCandidateUnreachable := xerrors.New("test: candidate must not be invoked")
+
+	newCandidate := func(provider, model string, fn func(ctx context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error)) manualTitleCandidate {
+		return manualTitleCandidate{
+			config: database.ChatModelConfig{
+				ID:       uuid.New(),
+				Provider: provider,
+				Model:    model,
+			},
+			model: &chattest.FakeModel{GenerateObjectFn: fn},
+		}
+	}
+
+	t.Run("FirstCandidateWins", func(t *testing.T) {
+		t.Parallel()
+
+		successCalls := 0
+		skipped := newCandidate("never", "called", func(_ context.Context, _ fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+			t.Fatalf("walkManualTitleCandidates must not advance past the first successful candidate")
+			return nil, errCandidateUnreachable
+		})
+		winner := newCandidate("openai", "gpt-4o-mini", func(_ context.Context, _ fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+			successCalls++
+			return &fantasy.ObjectResponse{
+				Object: map[string]any{"title": "First wins"},
+				Usage:  fantasy.Usage{InputTokens: 11, OutputTokens: 7, TotalTokens: 18},
+			}, nil
+		})
+
+		result, err := walkManualTitleCandidates(
+			context.Background(),
+			inputs,
+			[]manualTitleCandidate{winner, skipped},
+			nil,
+		)
+		require.NoError(t, err)
+		require.Equal(t, "First wins", result.title)
+		require.Equal(t, winner.config, result.modelConfig)
+		require.Equal(t, int64(18), result.usage.TotalTokens)
+		require.True(t, result.hasMessages)
+		require.Equal(t, 1, successCalls)
+	})
+
+	t.Run("FallsThroughOnPerAttemptTimeout", func(t *testing.T) {
+		t.Parallel()
+
+		var firstCalls, secondCalls int
+		first := newCandidate("openai", "gpt-4o-mini", func(_ context.Context, _ fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+			firstCalls++
+			return nil, context.DeadlineExceeded
+		})
+		second := newCandidate("anthropic", "claude-haiku-4-5", func(_ context.Context, _ fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+			secondCalls++
+			return &fantasy.ObjectResponse{
+				Object: map[string]any{"title": "Second wins"},
+			}, nil
+		})
+
+		result, err := walkManualTitleCandidates(
+			context.Background(),
+			inputs,
+			[]manualTitleCandidate{first, second},
+			nil,
+		)
+		require.NoError(t, err)
+		require.Equal(t, "Second wins", result.title)
+		require.Equal(t, second.config, result.modelConfig)
+		require.Equal(t, 1, firstCalls, "first candidate must be tried exactly once")
+		require.Equal(t, 1, secondCalls, "second candidate must be tried after the first times out")
+	})
+
+	t.Run("StopsOnNonRetryableProviderError", func(t *testing.T) {
+		t.Parallel()
+
+		// Auth failure is non-retryable: the walk must surface it
+		// instead of moving on to the next candidate.
+		authErr := xerrors.New("401 invalid_api_key")
+		first := newCandidate("openai", "gpt-4o-mini", func(_ context.Context, _ fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+			return nil, authErr
+		})
+		second := newCandidate("anthropic", "claude-haiku-4-5", func(_ context.Context, _ fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+			t.Fatalf("walkManualTitleCandidates must not fall through after a non-retryable error")
+			return nil, errCandidateUnreachable
+		})
+
+		_, err := walkManualTitleCandidates(
+			context.Background(),
+			inputs,
+			[]manualTitleCandidate{first, second},
+			nil,
+		)
+		require.Error(t, err)
+		require.ErrorIs(t, err, authErr)
+	})
+
+	t.Run("AllCandidatesTimeOutReturnsDeadlineErr", func(t *testing.T) {
+		t.Parallel()
+
+		first := newCandidate("openai", "gpt-4o-mini", func(_ context.Context, _ fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+			return nil, context.DeadlineExceeded
+		})
+		second := newCandidate("anthropic", "claude-haiku-4-5", func(_ context.Context, _ fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+			return nil, context.DeadlineExceeded
+		})
+
+		_, err := walkManualTitleCandidates(
+			context.Background(),
+			inputs,
+			[]manualTitleCandidate{first, second},
+			nil,
+		)
+		require.Error(t, err)
+		require.ErrorIs(t, err, context.DeadlineExceeded,
+			"all-deadlines path must preserve DeadlineExceeded so the handler can map it to 504")
+	})
+
+	t.Run("ParentCancelStopsWalk", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+
+		var attempts int
+		first := newCandidate("openai", "gpt-4o-mini", func(_ context.Context, _ fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+			attempts++
+			cancel()
+			return nil, context.DeadlineExceeded
+		})
+		second := newCandidate("anthropic", "claude-haiku-4-5", func(_ context.Context, _ fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+			t.Fatalf("walkManualTitleCandidates must not start a new attempt after the parent context is canceled")
+			return nil, errCandidateUnreachable
+		})
+
+		_, err := walkManualTitleCandidates(
+			ctx,
+			inputs,
+			[]manualTitleCandidate{first, second},
+			nil,
+		)
+		require.Error(t, err)
+		require.Equal(t, 1, attempts)
+	})
+
+	t.Run("PreservesLastUsageOnFinalFailure", func(t *testing.T) {
+		t.Parallel()
+
+		// A model that returns usage along with a non-retryable
+		// error must surface that usage so the caller can record
+		// the spend, mirroring the previous single-model path.
+		first := newCandidate("openai", "gpt-4o-mini", func(_ context.Context, _ fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+			return &fantasy.ObjectResponse{
+				Object: map[string]any{"title": "\"\""},
+				Usage:  fantasy.Usage{InputTokens: 9, OutputTokens: 4, TotalTokens: 13},
+			}, nil
+		})
+		// The first candidate returns an empty title which the
+		// validation step rejects as non-retryable. The walk must
+		// surface its usage rather than overwriting it with the
+		// second candidate.
+		second := newCandidate("anthropic", "claude-haiku-4-5", func(_ context.Context, _ fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+			t.Fatalf("walkManualTitleCandidates must not fall through after a non-retryable validation error")
+			return nil, errCandidateUnreachable
+		})
+
+		_, err := walkManualTitleCandidates(
+			context.Background(),
+			inputs,
+			[]manualTitleCandidate{first, second},
+			nil,
+		)
+		require.Error(t, err)
+		var genErr *manualTitleGenerationError
+		require.ErrorAs(t, err, &genErr)
+		require.Equal(t, int64(13), genErr.usage.TotalTokens)
+		require.Equal(t, first.config, genErr.modelConfig)
+	})
+}
+
+func Test_selectAllConfiguredShortTextModelConfigs(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns every matching preferred model in preferred order", func(t *testing.T) {
+		t.Parallel()
+
+		// Cover at least two preferred entries to verify ordering is
+		// driven by preferredTitleModels, not configs order.
+		configs := []database.ChatModelConfig{
+			{Provider: preferredTitleModels[2].provider, Model: preferredTitleModels[2].model},
+			{Provider: preferredTitleModels[0].provider, Model: preferredTitleModels[0].model},
+			{Provider: "openai", Model: "gpt-4.1"},
+		}
+
+		got := selectAllConfiguredShortTextModelConfigs(configs)
+		require.Len(t, got, 2)
+		require.Equal(t, preferredTitleModels[0].provider, got[0].Provider)
+		require.Equal(t, preferredTitleModels[0].model, got[0].Model)
+		require.Equal(t, preferredTitleModels[2].provider, got[1].Provider)
+		require.Equal(t, preferredTitleModels[2].model, got[1].Model)
+	})
+
+	t.Run("returns empty when no preferred lightweight model is configured", func(t *testing.T) {
+		t.Parallel()
+
+		got := selectAllConfiguredShortTextModelConfigs([]database.ChatModelConfig{{
+			Provider: "openai",
+			Model:    "gpt-4.1",
+		}})
+		require.Empty(t, got)
 	})
 }
 

@@ -23,7 +23,10 @@ import { Spinner } from "#/components/Spinner/Spinner";
 type RenameChatDialogProps = {
 	readonly chat: Chat | null;
 	readonly onRename: (chatId: string, title: string) => Promise<void>;
-	readonly onPropose?: (chatId: string) => Promise<string>;
+	readonly onPropose?: (
+		chatId: string,
+		signal?: AbortSignal,
+	) => Promise<string>;
 	readonly onOpenChange: (open: boolean) => void;
 };
 
@@ -60,8 +63,19 @@ export const RenameChatDialog: FC<RenameChatDialogProps> = ({
 	const generatedTitleTypingFrameRef = useRef<number | null>(null);
 	const synchronizedChatIdRef = useRef<string | null | undefined>(undefined);
 	const sessionRef = useRef(0);
+	// Tracks the in-flight propose request so the user can cancel via
+	// the Generate-turned-Cancel button (and chat switches / closes
+	// abort it implicitly).
+	const proposeAbortRef = useRef<AbortController | null>(null);
 	const inputId = useId();
 	const errorId = `${inputId}-error`;
+
+	const abortInFlightPropose = () => {
+		if (proposeAbortRef.current) {
+			proposeAbortRef.current.abort();
+			proposeAbortRef.current = null;
+		}
+	};
 
 	const cancelGeneratedTitleTyping = () => {
 		if (generatedTitleTypingFrameRef.current !== null) {
@@ -138,6 +152,7 @@ export const RenameChatDialog: FC<RenameChatDialogProps> = ({
 
 	const closeDialog = () => {
 		sessionRef.current += 1;
+		abortInFlightPropose();
 		cancelGeneratedTitleTyping();
 		setIsGeneratingTitle(false);
 		onOpenChange(false);
@@ -158,6 +173,7 @@ export const RenameChatDialog: FC<RenameChatDialogProps> = ({
 		if (synchronizedChatIdRef.current === prevChatId) return;
 		synchronizedChatIdRef.current = prevChatId;
 		sessionRef.current += 1;
+		abortInFlightPropose();
 		if (generatedTitleTypingFrameRef.current !== null) {
 			cancelAnimationFrame(generatedTitleTypingFrameRef.current);
 			generatedTitleTypingFrameRef.current = null;
@@ -166,8 +182,10 @@ export const RenameChatDialog: FC<RenameChatDialogProps> = ({
 		setIsGeneratingTitle(false);
 	});
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: unmount-only cleanup. Adding abortInFlightPropose would tear the effect down on every render and abort the in-flight request.
 	useEffect(() => {
 		return () => {
+			abortInFlightPropose();
 			if (generatedTitleTypingFrameRef.current !== null) {
 				cancelAnimationFrame(generatedTitleTypingFrameRef.current);
 			}
@@ -186,21 +204,52 @@ export const RenameChatDialog: FC<RenameChatDialogProps> = ({
 	const handleGenerate = async () => {
 		if (!chat || !onPropose) return;
 		const requestedSession = sessionRef.current;
+		abortInFlightPropose();
 		cancelGeneratedTitleTyping();
+		const controller = new AbortController();
+		proposeAbortRef.current = controller;
 		setIsGeneratingTitle(true);
 		setGenerateTitleError(null);
+
+		// Clear our slot on the ref so a later handleGenerate or
+		// cancel can install its own controller. Avoid try/finally
+		// because the React Compiler does not support a finalizer
+		// clause; inline this at every return path instead.
+		const clearAbortSlot = () => {
+			if (proposeAbortRef.current === controller) {
+				proposeAbortRef.current = null;
+			}
+		};
+
+		let newTitle: string;
 		try {
-			const newTitle = await onPropose(chat.id);
-			if (sessionRef.current !== requestedSession) return;
-			setIsGeneratingTitle(false);
-			startGeneratedTitleTyping(newTitle, requestedSession);
+			newTitle = await onPropose(chat.id, controller.signal);
 		} catch (error) {
+			clearAbortSlot();
 			if (sessionRef.current !== requestedSession) return;
+			// User-initiated cancel resets state silently. The aborted
+			// signal is the source of truth. Axios surfaces canceled
+			// requests as errors, but we only care that we asked for
+			// the cancel.
+			if (controller.signal.aborted) {
+				setIsGeneratingTitle(false);
+				return;
+			}
 			setGenerateTitleError(
 				getErrorMessage(error, "Failed to generate a new title."),
 			);
 			setIsGeneratingTitle(false);
+			return;
 		}
+		clearAbortSlot();
+		if (sessionRef.current !== requestedSession) return;
+		setIsGeneratingTitle(false);
+		startGeneratedTitleTyping(newTitle, requestedSession);
+	};
+
+	const cancelGenerate = () => {
+		abortInFlightPropose();
+		setIsGeneratingTitle(false);
 	};
 
 	const handleSubmit = async () => {
@@ -257,10 +306,19 @@ export const RenameChatDialog: FC<RenameChatDialogProps> = ({
 							size="sm"
 							className="h-auto min-w-0 gap-1 px-2 py-1.5 text-xs font-normal"
 							onClick={() => {
+								if (isGeneratingTitle) {
+									cancelGenerate();
+									return;
+								}
 								void handleGenerate();
 							}}
-							disabled={
-								isRenamingChat || isGeneratingTitle || isTypingGeneratedTitle
+							disabled={isRenamingChat || isTypingGeneratedTitle}
+							// Override the accessible name while generating so the
+							// Cancel-shaped generate button doesn't collide with the
+							// footer Cancel button (which closes the dialog) in
+							// assistive tech and tests.
+							aria-label={
+								isGeneratingTitle ? "Cancel title generation" : undefined
 							}
 						>
 							{isGeneratingTitle ? (
@@ -268,7 +326,7 @@ export const RenameChatDialog: FC<RenameChatDialogProps> = ({
 							) : (
 								<SparklesIcon className="h-[18px] w-[18px]" />
 							)}
-							Generate
+							{isGeneratingTitle ? "Cancel" : "Generate"}
 						</Button>
 					)}
 				</DialogHeader>

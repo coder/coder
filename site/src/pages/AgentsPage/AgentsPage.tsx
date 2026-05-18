@@ -455,8 +455,11 @@ const AgentsPage: FC = () => {
 		regeneratingTitlePromisesRef.current.set(chatId, promise);
 		return promise;
 	};
-	const requestProposeTitle = async (chatId: string): Promise<string> => {
-		const result = await proposeTitleMutation.mutateAsync(chatId);
+	const requestProposeTitle = async (
+		chatId: string,
+		signal?: AbortSignal,
+	): Promise<string> => {
+		const result = await proposeTitleMutation.mutateAsync({ chatId, signal });
 		return result.title;
 	};
 	const requestRenameTitle = async (chatId: string, title: string) => {
