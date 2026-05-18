@@ -751,6 +751,34 @@ func Test_walkManualTitleCandidates(t *testing.T) {
 		require.Equal(t, 1, attempts)
 	})
 
+	t.Run("PreCanceledContextSurfacesCtxErr", func(t *testing.T) {
+		t.Parallel()
+
+		// Regression: if the parent context is canceled before the
+		// loop ever issues a model call, walkManualTitleCandidates
+		// must surface ctx.Err() so the handler can translate it
+		// into 499/504. Previously it broke out with lastErr==nil
+		// and the propose handler returned 200 with an empty
+		// title.
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		first := newCandidate("openai", "gpt-4o-mini", func(_ context.Context, _ fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+			t.Fatalf("walkManualTitleCandidates must not invoke any candidate when ctx is already canceled")
+			return nil, errCandidateUnreachable
+		})
+
+		result, err := walkManualTitleCandidates(
+			ctx,
+			inputs,
+			[]manualTitleCandidate{first},
+			nil,
+		)
+		require.Error(t, err)
+		require.ErrorIs(t, err, context.Canceled)
+		require.Empty(t, result.title)
+	})
+
 	t.Run("PreservesLastUsageOnFinalFailure", func(t *testing.T) {
 		t.Parallel()
 

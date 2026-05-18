@@ -3150,8 +3150,13 @@ func walkManualTitleCandidates(
 	for i, cand := range candidates {
 		// If the overall budget is exhausted or the parent context
 		// was canceled, stop walking before issuing another model
-		// call.
-		if ctx.Err() != nil {
+		// call. Surface ctx.Err() so the handler can translate
+		// pre-loop cancellation/timeout into 499/504 rather than
+		// silently returning an empty title.
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			if lastErr == nil {
+				lastErr = ctxErr
+			}
 			break
 		}
 
