@@ -92,18 +92,13 @@ export const deriveMessageDisplayState = ({
 		Boolean(parsed.markdown.trim()) && !hasFileAttachments;
 	const { hasRenderableContent, hasThinkingOnlyContent } =
 		getRenderableContentState(parsed);
-	const hasVisibleToolPlaceholders =
-		parsed.blocks.some((block) => block.type === "tool") ||
-		parsed.tools.length > 0;
 	const needsAssistantBottomSpacer =
 		!hideActions &&
 		!hasActiveStream &&
 		!isAwaitingFirstStreamChunk &&
 		!isUser &&
 		!hasCopyableContent &&
-		(hasThinkingOnlyContent ||
-			parsed.sources.length > 0 ||
-			(!hasRenderableContent && !hasVisibleToolPlaceholders));
+		(hasThinkingOnlyContent || parsed.sources.length > 0);
 	const hasToolResultsOnly =
 		parsed.toolResults.length > 0 &&
 		parsed.toolCalls.length === 0 &&
@@ -116,7 +111,7 @@ export const deriveMessageDisplayState = ({
 			hasToolResultsOnly ||
 			isProviderToolResultOnlyMessage(parts) ||
 			isMetadataOnlyMessage(parts) ||
-			(!isUser && !hasRenderableContent && hasVisibleToolPlaceholders),
+			(!isUser && !hasRenderableContent),
 		hasRenderableContent,
 		userInlineContent,
 		userFileBlocks,

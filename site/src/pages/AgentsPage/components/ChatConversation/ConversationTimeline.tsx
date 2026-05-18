@@ -571,11 +571,6 @@ const ChatMessageItem = memo<{
 										urlTransform={urlTransform}
 										mcpServers={mcpServers}
 									/>
-									{!displayState.hasRenderableContent && (
-										<div className="text-xs text-content-secondary">
-											Message has no renderable content.
-										</div>
-									)}
 								</div>
 							</MessageContent>
 						</Message>

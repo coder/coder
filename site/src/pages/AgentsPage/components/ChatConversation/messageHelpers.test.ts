@@ -135,6 +135,12 @@ describe("deriveMessageDisplayState", () => {
 		expect(getDisplayState(message).needsAssistantBottomSpacer).toBe(false);
 	});
 
+	it("hides assistant messages with no renderable content", () => {
+		const message = buildMessage([], "assistant");
+
+		expect(getDisplayState(message).shouldHide).toBe(true);
+	});
+
 	it("hides assistant messages whose execute tool renders nothing", () => {
 		const message = buildMessage(
 			[
