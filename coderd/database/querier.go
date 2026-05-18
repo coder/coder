@@ -1077,6 +1077,18 @@ type sqlcQuerier interface {
 	SoftDeleteChatMessageByID(ctx context.Context, id int64) error
 	SoftDeleteChatMessagesAfterID(ctx context.Context, arg SoftDeleteChatMessagesAfterIDParams) error
 	SoftDeleteContextFileMessages(ctx context.Context, chatID uuid.UUID) error
+	// Marks agents from all prior builds of this workspace as deleted,
+	// preserving only agents belonging to @current_build_id. Called from
+	// provisionerdserver when a workspace build completes, after the new
+	// build's agents have been inserted, so running agents are not
+	// deleted while a build is still queued or provisioning.
+	SoftDeletePriorWorkspaceAgents(ctx context.Context, arg SoftDeletePriorWorkspaceAgentsParams) error
+	// Marks every non-deleted agent belonging to the given workspace as
+	// deleted. Called alongside UpdateWorkspaceDeletedByID when a workspace
+	// itself is soft-deleted, so the agent instance-identity auth path
+	// (which filters on workspace_agents.deleted) doesn't keep seeing
+	// orphaned rows.
+	SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error
 	// Overrides updated_at on the parent run without touching any
 	// other column. Used by tests that need to stamp a run with a
 	// specific timestamp after the InsertChatDebugStep CTE has

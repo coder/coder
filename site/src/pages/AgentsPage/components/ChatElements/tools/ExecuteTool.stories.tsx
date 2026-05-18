@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, screen, userEvent, within } from "storybook/test";
+import { userEvent, within } from "storybook/test";
 import { ExecuteTool } from "./ExecuteTool";
 
 const longCommand =
@@ -30,6 +30,13 @@ export const ShortCommand: Story = {
 		command: "git status",
 		output: "",
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const summaryButton = await canvas.findByRole("button", {
+			name: "Expand command",
+		});
+		await userEvent.click(summaryButton);
+	},
 };
 
 export const RunningWithoutCommand: Story = {
@@ -38,31 +45,26 @@ export const RunningWithoutCommand: Story = {
 		status: "running",
 		output: "",
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.queryByText("$")).not.toBeInTheDocument();
-		expect(
-			canvas.queryByRole("button", { name: "Copy command" }),
-		).not.toBeInTheDocument();
-	},
 };
 
 export const LongCommand: Story = {
+	decorators: [
+		(Story) => (
+			<div className="w-72">
+				<Story />
+			</div>
+		),
+	],
 	args: {
 		command: longCommand,
 		output: "",
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const command = canvas.getByText(longCommand);
-		expect(command).toBeVisible();
-		expect(
-			canvas.queryByRole("button", { name: longCommand }),
-		).not.toBeInTheDocument();
-		await userEvent.hover(command);
-		expect(
-			await screen.findByRole("tooltip", undefined, { timeout: 2000 }),
-		).toHaveTextContent(longCommand);
+		const summaryButton = await canvas.findByRole("button", {
+			name: "Expand command",
+		});
+		await userEvent.click(summaryButton);
 	},
 };
 

@@ -745,7 +745,7 @@ lint/ts: site/node_modules/.installed
 .PHONY: lint/ts
 
 lint/go:
-	linter_ver=$$(grep -oE 'GOLANGCI_LINT_VERSION=\S+' dogfood/coder/ubuntu-26.04/Dockerfile | cut -d '=' -f 2)
+	linter_ver=$$(grep -Eo '^golangci-lint = "[^"]+"' mise.toml | sed -E 's/.*"([^"]+)"/\1/')
 	go run github.com/golangci/golangci-lint/cmd/golangci-lint@v$$linter_ver run
 	go tool github.com/coder/paralleltestctx/cmd/paralleltestctx -custom-funcs="testutil.Context,chatdTestContext" ./...
 	go run ./scripts/intxcheck ./...
@@ -1634,6 +1634,9 @@ endif
 
 dogfood/coder/nix.hash: flake.nix flake.lock
 	sha256sum flake.nix flake.lock >./dogfood/coder/nix.hash
+
+dogfood/coder/mise.hash: mise.toml mise.lock
+	sha256sum mise.toml mise.lock >./dogfood/coder/mise.hash
 
 # Count the number of test databases created per test package.
 count-test-databases:

@@ -1,88 +1,3 @@
-# 1.93.1
-FROM rust:slim@sha256:cf09adf8c3ebaba10779e5c23ff7fe4df4cccdab8a91f199b0c142c53fef3e1a AS rust-utils
-# Install rust helper programs
-ENV CARGO_INSTALL_ROOT=/tmp/
-# Use more reliable mirrors for Debian packages
-RUN sed -i 's|http://deb.debian.org/debian|http://mirrors.edge.kernel.org/debian|g' /etc/apt/sources.list && \
-	apt-get update || true
-RUN apt-get update && apt-get install -y libssl-dev openssl pkg-config build-essential
-RUN cargo install jj-cli typos-cli watchexec-cli
-
-FROM ubuntu:26.04@sha256:5e275723f82c67e387ba9e3c24baa0abdcb268917f276a0561c97bef9450d0b4 AS go
-
-# Install Go manually, so that we can control the version
-ARG GO_VERSION=1.26.2
-ARG GO_CHECKSUM="990e6b4bbba816dc3ee129eaeaf4b42f17c2800b88a2166c265ac1a200262282"
-
-# Boring Go is needed to build FIPS-compliant binaries.
-RUN apt-get update && \
-	apt-get install --yes curl && \
-	curl --silent --show-error --location \
-	"https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" \
-	-o /usr/local/go.tar.gz && \
-	echo "$GO_CHECKSUM /usr/local/go.tar.gz" | sha256sum -c && \
-	rm -rf /var/lib/apt/lists/*
-
-ENV PATH=$PATH:/usr/local/go/bin
-ARG GOPATH="/tmp/"
-# Install Go utilities.
-RUN apt-get update && \
-	apt-get install --yes build-essential && \
-	mkdir --parents /usr/local/go && \
-	tar --extract --gzip --directory=/usr/local/go --file=/usr/local/go.tar.gz --strip-components=1 && \
-	mkdir --parents "$GOPATH" && \
-	go env -w GOSUMDB=sum.golang.org && \
-	# swag for Swagger doc generation
-	go install github.com/swaggo/swag/cmd/swag@v1.16.2 && \
-	# goimports for updating imports
-	go install golang.org/x/tools/cmd/goimports@v0.41.0 && \
-	# protoc-gen-go is needed to build sysbox from source
-	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30.0 && \
-	# drpc support for v2
-	go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.34 && \
-	# migrate for migration support for v2
-	go install github.com/golang-migrate/migrate/v4/cmd/migrate@v4.15.1 && \
-	# Install the latest version of gopls for editors that support
-	# the language server protocol (v0.21.0+ required for Go 1.25)
-	go install golang.org/x/tools/gopls@v0.21.0 && \
-	# gotestsum makes test output more readable
-	go install gotest.tools/gotestsum@v1.9.0 && \
-	# sqlc for Go code generation
-	# Switched to coder/sqlc fork to fix ambiguous column bug, see:
-	# - https://github.com/coder/sqlc/pull/1
-	# - https://github.com/sqlc-dev/sqlc/pull/4159
-	(CGO_ENABLED=1 go install github.com/coder/sqlc/cmd/sqlc@337309bfb9524f38466a5090e310040fc7af0203) && \
-	# ruleguard for checking custom rules, without needing to run all of
-	# golangci-lint. Check the go.mod in the release of golangci-lint that
-	# we're using for the version of go-critic that it embeds, then check
-	# the version of ruleguard in go-critic for that tag.
-	go install github.com/quasilyte/go-ruleguard/cmd/ruleguard@v0.3.13 && \
-	# shfmt for shell script formatting
-	go install mvdan.cc/sh/v3/cmd/shfmt@v3.12.0 && \
-	# nfpm is used with `make build` to make release packages
-	go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.35.1 && \
-	# yq v4 for processing YAML files (renamed to yq4 for scripts/lib.sh).
-	go install github.com/mikefarah/yq/v4@v4.44.3 && \
-	mv /tmp/bin/yq /tmp/bin/yq4 && \
-	# mockgen for generating mocks (v0.6.0+ required for Go 1.25)
-	go install go.uber.org/mock/mockgen@v0.6.0 && \
-	# Reduce image size.
-	apt-get remove --yes build-essential && \
-	apt-get autoremove --yes && \
-	apt-get clean && \
-	rm -rf /var/lib/apt/lists/* && \
-	rm -rf /usr/local/go && \
-	rm -rf /tmp/go/pkg && \
-	rm -rf /tmp/go/src
-
-# alpine:3.18
-FROM us-docker.pkg.dev/coder-v2-images-public/public/alpine@sha256:fd032399cd767f310a1d1274e81cab9f0fd8a49b3589eba2c3420228cd45b6a7 AS proto
-WORKDIR /tmp
-RUN apk add curl unzip
-RUN curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-linux-x86_64.zip && \
-	unzip protoc.zip && \
-	rm protoc.zip
-
 FROM ubuntu:26.04@sha256:5e275723f82c67e387ba9e3c24baa0abdcb268917f276a0561c97bef9450d0b4
 
 SHELL ["/bin/bash", "-c"]
@@ -101,7 +16,7 @@ RUN apt-get update && \
 	locale-gen && \
 	yes | unminimize
 
-COPY files /
+COPY dogfood/coder/ubuntu-26.04/files /
 
 # We used to copy /etc/sudoers.d/* in from files/ but this causes issues with
 # permissions and layer caching. Instead, create the file directly.
@@ -215,59 +130,19 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
 	sh -s -- -y --default-toolchain stable --profile default -c rust-src
 ENV PATH=$CARGO_HOME/bin:$PATH
 
-# NOTE: In scripts/Dockerfile.base we specifically install Terraform version 1.15.2.
-# Installing the same version here to match.
-RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.15.2/terraform_1.15.2_linux_amd64.zip" && \
-	unzip /tmp/terraform.zip -d /usr/local/bin && \
-	rm -f /tmp/terraform.zip && \
-	chmod +x /usr/local/bin/terraform && \
-	terraform --version
-
 # Install the docker buildx component.
 RUN DOCKER_BUILDX_VERSION=$(curl -s "https://api.github.com/repos/docker/buildx/releases/latest" | grep '"tag_name":' |  sed -E 's/.*"(v[^"]+)".*/\1/') && \
 	mkdir -p /usr/local/lib/docker/cli-plugins && \
 	curl -Lo /usr/local/lib/docker/cli-plugins/docker-buildx "https://github.com/docker/buildx/releases/download/${DOCKER_BUILDX_VERSION}/buildx-${DOCKER_BUILDX_VERSION}.linux-amd64" && \
 	chmod a+x /usr/local/lib/docker/cli-plugins/docker-buildx
 
-# See https://github.com/cli/cli/issues/6175#issuecomment-1235984381 for proof
-# the apt repository is unreliable
+# GitHub CLI to /usr/bin/gh. The wrapper at files/usr/local/bin/gh
+# execs this for coder external-auth fallback. Apt repo is unreliable:
+# https://github.com/cli/cli/issues/6175#issuecomment-1235984381
 RUN GH_CLI_VERSION=$(curl -s "https://api.github.com/repos/cli/cli/releases/latest" | grep '"tag_name":' |  sed -E 's/.*"v([^"]+)".*/\1/') && \
 	curl -L https://github.com/cli/cli/releases/download/v${GH_CLI_VERSION}/gh_${GH_CLI_VERSION}_linux_amd64.deb -o gh.deb && \
 	dpkg -i gh.deb && \
 	rm gh.deb
-
-# Install Lazygit
-# See https://github.com/jesseduffield/lazygit#ubuntu
-RUN LAZYGIT_VERSION=$(curl -s "https://api.github.com/repos/jesseduffield/lazygit/releases/latest" | grep '"tag_name":' |  sed -E 's/.*"v*([^"]+)".*/\1/') && \
-	curl -Lo lazygit.tar.gz "https://github.com/jesseduffield/lazygit/releases/latest/download/lazygit_${LAZYGIT_VERSION}_Linux_x86_64.tar.gz" && \
-	tar xf lazygit.tar.gz -C /usr/local/bin lazygit && \
-	rm lazygit.tar.gz
-
-# Install doctl
-# See https://docs.digitalocean.com/reference/doctl/how-to/install
-RUN DOCTL_VERSION=$(curl -s "https://api.github.com/repos/digitalocean/doctl/releases/latest" | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/') && \
-	curl -L https://github.com/digitalocean/doctl/releases/download/v${DOCTL_VERSION}/doctl-${DOCTL_VERSION}-linux-amd64.tar.gz -o doctl.tar.gz && \
-	tar xf doctl.tar.gz -C /usr/local/bin doctl && \
-	rm doctl.tar.gz
-
-ARG NVM_INSTALL_SHA=bdea8c52186c4dd12657e77e7515509cda5bf9fa5a2f0046bce749e62645076d
-# Install frontend utilities
-ENV NVM_DIR=/usr/local/nvm
-ENV NODE_VERSION=22.19.0
-RUN mkdir -p $NVM_DIR
-RUN curl -o nvm_install.sh https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.0/install.sh && \
-	echo "${NVM_INSTALL_SHA}  nvm_install.sh" | sha256sum -c && \
-	bash nvm_install.sh && \
-	rm nvm_install.sh
-RUN source $NVM_DIR/nvm.sh && \
-	nvm install $NODE_VERSION && \
-	nvm use $NODE_VERSION
-ENV PATH=$NVM_DIR/versions/node/v$NODE_VERSION/bin:$PATH
-RUN corepack enable && \
-	corepack prepare npm@10.8.1 --activate && \
-	corepack prepare pnpm@10.33.2 --activate
-
-RUN pnpx playwright@1.47.0 install --with-deps chromium
 
 # Ensure PostgreSQL binaries are in the users $PATH.
 RUN update-alternatives --install /usr/local/bin/initdb initdb /usr/lib/postgresql/18/bin/initdb 100 && \
@@ -289,44 +164,6 @@ RUN systemctl enable \
 	# Workaround for envbuilder cache probing not working unless the filesystem is modified.
 	touch /tmp/.envbuilder-systemctl-enable-docker-ssh-workaround
 
-# Install tools with published releases, where that is the
-# preferred/recommended installation method.
-ARG GOLANGCI_LINT_VERSION=1.64.8 \
-	HELM_VERSION=3.12.0 \
-	KUBECTX_VERSION=0.9.4 \
-	SYFT_VERSION=1.20.0 \
-	COSIGN_VERSION=2.4.3 \
-	BUN_VERSION=1.2.15 \
-	MISE_VERSION=v2026.4.19 \
-	MISE_SHA256=6b58ff5f1e1ce98ed2b7e5372c344ea48182c460e5b6df12d9e0def35aad4438 \
-	MISE_INSTALL_DIR=/opt/mise/bin
-
-RUN \
-	# golangci-lint performs static code analysis for our Go code
-	curl --silent --show-error --location --fail "https://github.com/golangci/golangci-lint/releases/download/v${GOLANGCI_LINT_VERSION}/golangci-lint-${GOLANGCI_LINT_VERSION}-linux-amd64.tar.gz" | \
-	tar --extract --gzip --directory=/usr/local/bin --file=- --strip-components=1 "golangci-lint-${GOLANGCI_LINT_VERSION}-linux-amd64/golangci-lint" && \
-	# Helm is necessary for deploying Coder
-	curl --silent --show-error --location --fail "https://get.helm.sh/helm-v${HELM_VERSION}-linux-amd64.tar.gz" | \
-	tar --extract --gzip --directory=/usr/local/bin --file=- --strip-components=1 linux-amd64/helm && \
-	# kubens and kubectx for managing Kubernetes namespaces and contexts
-	curl --silent --show-error --location --fail "https://github.com/ahmetb/kubectx/releases/download/v${KUBECTX_VERSION}/kubectx_v${KUBECTX_VERSION}_linux_x86_64.tar.gz" | \
-	tar --extract --gzip --directory=/usr/local/bin --file=- kubectx && \
-	curl --silent --show-error --location --fail "https://github.com/ahmetb/kubectx/releases/download/v${KUBECTX_VERSION}/kubens_v${KUBECTX_VERSION}_linux_x86_64.tar.gz" | \
-	tar --extract --gzip --directory=/usr/local/bin --file=- kubens && \
-	# Anchore Syft for SBOM generation
-	curl --silent --show-error --location --fail "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_linux_amd64.tar.gz" | \
-	tar --extract --gzip --directory=/usr/local/bin --file=- syft && \
-	# Sigstore Cosign for artifact signing and attestation
-	curl --silent --show-error --location --fail --output /usr/local/bin/cosign "https://github.com/sigstore/cosign/releases/download/v${COSIGN_VERSION}/cosign-linux-amd64" && \
-	chmod a=rx /usr/local/bin/cosign && \
-	# Install Bun JavaScript runtime to /usr/local/bin
-	curl --silent --show-error --location --fail "https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-linux-x64.zip" --output /tmp/bun.zip && \
-	unzip -q /tmp/bun.zip -d /tmp && \
-	mv /tmp/bun-linux-x64/bun /usr/local/bin/ && \
-	chmod a=rx /usr/local/bin/bun && \
-	rm -rf /tmp/bun.zip /tmp/bun-linux-x64 && \
-	apt-get clean && rm -rf /var/lib/apt/lists/*
-
 # Add coder user and allow use of docker/sudo.
 # Ubuntu 26.04 ships a default "ubuntu" user at UID 1000;
 # remove it so we can create "coder" with that UID.
@@ -338,8 +175,13 @@ RUN userdel -r ubuntu && \
 	--uid=1000 \
 	--user-group
 
-# Install mise to a stable path outside /home/coder, but keep its target
-# directory writable so `mise self-update` can replace the binary as coder.
+# Install mise. Binary at /opt/mise/bin so it survives the home
+# volume mount; data dir under ~/.local/share/mise so installs ride
+# along on the per-workspace home volume, matching Homebrew's pattern
+# (see /home/linuxbrew volume in main.tf).
+ARG MISE_VERSION=v2026.4.19 \
+	MISE_SHA256=6b58ff5f1e1ce98ed2b7e5372c344ea48182c460e5b6df12d9e0def35aad4438 \
+	MISE_INSTALL_DIR=/opt/mise/bin
 RUN install --directory --owner=coder --group=coder --mode=0755 "${MISE_INSTALL_DIR}" && \
 	curl --silent --show-error --location --fail \
 		"https://github.com/jdx/mise/releases/download/${MISE_VERSION}/mise-${MISE_VERSION}-linux-x64" \
@@ -350,6 +192,46 @@ RUN install --directory --owner=coder --group=coder --mode=0755 "${MISE_INSTALL_
 	ln --symbolic "${MISE_INSTALL_DIR}/mise" /usr/local/bin/mise && \
 	test -x /usr/local/bin/mise && \
 	sudo --login --user=coder /bin/bash -lc 'set -euo pipefail && mise_bin="$(readlink --canonicalize /usr/local/bin/mise)" && test -w "$(dirname "$mise_bin")" && /usr/local/bin/mise --version && /usr/local/bin/mise self-update --help >/dev/null && /usr/local/bin/mise upgrade --help >/dev/null'
+
+# Trusted paths skip mise's per-config trust prompt for the baked-in
+# system config and the coder repo when cloned at the canonical
+# /home/coder/coder location. Other repos a user clones still get
+# the one-time `mise trust` prompt; pre-trusting all of /home/coder
+# would let any mise.toml under the home dir auto-run [hooks]/[tasks].
+ENV MISE_DATA_DIR=/home/coder/.local/share/mise \
+	MISE_TRUSTED_CONFIG_PATHS=/home/coder/coder:/etc/mise
+
+# Bake the project manifest in as mise's system config and ship
+# the lockfile alongside it so mise verifies download checksums
+# during install. We do NOT override MISE_GLOBAL_CONFIG_FILE; that
+# would re-target `mise use --global` away from the user's
+# ~/.config/mise/config.toml (on the home volume) into this
+# image-only path, breaking the workflow.
+#
+# We pre-create /etc/mise as 0755 because COPY's implicitly-created
+# parent dirs inherit the --chmod, which would leave /etc/mise
+# without the `x` bit and unreachable to the coder user. We also
+# chown to coder so mise can write the temp lockfile it uses for
+# atomic rename when updating /etc/mise/mise.lock during installs.
+RUN install --directory --owner=coder --group=coder --mode=0755 /etc/mise
+COPY --chown=coder:coder --chmod=0644 mise.toml /etc/mise/config.toml
+COPY --chown=coder:coder --chmod=0644 mise.lock /etc/mise/mise.lock
+
+# Pre-install tools into /opt/mise/data so they survive the home
+# volume's copy-on-first-mount. MISE_SHARED_INSTALL_DIRS (set below)
+# exposes them at runtime; MISE_DATA_DIR stays on the home volume.
+# github_token authenticates aqua's API calls (optional secret).
+RUN install --directory --owner=coder --group=coder --mode=0755 /opt/mise /opt/mise/data
+RUN --mount=type=secret,id=github_token,required=false \
+	gh_token="$(cat /run/secrets/github_token 2>/dev/null || true)" && \
+	sudo --user=coder env \
+		"MISE_DATA_DIR=/opt/mise/data" \
+		"MISE_TRUSTED_CONFIG_PATHS=$MISE_TRUSTED_CONFIG_PATHS" \
+		"GITHUB_TOKEN=$gh_token" \
+		/usr/local/bin/mise install --yes && \
+	PATH="/opt/mise/data/shims:$PATH" MISE_DATA_DIR=/opt/mise/data pnpm dlx playwright@1.47.0 install --with-deps chromium && \
+	rm -rf /opt/mise/data/cache /opt/mise/data/downloads && \
+	apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install Homebrew as the coder user so the supported Linux prefix remains
 # writable after the image build.
@@ -362,32 +244,20 @@ RUN echo "PermitUserEnvironment yes" >>/etc/ssh/sshd_config && \
 	echo "X11Forwarding yes" >>/etc/ssh/sshd_config && \
 	echo "X11UseLocalhost no" >>/etc/ssh/sshd_config
 
-# We avoid copying the extracted directory since COPY slows to minutes when there
-# are a lot of small files.
-COPY --from=go /usr/local/go.tar.gz /usr/local/go.tar.gz
-RUN mkdir /usr/local/go && \
-	tar --extract --gzip --directory=/usr/local/go --file=/usr/local/go.tar.gz --strip-components=1
-
-ENV PATH=$PATH:/usr/local/go/bin
-
-RUN update-alternatives --install /usr/local/bin/gofmt gofmt /usr/local/go/bin/gofmt 100
-
-COPY --from=go /tmp/bin /usr/local/bin
-COPY --from=rust-utils /tmp/bin /usr/local/bin
-COPY --from=proto /tmp/bin /usr/local/bin
-COPY --from=proto /tmp/include /usr/local/bin/include
-
 USER coder
 
-# Configure Homebrew and mise for the coder user. mise shims must stay first
-# so `command -v` and `mise doctor` resolve mise-managed tools ahead of
-# Homebrew and system binaries. Note that no go bins are installed in this
-# docker file, as they'd be mounted over by the persistent home volume.
+# mise shims must lead so `command -v` and `mise doctor` resolve
+# mise-managed tools ahead of Homebrew and system binaries.
 ENV HOMEBREW_PREFIX="/home/linuxbrew/.linuxbrew" \
 	HOMEBREW_CELLAR="/home/linuxbrew/.linuxbrew/Cellar" \
-	HOMEBREW_REPOSITORY="/home/linuxbrew/.linuxbrew/Homebrew" \
-	MISE_DATA_DIR="/home/coder/.local/share/mise"
-ENV PATH="${MISE_DATA_DIR}/shims:${HOMEBREW_PREFIX}/bin:${HOMEBREW_PREFIX}/sbin:/home/coder/go/bin:${PATH}"
+	HOMEBREW_REPOSITORY="/home/linuxbrew/.linuxbrew/Homebrew"
+# Pin npm globals to a stable home dir, otherwise they land in
+# mise's version-specific node bin dir which isn't on PATH.
+ENV NPM_CONFIG_PREFIX="/home/coder/.npm-global"
+# Baked shims trail user shims on PATH so user installs win when
+# both exist.
+ENV MISE_SHARED_INSTALL_DIRS="/opt/mise/data/installs"
+ENV PATH="/home/coder/.npm-global/bin:${MISE_DATA_DIR}/shims:/opt/mise/data/shims:${HOMEBREW_PREFIX}/bin:${HOMEBREW_PREFIX}/sbin:/home/coder/go/bin:${PATH}"
 
 # Override CARGO_HOME so cargo registry/cache writes go to the coder
 # user's home directory instead of the root-owned /usr/local/cargo.

@@ -1426,8 +1426,12 @@ func TestSubscribeRelayDialCanceledOnFastCompletion(t *testing.T) {
 // condition where the relay is too slow.
 func TestSubscribeRelayEstablishedMidStream(t *testing.T) {
 	t.Parallel()
-	// TODO(hugodutka): Unskip when chatd is free of race conditions.
-	t.Skip("skipped due to inherent race condition; see https://github.com/coder/internal/issues/1455")
+	// TODO(CODAGT-353): Re-enable this test after the chatd notification flow
+	// refactor gives workers enough causal information to distinguish stale
+	// control NOTIFY messages from real interrupts. The current design reuses
+	// the same status notification shape for wake-only and interrupt intents,
+	// so a stale NOTIFY can cancel a new processChat run.
+	t.Skip("skipped until chatd notification flow refactor handles stale control notifications")
 
 	db, ps := dbtestutil.NewDB(t)
 	workerID := uuid.New()

@@ -1,127 +1,60 @@
-import { screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { API } from "#/api/api";
-import { MockUserOwner } from "#/testHelpers/entities";
-import { renderWithAuth } from "#/testHelpers/renderHelpers";
-import AppearancePage from "./AppearancePage";
+import { act, renderHook } from "@testing-library/react";
+import type { UpdateUserAppearanceSettingsRequest } from "#/api/typesGenerated";
+import { useQueuedAppearanceSubmit } from "./AppearancePage";
 
-describe("appearance page", () => {
-	it("does nothing when selecting current theme", async () => {
-		renderWithAuth(<AppearancePage />);
+const updateRequest = (
+	overrides: Partial<UpdateUserAppearanceSettingsRequest> = {},
+): UpdateUserAppearanceSettingsRequest => ({
+	theme_preference: "dark",
+	theme_mode: "single",
+	theme_light: "light",
+	theme_dark: "dark",
+	terminal_font: "geist-mono",
+	...overrides,
+});
 
-		vi.spyOn(API, "updateAppearanceSettings").mockResolvedValueOnce({
-			...MockUserOwner,
-			theme_preference: "dark",
-			theme_mode: "single",
-			theme_light: "light",
-			theme_dark: "dark",
-			terminal_font: "fira-code",
+describe("useQueuedAppearanceSubmit", () => {
+	it("submits one request at a time and keeps only the latest pending update", () => {
+		const mutations: Array<{
+			values: UpdateUserAppearanceSettingsRequest;
+			onSettled: () => void;
+		}> = [];
+		const mutate = vi.fn(
+			(
+				values: UpdateUserAppearanceSettingsRequest,
+				options: { onSettled: () => void },
+			) => {
+				mutations.push({ values, onSettled: options.onSettled });
+			},
+		);
+		const { result } = renderHook(() => useQueuedAppearanceSubmit(mutate));
+
+		const first = updateRequest({ terminal_font: "fira-code" });
+		const overwritten = updateRequest({ theme_preference: "dark-tritan" });
+		const latest = updateRequest({ theme_preference: "light" });
+
+		act(() => {
+			result.current(first);
+			result.current(overwritten);
+			result.current(latest);
 		});
 
-		const dark = await screen.findByText("Dark");
-		await userEvent.click(dark);
+		expect(mutate).toHaveBeenCalledTimes(1);
+		expect(mutations[0]?.values).toEqual(first);
 
-		// Check if the API was called correctly
-		expect(API.updateAppearanceSettings).toHaveBeenCalledTimes(0);
-	});
-
-	it("changes theme to light", async () => {
-		renderWithAuth(<AppearancePage />);
-
-		vi.spyOn(API, "updateAppearanceSettings").mockResolvedValueOnce({
-			...MockUserOwner,
-			terminal_font: "geist-mono",
-			theme_preference: "light",
-			theme_mode: "single",
-			theme_light: "light",
-			theme_dark: "dark",
+		act(() => {
+			mutations[0]?.onSettled();
 		});
 
-		const light = await screen.findByText("Light");
-		await userEvent.click(light);
+		expect(mutate).toHaveBeenCalledTimes(2);
+		expect(mutations[1]?.values).toEqual(latest);
 
-		// Check if the API was called correctly
-		expect(API.updateAppearanceSettings).toHaveBeenCalledTimes(1);
-		expect(API.updateAppearanceSettings).toHaveBeenCalledWith(
-			expect.objectContaining({
-				terminal_font: "geist-mono",
-				theme_preference: "light",
-			}),
-		);
-	});
-
-	it("changes font to fira code", async () => {
-		renderWithAuth(<AppearancePage />);
-
-		vi.spyOn(API, "updateAppearanceSettings").mockResolvedValueOnce({
-			...MockUserOwner,
-			terminal_font: "fira-code",
-			theme_preference: "dark",
-			theme_mode: "single",
-			theme_light: "light",
-			theme_dark: "dark",
+		act(() => {
+			mutations[1]?.onSettled();
+			result.current(overwritten);
 		});
 
-		const firaCode = await screen.findByText("Fira Code");
-		await userEvent.click(firaCode);
-
-		// Check if the API was called correctly
-		expect(API.updateAppearanceSettings).toHaveBeenCalledTimes(1);
-		expect(API.updateAppearanceSettings).toHaveBeenCalledWith(
-			expect.objectContaining({
-				terminal_font: "fira-code",
-				theme_preference: "dark",
-			}),
-		);
-	});
-
-	it("changes font to fira code, then back to geist mono", async () => {
-		renderWithAuth(<AppearancePage />);
-
-		// given
-		vi.spyOn(API, "updateAppearanceSettings")
-			.mockResolvedValueOnce({
-				...MockUserOwner,
-				terminal_font: "fira-code",
-				theme_preference: "dark",
-				theme_mode: "single",
-				theme_light: "light",
-				theme_dark: "dark",
-			})
-			.mockResolvedValueOnce({
-				...MockUserOwner,
-				terminal_font: "geist-mono",
-				theme_preference: "dark",
-				theme_mode: "single",
-				theme_light: "light",
-				theme_dark: "dark",
-			});
-
-		// when
-		const firaCode = await screen.findByText("Fira Code");
-		await userEvent.click(firaCode);
-
-		// then
-		expect(API.updateAppearanceSettings).toHaveBeenCalledTimes(1);
-		expect(API.updateAppearanceSettings).toHaveBeenCalledWith(
-			expect.objectContaining({
-				terminal_font: "fira-code",
-				theme_preference: "dark",
-			}),
-		);
-
-		// when
-		const geistMono = await screen.findByText("Geist Mono");
-		await userEvent.click(geistMono);
-
-		// then
-		expect(API.updateAppearanceSettings).toHaveBeenCalledTimes(2);
-		expect(API.updateAppearanceSettings).toHaveBeenNthCalledWith(
-			2,
-			expect.objectContaining({
-				terminal_font: "geist-mono",
-				theme_preference: "dark",
-			}),
-		);
+		expect(mutate).toHaveBeenCalledTimes(3);
+		expect(mutations[2]?.values).toEqual(overwritten);
 	});
 });

@@ -90,7 +90,7 @@ Examples:
 
 			var userConfig createusers.Config
 			if bridge.RequestMode(mode) == bridge.RequestModeBridge {
-				me, err := requireAdmin(ctx, client)
+				me, err := RequireAdmin(ctx, client)
 				if err != nil {
 					return err
 				}

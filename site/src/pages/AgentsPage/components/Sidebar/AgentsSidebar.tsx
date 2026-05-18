@@ -769,7 +769,11 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 												aria-hidden="true"
 											/>
 										) : (
-											shortRelativeTime(chat.updated_at)
+											// data-chromatic="ignore" keeps Chromatic snapshots
+											// stable as wall-clock time advances (e.g. "now" → "5m").
+											<span data-chromatic="ignore">
+												{shortRelativeTime(chat.updated_at)}
+											</span>
 										)}
 									</span>
 									<DropdownMenu>
