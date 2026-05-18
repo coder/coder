@@ -150,6 +150,59 @@ func TestRun_ResponsesItemNotFoundRecoversWithStrippedReferences(t *testing.T) {
 	requireResponsesItemReferencesPresent(t, reloadedHistory)
 }
 
+func TestRun_ResponsesItemStrippedBeforeReload(t *testing.T) {
+	t.Parallel()
+
+	// When ReloadMessages fails, the retry falls back to the pre-reload
+	// call.Prompt. This test verifies that stale item references in the
+	// initial Messages are stripped on that fallback path (chatloop.go
+	// line 497) even when reload never provides fresh history.
+	var (
+		streamCalls  int
+		secondPrompt []fantasy.Message
+	)
+	model := &chattest.FakeModel{
+		ProviderName: fantasyopenai.Name,
+		StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+			streamCalls++
+			switch streamCalls {
+			case 1:
+				return nil, chainBrokenError()
+			default:
+				secondPrompt = call.Prompt
+				return finishingStream(), nil
+			}
+		},
+	}
+
+	initialMessages := []fantasy.Message{
+		textMessage(fantasy.MessageRoleUser, "search"),
+		staleOpenAIResponsesMessage(),
+		textMessage(fantasy.MessageRoleUser, "continue"),
+	}
+
+	err := Run(context.Background(), RunOptions{
+		Model:                model,
+		MaxSteps:             1,
+		ContextLimitFallback: 4096,
+		Messages:             initialMessages,
+		ProviderOptions:      chainModeProviderOptions("resp_poisoned"),
+		PersistStep: func(_ context.Context, _ PersistedStep) error {
+			return nil
+		},
+		DisableChainMode: func() {},
+		ReloadMessages: func(_ context.Context) ([]fantasy.Message, error) {
+			return nil, xerrors.New("reload unavailable")
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 2, streamCalls)
+	requireResponsesItemReferencesStripped(t, secondPrompt)
+	// Original initial messages are not mutated.
+	requireResponsesItemReferencesPresent(t, initialMessages)
+}
+
 func TestRun_ResponsesItemSuppressionPersistsAfterRecovery(t *testing.T) {
 	t.Parallel()
 
