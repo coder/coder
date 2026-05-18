@@ -1280,6 +1280,96 @@ export const RenameChatGenerateCancelMidFlightRestoresButton: Story = {
 	},
 };
 
+export const RenameChatGenerateStaleCancelDoesNotClobberNewAttempt: Story = {
+	// Regression: when a Generate is canceled mid-flight and a new
+	// Generate is started before the canceled request's catch
+	// handler has resolved, the stale catch must not clobber the
+	// new attempt's loading state.
+	args: {
+		chats: [
+			buildChat({
+				id: "rename-generate-stale-cancel",
+				title: "Original title",
+				updated_at: recentTimestamp,
+			}),
+		],
+		// First call hangs until aborted (simulates the canceled
+		// request whose catch fires after the second Generate
+		// click). Subsequent calls also hang until aborted, so the
+		// second Generate stays in-flight while we observe the
+		// first one's stale callback land.
+		onProposeTitle: fn(
+			(_chatId: string, signal?: AbortSignal) =>
+				new Promise<string>((_resolve, reject) => {
+					signal?.addEventListener("abort", () => {
+						// Simulate the network actually taking some
+						// time to surface the abort. Without the
+						// delay, the catch fires synchronously
+						// before the second Generate click and the
+						// race never happens.
+						setTimeout(() => {
+							reject(
+								Object.assign(new Error("canceled"), {
+									code: "ERR_CANCELED",
+								}),
+							);
+						}, 50);
+					});
+				}),
+		),
+		onRenameTitle: fn(() => Promise.resolve()),
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: "Open actions for Original title",
+			}),
+		);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: "Rename chat" }),
+		);
+
+		await body.findByRole<HTMLInputElement>("textbox", {
+			name: "Chat title",
+		});
+
+		// First Generate click starts a request that will hang
+		// until the Cancel click below aborts it.
+		await userEvent.click(body.getByRole("button", { name: "Generate" }));
+		await userEvent.click(
+			await body.findByRole("button", { name: "Cancel title generation" }),
+		);
+
+		// Second Generate click while the first request's abort
+		// is still settling on the network. The stale catch must
+		// not flip isGeneratingTitle back to false.
+		await userEvent.click(
+			await body.findByRole("button", { name: "Generate" }),
+		);
+		await body.findByRole("button", { name: "Cancel title generation" });
+
+		// Give the first attempt's stale catch time to fire.
+		await new Promise((resolve) => setTimeout(resolve, 200));
+
+		// The header button stays in the Cancel-while-generating
+		// state. If the stale catch from the first attempt
+		// clobbered state, the button would flip back to Generate
+		// and the Cancel affordance would be gone.
+		expect(
+			body.getByRole("button", { name: "Cancel title generation" }),
+		).toBeEnabled();
+	},
+};
+
 export const RenameChatGenerateTimeoutShowsFriendlyMessage: Story = {
 	args: {
 		chats: [

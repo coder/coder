@@ -70,10 +70,21 @@ export const RenameChatDialog: FC<RenameChatDialogProps> = ({
 	const inputId = useId();
 	const errorId = `${inputId}-error`;
 
+	// Aborting an in-flight propose also has to invalidate that
+	// request's stale callback. Without bumping the session, the
+	// canceled request's catch handler can land after the user
+	// starts a new Generate or after cancelGenerate runs, see its
+	// own controller.signal.aborted == true, and clobber the newer
+	// request's `isGeneratingTitle` state. Bumping sessionRef here
+	// makes every code path that aborts (cancel button, new
+	// Generate click, closeDialog, chat switch, unmount) trip the
+	// `sessionRef.current !== requestedSession` guard in the
+	// callbacks.
 	const abortInFlightPropose = () => {
 		if (proposeAbortRef.current) {
 			proposeAbortRef.current.abort();
 			proposeAbortRef.current = null;
+			sessionRef.current += 1;
 		}
 	};
 
