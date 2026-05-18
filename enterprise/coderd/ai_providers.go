@@ -279,11 +279,12 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		params := database.UpdateAIProviderParams{
-			ID:            old.ID,
-			DisplayName:   nullStrDeref(req.DisplayName, old.DisplayName),
-			Enabled:       boolDeref(req.Enabled, old.Enabled),
-			BaseUrl:       strDeref(req.BaseURL, old.BaseUrl),
-			Settings:      settings,
+			ID:          old.ID,
+			DisplayName: nullStrDeref(req.DisplayName, old.DisplayName),
+			Enabled:     boolDeref(req.Enabled, old.Enabled),
+			BaseUrl:     strDeref(req.BaseURL, old.BaseUrl),
+			Settings:    settings,
+			// SettingsKeyID is set by the dbcrypt wrapper.
 			SettingsKeyID: sql.NullString{},
 		}
 
@@ -415,9 +416,10 @@ func (api *API) aiProviderKeysCreate(rw http.ResponseWriter, r *http.Request) {
 
 	now := dbtime.Now()
 	row, err := api.Database.InsertAIProviderKey(ctx, database.InsertAIProviderKeyParams{
-		ID:          uuid.New(),
-		ProviderID:  provider.ID,
-		APIKey:      req.APIKey,
+		ID:         uuid.New(),
+		ProviderID: provider.ID,
+		APIKey:     req.APIKey,
+		// ApiKeyKeyID is set by the dbcrypt wrapper.
 		ApiKeyKeyID: sql.NullString{},
 		CreatedAt:   now,
 		UpdatedAt:   now,
@@ -558,13 +560,10 @@ func writeAIProviderLookupError(ctx context.Context, logger slog.Logger, rw http
 }
 
 // isBedrockProvider returns true when the row's settings contain a
-// Bedrock discriminator. Malformed JSON is treated as "not Bedrock"
-// because a row that cannot be decoded cannot be served either way.
+// Bedrock discriminator. A decode failure yields the zero value, whose
+// Bedrock is nil, so a malformed row is treated as "not Bedrock".
 func isBedrockProvider(row database.AIProvider) bool {
-	s, err := db2sdk.AIProviderSettings(row.Settings)
-	if err != nil {
-		return false
-	}
+	s, _ := db2sdk.AIProviderSettings(row.Settings)
 	return s.Bedrock != nil
 }
 

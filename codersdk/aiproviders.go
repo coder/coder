@@ -244,7 +244,7 @@ func validateAIProviderName(name string) []ValidationError {
 	case !AIProviderNameRegex.MatchString(name):
 		validations = append(validations, ValidationError{
 			Field:  "name",
-			Detail: "name must match ^[a-z0-9]+(-[a-z0-9]+)*$ (lowercase alphanumeric, hyphens between words)",
+			Detail: fmt.Sprintf("name must match %s (lowercase alphanumeric, hyphens between words)", AIProviderNameRegex),
 		})
 	}
 	return validations
