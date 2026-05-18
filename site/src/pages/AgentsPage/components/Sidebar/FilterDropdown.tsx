@@ -18,16 +18,22 @@ export type GroupBy = "date" | "chat_status";
 
 export type PRStatusFilter = "draft" | "open" | "merged" | "closed";
 
+export type ChatStatusFilter =
+	| "unread"
+	| "running"
+	| "idle_awaiting_feedback"
+	| "archived";
+
 export interface ChatFilterState {
 	readonly groupBy: GroupBy;
 	readonly prStatus: ReadonlySet<PRStatusFilter>;
-	readonly unread: boolean;
+	readonly chatStatus: ReadonlySet<ChatStatusFilter>;
 }
 
 const DEFAULT_FILTER_STATE: ChatFilterState = {
 	groupBy: "date",
 	prStatus: new Set<PRStatusFilter>(),
-	unread: false,
+	chatStatus: new Set<ChatStatusFilter>(),
 };
 
 const PR_STATUS_OPTIONS: readonly {
@@ -40,6 +46,16 @@ const PR_STATUS_OPTIONS: readonly {
 	{ value: "closed", label: "Closed" },
 ];
 
+const CHAT_STATUS_OPTIONS: readonly {
+	readonly value: ChatStatusFilter;
+	readonly label: string;
+}[] = [
+	{ value: "unread", label: "Unread" },
+	{ value: "running", label: "Running" },
+	{ value: "idle_awaiting_feedback", label: "Idle/awaiting feedback" },
+	{ value: "archived", label: "Archived" },
+];
+
 interface FilterDropdownProps {
 	readonly filterState: ChatFilterState;
 	readonly onFilterChange?: (state: ChatFilterState) => void;
@@ -50,7 +66,7 @@ export function hasActiveFilters(state: ChatFilterState): boolean {
 	return (
 		state.groupBy !== DEFAULT_FILTER_STATE.groupBy ||
 		state.prStatus.size > 0 ||
-		state.unread
+		state.chatStatus.size > 0
 	);
 }
 
@@ -78,17 +94,27 @@ export const FilterDropdown: FC<FilterDropdownProps> = ({
 		[filterState],
 	);
 
+	const normalizedSearch = search.toLowerCase();
+
 	const filteredPROptions = useMemo(
 		() =>
-			search
+			normalizedSearch
 				? PR_STATUS_OPTIONS.filter((o) =>
-						o.label.toLowerCase().includes(search.toLowerCase()),
+						o.label.toLowerCase().includes(normalizedSearch),
 					)
 				: PR_STATUS_OPTIONS,
-		[search],
+		[normalizedSearch],
 	);
 
-	const showUnread = !search || "unread".includes(search.toLowerCase());
+	const filteredChatStatusOptions = useMemo(
+		() =>
+			normalizedSearch
+				? CHAT_STATUS_OPTIONS.filter((o) =>
+						o.label.toLowerCase().includes(normalizedSearch),
+					)
+				: CHAT_STATUS_OPTIONS,
+		[normalizedSearch],
+	);
 
 	const togglePRStatus = useCallback((value: PRStatusFilter) => {
 		setPending((prev) => {
@@ -99,6 +125,18 @@ export const FilterDropdown: FC<FilterDropdownProps> = ({
 				next.add(value);
 			}
 			return { ...prev, prStatus: next };
+		});
+	}, []);
+
+	const toggleChatStatus = useCallback((value: ChatStatusFilter) => {
+		setPending((prev) => {
+			const next = new Set(prev.chatStatus);
+			if (next.has(value)) {
+				next.delete(value);
+			} else {
+				next.add(value);
+			}
+			return { ...prev, chatStatus: next };
 		});
 	}, []);
 
@@ -188,7 +226,7 @@ export const FilterDropdown: FC<FilterDropdownProps> = ({
 				</div>
 
 				{/* ── Scrollable filter list ── */}
-				<ScrollArea className="max-h-48">
+				<ScrollArea className="max-h-64">
 					<div className="px-3 pt-1 pb-2">
 						{/* PR status */}
 						{filteredPROptions.length > 0 && (
@@ -216,28 +254,26 @@ export const FilterDropdown: FC<FilterDropdownProps> = ({
 						)}
 
 						{/* Chat status */}
-						{showUnread && (
+						{filteredChatStatusOptions.length > 0 && (
 							<div className="mt-3">
 								<span className="text-xs text-content-secondary">
 									Chat status
 								</span>
 								<div className="mt-1.5 flex flex-col gap-2">
-									<label
-										htmlFor="filter-unread"
-										className="flex cursor-pointer items-center gap-2"
-									>
-										<Checkbox
-											id="filter-unread"
-											checked={pending.unread}
-											onCheckedChange={(checked) =>
-												setPending((prev) => ({
-													...prev,
-													unread: checked === true,
-												}))
-											}
-										/>
-										<span className="text-sm">Unread</span>
-									</label>
+									{filteredChatStatusOptions.map((option) => (
+										<label
+											key={option.value}
+											htmlFor={`chat-${option.value}`}
+											className="flex cursor-pointer items-center gap-2"
+										>
+											<Checkbox
+												id={`chat-${option.value}`}
+												checked={pending.chatStatus.has(option.value)}
+												onCheckedChange={() => toggleChatStatus(option.value)}
+											/>
+											<span className="text-sm">{option.label}</span>
+										</label>
+									))}
 								</div>
 							</div>
 						)}

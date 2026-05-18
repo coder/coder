@@ -21,7 +21,7 @@ export const WithActiveFilters: Story = {
 		filterState: {
 			groupBy: "chat_status",
 			prStatus: new Set(["open", "draft"]),
-			unread: true,
+			chatStatus: new Set(["unread", "running"]),
 		},
 	},
 };
@@ -39,6 +39,15 @@ export const OpensFilterPanel: Story = {
 		await expect(await body.findByText("Filter by")).toBeInTheDocument();
 		await expect(await body.findByText("PR status")).toBeInTheDocument();
 		await expect(await body.findByText("Chat status")).toBeInTheDocument();
+
+		// Verify all chat status options are present
+		await expect(await body.findByText("Unread")).toBeInTheDocument();
+		await expect(await body.findByText("Running")).toBeInTheDocument();
+		await expect(
+			await body.findByText("Idle/awaiting feedback"),
+		).toBeInTheDocument();
+		await expect(await body.findByText("Archived")).toBeInTheDocument();
+
 		await expect(
 			await body.findByRole("button", { name: /Apply/i }),
 		).toBeInTheDocument();
