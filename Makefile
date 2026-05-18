@@ -75,7 +75,6 @@ endif
 	docs/admin/security/audit-logs.md \
 	docs/ai-coder/ai-governance-audit.md \
 	docs/reference/cli/index.md \
-
 	coderd/apidoc/swagger.json \
 	coderd/rbac/object_gen.go \
 	coderd/rbac/scopes_constants_gen.go \
@@ -1056,7 +1055,6 @@ gen/mark-fresh:
 		docs/admin/security/audit-logs.md \
 		docs/ai-coder/ai-governance-audit.md \
 		coderd/apidoc/swagger.json \
-
 		docs/manifest.json \
 		site/e2e/provisionerGenerated.ts \
 		site/src/theme/icons.json \

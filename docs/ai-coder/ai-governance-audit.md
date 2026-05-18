@@ -65,7 +65,7 @@ In the Coder dashboard, navigate to **Deployment** > **Audit Logs**. Use the
 
 ### API
 
-Use the [`GET /api/v2/audit`](../../reference/api/audit.md#get-audit-logs) endpoint
+Use the [`GET /api/v2/audit`](../reference/api/audit.md#get-audit-logs) endpoint
 with the `resource_type` query parameter:
 
 ```bash
@@ -104,7 +104,7 @@ logs and the connection log. These are not written to the `audit_logs` table.
 To review Agent Firewall activity:
 
 - **Workspace logs**: Navigate to the workspace and open the agent log tab.
-- **Connection log API**: Use `GET /api/v2/workspaces/{workspace}/connections`
+- **Connection log API**: Use [`GET /api/v2/connectionlog`](../reference/api/enterprise.md#get-connection-logs)
   to export structured connection events.
 
 See [Agent Firewall](./agent-firewall/index.md) for configuration and
