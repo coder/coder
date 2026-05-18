@@ -55,6 +55,7 @@ import {
 import {
 	createContext,
 	type FC,
+	useCallback,
 	useContext,
 	useEffect,
 	useEffectEvent,
@@ -108,7 +109,7 @@ import { asNonEmptyString } from "../ChatConversation/blockUtils";
 import type { ModelSelectorOption } from "../ChatElements";
 import { asString } from "../ChatElements/runtimeTypeUtils";
 import { UsageIndicator } from "../UsageIndicator";
-import { FilterDropdown } from "./FilterDropdown";
+import { FilterDropdown, SearchBar } from "./FilterDropdown";
 import { RenameChatDialog } from "./RenameChatDialog";
 
 type SidebarView =
@@ -363,6 +364,46 @@ const buildChatTree = (chats: readonly Chat[]): ChatTree => {
 	};
 };
 
+/**
+ * Returns true if any of the chat's searchable fields contain the given
+ * search term. Searches across: title, last turn summary, PR title,
+ * PR URL / branch names, and attached file names.
+ */
+const chatMatchesSearch = (chat: Chat, search: string): boolean => {
+	if (chat.title.toLowerCase().includes(search)) {
+		return true;
+	}
+	if (chat.last_turn_summary?.toLowerCase().includes(search)) {
+		return true;
+	}
+	const diff = chat.diff_status;
+	if (diff) {
+		if (diff.pull_request_title?.toLowerCase().includes(search)) {
+			return true;
+		}
+		if (diff.url?.toLowerCase().includes(search)) {
+			return true;
+		}
+		if (diff.head_branch?.toLowerCase().includes(search)) {
+			return true;
+		}
+		if (diff.base_branch?.toLowerCase().includes(search)) {
+			return true;
+		}
+		if (diff.author_login?.toLowerCase().includes(search)) {
+			return true;
+		}
+	}
+	if (chat.files) {
+		for (const file of chat.files) {
+			if (file.name.toLowerCase().includes(search)) {
+				return true;
+			}
+		}
+	}
+	return false;
+};
+
 const collectVisibleChatIDs = ({
 	chats,
 	search,
@@ -384,7 +425,7 @@ const collectVisibleChatIDs = ({
 
 	const allChats = chats.flatMap((chat) => [chat, ...(chat.children ?? [])]);
 	const matchedChatIDs = allChats
-		.filter((chat) => chat.title.toLowerCase().includes(search))
+		.filter((chat) => chatMatchesSearch(chat, search))
 		.map((chat) => chat.id);
 	if (matchedChatIDs.length === 0) {
 		return new Set<string>();
@@ -416,6 +457,60 @@ const collectVisibleChatIDs = ({
 	}
 
 	return visible;
+};
+
+/**
+ * Renders text with search query matches highlighted.
+ */
+const HighlightedText: FC<{
+	readonly text: string;
+	readonly query: string;
+}> = ({ text, query }) => {
+	if (!query) {
+		return <>{text}</>;
+	}
+	const lower = text.toLowerCase();
+	const parts: Array<{ text: string; highlight: boolean }> = [];
+	let cursor = 0;
+	let searchStart = 0;
+	while (searchStart < lower.length) {
+		const idx = lower.indexOf(query, searchStart);
+		if (idx === -1) break;
+		if (idx > cursor) {
+			parts.push({ text: text.slice(cursor, idx), highlight: false });
+		}
+		parts.push({
+			text: text.slice(idx, idx + query.length),
+			highlight: true,
+		});
+		cursor = idx + query.length;
+		searchStart = cursor;
+	}
+	if (cursor < text.length) {
+		parts.push({ text: text.slice(cursor), highlight: false });
+	}
+	if (parts.length === 0) {
+		return <>{text}</>;
+	}
+	return (
+		<>
+			{parts.map((part, i) =>
+				part.highlight ? (
+					<mark
+						// Unique per position; list is stable for a given query.
+						// biome-ignore lint/suspicious/noArrayIndexKey: positional key is stable
+						key={i}
+						className="rounded-sm bg-surface-invert-primary/15 text-inherit"
+					>
+						{part.text}
+					</mark>
+				) : (
+					// biome-ignore lint/suspicious/noArrayIndexKey: positional key is stable
+					<span key={i}>{part.text}</span>
+				),
+			)}
+		</>
+	);
 };
 
 interface ChatTreeContextValue {
@@ -712,7 +807,10 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 													isRegeneratingThisChat && "animate-pulse",
 												)}
 											>
-												{chat.title}
+												<HighlightedText
+													text={chat.title}
+													query={normalizedSearch}
+												/>
 											</span>
 											{chat.has_unread && !isActiveChat && (
 												<span className="sr-only">(unread)</span>
@@ -967,7 +1065,17 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const isApiKeysSection = isSettingsPanel && settingsSection === "api-keys";
 	const showApiKeysItem =
 		isAdmin || isApiKeysSection || Boolean(providerConfigsQuery.data?.length);
-	const normalizedSearch = "";
+	const [searchOpen, setSearchOpen] = useState(false);
+	const [searchQuery, setSearchQuery] = useState("");
+	const normalizedSearch = searchQuery.trim().toLowerCase();
+	const toggleSearch = useCallback(() => {
+		setSearchOpen((prev) => {
+			if (prev) {
+				setSearchQuery("");
+			}
+			return !prev;
+		});
+	}, []);
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
 	const [collapsedSections, setCollapsedSections] = useState<
 		Record<string, boolean>
@@ -984,6 +1092,8 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	const visibleRootIDs = chatTree.rootIds.filter((chatID) =>
 		visibleChatIDs.has(chatID),
 	);
+	// Total root-level chats before any search filter.
+	const totalRootCount = chatTree.rootIds.length;
 
 	const pinnedChats = visibleRootIDs
 		.map((id) => chatById.get(id))
@@ -1231,35 +1341,61 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							) : (
 								<ChatTreeContext value={chatTreeCtx}>
 									{visibleRootIDs.length === 0 ? (
-										<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
-											<p className="m-0">
-												{normalizedSearch
-													? "No matching agents"
-													: archivedFilter === "archived"
-														? "No archived agents"
-														: "No agents yet"}
-											</p>
-											<button
-												type="button"
-												className="mt-2 cursor-pointer border-none bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary hover:underline"
-												onClick={() =>
-													onArchivedFilterChange?.(
-														archivedFilter === "archived"
-															? "active"
-															: "archived",
-													)
-												}
-											>
-												{archivedFilter === "archived"
-													? "← Back to active"
-													: "View archived →"}
-											</button>
-										</div>
+										<>
+											{totalRootCount > 0 && (
+												<div className="mb-2 flex items-center justify-end gap-0.5 pr-1.5">
+													<SearchBar
+														isOpen={searchOpen}
+														onToggle={toggleSearch}
+														searchQuery={searchQuery}
+														onSearchChange={setSearchQuery}
+														resultCount={0}
+														totalCount={totalRootCount}
+													/>
+													<FilterDropdown
+														archivedFilter={archivedFilter}
+														onArchivedFilterChange={onArchivedFilterChange}
+													/>
+												</div>
+											)}
+											<div className="rounded-lg border border-dashed border-border-default bg-surface-primary p-4 text-center text-xs text-content-secondary">
+												<p className="m-0">
+													{normalizedSearch
+														? "No matching agents"
+														: archivedFilter === "archived"
+															? "No archived agents"
+															: "No agents yet"}
+												</p>
+												<button
+													type="button"
+													className="mt-2 cursor-pointer border-none bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary hover:underline"
+													onClick={() =>
+														onArchivedFilterChange?.(
+															archivedFilter === "archived"
+																? "active"
+																: "archived",
+														)
+													}
+												>
+													{archivedFilter === "archived"
+														? "← Back to active"
+														: "View archived →"}
+												</button>
+											</div>
+										</>
 									) : (
 										<div>
 											{visibleRootIDs.length > 0 && (
 												<div className="pb-2">
-													<div className="mb-2 flex h-5 justify-end pr-1.5">
+													<div className="mb-2 flex items-center justify-end gap-0.5 pr-1.5">
+														<SearchBar
+															isOpen={searchOpen}
+															onToggle={toggleSearch}
+															searchQuery={searchQuery}
+															onSearchChange={setSearchQuery}
+															resultCount={visibleRootIDs.length}
+															totalCount={totalRootCount}
+														/>
 														<FilterDropdown
 															archivedFilter={archivedFilter}
 															onArchivedFilterChange={onArchivedFilterChange}
