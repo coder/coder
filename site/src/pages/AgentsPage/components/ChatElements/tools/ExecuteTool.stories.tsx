@@ -48,21 +48,38 @@ export const RunningWithoutCommand: Story = {
 };
 
 export const LongCommand: Story = {
+	decorators: [
+		(Story) => (
+			<div className="w-72">
+				<Story />
+			</div>
+		),
+	],
 	args: {
 		command: longCommand,
 		output: "",
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const command = canvas.getByText(longCommand);
+		const command = canvas.getByTestId("execute-tool-command-line");
 		expect(command).toBeVisible();
+		expect(command).toHaveTextContent(`Ran ${longCommand}`);
+		expect(getComputedStyle(command).fontFamily).not.toContain("monospace");
+		expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
 		expect(
 			canvas.queryByRole("button", { name: longCommand }),
 		).not.toBeInTheDocument();
-		await userEvent.hover(command);
-		expect(
-			await screen.findByRole("tooltip", undefined, { timeout: 2000 }),
-		).toHaveTextContent(longCommand);
+
+		const summaryButton = await canvas.findByRole("button", {
+			name: "Expand command",
+		});
+		expect(summaryButton.querySelectorAll("svg")).toHaveLength(1);
+		await userEvent.click(summaryButton);
+
+		expect(canvas.queryByText("Shell")).not.toBeInTheDocument();
+		expect(canvas.getByTestId("execute-tool-command")).toHaveTextContent(
+			`$ ${longCommand}`,
+		);
 	},
 };
 
@@ -78,6 +95,16 @@ export const LongCommandWithOutput: Story = {
 			"src/utils/formatDate.ts",
 			"src/utils/legacyHelpers.ts",
 		].join("\n"),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.queryByText("Shell")).not.toBeInTheDocument();
+		expect(canvas.getByTestId("execute-tool-command")).toHaveTextContent(
+			`$ ${longCommand}`,
+		);
+		expect(canvas.getByTestId("execute-tool-output")).toHaveTextContent(
+			"src/api/legacyClient.ts",
+		);
 	},
 };
 
@@ -98,6 +125,16 @@ export const WithOutput: Story = {
 			"otel-collector       Up 1 hour           0.0.0.0:4317->4317/tcp",
 			"loki                 Up 1 hour           0.0.0.0:3100->3100/tcp",
 		].join("\n"),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.queryByText("Shell")).not.toBeInTheDocument();
+		expect(canvas.getByTestId("execute-tool-command")).toHaveTextContent(
+			"$ docker ps",
+		);
+		expect(canvas.getByTestId("execute-tool-output")).toHaveTextContent(
+			"coder-gateway",
+		);
 	},
 };
 
