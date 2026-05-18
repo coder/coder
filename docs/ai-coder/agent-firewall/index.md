@@ -135,7 +135,7 @@ rules, see the [rules engine documentation](./rules-engine.md).
 
 > [!TIP]
 > For worked examples of common policy patterns,
-> see [Common policy patterns](./rules-engine.md#common-policy-patterns)
+> refer to [Common policy patterns](./rules-engine.md#common-policy-patterns)
 > in the rules engine reference.
 
 You can also run Agent Firewall directly in your workspace and configure it

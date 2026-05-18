@@ -126,7 +126,7 @@ based on [Anthropic's default allowed domains](https://code.claude.com/docs/en/c
 ```yaml
 allowlist:
   # Replace with your Coder deployment domain
-  - domain=dev.coder.com
+  - domain=coder.example.com
 
   # Anthropic services (required)
   - domain=api.anthropic.com
