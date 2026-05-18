@@ -100,6 +100,134 @@ func TestParseResourceAllowlist(t *testing.T) {
 	})
 }
 
+// TestUpdateAuditDoc verifies that updateAuditDoc correctly replaces the
+// content between generatorPrefix and generatorSuffix with a formatted
+// markdown table. These tests cover the formatting logic where a previous
+// regression (DEREM-6) introduced an incorrect table separator.
+func TestUpdateAuditDoc(t *testing.T) {
+	t.Parallel()
+
+	const (
+		testPrefix = "<!-- test-gen-prefix -->"
+		testSuffix = "<!-- test-gen-suffix -->"
+	)
+	prefix := []byte(testPrefix)
+	suffix := []byte(testSuffix)
+
+	// makeDoc builds a minimal document with preamble, markers, optional body
+	// between the markers, and a postamble.
+	makeDoc := func(body string) []byte {
+		return []byte("preamble\n" + testPrefix + "\n" + body + testSuffix + "\npostamble\n")
+	}
+
+	t.Run("missing prefix returns error", func(t *testing.T) {
+		t.Parallel()
+		_, err := updateAuditDoc([]byte("no markers here"), AuditableResourcesMap{}, prefix, suffix)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "prefix")
+	})
+
+	t.Run("missing suffix returns error", func(t *testing.T) {
+		t.Parallel()
+		doc := []byte("preamble\n" + testPrefix + "\nno suffix")
+		_, err := updateAuditDoc(doc, AuditableResourcesMap{}, prefix, suffix)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "suffix")
+	})
+
+	t.Run("preamble and postamble are preserved", func(t *testing.T) {
+		t.Parallel()
+		out, err := updateAuditDoc(makeDoc(""), AuditableResourcesMap{}, prefix, suffix)
+		require.NoError(t, err)
+		outStr := string(out)
+		assert.True(t, strings.HasPrefix(outStr, "preamble\n"), "preamble should be at start")
+		assert.True(t, strings.HasSuffix(outStr, "postamble\n"), "postamble should be at end")
+		assert.Contains(t, outStr, testPrefix)
+		assert.Contains(t, outStr, testSuffix)
+	})
+
+	t.Run("old table body is replaced not kept", func(t *testing.T) {
+		t.Parallel()
+		doc := makeDoc("| old-stale-content |\n| that | should | be | gone |\n")
+		out, err := updateAuditDoc(doc, AuditableResourcesMap{}, prefix, suffix)
+		require.NoError(t, err)
+		assert.NotContains(t, string(out), "old-stale-content")
+	})
+
+	t.Run("table header is present", func(t *testing.T) {
+		t.Parallel()
+		out, err := updateAuditDoc(makeDoc(""), AuditableResourcesMap{}, prefix, suffix)
+		require.NoError(t, err)
+		assert.Contains(t, string(out), "|<b>Resource<b>||")
+	})
+
+	t.Run("table separator matches expected format (DEREM-6 regression)", func(t *testing.T) {
+		t.Parallel()
+		out, err := updateAuditDoc(makeDoc(""), AuditableResourcesMap{}, prefix, suffix)
+		require.NoError(t, err)
+		// The separator must be exactly "|--|-----------------|" - any change to
+		// column widths breaks the downstream markdown formatter.
+		assert.Contains(t, string(out), "|--|-----------------|")
+	})
+
+	t.Run("resources appear in alphabetical order", func(t *testing.T) {
+		t.Parallel()
+		m := AuditableResourcesMap{
+			"Zebra":  {"id": true},
+			"Alpha":  {"id": false},
+			"Middle": {"id": true},
+		}
+		out, err := updateAuditDoc(makeDoc(""), m, prefix, suffix)
+		require.NoError(t, err)
+		outStr := string(out)
+		alphaPos := strings.Index(outStr, "|Alpha")
+		middlePos := strings.Index(outStr, "|Middle")
+		zebraPos := strings.Index(outStr, "|Zebra")
+		require.Greater(t, alphaPos, -1, "Alpha row missing")
+		require.Greater(t, middlePos, -1, "Middle row missing")
+		require.Greater(t, zebraPos, -1, "Zebra row missing")
+		assert.Less(t, alphaPos, middlePos, "Alpha should precede Middle")
+		assert.Less(t, middlePos, zebraPos, "Middle should precede Zebra")
+	})
+
+	t.Run("fields appear in alphabetical order within a resource", func(t *testing.T) {
+		t.Parallel()
+		m := AuditableResourcesMap{
+			"Res": {
+				"z_field": false,
+				"a_field": true,
+				"m_field": true,
+			},
+		}
+		out, err := updateAuditDoc(makeDoc(""), m, prefix, suffix)
+		require.NoError(t, err)
+		outStr := string(out)
+		aPos := strings.Index(outStr, "<td>a_field</td>")
+		mPos := strings.Index(outStr, "<td>m_field</td>")
+		zPos := strings.Index(outStr, "<td>z_field</td>")
+		require.Greater(t, aPos, -1, "a_field missing")
+		require.Greater(t, mPos, -1, "m_field missing")
+		require.Greater(t, zPos, -1, "z_field missing")
+		assert.Less(t, aPos, mPos, "a_field should precede m_field")
+		assert.Less(t, mPos, zPos, "m_field should precede z_field")
+	})
+
+	t.Run("field tracked values rendered as true and false", func(t *testing.T) {
+		t.Parallel()
+		m := AuditableResourcesMap{
+			"Res": {
+				"tracked":   true,
+				"untracked": false,
+			},
+		}
+		out, err := updateAuditDoc(makeDoc(""), m, prefix, suffix)
+		require.NoError(t, err)
+		outStr := string(out)
+		assert.Contains(t, outStr, "<td>tracked</td><td>true</td>")
+		assert.Contains(t, outStr, "<td>untracked</td><td>false</td>")
+	})
+}
+
 // TestReadAuditableResources verifies that readAuditableResources correctly
 // applies renames and filters by allowlist.
 func TestReadAuditableResources(t *testing.T) {
