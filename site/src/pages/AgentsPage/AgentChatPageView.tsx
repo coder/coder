@@ -39,6 +39,7 @@ import { RightPanel } from "./components/RightPanel/RightPanel";
 import { getEffectiveTabId } from "./components/Sidebar/getEffectiveTabId";
 import { SidebarTabView } from "./components/Sidebar/SidebarTabView";
 import { getWorkspaceStatus, StatusIcon } from "./components/StatusIcon";
+import { SummaryPanel } from "./components/SummaryPanel/SummaryPanel";
 import { TerminalPanel } from "./components/TerminalPanel";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
 import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
@@ -136,6 +137,7 @@ interface AgentChatPageViewProps {
 	prNumber: number | undefined;
 	diffStatusData: ChatDiffStatus | undefined;
 	debugLoggingEnabled: boolean;
+	summaryTabEnabled: boolean;
 	gitWatcher: {
 		repositories: ReadonlyMap<string, TypesGen.WorkspaceAgentRepoChanges>;
 		everDirty: ReadonlySet<string>;
@@ -227,6 +229,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	prNumber,
 	diffStatusData,
 	debugLoggingEnabled,
+	summaryTabEnabled,
 	gitWatcher,
 	sshCommand,
 	handleCommit,
@@ -348,6 +351,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	// new tab can never be added to one without the other going out of
 	// sync.
 	const sidebarTabConfigs = [
+		...(summaryTabEnabled ? [{ id: "summary", label: "Summary" }] : []),
 		{ id: "git", label: "Git" },
 		...(workspace && workspaceAgent
 			? [{ id: "terminal", label: "Terminal" }]
@@ -362,6 +366,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	);
 	const renderTabContent = (tabId: string): ReactNode => {
 		switch (tabId) {
+			case "summary":
+				return <SummaryPanel chatTitle={chatTitle} />;
 			case "git":
 				return (
 					<GitPanel
