@@ -358,11 +358,14 @@ func streamIncompleteMessage(provider string) string {
 // provider replied with HTTP 404. This is more robust than parsing
 // provider error messages which vary across endpoints and over time.
 func chainBrokenClassification(
-	_ string,
+	_ string, // unused: detection uses request body + status code
 	provider string,
 	statusCode int,
 	structured providerErrorDetails,
 ) (ClassifiedError, bool) {
+	// requestBody is the raw ProviderError.RequestBody which may include
+	// HTTP headers from httputil.DumpRequestOut in addition to the JSON body.
+	// The quoted key "previous_response_id" won't appear in headers.
 	if !(bytes.Contains(structured.requestBody, []byte(`"previous_response_id"`)) && statusCode == 404) {
 		return ClassifiedError{}, false
 	}

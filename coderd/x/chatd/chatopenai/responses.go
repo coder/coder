@@ -290,6 +290,12 @@ func FilterPromptForChainMode(
 // as item_reference input. This is used after OpenAI reports stale stored
 // response state so recovery can replay visible history without asking OpenAI
 // to resolve the stale reasoning or provider-tool items again.
+//
+// Note: web search item_references in fantasy's Responses API input builder
+// use ToolCallPart.ToolCallID directly, not WebSearchCallMetadata.ItemID.
+// Stripping the reasoning ItemID transitively suppresses web search
+// item_references because fantasy only emits ws_ references after a
+// preceding rs_ reference (lastEmittedReasoningReference gate).
 func StripResponsesItemReferences(prompt []fantasy.Message) []fantasy.Message {
 	stripped := slices.Clone(prompt)
 	changed := false

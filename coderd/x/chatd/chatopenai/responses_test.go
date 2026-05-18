@@ -127,7 +127,6 @@ func TestStripResponsesItemReferences(t *testing.T) {
 
 	// Reasoning metadata: ItemID stripped, text and summary preserved,
 	// non-OpenAI metadata (Anthropic) untouched.
-	require.NotSame(t, &prompt[0], &stripped[0])
 	reasoning, ok := fantasy.AsMessagePart[fantasy.ReasoningPart](stripped[0].Content[0])
 	require.True(t, ok)
 	require.Equal(t, "thinking", reasoning.Text)
@@ -155,6 +154,42 @@ func TestStripResponsesItemReferences(t *testing.T) {
 	originalWebSearch, ok := prompt[0].Content[1].Options()[fantasyopenai.Name].(*fantasyopenai.WebSearchCallMetadata)
 	require.True(t, ok)
 	require.Equal(t, "ws_stale", originalWebSearch.ItemID)
+}
+
+func TestStripResponsesItemReferences_PointerParts(t *testing.T) {
+	t.Parallel()
+
+	prompt := []fantasy.Message{
+		{
+			Role: fantasy.MessageRoleAssistant,
+			Content: []fantasy.MessagePart{
+				&fantasy.ReasoningPart{
+					Text: "thinking",
+					ProviderOptions: fantasy.ProviderOptions{
+						fantasyopenai.Name: &fantasyopenai.ResponsesReasoningMetadata{
+							ItemID:  "rs_stale",
+							Summary: []string{"summary"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	stripped := chatopenai.StripResponsesItemReferences(prompt)
+
+	reasoning, ok := fantasy.AsMessagePart[fantasy.ReasoningPart](stripped[0].Content[0])
+	require.True(t, ok)
+	require.Equal(t, "thinking", reasoning.Text)
+	openaiReasoning := fantasyopenai.GetReasoningMetadata(reasoning.ProviderOptions)
+	require.NotNil(t, openaiReasoning)
+	require.Empty(t, openaiReasoning.ItemID)
+	require.Equal(t, []string{"summary"}, openaiReasoning.Summary)
+
+	// Original not mutated.
+	originalReasoning := fantasyopenai.GetReasoningMetadata(prompt[0].Content[0].Options())
+	require.NotNil(t, originalReasoning)
+	require.Equal(t, "rs_stale", originalReasoning.ItemID)
 }
 
 func TestShouldActivateChainMode(t *testing.T) {

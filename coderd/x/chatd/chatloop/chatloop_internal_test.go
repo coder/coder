@@ -143,7 +143,8 @@ func TestRun_ResponsesItemNotFoundRecoversWithStrippedReferences(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 2, streamCalls)
 	require.False(t, chatopenai.HasPreviousResponseID(secondCallOpt))
-	requireResponsesStoreEnabled(t, secondCallOpt)
+	require.True(t, chatopenai.IsResponsesStoreEnabled(secondCallOpt),
+		"store must remain enabled so recovery can establish fresh Responses state")
 	requireResponsesItemReferencesStripped(t, secondPrompt)
 	// Original reloaded history is not mutated.
 	requireResponsesItemReferencesPresent(t, reloadedHistory)
@@ -859,15 +860,7 @@ func staleOpenAIResponsesMessage() fantasy.Message {
 	}
 }
 
-func requireResponsesStoreEnabled(t *testing.T, providerOptions fantasy.ProviderOptions) {
-	t.Helper()
-	entry, ok := providerOptions[fantasyopenai.Name]
-	require.True(t, ok)
-	options, ok := entry.(*fantasyopenai.ResponsesProviderOptions)
-	require.True(t, ok)
-	require.NotNil(t, options.Store)
-	require.True(t, *options.Store)
-}
+
 
 func requireResponsesItemReferencesStripped(t *testing.T, prompt []fantasy.Message) {
 	t.Helper()
