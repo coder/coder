@@ -25,6 +25,7 @@ import type {
 	Workspace,
 	WorkspaceAgent,
 	WorkspaceAgentMetadata,
+	WorkspaceAgentScript,
 } from "#/api/typesGenerated";
 import { CheckIcon } from "#/components/AnimatedIcons/Check";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
@@ -127,6 +128,13 @@ const getAgentBorderClass = (
 };
 
 const STARTUP_SCRIPT_DISPLAY_NAME = "Startup Script";
+
+// A script is considered failed if it exited with a non-zero code, or if its
+// status reports a known failure mode (anything other than "ok"). Kept aligned
+// with the per-tab error indicator so the auto-selected tab matches the visual
+// warning badge.
+const isScriptFailed = (script: WorkspaceAgentScript | undefined): boolean =>
+	Boolean(script?.exit_code || (script?.status && script.status !== "ok"));
 
 export const AgentRow: FC<AgentRowProps> = ({
 	agent,
@@ -235,14 +243,33 @@ export const AgentRow: FC<AgentRowProps> = ({
 		agent,
 		Boolean(hasDevcontainerErrors || shouldShowWildcardWarning),
 	);
-	const failedStartupScriptSource = hasAgentIssues
-		? agent.log_sources.find(
-				(s) => s.display_name === STARTUP_SCRIPT_DISPLAY_NAME,
-			)
-		: undefined;
-	const [selectedLogTab, setSelectedLogTab] = useState(
-		failedStartupScriptSource?.id ?? "all",
-	);
+	const [selectedLogTab, setSelectedLogTab] = useState("all");
+	const hasAutoSelectedLogTabRef = useRef(false);
+	useEffect(() => {
+		if (hasAutoSelectedLogTabRef.current) {
+			return;
+		}
+		const failedSourceWithLogs = agent.log_sources.find((logSource) => {
+			const script = agent.scripts.find(
+				(s) => s.log_source_id === logSource.id,
+			);
+			if (!isScriptFailed(script)) {
+				return false;
+			}
+			return agentLogs.some(
+				(log) =>
+					log.source_id === logSource.id && (log.output?.length ?? 0) > 0,
+			);
+		});
+		if (failedSourceWithLogs) {
+			hasAutoSelectedLogTabRef.current = true;
+			setSelectedLogTab(failedSourceWithLogs.id);
+		}
+	}, [agent.log_sources, agent.scripts, agentLogs]);
+	const handleSelectedLogTabChange = (value: string) => {
+		hasAutoSelectedLogTabRef.current = true;
+		setSelectedLogTab(value);
+	};
 	const sortedSourceLogTabs = agent.log_sources
 		.filter((logSource) => {
 			// Remove the logSources that have no entries.
@@ -269,9 +296,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 				) : null,
 				title: logSource.display_name,
 				value: logSource.id,
-				error: Boolean(
-					script?.exit_code || (script?.status && script.status !== "ok"),
-				),
+				error: isScriptFailed(script),
 			};
 		})
 		.sort((a, b) => {
@@ -563,7 +588,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 								<Tabs
 									className="-mx-px -mt-px"
 									value={selectedLogTab}
-									onValueChange={setSelectedLogTab}
+									onValueChange={handleSelectedLogTabChange}
 								>
 									<div className="flex items-stretch">
 										<div className="min-w-0 flex-1 overflow-hidden">
@@ -621,7 +646,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 														<DropdownMenuContent align="end">
 															<DropdownMenuRadioGroup
 																value={selectedLogTab}
-																onValueChange={setSelectedLogTab}
+																onValueChange={handleSelectedLogTabChange}
 															>
 																{overflowLogTabs.map((tab) => (
 																	<DropdownMenuRadioItem
