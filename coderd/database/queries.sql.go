@@ -28493,6 +28493,58 @@ func (q *sqlQuerier) InsertWorkspaceAgentScriptTimings(ctx context.Context, arg 
 	return i, err
 }
 
+const softDeletePriorWorkspaceAgents = `-- name: SoftDeletePriorWorkspaceAgents :exec
+UPDATE workspace_agents
+SET deleted = TRUE
+WHERE id IN (
+    SELECT wa.id
+    FROM workspace_agents wa
+    JOIN workspace_resources wr ON wr.id = wa.resource_id
+    JOIN workspace_builds wb ON wb.job_id = wr.job_id
+    WHERE wb.workspace_id = $1
+      AND wb.id <> $2
+      AND wa.deleted = FALSE
+)
+`
+
+type SoftDeletePriorWorkspaceAgentsParams struct {
+	WorkspaceID    uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	CurrentBuildID uuid.UUID `db:"current_build_id" json:"current_build_id"`
+}
+
+// Marks agents from all prior builds of this workspace as deleted,
+// preserving only agents belonging to @current_build_id. Called from
+// provisionerdserver when a workspace build completes, after the new
+// build's agents have been inserted, so running agents are not
+// deleted while a build is still queued or provisioning.
+func (q *sqlQuerier) SoftDeletePriorWorkspaceAgents(ctx context.Context, arg SoftDeletePriorWorkspaceAgentsParams) error {
+	_, err := q.db.ExecContext(ctx, softDeletePriorWorkspaceAgents, arg.WorkspaceID, arg.CurrentBuildID)
+	return err
+}
+
+const softDeleteWorkspaceAgentsByWorkspaceID = `-- name: SoftDeleteWorkspaceAgentsByWorkspaceID :exec
+UPDATE workspace_agents
+SET deleted = TRUE
+WHERE id IN (
+    SELECT wa.id
+    FROM workspace_agents wa
+    JOIN workspace_resources wr ON wr.id = wa.resource_id
+    JOIN workspace_builds wb ON wb.job_id = wr.job_id
+    WHERE wb.workspace_id = $1
+      AND wa.deleted = FALSE
+)
+`
+
+// Marks every non-deleted agent belonging to the given workspace as
+// deleted. Called alongside UpdateWorkspaceDeletedByID when a workspace
+// itself is soft-deleted, so the agent instance-identity auth path
+// (which filters on workspace_agents.deleted) doesn't keep seeing
+// orphaned rows.
+func (q *sqlQuerier) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, softDeleteWorkspaceAgentsByWorkspaceID, workspaceID)
+	return err
+}
+
 const updateWorkspaceAgentConnectionByID = `-- name: UpdateWorkspaceAgentConnectionByID :exec
 UPDATE
 	workspace_agents

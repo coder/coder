@@ -91,6 +91,54 @@ func TestPostWorkspaceAuthAWSInstanceIdentity(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+
+	t.Run("RecycledInstanceID", func(t *testing.T) {
+		t.Parallel()
+
+		instanceID := newTestInstanceID(t)
+		certificates, metadataClient := coderdtest.NewAWSInstanceIdentity(t, instanceID)
+		setup := setupInstanceIDWorkspaceWithResources(t, &coderdtest.Options{
+			AWSCertificates: certificates,
+		}, workspaceAgentsForInstanceID(instanceID, "dev"))
+
+		successorVersion := coderdtest.CreateTemplateVersion(t, setup.client, setup.user.OrganizationID, &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionGraph: []*proto.Response{{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
+						Resources: []*proto.Resource{{
+							Name:   "resource",
+							Type:   "instance",
+							Agents: workspaceAgentsForInstanceID(newTestInstanceID(t), "dev"),
+						}},
+					},
+				},
+			}},
+		}, func(req *codersdk.CreateTemplateVersionRequest) {
+			req.TemplateID = setup.template.ID
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, setup.client, successorVersion.ID)
+		build := coderdtest.CreateWorkspaceBuild(t, setup.client, setup.workspace, database.WorkspaceTransitionStart, func(req *codersdk.CreateWorkspaceBuildRequest) {
+			req.TemplateVersionID = successorVersion.ID
+		})
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, setup.client, build.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		agentClient := agentsdk.New(setup.client.URL, agentsdk.WithAWSInstanceIdentity())
+		agentClient.SDK.HTTPClient = metadataClient
+
+		err := agentClient.RefreshToken(ctx)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		// The prior build's agent is soft-deleted when the successor
+		// build completes (SoftDeletePriorWorkspaceAgents), so the
+		// auth query finds no candidates at all and returns 404.
+		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+	})
+
+
 	t.Run("Ambiguous/MultipleAgentsNoSelector", func(t *testing.T) {
 		t.Parallel()
 
