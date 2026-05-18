@@ -102,8 +102,8 @@ function formatCompactNumber(n: number): string {
 // ---------------------------------------------------------------------------
 
 /**
- * A section wrapper that adds a left accent border and consistent padding.
- * Each logical group in the summary panel is wrapped in this.
+ * Section wrapper with left accent border, top divider, and overflow
+ * containment so descendant `truncate` classes actually take effect.
  */
 const Section: FC<{
 	children: React.ReactNode;
@@ -111,7 +111,7 @@ const Section: FC<{
 }> = ({ children, className }) => (
 	<div
 		className={cn(
-			"border-0 border-l-2 border-t border-solid border-border-default px-5 py-5",
+			"min-w-0 overflow-hidden border-0 border-l-2 border-t border-solid border-border-default px-5 py-5",
 			className,
 		)}
 	>
@@ -119,14 +119,25 @@ const Section: FC<{
 	</div>
 );
 
+/**
+ * Key-value row used in the metadata and PR details sections.
+ * The value column is overflow-hidden so children can truncate.
+ */
 const MetadataRow: FC<{
 	label: string;
 	children: React.ReactNode;
 }> = ({ label, children }) => (
-	<div className="flex items-start gap-4 text-sm leading-6">
+	<div className="flex min-w-0 items-start gap-4 text-sm leading-6">
 		<span className="w-[7.5rem] shrink-0 text-content-secondary">{label}</span>
-		<span className="min-w-0 flex-1 text-content-primary">{children}</span>
+		<div className="min-w-0 flex-1 overflow-hidden text-content-primary">
+			{children}
+		</div>
 	</div>
+);
+
+/** Plain text value that truncates with an ellipsis. */
+const MetadataValue: FC<{ children: React.ReactNode }> = ({ children }) => (
+	<span className="block truncate">{children}</span>
 );
 
 const TokenBadge: FC<{
@@ -160,7 +171,7 @@ const TagBadge: FC<{
 const PRRow: FC<{ pr: SummaryPRDetail }> = ({ pr }) => {
 	const label = `PR #${pr.number} "${pr.title}"`;
 	return (
-		<div className="flex items-center gap-2 text-sm leading-6">
+		<div className="flex min-w-0 items-center gap-2 text-sm leading-6">
 			{pr.url ? (
 				<a
 					href={pr.url}
@@ -182,7 +193,7 @@ const PRRow: FC<{ pr: SummaryPRDetail }> = ({ pr }) => {
 };
 
 const FileRow: FC<{ file: SummaryFileChange }> = ({ file }) => (
-	<div className="flex items-center gap-2 py-2 text-sm">
+	<div className="flex min-w-0 items-center gap-2 py-2 text-sm">
 		<FileIcon className="size-4 shrink-0 text-content-secondary" />
 		<span className="min-w-0 flex-1 truncate font-mono text-[13px] text-content-primary">
 			{file.path}
@@ -234,11 +245,15 @@ export const SummaryPanel: FC<SummaryPanelProps> = ({
 				{/* ---- Metadata ---- */}
 				<Section className="border-l-0 border-t-0">
 					<div className="flex flex-col gap-3">
-						<MetadataRow label="Created:">{metadata.createdAt}</MetadataRow>
-						<MetadataRow label="Last updated:">
-							{metadata.lastUpdatedAt}
+						<MetadataRow label="Created:">
+							<MetadataValue>{metadata.createdAt}</MetadataValue>
 						</MetadataRow>
-						<MetadataRow label="Cost:">{metadata.costDisplay}</MetadataRow>
+						<MetadataRow label="Last updated:">
+							<MetadataValue>{metadata.lastUpdatedAt}</MetadataValue>
+						</MetadataRow>
+						<MetadataRow label="Cost:">
+							<MetadataValue>{metadata.costDisplay}</MetadataValue>
+						</MetadataRow>
 						<MetadataRow label="Tokens:">
 							<div className="flex flex-wrap gap-1.5">
 								<TokenBadge
@@ -256,7 +271,11 @@ export const SummaryPanel: FC<SummaryPanelProps> = ({
 							</div>
 						</MetadataRow>
 						<MetadataRow label="Model:">
-							<Badge variant="default" size="sm">
+							<Badge
+								variant="default"
+								size="sm"
+								className="max-w-full truncate"
+							>
 								{metadata.model}
 							</Badge>
 						</MetadataRow>
@@ -286,24 +305,28 @@ export const SummaryPanel: FC<SummaryPanelProps> = ({
 				{/* ---- PR details ---- */}
 				{(prDetails.length > 0 || repo) && (
 					<Section>
-						<div className="flex flex-col gap-3">
+						<div className="flex min-w-0 flex-col gap-3">
 							{prDetails.length > 0 && (
 								<MetadataRow label="PR details:">
-									<div className="flex flex-col gap-1.5">
+									<div className="flex min-w-0 flex-col gap-1.5">
 										{prDetails.map((pr) => (
 											<PRRow key={pr.number} pr={pr} />
 										))}
 									</div>
 								</MetadataRow>
 							)}
-							{repo && <MetadataRow label="Repo:">{repo}</MetadataRow>}
+							{repo && (
+								<MetadataRow label="Repo:">
+									<MetadataValue>{repo}</MetadataValue>
+								</MetadataRow>
+							)}
 						</div>
 					</Section>
 				)}
 
 				{/* ---- Prompt history ---- */}
 				<Section>
-					<div className="flex flex-col gap-3">
+					<div className="flex min-w-0 flex-col gap-3">
 						<h3 className="text-sm font-medium text-content-primary">
 							Prompt history ({totalPrompts})
 						</h3>
@@ -312,7 +335,7 @@ export const SummaryPanel: FC<SummaryPanelProps> = ({
 								(prompt) => (
 									<div
 										key={prompt.index}
-										className="flex items-start gap-4 text-sm"
+										className="flex min-w-0 items-start gap-4 text-sm"
 									>
 										{prompt.messageId && onPromptClick ? (
 											<button
@@ -327,7 +350,9 @@ export const SummaryPanel: FC<SummaryPanelProps> = ({
 												{prompt.index}
 											</span>
 										)}
-										<span className="text-content-primary">{prompt.text}</span>
+										<span className="min-w-0 flex-1 truncate text-content-primary">
+											{prompt.text}
+										</span>
 									</div>
 								),
 							)}
@@ -346,7 +371,7 @@ export const SummaryPanel: FC<SummaryPanelProps> = ({
 
 				{/* ---- Activity ---- */}
 				<Section>
-					<div className="flex flex-col gap-3">
+					<div className="flex min-w-0 flex-col gap-3">
 						<h3 className="text-sm font-medium text-content-primary">
 							Activity ({totalActivities})
 						</h3>
@@ -355,10 +380,10 @@ export const SummaryPanel: FC<SummaryPanelProps> = ({
 								(activity) => (
 									<div
 										key={activity.text}
-										className="flex items-start gap-3 text-sm"
+										className="flex min-w-0 items-start gap-3 text-sm"
 									>
 										<CheckIcon className="mt-0.5 size-4 shrink-0 text-content-secondary" />
-										<span className="text-content-primary">
+										<span className="min-w-0 flex-1 truncate text-content-primary">
 											{activity.text}
 										</span>
 									</div>
@@ -379,11 +404,11 @@ export const SummaryPanel: FC<SummaryPanelProps> = ({
 
 				{/* ---- Files ---- */}
 				<Section>
-					<div className="flex flex-col gap-3">
+					<div className="flex min-w-0 flex-col gap-3">
 						<h3 className="text-sm font-medium text-content-primary">
 							Files ({totalFiles})
 						</h3>
-						<div className="rounded-lg border border-solid border-border-default">
+						<div className="min-w-0 overflow-hidden rounded-lg border border-solid border-border-default">
 							<div className="flex flex-col divide-y divide-border-default px-3">
 								{files.map((file) => (
 									<FileRow key={`${file.path}-${file.status}`} file={file} />
@@ -396,7 +421,7 @@ export const SummaryPanel: FC<SummaryPanelProps> = ({
 				{/* ---- Related chats ---- */}
 				{relatedChats.length > 0 && (
 					<Section>
-						<div className="flex flex-col gap-3">
+						<div className="flex min-w-0 flex-col gap-3">
 							<h3 className="text-sm font-medium text-content-primary">
 								Related chats
 							</h3>
@@ -404,22 +429,22 @@ export const SummaryPanel: FC<SummaryPanelProps> = ({
 								{relatedChats.map((chat) => (
 									<div
 										key={chat.title}
-										className="flex items-baseline gap-2 text-sm"
+										className="flex min-w-0 items-baseline gap-2 text-sm"
 									>
 										{chat.chatId && onRelatedChatClick ? (
 											<button
 												type="button"
 												onClick={() => onRelatedChatClick(chat.chatId!)}
-												className="font-medium text-content-primary hover:text-content-link hover:underline"
+												className="min-w-0 shrink truncate text-left font-medium text-content-primary hover:text-content-link hover:underline"
 											>
 												{chat.title}
 											</button>
 										) : (
-											<span className="font-medium text-content-primary">
+											<span className="min-w-0 shrink truncate font-medium text-content-primary">
 												{chat.title}
 											</span>
 										)}
-										<span className="text-content-secondary">
+										<span className="shrink-0 text-content-secondary">
 											({chat.reason})
 										</span>
 									</div>
