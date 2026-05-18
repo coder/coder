@@ -1293,7 +1293,7 @@ docs/ai-coder/ai-governance-audit.md: node_modules/.installed coderd/database/qu
 	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && cp "$@" "$$tmpfile" && \
 		_gen/bin/auditdocgen \
 			--audit-doc-file="$$tmpfile" \
-			--sentinel-path="docs/ai-coder/ai-governance-audit.md" \
+			--marker-path="docs/ai-coder/ai-governance-audit.md" \
 			--resources="AIProvider,AIProviderKey,AiSeatState,Task,Chat,UserSecret" && \
 		pnpm exec markdownlint-cli2 --fix "$$tmpfile" && \
 		pnpm exec markdown-table-formatter "$$tmpfile" && \
