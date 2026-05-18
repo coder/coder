@@ -1241,6 +1241,62 @@ func TestTemplateACL(t *testing.T) {
 		})
 		require.NoError(t, err)
 	})
+
+	// Regression test for PLAT-149. Previously this endpoint did an N+1
+	// fetch of every group's members and member count. Verify that the
+	// member count is returned correctly for many groups, and that the
+	// per-group members list is no longer populated (callers should rely
+	// on TotalMemberCount).
+	t.Run("AvailableReturnsGroupMemberCounts", func(t *testing.T) {
+		t.Parallel()
+
+		client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+			},
+		}})
+		admin, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleTemplateAdmin(), rbac.RoleUserAdmin())
+
+		// Create a couple of users we can stuff into groups.
+		_, alice := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		_, bob := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		_, carol := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+
+		// emptyGroup: zero non-system members.
+		// singleGroup: alice only.
+		// fullGroup: alice + bob + carol.
+		emptyGroup := coderdtest.CreateGroup(t, admin, user.OrganizationID, "empty-group")
+		singleGroup := coderdtest.CreateGroup(t, admin, user.OrganizationID, "single-group", alice)
+		fullGroup := coderdtest.CreateGroup(t, admin, user.OrganizationID, "full-group", alice, bob, carol)
+
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		available, err := admin.TemplateACLAvailable(ctx, template.ID)
+		require.NoError(t, err)
+
+		wantCounts := map[uuid.UUID]int{
+			emptyGroup.ID:  0,
+			singleGroup.ID: 1,
+			fullGroup.ID:   3,
+		}
+
+		found := map[uuid.UUID]bool{}
+		for _, group := range available.Groups {
+			if want, ok := wantCounts[group.ID]; ok {
+				found[group.ID] = true
+				require.Equal(t, want, group.TotalMemberCount,
+					"unexpected total_member_count for group %q", group.Name)
+				require.Empty(t, group.Members,
+					"members must not be populated by the available endpoint for group %q", group.Name)
+			}
+		}
+		for id := range wantCounts {
+			require.True(t, found[id], "group %s missing from available response", id)
+		}
+	})
 }
 
 func TestUpdateTemplateACL(t *testing.T) {

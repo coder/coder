@@ -12689,6 +12689,56 @@ func (q *sqlQuerier) GetGroupMembersCountByGroupID(ctx context.Context, arg GetG
 	return count, err
 }
 
+const getGroupMembersCountByGroupIDs = `-- name: GetGroupMembersCountByGroupIDs :many
+SELECT
+	group_id,
+	COUNT(*) AS member_count
+FROM group_members_expanded
+WHERE group_id = ANY($1 :: uuid[])
+	AND CASE
+		WHEN $2::bool THEN TRUE
+		ELSE user_is_system = false
+	END
+GROUP BY group_id
+`
+
+type GetGroupMembersCountByGroupIDsParams struct {
+	GroupIds      []uuid.UUID `db:"group_ids" json:"group_ids"`
+	IncludeSystem bool        `db:"include_system" json:"include_system"`
+}
+
+type GetGroupMembersCountByGroupIDsRow struct {
+	GroupID     uuid.UUID `db:"group_id" json:"group_id"`
+	MemberCount int64     `db:"member_count" json:"member_count"`
+}
+
+// Returns the total member count for each of the given group IDs in a
+// single query. Used to avoid N+1 lookups when listing many groups. Like
+// GetGroupMembersCountByGroupID, the count is returned even when the
+// caller does not have read access to individual group members.
+func (q *sqlQuerier) GetGroupMembersCountByGroupIDs(ctx context.Context, arg GetGroupMembersCountByGroupIDsParams) ([]GetGroupMembersCountByGroupIDsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getGroupMembersCountByGroupIDs, pq.Array(arg.GroupIds), arg.IncludeSystem)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetGroupMembersCountByGroupIDsRow
+	for rows.Next() {
+		var i GetGroupMembersCountByGroupIDsRow
+		if err := rows.Scan(&i.GroupID, &i.MemberCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertGroupMember = `-- name: InsertGroupMember :exec
 INSERT INTO
     group_members (user_id, group_id)

@@ -60,29 +60,34 @@ func (api *API) templateAvailablePermissions(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
+	// Fetch member counts for all groups in a single query to avoid an
+	// N+1 lookup pattern that was making this endpoint extremely slow on
+	// deployments with many groups. The per-group member lists are
+	// intentionally not populated here: callers of this endpoint only
+	// surface total_member_count (see Group.TotalMemberCount, which is
+	// already documented as the canonical value).
+	groupIDs := make([]uuid.UUID, len(groups))
+	for i, g := range groups {
+		groupIDs[i] = g.Group.ID
+	}
+
+	// nolint:gocritic // Same justification as the GetGroups call above.
+	countRows, err := api.Database.GetGroupMembersCountByGroupIDs(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersCountByGroupIDsParams{
+		GroupIds:      groupIDs,
+		IncludeSystem: false,
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	countByGroup := make(map[uuid.UUID]int64, len(countRows))
+	for _, row := range countRows {
+		countByGroup[row.GroupID] = row.MemberCount
+	}
+
 	sdkGroups := make([]codersdk.Group, 0, len(groups))
 	for _, group := range groups {
-		// nolint:gocritic
-		members, err := api.Database.GetGroupMembersByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersByGroupIDParams{
-			GroupID:       group.Group.ID,
-			IncludeSystem: false,
-		})
-		if err != nil {
-			httpapi.InternalServerError(rw, err)
-			return
-		}
-
-		// nolint:gocritic
-		memberCount, err := api.Database.GetGroupMembersCountByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersCountByGroupIDParams{
-			GroupID:       group.Group.ID,
-			IncludeSystem: false,
-		})
-		if err != nil {
-			httpapi.InternalServerError(rw, err)
-			return
-		}
-
-		sdkGroups = append(sdkGroups, db2sdk.Group(group, members, int(memberCount)))
+		sdkGroups = append(sdkGroups, db2sdk.Group(group, nil, int(countByGroup[group.Group.ID])))
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ACLAvailable{
