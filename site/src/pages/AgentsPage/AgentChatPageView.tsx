@@ -39,7 +39,10 @@ import { RightPanel } from "./components/RightPanel/RightPanel";
 import { getEffectiveTabId } from "./components/Sidebar/getEffectiveTabId";
 import { SidebarTabView } from "./components/Sidebar/SidebarTabView";
 import { getWorkspaceStatus, StatusIcon } from "./components/StatusIcon";
-import { SummaryPanel } from "./components/SummaryPanel/SummaryPanel";
+import {
+	SummaryPanel,
+	type SummaryPanelProps,
+} from "./components/SummaryPanel/SummaryPanel";
 import { TerminalPanel } from "./components/TerminalPanel";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
 import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
@@ -138,6 +141,7 @@ interface AgentChatPageViewProps {
 	diffStatusData: ChatDiffStatus | undefined;
 	debugLoggingEnabled: boolean;
 	summaryTabEnabled: boolean;
+	summaryData: SummaryPanelProps | undefined;
 	gitWatcher: {
 		repositories: ReadonlyMap<string, TypesGen.WorkspaceAgentRepoChanges>;
 		everDirty: ReadonlySet<string>;
@@ -230,6 +234,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	diffStatusData,
 	debugLoggingEnabled,
 	summaryTabEnabled,
+	summaryData,
 	gitWatcher,
 	sshCommand,
 	handleCommit,
@@ -367,7 +372,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const renderTabContent = (tabId: string): ReactNode => {
 		switch (tabId) {
 			case "summary":
-				return <SummaryPanel chatTitle={chatTitle} />;
+				return summaryData ? <SummaryPanel {...summaryData} /> : null;
 			case "git":
 				return (
 					<GitPanel

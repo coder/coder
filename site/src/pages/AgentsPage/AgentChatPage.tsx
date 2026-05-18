@@ -1566,6 +1566,7 @@ const AgentChatPage: FC = () => {
 			diffStatusData={chatQuery.data?.diff_status}
 			debugLoggingEnabled={debugLoggingEnabled}
 			summaryTabEnabled={summaryTabEnabled}
+			summaryData={undefined}
 			gitWatcher={gitWatcher}
 			sshCommand={sshCommand}
 			handleCommit={handleCommit}

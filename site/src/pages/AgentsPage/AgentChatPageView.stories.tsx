@@ -160,6 +160,7 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		>["diffStatusData"],
 		debugLoggingEnabled: false,
 		summaryTabEnabled: false,
+		summaryData: undefined,
 		gitWatcher: buildGitWatcher(),
 		sshCommand: undefined as string | undefined,
 		handleCommit: fn(),
