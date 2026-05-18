@@ -48,7 +48,7 @@ func ghBuildPRMetadataMap(commits []commitEntry) prMetadataMaps {
 			"--repo", fmt.Sprintf("%s/%s", owner, repo),
 			"--json", "number,labels,author")
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "warning: failed to fetch PR #%d metadata: %v\n", prNum, err)
+			_, _ = fmt.Fprintf(os.Stderr, "warning: failed to fetch PR #%d metadata: %v\n", prNum, err)
 			continue
 		}
 
@@ -62,7 +62,7 @@ func ghBuildPRMetadataMap(commits []commitEntry) prMetadataMaps {
 			} `json:"author"`
 		}
 		if err := json.Unmarshal([]byte(out), &result); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: failed to parse PR #%d metadata: %v\n", prNum, err)
+			_, _ = fmt.Fprintf(os.Stderr, "warning: failed to parse PR #%d metadata: %v\n", prNum, err)
 			continue
 		}
 
@@ -114,10 +114,10 @@ func checkOpenPRs(branch string) error {
 	}
 
 	var b strings.Builder
-	fmt.Fprintf(&b, "found %d open pull request(s) targeting %s that must be merged or closed before releasing:\n\n", len(prs), branch)
+	_, _ = fmt.Fprintf(&b, "found %d open pull request(s) targeting %s that must be merged or closed before releasing:\n\n", len(prs), branch)
 	for _, pr := range prs {
-		fmt.Fprintf(&b, "  - #%d: %s (by @%s)\n    %s\n", pr.Number, pr.Title, pr.Author.Login, pr.URL)
+		_, _ = fmt.Fprintf(&b, "  - #%d: %s (by @%s)\n    %s\n", pr.Number, pr.Title, pr.Author.Login, pr.URL)
 	}
-	fmt.Fprintf(&b, "\nMerge or close these pull requests, then re-run the release workflow.")
+	_, _ = fmt.Fprintf(&b, "\nMerge or close these pull requests, then re-run the release workflow.")
 	return xerrors.New(b.String())
 }

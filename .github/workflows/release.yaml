@@ -126,16 +126,18 @@ jobs:
             echo "create_branch=$create_branch"
           } >> "$GITHUB_OUTPUT"
 
-          echo "### Release preparation" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
-          echo "|-------|-------|" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Version | \`$version\` |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Previous | \`$previous_version\` |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Channel | \`$channel\` |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Target ref | \`$target_ref\` |" >> "$GITHUB_STEP_SUMMARY"
-          if [[ -n "$create_branch" ]]; then
-            echo "| Create branch | \`$create_branch\` |" >> "$GITHUB_STEP_SUMMARY"
-          fi
+          {
+            echo "### Release preparation"
+            echo "| Field | Value |"
+            echo "|-------|-------|"
+            echo "| Version | \`$version\` |"
+            echo "| Previous | \`$previous_version\` |"
+            echo "| Channel | \`$channel\` |"
+            echo "| Target ref | \`$target_ref\` |"
+            if [[ -n "$create_branch" ]]; then
+              echo "| Create branch | \`$create_branch\` |"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Create and push tag
         if: ${{ !inputs.dry_run }}
