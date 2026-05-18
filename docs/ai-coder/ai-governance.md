@@ -170,6 +170,5 @@ or the license has expired, the column is hidden.
 
 ## Audit events
 
-For a complete reference of AI Governance audit events, including querying
-examples and field tracking details, see
-[AI Governance Audit Events](./ai-governance-audit.md).
+For a complete reference of AI Governance audit events, including querying examples and field tracking details,
+see [AI Governance Audit Events](./ai-governance-audit.md).

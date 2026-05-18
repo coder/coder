@@ -49,11 +49,10 @@ We track the following resources:
 
 ## AI Governance Events
 
-AI Governance features produce additional audit events for AI provider
-configuration, AI seat consumption, chats, tasks, and personal secrets.
-For a focused reference on these events, example queries, and coverage of
-the AI Gateway session store and Agent Firewall enforcement logs, see
-[AI Governance Audit Events](../../ai-coder/ai-governance-audit.md).
+AI Governance features produce additional audit events for AI provider configuration,
+AI seat consumption, chats, tasks, and personal secrets.
+For a focused reference on these events, example queries, and coverage of the AI Gateway session store and Agent Firewall enforcement logs,
+see [AI Governance Audit Events](../../ai-coder/ai-governance-audit.md).
 
 ## How to Filter Audit Logs
 
