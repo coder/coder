@@ -3956,10 +3956,11 @@ func (api *API) resolveChatDiffContents(
 	}
 
 	token, err := api.resolveChatGitAccessToken(ctx, chat.OwnerID, reference.RepositoryRef.RemoteOrigin)
-	if err != nil {
+	if errors.Is(err, gitsync.ErrNoTokenAvailable) || token == nil {
+		// No token available; return metadata without fetching diff.
+		return result, nil
+	} else if err != nil {
 		return result, xerrors.Errorf("resolve git access token: %w", err)
-	} else if token == nil {
-		return result, xerrors.New("nil git access token")
 	}
 
 	if reference.PullRequestURL != "" {
