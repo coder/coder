@@ -312,7 +312,7 @@ func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
-// @Param q query string false "Search query. Bare terms filter by title (case-insensitive substring); quotes are not stripped and become literal match characters. Also supports archived:bool, chat_status:unread, pr_status:<draft|open|merged|closed> as repeated or comma-separated values, and diff_url:<url> (quote URLs)."
+// @Param q query string false "Search query. Supports title:<substring> (case-insensitive, quote multi-word values), archived:bool, chat_status:unread, pr_status:<draft|open|merged|closed> as repeated or comma-separated values, and diff_url:<url> (quote URLs). Bare terms are not supported; use title:<value> for title filtering."
 // @Param label query string false "Filter by label as key:value. Repeat for multiple (AND logic)."
 // @Success 200 {array} codersdk.Chat
 // @Router /api/experimental/chats [get]

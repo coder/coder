@@ -1631,27 +1631,27 @@ func TestListChats(t *testing.T) {
 		}{
 			{
 				name:    "SubstringMatch",
-				query:   "project",
+				query:   "title:project",
 				wantIDs: []uuid.UUID{beta.ID, alpha.ID},
 			},
 			{
 				name:    "SingleResult",
-				query:   "gamma",
+				query:   "title:gamma",
 				wantIDs: []uuid.UUID{gamma.ID},
 			},
 			{
 				name:    "CaseInsensitive",
-				query:   "ALPHA",
+				query:   "title:ALPHA",
 				wantIDs: []uuid.UUID{alpha.ID},
 			},
 			{
 				name:    "MultiWord",
-				query:   "alpha project",
+				query:   `title:"alpha project"`,
 				wantIDs: []uuid.UUID{alpha.ID},
 			},
 			{
 				name:    "NoMatch",
-				query:   "nonexistent",
+				query:   "title:nonexistent",
 				wantIDs: []uuid.UUID{},
 			},
 			{
@@ -1665,7 +1665,7 @@ func TestListChats(t *testing.T) {
 				// '%100%%' which matches both "100% complete" and
 				// "1001 things".
 				name:    "PercentWildcard",
-				query:   "100%",
+				query:   `title:"100%"`,
 				wantIDs: []uuid.UUID{thousandOne.ID, percent.ID},
 			},
 			{
@@ -1673,14 +1673,12 @@ func TestListChats(t *testing.T) {
 				// since we don't escape ILIKE metacharacters. Both
 				// "user_name" and "user-name" match.
 				name:    "UnderscoreWildcard",
-				query:   "user_name",
+				query:   "title:user_name",
 				wantIDs: []uuid.UUID{hyphen.ID, underscore.ID},
 			},
 			{
-				// Bare "archived" is a title search, not a filter.
-				// Users must write "archived:true" to filter by status.
-				name:    "BareFilterKeyIsTitle",
-				query:   "archived",
+				name:    "TitleKeyWithFilterKeyValue",
+				query:   "title:archived",
 				wantIDs: []uuid.UUID{archived.ID},
 			},
 		}

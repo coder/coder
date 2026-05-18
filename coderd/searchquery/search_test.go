@@ -1428,7 +1428,7 @@ func TestSearchChats(t *testing.T) {
 		},
 		{
 			Name:  "TitleSearch",
-			Query: "hello world",
+			Query: `title:"hello world"`,
 			Expected: database.GetChatsParams{
 				Archived:   sql.NullBool{Bool: false, Valid: true},
 				TitleQuery: "hello world",
@@ -1436,28 +1436,33 @@ func TestSearchChats(t *testing.T) {
 		},
 		{
 			Name:  "TitleSearchWithArchived",
-			Query: "my chat archived:true",
+			Query: `title:"my chat" archived:true`,
 			Expected: database.GetChatsParams{
 				Archived:   sql.NullBool{Bool: true, Valid: true},
 				TitleQuery: "my chat",
 			},
 		},
 		{
-			Name:  "TitleSearchQuoted",
-			Query: `"exact phrase"`,
+			Name:  "TitleSearchSingleWord",
+			Query: "title:deploy",
 			Expected: database.GetChatsParams{
 				Archived:   sql.NullBool{Bool: false, Valid: true},
-				TitleQuery: `"exact phrase"`,
+				TitleQuery: "deploy",
 			},
 		},
 		{
 			Name:  "TitleSearchWithDiffURL",
-			Query: `deploy diff_url:"https://github.com/coder/coder/pull/456"`,
+			Query: `title:deploy diff_url:"https://github.com/coder/coder/pull/456"`,
 			Expected: database.GetChatsParams{
 				Archived:   sql.NullBool{Bool: false, Valid: true},
 				TitleQuery: "deploy",
 				DiffURL:    sql.NullString{String: "https://github.com/coder/coder/pull/456", Valid: true},
 			},
+		},
+		{
+			Name:                  "BareTermsRejected",
+			Query:                 "some random words",
+			ExpectedErrorContains: `Query element "some random words" is not a valid key:value pair`,
 		},
 	}
 
