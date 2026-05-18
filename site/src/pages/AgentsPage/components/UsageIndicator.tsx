@@ -156,7 +156,7 @@ const UsageMenu: FC<{ sections: readonly UsageSectionData[] }> = ({
 			<DropdownMenuTrigger asChild>
 				<button
 					type="button"
-					className="ml-auto flex min-w-0 shrink self-stretch items-center justify-center border-none bg-transparent px-3 cursor-pointer select-none transition-colors hover:bg-surface-tertiary/50 outline-none"
+					className="@container ml-auto flex min-w-0 shrink self-stretch items-center justify-center border-none bg-transparent px-3 cursor-pointer select-none transition-colors hover:bg-surface-tertiary/50 outline-none"
 				>
 					<UsageTriggerProgress sections={sections} />
 				</button>
@@ -206,7 +206,7 @@ const UsageTriggerProgress: FC<{ sections: readonly UsageSectionData[] }> = ({
 					)}
 					<span
 						className={cn(
-							"shrink-0 whitespace-nowrap text-xs tabular-nums",
+							"hidden shrink-0 whitespace-nowrap text-xs tabular-nums @[120px]:block",
 							getTextClassName(section.severity),
 						)}
 					>
