@@ -439,7 +439,7 @@ func (api *API) aiProviderKeysCreate(rw http.ResponseWriter, r *http.Request) {
 	}
 	aReq.New = row
 
-	httpapi.Write(ctx, rw, http.StatusCreated, dbAIProviderKeyToSDK(row))
+	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.AIProviderKey(row))
 }
 
 // @Summary Delete an AI provider key
@@ -565,17 +565,6 @@ func writeAIProviderLookupError(ctx context.Context, logger slog.Logger, rw http
 func isBedrockProvider(row database.AIProvider) bool {
 	s, _ := db2sdk.AIProviderSettings(row.Settings)
 	return s.Bedrock != nil
-}
-
-// dbAIProviderKeyToSDK converts an ai_provider_keys row into the codersdk
-// shape. The plaintext api_key is intentionally not included.
-func dbAIProviderKeyToSDK(row database.AIProviderKey) codersdk.AIProviderKey {
-	return codersdk.AIProviderKey{
-		ID:         row.ID,
-		ProviderID: row.ProviderID,
-		CreatedAt:  row.CreatedAt,
-		UpdatedAt:  row.UpdatedAt,
-	}
 }
 
 // encodeAIProviderSettings serializes a settings value into the

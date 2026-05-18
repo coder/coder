@@ -83,6 +83,17 @@ func AIProviderSettings(col sql.NullString) (codersdk.AIProviderSettings, error)
 	return s, nil
 }
 
+// AIProviderKey converts an ai_provider_keys row into the codersdk
+// shape. The plaintext api_key is intentionally not included.
+func AIProviderKey(row database.AIProviderKey) codersdk.AIProviderKey {
+	return codersdk.AIProviderKey{
+		ID:         row.ID,
+		ProviderID: row.ProviderID,
+		CreatedAt:  row.CreatedAt,
+		UpdatedAt:  row.UpdatedAt,
+	}
+}
+
 // redactAIProviderSettings strips write-only fields from a settings
 // value so it can be safely echoed back in API responses.
 func redactAIProviderSettings(s codersdk.AIProviderSettings) codersdk.AIProviderSettings {
