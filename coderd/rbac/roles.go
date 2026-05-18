@@ -243,6 +243,7 @@ var builtInRoles map[string]func(orgID uuid.UUID) Role
 type RoleOptions struct {
 	NoOwnerWorkspaceExec bool
 	NoWorkspaceSharing   bool
+	NoChatSharing        bool
 }
 
 // ReservedRoleName exists because the database should only allow unique role
@@ -269,6 +270,13 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		denyPermissions = append(denyPermissions, Permission{
 			Negate:       true,
 			ResourceType: ResourceWorkspace.Type,
+			Action:       policy.ActionShare,
+		})
+	}
+	if opts.NoChatSharing {
+		denyPermissions = append(denyPermissions, Permission{
+			Negate:       true,
+			ResourceType: ResourceChat.Type,
 			Action:       policy.ActionShare,
 		})
 	}
@@ -589,10 +597,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				},
 			}
 		},
-		// agentsAccess grants org members permission to create, read, and
-		// update chats. ActionDelete is intentionally excluded: no dbauthz
-		// function checks it on ResourceChat. Hard-deletion goes through
-		// ResourceSystem (dbpurge).
+		// ActionDelete is intentionally excluded because hard-deletion goes through
+		// ResourceSystem in dbpurge.
 		agentsAccess: func(organizationID uuid.UUID) Role {
 			return Role{
 				Identifier:  RoleIdentifier{Name: agentsAccess, OrganizationID: organizationID},
@@ -606,6 +612,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 							ResourceChat.Type: {
 								policy.ActionCreate,
 								policy.ActionRead,
+								policy.ActionShare,
 								policy.ActionUpdate,
 							},
 						}),
