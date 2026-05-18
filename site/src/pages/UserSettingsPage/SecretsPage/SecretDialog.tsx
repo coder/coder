@@ -93,7 +93,10 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 			} catch (error) {
 				const formErrors = mapSecretApiErrorToFormErrors(error);
 				helpers.setErrors(formErrors.fieldErrors);
-				helpers.setTouched(touchedFromFieldErrors(formErrors.fieldErrors));
+				helpers.setTouched(
+					touchedFromFieldErrors(formErrors.fieldErrors),
+					false,
+				);
 				helpers.setStatus(formErrors.formError);
 			}
 		},

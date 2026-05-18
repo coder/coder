@@ -184,7 +184,9 @@ export const AddDialogDuplicateEnvValidationError: Story = {
 		await user.type(dialog.getByLabelText("Name"), "duplicate-env");
 		await user.type(dialog.getByLabelText("Env var"), "OPENAI_API_KEY");
 		await user.type(dialog.getByLabelText("Value"), placeholderInput);
-		await user.click(dialog.getByRole("button", { name: "Save" }));
+		const saveButton = dialog.getByRole("button", { name: "Save" });
+		await waitFor(() => expect(saveButton).toBeEnabled());
+		await user.click(saveButton);
 
 		await expect(
 			await dialog.findByText(
