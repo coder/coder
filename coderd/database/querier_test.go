@@ -13643,7 +13643,7 @@ func TestDeleteChatDebugDataByChatIDStartedBeforeFiltersNewerRuns(t *testing.T) 
 	require.Equal(t, newRun.ID, remaining.ID)
 }
 
-func TestGetChatsFilterByPRStatus(t *testing.T) {
+func TestGetChatsFilter(t *testing.T) {
 	t.Parallel()
 
 	store, _ := dbtestutil.NewDB(t)
@@ -13676,9 +13676,10 @@ func TestGetChatsFilterByPRStatus(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	createChat := func(title string, parentChatID, rootChatID uuid.NullUUID) database.Chat {
-		t.Helper()
+	// --- helpers ---
 
+	createRoot := func(title string) database.Chat {
+		t.Helper()
 		chat, err := store.InsertChat(ctx, database.InsertChatParams{
 			OrganizationID:    org.ID,
 			Status:            database.ChatStatusWaiting,
@@ -13686,25 +13687,25 @@ func TestGetChatsFilterByPRStatus(t *testing.T) {
 			OwnerID:           user.ID,
 			LastModelConfigID: modelCfg.ID,
 			Title:             title,
-			ParentChatID:      parentChatID,
-			RootChatID:        rootChatID,
 		})
 		require.NoError(t, err)
 		return chat
 	}
 
-	createRoot := func(title string) database.Chat {
-		t.Helper()
-		return createChat(title, uuid.NullUUID{}, uuid.NullUUID{})
-	}
-
 	createChild := func(root database.Chat, title string) database.Chat {
 		t.Helper()
-		return createChat(
-			title,
-			uuid.NullUUID{UUID: root.ID, Valid: true},
-			uuid.NullUUID{UUID: root.ID, Valid: true},
-		)
+		chat, err := store.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
+			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
+			OwnerID:           user.ID,
+			LastModelConfigID: modelCfg.ID,
+			Title:             title,
+			ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
+			RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
+		})
+		require.NoError(t, err)
+		return chat
 	}
 
 	linkPR := func(chatID uuid.UUID, url, state string, draft bool) {
@@ -13725,227 +13726,14 @@ func TestGetChatsFilterByPRStatus(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	getChatIDs := func(statuses ...string) []uuid.UUID {
-		t.Helper()
-		rows, err := store.GetChats(ctx, database.GetChatsParams{
-			OwnerID:             user.ID,
-			PullRequestStatuses: statuses,
-		})
-		require.NoError(t, err)
-
-		ids := make([]uuid.UUID, 0, len(rows))
-		for _, row := range rows {
-			ids = append(ids, row.Chat.ID)
-		}
-		return ids
-	}
-
-	draftRoot := createRoot("draft-root-" + uuid.NewString())
-	linkPR(draftRoot.ID, "https://github.com/coder/coder/pull/1001", "open", true)
-
-	openRoot := createRoot("open-root-" + uuid.NewString())
-	linkPR(openRoot.ID, "https://github.com/coder/coder/pull/1002", "open", false)
-
-	closedRoot := createRoot("closed-root-" + uuid.NewString())
-	linkPR(closedRoot.ID, "https://github.com/coder/coder/pull/1003", "closed", false)
-
-	childMatchRoot := createRoot("merged-root-" + uuid.NewString())
-	linkPR(childMatchRoot.ID, "https://github.com/coder/coder/pull/1004", "merged", false)
-
-	childDraft := createChild(childMatchRoot, "draft-child-"+uuid.NewString())
-	linkPR(childDraft.ID, "https://github.com/coder/coder/pull/1005", "open", true)
-
-	draftIDs := getChatIDs("draft")
-	require.ElementsMatch(t, []uuid.UUID{draftRoot.ID}, draftIDs)
-	require.NotContains(t, draftIDs, childMatchRoot.ID,
-		"matching child PRs must not surface a nonmatching root")
-
-	openIDs := getChatIDs("open")
-	require.ElementsMatch(t, []uuid.UUID{openRoot.ID}, openIDs)
-
-	draftClosedIDs := getChatIDs("draft", "closed")
-	require.ElementsMatch(t, []uuid.UUID{draftRoot.ID, closedRoot.ID}, draftClosedIDs)
-	require.NotContains(t, draftClosedIDs, childMatchRoot.ID,
-		"matching child PRs must not surface a nonmatching root")
-}
-
-func TestGetChatsFilterByTitle(t *testing.T) {
-	t.Parallel()
-
-	store, _ := dbtestutil.NewDB(t)
-	ctx := context.Background()
-
-	org := dbgen.Organization(t, store, database.Organization{})
-	user := dbgen.User(t, store, database.User{})
-	dbgen.OrganizationMember(t, store, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
-
-	_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:             "openai",
-		DisplayName:          "OpenAI",
-		APIKey:               "test-key",
-		Enabled:              true,
-		CentralApiKeyEnabled: true,
-	})
-	require.NoError(t, err)
-
-	modelCfg, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
-		Provider:             "openai",
-		Model:                "test-model-" + uuid.NewString(),
-		DisplayName:          "Test Model",
-		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
-		UpdatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
-		Enabled:              true,
-		IsDefault:            true,
-		ContextLimit:         128000,
-		CompressionThreshold: 80,
-		Options:              json.RawMessage(`{}`),
-	})
-	require.NoError(t, err)
-
-	createRoot := func(title string) database.Chat {
-		t.Helper()
-		chat, err := store.InsertChat(ctx, database.InsertChatParams{
-			OrganizationID:    org.ID,
-			Status:            database.ChatStatusWaiting,
-			ClientType:        database.ChatClientTypeUi,
-			OwnerID:           user.ID,
-			LastModelConfigID: modelCfg.ID,
-			Title:             title,
-		})
-		require.NoError(t, err)
-		return chat
-	}
-
-	getChatIDs := func(titleQuery string) []uuid.UUID {
-		t.Helper()
-		rows, err := store.GetChats(ctx, database.GetChatsParams{
-			OwnerID:    user.ID,
-			TitleQuery: titleQuery,
-		})
-		require.NoError(t, err)
-
-		ids := make([]uuid.UUID, 0, len(rows))
-		for _, row := range rows {
-			ids = append(ids, row.Chat.ID)
-		}
-		return ids
-	}
-
-	alpha := createRoot("alpha project")
-	beta := createRoot("beta project")
-	gamma := createRoot("gamma unrelated")
-	percent := createRoot("100% complete")
-	thousandOne := createRoot("1001 things")
-	underscore := createRoot("user_name config")
-	hyphen := createRoot("user-name config")
-
-	allIDs := []uuid.UUID{alpha.ID, beta.ID, gamma.ID, percent.ID, thousandOne.ID, underscore.ID, hyphen.ID}
-
-	tests := []struct {
-		name    string
-		query   string
-		wantIDs []uuid.UUID
-	}{
-		{"SubstringMatch", "project", []uuid.UUID{alpha.ID, beta.ID}},
-		{"SingleResult", "gamma", []uuid.UUID{gamma.ID}},
-		{"CaseInsensitive", "ALPHA", []uuid.UUID{alpha.ID}},
-		{"MultiWord", "alpha project", []uuid.UUID{alpha.ID}},
-		{"NoMatch", "nonexistent", nil},
-		{"EmptyReturnsAll", "", allIDs},
-		// The % in "100%" acts as a wildcard since we don't escape ILIKE
-		// metacharacters. Pattern '%100%%' matches both titles.
-		{"PercentWildcard", "100%", []uuid.UUID{percent.ID, thousandOne.ID}},
-		// The _ in "user_name" acts as a single-char wildcard, matching
-		// both "user_name" and "user-name".
-		{"UnderscoreWildcard", "user_name", []uuid.UUID{underscore.ID, hyphen.ID}},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			ids := getChatIDs(tt.query)
-			if tt.wantIDs == nil {
-				require.Empty(t, ids)
-			} else {
-				require.ElementsMatch(t, tt.wantIDs, ids)
-			}
-		})
-	}
-}
-
-
-func TestGetChatsFilterByUnread(t *testing.T) {
-	t.Parallel()
-
-	store, _ := dbtestutil.NewDB(t)
-	ctx := context.Background()
-
-	org := dbgen.Organization(t, store, database.Organization{})
-	user := dbgen.User(t, store, database.User{})
-	dbgen.OrganizationMember(t, store, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
-
-	_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:             "openai",
-		DisplayName:          "OpenAI",
-		APIKey:               "test-key",
-		Enabled:              true,
-		CentralApiKeyEnabled: true,
-	})
-	require.NoError(t, err)
-
-	modelCfg, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
-		Provider:             "openai",
-		Model:                "test-model-" + uuid.NewString(),
-		DisplayName:          "Test Model",
-		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
-		UpdatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
-		Enabled:              true,
-		IsDefault:            true,
-		ContextLimit:         128000,
-		CompressionThreshold: 80,
-		Options:              json.RawMessage(`{}`),
-	})
-	require.NoError(t, err)
-
-	createChat := func(title string, parentChatID, rootChatID uuid.NullUUID) database.Chat {
-		t.Helper()
-
-		chat, err := store.InsertChat(ctx, database.InsertChatParams{
-			OrganizationID:    org.ID,
-			Status:            database.ChatStatusWaiting,
-			ClientType:        database.ChatClientTypeUi,
-			OwnerID:           user.ID,
-			LastModelConfigID: modelCfg.ID,
-			Title:             title,
-			ParentChatID:      parentChatID,
-			RootChatID:        rootChatID,
-		})
-		require.NoError(t, err)
-		return chat
-	}
-
-	createRoot := func(title string) database.Chat {
-		t.Helper()
-		return createChat(title, uuid.NullUUID{}, uuid.NullUUID{})
-	}
-
-	createChild := func(root database.Chat, title string) database.Chat {
-		t.Helper()
-		return createChat(
-			title,
-			uuid.NullUUID{UUID: root.ID, Valid: true},
-			uuid.NullUUID{UUID: root.ID, Valid: true},
-		)
-	}
-
-	insertMsg := func(chatID uuid.UUID, role database.ChatMessageRole, text string) {
+	makeUnread := func(chatID uuid.UUID) {
 		t.Helper()
 		_, err := store.InsertChatMessages(ctx, database.InsertChatMessagesParams{
 			ChatID:              chatID,
 			CreatedBy:           []uuid.UUID{user.ID},
 			ModelConfigID:       []uuid.UUID{modelCfg.ID},
-			Role:                []database.ChatMessageRole{role},
-			Content:             []string{fmt.Sprintf(`[{"type":"text","text":%q}]`, text)},
+			Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
+			Content:             []string{`[{"type":"text","text":"hello"}]`},
 			ContentVersion:      []int16{0},
 			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
 			InputTokens:         []int64{0},
@@ -13963,7 +13751,7 @@ func TestGetChatsFilterByUnread(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	markLastAssistantRead := func(chatID uuid.UUID) {
+	markRead := func(chatID uuid.UUID) {
 		t.Helper()
 		lastMsg, err := store.GetLastChatMessageByRole(ctx, database.GetLastChatMessageByRoleParams{
 			ChatID: chatID,
@@ -13977,41 +13765,123 @@ func TestGetChatsFilterByUnread(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	getChatIDs := func() []uuid.UUID {
-		t.Helper()
-		rows, err := store.GetChats(ctx, database.GetChatsParams{
-			OwnerID:   user.ID,
-			HasUnread: sql.NullBool{Bool: true, Valid: true},
-		})
-		require.NoError(t, err)
+	// --- fixtures ---
 
-		ids := make([]uuid.UUID, 0, len(rows))
-		for _, row := range rows {
-			ids = append(ids, row.Chat.ID)
-		}
-		return ids
+	// Title-only chats (no PR, no unread).
+	alphaProject := createRoot("alpha project")
+	betaProject := createRoot("beta project")
+	gammaUnrelated := createRoot("gamma unrelated")
+	percentComplete := createRoot("100% complete")
+	thousandOne := createRoot("1001 things")
+	underscoreConfig := createRoot("user_name config")
+	hyphenConfig := createRoot("user-name config")
+
+	// PR-linked chats.
+	draftPR := createRoot("draft pr chat")
+	linkPR(draftPR.ID, "https://github.com/coder/coder/pull/1001", "open", true)
+	makeUnread(draftPR.ID) // also unread
+
+	openPR := createRoot("open pr chat")
+	linkPR(openPR.ID, "https://github.com/coder/coder/pull/1002", "open", false)
+
+	mergedPR := createRoot("merged pr chat")
+	linkPR(mergedPR.ID, "https://github.com/coder/coder/pull/1003", "merged", false)
+
+	closedPR := createRoot("closed pr chat")
+	linkPR(closedPR.ID, "https://github.com/coder/coder/pull/1004", "closed", false)
+
+	// Unread chat without PR.
+	unreadNoPR := createRoot("unread no pr")
+	makeUnread(unreadNoPR.ID)
+
+	// Read chat (message exists but marked read).
+	readChat := createRoot("read chat")
+	makeUnread(readChat.ID)
+	markRead(readChat.ID)
+
+	// Child with draft PR (must not surface its parent).
+	childParent := createRoot("child parent")
+	makeUnread(childParent.ID)
+	markRead(childParent.ID)
+	childWithDraftPR := createChild(childParent, "child draft pr")
+	linkPR(childWithDraftPR.ID, "https://github.com/coder/coder/pull/1005", "open", true)
+	makeUnread(childWithDraftPR.ID)
+
+	// All root chat IDs (for "returns everything" baseline).
+	allRootIDs := []uuid.UUID{
+		alphaProject.ID, betaProject.ID, gammaUnrelated.ID,
+		percentComplete.ID, thousandOne.ID, underscoreConfig.ID, hyphenConfig.ID,
+		draftPR.ID, openPR.ID, mergedPR.ID, closedPR.ID,
+		unreadNoPR.ID, readChat.ID, childParent.ID,
 	}
 
-	unreadRoot := createRoot("unread-root-" + uuid.NewString())
-	insertMsg(unreadRoot.ID, database.ChatMessageRoleAssistant, "hello")
+	// --- test cases ---
 
-	readRoot := createRoot("read-root-" + uuid.NewString())
-	insertMsg(readRoot.ID, database.ChatMessageRoleAssistant, "done")
-	markLastAssistantRead(readRoot.ID)
+	tests := []struct {
+		name   string
+		params database.GetChatsParams
+		want   []uuid.UUID
+	}{
+		// Title filter.
+		{"Title/SubstringMatch", database.GetChatsParams{TitleQuery: "project"}, []uuid.UUID{alphaProject.ID, betaProject.ID}},
+		{"Title/SingleResult", database.GetChatsParams{TitleQuery: "gamma"}, []uuid.UUID{gammaUnrelated.ID}},
+		{"Title/CaseInsensitive", database.GetChatsParams{TitleQuery: "ALPHA"}, []uuid.UUID{alphaProject.ID}},
+		{"Title/MultiWord", database.GetChatsParams{TitleQuery: "alpha project"}, []uuid.UUID{alphaProject.ID}},
+		{"Title/NoMatch", database.GetChatsParams{TitleQuery: "nonexistent"}, nil},
+		{"Title/EmptyReturnsAll", database.GetChatsParams{TitleQuery: ""}, allRootIDs},
+		// % acts as wildcard since we don't escape ILIKE metacharacters.
+		{"Title/PercentWildcard", database.GetChatsParams{TitleQuery: "100%"}, []uuid.UUID{percentComplete.ID, thousandOne.ID}},
+		// _ acts as single-char wildcard.
+		{"Title/UnderscoreWildcard", database.GetChatsParams{TitleQuery: "user_name"}, []uuid.UUID{underscoreConfig.ID, hyphenConfig.ID}},
 
-	childUnreadRoot := createRoot("child-unread-root-" + uuid.NewString())
-	insertMsg(childUnreadRoot.ID, database.ChatMessageRoleAssistant, "root message")
-	markLastAssistantRead(childUnreadRoot.ID)
+		// PR status filter.
+		{"PRStatus/Draft", database.GetChatsParams{PullRequestStatuses: []string{"draft"}}, []uuid.UUID{draftPR.ID}},
+		{"PRStatus/Open", database.GetChatsParams{PullRequestStatuses: []string{"open"}}, []uuid.UUID{openPR.ID}},
+		{"PRStatus/Merged", database.GetChatsParams{PullRequestStatuses: []string{"merged"}}, []uuid.UUID{mergedPR.ID}},
+		{"PRStatus/Closed", database.GetChatsParams{PullRequestStatuses: []string{"closed"}}, []uuid.UUID{closedPR.ID}},
+		{"PRStatus/MultiStatus", database.GetChatsParams{PullRequestStatuses: []string{"draft", "closed"}}, []uuid.UUID{draftPR.ID, closedPR.ID}},
+		// Child's draft PR must not surface its parent.
+		{"PRStatus/ChildDoesNotSurfaceParent", database.GetChatsParams{PullRequestStatuses: []string{"draft"}}, []uuid.UUID{draftPR.ID}},
 
-	child := createChild(childUnreadRoot, "child-unread-"+uuid.NewString())
-	insertMsg(child.ID, database.ChatMessageRoleAssistant, "child message")
+		// Unread filter.
+		{"Unread/MatchesUnread", database.GetChatsParams{HasUnread: sql.NullBool{Bool: true, Valid: true}}, []uuid.UUID{draftPR.ID, unreadNoPR.ID}},
+		// Read chat and child-unread parent must not appear.
+		{"Unread/ExcludesRead", database.GetChatsParams{HasUnread: sql.NullBool{Bool: true, Valid: true}}, []uuid.UUID{draftPR.ID, unreadNoPR.ID}},
 
-	unreadIDs := getChatIDs()
-	require.ElementsMatch(t, []uuid.UUID{unreadRoot.ID}, unreadIDs)
-	require.NotContains(t, unreadIDs, readRoot.ID)
-	require.NotContains(t, unreadIDs, childUnreadRoot.ID,
-		"unread child messages must not surface a read root")
+		// Composed filters.
+		{"Composed/TitleAndPRStatus", database.GetChatsParams{TitleQuery: "draft", PullRequestStatuses: []string{"draft"}}, []uuid.UUID{draftPR.ID}},
+		{"Composed/TitleAndUnread", database.GetChatsParams{TitleQuery: "draft pr", HasUnread: sql.NullBool{Bool: true, Valid: true}}, []uuid.UUID{draftPR.ID}},
+		{"Composed/PRStatusAndUnread", database.GetChatsParams{PullRequestStatuses: []string{"draft"}, HasUnread: sql.NullBool{Bool: true, Valid: true}}, []uuid.UUID{draftPR.ID}},
+		{"Composed/AllFilters", database.GetChatsParams{TitleQuery: "draft", PullRequestStatuses: []string{"draft"}, HasUnread: sql.NullBool{Bool: true, Valid: true}}, []uuid.UUID{draftPR.ID}},
+		{"Composed/TitleNarrowsUnread", database.GetChatsParams{TitleQuery: "no pr", HasUnread: sql.NullBool{Bool: true, Valid: true}}, []uuid.UUID{unreadNoPR.ID}},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			// Always scope to this user.
+			params := tt.params
+			params.OwnerID = user.ID
+
+			rows, err := store.GetChats(ctx, params)
+			require.NoError(t, err)
+
+			got := make([]uuid.UUID, 0, len(rows))
+			for _, row := range rows {
+				got = append(got, row.Chat.ID)
+			}
+
+			if tt.want == nil {
+				require.Empty(t, got)
+			} else {
+				require.ElementsMatch(t, tt.want, got)
+			}
+		})
+	}
 }
+
+
 
 func TestChatHasUnread(t *testing.T) {
 	t.Parallel()
