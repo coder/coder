@@ -184,12 +184,44 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 			})
 			return
 		}
-		if job.Type == database.ProvisionerJobTypeWorkspaceBuild {
-			buildCandidates = append(buildCandidates, instanceCandidate{
-				agent: candidate,
-				job:   job,
-			})
+		if job.Type != database.ProvisionerJobTypeWorkspaceBuild {
+			continue
 		}
+		// Skip agents that are not from the latest build of their
+		// workspace. Without this, workspaces that have been through
+		// multiple builds accumulate agents sharing the same instance
+		// ID, causing a false HTTP 409 ambiguity error.
+		var jobData provisionerdserver.WorkspaceProvisionJob
+		if err := json.Unmarshal(job.Input, &jobData); err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error extracting job data.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		build, err := api.Database.GetWorkspaceBuildByID(systemCtx, jobData.WorkspaceBuildID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching workspace build.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		latestBuild, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(systemCtx, build.WorkspaceID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching the latest workspace build.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		if build.ID != latestBuild.ID {
+			continue
+		}
+		buildCandidates = append(buildCandidates, instanceCandidate{
+			agent: candidate,
+			job:   job,
+		})
 	}
 	if len(buildCandidates) == 0 {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
