@@ -9,7 +9,7 @@ import {
 	TriangleAlertIcon,
 } from "lucide-react";
 import type React from "react";
-import { useLayoutEffect, useState } from "react";
+import { useState } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
@@ -81,12 +81,7 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 	const hasOutput = output.length > 0;
 	const isRunning = status === "running";
 	const showFailureIndicator = isError && !isRunning;
-	const [commandElement, setCommandElement] = useState<HTMLSpanElement | null>(
-		null,
-	);
-	const [commandTruncated, setCommandTruncated] = useState(false);
 	const [outputOpen, setOutputOpen] = useState(outputInitiallyOpen);
-	const canExpand = hasOutput || commandTruncated;
 	const outputToggleLabel = outputOpen
 		? hasOutput
 			? "Collapse command output"
@@ -96,64 +91,25 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 			: "Expand command";
 	const durationLabel = formatShellDurationMs(durationMs);
 
-	useLayoutEffect(() => {
-		if (!commandElement) {
-			return;
-		}
-		if (command.trim().length === 0) {
-			setCommandTruncated(false);
-			return;
-		}
-
-		const updateCommandTruncated = () => {
-			if (!commandElement.isConnected || commandElement.clientWidth === 0) {
-				return;
-			}
-
-			const nextCommandTruncated =
-				commandElement.scrollWidth > commandElement.clientWidth;
-			if (commandTruncated !== nextCommandTruncated) {
-				setCommandTruncated(nextCommandTruncated);
-			}
-		};
-
-		updateCommandTruncated();
-
-		const resizeObserver = new ResizeObserver(updateCommandTruncated);
-		resizeObserver.observe(commandElement);
-		return () => resizeObserver.disconnect();
-	}, [command, commandElement, commandTruncated]);
-
 	if (!hasCommand) {
 		return null;
 	}
 
 	return (
 		<div className="group/exec grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 rounded-md bg-surface-primary font-sans font-normal text-xs leading-5">
-			{canExpand ? (
-				<button
-					type="button"
-					aria-expanded={outputOpen}
-					aria-label={outputToggleLabel}
-					onClick={() => setOutputOpen((value) => !value)}
-					className="col-start-1 row-start-1 m-0 flex w-full min-w-0 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-left font-[inherit] font-normal text-[inherit] text-content-secondary transition-colors hover:text-content-primary"
-				>
-					<ShellCommandLine
-						command={command}
-						durationLabel={durationLabel}
-						expanded={outputOpen}
-						commandRef={setCommandElement}
-					/>
-				</button>
-			) : (
-				<div className="col-start-1 row-start-1 flex min-w-0 items-center gap-2 font-normal text-content-secondary">
-					<ShellCommandLine
-						command={command}
-						durationLabel={durationLabel}
-						commandRef={setCommandElement}
-					/>
-				</div>
-			)}
+			<button
+				type="button"
+				aria-expanded={outputOpen}
+				aria-label={outputToggleLabel}
+				onClick={() => setOutputOpen((value) => !value)}
+				className="col-start-1 row-start-1 m-0 flex w-full min-w-0 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-left font-[inherit] font-normal text-[inherit] text-content-secondary transition-colors hover:text-content-primary"
+			>
+				<ShellCommandLine
+					command={command}
+					durationLabel={durationLabel}
+					expanded={outputOpen}
+				/>
+			</button>
 			<div className="col-start-2 row-start-1 flex shrink-0 items-center gap-1">
 				{isRunning && (
 					<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
@@ -205,7 +161,7 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 					className="-my-0.5 size-6 p-0 opacity-0 transition-opacity hover:bg-surface-tertiary group-hover/exec:opacity-100"
 				/>
 			</div>
-			{canExpand && outputOpen && (
+			{outputOpen && (
 				<ShellTranscriptBody
 					command={command}
 					output={output}
@@ -220,12 +176,10 @@ const ShellCommandLine: React.FC<{
 	command: string;
 	durationLabel: string;
 	expanded?: boolean;
-	commandRef?: React.Ref<HTMLSpanElement>;
-}> = ({ command, durationLabel, expanded, commandRef }) => {
+}> = ({ command, durationLabel, expanded }) => {
 	return (
 		<>
 			<span
-				ref={commandRef}
 				data-testid="execute-tool-command-line"
 				className="block min-w-0 truncate text-[13px] font-normal text-current"
 			>

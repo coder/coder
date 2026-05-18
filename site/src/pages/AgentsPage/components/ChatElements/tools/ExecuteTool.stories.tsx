@@ -30,6 +30,17 @@ export const ShortCommand: Story = {
 		command: "git status",
 		output: "",
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const summaryButton = await canvas.findByRole("button", {
+			name: "Expand command",
+		});
+		await userEvent.click(summaryButton);
+		expect(canvas.getByTestId("execute-tool-command")).toHaveTextContent(
+			"$ git status",
+		);
+		expect(canvas.queryByTestId("execute-tool-output")).not.toBeInTheDocument();
+	},
 };
 
 export const RunningWithoutCommand: Story = {
