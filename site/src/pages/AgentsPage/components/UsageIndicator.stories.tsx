@@ -58,13 +58,13 @@ const withUnavailableWorkspaceCount = (Story: FC) => {
 };
 
 const withNarrowFrame = (Story: FC) => (
-	<div className="flex h-14 w-[260px] items-stretch justify-end rounded-md bg-surface-secondary">
+	<div className="flex h-14 w-[200px] items-stretch justify-end rounded-md bg-surface-secondary">
 		<Story />
 	</div>
 );
 
 const withWideFrame = (Story: FC) => (
-	<div className="flex h-12 w-[540px] items-stretch justify-end rounded-md bg-surface-secondary">
+	<div className="flex h-12 w-[400px] items-stretch justify-end rounded-md bg-surface-secondary">
 		<Story />
 	</div>
 );
