@@ -327,7 +327,7 @@ export const SummaryPanel: FC<SummaryPanelProps> = ({
 				{/* ---- Prompt history ---- */}
 				<Section>
 					<div className="flex min-w-0 flex-col gap-3">
-						<h3 className="text-sm font-medium text-content-primary">
+						<h3 className="text-sm font-medium text-content-secondary">
 							Prompt history ({totalPrompts})
 						</h3>
 						<div className="flex flex-col gap-2.5">
@@ -372,7 +372,7 @@ export const SummaryPanel: FC<SummaryPanelProps> = ({
 				{/* ---- Activity ---- */}
 				<Section>
 					<div className="flex min-w-0 flex-col gap-3">
-						<h3 className="text-sm font-medium text-content-primary">
+						<h3 className="text-sm font-medium text-content-secondary">
 							Activity ({totalActivities})
 						</h3>
 						<div className="flex flex-col gap-2.5">
@@ -405,7 +405,7 @@ export const SummaryPanel: FC<SummaryPanelProps> = ({
 				{/* ---- Files ---- */}
 				<Section>
 					<div className="flex min-w-0 flex-col gap-3">
-						<h3 className="text-sm font-medium text-content-primary">
+						<h3 className="text-sm font-medium text-content-secondary">
 							Files ({totalFiles})
 						</h3>
 						<div className="min-w-0 overflow-hidden rounded-lg border border-solid border-border-default">
@@ -422,7 +422,7 @@ export const SummaryPanel: FC<SummaryPanelProps> = ({
 				{relatedChats.length > 0 && (
 					<Section>
 						<div className="flex min-w-0 flex-col gap-3">
-							<h3 className="text-sm font-medium text-content-primary">
+							<h3 className="text-sm font-medium text-content-secondary">
 								Related chats
 							</h3>
 							<div className="flex flex-col gap-2">
