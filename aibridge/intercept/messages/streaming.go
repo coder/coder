@@ -266,8 +266,6 @@ newStream:
 					CacheWriteInputTokens: start.Message.Usage.CacheCreationInputTokens,
 					ExtraTokenTypes: map[string]int64{
 						"web_search_requests":      start.Message.Usage.ServerToolUse.WebSearchRequests,
-						"cache_creation_input":     start.Message.Usage.CacheCreationInputTokens, // TODO: remove from ExtraTokenTypes (https://github.com/coder/aibridge/issues/243)
-						"cache_read_input":         start.Message.Usage.CacheReadInputTokens,     // TODO: remove from ExtraTokenTypes (https://github.com/coder/aibridge/issues/243)
 						"cache_ephemeral_1h_input": start.Message.Usage.CacheCreation.Ephemeral1hInputTokens,
 						"cache_ephemeral_5m_input": start.Message.Usage.CacheCreation.Ephemeral5mInputTokens,
 					},
