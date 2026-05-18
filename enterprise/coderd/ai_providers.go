@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -69,10 +70,12 @@ func (api *API) aiProvidersList(rw http.ResponseWriter, r *http.Request) {
 		IncludeDisabled: true,
 	})
 	if dbauthz.IsNotAuthorizedError(err) {
+		api.Logger.Error(ctx, "list AI providers", slog.Error(err))
 		httpapi.Forbidden(rw)
 		return
 	}
 	if err != nil {
+		api.Logger.Error(ctx, "list AI providers", slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error listing AI providers.",
 			Detail:  err.Error(),
@@ -84,6 +87,7 @@ func (api *API) aiProvidersList(rw http.ResponseWriter, r *http.Request) {
 	for _, row := range rows {
 		sdk, err := dbAIProviderToSDK(row)
 		if err != nil {
+			api.Logger.Error(ctx, "convert AI provider", slog.F("id", row.ID), slog.Error(err))
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error converting AI provider.",
 				Detail:  err.Error(),
@@ -108,12 +112,13 @@ func (api *API) aiProvidersGet(rw http.ResponseWriter, r *http.Request) {
 
 	row, err := lookupAIProvider(ctx, api.Database, chi.URLParam(r, "idOrName"))
 	if err != nil {
-		writeAIProviderLookupError(ctx, rw, err)
+		writeAIProviderLookupError(ctx, api.Logger, rw, err)
 		return
 	}
 
 	sdk, err := dbAIProviderToSDK(row)
 	if err != nil {
+		api.Logger.Error(ctx, "convert AI provider", slog.F("id", row.ID), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error converting AI provider.",
 			Detail:  err.Error(),
@@ -160,6 +165,7 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 
 	settings, err := encodeAIProviderSettings(req.Settings)
 	if err != nil {
+		api.Logger.Error(ctx, "encode AI provider settings", slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error encoding settings.",
 			Detail:  err.Error(),
@@ -180,6 +186,7 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		if database.IsUniqueViolation(err) {
+			api.Logger.Warn(ctx, "create AI provider: duplicate name", slog.F("name", req.Name), slog.Error(err))
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: fmt.Sprintf("AI provider %q already exists.", req.Name),
 				Detail:  err.Error(),
@@ -187,9 +194,11 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if dbauthz.IsNotAuthorizedError(err) {
+			api.Logger.Error(ctx, "create AI provider", slog.Error(err))
 			httpapi.Forbidden(rw)
 			return
 		}
+		api.Logger.Error(ctx, "create AI provider", slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error creating AI provider.",
 			Detail:  err.Error(),
@@ -200,6 +209,7 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 
 	sdk, err := dbAIProviderToSDK(row)
 	if err != nil {
+		api.Logger.Error(ctx, "convert AI provider", slog.F("id", row.ID), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error converting AI provider.",
 			Detail:  err.Error(),
@@ -292,12 +302,13 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		return nil
 	}, nil)
 	if err != nil {
-		writeAIProviderLookupError(ctx, rw, err)
+		writeAIProviderLookupError(ctx, api.Logger, rw, err)
 		return
 	}
 
 	sdk, err := dbAIProviderToSDK(updated)
 	if err != nil {
+		api.Logger.Error(ctx, "convert AI provider", slog.F("id", updated.ID), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error converting AI provider.",
 			Detail:  err.Error(),
@@ -331,7 +342,7 @@ func (api *API) aiProvidersDelete(rw http.ResponseWriter, r *http.Request) {
 
 	row, err := lookupAIProvider(ctx, api.Database, idOrName)
 	if err != nil {
-		writeAIProviderLookupError(ctx, rw, err)
+		writeAIProviderLookupError(ctx, api.Logger, rw, err)
 		return
 	}
 	aReq.Old = row
@@ -343,9 +354,11 @@ func (api *API) aiProvidersDelete(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if dbauthz.IsNotAuthorizedError(err) {
+			api.Logger.Error(ctx, "delete AI provider", slog.F("id", row.ID), slog.Error(err))
 			httpapi.Forbidden(rw)
 			return
 		}
+		api.Logger.Error(ctx, "delete AI provider", slog.F("id", row.ID), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error deleting AI provider.",
 			Detail:  err.Error(),
@@ -381,7 +394,7 @@ func (api *API) aiProviderKeysCreate(rw http.ResponseWriter, r *http.Request) {
 
 	provider, err := lookupAIProvider(ctx, api.Database, chi.URLParam(r, "idOrName"))
 	if err != nil {
-		writeAIProviderLookupError(ctx, rw, err)
+		writeAIProviderLookupError(ctx, api.Logger, rw, err)
 		return
 	}
 
@@ -420,9 +433,11 @@ func (api *API) aiProviderKeysCreate(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		if dbauthz.IsNotAuthorizedError(err) {
+			api.Logger.Error(ctx, "create AI provider key", slog.F("provider_id", provider.ID), slog.Error(err))
 			httpapi.Forbidden(rw)
 			return
 		}
+		api.Logger.Error(ctx, "create AI provider key", slog.F("provider_id", provider.ID), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error creating AI provider key.",
 			Detail:  err.Error(),
@@ -457,7 +472,7 @@ func (api *API) aiProviderKeysDelete(rw http.ResponseWriter, r *http.Request) {
 
 	provider, err := lookupAIProvider(ctx, api.Database, chi.URLParam(r, "idOrName"))
 	if err != nil {
-		writeAIProviderLookupError(ctx, rw, err)
+		writeAIProviderLookupError(ctx, api.Logger, rw, err)
 		return
 	}
 
@@ -474,9 +489,11 @@ func (api *API) aiProviderKeysDelete(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if dbauthz.IsNotAuthorizedError(err) {
+			api.Logger.Error(ctx, "fetch AI provider key", slog.F("key_id", keyID), slog.Error(err))
 			httpapi.Forbidden(rw)
 			return
 		}
+		api.Logger.Error(ctx, "fetch AI provider key", slog.F("key_id", keyID), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching AI provider key.",
 			Detail:  err.Error(),
@@ -496,9 +513,11 @@ func (api *API) aiProviderKeysDelete(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if dbauthz.IsNotAuthorizedError(err) {
+			api.Logger.Error(ctx, "delete AI provider key", slog.F("key_id", keyID), slog.Error(err))
 			httpapi.Forbidden(rw)
 			return
 		}
+		api.Logger.Error(ctx, "delete AI provider key", slog.F("key_id", keyID), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error deleting AI provider key.",
 			Detail:  err.Error(),
@@ -530,15 +549,17 @@ func lookupAIProvider(ctx context.Context, store database.Store, idOrName string
 
 // writeAIProviderLookupError translates lookup errors into the right HTTP
 // status code.
-func writeAIProviderLookupError(ctx context.Context, rw http.ResponseWriter, err error) {
+func writeAIProviderLookupError(ctx context.Context, logger slog.Logger, rw http.ResponseWriter, err error) {
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
 	if dbauthz.IsNotAuthorizedError(err) {
+		logger.Error(ctx, "lookup AI provider", slog.Error(err))
 		httpapi.Forbidden(rw)
 		return
 	}
+	logger.Error(ctx, "lookup AI provider", slog.Error(err))
 	httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 		Message: "Internal error fetching AI provider.",
 		Detail:  err.Error(),
