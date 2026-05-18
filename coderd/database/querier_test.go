@@ -13881,8 +13881,6 @@ func TestGetChatsFilter(t *testing.T) {
 	}
 }
 
-
-
 func TestChatHasUnread(t *testing.T) {
 	t.Parallel()
 
