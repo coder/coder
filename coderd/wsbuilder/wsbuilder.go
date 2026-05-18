@@ -542,21 +542,6 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 			return BuildError{code, "insert workspace build", err}
 		}
 
-		// Soft-delete any agents from prior builds of this workspace so the
-		// aws-instance-identity handler (which rejects ambiguous
-		// (auth_instance_id, deleted=FALSE) lookups since #24325) sees only
-		// the current build's agent for any given cloud instance ID.
-		// Atomic with the build insert above so the table never transiently
-		// holds two non-deleted rows for the same workspace. See #25155.
-		//nolint:gocritic // System-restricted: bookkeeping inside an already-authorized build transaction.
-		err = store.SoftDeletePriorWorkspaceAgents(dbauthz.AsSystemRestricted(b.ctx), database.SoftDeletePriorWorkspaceAgentsParams{
-			WorkspaceID:    b.workspace.ID,
-			CurrentBuildID: workspaceBuildID,
-		})
-		if err != nil {
-			return BuildError{http.StatusInternalServerError, "soft-delete prior workspace agents", err}
-		}
-
 		task, err := b.getWorkspaceTask(store)
 		if err != nil {
 			return BuildError{http.StatusInternalServerError, "get task by workspace id", err}

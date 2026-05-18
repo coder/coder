@@ -132,7 +132,7 @@ func TestPostWorkspaceAuthAWSInstanceIdentity(t *testing.T) {
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		// The prior build's agent is soft-deleted when the successor
-		// build is inserted (SoftDeletePriorWorkspaceAgents), so the
+		// build completes (SoftDeletePriorWorkspaceAgents), so the
 		// auth query finds no candidates at all and returns 404.
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 	})

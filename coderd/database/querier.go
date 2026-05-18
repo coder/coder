@@ -1078,10 +1078,10 @@ type sqlcQuerier interface {
 	SoftDeleteChatMessagesAfterID(ctx context.Context, arg SoftDeleteChatMessagesAfterIDParams) error
 	SoftDeleteContextFileMessages(ctx context.Context, chatID uuid.UUID) error
 	// Marks agents from all prior builds of this workspace as deleted,
-	// preserving only agents belonging to @current_build_id. Called by
-	// wsbuilder.Builder.Build inside the InsertWorkspaceBuild transaction
-	// to maintain the invariant enforced by the one-time backfill in
-	// migration 000492.
+	// preserving only agents belonging to @current_build_id. Called from
+	// provisionerdserver when a workspace build completes, after the new
+	// build's agents have been inserted, so running agents are not
+	// deleted while a build is still queued or provisioning.
 	SoftDeletePriorWorkspaceAgents(ctx context.Context, arg SoftDeletePriorWorkspaceAgentsParams) error
 	// Marks every non-deleted agent belonging to the given workspace as
 	// deleted. Called alongside UpdateWorkspaceDeletedByID when a workspace

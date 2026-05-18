@@ -200,6 +200,7 @@ func TestTools(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, ws.LatestBuild.Resources)
 	require.NotEmpty(t, ws.LatestBuild.Resources[0].Agents)
+	agentID := ws.LatestBuild.Resources[0].Agents[0].ID
 
 	// Given: the workspace agent has written logs.
 	agentClient.PatchLogs(setupCtx, agentsdk.PatchLogs{
@@ -740,37 +741,12 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("GetWorkspaceAgentLogs", func(t *testing.T) {
-		ctx := testutil.Context(t, testutil.WaitShort)
+		_ = testutil.Context(t, testutil.WaitShort)
 		tb, err := toolsdk.NewDeps(memberClient)
 		require.NoError(t, err)
 
-		// Use an isolated workspace fixture. Prior sub-tests create
-		// new builds on the shared workspace which soft-delete agents
-		// from earlier builds (SoftDeletePriorWorkspaceAgents) and
-		// cancel the new builds before provisioning completes, leaving
-		// the latest build with no resources or agents.
-		logFixture := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
-			OrganizationID: owner.OrganizationID,
-			OwnerID:        member.ID,
-		}).WithAgent().Do()
-		logAgentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(logFixture.AgentToken))
-		logAgentClient.PatchLogs(ctx, agentsdk.PatchLogs{
-			Logs: []agentsdk.Log{
-				{
-					CreatedAt: time.Now(),
-					Level:     codersdk.LogLevelInfo,
-					Output:    "isolated agent log message",
-				},
-			},
-		})
-		logWS, err := client.Workspace(ctx, logFixture.Workspace.ID)
-		require.NoError(t, err)
-		require.NotEmpty(t, logWS.LatestBuild.Resources)
-		require.NotEmpty(t, logWS.LatestBuild.Resources[0].Agents)
-		logAgentID := logWS.LatestBuild.Resources[0].Agents[0].ID
-
 		logs, err := testTool(t, toolsdk.GetWorkspaceAgentLogs, tb, toolsdk.GetWorkspaceAgentLogsArgs{
-			WorkspaceAgentID: logAgentID.String(),
+			WorkspaceAgentID: agentID.String(),
 		})
 
 		require.NoError(t, err)

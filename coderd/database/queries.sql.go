@@ -30661,10 +30661,10 @@ type SoftDeletePriorWorkspaceAgentsParams struct {
 }
 
 // Marks agents from all prior builds of this workspace as deleted,
-// preserving only agents belonging to @current_build_id. Called by
-// wsbuilder.Builder.Build inside the InsertWorkspaceBuild transaction
-// to maintain the invariant enforced by the one-time backfill in
-// migration 000492.
+// preserving only agents belonging to @current_build_id. Called from
+// provisionerdserver when a workspace build completes, after the new
+// build's agents have been inserted, so running agents are not
+// deleted while a build is still queued or provisioning.
 func (q *sqlQuerier) SoftDeletePriorWorkspaceAgents(ctx context.Context, arg SoftDeletePriorWorkspaceAgentsParams) error {
 	_, err := q.db.ExecContext(ctx, softDeletePriorWorkspaceAgents, arg.WorkspaceID, arg.CurrentBuildID)
 	return err

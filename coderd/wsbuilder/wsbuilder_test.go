@@ -1569,11 +1569,6 @@ func expectBuild(
 					return nil
 				},
 			)
-		// wsbuilder.Builder.Build also issues this bookkeeping call inside
-		// the same transaction right after InsertWorkspaceBuild succeeds.
-		mTx.EXPECT().SoftDeletePriorWorkspaceAgents(gomock.Any(), gomock.Any()).
-			Times(1).
-			Return(nil)
 	}
 }
 

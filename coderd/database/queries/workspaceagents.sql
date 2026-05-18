@@ -520,10 +520,10 @@ LIMIT 1;
 
 -- name: SoftDeletePriorWorkspaceAgents :exec
 -- Marks agents from all prior builds of this workspace as deleted,
--- preserving only agents belonging to @current_build_id. Called by
--- wsbuilder.Builder.Build inside the InsertWorkspaceBuild transaction
--- to maintain the invariant enforced by the one-time backfill in
--- migration 000492.
+-- preserving only agents belonging to @current_build_id. Called from
+-- provisionerdserver when a workspace build completes, after the new
+-- build's agents have been inserted, so running agents are not
+-- deleted while a build is still queued or provisioning.
 UPDATE workspace_agents
 SET deleted = TRUE
 WHERE id IN (

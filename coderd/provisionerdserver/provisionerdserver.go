@@ -2143,6 +2143,20 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 				return xerrors.Errorf("insert provisioner job: %w", err)
 			}
 		}
+
+		// Soft-delete agents from prior builds now that this build's
+		// agents have been inserted. Waiting until completion (rather
+		// than build creation) avoids bricking running workspaces
+		// whose agents would otherwise be deleted while the new build
+		// is still queued or provisioning. See #25155.
+		err = db.SoftDeletePriorWorkspaceAgents(ctx, database.SoftDeletePriorWorkspaceAgentsParams{
+			WorkspaceID:    workspaceBuild.WorkspaceID,
+			CurrentBuildID: workspaceBuild.ID,
+		})
+		if err != nil {
+			return xerrors.Errorf("soft delete prior workspace agents: %w", err)
+		}
+
 		for _, module := range jobType.WorkspaceBuild.Modules {
 			if err := InsertWorkspaceModule(ctx, db, job.ID, workspaceBuild.Transition, module, telemetrySnapshot); err != nil {
 				return xerrors.Errorf("insert provisioner job module: %w", err)
