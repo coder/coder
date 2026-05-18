@@ -1707,7 +1707,6 @@ func TestListChats(t *testing.T) {
 		}
 	})
 
-
 	t.Run("PRStatusFilter", func(t *testing.T) {
 		t.Parallel()
 
