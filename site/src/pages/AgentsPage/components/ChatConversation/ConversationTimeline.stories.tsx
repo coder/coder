@@ -2234,6 +2234,121 @@ export const ThinkingBlockWithToolCall: Story = {
 	},
 };
 
+/** Shell-style tool rows should keep the same collapsed height as Thinking. */
+export const ThinkingBlockWithShellTools: Story = {
+	parameters: {
+		queries: [
+			{
+				key: ["me", "preferences"],
+				data: {
+					task_notification_alert_dismissed: false,
+					thinking_display_mode: "always_collapsed" as const,
+					shell_tool_display_mode: "always_collapsed" as const,
+					code_diff_display_mode: "auto" as const,
+					agent_chat_send_shortcut: "enter" as const,
+				},
+			},
+		],
+	},
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "assistant",
+				content: [
+					{
+						type: "reasoning",
+						text: "I should inspect the current chat spacing before patching it.",
+					},
+					{
+						type: "tool-call",
+						tool_call_id: "tool-1",
+						tool_name: "execute",
+						args: { command: "pnpm test" },
+					},
+					{
+						type: "tool-call",
+						tool_call_id: "tool-2",
+						tool_name: "process_output",
+						args: { process_id: "process-1" },
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						tool_call_id: "tool-1",
+						tool_name: "execute",
+						result: { output: "", wall_duration_ms: "667" },
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 3,
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						tool_call_id: "tool-2",
+						tool_name: "process_output",
+						result: { output: "Spacing looks stable." },
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const thinkingButton = canvas.getByRole("button", { name: /thinking/i });
+		const executeButton = canvas.getByRole("button", {
+			name: /expand command/i,
+		});
+		const processOutputButton = canvas.getByRole("button", {
+			name: /expand process output/i,
+		});
+
+		const thinkingRow =
+			thinkingButton.closest("[data-tool-call]")?.firstElementChild;
+		const executeRow =
+			executeButton.closest("[data-tool-call]")?.firstElementChild;
+		const processOutputRow =
+			processOutputButton.closest("[data-tool-call]")?.firstElementChild;
+
+		expect(thinkingRow).toBeInstanceOf(HTMLElement);
+		expect(executeRow).toBeInstanceOf(HTMLElement);
+		expect(processOutputRow).toBeInstanceOf(HTMLElement);
+
+		const rowHeights = [thinkingRow, executeRow, processOutputRow].map((row) =>
+			Math.round((row as HTMLElement).getBoundingClientRect().height),
+		);
+		expect(new Set(rowHeights)).toHaveLength(1);
+
+		const wrappers = [
+			thinkingButton.closest("[data-tool-call]"),
+			executeButton.closest("[data-tool-call]"),
+			processOutputButton.closest("[data-tool-call]"),
+		].map((row) => row as HTMLElement);
+		const gaps = [
+			Math.round(
+				wrappers[1].getBoundingClientRect().top -
+					wrappers[0].getBoundingClientRect().bottom,
+			),
+			Math.round(
+				wrappers[2].getBoundingClientRect().top -
+					wrappers[1].getBoundingClientRect().bottom,
+			),
+		];
+		expect(gaps).toEqual([8, 8]);
+	},
+};
+
 /**
  * A completed thinking block with auto mode should be collapsed
  * (non-streaming state means auto collapses).

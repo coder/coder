@@ -33,10 +33,15 @@ const hasTextOrReasoningBlock = (blocks: readonly RenderBlock[]): boolean =>
  * as the ChatStatusCallout status placeholder.
  */
 const StreamingThinkingPlaceholder: FC = () => (
-	<div className="flex w-full items-center gap-2 py-0.5 text-content-secondary">
-		<Shimmer as="span" className="text-[13px] leading-relaxed">
-			Thinking
-		</Shimmer>
+	<div
+		data-tool-call=""
+		className="py-0.5 text-content-secondary [&:has(+[data-tool-call])]:pb-0 [[data-tool-call]+&]:pt-0"
+	>
+		<div className="flex w-full items-center gap-2">
+			<Shimmer as="span" className="text-[13px] leading-relaxed">
+				Thinking
+			</Shimmer>
+		</div>
 	</div>
 );
 
@@ -92,7 +97,7 @@ export const StreamingOutput: FC<{
 		<ConversationItem {...conversationItemProps}>
 			<Message className="w-full">
 				<MessageContent className="whitespace-normal">
-					<div className="space-y-2">
+					<div className="relative space-y-3 overflow-visible [&>[data-tool-call]+[data-tool-call]]:mt-2">
 						{shouldShowBlocks && (
 							<BlockList
 								blocks={blocks}

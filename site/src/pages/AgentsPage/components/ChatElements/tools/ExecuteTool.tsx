@@ -98,7 +98,7 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 				aria-expanded={outputOpen}
 				aria-label={outputToggleLabel}
 				onClick={() => setOutputOpen((value) => !value)}
-				className="col-start-1 row-start-1 m-0 flex w-full min-w-0 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-left font-[inherit] font-normal text-[inherit] text-content-secondary transition-colors hover:text-content-primary"
+				className="col-start-1 row-start-1 m-0 flex min-h-6 w-full min-w-0 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-left font-[inherit] font-normal text-[inherit] text-content-secondary transition-colors hover:text-content-primary"
 			>
 				<ShellCommandLine
 					command={command}
@@ -107,7 +107,7 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 					expanded={outputOpen}
 				/>
 			</button>
-			<div className="col-start-2 row-start-1 flex shrink-0 items-center gap-1">
+			<div className="col-start-2 row-start-1 flex min-h-6 shrink-0 items-center gap-1">
 				{isRunning && (
 					<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
 				)}
