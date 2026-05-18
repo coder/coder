@@ -226,7 +226,7 @@ export const FilterDropdown: FC<FilterDropdownProps> = ({
 				</div>
 
 				{/* ── Scrollable filter list ── */}
-				<ScrollArea className="max-h-64">
+				<ScrollArea type="always" className="max-h-52">
 					<div className="px-3 pt-1 pb-2">
 						{/* PR status */}
 						{filteredPROptions.length > 0 && (
