@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import type { FC, PropsWithChildren } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { MemoryRouter } from "react-router";
+import { DEFAULT_FILTER_STATE } from "./FilterDropdown";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
@@ -119,6 +120,7 @@ const defaultProps: React.ComponentProps<typeof AgentsSidebar> = {
 	onBeforeNewAgent: vi.fn(),
 	isCreating: false,
 	archivedFilter: "active" as const,
+	filterState: DEFAULT_FILTER_STATE,
 };
 
 // ---- Tests ----
@@ -126,21 +128,18 @@ const defaultProps: React.ComponentProps<typeof AgentsSidebar> = {
 describe("AgentsSidebar archived filter", () => {
 	it("calls the filter change callback from the dropdown", async () => {
 		const user = userEvent.setup();
-		const onArchivedFilterChange = vi.fn();
+		const onFilterChange = vi.fn();
 
 		render(
 			<Wrapper>
-				<AgentsSidebar
-					{...defaultProps}
-					onArchivedFilterChange={onArchivedFilterChange}
-				/>
+				<AgentsSidebar {...defaultProps} onFilterChange={onFilterChange} />
 			</Wrapper>,
 		);
 
 		await user.click(screen.getByRole("button", { name: "Filter agents" }));
-		await user.click(screen.getByRole("menuitem", { name: /archived/i }));
+		await user.click(screen.getByRole("button", { name: /Apply/i }));
 
-		expect(onArchivedFilterChange).toHaveBeenCalledWith("archived");
+		expect(onFilterChange).toHaveBeenCalled();
 	});
 
 	it("calls the filter change callback from the empty-state link", async () => {

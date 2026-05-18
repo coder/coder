@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useLocation } from "react-router";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { DEFAULT_FILTER_STATE } from "./FilterDropdown";
 import { userChatProviderConfigsKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
@@ -110,8 +111,10 @@ const meta: Meta<typeof AgentsSidebar> = {
 		isCreating: false,
 		regeneratingTitleChatIds: [],
 		archivedFilter: "active" as const,
+		filterState: DEFAULT_FILTER_STATE,
 		isPersonalModelOverridesEnabled: true,
 		onArchivedFilterChange: fn(),
+		onFilterChange: fn(),
 	},
 	parameters: {
 		layout: "fullscreen",

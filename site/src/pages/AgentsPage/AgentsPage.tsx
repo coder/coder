@@ -46,6 +46,10 @@ import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import { useArchivedFilterParam } from "./hooks/useArchivedFilterParam";
 import {
+	type ChatFilterState,
+	DEFAULT_FILTER_STATE,
+} from "./components/Sidebar/FilterDropdown";
+import {
 	archiveChatAndDeleteWorkspace,
 	resolveArchiveAndDeleteAction,
 	shouldNavigateAfterArchive,
@@ -70,6 +74,8 @@ const AgentsPage: FC = () => {
 	const isAgentsAdmin = permissions.editDeploymentConfig;
 
 	const [archivedFilter, setArchivedFilter] = useArchivedFilterParam();
+	const [filterState, setFilterState] =
+		useState<ChatFilterState>(DEFAULT_FILTER_STATE);
 
 	// The global CSS sets scrollbar-gutter: stable on <html> to prevent
 	// layout shift on pages that toggle scrollbars. The agents page
@@ -669,6 +675,8 @@ const AgentsPage: FC = () => {
 				isFetchingNextPage={chatsQuery.isFetchingNextPage}
 				archivedFilter={archivedFilter}
 				onArchivedFilterChange={setArchivedFilter}
+				filterState={filterState}
+				onFilterChange={setFilterState}
 			/>
 			<ConfirmDialog
 				open={pendingArchiveChatId !== null}

@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
 import { type ComponentProps, useState } from "react";
 import { Navigate, useOutletContext } from "react-router";
+import { DEFAULT_FILTER_STATE } from "./components/Sidebar/FilterDropdown";
 import {
 	expect,
 	fireEvent,
@@ -281,6 +282,8 @@ const defaultArgs: ComponentProps<typeof AgentsPageView> = {
 	isAgentsAdmin: false,
 	archivedFilter: "active",
 	onArchivedFilterChange: fn(),
+	filterState: DEFAULT_FILTER_STATE,
+	onFilterChange: fn(),
 	hasNextPage: false,
 	onLoadMore: fn(),
 	isFetchingNextPage: false,

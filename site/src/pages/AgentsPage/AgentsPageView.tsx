@@ -3,6 +3,7 @@ import { Outlet, useLocation } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
+import type { ChatFilterState } from "./components/Sidebar/FilterDropdown";
 import type { ModelSelectorOption } from "./components/ChatElements";
 import {
 	AgentsSidebar,
@@ -75,6 +76,8 @@ interface AgentsPageViewProps {
 	isFetchingNextPage: boolean;
 	archivedFilter: "active" | "archived";
 	onArchivedFilterChange: (filter: "active" | "archived") => void;
+	filterState: ChatFilterState;
+	onFilterChange: (state: ChatFilterState) => void;
 }
 
 export const AgentsPageView: FC<AgentsPageViewProps> = ({
@@ -113,6 +116,8 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	isFetchingNextPage,
 	archivedFilter,
 	onArchivedFilterChange,
+	filterState,
+	onFilterChange,
 }) => {
 	const location = useLocation();
 	const sidebarView = sidebarViewFromPath(location.pathname);
@@ -199,6 +204,8 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					isFetchingNextPage={isFetchingNextPage}
 					archivedFilter={archivedFilter}
 					onArchivedFilterChange={onArchivedFilterChange}
+					filterState={filterState}
+					onFilterChange={onFilterChange}
 					onCollapse={onCollapseSidebar}
 					isPersonalModelOverridesEnabled={isPersonalModelOverridesEnabled}
 					isAdmin={isAgentsAdmin}

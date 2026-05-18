@@ -108,6 +108,7 @@ import { asNonEmptyString } from "../ChatConversation/blockUtils";
 import type { ModelSelectorOption } from "../ChatElements";
 import { asString } from "../ChatElements/runtimeTypeUtils";
 import { UsageIndicator } from "../UsageIndicator";
+import type { ChatFilterState } from "./FilterDropdown";
 import { FilterDropdown } from "./FilterDropdown";
 import { RenameChatDialog } from "./RenameChatDialog";
 
@@ -185,6 +186,8 @@ interface AgentsSidebarProps {
 	isFetchingNextPage?: boolean;
 	archivedFilter: "active" | "archived";
 	onArchivedFilterChange?: (filter: "active" | "archived") => void;
+	filterState: ChatFilterState;
+	onFilterChange?: (state: ChatFilterState) => void;
 	onCollapse?: () => void;
 	isPersonalModelOverridesEnabled?: boolean;
 	isAdmin?: boolean;
@@ -938,6 +941,8 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		isFetchingNextPage,
 		archivedFilter,
 		onArchivedFilterChange,
+		filterState,
+		onFilterChange,
 		onCollapse,
 		isPersonalModelOverridesEnabled = false,
 		isAdmin = false,
@@ -1261,8 +1266,8 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 												<div className="pb-2">
 													<div className="mb-2 flex h-5 justify-end pr-1.5">
 														<FilterDropdown
-															archivedFilter={archivedFilter}
-															onArchivedFilterChange={onArchivedFilterChange}
+															filterState={filterState}
+															onFilterChange={onFilterChange}
 														/>
 													</div>
 													{/* ── Pinned section ── */}
