@@ -866,7 +866,7 @@ endif
 build/vale-$(VALE_VERSION):
 	mkdir -p build/
 	curl -sSfL "https://github.com/errata-ai/vale/releases/download/v$(VALE_VERSION)/vale_$(VALE_VERSION)_$(VALE_OS)_$(VALE_ARCH).tar.gz" \
-		| tar -xzf - -C build/ ./vale
+		| tar -xzf - -C build/ vale
 	mv build/vale "$@"
 
 # `vale sync` pulls the packages listed in .vale.ini's Packages directive
