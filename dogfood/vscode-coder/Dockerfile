@@ -10,9 +10,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # gh CLI from releases (apt repo is unreliable, see cli/cli#6175).
-RUN GH_CLI_VERSION=$(curl -s "https://api.github.com/repos/cli/cli/releases/latest" \
+RUN set -o pipefail && \
+    GH_CLI_VERSION=$(curl --silent --show-error --fail --retry 5 --retry-all-errors --retry-delay 2 \
+    "https://api.github.com/repos/cli/cli/releases/latest" \
     | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/') && \
-    curl -L "https://github.com/cli/cli/releases/download/v${GH_CLI_VERSION}/gh_${GH_CLI_VERSION}_linux_amd64.deb" -o /tmp/gh.deb && \
+    test -n "${GH_CLI_VERSION}" && \
+    curl --silent --show-error --fail --location --retry 5 --retry-all-errors --retry-delay 2 \
+    --output /tmp/gh.deb \
+    "https://github.com/cli/cli/releases/download/v${GH_CLI_VERSION}/gh_${GH_CLI_VERSION}_linux_amd64.deb" && \
     dpkg -i /tmp/gh.deb && rm /tmp/gh.deb
 
 # pnpm version is controlled by the project's packageManager field.

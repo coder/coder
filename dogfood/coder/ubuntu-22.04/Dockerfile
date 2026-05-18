@@ -111,7 +111,9 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/u
 # by dogfood/coder/files/etc/apt/apt.conf.d/99-chrome-flags.
 COPY dogfood/coder/ubuntu-22.04/configure-chrome-flags.sh /usr/local/bin/configure-chrome-flags.sh
 RUN chmod a+x /usr/local/bin/configure-chrome-flags.sh && \
-	wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
+	curl --silent --show-error --fail --location --retry 5 --retry-all-errors --retry-delay 2 \
+		--output google-chrome-stable_current_amd64.deb \
+		https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
 	apt-get install --yes ./google-chrome-stable_current_amd64.deb && \
 	rm google-chrome-stable_current_amd64.deb
 
@@ -119,21 +121,35 @@ RUN chmod a+x /usr/local/bin/configure-chrome-flags.sh && \
 # toolchain.
 ENV RUSTUP_HOME=/usr/local/rustup \
 	CARGO_HOME=/usr/local/cargo
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
+RUN set -o pipefail && \
+	curl --proto '=https' --tlsv1.2 --silent --show-error --fail --location \
+		--retry 5 --retry-all-errors --retry-delay 2 https://sh.rustup.rs | \
 	sh -s -- -y --default-toolchain stable --profile default -c rust-src
 ENV PATH=$CARGO_HOME/bin:$PATH
 
 # Install the docker buildx component.
-RUN DOCKER_BUILDX_VERSION=$(curl -s "https://api.github.com/repos/docker/buildx/releases/latest" | grep '"tag_name":' |  sed -E 's/.*"(v[^"]+)".*/\1/') && \
+# pipefail surfaces a curl failure in the version probe instead of letting
+# the empty $DOCKER_BUILDX_VERSION poison the download URL.
+RUN set -o pipefail && \
+	DOCKER_BUILDX_VERSION=$(curl --silent --show-error --fail --retry 5 --retry-all-errors --retry-delay 2 \
+		"https://api.github.com/repos/docker/buildx/releases/latest" | grep '"tag_name":' | sed -E 's/.*"(v[^"]+)".*/\1/') && \
+	test -n "${DOCKER_BUILDX_VERSION}" && \
 	mkdir -p /usr/local/lib/docker/cli-plugins && \
-	curl -Lo /usr/local/lib/docker/cli-plugins/docker-buildx "https://github.com/docker/buildx/releases/download/${DOCKER_BUILDX_VERSION}/buildx-${DOCKER_BUILDX_VERSION}.linux-amd64" && \
+	curl --silent --show-error --fail --location --retry 5 --retry-all-errors --retry-delay 2 \
+		--output /usr/local/lib/docker/cli-plugins/docker-buildx \
+		"https://github.com/docker/buildx/releases/download/${DOCKER_BUILDX_VERSION}/buildx-${DOCKER_BUILDX_VERSION}.linux-amd64" && \
 	chmod a+x /usr/local/lib/docker/cli-plugins/docker-buildx
 
 # GitHub CLI to /usr/bin/gh. The wrapper at files/usr/local/bin/gh
 # execs this for coder external-auth fallback. Apt repo is unreliable:
 # https://github.com/cli/cli/issues/6175#issuecomment-1235984381
-RUN GH_CLI_VERSION=$(curl -s "https://api.github.com/repos/cli/cli/releases/latest" | grep '"tag_name":' |  sed -E 's/.*"v([^"]+)".*/\1/') && \
-	curl -L https://github.com/cli/cli/releases/download/v${GH_CLI_VERSION}/gh_${GH_CLI_VERSION}_linux_amd64.deb -o gh.deb && \
+RUN set -o pipefail && \
+	GH_CLI_VERSION=$(curl --silent --show-error --fail --retry 5 --retry-all-errors --retry-delay 2 \
+		"https://api.github.com/repos/cli/cli/releases/latest" | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/') && \
+	test -n "${GH_CLI_VERSION}" && \
+	curl --silent --show-error --fail --location --retry 5 --retry-all-errors --retry-delay 2 \
+		--output gh.deb \
+		"https://github.com/cli/cli/releases/download/v${GH_CLI_VERSION}/gh_${GH_CLI_VERSION}_linux_amd64.deb" && \
 	dpkg -i gh.deb && \
 	rm gh.deb
 
@@ -173,7 +189,7 @@ ARG MISE_VERSION=v2026.4.19 \
 	MISE_SHA256=6b58ff5f1e1ce98ed2b7e5372c344ea48182c460e5b6df12d9e0def35aad4438 \
 	MISE_INSTALL_DIR=/opt/mise/bin
 RUN install --directory --owner=coder --group=coder --mode=0755 "${MISE_INSTALL_DIR}" && \
-	curl --silent --show-error --location --fail \
+	curl --silent --show-error --fail --location --retry 5 --retry-all-errors --retry-delay 2 \
 		"https://github.com/jdx/mise/releases/download/${MISE_VERSION}/mise-${MISE_VERSION}-linux-x64" \
 		--output "${MISE_INSTALL_DIR}/mise" && \
 	echo "${MISE_SHA256}  ${MISE_INSTALL_DIR}/mise" | sha256sum -c && \
@@ -225,7 +241,7 @@ RUN --mount=type=secret,id=github_token,required=false \
 
 # Install Homebrew as the coder user so the supported Linux prefix remains
 # writable after the image build.
-RUN sudo --login --user=coder env NONINTERACTIVE=1 CI=1 /bin/bash -lc 'set -euo pipefail && curl --silent --show-error --location --fail https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh | /bin/bash' && \
+RUN sudo --login --user=coder env NONINTERACTIVE=1 CI=1 /bin/bash -lc 'set -euo pipefail && curl --silent --show-error --fail --location --retry 5 --retry-all-errors --retry-delay 2 https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh | /bin/bash' && \
 	test -x /home/linuxbrew/.linuxbrew/bin/brew && \
 	sudo --login --user=coder /bin/bash -lc '/home/linuxbrew/.linuxbrew/bin/brew --version'
 
