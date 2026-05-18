@@ -99,7 +99,7 @@ export const ExecuteError: Story = {
 		expect(canvas.getByRole("img", { name: "Command failed" })).toBeVisible();
 		expect(canvas.queryByText("exit 1")).not.toBeInTheDocument();
 		await userEvent.click(
-			canvas.getByRole("button", { name: "Expand command output" }),
+			canvas.getByRole("button", { name: "Expand command" }),
 		);
 		await waitFor(() => {
 			expect(canvas.getByText(/error line 1/)).toBeVisible();
@@ -144,13 +144,16 @@ export const ExecuteAlwaysCollapsed: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText(executeCommand)).toBeVisible();
+		const commandButton = canvas.getByRole("button", {
+			name: "Expand command",
+		});
+		expect(commandButton).toHaveTextContent(`Ran ${executeCommand}`);
 		expect(canvas.queryByText("exit 0")).not.toBeInTheDocument();
 		expect(canvas.queryByText("2 lines")).not.toBeInTheDocument();
 		expect(
 			canvas.queryByText(/From github\.com:coder\/coder/),
 		).not.toBeInTheDocument();
-		await userEvent.click(canvas.getByText(executeCommand));
+		await userEvent.click(commandButton);
 		await waitFor(() => {
 			expect(canvas.getByText(/From github\.com:coder\/coder/)).toBeVisible();
 		});
@@ -174,11 +177,11 @@ export const ExecuteLongCommandCollapsed: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const command = canvas.getByText(longExecuteCommand);
-		expect(command).toBeVisible();
-		expect(
-			canvas.queryByRole("button", { name: longExecuteCommand }),
-		).not.toBeInTheDocument();
+		const commandButton = canvas.getByRole("button", {
+			name: "Expand command",
+		});
+		expect(commandButton).toHaveTextContent(`Ran ${longExecuteCommand}`);
+		expect(commandButton).toHaveAttribute("aria-expanded", "false");
 		expect(canvas.queryByText("exit 0")).not.toBeInTheDocument();
 		expect(canvas.getByText("47.2s")).toBeVisible();
 		expect(canvas.queryByText("61 lines")).not.toBeInTheDocument();

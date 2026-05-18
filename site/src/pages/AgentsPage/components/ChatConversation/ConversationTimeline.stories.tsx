@@ -2031,14 +2031,13 @@ export const ToolDisplayModesFromPreferences: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText("pnpm test")).toBeVisible();
+		const commandOutputButton = canvas.getByRole("button", {
+			name: "Expand command",
+		});
+		expect(commandOutputButton).toHaveTextContent("Ran pnpm test");
 		expect(canvas.queryByText("tests passed")).not.toBeInTheDocument();
 		expect(canvas.getByText(/Edited config\.ts/)).toBeVisible();
 		expect(canvas.queryAllByTestId("edit-file-diff")).toHaveLength(0);
-
-		const commandOutputButton = canvas.getByRole("button", {
-			name: "Expand command output",
-		});
 		expect(commandOutputButton).toHaveAttribute("aria-expanded", "false");
 		await userEvent.click(commandOutputButton);
 		await waitFor(() => {
