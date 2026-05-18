@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -318,11 +319,16 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 			return errBedrockRejectsAPIKeys
 		}
 
+		displayName := old.DisplayName
+		if req.DisplayName != nil {
+			// Empty string clears the column.
+			displayName = sql.NullString{String: *req.DisplayName, Valid: *req.DisplayName != ""}
+		}
 		params := database.UpdateAIProviderParams{
 			ID:          old.ID,
-			DisplayName: nullStrDeref(req.DisplayName, old.DisplayName),
-			Enabled:     boolDeref(req.Enabled, old.Enabled),
-			BaseUrl:     strDeref(req.BaseURL, old.BaseUrl),
+			DisplayName: displayName,
+			Enabled:     ptr.NilToDefault(req.Enabled, old.Enabled),
+			BaseUrl:     ptr.NilToDefault(req.BaseURL, old.BaseUrl),
 			Settings:    settings,
 			// SettingsKeyID is set by the dbcrypt wrapper.
 			SettingsKeyID: sql.NullString{},
@@ -554,28 +560,4 @@ func mergeAIProviderSettings(existing, patch codersdk.AIProviderSettings) coders
 		}
 	}
 	return codersdk.AIProviderSettings{Bedrock: &merged}
-}
-
-func strDeref(p *string, fallback string) string {
-	if p == nil {
-		return fallback
-	}
-	return *p
-}
-
-// nullStrDeref returns fallback unchanged when p is nil; otherwise it
-// returns a sql.NullString built from *p, treating an empty string as
-// SQL NULL so callers can clear the column by sending "".
-func nullStrDeref(p *string, fallback sql.NullString) sql.NullString {
-	if p == nil {
-		return fallback
-	}
-	return sql.NullString{String: *p, Valid: *p != ""}
-}
-
-func boolDeref(p *bool, fallback bool) bool {
-	if p == nil {
-		return fallback
-	}
-	return *p
 }
