@@ -568,7 +568,7 @@ func Chats(query string) (database.GetChatsParams, []codersdk.ValidationError) {
 	// (e.g. diff_url) may include URL path segments where case is
 	// meaningful.
 	values, errors := searchTerms(query, func(term string, _ url.Values) error {
-		return fmt.Errorf("Query element %q is not a valid key:value pair", term)
+		return xerrors.Errorf("Query element %q is not a valid key:value pair", term)
 	})
 	if len(errors) > 0 {
 		return filter, errors
