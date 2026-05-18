@@ -890,6 +890,26 @@ func TestPostChats_ClientType(t *testing.T) {
 func TestListChats(t *testing.T) {
 	t.Parallel()
 
+	sortedChatIDs := func(ids []uuid.UUID) []uuid.UUID {
+		out := append([]uuid.UUID(nil), ids...)
+		slices.SortFunc(out, func(a, b uuid.UUID) int {
+			return strings.Compare(a.String(), b.String())
+		})
+		return out
+	}
+	requireRootIDs := func(t *testing.T, chats []codersdk.Chat, want ...uuid.UUID) []uuid.UUID {
+		t.Helper()
+
+		got := make([]uuid.UUID, 0, len(chats))
+		for _, chat := range chats {
+			require.Nil(t, chat.ParentChatID, "list should only return root chats")
+			got = append(got, chat.ID)
+		}
+
+		require.Equal(t, sortedChatIDs(want), sortedChatIDs(got))
+		return got
+	}
+
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
 
@@ -1685,6 +1705,232 @@ func TestListChats(t *testing.T) {
 				require.Equal(t, tt.wantIDs, gotIDs)
 			})
 		}
+	})
+
+
+	t.Run("PRStatusFilter", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		create := func(title, prURL, prState string, prDraft bool, parentID uuid.NullUUID) database.Chat {
+			t.Helper()
+
+			rootID := parentID
+			chat := dbgen.Chat(t, db, database.Chat{
+				OrganizationID:    user.OrganizationID,
+				OwnerID:           user.UserID,
+				LastModelConfigID: modelConfig.ID,
+				Title:             title,
+				Status:            database.ChatStatusCompleted,
+				ParentChatID:      parentID,
+				RootChatID:        rootID,
+			})
+			if prState != "" {
+				refreshedAt := time.Now().UTC().Truncate(time.Second)
+				staleAt := refreshedAt.Add(time.Hour)
+				_, err := db.UpsertChatDiffStatusReference(
+					dbauthz.AsSystemRestricted(ctx),
+					database.UpsertChatDiffStatusReferenceParams{
+						ChatID:          chat.ID,
+						Url:             sql.NullString{String: prURL, Valid: prURL != ""},
+						GitBranch:       "feature/test",
+						GitRemoteOrigin: "git@github.com:coder/coder.git",
+						StaleAt:         staleAt,
+					},
+				)
+				require.NoError(t, err)
+				_, err = db.UpsertChatDiffStatus(
+					dbauthz.AsSystemRestricted(ctx),
+					database.UpsertChatDiffStatusParams{
+						ChatID:           chat.ID,
+						Url:              sql.NullString{String: prURL, Valid: prURL != ""},
+						PullRequestState: sql.NullString{String: prState, Valid: true},
+						PullRequestDraft: prDraft,
+						RefreshedAt:      refreshedAt,
+						StaleAt:          staleAt,
+					},
+				)
+				require.NoError(t, err)
+			}
+			return chat
+		}
+
+		rootDraftPR := create("root draft pr", "https://github.com/coder/coder/pull/201", "open", true, uuid.NullUUID{})
+		rootOpenPR := create("root open pr", "https://github.com/coder/coder/pull/202", "open", false, uuid.NullUUID{})
+		rootMergedPR := create("root merged pr", "https://github.com/coder/coder/pull/203", "merged", false, uuid.NullUUID{})
+		rootClosedPR := create("root closed pr", "https://github.com/coder/coder/pull/204", "closed", false, uuid.NullUUID{})
+		rootWithoutPR := create("root without pr", "", "", false, uuid.NullUUID{})
+		_ = create(
+			"child draft pr",
+			"https://github.com/coder/coder/pull/205",
+			"open",
+			true,
+			uuid.NullUUID{UUID: rootWithoutPR.ID, Valid: true},
+		)
+		archivedDraftPR := create("archived draft pr", "https://github.com/coder/coder/pull/206", "open", true, uuid.NullUUID{})
+		require.NoError(t, client.UpdateChat(ctx, archivedDraftPR.ID, codersdk.UpdateChatRequest{
+			Archived: ptr.Ref(true),
+		}))
+
+		t.Run("MatchesDraft", func(t *testing.T) {
+			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "pr_status:draft"})
+			require.NoError(t, err)
+			requireRootIDs(t, chats, rootDraftPR.ID)
+		})
+
+		t.Run("MatchesOpen", func(t *testing.T) {
+			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "pr_status:open"})
+			require.NoError(t, err)
+			requireRootIDs(t, chats, rootOpenPR.ID)
+		})
+
+		t.Run("MatchesMerged", func(t *testing.T) {
+			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "pr_status:merged"})
+			require.NoError(t, err)
+			requireRootIDs(t, chats, rootMergedPR.ID)
+		})
+
+		t.Run("MatchesClosed", func(t *testing.T) {
+			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "pr_status:closed"})
+			require.NoError(t, err)
+			requireRootIDs(t, chats, rootClosedPR.ID)
+		})
+
+		t.Run("MultipleStatusesAreUnion", func(t *testing.T) {
+			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "pr_status:draft,open"})
+			require.NoError(t, err)
+			requireRootIDs(t, chats, rootDraftPR.ID, rootOpenPR.ID)
+		})
+
+		t.Run("ChildMatchDoesNotSurfaceParent", func(t *testing.T) {
+			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "pr_status:draft"})
+			require.NoError(t, err)
+			got := requireRootIDs(t, chats, rootDraftPR.ID)
+			require.NotContains(t, got, rootWithoutPR.ID)
+		})
+
+		t.Run("ArchivedTrueComposes", func(t *testing.T) {
+			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "archived:true pr_status:draft"})
+			require.NoError(t, err)
+			requireRootIDs(t, chats, archivedDraftPR.ID)
+		})
+
+		t.Run("InvalidPRStatus", func(t *testing.T) {
+			_, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "pr_status:bogus"})
+			requireSDKError(t, err, http.StatusBadRequest)
+		})
+	})
+
+	t.Run("UnreadFilter", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		create := func(title string, parentID uuid.NullUUID) database.Chat {
+			t.Helper()
+
+			rootID := parentID
+			return dbgen.Chat(t, db, database.Chat{
+				OrganizationID:    user.OrganizationID,
+				OwnerID:           user.UserID,
+				LastModelConfigID: modelConfig.ID,
+				Title:             title,
+				Status:            database.ChatStatusCompleted,
+				ParentChatID:      parentID,
+				RootChatID:        rootID,
+			})
+		}
+		insertAssistantMessage := func(chatID uuid.UUID, text string) {
+			t.Helper()
+
+			_, err := db.InsertChatMessages(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessagesParams{
+				ChatID:              chatID,
+				CreatedBy:           []uuid.UUID{user.UserID},
+				ModelConfigID:       []uuid.UUID{modelConfig.ID},
+				Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
+				Content:             []string{fmt.Sprintf(`[{"type":"text","text":%q}]`, text)},
+				ContentVersion:      []int16{0},
+				Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+				InputTokens:         []int64{0},
+				OutputTokens:        []int64{0},
+				TotalTokens:         []int64{0},
+				ReasoningTokens:     []int64{0},
+				CacheCreationTokens: []int64{0},
+				CacheReadTokens:     []int64{0},
+				ContextLimit:        []int64{0},
+				Compressed:          []bool{false},
+				TotalCostMicros:     []int64{0},
+				RuntimeMs:           []int64{0},
+				ProviderResponseID:  []string{""},
+			})
+			require.NoError(t, err)
+		}
+		markRead := func(chatID uuid.UUID) {
+			t.Helper()
+
+			lastMsg, err := db.GetLastChatMessageByRole(dbauthz.AsSystemRestricted(ctx), database.GetLastChatMessageByRoleParams{
+				ChatID: chatID,
+				Role:   database.ChatMessageRoleAssistant,
+			})
+			require.NoError(t, err)
+			err = db.UpdateChatLastReadMessageID(dbauthz.AsSystemRestricted(ctx), database.UpdateChatLastReadMessageIDParams{
+				ID:                chatID,
+				LastReadMessageID: lastMsg.ID,
+			})
+			require.NoError(t, err)
+		}
+
+		rootUnread := create("root unread", uuid.NullUUID{})
+		insertAssistantMessage(rootUnread.ID, "root unread")
+		rootRead := create("root read", uuid.NullUUID{})
+		insertAssistantMessage(rootRead.ID, "root read")
+		markRead(rootRead.ID)
+		rootChildUnreadOnly := create("root child unread only", uuid.NullUUID{})
+		childUnreadOnly := create("child unread only", uuid.NullUUID{UUID: rootChildUnreadOnly.ID, Valid: true})
+		insertAssistantMessage(childUnreadOnly.ID, "child unread only")
+		archivedUnread := create("archived unread", uuid.NullUUID{})
+		insertAssistantMessage(archivedUnread.ID, "archived unread")
+		require.NoError(t, client.UpdateChat(ctx, archivedUnread.ID, codersdk.UpdateChatRequest{
+			Archived: ptr.Ref(true),
+		}))
+
+		t.Run("MatchesRootUnread", func(t *testing.T) {
+			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "chat_status:unread"})
+			require.NoError(t, err)
+			requireRootIDs(t, chats, rootUnread.ID)
+		})
+
+		t.Run("ReadRootExcluded", func(t *testing.T) {
+			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "chat_status:unread"})
+			require.NoError(t, err)
+			got := requireRootIDs(t, chats, rootUnread.ID)
+			require.NotContains(t, got, rootRead.ID)
+		})
+
+		t.Run("ChildUnreadDoesNotSurfaceParent", func(t *testing.T) {
+			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "chat_status:unread"})
+			require.NoError(t, err)
+			got := requireRootIDs(t, chats, rootUnread.ID)
+			require.NotContains(t, got, rootChildUnreadOnly.ID)
+		})
+
+		t.Run("ArchivedTrueComposes", func(t *testing.T) {
+			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "archived:true chat_status:unread"})
+			require.NoError(t, err)
+			requireRootIDs(t, chats, archivedUnread.ID)
+		})
+
+		t.Run("InvalidChatStatus", func(t *testing.T) {
+			_, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "chat_status:bogus"})
+			requireSDKError(t, err, http.StatusBadRequest)
+		})
 	})
 }
 

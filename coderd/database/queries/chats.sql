@@ -509,6 +509,33 @@ WHERE
         WHEN @title_query :: text != '' THEN chats_expanded.title ILIKE '%' || @title_query || '%'
         ELSE true
     END
+    AND CASE
+        WHEN sqlc.narg('has_unread')::boolean IS NOT NULL THEN (
+            EXISTS (
+                SELECT 1 FROM chat_messages cm
+                WHERE cm.chat_id = chats_expanded.id
+                    AND cm.role = 'assistant'
+                    AND cm.deleted = false
+                    AND cm.id > COALESCE(chats_expanded.last_read_message_id, 0)
+            )
+        ) = sqlc.narg('has_unread')::boolean
+        ELSE true
+    END
+    AND CASE
+        WHEN COALESCE(array_length(@pull_request_statuses::text[], 1), 0) > 0 THEN EXISTS (
+            SELECT 1
+            FROM chat_diff_statuses cds
+            WHERE cds.chat_id = chats_expanded.id
+                AND (
+                    CASE
+                        WHEN cds.pull_request_state = 'open' AND cds.pull_request_draft THEN 'draft'
+                        WHEN cds.pull_request_state = 'open' THEN 'open'
+                        ELSE cds.pull_request_state
+                    END
+                ) = ANY(@pull_request_statuses::text[])
+        )
+        ELSE true
+    END
     -- Paginate over root chats only. Children are fetched
     -- separately via GetChildChatsByParentIDs and embedded under
     -- each parent. Other callers that need the full set should

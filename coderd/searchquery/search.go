@@ -544,7 +544,11 @@ func Tasks(ctx context.Context, db database.Store, query string, actorID uuid.UU
 //
 // Supported query parameters:
 //   - (bare terms): case-insensitive title substring match via ILIKE
-//   - archived: boolean (default: false, excludes archived chats unless explicitly set)
+//   - archived: boolean (default: false, excludes archived chats unless
+//     explicitly set)
+//   - chat_status: string (currently only unread)
+//   - pr_status: repeated or comma-separated list of draft, open,
+//     merged, closed
 //   - diff_url: string (matches chats whose linked diff URL equals the
 //     given value, case-insensitively; URLs typically contain ':' so
 //     they must be quoted, e.g. q=diff_url:"https://github.com/o/r/pull/1")
@@ -572,6 +576,26 @@ func Chats(query string) (database.GetChatsParams, []codersdk.ValidationError) {
 
 	parser := httpapi.NewQueryParamParser()
 	filter.Archived = parser.NullableBoolean(values, filter.Archived, "archived")
+	if chatStatus := parser.String(values, "", "chat_status"); chatStatus != "" {
+		normalizedChatStatus := strings.ToLower(strings.TrimSpace(chatStatus))
+		if normalizedChatStatus != "unread" {
+			parser.Errors = append(parser.Errors, codersdk.ValidationError{
+				Field:  "chat_status",
+				Detail: fmt.Sprintf("Query param %q has invalid value: %q is not a valid value", "chat_status", chatStatus),
+			})
+		} else {
+			filter.HasUnread = sql.NullBool{Bool: true, Valid: true}
+		}
+	}
+	filter.PullRequestStatuses = httpapi.ParseCustomList(parser, values, nil, "pr_status", func(v string) (string, error) {
+		normalizedPRStatus := strings.ToLower(strings.TrimSpace(v))
+		switch normalizedPRStatus {
+		case "draft", "open", "merged", "closed":
+			return normalizedPRStatus, nil
+		default:
+			return "", xerrors.Errorf("%q is not a valid value", v)
+		}
+	})
 	if diffURL := parser.String(values, "", "diff_url"); diffURL != "" {
 		if err := validateDiffURL(diffURL); err != nil {
 			parser.Errors = append(parser.Errors, codersdk.ValidationError{

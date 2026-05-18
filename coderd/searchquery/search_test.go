@@ -1258,6 +1258,96 @@ func TestSearchChats(t *testing.T) {
 			},
 		},
 		{
+			Name:  "ChatStatusUnread",
+			Query: "chat_status:unread",
+			Expected: database.GetChatsParams{
+				Archived:  sql.NullBool{Bool: false, Valid: true},
+				HasUnread: sql.NullBool{Bool: true, Valid: true},
+			},
+		},
+		{
+			Name:  "ChatStatusUnreadCaseInsensitive",
+			Query: "chat_status:UNREAD",
+			Expected: database.GetChatsParams{
+				Archived:  sql.NullBool{Bool: false, Valid: true},
+				HasUnread: sql.NullBool{Bool: true, Valid: true},
+			},
+		},
+		{
+			Name:                  "ChatStatusInvalid",
+			Query:                 "chat_status:read",
+			ExpectedErrorContains: "chat_status",
+		},
+		{
+			Name:  "PRStatusDraft",
+			Query: "pr_status:draft",
+			Expected: database.GetChatsParams{
+				Archived:            sql.NullBool{Bool: false, Valid: true},
+				PullRequestStatuses: []string{"draft"},
+			},
+		},
+		{
+			Name:  "PRStatusOpen",
+			Query: "pr_status:open",
+			Expected: database.GetChatsParams{
+				Archived:            sql.NullBool{Bool: false, Valid: true},
+				PullRequestStatuses: []string{"open"},
+			},
+		},
+		{
+			Name:  "PRStatusMerged",
+			Query: "pr_status:merged",
+			Expected: database.GetChatsParams{
+				Archived:            sql.NullBool{Bool: false, Valid: true},
+				PullRequestStatuses: []string{"merged"},
+			},
+		},
+		{
+			Name:  "PRStatusClosed",
+			Query: "pr_status:closed",
+			Expected: database.GetChatsParams{
+				Archived:            sql.NullBool{Bool: false, Valid: true},
+				PullRequestStatuses: []string{"closed"},
+			},
+		},
+		{
+			Name:  "PRStatusMultipleRepeated",
+			Query: "pr_status:draft pr_status:merged",
+			Expected: database.GetChatsParams{
+				Archived:            sql.NullBool{Bool: false, Valid: true},
+				PullRequestStatuses: []string{"draft", "merged"},
+			},
+		},
+		{
+			Name:  "PRStatusMultipleCSV",
+			Query: "pr_status:draft,closed",
+			Expected: database.GetChatsParams{
+				Archived:            sql.NullBool{Bool: false, Valid: true},
+				PullRequestStatuses: []string{"draft", "closed"},
+			},
+		},
+		{
+			Name:  "PRStatusValueCaseInsensitive",
+			Query: "pr_status:DRAFT",
+			Expected: database.GetChatsParams{
+				Archived:            sql.NullBool{Bool: false, Valid: true},
+				PullRequestStatuses: []string{"draft"},
+			},
+		},
+		{
+			Name:                  "PRStatusInvalid",
+			Query:                 "pr_status:review",
+			ExpectedErrorContains: "pr_status",
+		},
+		{
+			Name:  "PRStatusWithArchived",
+			Query: "archived:true pr_status:open",
+			Expected: database.GetChatsParams{
+				Archived:            sql.NullBool{Bool: true, Valid: true},
+				PullRequestStatuses: []string{"open"},
+			},
+		},
+		{
 			Name:                  "ExtraParam",
 			Query:                 "archived:true invalid:param",
 			ExpectedErrorContains: "is not a valid query param",

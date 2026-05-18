@@ -7766,6 +7766,33 @@ WHERE
         WHEN $6 :: text != '' THEN chats_expanded.title ILIKE '%' || $6 || '%'
         ELSE true
     END
+    AND CASE
+        WHEN $7::boolean IS NOT NULL THEN (
+            EXISTS (
+                SELECT 1 FROM chat_messages cm
+                WHERE cm.chat_id = chats_expanded.id
+                    AND cm.role = 'assistant'
+                    AND cm.deleted = false
+                    AND cm.id > COALESCE(chats_expanded.last_read_message_id, 0)
+            )
+        ) = $7::boolean
+        ELSE true
+    END
+    AND CASE
+        WHEN COALESCE(array_length($8::text[], 1), 0) > 0 THEN EXISTS (
+            SELECT 1
+            FROM chat_diff_statuses cds
+            WHERE cds.chat_id = chats_expanded.id
+                AND (
+                    CASE
+                        WHEN cds.pull_request_state = 'open' AND cds.pull_request_draft THEN 'draft'
+                        WHEN cds.pull_request_state = 'open' THEN 'open'
+                        ELSE cds.pull_request_state
+                    END
+                ) = ANY($8::text[])
+        )
+        ELSE true
+    END
     -- Paginate over root chats only. Children are fetched
     -- separately via GetChildChatsByParentIDs and embedded under
     -- each parent. Other callers that need the full set should
@@ -7782,22 +7809,24 @@ ORDER BY
     -chats_expanded.pin_order DESC,
     chats_expanded.updated_at DESC,
     chats_expanded.id DESC
-OFFSET $7
+OFFSET $9
 LIMIT
     -- The chat list is unbounded and expected to grow large.
     -- Default to 50 to prevent accidental excessively large queries.
-    COALESCE(NULLIF($8 :: int, 0), 50)
+    COALESCE(NULLIF($10 :: int, 0), 50)
 `
 
 type GetChatsParams struct {
-	OwnerID     uuid.UUID             `db:"owner_id" json:"owner_id"`
-	Archived    sql.NullBool          `db:"archived" json:"archived"`
-	AfterID     uuid.UUID             `db:"after_id" json:"after_id"`
-	LabelFilter pqtype.NullRawMessage `db:"label_filter" json:"label_filter"`
-	DiffURL     sql.NullString        `db:"diff_url" json:"diff_url"`
-	TitleQuery  string                `db:"title_query" json:"title_query"`
-	OffsetOpt   int32                 `db:"offset_opt" json:"offset_opt"`
-	LimitOpt    int32                 `db:"limit_opt" json:"limit_opt"`
+	OwnerID             uuid.UUID             `db:"owner_id" json:"owner_id"`
+	Archived            sql.NullBool          `db:"archived" json:"archived"`
+	AfterID             uuid.UUID             `db:"after_id" json:"after_id"`
+	LabelFilter         pqtype.NullRawMessage `db:"label_filter" json:"label_filter"`
+	DiffURL             sql.NullString        `db:"diff_url" json:"diff_url"`
+	TitleQuery          string                `db:"title_query" json:"title_query"`
+	HasUnread           sql.NullBool          `db:"has_unread" json:"has_unread"`
+	PullRequestStatuses []string              `db:"pull_request_statuses" json:"pull_request_statuses"`
+	OffsetOpt           int32                 `db:"offset_opt" json:"offset_opt"`
+	LimitOpt            int32                 `db:"limit_opt" json:"limit_opt"`
 }
 
 type GetChatsRow struct {
@@ -7813,6 +7842,8 @@ func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]GetCha
 		arg.LabelFilter,
 		arg.DiffURL,
 		arg.TitleQuery,
+		arg.HasUnread,
+		pq.Array(arg.PullRequestStatuses),
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)

@@ -13643,6 +13643,271 @@ func TestDeleteChatDebugDataByChatIDStartedBeforeFiltersNewerRuns(t *testing.T) 
 	require.Equal(t, newRun.ID, remaining.ID)
 }
 
+func TestGetChatsFilterByPRStatus(t *testing.T) {
+	t.Parallel()
+
+	store, _ := dbtestutil.NewDB(t)
+	ctx := context.Background()
+
+	org := dbgen.Organization(t, store, database.Organization{})
+	user := dbgen.User(t, store, database.User{})
+	dbgen.OrganizationMember(t, store, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+
+	_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:             "openai",
+		DisplayName:          "OpenAI",
+		APIKey:               "test-key",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
+	})
+	require.NoError(t, err)
+
+	modelCfg, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             "openai",
+		Model:                "test-model-" + uuid.NewString(),
+		DisplayName:          "Test Model",
+		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:              true,
+		IsDefault:            true,
+		ContextLimit:         128000,
+		CompressionThreshold: 80,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	createChat := func(title string, parentChatID, rootChatID uuid.NullUUID) database.Chat {
+		t.Helper()
+
+		chat, err := store.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
+			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
+			OwnerID:           user.ID,
+			LastModelConfigID: modelCfg.ID,
+			Title:             title,
+			ParentChatID:      parentChatID,
+			RootChatID:        rootChatID,
+		})
+		require.NoError(t, err)
+		return chat
+	}
+
+	createRoot := func(title string) database.Chat {
+		t.Helper()
+		return createChat(title, uuid.NullUUID{}, uuid.NullUUID{})
+	}
+
+	createChild := func(root database.Chat, title string) database.Chat {
+		t.Helper()
+		return createChat(
+			title,
+			uuid.NullUUID{UUID: root.ID, Valid: true},
+			uuid.NullUUID{UUID: root.ID, Valid: true},
+		)
+	}
+
+	linkPR := func(chatID uuid.UUID, url, state string, draft bool) {
+		t.Helper()
+		now := time.Now()
+		_, err := store.UpsertChatDiffStatus(ctx, database.UpsertChatDiffStatusParams{
+			ChatID:           chatID,
+			Url:              sql.NullString{String: url, Valid: true},
+			PullRequestState: sql.NullString{String: state, Valid: true},
+			PullRequestTitle: "PR " + state,
+			PullRequestDraft: draft,
+			Additions:        1,
+			Deletions:        1,
+			ChangedFiles:     1,
+			RefreshedAt:      now,
+			StaleAt:          now.Add(time.Hour),
+		})
+		require.NoError(t, err)
+	}
+
+	getChatIDs := func(statuses ...string) []uuid.UUID {
+		t.Helper()
+		rows, err := store.GetChats(ctx, database.GetChatsParams{
+			OwnerID:             user.ID,
+			PullRequestStatuses: statuses,
+		})
+		require.NoError(t, err)
+
+		ids := make([]uuid.UUID, 0, len(rows))
+		for _, row := range rows {
+			ids = append(ids, row.Chat.ID)
+		}
+		return ids
+	}
+
+	draftRoot := createRoot("draft-root-" + uuid.NewString())
+	linkPR(draftRoot.ID, "https://github.com/coder/coder/pull/1001", "open", true)
+
+	openRoot := createRoot("open-root-" + uuid.NewString())
+	linkPR(openRoot.ID, "https://github.com/coder/coder/pull/1002", "open", false)
+
+	closedRoot := createRoot("closed-root-" + uuid.NewString())
+	linkPR(closedRoot.ID, "https://github.com/coder/coder/pull/1003", "closed", false)
+
+	childMatchRoot := createRoot("merged-root-" + uuid.NewString())
+	linkPR(childMatchRoot.ID, "https://github.com/coder/coder/pull/1004", "merged", false)
+
+	childDraft := createChild(childMatchRoot, "draft-child-"+uuid.NewString())
+	linkPR(childDraft.ID, "https://github.com/coder/coder/pull/1005", "open", true)
+
+	draftIDs := getChatIDs("draft")
+	require.ElementsMatch(t, []uuid.UUID{draftRoot.ID}, draftIDs)
+	require.NotContains(t, draftIDs, childMatchRoot.ID,
+		"matching child PRs must not surface a nonmatching root")
+
+	openIDs := getChatIDs("open")
+	require.ElementsMatch(t, []uuid.UUID{openRoot.ID}, openIDs)
+
+	draftClosedIDs := getChatIDs("draft", "closed")
+	require.ElementsMatch(t, []uuid.UUID{draftRoot.ID, closedRoot.ID}, draftClosedIDs)
+	require.NotContains(t, draftClosedIDs, childMatchRoot.ID,
+		"matching child PRs must not surface a nonmatching root")
+}
+
+func TestGetChatsFilterByUnread(t *testing.T) {
+	t.Parallel()
+
+	store, _ := dbtestutil.NewDB(t)
+	ctx := context.Background()
+
+	org := dbgen.Organization(t, store, database.Organization{})
+	user := dbgen.User(t, store, database.User{})
+	dbgen.OrganizationMember(t, store, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+
+	_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:             "openai",
+		DisplayName:          "OpenAI",
+		APIKey:               "test-key",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
+	})
+	require.NoError(t, err)
+
+	modelCfg, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             "openai",
+		Model:                "test-model-" + uuid.NewString(),
+		DisplayName:          "Test Model",
+		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:              true,
+		IsDefault:            true,
+		ContextLimit:         128000,
+		CompressionThreshold: 80,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	createChat := func(title string, parentChatID, rootChatID uuid.NullUUID) database.Chat {
+		t.Helper()
+
+		chat, err := store.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
+			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
+			OwnerID:           user.ID,
+			LastModelConfigID: modelCfg.ID,
+			Title:             title,
+			ParentChatID:      parentChatID,
+			RootChatID:        rootChatID,
+		})
+		require.NoError(t, err)
+		return chat
+	}
+
+	createRoot := func(title string) database.Chat {
+		t.Helper()
+		return createChat(title, uuid.NullUUID{}, uuid.NullUUID{})
+	}
+
+	createChild := func(root database.Chat, title string) database.Chat {
+		t.Helper()
+		return createChat(
+			title,
+			uuid.NullUUID{UUID: root.ID, Valid: true},
+			uuid.NullUUID{UUID: root.ID, Valid: true},
+		)
+	}
+
+	insertMsg := func(chatID uuid.UUID, role database.ChatMessageRole, text string) {
+		t.Helper()
+		_, err := store.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+			ChatID:              chatID,
+			CreatedBy:           []uuid.UUID{user.ID},
+			ModelConfigID:       []uuid.UUID{modelCfg.ID},
+			Role:                []database.ChatMessageRole{role},
+			Content:             []string{fmt.Sprintf(`[{"type":"text","text":%q}]`, text)},
+			ContentVersion:      []int16{0},
+			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+			InputTokens:         []int64{0},
+			OutputTokens:        []int64{0},
+			TotalTokens:         []int64{0},
+			ReasoningTokens:     []int64{0},
+			CacheCreationTokens: []int64{0},
+			CacheReadTokens:     []int64{0},
+			ContextLimit:        []int64{0},
+			Compressed:          []bool{false},
+			TotalCostMicros:     []int64{0},
+			RuntimeMs:           []int64{0},
+			ProviderResponseID:  []string{""},
+		})
+		require.NoError(t, err)
+	}
+
+	markLastAssistantRead := func(chatID uuid.UUID) {
+		t.Helper()
+		lastMsg, err := store.GetLastChatMessageByRole(ctx, database.GetLastChatMessageByRoleParams{
+			ChatID: chatID,
+			Role:   database.ChatMessageRoleAssistant,
+		})
+		require.NoError(t, err)
+		err = store.UpdateChatLastReadMessageID(ctx, database.UpdateChatLastReadMessageIDParams{
+			ID:                chatID,
+			LastReadMessageID: lastMsg.ID,
+		})
+		require.NoError(t, err)
+	}
+
+	getChatIDs := func() []uuid.UUID {
+		t.Helper()
+		rows, err := store.GetChats(ctx, database.GetChatsParams{
+			OwnerID:   user.ID,
+			HasUnread: sql.NullBool{Bool: true, Valid: true},
+		})
+		require.NoError(t, err)
+
+		ids := make([]uuid.UUID, 0, len(rows))
+		for _, row := range rows {
+			ids = append(ids, row.Chat.ID)
+		}
+		return ids
+	}
+
+	unreadRoot := createRoot("unread-root-" + uuid.NewString())
+	insertMsg(unreadRoot.ID, database.ChatMessageRoleAssistant, "hello")
+
+	readRoot := createRoot("read-root-" + uuid.NewString())
+	insertMsg(readRoot.ID, database.ChatMessageRoleAssistant, "done")
+	markLastAssistantRead(readRoot.ID)
+
+	childUnreadRoot := createRoot("child-unread-root-" + uuid.NewString())
+	insertMsg(childUnreadRoot.ID, database.ChatMessageRoleAssistant, "root message")
+	markLastAssistantRead(childUnreadRoot.ID)
+
+	child := createChild(childUnreadRoot, "child-unread-"+uuid.NewString())
+	insertMsg(child.ID, database.ChatMessageRoleAssistant, "child message")
+
+	unreadIDs := getChatIDs()
+	require.ElementsMatch(t, []uuid.UUID{unreadRoot.ID}, unreadIDs)
+	require.NotContains(t, unreadIDs, readRoot.ID)
+	require.NotContains(t, unreadIDs, childUnreadRoot.ID,
+		"unread child messages must not surface a read root")
+}
+
 func TestChatHasUnread(t *testing.T) {
 	t.Parallel()
 
