@@ -7778,6 +7778,11 @@ WHERE
         ) = $7::boolean
         ELSE true
     END
+    -- Filter by pull request status. Unlike the diff_url filter above,
+    -- this intentionally checks only the root chat's own diff status.
+    -- Child chats share the same workspace and git branch as their
+    -- parent, so gitsync populates identical PR state on both; traversing
+    -- descendants would be redundant.
     AND CASE
         WHEN COALESCE(array_length($8::text[], 1), 0) > 0 THEN EXISTS (
             SELECT 1
