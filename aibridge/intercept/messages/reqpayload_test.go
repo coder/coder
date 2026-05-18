@@ -361,6 +361,76 @@ func TestRequestPayloadConvertAdaptiveThinkingForBedrock(t *testing.T) {
 	}
 }
 
+func TestRequestPayloadConvertEnabledThinkingForBedrock(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+
+		requestBody string
+
+		expectedThinkingType string
+		// expectedEffort is what output_config.effort should resolve to after
+		// the conversion. The reverse direction never sets this field itself;
+		// it only persists when the caller already had it on the payload.
+		expectedEffort string
+	}{
+		{
+			name:        "no_thinking_field_is_no_op",
+			requestBody: `{"model":"claude-opus-4-7","max_tokens":10000,"messages":[]}`,
+		},
+		{
+			name:                 "adaptive_thinking_is_no_op",
+			requestBody:          `{"model":"claude-opus-4-7","max_tokens":10000,"thinking":{"type":"adaptive"},"messages":[]}`,
+			expectedThinkingType: "adaptive",
+		},
+		{
+			name:                 "disabled_thinking_is_no_op",
+			requestBody:          `{"model":"claude-opus-4-7","max_tokens":10000,"thinking":{"type":"disabled"},"messages":[]}`,
+			expectedThinkingType: "disabled",
+		},
+		{
+			name:                 "enabled_with_budget_becomes_adaptive_and_drops_budget",
+			requestBody:          `{"model":"claude-opus-4-7","max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":5000},"messages":[]}`,
+			expectedThinkingType: "adaptive",
+		},
+		{
+			name:                 "enabled_without_budget_becomes_adaptive",
+			requestBody:          `{"model":"claude-opus-4-7","max_tokens":10000,"thinking":{"type":"enabled"},"messages":[]}`,
+			expectedThinkingType: "adaptive",
+		},
+		{
+			name:                 "enabled_preserves_explicit_effort",
+			requestBody:          `{"model":"claude-opus-4-7","max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":2000},"output_config":{"effort":"max"},"messages":[]}`,
+			expectedThinkingType: "adaptive",
+			expectedEffort:       "max",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			payload := mustMessagesPayload(t, tc.requestBody)
+			updatedPayload, err := payload.convertEnabledThinkingForBedrock()
+			require.NoError(t, err)
+
+			thinking := gjson.GetBytes(updatedPayload, messagesReqPathThinking)
+			require.NotEqual(t, tc.expectedThinkingType == "", thinking.Exists(), "thinking should not be set")
+			require.Equal(t, tc.expectedThinkingType, gjson.GetBytes(updatedPayload, messagesReqPathThinkingType).String())
+
+			// budget_tokens must always be absent after a successful conversion to adaptive.
+			budgetTokens := gjson.GetBytes(updatedPayload, messagesReqPathThinkingBudgetTokens)
+			if tc.expectedThinkingType == "adaptive" {
+				require.False(t, budgetTokens.Exists(), "budget_tokens should be removed after conversion")
+			}
+
+			effort := gjson.GetBytes(updatedPayload, messagesReqPathOutputConfigEffort)
+			require.Equal(t, tc.expectedEffort, effort.String())
+		})
+	}
+}
+
 func TestRequestPayloadDisableParallelToolCalls(t *testing.T) {
 	t.Parallel()
 

@@ -698,7 +698,8 @@ func TestAugmentRequestForBedrock_AdaptiveThinking(t *testing.T) {
 		clientBetaFlags string
 
 		expectThinkingType  string
-		expectBudgetTokens  int64 // 0 means budget_tokens should not be present
+		expectBudgetTokens  int64  // 0 means budget_tokens should not be present
+		expectEffort        string // expected output_config.effort; "" means must not be present
 		expectRemovedFields []string
 		expectKeptFields    []string
 		expectBetaValues    []string // expected separate Anthropic-Beta header values
@@ -753,6 +754,7 @@ func TestAugmentRequestForBedrock_AdaptiveThinking(t *testing.T) {
 			bedrockModel:     "anthropic.claude-opus-4-5-20250929-v1:0",
 			clientBetaFlags:  "effort-2025-11-24,interleaved-thinking-2025-05-14",
 			requestBody:      `{"max_tokens":10000,"output_config":{"effort":"high"}}`,
+			expectEffort:     "high",
 			expectKeptFields: []string{"output_config"},
 			expectBetaValues: []string{"effort-2025-11-24", "interleaved-thinking-2025-05-14"},
 		},
@@ -799,6 +801,60 @@ func TestAugmentRequestForBedrock_AdaptiveThinking(t *testing.T) {
 			clientBetaFlags:     "claude-code-20250219,prompt-caching-scope-2026-01-05",
 			requestBody:         `{"max_tokens":10000,"output_config":{"effort":"high"},"metadata":{"user_id":"u123"},"service_tier":"auto","container":"ctr_abc","inference_geo":"us","context_management":{"type":"auto"}}`,
 			expectRemovedFields: []string{"output_config", "metadata", "service_tier", "container", "inference_geo", "context_management"},
+		},
+
+		// Adaptive-only models (Opus 4.7+), see coder/aibridge#280. The
+		// conversion drops budget_tokens and flips the type; an explicit
+		// output_config.effort from the caller is preserved, but none is
+		// fabricated when absent.
+		{
+			name:               "opus_4_7_model_with_enabled_thinking_is_converted_to_adaptive_and_drops_budget",
+			bedrockModel:       "us.anthropic.claude-opus-4-7",
+			requestBody:        `{"max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":5000}}`,
+			expectThinkingType: "adaptive",
+		},
+		{
+			name:               "opus_4_7_model_with_adaptive_thinking_is_unchanged",
+			bedrockModel:       "us.anthropic.claude-opus-4-7",
+			requestBody:        `{"max_tokens":10000,"thinking":{"type":"adaptive"}}`,
+			expectThinkingType: "adaptive",
+		},
+		{
+			name:         "opus_4_7_model_without_thinking_field_is_unchanged",
+			bedrockModel: "us.anthropic.claude-opus-4-7",
+			requestBody:  `{"max_tokens":10000}`,
+		},
+		{
+			name:               "opus_4_7_model_preserves_explicit_output_config_effort",
+			bedrockModel:       "us.anthropic.claude-opus-4-7",
+			requestBody:        `{"max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":2000},"output_config":{"effort":"max"}}`,
+			expectThinkingType: "adaptive",
+			expectEffort:       "max",
+			expectKeptFields:   []string{"output_config"},
+		},
+		{
+			name:               "opus_4_7_model_keeps_output_config_without_effort_beta_flag",
+			bedrockModel:       "us.anthropic.claude-opus-4-7",
+			requestBody:        `{"max_tokens":10000,"thinking":{"type":"adaptive"},"output_config":{"effort":"high"}}`,
+			expectThinkingType: "adaptive",
+			expectEffort:       "high",
+			expectKeptFields:   []string{"output_config"},
+		},
+		{
+			name:               "arn_style_opus_4_7_application_inference_profile_is_treated_as_adaptive_only",
+			bedrockModel:       "arn:aws:bedrock:us-east-1:123:application-inference-profile/global.anthropic.claude-opus-4-7",
+			requestBody:        `{"max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":8000}}`,
+			expectThinkingType: "adaptive",
+		},
+		{
+			// Opus 4.7 on Bedrock rejects output_config.format (structured
+			// outputs) with a 400 even though it accepts output_config.effort.
+			name:                "opus_4_7_model_strips_output_config_format_but_keeps_effort",
+			bedrockModel:        "us.anthropic.claude-opus-4-7",
+			requestBody:         `{"max_tokens":10000,"output_config":{"effort":"high","format":{"type":"json_schema","schema":{"type":"object"}}}}`,
+			expectEffort:        "high",
+			expectKeptFields:    []string{"output_config", "output_config.effort"},
+			expectRemovedFields: []string{"output_config.format"},
 		},
 	}
 
@@ -850,6 +906,13 @@ func TestAugmentRequestForBedrock_AdaptiveThinking(t *testing.T) {
 			// Verify expected fields are kept.
 			for _, field := range tc.expectKeptFields {
 				require.True(t, gjson.GetBytes(i.reqPayload, field).Exists(), "%s should be kept", field)
+			}
+
+			effort := gjson.GetBytes(i.reqPayload, "output_config.effort")
+			if tc.expectEffort == "" {
+				require.False(t, effort.Exists(), "output_config.effort should not be set")
+			} else {
+				require.Equal(t, tc.expectEffort, effort.String())
 			}
 
 			got := clientHeaders.Values("Anthropic-Beta")
