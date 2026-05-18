@@ -155,3 +155,34 @@ interactions:
         status: 200 OK
         code: 200
         duration: 196.139706ms
+    - id: 2
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        host: gitlab.com
+        headers:
+            Accept:
+                - application/json
+            Private-Token:
+                - stripped
+            User-Agent:
+                - stripped
+        url: https://gitlab.com/api/v4/projects/johnstcn%2Fdotfiles/merge_requests/1/commits?per_page=100
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        content_length: -1
+        uncompressed: true
+        body: '[{"id":"abc123","short_id":"abc1","title":"Initial commit","stats":{"additions":10,"deletions":3,"total":13}},{"id":"def456","short_id":"def4","title":"Second commit","stats":{"additions":5,"deletions":2,"total":7}}]'
+        headers:
+            Content-Type:
+                - application/json
+            X-Total:
+                - "2"
+        status: 200 OK
+        code: 200
+        duration: 150.000000ms

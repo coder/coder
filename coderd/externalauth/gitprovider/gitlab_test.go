@@ -31,6 +31,11 @@ func TestGitLabFetchPullRequestStatus(t *testing.T) {
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"approved":false,"approved_by":[]}`))
 		})
+		mux.HandleFunc("/api/v4/projects/owner%2Frepo/merge_requests/1/commits", func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("X-Total", "2")
+			_, _ = w.Write([]byte(`[{"id":"abc","short_id":"abc","title":"c1","stats":{"additions":5,"deletions":2,"total":7}},{"id":"def","short_id":"def","title":"c2","stats":{"additions":3,"deletions":1,"total":4}}]`))
+		})
 
 		srv := httptest.NewServer(mux)
 		defer srv.Close()
@@ -45,6 +50,9 @@ func TestGitLabFetchPullRequestStatus(t *testing.T) {
 		)
 		require.NoError(t, err)
 		assert.Equal(t, "fallback-sha", status.HeadSHA)
+		assert.Equal(t, int32(2), status.Commits)
+		assert.Equal(t, int32(8), status.DiffStats.Additions)
+		assert.Equal(t, int32(3), status.DiffStats.Deletions)
 	})
 }
 

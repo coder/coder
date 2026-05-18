@@ -95,6 +95,33 @@ func (g *gitlabProvider) FetchPullRequestStatus(
 		return nil, g.wrapError(err, "get merge request approvals")
 	}
 
+	// Fetch commits to get count and approximate diff stats.
+	// Note: the MR commits endpoint may not return per-commit stats;
+	// when stats are present, the sum is an approximation of MR-level
+	// additions/deletions (overlapping changes across commits can cause
+	// the sum to differ from the true merge-base diff).
+	var totalCommits int32
+	var additions, deletions int32
+	commits, resp, err := g.client.MergeRequests.GetMergeRequestCommits(
+		pid, int64(ref.Number),
+		&gitlab.GetMergeRequestCommitsOptions{ListOptions: gitlab.ListOptions{PerPage: 100}},
+		opts...,
+	)
+	if err != nil {
+		return nil, g.wrapError(err, "get merge request commits")
+	}
+	if resp.TotalItems > 0 {
+		totalCommits = int32(resp.TotalItems)
+	} else {
+		totalCommits = int32(len(commits))
+	}
+	for _, c := range commits {
+		if c.Stats != nil {
+			additions += int32(c.Stats.Additions)
+			deletions += int32(c.Stats.Deletions)
+		}
+	}
+
 	// Map GitLab state to normalized state.
 	state := mapGitLabState(mr.State)
 
@@ -113,9 +140,7 @@ func (g *gitlabProvider) FetchPullRequestStatus(
 	// TODO(CODAGT-440): These fields have semantic gaps vs the GitHub
 	// provider. GitLab's "Approved" is threshold-based (not "at least one
 	// approval and no changes requested"), ChangesRequested has no GitLab
-	// equivalent, ReviewerCount only counts approvers, and
-	// Additions/Deletions/Commits are unavailable from the MR endpoint
-	// without additional API calls.
+	// equivalent, and ReviewerCount only counts approvers.
 	reviewerCount := int32(len(approvals.ApprovedBy))
 
 	var authorLogin, authorAvatarURL string
@@ -131,8 +156,8 @@ func (g *gitlabProvider) FetchPullRequestStatus(
 		HeadSHA:    headSHA,
 		HeadBranch: mr.SourceBranch,
 		DiffStats: DiffStats{
-			Additions:    0,
-			Deletions:    0,
+			Additions:    additions,
+			Deletions:    deletions,
 			ChangedFiles: changedFiles,
 		},
 		ChangesRequested: false,
@@ -142,7 +167,7 @@ func (g *gitlabProvider) FetchPullRequestStatus(
 		AuthorAvatarURL:  authorAvatarURL,
 		BaseBranch:       mr.TargetBranch,
 		PRNumber:         int(mr.IID),
-		Commits:          0,
+		Commits:          totalCommits,
 		FetchedAt:        g.clock.Now().UTC(),
 	}, nil
 }
