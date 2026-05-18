@@ -368,6 +368,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 									)
 								}
 								data-testid="onboarding_info.newsletter_releases"
+								disabled={isLoading}
 							/>
 							<div className="flex flex-col text-sm">
 								<span className="font-medium">Release notes & updates</span>
@@ -393,6 +394,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 									)
 								}
 								data-testid="onboarding_info.newsletter_marketing"
+								disabled={isLoading}
 							/>
 							<div className="flex flex-col text-sm">
 								<span className="font-medium">Monthly Coder newsletter</span>
