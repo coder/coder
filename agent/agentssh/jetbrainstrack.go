@@ -90,7 +90,8 @@ func (w *JetbrainsChannelWatcher) Accept() (gossh.Channel, <-chan *gossh.Request
 			// nolint: gocritic // JetBrains is a proper noun and should be capitalized
 			w.logger.Debug(context.Background(), "JetBrains channel closed",
 				codersdk.ConnectionDirectionAgentToClient.SlogField(),
-				slog.F("disconnect_reason", "normal close"),
+				codersdk.DisconnectReasonGraceful.SlogField(),
+				codersdk.DisconnectReasonGraceful.SlogExpectedField(),
 			)
 		},
 	}, r, err

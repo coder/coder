@@ -516,9 +516,9 @@ func (a *agent) runLoop() {
 		if errors.Is(err, io.EOF) {
 			a.logger.Info(ctx, "disconnected from coderd",
 				codersdk.ConnectionDirectionServerToAgent.SlogField(),
-				slog.F("disconnect_reason", codersdk.DisconnectReasonNetworkError),
-				slog.F("disconnect_initiator", codersdk.DisconnectInitiatorNetwork),
-				slog.F("disconnect_expected", codersdk.DisconnectReasonNetworkError.Expected()),
+				codersdk.DisconnectReasonNetworkError.SlogField(),
+				codersdk.DisconnectReasonNetworkError.SlogExpectedField(),
+				codersdk.DisconnectInitiatorNetwork.SlogField(),
 			)
 			continue
 		}
@@ -1914,9 +1914,9 @@ func (a *agent) runCoordinator(ctx context.Context, tClient tailnetproto.DRPCTai
 		reason, initiator := classifyCoordinatorRPCExit(ctx, retErr)
 		a.logger.Debug(ctx, "disconnected from coordination RPC",
 			codersdk.ConnectionDirectionServerToAgent.SlogField(),
-			slog.F("disconnect_reason", reason),
-			slog.F("disconnect_initiator", initiator),
-			slog.F("disconnect_expected", reason.Expected()),
+			reason.SlogField(),
+			reason.SlogExpectedField(),
+			initiator.SlogField(),
 			slog.Error(retErr),
 		)
 	}()
@@ -1983,9 +1983,9 @@ func (a *agent) runDERPMapSubscriber(ctx context.Context, tClient tailnetproto.D
 		reason, initiator := classifyCoordinatorRPCExit(ctx, retErr)
 		a.logger.Debug(ctx, "disconnected from derp map RPC",
 			codersdk.ConnectionDirectionServerToAgent.SlogField(),
-			slog.F("disconnect_reason", reason),
-			slog.F("disconnect_initiator", initiator),
-			slog.F("disconnect_expected", reason.Expected()),
+			reason.SlogField(),
+			reason.SlogExpectedField(),
+			initiator.SlogField(),
 			slog.Error(retErr),
 		)
 	}()

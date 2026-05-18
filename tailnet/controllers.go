@@ -258,21 +258,23 @@ func (c *BasicCoordination) Close(ctx context.Context) (retErr error) {
 	err := c.client.Send(&proto.CoordinateRequest{Disconnect: &proto.CoordinateRequest_Disconnect{}})
 	c.Unlock()
 	if err != nil && !xerrors.Is(err, io.EOF) {
+		reason := codersdk.DisconnectReasonNetworkError
 		// Log but don't return early; we must still clean up below.
 		c.logger.Warn(context.Background(), "failed to send disconnect",
 			c.direction.SlogField(),
-			slog.F("disconnect_reason", codersdk.DisconnectReasonNetworkError),
-			slog.F("disconnect_initiator", c.initiator),
-			slog.F("disconnect_expected", codersdk.DisconnectReasonNetworkError.Expected()),
+			reason.SlogExpectedField(),
+			reason.SlogField(),
+			c.initiator.SlogField(),
 			slog.Error(err),
 		)
 		retErr = xerrors.Errorf("send disconnect: %w", err)
 	} else {
+		reason := codersdk.DisconnectReasonGraceful
 		c.logger.Debug(context.Background(), "sent disconnect",
 			c.direction.SlogField(),
-			slog.F("disconnect_reason", codersdk.DisconnectReasonGraceful),
-			slog.F("disconnect_initiator", c.initiator),
-			slog.F("disconnect_expected", codersdk.DisconnectReasonGraceful.Expected()),
+			reason.SlogExpectedField(),
+			reason.SlogField(),
+			c.initiator.SlogField(),
 		)
 	}
 
@@ -282,20 +284,22 @@ func (c *BasicCoordination) Close(ctx context.Context) (retErr error) {
 	// Disconnect message, so we should wait around for that until the context expires.
 	select {
 	case <-c.respLoopDone:
+		reason := codersdk.DisconnectReasonGraceful
 		c.logger.Debug(ctx, "responses closed after disconnect",
 			c.direction.SlogField(),
-			slog.F("disconnect_reason", codersdk.DisconnectReasonGraceful),
-			slog.F("disconnect_initiator", c.initiator),
-			slog.F("disconnect_expected", codersdk.DisconnectReasonGraceful.Expected()),
+			reason.SlogExpectedField(),
+			reason.SlogField(),
+			c.initiator.SlogField(),
 		)
 		return retErr
 	case <-ctx.Done():
+		reason := codersdk.DisconnectReasonNetworkError
 		c.logger.Warn(ctx, "context expired while waiting for coordinate responses to close",
 			c.direction.SlogField(),
-			slog.F("disconnect_reason", codersdk.DisconnectReasonNetworkError),
-			slog.F("disconnect_initiator", c.initiator),
-			slog.F("disconnect_expected", codersdk.DisconnectReasonNetworkError.Expected()),
-			slog.F("disconnect_detail", "context expired before coordinator hung up"),
+			reason.SlogExpectedField(),
+			reason.SlogField(),
+			c.initiator.SlogField(),
+			codersdk.SlogDisconnectDetail("context expired before coordinator hung up"),
 		)
 	}
 	// forcefully close the stream
@@ -1546,11 +1550,12 @@ func (c *Controller) Run(ctx context.Context) {
 				}
 
 				if errors.Is(err, net.ErrClosed) {
+					reason := codersdk.DisconnectReasonNetworkError
 					c.logger.Warn(c.ctx, "control plane connection closed, retrying",
 						codersdk.ConnectionDirectionServerToAgent.SlogField(),
-						slog.F("disconnect_reason", codersdk.DisconnectReasonNetworkError),
-						slog.F("disconnect_initiator", codersdk.DisconnectInitiatorNetwork),
-						slog.F("disconnect_expected", codersdk.DisconnectReasonNetworkError.Expected()),
+						reason.SlogField(),
+						reason.SlogExpectedField(),
+						codersdk.DisconnectInitiatorNetwork.SlogField(),
 						slog.Error(err),
 					)
 					continue
