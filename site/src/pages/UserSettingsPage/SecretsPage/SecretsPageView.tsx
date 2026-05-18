@@ -96,7 +96,6 @@ export const SecretsPageView: FC<SecretsPageViewProps> = ({
 			<SecretDialog
 				open={isDialogOpen}
 				secret={dialogSecret ?? undefined}
-				secrets={secrets}
 				isSubmitting={isCreating || isUpdating}
 				onClose={() => setDialogSecret(undefined)}
 				onCreateSecret={onCreateSecret}

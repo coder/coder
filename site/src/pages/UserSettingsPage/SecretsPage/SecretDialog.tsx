@@ -23,18 +23,15 @@ import { getFormHelpers } from "#/utils/formUtils";
 import {
 	buildCreateUserSecretRequest,
 	buildUpdateUserSecretRequest,
-	createSecretValidationSchema,
-	getDuplicateSecretFieldErrors,
+	getCreateSecretRequiredFieldErrors,
 	mapSecretApiErrorToFormErrors,
 	type SecretFieldErrors,
 	type SecretFormValues,
-	updateSecretValidationSchema,
 } from "./secretForm";
 
 type SecretDialogProps = {
 	open: boolean;
 	secret?: UserSecret;
-	secrets: readonly UserSecret[];
 	isSubmitting: boolean;
 	onClose: () => void;
 	onCreateSecret: (
@@ -60,7 +57,6 @@ const infoText =
 export const SecretDialog: FC<SecretDialogProps> = ({
 	open,
 	secret,
-	secrets,
 	isSubmitting,
 	onClose,
 	onCreateSecret,
@@ -81,11 +77,8 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 		initialValues,
 		enableReinitialize: true,
 		validateOnMount: true,
-		validationSchema: isEdit
-			? updateSecretValidationSchema
-			: createSecretValidationSchema,
 		validate: (values) =>
-			getDuplicateSecretFieldErrors(secrets, values, secret?.id),
+			isEdit ? {} : getCreateSecretRequiredFieldErrors(values),
 		onSubmit: async (values, helpers) => {
 			helpers.setStatus(undefined);
 			try {

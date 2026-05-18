@@ -162,7 +162,17 @@ export const AddDialogOpened: Story = {
 
 export const AddDialogDuplicateEnvValidationError: Story = {
 	args: {
-		secrets: MockUserSecrets,
+		onCreateSecret: async () => {
+			throw mockApiError({
+				message: "Validation failed.",
+				validations: [
+					{
+						field: "env_name",
+						detail: "Variable already in use. Edit existing variable.",
+					},
+				],
+			});
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const user = userEvent.setup();
@@ -173,7 +183,8 @@ export const AddDialogDuplicateEnvValidationError: Story = {
 		const dialog = within(await body.findByRole("dialog"));
 		await user.type(dialog.getByLabelText("Name"), "duplicate-env");
 		await user.type(dialog.getByLabelText("Env var"), "OPENAI_API_KEY");
-		await user.tab();
+		await user.type(dialog.getByLabelText("Value"), placeholderInput);
+		await user.click(dialog.getByRole("button", { name: "Save" }));
 
 		await expect(
 			await dialog.findByText(
