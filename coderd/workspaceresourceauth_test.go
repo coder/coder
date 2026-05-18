@@ -91,7 +91,6 @@ func TestPostWorkspaceAuthAWSInstanceIdentity(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-
 	t.Run("RecycledInstanceID", func(t *testing.T) {
 		t.Parallel()
 
@@ -137,7 +136,6 @@ func TestPostWorkspaceAuthAWSInstanceIdentity(t *testing.T) {
 		// auth query finds no candidates at all and returns 404.
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 	})
-
 
 	t.Run("Ambiguous/MultipleAgentsNoSelector", func(t *testing.T) {
 		t.Parallel()
@@ -416,7 +414,26 @@ func TestPostWorkspaceAuthGoogleInstanceIdentity(t *testing.T) {
 	})
 }
 
+type instanceIDWorkspaceSetup struct {
+	client    *codersdk.Client
+	store     database.Store
+	user      codersdk.CreateFirstUserResponse
+	template  codersdk.Template
+	workspace codersdk.Workspace
+}
+
 func setupInstanceIDWorkspace(t *testing.T, opts *coderdtest.Options, agents []*proto.Agent) (*codersdk.Client, database.Store) {
+	t.Helper()
+
+	setup := setupInstanceIDWorkspaceWithResources(t, opts, agents)
+	return setup.client, setup.store
+}
+
+func setupInstanceIDWorkspaceWithResources(
+	t *testing.T,
+	opts *coderdtest.Options,
+	agents []*proto.Agent,
+) instanceIDWorkspaceSetup {
 	t.Helper()
 
 	actualOpts := &coderdtest.Options{}
@@ -446,7 +463,13 @@ func setupInstanceIDWorkspace(t *testing.T, opts *coderdtest.Options, agents []*
 	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
-	return client, store
+	return instanceIDWorkspaceSetup{
+		client:    client,
+		store:     store,
+		user:      user,
+		template:  template,
+		workspace: workspace,
+	}
 }
 
 func workspaceAgentsForInstanceID(instanceID string, names ...string) []*proto.Agent {
