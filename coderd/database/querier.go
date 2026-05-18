@@ -478,6 +478,7 @@ type sqlcQuerier interface {
 	// GetGroupMembersCountByGroupID, the count is returned even when the
 	// caller does not have read access to individual group members.
 	GetGroupMembersCountByGroupIDs(ctx context.Context, arg GetGroupMembersCountByGroupIDsParams) ([]GetGroupMembersCountByGroupIDsRow, error)
+	// A limit of 0 means "no limit".
 	GetGroups(ctx context.Context, arg GetGroupsParams) ([]GetGroupsRow, error)
 	GetHealthSettings(ctx context.Context) (string, error)
 	GetInboxNotificationByID(ctx context.Context, id uuid.UUID) (InboxNotification, error)

@@ -12956,6 +12956,19 @@ WHERE
 				groups.id = ANY($4)
 			ELSE true
 		END
+		-- Filter by group name or display name (substring, case-insensitive).
+		AND CASE WHEN $5 :: text != '' THEN (
+				groups.name ILIKE concat('%', $5, '%')
+				OR groups.display_name ILIKE concat('%', $5, '%')
+			)
+			ELSE true
+		END
+ORDER BY
+	-- Deterministic ordering for stable pagination. Sort by the value
+	-- the UI displays (display_name, falling back to name).
+	LOWER(COALESCE(NULLIF(groups.display_name, ''), groups.name)) ASC,
+	groups.id ASC
+LIMIT NULLIF($6 :: int, 0)
 `
 
 type GetGroupsParams struct {
@@ -12963,6 +12976,8 @@ type GetGroupsParams struct {
 	HasMemberID    uuid.UUID   `db:"has_member_id" json:"has_member_id"`
 	GroupNames     []string    `db:"group_names" json:"group_names"`
 	GroupIds       []uuid.UUID `db:"group_ids" json:"group_ids"`
+	Search         string      `db:"search" json:"search"`
+	LimitOpt       int32       `db:"limit_opt" json:"limit_opt"`
 }
 
 type GetGroupsRow struct {
@@ -12971,12 +12986,15 @@ type GetGroupsRow struct {
 	OrganizationDisplayName string `db:"organization_display_name" json:"organization_display_name"`
 }
 
+// A limit of 0 means "no limit".
 func (q *sqlQuerier) GetGroups(ctx context.Context, arg GetGroupsParams) ([]GetGroupsRow, error) {
 	rows, err := q.db.QueryContext(ctx, getGroups,
 		arg.OrganizationID,
 		arg.HasMemberID,
 		pq.Array(arg.GroupNames),
 		pq.Array(arg.GroupIds),
+		arg.Search,
+		arg.LimitOpt,
 	)
 	if err != nil {
 		return nil, err

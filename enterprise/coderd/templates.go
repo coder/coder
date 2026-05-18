@@ -9,6 +9,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	agpl "github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -17,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac/acl"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -50,10 +52,25 @@ func (api *API) templateAvailablePermissions(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
+	// Apply the same q/limit semantics to groups as the users half of this
+	// response. The autocomplete sends q=<input>&limit=25; previously these
+	// were ignored server-side for groups, so deployments with thousands of
+	// groups paid for fetching and shipping every group on each keystroke.
+	// api.AGPL.GetUsers above already validated both, so parsing them again
+	// here cannot fail in a new way.
+	userFilter, _ := searchquery.Users(r.URL.Query().Get("q"))
+	groupPagination, ok := agpl.ParsePagination(rw, r)
+	if !ok {
+		return
+	}
+
 	// Perm check is the template update check.
 	// nolint:gocritic
 	groups, err := api.Database.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{
 		OrganizationID: template.OrganizationID,
+		Search:         userFilter.Search,
+		// #nosec G115 - Pagination limits are small and fit in int32
+		LimitOpt: int32(groupPagination.Limit),
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
