@@ -54,20 +54,21 @@ func TestAgentAPIPath(t *testing.T) {
 	t.Run("debug logs include rotated", func(t *testing.T) {
 		t.Parallel()
 
-		got := debugLogsPath(DebugLogsOptions{IncludeRotated: true})
+		got := debugLogsPath(DebugLogsOptions{IncludeRotated: true, RotatedMaxAge: 24 * time.Hour})
 		parsed, err := neturl.Parse(got)
 		require.NoError(t, err)
 		require.Equal(t, "/debug/logs", parsed.Path)
 		require.Equal(t, "true", parsed.Query().Get("include_rotated"))
+		require.Equal(t, "24h0m0s", parsed.Query().Get("rotated_max_age"))
 	})
 
 	t.Run("debug log files max age", func(t *testing.T) {
 		t.Parallel()
 
-		got := debugLogFilesPath(DebugLogFilesOptions{MaxAge: 72 * time.Hour})
+		got := debugLogFilesPath(DebugLogFilesOptions{MaxAge: 24 * time.Hour})
 		parsed, err := neturl.Parse(got)
 		require.NoError(t, err)
 		require.Equal(t, "/debug/logs/files", parsed.Path)
-		require.Equal(t, "72h0m0s", parsed.Query().Get("max_age"))
+		require.Equal(t, "24h0m0s", parsed.Query().Get("max_age"))
 	})
 }

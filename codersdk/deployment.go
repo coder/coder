@@ -2,6 +2,7 @@ package codersdk
 
 import (
 	"context"
+	"encoding/csv"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -695,7 +696,25 @@ type SSHConfig struct {
 
 // AgentConfig configures deployment-wide workspace agent behavior.
 type AgentConfig struct {
-	SupportBundleAdditionalLogPaths serpent.StringArray `json:"support_bundle_additional_log_paths" typescript:",notnull"`
+	SupportBundleLogPaths serpent.StringArray `json:"support_bundle_log_paths" typescript:",notnull"`
+}
+
+// DefaultSupportBundleLogPaths returns the default workspace log paths collected by the agent debug log files endpoint.
+func DefaultSupportBundleLogPaths() []string {
+	return []string{
+		"$HOME/.*-server/data/logs",
+		"$HOME/.local/share/code-server/coder-logs",
+	}
+}
+
+func defaultSupportBundleLogPathsString() string {
+	var builder strings.Builder
+	writer := csv.NewWriter(&builder)
+	if err := writer.Write(DefaultSupportBundleLogPaths()); err != nil {
+		return ""
+	}
+	writer.Flush()
+	return strings.TrimSuffix(builder.String(), "\n")
 }
 
 func (c SSHConfig) ParseOptions() (map[string]string, error) {
@@ -3227,12 +3246,13 @@ Write out the current server config as YAML to stdout.`,
 			Default:     "true",
 		},
 		{
-			Name:        "Agent Support Bundle Additional Log Paths",
-			Description: "Additional workspace log file paths or glob patterns to collect in support bundles. Matched directories are walked recursively for recent .log files under the workspace user's home directory.",
-			Flag:        "agent-support-bundle-additional-log-paths",
-			Env:         "CODER_AGENT_SUPPORT_BUNDLE_ADDITIONAL_LOG_PATHS",
-			YAML:        "supportBundleAdditionalLogPaths",
-			Value:       &c.Agent.SupportBundleAdditionalLogPaths,
+			Name:        "Agent Support Bundle Log Paths",
+			Description: "Workspace log file paths or glob patterns to collect from the agent debug log files endpoint. Matched directories are walked recursively for recent .log files under the workspace user's home directory. Set to an empty list to disable collection.",
+			Flag:        "agent-support-bundle-log-paths",
+			Env:         "CODER_AGENT_SUPPORT_BUNDLE_LOG_PATHS",
+			YAML:        "supportBundleLogPaths",
+			DefaultFn:   defaultSupportBundleLogPathsString,
+			Value:       &c.Agent.SupportBundleLogPaths,
 			Group:       &deploymentGroupAgent,
 		},
 		{

@@ -7,12 +7,10 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"maps"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -56,7 +54,7 @@ var supportBundleBlurb = cliui.Bold("This will collect the following information
   - Template version and source code for the given workspace
   - Agent details (with environment variable sanitized)
   - Agent network diagnostics
-  - Agent logs and recent workspace log files
+  - Agent logs
   - License status
   - pprof profiling data (if --pprof is enabled)
 ` + cliui.Bold("Note: ") +
@@ -560,27 +558,6 @@ func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 			return xerrors.Errorf("write file %q in archive: %w", "agent/logs_truncated.txt", err)
 		}
 	}
-	if src.Agent.LogFilesTruncated {
-		f, err := dest.Create("agent/log_files_truncated.txt")
-		if err != nil {
-			return xerrors.Errorf("create file %q in archive: %w", "agent/log_files_truncated.txt", err)
-		}
-		if _, err := f.Write([]byte("Agent log file collection was truncated.\n")); err != nil {
-			return xerrors.Errorf("write file %q in archive: %w", "agent/log_files_truncated.txt", err)
-		}
-	}
-
-	for _, name := range slices.Sorted(maps.Keys(src.Agent.LogFiles)) {
-		k := "agent/log_files/" + name
-		f, err := dest.Create(k)
-		if err != nil {
-			return xerrors.Errorf("create file %q in archive: %w", k, err)
-		}
-		if _, err := f.Write(src.Agent.LogFiles[name]); err != nil {
-			return xerrors.Errorf("write file %q in archive: %w", k, err)
-		}
-	}
-
 	// Write pprof binary data
 	if err := writePprofData(src.Pprof, dest); err != nil {
 		return xerrors.Errorf("write pprof data: %w", err)

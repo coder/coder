@@ -24,11 +24,12 @@ import (
 )
 
 const (
-	debugLogsActiveLimitBytes        = 10 * 1024 * 1024
-	debugLogsRotatedLimitBytes       = 100 * 1024 * 1024
-	debugLogFilesDefaultMaxAge       = 72 * time.Hour
-	debugLogFilesMaxFiles            = 200
-	debugLogFilesMaxBytes      int64 = 200 * 1024 * 1024
+	debugLogsActiveLimitBytes           = 10 * 1024 * 1024
+	debugLogsRotatedLimitBytes          = 100 * 1024 * 1024
+	debugLogsRotatedDefaultMaxAge       = 24 * time.Hour
+	debugLogFilesDefaultMaxAge          = 24 * time.Hour
+	debugLogFilesMaxFiles               = 200
+	debugLogFilesMaxBytes         int64 = 200 * 1024 * 1024
 )
 
 var coderAgentBackupLogName = regexp.MustCompile(`^coder-agent-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.\d{3}\.log$`)
@@ -57,8 +58,13 @@ func (a *agent) HandleHTTPDebugLogs(w http.ResponseWriter, r *http.Request) {
 		a.writeActiveDebugLog(w, r)
 		return
 	}
+	rotatedMaxAge, err := parseDurationQuery(r, "rotated_max_age", debugLogsRotatedDefaultMaxAge)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
-	files, err := agentDebugLogFiles(a.logDir)
+	files, err := agentDebugLogFiles(a.logDir, a.clock.Now().Add(-rotatedMaxAge))
 	if err != nil {
 		a.logger.Error(r.Context(), "find agent log files", slog.Error(err), slog.F("log_dir", a.logDir))
 		w.WriteHeader(http.StatusInternalServerError)
@@ -119,7 +125,7 @@ func (a *agent) writeActiveDebugLog(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func agentDebugLogFiles(logDir string) ([]agentLogFile, error) {
+func agentDebugLogFiles(logDir string, rotatedCutoff time.Time) ([]agentLogFile, error) {
 	activePath := filepath.Join(logDir, "coder-agent.log")
 	activeInfo, err := os.Stat(activePath)
 	if err != nil {
@@ -143,7 +149,7 @@ func agentDebugLogFiles(logDir string) ([]agentLogFile, error) {
 			continue
 		}
 		info, err := os.Stat(match)
-		if err != nil || !info.Mode().IsRegular() {
+		if err != nil || !info.Mode().IsRegular() || info.ModTime().Before(rotatedCutoff) {
 			continue
 		}
 		rotated = append(rotated, agentLogFile{
@@ -224,9 +230,9 @@ func (a *agent) HandleHTTPDebugLogFiles(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	patterns := debugLogFilePatterns(home)
+	patterns := codersdk.DefaultSupportBundleLogPaths()
 	if manifest := a.manifest.Load(); manifest != nil {
-		patterns = append(patterns, manifest.SupportBundleAdditionalLogPaths...)
+		patterns = manifest.SupportBundleLogPaths
 	}
 	files, truncated, err := collectDebugLogFiles(r.Context(), a.logger, patterns, home, a.clock.Now().Add(-maxAge))
 	if err != nil {
@@ -251,28 +257,22 @@ func disableWriteDeadline(w http.ResponseWriter) {
 }
 
 func parseDebugLogFilesMaxAge(r *http.Request) (time.Duration, error) {
-	raw := strings.TrimSpace(r.URL.Query().Get("max_age"))
-	if raw == "" {
-		return debugLogFilesDefaultMaxAge, nil
-	}
-	maxAge, err := time.ParseDuration(raw)
-	if err != nil {
-		return 0, xerrors.Errorf("max_age must be a duration: %w", err)
-	}
-	if maxAge <= 0 {
-		return 0, xerrors.New("max_age must be greater than zero")
-	}
-	return maxAge, nil
+	return parseDurationQuery(r, "max_age", debugLogFilesDefaultMaxAge)
 }
 
-func debugLogFilePatterns(home string) []string {
-	patterns := []string{filepath.Join(home, ".*-server", "data", "logs")}
-	if xdgDataHome := os.Getenv("XDG_DATA_HOME"); xdgDataHome != "" {
-		patterns = append(patterns, filepath.Join(xdgDataHome, "code-server", "coder-logs"))
-	} else {
-		patterns = append(patterns, filepath.Join(home, ".local", "share", "code-server", "coder-logs"))
+func parseDurationQuery(r *http.Request, name string, def time.Duration) (time.Duration, error) {
+	raw := strings.TrimSpace(r.URL.Query().Get(name))
+	if raw == "" {
+		return def, nil
 	}
-	return patterns
+	d, err := time.ParseDuration(raw)
+	if err != nil {
+		return 0, xerrors.Errorf("%s must be a duration: %w", name, err)
+	}
+	if d <= 0 {
+		return 0, xerrors.Errorf("%s must be greater than zero", name)
+	}
+	return d, nil
 }
 
 func collectDebugLogFiles(ctx context.Context, logger slog.Logger, patterns []string, home string, cutoff time.Time) ([]debugLogFile, bool, error) {

@@ -1269,15 +1269,15 @@ Support links to display in the top right drop down menu.
 
 Enable the default GitHub external auth provider managed by Coder.
 
-### --agent-support-bundle-additional-log-paths
+### --agent-support-bundle-log-paths
 
-|             |                                                               |
-|-------------|---------------------------------------------------------------|
-| Type        | <code>string-array</code>                                     |
-| Environment | <code>$CODER_AGENT_SUPPORT_BUNDLE_ADDITIONAL_LOG_PATHS</code> |
-| YAML        | <code>agent.supportBundleAdditionalLogPaths</code>            |
+|             |                                                    |
+|-------------|----------------------------------------------------|
+| Type        | <code>string-array</code>                          |
+| Environment | <code>$CODER_AGENT_SUPPORT_BUNDLE_LOG_PATHS</code> |
+| YAML        | <code>agent.supportBundleLogPaths</code>           |
 
-Additional workspace log file paths or glob patterns to collect in support bundles. Matched directories are walked recursively for recent .log files under the workspace user's home directory.
+Workspace log file paths or glob patterns to collect from the agent debug log files endpoint. Matched directories are walked recursively for recent .log files under the workspace user's home directory. Set to an empty list to disable collection.
 
 ### --proxy-health-interval
 

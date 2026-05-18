@@ -1169,7 +1169,7 @@ type Manifest struct {
 	Metadata                        []*WorkspaceAgentMetadata_Description `protobuf:"bytes,12,rep,name=metadata,proto3" json:"metadata,omitempty"`
 	Devcontainers                   []*WorkspaceAgentDevcontainer         `protobuf:"bytes,17,rep,name=devcontainers,proto3" json:"devcontainers,omitempty"`
 	Secrets                         []*WorkspaceSecret                    `protobuf:"bytes,19,rep,name=secrets,proto3" json:"secrets,omitempty"`
-	SupportBundleAdditionalLogPaths []string                              `protobuf:"bytes,20,rep,name=support_bundle_additional_log_paths,json=supportBundleAdditionalLogPaths,proto3" json:"support_bundle_additional_log_paths,omitempty"`
+	SupportBundleLogPaths []string                              `protobuf:"bytes,20,rep,name=support_bundle_log_paths,json=supportBundleLogPaths,proto3" json:"support_bundle_log_paths,omitempty"`
 }
 
 func (x *Manifest) Reset() {
@@ -1337,9 +1337,9 @@ func (x *Manifest) GetSecrets() []*WorkspaceSecret {
 	return nil
 }
 
-func (x *Manifest) GetSupportBundleAdditionalLogPaths() []string {
+func (x *Manifest) GetSupportBundleLogPaths() []string {
 	if x != nil {
-		return x.SupportBundleAdditionalLogPaths
+		return x.SupportBundleLogPaths
 	}
 	return nil
 }

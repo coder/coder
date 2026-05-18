@@ -91,15 +91,15 @@ type Options struct {
 	BoundaryUsageTracker              *boundaryusage.Tracker
 	LifecycleMetrics                  *LifecycleMetrics
 
-	AccessURL                       *url.URL
-	AppHostname                     string
-	AgentStatsRefreshInterval       time.Duration
-	DisableDirectConnections        bool
-	DerpForceWebSockets             bool
-	SupportBundleAdditionalLogPaths []string
-	DerpMapUpdateFrequency          time.Duration
-	ExternalAuthConfigs             []*externalauth.Config
-	Experiments                     codersdk.Experiments
+	AccessURL                 *url.URL
+	AppHostname               string
+	AgentStatsRefreshInterval time.Duration
+	DisableDirectConnections  bool
+	DerpForceWebSockets       bool
+	SupportBundleLogPaths     []string
+	DerpMapUpdateFrequency    time.Duration
+	ExternalAuthConfigs       []*externalauth.Config
+	Experiments               codersdk.Experiments
 
 	UpdateAgentMetricsFn func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 }
@@ -115,16 +115,16 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 	}
 
 	api.ManifestAPI = &ManifestAPI{
-		AccessURL:                       opts.AccessURL,
-		AppHostname:                     opts.AppHostname,
-		ExternalAuthConfigs:             opts.ExternalAuthConfigs,
-		DisableDirectConnections:        opts.DisableDirectConnections,
-		DerpForceWebSockets:             opts.DerpForceWebSockets,
-		SupportBundleAdditionalLogPaths: opts.SupportBundleAdditionalLogPaths,
-		AgentFn:                         api.agent,
-		Database:                        opts.Database,
-		DerpMapFn:                       opts.DerpMapFn,
-		WorkspaceID:                     opts.WorkspaceID,
+		AccessURL:                opts.AccessURL,
+		AppHostname:              opts.AppHostname,
+		ExternalAuthConfigs:      opts.ExternalAuthConfigs,
+		DisableDirectConnections: opts.DisableDirectConnections,
+		DerpForceWebSockets:      opts.DerpForceWebSockets,
+		SupportBundleLogPaths:    opts.SupportBundleLogPaths,
+		AgentFn:                  api.agent,
+		Database:                 opts.Database,
+		DerpMapFn:                opts.DerpMapFn,
+		WorkspaceID:              opts.WorkspaceID,
 	}
 
 	// Don't cache details for prebuilds, though the cached fields will eventually be updated

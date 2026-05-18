@@ -1436,7 +1436,7 @@
 
 ```json
 {
-  "support_bundle_additional_log_paths": [
+  "support_bundle_log_paths": [
     "string"
   ]
 }
@@ -1444,9 +1444,9 @@
 
 ### Properties
 
-| Name                                  | Type            | Required | Restrictions | Description |
-|---------------------------------------|-----------------|----------|--------------|-------------|
-| `support_bundle_additional_log_paths` | array of string | false    |              |             |
+| Name                       | Type            | Required | Restrictions | Description |
+|----------------------------|-----------------|----------|--------------|-------------|
+| `support_bundle_log_paths` | array of string | false    |              |             |
 
 ## codersdk.AgentConnectionTiming
 
@@ -5300,7 +5300,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "port": "string"
     },
     "agent": {
-      "support_bundle_additional_log_paths": [
+      "support_bundle_log_paths": [
         "string"
       ]
     },
@@ -5903,7 +5903,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "port": "string"
   },
   "agent": {
-    "support_bundle_additional_log_paths": [
+    "support_bundle_log_paths": [
       "string"
     ]
   },

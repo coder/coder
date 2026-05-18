@@ -15089,7 +15089,7 @@ const docTemplate = `{
         "codersdk.AgentConfig": {
             "type": "object",
             "properties": {
-                "support_bundle_additional_log_paths": {
+                "support_bundle_log_paths": {
                     "type": "array",
                     "items": {
                         "type": "string"

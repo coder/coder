@@ -319,9 +319,9 @@ func TestGetManifest(t *testing.T) {
 				{Type: "some-provider"},
 				{Type: string(codersdk.EnhancedExternalAuthProviderGitLab)},
 			},
-			DisableDirectConnections:        true,
-			DerpForceWebSockets:             true,
-			SupportBundleAdditionalLogPaths: []string{"/home/coder/custom/logs"},
+			DisableDirectConnections: true,
+			DerpForceWebSockets:      true,
+			SupportBundleLogPaths:    []string{"/home/coder/custom/logs"},
 
 			AgentFn:     func(ctx context.Context) (database.WorkspaceAgent, error) { return agent, nil },
 			WorkspaceID: workspace.ID,
@@ -359,13 +359,13 @@ func TestGetManifest(t *testing.T) {
 			// tailnet.DERPMapToProto() is extensively tested elsewhere, so it's
 			// not necessary to manually recreate a big DERP map here like we
 			// did for apps and metadata.
-			DerpMap:                         tailnet.DERPMapToProto(derpMapFn()),
-			Scripts:                         protoScripts,
-			Apps:                            protoApps,
-			Metadata:                        protoMetadata,
-			Devcontainers:                   protoDevcontainers,
-			Secrets:                         []*agentproto.WorkspaceSecret{},
-			SupportBundleAdditionalLogPaths: []string{"/home/coder/custom/logs"},
+			DerpMap:               tailnet.DERPMapToProto(derpMapFn()),
+			Scripts:               protoScripts,
+			Apps:                  protoApps,
+			Metadata:              protoMetadata,
+			Devcontainers:         protoDevcontainers,
+			Secrets:               []*agentproto.WorkspaceSecret{},
+			SupportBundleLogPaths: []string{"/home/coder/custom/logs"},
 		}
 
 		// Log got and expected with spew.

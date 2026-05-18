@@ -447,6 +447,7 @@ func (c *agentConn) DebugManifest(ctx context.Context) ([]byte, error) {
 
 type DebugLogsOptions struct {
 	IncludeRotated bool
+	RotatedMaxAge  time.Duration
 }
 
 type DebugLogFilesOptions struct {
@@ -483,6 +484,9 @@ func debugLogsPath(opts DebugLogsOptions) string {
 	query := neturl.Values{}
 	if opts.IncludeRotated {
 		query.Set("include_rotated", "true")
+		if opts.RotatedMaxAge > 0 {
+			query.Set("rotated_max_age", opts.RotatedMaxAge.String())
+		}
 	}
 	return agentAPIPath("/debug/logs", query)
 }

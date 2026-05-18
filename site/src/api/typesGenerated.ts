@@ -875,7 +875,7 @@ export const AgentChatSendShortcuts: AgentChatSendShortcut[] = [
  * AgentConfig configures deployment-wide workspace agent behavior.
  */
 export interface AgentConfig {
-	readonly support_bundle_additional_log_paths: string;
+	readonly support_bundle_log_paths: string;
 }
 
 // From codersdk/workspacebuilds.go

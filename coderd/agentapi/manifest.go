@@ -25,13 +25,13 @@ import (
 )
 
 type ManifestAPI struct {
-	AccessURL                       *url.URL
-	AppHostname                     string
-	ExternalAuthConfigs             []*externalauth.Config
-	DisableDirectConnections        bool
-	DerpForceWebSockets             bool
-	SupportBundleAdditionalLogPaths []string
-	WorkspaceID                     uuid.UUID
+	AccessURL                *url.URL
+	AppHostname              string
+	ExternalAuthConfigs      []*externalauth.Config
+	DisableDirectConnections bool
+	DerpForceWebSockets      bool
+	SupportBundleLogPaths    []string
+	WorkspaceID              uuid.UUID
 
 	AgentFn   func(ctx context.Context) (database.WorkspaceAgent, error)
 	Database  database.Store
@@ -145,13 +145,13 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		DerpForceWebsockets:      a.DerpForceWebSockets,
 		ParentId:                 parentID,
 
-		DerpMap:                         tailnet.DERPMapToProto(a.DerpMapFn()),
-		Scripts:                         dbAgentScriptsToProto(scripts),
-		Apps:                            apps,
-		Metadata:                        dbAgentMetadataToProtoDescription(metadata),
-		Devcontainers:                   dbAgentDevcontainersToProto(devcontainers),
-		Secrets:                         dbUserSecretsToProto(userSecrets),
-		SupportBundleAdditionalLogPaths: a.SupportBundleAdditionalLogPaths,
+		DerpMap:               tailnet.DERPMapToProto(a.DerpMapFn()),
+		Scripts:               dbAgentScriptsToProto(scripts),
+		Apps:                  apps,
+		Metadata:              dbAgentMetadataToProtoDescription(metadata),
+		Devcontainers:         dbAgentDevcontainersToProto(devcontainers),
+		Secrets:               dbUserSecretsToProto(userSecrets),
+		SupportBundleLogPaths: a.SupportBundleLogPaths,
 	}, nil
 }
 

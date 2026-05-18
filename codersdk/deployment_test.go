@@ -149,6 +149,29 @@ func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
 	}
 }
 
+func TestDeploymentValues_AgentSupportBundleLogPaths(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Defaults", func(t *testing.T) {
+		t.Parallel()
+
+		dv := codersdk.DeploymentValues{}
+		opts := dv.Options()
+		require.NoError(t, opts.SetDefaults())
+		require.Equal(t, codersdk.DefaultSupportBundleLogPaths(), dv.Agent.SupportBundleLogPaths.Value())
+	})
+
+	t.Run("EmptyEnvDisables", func(t *testing.T) {
+		t.Parallel()
+
+		dv := codersdk.DeploymentValues{}
+		opts := dv.Options()
+		require.NoError(t, opts.ParseEnv([]serpent.EnvVar{{Name: "CODER_AGENT_SUPPORT_BUNDLE_LOG_PATHS", Value: ""}}))
+		require.NoError(t, opts.SetDefaults())
+		require.Empty(t, dv.Agent.SupportBundleLogPaths.Value())
+	})
+}
+
 func TestSSHConfig_ParseOptions(t *testing.T) {
 	t.Parallel()
 

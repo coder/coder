@@ -569,11 +569,15 @@ externalAuthProviders: []
 externalAuthGithubDefaultProviderEnable: true
 # Configure workspace agent behavior.
 agent:
-  # Additional workspace log file paths or glob patterns to collect in support
-  # bundles. Matched directories are walked recursively for recent .log files under
-  # the workspace user's home directory.
-  # (default: <unset>, type: string-array)
-  supportBundleAdditionalLogPaths: []
+  # Workspace log file paths or glob patterns to collect from the agent debug log
+  # files endpoint. Matched directories are walked recursively for recent .log files
+  # under the workspace user's home directory. Set to an empty list to disable
+  # collection.
+  # (default: $HOME/.*-server/data/logs,$HOME/.local/share/code-server/coder-logs,
+  # type: string-array)
+  supportBundleLogPaths:
+    - $HOME/.*-server/data/logs
+    - $HOME/.local/share/code-server/coder-logs
 # Hostname of HTTPS server that runs https://github.com/coder/wgtunnel. By
 # default, this will pick the best available wgtunnel server hosted by Coder. e.g.
 # "tunnel.example.com".

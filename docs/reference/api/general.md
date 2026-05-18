@@ -148,7 +148,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "port": "string"
     },
     "agent": {
-      "support_bundle_additional_log_paths": [
+      "support_bundle_log_paths": [
         "string"
       ]
     },

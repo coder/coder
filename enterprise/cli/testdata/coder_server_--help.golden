@@ -234,10 +234,11 @@ AI BRIDGE PROXY OPTIONS:
 AGENT OPTIONS: 
 Configure workspace agent behavior.
 
-      --agent-support-bundle-additional-log-paths string-array, $CODER_AGENT_SUPPORT_BUNDLE_ADDITIONAL_LOG_PATHS
-          Additional workspace log file paths or glob patterns to collect in
-          support bundles. Matched directories are walked recursively for recent
-          .log files under the workspace user's home directory.
+      --agent-support-bundle-log-paths string-array, $CODER_AGENT_SUPPORT_BUNDLE_LOG_PATHS (default: $HOME/.*-server/data/logs,$HOME/.local/share/code-server/coder-logs)
+          Workspace log file paths or glob patterns to collect from the agent
+          debug log files endpoint. Matched directories are walked recursively
+          for recent .log files under the workspace user's home directory. Set
+          to an empty list to disable collection.
 
 CHAT OPTIONS: 
 Configure the background chat processing daemon.
