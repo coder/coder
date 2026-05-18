@@ -1,6 +1,6 @@
 # Documentation Style Guide
 
-This guide documents prose, structure, and formatting patterns for documentation files in the `docs/` directory. It complements, and does not replace, the canonical content rules.
+This guide documents prose, structure, and formatting patterns for documentation files in the `docs/` directory. It complements, and does not replace, the canonical content rules or the prose style guide.
 
 > [!IMPORTANT]
 > **What belongs in the docs (and what doesn't)** is governed by
@@ -8,6 +8,13 @@ This guide documents prose, structure, and formatting patterns for documentation
 > Read that first. When this style guide conflicts with the content
 > guidelines, the content guidelines govern. This file covers prose,
 > formatting, and structural conventions only.
+>
+> **For prose rules**, the canonical Coder documentation style guide is
+> [`docs/.style/style-guide.md`](../../docs/.style/style-guide.md). That
+> guide is what the Vale rules in `docs/.style/styles/Coder/` enforce.
+> This file focuses on structure, research, and content patterns observed
+> in the repo and is meant to ride alongside the prose guide, not replace
+> it.
 
 See [CONTRIBUTING.md](../../docs/about/contributing/CONTRIBUTING.md) for general contribution guidelines.
 
