@@ -8,6 +8,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -21,7 +22,9 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/dlppolicy"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/jwtutils"
@@ -112,6 +115,10 @@ type ServerOptions struct {
 
 	AgentProvider  AgentProvider
 	StatsCollector *StatsCollector
+
+	// Database is used to look up DLP policies attached to workspace agents
+	// when gating dashboard traffic.
+	Database database.Store
 }
 
 // Server serves workspace apps endpoints, including:
@@ -631,9 +638,50 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 
 	r.URL.Path = path
 	appURL.RawQuery = ""
-	_, protocol, isPort := app.PortInfo()
+	// Path-based app routing passes an empty appurl.ApplicationURL into
+	// proxyWorkspaceApp, so app.PortInfo() and app.AppSlugOrPort are not
+	// reliable here. The resolved token is the source of truth for both,
+	// and path-based apps cannot represent ports per ResolveRequest.
+	slugOrPort := appToken.AppSlugOrPort
+	isPort := false
+	protocol := ""
+	if appToken.AccessMethod == AccessMethodSubdomain {
+		_, protocol, isPort = app.PortInfo()
+	}
 	if isPort {
 		appURL.Scheme = protocol
+	}
+
+	// DLP gate. Port view (dashboard "Ports" tab) is gated by
+	// `port_forwarding_access`; coder_app slugs are gated by membership in
+	// `allowed_applications`. The HTML error-page form matches existing
+	// browser-facing denials in this handler.
+	dlp, err := dlppolicy.ForAgent(ctx, s.Database, appToken.AgentID)
+	if err != nil {
+		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+			Status:      http.StatusInternalServerError,
+			Title:       "Internal Server Error",
+			Description: "Failed to load the workspace policy.",
+		})
+		return
+	}
+	if dlp != nil {
+		if isPort && !dlp.PortForwardingAccess {
+			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+				Status:      http.StatusForbidden,
+				Title:       "Blocked by workspace policy",
+				Description: "Port forwarding is not permitted by the workspace policy.",
+			})
+			return
+		}
+		if !isPort && !slices.Contains(dlp.AllowedApplications, slugOrPort) {
+			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+				Status:      http.StatusForbidden,
+				Title:       "Blocked by workspace policy",
+				Description: fmt.Sprintf("The %q application is not permitted by the workspace policy.", slugOrPort),
+			})
+			return
+		}
 	}
 
 	proxy := s.AgentProvider.ReverseProxy(appURL, s.DashboardURL, appToken.AgentID, app, s.Hostname)
@@ -732,6 +780,20 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	}
 	log := s.Logger.With(slog.F("agent_id", appToken.AgentID))
 	log.Debug(ctx, "resolved PTY request")
+
+	// DLP gate. Run before the WebSocket upgrade so we can return a JSON 403
+	// instead of a close code that the dashboard can't surface cleanly.
+	dlp, err := dlppolicy.ForAgent(ctx, s.Database, appToken.AgentID)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	if dlp != nil && !dlp.WebTerminalAccess {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "The web terminal is not permitted by the workspace policy.",
+		})
+		return
+	}
 
 	values := r.URL.Query()
 	parser := httpapi.NewQueryParamParser()

@@ -5433,6 +5433,14 @@ func (m queryMetricsStore) UpdateWorkspaceAgentConnectionByID(ctx context.Contex
 	return r0
 }
 
+func (m queryMetricsStore) UpdateWorkspaceAgentDLPPolicyByID(ctx context.Context, arg database.UpdateWorkspaceAgentDLPPolicyByIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateWorkspaceAgentDLPPolicyByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspaceAgentDLPPolicyByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateWorkspaceAgentDLPPolicyByID").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) UpdateWorkspaceAgentDirectoryByID(ctx context.Context, arg database.UpdateWorkspaceAgentDirectoryByIDParams) error {
 	start := time.Now()
 	r0 := m.s.UpdateWorkspaceAgentDirectoryByID(ctx, arg)

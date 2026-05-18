@@ -514,6 +514,7 @@ func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgen
 		DisplayApps:              append([]database.DisplayApp{}, orig.DisplayApps...),
 		DisplayOrder:             takeFirst(orig.DisplayOrder, 1),
 		APIKeyScope:              takeFirst(orig.APIKeyScope, database.AgentKeyScopeEnumAll),
+		DlpPolicyID:              orig.DlpPolicyID,
 	})
 	require.NoError(t, err, "insert workspace agent")
 	if orig.FirstConnectedAt.Valid || orig.LastConnectedAt.Valid || orig.DisconnectedAt.Valid || orig.LastConnectedReplicaID.Valid {
@@ -581,6 +582,16 @@ func WorkspaceSubAgent(t testing.TB, db database.Store, parentAgent database.Wor
 	orig.ResourceID = parentAgent.ResourceID
 	subAgt := WorkspaceAgent(t, db, orig)
 	return subAgt
+}
+
+// SetWorkspaceAgentDLPPolicy sets the DLP policy reference on an existing
+// workspace agent. Helpful for tests that need to attach a policy to an
+// agent that was created via dbfake or other helpers.
+func SetWorkspaceAgentDLPPolicy(t testing.TB, db database.Store, agentID uuid.UUID, policyID uuid.UUID) {
+	require.NoError(t, db.UpdateWorkspaceAgentDLPPolicyByID(genCtx, database.UpdateWorkspaceAgentDLPPolicyByIDParams{
+		ID:          agentID,
+		DlpPolicyID: uuid.NullUUID{UUID: policyID, Valid: true},
+	}))
 }
 
 func WorkspaceAgentScript(t testing.TB, db database.Store, orig database.WorkspaceAgentScript) database.WorkspaceAgentScript {

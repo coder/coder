@@ -916,6 +916,118 @@ func TestWorkspaceAgentTailnet(t *testing.T) {
 	require.Equal(t, "test", strings.TrimSpace(string(output)))
 }
 
+func TestWorkspaceAgentClientCoordinate_DLPDenied(t *testing.T) {
+	t.Parallel()
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+
+	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	}).WithAgent().Do()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	// Look up the build to find its template version ID, then insert a DLP
+	// policy and link the agent to it via dlp_policy_id.
+	agentToken, err := uuid.Parse(r.AgentToken)
+	require.NoError(t, err)
+	ao, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agentToken)
+	require.NoError(t, err)
+	build, err := db.GetWorkspaceBuildByID(dbauthz.AsSystemRestricted(ctx), ao.WorkspaceBuild.ID)
+	require.NoError(t, err)
+
+	policy, err := db.InsertTemplateVersionDLPPolicy(dbauthz.AsProvisionerd(ctx), database.InsertTemplateVersionDLPPolicyParams{
+		ID:                   uuid.New(),
+		TemplateVersionID:    build.TemplateVersionID,
+		Name:                 "strict",
+		SshAccess:            false,
+		WebTerminalAccess:    true,
+		PortForwardingAccess: true,
+		AllowedApplications:  []string{},
+		CreatedAt:            dbtime.Now(),
+	})
+	require.NoError(t, err)
+
+	dbgen.SetWorkspaceAgentDLPPolicy(t, db, ao.WorkspaceAgent.ID, policy.ID)
+
+	//nolint: bodyclose // closed by ReadBodyAsError
+	resp, err := client.Request(ctx, http.MethodGet,
+		fmt.Sprintf("api/v2/workspaceagents/%s/coordinate", ao.WorkspaceAgent.ID),
+		nil)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusForbidden, resp.StatusCode)
+	apiErr := codersdk.ReadBodyAsError(resp)
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, apiErr, &sdkErr)
+	require.Contains(t, sdkErr.Message, "workspace policy")
+	require.Contains(t, sdkErr.Detail, "ssh, port-forward, cp, and speedtest")
+}
+
+func TestWorkspaceAgentPTY_DLPDenied(t *testing.T) {
+	t.Parallel()
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+
+	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	}).WithAgent().Do()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	agentToken, err := uuid.Parse(r.AgentToken)
+	require.NoError(t, err)
+	ao, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agentToken)
+	require.NoError(t, err)
+	build, err := db.GetWorkspaceBuildByID(dbauthz.AsSystemRestricted(ctx), ao.WorkspaceBuild.ID)
+	require.NoError(t, err)
+
+	policy, err := db.InsertTemplateVersionDLPPolicy(dbauthz.AsProvisionerd(ctx), database.InsertTemplateVersionDLPPolicyParams{
+		ID:                   uuid.New(),
+		TemplateVersionID:    build.TemplateVersionID,
+		Name:                 "strict",
+		SshAccess:            true,
+		WebTerminalAccess:    false,
+		PortForwardingAccess: true,
+		AllowedApplications:  []string{},
+		CreatedAt:            dbtime.Now(),
+	})
+	require.NoError(t, err)
+
+	dbgen.SetWorkspaceAgentDLPPolicy(t, db, ao.WorkspaceAgent.ID, policy.ID)
+
+	// The PTY handler's workspace-app resolution rejects offline agents
+	// before the DLP gate. Mark the agent connected so the request reaches
+	// the gate.
+	require.NoError(t, db.UpdateWorkspaceAgentConnectionByID(
+		dbauthz.AsSystemRestricted(ctx),
+		database.UpdateWorkspaceAgentConnectionByIDParams{
+			ID:                     ao.WorkspaceAgent.ID,
+			FirstConnectedAt:       sql.NullTime{Time: dbtime.Now(), Valid: true},
+			LastConnectedAt:        sql.NullTime{Time: dbtime.Now(), Valid: true},
+			DisconnectedAt:         sql.NullTime{},
+			LastConnectedReplicaID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			UpdatedAt:              dbtime.Now(),
+		},
+	))
+
+	// The PTY endpoint expects a WebSocket upgrade, but the DLP gate fires
+	// before the upgrade and returns a JSON 403. A plain HTTP GET is enough
+	// to exercise the gate.
+	//nolint: bodyclose // closed by ReadBodyAsError
+	resp, err := client.Request(ctx, http.MethodGet,
+		fmt.Sprintf("api/v2/workspaceagents/%s/pty", ao.WorkspaceAgent.ID),
+		nil)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusForbidden, resp.StatusCode)
+	apiErr := codersdk.ReadBodyAsError(resp)
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, apiErr, &sdkErr)
+	require.Contains(t, sdkErr.Message, "workspace policy")
+	require.Contains(t, sdkErr.Message, "web terminal")
+}
+
 func TestWorkspaceAgentClientCoordinate_BadVersion(t *testing.T) {
 	t.Parallel()
 	client, db := coderdtest.NewWithDatabase(t, nil)

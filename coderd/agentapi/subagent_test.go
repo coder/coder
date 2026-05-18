@@ -20,6 +20,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/dlppolicy"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
@@ -218,6 +220,72 @@ func TestSubAgentAPI(t *testing.T) {
 		require.Len(t, agents, 1)
 		lookedUp := agents[0]
 		assert.Equal(t, parentAgent.ID, lookedUp.ID, "instance ID lookup should still return the parent agent")
+	})
+
+	t.Run("CreateSubAgentInheritsDLPPolicy", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			log   = testutil.Logger(t)
+			clock = quartz.NewMock(t)
+
+			db, org     = newDatabaseWithOrg(t)
+			user, agent = newUserWithWorkspaceAgent(t, db, org)
+		)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Attach a DLP policy with ssh_access disabled to the parent agent.
+		ao, err := db.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(dbauthz.AsSystemRestricted(ctx), agent.AuthToken)
+		require.NoError(t, err)
+		build, err := db.GetWorkspaceBuildByID(dbauthz.AsSystemRestricted(ctx), ao.WorkspaceBuild.ID)
+		require.NoError(t, err)
+
+		policy, err := db.InsertTemplateVersionDLPPolicy(dbauthz.AsProvisionerd(ctx), database.InsertTemplateVersionDLPPolicyParams{
+			ID:                   uuid.New(),
+			TemplateVersionID:    build.TemplateVersionID,
+			Name:                 "strict",
+			SshAccess:            false,
+			WebTerminalAccess:    true,
+			PortForwardingAccess: true,
+			AllowedApplications:  []string{},
+			CreatedAt:            dbtime.Now(),
+		})
+		require.NoError(t, err)
+		dbgen.SetWorkspaceAgentDLPPolicy(t, db, agent.ID, policy.ID)
+
+		// Re-fetch the parent so the API sees the updated DlpPolicyID.
+		parentAgent, err := db.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), agent.ID)
+		require.NoError(t, err)
+		require.True(t, parentAgent.DlpPolicyID.Valid, "parent should have the DLP policy attached")
+
+		api := newAgentAPI(t, log, db, clock, user, org, parentAgent)
+
+		createResp, err := api.CreateSubAgent(ctx, &proto.CreateSubAgentRequest{
+			Name:            "sub-agent",
+			Directory:       "/workspaces/test",
+			Architecture:    "amd64",
+			OperatingSystem: "linux",
+		})
+		require.NoError(t, err)
+
+		subAgentID, err := uuid.FromBytes(createResp.Agent.Id)
+		require.NoError(t, err)
+
+		// The sub-agent row must carry the parent's DLP policy id so that
+		// gates keyed on the agent ID return the same policy.
+		subAgent, err := db.GetWorkspaceAgentByID(dbauthz.AsSystemRestricted(ctx), subAgentID)
+		require.NoError(t, err)
+		require.True(t, subAgent.DlpPolicyID.Valid, "sub-agent should inherit the parent's DLP policy")
+		require.Equal(t, parentAgent.DlpPolicyID.UUID, subAgent.DlpPolicyID.UUID)
+
+		// And dlppolicy.ForAgent must resolve the same policy when looked up
+		// via the sub-agent's id, which is what the enforcement gates do.
+		resolved, err := dlppolicy.ForAgent(ctx, db, subAgentID)
+		require.NoError(t, err)
+		require.NotNil(t, resolved)
+		require.Equal(t, policy.ID, resolved.ID)
+		require.False(t, resolved.SshAccess, "sub-agent must inherit ssh_access=false")
 	})
 
 	type expectedAppError struct {

@@ -2136,6 +2136,11 @@ func (s *MethodTestSuite) TestOrganization() {
 		dbm.EXPECT().InsertTemplateVersionDLPPolicy(gomock.Any(), arg).Return(database.TemplateVersionDlpPolicy{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceTemplate, policy.ActionUpdate)
 	}))
+	s.Run("UpdateWorkspaceAgentDLPPolicyByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.UpdateWorkspaceAgentDLPPolicyByIDParams{ID: uuid.New(), DlpPolicyID: uuid.NullUUID{UUID: uuid.New(), Valid: true}}
+		dbm.EXPECT().UpdateWorkspaceAgentDLPPolicyByID(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceTemplate, policy.ActionUpdate)
+	}))
 	s.Run("GetTemplateVersionDLPPoliciesByTemplateVersionID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		tpl := testutil.Fake(s.T(), faker, database.Template{})
 		tv := testutil.Fake(s.T(), faker, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}, OrganizationID: tpl.OrganizationID, CreatedBy: tpl.CreatedBy})

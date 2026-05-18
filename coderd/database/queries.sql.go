@@ -30899,6 +30899,28 @@ func (q *sqlQuerier) UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg
 	return err
 }
 
+const updateWorkspaceAgentDLPPolicyByID = `-- name: UpdateWorkspaceAgentDLPPolicyByID :exec
+UPDATE
+	workspace_agents
+SET
+	dlp_policy_id = $2
+WHERE
+	id = $1
+`
+
+type UpdateWorkspaceAgentDLPPolicyByIDParams struct {
+	ID          uuid.UUID     `db:"id" json:"id"`
+	DlpPolicyID uuid.NullUUID `db:"dlp_policy_id" json:"dlp_policy_id"`
+}
+
+// UpdateWorkspaceAgentDLPPolicyByID is intended for tests and admin-tooling
+// only. In normal operation `dlp_policy_id` is set at agent insert time and
+// not modified afterwards.
+func (q *sqlQuerier) UpdateWorkspaceAgentDLPPolicyByID(ctx context.Context, arg UpdateWorkspaceAgentDLPPolicyByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspaceAgentDLPPolicyByID, arg.ID, arg.DlpPolicyID)
+	return err
+}
+
 const updateWorkspaceAgentDirectoryByID = `-- name: UpdateWorkspaceAgentDirectoryByID :exec
 UPDATE
 	workspace_agents

@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/dlppolicy"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -1316,6 +1317,23 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 	waws := httpmw.WorkspaceAgentAndWorkspaceParam(r)
 	if !api.Authorize(r, policy.ActionSSH, waws) {
 		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	// DLP gate. Path A is the single chokepoint for all CLI peering. Once a
+	// client coordinates, the data plane is peer-to-peer Wireguard and coderd
+	// cannot differentiate ssh from port-forward from cp. So `ssh_access`
+	// here is coarse: false blocks every CLI channel.
+	dlp, err := dlppolicy.ForAgent(ctx, api.Database, waws.WorkspaceAgent.ID)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	if dlp != nil && !dlp.SshAccess {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "CLI access to this workspace is not permitted by the workspace policy.",
+			Detail:  "This blocks ssh, port-forward, cp, and speedtest.",
+		})
 		return
 	}
 
