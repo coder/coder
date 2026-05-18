@@ -206,7 +206,7 @@ const UsageTriggerProgress: FC<{ sections: readonly UsageSectionData[] }> = ({
 					)}
 					<span
 						className={cn(
-							"hidden shrink-0 whitespace-nowrap text-xs tabular-nums @[120px]:block",
+							"shrink-0 whitespace-nowrap text-xs tabular-nums @max-[80px]:hidden",
 							getTextClassName(section.severity),
 						)}
 					>
