@@ -143,15 +143,7 @@ const ReasoningDisclosure = memo<{
 		}, [displayTextLength, isPreviewConstrained]);
 
 		return (
-			<div
-				data-tool-call=""
-				className={cn(
-					"py-0.5",
-					// Collapse padding between adjacent tool/thinking blocks.
-					"[&:has(+[data-tool-call])]:pb-0",
-					"[[data-tool-call]+&]:pt-0",
-				)}
-			>
+			<div data-tool-call="">
 				<ToolCollapsible
 					className="w-full"
 					expanded={expanded}
@@ -529,10 +521,6 @@ const ChatMessageItem = memo<{
 			return null;
 		}
 
-		const hasRenderableContent =
-			parsed.blocks.length > 0 ||
-			parsed.tools.length > 0 ||
-			parsed.sources.length > 0;
 		const conversationItemProps: { role: "user" | "assistant" } = {
 			role: isUser ? "user" : "assistant",
 		};
@@ -557,8 +545,8 @@ const ChatMessageItem = memo<{
 					) : (
 						<Message className="w-full">
 							<MessageContent className="whitespace-normal">
-								{/* Keep consecutive tool and thinking rows tighter so activity-heavy turns read as a single timeline. */}
-								<div className="relative space-y-3 overflow-visible [&>[data-tool-call]+[data-tool-call]]:mt-2">
+								{/* Keep assistant content spacing consistent by letting the parent stack own every top-level gap. */}
+								<div className="relative flex flex-col gap-2 overflow-visible">
 									<BlockList
 										blocks={parsed.blocks}
 										tools={parsed.tools}
@@ -583,7 +571,7 @@ const ChatMessageItem = memo<{
 										urlTransform={urlTransform}
 										mcpServers={mcpServers}
 									/>
-									{!hasRenderableContent && (
+									{!displayState.hasRenderableContent && (
 										<div className="text-xs text-content-secondary">
 											Message has no renderable content.
 										</div>

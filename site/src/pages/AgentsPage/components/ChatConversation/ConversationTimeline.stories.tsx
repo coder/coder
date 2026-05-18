@@ -1899,6 +1899,72 @@ export const NoRenderableContentFallbackSpacing: Story = {
 };
 
 /**
+ * Regression: assistant messages whose only tool row resolves to null
+ * must not leave behind an empty transcript wrapper or an extra gap.
+ */
+export const HiddenAssistantToolMessageDoesNotRenderGap: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 201,
+				role: "user",
+				content: [{ type: "text", text: "Run the command" }],
+			},
+			{
+				...baseMessage,
+				id: 202,
+				role: "assistant",
+				content: [{ type: "text", text: "Done." }],
+			},
+			{
+				...baseMessage,
+				id: 203,
+				role: "assistant",
+				content: [
+					{
+						type: "tool-call",
+						tool_call_id: "hidden-execute",
+						tool_name: "execute",
+						args: {},
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 204,
+				role: "user",
+				content: [{ type: "text", text: "Thanks!" }],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.queryByText("Message has no renderable content."),
+		).not.toBeInTheDocument();
+
+		for (const el of canvasElement.querySelectorAll(
+			'[data-testid="message-actions"]',
+		)) {
+			if (el instanceof HTMLElement) {
+				el.style.opacity = "1";
+			}
+		}
+
+		const timeline = canvas.getByTestId("conversation-timeline");
+		const renderedRows = Array.from(
+			timeline.querySelectorAll('[data-role="user"], [data-role="assistant"]'),
+		);
+		expect(renderedRows).toHaveLength(3);
+		expect(renderedRows[1]).toHaveAttribute("data-role", "assistant");
+		expect(renderedRows[1]).toHaveTextContent("Done.");
+		expect(canvas.getAllByTestId("message-actions")).toHaveLength(3);
+	},
+};
+
+/**
  * Regression: action bar must appear on the last *visible* assistant
  * message even when invisible assistant messages (provider-executed
  * tool-result-only) follow it before the next user turn.

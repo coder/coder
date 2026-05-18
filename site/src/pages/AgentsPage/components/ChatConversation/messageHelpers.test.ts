@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { ChatMessage, ChatMessagePart } from "#/api/typesGenerated";
 import { deriveMessageDisplayState } from "./messageHelpers";
-import { parseMessageContent } from "./messageParsing";
+import { parseMessagesWithMergedTools } from "./messageParsing";
+import type { ParsedMessageContent } from "./types";
 
 const buildMessage = (
 	content: ChatMessagePart[],
@@ -14,13 +15,16 @@ const buildMessage = (
 	content,
 });
 
+const getParsedMessage = (message: ChatMessage) =>
+	parseMessagesWithMergedTools([message])[0].parsed;
+
 const getDisplayState = (
 	message: ChatMessage,
 	overrides: Partial<Parameters<typeof deriveMessageDisplayState>[0]> = {},
 ) =>
 	deriveMessageDisplayState({
 		message,
-		parsed: parseMessageContent(message.content),
+		parsed: getParsedMessage(message),
 		hideActions: false,
 		hasActiveStream: false,
 		...overrides,
@@ -129,5 +133,63 @@ describe("deriveMessageDisplayState", () => {
 		const message = buildMessage([{ type: "text", text: "Hello" }], "user");
 
 		expect(getDisplayState(message).needsAssistantBottomSpacer).toBe(false);
+	});
+
+	it("hides assistant messages whose execute tool renders nothing", () => {
+		const message = buildMessage(
+			[
+				{
+					type: "tool-call",
+					tool_call_id: "tool-1",
+					tool_name: "execute",
+					args: {},
+				},
+			],
+			"assistant",
+		);
+
+		expect(getDisplayState(message).shouldHide).toBe(true);
+	});
+
+	it("keeps assistant messages visible when execute shows a real command", () => {
+		const message = buildMessage(
+			[
+				{
+					type: "tool-call",
+					tool_call_id: "tool-1",
+					tool_name: "execute",
+					args: { command: "pnpm test" },
+				},
+			],
+			"assistant",
+		);
+
+		expect(getDisplayState(message).shouldHide).toBe(false);
+	});
+
+	it("hides running wait_agent messages until the chat id is available", () => {
+		const message = buildMessage([], "assistant");
+		const parsed: ParsedMessageContent = {
+			...getParsedMessage(message),
+			blocks: [{ type: "tool", id: "wait-1" }],
+			tools: [
+				{
+					id: "wait-1",
+					name: "wait_agent",
+					args: {},
+					isError: false,
+					status: "running",
+				},
+			],
+		};
+
+		expect(
+			deriveMessageDisplayState({
+				message,
+				parsed,
+				hideActions: false,
+				hasActiveStream: false,
+			}).shouldHide,
+		).toBe(true);
 	});
 });
