@@ -59,6 +59,7 @@ interface ChatPageTimelineProps {
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
+	onVisibleStreamingTextChange?: (text: string) => void;
 }
 
 export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
@@ -70,6 +71,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	onSendAskUserQuestionResponse,
 	urlTransform,
 	mcpServers,
+	onVisibleStreamingTextChange,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
 	const messagesByID = useChatSelector(store, selectMessagesByID);
@@ -140,6 +142,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					subagentVariants={subagentVariants}
 					urlTransform={urlTransform}
 					mcpServers={mcpServers}
+					onVisibleStreamingTextChange={onVisibleStreamingTextChange}
 				/>
 			</div>
 		</Profiler>

@@ -3246,6 +3246,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |------------|
 | ``, `read` |
 
+## codersdk.ChatSideQuestionTransientContext
+
+```json
+{
+  "visible_streaming_assistant_text": "string"
+}
+```
+
+### Properties
+
+| Name                               | Type   | Required | Restrictions | Description |
+|------------------------------------|--------|----------|--------------|-------------|
+| `visible_streaming_assistant_text` | string | false    |              |             |
+
 ## codersdk.ChatStatus
 
 ```json
@@ -4500,6 +4514,56 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `system_prompt`        | string                                                    | false    |              |                                                                                                                                            |
 | `unsafe_dynamic_tools` | array of [codersdk.DynamicTool](#codersdkdynamictool)     | false    |              | Unsafe dynamic tools declares client-executed tools that the LLM can invoke. This API is highly experimental and highly subject to change. |
 | `workspace_id`         | string                                                    | false    |              |                                                                                                                                            |
+
+## codersdk.CreateChatSideQuestionRequest
+
+```json
+{
+  "question": "string",
+  "transient_context": {
+    "visible_streaming_assistant_text": "string"
+  }
+}
+```
+
+### Properties
+
+| Name                | Type                                                                                   | Required | Restrictions | Description |
+|---------------------|----------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `question`          | string                                                                                 | true     |              |             |
+| `transient_context` | [codersdk.ChatSideQuestionTransientContext](#codersdkchatsidequestiontransientcontext) | false    |              |             |
+
+## codersdk.CreateChatSideQuestionResponse
+
+```json
+{
+  "answer": "string",
+  "model": "string",
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
+  "provider": "string",
+  "run_id": "dded282c-8ebd-44cf-8ba5-9a234973d1ec",
+  "usage": {
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 0,
+    "context_limit": 0,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "reasoning_tokens": 0,
+    "total_tokens": 0
+  }
+}
+```
+
+### Properties
+
+| Name              | Type                                                   | Required | Restrictions | Description |
+|-------------------|--------------------------------------------------------|----------|--------------|-------------|
+| `answer`          | string                                                 | false    |              |             |
+| `model`           | string                                                 | false    |              |             |
+| `model_config_id` | string                                                 | false    |              |             |
+| `provider`        | string                                                 | false    |              |             |
+| `run_id`          | string                                                 | false    |              |             |
+| `usage`           | [codersdk.ChatMessageUsage](#codersdkchatmessageusage) | false    |              |             |
 
 ## codersdk.CreateFirstUserOnboardingInfo
 
@@ -6961,9 +7025,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                |
-|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `auto-fill-parameters`, `example`, `mcp-server-http`, `minimum-implicit-member`, `nats_pubsub`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                       |
+|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `auto-fill-parameters`, `chat-side-questions`, `example`, `mcp-server-http`, `minimum-implicit-member`, `nats_pubsub`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-usage` |
 
 ## codersdk.ExternalAPIKeyScopes
 

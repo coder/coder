@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Link } from "react-router";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -40,6 +41,7 @@ interface LiveStreamTailContentProps {
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
+	onVisibleStreamingTextChange?: (text: string) => void;
 }
 
 export const LiveStreamTailContent = ({
@@ -52,6 +54,7 @@ export const LiveStreamTailContent = ({
 	subagentStatusOverrides,
 	urlTransform,
 	mcpServers,
+	onVisibleStreamingTextChange,
 }: LiveStreamTailContentProps) => {
 	const shouldRenderStreamSection = shouldRenderStreamingSection(liveStatus);
 	const terminalStatus = liveStatus.phase === "failed" ? liveStatus : null;
@@ -59,6 +62,12 @@ export const LiveStreamTailContent = ({
 		terminalStatus?.kind === "usage_limit" ? terminalStatus : null;
 	const shouldRenderEmptyState =
 		isTranscriptEmpty && liveStatus.phase === "idle";
+
+	useEffect(() => {
+		if (liveStatus.phase !== "streaming") {
+			onVisibleStreamingTextChange?.("");
+		}
+	}, [liveStatus.phase, onVisibleStreamingTextChange]);
 
 	if (
 		!shouldRenderEmptyState &&
@@ -91,6 +100,7 @@ export const LiveStreamTailContent = ({
 					subagentStatusOverrides={subagentStatusOverrides}
 					urlTransform={urlTransform}
 					mcpServers={mcpServers}
+					onVisibleResponseTextChange={onVisibleStreamingTextChange}
 				/>
 			)}
 			{usageLimitStatus && !usageLimitStatus.provider ? (
@@ -119,6 +129,7 @@ interface LiveStreamTailProps {
 	subagentVariants?: Map<string, SubagentVariant>;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
+	onVisibleStreamingTextChange?: (text: string) => void;
 }
 
 export const LiveStreamTail = ({
@@ -129,6 +140,7 @@ export const LiveStreamTail = ({
 	subagentVariants,
 	urlTransform,
 	mcpServers,
+	onVisibleStreamingTextChange,
 }: LiveStreamTailProps) => {
 	const streamState = useChatSelector(store, selectStreamState);
 	const streamError = useChatSelector(store, selectStreamError);
@@ -166,6 +178,7 @@ export const LiveStreamTail = ({
 			subagentStatusOverrides={subagentStatusOverrides}
 			urlTransform={urlTransform}
 			mcpServers={mcpServers}
+			onVisibleStreamingTextChange={onVisibleStreamingTextChange}
 		/>
 	);
 };

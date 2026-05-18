@@ -2675,6 +2675,15 @@ export type ChatRole = "" | "read";
 export const ChatRoles: ChatRole[] = ["", "read"];
 
 // From codersdk/chats.go
+/**
+ * ChatSideQuestionTransientContext contains capped client-visible context that
+ * has not been persisted to the chat transcript.
+ */
+export interface ChatSideQuestionTransientContext {
+	readonly visible_streaming_assistant_text?: string;
+}
+
+// From codersdk/chats.go
 export interface ChatSkillPart {
 	readonly type: "skill";
 	/**
@@ -3332,6 +3341,29 @@ export interface CreateChatRequest {
 	readonly unsafe_dynamic_tools?: readonly DynamicTool[];
 	readonly plan_mode?: ChatPlanMode;
 	readonly client_type?: ChatClientType;
+}
+
+// From codersdk/chats.go
+/**
+ * CreateChatSideQuestionRequest asks a one-shot question about a chat without
+ * appending to the chat transcript.
+ */
+export interface CreateChatSideQuestionRequest {
+	readonly question: string;
+	readonly transient_context?: ChatSideQuestionTransientContext;
+}
+
+// From codersdk/chats.go
+/**
+ * CreateChatSideQuestionResponse is the response from asking a side question.
+ */
+export interface CreateChatSideQuestionResponse {
+	readonly answer: string;
+	readonly run_id: string;
+	readonly model_config_id: string;
+	readonly provider: string;
+	readonly model: string;
+	readonly usage: ChatMessageUsage;
 }
 
 // From codersdk/users.go
@@ -4348,6 +4380,7 @@ export const EntitlementsWarningHeader = "X-Coder-Entitlements-Warning";
 // From codersdk/deployment.go
 export type Experiment =
 	| "auto-fill-parameters"
+	| "chat-side-questions"
 	| "example"
 	| "mcp-server-http"
 	| "minimum-implicit-member"
@@ -4359,6 +4392,7 @@ export type Experiment =
 
 export const Experiments: Experiment[] = [
 	"auto-fill-parameters",
+	"chat-side-questions",
 	"example",
 	"mcp-server-http",
 	"minimum-implicit-member",

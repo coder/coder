@@ -1224,6 +1224,107 @@ export const RootChatShareActionAvailable: Story = {
 	},
 };
 
+export const SideQuestionCommand: Story = {
+	parameters: {
+		experiments: ["chat-side-questions"],
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Side question chat",
+				status: "completed",
+			},
+			{
+				messages: [
+					{
+						id: 1,
+						chat_id: CHAT_ID,
+						created_at: "2026-02-18T00:01:00.000Z",
+						role: "user",
+						content: [{ type: "text", text: "Summarize the auth refactor." }],
+					},
+					{
+						id: 2,
+						chat_id: CHAT_ID,
+						created_at: "2026-02-18T00:01:30.000Z",
+						role: "assistant",
+						content: [
+							{
+								type: "text",
+								text: "The auth refactor splits validation from transport handling.",
+							},
+						],
+					},
+				],
+				queued_messages: [],
+				has_more: false,
+			},
+			{ diffUrl: undefined },
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		const sideQuestionSpy = spyOn(globalThis, "fetch").mockImplementation(() =>
+			Promise.resolve(
+				new Response(
+					`${JSON.stringify({
+						type: "run_started",
+						run_id: "side-question-run-1",
+						model_config_id: MODEL_CONFIG_ID,
+						provider: "openai",
+						model: "gpt-5.2",
+					})}\n${JSON.stringify({
+						type: "answer_delta",
+						delta: "The refactor separates token validation ",
+					})}\n${JSON.stringify({
+						type: "answer_delta",
+						delta: "from request transport.",
+					})}\n${JSON.stringify({
+						type: "completed",
+						answer:
+							"The refactor separates token validation from request transport.",
+						usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+					})}\n`,
+					{ headers: { "Content-Type": "application/x-ndjson" } },
+				),
+			),
+		);
+		const normalSendSpy = spyOn(
+			API.experimental,
+			"createChatMessage",
+		).mockRejectedValue(new Error("normal send should not run"));
+
+		expect(await canvas.findByText("Side question chat")).toBeVisible();
+		const editor = canvas.getByTestId("chat-message-input");
+		await userEvent.click(editor);
+		await userEvent.keyboard("/btw what changed?");
+		const sendButton = canvas.getByRole("button", { name: "Send" });
+		await waitFor(() => expect(sendButton).toBeEnabled());
+		await userEvent.click(sendButton);
+
+		await waitFor(() => expect(sideQuestionSpy).toHaveBeenCalledTimes(1));
+		expect(normalSendSpy).not.toHaveBeenCalled();
+		const [url, init] = sideQuestionSpy.mock.calls[0];
+		expect(url).toBe(
+			`/api/experimental/chats/${CHAT_ID}/side-questions/stream`,
+		);
+		expect(JSON.parse(String(init?.body))).toEqual({
+			question: "what changed?",
+			transient_context: { visible_streaming_assistant_text: "" },
+		});
+		expect(
+			await body.findByRole("dialog", { name: "Side question" }),
+		).toBeVisible();
+		expect(
+			body.getByText(
+				"The refactor separates token validation from request transport.",
+			),
+		).toBeVisible();
+		expect(canvas.queryByText("/btw what changed?")).not.toBeInTheDocument();
+	},
+};
+
 /** Skeleton placeholder when no query data is available yet. */
 export const Loading: Story = {
 	parameters: {

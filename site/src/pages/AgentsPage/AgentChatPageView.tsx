@@ -206,6 +206,7 @@ interface AgentChatPageViewProps {
 	// Desktop chat ID (optional).
 	desktopChatId?: string;
 
+	onVisibleStreamingTextChange?: (text: string) => void;
 	lastInjectedContext?: readonly TypesGen.ChatMessagePart[];
 }
 
@@ -313,6 +314,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	onMCPSelectionChange,
 	onMCPAuthComplete,
 	desktopChatId,
+	onVisibleStreamingTextChange,
 	lastInjectedContext,
 }) => {
 	const queryClient = useQueryClient();
@@ -735,6 +737,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 											? undefined
 											: canSendAskUserQuestionResponse
 									}
+									onVisibleStreamingTextChange={onVisibleStreamingTextChange}
 								/>
 							</div>
 						</ChatScrollContainer>

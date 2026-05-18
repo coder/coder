@@ -854,6 +854,105 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/experimental/chats/{chat}/side-questions": {
+            "post": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Ask chat side question",
+                "operationId": "ask-chat-side-question",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Create chat side question request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateChatSideQuestionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateChatSideQuestionResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/chats/{chat}/side-questions/stream": {
+            "post": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Stream chat side question",
+                "operationId": "stream-chat-side-question",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Create chat side question request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateChatSideQuestionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/chats/{chat}/stream": {
             "get": {
                 "description": "Experimental: this endpoint is subject to change.",
@@ -17247,6 +17346,14 @@ const docTemplate = `{
                 "ChatRoleDeleted"
             ]
         },
+        "codersdk.ChatSideQuestionTransientContext": {
+            "type": "object",
+            "properties": {
+                "visible_streaming_assistant_text": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.ChatStatus": {
             "type": "string",
             "enum": [
@@ -17834,6 +17941,45 @@ const docTemplate = `{
                 "workspace_id": {
                     "type": "string",
                     "format": "uuid"
+                }
+            }
+        },
+        "codersdk.CreateChatSideQuestionRequest": {
+            "type": "object",
+            "required": [
+                "question"
+            ],
+            "properties": {
+                "question": {
+                    "type": "string"
+                },
+                "transient_context": {
+                    "$ref": "#/definitions/codersdk.ChatSideQuestionTransientContext"
+                }
+            }
+        },
+        "codersdk.CreateChatSideQuestionResponse": {
+            "type": "object",
+            "properties": {
+                "answer": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "model_config_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "run_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "usage": {
+                    "$ref": "#/definitions/codersdk.ChatMessageUsage"
                 }
             }
         },
@@ -19216,10 +19362,12 @@ const docTemplate = `{
                 "mcp-server-http",
                 "workspace-build-updates",
                 "nats_pubsub",
-                "minimum-implicit-member"
+                "minimum-implicit-member",
+                "chat-side-questions"
             ],
             "x-enum-comments": {
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
+                "ExperimentChatSideQuestions": "Enables one-shot side questions for chats.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
                 "ExperimentMinimumImplicitMember": "Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.",
@@ -19238,7 +19386,8 @@ const docTemplate = `{
                 "Enables the MCP HTTP server functionality.",
                 "Enables publishing workspace build updates to the all builds pubsub channel.",
                 "Enables embedded NATS pubsub.",
-                "Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts."
+                "Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.",
+                "Enables one-shot side questions for chats."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -19249,7 +19398,8 @@ const docTemplate = `{
                 "ExperimentMCPServerHTTP",
                 "ExperimentWorkspaceBuildUpdates",
                 "ExperimentNATSPubsub",
-                "ExperimentMinimumImplicitMember"
+                "ExperimentMinimumImplicitMember",
+                "ExperimentChatSideQuestions"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {

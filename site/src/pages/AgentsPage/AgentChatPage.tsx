@@ -31,6 +31,7 @@ import {
 	interruptChat,
 	mcpServerConfigs,
 	promoteChatQueuedMessage,
+	streamChatSideQuestion,
 	updateChatPlanMode,
 	updateChatWorkspace,
 	updateInfiniteChatsCache,
@@ -62,6 +63,7 @@ import {
 	AgentChatPageView,
 } from "./AgentChatPageView";
 import type { AgentsOutletContext } from "./AgentsPage";
+import { parseChatSideQuestionCommand } from "./chatSideQuestionCommand";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
 import { normalizeChatErrorPayload } from "./components/ChatConversation/chatError";
 import {
@@ -78,12 +80,17 @@ import {
 import { useChatToolInvalidations } from "./components/ChatConversation/useChatToolInvalidations";
 import type { PendingAttachment } from "./components/ChatPageContent";
 import {
+	ChatSideQuestionDialog,
+	type ChatSideQuestionDialogState,
+} from "./components/ChatSideQuestionDialog";
+import {
 	getDefaultMCPSelection,
 	getSavedMCPSelection,
 	saveMCPSelection,
 } from "./components/MCPServerPicker";
 import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useGitWatcher } from "./hooks/useGitWatcher";
+import { useLatestAbortController } from "./hooks/useLatestAbortController";
 import { getAgentChatSendShortcut } from "./utils/agentChatSendShortcut";
 import { type ParsedDraft, parseStoredDraft } from "./utils/draftStorage";
 import {
@@ -109,6 +116,7 @@ const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 export const draftInputStorageKeyPrefix = "agents.draft-input.";
 
 const clearChatPlanMode = "" satisfies ChatPlanModeOrClear;
+const maxSideQuestionVisibleStreamingTextLength = 4000;
 
 type PlanModeSwitch = TypesGen.ChatPlanMode | "clear";
 
@@ -866,6 +874,8 @@ const AgentChatPage: FC = () => {
 	}, [workspaceId, queryClient]);
 	const sshConfigQuery = useQuery(deploymentSSHConfig());
 	const workspaceAgent = getWorkspaceAgent(workspace, undefined);
+	const { experiments } = useDashboard();
+	const chatSideQuestionsEnabled = experiments.includes("chat-side-questions");
 	const { proxy } = useProxy();
 
 	const chatRecord = chatQuery.data;
@@ -969,6 +979,9 @@ const AgentChatPage: FC = () => {
 	const { isPending: isSendPending, mutateAsync: sendMessage } = useMutation(
 		createChatMessage(queryClient, agentId ?? ""),
 	);
+	const { mutateAsync: askSideQuestion } = useMutation(
+		streamChatSideQuestion(agentId ?? ""),
+	);
 	const { isPending: isEditPending, mutateAsync: editMessage } = useMutation(
 		editChatMessage(queryClient, agentId ?? ""),
 	);
@@ -1018,6 +1031,10 @@ const AgentChatPage: FC = () => {
 		);
 	};
 
+	const sideQuestionVisibleStreamingTextRef = useRef("");
+	const sideQuestionRequest = useLatestAbortController();
+	const [sideQuestionDialog, setSideQuestionDialog] =
+		useState<ChatSideQuestionDialogState>({ status: "closed" });
 	const pendingPlanModeSyncRef = useRef<Promise<unknown> | null>(null);
 	const pendingWorkspaceSyncRef = useRef<Promise<unknown> | null>(null);
 	const trackPendingChatSettingSync = (
@@ -1506,11 +1523,99 @@ const AgentChatPage: FC = () => {
 		}
 	}
 
+	async function submitSideQuestion(question: string) {
+		if (!agentId || !hasModelOptions) {
+			return;
+		}
+		const controller = sideQuestionRequest.start();
+		setSideQuestionDialog({ status: "streaming", question, answer: "" });
+		try {
+			await askSideQuestion({
+				signal: controller.signal,
+				req: {
+					question,
+					transient_context: {
+						visible_streaming_assistant_text:
+							sideQuestionVisibleStreamingTextRef.current
+								.trim()
+								.slice(-maxSideQuestionVisibleStreamingTextLength),
+					},
+				},
+				onEvent: (event) => {
+					if (controller.signal.aborted) {
+						return;
+					}
+					if (event.type === "answer_delta") {
+						setSideQuestionDialog((state) =>
+							state.status === "streaming" && state.question === question
+								? { ...state, answer: state.answer + event.delta }
+								: state,
+						);
+						return;
+					}
+					if (event.type === "answer_reset") {
+						setSideQuestionDialog((state) =>
+							state.status === "streaming" && state.question === question
+								? { ...state, answer: "" }
+								: state,
+						);
+						return;
+					}
+					if (event.type === "completed") {
+						setSideQuestionDialog({
+							status: "success",
+							question,
+							answer: event.answer,
+						});
+						return;
+					}
+					if (event.type === "error") {
+						setSideQuestionDialog({
+							status: "error",
+							question,
+							message: event.message,
+						});
+					}
+				},
+			});
+			if (!sideQuestionRequest.clear(controller)) {
+				return;
+			}
+		} catch (error) {
+			if (!sideQuestionRequest.clear(controller) || controller.signal.aborted) {
+				return;
+			}
+			setSideQuestionDialog({
+				status: "error",
+				question,
+				message: getErrorMessage(error, "Failed to answer side question."),
+			});
+			throw error;
+		}
+	}
+
 	async function handleSend(
 		message: string,
 		attachments?: readonly PendingAttachment[],
 		editedMessageID?: number,
 	) {
+		if (editedMessageID === undefined) {
+			const command = parseChatSideQuestionCommand(message);
+			if (command.kind === "invalid") {
+				toast.error("Enter a question after /btw.");
+				throw new Error("side question is missing a question");
+			}
+			if (command.kind === "sideQuestion") {
+				if (!chatSideQuestionsEnabled) {
+					toast.error("Side questions are not enabled.");
+					throw new Error("side questions are not enabled");
+				}
+				await submitSideQuestion(command.question);
+				return;
+			}
+			message = command.prompt;
+		}
+
 		await submitChatTurn({
 			message,
 			attachments,
@@ -1575,85 +1680,99 @@ const AgentChatPage: FC = () => {
 	}
 
 	return (
-		<AgentChatPageView
-			key={agentId}
-			agentId={agentId}
-			sendShortcut={getAgentChatSendShortcut(
-				preferencesQuery.data?.agent_chat_send_shortcut,
-				preferencesQuery.isLoading,
-			)}
-			organizationId={chatQuery.data?.organization_id}
-			chatTitle={chatTitle}
-			parentChat={parentChat}
-			persistedError={persistedError}
-			isArchived={isArchived}
-			isSharedChat={isSharedChat}
-			chatOwner={chatOwner}
-			canShareChat={canShareChat}
-			workspace={workspace}
-			workspaceAgent={workspaceAgent}
-			chatBuildId={chatQuery.data?.build_id}
-			store={store}
-			editing={editing}
-			effectiveSelectedModel={effectiveSelectedModel}
-			setSelectedModel={setSelectedModel}
-			modelOptions={modelOptions}
-			modelSelectorPlaceholder={modelSelectorPlaceholder}
-			modelSelectorHelp={modelSelectorHelp}
-			canConfigureAgentSetup={permissions.editDeploymentConfig}
-			providerCount={providerCount}
-			modelCount={modelCount}
-			hasModelOptions={hasModelOptions}
-			isModelCatalogLoading={isModelCatalogLoading}
-			planModeEnabled={planModeEnabled}
-			onPlanModeToggle={handlePlanModeToggle}
-			compressionThreshold={compressionThreshold}
-			isInputDisabled={isInputDisabled}
-			isSubmissionPending={isSubmissionPending}
-			isInterruptPending={isInterruptPending}
-			workspaceOptions={workspaceOptions}
-			selectedWorkspaceId={selectedWorkspaceId}
-			onWorkspaceChange={
-				canUpdateChatWorkspace ? handleWorkspaceChange : undefined
-			}
-			isWorkspaceLoading={isWorkspaceLoading}
-			isSidebarCollapsed={isSidebarCollapsed}
-			onToggleSidebarCollapsed={onToggleSidebarCollapsed}
-			showSidebarPanel={showSidebarPanel}
-			onSetShowSidebarPanel={handleSetShowSidebarPanel}
-			prNumber={prNumber}
-			diffStatusData={chatQuery.data?.diff_status}
-			debugLoggingEnabled={debugLoggingEnabled}
-			gitWatcher={gitWatcher}
-			sshCommand={sshCommand}
-			handleCommit={handleCommit}
-			handleInterrupt={handleInterrupt}
-			handleDeleteQueuedMessage={handleDeleteQueuedMessage}
-			handlePromoteQueuedMessage={handlePromoteQueuedMessage}
-			onImplementPlan={handleImplementPlan}
-			onSendAskUserQuestionResponse={handleSendAskUserQuestionResponse}
-			handleArchiveAgentAction={handleArchiveAgentAction}
-			handleUnarchiveAgentAction={handleUnarchiveAgentAction}
-			handleArchiveAndDeleteWorkspaceAction={
-				handleArchiveAndDeleteWorkspaceAction
-			}
-			handleRegenerateTitle={handleRegenerateTitle}
-			isRegeneratingTitle={isRegeneratingThisChat}
-			isRegenerateTitleDisabled={isRegenerateTitleDisabled}
-			urlTransform={urlTransform}
-			scrollContainerRef={scrollContainerRef}
-			scrollToBottomRef={scrollToBottomRef}
-			hasMoreMessages={chatMessagesQuery.hasNextPage ?? false}
-			isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}
-			onFetchMoreMessages={chatMessagesQuery.fetchNextPage}
-			messageCount={storeMessageCount}
-			desktopChatId={desktopEnabled ? agentId : undefined}
-			mcpServers={mcpServers}
-			selectedMCPServerIds={effectiveMCPServerIds}
-			onMCPSelectionChange={handleMCPSelectionChange}
-			onMCPAuthComplete={handleMCPAuthComplete}
-			lastInjectedContext={chatQuery.data?.last_injected_context}
-		/>
+		<>
+			<AgentChatPageView
+				key={agentId}
+				agentId={agentId}
+				sendShortcut={getAgentChatSendShortcut(
+					preferencesQuery.data?.agent_chat_send_shortcut,
+					preferencesQuery.isLoading,
+				)}
+				organizationId={chatQuery.data?.organization_id}
+				chatTitle={chatTitle}
+				parentChat={parentChat}
+				persistedError={persistedError}
+				isArchived={isArchived}
+				isSharedChat={isSharedChat}
+				chatOwner={chatOwner}
+				canShareChat={canShareChat}
+				workspace={workspace}
+				workspaceAgent={workspaceAgent}
+				chatBuildId={chatQuery.data?.build_id}
+				store={store}
+				editing={editing}
+				effectiveSelectedModel={effectiveSelectedModel}
+				setSelectedModel={setSelectedModel}
+				modelOptions={modelOptions}
+				modelSelectorPlaceholder={modelSelectorPlaceholder}
+				modelSelectorHelp={modelSelectorHelp}
+				canConfigureAgentSetup={permissions.editDeploymentConfig}
+				providerCount={providerCount}
+				modelCount={modelCount}
+				hasModelOptions={hasModelOptions}
+				isModelCatalogLoading={isModelCatalogLoading}
+				planModeEnabled={planModeEnabled}
+				onPlanModeToggle={handlePlanModeToggle}
+				compressionThreshold={compressionThreshold}
+				isInputDisabled={isInputDisabled}
+				isSubmissionPending={isSubmissionPending}
+				isInterruptPending={isInterruptPending}
+				workspaceOptions={workspaceOptions}
+				selectedWorkspaceId={selectedWorkspaceId}
+				onWorkspaceChange={
+					canUpdateChatWorkspace ? handleWorkspaceChange : undefined
+				}
+				isWorkspaceLoading={isWorkspaceLoading}
+				isSidebarCollapsed={isSidebarCollapsed}
+				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+				showSidebarPanel={showSidebarPanel}
+				onSetShowSidebarPanel={handleSetShowSidebarPanel}
+				prNumber={prNumber}
+				diffStatusData={chatQuery.data?.diff_status}
+				debugLoggingEnabled={debugLoggingEnabled}
+				gitWatcher={gitWatcher}
+				sshCommand={sshCommand}
+				handleCommit={handleCommit}
+				handleInterrupt={handleInterrupt}
+				handleDeleteQueuedMessage={handleDeleteQueuedMessage}
+				handlePromoteQueuedMessage={handlePromoteQueuedMessage}
+				onImplementPlan={handleImplementPlan}
+				onSendAskUserQuestionResponse={handleSendAskUserQuestionResponse}
+				handleArchiveAgentAction={handleArchiveAgentAction}
+				handleUnarchiveAgentAction={handleUnarchiveAgentAction}
+				handleArchiveAndDeleteWorkspaceAction={
+					handleArchiveAndDeleteWorkspaceAction
+				}
+				handleRegenerateTitle={handleRegenerateTitle}
+				isRegeneratingTitle={isRegeneratingThisChat}
+				isRegenerateTitleDisabled={isRegenerateTitleDisabled}
+				urlTransform={urlTransform}
+				scrollContainerRef={scrollContainerRef}
+				scrollToBottomRef={scrollToBottomRef}
+				hasMoreMessages={chatMessagesQuery.hasNextPage ?? false}
+				isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}
+				onFetchMoreMessages={chatMessagesQuery.fetchNextPage}
+				messageCount={storeMessageCount}
+				desktopChatId={desktopEnabled ? agentId : undefined}
+				mcpServers={mcpServers}
+				selectedMCPServerIds={effectiveMCPServerIds}
+				onMCPSelectionChange={handleMCPSelectionChange}
+				onMCPAuthComplete={handleMCPAuthComplete}
+				onVisibleStreamingTextChange={(text) => {
+					sideQuestionVisibleStreamingTextRef.current = text;
+				}}
+				lastInjectedContext={chatQuery.data?.last_injected_context}
+			/>
+			<ChatSideQuestionDialog
+				state={sideQuestionDialog}
+				onClose={() => {
+					if (sideQuestionDialog.status === "streaming") {
+						sideQuestionRequest.abort();
+					}
+					setSideQuestionDialog({ status: "closed" });
+				}}
+			/>
+		</>
 	);
 };
 

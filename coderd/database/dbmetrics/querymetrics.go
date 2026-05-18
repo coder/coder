@@ -1386,6 +1386,14 @@ func (m queryMetricsStore) GetChatAutoArchiveDays(ctx context.Context, defaultAu
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatAuxiliaryRunByID(ctx context.Context, id uuid.UUID) (database.ChatAuxiliaryRun, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatAuxiliaryRunByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetChatAuxiliaryRunByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatAuxiliaryRunByID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatByID(ctx, id)
@@ -4914,6 +4922,14 @@ func (m queryMetricsStore) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Co
 	return r0
 }
 
+func (m queryMetricsStore) StartChatAuxiliaryRun(ctx context.Context, arg database.StartChatAuxiliaryRunParams) (database.ChatAuxiliaryRun, error) {
+	start := time.Now()
+	r0, r1 := m.s.StartChatAuxiliaryRun(ctx, arg)
+	m.queryLatencies.WithLabelValues("StartChatAuxiliaryRun").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "StartChatAuxiliaryRun").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) TouchChatDebugRunUpdatedAt(ctx context.Context, arg database.TouchChatDebugRunUpdatedAtParams) error {
 	start := time.Now()
 	r0 := m.s.TouchChatDebugRunUpdatedAt(ctx, arg)
@@ -5008,6 +5024,30 @@ func (m queryMetricsStore) UpdateChatACLByID(ctx context.Context, arg database.U
 	m.queryLatencies.WithLabelValues("UpdateChatACLByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatACLByID").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) UpdateChatAuxiliaryRunCanceled(ctx context.Context, arg database.UpdateChatAuxiliaryRunCanceledParams) (database.ChatAuxiliaryRun, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateChatAuxiliaryRunCanceled(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatAuxiliaryRunCanceled").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatAuxiliaryRunCanceled").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateChatAuxiliaryRunFailed(ctx context.Context, arg database.UpdateChatAuxiliaryRunFailedParams) (database.ChatAuxiliaryRun, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateChatAuxiliaryRunFailed(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatAuxiliaryRunFailed").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatAuxiliaryRunFailed").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateChatAuxiliaryRunSucceeded(ctx context.Context, arg database.UpdateChatAuxiliaryRunSucceededParams) (database.ChatAuxiliaryRun, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateChatAuxiliaryRunSucceeded(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatAuxiliaryRunSucceeded").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatAuxiliaryRunSucceeded").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) UpdateChatBuildAgentBinding(ctx context.Context, arg database.UpdateChatBuildAgentBindingParams) (database.Chat, error) {

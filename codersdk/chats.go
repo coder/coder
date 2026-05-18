@@ -540,6 +540,29 @@ type CreateChatMessageRequest struct {
 	PlanMode *ChatPlanMode `json:"plan_mode,omitempty"`
 }
 
+// CreateChatSideQuestionRequest asks a one-shot question about a chat without
+// appending to the chat transcript.
+type CreateChatSideQuestionRequest struct {
+	Question         string                           `json:"question" validate:"required"`
+	TransientContext ChatSideQuestionTransientContext `json:"transient_context,omitempty"`
+}
+
+// ChatSideQuestionTransientContext contains capped client-visible context that
+// has not been persisted to the chat transcript.
+type ChatSideQuestionTransientContext struct {
+	VisibleStreamingAssistantText string `json:"visible_streaming_assistant_text,omitempty"`
+}
+
+// CreateChatSideQuestionResponse is the response from asking a side question.
+type CreateChatSideQuestionResponse struct {
+	Answer        string           `json:"answer"`
+	RunID         uuid.UUID        `json:"run_id" format:"uuid"`
+	ModelConfigID uuid.UUID        `json:"model_config_id" format:"uuid"`
+	Provider      string           `json:"provider"`
+	Model         string           `json:"model"`
+	Usage         ChatMessageUsage `json:"usage"`
+}
+
 // EditChatMessageRequest is the request to edit a user message in a chat.
 type EditChatMessageRequest struct {
 	Content []ChatInputPart `json:"content"`
@@ -3215,6 +3238,21 @@ func (c *ExperimentalClient) CreateChatMessage(ctx context.Context, chatID uuid.
 	}
 	defer res.Body.Close()
 	var resp CreateChatMessageResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// CreateChatSideQuestion asks a one-shot question about a chat without appending
+// to the chat transcript.
+func (c *ExperimentalClient) CreateChatSideQuestion(ctx context.Context, chatID uuid.UUID, req CreateChatSideQuestionRequest) (CreateChatSideQuestionResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/%s/side-questions", chatID), req)
+	if err != nil {
+		return CreateChatSideQuestionResponse{}, err
+	}
+	if res.StatusCode != http.StatusOK {
+		return CreateChatSideQuestionResponse{}, readBodyAsChatUsageLimitError(res)
+	}
+	defer res.Body.Close()
+	var resp CreateChatSideQuestionResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 

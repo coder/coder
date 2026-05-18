@@ -16,6 +16,9 @@ const (
 	CheckAiProvidersNameCheck                         CheckConstraint = "ai_providers_name_check"                             // ai_providers
 	CheckAPIKeysAllowListNotEmpty                     CheckConstraint = "api_keys_allow_list_not_empty"                       // api_keys
 	CheckBoundaryLogsSequenceNumberCheck              CheckConstraint = "boundary_logs_sequence_number_check"                 // boundary_logs
+	CheckChatAuxiliaryRunsFinishedStatusCheck         CheckConstraint = "chat_auxiliary_runs_finished_status_check"           // chat_auxiliary_runs
+	CheckChatAuxiliaryRunsKindCheck                   CheckConstraint = "chat_auxiliary_runs_kind_check"                      // chat_auxiliary_runs
+	CheckChatAuxiliaryRunsStatusCheck                 CheckConstraint = "chat_auxiliary_runs_status_check"                    // chat_auxiliary_runs
 	CheckChatModelConfigsAiProviderRequiredWhenActive CheckConstraint = "chat_model_configs_ai_provider_required_when_active" // chat_model_configs
 	CheckChatModelConfigsCompressionThresholdCheck    CheckConstraint = "chat_model_configs_compression_threshold_check"      // chat_model_configs
 	CheckChatModelConfigsContextLimitCheck            CheckConstraint = "chat_model_configs_context_limit_check"              // chat_model_configs

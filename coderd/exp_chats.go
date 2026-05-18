@@ -68,6 +68,7 @@ const (
 	defaultChatContextCompressionThreshold        = int32(70)
 	minChatContextCompressionThreshold            = int32(0)
 	maxChatContextCompressionThreshold            = int32(100)
+	maxChatSideQuestionTransientContextRunes      = 4000
 	maxSystemPromptLenBytes                       = 131072 // 128 KiB
 )
 
@@ -3150,6 +3151,264 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, response)
+}
+
+type chatSideQuestionRequestState struct {
+	ctx                           context.Context
+	chatID                        uuid.UUID
+	ownerID                       uuid.UUID
+	question                      string
+	visibleStreamingAssistantText string
+}
+
+func (s chatSideQuestionRequestState) askOptions() chatd.AskSideQuestionOptions {
+	return chatd.AskSideQuestionOptions{
+		ChatID:                        s.chatID,
+		OwnerID:                       s.ownerID,
+		Question:                      s.question,
+		VisibleStreamingAssistantText: s.visibleStreamingAssistantText,
+	}
+}
+
+func (api *API) readChatSideQuestionRequest(rw http.ResponseWriter, r *http.Request) (chatSideQuestionRequestState, bool) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+	chat := httpmw.ChatParam(r)
+
+	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
+		httpapi.Forbidden(rw)
+		return chatSideQuestionRequestState{}, false
+	}
+	if apiKey.UserID != chat.OwnerID {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Only the chat owner may ask side questions.",
+		})
+		return chatSideQuestionRequestState{}, false
+	}
+	if chat.Archived {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Cannot ask side questions on an archived chat.",
+		})
+		return chatSideQuestionRequestState{}, false
+	}
+
+	var req codersdk.CreateChatSideQuestionRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return chatSideQuestionRequestState{}, false
+	}
+	question := strings.TrimSpace(req.Question)
+	if question == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Question is required.",
+		})
+		return chatSideQuestionRequestState{}, false
+	}
+	if utf8.RuneCountInString(req.TransientContext.VisibleStreamingAssistantText) > maxChatSideQuestionTransientContextRunes {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Visible streaming assistant text exceeds maximum length.",
+		})
+		return chatSideQuestionRequestState{}, false
+	}
+	if api.chatDaemon == nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Chat processor is unavailable.",
+			Detail:  "Chat processor is not configured.",
+		})
+		return chatSideQuestionRequestState{}, false
+	}
+
+	return chatSideQuestionRequestState{
+		ctx:                           aibridge.WithDelegatedAPIKeyID(ctx, apiKey.ID),
+		chatID:                        chat.ID,
+		ownerID:                       apiKey.UserID,
+		question:                      question,
+		visibleStreamingAssistantText: req.TransientContext.VisibleStreamingAssistantText,
+	}, true
+}
+
+func writeChatSideQuestionError(ctx context.Context, rw http.ResponseWriter, err error) {
+	if errors.Is(err, chatd.ErrChatArchived) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Cannot ask side questions on an archived chat."})
+		return
+	}
+	if errors.Is(err, chatd.ErrSideQuestionAlreadyRunning) {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{Message: "A side question is already running for this chat."})
+		return
+	}
+	if maybeWriteLimitErr(ctx, rw, err) {
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+		Message: "Failed to answer side question.",
+		Detail:  err.Error(),
+	})
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Ask chat side question
+// @ID ask-chat-side-question
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Produce json
+// @Param chat path string true "Chat ID" format(uuid)
+// @Param request body codersdk.CreateChatSideQuestionRequest true "Create chat side question request"
+// @Success 200 {object} codersdk.CreateChatSideQuestionResponse
+// @Router /api/experimental/chats/{chat}/side-questions [post]
+// @x-apidocgen {"skip": true}
+// @Description Experimental: this endpoint is subject to change.
+func (api *API) postChatSideQuestion(rw http.ResponseWriter, r *http.Request) {
+	state, ok := api.readChatSideQuestionRequest(rw, r)
+	if !ok {
+		return
+	}
+
+	result, err := api.chatDaemon.AskSideQuestion(state.ctx, state.askOptions())
+	if err != nil {
+		writeChatSideQuestionError(state.ctx, rw, err)
+		return
+	}
+
+	httpapi.Write(state.ctx, rw, http.StatusOK, codersdk.CreateChatSideQuestionResponse{
+		Answer:        result.Answer,
+		RunID:         result.RunID,
+		ModelConfigID: result.ModelConfigID,
+		Provider:      result.Provider,
+		Model:         result.Model,
+		Usage:         result.Usage,
+	})
+}
+
+type chatSideQuestionStreamEvent struct {
+	Type          string                     `json:"type"`
+	RunID         string                     `json:"run_id,omitempty"`
+	ModelConfigID string                     `json:"model_config_id,omitempty"`
+	Provider      string                     `json:"provider,omitempty"`
+	Model         string                     `json:"model,omitempty"`
+	Delta         string                     `json:"delta,omitempty"`
+	Reason        string                     `json:"reason,omitempty"`
+	Answer        string                     `json:"answer,omitempty"`
+	Usage         *codersdk.ChatMessageUsage `json:"usage,omitempty"`
+	Message       string                     `json:"message,omitempty"`
+	Code          string                     `json:"code,omitempty"`
+}
+
+type chatSideQuestionStreamWriter struct {
+	rw         http.ResponseWriter
+	controller *http.ResponseController
+}
+
+func newChatSideQuestionStreamWriter(rw http.ResponseWriter) chatSideQuestionStreamWriter {
+	rw.Header().Set("Content-Type", "application/x-ndjson")
+	rw.Header().Set("Cache-Control", "no-cache")
+	rw.Header().Set("X-Content-Type-Options", "nosniff")
+	return chatSideQuestionStreamWriter{
+		rw:         rw,
+		controller: http.NewResponseController(rw),
+	}
+}
+
+func (w chatSideQuestionStreamWriter) write(ctx context.Context, event chatSideQuestionStreamEvent) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	data, err := json.Marshal(event)
+	if err != nil {
+		return xerrors.Errorf("marshal side question stream event: %w", err)
+	}
+	if _, err := w.rw.Write(data); err != nil {
+		return xerrors.Errorf("write side question stream event: %w", err)
+	}
+	if _, err := w.rw.Write([]byte("\n")); err != nil {
+		return xerrors.Errorf("write side question stream newline: %w", err)
+	}
+	if err := w.controller.Flush(); err != nil {
+		return xerrors.Errorf("flush side question stream event: %w", err)
+	}
+	return nil
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Stream chat side question
+// @ID stream-chat-side-question
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Produce json
+// @Param chat path string true "Chat ID" format(uuid)
+// @Param request body codersdk.CreateChatSideQuestionRequest true "Create chat side question request"
+// @Success 200
+// @Router /api/experimental/chats/{chat}/side-questions/stream [post]
+// @x-apidocgen {"skip": true}
+// @Description Experimental: this endpoint is subject to change.
+func (api *API) postChatSideQuestionStream(rw http.ResponseWriter, r *http.Request) {
+	state, ok := api.readChatSideQuestionRequest(rw, r)
+	if !ok {
+		return
+	}
+
+	streamCtx, cancel := context.WithCancel(state.ctx)
+	defer cancel()
+	writer := newChatSideQuestionStreamWriter(rw)
+	streamStarted := false
+	var writeErr error
+	writeEvent := func(event chatSideQuestionStreamEvent) {
+		if writeErr != nil {
+			return
+		}
+		if err := writer.write(streamCtx, event); err != nil {
+			writeErr = err
+			cancel()
+			return
+		}
+		streamStarted = true
+	}
+
+	result, err := api.chatDaemon.StreamSideQuestion(streamCtx, state.askOptions(), chatd.SideQuestionStreamCallbacks{
+		OnRunStarted: func(started chatd.SideQuestionRunStarted) {
+			writeEvent(chatSideQuestionStreamEvent{
+				Type:          "run_started",
+				RunID:         started.RunID.String(),
+				ModelConfigID: started.ModelConfigID.String(),
+				Provider:      started.Provider,
+				Model:         started.Model,
+			})
+		},
+		OnAnswerDelta: func(delta string) {
+			writeEvent(chatSideQuestionStreamEvent{
+				Type:  "answer_delta",
+				Delta: delta,
+			})
+		},
+		OnAnswerReset: func() {
+			writeEvent(chatSideQuestionStreamEvent{
+				Type:   "answer_reset",
+				Reason: "retry",
+			})
+		},
+	})
+	if err != nil {
+		if writeErr != nil || streamCtx.Err() != nil {
+			return
+		}
+		if !streamStarted {
+			writeChatSideQuestionError(state.ctx, rw, err)
+			return
+		}
+		writeEvent(chatSideQuestionStreamEvent{
+			Type:    "error",
+			Message: "Failed to answer side question.",
+			Code:    "model",
+		})
+		return
+	}
+	writeEvent(chatSideQuestionStreamEvent{
+		Type:   "completed",
+		Answer: result.Answer,
+		Usage:  &result.Usage,
+	})
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.

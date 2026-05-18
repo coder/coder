@@ -45,10 +45,22 @@ WITH pr_costs AS (
           AND (sqlc.narg('owner_id')::uuid IS NULL OR c.owner_id = sqlc.narg('owner_id')::uuid)
     ) prc
     LEFT JOIN LATERAL (
-        SELECT COALESCE(SUM(cm.total_cost_micros), 0) AS cost_micros
-        FROM chat_messages cm
-        WHERE cm.chat_id = prc.chat_id
-          AND cm.total_cost_micros IS NOT NULL
+        SELECT COALESCE(SUM(cost_micros), 0) AS cost_micros
+        FROM (
+            SELECT cm.total_cost_micros AS cost_micros
+            FROM chat_messages cm
+            WHERE cm.chat_id = prc.chat_id
+              AND cm.total_cost_micros IS NOT NULL
+
+            UNION ALL
+
+            SELECT car.total_cost_micros AS cost_micros
+            FROM chat_auxiliary_runs car
+            WHERE car.chat_id = prc.chat_id
+              AND car.kind = 'side_question'
+              AND car.status = 'succeeded'
+              AND car.total_cost_micros IS NOT NULL
+        ) cost_events
     ) cc ON TRUE
     GROUP BY prc.pr_key
 ),
@@ -132,10 +144,22 @@ WITH pr_costs AS (
           AND (sqlc.narg('owner_id')::uuid IS NULL OR c.owner_id = sqlc.narg('owner_id')::uuid)
     ) prc
     LEFT JOIN LATERAL (
-        SELECT COALESCE(SUM(cm.total_cost_micros), 0) AS cost_micros
-        FROM chat_messages cm
-        WHERE cm.chat_id = prc.chat_id
-          AND cm.total_cost_micros IS NOT NULL
+        SELECT COALESCE(SUM(cost_micros), 0) AS cost_micros
+        FROM (
+            SELECT cm.total_cost_micros AS cost_micros
+            FROM chat_messages cm
+            WHERE cm.chat_id = prc.chat_id
+              AND cm.total_cost_micros IS NOT NULL
+
+            UNION ALL
+
+            SELECT car.total_cost_micros AS cost_micros
+            FROM chat_auxiliary_runs car
+            WHERE car.chat_id = prc.chat_id
+              AND car.kind = 'side_question'
+              AND car.status = 'succeeded'
+              AND car.total_cost_micros IS NOT NULL
+        ) cost_events
     ) cc ON TRUE
     GROUP BY prc.pr_key
 ),
@@ -203,10 +227,22 @@ WITH pr_costs AS (
           AND (sqlc.narg('owner_id')::uuid IS NULL OR c.owner_id = sqlc.narg('owner_id')::uuid)
     ) prc
     LEFT JOIN LATERAL (
-        SELECT COALESCE(SUM(cm.total_cost_micros), 0) AS cost_micros
-        FROM chat_messages cm
-        WHERE cm.chat_id = prc.chat_id
-          AND cm.total_cost_micros IS NOT NULL
+        SELECT COALESCE(SUM(cost_micros), 0) AS cost_micros
+        FROM (
+            SELECT cm.total_cost_micros AS cost_micros
+            FROM chat_messages cm
+            WHERE cm.chat_id = prc.chat_id
+              AND cm.total_cost_micros IS NOT NULL
+
+            UNION ALL
+
+            SELECT car.total_cost_micros AS cost_micros
+            FROM chat_auxiliary_runs car
+            WHERE car.chat_id = prc.chat_id
+              AND car.kind = 'side_question'
+              AND car.status = 'succeeded'
+              AND car.total_cost_micros IS NOT NULL
+        ) cost_events
     ) cc ON TRUE
     GROUP BY prc.pr_key
 ),

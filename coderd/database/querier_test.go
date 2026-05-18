@@ -40,6 +40,159 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+func TestChatAuxiliaryRuns(t *testing.T) {
+	t.Parallel()
+
+	sqlDB := testSQLDB(t)
+	require.NoError(t, migrations.Up(sqlDB))
+	db := database.New(sqlDB)
+	ctx := context.Background()
+
+	owner := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org.ID,
+		UserID:         owner.ID,
+	})
+	dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai"})
+	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Provider: "openai",
+		Model:    "gpt-test",
+	})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OwnerID:           owner.ID,
+		OrganizationID:    org.ID,
+		LastModelConfigID: modelConfig.ID,
+	})
+
+	run, err := db.StartChatAuxiliaryRun(ctx, database.StartChatAuxiliaryRunParams{
+		Kind:                  "side_question",
+		ChatID:                chat.ID,
+		OwnerID:               owner.ID,
+		ModelConfigID:         modelConfig.ID,
+		Provider:              "openai",
+		Model:                 "gpt-test",
+		QuestionChars:         12,
+		TransientContextChars: 5,
+		Metadata:              json.RawMessage(`{}`),
+		StaleBefore:           dbtime.Now().Add(-5 * time.Minute),
+	})
+	require.NoError(t, err)
+	require.Equal(t, "side_question", run.Kind)
+	require.Equal(t, "running", run.Status)
+	require.Equal(t, int32(12), run.QuestionChars.Int32)
+	require.True(t, run.QuestionChars.Valid)
+	require.JSONEq(t, `{}`, string(run.Metadata))
+	require.False(t, run.FinishedAt.Valid)
+
+	_, err = db.StartChatAuxiliaryRun(ctx, database.StartChatAuxiliaryRunParams{
+		Kind:        "side_question",
+		ChatID:      chat.ID,
+		OwnerID:     owner.ID,
+		Metadata:    json.RawMessage(`{}`),
+		StaleBefore: dbtime.Now().Add(-5 * time.Minute),
+	})
+	require.Error(t, err)
+
+	succeeded, err := db.UpdateChatAuxiliaryRunSucceeded(ctx, database.UpdateChatAuxiliaryRunSucceededParams{
+		ID:                 run.ID,
+		ModelConfigID:      modelConfig.ID,
+		Provider:           "openai",
+		Model:              "gpt-test",
+		InputTokens:        10,
+		OutputTokens:       3,
+		TotalTokens:        13,
+		TotalCostMicros:    99,
+		RuntimeMs:          42,
+		ProviderResponseID: "response-id",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "succeeded", succeeded.Status)
+	require.True(t, succeeded.FinishedAt.Valid)
+	require.EqualValues(t, 99, succeeded.TotalCostMicros.Int64)
+
+	spend, err := db.GetUserChatSpendInPeriod(ctx, database.GetUserChatSpendInPeriodParams{
+		UserID:         owner.ID,
+		OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true},
+		StartTime:      dbtime.Now().Add(-time.Hour),
+		EndTime:        dbtime.Now().Add(time.Hour),
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 99, spend)
+
+	costSummary, err := db.GetChatCostSummary(ctx, database.GetChatCostSummaryParams{
+		OwnerID:   owner.ID,
+		StartDate: dbtime.Now().Add(-time.Hour),
+		EndDate:   dbtime.Now().Add(time.Hour),
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 99, costSummary.TotalCostMicros)
+	require.EqualValues(t, 0, costSummary.PricedMessageCount)
+	require.EqualValues(t, 10, costSummary.TotalInputTokens)
+	require.EqualValues(t, 3, costSummary.TotalOutputTokens)
+	require.EqualValues(t, 42, costSummary.TotalRuntimeMs)
+
+	costPerModel, err := db.GetChatCostPerModel(ctx, database.GetChatCostPerModelParams{
+		OwnerID:   owner.ID,
+		StartDate: dbtime.Now().Add(-time.Hour),
+		EndDate:   dbtime.Now().Add(time.Hour),
+	})
+	require.NoError(t, err)
+	require.Len(t, costPerModel, 1)
+	require.Equal(t, modelConfig.ID, costPerModel[0].ModelConfigID)
+	require.EqualValues(t, 99, costPerModel[0].TotalCostMicros)
+	require.EqualValues(t, 0, costPerModel[0].MessageCount)
+
+	costPerChat, err := db.GetChatCostPerChat(ctx, database.GetChatCostPerChatParams{
+		OwnerID:   owner.ID,
+		StartDate: dbtime.Now().Add(-time.Hour),
+		EndDate:   dbtime.Now().Add(time.Hour),
+	})
+	require.NoError(t, err)
+	require.Len(t, costPerChat, 1)
+	require.Equal(t, chat.ID, costPerChat[0].RootChatID)
+	require.EqualValues(t, 99, costPerChat[0].TotalCostMicros)
+	require.EqualValues(t, 0, costPerChat[0].MessageCount)
+
+	costPerUser, err := db.GetChatCostPerUser(ctx, database.GetChatCostPerUserParams{
+		StartDate:  dbtime.Now().Add(-time.Hour),
+		EndDate:    dbtime.Now().Add(time.Hour),
+		PageLimit:  10,
+		PageOffset: 0,
+	})
+	require.NoError(t, err)
+	require.Len(t, costPerUser, 1)
+	require.Equal(t, owner.ID, costPerUser[0].UserID)
+	require.EqualValues(t, 99, costPerUser[0].TotalCostMicros)
+	require.EqualValues(t, 0, costPerUser[0].MessageCount)
+
+	stale, err := db.StartChatAuxiliaryRun(ctx, database.StartChatAuxiliaryRunParams{
+		Kind:        "side_question",
+		ChatID:      chat.ID,
+		OwnerID:     owner.ID,
+		Metadata:    json.RawMessage(`{}`),
+		StaleBefore: dbtime.Now().Add(-5 * time.Minute),
+	})
+	require.NoError(t, err)
+
+	_, err = sqlDB.ExecContext(ctx, `UPDATE chat_auxiliary_runs SET updated_at = $1 WHERE id = $2`, dbtime.Now().Add(-10*time.Minute), stale.ID)
+	require.NoError(t, err)
+	fresh, err := db.StartChatAuxiliaryRun(ctx, database.StartChatAuxiliaryRunParams{
+		Kind:        "side_question",
+		ChatID:      chat.ID,
+		OwnerID:     owner.ID,
+		Metadata:    json.RawMessage(`{}`),
+		StaleBefore: dbtime.Now().Add(-5 * time.Minute),
+	})
+	require.NoError(t, err)
+	require.NotEqual(t, stale.ID, fresh.ID)
+
+	stale, err = db.GetChatAuxiliaryRunByID(ctx, stale.ID)
+	require.NoError(t, err)
+	require.Equal(t, "failed", stale.Status)
+	require.Equal(t, "stale", stale.ErrorCode.String)
+}
+
 func TestGetDeploymentWorkspaceAgentStats(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {

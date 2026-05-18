@@ -143,6 +143,63 @@ func TestChatUsageLimitExceededFrom(t *testing.T) {
 	})
 }
 
+func TestCreateChatSideQuestion(t *testing.T) {
+	t.Parallel()
+
+	chatID := uuid.New()
+	runID := uuid.New()
+	modelConfigID := uuid.New()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodPost, r.Method)
+		require.Equal(t, "/api/experimental/chats/"+chatID.String()+"/side-questions", r.URL.Path)
+
+		var req codersdk.CreateChatSideQuestionRequest
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+		require.Equal(t, "what changed?", req.Question)
+		require.Equal(t, "visible answer so far", req.TransientContext.VisibleStreamingAssistantText)
+
+		rw.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(rw).Encode(codersdk.CreateChatSideQuestionResponse{
+			Answer:        "only tests changed",
+			RunID:         runID,
+			ModelConfigID: modelConfigID,
+			Provider:      "test-provider",
+			Model:         "test-model",
+			Usage: codersdk.ChatMessageUsage{
+				InputTokens:  ptrInt64(12),
+				OutputTokens: ptrInt64(3),
+			},
+		}))
+	}))
+	defer srv.Close()
+
+	serverURL, err := url.Parse(srv.URL)
+	require.NoError(t, err)
+
+	client := codersdk.NewExperimentalClient(codersdk.New(serverURL))
+	resp, err := client.CreateChatSideQuestion(context.Background(), chatID, codersdk.CreateChatSideQuestionRequest{
+		Question: "what changed?",
+		TransientContext: codersdk.ChatSideQuestionTransientContext{
+			VisibleStreamingAssistantText: "visible answer so far",
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, "only tests changed", resp.Answer)
+	require.Equal(t, runID, resp.RunID)
+	require.Equal(t, modelConfigID, resp.ModelConfigID)
+	require.Equal(t, "test-provider", resp.Provider)
+	require.Equal(t, "test-model", resp.Model)
+	require.NotNil(t, resp.Usage.InputTokens)
+	require.EqualValues(t, 12, *resp.Usage.InputTokens)
+	require.NotNil(t, resp.Usage.OutputTokens)
+	require.EqualValues(t, 3, *resp.Usage.OutputTokens)
+}
+
+func ptrInt64(v int64) *int64 {
+	return &v
+}
+
 func TestChatErrorKind_JSONRoundTrip(t *testing.T) {
 	t.Parallel()
 

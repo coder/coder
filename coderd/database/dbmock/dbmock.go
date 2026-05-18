@@ -2548,6 +2548,21 @@ func (mr *MockStoreMockRecorder) GetChatAutoArchiveDays(ctx, defaultAutoArchiveD
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatAutoArchiveDays", reflect.TypeOf((*MockStore)(nil).GetChatAutoArchiveDays), ctx, defaultAutoArchiveDays)
 }
 
+// GetChatAuxiliaryRunByID mocks base method.
+func (m *MockStore) GetChatAuxiliaryRunByID(ctx context.Context, id uuid.UUID) (database.ChatAuxiliaryRun, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatAuxiliaryRunByID", ctx, id)
+	ret0, _ := ret[0].(database.ChatAuxiliaryRun)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatAuxiliaryRunByID indicates an expected call of GetChatAuxiliaryRunByID.
+func (mr *MockStoreMockRecorder) GetChatAuxiliaryRunByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatAuxiliaryRunByID", reflect.TypeOf((*MockStore)(nil).GetChatAuxiliaryRunByID), ctx, id)
+}
+
 // GetChatByID mocks base method.
 func (m *MockStore) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error) {
 	m.ctrl.T.Helper()
@@ -9273,6 +9288,21 @@ func (mr *MockStoreMockRecorder) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx, wor
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SoftDeleteWorkspaceAgentsByWorkspaceID", reflect.TypeOf((*MockStore)(nil).SoftDeleteWorkspaceAgentsByWorkspaceID), ctx, workspaceID)
 }
 
+// StartChatAuxiliaryRun mocks base method.
+func (m *MockStore) StartChatAuxiliaryRun(ctx context.Context, arg database.StartChatAuxiliaryRunParams) (database.ChatAuxiliaryRun, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "StartChatAuxiliaryRun", ctx, arg)
+	ret0, _ := ret[0].(database.ChatAuxiliaryRun)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// StartChatAuxiliaryRun indicates an expected call of StartChatAuxiliaryRun.
+func (mr *MockStoreMockRecorder) StartChatAuxiliaryRun(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StartChatAuxiliaryRun", reflect.TypeOf((*MockStore)(nil).StartChatAuxiliaryRun), ctx, arg)
+}
+
 // TouchChatDebugRunUpdatedAt mocks base method.
 func (m *MockStore) TouchChatDebugRunUpdatedAt(ctx context.Context, arg database.TouchChatDebugRunUpdatedAtParams) error {
 	m.ctrl.T.Helper()
@@ -9443,6 +9473,51 @@ func (m *MockStore) UpdateChatACLByID(ctx context.Context, arg database.UpdateCh
 func (mr *MockStoreMockRecorder) UpdateChatACLByID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatACLByID", reflect.TypeOf((*MockStore)(nil).UpdateChatACLByID), ctx, arg)
+}
+
+// UpdateChatAuxiliaryRunCanceled mocks base method.
+func (m *MockStore) UpdateChatAuxiliaryRunCanceled(ctx context.Context, arg database.UpdateChatAuxiliaryRunCanceledParams) (database.ChatAuxiliaryRun, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateChatAuxiliaryRunCanceled", ctx, arg)
+	ret0, _ := ret[0].(database.ChatAuxiliaryRun)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateChatAuxiliaryRunCanceled indicates an expected call of UpdateChatAuxiliaryRunCanceled.
+func (mr *MockStoreMockRecorder) UpdateChatAuxiliaryRunCanceled(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatAuxiliaryRunCanceled", reflect.TypeOf((*MockStore)(nil).UpdateChatAuxiliaryRunCanceled), ctx, arg)
+}
+
+// UpdateChatAuxiliaryRunFailed mocks base method.
+func (m *MockStore) UpdateChatAuxiliaryRunFailed(ctx context.Context, arg database.UpdateChatAuxiliaryRunFailedParams) (database.ChatAuxiliaryRun, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateChatAuxiliaryRunFailed", ctx, arg)
+	ret0, _ := ret[0].(database.ChatAuxiliaryRun)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateChatAuxiliaryRunFailed indicates an expected call of UpdateChatAuxiliaryRunFailed.
+func (mr *MockStoreMockRecorder) UpdateChatAuxiliaryRunFailed(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatAuxiliaryRunFailed", reflect.TypeOf((*MockStore)(nil).UpdateChatAuxiliaryRunFailed), ctx, arg)
+}
+
+// UpdateChatAuxiliaryRunSucceeded mocks base method.
+func (m *MockStore) UpdateChatAuxiliaryRunSucceeded(ctx context.Context, arg database.UpdateChatAuxiliaryRunSucceededParams) (database.ChatAuxiliaryRun, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateChatAuxiliaryRunSucceeded", ctx, arg)
+	ret0, _ := ret[0].(database.ChatAuxiliaryRun)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateChatAuxiliaryRunSucceeded indicates an expected call of UpdateChatAuxiliaryRunSucceeded.
+func (mr *MockStoreMockRecorder) UpdateChatAuxiliaryRunSucceeded(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatAuxiliaryRunSucceeded", reflect.TypeOf((*MockStore)(nil).UpdateChatAuxiliaryRunSucceeded), ctx, arg)
 }
 
 // UpdateChatBuildAgentBinding mocks base method.

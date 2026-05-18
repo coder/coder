@@ -365,22 +365,19 @@ type sqlcQuerier interface {
 	GetChatAdvisorConfig(ctx context.Context) (string, error)
 	// Auto-archive window in days. 0 disables.
 	GetChatAutoArchiveDays(ctx context.Context, defaultAutoArchiveDays int32) (int32, error)
+	GetChatAuxiliaryRunByID(ctx context.Context, id uuid.UUID) (ChatAuxiliaryRun, error)
 	GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error)
 	GetChatByIDForShare(ctx context.Context, id uuid.UUID) (Chat, error)
 	GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Chat, error)
 	GetChatComputerUseProvider(ctx context.Context) (string, error)
 	// Per-root-chat cost breakdown for a single user within a date range.
 	// Groups by root_chat_id so forked chats roll up under their root.
-	// Only counts assistant-role messages.
 	GetChatCostPerChat(ctx context.Context, arg GetChatCostPerChatParams) ([]GetChatCostPerChatRow, error)
 	// Per-model cost breakdown for a single user within a date range.
-	// Only counts assistant-role messages that have a model_config_id.
 	GetChatCostPerModel(ctx context.Context, arg GetChatCostPerModelParams) ([]GetChatCostPerModelRow, error)
 	// Deployment-wide per-user cost rollup within a date range.
-	// Only counts assistant-role messages.
 	GetChatCostPerUser(ctx context.Context, arg GetChatCostPerUserParams) ([]GetChatCostPerUserRow, error)
 	// Aggregate cost summary for a single user within a date range.
-	// Only counts assistant-role messages.
 	GetChatCostSummary(ctx context.Context, arg GetChatCostSummaryParams) (GetChatCostSummaryRow, error)
 	// GetChatDebugLoggingAllowUsers returns the runtime admin setting that
 	// allows users to opt into chat debug logging when the deployment does
@@ -1242,6 +1239,7 @@ type sqlcQuerier interface {
 	// Agent context rows are hard-deleted for the same reason as in
 	// SoftDeletePriorWorkspaceAgents.
 	SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error
+	StartChatAuxiliaryRun(ctx context.Context, arg StartChatAuxiliaryRunParams) (ChatAuxiliaryRun, error)
 	// Overrides updated_at on the parent run without touching any
 	// other column. Used by tests that need to stamp a run with a
 	// specific timestamp after the InsertChatDebugStep CTE has
@@ -1286,6 +1284,9 @@ type sqlcQuerier interface {
 	UpdateAIProvider(ctx context.Context, arg UpdateAIProviderParams) (AIProvider, error)
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
 	UpdateChatACLByID(ctx context.Context, arg UpdateChatACLByIDParams) error
+	UpdateChatAuxiliaryRunCanceled(ctx context.Context, arg UpdateChatAuxiliaryRunCanceledParams) (ChatAuxiliaryRun, error)
+	UpdateChatAuxiliaryRunFailed(ctx context.Context, arg UpdateChatAuxiliaryRunFailedParams) (ChatAuxiliaryRun, error)
+	UpdateChatAuxiliaryRunSucceeded(ctx context.Context, arg UpdateChatAuxiliaryRunSucceededParams) (ChatAuxiliaryRun, error)
 	UpdateChatBuildAgentBinding(ctx context.Context, arg UpdateChatBuildAgentBindingParams) (Chat, error)
 	UpdateChatByID(ctx context.Context, arg UpdateChatByIDParams) (Chat, error)
 	// Uses COALESCE so that passing NULL from Go means "keep the

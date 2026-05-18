@@ -4799,6 +4799,34 @@ type Chat struct {
 	OwnerName                string                `db:"owner_name" json:"owner_name"`
 }
 
+type ChatAuxiliaryRun struct {
+	ID                    uuid.UUID       `db:"id" json:"id"`
+	Kind                  string          `db:"kind" json:"kind"`
+	ChatID                uuid.UUID       `db:"chat_id" json:"chat_id"`
+	OwnerID               uuid.UUID       `db:"owner_id" json:"owner_id"`
+	ModelConfigID         uuid.NullUUID   `db:"model_config_id" json:"model_config_id"`
+	Provider              sql.NullString  `db:"provider" json:"provider"`
+	Model                 sql.NullString  `db:"model" json:"model"`
+	Status                string          `db:"status" json:"status"`
+	InputTokens           sql.NullInt64   `db:"input_tokens" json:"input_tokens"`
+	OutputTokens          sql.NullInt64   `db:"output_tokens" json:"output_tokens"`
+	TotalTokens           sql.NullInt64   `db:"total_tokens" json:"total_tokens"`
+	ReasoningTokens       sql.NullInt64   `db:"reasoning_tokens" json:"reasoning_tokens"`
+	CacheCreationTokens   sql.NullInt64   `db:"cache_creation_tokens" json:"cache_creation_tokens"`
+	CacheReadTokens       sql.NullInt64   `db:"cache_read_tokens" json:"cache_read_tokens"`
+	ContextLimit          sql.NullInt64   `db:"context_limit" json:"context_limit"`
+	TotalCostMicros       sql.NullInt64   `db:"total_cost_micros" json:"total_cost_micros"`
+	RuntimeMs             sql.NullInt64   `db:"runtime_ms" json:"runtime_ms"`
+	ProviderResponseID    sql.NullString  `db:"provider_response_id" json:"provider_response_id"`
+	ErrorCode             sql.NullString  `db:"error_code" json:"error_code"`
+	QuestionChars         sql.NullInt32   `db:"question_chars" json:"question_chars"`
+	TransientContextChars sql.NullInt32   `db:"transient_context_chars" json:"transient_context_chars"`
+	Metadata              json.RawMessage `db:"metadata" json:"metadata"`
+	StartedAt             time.Time       `db:"started_at" json:"started_at"`
+	UpdatedAt             time.Time       `db:"updated_at" json:"updated_at"`
+	FinishedAt            sql.NullTime    `db:"finished_at" json:"finished_at"`
+}
+
 type ChatDebugRun struct {
 	ID                  uuid.UUID       `db:"id" json:"id"`
 	ChatID              uuid.UUID       `db:"chat_id" json:"chat_id"`

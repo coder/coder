@@ -39,6 +39,7 @@ export const StreamingOutput: FC<{
 	liveStatus: LiveStatusModel;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
+	onVisibleResponseTextChange?: (text: string) => void;
 }> = ({
 	streamState,
 	streamTools,
@@ -48,6 +49,7 @@ export const StreamingOutput: FC<{
 	liveStatus,
 	urlTransform,
 	mcpServers,
+	onVisibleResponseTextChange,
 }) => {
 	if (liveStatus.phase === "idle") {
 		return null;
@@ -82,6 +84,7 @@ export const StreamingOutput: FC<{
 								subagentStatusOverrides={subagentStatusOverrides}
 								urlTransform={urlTransform}
 								mcpServers={mcpServers}
+								onVisibleResponseTextChange={onVisibleResponseTextChange}
 							/>
 						)}
 						{hasCalloutLiveStatus(liveStatus) && (

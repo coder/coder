@@ -65,6 +65,14 @@ func chatDeploymentValues(t testing.TB) *codersdk.DeploymentValues {
 	return values
 }
 
+func chatSideQuestionsDeploymentValues(t testing.TB) *codersdk.DeploymentValues {
+	t.Helper()
+
+	values := chatDeploymentValues(t)
+	values.Experiments = []string{string(codersdk.ExperimentChatSideQuestions)}
+	return values
+}
+
 // newChatTestOptions builds coderdtest options for chat runtime tests. Unless
 // a test sets ChatProviderAPIKeys explicitly, it installs a fake
 // OpenAI-compatible provider before coderd starts so background chat work stays
@@ -11260,6 +11268,478 @@ If a workspace is needed, use list_templates and read_template as needed before 
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "System prompt exceeds maximum length.", sdkErr.Message)
 	})
+}
+
+func TestChatSideQuestionSuccessDoesNotAppendMessage(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	client, db, api := newChatClientWithAPIAndDatabase(t, func(opts *coderdtest.Options) {
+		opts.DeploymentValues = chatSideQuestionsDeploymentValues(t)
+	})
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	_ = createChatModelConfig(t, client)
+
+	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: firstUser.OrganizationID,
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: fmt.Sprintf("side question success %s", t.Name()),
+		}},
+	})
+	require.NoError(t, err)
+
+	coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+
+	systemCtx := dbauthz.AsSystemRestricted(ctx)
+	before, err := db.GetChatMessagesByChatID(systemCtx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+	require.NoError(t, err)
+
+	resp, err := client.CreateChatSideQuestion(ctx, chat.ID, codersdk.CreateChatSideQuestionRequest{
+		Question: "what is the current topic?",
+		TransientContext: codersdk.ChatSideQuestionTransientContext{
+			VisibleStreamingAssistantText: "partial visible assistant text",
+		},
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, resp.Answer)
+	require.NotEqual(t, uuid.Nil, resp.RunID)
+	require.NotEqual(t, uuid.Nil, resp.ModelConfigID)
+	require.NotEmpty(t, resp.Provider)
+	require.NotEmpty(t, resp.Model)
+
+	after, err := db.GetChatMessagesByChatID(systemCtx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+	require.NoError(t, err)
+	require.Len(t, after, len(before))
+
+	run, err := db.GetChatAuxiliaryRunByID(systemCtx, resp.RunID)
+	require.NoError(t, err)
+	require.Equal(t, chatd.SideQuestionKind, run.Kind)
+	require.Equal(t, "succeeded", run.Status)
+	require.Equal(t, chat.ID, run.ChatID)
+	require.Equal(t, firstUser.UserID, run.OwnerID)
+	require.True(t, run.FinishedAt.Valid)
+	require.EqualValues(t, len([]rune("what is the current topic?")), run.QuestionChars.Int32)
+	require.EqualValues(t, len([]rune("partial visible assistant text")), run.TransientContextChars.Int32)
+	require.JSONEq(t, `{}`, string(run.Metadata))
+}
+
+func TestChatSideQuestionStreamSuccessDoesNotAppendMessage(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	client, db, api := newChatClientWithAPIAndDatabase(t, func(opts *coderdtest.Options) {
+		opts.DeploymentValues = chatSideQuestionsDeploymentValues(t)
+	})
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	_ = createChatModelConfig(t, client)
+
+	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: firstUser.OrganizationID,
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: fmt.Sprintf("side question stream success %s", t.Name()),
+		}},
+	})
+	require.NoError(t, err)
+	coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+
+	systemCtx := dbauthz.AsSystemRestricted(ctx)
+	before, err := db.GetChatMessagesByChatID(systemCtx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+	require.NoError(t, err)
+
+	res, err := client.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/%s/side-questions/stream", chat.ID), codersdk.CreateChatSideQuestionRequest{
+		Question: "what is the current topic?",
+		TransientContext: codersdk.ChatSideQuestionTransientContext{
+			VisibleStreamingAssistantText: "partial visible assistant text",
+		},
+	})
+	require.NoError(t, err)
+	defer res.Body.Close()
+	require.Equal(t, http.StatusOK, res.StatusCode)
+	mediaType, _, err := mime.ParseMediaType(res.Header.Get("Content-Type"))
+	require.NoError(t, err)
+	require.Equal(t, "application/x-ndjson", mediaType)
+
+	events := decodeSideQuestionStreamEvents(t, res.Body)
+	require.GreaterOrEqual(t, len(events), 3)
+	require.Equal(t, "run_started", events[0]["type"])
+	require.NotEmpty(t, events[0]["run_id"])
+	require.NotEmpty(t, events[0]["model_config_id"])
+	require.NotEmpty(t, events[0]["provider"])
+	require.NotEmpty(t, events[0]["model"])
+
+	var accumulated strings.Builder
+	var completed map[string]any
+	for _, event := range events[1:] {
+		switch event["type"] {
+		case "answer_delta":
+			delta, ok := event["delta"].(string)
+			require.True(t, ok)
+			_, err := accumulated.WriteString(delta)
+			require.NoError(t, err)
+		case "completed":
+			completed = event
+		default:
+			require.Failf(t, "unexpected event type", "event=%v", event)
+		}
+	}
+	require.NotNil(t, completed)
+	require.Equal(t, accumulated.String(), completed["answer"])
+	require.Contains(t, completed, "usage")
+	require.IsType(t, map[string]any{}, completed["usage"])
+
+	after, err := db.GetChatMessagesByChatID(systemCtx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+	require.NoError(t, err)
+	require.Len(t, after, len(before))
+
+	runID, err := uuid.Parse(events[0]["run_id"].(string))
+	require.NoError(t, err)
+	run, err := db.GetChatAuxiliaryRunByID(systemCtx, runID)
+	require.NoError(t, err)
+	require.Equal(t, chatd.SideQuestionKind, run.Kind)
+	require.Equal(t, "succeeded", run.Status)
+	require.True(t, run.FinishedAt.Valid)
+	require.EqualValues(t, len([]rune("what is the current topic?")), run.QuestionChars.Int32)
+	require.EqualValues(t, len([]rune("partial visible assistant text")), run.TransientContextChars.Int32)
+	require.JSONEq(t, `{}`, string(run.Metadata))
+}
+
+func decodeSideQuestionStreamEvents(t *testing.T, body io.Reader) []map[string]any {
+	t.Helper()
+
+	decoder := json.NewDecoder(body)
+	var events []map[string]any
+	for {
+		var event map[string]any
+		err := decoder.Decode(&event)
+		if stderrors.Is(err, io.EOF) {
+			break
+		}
+		require.NoError(t, err)
+		events = append(events, event)
+	}
+	return events
+}
+
+func TestChatSideQuestionStreamMarksCanceledOnClientAbort(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	var streamCalls atomic.Int32
+	releaseAfterCancel := make(chan struct{})
+	defer func() {
+		select {
+		case <-releaseAfterCancel:
+		default:
+			close(releaseAfterCancel)
+		}
+	}()
+	baseURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse(`{"title": "Side Question Cancel"}`)
+		}
+		if streamCalls.Add(1) == 1 {
+			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("normal answer")...)
+		}
+		chunks := make(chan chattest.OpenAIChunk)
+		go func() {
+			defer close(chunks)
+			textChunks := chattest.OpenAITextChunks("partial canceled answer", strings.Repeat(" after cancel", 8192))
+			select {
+			case chunks <- textChunks[0]:
+			case <-req.Context().Done():
+				return
+			}
+			select {
+			case <-releaseAfterCancel:
+			case <-req.Context().Done():
+				return
+			}
+			select {
+			case chunks <- textChunks[1]:
+			case <-req.Context().Done():
+			}
+		}()
+		return chattest.OpenAIResponse{StreamingChunks: chunks}
+	})
+	client, db, api := newChatClientWithAPIAndDatabase(t, func(opts *coderdtest.Options) {
+		opts.DeploymentValues = chatSideQuestionsDeploymentValues(t)
+	})
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	_ = createChatModelConfigWithBaseURL(t, client, baseURL)
+
+	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: firstUser.OrganizationID,
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: fmt.Sprintf("side question stream cancel %s", t.Name()),
+		}},
+	})
+	require.NoError(t, err)
+	coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+
+	streamCtx, cancel := context.WithCancel(ctx)
+	res, err := client.Request(streamCtx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/%s/side-questions/stream", chat.ID), codersdk.CreateChatSideQuestionRequest{
+		Question: "what should be canceled?",
+	})
+	require.NoError(t, err)
+	defer res.Body.Close()
+	require.Equal(t, http.StatusOK, res.StatusCode)
+
+	decoder := json.NewDecoder(res.Body)
+	var started map[string]any
+	require.NoError(t, decoder.Decode(&started))
+	require.Equal(t, "run_started", started["type"])
+	runID, err := uuid.Parse(started["run_id"].(string))
+	require.NoError(t, err)
+
+	var delta map[string]any
+	require.NoError(t, decoder.Decode(&delta))
+	require.Equal(t, "answer_delta", delta["type"])
+
+	cancel()
+	_ = res.Body.Close()
+	close(releaseAfterCancel)
+
+	require.Eventually(t, func() bool {
+		run, err := db.GetChatAuxiliaryRunByID(dbauthz.AsSystemRestricted(ctx), runID)
+		return err == nil && run.Status == "canceled" && run.ErrorCode.String == "canceled"
+	}, testutil.WaitLong, testutil.IntervalFast)
+}
+
+func TestChatSideQuestionStreamEmitsErrorAfterRunStart(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	var streamCalls atomic.Int32
+	baseURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse(`{"title": "Side Question Error"}`)
+		}
+		if streamCalls.Add(1) == 1 {
+			return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("normal answer")...)
+		}
+		return chattest.OpenAIErrorResponse(
+			http.StatusBadRequest,
+			"invalid_request_error",
+			"test side question failure",
+		)
+	})
+	client, db, api := newChatClientWithAPIAndDatabase(t, func(opts *coderdtest.Options) {
+		opts.DeploymentValues = chatSideQuestionsDeploymentValues(t)
+	})
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	_ = createChatModelConfigWithBaseURL(t, client, baseURL)
+
+	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: firstUser.OrganizationID,
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: fmt.Sprintf("side question stream error %s", t.Name()),
+		}},
+	})
+	require.NoError(t, err)
+	coderdtest.WaitForChatSettled(ctx, t, api, chat.ID)
+
+	res, err := client.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/%s/side-questions/stream", chat.ID), codersdk.CreateChatSideQuestionRequest{
+		Question: "what failed?",
+	})
+	require.NoError(t, err)
+	defer res.Body.Close()
+	require.Equal(t, http.StatusOK, res.StatusCode)
+
+	events := decodeSideQuestionStreamEvents(t, res.Body)
+	require.Len(t, events, 2)
+	require.Equal(t, "run_started", events[0]["type"])
+	require.Equal(t, "error", events[1]["type"])
+	require.Equal(t, "Failed to answer side question.", events[1]["message"])
+	require.Equal(t, "model", events[1]["code"])
+
+	runID, err := uuid.Parse(events[0]["run_id"].(string))
+	require.NoError(t, err)
+	run, err := db.GetChatAuxiliaryRunByID(dbauthz.AsSystemRestricted(ctx), runID)
+	require.NoError(t, err)
+	require.Equal(t, "failed", run.Status)
+	require.Equal(t, "model", run.ErrorCode.String)
+}
+
+func TestChatSideQuestionValidation(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	client, _ := newChatClientWithDatabase(t, func(opts *coderdtest.Options) {
+		opts.DeploymentValues = chatSideQuestionsDeploymentValues(t)
+	})
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	_ = createChatModelConfig(t, client)
+
+	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: firstUser.OrganizationID,
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: fmt.Sprintf("side question validation %s", t.Name()),
+		}},
+	})
+	require.NoError(t, err)
+
+	_, err = client.CreateChatSideQuestion(ctx, chat.ID, codersdk.CreateChatSideQuestionRequest{
+		Question: "  \t\n",
+	})
+	sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+	require.Equal(t, "Question is required.", sdkErr.Message)
+}
+
+func TestChatSideQuestionRejectsOversizedTransientContext(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	client, _ := newChatClientWithDatabase(t, func(opts *coderdtest.Options) {
+		opts.DeploymentValues = chatSideQuestionsDeploymentValues(t)
+	})
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	_ = createChatModelConfig(t, client)
+
+	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: firstUser.OrganizationID,
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: fmt.Sprintf("side question oversized context %s", t.Name()),
+		}},
+	})
+	require.NoError(t, err)
+
+	_, err = client.CreateChatSideQuestion(ctx, chat.ID, codersdk.CreateChatSideQuestionRequest{
+		Question: "what is the current topic?",
+		TransientContext: codersdk.ChatSideQuestionTransientContext{
+			VisibleStreamingAssistantText: strings.Repeat("a", 4001),
+		},
+	})
+	sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+	require.Equal(t, "Visible streaming assistant text exceeds maximum length.", sdkErr.Message)
+}
+
+func TestChatSideQuestionRejectsNonOwner(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	adminClient, _ := newChatClientWithDatabase(t, func(opts *coderdtest.Options) {
+		opts.DeploymentValues = chatSideQuestionsDeploymentValues(t)
+	})
+	firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+	memberClientRaw, _ := coderdtest.CreateAnotherUser(
+		t,
+		adminClient.Client,
+		firstUser.OrganizationID,
+		rbac.ScopedRoleOrgAdmin(firstUser.OrganizationID),
+	)
+	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+	_ = createChatModelConfig(t, adminClient)
+
+	chat, err := adminClient.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: firstUser.OrganizationID,
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: fmt.Sprintf("side question non owner %s", t.Name()),
+		}},
+	})
+	require.NoError(t, err)
+
+	_, err = memberClient.CreateChatSideQuestion(ctx, chat.ID, codersdk.CreateChatSideQuestionRequest{
+		Question: "what is the current topic?",
+	})
+	sdkErr := requireSDKError(t, err, http.StatusForbidden)
+	require.Contains(t, sdkErr.Message, "Only the chat owner")
+}
+
+func TestChatSideQuestionRejectsArchivedChat(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	client, _ := newChatClientWithDatabase(t, func(opts *coderdtest.Options) {
+		opts.DeploymentValues = chatSideQuestionsDeploymentValues(t)
+	})
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	_ = createChatModelConfig(t, client)
+
+	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: firstUser.OrganizationID,
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: fmt.Sprintf("side question archived %s", t.Name()),
+		}},
+	})
+	require.NoError(t, err)
+	err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
+	require.NoError(t, err)
+
+	_, err = client.CreateChatSideQuestion(ctx, chat.ID, codersdk.CreateChatSideQuestionRequest{
+		Question: "what is the current topic?",
+	})
+	sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+	require.Equal(t, "Cannot ask side questions on an archived chat.", sdkErr.Message)
+}
+
+func TestChatSideQuestionRejectsConcurrentRun(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	client, db := newChatClientWithDatabase(t, func(opts *coderdtest.Options) {
+		opts.DeploymentValues = chatSideQuestionsDeploymentValues(t)
+	})
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	modelConfig := createChatModelConfig(t, client)
+
+	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: firstUser.OrganizationID,
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: fmt.Sprintf("side question concurrent %s", t.Name()),
+		}},
+	})
+	require.NoError(t, err)
+
+	_, err = db.StartChatAuxiliaryRun(dbauthz.AsSystemRestricted(ctx), database.StartChatAuxiliaryRunParams{
+		Kind:          chatd.SideQuestionKind,
+		ChatID:        chat.ID,
+		OwnerID:       firstUser.UserID,
+		ModelConfigID: modelConfig.ID,
+		Provider:      modelConfig.Provider,
+		Model:         modelConfig.Model,
+		Metadata:      json.RawMessage(`{}`),
+		StaleBefore:   dbtime.Now().Add(-5 * time.Minute),
+	})
+	require.NoError(t, err)
+
+	_, err = client.CreateChatSideQuestion(ctx, chat.ID, codersdk.CreateChatSideQuestionRequest{
+		Question: "what is the current topic?",
+	})
+	sdkErr := requireSDKError(t, err, http.StatusConflict)
+	require.Equal(t, "A side question is already running for this chat.", sdkErr.Message)
+}
+
+func TestChatSideQuestionExperimentDisabled(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	client, _ := newChatClientWithDatabase(t)
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	_ = createChatModelConfig(t, client)
+
+	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: firstUser.OrganizationID,
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: fmt.Sprintf("side question experiment disabled %s", t.Name()),
+		}},
+	})
+	require.NoError(t, err)
+
+	_, err = client.CreateChatSideQuestion(ctx, chat.ID, codersdk.CreateChatSideQuestionRequest{
+		Question: "what happened?",
+	})
+	sdkErr := requireSDKError(t, err, http.StatusForbidden)
+	require.Contains(t, sdkErr.Message, string(codersdk.ExperimentChatSideQuestions))
 }
 
 //nolint:tparallel,paralleltest // Subtests share a single coderdtest instance.

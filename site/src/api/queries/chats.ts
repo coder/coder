@@ -9,6 +9,7 @@ import {
 	type ChatPlanModeOrClear,
 	type CreateChatMessageRequestWithClearablePlanMode,
 } from "#/api/api";
+import { isApiErrorResponse } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
 import { type AIProviderType, AIProviderTypes } from "#/api/typesGenerated";
 import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
@@ -1242,6 +1243,232 @@ export const createChatMessage = (
 		});
 	},
 });
+
+type CreateChatSideQuestionMutationArgs = {
+	req: TypesGen.CreateChatSideQuestionRequest;
+	signal?: AbortSignal;
+};
+
+export type ChatSideQuestionStreamEvent =
+	| {
+			type: "run_started";
+			run_id: string;
+			model_config_id: string;
+			provider: string;
+			model: string;
+	  }
+	| { type: "answer_delta"; delta: string }
+	| { type: "answer_reset"; reason?: string }
+	| {
+			type: "completed";
+			answer: string;
+			usage: TypesGen.ChatMessageUsage;
+	  }
+	| { type: "error"; message: string; code?: string };
+
+type StreamChatSideQuestionMutationArgs = CreateChatSideQuestionMutationArgs & {
+	onEvent: (event: ChatSideQuestionStreamEvent) => void;
+};
+
+export const streamChatSideQuestion = (chatId: string) => ({
+	mutationFn: ({ req, signal, onEvent }: StreamChatSideQuestionMutationArgs) =>
+		streamChatSideQuestionRequest(chatId, req, { signal, onEvent }),
+});
+
+type StreamChatSideQuestionOptions = {
+	signal?: AbortSignal;
+	onEvent: (event: ChatSideQuestionStreamEvent) => void;
+};
+
+const streamChatSideQuestionRequest = async (
+	chatId: string,
+	req: TypesGen.CreateChatSideQuestionRequest,
+	options: StreamChatSideQuestionOptions,
+): Promise<Extract<ChatSideQuestionStreamEvent, { type: "completed" }>> => {
+	const response = await fetch(
+		apiFetchURL(
+			`/api/experimental/chats/${encodeURIComponent(chatId)}/side-questions/stream`,
+		),
+		{
+			method: "POST",
+			credentials: "same-origin",
+			signal: options.signal,
+			headers: apiFetchHeaders(),
+			body: JSON.stringify(req),
+		},
+	);
+	if (!response.ok) {
+		const data = await response.json().catch(() => undefined);
+		if (isApiErrorResponse(data)) {
+			throw data;
+		}
+		throw new Error(
+			`Side question stream failed with status ${response.status}.`,
+		);
+	}
+	if (!response.body) {
+		throw new Error("Side question stream response body is unavailable.");
+	}
+
+	let completed:
+		| Extract<ChatSideQuestionStreamEvent, { type: "completed" }>
+		| undefined;
+	const parser = createChatSideQuestionStreamParser((event) => {
+		options.onEvent(event);
+		if (event.type === "completed") {
+			completed = event;
+		}
+		if (event.type === "error") {
+			throw new Error(event.message);
+		}
+	});
+	const reader = response.body.getReader();
+	const decoder = new TextDecoder();
+	for (;;) {
+		const { done, value } = await reader.read();
+		if (done) {
+			break;
+		}
+		parser.push(decoder.decode(value, { stream: true }));
+	}
+	const finalChunk = decoder.decode();
+	if (finalChunk !== "") {
+		parser.push(finalChunk);
+	}
+	parser.finish();
+	if (!completed) {
+		throw new Error("Side question stream ended before completion.");
+	}
+	return completed;
+};
+
+const apiFetchURL = (path: string): string => {
+	const baseURL = API.getAxiosInstance().defaults.baseURL;
+	if (!baseURL) {
+		return path;
+	}
+	return new URL(path, baseURL).toString();
+};
+
+const apiFetchHeaders = (): Headers => {
+	const headers = new Headers({
+		Accept: "application/x-ndjson",
+		"Content-Type": "application/json",
+	});
+	const commonHeaders = API.getAxiosInstance().defaults.headers.common;
+	copyHeader(
+		commonHeaders["Coder-Session-Token"],
+		"Coder-Session-Token",
+		headers,
+	);
+	copyHeader(commonHeaders["X-CSRF-TOKEN"], "X-CSRF-TOKEN", headers);
+	return headers;
+};
+
+const copyHeader = (value: unknown, name: string, headers: Headers) => {
+	if (typeof value === "string" && value !== "") {
+		headers.set(name, value);
+	}
+};
+
+export const createChatSideQuestionStreamParser = (
+	onEvent: (event: ChatSideQuestionStreamEvent) => void,
+) => {
+	let buffer = "";
+	const parseLine = (line: string) => {
+		const trimmed = line.trim();
+		if (trimmed === "") {
+			return;
+		}
+		onEvent(parseChatSideQuestionStreamEvent(trimmed));
+	};
+	return {
+		push(chunk: string) {
+			buffer += chunk;
+			for (;;) {
+				const newlineIndex = buffer.indexOf("\n");
+				if (newlineIndex < 0) {
+					return;
+				}
+				parseLine(buffer.slice(0, newlineIndex));
+				buffer = buffer.slice(newlineIndex + 1);
+			}
+		},
+		finish() {
+			parseLine(buffer);
+			buffer = "";
+		},
+	};
+};
+
+const parseChatSideQuestionStreamEvent = (
+	line: string,
+): ChatSideQuestionStreamEvent => {
+	let raw: unknown;
+	try {
+		raw = JSON.parse(line);
+	} catch (error) {
+		throw new Error("Malformed side question stream event.", { cause: error });
+	}
+	if (!isRecord(raw) || typeof raw.type !== "string") {
+		throw new Error("Malformed side question stream event.");
+	}
+	switch (raw.type) {
+		case "run_started":
+			if (
+				typeof raw.run_id === "string" &&
+				typeof raw.model_config_id === "string" &&
+				typeof raw.provider === "string" &&
+				typeof raw.model === "string"
+			) {
+				return {
+					type: "run_started",
+					run_id: raw.run_id,
+					model_config_id: raw.model_config_id,
+					provider: raw.provider,
+					model: raw.model,
+				};
+			}
+			break;
+		case "answer_delta":
+			if (typeof raw.delta === "string") {
+				return { type: "answer_delta", delta: raw.delta };
+			}
+			break;
+		case "answer_reset":
+			if (!("reason" in raw)) {
+				return { type: "answer_reset" };
+			}
+			if (typeof raw.reason === "string") {
+				return { type: "answer_reset", reason: raw.reason };
+			}
+			break;
+		case "completed":
+			if (typeof raw.answer === "string" && isRecord(raw.usage)) {
+				return {
+					type: "completed",
+					answer: raw.answer,
+					usage: raw.usage,
+				};
+			}
+			break;
+		case "error":
+			if (typeof raw.message !== "string") {
+				break;
+			}
+			if (!("code" in raw)) {
+				return { type: "error", message: raw.message };
+			}
+			if (typeof raw.code === "string") {
+				return { type: "error", message: raw.message, code: raw.code };
+			}
+			break;
+	}
+	throw new Error("Malformed side question stream event.");
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+	typeof value === "object" && value !== null;
 
 type EditChatMessageMutationArgs = {
 	messageId: number;

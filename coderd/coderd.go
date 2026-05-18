@@ -1346,6 +1346,8 @@ func New(options *Options) *API {
 				r.Patch("/", api.patchChat)
 				r.Get("/messages", api.getChatMessages)
 				r.Post("/messages", api.postChatMessages)
+				r.With(httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentChatSideQuestions)).Post("/side-questions", api.postChatSideQuestion)
+				r.With(httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentChatSideQuestions)).Post("/side-questions/stream", api.postChatSideQuestionStream)
 				r.Patch("/messages/{message}", api.patchChatMessage)
 				r.Get("/prompts", api.getChatUserPrompts)
 				r.Route("/stream", func(r chi.Router) {

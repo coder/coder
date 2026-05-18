@@ -5108,6 +5108,7 @@ const (
 	ExperimentWorkspaceBuildUpdates Experiment = "workspace-build-updates" // Enables publishing workspace build updates to the all builds pubsub channel.
 	ExperimentNATSPubsub            Experiment = "nats_pubsub"             // Enables embedded NATS pubsub.
 	ExperimentMinimumImplicitMember Experiment = "minimum-implicit-member" // Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.
+	ExperimentChatSideQuestions     Experiment = "chat-side-questions"     // Enables one-shot side questions for chats.
 )
 
 func (e Experiment) DisplayName() string {
@@ -5124,6 +5125,8 @@ func (e Experiment) DisplayName() string {
 		return "OAuth2 Provider Functionality"
 	case ExperimentMCPServerHTTP:
 		return "MCP HTTP Server Functionality"
+	case ExperimentChatSideQuestions:
+		return "Chat Side Questions"
 	case ExperimentWorkspaceBuildUpdates:
 		return "Workspace Build Updates Channel"
 	case ExperimentNATSPubsub:
@@ -5147,6 +5150,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentOAuth2,
 	ExperimentMCPServerHTTP,
 	ExperimentNATSPubsub,
+	ExperimentChatSideQuestions,
 	ExperimentWorkspaceBuildUpdates,
 	ExperimentMinimumImplicitMember,
 }

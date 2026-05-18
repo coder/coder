@@ -660,6 +660,48 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatPersonalModelOverridesEnabled(gomock.Any()).Return(true, nil).AnyTimes()
 		check.Args().Asserts().Returns(true)
 	}))
+	s.Run("GetChatAuxiliaryRunByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		run := database.ChatAuxiliaryRun{ID: uuid.New(), ChatID: chat.ID}
+		dbm.EXPECT().GetChatAuxiliaryRunByID(gomock.Any(), run.ID).Return(run, nil).AnyTimes()
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		check.Args(run.ID).Asserts(chat, policy.ActionRead).Returns(run)
+	}))
+	s.Run("StartChatAuxiliaryRun", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.StartChatAuxiliaryRunParams{Kind: "side_question", ChatID: chat.ID, OwnerID: chat.OwnerID, Metadata: []byte(`{}`), StaleBefore: dbtime.Now()}
+		run := database.ChatAuxiliaryRun{ID: uuid.New(), ChatID: chat.ID}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().StartChatAuxiliaryRun(gomock.Any(), arg).Return(run, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(run)
+	}))
+	s.Run("UpdateChatAuxiliaryRunCanceled", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		run := database.ChatAuxiliaryRun{ID: uuid.New(), ChatID: chat.ID}
+		arg := database.UpdateChatAuxiliaryRunCanceledParams{ID: run.ID, ErrorCode: "canceled"}
+		dbm.EXPECT().GetChatAuxiliaryRunByID(gomock.Any(), run.ID).Return(run, nil).AnyTimes()
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().UpdateChatAuxiliaryRunCanceled(gomock.Any(), arg).Return(run, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(run)
+	}))
+	s.Run("UpdateChatAuxiliaryRunFailed", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		run := database.ChatAuxiliaryRun{ID: uuid.New(), ChatID: chat.ID}
+		arg := database.UpdateChatAuxiliaryRunFailedParams{ID: run.ID, ErrorCode: "model"}
+		dbm.EXPECT().GetChatAuxiliaryRunByID(gomock.Any(), run.ID).Return(run, nil).AnyTimes()
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().UpdateChatAuxiliaryRunFailed(gomock.Any(), arg).Return(run, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(run)
+	}))
+	s.Run("UpdateChatAuxiliaryRunSucceeded", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		run := database.ChatAuxiliaryRun{ID: uuid.New(), ChatID: chat.ID}
+		arg := database.UpdateChatAuxiliaryRunSucceededParams{ID: run.ID, Provider: "openai", Model: "gpt-test"}
+		dbm.EXPECT().GetChatAuxiliaryRunByID(gomock.Any(), run.ID).Return(run, nil).AnyTimes()
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().UpdateChatAuxiliaryRunSucceeded(gomock.Any(), arg).Return(run, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(run)
+	}))
 	s.Run("GetChatDebugRunByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		run := database.ChatDebugRun{ID: uuid.New(), ChatID: chat.ID}

@@ -1,0 +1,43 @@
+INSERT INTO chat_auxiliary_runs (
+    id,
+    kind,
+    chat_id,
+    owner_id,
+    model_config_id,
+    provider,
+    model,
+    status,
+    input_tokens,
+    output_tokens,
+    total_tokens,
+    total_cost_micros,
+    runtime_ms,
+    question_chars,
+    transient_context_chars,
+    metadata,
+    started_at,
+    updated_at,
+    finished_at
+)
+SELECT
+    'a7de9c2a-4f46-4a32-a5a9-d0d05666cb0d',
+    'side_question',
+    '72c0438a-18eb-4688-ab80-e4c6a126ef96',
+    owner_id,
+    '9af5f8d5-6a57-4505-8a69-3d6c787b95fd',
+    'openai',
+    'gpt-5.2',
+    'succeeded',
+    1,
+    1,
+    2,
+    100,
+    25,
+    16,
+    0,
+    '{}'::jsonb,
+    '2024-01-01 00:00:00+00',
+    '2024-01-01 00:00:01+00',
+    '2024-01-01 00:00:01+00'
+FROM chats
+WHERE id = '72c0438a-18eb-4688-ab80-e4c6a126ef96';

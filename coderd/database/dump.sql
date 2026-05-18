@@ -1737,6 +1737,37 @@ COMMENT ON COLUMN boundary_usage_stats.window_start IS 'Start of the time window
 
 COMMENT ON COLUMN boundary_usage_stats.updated_at IS 'Timestamp of the last update to this row.';
 
+CREATE TABLE chat_auxiliary_runs (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    kind text NOT NULL,
+    chat_id uuid NOT NULL,
+    owner_id uuid NOT NULL,
+    model_config_id uuid,
+    provider text,
+    model text,
+    status text NOT NULL,
+    input_tokens bigint,
+    output_tokens bigint,
+    total_tokens bigint,
+    reasoning_tokens bigint,
+    cache_creation_tokens bigint,
+    cache_read_tokens bigint,
+    context_limit bigint,
+    total_cost_micros bigint,
+    runtime_ms bigint,
+    provider_response_id text,
+    error_code text,
+    question_chars integer,
+    transient_context_chars integer,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    started_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    finished_at timestamp with time zone,
+    CONSTRAINT chat_auxiliary_runs_finished_status_check CHECK ((((status = 'running'::text) AND (finished_at IS NULL)) OR ((status <> 'running'::text) AND (finished_at IS NOT NULL)))),
+    CONSTRAINT chat_auxiliary_runs_kind_check CHECK ((kind = 'side_question'::text)),
+    CONSTRAINT chat_auxiliary_runs_status_check CHECK ((status = ANY (ARRAY['running'::text, 'succeeded'::text, 'failed'::text, 'canceled'::text])))
+);
+
 CREATE TABLE chat_debug_runs (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     chat_id uuid NOT NULL,
@@ -4069,6 +4100,9 @@ ALTER TABLE ONLY boundary_sessions
 ALTER TABLE ONLY boundary_usage_stats
     ADD CONSTRAINT boundary_usage_stats_pkey PRIMARY KEY (replica_id);
 
+ALTER TABLE ONLY chat_auxiliary_runs
+    ADD CONSTRAINT chat_auxiliary_runs_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY chat_debug_runs
     ADD CONSTRAINT chat_debug_runs_pkey PRIMARY KEY (id);
 
@@ -4501,6 +4535,14 @@ CREATE INDEX idx_boundary_logs_captured_at ON boundary_logs USING btree (capture
 
 CREATE INDEX idx_boundary_logs_session_seq ON boundary_logs USING btree (session_id, sequence_number);
 
+CREATE UNIQUE INDEX idx_chat_auxiliary_runs_active_side_question ON chat_auxiliary_runs USING btree (chat_id, owner_id, kind) WHERE ((kind = 'side_question'::text) AND (status = 'running'::text));
+
+CREATE INDEX idx_chat_auxiliary_runs_chat_started ON chat_auxiliary_runs USING btree (chat_id, started_at DESC);
+
+CREATE INDEX idx_chat_auxiliary_runs_owner_spend ON chat_auxiliary_runs USING btree (owner_id, started_at) WHERE (total_cost_micros IS NOT NULL);
+
+CREATE INDEX idx_chat_auxiliary_runs_stale ON chat_auxiliary_runs USING btree (updated_at) WHERE (status = 'running'::text);
+
 CREATE INDEX idx_chat_debug_runs_chat_started ON chat_debug_runs USING btree (chat_id, started_at DESC);
 
 CREATE UNIQUE INDEX idx_chat_debug_runs_id_chat ON chat_debug_runs USING btree (id, chat_id);
@@ -4878,6 +4920,15 @@ ALTER TABLE ONLY boundary_sessions
 
 ALTER TABLE ONLY boundary_sessions
     ADD CONSTRAINT boundary_sessions_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id);
+
+ALTER TABLE ONLY chat_auxiliary_runs
+    ADD CONSTRAINT chat_auxiliary_runs_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_auxiliary_runs
+    ADD CONSTRAINT chat_auxiliary_runs_model_config_id_fkey FOREIGN KEY (model_config_id) REFERENCES chat_model_configs(id);
+
+ALTER TABLE ONLY chat_auxiliary_runs
+    ADD CONSTRAINT chat_auxiliary_runs_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_debug_runs
     ADD CONSTRAINT chat_debug_runs_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;

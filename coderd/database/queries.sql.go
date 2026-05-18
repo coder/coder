@@ -4912,10 +4912,22 @@ WITH pr_costs AS (
           AND ($3::uuid IS NULL OR c.owner_id = $3::uuid)
     ) prc
     LEFT JOIN LATERAL (
-        SELECT COALESCE(SUM(cm.total_cost_micros), 0) AS cost_micros
-        FROM chat_messages cm
-        WHERE cm.chat_id = prc.chat_id
-          AND cm.total_cost_micros IS NOT NULL
+        SELECT COALESCE(SUM(cost_micros), 0) AS cost_micros
+        FROM (
+            SELECT cm.total_cost_micros AS cost_micros
+            FROM chat_messages cm
+            WHERE cm.chat_id = prc.chat_id
+              AND cm.total_cost_micros IS NOT NULL
+
+            UNION ALL
+
+            SELECT car.total_cost_micros AS cost_micros
+            FROM chat_auxiliary_runs car
+            WHERE car.chat_id = prc.chat_id
+              AND car.kind = 'side_question'
+              AND car.status = 'succeeded'
+              AND car.total_cost_micros IS NOT NULL
+        ) cost_events
     ) cc ON TRUE
     GROUP BY prc.pr_key
 ),
@@ -5035,10 +5047,22 @@ WITH pr_costs AS (
           AND ($3::uuid IS NULL OR c.owner_id = $3::uuid)
     ) prc
     LEFT JOIN LATERAL (
-        SELECT COALESCE(SUM(cm.total_cost_micros), 0) AS cost_micros
-        FROM chat_messages cm
-        WHERE cm.chat_id = prc.chat_id
-          AND cm.total_cost_micros IS NOT NULL
+        SELECT COALESCE(SUM(cost_micros), 0) AS cost_micros
+        FROM (
+            SELECT cm.total_cost_micros AS cost_micros
+            FROM chat_messages cm
+            WHERE cm.chat_id = prc.chat_id
+              AND cm.total_cost_micros IS NOT NULL
+
+            UNION ALL
+
+            SELECT car.total_cost_micros AS cost_micros
+            FROM chat_auxiliary_runs car
+            WHERE car.chat_id = prc.chat_id
+              AND car.kind = 'side_question'
+              AND car.status = 'succeeded'
+              AND car.total_cost_micros IS NOT NULL
+        ) cost_events
     ) cc ON TRUE
     GROUP BY prc.pr_key
 ),
@@ -5204,10 +5228,22 @@ WITH pr_costs AS (
           AND ($3::uuid IS NULL OR c.owner_id = $3::uuid)
     ) prc
     LEFT JOIN LATERAL (
-        SELECT COALESCE(SUM(cm.total_cost_micros), 0) AS cost_micros
-        FROM chat_messages cm
-        WHERE cm.chat_id = prc.chat_id
-          AND cm.total_cost_micros IS NOT NULL
+        SELECT COALESCE(SUM(cost_micros), 0) AS cost_micros
+        FROM (
+            SELECT cm.total_cost_micros AS cost_micros
+            FROM chat_messages cm
+            WHERE cm.chat_id = prc.chat_id
+              AND cm.total_cost_micros IS NOT NULL
+
+            UNION ALL
+
+            SELECT car.total_cost_micros AS cost_micros
+            FROM chat_auxiliary_runs car
+            WHERE car.chat_id = prc.chat_id
+              AND car.kind = 'side_question'
+              AND car.status = 'succeeded'
+              AND car.total_cost_micros IS NOT NULL
+        ) cost_events
     ) cc ON TRUE
     GROUP BY prc.pr_key
 ),
@@ -6878,6 +6914,45 @@ func (q *sqlQuerier) GetChatACLByID(ctx context.Context, id uuid.UUID) (GetChatA
 	return i, err
 }
 
+const getChatAuxiliaryRunByID = `-- name: GetChatAuxiliaryRunByID :one
+SELECT id, kind, chat_id, owner_id, model_config_id, provider, model, status, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, total_cost_micros, runtime_ms, provider_response_id, error_code, question_chars, transient_context_chars, metadata, started_at, updated_at, finished_at
+FROM chat_auxiliary_runs
+WHERE id = $1::uuid
+`
+
+func (q *sqlQuerier) GetChatAuxiliaryRunByID(ctx context.Context, id uuid.UUID) (ChatAuxiliaryRun, error) {
+	row := q.db.QueryRowContext(ctx, getChatAuxiliaryRunByID, id)
+	var i ChatAuxiliaryRun
+	err := row.Scan(
+		&i.ID,
+		&i.Kind,
+		&i.ChatID,
+		&i.OwnerID,
+		&i.ModelConfigID,
+		&i.Provider,
+		&i.Model,
+		&i.Status,
+		&i.InputTokens,
+		&i.OutputTokens,
+		&i.TotalTokens,
+		&i.ReasoningTokens,
+		&i.CacheCreationTokens,
+		&i.CacheReadTokens,
+		&i.ContextLimit,
+		&i.TotalCostMicros,
+		&i.RuntimeMs,
+		&i.ProviderResponseID,
+		&i.ErrorCode,
+		&i.QuestionChars,
+		&i.TransientContextChars,
+		&i.Metadata,
+		&i.StartedAt,
+		&i.UpdatedAt,
+		&i.FinishedAt,
+	)
+	return i, err
+}
+
 const getChatByID = `-- name: GetChatByID :one
 SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name
 FROM chats_expanded
@@ -7145,29 +7220,65 @@ func (q *sqlQuerier) GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Ch
 }
 
 const getChatCostPerChat = `-- name: GetChatCostPerChat :many
-WITH chat_costs AS (
+WITH cost_events AS (
     SELECT
+        c.owner_id,
         COALESCE(c.root_chat_id, c.id) AS root_chat_id,
-        COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
-        COUNT(*) FILTER (
-            WHERE cm.input_tokens IS NOT NULL
-                OR cm.output_tokens IS NOT NULL
-                OR cm.reasoning_tokens IS NOT NULL
-                OR cm.cache_creation_tokens IS NOT NULL
-                OR cm.cache_read_tokens IS NOT NULL
-        )::bigint AS message_count,
-        COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
-        COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens,
-        COALESCE(SUM(cm.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
-        COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens,
-        COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms
+        cm.created_at,
+        'message'::text AS kind,
+        cm.total_cost_micros,
+        cm.input_tokens,
+        cm.output_tokens,
+        cm.reasoning_tokens,
+        cm.cache_creation_tokens,
+        cm.cache_read_tokens,
+        cm.runtime_ms
     FROM chat_messages cm
     JOIN chats c ON c.id = cm.chat_id
-    WHERE c.owner_id = $1::uuid
-      AND cm.role = 'assistant'
-      AND cm.created_at >= $2::timestamptz
-      AND cm.created_at < $3::timestamptz
-    GROUP BY COALESCE(c.root_chat_id, c.id)
+    WHERE cm.role = 'assistant'
+
+    UNION ALL
+
+    SELECT
+        car.owner_id,
+        COALESCE(c.root_chat_id, c.id) AS root_chat_id,
+        car.started_at AS created_at,
+        car.kind,
+        car.total_cost_micros,
+        car.input_tokens,
+        car.output_tokens,
+        car.reasoning_tokens,
+        car.cache_creation_tokens,
+        car.cache_read_tokens,
+        car.runtime_ms
+    FROM chat_auxiliary_runs car
+    JOIN chats c ON c.id = car.chat_id
+    WHERE car.kind = 'side_question'
+      AND car.status = 'succeeded'
+), chat_costs AS (
+    SELECT
+        ce.root_chat_id,
+        COALESCE(SUM(ce.total_cost_micros), 0)::bigint AS total_cost_micros,
+        COUNT(*) FILTER (
+            WHERE ce.kind = 'message'
+                AND (
+                    ce.input_tokens IS NOT NULL
+                    OR ce.output_tokens IS NOT NULL
+                    OR ce.reasoning_tokens IS NOT NULL
+                    OR ce.cache_creation_tokens IS NOT NULL
+                    OR ce.cache_read_tokens IS NOT NULL
+                )
+        )::bigint AS message_count,
+        COALESCE(SUM(ce.input_tokens), 0)::bigint AS total_input_tokens,
+        COALESCE(SUM(ce.output_tokens), 0)::bigint AS total_output_tokens,
+        COALESCE(SUM(ce.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
+        COALESCE(SUM(ce.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens,
+        COALESCE(SUM(ce.runtime_ms), 0)::bigint AS total_runtime_ms
+    FROM cost_events ce
+    WHERE ce.owner_id = $1::uuid
+      AND ce.created_at >= $2::timestamptz
+      AND ce.created_at < $3::timestamptz
+    GROUP BY ce.root_chat_id
 )
 SELECT
     cc.root_chat_id,
@@ -7204,7 +7315,6 @@ type GetChatCostPerChatRow struct {
 
 // Per-root-chat cost breakdown for a single user within a date range.
 // Groups by root_chat_id so forked chats roll up under their root.
-// Only counts assistant-role messages.
 func (q *sqlQuerier) GetChatCostPerChat(ctx context.Context, arg GetChatCostPerChatParams) ([]GetChatCostPerChatRow, error) {
 	rows, err := q.db.QueryContext(ctx, getChatCostPerChat, arg.OwnerID, arg.StartDate, arg.EndDate)
 	if err != nil {
@@ -7239,35 +7349,70 @@ func (q *sqlQuerier) GetChatCostPerChat(ctx context.Context, arg GetChatCostPerC
 }
 
 const getChatCostPerModel = `-- name: GetChatCostPerModel :many
+WITH cost_events AS (
+    SELECT
+        c.owner_id,
+        cm.model_config_id,
+        cm.created_at,
+        'message'::text AS kind,
+        cm.total_cost_micros,
+        cm.input_tokens,
+        cm.output_tokens,
+        cm.reasoning_tokens,
+        cm.cache_creation_tokens,
+        cm.cache_read_tokens,
+        cm.runtime_ms
+    FROM chat_messages cm
+    JOIN chats c ON c.id = cm.chat_id
+    WHERE cm.role = 'assistant'
+      AND cm.model_config_id IS NOT NULL
+
+    UNION ALL
+
+    SELECT
+        car.owner_id,
+        car.model_config_id,
+        car.started_at AS created_at,
+        car.kind,
+        car.total_cost_micros,
+        car.input_tokens,
+        car.output_tokens,
+        car.reasoning_tokens,
+        car.cache_creation_tokens,
+        car.cache_read_tokens,
+        car.runtime_ms
+    FROM chat_auxiliary_runs car
+    WHERE car.kind = 'side_question'
+      AND car.status = 'succeeded'
+      AND car.model_config_id IS NOT NULL
+)
 SELECT
     cmc.id AS model_config_id,
     cmc.display_name,
     cmc.provider,
     cmc.model,
-    COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
+    COALESCE(SUM(ce.total_cost_micros), 0)::bigint AS total_cost_micros,
     COUNT(*) FILTER (
-        WHERE cm.input_tokens IS NOT NULL
-            OR cm.output_tokens IS NOT NULL
-            OR cm.reasoning_tokens IS NOT NULL
-            OR cm.cache_creation_tokens IS NOT NULL
-            OR cm.cache_read_tokens IS NOT NULL
+        WHERE ce.kind = 'message'
+            AND (
+                ce.input_tokens IS NOT NULL
+                OR ce.output_tokens IS NOT NULL
+                OR ce.reasoning_tokens IS NOT NULL
+                OR ce.cache_creation_tokens IS NOT NULL
+                OR ce.cache_read_tokens IS NOT NULL
+            )
     )::bigint AS message_count,
-    COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
-    COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens,
-    COALESCE(SUM(cm.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
-    COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens,
-    COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms
-FROM
-    chat_messages cm
-JOIN
-    chats c ON c.id = cm.chat_id
-JOIN
-    chat_model_configs cmc ON cmc.id = cm.model_config_id
+    COALESCE(SUM(ce.input_tokens), 0)::bigint AS total_input_tokens,
+    COALESCE(SUM(ce.output_tokens), 0)::bigint AS total_output_tokens,
+    COALESCE(SUM(ce.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
+    COALESCE(SUM(ce.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens,
+    COALESCE(SUM(ce.runtime_ms), 0)::bigint AS total_runtime_ms
+FROM cost_events ce
+JOIN chat_model_configs cmc ON cmc.id = ce.model_config_id
 WHERE
-    c.owner_id = $1::uuid
-    AND cm.role = 'assistant'
-    AND cm.created_at >= $2::timestamptz
-    AND cm.created_at < $3::timestamptz
+    ce.owner_id = $1::uuid
+    AND ce.created_at >= $2::timestamptz
+    AND ce.created_at < $3::timestamptz
 GROUP BY
     cmc.id, cmc.display_name, cmc.provider, cmc.model
 ORDER BY
@@ -7295,7 +7440,6 @@ type GetChatCostPerModelRow struct {
 }
 
 // Per-model cost breakdown for a single user within a date range.
-// Only counts assistant-role messages that have a model_config_id.
 func (q *sqlQuerier) GetChatCostPerModel(ctx context.Context, arg GetChatCostPerModelParams) ([]GetChatCostPerModelRow, error) {
 	rows, err := q.db.QueryContext(ctx, getChatCostPerModel, arg.OwnerID, arg.StartDate, arg.EndDate)
 	if err != nil {
@@ -7332,43 +7476,75 @@ func (q *sqlQuerier) GetChatCostPerModel(ctx context.Context, arg GetChatCostPer
 }
 
 const getChatCostPerUser = `-- name: GetChatCostPerUser :many
-WITH chat_cost_users AS (
+WITH cost_events AS (
     SELECT
         c.owner_id AS user_id,
+        COALESCE(c.root_chat_id, c.id) AS root_chat_id,
+        cm.created_at,
+        'message'::text AS kind,
+        cm.total_cost_micros,
+        cm.input_tokens,
+        cm.output_tokens,
+        cm.reasoning_tokens,
+        cm.cache_creation_tokens,
+        cm.cache_read_tokens,
+        cm.runtime_ms
+    FROM chat_messages cm
+    JOIN chats c ON c.id = cm.chat_id
+    WHERE cm.role = 'assistant'
+
+    UNION ALL
+
+    SELECT
+        car.owner_id AS user_id,
+        COALESCE(c.root_chat_id, c.id) AS root_chat_id,
+        car.started_at AS created_at,
+        car.kind,
+        car.total_cost_micros,
+        car.input_tokens,
+        car.output_tokens,
+        car.reasoning_tokens,
+        car.cache_creation_tokens,
+        car.cache_read_tokens,
+        car.runtime_ms
+    FROM chat_auxiliary_runs car
+    JOIN chats c ON c.id = car.chat_id
+    WHERE car.kind = 'side_question'
+      AND car.status = 'succeeded'
+), chat_cost_users AS (
+    SELECT
+        ce.user_id,
         u.username,
         u.name,
         u.avatar_url,
-        COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
+        COALESCE(SUM(ce.total_cost_micros), 0)::bigint AS total_cost_micros,
         COUNT(*) FILTER (
-            WHERE cm.input_tokens IS NOT NULL
-                OR cm.output_tokens IS NOT NULL
-                OR cm.reasoning_tokens IS NOT NULL
-                OR cm.cache_creation_tokens IS NOT NULL
-                OR cm.cache_read_tokens IS NOT NULL
+            WHERE ce.kind = 'message'
+                AND (
+                    ce.input_tokens IS NOT NULL
+                    OR ce.output_tokens IS NOT NULL
+                    OR ce.reasoning_tokens IS NOT NULL
+                    OR ce.cache_creation_tokens IS NOT NULL
+                    OR ce.cache_read_tokens IS NOT NULL
+                )
         )::bigint AS message_count,
-        COUNT(DISTINCT COALESCE(c.root_chat_id, c.id))::bigint AS chat_count,
-        COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
-        COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens,
-        COALESCE(SUM(cm.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
-        COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens,
-        COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms
-    FROM
-        chat_messages cm
-    JOIN
-        chats c ON c.id = cm.chat_id
-    JOIN
-        users u ON u.id = c.owner_id
-    WHERE
-        cm.role = 'assistant'
-        AND cm.created_at >= $3::timestamptz
-        AND cm.created_at < $4::timestamptz
-        AND (
-            $5::text = ''
-            OR u.username ILIKE '%' || $5::text || '%'
-            OR u.name ILIKE '%' || $5::text || '%'
-        )
+        COUNT(DISTINCT ce.root_chat_id)::bigint AS chat_count,
+        COALESCE(SUM(ce.input_tokens), 0)::bigint AS total_input_tokens,
+        COALESCE(SUM(ce.output_tokens), 0)::bigint AS total_output_tokens,
+        COALESCE(SUM(ce.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
+        COALESCE(SUM(ce.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens,
+        COALESCE(SUM(ce.runtime_ms), 0)::bigint AS total_runtime_ms
+    FROM cost_events ce
+    JOIN users u ON u.id = ce.user_id
+    WHERE ce.created_at >= $3::timestamptz
+      AND ce.created_at < $4::timestamptz
+      AND (
+        $5::text = ''
+        OR u.username ILIKE '%' || $5::text || '%'
+        OR u.name ILIKE '%' || $5::text || '%'
+      )
     GROUP BY
-        c.owner_id,
+        ce.user_id,
         u.username,
         u.name,
         u.avatar_url
@@ -7423,7 +7599,6 @@ type GetChatCostPerUserRow struct {
 }
 
 // Deployment-wide per-user cost rollup within a date range.
-// Only counts assistant-role messages.
 func (q *sqlQuerier) GetChatCostPerUser(ctx context.Context, arg GetChatCostPerUserParams) ([]GetChatCostPerUserRow, error) {
 	rows, err := q.db.QueryContext(ctx, getChatCostPerUser,
 		arg.PageOffset,
@@ -7468,35 +7643,66 @@ func (q *sqlQuerier) GetChatCostPerUser(ctx context.Context, arg GetChatCostPerU
 }
 
 const getChatCostSummary = `-- name: GetChatCostSummary :one
+WITH cost_events AS (
+    SELECT
+        c.owner_id,
+        cm.created_at,
+        'message'::text AS kind,
+        cm.total_cost_micros,
+        cm.input_tokens,
+        cm.output_tokens,
+        cm.reasoning_tokens,
+        cm.cache_creation_tokens,
+        cm.cache_read_tokens,
+        cm.runtime_ms
+    FROM chat_messages cm
+    JOIN chats c ON c.id = cm.chat_id
+    WHERE cm.role = 'assistant'
+
+    UNION ALL
+
+    SELECT
+        car.owner_id,
+        car.started_at AS created_at,
+        car.kind,
+        car.total_cost_micros,
+        car.input_tokens,
+        car.output_tokens,
+        car.reasoning_tokens,
+        car.cache_creation_tokens,
+        car.cache_read_tokens,
+        car.runtime_ms
+    FROM chat_auxiliary_runs car
+    WHERE car.kind = 'side_question'
+      AND car.status = 'succeeded'
+)
 SELECT
-    COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_cost_micros,
+    COALESCE(SUM(ce.total_cost_micros), 0)::bigint AS total_cost_micros,
     COUNT(*) FILTER (
-        WHERE cm.total_cost_micros IS NOT NULL
+        WHERE ce.kind = 'message'
+            AND ce.total_cost_micros IS NOT NULL
     )::bigint AS priced_message_count,
     COUNT(*) FILTER (
-        WHERE cm.total_cost_micros IS NULL
+        WHERE ce.kind = 'message'
+            AND ce.total_cost_micros IS NULL
             AND (
-                cm.input_tokens IS NOT NULL
-                OR cm.output_tokens IS NOT NULL
-                OR cm.reasoning_tokens IS NOT NULL
-                OR cm.cache_creation_tokens IS NOT NULL
-                OR cm.cache_read_tokens IS NOT NULL
+                ce.input_tokens IS NOT NULL
+                OR ce.output_tokens IS NOT NULL
+                OR ce.reasoning_tokens IS NOT NULL
+                OR ce.cache_creation_tokens IS NOT NULL
+                OR ce.cache_read_tokens IS NOT NULL
             )
     )::bigint AS unpriced_message_count,
-    COALESCE(SUM(cm.input_tokens), 0)::bigint AS total_input_tokens,
-    COALESCE(SUM(cm.output_tokens), 0)::bigint AS total_output_tokens,
-    COALESCE(SUM(cm.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
-    COALESCE(SUM(cm.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens,
-    COALESCE(SUM(cm.runtime_ms), 0)::bigint AS total_runtime_ms
-FROM
-    chat_messages cm
-JOIN
-    chats c ON c.id = cm.chat_id
+    COALESCE(SUM(ce.input_tokens), 0)::bigint AS total_input_tokens,
+    COALESCE(SUM(ce.output_tokens), 0)::bigint AS total_output_tokens,
+    COALESCE(SUM(ce.cache_read_tokens), 0)::bigint AS total_cache_read_tokens,
+    COALESCE(SUM(ce.cache_creation_tokens), 0)::bigint AS total_cache_creation_tokens,
+    COALESCE(SUM(ce.runtime_ms), 0)::bigint AS total_runtime_ms
+FROM cost_events ce
 WHERE
-    c.owner_id = $1::uuid
-    AND cm.role = 'assistant'
-    AND cm.created_at >= $2::timestamptz
-    AND cm.created_at < $3::timestamptz
+    ce.owner_id = $1::uuid
+    AND ce.created_at >= $2::timestamptz
+    AND ce.created_at < $3::timestamptz
 `
 
 type GetChatCostSummaryParams struct {
@@ -7517,7 +7723,6 @@ type GetChatCostSummaryRow struct {
 }
 
 // Aggregate cost summary for a single user within a date range.
-// Only counts assistant-role messages.
 func (q *sqlQuerier) GetChatCostSummary(ctx context.Context, arg GetChatCostSummaryParams) (GetChatCostSummaryRow, error) {
 	row := q.db.QueryRowContext(ctx, getChatCostSummary, arg.OwnerID, arg.StartDate, arg.EndDate)
 	var i GetChatCostSummaryRow
@@ -9570,15 +9775,36 @@ func (q *sqlQuerier) GetStaleChats(ctx context.Context, staleThreshold time.Time
 }
 
 const getUserChatSpendInPeriod = `-- name: GetUserChatSpendInPeriod :one
-SELECT COALESCE(SUM(cm.total_cost_micros), 0)::bigint AS total_spend_micros
-FROM chat_messages cm
-JOIN chats c ON c.id = cm.chat_id
-WHERE c.owner_id = $1::uuid
+WITH spend_events AS (
+    SELECT
+        c.owner_id,
+        c.organization_id,
+        cm.created_at,
+        cm.total_cost_micros
+    FROM chat_messages cm
+    JOIN chats c ON c.id = cm.chat_id
+    WHERE cm.role = 'assistant'
+
+    UNION ALL
+
+    SELECT
+        car.owner_id,
+        c.organization_id,
+        car.started_at AS created_at,
+        car.total_cost_micros
+    FROM chat_auxiliary_runs car
+    JOIN chats c ON c.id = car.chat_id
+    WHERE car.kind = 'side_question'
+      AND car.status = 'succeeded'
+)
+SELECT COALESCE(SUM(se.total_cost_micros), 0)::bigint AS total_spend_micros
+FROM spend_events se
+WHERE se.owner_id = $1::uuid
   AND ($2::uuid IS NULL
-       OR c.organization_id = $2::uuid)
-  AND cm.created_at >= $3::timestamptz
-  AND cm.created_at < $4::timestamptz
-  AND cm.total_cost_micros IS NOT NULL
+       OR se.organization_id = $2::uuid)
+  AND se.created_at >= $3::timestamptz
+  AND se.created_at < $4::timestamptz
+  AND se.total_cost_micros IS NOT NULL
 `
 
 type GetUserChatSpendInPeriodParams struct {
@@ -10607,6 +10833,107 @@ func (q *sqlQuerier) SoftDeleteContextFileMessages(ctx context.Context, chatID u
 	return err
 }
 
+const startChatAuxiliaryRun = `-- name: StartChatAuxiliaryRun :one
+WITH stale AS (
+    UPDATE
+        chat_auxiliary_runs
+    SET
+        status = 'failed',
+        error_code = 'stale',
+        updated_at = NOW(),
+        finished_at = NOW()
+    WHERE
+        kind = $1::text
+        AND chat_id = $2::uuid
+        AND owner_id = $3::uuid
+        AND status = 'running'
+        AND updated_at < $10::timestamptz
+    RETURNING 1
+)
+INSERT INTO chat_auxiliary_runs (
+    kind,
+    chat_id,
+    owner_id,
+    model_config_id,
+    provider,
+    model,
+    status,
+    question_chars,
+    transient_context_chars,
+    metadata
+)
+SELECT
+    $1::text,
+    $2::uuid,
+    $3::uuid,
+    NULLIF($4::uuid, '00000000-0000-0000-0000-000000000000'::uuid),
+    NULLIF($5::text, ''),
+    NULLIF($6::text, ''),
+    'running',
+    $7::integer,
+    $8::integer,
+    $9::jsonb
+FROM (SELECT COUNT(*) FROM stale) AS stale_cleanup
+RETURNING id, kind, chat_id, owner_id, model_config_id, provider, model, status, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, total_cost_micros, runtime_ms, provider_response_id, error_code, question_chars, transient_context_chars, metadata, started_at, updated_at, finished_at
+`
+
+type StartChatAuxiliaryRunParams struct {
+	Kind                  string          `db:"kind" json:"kind"`
+	ChatID                uuid.UUID       `db:"chat_id" json:"chat_id"`
+	OwnerID               uuid.UUID       `db:"owner_id" json:"owner_id"`
+	ModelConfigID         uuid.UUID       `db:"model_config_id" json:"model_config_id"`
+	Provider              string          `db:"provider" json:"provider"`
+	Model                 string          `db:"model" json:"model"`
+	QuestionChars         int32           `db:"question_chars" json:"question_chars"`
+	TransientContextChars int32           `db:"transient_context_chars" json:"transient_context_chars"`
+	Metadata              json.RawMessage `db:"metadata" json:"metadata"`
+	StaleBefore           time.Time       `db:"stale_before" json:"stale_before"`
+}
+
+func (q *sqlQuerier) StartChatAuxiliaryRun(ctx context.Context, arg StartChatAuxiliaryRunParams) (ChatAuxiliaryRun, error) {
+	row := q.db.QueryRowContext(ctx, startChatAuxiliaryRun,
+		arg.Kind,
+		arg.ChatID,
+		arg.OwnerID,
+		arg.ModelConfigID,
+		arg.Provider,
+		arg.Model,
+		arg.QuestionChars,
+		arg.TransientContextChars,
+		arg.Metadata,
+		arg.StaleBefore,
+	)
+	var i ChatAuxiliaryRun
+	err := row.Scan(
+		&i.ID,
+		&i.Kind,
+		&i.ChatID,
+		&i.OwnerID,
+		&i.ModelConfigID,
+		&i.Provider,
+		&i.Model,
+		&i.Status,
+		&i.InputTokens,
+		&i.OutputTokens,
+		&i.TotalTokens,
+		&i.ReasoningTokens,
+		&i.CacheCreationTokens,
+		&i.CacheReadTokens,
+		&i.ContextLimit,
+		&i.TotalCostMicros,
+		&i.RuntimeMs,
+		&i.ProviderResponseID,
+		&i.ErrorCode,
+		&i.QuestionChars,
+		&i.TransientContextChars,
+		&i.Metadata,
+		&i.StartedAt,
+		&i.UpdatedAt,
+		&i.FinishedAt,
+	)
+	return i, err
+}
+
 const unarchiveChatByID = `-- name: UnarchiveChatByID :many
 WITH updated_chats AS (
     UPDATE chats SET
@@ -10813,6 +11140,201 @@ type UpdateChatACLByIDParams struct {
 func (q *sqlQuerier) UpdateChatACLByID(ctx context.Context, arg UpdateChatACLByIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateChatACLByID, arg.UserACL, arg.GroupACL, arg.ID)
 	return err
+}
+
+const updateChatAuxiliaryRunCanceled = `-- name: UpdateChatAuxiliaryRunCanceled :one
+UPDATE
+    chat_auxiliary_runs
+SET
+    status = 'canceled',
+    error_code = NULLIF($1::text, ''),
+    updated_at = NOW(),
+    finished_at = NOW()
+WHERE
+    id = $2::uuid
+    AND status = 'running'
+RETURNING id, kind, chat_id, owner_id, model_config_id, provider, model, status, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, total_cost_micros, runtime_ms, provider_response_id, error_code, question_chars, transient_context_chars, metadata, started_at, updated_at, finished_at
+`
+
+type UpdateChatAuxiliaryRunCanceledParams struct {
+	ErrorCode string    `db:"error_code" json:"error_code"`
+	ID        uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateChatAuxiliaryRunCanceled(ctx context.Context, arg UpdateChatAuxiliaryRunCanceledParams) (ChatAuxiliaryRun, error) {
+	row := q.db.QueryRowContext(ctx, updateChatAuxiliaryRunCanceled, arg.ErrorCode, arg.ID)
+	var i ChatAuxiliaryRun
+	err := row.Scan(
+		&i.ID,
+		&i.Kind,
+		&i.ChatID,
+		&i.OwnerID,
+		&i.ModelConfigID,
+		&i.Provider,
+		&i.Model,
+		&i.Status,
+		&i.InputTokens,
+		&i.OutputTokens,
+		&i.TotalTokens,
+		&i.ReasoningTokens,
+		&i.CacheCreationTokens,
+		&i.CacheReadTokens,
+		&i.ContextLimit,
+		&i.TotalCostMicros,
+		&i.RuntimeMs,
+		&i.ProviderResponseID,
+		&i.ErrorCode,
+		&i.QuestionChars,
+		&i.TransientContextChars,
+		&i.Metadata,
+		&i.StartedAt,
+		&i.UpdatedAt,
+		&i.FinishedAt,
+	)
+	return i, err
+}
+
+const updateChatAuxiliaryRunFailed = `-- name: UpdateChatAuxiliaryRunFailed :one
+UPDATE
+    chat_auxiliary_runs
+SET
+    status = 'failed',
+    error_code = NULLIF($1::text, ''),
+    updated_at = NOW(),
+    finished_at = NOW()
+WHERE
+    id = $2::uuid
+    AND status = 'running'
+RETURNING id, kind, chat_id, owner_id, model_config_id, provider, model, status, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, total_cost_micros, runtime_ms, provider_response_id, error_code, question_chars, transient_context_chars, metadata, started_at, updated_at, finished_at
+`
+
+type UpdateChatAuxiliaryRunFailedParams struct {
+	ErrorCode string    `db:"error_code" json:"error_code"`
+	ID        uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateChatAuxiliaryRunFailed(ctx context.Context, arg UpdateChatAuxiliaryRunFailedParams) (ChatAuxiliaryRun, error) {
+	row := q.db.QueryRowContext(ctx, updateChatAuxiliaryRunFailed, arg.ErrorCode, arg.ID)
+	var i ChatAuxiliaryRun
+	err := row.Scan(
+		&i.ID,
+		&i.Kind,
+		&i.ChatID,
+		&i.OwnerID,
+		&i.ModelConfigID,
+		&i.Provider,
+		&i.Model,
+		&i.Status,
+		&i.InputTokens,
+		&i.OutputTokens,
+		&i.TotalTokens,
+		&i.ReasoningTokens,
+		&i.CacheCreationTokens,
+		&i.CacheReadTokens,
+		&i.ContextLimit,
+		&i.TotalCostMicros,
+		&i.RuntimeMs,
+		&i.ProviderResponseID,
+		&i.ErrorCode,
+		&i.QuestionChars,
+		&i.TransientContextChars,
+		&i.Metadata,
+		&i.StartedAt,
+		&i.UpdatedAt,
+		&i.FinishedAt,
+	)
+	return i, err
+}
+
+const updateChatAuxiliaryRunSucceeded = `-- name: UpdateChatAuxiliaryRunSucceeded :one
+UPDATE
+    chat_auxiliary_runs
+SET
+    status = 'succeeded',
+    model_config_id = COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'::uuid), model_config_id),
+    provider = COALESCE(NULLIF($2::text, ''), provider),
+    model = COALESCE(NULLIF($3::text, ''), model),
+    input_tokens = NULLIF($4::bigint, 0),
+    output_tokens = NULLIF($5::bigint, 0),
+    total_tokens = NULLIF($6::bigint, 0),
+    reasoning_tokens = NULLIF($7::bigint, 0),
+    cache_creation_tokens = NULLIF($8::bigint, 0),
+    cache_read_tokens = NULLIF($9::bigint, 0),
+    context_limit = NULLIF($10::bigint, 0),
+    total_cost_micros = NULLIF($11::bigint, 0),
+    runtime_ms = NULLIF($12::bigint, 0),
+    provider_response_id = NULLIF($13::text, ''),
+    updated_at = NOW(),
+    finished_at = NOW()
+WHERE
+    id = $14::uuid
+    AND status = 'running'
+RETURNING id, kind, chat_id, owner_id, model_config_id, provider, model, status, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, total_cost_micros, runtime_ms, provider_response_id, error_code, question_chars, transient_context_chars, metadata, started_at, updated_at, finished_at
+`
+
+type UpdateChatAuxiliaryRunSucceededParams struct {
+	ModelConfigID       uuid.UUID `db:"model_config_id" json:"model_config_id"`
+	Provider            string    `db:"provider" json:"provider"`
+	Model               string    `db:"model" json:"model"`
+	InputTokens         int64     `db:"input_tokens" json:"input_tokens"`
+	OutputTokens        int64     `db:"output_tokens" json:"output_tokens"`
+	TotalTokens         int64     `db:"total_tokens" json:"total_tokens"`
+	ReasoningTokens     int64     `db:"reasoning_tokens" json:"reasoning_tokens"`
+	CacheCreationTokens int64     `db:"cache_creation_tokens" json:"cache_creation_tokens"`
+	CacheReadTokens     int64     `db:"cache_read_tokens" json:"cache_read_tokens"`
+	ContextLimit        int64     `db:"context_limit" json:"context_limit"`
+	TotalCostMicros     int64     `db:"total_cost_micros" json:"total_cost_micros"`
+	RuntimeMs           int64     `db:"runtime_ms" json:"runtime_ms"`
+	ProviderResponseID  string    `db:"provider_response_id" json:"provider_response_id"`
+	ID                  uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateChatAuxiliaryRunSucceeded(ctx context.Context, arg UpdateChatAuxiliaryRunSucceededParams) (ChatAuxiliaryRun, error) {
+	row := q.db.QueryRowContext(ctx, updateChatAuxiliaryRunSucceeded,
+		arg.ModelConfigID,
+		arg.Provider,
+		arg.Model,
+		arg.InputTokens,
+		arg.OutputTokens,
+		arg.TotalTokens,
+		arg.ReasoningTokens,
+		arg.CacheCreationTokens,
+		arg.CacheReadTokens,
+		arg.ContextLimit,
+		arg.TotalCostMicros,
+		arg.RuntimeMs,
+		arg.ProviderResponseID,
+		arg.ID,
+	)
+	var i ChatAuxiliaryRun
+	err := row.Scan(
+		&i.ID,
+		&i.Kind,
+		&i.ChatID,
+		&i.OwnerID,
+		&i.ModelConfigID,
+		&i.Provider,
+		&i.Model,
+		&i.Status,
+		&i.InputTokens,
+		&i.OutputTokens,
+		&i.TotalTokens,
+		&i.ReasoningTokens,
+		&i.CacheCreationTokens,
+		&i.CacheReadTokens,
+		&i.ContextLimit,
+		&i.TotalCostMicros,
+		&i.RuntimeMs,
+		&i.ProviderResponseID,
+		&i.ErrorCode,
+		&i.QuestionChars,
+		&i.TransientContextChars,
+		&i.Metadata,
+		&i.StartedAt,
+		&i.UpdatedAt,
+		&i.FinishedAt,
+	)
+	return i, err
 }
 
 const updateChatBuildAgentBinding = `-- name: UpdateChatBuildAgentBinding :one

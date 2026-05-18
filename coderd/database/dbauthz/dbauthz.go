@@ -1640,6 +1640,18 @@ func scopedOrgRoleIdentifiers(names []string, orgID uuid.UUID) []rbac.RoleIdenti
 	return out
 }
 
+func (q *querier) authorizeChatAuxiliaryRunUpdate(ctx context.Context, id uuid.UUID) error {
+	run, err := q.db.GetChatAuxiliaryRunByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	chat, err := q.db.GetChatByID(ctx, run.ChatID)
+	if err != nil {
+		return err
+	}
+	return q.authorizeContext(ctx, policy.ActionUpdate, chat)
+}
+
 func (q *querier) AcquireChats(ctx context.Context, arg database.AcquireChatsParams) ([]database.Chat, error) {
 	// AcquireChats is a system-level operation used by the chat processor.
 	// Authorization is done at the system level, not per-user.
@@ -2975,6 +2987,21 @@ func (q *querier) GetChatAutoArchiveDays(ctx context.Context, defaultAutoArchive
 		return 0, ErrNoActor
 	}
 	return q.db.GetChatAutoArchiveDays(ctx, defaultAutoArchiveDays)
+}
+
+func (q *querier) GetChatAuxiliaryRunByID(ctx context.Context, id uuid.UUID) (database.ChatAuxiliaryRun, error) {
+	run, err := q.db.GetChatAuxiliaryRunByID(ctx, id)
+	if err != nil {
+		return database.ChatAuxiliaryRun{}, err
+	}
+	chat, err := q.db.GetChatByID(ctx, run.ChatID)
+	if err != nil {
+		return database.ChatAuxiliaryRun{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, chat); err != nil {
+		return database.ChatAuxiliaryRun{}, err
+	}
+	return run, nil
 }
 
 func (q *querier) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error) {
@@ -6830,6 +6857,17 @@ func (q *querier) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Context, wo
 	return q.db.SoftDeleteWorkspaceAgentsByWorkspaceID(ctx, workspaceID)
 }
 
+func (q *querier) StartChatAuxiliaryRun(ctx context.Context, arg database.StartChatAuxiliaryRunParams) (database.ChatAuxiliaryRun, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return database.ChatAuxiliaryRun{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.ChatAuxiliaryRun{}, err
+	}
+	return q.db.StartChatAuxiliaryRun(ctx, arg)
+}
+
 func (q *querier) TouchChatDebugRunUpdatedAt(ctx context.Context, arg database.TouchChatDebugRunUpdatedAtParams) error {
 	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
@@ -6945,6 +6983,27 @@ func (q *querier) UpdateChatACLByID(ctx context.Context, arg database.UpdateChat
 	}
 
 	return fetchAndExec(q.log, q.auth, policy.ActionShare, fetch, q.db.UpdateChatACLByID)(ctx, arg)
+}
+
+func (q *querier) UpdateChatAuxiliaryRunCanceled(ctx context.Context, arg database.UpdateChatAuxiliaryRunCanceledParams) (database.ChatAuxiliaryRun, error) {
+	if err := q.authorizeChatAuxiliaryRunUpdate(ctx, arg.ID); err != nil {
+		return database.ChatAuxiliaryRun{}, err
+	}
+	return q.db.UpdateChatAuxiliaryRunCanceled(ctx, arg)
+}
+
+func (q *querier) UpdateChatAuxiliaryRunFailed(ctx context.Context, arg database.UpdateChatAuxiliaryRunFailedParams) (database.ChatAuxiliaryRun, error) {
+	if err := q.authorizeChatAuxiliaryRunUpdate(ctx, arg.ID); err != nil {
+		return database.ChatAuxiliaryRun{}, err
+	}
+	return q.db.UpdateChatAuxiliaryRunFailed(ctx, arg)
+}
+
+func (q *querier) UpdateChatAuxiliaryRunSucceeded(ctx context.Context, arg database.UpdateChatAuxiliaryRunSucceededParams) (database.ChatAuxiliaryRun, error) {
+	if err := q.authorizeChatAuxiliaryRunUpdate(ctx, arg.ID); err != nil {
+		return database.ChatAuxiliaryRun{}, err
+	}
+	return q.db.UpdateChatAuxiliaryRunSucceeded(ctx, arg)
 }
 
 func (q *querier) UpdateChatBuildAgentBinding(ctx context.Context, arg database.UpdateChatBuildAgentBindingParams) (database.Chat, error) {
