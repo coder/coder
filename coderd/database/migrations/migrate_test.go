@@ -1193,14 +1193,24 @@ func TestMigration000498SoftDeleteStaleWorkspaceAgents(t *testing.T) {
 
 	sqlDB := testSQLDB(t)
 
-	// Step up to migrationVersion - 1.
+	// Step up to the migration just before migrationVersion. On release
+	// branches migration numbers may not be sequential (e.g., 483 -> 498
+	// with no 484-497), so we cannot assume migrationVersion-1 exists.
+	// When the stepper jumps directly to our target, the migration is a
+	// no-op (no data yet). We note this and re-execute the migration SQL
+	// after inserting test data.
 	next, err := migrations.Stepper(sqlDB)
 	require.NoError(t, err)
+	appliedTarget := false
 	for {
 		version, more, err := next()
 		require.NoError(t, err)
 		if !more {
 			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == migrationVersion {
+			appliedTarget = true
+			break
 		}
 		if version == migrationVersion-1 {
 			break
@@ -1362,11 +1372,43 @@ func TestMigration000498SoftDeleteStaleWorkspaceAgents(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, preDeletedCount, "no agents should be deleted pre-migration")
 
-	// Run migration 491.
-	version, more, err := next()
-	require.NoError(t, err)
-	require.True(t, more)
-	require.EqualValues(t, migrationVersion, version)
+	if !appliedTarget {
+		// Normal path: the stepper stopped at migrationVersion-1.
+		version, more, err := next()
+		require.NoError(t, err)
+		require.True(t, more)
+		require.EqualValues(t, migrationVersion, version)
+	} else {
+		// Release-branch path: the stepper already applied the target
+		// migration as a no-op (no data existed). Re-execute the
+		// idempotent migration SQL now that test data is in place.
+		_, err = sqlDB.ExecContext(ctx, `
+			UPDATE workspace_agents SET deleted = TRUE
+			WHERE id IN (
+				SELECT wa.id FROM workspace_agents wa
+				JOIN workspace_resources wr ON wr.id = wa.resource_id
+				JOIN workspace_builds wb ON wb.job_id = wr.job_id
+				JOIN workspaces w ON w.id = wb.workspace_id
+				WHERE wa.deleted = FALSE AND w.deleted = TRUE
+			);
+			WITH latest_builds AS (
+				SELECT DISTINCT ON (workspace_id) id, workspace_id
+				FROM workspace_builds
+				ORDER BY workspace_id, build_number DESC
+			)
+			UPDATE workspace_agents SET deleted = TRUE
+			WHERE id IN (
+				SELECT wa.id FROM workspace_agents wa
+				JOIN workspace_resources wr ON wr.id = wa.resource_id
+				JOIN workspace_builds wb ON wb.job_id = wr.job_id
+				JOIN workspaces w ON w.id = wb.workspace_id
+				LEFT JOIN latest_builds lb ON lb.workspace_id = wb.workspace_id
+				WHERE wa.deleted = FALSE AND w.deleted = FALSE
+					AND (lb.id IS NULL OR wb.id <> lb.id)
+			);
+		`)
+		require.NoError(t, err)
+	}
 
 	// Backfill assertions:
 	//   wsA: builds 1,2,3 → keep agent for build 3, delete for 1 and 2.
