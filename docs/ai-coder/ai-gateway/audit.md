@@ -112,3 +112,4 @@ session data is kept.
 - [Monitoring](./monitoring.md) — Dashboards, data export, and tracing
 - [Setup](./setup.md) — Configure AI Gateway and data retention
 - [Reference](./reference.md) — API and technical reference
+- [AI Governance Audit Events](../ai-governance-audit.md): Audit log events for AI provider config, seats, chats, tasks, and personal secrets

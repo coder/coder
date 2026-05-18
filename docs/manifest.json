@@ -1252,6 +1252,12 @@
 							"title": "Usage Data Reporting",
 							"description": "Configure AI usage data reporting",
 							"path": "./ai-coder/usage-data-reporting.md"
+						},
+						{
+							"title": "Audit Events",
+							"description": "AI Governance audit event types and query reference",
+							"path": "./ai-coder/ai-governance-audit.md",
+							"state": ["ai governance add-on"]
 						}
 					]
 				},

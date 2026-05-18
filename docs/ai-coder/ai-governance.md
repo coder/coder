@@ -167,3 +167,9 @@ or the license has expired, the column is hidden.
 
 > **Tip:** Hover over the **AI add-on** column header for a tooltip
 > describing what the column represents.
+
+## Audit events
+
+For a complete reference of AI Governance audit events, including querying
+examples and field tracking details, see
+[AI Governance Audit Events](./ai-governance-audit.md).
