@@ -13769,6 +13769,109 @@ func TestGetChatsFilterByPRStatus(t *testing.T) {
 		"matching child PRs must not surface a nonmatching root")
 }
 
+func TestGetChatsFilterByTitle(t *testing.T) {
+	t.Parallel()
+
+	store, _ := dbtestutil.NewDB(t)
+	ctx := context.Background()
+
+	org := dbgen.Organization(t, store, database.Organization{})
+	user := dbgen.User(t, store, database.User{})
+	dbgen.OrganizationMember(t, store, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+
+	_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		Provider:             "openai",
+		DisplayName:          "OpenAI",
+		APIKey:               "test-key",
+		Enabled:              true,
+		CentralApiKeyEnabled: true,
+	})
+	require.NoError(t, err)
+
+	modelCfg, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		Provider:             "openai",
+		Model:                "test-model-" + uuid.NewString(),
+		DisplayName:          "Test Model",
+		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
+		Enabled:              true,
+		IsDefault:            true,
+		ContextLimit:         128000,
+		CompressionThreshold: 80,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	createRoot := func(title string) database.Chat {
+		t.Helper()
+		chat, err := store.InsertChat(ctx, database.InsertChatParams{
+			OrganizationID:    org.ID,
+			Status:            database.ChatStatusWaiting,
+			ClientType:        database.ChatClientTypeUi,
+			OwnerID:           user.ID,
+			LastModelConfigID: modelCfg.ID,
+			Title:             title,
+		})
+		require.NoError(t, err)
+		return chat
+	}
+
+	getChatIDs := func(titleQuery string) []uuid.UUID {
+		t.Helper()
+		rows, err := store.GetChats(ctx, database.GetChatsParams{
+			OwnerID:    user.ID,
+			TitleQuery: titleQuery,
+		})
+		require.NoError(t, err)
+
+		ids := make([]uuid.UUID, 0, len(rows))
+		for _, row := range rows {
+			ids = append(ids, row.Chat.ID)
+		}
+		return ids
+	}
+
+	alpha := createRoot("alpha project")
+	beta := createRoot("beta project")
+	gamma := createRoot("gamma unrelated")
+	percent := createRoot("100% complete")
+	thousandOne := createRoot("1001 things")
+	underscore := createRoot("user_name config")
+	hyphen := createRoot("user-name config")
+
+	// Substring match
+	ids := getChatIDs("project")
+	require.ElementsMatch(t, []uuid.UUID{alpha.ID, beta.ID}, ids)
+
+	// Single result
+	ids = getChatIDs("gamma")
+	require.ElementsMatch(t, []uuid.UUID{gamma.ID}, ids)
+
+	// Case insensitive
+	ids = getChatIDs("ALPHA")
+	require.ElementsMatch(t, []uuid.UUID{alpha.ID}, ids)
+
+	// Multi-word substring
+	ids = getChatIDs("alpha project")
+	require.ElementsMatch(t, []uuid.UUID{alpha.ID}, ids)
+
+	// No match
+	ids = getChatIDs("nonexistent")
+	require.Empty(t, ids)
+
+	// Empty title query returns all
+	ids = getChatIDs("")
+	require.ElementsMatch(t, []uuid.UUID{alpha.ID, beta.ID, gamma.ID, percent.ID, thousandOne.ID, underscore.ID, hyphen.ID}, ids)
+
+	// ILIKE % wildcard: "100%" pattern matches both "100% complete" and "1001 things"
+	ids = getChatIDs("100%")
+	require.ElementsMatch(t, []uuid.UUID{percent.ID, thousandOne.ID}, ids)
+
+	// ILIKE _ wildcard: "user_name" matches both "user_name" and "user-name"
+	ids = getChatIDs("user_name")
+	require.ElementsMatch(t, []uuid.UUID{underscore.ID, hyphen.ID}, ids)
+}
+
 func TestGetChatsFilterByUnread(t *testing.T) {
 	t.Parallel()
 

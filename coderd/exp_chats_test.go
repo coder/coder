@@ -1567,142 +1567,39 @@ func TestListChats(t *testing.T) {
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
-		// Create chats with distinct titles. Order of creation matters
-		// because results come back ordered by updated_at DESC, id DESC.
-		// We store IDs to assert exact result sets.
+		// Verify that the title: filter is wired through the endpoint.
+		// Exhaustive ILIKE behavior is tested in TestGetChatsFilterByTitle.
 		alpha := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    firstUser.OrganizationID,
 			OwnerID:           firstUser.UserID,
 			LastModelConfigID: modelConfig.ID,
 			Title:             "alpha project",
 		})
-		beta := dbgen.Chat(t, db, database.Chat{
+		_ = dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    firstUser.OrganizationID,
 			OwnerID:           firstUser.UserID,
 			LastModelConfigID: modelConfig.ID,
-			Title:             "beta project",
-		})
-		gamma := dbgen.Chat(t, db, database.Chat{
-			OrganizationID:    firstUser.OrganizationID,
-			OwnerID:           firstUser.UserID,
-			LastModelConfigID: modelConfig.ID,
-			Title:             "gamma unrelated",
-		})
-		percent := dbgen.Chat(t, db, database.Chat{
-			OrganizationID:    firstUser.OrganizationID,
-			OwnerID:           firstUser.UserID,
-			LastModelConfigID: modelConfig.ID,
-			Title:             "100% complete",
-		})
-		thousandOne := dbgen.Chat(t, db, database.Chat{
-			OrganizationID:    firstUser.OrganizationID,
-			OwnerID:           firstUser.UserID,
-			LastModelConfigID: modelConfig.ID,
-			Title:             "1001 things",
-		})
-		underscore := dbgen.Chat(t, db, database.Chat{
-			OrganizationID:    firstUser.OrganizationID,
-			OwnerID:           firstUser.UserID,
-			LastModelConfigID: modelConfig.ID,
-			Title:             "user_name config",
-		})
-		hyphen := dbgen.Chat(t, db, database.Chat{
-			OrganizationID:    firstUser.OrganizationID,
-			OwnerID:           firstUser.UserID,
-			LastModelConfigID: modelConfig.ID,
-			Title:             "user-name config",
-		})
-		archived := dbgen.Chat(t, db, database.Chat{
-			OrganizationID:    firstUser.OrganizationID,
-			OwnerID:           firstUser.UserID,
-			LastModelConfigID: modelConfig.ID,
-			Title:             "archived discussion",
+			Title:             "beta unrelated",
 		})
 
-		allIDs := []uuid.UUID{
-			archived.ID, hyphen.ID, underscore.ID, thousandOne.ID,
-			percent.ID, gamma.ID, beta.ID, alpha.ID,
-		}
+		ctx := testutil.Context(t, testutil.WaitLong)
 
-		tests := []struct {
-			name    string
-			query   string
-			wantIDs []uuid.UUID
-		}{
-			{
-				name:    "SubstringMatch",
-				query:   "title:project",
-				wantIDs: []uuid.UUID{beta.ID, alpha.ID},
-			},
-			{
-				name:    "SingleResult",
-				query:   "title:gamma",
-				wantIDs: []uuid.UUID{gamma.ID},
-			},
-			{
-				name:    "CaseInsensitive",
-				query:   "title:ALPHA",
-				wantIDs: []uuid.UUID{alpha.ID},
-			},
-			{
-				name:    "MultiWord",
-				query:   `title:"alpha project"`,
-				wantIDs: []uuid.UUID{alpha.ID},
-			},
-			{
-				name:    "NoMatch",
-				query:   "title:nonexistent",
-				wantIDs: []uuid.UUID{},
-			},
-			{
-				name:    "EmptyQuery",
-				query:   "",
-				wantIDs: allIDs,
-			},
-			{
-				// The % in "100%" acts as a wildcard since we don't
-				// escape ILIKE metacharacters. Pattern becomes
-				// '%100%%' which matches both "100% complete" and
-				// "1001 things".
-				name:    "PercentWildcard",
-				query:   `title:"100%"`,
-				wantIDs: []uuid.UUID{thousandOne.ID, percent.ID},
-			},
-			{
-				// The _ in "user_name" acts as a single-char wildcard
-				// since we don't escape ILIKE metacharacters. Both
-				// "user_name" and "user-name" match.
-				name:    "UnderscoreWildcard",
-				query:   "title:user_name",
-				wantIDs: []uuid.UUID{hyphen.ID, underscore.ID},
-			},
-			{
-				name:    "TitleKeyWithFilterKeyValue",
-				query:   "title:archived",
-				wantIDs: []uuid.UUID{archived.ID},
-			},
-		}
+		t.Run("SingleWord", func(t *testing.T) {
+			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "title:alpha"})
+			require.NoError(t, err)
+			requireRootIDs(t, chats, alpha.ID)
+		})
 
-		for _, tt := range tests {
-			tt := tt
-			t.Run(tt.name, func(t *testing.T) {
-				t.Parallel()
-				ctx := testutil.Context(t, testutil.WaitLong)
+		t.Run("MultiWord", func(t *testing.T) {
+			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: `title:"alpha project"`})
+			require.NoError(t, err)
+			requireRootIDs(t, chats, alpha.ID)
+		})
 
-				var opts *codersdk.ListChatsOptions
-				if tt.query != "" {
-					opts = &codersdk.ListChatsOptions{Query: tt.query}
-				}
-				chats, err := client.ListChats(ctx, opts)
-				require.NoError(t, err)
-
-				gotIDs := make([]uuid.UUID, len(chats))
-				for i, c := range chats {
-					gotIDs[i] = c.ID
-				}
-				require.Equal(t, tt.wantIDs, gotIDs)
-			})
-		}
+		t.Run("BareTermsRejected", func(t *testing.T) {
+			_, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "bare words"})
+			requireSDKError(t, err, http.StatusBadRequest)
+		})
 	})
 
 	t.Run("PRStatusFilter", func(t *testing.T) {
@@ -1713,107 +1610,53 @@ func TestListChats(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
-		create := func(title, prURL, prState string, prDraft bool, parentID uuid.NullUUID) database.Chat {
+		// Verify that pr_status filter is wired through the endpoint.
+		// Exhaustive query logic is tested in TestGetChatsFilterByPRStatus.
+		createChatWithPR := func(title, prURL, prState string, prDraft bool) database.Chat {
 			t.Helper()
 
-			rootID := parentID
 			chat := dbgen.Chat(t, db, database.Chat{
 				OrganizationID:    user.OrganizationID,
 				OwnerID:           user.UserID,
 				LastModelConfigID: modelConfig.ID,
 				Title:             title,
 				Status:            database.ChatStatusCompleted,
-				ParentChatID:      parentID,
-				RootChatID:        rootID,
 			})
-			if prState != "" {
-				refreshedAt := time.Now().UTC().Truncate(time.Second)
-				staleAt := refreshedAt.Add(time.Hour)
-				_, err := db.UpsertChatDiffStatusReference(
-					dbauthz.AsSystemRestricted(ctx),
-					database.UpsertChatDiffStatusReferenceParams{
-						ChatID:          chat.ID,
-						Url:             sql.NullString{String: prURL, Valid: prURL != ""},
-						GitBranch:       "feature/test",
-						GitRemoteOrigin: "git@github.com:coder/coder.git",
-						StaleAt:         staleAt,
-					},
-				)
-				require.NoError(t, err)
-				_, err = db.UpsertChatDiffStatus(
-					dbauthz.AsSystemRestricted(ctx),
-					database.UpsertChatDiffStatusParams{
-						ChatID:           chat.ID,
-						Url:              sql.NullString{String: prURL, Valid: prURL != ""},
-						PullRequestState: sql.NullString{String: prState, Valid: true},
-						PullRequestDraft: prDraft,
-						RefreshedAt:      refreshedAt,
-						StaleAt:          staleAt,
-					},
-				)
-				require.NoError(t, err)
-			}
+			refreshedAt := time.Now().UTC().Truncate(time.Second)
+			staleAt := refreshedAt.Add(time.Hour)
+			_, err := db.UpsertChatDiffStatusReference(
+				dbauthz.AsSystemRestricted(ctx),
+				database.UpsertChatDiffStatusReferenceParams{
+					ChatID:          chat.ID,
+					Url:             sql.NullString{String: prURL, Valid: true},
+					GitBranch:       "feature/test",
+					GitRemoteOrigin: "git@github.com:coder/coder.git",
+					StaleAt:         staleAt,
+				},
+			)
+			require.NoError(t, err)
+			_, err = db.UpsertChatDiffStatus(
+				dbauthz.AsSystemRestricted(ctx),
+				database.UpsertChatDiffStatusParams{
+					ChatID:           chat.ID,
+					Url:              sql.NullString{String: prURL, Valid: true},
+					PullRequestState: sql.NullString{String: prState, Valid: true},
+					PullRequestDraft: prDraft,
+					RefreshedAt:      refreshedAt,
+					StaleAt:          staleAt,
+				},
+			)
+			require.NoError(t, err)
 			return chat
 		}
 
-		rootDraftPR := create("root draft pr", "https://github.com/coder/coder/pull/201", "open", true, uuid.NullUUID{})
-		rootOpenPR := create("root open pr", "https://github.com/coder/coder/pull/202", "open", false, uuid.NullUUID{})
-		rootMergedPR := create("root merged pr", "https://github.com/coder/coder/pull/203", "merged", false, uuid.NullUUID{})
-		rootClosedPR := create("root closed pr", "https://github.com/coder/coder/pull/204", "closed", false, uuid.NullUUID{})
-		rootWithoutPR := create("root without pr", "", "", false, uuid.NullUUID{})
-		_ = create(
-			"child draft pr",
-			"https://github.com/coder/coder/pull/205",
-			"open",
-			true,
-			uuid.NullUUID{UUID: rootWithoutPR.ID, Valid: true},
-		)
-		archivedDraftPR := create("archived draft pr", "https://github.com/coder/coder/pull/206", "open", true, uuid.NullUUID{})
-		require.NoError(t, client.UpdateChat(ctx, archivedDraftPR.ID, codersdk.UpdateChatRequest{
-			Archived: ptr.Ref(true),
-		}))
+		draftChat := createChatWithPR("draft pr", "https://github.com/coder/coder/pull/301", "open", true)
+		_ = createChatWithPR("open pr", "https://github.com/coder/coder/pull/302", "open", false)
 
 		t.Run("MatchesDraft", func(t *testing.T) {
 			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "pr_status:draft"})
 			require.NoError(t, err)
-			requireRootIDs(t, chats, rootDraftPR.ID)
-		})
-
-		t.Run("MatchesOpen", func(t *testing.T) {
-			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "pr_status:open"})
-			require.NoError(t, err)
-			requireRootIDs(t, chats, rootOpenPR.ID)
-		})
-
-		t.Run("MatchesMerged", func(t *testing.T) {
-			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "pr_status:merged"})
-			require.NoError(t, err)
-			requireRootIDs(t, chats, rootMergedPR.ID)
-		})
-
-		t.Run("MatchesClosed", func(t *testing.T) {
-			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "pr_status:closed"})
-			require.NoError(t, err)
-			requireRootIDs(t, chats, rootClosedPR.ID)
-		})
-
-		t.Run("MultipleStatusesAreUnion", func(t *testing.T) {
-			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "pr_status:draft,open"})
-			require.NoError(t, err)
-			requireRootIDs(t, chats, rootDraftPR.ID, rootOpenPR.ID)
-		})
-
-		t.Run("ChildMatchDoesNotSurfaceParent", func(t *testing.T) {
-			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "pr_status:draft"})
-			require.NoError(t, err)
-			got := requireRootIDs(t, chats, rootDraftPR.ID)
-			require.NotContains(t, got, rootWithoutPR.ID)
-		})
-
-		t.Run("ArchivedTrueComposes", func(t *testing.T) {
-			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "archived:true pr_status:draft"})
-			require.NoError(t, err)
-			requireRootIDs(t, chats, archivedDraftPR.ID)
+			requireRootIDs(t, chats, draftChat.ID)
 		})
 
 		t.Run("InvalidPRStatus", func(t *testing.T) {
@@ -1830,98 +1673,41 @@ func TestListChats(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
-		create := func(title string, parentID uuid.NullUUID) database.Chat {
-			t.Helper()
+		// Verify that chat_status:unread filter is wired through the endpoint.
+		// Exhaustive query logic is tested in TestGetChatsFilterByUnread.
+		unreadChat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    user.OrganizationID,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "unread chat",
+			Status:            database.ChatStatusCompleted,
+		})
+		_, err := db.InsertChatMessages(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessagesParams{
+			ChatID:              unreadChat.ID,
+			CreatedBy:           []uuid.UUID{user.UserID},
+			ModelConfigID:       []uuid.UUID{modelConfig.ID},
+			Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
+			Content:             []string{`[{"type":"text","text":"hello"}]`},
+			ContentVersion:      []int16{0},
+			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+			InputTokens:         []int64{0},
+			OutputTokens:        []int64{0},
+			TotalTokens:         []int64{0},
+			ReasoningTokens:     []int64{0},
+			CacheCreationTokens: []int64{0},
+			CacheReadTokens:     []int64{0},
+			ContextLimit:        []int64{0},
+			Compressed:          []bool{false},
+			TotalCostMicros:     []int64{0},
+			RuntimeMs:           []int64{0},
+			ProviderResponseID:  []string{""},
+		})
+		require.NoError(t, err)
 
-			rootID := parentID
-			return dbgen.Chat(t, db, database.Chat{
-				OrganizationID:    user.OrganizationID,
-				OwnerID:           user.UserID,
-				LastModelConfigID: modelConfig.ID,
-				Title:             title,
-				Status:            database.ChatStatusCompleted,
-				ParentChatID:      parentID,
-				RootChatID:        rootID,
-			})
-		}
-		insertAssistantMessage := func(chatID uuid.UUID, text string) {
-			t.Helper()
-
-			_, err := db.InsertChatMessages(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessagesParams{
-				ChatID:              chatID,
-				CreatedBy:           []uuid.UUID{user.UserID},
-				ModelConfigID:       []uuid.UUID{modelConfig.ID},
-				Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
-				Content:             []string{fmt.Sprintf(`[{"type":"text","text":%q}]`, text)},
-				ContentVersion:      []int16{0},
-				Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
-				InputTokens:         []int64{0},
-				OutputTokens:        []int64{0},
-				TotalTokens:         []int64{0},
-				ReasoningTokens:     []int64{0},
-				CacheCreationTokens: []int64{0},
-				CacheReadTokens:     []int64{0},
-				ContextLimit:        []int64{0},
-				Compressed:          []bool{false},
-				TotalCostMicros:     []int64{0},
-				RuntimeMs:           []int64{0},
-				ProviderResponseID:  []string{""},
-			})
-			require.NoError(t, err)
-		}
-		markRead := func(chatID uuid.UUID) {
-			t.Helper()
-
-			lastMsg, err := db.GetLastChatMessageByRole(dbauthz.AsSystemRestricted(ctx), database.GetLastChatMessageByRoleParams{
-				ChatID: chatID,
-				Role:   database.ChatMessageRoleAssistant,
-			})
-			require.NoError(t, err)
-			err = db.UpdateChatLastReadMessageID(dbauthz.AsSystemRestricted(ctx), database.UpdateChatLastReadMessageIDParams{
-				ID:                chatID,
-				LastReadMessageID: lastMsg.ID,
-			})
-			require.NoError(t, err)
-		}
-
-		rootUnread := create("root unread", uuid.NullUUID{})
-		insertAssistantMessage(rootUnread.ID, "root unread")
-		rootRead := create("root read", uuid.NullUUID{})
-		insertAssistantMessage(rootRead.ID, "root read")
-		markRead(rootRead.ID)
-		rootChildUnreadOnly := create("root child unread only", uuid.NullUUID{})
-		childUnreadOnly := create("child unread only", uuid.NullUUID{UUID: rootChildUnreadOnly.ID, Valid: true})
-		insertAssistantMessage(childUnreadOnly.ID, "child unread only")
-		archivedUnread := create("archived unread", uuid.NullUUID{})
-		insertAssistantMessage(archivedUnread.ID, "archived unread")
-		require.NoError(t, client.UpdateChat(ctx, archivedUnread.ID, codersdk.UpdateChatRequest{
-			Archived: ptr.Ref(true),
-		}))
-
-		t.Run("MatchesRootUnread", func(t *testing.T) {
+		t.Run("MatchesUnread", func(t *testing.T) {
 			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "chat_status:unread"})
 			require.NoError(t, err)
-			requireRootIDs(t, chats, rootUnread.ID)
-		})
-
-		t.Run("ReadRootExcluded", func(t *testing.T) {
-			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "chat_status:unread"})
-			require.NoError(t, err)
-			got := requireRootIDs(t, chats, rootUnread.ID)
-			require.NotContains(t, got, rootRead.ID)
-		})
-
-		t.Run("ChildUnreadDoesNotSurfaceParent", func(t *testing.T) {
-			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "chat_status:unread"})
-			require.NoError(t, err)
-			got := requireRootIDs(t, chats, rootUnread.ID)
-			require.NotContains(t, got, rootChildUnreadOnly.ID)
-		})
-
-		t.Run("ArchivedTrueComposes", func(t *testing.T) {
-			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "archived:true chat_status:unread"})
-			require.NoError(t, err)
-			requireRootIDs(t, chats, archivedUnread.ID)
+			requireRootIDs(t, chats, unreadChat.ID)
 		})
 
 		t.Run("InvalidChatStatus", func(t *testing.T) {
