@@ -17,7 +17,7 @@ func TestAIProviderSettings_Marshal(t *testing.T) {
 		t.Parallel()
 		got, err := json.Marshal(codersdk.AIProviderSettings{})
 		require.NoError(t, err)
-		require.Equal(t, "null", string(got))
+		require.JSONEq(t, `null`, string(got))
 	})
 
 	t.Run("BedrockEmitsDiscriminator", func(t *testing.T) {
@@ -32,18 +32,15 @@ func TestAIProviderSettings_Marshal(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-
-		// Decode back into a plain map so we can assert the wire
-		// keys without coupling to JSON field ordering.
-		var raw map[string]any
-		require.NoError(t, json.Unmarshal(got, &raw))
-		require.Equal(t, codersdk.AIProviderSettingsTypeBedrock, raw["_type"])
-		require.EqualValues(t, codersdk.AIProviderBedrockSettingsVersion, raw["_version"])
-		require.Equal(t, "us-east-1", raw["region"])
-		require.Equal(t, "anthropic.claude-3-5-sonnet", raw["model"])
-		require.Equal(t, "anthropic.claude-3-5-haiku", raw["small_fast_model"])
-		require.Equal(t, "AKIA-test", raw["access_key"])
-		require.Equal(t, "secret", raw["access_key_secret"])
+		require.JSONEq(t, `{
+			"_type": "bedrock",
+			"_version": 1,
+			"region": "us-east-1",
+			"model": "anthropic.claude-3-5-sonnet",
+			"small_fast_model": "anthropic.claude-3-5-haiku",
+			"access_key": "AKIA-test",
+			"access_key_secret": "secret"
+		}`, string(got))
 	})
 
 	t.Run("BedrockOmitsEmptyFields", func(t *testing.T) {
@@ -52,9 +49,11 @@ func TestAIProviderSettings_Marshal(t *testing.T) {
 			Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"},
 		})
 		require.NoError(t, err)
-		require.Contains(t, string(got), `"region":"us-east-1"`)
-		require.NotContains(t, string(got), "model")
-		require.NotContains(t, string(got), "access_key")
+		require.JSONEq(t, `{
+			"_type": "bedrock",
+			"_version": 1,
+			"region": "us-east-1"
+		}`, string(got))
 	})
 }
 
