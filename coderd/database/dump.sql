@@ -551,7 +551,8 @@ CREATE TYPE resource_type AS ENUM (
     'chat',
     'user_secret',
     'ai_provider',
-    'ai_provider_key'
+    'ai_provider_key',
+    'group_ai_budget'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (

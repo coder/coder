@@ -2591,6 +2591,24 @@ export interface ChatQueuedMessage {
 export interface ChatReasoningPart {
 	readonly type: "reasoning";
 	readonly text: string;
+	/**
+	 * CreatedAt is the timestamp this part carries. The semantics
+	 * depend on the part type: for tool-call and tool-result parts
+	 * it is the time the call was emitted or the result was
+	 * produced (tool duration is the result's created_at minus the
+	 * call's created_at); for reasoning parts it is the time
+	 * reasoning started streaming.
+	 */
+	readonly created_at?: string;
+	/**
+	 * CompletedAt is the time a reasoning part finished streaming,
+	 * so reasoning duration can be computed as completed_at minus
+	 * created_at. For interrupted reasoning, this is the
+	 * interruption time. Absent when reasoning timestamp data was
+	 * not recorded (e.g. messages persisted before this feature
+	 * was added).
+	 */
+	readonly completed_at?: string;
 }
 
 // From codersdk/chats.go
@@ -2793,9 +2811,12 @@ export interface ChatToolCallPart {
 	 */
 	readonly provider_executed?: boolean;
 	/**
-	 * CreatedAt records when this part was produced. Present on
-	 * tool-call and tool-result parts so the frontend can compute
-	 * tool execution duration.
+	 * CreatedAt is the timestamp this part carries. The semantics
+	 * depend on the part type: for tool-call and tool-result parts
+	 * it is the time the call was emitted or the result was
+	 * produced (tool duration is the result's created_at minus the
+	 * call's created_at); for reasoning parts it is the time
+	 * reasoning started streaming.
 	 */
 	readonly created_at?: string;
 }
@@ -2817,9 +2838,12 @@ export interface ChatToolResultPart {
 	 */
 	readonly provider_executed?: boolean;
 	/**
-	 * CreatedAt records when this part was produced. Present on
-	 * tool-call and tool-result parts so the frontend can compute
-	 * tool execution duration.
+	 * CreatedAt is the timestamp this part carries. The semantics
+	 * depend on the part type: for tool-call and tool-result parts
+	 * it is the time the call was emitted or the result was
+	 * produced (tool duration is the result's created_at minus the
+	 * call's created_at); for reasoning parts it is the time
+	 * reasoning started streaming.
 	 */
 	readonly created_at?: string;
 }
@@ -6814,6 +6838,7 @@ export type ResourceType =
 	| "custom_role"
 	| "git_ssh_key"
 	| "group"
+	| "group_ai_budget"
 	| "health_settings"
 	| "idp_sync_settings_group"
 	| "idp_sync_settings_organization"
@@ -6847,6 +6872,7 @@ export const ResourceTypes: ResourceType[] = [
 	"custom_role",
 	"git_ssh_key",
 	"group",
+	"group_ai_budget",
 	"health_settings",
 	"idp_sync_settings_group",
 	"idp_sync_settings_organization",
