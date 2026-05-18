@@ -58,9 +58,9 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property | Value(s)              |
-|----------|-----------------------|
-| `type`   | `anthropic`, `openai` |
+| Property | Value(s)                                                                                     |
+|----------|----------------------------------------------------------------------------------------------|
+| `type`   | `anthropic`, `azure`, `bedrock`, `google`, `openai`, `openai-compat`, `openrouter`, `vercel` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

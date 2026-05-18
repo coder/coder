@@ -79,7 +79,7 @@ func (api *API) aiProvidersList(rw http.ResponseWriter, r *http.Request) {
 	for _, row := range rows {
 		sdk, err := db2sdk.AIProvider(row)
 		if err != nil {
-			api.Logger.Error(ctx, "convert AI provider", slog.F("id", row.ID), slog.Error(err))
+			api.Logger.Error(ctx, "convert AI provider", slog.F("provider_id", row.ID), slog.Error(err))
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error converting AI provider.",
 				Detail:  err.Error(),
@@ -110,7 +110,7 @@ func (api *API) aiProvidersGet(rw http.ResponseWriter, r *http.Request) {
 
 	sdk, err := db2sdk.AIProvider(row)
 	if err != nil {
-		api.Logger.Error(ctx, "convert AI provider", slog.F("id", row.ID), slog.Error(err))
+		api.Logger.Error(ctx, "convert AI provider", slog.F("provider_id", row.ID), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error converting AI provider.",
 			Detail:  err.Error(),
@@ -201,7 +201,7 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 
 	sdk, err := db2sdk.AIProvider(row)
 	if err != nil {
-		api.Logger.Error(ctx, "convert AI provider", slog.F("id", row.ID), slog.Error(err))
+		api.Logger.Error(ctx, "convert AI provider", slog.F("provider_id", row.ID), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error converting AI provider.",
 			Detail:  err.Error(),
@@ -301,7 +301,7 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 
 	sdk, err := db2sdk.AIProvider(updated)
 	if err != nil {
-		api.Logger.Error(ctx, "convert AI provider", slog.F("id", updated.ID), slog.Error(err))
+		api.Logger.Error(ctx, "convert AI provider", slog.F("provider_id", updated.ID), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error converting AI provider.",
 			Detail:  err.Error(),
@@ -347,11 +347,11 @@ func (api *API) aiProvidersDelete(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if dbauthz.IsNotAuthorizedError(err) {
-			api.Logger.Error(ctx, "delete AI provider", slog.F("id", row.ID), slog.Error(err))
+			api.Logger.Error(ctx, "delete AI provider", slog.F("provider_id", row.ID), slog.Error(err))
 			httpapi.Forbidden(rw)
 			return
 		}
-		api.Logger.Error(ctx, "delete AI provider", slog.F("id", row.ID), slog.Error(err))
+		api.Logger.Error(ctx, "delete AI provider", slog.F("provider_id", row.ID), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error deleting AI provider.",
 			Detail:  err.Error(),
