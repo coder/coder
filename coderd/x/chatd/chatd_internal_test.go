@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -5731,4 +5732,442 @@ func TestSubscribeToStream_FiltersBufferedParts_Integration(t *testing.T) {
 	}
 	require.Equal(t, []string{"C-1"}, texts,
 		"only in-progress (un-claimed) buffered parts must survive the filter")
+}
+
+// TestPrimeWorkspaceMCPCache_SuccessOnFirstAttempt verifies the
+// onChatUpdated cache primer path: when create_workspace /
+// start_workspace finish waitForAgentReady and the agent's MCP
+// server is already advertising tools, a single ListMCPTools call
+// populates the cache so the next PrepareTools step is a cache hit
+// and does not need to dial.
+func TestPrimeWorkspaceMCPCache_SuccessOnFirstAttempt(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	workspaceID := uuid.New()
+	agentID := uuid.New()
+	chat := database.Chat{
+		ID: uuid.New(),
+		WorkspaceID: uuid.NullUUID{
+			UUID:  workspaceID,
+			Valid: true,
+		},
+		AgentID: uuid.NullUUID{
+			UUID:  agentID,
+			Valid: true,
+		},
+	}
+	now := time.Now()
+	workspaceAgent := database.WorkspaceAgent{
+		ID: agentID,
+		FirstConnectedAt: sql.NullTime{
+			Time:  now.Add(-time.Minute),
+			Valid: true,
+		},
+		LastConnectedAt: sql.NullTime{
+			Time:  now,
+			Valid: true,
+		},
+	}
+
+	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
+		Return(workspaceAgent, nil).AnyTimes()
+	db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
+		Return([]database.WorkspaceAgent{workspaceAgent}, nil).AnyTimes()
+
+	toolName := "workspace-mcp__echo"
+	conn := agentconnmock.NewMockAgentConn(ctrl)
+	conn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
+	conn.EXPECT().ListMCPTools(gomock.Any()).Return(workspacesdk.ListMCPToolsResponse{
+		Tools: []workspacesdk.MCPToolInfo{{
+			ServerName: "workspace-mcp",
+			Name:       toolName,
+			Schema:     map[string]any{},
+		}},
+	}, nil).Times(1)
+
+	server := &Server{
+		db:                             db,
+		logger:                         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		clock:                          quartz.NewMock(t),
+		agentInactiveDisconnectTimeout: 30 * time.Second,
+		dialTimeout:                    time.Second,
+		agentConnFn: func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			return conn, func() {}, nil
+		},
+	}
+
+	chatStateMu := &sync.Mutex{}
+	currentChat := chat
+	workspaceCtx := turnWorkspaceContext{
+		server:           server,
+		chatStateMu:      chatStateMu,
+		currentChat:      &currentChat,
+		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return chat, nil },
+	}
+	t.Cleanup(workspaceCtx.close)
+
+	server.primeWorkspaceMCPCache(ctx, server.logger, chat.ID, &workspaceCtx)
+
+	cached, ok := server.workspaceMCPToolsCache.Load(chat.ID)
+	require.True(t, ok, "primer must populate the cache on success")
+	entry, ok := cached.(*cachedWorkspaceMCPTools)
+	require.True(t, ok)
+	require.Equal(t, agentID, entry.agentID)
+	require.Len(t, entry.tools, 1)
+	require.Equal(t, toolName, entry.tools[0].Name)
+}
+
+// TestPrimeWorkspaceMCPCache_RetriesUntilToolsAppear simulates the
+// race between agent reachability and the agent's MCP Connect: the
+// first ListMCPTools call returns an empty list (no error), the
+// second returns the workspace tools. The primer must retry after
+// workspaceMCPPrimeRetryInterval and write the cache on the second
+// attempt.
+func TestPrimeWorkspaceMCPCache_RetriesUntilToolsAppear(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	workspaceID := uuid.New()
+	agentID := uuid.New()
+	chat := database.Chat{
+		ID: uuid.New(),
+		WorkspaceID: uuid.NullUUID{
+			UUID:  workspaceID,
+			Valid: true,
+		},
+		AgentID: uuid.NullUUID{
+			UUID:  agentID,
+			Valid: true,
+		},
+	}
+	now := time.Now()
+	workspaceAgent := database.WorkspaceAgent{
+		ID: agentID,
+		FirstConnectedAt: sql.NullTime{
+			Time:  now.Add(-time.Minute),
+			Valid: true,
+		},
+		LastConnectedAt: sql.NullTime{
+			Time:  now,
+			Valid: true,
+		},
+	}
+
+	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
+		Return(workspaceAgent, nil).AnyTimes()
+	db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
+		Return([]database.WorkspaceAgent{workspaceAgent}, nil).AnyTimes()
+
+	toolName := "workspace-mcp__echo"
+	var listCalls atomic.Int32
+	emptyOnce := make(chan struct{}, 1)
+	emptyOnce <- struct{}{}
+	conn := agentconnmock.NewMockAgentConn(ctrl)
+	conn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
+	conn.EXPECT().ListMCPTools(gomock.Any()).DoAndReturn(
+		func(context.Context) (workspacesdk.ListMCPToolsResponse, error) {
+			listCalls.Add(1)
+			select {
+			case <-emptyOnce:
+				return workspacesdk.ListMCPToolsResponse{}, nil
+			default:
+				return workspacesdk.ListMCPToolsResponse{
+					Tools: []workspacesdk.MCPToolInfo{{
+						ServerName: "workspace-mcp",
+						Name:       toolName,
+						Schema:     map[string]any{},
+					}},
+				}, nil
+			}
+		},
+	).AnyTimes()
+
+	mockClock := quartz.NewMock(t)
+	timerTrap := mockClock.Trap().NewTimer("chatd", "workspace-mcp-prime")
+	t.Cleanup(timerTrap.Close)
+
+	server := &Server{
+		db:                             db,
+		logger:                         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		clock:                          mockClock,
+		agentInactiveDisconnectTimeout: 30 * time.Second,
+		dialTimeout:                    time.Second,
+		agentConnFn: func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			return conn, func() {}, nil
+		},
+	}
+
+	chatStateMu := &sync.Mutex{}
+	currentChat := chat
+	workspaceCtx := turnWorkspaceContext{
+		server:           server,
+		chatStateMu:      chatStateMu,
+		currentChat:      &currentChat,
+		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return chat, nil },
+	}
+	t.Cleanup(workspaceCtx.close)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		server.primeWorkspaceMCPCache(ctx, server.logger, chat.ID, &workspaceCtx)
+	}()
+
+	// First attempt returns empty. The primer arms a timer; release
+	// it and advance the clock so the second attempt fires.
+	call := timerTrap.MustWait(ctx)
+	call.MustRelease(ctx)
+	mockClock.Advance(workspaceMCPPrimeRetryInterval).MustWait(ctx)
+
+	select {
+	case <-done:
+	case <-ctx.Done():
+		t.Fatal("primer did not finish after second attempt")
+	}
+
+	require.GreaterOrEqual(t, listCalls.Load(), int32(2),
+		"primer must retry after empty result")
+	cached, ok := server.workspaceMCPToolsCache.Load(chat.ID)
+	require.True(t, ok, "primer must populate the cache on retry success")
+	entry, ok := cached.(*cachedWorkspaceMCPTools)
+	require.True(t, ok)
+	require.Equal(t, agentID, entry.agentID)
+	require.Len(t, entry.tools, 1)
+	require.Equal(t, toolName, entry.tools[0].Name)
+}
+
+// TestPrimeWorkspaceMCPCache_GivesUpAfterDeadline verifies the
+// bounded-wait guarantee: when ListMCPTools always returns an empty
+// list (e.g. the agent's MCP server never advertises tools), the
+// primer stops trying at workspaceMCPPrimeMaxWait and does not cache
+// the empty result. PrepareTools is then free to retry on the next
+// chat step.
+func TestPrimeWorkspaceMCPCache_GivesUpAfterDeadline(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	workspaceID := uuid.New()
+	agentID := uuid.New()
+	chat := database.Chat{
+		ID: uuid.New(),
+		WorkspaceID: uuid.NullUUID{
+			UUID:  workspaceID,
+			Valid: true,
+		},
+		AgentID: uuid.NullUUID{
+			UUID:  agentID,
+			Valid: true,
+		},
+	}
+	now := time.Now()
+	workspaceAgent := database.WorkspaceAgent{
+		ID: agentID,
+		FirstConnectedAt: sql.NullTime{
+			Time:  now.Add(-time.Minute),
+			Valid: true,
+		},
+		LastConnectedAt: sql.NullTime{
+			Time:  now,
+			Valid: true,
+		},
+	}
+
+	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
+		Return(workspaceAgent, nil).AnyTimes()
+	db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
+		Return([]database.WorkspaceAgent{workspaceAgent}, nil).AnyTimes()
+
+	var listCalls atomic.Int32
+	conn := agentconnmock.NewMockAgentConn(ctrl)
+	conn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
+	conn.EXPECT().ListMCPTools(gomock.Any()).DoAndReturn(
+		func(context.Context) (workspacesdk.ListMCPToolsResponse, error) {
+			listCalls.Add(1)
+			return workspacesdk.ListMCPToolsResponse{}, nil
+		},
+	).AnyTimes()
+
+	mockClock := quartz.NewMock(t)
+	timerTrap := mockClock.Trap().NewTimer("chatd", "workspace-mcp-prime")
+	t.Cleanup(timerTrap.Close)
+
+	server := &Server{
+		db:                             db,
+		logger:                         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		clock:                          mockClock,
+		agentInactiveDisconnectTimeout: 30 * time.Second,
+		dialTimeout:                    time.Second,
+		agentConnFn: func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			return conn, func() {}, nil
+		},
+	}
+
+	chatStateMu := &sync.Mutex{}
+	currentChat := chat
+	workspaceCtx := turnWorkspaceContext{
+		server:           server,
+		chatStateMu:      chatStateMu,
+		currentChat:      &currentChat,
+		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return chat, nil },
+	}
+	t.Cleanup(workspaceCtx.close)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		server.primeWorkspaceMCPCache(ctx, server.logger, chat.ID, &workspaceCtx)
+	}()
+
+	// Drive the retry loop forward until the primer gives up. Each
+	// iteration: release the trapped NewTimer call, then advance the
+	// clock past the retry interval. The primer exits when
+	// p.clock.Now() is no longer before deadline. The loop bounds
+	// itself on maxIterations and uses a done-aware wait context so
+	// the test fails cleanly instead of hanging when the primer
+	// shuts down between iterations.
+	maxIterations := int(workspaceMCPPrimeMaxWait/workspaceMCPPrimeRetryInterval) + 2
+Loop:
+	for i := 0; i < maxIterations; i++ {
+		waitCtx, cancel := context.WithCancel(ctx)
+		go func() {
+			select {
+			case <-done:
+				cancel()
+			case <-waitCtx.Done():
+			}
+		}()
+		call, err := timerTrap.Wait(waitCtx)
+		cancel()
+		if err != nil {
+			break Loop
+		}
+		call.MustRelease(ctx)
+		mockClock.Advance(workspaceMCPPrimeRetryInterval).MustWait(ctx)
+	}
+
+	// expectedAttempts is the floor on how many times the primer
+	// should call discoverWorkspaceMCPTools before the deadline
+	// expires. The primer makes one attempt before sleeping, then
+	// one per workspaceMCPPrimeRetryInterval until the deadline.
+	// We assert a high-water mark (rather than exact equality) so
+	// the test is robust to off-by-one boundaries while still
+	// catching deadline miscomputations: a primer that exits after a
+	// handful of attempts would suggest the deadline was set with a
+	// shorter window than workspaceMCPPrimeMaxWait.
+	expectedAttempts := int32(workspaceMCPPrimeMaxWait/workspaceMCPPrimeRetryInterval) / 2
+	require.GreaterOrEqual(t, listCalls.Load(), expectedAttempts,
+		"primer must retry enough times to consume the full budget")
+	_, ok := server.workspaceMCPToolsCache.Load(chat.ID)
+	require.False(t, ok,
+		"primer must not cache an empty result; PrepareTools needs to retry on the next step")
+}
+
+// TestPrimeWorkspaceMCPCache_ExitsOnContextCancel verifies the
+// primer's context.Done() branch: the retry loop must exit promptly
+// when the chat ctx is canceled (runChat cancels its primerCtx
+// before workspaceCtx.close runs to prevent a primer from re-dialing
+// the freed conn).
+func TestPrimeWorkspaceMCPCache_ExitsOnContextCancel(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	workspaceID := uuid.New()
+	agentID := uuid.New()
+	chat := database.Chat{
+		ID: uuid.New(),
+		WorkspaceID: uuid.NullUUID{
+			UUID:  workspaceID,
+			Valid: true,
+		},
+		AgentID: uuid.NullUUID{
+			UUID:  agentID,
+			Valid: true,
+		},
+	}
+	now := time.Now()
+	workspaceAgent := database.WorkspaceAgent{
+		ID: agentID,
+		FirstConnectedAt: sql.NullTime{
+			Time:  now.Add(-time.Minute),
+			Valid: true,
+		},
+		LastConnectedAt: sql.NullTime{
+			Time:  now,
+			Valid: true,
+		},
+	}
+
+	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
+		Return(workspaceAgent, nil).AnyTimes()
+	db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
+		Return([]database.WorkspaceAgent{workspaceAgent}, nil).AnyTimes()
+
+	conn := agentconnmock.NewMockAgentConn(ctrl)
+	conn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
+	conn.EXPECT().ListMCPTools(gomock.Any()).
+		Return(workspacesdk.ListMCPToolsResponse{}, nil).AnyTimes()
+
+	mockClock := quartz.NewMock(t)
+	timerTrap := mockClock.Trap().NewTimer("chatd", "workspace-mcp-prime")
+	t.Cleanup(timerTrap.Close)
+
+	server := &Server{
+		db:                             db,
+		logger:                         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		clock:                          mockClock,
+		agentInactiveDisconnectTimeout: 30 * time.Second,
+		dialTimeout:                    time.Second,
+		agentConnFn: func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			return conn, func() {}, nil
+		},
+	}
+
+	chatStateMu := &sync.Mutex{}
+	currentChat := chat
+	workspaceCtx := turnWorkspaceContext{
+		server:           server,
+		chatStateMu:      chatStateMu,
+		currentChat:      &currentChat,
+		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return chat, nil },
+	}
+	t.Cleanup(workspaceCtx.close)
+
+	primerCtx, primerCancel := context.WithCancel(ctx)
+	t.Cleanup(primerCancel)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		server.primeWorkspaceMCPCache(primerCtx, server.logger, chat.ID, &workspaceCtx)
+	}()
+
+	// Let the primer arm at least one retry timer so we know it is
+	// blocked in the select. Canceling before this would race with
+	// the loop entering the retry path.
+	call := timerTrap.MustWait(ctx)
+	call.MustRelease(ctx)
+
+	primerCancel()
+
+	select {
+	case <-done:
+	case <-ctx.Done():
+		t.Fatal("primer did not exit after context cancellation")
+	}
+
+	_, ok := server.workspaceMCPToolsCache.Load(chat.ID)
+	require.False(t, ok, "primer must not cache anything when canceled")
 }

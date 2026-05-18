@@ -741,8 +741,10 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("GetWorkspaceAgentLogs", func(t *testing.T) {
+		_ = testutil.Context(t, testutil.WaitShort)
 		tb, err := toolsdk.NewDeps(memberClient)
 		require.NoError(t, err)
+
 		logs, err := testTool(t, toolsdk.GetWorkspaceAgentLogs, tb, toolsdk.GetWorkspaceAgentLogsArgs{
 			WorkspaceAgentID: agentID.String(),
 		})

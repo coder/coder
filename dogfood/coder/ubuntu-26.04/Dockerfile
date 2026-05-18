@@ -210,23 +210,27 @@ ENV MISE_DATA_DIR=/home/coder/.local/share/mise \
 #
 # We pre-create /etc/mise as 0755 because COPY's implicitly-created
 # parent dirs inherit the --chmod, which would leave /etc/mise
-# without the `x` bit and unreachable to the coder user.
-RUN install --directory --mode=0755 /etc/mise
-COPY --chmod=0644 mise.toml /etc/mise/config.toml
-COPY --chmod=0644 mise.lock /etc/mise/mise.lock
+# without the `x` bit and unreachable to the coder user. We also
+# chown to coder so mise can write the temp lockfile it uses for
+# atomic rename when updating /etc/mise/mise.lock during installs.
+RUN install --directory --owner=coder --group=coder --mode=0755 /etc/mise
+COPY --chown=coder:coder --chmod=0644 mise.toml /etc/mise/config.toml
+COPY --chown=coder:coder --chmod=0644 mise.lock /etc/mise/mise.lock
 
-# Pre-install image tools as coder so they land on the home volume
-# layer. Sudo drops env vars, so MISE_* are re-exported via `env`.
-# github_token (optional build secret) authenticates aqua's API
-# calls; without it builds may hit GitHub's 60/hr unauth limit.
+# Pre-install tools into /opt/mise/data so they survive the home
+# volume's copy-on-first-mount. MISE_SHARED_INSTALL_DIRS (set below)
+# exposes them at runtime; MISE_DATA_DIR stays on the home volume.
+# github_token authenticates aqua's API calls (optional secret).
+RUN install --directory --owner=coder --group=coder --mode=0755 /opt/mise /opt/mise/data
 RUN --mount=type=secret,id=github_token,required=false \
 	gh_token="$(cat /run/secrets/github_token 2>/dev/null || true)" && \
 	sudo --user=coder env \
-		"MISE_DATA_DIR=$MISE_DATA_DIR" \
+		"MISE_DATA_DIR=/opt/mise/data" \
 		"MISE_TRUSTED_CONFIG_PATHS=$MISE_TRUSTED_CONFIG_PATHS" \
 		"GITHUB_TOKEN=$gh_token" \
 		/usr/local/bin/mise install --yes && \
-	PATH="$MISE_DATA_DIR/shims:$PATH" pnpm dlx playwright@1.47.0 install --with-deps chromium && \
+	PATH="/opt/mise/data/shims:$PATH" MISE_DATA_DIR=/opt/mise/data pnpm dlx playwright@1.47.0 install --with-deps chromium && \
+	rm -rf /opt/mise/data/cache /opt/mise/data/downloads && \
 	apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install Homebrew as the coder user so the supported Linux prefix remains
@@ -247,7 +251,13 @@ USER coder
 ENV HOMEBREW_PREFIX="/home/linuxbrew/.linuxbrew" \
 	HOMEBREW_CELLAR="/home/linuxbrew/.linuxbrew/Cellar" \
 	HOMEBREW_REPOSITORY="/home/linuxbrew/.linuxbrew/Homebrew"
-ENV PATH="${MISE_DATA_DIR}/shims:${HOMEBREW_PREFIX}/bin:${HOMEBREW_PREFIX}/sbin:/home/coder/go/bin:${PATH}"
+# Pin npm globals to a stable home dir, otherwise they land in
+# mise's version-specific node bin dir which isn't on PATH.
+ENV NPM_CONFIG_PREFIX="/home/coder/.npm-global"
+# Baked shims trail user shims on PATH so user installs win when
+# both exist.
+ENV MISE_SHARED_INSTALL_DIRS="/opt/mise/data/installs"
+ENV PATH="/home/coder/.npm-global/bin:${MISE_DATA_DIR}/shims:/opt/mise/data/shims:${HOMEBREW_PREFIX}/bin:${HOMEBREW_PREFIX}/sbin:/home/coder/go/bin:${PATH}"
 
 # Override CARGO_HOME so cargo registry/cache writes go to the coder
 # user's home directory instead of the root-owned /usr/local/cargo.

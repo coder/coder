@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	maxSkillMetaBytes = 64 * 1024
+	maxSkillMetaBytes = workspacesdk.MaxSkillMetaBytes
 	maxSkillFileBytes = 512 * 1024
 )
 

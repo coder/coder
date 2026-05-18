@@ -38,6 +38,149 @@ func testMsg(role codersdk.ChatMessageRole, raw pqtype.NullRawMessage) database.
 	}
 }
 
+func TestConvertMessagesWithFilesPreservesEmptyRedactedReasoning(t *testing.T) {
+	t.Parallel()
+
+	metadata, err := json.Marshal(fantasy.ProviderMetadata{
+		fantasyanthropic.Name: &fantasyanthropic.ReasoningOptionMetadata{
+			RedactedData: "redacted-payload",
+		},
+	})
+	require.NoError(t, err)
+	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		{
+			Type:             codersdk.ChatMessagePartTypeReasoning,
+			ProviderMetadata: metadata,
+		},
+		codersdk.ChatMessageText("done"),
+	})
+	require.NoError(t, err)
+
+	prompt, err := chatprompt.ConvertMessagesWithFiles(context.Background(), []database.ChatMessage{
+		{
+			Role:           database.ChatMessageRoleAssistant,
+			Visibility:     database.ChatMessageVisibilityBoth,
+			Content:        content,
+			ContentVersion: chatprompt.CurrentContentVersion,
+		},
+	}, nil, slogtest.Make(t, nil))
+	require.NoError(t, err)
+	require.Len(t, prompt, 1)
+	require.Len(t, prompt[0].Content, 2)
+
+	reasoning, ok := fantasy.AsMessagePart[fantasy.ReasoningPart](prompt[0].Content[0])
+	require.True(t, ok)
+	require.Empty(t, reasoning.Text)
+	reasoningMetadata := fantasyanthropic.GetReasoningMetadata(reasoning.ProviderOptions)
+	require.NotNil(t, reasoningMetadata)
+	require.Equal(t, "redacted-payload", reasoningMetadata.RedactedData)
+}
+
+func TestConvertMessagesWithFilesRoundTripsAnthropicInterleavedWebSearch(t *testing.T) {
+	t.Parallel()
+
+	content := []fantasy.Content{
+		fantasy.ReasoningContent{
+			Text: "thinking one",
+			ProviderMetadata: fantasy.ProviderMetadata{
+				fantasyanthropic.Name: &fantasyanthropic.ReasoningOptionMetadata{
+					Signature: "sig-1",
+				},
+			},
+		},
+		fantasy.ToolCallContent{
+			ToolCallID:       "srv-1",
+			ToolName:         "web_search",
+			Input:            `{"query":"coder"}`,
+			ProviderExecuted: true,
+		},
+		fantasy.ToolResultContent{
+			ToolCallID:       "srv-1",
+			ToolName:         "web_search",
+			ProviderExecuted: true,
+			ProviderMetadata: fantasy.ProviderMetadata{
+				fantasyanthropic.Name: &fantasyanthropic.WebSearchResultMetadata{
+					Results: []fantasyanthropic.WebSearchResultItem{
+						{
+							URL:              "https://coder.com",
+							Title:            "Coder",
+							EncryptedContent: "encrypted-1",
+						},
+					},
+				},
+			},
+		},
+		fantasy.ReasoningContent{
+			ProviderMetadata: fantasy.ProviderMetadata{
+				fantasyanthropic.Name: &fantasyanthropic.ReasoningOptionMetadata{
+					RedactedData: "redacted-payload",
+				},
+			},
+		},
+		fantasy.TextContent{Text: "answer"},
+	}
+	storedParts := make([]codersdk.ChatMessagePart, 0, len(content))
+	for _, block := range content {
+		storedParts = append(storedParts, chatprompt.PartFromContent(block))
+	}
+
+	storedContent, err := chatprompt.MarshalParts(storedParts)
+	require.NoError(t, err)
+	parsedParts, err := chatprompt.ParseContent(database.ChatMessage{
+		Role:           database.ChatMessageRoleAssistant,
+		Content:        storedContent,
+		ContentVersion: chatprompt.CurrentContentVersion,
+	})
+	require.NoError(t, err)
+	require.Len(t, parsedParts, 5)
+	require.Equal(t, codersdk.ChatMessagePartTypeReasoning, parsedParts[0].Type)
+	require.Equal(t, codersdk.ChatMessagePartTypeToolCall, parsedParts[1].Type)
+	require.Equal(t, codersdk.ChatMessagePartTypeToolResult, parsedParts[2].Type)
+	require.Equal(t, codersdk.ChatMessagePartTypeReasoning, parsedParts[3].Type)
+	require.Equal(t, codersdk.ChatMessagePartTypeText, parsedParts[4].Type)
+
+	prompt, err := chatprompt.ConvertMessagesWithFiles(context.Background(), []database.ChatMessage{
+		{
+			Role:           database.ChatMessageRoleAssistant,
+			Visibility:     database.ChatMessageVisibilityBoth,
+			Content:        storedContent,
+			ContentVersion: chatprompt.CurrentContentVersion,
+		},
+	}, nil, slogtest.Make(t, nil))
+	require.NoError(t, err)
+	require.Len(t, prompt, 1)
+	require.Len(t, prompt[0].Content, 5)
+
+	firstReasoning, ok := fantasy.AsMessagePart[fantasy.ReasoningPart](prompt[0].Content[0])
+	require.True(t, ok)
+	require.Equal(t, "thinking one", firstReasoning.Text)
+	require.Equal(t, "sig-1", fantasyanthropic.GetReasoningMetadata(firstReasoning.ProviderOptions).Signature)
+
+	call, ok := fantasy.AsMessagePart[fantasy.ToolCallPart](prompt[0].Content[1])
+	require.True(t, ok)
+	require.True(t, call.ProviderExecuted)
+	require.Equal(t, "srv-1", call.ToolCallID)
+	require.Equal(t, "web_search", call.ToolName)
+	require.JSONEq(t, `{"query":"coder"}`, call.Input)
+
+	result, ok := fantasy.AsMessagePart[fantasy.ToolResultPart](prompt[0].Content[2])
+	require.True(t, ok)
+	require.True(t, result.ProviderExecuted)
+	resultMetadata := result.ProviderOptions[fantasyanthropic.Name].(*fantasyanthropic.WebSearchResultMetadata)
+	require.Equal(t, "encrypted-1", resultMetadata.Results[0].EncryptedContent)
+
+	redactedReasoning, ok := fantasy.AsMessagePart[fantasy.ReasoningPart](prompt[0].Content[3])
+	require.True(t, ok)
+	require.Empty(t, redactedReasoning.Text)
+	reasoningMetadata := fantasyanthropic.GetReasoningMetadata(redactedReasoning.ProviderOptions)
+	require.NotNil(t, reasoningMetadata)
+	require.Equal(t, "redacted-payload", reasoningMetadata.RedactedData)
+
+	text, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[0].Content[4])
+	require.True(t, ok)
+	require.Equal(t, "answer", text.Text)
+}
+
 // testMsgV1 builds a database.ChatMessage with ContentVersion 1.
 func testMsgV1(role codersdk.ChatMessageRole, raw pqtype.NullRawMessage) database.ChatMessage {
 	return database.ChatMessage{
@@ -2864,6 +3007,22 @@ func TestPartFromContent_CreatedAtNotStamped(t *testing.T) {
 		t.Parallel()
 		part := chatprompt.PartFromContent(fantasy.TextContent{Text: "hello"})
 		assert.Nil(t, part.CreatedAt)
+	})
+
+	t.Run("ReasoningHasNilCreatedAndCompletedAt", func(t *testing.T) {
+		t.Parallel()
+		// Same rationale as ToolCall: the chatloop layer records
+		// reasoning timestamps separately and the persistence
+		// layer applies them. PartFromContent is called in
+		// multiple contexts so stamping here would yield
+		// incorrect durations.
+		part := chatprompt.PartFromContent(fantasy.ReasoningContent{Text: "thinking"})
+		assert.Nil(t, part.CreatedAt)
+		assert.Nil(t, part.CompletedAt)
+
+		partPtr := chatprompt.PartFromContent(&fantasy.ReasoningContent{Text: "thinking"})
+		assert.Nil(t, partPtr.CreatedAt)
+		assert.Nil(t, partPtr.CompletedAt)
 	})
 }
 

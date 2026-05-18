@@ -78,13 +78,10 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 	outputInitiallyOpen,
 }) => {
 	const hasCommand = command.trim().length > 0;
-	const hasOutput = output.length > 0;
 	const isRunning = status === "running";
 	const showFailureIndicator = isError && !isRunning;
 	const [outputOpen, setOutputOpen] = useState(outputInitiallyOpen);
-	const outputToggleLabel = outputOpen
-		? "Collapse command output"
-		: "Expand command output";
+	const outputToggleLabel = outputOpen ? "Collapse command" : "Expand command";
 	const durationLabel = formatShellDurationMs(durationMs);
 
 	if (!hasCommand) {
@@ -92,36 +89,20 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 	}
 
 	return (
-		<div className="group/exec grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 rounded-md bg-surface-primary font-mono font-normal text-xs leading-5">
-			<Tooltip delayDuration={300}>
-				<TooltipTrigger asChild>
-					{hasOutput ? (
-						<button
-							type="button"
-							aria-expanded={outputOpen}
-							aria-label={outputToggleLabel}
-							onClick={() => setOutputOpen((value) => !value)}
-							className="col-start-1 row-start-1 m-0 flex w-full min-w-0 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-left font-[inherit] font-normal text-[inherit] text-content-secondary transition-colors hover:text-content-primary"
-						>
-							<ShellCommandLine
-								command={command}
-								durationLabel={durationLabel}
-								expanded={outputOpen}
-							/>
-						</button>
-					) : (
-						<div className="col-start-1 row-start-1 flex min-w-0 items-center gap-2 font-normal text-content-secondary">
-							<ShellCommandLine
-								command={command}
-								durationLabel={durationLabel}
-							/>
-						</div>
-					)}
-				</TooltipTrigger>
-				<TooltipContent className="max-w-xl whitespace-pre-wrap break-all font-mono font-normal">
-					{command}
-				</TooltipContent>
-			</Tooltip>
+		<div className="group/exec grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 rounded-md bg-surface-primary font-sans font-normal text-xs leading-5">
+			<button
+				type="button"
+				aria-expanded={outputOpen}
+				aria-label={outputToggleLabel}
+				onClick={() => setOutputOpen((value) => !value)}
+				className="col-start-1 row-start-1 m-0 flex w-full min-w-0 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-left font-[inherit] font-normal text-[inherit] text-content-secondary transition-colors hover:text-content-primary"
+			>
+				<ShellCommandLine
+					command={command}
+					durationLabel={durationLabel}
+					expanded={outputOpen}
+				/>
+			</button>
 			<div className="col-start-2 row-start-1 flex shrink-0 items-center gap-1">
 				{isRunning && (
 					<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
@@ -173,8 +154,12 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 					className="-my-0.5 size-6 p-0 opacity-0 transition-opacity hover:bg-surface-tertiary group-hover/exec:opacity-100"
 				/>
 			</div>
-			{hasOutput && outputOpen && (
-				<ShellOutputBody output={output} isError={isError} />
+			{outputOpen && (
+				<ShellTranscriptBody
+					command={command}
+					output={output}
+					isError={isError}
+				/>
 			)}
 		</div>
 	);
@@ -187,11 +172,8 @@ const ShellCommandLine: React.FC<{
 }> = ({ command, durationLabel, expanded }) => {
 	return (
 		<>
-			<span className="shrink-0 text-[13px] font-normal text-content-success">
-				$
-			</span>
-			<span className="block min-w-0 truncate text-[13px] font-normal text-content-primary">
-				{command}
+			<span className="block min-w-0 truncate text-[13px] font-normal text-current">
+				Ran {command}
 			</span>
 			{durationLabel && (
 				<span className="shrink-0 text-[13px] font-normal text-content-secondary">
@@ -210,24 +192,35 @@ const ShellCommandLine: React.FC<{
 	);
 };
 
-const ShellOutputBody: React.FC<{
+const ShellTranscriptBody: React.FC<{
+	command: string;
 	output: string;
 	isError: boolean;
-}> = ({ output, isError }) => {
+}> = ({ command, output, isError }) => {
 	return (
 		<ScrollArea
-			className="col-start-1 col-span-2 mt-1 rounded-md border border-solid border-border-default/50 bg-surface-secondary/30 text-2xs"
+			className="col-start-1 col-span-2 mt-2 rounded-xl bg-surface-secondary/60 text-2xs"
 			viewportClassName="max-h-64"
 			scrollBarClassName="w-1.5"
 		>
-			<pre
-				className={cn(
-					"m-0 whitespace-pre-wrap break-all border-0 bg-transparent px-2 py-1.5 font-mono text-xs leading-5",
-					isError ? "text-content-destructive" : "text-content-secondary",
+			<div className="px-3 py-2.5">
+				<pre className="m-0 whitespace-pre-wrap break-words border-0 bg-transparent p-0 font-mono text-xs font-semibold leading-5 text-content-primary">
+					<span aria-hidden className="select-none">
+						$
+					</span>{" "}
+					{command}
+				</pre>
+				{output.length > 0 && (
+					<pre
+						className={cn(
+							"m-0 mt-4 whitespace-pre-wrap break-words border-0 bg-transparent p-0 font-mono text-xs font-normal leading-5",
+							isError ? "text-content-destructive" : "text-content-secondary",
+						)}
+					>
+						{output}
+					</pre>
 				)}
-			>
-				{output}
-			</pre>
+			</div>
 		</ScrollArea>
 	);
 };

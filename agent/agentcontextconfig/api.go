@@ -28,7 +28,7 @@ const (
 
 const (
 	maxInstructionFileBytes = 64 * 1024
-	maxSkillMetaBytes       = 64 * 1024
+	maxSkillMetaBytes       = workspacesdk.MaxSkillMetaBytes
 )
 
 // markdownCommentPattern strips HTML comments from instruction
@@ -51,11 +51,6 @@ var invisibleRunePattern = regexp.MustCompile(
 		"\ufeff" +
 		"\uffa0" +
 		"\ufff0-\ufff8]",
-)
-
-// skillNamePattern validates kebab-case skill names.
-var skillNamePattern = regexp.MustCompile(
-	`^[a-z0-9]+(-[a-z0-9]+)*$`,
 )
 
 // Default values for agent-internal configuration. These are
@@ -357,7 +352,7 @@ func discoverSkills(skillsDirs []string, metaFile string) []codersdk.ChatMessage
 			if name != entry.Name() {
 				continue
 			}
-			if !skillNamePattern.MatchString(name) {
+			if !workspacesdk.SkillNamePattern.MatchString(name) {
 				continue
 			}
 

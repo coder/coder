@@ -3,6 +3,7 @@ package database
 import (
 	"database/sql"
 	"encoding/hex"
+	"fmt"
 	"slices"
 	"sort"
 	"strconv"
@@ -81,6 +82,24 @@ func (m OrganizationMember) Auditable(username string) AuditableOrganizationMemb
 type AuditableGroup struct {
 	Group
 	Members []GroupMemberTable `json:"members"`
+}
+
+// AuditableGroupAiBudget is the audit-log representation of GroupAiBudget.
+// It enriches the raw record with the group's name and a human-readable
+// spend limit so audit entries can display meaningful values instead of
+// UUIDs and micros.
+type AuditableGroupAiBudget struct {
+	GroupAiBudget
+	GroupName  string `json:"group_name"`
+	SpendLimit string `json:"spend_limit"`
+}
+
+func (b GroupAiBudget) Auditable(groupName string) AuditableGroupAiBudget {
+	return AuditableGroupAiBudget{
+		GroupAiBudget: b,
+		GroupName:     groupName,
+		SpendLimit:    fmt.Sprintf("$%.2f", float64(b.SpendLimitMicros)/1_000_000),
+	}
 }
 
 // Auditable returns an object that can be used in audit logs.

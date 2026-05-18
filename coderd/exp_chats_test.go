@@ -7977,6 +7977,20 @@ func TestPatchChatMessage(t *testing.T) {
 		require.Equal(t, defaultModel.ID, chat.LastModelConfigID,
 			"chat starts on the default model")
 
+		// Wait for the initial chat processing to complete before
+		// editing. CreateChat sets the chat to pending and the daemon
+		// processes it asynchronously; editing while that first round
+		// is still running can race with message insertions that
+		// overwrite last_model_config_id.
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+			c, getErr := client.GetChat(ctx, chat.ID)
+			if getErr != nil {
+				return false
+			}
+			return c.Status != codersdk.ChatStatusPending &&
+				c.Status != codersdk.ChatStatusRunning
+		}, testutil.IntervalFast, "initial chat processing did not finish")
+
 		messagesResult, err := client.GetChatMessages(ctx, chat.ID, nil)
 		require.NoError(t, err)
 		var userMessageID int64
@@ -8000,6 +8014,19 @@ func TestPatchChatMessage(t *testing.T) {
 			"edited message must carry a model config")
 		require.Equal(t, overrideModel.ID, *edited.Message.ModelConfigID,
 			"replacement message must use the requested model")
+
+		// Wait for the second round of processing (triggered by the
+		// edit) to complete, then verify last_model_config_id.
+		// Reading immediately after EditChatMessage can race with the
+		// daemon re-processing the now-pending chat.
+		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+			c, getErr := client.GetChat(ctx, chat.ID)
+			if getErr != nil {
+				return false
+			}
+			return c.Status != codersdk.ChatStatusPending &&
+				c.Status != codersdk.ChatStatusRunning
+		}, testutil.IntervalFast, "post-edit chat processing did not finish")
 
 		updatedChat, err := client.GetChat(ctx, chat.ID)
 		require.NoError(t, err)

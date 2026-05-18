@@ -1,13 +1,6 @@
 [settings]
 lockfile = true
 
-[env]
-# Required for sqlc (coder fork) to compile against its sqlite dependency.
-# Mise applies [env] during `mise install`, but also at runtime when a
-# tool from this manifest is invoked. CGO_ENABLED is harmless to leave
-# set system-wide on the dogfood image.
-CGO_ENABLED = "1"
-
 [tools]
 # Languages and runtimes.
 bun = "1.2.15"
@@ -16,7 +9,6 @@ node = "22.19.0"
 pnpm = "10.33.2"
 
 # Codegen and proto toolchain.
-"go:github.com/coder/sqlc/cmd/sqlc" = "337309bfb9524f38466a5090e310040fc7af0203"
 "go:go.uber.org/mock/mockgen" = "v0.6.0"
 "go:storj.io/drpc/cmd/protoc-gen-go-drpc" = "v0.0.34"
 protoc = "23.4"
@@ -56,6 +48,10 @@ terraform = "1.15.2"
 doctl = "1.158.0"
 lazygit = "0.61.1"
 
+# Pre-installs the binary so the upstream devcontainers-cli coder
+# module's `command -v devcontainer` short-circuit fires
+"npm:@devcontainers/cli" = "0.87.0"
+
 # helm publishes binaries at get.helm.sh, not on GitHub. Mise's aqua
 # plugin templates the URL without the `v` prefix (404), and the
 # github backend can't find the binary (helm only publishes signatures
@@ -66,3 +62,12 @@ lazygit = "0.61.1"
 [tools."http:helm"]
 version = "3.12.0"
 url = 'https://get.helm.sh/helm-v{{version}}-{{os(macos="darwin")}}-{{arch(x64="amd64")}}.tar.gz'
+
+# sqlc (coder fork) bundles sqlite via cgo, so the `go install` build
+# needs CGO_ENABLED=1. Scope it with `install_env` so it only applies
+# during install. A top-level `[env]` would re-export CGO_ENABLED=1
+# through every mise shim at runtime and break cross-compilation of
+# coderd (scripts/build_go.sh expects cgo=0 for slim builds).
+[tools."go:github.com/coder/sqlc/cmd/sqlc"]
+version = "337309bfb9524f38466a5090e310040fc7af0203"
+install_env = { CGO_ENABLED = "1" }
