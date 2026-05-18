@@ -34,7 +34,7 @@ if [[ "$image_tag" == "" ]]; then
 fi
 
 # Check dependencies
-dependencies docker sha256sum yq
+dependencies docker sha256sum yq go zip git
 if [[ $(yq --version) != *" v4."* ]]; then
 	error "yq version 4 is required"
 fi
@@ -62,10 +62,31 @@ execrelative ../archive.sh \
 	--output "$tmpdir/coder.tar.gz" \
 	"$input_file"
 
+# Build Terraform from source so the binary is compiled with the same Go
+# toolchain as Coder (>= 1.25.9), avoiding CVEs present in older toolchains.
+terraform_version="$(yq e '.args.TERRAFORM_VERSION' "$(dirname "${BASH_SOURCE[0]}")/hardening_manifest.yaml")"
+if [[ -z "$terraform_version" || "$terraform_version" == "null" ]]; then
+	error "TERRAFORM_VERSION not found in hardening_manifest.yaml"
+fi
+log "Building Terraform $terraform_version from source with $(go version)..."
+terraform_srcdir="$(mktemp -d)"
+trap 'rm -rf "$terraform_srcdir" "$tmpdir"' EXIT
+git clone --depth 1 --branch "v${terraform_version}" https://github.com/hashicorp/terraform.git "$terraform_srcdir"
+pushd "$terraform_srcdir"
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o terraform .
+popd
+(
+	cd "$terraform_srcdir"
+	zip "$tmpdir/terraform.zip" terraform
+)
+rm -rf "$terraform_srcdir"
+log "Terraform $terraform_version built successfully."
+
 # Download all resources in the hardening_manifest.yaml file except for
-# coder.tar.gz (which we will make ourselves).
+# coder.tar.gz (which we build ourselves) and terraform-src.tar.gz (we build
+# Terraform from source above).
 manifest_path="$(dirname "${BASH_SOURCE[0]}")/hardening_manifest.yaml"
-resources="$(yq e '.resources[] | select(.filename != "coder.tar.gz") | [.filename, .url, .validation.value] | @tsv' "$manifest_path")"
+resources="$(yq e '.resources[] | select(.filename != "coder.tar.gz" and .filename != "terraform-src.tar.gz") | [.filename, .url, .validation.value] | @tsv' "$manifest_path")"
 while read -r line; do
 	filename="$(echo "$line" | cut -f1)"
 	url="$(echo "$line" | cut -f2)"
