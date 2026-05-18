@@ -753,7 +753,7 @@ export const router = createBrowserRouter(
 						<Route path="models" element={<AgentSettingsModelsPage />} />
 						<Route path="spend" element={<AgentSettingsSpendPage />} />
 						<Route path="agents">
-							<Route index element={<AgentSettingsGeneralPage />} />
+							<Route index element={<AgentSettingsAgentsPage />} />
 							<Route path="instructions" element={<AgentSettingsInstructionsPage />} />
 							<Route path="templates" element={<AgentSettingsTemplatesPage />} />
 							<Route path="experiments" element={<AgentSettingsExperimentsPage />} />
