@@ -2,6 +2,7 @@ import Collapse from "@mui/material/Collapse";
 import {
 	CopyIcon,
 	EllipsisIcon,
+	InfoIcon,
 	PackageIcon,
 	PlayIcon,
 	SquareCheckBigIcon,
@@ -39,6 +40,7 @@ import {
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import type { Line } from "#/components/Logs/LogLine";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Tabs,
 	TabsContent,
@@ -157,6 +159,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 	const hasStartupFeatures = Boolean(agent.logs_length);
 	const healthIssues = getAgentHealthIssues(agent);
 	const hasAgentIssues = healthIssues.length > 0;
+	const hasWarningIssues = healthIssues.some((i) => i.severity === "warning");
 	const failedStartTimings = agentScriptTimings?.filter(
 		(t) =>
 			t.workspace_agent_id === agent.id &&
@@ -500,9 +503,34 @@ export const AgentRow: FC<AgentRowProps> = ({
 					>
 						<ChevronDownIcon open={showLogs} />
 						<span>Logs</span>
+						{agent.lifecycle_state === "starting" &&
+							agent.log_sources.length > 0 &&
+							healthIssues.length === 0 && (
+								<Badge
+									variant="default"
+									size="xs"
+									className="ml-1.5"
+									svgSize="sm"
+								>
+									<Spinner
+										size="lg"
+										loading={true}
+										className="text-content-secondary -ml-1"
+									/>
+									<span>{agent.log_sources.length}</span>
+								</Badge>
+							)}
 						{healthIssues.length > 0 && (
-							<Badge variant="warning" size="xs" className="ml-1.5">
-								<TriangleAlertIcon />
+							<Badge
+								variant={hasWarningIssues ? "warning" : "info"}
+								size="xs"
+								className="ml-1.5"
+							>
+								{hasWarningIssues ? (
+									<TriangleAlertIcon className="-ml-0.5" />
+								) : (
+									<InfoIcon className="-ml-0.5" />
+								)}
 								<span>{healthIssues.length}</span>
 							</Badge>
 						)}

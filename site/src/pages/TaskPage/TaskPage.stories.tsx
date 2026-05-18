@@ -30,7 +30,6 @@ import {
 	MockTasks,
 	MockUserOwner,
 	MockWorkspace,
-	MockWorkspaceAgent,
 	MockWorkspaceAgentLogSource,
 	MockWorkspaceAgentReady,
 	MockWorkspaceAgentStarting,
@@ -804,7 +803,7 @@ export const StartupScriptError: Story = {
 						resources: [
 							{
 								...MockWorkspaceResource,
-								agents: [MockWorkspaceAgent],
+								agents: [MockWorkspaceAgentStarting],
 							},
 						],
 					},
@@ -859,7 +858,7 @@ export const StartupScriptTimeout: Story = {
 						resources: [
 							{
 								...MockWorkspaceResource,
-								agents: [MockWorkspaceAgent],
+								agents: [MockWorkspaceAgentStarting],
 							},
 						],
 					},
@@ -1188,14 +1187,22 @@ export const LongDisplayName: Story = {
 				// Sidebar: uses getTasks() which returns an array
 				key: ["tasks", { owner: MockTask.owner_name }],
 				data: [
-					{ ...MockDisplayNameTasks[0], display_name: longDisplayName },
+					{
+						...MockDisplayNameTasks[0],
+						display_name: longDisplayName,
+						workspace_agent_lifecycle: "starting",
+					},
 					...MockDisplayNameTasks.slice(1),
 				],
 			},
 			{
 				// TaskTopbar: uses getTask() which returns a single task
 				key: ["tasks", MockTask.owner_name, MockTask.id],
-				data: { ...MockDisplayNameTasks[0], display_name: longDisplayName },
+				data: {
+					...MockDisplayNameTasks[0],
+					display_name: longDisplayName,
+					workspace_agent_lifecycle: "starting",
+				},
 			},
 			{
 				// Workspace data for the task
@@ -1205,7 +1212,13 @@ export const LongDisplayName: Story = {
 					MockTask.workspace_name,
 					"settings",
 				],
-				data: MockWorkspace,
+				data: {
+					...MockStartingWorkspace,
+					latest_build: {
+						...MockStartingWorkspace.latest_build,
+						has_ai_task: true,
+					},
+				},
 			},
 		],
 	},
