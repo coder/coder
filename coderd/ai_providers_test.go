@@ -6,12 +6,24 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
+
+// keyIDs extracts the IDs from a slice of AIProviderKey responses, in
+// order, to make assertions on key-set membership easier to read.
+func keyIDs(keys []codersdk.AIProviderKey) []uuid.UUID {
+	out := make([]uuid.UUID, len(keys))
+	for i, k := range keys {
+		out[i] = k.ID
+	}
+	return out
+}
 
 func TestAIProvidersCRUD(t *testing.T) {
 	t.Parallel()
@@ -396,10 +408,12 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 		// Masked form preserves prefix and suffix while hiding the
 		// middle, so it's enough for an operator to recognize the key
 		// without recovering the plaintext.
-		require.True(t, strings.HasPrefix(provider.APIKeys[0], "sk-o"))
-		require.True(t, strings.HasSuffix(provider.APIKeys[0], "aaaa"))
-		require.NotContains(t, provider.APIKeys[0], primary)
-		require.NotContains(t, provider.APIKeys[1], secondary)
+		require.True(t, strings.HasPrefix(provider.APIKeys[0].Masked, "sk-o"))
+		require.True(t, strings.HasSuffix(provider.APIKeys[0].Masked, "aaaa"))
+		require.NotContains(t, provider.APIKeys[0].Masked, primary)
+		require.NotContains(t, provider.APIKeys[1].Masked, secondary)
+		require.NotEqual(t, uuid.Nil, provider.APIKeys[0].ID)
+		require.NotEqual(t, uuid.Nil, provider.APIKeys[1].ID)
 	})
 
 	t.Run("ResponseHidesPlaintext", func(t *testing.T) {
@@ -447,18 +461,67 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Len(t, provider.APIKeys, 1)
-		originalMasked := provider.APIKeys[0]
+		originalID := provider.APIKeys[0].ID
 
-		replacement := []string{
-			"sk-openai-rotated-eeeeeeeeeeeeeeeeeee",     //nolint:gosec // test fixture, not a real credential
-			"sk-openai-rotated-second-ffffffffffffffff", //nolint:gosec // test fixture, not a real credential
+		// Omitting the original ID from the mutation list deletes it;
+		// the two APIKey-bearing entries add fresh rows.
+		replacement := []codersdk.AIProviderKeyMutation{
+			{APIKey: ptr.Ref("sk-openai-rotated-eeeeeeeeeeeeeeeeeee")},     //nolint:gosec // test fixture
+			{APIKey: ptr.Ref("sk-openai-rotated-second-ffffffffffffffff")}, //nolint:gosec // test fixture
 		}
 		updated, err := client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
 			APIKeys: &replacement,
 		})
 		require.NoError(t, err)
 		require.Len(t, updated.APIKeys, 2)
-		require.NotContains(t, updated.APIKeys, originalMasked)
+		for _, k := range updated.APIKeys {
+			require.NotEqual(t, originalID, k.ID)
+		}
+	})
+
+	t.Run("UpdateKeepsExistingByID", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "keys-keep-by-id",
+			Enabled: true,
+			BaseURL: "https://api.openai.com/v1",
+			APIKeys: []string{
+				"sk-openai-keep-aaaaaaaaaaaaaaaaaaaaaa",  //nolint:gosec // test fixture
+				"sk-openai-evict-bbbbbbbbbbbbbbbbbbbbbb", //nolint:gosec // test fixture
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, provider.APIKeys, 2)
+		keepID := provider.APIKeys[0].ID
+		keepMasked := provider.APIKeys[0].Masked
+		evictID := provider.APIKeys[1].ID
+
+		// Reference only keepID and add one new plaintext: evictID is
+		// implicitly removed.
+		patch := []codersdk.AIProviderKeyMutation{
+			{ID: &keepID},
+			{APIKey: ptr.Ref("sk-openai-added-cccccccccccccccccccccc")}, //nolint:gosec // test fixture
+		}
+		updated, err := client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
+			APIKeys: &patch,
+		})
+		require.NoError(t, err)
+		require.Len(t, updated.APIKeys, 2)
+		ids := keyIDs(updated.APIKeys)
+		require.Contains(t, ids, keepID)
+		require.NotContains(t, ids, evictID)
+		// The kept key's masked value is unchanged.
+		for _, k := range updated.APIKeys {
+			if k.ID == keepID {
+				require.Equal(t, keepMasked, k.Masked)
+			}
+		}
 	})
 
 	t.Run("UpdateClearsKeys", func(t *testing.T) {
@@ -478,12 +541,44 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, provider.APIKeys, 1)
 
-		empty := []string{}
+		empty := []codersdk.AIProviderKeyMutation{}
 		updated, err := client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
 			APIKeys: &empty,
 		})
 		require.NoError(t, err)
 		require.Empty(t, updated.APIKeys)
+	})
+
+	t.Run("UpdateKeepOnlyIsNoOp", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "keys-keeponly",
+			Enabled: true,
+			BaseURL: "https://api.openai.com/v1",
+			APIKeys: []string{
+				"sk-openai-stay-1-iiiiiiiiiiiiiiiiiiii", //nolint:gosec // test fixture
+				"sk-openai-stay-2-jjjjjjjjjjjjjjjjjjjj", //nolint:gosec // test fixture
+			},
+		})
+		require.NoError(t, err)
+		require.Len(t, provider.APIKeys, 2)
+		originalIDs := keyIDs(provider.APIKeys)
+
+		mutations := []codersdk.AIProviderKeyMutation{
+			{ID: &provider.APIKeys[0].ID},
+			{ID: &provider.APIKeys[1].ID},
+		}
+		updated, err := client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
+			APIKeys: &mutations,
+		})
+		require.NoError(t, err)
+		require.ElementsMatch(t, originalIDs, keyIDs(updated.APIKeys))
 	})
 
 	t.Run("UpdateWithoutKeysPreserves", func(t *testing.T) {
@@ -502,7 +597,7 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Len(t, provider.APIKeys, 1)
-		originalMasked := provider.APIKeys[0]
+		original := provider.APIKeys[0]
 
 		// PATCH with no APIKeys field must leave keys untouched.
 		newDisplay := "Keep Display"
@@ -510,7 +605,9 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 			DisplayName: &newDisplay,
 		})
 		require.NoError(t, err)
-		require.Equal(t, []string{originalMasked}, updated.APIKeys)
+		require.Len(t, updated.APIKeys, 1)
+		require.Equal(t, original.ID, updated.APIKeys[0].ID)
+		require.Equal(t, original.Masked, updated.APIKeys[0].Masked)
 	})
 
 	t.Run("BedrockRejectsCreateWithKeys", func(t *testing.T) {
@@ -567,7 +664,9 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		rejected := []string{"sk-bedrock-no"} //nolint:gosec // test fixture, not a real credential
+		rejected := []codersdk.AIProviderKeyMutation{
+			{APIKey: ptr.Ref("sk-bedrock-no")}, //nolint:gosec // test fixture, not a real credential
+		}
 		_, err = client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
 			APIKeys: &rejected,
 		})
@@ -614,7 +713,9 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 
 		memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, firstUser.OrganizationID)
 
-		patch := []string{"sk-not-allowed"} //nolint:gosec // test fixture, not a real credential
+		patch := []codersdk.AIProviderKeyMutation{
+			{APIKey: ptr.Ref("sk-not-allowed")}, //nolint:gosec // test fixture, not a real credential
+		}
 		_, err = memberClient.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
 			APIKeys: &patch,
 		})
@@ -622,5 +723,122 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+	})
+
+	t.Run("MutationBothFieldsRejected", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "keys-mut-both",
+			Enabled: true,
+			BaseURL: "https://api.openai.com/v1",
+			APIKeys: []string{"sk-openai-existing-kkkkkkkkkkkkkkkk"}, //nolint:gosec // test fixture
+		})
+		require.NoError(t, err)
+		existingID := provider.APIKeys[0].ID
+
+		muts := []codersdk.AIProviderKeyMutation{
+			{ID: &existingID, APIKey: ptr.Ref("sk-conflict")}, //nolint:gosec // test fixture
+		}
+		_, err = client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
+			APIKeys: &muts,
+		})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+
+	t.Run("MutationNeitherFieldRejected", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "keys-mut-empty",
+			Enabled: true,
+			BaseURL: "https://api.openai.com/v1",
+		})
+		require.NoError(t, err)
+
+		muts := []codersdk.AIProviderKeyMutation{{}}
+		_, err = client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
+			APIKeys: &muts,
+		})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+
+	t.Run("MutationDuplicateIDRejected", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "keys-mut-dup",
+			Enabled: true,
+			BaseURL: "https://api.openai.com/v1",
+			APIKeys: []string{"sk-openai-dup-llllllllllllllllllll"}, //nolint:gosec // test fixture
+		})
+		require.NoError(t, err)
+		id := provider.APIKeys[0].ID
+
+		muts := []codersdk.AIProviderKeyMutation{
+			{ID: &id},
+			{ID: &id},
+		}
+		_, err = client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
+			APIKeys: &muts,
+		})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+
+	t.Run("MutationUnknownIDRejected", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "keys-mut-unknown",
+			Enabled: true,
+			BaseURL: "https://api.openai.com/v1",
+			APIKeys: []string{"sk-openai-real-mmmmmmmmmmmmmmmmmmmm"}, //nolint:gosec // test fixture
+		})
+		require.NoError(t, err)
+
+		bogus := uuid.New()
+		muts := []codersdk.AIProviderKeyMutation{{ID: &bogus}}
+		_, err = client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
+			APIKeys: &muts,
+		})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+
+		// Provider's real key is left untouched.
+		reread, err := client.AIProvider(ctx, provider.Name)
+		require.NoError(t, err)
+		require.Len(t, reread.APIKeys, 1)
+		require.Equal(t, provider.APIKeys[0].ID, reread.APIKeys[0].ID)
 	})
 }

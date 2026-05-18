@@ -21,7 +21,11 @@ curl -X GET http://coder-server:8080/api/v2/ai/providers \
 [
   {
     "api_keys": [
-      "string"
+      {
+        "created_at": "2019-08-24T14:15:22Z",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "masked": "string"
+      }
     ],
     "base_url": "string",
     "created_at": "2019-08-24T14:15:22Z",
@@ -50,6 +54,9 @@ Status Code **200**
 |------------------|----------------------------------------------------------------------|----------|--------------|-------------|
 | `[array item]`   | array                                                                | false    |              |             |
 | `» api_keys`     | array                                                                | false    |              |             |
+| `»» created_at`  | string(date-time)                                                    | false    |              |             |
+| `»» id`          | string(uuid)                                                         | false    |              |             |
+| `»» masked`      | string                                                               | false    |              |             |
 | `» base_url`     | string                                                               | false    |              |             |
 | `» created_at`   | string(date-time)                                                    | false    |              |             |
 | `» display_name` | string                                                               | false    |              |             |
@@ -111,7 +118,11 @@ curl -X POST http://coder-server:8080/api/v2/ai/providers \
 ```json
 {
   "api_keys": [
-    "string"
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "masked": "string"
+    }
   ],
   "base_url": "string",
   "created_at": "2019-08-24T14:15:22Z",
@@ -159,7 +170,11 @@ curl -X GET http://coder-server:8080/api/v2/ai/providers/{idOrName} \
 ```json
 {
   "api_keys": [
-    "string"
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "masked": "string"
+    }
   ],
   "base_url": "string",
   "created_at": "2019-08-24T14:15:22Z",
@@ -226,7 +241,10 @@ curl -X PATCH http://coder-server:8080/api/v2/ai/providers/{idOrName} \
 ```json
 {
   "api_keys": [
-    "string"
+    {
+      "api_key": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+    }
   ],
   "base_url": "string",
   "display_name": "string",
@@ -249,7 +267,11 @@ curl -X PATCH http://coder-server:8080/api/v2/ai/providers/{idOrName} \
 ```json
 {
   "api_keys": [
-    "string"
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "masked": "string"
+    }
   ],
   "base_url": "string",
   "created_at": "2019-08-24T14:15:22Z",

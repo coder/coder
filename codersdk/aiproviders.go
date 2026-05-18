@@ -155,9 +155,10 @@ func marshalSettings(s settingsTyped) ([]byte, error) {
 }
 
 // AIProvider represents an AI provider configuration row as returned
-// by the API. APIKeys are returned in masked form (see aibridge/utils
-// MaskSecret); secret fields on Settings are never included in
-// responses.
+// by the API. Each APIKey entry carries the row's ID so callers can
+// reference it in an UpdateAIProviderRequest; the plaintext value is
+// never echoed back (see AIProviderKey.Masked). Secret fields on
+// Settings are never included in responses.
 type AIProvider struct {
 	ID          uuid.UUID          `json:"id" format:"uuid"`
 	Type        AIProviderType     `json:"type"`
@@ -165,10 +166,20 @@ type AIProvider struct {
 	DisplayName string             `json:"display_name"`
 	Enabled     bool               `json:"enabled"`
 	BaseURL     string             `json:"base_url"`
-	APIKeys     []string           `json:"api_keys"`
+	APIKeys     []AIProviderKey    `json:"api_keys"`
 	Settings    AIProviderSettings `json:"settings"`
 	CreatedAt   time.Time          `json:"created_at" format:"date-time"`
 	UpdatedAt   time.Time          `json:"updated_at" format:"date-time"`
+}
+
+// AIProviderKey is a single API key registered on a provider. The
+// plaintext is never returned; Masked is a one-way rendering safe for
+// display (see aibridge utils MaskSecret). ID lets clients reference
+// the row in an UpdateAIProviderRequest without re-sending plaintext.
+type AIProviderKey struct {
+	ID        uuid.UUID `json:"id" format:"uuid"`
+	Masked    string    `json:"masked"`
+	CreatedAt time.Time `json:"created_at" format:"date-time"`
 }
 
 // CreateAIProviderRequest is the payload for creating a new AI
@@ -212,15 +223,29 @@ func (req CreateAIProviderRequest) Validate() []ValidationError {
 // UpdateAIProviderRequest is the payload for partially updating an
 // AI provider. At least one field must be non-nil. Pointer fields
 // distinguish "not sent" (nil) from "set to empty/zero" (a pointer
-// to the zero value). When APIKeys is non-nil, the provider's
-// existing keys are replaced with the supplied set (an empty slice
-// clears all keys).
+// to the zero value). When APIKeys is non-nil, the supplied list
+// describes the post-patch state of the key set; see
+// AIProviderKeyMutation for the per-entry semantics. An empty slice
+// clears all keys.
 type UpdateAIProviderRequest struct {
-	DisplayName *string             `json:"display_name,omitempty"`
-	Enabled     *bool               `json:"enabled,omitempty"`
-	BaseURL     *string             `json:"base_url,omitempty"`
-	APIKeys     *[]string           `json:"api_keys,omitempty"`
-	Settings    *AIProviderSettings `json:"settings,omitempty"`
+	DisplayName *string                  `json:"display_name,omitempty"`
+	Enabled     *bool                    `json:"enabled,omitempty"`
+	BaseURL     *string                  `json:"base_url,omitempty"`
+	APIKeys     *[]AIProviderKeyMutation `json:"api_keys,omitempty"`
+	Settings    *AIProviderSettings      `json:"settings,omitempty"`
+}
+
+// AIProviderKeyMutation describes the intended state of a single key
+// in an UpdateAIProviderRequest. Exactly one of ID or APIKey must be
+// set:
+//
+//   - ID set, APIKey nil: keep this existing key (matched by ID).
+//   - ID nil, APIKey set: insert this new plaintext as a new key.
+//
+// Any existing key whose ID is absent from the request is deleted.
+type AIProviderKeyMutation struct {
+	ID     *uuid.UUID `json:"id,omitempty" format:"uuid"`
+	APIKey *string    `json:"api_key,omitempty"`
 }
 
 // Validate returns the field-level validation errors for an update
@@ -236,7 +261,7 @@ func (req UpdateAIProviderRequest) Validate() []ValidationError {
 		validations = append(validations, validateAIProviderBaseURL(*req.BaseURL)...)
 	}
 	if req.APIKeys != nil {
-		validations = append(validations, validateAIProviderAPIKeys(*req.APIKeys)...)
+		validations = append(validations, validateAIProviderKeyMutations(*req.APIKeys)...)
 	}
 	return validations
 }
@@ -290,6 +315,42 @@ func validateAIProviderAPIKeys(keys []string) []ValidationError {
 				Field:  fmt.Sprintf("api_keys[%d]", i),
 				Detail: "api_keys entries must not be empty",
 			})
+		}
+	}
+	return validations
+}
+
+// validateAIProviderKeyMutations checks each entry has exactly one of
+// ID or APIKey set, that plaintexts are non-empty after trimming, and
+// that no ID is referenced twice in the same request. An empty slice
+// itself is permitted (it clears all keys).
+func validateAIProviderKeyMutations(muts []AIProviderKeyMutation) []ValidationError {
+	var validations []ValidationError
+	seen := make(map[uuid.UUID]int, len(muts))
+	for i, m := range muts {
+		hasID := m.ID != nil
+		hasKey := m.APIKey != nil
+		switch {
+		case hasID == hasKey:
+			validations = append(validations, ValidationError{
+				Field:  fmt.Sprintf("api_keys[%d]", i),
+				Detail: "exactly one of id or api_key must be set",
+			})
+		case hasKey && strings.TrimSpace(*m.APIKey) == "":
+			validations = append(validations, ValidationError{
+				Field:  fmt.Sprintf("api_keys[%d].api_key", i),
+				Detail: "api_key must not be empty",
+			})
+		}
+		if hasID && !hasKey {
+			if prev, ok := seen[*m.ID]; ok {
+				validations = append(validations, ValidationError{
+					Field:  fmt.Sprintf("api_keys[%d].id", i),
+					Detail: fmt.Sprintf("id %s already referenced at api_keys[%d]", *m.ID, prev),
+				})
+			} else {
+				seen[*m.ID] = i
+			}
 		}
 	}
 	return validations

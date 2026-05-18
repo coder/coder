@@ -341,9 +341,9 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		aReq.New = updated
 
 		if req.APIKeys != nil {
-			keys, err = replaceAIProviderKeys(ctx, tx, updated.ID, *req.APIKeys)
+			keys, err = applyAIProviderKeyOps(ctx, tx, updated.ID, *req.APIKeys)
 			if err != nil {
-				return xerrors.Errorf("replace ai provider keys: %w", err)
+				return err
 			}
 			return nil
 		}
@@ -357,6 +357,12 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 	if errors.Is(err, errBedrockRejectsAPIKeys) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Bedrock providers do not accept api_keys; configure access credentials via settings.",
+		})
+		return
+	}
+	if errors.Is(err, errAIProviderKeyUnknown) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: err.Error(),
 		})
 		return
 	}
@@ -510,21 +516,61 @@ func insertAIProviderKeys(ctx context.Context, tx database.Store, providerID uui
 	return out, nil
 }
 
-// replaceAIProviderKeys atomically swaps the api_keys for a provider:
-// it deletes every existing key and inserts the supplied plaintext
-// list in the same transaction.
-func replaceAIProviderKeys(ctx context.Context, tx database.Store, providerID uuid.UUID, plaintexts []string) ([]database.AIProviderKey, error) {
+// applyAIProviderKeyOps reconciles a provider's keys against the
+// supplied mutation list inside a transaction: kept-by-ID rows stay,
+// rows whose ID is absent from the list are deleted, and entries
+// carrying a plaintext APIKey are inserted as new rows. Caller is
+// responsible for prior validation (XOR per entry, no duplicate IDs).
+// IDs that do not belong to this provider return errAIProviderKeyUnknown.
+func applyAIProviderKeyOps(ctx context.Context, tx database.Store, providerID uuid.UUID, muts []codersdk.AIProviderKeyMutation) ([]database.AIProviderKey, error) {
 	existing, err := tx.GetAIProviderKeysByProviderID(ctx, providerID)
 	if err != nil {
 		return nil, xerrors.Errorf("load existing ai provider keys: %w", err)
 	}
+	existingByID := make(map[uuid.UUID]struct{}, len(existing))
 	for _, k := range existing {
+		existingByID[k.ID] = struct{}{}
+	}
+
+	keep := make(map[uuid.UUID]struct{}, len(muts))
+	var inserts []string
+	for _, m := range muts {
+		switch {
+		case m.ID != nil:
+			if _, ok := existingByID[*m.ID]; !ok {
+				return nil, xerrors.Errorf("%w: %s", errAIProviderKeyUnknown, *m.ID)
+			}
+			keep[*m.ID] = struct{}{}
+		case m.APIKey != nil:
+			inserts = append(inserts, *m.APIKey)
+		}
+	}
+
+	for _, k := range existing {
+		if _, ok := keep[k.ID]; ok {
+			continue
+		}
 		if err := tx.DeleteAIProviderKey(ctx, k.ID); err != nil {
 			return nil, xerrors.Errorf("delete ai provider key %s: %w", k.ID, err)
 		}
 	}
-	return insertAIProviderKeys(ctx, tx, providerID, plaintexts)
+
+	if _, err := insertAIProviderKeys(ctx, tx, providerID, inserts); err != nil {
+		return nil, err
+	}
+
+	out, err := tx.GetAIProviderKeysByProviderID(ctx, providerID)
+	if err != nil {
+		return nil, xerrors.Errorf("reload ai provider keys: %w", err)
+	}
+	return out, nil
 }
+
+// errAIProviderKeyUnknown is the sentinel returned by
+// applyAIProviderKeyOps when a mutation references an ID that does not
+// belong to the provider being patched; the outer handler translates it
+// into a 400.
+var errAIProviderKeyUnknown = xerrors.New("api_keys references an unknown id for this provider")
 
 // encodeAIProviderSettings serializes a settings value into the
 // discriminated JSON form stored in ai_providers.settings. Empty

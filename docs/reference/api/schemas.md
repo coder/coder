@@ -1303,7 +1303,11 @@
 ```json
 {
   "api_keys": [
-    "string"
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "masked": "string"
+    }
   ],
   "base_url": "string",
   "created_at": "2019-08-24T14:15:22Z",
@@ -1321,7 +1325,7 @@
 
 | Name           | Type                                                       | Required | Restrictions | Description |
 |----------------|------------------------------------------------------------|----------|--------------|-------------|
-| `api_keys`     | array of string                                            | false    |              |             |
+| `api_keys`     | array of [codersdk.AIProviderKey](#codersdkaiproviderkey)  | false    |              |             |
 | `base_url`     | string                                                     | false    |              |             |
 | `created_at`   | string                                                     | false    |              |             |
 | `display_name` | string                                                     | false    |              |             |
@@ -1357,6 +1361,40 @@
 | `dump_dir`                 | string | false    |              | Dump dir is the directory path for dumping API requests and responses.                     |
 | `name`                     | string | false    |              | Name is the unique instance identifier used for routing. Defaults to Type if not provided. |
 | `type`                     | string | false    |              | Type is the provider type: "openai", "anthropic", or "copilot".                            |
+
+## codersdk.AIProviderKey
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "masked": "string"
+}
+```
+
+### Properties
+
+| Name         | Type   | Required | Restrictions | Description |
+|--------------|--------|----------|--------------|-------------|
+| `created_at` | string | false    |              |             |
+| `id`         | string | false    |              |             |
+| `masked`     | string | false    |              |             |
+
+## codersdk.AIProviderKeyMutation
+
+```json
+{
+  "api_key": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+}
+```
+
+### Properties
+
+| Name      | Type   | Required | Restrictions | Description |
+|-----------|--------|----------|--------------|-------------|
+| `api_key` | string | false    |              |             |
+| `id`      | string | false    |              |             |
 
 ## codersdk.AIProviderSettings
 
@@ -12775,7 +12813,10 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 ```json
 {
   "api_keys": [
-    "string"
+    {
+      "api_key": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+    }
   ],
   "base_url": "string",
   "display_name": "string",
@@ -12786,13 +12827,13 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name           | Type                                                       | Required | Restrictions | Description |
-|----------------|------------------------------------------------------------|----------|--------------|-------------|
-| `api_keys`     | array of string                                            | false    |              |             |
-| `base_url`     | string                                                     | false    |              |             |
-| `display_name` | string                                                     | false    |              |             |
-| `enabled`      | boolean                                                    | false    |              |             |
-| `settings`     | [codersdk.AIProviderSettings](#codersdkaiprovidersettings) | false    |              |             |
+| Name           | Type                                                                      | Required | Restrictions | Description |
+|----------------|---------------------------------------------------------------------------|----------|--------------|-------------|
+| `api_keys`     | array of [codersdk.AIProviderKeyMutation](#codersdkaiproviderkeymutation) | false    |              |             |
+| `base_url`     | string                                                                    | false    |              |             |
+| `display_name` | string                                                                    | false    |              |             |
+| `enabled`      | boolean                                                                   | false    |              |             |
+| `settings`     | [codersdk.AIProviderSettings](#codersdkaiprovidersettings)                | false    |              |             |
 
 ## codersdk.UpdateActiveTemplateVersion
 

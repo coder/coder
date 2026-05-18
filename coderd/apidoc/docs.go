@@ -14673,7 +14673,7 @@ const docTemplate = `{
                 "api_keys": {
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/codersdk.AIProviderKey"
                     }
                 },
                 "base_url": {
@@ -14735,6 +14735,34 @@ const docTemplate = `{
                 "type": {
                     "description": "Type is the provider type: \"openai\", \"anthropic\", or \"copilot\".",
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.AIProviderKey": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "masked": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.AIProviderKeyMutation": {
+            "type": "object",
+            "properties": {
+                "api_key": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
@@ -23668,7 +23696,7 @@ const docTemplate = `{
                 "api_keys": {
                     "type": "array",
                     "items": {
-                        "type": "string"
+                        "$ref": "#/definitions/codersdk.AIProviderKeyMutation"
                     }
                 },
                 "base_url": {

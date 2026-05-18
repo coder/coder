@@ -87,14 +87,18 @@ func AIProviderSettings(col sql.NullString) (codersdk.AIProviderSettings, error)
 	return s, nil
 }
 
-// maskAIProviderKeys returns a non-nil, ordering-preserving slice of
-// masked key strings derived from the supplied database rows. The
-// resulting strings are never reversible to plaintext, so they are
-// safe to embed in API responses.
-func maskAIProviderKeys(keys []database.AIProviderKey) []string {
-	out := make([]string, 0, len(keys))
+// maskAIProviderKeys converts the supplied database rows into the
+// public-facing AIProviderKey shape, preserving order. Plaintext is
+// replaced by a non-reversible mask (see aibridgeutils.MaskSecret) so
+// the result is safe to embed in API responses.
+func maskAIProviderKeys(keys []database.AIProviderKey) []codersdk.AIProviderKey {
+	out := make([]codersdk.AIProviderKey, 0, len(keys))
 	for _, k := range keys {
-		out = append(out, aibridgeutils.MaskSecret(k.APIKey))
+		out = append(out, codersdk.AIProviderKey{
+			ID:        k.ID,
+			Masked:    aibridgeutils.MaskSecret(k.APIKey),
+			CreatedAt: k.CreatedAt,
+		})
 	}
 	return out
 }
