@@ -44,5 +44,6 @@ const (
 	CheckTelemetryLockEventTypeConstraint            CheckConstraint = "telemetry_lock_event_type_constraint"               // telemetry_locks
 	CheckValidationMonotonicOrder                    CheckConstraint = "validation_monotonic_order"                         // template_version_parameters
 	CheckUsageEventTypeCheck                         CheckConstraint = "usage_event_type_check"                             // usage_events
+	CheckUserAiBudgetOverridesSpendLimitMicrosCheck  CheckConstraint = "user_ai_budget_overrides_spend_limit_micros_check"  // user_ai_budget_overrides
 	CheckUserChatProviderKeysAPIKeyCheck             CheckConstraint = "user_chat_provider_keys_api_key_check"              // user_chat_provider_keys
 )

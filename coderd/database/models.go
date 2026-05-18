@@ -5674,6 +5674,15 @@ type User struct {
 	ChatSpendLimitMicros sql.NullInt64 `db:"chat_spend_limit_micros" json:"chat_spend_limit_micros"`
 }
 
+// Per-user AI spend override that supersedes group budget resolution.
+type UserAiBudgetOverride struct {
+	UserID           uuid.UUID `db:"user_id" json:"user_id"`
+	GroupID          uuid.UUID `db:"group_id" json:"group_id"`
+	SpendLimitMicros int64     `db:"spend_limit_micros" json:"spend_limit_micros"`
+	CreatedAt        time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
+}
+
 type UserChatProviderKey struct {
 	ID             uuid.UUID      `db:"id" json:"id"`
 	UserID         uuid.UUID      `db:"user_id" json:"user_id"`

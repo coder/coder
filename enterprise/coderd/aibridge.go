@@ -819,3 +819,129 @@ func (api *API) deleteGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
 
 	rw.WriteHeader(http.StatusNoContent)
 }
+
+// @Summary Get user AI budget override
+// @ID get-user-ai-budget-override
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param user path string true "User ID, username, or me" format(uuid)
+// @Success 200 {object} codersdk.UserAIBudgetOverride
+// @Router /api/v2/users/{user}/ai/budget [get]
+func (api *API) userAIBudgetOverride(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := httpmw.UserParam(r)
+
+	override, err := api.Database.GetUserAIBudgetOverride(ctx, user.ID)
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		api.Logger.Error(ctx, "get user AI budget override", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.UserAIBudgetOverride(override))
+}
+
+// @Summary Upsert user AI budget override
+// @ID upsert-user-ai-budget-override
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Enterprise
+// @Param user path string true "User ID, username, or me" format(uuid)
+// @Param request body codersdk.UpsertUserAIBudgetOverrideRequest true "Upsert user AI budget override request"
+// @Success 200 {object} codersdk.UserAIBudgetOverride
+// @Router /api/v2/users/{user}/ai/budget [put]
+func (api *API) upsertUserAIBudgetOverride(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := httpmw.UserParam(r)
+
+	var req codersdk.UpsertUserAIBudgetOverrideRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	// Look up the group first so a missing or forbidden group_id returns
+	// 404, distinct from the 400 "not a member" case handled below.
+	if _, err := api.Database.GetGroupByID(ctx, req.GroupID); err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		api.Logger.Error(ctx, "get group for user AI budget override", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	// Verify the user is a member of the referenced group up-front so the
+	// caller gets a structured 400 instead of a raw FK violation. The DB
+	// also enforces this via a composite FK to group_members.
+	if _, err := api.Database.GetGroupMember(ctx, database.GetGroupMemberParams{
+		UserID:  user.ID,
+		GroupID: req.GroupID,
+	}); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "User is not a member of the referenced group.",
+				Validations: []codersdk.ValidationError{{
+					Field:  "group_id",
+					Detail: "user must be a member of this group",
+				}},
+			})
+			return
+		}
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		api.Logger.Error(ctx, "check group membership for user AI budget override", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	override, err := api.Database.UpsertUserAIBudgetOverride(ctx, database.UpsertUserAIBudgetOverrideParams{
+		UserID:           user.ID,
+		GroupID:          req.GroupID,
+		SpendLimitMicros: req.SpendLimitMicros,
+	})
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		api.Logger.Error(ctx, "upsert user AI budget override", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.UserAIBudgetOverride(override))
+}
+
+// @Summary Delete user AI budget override
+// @ID delete-user-ai-budget-override
+// @Security CoderSessionToken
+// @Tags Enterprise
+// @Param user path string true "User ID, username, or me" format(uuid)
+// @Success 204
+// @Router /api/v2/users/{user}/ai/budget [delete]
+func (api *API) deleteUserAIBudgetOverride(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := httpmw.UserParam(r)
+
+	_, err := api.Database.DeleteUserAIBudgetOverride(ctx, user.ID)
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		api.Logger.Error(ctx, "delete user AI budget override", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
+}
