@@ -160,7 +160,7 @@ func updateAuditDoc(doc []byte, auditableResourcesMap AuditableResourcesMap, gen
 	_, _ = buffer.Write(doc[:tableStartIndex])
 	_ = buffer.WriteByte('\n')
 
-	_, _ = buffer.WriteString("|<b>Resource<b>||\n")
+	_, _ = buffer.WriteString("|<b>Resource<b>|||\n")
 	_, _ = buffer.WriteString("|--|-----------------||\n")
 
 	for _, resourceName := range sortedResourceNames {
