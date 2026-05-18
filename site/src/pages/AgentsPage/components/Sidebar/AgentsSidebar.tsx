@@ -60,12 +60,13 @@ import {
 	useContext,
 	useEffect,
 	useEffectEvent,
+	useMemo,
 	useRef,
 	useState,
 } from "react";
-import { useQuery } from "react-query";
+import { useQueries, useQuery } from "react-query";
 import { Link, NavLink, useLocation, useParams } from "react-router";
-import { userChatProviderConfigs } from "#/api/queries/chats";
+import { chatPromptsQuery, userChatProviderConfigs } from "#/api/queries/chats";
 import type {
 	Chat,
 	ChatDiffStatus,
@@ -82,6 +83,7 @@ import {
 	ContextMenuSeparator,
 	ContextMenuTrigger,
 } from "#/components/ContextMenu/ContextMenu";
+import { Dialog, DialogContent, DialogTitle } from "#/components/Dialog/Dialog";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -91,7 +93,6 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { FeatureStageBadge } from "#/components/FeatureStageBadge/FeatureStageBadge";
 import { ProductLogo } from "#/components/Icons/ProductLogo";
-import { Dialog, DialogContent, DialogTitle } from "#/components/Dialog/Dialog";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -369,9 +370,13 @@ const buildChatTree = (chats: readonly Chat[]): ChatTree => {
 /**
  * Returns true if any of the chat's searchable fields contain the given
  * search term. Searches across: title, last turn summary, PR title,
- * PR URL / branch names, and attached file names.
+ * PR URL / branch names, attached file names, and user prompt history.
  */
-const chatMatchesSearch = (chat: Chat, search: string): boolean => {
+const chatMatchesSearch = (
+	chat: Chat,
+	search: string,
+	promptTexts?: readonly string[],
+): boolean => {
 	if (chat.title.toLowerCase().includes(search)) {
 		return true;
 	}
@@ -403,6 +408,13 @@ const chatMatchesSearch = (chat: Chat, search: string): boolean => {
 			}
 		}
 	}
+	if (promptTexts) {
+		for (const text of promptTexts) {
+			if (text.toLowerCase().includes(search)) {
+				return true;
+			}
+		}
+	}
 	return false;
 };
 
@@ -410,10 +422,12 @@ const collectVisibleChatIDs = ({
 	chats,
 	search,
 	tree,
+	promptsByChat,
 }: {
 	readonly chats: readonly Chat[];
 	readonly search: string;
 	readonly tree: ChatTree;
+	readonly promptsByChat?: ReadonlyMap<string, readonly string[]>;
 }): Set<string> => {
 	if (!search) {
 		const allIDs = new Set(chats.map((chat) => chat.id));
@@ -427,7 +441,9 @@ const collectVisibleChatIDs = ({
 
 	const allChats = chats.flatMap((chat) => [chat, ...(chat.children ?? [])]);
 	const matchedChatIDs = allChats
-		.filter((chat) => chatMatchesSearch(chat, search))
+		.filter((chat) =>
+			chatMatchesSearch(chat, search, promptsByChat?.get(chat.id)),
+		)
 		.map((chat) => chat.id);
 	if (matchedChatIDs.length === 0) {
 		return new Set<string>();
@@ -499,15 +515,12 @@ const HighlightedText: FC<{
 			{parts.map((part, i) =>
 				part.highlight ? (
 					<mark
-						// Unique per position; list is stable for a given query.
-						// biome-ignore lint/suspicious/noArrayIndexKey: positional key is stable
 						key={i}
 						className="rounded-sm bg-surface-invert-primary/15 text-inherit"
 					>
 						{part.text}
 					</mark>
 				) : (
-					// biome-ignore lint/suspicious/noArrayIndexKey: positional key is stable
 					<span key={i}>{part.text}</span>
 				),
 			)}
@@ -1093,12 +1106,44 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 	>({});
 	const [chatPendingRename, setChatPendingRename] = useState<Chat | null>(null);
 
+	// Fetch prompts for all loaded chats so we can search message history.
+	// Queries are enabled only while the search dialog is open.
+	const allChatIds = useMemo(
+		() =>
+			chats.flatMap((chat) => [
+				chat.id,
+				...(chat.children ?? []).map((c) => c.id),
+			]),
+		[chats],
+	);
+	const promptQueries = useQueries({
+		queries: allChatIds.map((id) => ({
+			...chatPromptsQuery(id),
+			enabled: searchOpen,
+		})),
+	});
+	const promptsByChat = useMemo(() => {
+		const map = new Map<string, readonly string[]>();
+		for (let i = 0; i < allChatIds.length; i++) {
+			const data = promptQueries[i]?.data;
+			if (data?.prompts) {
+				map.set(
+					allChatIds[i],
+					data.prompts.map((p) => p.text),
+				);
+			}
+		}
+		return map;
+	}, [allChatIds, promptQueries]);
+	const promptsLoading = searchOpen && promptQueries.some((q) => q.isLoading);
+
 	const chatTree = buildChatTree(chats);
 	const chatById = chatTree.chatById;
 	const visibleChatIDs = collectVisibleChatIDs({
 		chats,
 		search: normalizedSearch,
 		tree: chatTree,
+		promptsByChat,
 	});
 	const visibleRootIDs = chatTree.rootIds.filter((chatID) =>
 		visibleChatIDs.has(chatID),
@@ -1733,7 +1778,9 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 							/>
 						</div>
 						<span className="text-[11px] text-content-secondary">
-							(searching titles)
+							{promptsLoading
+								? "(searching titles, loading messages...)"
+								: "(searching titles, prompts, PRs, and files)"}
 						</span>
 					</div>
 					{/* Results count */}
