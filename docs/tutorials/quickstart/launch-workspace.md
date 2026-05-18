@@ -1,4 +1,4 @@
-# Quickstart
+# Launch your first workspace
 
 Follow this guide to get your first Coder development environment
 running in under 10 minutes. This guide covers the essential concepts and shows
@@ -7,32 +7,12 @@ This workspace includes a basic set of tools to edit most code bases.
 
 ## What you'll do
 
-In this quickstart, you'll:
+In this guide, you'll do the following:
 
 - ✅ Install Coder server.
 - ✅ Create a **template** (blueprint for dev environments).
 - ✅ Launch a **workspace** (your actual dev environment).
 - ✅ Connect from your favorite IDE.
-
-## A 30-second metaphor for Coder
-
-Before diving in, the following table breaks down the core concepts that power Coder,
-explained through a cooking analogy:
-
-| Component      | What It Is                                                                           | Real-World Analogy             |
-|----------------|--------------------------------------------------------------------------------------|--------------------------------|
-| **You**        | The engineer/developer/builder working                                               | The head chef cooking the meal |
-| **Templates**  | A Terraform blueprint that defines your dev environment (OS, tools, resources)       | Recipe for a meal              |
-| **Workspaces** | The actual running environment created from the template                             | The cooked meal                |
-| **Users**      | A developer who launches the workspace from a template and does their work inside it | The people eating the meal     |
-
-**Putting it Together:** Coder separates who _defines_ environments from who _uses_ them. Admins create and manage Templates, the recipes, while developers use those Templates to launch Workspaces, the meals.
-
-## Prerequisites
-
-- A machine with 2+ CPU cores and 4GB+ RAM
-- Familiarity with running commands in the terminal
-- 10 minutes of your time
 
 > [!TIP]
 > If you use a coding agent like Claude Code, the [coder/skills](https://github.com/coder/skills) `setup` skill can train the coding agent on the following steps (install Docker, install Coder, create your first template, and launch a workspace).
@@ -252,19 +232,6 @@ You now have:
 - A workspace running that environment.
 - IDE access to code remotely.
 
-### What's next?
-
-Now that you have your own workspace running, you can start exploring more
-advanced capabilities that Coder offers.
-
-- [Try Coder Agents](../ai-coder/agents/getting-started.md), the chat
-  interface and API for delegating development work to coding agents in your
-  Coder deployment.
-
-- [Read about managing Workspaces for your team](../user-guides/workspace-management.md)
-
-- [Read about implementing monitoring tools for your Coder Deployment](../admin/monitoring/index.md)
-
 ## Troubleshooting
 
 ### Cannot connect to the Docker daemon
@@ -400,3 +367,17 @@ then start the server again.
    ```shell
    coder server
    ```
+
+### What's next?
+
+Now that you have a running Coder server and a running workspace, you can move on to part 2 of the Quickstart series, [Customize workspace startup](./customize-workspace-startup.md).
+
+You can also start exploring more advanced capabilities that Coder offers:
+
+- [Try Coder Agents](../ai-coder/agents/getting-started.md), the chat
+  interface and API for delegating development work to coding agents in your
+  Coder deployment.
+
+- [Read about managing workspaces for your team](../user-guides/workspace-management.md)
+
+- [Read about implementing monitoring tools for your Coder deployment](../admin/monitoring/index.md)
