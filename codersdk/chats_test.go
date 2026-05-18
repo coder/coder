@@ -393,6 +393,70 @@ func TestChatMessagePart_CreatedAt_JSON(t *testing.T) {
 	})
 }
 
+func TestChatMessagePart_ReasoningTimestamps_JSON(t *testing.T) {
+	t.Parallel()
+
+	t.Run("RoundTrips", func(t *testing.T) {
+		t.Parallel()
+		startedAt := time.Date(2025, 6, 15, 12, 30, 0, 0, time.UTC)
+		completedAt := startedAt.Add(2 * time.Second)
+		part := codersdk.ChatMessagePart{
+			Type:        codersdk.ChatMessagePartTypeReasoning,
+			Text:        "thinking out loud",
+			CreatedAt:   &startedAt,
+			CompletedAt: &completedAt,
+		}
+		data, err := json.Marshal(part)
+		require.NoError(t, err)
+		require.Contains(t, string(data), `"created_at"`)
+		require.Contains(t, string(data), `"completed_at"`)
+
+		var decoded codersdk.ChatMessagePart
+		err = json.Unmarshal(data, &decoded)
+		require.NoError(t, err)
+		require.NotNil(t, decoded.CreatedAt)
+		require.NotNil(t, decoded.CompletedAt)
+		require.True(t, startedAt.Equal(*decoded.CreatedAt))
+		require.True(t, completedAt.Equal(*decoded.CompletedAt))
+	})
+
+	t.Run("OmittedWhenNil", func(t *testing.T) {
+		t.Parallel()
+		part := codersdk.ChatMessagePart{
+			Type: codersdk.ChatMessagePartTypeReasoning,
+			Text: "thinking out loud",
+		}
+		data, err := json.Marshal(part)
+		require.NoError(t, err)
+		require.NotContains(t, string(data), `"created_at"`)
+		require.NotContains(t, string(data), `"completed_at"`)
+	})
+
+	t.Run("LegacyCreatedAtWithoutCompletedAt", func(t *testing.T) {
+		t.Parallel()
+		// CompletedAt is omitted on messages persisted before this
+		// feature shipped. Confirm round-trip leaves CompletedAt nil
+		// while preserving CreatedAt so legacy data does not break
+		// API consumers.
+		startedAt := time.Date(2025, 6, 15, 12, 30, 0, 0, time.UTC)
+		part := codersdk.ChatMessagePart{
+			Type:      codersdk.ChatMessagePartTypeReasoning,
+			Text:      "legacy reasoning",
+			CreatedAt: &startedAt,
+		}
+		data, err := json.Marshal(part)
+		require.NoError(t, err)
+		require.Contains(t, string(data), `"created_at"`)
+		require.NotContains(t, string(data), `"completed_at"`)
+
+		var decoded codersdk.ChatMessagePart
+		err = json.Unmarshal(data, &decoded)
+		require.NoError(t, err)
+		require.NotNil(t, decoded.CreatedAt)
+		require.Nil(t, decoded.CompletedAt)
+	})
+}
+
 func TestModelCostConfig_LegacyNumericJSON(t *testing.T) {
 	t.Parallel()
 
