@@ -4687,8 +4687,8 @@ type ChatConfig struct {
 }
 
 type AIConfig struct {
-	BridgeConfig      AIBridgeConfig      `json:"bridge,omitempty"`
-	BridgeProxyConfig AIBridgeProxyConfig `json:"ai_gateway_proxy,omitempty"`
+	BridgeConfig      AIBridgeConfig      `json:"gateway,omitempty"`
+	BridgeProxyConfig AIBridgeProxyConfig `json:"gateway_proxy,omitempty"`
 	Chat              ChatConfig          `json:"chat,omitempty" typescript:",notnull"`
 }
 
@@ -4697,23 +4697,28 @@ func (c *AIConfig) UnmarshalJSON(data []byte) error {
 		return xerrors.New("AIConfig: UnmarshalJSON on nil pointer")
 	}
 
-	type alias AIConfig
-
 	var raw struct {
-		alias
-		BridgeProxyConfig       *AIBridgeProxyConfig `json:"ai_gateway_proxy,omitempty"`
+		BridgeConfig            *AIBridgeConfig      `json:"gateway,omitempty"`
+		LegacyBridgeConfig      *AIBridgeConfig      `json:"bridge,omitempty"`
+		BridgeProxyConfig       *AIBridgeProxyConfig `json:"gateway_proxy,omitempty"`
 		LegacyBridgeProxyConfig *AIBridgeProxyConfig `json:"aibridge_proxy,omitempty"`
+		Chat                    ChatConfig           `json:"chat,omitempty"`
 	}
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
 
-	*c = AIConfig(raw.alias)
+	*c = AIConfig{
+		Chat: raw.Chat,
+	}
+	if raw.BridgeConfig != nil {
+		c.BridgeConfig = *raw.BridgeConfig
+	} else if raw.LegacyBridgeConfig != nil {
+		c.BridgeConfig = *raw.LegacyBridgeConfig
+	}
 	if raw.BridgeProxyConfig != nil {
 		c.BridgeProxyConfig = *raw.BridgeProxyConfig
-		return nil
-	}
-	if raw.LegacyBridgeProxyConfig != nil {
+	} else if raw.LegacyBridgeProxyConfig != nil {
 		c.BridgeProxyConfig = *raw.LegacyBridgeProxyConfig
 	}
 

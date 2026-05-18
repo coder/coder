@@ -14959,14 +14959,14 @@ const docTemplate = `{
         "codersdk.AIConfig": {
             "type": "object",
             "properties": {
-                "ai_gateway_proxy": {
-                    "$ref": "#/definitions/codersdk.AIBridgeProxyConfig"
-                },
-                "bridge": {
-                    "$ref": "#/definitions/codersdk.AIBridgeConfig"
-                },
                 "chat": {
                     "$ref": "#/definitions/codersdk.ChatConfig"
+                },
+                "gateway": {
+                    "$ref": "#/definitions/codersdk.AIBridgeConfig"
+                },
+                "gateway_proxy": {
+                    "$ref": "#/definitions/codersdk.AIBridgeProxyConfig"
                 }
             }
         },

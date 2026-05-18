@@ -307,33 +307,48 @@ func must[T any](value T, err error) T {
 	return value
 }
 
-func TestAIConfigUnmarshalJSON_BridgeProxyAlias(t *testing.T) {
+func TestAIConfigUnmarshalJSON(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name        string
-		input       string
-		wantEnabled bool
+		name                   string
+		input                  string
+		wantBridgeEnabled      bool
+		wantBridgeProxyEnabled bool
 	}{
 		{
-			name:        "old_field",
-			input:       `{"aibridge_proxy":{"enabled":true}}`,
-			wantEnabled: true,
+			name:              "legacy_bridge_field",
+			input:             `{"bridge":{"enabled":true}}`,
+			wantBridgeEnabled: true,
 		},
 		{
-			name:        "new_field",
-			input:       `{"ai_gateway_proxy":{"enabled":true}}`,
-			wantEnabled: true,
+			name:              "gateway_field",
+			input:             `{"gateway":{"enabled":true}}`,
+			wantBridgeEnabled: true,
 		},
 		{
-			name:        "new_field_wins_over_old",
-			input:       `{"ai_gateway_proxy":{"enabled":true},"aibridge_proxy":{"enabled":false}}`,
-			wantEnabled: true,
+			name:              "gateway_field_wins_over_legacy_bridge",
+			input:             `{"gateway":{"enabled":true},"bridge":{"enabled":false}}`,
+			wantBridgeEnabled: true,
 		},
 		{
-			name:        "empty",
-			input:       `{}`,
-			wantEnabled: false,
+			name:                   "legacy_aibridge_proxy_field",
+			input:                  `{"aibridge_proxy":{"enabled":true}}`,
+			wantBridgeProxyEnabled: true,
+		},
+		{
+			name:                   "gateway_proxy_field",
+			input:                  `{"gateway_proxy":{"enabled":true}}`,
+			wantBridgeProxyEnabled: true,
+		},
+		{
+			name:                   "gateway_proxy_field_wins_over_legacy_aibridge_proxy",
+			input:                  `{"gateway_proxy":{"enabled":true},"aibridge_proxy":{"enabled":false}}`,
+			wantBridgeProxyEnabled: true,
+		},
+		{
+			name:  "empty",
+			input: `{}`,
 		},
 	}
 
@@ -343,7 +358,8 @@ func TestAIConfigUnmarshalJSON_BridgeProxyAlias(t *testing.T) {
 
 			var cfg codersdk.AIConfig
 			require.NoError(t, json.Unmarshal([]byte(tc.input), &cfg))
-			require.Equal(t, tc.wantEnabled, cfg.BridgeProxyConfig.Enabled.Value())
+			require.Equal(t, tc.wantBridgeEnabled, cfg.BridgeConfig.Enabled.Value())
+			require.Equal(t, tc.wantBridgeProxyEnabled, cfg.BridgeProxyConfig.Enabled.Value())
 		})
 	}
 }
