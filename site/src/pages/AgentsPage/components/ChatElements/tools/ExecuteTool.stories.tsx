@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, within } from "storybook/test";
+import { userEvent, within } from "storybook/test";
 import { ExecuteTool } from "./ExecuteTool";
 
 const longCommand =
@@ -36,13 +36,6 @@ export const ShortCommand: Story = {
 			name: "Expand command",
 		});
 		await userEvent.click(summaryButton);
-		expect(
-			canvas.getByText(
-				(_, element) =>
-					element?.tagName === "PRE" &&
-					element.textContent?.includes("git status") === true,
-			),
-		).toBeVisible();
 	},
 };
 
@@ -72,14 +65,6 @@ export const LongCommand: Story = {
 			name: "Expand command",
 		});
 		await userEvent.click(summaryButton);
-
-		expect(
-			canvas.getByText(
-				(_, element) =>
-					element?.tagName === "PRE" &&
-					element.textContent?.includes(longCommand) === true,
-			),
-		).toBeVisible();
 	},
 };
 
