@@ -98,7 +98,7 @@ func (b GroupAiBudget) Auditable(groupName string) AuditableGroupAiBudget {
 	return AuditableGroupAiBudget{
 		GroupAiBudget: b,
 		GroupName:     groupName,
-		SpendLimit:    fmt.Sprintf("%.2f", float64(b.SpendLimitMicros)/1_000_000),
+		SpendLimit:    fmt.Sprintf("$%.2f", float64(b.SpendLimitMicros)/1_000_000),
 	}
 }
 

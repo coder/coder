@@ -2848,8 +2848,8 @@ func TestGroupAIBudget(t *testing.T) {
 		var upsertDiff audit.Map
 		require.NoError(t, json.Unmarshal(upsertLog.Diff, &upsertDiff))
 		require.Contains(t, upsertDiff, "spend_limit")
-		require.Equal(t, "0.00", upsertDiff["spend_limit"].Old)
-		require.Equal(t, "500.00", upsertDiff["spend_limit"].New)
+		require.Equal(t, "$0.00", upsertDiff["spend_limit"].Old)
+		require.Equal(t, "$500.00", upsertDiff["spend_limit"].New)
 		// Fields marked ActionIgnore must not appear in the diff.
 		require.NotContains(t, upsertDiff, "group_id")
 		require.NotContains(t, upsertDiff, "group_name")
@@ -2866,7 +2866,7 @@ func TestGroupAIBudget(t *testing.T) {
 		var deleteDiff audit.Map
 		require.NoError(t, json.Unmarshal(deleteLog.Diff, &deleteDiff))
 		require.Contains(t, deleteDiff, "spend_limit")
-		require.Equal(t, "500.00", deleteDiff["spend_limit"].Old)
+		require.Equal(t, "$500.00", deleteDiff["spend_limit"].Old)
 		require.Equal(t, "", deleteDiff["spend_limit"].New)
 	})
 }
