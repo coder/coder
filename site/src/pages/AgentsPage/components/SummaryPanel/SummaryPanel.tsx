@@ -111,7 +111,7 @@ const Section: FC<{
 }> = ({ children, className }) => (
 	<div
 		className={cn(
-			"min-w-0 overflow-hidden border-0 border-l-2 border-t border-solid border-border-default px-5 py-5",
+			"min-w-0 overflow-hidden border-0 border-l-2 border-t border-solid border-border-default px-3 py-4",
 			className,
 		)}
 	>
@@ -121,14 +121,17 @@ const Section: FC<{
 
 /**
  * Key-value row used in the metadata and PR details sections.
- * The value column is overflow-hidden so children can truncate.
+ * The label uses its natural width so the layout adapts to any
+ * panel size without wasting space.
  */
 const MetadataRow: FC<{
 	label: string;
 	children: React.ReactNode;
 }> = ({ label, children }) => (
-	<div className="flex min-w-0 items-start gap-4 text-sm leading-6">
-		<span className="w-[7.5rem] shrink-0 text-content-secondary">{label}</span>
+	<div className="flex min-w-0 items-start gap-3 text-sm leading-6">
+		<span className="shrink-0 whitespace-nowrap text-content-secondary">
+			{label}
+		</span>
 		<div className="min-w-0 flex-1 overflow-hidden text-content-primary">
 			{children}
 		</div>
@@ -244,7 +247,7 @@ export const SummaryPanel: FC<SummaryPanelProps> = ({
 			<div className="flex flex-col">
 				{/* ---- Metadata ---- */}
 				<Section className="border-l-0 border-t-0">
-					<div className="flex flex-col gap-3">
+					<div className="flex flex-col gap-2.5">
 						<MetadataRow label="Created:">
 							<MetadataValue>{metadata.createdAt}</MetadataValue>
 						</MetadataRow>
@@ -305,7 +308,7 @@ export const SummaryPanel: FC<SummaryPanelProps> = ({
 				{/* ---- PR details ---- */}
 				{(prDetails.length > 0 || repo) && (
 					<Section>
-						<div className="flex min-w-0 flex-col gap-3">
+						<div className="flex min-w-0 flex-col gap-2.5">
 							{prDetails.length > 0 && (
 								<MetadataRow label="PR details:">
 									<div className="flex min-w-0 flex-col gap-1.5">
@@ -326,27 +329,27 @@ export const SummaryPanel: FC<SummaryPanelProps> = ({
 
 				{/* ---- Prompt history ---- */}
 				<Section>
-					<div className="flex min-w-0 flex-col gap-3">
+					<div className="flex min-w-0 flex-col gap-2.5">
 						<h3 className="text-sm font-medium text-content-secondary">
 							Prompt history ({totalPrompts})
 						</h3>
-						<div className="flex flex-col gap-2.5">
+						<div className="flex flex-col gap-2">
 							{(showAllPrompts ? prompts : prompts.slice(0, 3)).map(
 								(prompt) => (
 									<div
 										key={prompt.index}
-										className="flex min-w-0 items-start gap-4 text-sm"
+										className="flex min-w-0 items-start gap-3 text-sm"
 									>
 										{prompt.messageId && onPromptClick ? (
 											<button
 												type="button"
 												onClick={() => onPromptClick(prompt.messageId!)}
-												className="w-7 shrink-0 text-right tabular-nums text-content-link hover:underline"
+												className="w-6 shrink-0 text-right tabular-nums text-content-link hover:underline"
 											>
 												{prompt.index}
 											</button>
 										) : (
-											<span className="w-7 shrink-0 text-right tabular-nums text-content-secondary">
+											<span className="w-6 shrink-0 text-right tabular-nums text-content-secondary">
 												{prompt.index}
 											</span>
 										)}
@@ -371,16 +374,16 @@ export const SummaryPanel: FC<SummaryPanelProps> = ({
 
 				{/* ---- Activity ---- */}
 				<Section>
-					<div className="flex min-w-0 flex-col gap-3">
+					<div className="flex min-w-0 flex-col gap-2.5">
 						<h3 className="text-sm font-medium text-content-secondary">
 							Activity ({totalActivities})
 						</h3>
-						<div className="flex flex-col gap-2.5">
+						<div className="flex flex-col gap-2">
 							{(showAllActivities ? activities : activities.slice(0, 3)).map(
 								(activity) => (
 									<div
 										key={activity.text}
-										className="flex min-w-0 items-start gap-3 text-sm"
+										className="flex min-w-0 items-start gap-2.5 text-sm"
 									>
 										<CheckIcon className="mt-0.5 size-4 shrink-0 text-content-secondary" />
 										<span className="min-w-0 flex-1 truncate text-content-primary">
@@ -404,7 +407,7 @@ export const SummaryPanel: FC<SummaryPanelProps> = ({
 
 				{/* ---- Files ---- */}
 				<Section>
-					<div className="flex min-w-0 flex-col gap-3">
+					<div className="flex min-w-0 flex-col gap-2.5">
 						<h3 className="text-sm font-medium text-content-secondary">
 							Files ({totalFiles})
 						</h3>
@@ -421,30 +424,27 @@ export const SummaryPanel: FC<SummaryPanelProps> = ({
 				{/* ---- Related chats ---- */}
 				{relatedChats.length > 0 && (
 					<Section>
-						<div className="flex min-w-0 flex-col gap-3">
+						<div className="flex min-w-0 flex-col gap-2.5">
 							<h3 className="text-sm font-medium text-content-secondary">
 								Related chats
 							</h3>
-							<div className="flex flex-col gap-2">
+							<div className="flex flex-col gap-1.5">
 								{relatedChats.map((chat) => (
-									<div
-										key={chat.title}
-										className="flex min-w-0 items-baseline gap-2 text-sm"
-									>
+									<div key={chat.title} className="min-w-0 text-sm">
 										{chat.chatId && onRelatedChatClick ? (
 											<button
 												type="button"
 												onClick={() => onRelatedChatClick(chat.chatId!)}
-												className="min-w-0 shrink truncate text-left font-medium text-content-primary hover:text-content-link hover:underline"
+												className="truncate text-left font-medium text-content-primary hover:text-content-link hover:underline"
 											>
 												{chat.title}
 											</button>
 										) : (
-											<span className="min-w-0 shrink truncate font-medium text-content-primary">
+											<span className="block truncate font-medium text-content-primary">
 												{chat.title}
 											</span>
 										)}
-										<span className="shrink-0 text-content-secondary">
+										<span className="text-xs text-content-secondary">
 											({chat.reason})
 										</span>
 									</div>

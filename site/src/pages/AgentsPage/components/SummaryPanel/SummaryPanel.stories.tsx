@@ -270,3 +270,15 @@ export const MinimalActivity: Story = {
 		relatedChats: [],
 	},
 };
+
+/** Tests the minimum panel width (360px) to verify nothing overflows. */
+export const NarrowWidth: Story = {
+	args: sampleData,
+	decorators: [
+		(Story) => (
+			<div className="h-[900px] w-[360px] border border-border-default bg-surface-primary">
+				<Story />
+			</div>
+		),
+	],
+};
