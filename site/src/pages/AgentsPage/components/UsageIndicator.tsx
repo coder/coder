@@ -1,5 +1,5 @@
 import dayjs from "dayjs";
-import { InfoIcon } from "lucide-react";
+import { CoinsIcon, InfoIcon, ServerIcon } from "lucide-react";
 import { type FC, Fragment, type ReactNode } from "react";
 import { useQuery } from "react-query";
 import { Link } from "react-router";
@@ -36,6 +36,9 @@ type UsageSectionData = {
 	progressLabel: string;
 	percent: number;
 	detail: ReactNode;
+	icon: ReactNode;
+	summaryValue: string;
+	triggerAriaLabel: string;
 	secondaryDetail?: ReactNode;
 	tooltip?: ReactNode;
 	severity?: UsageSeverity;
@@ -79,6 +82,9 @@ export const UsageIndicator: FC = () => {
 			progressLabel: `${periodLabel} spend usage`,
 			percent: getPercent(currentSpend, spendLimit),
 			severity: getSeverity(currentSpend, spendLimit),
+			icon: <CoinsIcon className="size-3.5" />,
+			summaryValue: formatCostMicros(currentSpend),
+			triggerAriaLabel: `${periodLabel} usage, ${formatCostMicros(currentSpend)} spent of ${formatCostMicros(spendLimit)}`,
 			detail: (
 				<>
 					{formatCostMicros(currentSpend)} of {formatCostMicros(spendLimit)}{" "}
@@ -112,6 +118,9 @@ export const UsageIndicator: FC = () => {
 			progressLabel: "Workspace quota usage",
 			percent: getPercent(creditsConsumed, quota.budget),
 			severity: getSeverity(creditsConsumed, quota.budget),
+			icon: <ServerIcon className="size-3.5" />,
+			summaryValue: `${formatNumber(creditsConsumed)} of ${formatNumber(quota.budget)}`,
+			triggerAriaLabel: `Workspace quota, ${formatNumber(creditsConsumed)} of ${formatNumber(quota.budget)} credits used`,
 			detail: quotaDetail,
 			tooltip:
 				"Workspaces, stopped or running, may consume credits. Stop or delete unused ones to free quota.",
@@ -128,19 +137,18 @@ export const UsageIndicator: FC = () => {
 const UsageMenu: FC<{ sections: readonly UsageSectionData[] }> = ({
 	sections,
 }) => {
-	const triggerLabel =
-		sections.length > 1 ? "Usage" : (sections[0]?.title ?? "Usage");
+	const triggerAriaLabel = sections
+		.map((section) => section.triggerAriaLabel)
+		.join(". ");
 
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
 				<button
 					type="button"
-					className="ml-auto flex self-stretch flex-col items-center justify-center gap-1 border-none bg-transparent px-3 cursor-pointer select-none transition-colors text-content-secondary hover:bg-surface-tertiary/50 outline-none text-[13px]"
+					aria-label={triggerAriaLabel}
+					className="ml-auto flex self-stretch items-center justify-center border-none bg-transparent px-3 cursor-pointer select-none transition-colors hover:bg-surface-tertiary/50 outline-none"
 				>
-					<span className="shrink-0 whitespace-nowrap text-center">
-						{triggerLabel}
-					</span>
 					<UsageTriggerProgress sections={sections} />
 				</button>
 			</DropdownMenuTrigger>
@@ -166,19 +174,30 @@ const UsageMenu: FC<{ sections: readonly UsageSectionData[] }> = ({
 const UsageTriggerProgress: FC<{ sections: readonly UsageSectionData[] }> = ({
 	sections,
 }) => {
-	const size = sections.length > 1 ? "compact" : "default";
-
 	return (
-		<div className="flex w-24 shrink-0 flex-col gap-0.5">
+		<div className="flex shrink-0 flex-col gap-1">
 			{sections.map((section) => (
-				<UsageProgress
-					key={section.id}
-					ariaLabel={section.progressLabel}
-					percent={section.percent}
-					severity={section.severity}
-					size={size}
-					className="w-full"
-				/>
+				<div key={section.id} className="flex items-center gap-2">
+					<span
+						aria-hidden="true"
+						className={cn(
+							"flex shrink-0 items-center justify-center",
+							getTextClassName(section.severity),
+						)}
+					>
+						{section.icon}
+					</span>
+					<UsageProgress
+						ariaLabel={section.progressLabel}
+						percent={section.percent}
+						severity={section.severity}
+						size="compact"
+						className="w-20 shrink-0"
+					/>
+					<span className="shrink-0 whitespace-nowrap text-[13px] tabular-nums text-content-secondary">
+						{section.summaryValue}
+					</span>
+				</div>
 			))}
 		</div>
 	);

@@ -58,7 +58,7 @@ const withUnavailableWorkspaceCount = (Story: FC) => {
 };
 
 const withUsageIndicatorFrame = (Story: FC) => (
-	<div className="flex h-12 w-[260px] items-stretch justify-end rounded-md bg-surface-secondary">
+	<div className="flex h-14 w-[340px] items-stretch justify-end rounded-md bg-surface-secondary">
 		<Story />
 	</div>
 );
@@ -167,6 +167,9 @@ export const WorkspaceQuotaOnly: Story = {
 		withWorkspaceCount(3),
 	],
 	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		expect(canvas.getByText("30 of 100")).toBeInTheDocument();
 		await openUsageMenu(canvasElement);
 	},
 };
@@ -181,12 +184,13 @@ export const UsageAndWorkspaceQuota: Story = {
 		const canvas = within(canvasElement);
 		const progressBars = canvas.getAllByRole("progressbar");
 
-		expect(canvas.getByText("Usage")).toBeInTheDocument();
+		expect(canvas.getByText("$12.50")).toBeInTheDocument();
+		expect(canvas.getByText("30 of 100")).toBeInTheDocument();
 		expect(progressBars.map((bar) => bar.getAttribute("aria-label"))).toEqual([
 			"Monthly spend usage",
 			"Workspace quota usage",
 		]);
-		await userEvent.click(canvas.getByRole("button"));
+		await openUsageMenu(canvasElement);
 	},
 };
 
@@ -220,7 +224,7 @@ export const WorkspaceQuotaWithoutBudget: Story = {
 			name: "Workspace quota usage",
 		});
 
-		expect(canvas.getByText("Workspace quota")).toBeInTheDocument();
+		expect(canvas.getByText("20 of 0")).toBeInTheDocument();
 		expect(progressbar).toHaveAttribute("aria-valuenow", "100");
 
 		await openUsageMenu(canvasElement);
