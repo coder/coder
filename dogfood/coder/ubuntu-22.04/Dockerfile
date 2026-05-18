@@ -200,10 +200,12 @@ ENV MISE_DATA_DIR=/home/coder/.local/share/mise \
 #
 # We pre-create /etc/mise as 0755 because COPY's implicitly-created
 # parent dirs inherit the --chmod, which would leave /etc/mise
-# without the `x` bit and unreachable to the coder user.
-RUN install --directory --mode=0755 /etc/mise
-COPY --chmod=0644 mise.toml /etc/mise/config.toml
-COPY --chmod=0644 mise.lock /etc/mise/mise.lock
+# without the `x` bit and unreachable to the coder user. We also
+# chown to coder so mise can write the temp lockfile it uses for
+# atomic rename when updating /etc/mise/mise.lock during installs.
+RUN install --directory --owner=coder --group=coder --mode=0755 /etc/mise
+COPY --chown=coder:coder --chmod=0644 mise.toml /etc/mise/config.toml
+COPY --chown=coder:coder --chmod=0644 mise.lock /etc/mise/mise.lock
 
 # Pre-install tools into /opt/mise/data so they survive the home
 # volume's copy-on-first-mount. MISE_SHARED_INSTALL_DIRS (set below)

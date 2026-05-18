@@ -552,6 +552,18 @@ func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAudit
 		// TODO(PLAT-102): point at the user secrets management page once
 		// it ships. Until then, the audit row links nowhere.
 		return ""
+	case database.ResourceTypeGroupAiBudget:
+		// The resource_id is the group's UUID; link to the group's
+		// settings page.
+		group, err := api.Database.GetGroupByID(ctx, alog.AuditLog.ResourceID)
+		if err != nil {
+			return ""
+		}
+		org, err := api.Database.GetOrganizationByID(ctx, group.OrganizationID)
+		if err != nil {
+			return ""
+		}
+		return fmt.Sprintf("/organizations/%s/groups/%s", org.Name, group.Name)
 	default:
 		return ""
 	}

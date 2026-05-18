@@ -16045,6 +16045,11 @@ const docTemplate = `{
                 "args_delta": {
                     "type": "string"
                 },
+                "completed_at": {
+                    "description": "CompletedAt is the time a reasoning part finished streaming,\nso reasoning duration can be computed as completed_at minus\ncreated_at. For interrupted reasoning, this is the\ninterruption time. Absent when reasoning timestamp data was\nnot recorded (e.g. messages persisted before this feature\nwas added).",
+                    "type": "string",
+                    "format": "date-time"
+                },
                 "content": {
                     "description": "The code content from the diff that was commented on.",
                     "type": "string"
@@ -16083,7 +16088,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "created_at": {
-                    "description": "CreatedAt records when this part was produced. Present on\ntool-call and tool-result parts so the frontend can compute\ntool execution duration.",
+                    "description": "CreatedAt is the timestamp this part carries. The semantics\ndepend on the part type: for tool-call and tool-result parts\nit is the time the call was emitted or the result was\nproduced (tool duration is the result's created_at minus the\ncall's created_at); for reasoning parts it is the time\nreasoning started streaming.",
                     "type": "string",
                     "format": "date-time"
                 },
@@ -21799,6 +21804,7 @@ const docTemplate = `{
                 "ai_seat",
                 "ai_provider",
                 "ai_provider_key",
+                "group_ai_budget",
                 "chat",
                 "user_secret"
             ],
@@ -21832,6 +21838,7 @@ const docTemplate = `{
                 "ResourceTypeAISeat",
                 "ResourceTypeAIProvider",
                 "ResourceTypeAIProviderKey",
+                "ResourceTypeGroupAIBudget",
                 "ResourceTypeChat",
                 "ResourceTypeUserSecret"
             ]

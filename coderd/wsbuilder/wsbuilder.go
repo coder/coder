@@ -615,6 +615,15 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 			}); err != nil {
 				return BuildError{http.StatusInternalServerError, "mark workspace as deleted", err}
 			}
+
+			// Soft-delete any agents tied to this workspace so the
+			// aws-instance-identity handler doesn't keep seeing
+			// orphaned rows. Mirrors the path in
+			// provisionerdserver.CompleteJob. See #25155.
+			//nolint:gocritic // System-restricted: bookkeeping inside an already-authorized delete transaction.
+			if err := store.SoftDeleteWorkspaceAgentsByWorkspaceID(dbauthz.AsSystemRestricted(b.ctx), b.workspace.ID); err != nil {
+				return BuildError{http.StatusInternalServerError, "soft-delete workspace agents on orphan delete", err}
+			}
 		}
 
 		return nil

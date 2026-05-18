@@ -13,14 +13,18 @@ import (
 
 	aiblib "github.com/coder/coder/v2/aibridge"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
+	entaudit "github.com/coder/coder/v2/enterprise/audit"
+	"github.com/coder/coder/v2/enterprise/audit/backends"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/testutil"
@@ -2774,6 +2778,96 @@ func TestGroupAIBudget(t *testing.T) {
 		got, err = memberClient.GroupAIBudget(ctx, group.ID)
 		require.NoError(t, err)
 		require.EqualValues(t, 500_000_000, got.SpendLimitMicros)
+	})
+
+	t.Run("Audit", func(t *testing.T) {
+		t.Parallel()
+
+		// The enterprise auditor is needed because the mock auditor does
+		// not compute diffs. We read straight from the audit_logs table to
+		// validate the diff content.
+		db, ps := dbtestutil.NewDB(t)
+		auditor := entaudit.NewAuditor(
+			db,
+			entaudit.DefaultFilter,
+			backends.NewPostgres(db, true),
+		)
+		dv := coderdtest.DeploymentValues(t)
+		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+			AuditLogging: true,
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+				Database:         db,
+				Pubsub:           ps,
+				Auditor:          auditor,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureTemplateRBAC: 1,
+					codersdk.FeatureAIBridge:     1,
+					codersdk.FeatureAuditLog:     1,
+				},
+			},
+		})
+		adminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		group, err := adminClient.CreateGroup(ctx, owner.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "budget-audit",
+		})
+		require.NoError(t, err)
+
+		// Upsert (create-or-update) emits an AuditActionWrite entry.
+		_, err = adminClient.UpsertGroupAIBudget(ctx, group.ID, codersdk.UpsertGroupAIBudgetRequest{
+			SpendLimitMicros: 500_000_000,
+		})
+		require.NoError(t, err)
+
+		// Delete emits an AuditActionDelete entry against the same resource.
+		require.NoError(t, adminClient.DeleteGroupAIBudget(ctx, group.ID))
+		rows, err := db.GetAuditLogsOffset(
+			ctx,
+			database.GetAuditLogsOffsetParams{
+				ResourceType: string(database.ResourceTypeGroupAiBudget),
+				LimitOpt:     10,
+			},
+		)
+		require.NoError(t, err)
+		require.Len(t, rows, 2, "expected one upsert and one delete audit entry")
+		// GetAuditLogsOffset returns entries sorted by time in descending order.
+		upsertLog := rows[1].AuditLog
+		deleteLog := rows[0].AuditLog
+
+		require.Equal(t, database.AuditActionWrite, upsertLog.Action)
+		require.Equal(t, group.ID, upsertLog.ResourceID)
+		require.Equal(t, database.ResourceTypeGroupAiBudget, upsertLog.ResourceType)
+		require.Equal(t, group.Name, upsertLog.ResourceTarget)
+		require.Equal(t, owner.OrganizationID, upsertLog.OrganizationID)
+
+		var upsertDiff audit.Map
+		require.NoError(t, json.Unmarshal(upsertLog.Diff, &upsertDiff))
+		require.Contains(t, upsertDiff, "spend_limit")
+		require.Equal(t, "$0.00", upsertDiff["spend_limit"].Old)
+		require.Equal(t, "$500.00", upsertDiff["spend_limit"].New)
+		// Fields marked ActionIgnore must not appear in the diff.
+		require.NotContains(t, upsertDiff, "group_id")
+		require.NotContains(t, upsertDiff, "group_name")
+		require.NotContains(t, upsertDiff, "spend_limit_micros")
+		require.NotContains(t, upsertDiff, "created_at")
+		require.NotContains(t, upsertDiff, "updated_at")
+
+		require.Equal(t, database.AuditActionDelete, deleteLog.Action)
+		require.Equal(t, group.ID, deleteLog.ResourceID)
+		require.Equal(t, database.ResourceTypeGroupAiBudget, deleteLog.ResourceType)
+		require.Equal(t, group.Name, deleteLog.ResourceTarget)
+		require.Equal(t, owner.OrganizationID, deleteLog.OrganizationID)
+
+		var deleteDiff audit.Map
+		require.NoError(t, json.Unmarshal(deleteLog.Diff, &deleteDiff))
+		require.Contains(t, deleteDiff, "spend_limit")
+		require.Equal(t, "$500.00", deleteDiff["spend_limit"].Old)
+		require.Equal(t, "", deleteDiff["spend_limit"].New)
 	})
 }
 

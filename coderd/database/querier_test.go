@@ -13765,3 +13765,230 @@ func TestChatHasUnread(t *testing.T) {
 	insertMsg(database.ChatMessageRoleUser, "user msg")
 	require.False(t, getHasUnread(), "user messages should not trigger unread")
 }
+
+// TestSoftDeletePriorWorkspaceAgents verifies the invariant maintained by
+// wsbuilder.Builder.Build: when a new build of a workspace is created, all
+// agents belonging to prior builds of that same workspace are soft-deleted,
+// and agents belonging to *other* workspaces are untouched.
+func TestSoftDeletePriorWorkspaceAgents(t *testing.T) {
+	t.Parallel()
+
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	// Helper: create a workspace + one build + its agent. Returns the IDs we
+	// need to assert on. The agent uses the shared EC2-style auth_instance_id
+	// so we can prove per-workspace scoping.
+	type buildBundle struct {
+		workspaceID uuid.UUID
+		buildID     uuid.UUID
+		agentID     uuid.UUID
+	}
+
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	tpl := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	tplVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+
+	newBuild := func(t *testing.T, wsID uuid.UUID, buildNumber int32, instanceID string) buildBundle {
+		t.Helper()
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			OrganizationID: org.ID,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		})
+		build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			WorkspaceID:       wsID,
+			JobID:             job.ID,
+			TemplateVersionID: tplVersion.ID,
+			BuildNumber:       buildNumber,
+			Transition:        database.WorkspaceTransitionStart,
+		})
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: job.ID})
+		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID:     resource.ID,
+			AuthInstanceID: sql.NullString{String: instanceID, Valid: true},
+		})
+		return buildBundle{workspaceID: wsID, buildID: build.ID, agentID: agent.ID}
+	}
+
+	// Read `deleted` via raw SQL. GetWorkspaceAgentByID filters deleted rows
+	// out, which is exactly what we want to observe here.
+	agentDeleted := func(id uuid.UUID) bool {
+		t.Helper()
+		var deleted bool
+		err := sqlDB.QueryRowContext(ctx,
+			`SELECT deleted FROM workspace_agents WHERE id = $1`, id).Scan(&deleted)
+		require.NoError(t, err)
+		return deleted
+	}
+
+	// Two workspaces share a single EC2 instance ID across their lifetimes.
+	wsA := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		TemplateID:     tpl.ID,
+		OwnerID:        user.ID,
+	}).ID
+	wsB := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		TemplateID:     tpl.ID,
+		OwnerID:        user.ID,
+	}).ID
+	instance := "i-shared"
+
+	a1 := newBuild(t, wsA, 1, instance)
+	a2 := newBuild(t, wsA, 2, instance)
+	a3 := newBuild(t, wsA, 3, instance)
+	b1 := newBuild(t, wsB, 1, instance)
+	b2 := newBuild(t, wsB, 2, instance)
+
+	// Sanity check: all agents start non-deleted.
+	require.False(t, agentDeleted(a1.agentID))
+	require.False(t, agentDeleted(a2.agentID))
+	require.False(t, agentDeleted(a3.agentID))
+	require.False(t, agentDeleted(b1.agentID))
+	require.False(t, agentDeleted(b2.agentID))
+
+	// Run: "wsA's current build is a3; soft-delete all other wsA agents."
+	err := db.SoftDeletePriorWorkspaceAgents(ctx, database.SoftDeletePriorWorkspaceAgentsParams{
+		WorkspaceID:    wsA,
+		CurrentBuildID: a3.buildID,
+	})
+	require.NoError(t, err)
+
+	assert.True(t, agentDeleted(a1.agentID), "wsA build 1 agent should be soft-deleted")
+	assert.True(t, agentDeleted(a2.agentID), "wsA build 2 agent should be soft-deleted")
+	assert.False(t, agentDeleted(a3.agentID), "wsA current build's agent must stay")
+	assert.False(t, agentDeleted(b1.agentID), "wsB build 1 agent must not be touched")
+	assert.False(t, agentDeleted(b2.agentID), "wsB build 2 agent must not be touched")
+
+	// Idempotency: re-running with the same params is a no-op.
+	err = db.SoftDeletePriorWorkspaceAgents(ctx, database.SoftDeletePriorWorkspaceAgentsParams{
+		WorkspaceID:    wsA,
+		CurrentBuildID: a3.buildID,
+	})
+	require.NoError(t, err)
+	assert.False(t, agentDeleted(a3.agentID))
+
+	// Now age wsB: new current build is b2; b1's agent should flip.
+	err = db.SoftDeletePriorWorkspaceAgents(ctx, database.SoftDeletePriorWorkspaceAgentsParams{
+		WorkspaceID:    wsB,
+		CurrentBuildID: b2.buildID,
+	})
+	require.NoError(t, err)
+	assert.True(t, agentDeleted(b1.agentID))
+	assert.False(t, agentDeleted(b2.agentID))
+}
+
+// TestSoftDeleteWorkspaceAgentsByWorkspaceID verifies the delete-path
+// invariant: when a workspace is soft-deleted, every one of its agents
+// (across all builds) gets soft-deleted in the same transaction. Agents on
+// *other* workspaces, even ones sharing an auth_instance_id, must be
+// untouched.
+func TestSoftDeleteWorkspaceAgentsByWorkspaceID(t *testing.T) {
+	t.Parallel()
+
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	type buildBundle struct {
+		workspaceID uuid.UUID
+		buildID     uuid.UUID
+		agentID     uuid.UUID
+	}
+
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	tpl := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	tplVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+
+	newBuild := func(t *testing.T, wsID uuid.UUID, buildNumber int32, instanceID string) buildBundle {
+		t.Helper()
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			OrganizationID: org.ID,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		})
+		build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			WorkspaceID:       wsID,
+			JobID:             job.ID,
+			TemplateVersionID: tplVersion.ID,
+			BuildNumber:       buildNumber,
+			Transition:        database.WorkspaceTransitionStart,
+		})
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: job.ID})
+		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID:     resource.ID,
+			AuthInstanceID: sql.NullString{String: instanceID, Valid: true},
+		})
+		return buildBundle{workspaceID: wsID, buildID: build.ID, agentID: agent.ID}
+	}
+
+	agentDeleted := func(id uuid.UUID) bool {
+		t.Helper()
+		var deleted bool
+		err := sqlDB.QueryRowContext(ctx,
+			`SELECT deleted FROM workspace_agents WHERE id = $1`, id).Scan(&deleted)
+		require.NoError(t, err)
+		return deleted
+	}
+
+	// wsA: 3 builds (so multiple agents to sweep on delete).
+	// wsB: 1 build, same auth_instance_id as wsA (proves scoping).
+	wsA := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		TemplateID:     tpl.ID,
+		OwnerID:        user.ID,
+	}).ID
+	wsB := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		TemplateID:     tpl.ID,
+		OwnerID:        user.ID,
+	}).ID
+	instance := "i-shared"
+
+	a1 := newBuild(t, wsA, 1, instance)
+	a2 := newBuild(t, wsA, 2, instance)
+	a3 := newBuild(t, wsA, 3, instance)
+	b1 := newBuild(t, wsB, 1, instance)
+
+	// Sanity: all 4 agents start non-deleted.
+	for _, id := range []uuid.UUID{a1.agentID, a2.agentID, a3.agentID, b1.agentID} {
+		require.False(t, agentDeleted(id))
+	}
+
+	err := db.SoftDeleteWorkspaceAgentsByWorkspaceID(ctx, wsA)
+	require.NoError(t, err)
+
+	// All wsA agents flipped; wsB's agent untouched.
+	assert.True(t, agentDeleted(a1.agentID), "wsA build 1 agent")
+	assert.True(t, agentDeleted(a2.agentID), "wsA build 2 agent")
+	assert.True(t, agentDeleted(a3.agentID), "wsA build 3 agent")
+	assert.False(t, agentDeleted(b1.agentID), "wsB agent must not be affected")
+
+	// Idempotency: re-running is a no-op.
+	err = db.SoftDeleteWorkspaceAgentsByWorkspaceID(ctx, wsA)
+	require.NoError(t, err)
+	assert.False(t, agentDeleted(b1.agentID))
+
+	// Calling on an empty workspace (no agents) is a no-op and does not error.
+	wsEmpty := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		TemplateID:     tpl.ID,
+		OwnerID:        user.ID,
+	}).ID
+	err = db.SoftDeleteWorkspaceAgentsByWorkspaceID(ctx, wsEmpty)
+	require.NoError(t, err)
+}

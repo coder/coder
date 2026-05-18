@@ -17,6 +17,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -1497,13 +1498,13 @@ func partsToMessageParts(
 				ProviderOptions: providerMetadataToOptions(logger, part.ProviderMetadata),
 			})
 		case codersdk.ChatMessagePartTypeReasoning:
-			// Same guard as text parts above.
-			if strings.TrimSpace(part.Text) == "" {
+			opts := providerMetadataToOptions(logger, part.ProviderMetadata)
+			if strings.TrimSpace(part.Text) == "" && !chatsanitize.HasAnthropicSignedReasoningOptions(opts) {
 				continue
 			}
 			result = append(result, fantasy.ReasoningPart{
 				Text:            part.Text,
-				ProviderOptions: providerMetadataToOptions(logger, part.ProviderMetadata),
+				ProviderOptions: opts,
 			})
 		case codersdk.ChatMessagePartTypeToolCall:
 			result = append(result, fantasy.ToolCallPart{

@@ -11,6 +11,7 @@ interface SyncModeSectionProps {
 	light: ConcreteThemeName;
 	dark: ConcreteThemeName;
 	activeScheme: "dark" | "light"; // The OS color scheme currently in effect
+	namePrefix?: string;
 	onSelect: (scheme: "light" | "dark", theme: ConcreteThemeName) => void;
 }
 
@@ -18,6 +19,7 @@ export const SyncModeSection: FC<SyncModeSectionProps> = ({
 	light,
 	dark,
 	activeScheme,
+	namePrefix = "theme-sync",
 	onSelect,
 }) => {
 	return (
@@ -27,6 +29,7 @@ export const SyncModeSection: FC<SyncModeSectionProps> = ({
 				scheme="light"
 				selected={light}
 				active={activeScheme === "light"}
+				name={`${namePrefix}-light`}
 				onSelect={(theme) => onSelect("light", theme)}
 			/>
 			<SyncCard
@@ -34,6 +37,7 @@ export const SyncModeSection: FC<SyncModeSectionProps> = ({
 				scheme="dark"
 				selected={dark}
 				active={activeScheme === "dark"}
+				name={`${namePrefix}-dark`}
 				onSelect={(theme) => onSelect("dark", theme)}
 			/>
 		</div>
@@ -44,6 +48,7 @@ interface SyncCardProps {
 	scheme: "light" | "dark";
 	selected: ConcreteThemeName;
 	active: boolean;
+	name: string;
 	onSelect: (theme: ConcreteThemeName) => void;
 }
 
@@ -51,6 +56,7 @@ const SyncCard: FC<SyncCardProps> = ({
 	scheme,
 	selected,
 	active,
+	name,
 	onSelect,
 }) => {
 	const [previewTheme, setPreviewTheme] = useState<
@@ -94,7 +100,7 @@ const SyncCard: FC<SyncCardProps> = ({
 					{SYNC_MODE_THEMES.map((theme) => (
 						<ThemeSwatch
 							key={theme}
-							name={`theme-sync-${scheme}`}
+							name={name}
 							theme={theme}
 							selected={theme === selected}
 							onSelect={() => onSelect(theme)}
