@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 
 # This script builds the ironbank Docker image of Coder containing the given
-# binary. Other dependencies will be automatically downloaded and cached.
+# binary. Terraform is built from source to control the Go toolchain version.
+# Other dependencies will be automatically downloaded and cached.
 #
 # Usage: ./build_ironbank.sh --target image_tag path/to/coder
 
@@ -34,7 +35,7 @@ if [[ "$image_tag" == "" ]]; then
 fi
 
 # Check dependencies
-dependencies docker sha256sum yq
+dependencies docker go sha256sum yq
 if [[ $(yq --version) != *" v4."* ]]; then
 	error "yq version 4 is required"
 fi
@@ -63,9 +64,10 @@ execrelative ../archive.sh \
 	"$input_file"
 
 # Download all resources in the hardening_manifest.yaml file except for
-# coder.tar.gz (which we will make ourselves).
+# coder.tar.gz (which we will make ourselves) and terraform-src.tar.gz
+# (which is handled separately below).
 manifest_path="$(dirname "${BASH_SOURCE[0]}")/hardening_manifest.yaml"
-resources="$(yq e '.resources[] | select(.filename != "coder.tar.gz") | [.filename, .url, .validation.value] | @tsv' "$manifest_path")"
+resources="$(yq e '.resources[] | select(.filename != "coder.tar.gz" and .filename != "terraform-src.tar.gz") | [.filename, .url, .validation.value] | @tsv' "$manifest_path")"
 while read -r line; do
 	filename="$(echo "$line" | cut -f1)"
 	url="$(echo "$line" | cut -f2)"
@@ -86,6 +88,63 @@ while read -r line; do
 	cp "$target" "$tmpdir/$filename"
 	popd
 done <<<"$resources"
+
+# Build Terraform from source to control the Go toolchain version.
+# This ensures the bundled Terraform binary uses Go 1.25.9+ to address
+# Go stdlib CVEs that affect pre-built HashiCorp binaries.
+terraform_src="$(yq e '.resources[] | select(.filename == "terraform-src.tar.gz") | [.url, .validation.value] | @tsv' "$manifest_path")"
+if [[ -n "$terraform_src" ]]; then
+	terraform_src_url="$(echo "$terraform_src" | cut -f1)"
+	terraform_src_sha256="$(echo "$terraform_src" | cut -f2)"
+
+	pushd "$(dirname "${BASH_SOURCE[0]}")"
+	terraform_src_cache=".terraform-src.tar.gz.${terraform_src_sha256}"
+	if [[ ! -f "$terraform_src_cache" ]]; then
+		log "Downloading Terraform source"
+		curl -sSL "$terraform_src_url" -o "$terraform_src_cache"
+	fi
+
+	sum="$(sha256sum "$terraform_src_cache" | cut -d' ' -f1)"
+	if [[ "$sum" != "$terraform_src_sha256" ]]; then
+		rm "$terraform_src_cache"
+		error "Downloaded Terraform source has hash $sum, but expected $terraform_src_sha256"
+	fi
+	popd
+
+	# Extract and build Terraform from source.
+	terraform_build_dir="$(mktemp -d)"
+	trap 'rm -rf "$tmpdir" "$terraform_build_dir"' EXIT
+	pushd "$(dirname "${BASH_SOURCE[0]}")"
+	tar -xzf "$terraform_src_cache" -C "$terraform_build_dir" --strip-components=1
+	popd
+
+	# Read the Go version from the Coder project's go.mod to ensure we use
+	# the same toolchain version for all binaries in the image.
+	coder_go_version="$(head -5 "$(dirname "${BASH_SOURCE[0]}")/../../go.mod" | grep '^go ' | awk '{print $2}')"
+	log "Building Terraform from source with Go ${coder_go_version}"
+
+	pushd "$terraform_build_dir"
+	GOTOOLCHAIN="go${coder_go_version}" CGO_ENABLED=0 \
+		go build \
+		-trimpath \
+		-ldflags="-s -w -X 'github.com/hashicorp/terraform/version.dev=no'" \
+		-o "$tmpdir/terraform" .
+	popd
+
+	# Verify the compiled binary uses the expected Go toolchain.
+	built_go_version="$(go version "$tmpdir/terraform" | grep -oP 'go[0-9]+\.[0-9]+\.[0-9]+')"
+	log "Terraform built with ${built_go_version}"
+
+	# Package as terraform.zip for the Dockerfile.
+	pushd "$tmpdir"
+	zip terraform.zip terraform
+	rm terraform
+	popd
+
+	rm -rf "$terraform_build_dir"
+else
+	error "terraform-src.tar.gz resource not found in hardening_manifest.yaml"
+fi
 
 terraform_coder_provider_version="$(yq e '.args.TERRAFORM_CODER_PROVIDER_VERSION' "$manifest_path")"
 if [[ "$terraform_coder_provider_version" == "" ]]; then
