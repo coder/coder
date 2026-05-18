@@ -3,6 +3,7 @@ package gitprovider
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -466,8 +467,7 @@ func (g *gitlabProvider) BuildPullRequestURL(ref PRRef) string {
 
 // wrapError converts library errors to our domain errors (e.g. rate limits).
 func (g *gitlabProvider) wrapError(err error, action string) error {
-	var errResp *gitlab.ErrorResponse
-	if xerrors.As(err, &errResp) {
+	if errResp, ok := errors.AsType[*gitlab.ErrorResponse](err); ok {
 		if errResp.Response != nil {
 			sc := errResp.Response.StatusCode
 			if sc == http.StatusForbidden || sc == http.StatusTooManyRequests {

@@ -245,8 +245,8 @@ func TestGitLabRateLimit(t *testing.T) {
 		)
 		require.Error(t, err)
 
-		var rlErr *gitprovider.RateLimitError
-		require.True(t, errors.As(err, &rlErr), "error should be *RateLimitError, got: %T", err)
+		rlErr, ok := errors.AsType[*gitprovider.RateLimitError](err)
+		require.True(t, ok, "error should be *RateLimitError, got: %T", err)
 
 		expected := time.Now().Add(120 * time.Second)
 		assert.WithinDuration(t, expected.Add(gitprovider.RateLimitPadding), rlErr.RetryAfter, 5*time.Second)
@@ -273,8 +273,8 @@ func TestGitLabRateLimit(t *testing.T) {
 		)
 		require.Error(t, err)
 
-		var rlErr *gitprovider.RateLimitError
-		require.True(t, errors.As(err, &rlErr), "error should be *RateLimitError, got: %T", err)
+		rlErr, ok := errors.AsType[*gitprovider.RateLimitError](err)
+		require.True(t, ok, "error should be *RateLimitError, got: %T", err)
 		assert.WithinDuration(t, resetTime.Add(gitprovider.RateLimitPadding), rlErr.RetryAfter, 5*time.Second)
 	})
 
@@ -297,8 +297,8 @@ func TestGitLabRateLimit(t *testing.T) {
 		)
 		require.Error(t, err)
 
-		var rlErr *gitprovider.RateLimitError
-		assert.False(t, errors.As(err, &rlErr), "error should NOT be *RateLimitError")
+		_, ok := errors.AsType[*gitprovider.RateLimitError](err)
+		assert.False(t, ok, "error should NOT be *RateLimitError")
 		assert.Contains(t, err.Error(), "403")
 	})
 }
