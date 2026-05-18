@@ -13,10 +13,10 @@ import (
 )
 
 type providerErrorDetails struct {
-	detail                string
-	statusCode            int
-	retryAfter            time.Duration
-	hadPreviousResponseID bool
+	detail      string
+	statusCode  int
+	retryAfter  time.Duration
+	requestBody []byte
 }
 
 func extractProviderErrorDetails(err error) providerErrorDetails {
@@ -26,10 +26,10 @@ func extractProviderErrorDetails(err error) providerErrorDetails {
 	}
 
 	return providerErrorDetails{
-		detail:                providerErrorDetail(providerErr),
-		statusCode:            providerErr.StatusCode,
-		retryAfter:            retryAfterFromHeaders(providerErr.ResponseHeaders),
-		hadPreviousResponseID: bytes.Contains(providerErr.RequestBody, []byte(`"previous_response_id"`)),
+		detail:      providerErrorDetail(providerErr),
+		statusCode:  providerErr.StatusCode,
+		retryAfter:  retryAfterFromHeaders(providerErr.ResponseHeaders),
+		requestBody: providerErr.RequestBody,
 	}
 }
 

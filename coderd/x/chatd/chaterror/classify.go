@@ -1,6 +1,7 @@
 package chaterror
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"strings"
@@ -362,7 +363,7 @@ func chainBrokenClassification(
 	statusCode int,
 	structured providerErrorDetails,
 ) (ClassifiedError, bool) {
-	if !(structured.hadPreviousResponseID && statusCode == 404) {
+	if !(bytes.Contains(structured.requestBody, []byte(`"previous_response_id"`)) && statusCode == 404) {
 		return ClassifiedError{}, false
 	}
 	// Chain mode with previous_response_id is an OpenAI Responses API
