@@ -1,5 +1,4 @@
 import {
-	CircleAlertIcon,
 	EyeIcon,
 	EyeOffIcon,
 	HourglassIcon,
@@ -16,6 +15,7 @@ import type {
 	PreviewParameterOption,
 	WorkspaceBuildParameter,
 } from "#/api/typesGenerated";
+import { Alert, AlertTitle } from "#/components/Alert/Alert";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
@@ -922,34 +922,19 @@ export const Diagnostics: FC<DiagnosticsProps> = ({ diagnostics }) => {
 	return (
 		<div className="flex flex-col gap-4">
 			{diagnostics.map((diagnostic, index) => (
-				<div
+				<Alert
 					key={`diagnostic-${diagnostic.summary}-${index}`}
-					className={cn(
-						"text-xs font-semibold flex flex-col rounded-md border px-3.5 py-3.5 border-solid",
-						diagnostic.severity === "error"
-							? "text-content-primary border-border-destructive bg-content-destructive/15"
-							: "text-content-primary border-border-warning bg-content-warning/15",
-					)}
+					severity={diagnostic.severity}
+					dismissible={diagnostic.severity === "warning"}
+					prominent={diagnostic.severity === "error"}
 				>
-					<div className="flex flex-row items-start">
-						{diagnostic.severity === "error" && (
-							<CircleAlertIcon
-								className="me-2 inline-flex shrink-0 text-content-destructive size-icon-sm"
-								aria-hidden="true"
-							/>
-						)}
-						{diagnostic.severity === "warning" && (
-							<TriangleAlertIcon
-								className="me-2 inline-flex shrink-0 text-content-warning size-icon-sm"
-								aria-hidden="true"
-							/>
-						)}
-						<div className="flex flex-col gap-3">
-							<p className="m-0">{diagnostic.summary}</p>
-							{diagnostic.detail && <p className="m-0">{diagnostic.detail}</p>}
-						</div>
-					</div>
-				</div>
+					<AlertTitle className="font-medium">{diagnostic.summary}</AlertTitle>
+					{diagnostic.detail && (
+						<ul className="m-0 mt-3 list-disc pl-5 text-sm">
+							<li>{diagnostic.detail}</li>
+						</ul>
+					)}
+				</Alert>
 			))}
 		</div>
 	);
