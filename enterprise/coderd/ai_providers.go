@@ -18,6 +18,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -85,7 +86,7 @@ func (api *API) aiProvidersList(rw http.ResponseWriter, r *http.Request) {
 
 	out := make([]codersdk.AIProvider, 0, len(rows))
 	for _, row := range rows {
-		sdk, err := dbAIProviderToSDK(row)
+		sdk, err := db2sdk.AIProvider(row)
 		if err != nil {
 			api.Logger.Error(ctx, "convert AI provider", slog.F("id", row.ID), slog.Error(err))
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -116,7 +117,7 @@ func (api *API) aiProvidersGet(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sdk, err := dbAIProviderToSDK(row)
+	sdk, err := db2sdk.AIProvider(row)
 	if err != nil {
 		api.Logger.Error(ctx, "convert AI provider", slog.F("id", row.ID), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -207,7 +208,7 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 	}
 	aReq.New = row
 
-	sdk, err := dbAIProviderToSDK(row)
+	sdk, err := db2sdk.AIProvider(row)
 	if err != nil {
 		api.Logger.Error(ctx, "convert AI provider", slog.F("id", row.ID), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -273,7 +274,7 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 
 		// Decode the existing settings to merge with the patch. The dbcrypt
 		// wrapper has already decrypted the blob for us.
-		existing, err := decodeAIProviderSettings(old.Settings)
+		existing, err := db2sdk.AIProviderSettings(old.Settings)
 		if err != nil {
 			return xerrors.Errorf("decode existing settings: %w", err)
 		}
@@ -306,7 +307,7 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sdk, err := dbAIProviderToSDK(updated)
+	sdk, err := db2sdk.AIProvider(updated)
 	if err != nil {
 		api.Logger.Error(ctx, "convert AI provider", slog.F("id", updated.ID), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -570,7 +571,7 @@ func writeAIProviderLookupError(ctx context.Context, logger slog.Logger, rw http
 // Bedrock discriminator. Malformed JSON is treated as "not Bedrock"
 // because a row that cannot be decoded cannot be served either way.
 func isBedrockProvider(row database.AIProvider) bool {
-	s, err := decodeAIProviderSettings(row.Settings)
+	s, err := db2sdk.AIProviderSettings(row.Settings)
 	if err != nil {
 		return false
 	}
@@ -649,46 +650,6 @@ func validateAIProviderBaseURL(raw string) []codersdk.ValidationError {
 	return validations
 }
 
-// dbAIProviderToSDK converts a database row into the codersdk type. The
-// caller is responsible for ensuring the row has been decrypted (i.e.
-// fetched through the dbcrypt-wrapped store).
-func dbAIProviderToSDK(row database.AIProvider) (codersdk.AIProvider, error) {
-	display := row.Name
-	if row.DisplayName.Valid && row.DisplayName.String != "" {
-		display = row.DisplayName.String
-	}
-	out := codersdk.AIProvider{
-		ID:          row.ID,
-		Type:        codersdk.AIProviderType(row.Type),
-		Name:        row.Name,
-		DisplayName: display,
-		Enabled:     row.Enabled,
-		BaseURL:     row.BaseUrl,
-		CreatedAt:   row.CreatedAt,
-		UpdatedAt:   row.UpdatedAt,
-	}
-	s, err := decodeAIProviderSettings(row.Settings)
-	if err != nil {
-		return codersdk.AIProvider{}, xerrors.Errorf("decode settings: %w", err)
-	}
-	out.Settings = redactAIProviderSettings(s)
-	return out, nil
-}
-
-// redactAIProviderSettings strips write-only fields from a settings
-// value so it can be safely echoed back in API responses.
-func redactAIProviderSettings(s codersdk.AIProviderSettings) codersdk.AIProviderSettings {
-	out := s
-	if out.Bedrock != nil {
-		// Deep-copy so we don't mutate the caller's struct.
-		b := *out.Bedrock
-		b.AccessKey = ""
-		b.AccessKeySecret = ""
-		out.Bedrock = &b
-	}
-	return out
-}
-
 // dbAIProviderKeyToSDK converts an ai_provider_keys row into the codersdk
 // shape. The plaintext api_key is intentionally not included.
 func dbAIProviderKeyToSDK(row database.AIProviderKey) codersdk.AIProviderKey {
@@ -713,20 +674,6 @@ func encodeAIProviderSettings(s codersdk.AIProviderSettings) (sql.NullString, er
 		return sql.NullString{}, err
 	}
 	return sql.NullString{String: string(out), Valid: true}, nil
-}
-
-// decodeAIProviderSettings parses the on-disk JSON form back into a
-// codersdk settings value. SQL NULL and the empty string decode to the
-// zero value.
-func decodeAIProviderSettings(col sql.NullString) (codersdk.AIProviderSettings, error) {
-	if !col.Valid || col.String == "" {
-		return codersdk.AIProviderSettings{}, nil
-	}
-	var s codersdk.AIProviderSettings
-	if err := json.Unmarshal([]byte(col.String), &s); err != nil {
-		return codersdk.AIProviderSettings{}, err
-	}
-	return s, nil
 }
 
 // mergeAIProviderSettings overlays a patch onto an existing settings

@@ -42,6 +42,61 @@ func APIAllowListTarget(entry rbac.AllowListElement) codersdk.APIAllowListTarget
 	}
 }
 
+// AIProvider converts a database row into the codersdk type. The caller
+// is responsible for ensuring the row has been decrypted (i.e. fetched
+// through the dbcrypt-wrapped store). Write-only fields on Settings are
+// stripped so the result is safe to echo back in API responses.
+func AIProvider(row database.AIProvider) (codersdk.AIProvider, error) {
+	display := row.Name
+	if row.DisplayName.Valid && row.DisplayName.String != "" {
+		display = row.DisplayName.String
+	}
+	out := codersdk.AIProvider{
+		ID:          row.ID,
+		Type:        codersdk.AIProviderType(row.Type),
+		Name:        row.Name,
+		DisplayName: display,
+		Enabled:     row.Enabled,
+		BaseURL:     row.BaseUrl,
+		CreatedAt:   row.CreatedAt,
+		UpdatedAt:   row.UpdatedAt,
+	}
+	s, err := AIProviderSettings(row.Settings)
+	if err != nil {
+		return codersdk.AIProvider{}, xerrors.Errorf("decode settings: %w", err)
+	}
+	out.Settings = redactAIProviderSettings(s)
+	return out, nil
+}
+
+// AIProviderSettings parses the on-disk JSON form back into a codersdk
+// settings value. SQL NULL and the empty string decode to the zero
+// value.
+func AIProviderSettings(col sql.NullString) (codersdk.AIProviderSettings, error) {
+	if !col.Valid || col.String == "" {
+		return codersdk.AIProviderSettings{}, nil
+	}
+	var s codersdk.AIProviderSettings
+	if err := json.Unmarshal([]byte(col.String), &s); err != nil {
+		return codersdk.AIProviderSettings{}, err
+	}
+	return s, nil
+}
+
+// redactAIProviderSettings strips write-only fields from a settings
+// value so it can be safely echoed back in API responses.
+func redactAIProviderSettings(s codersdk.AIProviderSettings) codersdk.AIProviderSettings {
+	out := s
+	if out.Bedrock != nil {
+		// Deep-copy so we don't mutate the caller's struct.
+		b := *out.Bedrock
+		b.AccessKey = ""
+		b.AccessKeySecret = ""
+		out.Bedrock = &b
+	}
+	return out
+}
+
 type ExternalAuthMeta struct {
 	Authenticated bool
 	ValidateError string
