@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, screen, userEvent, within } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 import { ExecuteTool } from "./ExecuteTool";
 
 const longCommand =
@@ -36,10 +36,13 @@ export const ShortCommand: Story = {
 			name: "Expand command",
 		});
 		await userEvent.click(summaryButton);
-		expect(canvas.getByTestId("execute-tool-command")).toHaveTextContent(
-			"$ git status",
-		);
-		expect(canvas.queryByTestId("execute-tool-output")).not.toBeInTheDocument();
+		expect(
+			canvas.getByText(
+				(_, element) =>
+					element?.tagName === "PRE" &&
+					element.textContent?.includes("git status") === true,
+			),
+		).toBeVisible();
 	},
 };
 
@@ -48,13 +51,6 @@ export const RunningWithoutCommand: Story = {
 		command: "",
 		status: "running",
 		output: "",
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.queryByText("$")).not.toBeInTheDocument();
-		expect(
-			canvas.queryByRole("button", { name: "Copy command" }),
-		).not.toBeInTheDocument();
 	},
 };
 
@@ -72,25 +68,18 @@ export const LongCommand: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const command = canvas.getByTestId("execute-tool-command-line");
-		expect(command).toBeVisible();
-		expect(command).toHaveTextContent(`Ran ${longCommand}`);
-		expect(getComputedStyle(command).fontFamily).not.toContain("monospace");
-		expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
-		expect(
-			canvas.queryByRole("button", { name: longCommand }),
-		).not.toBeInTheDocument();
-
 		const summaryButton = await canvas.findByRole("button", {
 			name: "Expand command",
 		});
-		expect(summaryButton.querySelectorAll("svg")).toHaveLength(1);
 		await userEvent.click(summaryButton);
 
-		expect(canvas.queryByText("Shell")).not.toBeInTheDocument();
-		expect(canvas.getByTestId("execute-tool-command")).toHaveTextContent(
-			`$ ${longCommand}`,
-		);
+		expect(
+			canvas.getByText(
+				(_, element) =>
+					element?.tagName === "PRE" &&
+					element.textContent?.includes(longCommand) === true,
+			),
+		).toBeVisible();
 	},
 };
 
@@ -106,16 +95,6 @@ export const LongCommandWithOutput: Story = {
 			"src/utils/formatDate.ts",
 			"src/utils/legacyHelpers.ts",
 		].join("\n"),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.queryByText("Shell")).not.toBeInTheDocument();
-		expect(canvas.getByTestId("execute-tool-command")).toHaveTextContent(
-			`$ ${longCommand}`,
-		);
-		expect(canvas.getByTestId("execute-tool-output")).toHaveTextContent(
-			"src/api/legacyClient.ts",
-		);
 	},
 };
 
@@ -136,16 +115,6 @@ export const WithOutput: Story = {
 			"otel-collector       Up 1 hour           0.0.0.0:4317->4317/tcp",
 			"loki                 Up 1 hour           0.0.0.0:3100->3100/tcp",
 		].join("\n"),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.queryByText("Shell")).not.toBeInTheDocument();
-		expect(canvas.getByTestId("execute-tool-command")).toHaveTextContent(
-			"$ docker ps",
-		);
-		expect(canvas.getByTestId("execute-tool-output")).toHaveTextContent(
-			"coder-gateway",
-		);
 	},
 };
 

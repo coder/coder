@@ -78,17 +78,10 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 	outputInitiallyOpen,
 }) => {
 	const hasCommand = command.trim().length > 0;
-	const hasOutput = output.length > 0;
 	const isRunning = status === "running";
 	const showFailureIndicator = isError && !isRunning;
 	const [outputOpen, setOutputOpen] = useState(outputInitiallyOpen);
-	const outputToggleLabel = outputOpen
-		? hasOutput
-			? "Collapse command output"
-			: "Collapse command"
-		: hasOutput
-			? "Expand command output"
-			: "Expand command";
+	const outputToggleLabel = outputOpen ? "Collapse command" : "Expand command";
 	const durationLabel = formatShellDurationMs(durationMs);
 
 	if (!hasCommand) {
@@ -179,10 +172,7 @@ const ShellCommandLine: React.FC<{
 }> = ({ command, durationLabel, expanded }) => {
 	return (
 		<>
-			<span
-				data-testid="execute-tool-command-line"
-				className="block min-w-0 truncate text-[13px] font-normal text-current"
-			>
+			<span className="block min-w-0 truncate text-[13px] font-normal text-current">
 				Ran {command}
 			</span>
 			{durationLabel && (
@@ -214,10 +204,7 @@ const ShellTranscriptBody: React.FC<{
 			scrollBarClassName="w-1.5"
 		>
 			<div className="px-3 py-2.5">
-				<pre
-					data-testid="execute-tool-command"
-					className="m-0 whitespace-pre-wrap break-words border-0 bg-transparent p-0 font-mono text-xs font-semibold leading-5 text-content-primary"
-				>
+				<pre className="m-0 whitespace-pre-wrap break-words border-0 bg-transparent p-0 font-mono text-xs font-semibold leading-5 text-content-primary">
 					<span aria-hidden className="select-none">
 						$
 					</span>{" "}
@@ -225,7 +212,6 @@ const ShellTranscriptBody: React.FC<{
 				</pre>
 				{output.length > 0 && (
 					<pre
-						data-testid="execute-tool-output"
 						className={cn(
 							"m-0 mt-4 whitespace-pre-wrap break-words border-0 bg-transparent p-0 font-mono text-xs font-normal leading-5",
 							isError ? "text-content-destructive" : "text-content-secondary",
