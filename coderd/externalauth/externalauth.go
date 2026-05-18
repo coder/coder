@@ -117,9 +117,10 @@ type Config struct {
 	CodeChallengeMethodsSupported []promoauth.Oauth2PKCEChallengeMethod
 }
 
-// Git returns a Provider for this config if the provider type
-// is a supported git hosting provider. Returns nil for non-git
-// providers (e.g. Slack, JFrog).
+// Git returns a Provider for this config if the provider type is a
+// supported git hosting provider. Returns (nil, nil) for non-git
+// providers (e.g. Slack, JFrog). Returns a non-nil error if provider
+// construction fails.
 func (c *Config) Git(client *http.Client) (gitprovider.Provider, error) {
 	norm := strings.ToLower(c.Type)
 	if !codersdk.EnhancedExternalAuthProvider(norm).Git() {

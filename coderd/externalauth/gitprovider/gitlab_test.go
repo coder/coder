@@ -1,7 +1,6 @@
 package gitprovider_test
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -40,7 +39,7 @@ func TestGitLabFetchPullRequestStatus(t *testing.T) {
 		require.NoError(t, err)
 
 		status, err := gp.FetchPullRequestStatus(
-			context.Background(),
+			t.Context(),
 			"token",
 			gitprovider.PRRef{Owner: "owner", Repo: "repo", Number: 1},
 		)
@@ -66,7 +65,7 @@ func TestGitLabFetchPullRequestDiff(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = gp.FetchPullRequestDiff(
-			context.Background(),
+			t.Context(),
 			"test-token",
 			gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 1},
 		)
@@ -100,7 +99,7 @@ func TestGitLabFetchBranchDiff(t *testing.T) {
 		require.NoError(t, err)
 
 		diff, err := gp.FetchBranchDiff(
-			context.Background(),
+			t.Context(),
 			"token",
 			gitprovider.BranchRef{Owner: "owner", Repo: "repo", Branch: "feat"},
 		)
@@ -123,7 +122,7 @@ func TestGitLabFetchBranchDiff(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = gp.FetchBranchDiff(
-			context.Background(),
+			t.Context(),
 			"test-token",
 			gitprovider.BranchRef{Owner: "owner", Repo: "repo", Branch: "feat"},
 		)
@@ -155,7 +154,7 @@ func TestGitLabResolveBranchPullRequest(t *testing.T) {
 		require.NoError(t, err)
 
 		prRef, err := gp.ResolveBranchPullRequest(
-			context.Background(),
+			t.Context(),
 			"token",
 			gitprovider.BranchRef{Owner: "owner", Repo: "repo", Branch: "feat"},
 		)
@@ -178,7 +177,7 @@ func TestGitLabResolveBranchPullRequest(t *testing.T) {
 		require.NoError(t, err)
 
 		prRef, err := gp.ResolveBranchPullRequest(
-			context.Background(),
+			t.Context(),
 			"test-token",
 			gitprovider.BranchRef{Owner: "owner", Repo: "repo", Branch: ""},
 		)
@@ -204,7 +203,7 @@ func TestGitLabRateLimit(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = gp.FetchPullRequestStatus(
-			context.Background(),
+			t.Context(),
 			"test-token",
 			gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 1},
 		)
@@ -232,7 +231,7 @@ func TestGitLabRateLimit(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = gp.FetchPullRequestStatus(
-			context.Background(),
+			t.Context(),
 			"test-token",
 			gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 1},
 		)
@@ -256,7 +255,7 @@ func TestGitLabRateLimit(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = gp.FetchPullRequestStatus(
-			context.Background(),
+			t.Context(),
 			"bad-token",
 			gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 1},
 		)
@@ -308,4 +307,32 @@ func TestGitLabSelfHosted(t *testing.T) {
 		result := gp.BuildPullRequestURL(gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 42})
 		assert.Equal(t, "https://gitlab.corp.com/org/repo/-/merge_requests/42", result)
 	})
+}
+
+func TestGitLabCompareTimeout(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v4/projects/owner%2Frepo", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id": 1, "path_with_namespace": "owner/repo", "default_branch": "main"}`))
+	})
+	mux.HandleFunc("/api/v4/projects/owner%2Frepo/repository/compare", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"compare_timeout": true, "diffs": [], "commits": []}`))
+	})
+
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	gp, err := gitprovider.New("gitlab", srv.URL, srv.Client())
+	require.NoError(t, err)
+
+	_, err = gp.FetchBranchDiff(t.Context(), "test-token", gitprovider.BranchRef{
+		Owner:  "owner",
+		Repo:   "repo",
+		Branch: "feature-branch",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "timed out")
 }

@@ -3950,7 +3950,7 @@ func (api *API) resolveChatDiffContents(
 		return result, nil
 	}
 
-	gp := api.resolveGitProvider(reference.RepositoryRef.RemoteOrigin)
+	gp := api.resolveGitProvider(ctx, reference.RepositoryRef.RemoteOrigin)
 	if gp == nil {
 		return result, nil
 	}
@@ -4008,13 +4008,13 @@ func (api *API) resolveChatDiffReference(
 
 	// Build the repository ref from the stored git branch/origin
 	// that the agent reported.
-	reference.RepositoryRef = api.buildChatRepositoryRefFromStatus(status)
+	reference.RepositoryRef = api.buildChatRepositoryRefFromStatus(ctx, status)
 
 	// If we have a repo ref with a branch, try to resolve the
 	// current open PR. This picks up new PRs after the previous
 	// one was closed.
 	if reference.RepositoryRef != nil && reference.RepositoryRef.Owner != "" {
-		gp := api.resolveGitProvider(reference.RepositoryRef.RemoteOrigin)
+		gp := api.resolveGitProvider(ctx, reference.RepositoryRef.RemoteOrigin)
 		if gp != nil {
 			token, err := api.resolveChatGitAccessToken(ctx, chat.OwnerID, reference.RepositoryRef.RemoteOrigin)
 			if token == nil || errors.Is(err, gitsync.ErrNoTokenAvailable) {
@@ -4070,14 +4070,14 @@ func (api *API) resolveChatDiffReference(
 // buildChatRepositoryRefFromStatus constructs a chatRepositoryRef
 // from the git branch and remote origin stored in the cached status.
 // Returns nil if no ref data is available.
-func (api *API) buildChatRepositoryRefFromStatus(status database.ChatDiffStatus) *chatRepositoryRef {
+func (api *API) buildChatRepositoryRefFromStatus(ctx context.Context, status database.ChatDiffStatus) *chatRepositoryRef {
 	branch := strings.TrimSpace(status.GitBranch)
 	origin := strings.TrimSpace(status.GitRemoteOrigin)
 	if branch == "" || origin == "" {
 		return nil
 	}
 
-	providerType, gp := api.resolveExternalAuth(origin)
+	providerType, gp := api.resolveExternalAuth(ctx, origin)
 	repoRef := &chatRepositoryRef{
 		Provider:     providerType,
 		RemoteOrigin: origin,
@@ -4146,7 +4146,7 @@ func (api *API) getCachedChatDiffStatus(
 // given remote origin URL and returns both the provider type string
 // (e.g. "github") and the gitprovider.Provider. Returns ("", nil)
 // if no matching config is found.
-func (api *API) resolveExternalAuth(origin string) (providerType string, gp gitprovider.Provider) {
+func (api *API) resolveExternalAuth(ctx context.Context, origin string) (providerType string, gp gitprovider.Provider) {
 	origin = strings.TrimSpace(origin)
 	if origin == "" {
 		return "", nil
@@ -4156,7 +4156,15 @@ func (api *API) resolveExternalAuth(origin string) (providerType string, gp gitp
 			continue
 		}
 		p, err := extAuth.Git(api.HTTPClient)
-		if err != nil || p == nil {
+		if err != nil {
+			api.Logger.Warn(ctx, "failed to construct git provider",
+				slog.F("provider_id", extAuth.ID),
+				slog.F("provider_type", extAuth.Type),
+				slog.Error(err),
+			)
+			continue
+		}
+		if p == nil {
 			continue
 		}
 		return strings.ToLower(strings.TrimSpace(extAuth.Type)), p
@@ -4167,8 +4175,8 @@ func (api *API) resolveExternalAuth(origin string) (providerType string, gp gitp
 // resolveGitProvider finds the external auth config matching the
 // given remote origin URL and returns its git provider. Returns
 // nil if no matching git provider is configured.
-func (api *API) resolveGitProvider(origin string) gitprovider.Provider {
-	_, gp := api.resolveExternalAuth(origin)
+func (api *API) resolveGitProvider(ctx context.Context, origin string) gitprovider.Provider {
+	_, gp := api.resolveExternalAuth(ctx, origin)
 	return gp
 }
 

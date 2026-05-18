@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -38,7 +39,7 @@ func newGitLab(baseURL string, httpClient *http.Client, clock quartz.Clock) (*gi
 		gitlab.WithoutRetries(),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("create gitlab client: %w", err)
+		return nil, xerrors.Errorf("create gitlab client: %w", err)
 	}
 
 	return &gitlabProvider{
@@ -112,7 +113,9 @@ func (g *gitlabProvider) FetchPullRequestStatus(
 	// TODO(CODAGT-440): These fields have semantic gaps vs the GitHub
 	// provider. GitLab's "Approved" is threshold-based (not "at least one
 	// approval and no changes requested"), ChangesRequested has no GitLab
-	// equivalent, and ReviewerCount only counts approvers.
+	// equivalent, ReviewerCount only counts approvers, and
+	// Additions/Deletions/Commits are unavailable from the MR endpoint
+	// without additional API calls.
 	reviewerCount := int32(len(approvals.ApprovedBy))
 
 	var authorLogin, authorAvatarURL string
@@ -188,17 +191,42 @@ func (g *gitlabProvider) FetchPullRequestDiff(
 	ref PRRef,
 ) (string, error) {
 	pid := projectPath(ref.Owner, ref.Repo)
-	opts := reqOpts(ctx, token)
 
-	rawDiff, _, err := g.client.MergeRequests.ShowMergeRequestRawDiffs(pid, int64(ref.Number), nil, opts...)
+	// Make a direct HTTP request instead of using the library's
+	// ShowMergeRequestRawDiffs, which reads the entire response
+	// into memory before returning. We use io.LimitReader to
+	// bound memory and reject diffs exceeding MaxDiffSize.
+	rawURL := fmt.Sprintf("%sprojects/%s/merge_requests/%d/raw_diffs",
+		g.client.BaseURL().String(), url.PathEscape(pid), ref.Number)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	if err != nil {
+		return "", g.wrapError(err, "create raw diffs request")
+	}
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+
+	resp, err := g.client.HTTPClient().Do(req)
 	if err != nil {
 		return "", g.wrapError(err, "get merge request raw diffs")
 	}
+	defer resp.Body.Close()
 
-	if len(rawDiff) > MaxDiffSize {
+	if resp.StatusCode != http.StatusOK {
+		return "", g.wrapError(
+			xerrors.Errorf("unexpected status %d", resp.StatusCode),
+			"get merge request raw diffs",
+		)
+	}
+
+	buf, err := io.ReadAll(io.LimitReader(resp.Body, MaxDiffSize+1))
+	if err != nil {
+		return "", g.wrapError(err, "read merge request raw diffs")
+	}
+	if len(buf) > MaxDiffSize {
 		return "", ErrDiffTooLarge
 	}
-	return string(rawDiff), nil
+	return string(buf), nil
 }
 
 func (g *gitlabProvider) FetchBranchDiff(
@@ -370,7 +398,7 @@ func (g *gitlabProvider) ParsePullRequestURL(raw string) (PRRef, bool) {
 func (g *gitlabProvider) NormalizePullRequestURL(raw string) string {
 	ref, ok := g.ParsePullRequestURL(strings.TrimRight(
 		strings.TrimSpace(raw),
-		"),.",
+		"),;.",
 	))
 	if !ok {
 		return ""

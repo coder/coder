@@ -737,7 +737,8 @@ func TestGitLabIntegration(t *testing.T) {
 				require.NoError(t, err)
 				if tt.expectNil {
 					assert.Nil(t, ref)
-				} else if ref != nil {
+				} else {
+					require.NotNil(t, ref)
 					assert.Equal(t, tt.ref.Owner, ref.Owner)
 					assert.Equal(t, tt.ref.Repo, ref.Repo)
 					assert.Greater(t, ref.Number, 0)

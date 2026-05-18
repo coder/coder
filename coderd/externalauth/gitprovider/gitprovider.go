@@ -173,8 +173,8 @@ type Provider interface {
 }
 
 // New creates a Provider for the given provider type and API base
-// URL. Returns nil if the provider type is not a supported git
-// provider.
+// URL. Returns (nil, nil) for unsupported provider types and a
+// non-nil error if construction fails.
 func New(providerType string, apiBaseURL string, httpClient *http.Client, opts ...Option) (Provider, error) {
 	o := providerOptions{}
 	for _, opt := range opts {
