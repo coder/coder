@@ -298,6 +298,66 @@ export interface AIConfig {
 	readonly chat?: ChatConfig;
 }
 
+// From codersdk/aiproviders.go
+/**
+ * AIProvider represents an AI provider configuration row as returned
+ * by the API. API keys are stored in a separate ai_provider_keys
+ * table and managed via the keys sub-endpoints; secret fields on
+ * Settings are never included in responses.
+ */
+export interface AIProvider {
+	readonly id: string;
+	readonly type: AIProviderType;
+	readonly name: string;
+	readonly display_name: string;
+	readonly enabled: boolean;
+	readonly base_url: string;
+	readonly settings: AIProviderSettings;
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
+// From codersdk/aiproviders_bedrock.go
+/**
+ * AIProviderBedrockSettings configures providers that authenticate
+ * against AWS Bedrock. AccessKey and AccessKeySecret are write-only:
+ * servers strip them from GET and list responses.
+ */
+export interface AIProviderBedrockSettings {
+	/**
+	 * Region is the AWS region used to construct the Bedrock endpoint
+	 * URL when BaseURL is not set on the parent provider.
+	 */
+	readonly region?: string;
+	/**
+	 * Model is the AWS Bedrock model identifier used for primary
+	 * requests.
+	 */
+	readonly model?: string;
+	/**
+	 * SmallFastModel is the AWS Bedrock model identifier used for
+	 * background tasks (e.g. Claude Code's haiku-class model).
+	 */
+	readonly small_fast_model?: string;
+	/**
+	 * AccessKey is the AWS access key ID used to authenticate against
+	 * Bedrock. Write-only.
+	 */
+	readonly access_key?: string;
+	/**
+	 * AccessKeySecret is the AWS secret access key paired with
+	 * AccessKey. Write-only.
+	 */
+	readonly access_key_secret?: string;
+}
+
+// From codersdk/aiproviders_bedrock.go
+/**
+ * AIProviderBedrockSettingsVersion is the current schema version of
+ * AIProviderBedrockSettings.
+ */
+export const AIProviderBedrockSettingsVersion = 1;
+
 // From codersdk/deployment.go
 /**
  * AIProviderConfig represents a single AI provider instance,
@@ -326,6 +386,47 @@ export interface AIProviderConfig {
 	readonly bedrock_model?: string;
 	readonly bedrock_small_fast_model?: string;
 }
+
+// From codersdk/aiproviders.go
+/**
+ * AIProviderKey represents a single API key registered against an
+ * AI provider, as returned by the API. The plaintext APIKey is
+ * write-only and never included in responses.
+ */
+export interface AIProviderKey {
+	readonly id: string;
+	readonly provider_id: string;
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
+// From codersdk/aiproviders.go
+/**
+ * AIProviderSettings is the discriminated container for type-specific
+ * provider settings stored in ai_providers.settings. Providers that
+ * need no type-specific configuration (current OpenAI and standard
+ * Anthropic flows) leave every field nil; the wire form for those
+ * providers is JSON null.
+ *
+ * On the wire, settings serialize as a JSON object that always carries
+ * _type and _version discriminator keys alongside the type-specific
+ * fields. The custom (Un)MarshalJSON implementations on this type
+ * handle the routing automatically; callers should never marshal the
+ * concrete settings struct directly.
+ */
+export interface AIProviderSettings {}
+
+// From codersdk/aiproviders_bedrock.go
+/**
+ * AIProviderSettingsTypeBedrock is the _type discriminator value for
+ * AIProviderBedrockSettings.
+ */
+export const AIProviderSettingsTypeBedrock = "bedrock";
+
+// From codersdk/aiproviders.go
+export type AIProviderType = "anthropic" | "openai";
+
+export const AIProviderTypes: AIProviderType[] = ["anthropic", "openai"];
 
 // From codersdk/allowlist.go
 /**
@@ -2976,6 +3077,34 @@ export interface ConvertLoginRequest {
 	 */
 	readonly to_type: LoginType;
 	readonly password: string;
+}
+
+// From codersdk/aiproviders.go
+/**
+ * CreateAIProviderKeyRequest is the payload for adding an API key to
+ * an AI provider. Only meaningful for openai and anthropic providers;
+ * Bedrock providers reject this call because they use the access
+ * credentials stored in Settings.
+ */
+export interface CreateAIProviderKeyRequest {
+	readonly api_key: string;
+}
+
+// From codersdk/aiproviders.go
+/**
+ * CreateAIProviderRequest is the payload for creating a new AI
+ * provider. Name, Type, and BaseURL are required. API keys for
+ * OpenAI/Anthropic providers are added via the keys sub-endpoint
+ * after the provider is created; Bedrock providers carry their
+ * credentials in Settings and do not use the keys sub-endpoint.
+ */
+export interface CreateAIProviderRequest {
+	readonly type: AIProviderType;
+	readonly name: string;
+	readonly display_name?: string;
+	readonly enabled: boolean;
+	readonly base_url: string;
+	readonly settings?: AIProviderSettings;
 }
 
 // From codersdk/chats.go
@@ -8042,6 +8171,20 @@ export interface TraceConfig {
 export interface TransitionStats {
 	readonly P50: number | null;
 	readonly P95: number | null;
+}
+
+// From codersdk/aiproviders.go
+/**
+ * UpdateAIProviderRequest is the payload for partially updating an
+ * AI provider. At least one field must be non-nil. Pointer fields
+ * distinguish "not sent" (nil) from "set to empty/zero" (a pointer
+ * to the zero value).
+ */
+export interface UpdateAIProviderRequest {
+	readonly display_name?: string;
+	readonly enabled?: boolean;
+	readonly base_url?: string;
+	readonly settings?: AIProviderSettings;
 }
 
 // From codersdk/templates.go
