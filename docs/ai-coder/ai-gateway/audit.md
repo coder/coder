@@ -109,6 +109,7 @@ session data is kept.
 
 ## Next steps
 
-- [Monitoring](./monitoring.md) — Dashboards, data export, and tracing
-- [Setup](./setup.md) — Configure AI Gateway and data retention
-- [Reference](./reference.md) — API and technical reference
+- [Monitoring](./monitoring.md): Dashboards, data export, and tracing
+- [Setup](./setup.md): Configure AI Gateway and data retention
+- [Authentication](./auth.md): Token format, auth paths, and credential modes
+- [Reference](./reference.md): API and technical reference

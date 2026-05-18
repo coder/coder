@@ -1141,6 +1141,11 @@
 									"path": "./ai-coder/ai-gateway/setup.md"
 								},
 								{
+									"title": "Authentication",
+									"description": "How clients authenticate to AI Gateway, token format, auth paths, and credential modes",
+									"path": "./ai-coder/ai-gateway/auth.md"
+								},
+								{
 									"title": "Client Configuration",
 									"description": "How to configure your AI coding tools to use AI Gateway",
 									"path": "./ai-coder/ai-gateway/clients/index.md",

@@ -305,3 +305,9 @@ indicates the kind of event captured:
 | `prompt_usage`       | The last user prompt in a request.      | `interception_id`, `prompt`, `created_at`                                      |
 | `tool_usage`         | A tool/function call made by the model. | `interception_id`, `tool`, `input`, `server_url`, `injected`, `created_at`     |
 | `model_thought`      | Model reasoning or thinking content.    | `interception_id`, `content`, `created_at`                                     |
+
+## Next steps
+
+- [Authentication](./auth.md): Token format, auth paths, and credential modes
+- [Client Configuration](./clients/index.md): Configure individual AI coding tools
+- [Auditing AI Sessions](./audit.md): Review session records and attribution
