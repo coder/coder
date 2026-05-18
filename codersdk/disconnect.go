@@ -21,6 +21,9 @@ func SlogDisconnectDetail(detail string) slog.Field {
 type DisconnectReason string
 
 func (r DisconnectReason) SlogField() slog.Field {
+	if r == "" {
+		return slog.F("disconnect_reason", "unknown")
+	}
 	return slog.F("disconnect_reason", r)
 }
 
