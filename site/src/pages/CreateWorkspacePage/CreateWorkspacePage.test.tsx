@@ -198,7 +198,7 @@ describe("CreateWorkspacePage", () => {
 
 			await waitFor(() => {
 				expect(screen.queryByText("CPU Count")).toBeInTheDocument();
-				expect(screen.queryByText("Instance Type")).not.toBeInTheDocument();
+				expect(screen.queryByText("Instance type")).not.toBeInTheDocument();
 			});
 		});
 
@@ -242,7 +242,7 @@ describe("CreateWorkspacePage", () => {
 			});
 
 			await waitFor(() => {
-				expect(screen.getByText("Instance Type")).toBeInTheDocument();
+				expect(screen.getByText("Instance type")).toBeInTheDocument();
 				expect(screen.queryByText("CPU Count")).not.toBeInTheDocument();
 			});
 		});

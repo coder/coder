@@ -92,7 +92,7 @@ const expectSecretsTable = async (
 				: `${missingCount} required secrets are missing.`,
 		);
 
-		const addSecretLinks = canvas.getAllByRole("link", { name: "Add Secret" });
+		const addSecretLinks = canvas.getAllByRole("link", { name: "Add secret" });
 		expect(addSecretLinks).toHaveLength(missingCount);
 		for (const link of addSecretLinks) {
 			expect(link).toHaveAttribute(
@@ -105,7 +105,7 @@ const expectSecretsTable = async (
 	}
 
 	expect(canvas.queryByRole("status")).toBeNull();
-	expect(canvas.queryByRole("link", { name: "Add Secret" })).toBeNull();
+	expect(canvas.queryByRole("link", { name: "Add secret" })).toBeNull();
 };
 
 const githubTokenHelpMessage = "Add a GitHub PAT with env=GITHUB_TOKEN";

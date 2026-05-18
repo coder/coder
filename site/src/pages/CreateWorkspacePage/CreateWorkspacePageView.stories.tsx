@@ -102,7 +102,7 @@ const parameterInput: PreviewParameter = {
 
 const parameterDropdown: PreviewParameter = {
 	name: "instance_type",
-	display_name: "Instance Type",
+	display_name: "Instance type",
 	description: "The type of cloud instance to provision",
 	type: "string",
 	form_type: "dropdown",

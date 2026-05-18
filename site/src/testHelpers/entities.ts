@@ -3388,7 +3388,7 @@ export const MockPreviewParameter: TypesGen.PreviewParameter = {
 export const MockDropdownParameter: TypesGen.PreviewParameter = {
 	...MockPreviewParameter,
 	name: "instance_type",
-	display_name: "Instance Type",
+	display_name: "Instance type",
 	description: "The type of instance to create",
 	form_type: "dropdown",
 	default_value: { value: "t3.micro", valid: true },

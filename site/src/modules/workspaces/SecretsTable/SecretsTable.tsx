@@ -68,19 +68,13 @@ export const SecretsTable: FC<SecretsTableProps> = ({
 				</h2>
 				<p className="m-0 text-sm text-content-secondary">
 					Secrets are injected as environment variables or files. Create or
-					update these secrets with the Coder CLI {ownerCopy}.
+					update these secrets with the Coder CLI {ownerCopy}.{" "}
+					{/* TODO(PLAT-102): swap for a RouterLink to /settings/secrets once
+					that page lands. */}
+					<Link href={manageSecretsHref} target="_blank" rel="noreferrer">
+						View CLI documentation
+					</Link>
 				</p>
-				{/* TODO(PLAT-102): swap for a RouterLink to /settings/secrets once
-				that page lands. */}
-				<Link
-					href={manageSecretsHref}
-					target="_blank"
-					rel="noreferrer"
-					showExternalIcon={false}
-					className="w-fit"
-				>
-					View CLI documentation
-				</Link>
 			</hgroup>
 
 			{missingCount >= 1 && (
@@ -145,7 +139,7 @@ export const SecretsTable: FC<SecretsTableProps> = ({
 											showExternalIcon={false}
 											className="whitespace-nowrap"
 										>
-											Add Secret
+											Add secret
 										</Link>
 									)}
 								</TableCell>
