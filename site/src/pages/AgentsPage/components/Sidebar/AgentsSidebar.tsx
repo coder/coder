@@ -91,6 +91,7 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { FeatureStageBadge } from "#/components/FeatureStageBadge/FeatureStageBadge";
 import { ProductLogo } from "#/components/Icons/ProductLogo";
+import { Dialog, DialogContent, DialogTitle } from "#/components/Dialog/Dialog";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -1081,21 +1082,9 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 
 	useEffect(() => {
 		if (searchOpen) {
-			const id = window.setTimeout(() => searchInputRef.current?.focus(), 50);
+			const id = window.setTimeout(() => searchInputRef.current?.focus(), 100);
 			return () => window.clearTimeout(id);
 		}
-	}, [searchOpen]);
-
-	useEffect(() => {
-		if (!searchOpen) return;
-		const handler = (e: KeyboardEvent) => {
-			if (e.key === "Escape") {
-				setSearchQuery("");
-				setSearchOpen(false);
-			}
-		};
-		document.addEventListener("keydown", handler);
-		return () => document.removeEventListener("keydown", handler);
 	}, [searchOpen]);
 
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
@@ -1320,88 +1309,6 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 					/>
 				</div>
 				<div className="relative min-h-0 flex-1">
-					{searchOpen && (
-						<div className="absolute inset-0 z-10 flex flex-col bg-surface-primary">
-							{/* Search input */}
-							<div className="flex flex-col gap-1 px-3 pt-3">
-								<div className="flex items-center gap-1.5 rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2">
-									<SearchIcon className="h-4 w-4 shrink-0 text-content-secondary" />
-									<input
-										ref={searchInputRef}
-										type="text"
-										value={searchQuery}
-										onChange={(e) => setSearchQuery(e.target.value)}
-										placeholder="Search..."
-										aria-label="Search agents"
-										className="min-w-0 flex-1 border-none bg-transparent p-0 text-sm text-content-primary outline-none placeholder:text-content-secondary"
-									/>
-									<FilterDropdown
-										archivedFilter={archivedFilter}
-										onArchivedFilterChange={onArchivedFilterChange}
-									/>
-								</div>
-								<span className="text-[11px] text-content-secondary">
-									(searching titles)
-								</span>
-							</div>
-							{/* Results count */}
-							<div className="px-3 pb-1 pt-3">
-								<span className="text-sm text-content-primary">
-									<strong>{visibleRootIDs.length}</strong> results
-								</span>
-							</div>
-							{/* Results list */}
-							<div className="relative min-h-0 flex-1">
-								<ScrollArea
-									className="h-full [&_[data-radix-scroll-area-viewport]>div]:!block"
-									scrollBarClassName="w-1.5"
-								>
-									<div className="flex flex-col gap-0.5 px-2 py-1">
-										<ChatTreeContext value={chatTreeCtx}>
-											{visibleRootIDs.map((id) => {
-												const chat = chatById.get(id);
-												if (!chat) return null;
-												return (
-													<ChatTreeNode
-														key={chat.id}
-														chat={chat}
-														isChildNode={false}
-													/>
-												);
-											})}
-										</ChatTreeContext>
-									</div>
-								</ScrollArea>
-							</div>
-							{/* Bottom bar */}
-							<div className="border-0 border-t border-solid border-border-default px-2 py-2">
-								<div className="flex items-center gap-2">
-									<Button asChild variant="outline" size="sm">
-										<Link
-											to={`/agents${location.search}`}
-											onClick={() => {
-												onBeforeNewAgent?.();
-												toggleSearch();
-											}}
-										>
-											<SquarePenIcon className="h-4 w-4" />
-											New chat
-										</Link>
-									</Button>
-									<Button asChild variant="outline" size="sm">
-										<Link
-											to="/agents/settings"
-											state={{ from: location.pathname + location.search }}
-											onClick={toggleSearch}
-										>
-											<SettingsIcon className="h-4 w-4" />
-											Settings
-										</Link>
-									</Button>
-								</div>
-							</div>
-						</div>
-					)}
 					<ScrollArea
 						className="h-full [&_[data-radix-scroll-area-viewport]>div]:!block"
 						scrollBarClassName="w-1.5"
@@ -1793,6 +1700,101 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 					}}
 				/>
 			)}
+			<Dialog
+				open={searchOpen}
+				onOpenChange={(open) => {
+					if (!open) {
+						setSearchQuery("");
+						setSearchOpen(false);
+					}
+				}}
+			>
+				<DialogContent
+					className="flex max-h-[80vh] w-full max-w-xl flex-col gap-0 overflow-hidden p-0"
+					aria-describedby={undefined}
+				>
+					<DialogTitle className="sr-only">Search agents</DialogTitle>
+					{/* Search input */}
+					<div className="flex flex-col gap-1 px-4 pt-4">
+						<div className="flex items-center gap-1.5 rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2">
+							<SearchIcon className="h-4 w-4 shrink-0 text-content-secondary" />
+							<input
+								ref={searchInputRef}
+								type="text"
+								value={searchQuery}
+								onChange={(e) => setSearchQuery(e.target.value)}
+								placeholder="Search..."
+								aria-label="Search agents"
+								className="min-w-0 flex-1 border-none bg-transparent p-0 text-sm text-content-primary outline-none placeholder:text-content-secondary"
+							/>
+							<FilterDropdown
+								archivedFilter={archivedFilter}
+								onArchivedFilterChange={onArchivedFilterChange}
+							/>
+						</div>
+						<span className="text-[11px] text-content-secondary">
+							(searching titles)
+						</span>
+					</div>
+					{/* Results count */}
+					<div className="px-4 pb-1 pt-3">
+						<span className="text-sm text-content-primary">
+							<strong>{visibleRootIDs.length}</strong> results
+						</span>
+					</div>
+					{/* Results list */}
+					<div className="min-h-0 flex-1 overflow-y-auto px-2 py-1">
+						<div className="flex flex-col gap-0.5">
+							<ChatTreeContext value={chatTreeCtx}>
+								{visibleRootIDs.map((id) => {
+									const chat = chatById.get(id);
+									if (!chat) return null;
+									return (
+										<ChatTreeNode
+											key={chat.id}
+											chat={chat}
+											isChildNode={false}
+										/>
+									);
+								})}
+							</ChatTreeContext>
+						</div>
+					</div>
+					{/* Bottom bar */}
+					<div className="border-0 border-t border-solid border-border-default px-3 py-3">
+						<div className="flex items-center gap-2">
+							<Button asChild variant="outline" size="sm">
+								<Link
+									to={`/agents${location.search}`}
+									onClick={() => {
+										onBeforeNewAgent?.();
+										setSearchOpen(false);
+										setSearchQuery("");
+									}}
+								>
+									<SquarePenIcon className="h-4 w-4" />
+									New chat
+								</Link>
+							</Button>
+							<Button asChild variant="outline" size="sm">
+								<Link
+									to="/agents/settings"
+									state={{
+										from: location.pathname + location.search,
+									}}
+									onClick={() => {
+										setSearchOpen(false);
+										setSearchQuery("");
+									}}
+								>
+									<SettingsIcon className="h-4 w-4" />
+									Settings
+								</Link>
+							</Button>
+						</div>
+					</div>
+				</DialogContent>
+			</Dialog>
 		</div>
 	);
 };
