@@ -94,6 +94,15 @@ To be filled in by
 [DOCS-178](https://linear.app/codercom/issue/DOCS-178). Will cover VS
 Code, Cursor, JetBrains, and Neovim.
 
+## Relationship to `docs/about/contributing/documentation.md`
+
+A public-facing prose summary lives today at
+[`docs/about/contributing/documentation.md`](../about/contributing/documentation.md).
+An information-architecture rework will redirect that page to this guide; until
+it does, follow the public summary for anything the scaffolded sections above
+do not yet cover. New prose rules land here; the public page is frozen pending
+the redirect.
+
 ## Third-party references
 
 When this guide does not cover something, consult:
