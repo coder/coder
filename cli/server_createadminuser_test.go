@@ -235,10 +235,6 @@ func TestServerCreateAdminUser(t *testing.T) {
 			"--email", "not-an-email",
 			"--password", "x",
 		)
-		pty := ptytest.New(t)
-		root.Stdout = pty.Output()
-		root.Stderr = pty.Output()
-
 		err = root.WithContext(ctx).Run()
 		require.Error(t, err)
 		require.ErrorContains(t, err, "'email' failed on the 'email' tag")
