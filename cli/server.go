@@ -2929,12 +2929,7 @@ func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]coder
 // ReadAIProvidersFromEnv parses CODER_AI_GATEWAY_PROVIDER_<N>_<KEY>
 // environment variables into a slice of AIProviderConfig.
 // Deprecated alias env vars with the CODER_AIBRIDGE_PROVIDER_<N>_<KEY>
-// prefix are also accepted for compatibility.
-//
-// The two prefixes are parsed as independent lists: matching numeric
-// indices across prefixes produce distinct providers rather than being
-// merged. Providers from the deprecated CODER_AIBRIDGE_PROVIDER_* prefix
-// come first, followed by providers from CODER_AI_GATEWAY_PROVIDER_*.
+// prefix are also accepted for compatibility. Prefixes are mutually exclusive.
 //
 // This follows the same indexed pattern as ReadExternalAuthProvidersFromEnv.
 func ReadAIProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AIProviderConfig, error) {
@@ -2945,6 +2940,9 @@ func ReadAIProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AI
 	gatewayProviders, err := readAIProvidersForPrefix(logger, environ, "CODER_AI_GATEWAY_PROVIDER_")
 	if err != nil {
 		return nil, err
+	}
+	if len(providers) > 0 && len(gatewayProviders) > 0 {
+		return nil, xerrors.New("cannot mix CODER_AIBRIDGE_PROVIDER_* and CODER_AI_GATEWAY_PROVIDER_* environment variables, please consolidate onto CODER_AI_GATEWAY_PROVIDER_*")
 	}
 	providers = append(providers, gatewayProviders...)
 

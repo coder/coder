@@ -42,15 +42,15 @@ export interface AIBridgeBedrockConfig {
 export interface AIBridgeConfig {
 	readonly enabled: boolean;
 	/**
-	 * @deprecated Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.
+	 * @deprecated Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.
 	 */
 	readonly openai: AIBridgeOpenAIConfig;
 	/**
-	 * @deprecated Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.
+	 * @deprecated Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.
 	 */
 	readonly anthropic: AIBridgeAnthropicConfig;
 	/**
-	 * @deprecated Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.
+	 * @deprecated Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.
 	 */
 	readonly bedrock: AIBridgeBedrockConfig;
 	/**
@@ -366,7 +366,8 @@ export const AIProviderBedrockSettingsVersion = 1;
 // From codersdk/deployment.go
 /**
  * AIProviderConfig represents a single AI provider instance,
- * parsed from CODER_AIBRIDGE_PROVIDER_<N>_<KEY> environment variables.
+ * parsed from CODER_AI_GATEWAY_PROVIDER_<N>_<KEY> environment variables.
+ * CODER_AIBRIDGE_PROVIDER_<N>_<KEY> is also accepted as a deprecated alias.
  * This follows the same indexed pattern as ExternalAuthConfig.
  */
 export interface AIProviderConfig {

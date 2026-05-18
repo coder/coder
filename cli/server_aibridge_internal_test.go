@@ -328,25 +328,14 @@ func TestReadAIProvidersFromEnv(t *testing.T) {
 			errContains: "BEDROCK_ACCESS_KEYS count (2) must match BEDROCK_ACCESS_KEY_SECRETS count (1)",
 		},
 		{
-			name: "MixedPrefixesAreIndependent",
+			name: "MixedPrefixesAreNotAllowed",
 			env: []string{
 				"CODER_AIBRIDGE_PROVIDER_0_TYPE=anthropic",
 				"CODER_AIBRIDGE_PROVIDER_0_NAME=anthropic-1",
 				"CODER_AI_GATEWAY_PROVIDER_0_TYPE=anthropic",
 				"CODER_AI_GATEWAY_PROVIDER_0_NAME=anthropic-2",
 			},
-			expected: []codersdk.AIProviderConfig{
-				{Type: aibridge.ProviderAnthropic, Name: "anthropic-1"},
-				{Type: aibridge.ProviderAnthropic, Name: "anthropic-2"},
-			},
-		},
-		{
-			name: "MixedPrefixesDuplicateNameConflict",
-			env: []string{
-				"CODER_AIBRIDGE_PROVIDER_0_TYPE=openai",
-				"CODER_AI_GATEWAY_PROVIDER_0_TYPE=openai",
-			},
-			errContains: "duplicate NAME",
+			errContains: "cannot mix CODER_AIBRIDGE_PROVIDER_* and CODER_AI_GATEWAY_PROVIDER_* environment variables",
 		},
 		{
 			name: "BedrockKeysTooMany",

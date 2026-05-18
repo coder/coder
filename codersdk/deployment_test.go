@@ -383,7 +383,7 @@ func TestAIGatewayCompatibilityAliases(t *testing.T) {
 		aliases = append(aliases, alias{old: opt, new: newOpt})
 	}
 	// Update this count when adding or removing aibridge alias options.
-	require.Len(t, aliases, 33, "unexpected number of aibridge alias options")
+	require.Len(t, aliases, 34, "unexpected number of aibridge alias options")
 
 	sampleVal := func(opt serpent.Option) any {
 		switch opt.Value.Type() {

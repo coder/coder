@@ -484,27 +484,27 @@
 
 ### Properties
 
-| Name                                | Type                                                                 | Required | Restrictions | Description                                                                                                                                                                 |
-|-------------------------------------|----------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `allow_byok`                        | boolean                                                              | false    |              |                                                                                                                                                                             |
-| `anthropic`                         | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig) | false    |              | Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.                                                                                      |
-| `bedrock`                           | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)     | false    |              | Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.                                                                                      |
-| `budget_period`                     | string                                                               | false    |              |                                                                                                                                                                             |
-| `budget_policy`                     | string                                                               | false    |              | Budget settings for AI Governance cost controls.                                                                                                                            |
-| `circuit_breaker_enabled`           | boolean                                                              | false    |              | Circuit breaker protects against cascading failures from upstream AI provider overload (503, 529).                                                                          |
-| `circuit_breaker_failure_threshold` | integer                                                              | false    |              |                                                                                                                                                                             |
-| `circuit_breaker_interval`          | integer                                                              | false    |              |                                                                                                                                                                             |
-| `circuit_breaker_max_requests`      | integer                                                              | false    |              |                                                                                                                                                                             |
-| `circuit_breaker_timeout`           | integer                                                              | false    |              |                                                                                                                                                                             |
-| `enabled`                           | boolean                                                              | false    |              |                                                                                                                                                                             |
-| `inject_coder_mcp_tools`            | boolean                                                              | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                                |
-| `max_concurrency`                   | integer                                                              | false    |              |                                                                                                                                                                             |
-| `openai`                            | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              | Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.                                                                                      |
-| `providers`                         | array of [codersdk.AIProviderConfig](#codersdkaiproviderconfig)      | false    |              | Providers holds provider instances populated from CODER_AIBRIDGE_PROVIDER_<N>_<KEY> env vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above. |
-| `rate_limit`                        | integer                                                              | false    |              |                                                                                                                                                                             |
-| `retention`                         | integer                                                              | false    |              |                                                                                                                                                                             |
-| `send_actor_headers`                | boolean                                                              | false    |              |                                                                                                                                                                             |
-| `structured_logging`                | boolean                                                              | false    |              |                                                                                                                                                                             |
+| Name                                | Type                                                                 | Required | Restrictions | Description                                                                                                                                                                   |
+|-------------------------------------|----------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `allow_byok`                        | boolean                                                              | false    |              |                                                                                                                                                                               |
+| `anthropic`                         | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig) | false    |              | Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.                                                                                      |
+| `bedrock`                           | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)     | false    |              | Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.                                                                                      |
+| `budget_period`                     | string                                                               | false    |              |                                                                                                                                                                               |
+| `budget_policy`                     | string                                                               | false    |              | Budget settings for AI Governance cost controls.                                                                                                                              |
+| `circuit_breaker_enabled`           | boolean                                                              | false    |              | Circuit breaker protects against cascading failures from upstream AI provider overload (503, 529).                                                                            |
+| `circuit_breaker_failure_threshold` | integer                                                              | false    |              |                                                                                                                                                                               |
+| `circuit_breaker_interval`          | integer                                                              | false    |              |                                                                                                                                                                               |
+| `circuit_breaker_max_requests`      | integer                                                              | false    |              |                                                                                                                                                                               |
+| `circuit_breaker_timeout`           | integer                                                              | false    |              |                                                                                                                                                                               |
+| `enabled`                           | boolean                                                              | false    |              |                                                                                                                                                                               |
+| `inject_coder_mcp_tools`            | boolean                                                              | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                                  |
+| `max_concurrency`                   | integer                                                              | false    |              |                                                                                                                                                                               |
+| `openai`                            | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              | Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.                                                                                      |
+| `providers`                         | array of [codersdk.AIProviderConfig](#codersdkaiproviderconfig)      | false    |              | Providers holds provider instances populated from CODER_AI_GATEWAY_PROVIDER_<N>_<KEY> env vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above. |
+| `rate_limit`                        | integer                                                              | false    |              |                                                                                                                                                                               |
+| `retention`                         | integer                                                              | false    |              |                                                                                                                                                                               |
+| `send_actor_headers`                | boolean                                                              | false    |              |                                                                                                                                                                               |
+| `structured_logging`                | boolean                                                              | false    |              |                                                                                                                                                                               |
 
 ## codersdk.AIBridgeInterception
 
@@ -1222,7 +1222,7 @@
 
 ```json
 {
-  "aibridge_proxy": {
+  "ai_gateway_proxy": {
     "allowed_private_cidrs": [
       "string"
     ],
@@ -1292,11 +1292,11 @@
 
 ### Properties
 
-| Name             | Type                                                         | Required | Restrictions | Description |
-|------------------|--------------------------------------------------------------|----------|--------------|-------------|
-| `aibridge_proxy` | [codersdk.AIBridgeProxyConfig](#codersdkaibridgeproxyconfig) | false    |              |             |
-| `bridge`         | [codersdk.AIBridgeConfig](#codersdkaibridgeconfig)           | false    |              |             |
-| `chat`           | [codersdk.ChatConfig](#codersdkchatconfig)                   | false    |              |             |
+| Name               | Type                                                         | Required | Restrictions | Description |
+|--------------------|--------------------------------------------------------------|----------|--------------|-------------|
+| `ai_gateway_proxy` | [codersdk.AIBridgeProxyConfig](#codersdkaibridgeproxyconfig) | false    |              |             |
+| `bridge`           | [codersdk.AIBridgeConfig](#codersdkaibridgeconfig)           | false    |              |             |
+| `chat`             | [codersdk.ChatConfig](#codersdkchatconfig)                   | false    |              |             |
 
 ## codersdk.AIProvider
 
@@ -5612,7 +5612,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     },
     "agent_stat_refresh_interval": 0,
     "ai": {
-      "aibridge_proxy": {
+      "ai_gateway_proxy": {
         "allowed_private_cidrs": [
           "string"
         ],
@@ -6211,7 +6211,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   },
   "agent_stat_refresh_interval": 0,
   "ai": {
-    "aibridge_proxy": {
+    "ai_gateway_proxy": {
       "allowed_private_cidrs": [
         "string"
       ],

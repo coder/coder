@@ -765,8 +765,8 @@ chat:
   # opt-in settings.
   # (default: false, type: bool)
   debugLoggingEnabled: false
-aibridge:
-  # Whether to start an in-memory aibridged instance.
+ai_gateway:
+  # Whether to start an in-memory AI Gateway instance.
   # (default: false, type: bool)
   enabled: false
   # The base URL of the OpenAI API.
@@ -776,7 +776,7 @@ aibridge:
   # (default: https://api.anthropic.com/, type: string)
   anthropic_base_url: https://api.anthropic.com/
   # The base URL to use for the AWS Bedrock API. Use this setting to specify an
-  # exact URL to use. Takes precedence over CODER_AIBRIDGE_BEDROCK_REGION.
+  # exact URL to use. Takes precedence over CODER_AI_GATEWAY_BEDROCK_REGION.
   # (default: <unset>, type: string)
   bedrock_base_url: ""
   # The AWS Bedrock API region to use. Constructs a base URL to use for the AWS
@@ -791,8 +791,8 @@ aibridge:
   # https://docs.claude.com/en/docs/claude-code/settings#environment-variables.
   # (default: global.anthropic.claude-haiku-4-5-20251001-v1:0, type: string)
   bedrock_small_fast_model: global.anthropic.claude-haiku-4-5-20251001-v1:0
-  # Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a
-  # future release. Whether to inject Coder's MCP tools into intercepted AI Bridge
+  # Deprecated: Injected MCP in AI Gateway is deprecated and will be removed in a
+  # future release. Whether to inject Coder's MCP tools into intercepted AI Gateway
   # requests (requires the "oauth2" and "mcp-server-http" experiments to be
   # enabled).
   # (default: false, type: bool)
@@ -801,21 +801,21 @@ aibridge:
   # (token, prompt, tool use).
   # (default: 60d, type: duration)
   retention: 1440h0m0s
-  # Maximum number of concurrent AI Bridge requests per replica. Set to 0 to disable
-  # (unlimited).
+  # Maximum number of concurrent AI Gateway requests per replica. Set to 0 to
+  # disable (unlimited).
   # (default: 0, type: int)
   max_concurrency: 0
-  # Maximum number of AI Bridge requests per second per replica. Set to 0 to disable
-  # (unlimited).
+  # Maximum number of AI Gateway requests per second per replica. Set to 0 to
+  # disable (unlimited).
   # (default: 0, type: int)
   rate_limit: 0
-  # Emit structured logs for AI Bridge interception records. Use this for exporting
+  # Emit structured logs for AI Gateway interception records. Use this for exporting
   # these records to external SIEM or observability systems.
   # (default: false, type: bool)
   structured_logging: false
   # Once enabled, extra headers will be added to upstream requests to identify the
-  # user (actor) making requests to AI Bridge. This is only needed if you are using
-  # a proxy between AI Bridge and an upstream AI provider. This will send
+  # user (actor) making requests to AI Gateway. This is only needed if you are using
+  # a proxy between AI Gateway and an upstream AI provider. This will send
   # X-Ai-Bridge-Actor-Id (the ID of the user making the request) and
   # X-Ai-Bridge-Actor-Metadata-Username (their username).
   # (default: false, type: bool)
@@ -850,20 +850,123 @@ aibridge:
   # boundaries. Only "month" is currently supported.
   # (default: month, type: enum[month])
   budget_period: month
-aibridgeproxy:
-  # Enable the AI Bridge MITM Proxy for intercepting and decrypting AI provider
+aibridge:
+  # Deprecated: use --ai-gateway-enabled or CODER_AI_GATEWAY_ENABLED instead.
+  # Whether to start an in-memory aibridged instance.
+  # (default: false, type: bool)
+  enabled: false
+  # Deprecated: use --ai-gateway-openai-base-url or CODER_AI_GATEWAY_OPENAI_BASE_URL
+  # instead. The base URL of the OpenAI API.
+  # (default: https://api.openai.com/v1/, type: string)
+  openai_base_url: https://api.openai.com/v1/
+  # Deprecated: use --ai-gateway-anthropic-base-url or
+  # CODER_AI_GATEWAY_ANTHROPIC_BASE_URL instead. The base URL of the Anthropic API.
+  # (default: https://api.anthropic.com/, type: string)
+  anthropic_base_url: https://api.anthropic.com/
+  # Deprecated: use --ai-gateway-bedrock-base-url or
+  # CODER_AI_GATEWAY_BEDROCK_BASE_URL instead. The base URL to use for the AWS
+  # Bedrock API. Use this setting to specify an exact URL to use. Takes precedence
+  # over CODER_AIBRIDGE_BEDROCK_REGION.
+  # (default: <unset>, type: string)
+  bedrock_base_url: ""
+  # Deprecated: use --ai-gateway-bedrock-region or CODER_AI_GATEWAY_BEDROCK_REGION
+  # instead. The AWS Bedrock API region to use. Constructs a base URL to use for the
+  # AWS Bedrock API in the form of 'https://bedrock-runtime.<region>.amazonaws.com'.
+  # (default: <unset>, type: string)
+  bedrock_region: ""
+  # Deprecated: use --ai-gateway-bedrock-model or CODER_AI_GATEWAY_BEDROCK_MODEL
+  # instead. The model to use when making requests to the AWS Bedrock API.
+  # (default: global.anthropic.claude-sonnet-4-5-20250929-v1:0, type: string)
+  bedrock_model: global.anthropic.claude-sonnet-4-5-20250929-v1:0
+  # Deprecated: use --ai-gateway-bedrock-small-fastmodel or
+  # CODER_AI_GATEWAY_BEDROCK_SMALL_FAST_MODEL instead. The small fast model to use
+  # when making requests to the AWS Bedrock API. Claude Code uses Haiku-class models
+  # to perform background tasks. See
+  # https://docs.claude.com/en/docs/claude-code/settings#environment-variables.
+  # (default: global.anthropic.claude-haiku-4-5-20251001-v1:0, type: string)
+  bedrock_small_fast_model: global.anthropic.claude-haiku-4-5-20251001-v1:0
+  # Deprecated: use --ai-gateway-inject-coder-mcp-tools or
+  # CODER_AI_GATEWAY_INJECT_CODER_MCP_TOOLS instead. Injected MCP in AI Bridge is
+  # deprecated and will be removed in a future release. Whether to inject Coder's
+  # MCP tools into intercepted AI Bridge requests (requires the "oauth2" and
+  # "mcp-server-http" experiments to be enabled).
+  # (default: false, type: bool)
+  inject_coder_mcp_tools: false
+  # Deprecated: use --ai-gateway-retention or CODER_AI_GATEWAY_RETENTION instead.
+  # Length of time to retain data such as interceptions and all related records
+  # (token, prompt, tool use).
+  # (default: 60d, type: duration)
+  retention: 1440h0m0s
+  # Deprecated: use --ai-gateway-max-concurrency or CODER_AI_GATEWAY_MAX_CONCURRENCY
+  # instead. Maximum number of concurrent AI Bridge requests per replica. Set to 0
+  # to disable (unlimited).
+  # (default: 0, type: int)
+  max_concurrency: 0
+  # Deprecated: use --ai-gateway-rate-limit or CODER_AI_GATEWAY_RATE_LIMIT instead.
+  # Maximum number of AI Bridge requests per second per replica. Set to 0 to disable
+  # (unlimited).
+  # (default: 0, type: int)
+  rate_limit: 0
+  # Deprecated: use --ai-gateway-structured-logging or
+  # CODER_AI_GATEWAY_STRUCTURED_LOGGING instead. Emit structured logs for AI Bridge
+  # interception records. Use this for exporting these records to external SIEM or
+  # observability systems.
+  # (default: false, type: bool)
+  structured_logging: false
+  # Deprecated: use --ai-gateway-send-actor-headers or
+  # CODER_AI_GATEWAY_SEND_ACTOR_HEADERS instead. Once enabled, extra headers will be
+  # added to upstream requests to identify the user (actor) making requests to AI
+  # Bridge. This is only needed if you are using a proxy between AI Bridge and an
+  # upstream AI provider. This will send X-Ai-Bridge-Actor-Id (the ID of the user
+  # making the request) and X-Ai-Bridge-Actor-Metadata-Username (their username).
+  # (default: false, type: bool)
+  send_actor_headers: false
+  # Deprecated: use --ai-gateway-allow-byok or CODER_AI_GATEWAY_ALLOW_BYOK instead.
+  # Allow users to provide their own LLM API keys or subscriptions. When disabled,
+  # only centralized key authentication is permitted.
+  # (default: true, type: bool)
+  allow_byok: true
+  # Deprecated: use --ai-gateway-circuit-breaker-enabled or
+  # CODER_AI_GATEWAY_CIRCUIT_BREAKER_ENABLED instead. Enable the circuit breaker to
+  # protect against cascading failures from upstream AI provider overload (503,
+  # 529).
+  # (default: false, type: bool)
+  circuit_breaker_enabled: false
+  # Deprecated: use --ai-gateway-circuit-breaker-failure-threshold or
+  # CODER_AI_GATEWAY_CIRCUIT_BREAKER_FAILURE_THRESHOLD instead. Number of
+  # consecutive failures that triggers the circuit breaker to open.
+  # (default: 5, type: int)
+  circuit_breaker_failure_threshold: 5
+  # Deprecated: use --ai-gateway-circuit-breaker-interval or
+  # CODER_AI_GATEWAY_CIRCUIT_BREAKER_INTERVAL instead. Cyclic period of the closed
+  # state for clearing internal failure counts.
+  # (default: 10s, type: duration)
+  circuit_breaker_interval: 10s
+  # Deprecated: use --ai-gateway-circuit-breaker-timeout or
+  # CODER_AI_GATEWAY_CIRCUIT_BREAKER_TIMEOUT instead. How long the circuit breaker
+  # stays open before transitioning to half-open state.
+  # (default: 30s, type: duration)
+  circuit_breaker_timeout: 30s
+  # Deprecated: use --ai-gateway-circuit-breaker-max-requests or
+  # CODER_AI_GATEWAY_CIRCUIT_BREAKER_MAX_REQUESTS instead. Maximum number of
+  # requests allowed in half-open state before deciding to close or re-open the
+  # circuit.
+  # (default: 3, type: int)
+  circuit_breaker_max_requests: 3
+ai_gateway_proxy:
+  # Enable the AI Gateway MITM Proxy for intercepting and decrypting AI provider
   # requests.
   # (default: false, type: bool)
   enabled: false
-  # The address the AI Bridge Proxy will listen on.
+  # The address the AI Gateway Proxy will listen on.
   # (default: :8888, type: string)
   listen_addr: :8888
-  # Path to the TLS certificate file for the AI Bridge Proxy listener. Must be set
-  # together with AI Bridge Proxy TLS Key File.
+  # Path to the TLS certificate file for the AI Gateway Proxy listener. Must be set
+  # together with AI Gateway Proxy TLS Key File.
   # (default: <unset>, type: string)
   tls_cert_file: ""
-  # Path to the TLS private key file for the AI Bridge Proxy listener. Must be set
-  # together with AI Bridge Proxy TLS Certificate File.
+  # Path to the TLS private key file for the AI Gateway Proxy listener. Must be set
+  # together with AI Gateway Proxy TLS Certificate File.
   # (default: <unset>, type: string)
   tls_key_file: ""
   # Path to the CA certificate file used to intercept (MITM) HTTPS traffic from AI
@@ -876,8 +979,8 @@ aibridgeproxy:
   # (default: <unset>, type: string)
   key_file: ""
   # Deprecated: This value is now derived automatically from the configured AI
-  # providers' base URLs. Setting this value has no effect. This option will be
-  # removed in a future release.
+  # Gateway providers' base URLs. Setting this value has no effect. This option will
+  # be removed in a future release.
   # (default: <unset>, type: string-array)
   domain_allowlist: []
   # URL of an upstream HTTP proxy to chain tunneled (non-allowlisted) requests
@@ -898,6 +1001,71 @@ aibridgeproxy:
   # Directory for dumping MITM request/response pairs to disk for debugging. When
   # set, each proxied request produces .req.txt and .resp.txt files organized by
   # provider. Sensitive headers are redacted. Leave empty to disable.
+  # (default: <unset>, type: string)
+  api_dump_dir: ""
+aibridgeproxy:
+  # Deprecated: use --ai-gateway-proxy-enabled or CODER_AI_GATEWAY_PROXY_ENABLED
+  # instead. Enable the AI Bridge MITM Proxy for intercepting and decrypting AI
+  # provider requests.
+  # (default: false, type: bool)
+  enabled: false
+  # Deprecated: use --ai-gateway-proxy-listen-addr or
+  # CODER_AI_GATEWAY_PROXY_LISTEN_ADDR instead. The address the AI Bridge Proxy will
+  # listen on.
+  # (default: :8888, type: string)
+  listen_addr: :8888
+  # Deprecated: use --ai-gateway-proxy-tls-cert-file or
+  # CODER_AI_GATEWAY_PROXY_TLS_CERT_FILE instead. Path to the TLS certificate file
+  # for the AI Bridge Proxy listener. Must be set together with AI Bridge Proxy TLS
+  # Key File.
+  # (default: <unset>, type: string)
+  tls_cert_file: ""
+  # Deprecated: use --ai-gateway-proxy-tls-key-file or
+  # CODER_AI_GATEWAY_PROXY_TLS_KEY_FILE instead. Path to the TLS private key file
+  # for the AI Bridge Proxy listener. Must be set together with AI Bridge Proxy TLS
+  # Certificate File.
+  # (default: <unset>, type: string)
+  tls_key_file: ""
+  # Deprecated: use --ai-gateway-proxy-cert-file or CODER_AI_GATEWAY_PROXY_CERT_FILE
+  # instead. Path to the CA certificate file used to intercept (MITM) HTTPS traffic
+  # from AI clients. This CA must be trusted by AI clients for the proxy to decrypt
+  # their requests.
+  # (default: <unset>, type: string)
+  cert_file: ""
+  # Deprecated: use --ai-gateway-proxy-key-file or CODER_AI_GATEWAY_PROXY_KEY_FILE
+  # instead. Path to the CA private key file used to intercept (MITM) HTTPS traffic
+  # from AI clients.
+  # (default: <unset>, type: string)
+  key_file: ""
+  # Deprecated: This value is now derived automatically from the configured AI
+  # providers' base URLs. Setting this value has no effect. This option will be
+  # removed in a future release.
+  # (default: <unset>, type: string-array)
+  domain_allowlist: []
+  # Deprecated: use --ai-gateway-proxy-upstream or CODER_AI_GATEWAY_PROXY_UPSTREAM
+  # instead. URL of an upstream HTTP proxy to chain tunneled (non-allowlisted)
+  # requests through. Format: http://[user:pass@]host:port or
+  # https://[user:pass@]host:port.
+  # (default: <unset>, type: string)
+  upstream_proxy: ""
+  # Deprecated: use --ai-gateway-proxy-upstream-ca or
+  # CODER_AI_GATEWAY_PROXY_UPSTREAM_CA instead. Path to a PEM-encoded CA certificate
+  # to trust for the upstream proxy's TLS connection. Only needed for HTTPS upstream
+  # proxies with certificates not trusted by the system. If not provided, the system
+  # certificate pool is used.
+  # (default: <unset>, type: string)
+  upstream_proxy_ca: ""
+  # Deprecated: use --ai-gateway-proxy-allowed-private-cidrs or
+  # CODER_AI_GATEWAY_PROXY_ALLOWED_PRIVATE_CIDRS instead. Comma-separated list of
+  # CIDR ranges that are permitted even though they fall within blocked
+  # private/reserved IP ranges. By default all private ranges are blocked to prevent
+  # SSRF attacks. Use this to allow access to specific internal networks.
+  # (default: <unset>, type: string-array)
+  allowed_private_cidrs: []
+  # Deprecated: use --ai-gateway-proxy-dump-dir or CODER_AI_GATEWAY_PROXY_DUMP_DIR
+  # instead. Directory for dumping MITM request/response pairs to disk for
+  # debugging. When set, each proxied request produces .req.txt and .resp.txt files
+  # organized by provider. Sensitive headers are redacted. Leave empty to disable.
   # (default: <unset>, type: string)
   api_dump_dir: ""
 # Configure data retention policies for various database tables. Retention
