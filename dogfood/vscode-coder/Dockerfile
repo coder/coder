@@ -2,6 +2,10 @@ FROM node:24-slim@sha256:879b21aec4a1ad820c27ccd565e7c7ed955f24b92e6694556154f25
 
 ARG DEBIAN_FRONTEND=noninteractive
 
+# bash for `set -o pipefail` in the gh CLI install below.
+# node:24-slim ships /bin/sh as dash, which has no pipefail.
+SHELL ["/bin/bash", "-c"]
+
 # Electron/Chromium system libs are installed at startup via
 # `playwright install-deps chromium` so they track the project's
 # Electron version automatically.
