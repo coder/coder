@@ -18,6 +18,8 @@ interface ToolCollapsibleProps {
 	headerActions?: ReactNode;
 	hasContent?: boolean;
 	defaultExpanded?: boolean;
+	expanded?: boolean;
+	onExpandedChange?: (expanded: boolean) => void;
 	ariaLabel?: ToolCollapsibleAriaLabel;
 	className?: string;
 	headerClassName?: string;
@@ -49,13 +51,24 @@ export const ToolCollapsible: FC<ToolCollapsibleProps> = ({
 	headerActions,
 	hasContent = true,
 	defaultExpanded = false,
+	expanded: expandedProp,
+	onExpandedChange,
 	ariaLabel,
 	className,
 	headerClassName,
 }) => {
-	const [expanded, setExpanded] = useState(defaultExpanded);
+	const [uncontrolledExpanded, setUncontrolledExpanded] =
+		useState(defaultExpanded);
+	const expanded = expandedProp ?? uncontrolledExpanded;
 	const renderedHeader =
 		typeof header === "function" ? header(expanded) : header;
+	const toggleExpanded = () => {
+		const nextExpanded = !expanded;
+		if (expandedProp === undefined) {
+			setUncontrolledExpanded(nextExpanded);
+		}
+		onExpandedChange?.(nextExpanded);
+	};
 	const headerButton = hasContent ? (
 		<button
 			type="button"
@@ -63,7 +76,7 @@ export const ToolCollapsible: FC<ToolCollapsibleProps> = ({
 			aria-label={
 				typeof ariaLabel === "function" ? ariaLabel(expanded) : ariaLabel
 			}
-			onClick={() => setExpanded(!expanded)}
+			onClick={toggleExpanded}
 			className={cn(
 				"border-0 bg-transparent p-0 m-0 font-[inherit] text-[inherit] text-left",
 				"flex items-center gap-2 cursor-pointer",

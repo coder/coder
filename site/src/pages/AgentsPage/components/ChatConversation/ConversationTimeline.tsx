@@ -1,9 +1,4 @@
-import {
-	ChevronDownIcon,
-	ChevronLeftIcon,
-	ChevronRightIcon,
-	PencilIcon,
-} from "lucide-react";
+import { ChevronLeftIcon, ChevronRightIcon, PencilIcon } from "lucide-react";
 import {
 	type FC,
 	Fragment,
@@ -20,11 +15,6 @@ import type * as TypesGen from "#/api/typesGenerated";
 import type { ThinkingDisplayMode } from "#/api/typesGenerated";
 
 import { Button } from "#/components/Button/Button";
-import {
-	Collapsible,
-	CollapsibleContent,
-	CollapsibleTrigger,
-} from "#/components/Collapsible/Collapsible";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
 import {
 	Tooltip,
@@ -43,6 +33,7 @@ import {
 } from "../ChatElements";
 import { WebSearchSources } from "../ChatElements/tools";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
+import { ToolCollapsible } from "../ChatElements/tools/ToolCollapsible";
 import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
 import {
@@ -161,52 +152,38 @@ const ReasoningDisclosure = memo<{
 					"[[data-tool-call]+&]:pt-0",
 				)}
 			>
-				<Collapsible
-					open={expanded}
-					onOpenChange={(open) => setManualToggle(open)}
+				<ToolCollapsible
 					className="w-full"
-				>
-					<CollapsibleTrigger
-						className={cn(
-							"border-0 bg-transparent p-0 m-0 font-[inherit] text-[inherit] text-left",
-							"flex w-full items-center gap-2 cursor-pointer",
-							"text-content-secondary transition-colors hover:text-content-primary",
-						)}
-					>
-						{isStreaming ? (
+					expanded={expanded}
+					onExpandedChange={(open) => setManualToggle(open)}
+					header={
+						isStreaming ? (
 							<Shimmer as="span" className="text-[13px]">
 								Thinking
 							</Shimmer>
 						) : (
 							<span className="text-[13px]">Thinking</span>
-						)}
-						<ChevronDownIcon
-							className={cn(
-								"h-3 w-3 shrink-0 text-current transition-transform",
-								expanded ? "rotate-0" : "-rotate-90",
-							)}
-						/>
-					</CollapsibleTrigger>
+						)
+					}
+				>
 					{hasText && (
-						<CollapsibleContent>
-							<div
-								ref={previewScrollRef}
-								className={cn(
-									"mt-1.5",
-									isPreviewConstrained && "max-h-24 overflow-y-auto",
-								)}
+						<div
+							ref={previewScrollRef}
+							className={cn(
+								"mt-1.5",
+								isPreviewConstrained && "max-h-24 overflow-y-auto",
+							)}
+						>
+							<Response
+								className="text-[11px] text-content-secondary"
+								urlTransform={urlTransform}
+								streaming={isStreaming}
 							>
-								<Response
-									className="text-[11px] text-content-secondary"
-									urlTransform={urlTransform}
-									streaming={isStreaming}
-								>
-									{displayText}
-								</Response>
-							</div>
-						</CollapsibleContent>
+								{displayText}
+							</Response>
+						</div>
 					)}
-				</Collapsible>
+				</ToolCollapsible>
 			</div>
 		);
 	},

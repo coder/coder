@@ -2211,12 +2211,23 @@ export const ThinkingBlockWithToolCall: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(
-			canvas.getByRole("button", { name: /thinking/i }),
-		).toBeInTheDocument();
+		const thinkingButton = canvas.getByRole("button", { name: /thinking/i });
+		expect(thinkingButton).toBeInTheDocument();
 		expect(
 			canvas.getByRole("button", { name: /read package\.json/i }),
 		).toBeInTheDocument();
+
+		const toolButton = canvas.getByRole("button", {
+			name: /read package\.json/i,
+		});
+		const thinkingContainer = thinkingButton.closest("[data-tool-call]");
+		const toolContainer = toolButton.closest("[data-tool-call]");
+		expect(thinkingContainer).toBeInstanceOf(HTMLElement);
+		expect(toolContainer).toBeInstanceOf(HTMLElement);
+		expect(toolContainer?.firstElementChild).not.toHaveAttribute("data-state");
+		expect(thinkingContainer?.firstElementChild).not.toHaveAttribute(
+			"data-state",
+		);
 	},
 };
 
