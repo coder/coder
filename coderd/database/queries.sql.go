@@ -30240,6 +30240,17 @@ WHERE
 	AND workspace_agents.parent_id IS NULL
 	AND provisioner_jobs.type = 'workspace_build'::provisioner_job_type
 	AND workspaces.deleted = FALSE
+	-- Only include agents from the latest build of each workspace.
+	-- This filters out stale agents from prior builds that share
+	-- the same instance ID, preventing false ambiguity (HTTP 409)
+	-- without requiring a backfill migration.
+	AND workspace_builds.id = (
+		SELECT wb2.id
+		FROM workspace_builds AS wb2
+		WHERE wb2.workspace_id = workspace_builds.workspace_id
+		ORDER BY wb2.build_number DESC
+		LIMIT 1
+	)
 ORDER BY
 	workspace_agents.created_at DESC
 `

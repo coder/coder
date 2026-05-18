@@ -7518,6 +7518,71 @@ func TestGetWorkspaceBuildAgentsByInstanceID(t *testing.T) {
 		assert.Equal(t, active.Agent.ID, agents[0].WorkspaceAgent.ID)
 		assert.Equal(t, active.Workspace.ID, agents[0].WorkspaceTable.ID)
 	})
+
+	// Regression: stale agents from prior builds of the same workspace
+	// must not appear, even when they have not been soft-deleted. This is
+	// the core scenario that caused HTTP 409 errors on upgrade to v2.33.
+	t.Run("ExcludesStaleAgentsFromPriorBuilds", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		authInstanceID := fmt.Sprintf("instance-%s-%d", t.Name(), time.Now().UnixNano())
+		baseCreatedAt := dbtime.Now()
+
+		// Create one workspace with three successive builds, all
+		// sharing the same instance ID (typical EC2 fleet pattern).
+		workspace := setupWorkspaceBuildAgentQueryWorkspace(t, db, false)
+
+		// Build helper that creates a build with an explicit build
+		// number, then attaches an agent with the shared instance ID.
+		createBuildAgent := func(buildNum int32, agentCreatedAt time.Time) workspaceBuildAgentQueryFixture {
+			t.Helper()
+			templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+				TemplateID:     uuid.NullUUID{UUID: workspace.TemplateID, Valid: true},
+				OrganizationID: workspace.OrganizationID,
+				CreatedBy:      workspace.OwnerID,
+			})
+			job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+				OrganizationID: workspace.OrganizationID,
+				Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			})
+			build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+				WorkspaceID:       workspace.ID,
+				TemplateVersionID: templateVersion.ID,
+				JobID:             job.ID,
+				BuildNumber:       buildNum,
+			})
+			resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+				JobID: job.ID,
+			})
+			agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+				Name:       "dev",
+				ResourceID: resource.ID,
+				CreatedAt:  agentCreatedAt,
+				AuthInstanceID: sql.NullString{
+					String: authInstanceID,
+					Valid:  true,
+				},
+			})
+			return workspaceBuildAgentQueryFixture{
+				Workspace: workspace,
+				Build:     build,
+				Agent:     agent,
+			}
+		}
+
+		_ = createBuildAgent(1, baseCreatedAt.Add(-2*time.Hour))
+		_ = createBuildAgent(2, baseCreatedAt.Add(-time.Hour))
+		latest := createBuildAgent(3, baseCreatedAt)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		agents, err := db.GetWorkspaceBuildAgentsByInstanceID(ctx, authInstanceID)
+		require.NoError(t, err)
+		require.Len(t, agents, 1, "only the latest build's agent should be returned")
+		assert.Equal(t, latest.Agent.ID, agents[0].WorkspaceAgent.ID)
+		assert.Equal(t, latest.Build.ID, agents[0].WorkspaceBuildID)
+	})
 }
 
 func requireUsersMatch(t testing.TB, expected []database.User, found []database.GetUsersRow, msg string) {
