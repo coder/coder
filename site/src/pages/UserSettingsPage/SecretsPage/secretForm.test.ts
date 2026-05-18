@@ -1,15 +1,10 @@
-import { MaxSecretValueSize, type UserSecret } from "#/api/typesGenerated";
+import type { UserSecret } from "#/api/typesGenerated";
 import { mockApiError } from "#/testHelpers/entities";
 import {
 	buildCreateUserSecretRequest,
 	buildUpdateUserSecretRequest,
-	createSecretValidationSchema,
-	getDuplicateSecretFieldErrors,
+	getCreateSecretRequiredFieldErrors,
 	mapSecretApiErrorToFormErrors,
-	validateUserSecretEnvName,
-	validateUserSecretFilePath,
-	validateUserSecretName,
-	validateUserSecretValue,
 } from "./secretForm";
 
 const existingSecrets: UserSecret[] = [
@@ -33,103 +28,28 @@ const existingSecrets: UserSecret[] = [
 	},
 ];
 
-describe("createSecretValidationSchema", () => {
-	it("requires name and value on create", async () => {
-		await expect(
-			createSecretValidationSchema.validate(
-				{
-					name: "",
-					value: "",
-					description: "",
-					env_name: "",
-					file_path: "",
-				},
-				{ abortEarly: false },
-			),
-		).rejects.toMatchObject({
-			inner: expect.arrayContaining([
-				expect.objectContaining({ path: "name" }),
-				expect.objectContaining({ path: "value" }),
-			]),
+describe("getCreateSecretRequiredFieldErrors", () => {
+	it("requires name and value on create", () => {
+		expect(
+			getCreateSecretRequiredFieldErrors({
+				name: "",
+				value: "",
+			}),
+		).toEqual({
+			name: "Name is required.",
+			value: "Value is required.",
 		});
 	});
 
-	it.each([
-		"foo/bar",
-		"foo?bar",
-		"foo#bar",
-	])("rejects route-unsafe secret name %s", (name) => {
-		expect(validateUserSecretName(name)).toContain("must not contain");
-	});
-
-	it("rejects whitespace-only secret names", () => {
-		expect(validateUserSecretName("   ")).toBe("Name is required.");
-	});
-
-	it.each([
-		" github",
-		"github ",
-	])("rejects leading/trailing whitespace secret name %j", (name) => {
-		expect(validateUserSecretName(name)).toBe(
-			"Name must not have leading or trailing whitespace.",
-		);
-	});
-
-	it.each([
-		"GITHUB_TOKEN",
-		"ANTHROPIC_API_KEY",
-		"_EXAMPLE_TOKEN",
-	])("allows valid uppercase env var %s", (envName) => {
-		expect(validateUserSecretEnvName(envName)).toBeUndefined();
-	});
-
-	it("rejects env vars that start with a digit", () => {
-		expect(validateUserSecretEnvName("1EXAMPLE_TOKEN")).toContain(
-			"must start with",
-		);
-	});
-
-	it("rejects reserved env vars", () => {
-		expect(validateUserSecretEnvName("PATH")).toContain("reserved");
-	});
-
-	it.each([
-		"CODER",
-		"CODER_WORKSPACE_NAME",
-	])("rejects the CODER namespace %s", (envName) => {
-		expect(validateUserSecretEnvName(envName)).toBe(
-			"CODER and CODER_* environment variable names are reserved for internal use.",
-		);
-	});
-
-	it("allows empty, absolute, and home-relative file paths", () => {
-		expect(validateUserSecretFilePath("")).toBeUndefined();
-		expect(validateUserSecretFilePath("/usr/local/secrets")).toBeUndefined();
-		expect(validateUserSecretFilePath("~/secrets/example")).toBeUndefined();
-	});
-
-	it("rejects relative file paths", () => {
-		expect(validateUserSecretFilePath("secrets/example")).toContain(
-			"must start",
-		);
-	});
-
-	it("allows secret values at the maximum size", () => {
+	it("requires a non-whitespace name", () => {
 		expect(
-			validateUserSecretValue("x".repeat(MaxSecretValueSize)),
-		).toBeUndefined();
-	});
-
-	it("rejects secret values with null bytes", () => {
-		expect(validateUserSecretValue("has\0null")).toBe(
-			"Secret value must not contain null bytes.",
-		);
-	});
-
-	it("rejects secret values over the maximum size", () => {
-		expect(validateUserSecretValue("x".repeat(MaxSecretValueSize + 1))).toBe(
-			`Secret value must not exceed ${MaxSecretValueSize} bytes.`,
-		);
+			getCreateSecretRequiredFieldErrors({
+				name: "   ",
+				value: "some value",
+			}),
+		).toEqual({
+			name: "Name is required.",
+		});
 	});
 });
 
@@ -186,8 +106,9 @@ describe("mapSecretApiErrorToFormErrors", () => {
 		expect(
 			mapSecretApiErrorToFormErrors(
 				mockApiError({
-					message: "Invalid request.",
+					message: "Validation failed.",
 					validations: [
+						{ field: "name", detail: "Name already in use." },
 						{ field: "env_name", detail: "Use a different variable." },
 						{ field: "file_path", detail: "Use an absolute path." },
 						{ field: "unknown", detail: "Ignored." },
@@ -195,6 +116,7 @@ describe("mapSecretApiErrorToFormErrors", () => {
 				}),
 			).fieldErrors,
 		).toEqual({
+			name: "Name already in use.",
 			env_name: "Use a different variable.",
 			file_path: "Use an absolute path.",
 		});
@@ -230,57 +152,5 @@ describe("mapSecretApiErrorToFormErrors", () => {
 		).toBe(
 			"A secret with that name, environment variable, or file path already exists.",
 		);
-	});
-});
-
-describe("getDuplicateSecretFieldErrors", () => {
-	it("maps duplicate names to the name field", () => {
-		expect(
-			getDuplicateSecretFieldErrors(existingSecrets, {
-				name: "github",
-				env_name: "",
-				file_path: "",
-			}),
-		).toEqual({
-			name: "Name already in use.",
-		});
-	});
-
-	it("maps duplicate env vars to the env var field", () => {
-		expect(
-			getDuplicateSecretFieldErrors(existingSecrets, {
-				name: "new-secret",
-				env_name: "GITHUB_TOKEN",
-				file_path: "",
-			}),
-		).toEqual({
-			env_name: "Variable already in use. Edit existing variable.",
-		});
-	});
-
-	it("maps duplicate file paths to the file path field", () => {
-		expect(
-			getDuplicateSecretFieldErrors(existingSecrets, {
-				name: "new-secret",
-				env_name: "",
-				file_path: "~/.config/anthropic/key",
-			}),
-		).toEqual({
-			file_path: "File path already in use.",
-		});
-	});
-
-	it("ignores the current secret by id when editing", () => {
-		expect(
-			getDuplicateSecretFieldErrors(
-				existingSecrets,
-				{
-					name: "github",
-					env_name: "GITHUB_TOKEN",
-					file_path: "",
-				},
-				existingSecrets[0].id,
-			),
-		).toEqual({});
 	});
 });

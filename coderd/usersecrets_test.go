@@ -45,11 +45,7 @@ func TestPostUserSecret(t *testing.T) {
 		_, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
 			Value: "some-value",
 		})
-		require.Error(t, err)
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		assert.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-		assert.Contains(t, sdkErr.Message, "Name is required")
+		requireSecretValidationError(t, err, http.StatusBadRequest, "name", "required")
 	})
 
 	t.Run("MissingValue", func(t *testing.T) {
@@ -59,11 +55,29 @@ func TestPostUserSecret(t *testing.T) {
 		_, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
 			Name: "missing-value-secret",
 		})
-		require.Error(t, err)
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		assert.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-		assert.Contains(t, sdkErr.Message, "Value is required")
+		requireSecretValidationError(t, err, http.StatusBadRequest, "value", "required")
+	})
+
+	t.Run("InvalidName", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		_, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
+			Name:  "foo/bar",
+			Value: "some-value",
+		})
+		requireSecretValidationError(t, err, http.StatusBadRequest, "name", "must not contain")
+	})
+
+	t.Run("WhitespaceName", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		_, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
+			Name:  " github",
+			Value: "some-value",
+		})
+		requireSecretValidationError(t, err, http.StatusBadRequest, "name", "whitespace")
 	})
 
 	t.Run("DuplicateName", func(t *testing.T) {
@@ -80,10 +94,7 @@ func TestPostUserSecret(t *testing.T) {
 			Name:  "dup-secret",
 			Value: "value2",
 		})
-		require.Error(t, err)
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		assert.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+		requireSecretValidationError(t, err, http.StatusConflict, "name", "already in use")
 	})
 
 	t.Run("DuplicateEnvName", func(t *testing.T) {
@@ -102,10 +113,7 @@ func TestPostUserSecret(t *testing.T) {
 			Value:   "value2",
 			EnvName: "DUPLICATE_ENV",
 		})
-		require.Error(t, err)
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		assert.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+		requireSecretValidationError(t, err, http.StatusConflict, "env_name", "already in use")
 	})
 
 	t.Run("DuplicateFilePath", func(t *testing.T) {
@@ -124,10 +132,7 @@ func TestPostUserSecret(t *testing.T) {
 			Value:    "value2",
 			FilePath: "/tmp/dup-file",
 		})
-		require.Error(t, err)
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		assert.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+		requireSecretValidationError(t, err, http.StatusConflict, "file_path", "already in use")
 	})
 
 	t.Run("InvalidEnvName", func(t *testing.T) {
@@ -139,10 +144,7 @@ func TestPostUserSecret(t *testing.T) {
 			Value:   "value",
 			EnvName: "1INVALID",
 		})
-		require.Error(t, err)
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		assert.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		requireSecretValidationError(t, err, http.StatusBadRequest, "env_name", "must start")
 	})
 
 	t.Run("ReservedEnvName", func(t *testing.T) {
@@ -154,10 +156,7 @@ func TestPostUserSecret(t *testing.T) {
 			Value:   "value",
 			EnvName: "PATH",
 		})
-		require.Error(t, err)
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		assert.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		requireSecretValidationError(t, err, http.StatusBadRequest, "env_name", "reserved")
 	})
 
 	t.Run("CoderPrefixEnvName", func(t *testing.T) {
@@ -169,10 +168,7 @@ func TestPostUserSecret(t *testing.T) {
 			Value:   "value",
 			EnvName: "CODER_AGENT_TOKEN",
 		})
-		require.Error(t, err)
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		assert.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		requireSecretValidationError(t, err, http.StatusBadRequest, "env_name", "CODER_")
 	})
 
 	t.Run("InvalidFilePath", func(t *testing.T) {
@@ -184,10 +180,7 @@ func TestPostUserSecret(t *testing.T) {
 			Value:    "value",
 			FilePath: "relative/path",
 		})
-		require.Error(t, err)
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		assert.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		requireSecretValidationError(t, err, http.StatusBadRequest, "file_path", "must start")
 	})
 
 	t.Run("NullByteInValue", func(t *testing.T) {
@@ -198,11 +191,7 @@ func TestPostUserSecret(t *testing.T) {
 			Name:  "null-byte-secret",
 			Value: "before\x00after",
 		})
-		require.Error(t, err)
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		assert.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-		assert.Contains(t, sdkErr.Message, "Invalid secret value")
+		requireSecretValidationError(t, err, http.StatusBadRequest, "value", "null bytes")
 	})
 
 	t.Run("OversizedValue", func(t *testing.T) {
@@ -213,11 +202,7 @@ func TestPostUserSecret(t *testing.T) {
 			Name:  "oversized-secret",
 			Value: strings.Repeat("a", codersdk.MaxSecretValueSize+1),
 		})
-		require.Error(t, err)
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		assert.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-		assert.Contains(t, sdkErr.Message, "Invalid secret value")
+		requireSecretValidationError(t, err, http.StatusBadRequest, "value", "must not exceed")
 	})
 }
 
@@ -371,10 +356,7 @@ func TestPatchUserSecret(t *testing.T) {
 		_, err = client.UpdateUserSecret(ctx, codersdk.Me, "conflict-env-2", codersdk.UpdateUserSecretRequest{
 			EnvName: &taken,
 		})
-		require.Error(t, err)
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		assert.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+		requireSecretValidationError(t, err, http.StatusConflict, "env_name", "already in use")
 	})
 
 	t.Run("ConflictFilePath", func(t *testing.T) {
@@ -398,10 +380,41 @@ func TestPatchUserSecret(t *testing.T) {
 		_, err = client.UpdateUserSecret(ctx, codersdk.Me, "conflict-fp-2", codersdk.UpdateUserSecretRequest{
 			FilePath: &taken,
 		})
-		require.Error(t, err)
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		assert.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+		requireSecretValidationError(t, err, http.StatusConflict, "file_path", "already in use")
+	})
+
+	t.Run("InvalidEnvName", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		_, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
+			Name:  "patch-invalid-env",
+			Value: "good-value",
+		})
+		require.NoError(t, err)
+
+		badEnvName := "1INVALID"
+		_, err = client.UpdateUserSecret(ctx, codersdk.Me, "patch-invalid-env", codersdk.UpdateUserSecretRequest{
+			EnvName: &badEnvName,
+		})
+		requireSecretValidationError(t, err, http.StatusBadRequest, "env_name", "must start")
+	})
+
+	t.Run("InvalidFilePath", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		_, err := client.CreateUserSecret(ctx, codersdk.Me, codersdk.CreateUserSecretRequest{
+			Name:  "patch-invalid-file-path",
+			Value: "good-value",
+		})
+		require.NoError(t, err)
+
+		badFilePath := "relative/path"
+		_, err = client.UpdateUserSecret(ctx, codersdk.Me, "patch-invalid-file-path", codersdk.UpdateUserSecretRequest{
+			FilePath: &badFilePath,
+		})
+		requireSecretValidationError(t, err, http.StatusBadRequest, "file_path", "must start")
 	})
 
 	t.Run("InvalidValue", func(t *testing.T) {
@@ -418,12 +431,24 @@ func TestPatchUserSecret(t *testing.T) {
 		_, err = client.UpdateUserSecret(ctx, codersdk.Me, "patch-invalid-val", codersdk.UpdateUserSecretRequest{
 			Value: &badVal,
 		})
-		require.Error(t, err)
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		assert.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-		assert.Contains(t, sdkErr.Message, "Invalid secret value")
+		requireSecretValidationError(t, err, http.StatusBadRequest, "value", "null bytes")
 	})
+}
+
+func requireSecretValidationError(t *testing.T, err error, status int, field string, detailContains string) {
+	t.Helper()
+
+	require.Error(t, err)
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	assert.Equal(t, status, sdkErr.StatusCode())
+	for _, validation := range sdkErr.Validations {
+		if validation.Field == field {
+			assert.Contains(t, validation.Detail, detailContains)
+			return
+		}
+	}
+	require.Failf(t, "missing validation", "field %q not found in %#v", field, sdkErr.Validations)
 }
 
 func TestDeleteUserSecret(t *testing.T) {
