@@ -65,13 +65,16 @@ export const deriveMessageDisplayState = ({
 		parsed.blocks.length > 0 ||
 		parsed.tools.length > 0 ||
 		parsed.sources.length > 0;
+	const hasThinkingOnlyContent =
+		parsed.blocks.length > 0 &&
+		parsed.blocks.every((block) => block.type === "thinking");
 	const needsAssistantBottomSpacer =
 		!hideActions &&
 		!hasActiveStream &&
 		!isAwaitingFirstStreamChunk &&
 		!isUser &&
 		!hasCopyableContent &&
-		(Boolean(parsed.reasoning) ||
+		(hasThinkingOnlyContent ||
 			parsed.sources.length > 0 ||
 			!hasRenderableContent);
 	const hasToolResultsOnly =

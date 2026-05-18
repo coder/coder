@@ -63,13 +63,30 @@ describe("deriveMessageDisplayState", () => {
 		expect(getDisplayState(message).hasCopyableContent).toBe(false);
 	});
 
-	it("shows the assistant spacer for reasoning messages when no suppressing flags apply", () => {
+	it("shows the assistant spacer for thinking-only messages when no suppressing flags apply", () => {
 		const message = buildMessage(
 			[{ type: "reasoning", text: "I should think before answering." }],
 			"assistant",
 		);
 
 		expect(getDisplayState(message).needsAssistantBottomSpacer).toBe(true);
+	});
+
+	it("hides the assistant spacer when thinking is followed by a tool call", () => {
+		const message = buildMessage(
+			[
+				{ type: "reasoning", text: "I should think before acting." },
+				{
+					type: "tool-call",
+					tool_call_id: "tool-1",
+					tool_name: "execute",
+					args: { command: "pnpm storybook --no-open" },
+				},
+			],
+			"assistant",
+		);
+
+		expect(getDisplayState(message).needsAssistantBottomSpacer).toBe(false);
 	});
 
 	it("suppresses the assistant spacer while awaiting the first stream chunk", () => {

@@ -2228,6 +2228,9 @@ export const ThinkingBlockWithToolCall: Story = {
 		expect(thinkingContainer?.firstElementChild).not.toHaveAttribute(
 			"data-state",
 		);
+		expect(
+			canvas.queryByTestId("assistant-bottom-spacer"),
+		).not.toBeInTheDocument();
 	},
 };
 
