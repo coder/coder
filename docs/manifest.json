@@ -15,7 +15,24 @@
 				{
 					"title": "Quickstart",
 					"description": "Learn how to install and run Coder quickly",
-					"path": "./tutorials/quickstart.md"
+					"path": "./tutorials/quickstart.md",
+					"children": [
+						{
+							"title": "Launch your first workspace",
+							"description": "Install the Coder CLI, run the Coder server, and launch your first workspace",
+							"path": "./tutorials/quickstart/launch-workspace.md"
+						},
+						{
+							"title": "Customize workspace startup",
+							"description": "Add support for dotfiles personalization, modify workspace parameters, and add external authentication",
+							"path": "./tutorials/quickstart/customize-workspace-startup.md"
+						},
+						{
+							"title": "Add custom tools to your workspace",
+							"description": "Install custom tools and configure external hardware for your workspace",
+							"path": "./tutorials/quickstart/add-custom-workspace-tools.md"
+						}
+					]
 				},
 				{
 					"title": "Support",
