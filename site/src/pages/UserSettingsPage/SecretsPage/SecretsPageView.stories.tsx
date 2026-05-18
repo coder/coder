@@ -82,14 +82,6 @@ const captureUpdateRequest = (
 	};
 };
 
-const uploadInput = (dialog: HTMLElement): HTMLInputElement => {
-	const input = within(dialog).getByTestId("secret-upload-input");
-	if (!(input instanceof HTMLInputElement)) {
-		throw new Error("Expected secret upload input.");
-	}
-	return input;
-};
-
 export const Loaded: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -395,40 +387,6 @@ export const DeleteAndCancel: Story = {
 		await user.click(await body.findByRole("menuitem", { name: "Delete..." }));
 		await user.click(await body.findByRole("button", { name: "Cancel" }));
 
-		await waitForDialogToClose(body);
-	},
-};
-
-export const UploadValueControlKeyboardOperable: Story = {
-	play: async ({ canvasElement }) => {
-		const user = userEvent.setup();
-		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
-		const secret = visibleSecrets[0] as UserSecret;
-
-		await user.click(
-			canvas.getByRole("button", {
-				name: `Open secret actions for ${secret.name}`,
-			}),
-		);
-		await user.click(
-			await body.findByRole("menuitem", { name: "Edit secret..." }),
-		);
-		const dialogElement = await body.findByRole("dialog");
-		const dialog = within(dialogElement);
-		const input = uploadInput(dialogElement);
-		const inputClick = fn();
-		input.click = () => {
-			inputClick();
-		};
-
-		const uploadButton = dialog.getByRole("button", { name: "Upload value" });
-		uploadButton.focus();
-		await expect(uploadButton).toHaveFocus();
-		await user.keyboard("{Enter}");
-
-		await waitFor(() => expect(inputClick).toHaveBeenCalledTimes(1));
-		await user.click(dialog.getByRole("button", { name: "Cancel" }));
 		await waitForDialogToClose(body);
 	},
 };

@@ -1,6 +1,5 @@
 import { type FormikTouched, useFormik } from "formik";
-import { UploadIcon } from "lucide-react";
-import { type FC, useRef, useState } from "react";
+import type { FC } from "react";
 import type {
 	CreateUserSecretRequest,
 	UpdateUserSecretRequest,
@@ -68,7 +67,6 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 	onUpdateSecret,
 }) => {
 	const isEdit = Boolean(secret);
-	const [replacementFileName, setReplacementFileName] = useState("");
 	const initialValues = secret
 		? {
 				name: secret.name,
@@ -98,7 +96,6 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 					await onCreateSecret(buildCreateUserSecretRequest(values));
 				}
 				helpers.resetForm();
-				setReplacementFileName("");
 				onClose();
 			} catch (error) {
 				const formErrors = mapSecretApiErrorToFormErrors(error);
@@ -125,7 +122,6 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 			onOpenChange={(nextOpen) => {
 				if (!nextOpen) {
 					form.resetForm();
-					setReplacementFileName("");
 					onClose();
 				}
 			}}
@@ -156,23 +152,6 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 								disableName
 								showValue={false}
 							/>
-							<UploadBlock
-								description="Or, replace your current value with a new file."
-								buttonLabel="Upload value"
-								onFile={async (file) => {
-									try {
-										setReplacementFileName(file.name);
-										await form.setFieldValue("value", await file.text());
-									} catch (error) {
-										form.setStatus(messageFromUnknown(error));
-									}
-								}}
-							/>
-							{replacementFileName && (
-								<p className="m-0 text-xs text-content-secondary">
-									Replacement value selected from {replacementFileName}.
-								</p>
-							)}
 							<FormField
 								field={getFieldHelpers("value")}
 								label="Value"
@@ -195,7 +174,6 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 							disabled={isBusy}
 							onClick={() => {
 								form.resetForm();
-								setReplacementFileName("");
 								onClose();
 							}}
 						>
@@ -288,65 +266,10 @@ const SecretDescriptionField: FC<SecretDescriptionFieldProps> = ({ field }) => {
 	);
 };
 
-type UploadBlockProps = {
-	description: string;
-	buttonLabel: string;
-	onFile: (file: File) => Promise<void> | void;
-};
-
-const UploadBlock: FC<UploadBlockProps> = ({
-	description,
-	buttonLabel,
-	onFile,
-}) => {
-	const inputRef = useRef<HTMLInputElement>(null);
-
-	return (
-		<div className="rounded-md border border-dashed border-border p-4">
-			<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-				<div className="flex flex-col gap-1">
-					<p className="m-0 text-sm font-medium text-content-primary">
-						{description}
-					</p>
-				</div>
-				<Button
-					type="button"
-					variant="outline"
-					onClick={() => inputRef.current?.click()}
-				>
-					<UploadIcon />
-					{buttonLabel}
-				</Button>
-			</div>
-			<input
-				ref={inputRef}
-				className="hidden"
-				data-testid="secret-upload-input"
-				type="file"
-				tabIndex={-1}
-				aria-hidden="true"
-				onChange={async (event) => {
-					const file = event.currentTarget.files?.[0];
-					event.currentTarget.value = "";
-					if (file) {
-						await onFile(file);
-					}
-				}}
-			/>
-		</div>
-	);
-};
-
 function touchedFromFieldErrors(
 	fieldErrors: SecretFieldErrors,
 ): FormikTouched<SecretFormValues> {
 	return Object.fromEntries(
 		Object.keys(fieldErrors).map((field) => [field, true]),
 	) as FormikTouched<SecretFormValues>;
-}
-
-function messageFromUnknown(error: unknown): string {
-	return error instanceof Error
-		? error.message
-		: "Unable to read secret value file.";
 }
