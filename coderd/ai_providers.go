@@ -132,10 +132,10 @@ func (api *API) aiProvidersGet(rw http.ResponseWriter, r *http.Request) {
 func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
-		auditor           = api.AGPL.Auditor.Load()
+		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.AIProvider](rw, &audit.RequestParams{
 			Audit:   *auditor,
-			Log:     api.AGPL.Logger,
+			Log:     api.Logger,
 			Request: r,
 			Action:  database.AuditActionCreate,
 		})
@@ -224,10 +224,10 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
-		auditor           = api.AGPL.Auditor.Load()
+		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.AIProvider](rw, &audit.RequestParams{
 			Audit:   *auditor,
-			Log:     api.AGPL.Logger,
+			Log:     api.Logger,
 			Request: r,
 			Action:  database.AuditActionWrite,
 		})
@@ -321,10 +321,10 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 func (api *API) aiProvidersDelete(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
-		auditor           = api.AGPL.Auditor.Load()
+		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.AIProvider](rw, &audit.RequestParams{
 			Audit:   *auditor,
-			Log:     api.AGPL.Logger,
+			Log:     api.Logger,
 			Request: r,
 			Action:  database.AuditActionDelete,
 		})

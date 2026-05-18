@@ -31,10 +31,10 @@ import (
 func (api *API) aiProviderKeysCreate(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
-		auditor           = api.AGPL.Auditor.Load()
+		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.AIProviderKey](rw, &audit.RequestParams{
 			Audit:   *auditor,
-			Log:     api.AGPL.Logger,
+			Log:     api.Logger,
 			Request: r,
 			Action:  database.AuditActionCreate,
 		})
@@ -108,10 +108,10 @@ func (api *API) aiProviderKeysCreate(rw http.ResponseWriter, r *http.Request) {
 func (api *API) aiProviderKeysDelete(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
-		auditor           = api.AGPL.Auditor.Load()
+		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.AIProviderKey](rw, &audit.RequestParams{
 			Audit:   *auditor,
-			Log:     api.AGPL.Logger,
+			Log:     api.Logger,
 			Request: r,
 			Action:  database.AuditActionDelete,
 		})

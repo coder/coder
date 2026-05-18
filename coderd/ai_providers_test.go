@@ -10,39 +10,16 @@ import (
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
-	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/testutil"
 )
 
 func TestAIProvidersCRUD(t *testing.T) {
 	t.Parallel()
 
-	t.Run("RequiresLicenseFeature", func(t *testing.T) {
-		t.Parallel()
-
-		dv := coderdtest.DeploymentValues(t)
-		client, _ := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				// No aibridge feature.
-				Features: license.Features{},
-			},
-		})
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		//nolint:gocritic // Owner role is the audience for this endpoint.
-		_, err := client.AIProviders(ctx)
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
-	})
-
 	t.Run("EmptyList", func(t *testing.T) {
 		t.Parallel()
-		client, _ := coderdenttest.New(t, aibridgeOpts(t))
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 		//nolint:gocritic // Owner role is the audience for this endpoint.
 		got, err := client.AIProviders(ctx)
@@ -52,7 +29,8 @@ func TestAIProvidersCRUD(t *testing.T) {
 
 	t.Run("CreateGetUpdateDelete", func(t *testing.T) {
 		t.Parallel()
-		client, _ := coderdenttest.New(t, aibridgeOpts(t))
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Create.
@@ -145,7 +123,8 @@ func TestAIProvidersCRUD(t *testing.T) {
 
 	t.Run("DefaultDisplayName", func(t *testing.T) {
 		t.Parallel()
-		client, _ := coderdenttest.New(t, aibridgeOpts(t))
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		//nolint:gocritic // Owner role is the audience for this endpoint.
@@ -162,7 +141,8 @@ func TestAIProvidersCRUD(t *testing.T) {
 
 	t.Run("DuplicateNameConflict", func(t *testing.T) {
 		t.Parallel()
-		client, _ := coderdenttest.New(t, aibridgeOpts(t))
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		req := codersdk.CreateAIProviderRequest{
@@ -183,7 +163,8 @@ func TestAIProvidersCRUD(t *testing.T) {
 
 	t.Run("InvalidName", func(t *testing.T) {
 		t.Parallel()
-		client, _ := coderdenttest.New(t, aibridgeOpts(t))
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Invalid character in name.
@@ -202,7 +183,8 @@ func TestAIProvidersCRUD(t *testing.T) {
 
 	t.Run("InvalidType", func(t *testing.T) {
 		t.Parallel()
-		client, _ := coderdenttest.New(t, aibridgeOpts(t))
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		//nolint:gocritic // Owner role is the audience for this endpoint.
@@ -220,7 +202,8 @@ func TestAIProvidersCRUD(t *testing.T) {
 
 	t.Run("InvalidBaseURL", func(t *testing.T) {
 		t.Parallel()
-		client, _ := coderdenttest.New(t, aibridgeOpts(t))
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		//nolint:gocritic // Owner role is the audience for this endpoint.
@@ -248,7 +231,8 @@ func TestAIProvidersCRUD(t *testing.T) {
 
 	t.Run("UpdateNoFields", func(t *testing.T) {
 		t.Parallel()
-		client, _ := coderdenttest.New(t, aibridgeOpts(t))
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		//nolint:gocritic // Owner role is the audience for this endpoint.
@@ -269,7 +253,8 @@ func TestAIProvidersCRUD(t *testing.T) {
 
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
-		client, _ := coderdenttest.New(t, aibridgeOpts(t))
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		//nolint:gocritic // Owner role is the audience for this endpoint.
@@ -287,7 +272,8 @@ func TestAIProvidersCRUD(t *testing.T) {
 
 	t.Run("NonOwnerForbidden", func(t *testing.T) {
 		t.Parallel()
-		ownerClient, _, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ownerClient := coderdtest.New(t, nil)
+		firstUser := coderdtest.CreateFirstUser(t, ownerClient)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Create as owner.
@@ -331,7 +317,8 @@ func TestAIProvidersCRUD(t *testing.T) {
 
 	t.Run("Unauthenticated", func(t *testing.T) {
 		t.Parallel()
-		ownerClient, _ := coderdenttest.New(t, aibridgeOpts(t))
+		ownerClient := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, ownerClient)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		anon := codersdk.New(ownerClient.URL)
@@ -344,7 +331,8 @@ func TestAIProvidersCRUD(t *testing.T) {
 
 	t.Run("BedrockSecretsHidden", func(t *testing.T) {
 		t.Parallel()
-		client, _ := coderdenttest.New(t, aibridgeOpts(t))
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Bedrock providers carry their AWS access key + secret inside the
@@ -386,7 +374,8 @@ func TestAIProviderKeysCRUD(t *testing.T) {
 
 	t.Run("CreateDelete", func(t *testing.T) {
 		t.Parallel()
-		client, _ := coderdenttest.New(t, aibridgeOpts(t))
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		//nolint:gocritic // Owner role is the audience for this endpoint.
@@ -420,7 +409,8 @@ func TestAIProviderKeysCRUD(t *testing.T) {
 
 	t.Run("BedrockProviderRejected", func(t *testing.T) {
 		t.Parallel()
-		client, _ := coderdenttest.New(t, aibridgeOpts(t))
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Bedrock providers authenticate via the settings blob (AWS
@@ -453,7 +443,8 @@ func TestAIProviderKeysCRUD(t *testing.T) {
 
 	t.Run("RequiresAPIKey", func(t *testing.T) {
 		t.Parallel()
-		client, _ := coderdenttest.New(t, aibridgeOpts(t))
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		//nolint:gocritic // Owner role is the audience for this endpoint.
@@ -476,7 +467,8 @@ func TestAIProviderKeysCRUD(t *testing.T) {
 
 	t.Run("DeleteCrossProviderForbidden", func(t *testing.T) {
 		t.Parallel()
-		client, _ := coderdenttest.New(t, aibridgeOpts(t))
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Two distinct providers, each with their own key.
@@ -518,7 +510,8 @@ func TestAIProviderKeysCRUD(t *testing.T) {
 
 	t.Run("KeyResponseHidesSecret", func(t *testing.T) {
 		t.Parallel()
-		client, _ := coderdenttest.New(t, aibridgeOpts(t))
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		//nolint:gocritic // Owner role is the audience for this endpoint.
@@ -550,7 +543,8 @@ func TestAIProviderKeysCRUD(t *testing.T) {
 
 	t.Run("NonOwnerForbidden", func(t *testing.T) {
 		t.Parallel()
-		ownerClient, _, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ownerClient := coderdtest.New(t, nil)
+		firstUser := coderdtest.CreateFirstUser(t, ownerClient)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		//nolint:gocritic // Owner role is the audience for this endpoint.
@@ -575,7 +569,8 @@ func TestAIProviderKeysCRUD(t *testing.T) {
 
 	t.Run("ProviderNotFound", func(t *testing.T) {
 		t.Parallel()
-		client, _ := coderdenttest.New(t, aibridgeOpts(t))
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		//nolint:gocritic // Owner role is the audience for this endpoint.
