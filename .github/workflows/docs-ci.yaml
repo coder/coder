@@ -70,28 +70,13 @@ jobs:
         env:
           ALL_CHANGED_FILES: ${{ steps.changed-md.outputs.all_changed_files }}
 
-      # Separate changed-files filter for Vale prose linting. Vale's
-      # .vale.ini only configures rules under docs/, so a repo-wide **.md
-      # filter would feed Vale paths it has no opinions on. The
-      # docs/.style/styles/** subtree holds the synced upstream packages
-      # and must never go through Vale itself, so files_ignore strips them
-      # before the path list reaches the step.
-      - uses: tj-actions/changed-files@22103cc46bda19c2b464ffe86db46df6922fd323 # v45.0.7
-        id: changed-md-docs
-        with:
-          files: |
-            docs/**.md
-          files_ignore: |
-            docs/.style/styles/**
-          separator: ","
-
       # `make docs/.style/.vale-synced` downloads the pinned Vale binary
       # into build/ and runs `vale sync` so the configured packages exist
       # under StylesPath. The sync is idempotent across runs and gated by
       # an mtime sentinel that the cache below preserves between workflow
       # invocations.
       - name: Cache Vale styles and binary
-        if: steps.changed-md-docs.outputs.any_changed == 'true'
+        if: steps.changed-md.outputs.any_changed == 'true'
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
@@ -102,18 +87,34 @@ jobs:
             build/vale-*
           key: vale-${{ hashFiles('.vale.ini', 'mise.toml') }}
 
-      # The prose step is non-blocking by design (continue-on-error: true).
-      # v1 lands every rule at `warning`, which makes Vale exit non-zero
-      # even on clean PRs that happen to touch many lines. Annotations
-      # stay visible in the step log; promote rules to `error` (and drop
-      # continue-on-error) once their existing-content violation count
-      # reaches zero. See DOCS-40.
+      # Vale runs on the changed-md set filtered to docs/ paths only,
+      # excluding the synced upstream packages under docs/.style/styles/.
+      # We post-filter in shell rather than using a second
+      # tj-actions/changed-files step because the `docs/**.md` glob there
+      # silently skips dot-prefixed dirs (so it would miss our own
+      # docs/.style/style-guide.md while still treating the top-level
+      # `**.md` filter as authoritative). The early exit handles PRs that
+      # only touched non-docs markdown like AGENTS.md or README.md.
+      #
+      # The step is non-blocking by design (continue-on-error: true). v1
+      # lands every rule at `warning`, which makes Vale exit non-zero on
+      # nearly every PR. Annotations stay visible in the step log; promote
+      # rules to `error` (and drop continue-on-error) once their
+      # existing-content violation count reaches zero. See DOCS-40.
       - name: prose
-        if: steps.changed-md-docs.outputs.any_changed == 'true'
+        if: steps.changed-md.outputs.any_changed == 'true'
         continue-on-error: true
         run: |
+          files=$(printf '%s\n' "$ALL_CHANGED_FILES" \
+            | tr ',' '\n' \
+            | grep -E '^docs/' \
+            | grep -v '^docs/\.style/styles/' || true)
+          if [ -z "$files" ]; then
+            echo "No changed Markdown files under docs/ (excluding synced styles); skipping Vale."
+            exit 0
+          fi
           make docs/.style/.vale-synced
           vale=$(find build/ -maxdepth 1 -name 'vale-*' -type f -print -quit)
-          printf '%s\n' "$ALL_CHANGED_FILES" | tr ',' '\n' | xargs -d '\n' "$vale"
+          printf '%s\n' "$files" | xargs -d '\n' "$vale"
         env:
-          ALL_CHANGED_FILES: ${{ steps.changed-md-docs.outputs.all_changed_files }}
+          ALL_CHANGED_FILES: ${{ steps.changed-md.outputs.all_changed_files }}
