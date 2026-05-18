@@ -424,9 +424,26 @@ export interface AIProviderSettings {}
 export const AIProviderSettingsTypeBedrock = "bedrock";
 
 // From codersdk/aiproviders.go
-export type AIProviderType = "anthropic" | "openai";
+export type AIProviderType =
+	| "anthropic"
+	| "azure"
+	| "bedrock"
+	| "google"
+	| "openai"
+	| "openai-compat"
+	| "openrouter"
+	| "vercel";
 
-export const AIProviderTypes: AIProviderType[] = ["anthropic", "openai"];
+export const AIProviderTypes: AIProviderType[] = [
+	"anthropic",
+	"azure",
+	"bedrock",
+	"google",
+	"openai",
+	"openai-compat",
+	"openrouter",
+	"vercel",
+];
 
 // From codersdk/allowlist.go
 /**

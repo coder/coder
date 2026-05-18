@@ -12,7 +12,13 @@ CREATE TYPE agent_key_scope_enum AS ENUM (
 
 CREATE TYPE ai_provider_type AS ENUM (
     'openai',
-    'anthropic'
+    'anthropic',
+    'azure',
+    'bedrock',
+    'google',
+    'openai-compat',
+    'openrouter',
+    'vercel'
 );
 
 CREATE TYPE ai_seat_usage_reason AS ENUM (
