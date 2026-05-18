@@ -121,12 +121,12 @@ func TestChatACLSharingLifecycle(t *testing.T) {
 			Text: "should not send",
 		}},
 	})
-	requireSDKError(t, err, http.StatusForbidden)
+	requireSDKError(t, err, http.StatusNotFound)
 
 	err = sharedClient.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
 		Title: ptr.Ref("should not rename"),
 	})
-	requireSDKError(t, err, http.StatusForbidden)
+	requireSDKError(t, err, http.StatusNotFound)
 
 	err = sharedClient.UpdateChatACL(ctx, chat.ID, codersdk.UpdateChatACL{
 		UserRoles: map[string]codersdk.ChatRole{
@@ -406,7 +406,11 @@ func TestListChatsExcludesSharedChats(t *testing.T) {
 func TestChatSharingDisabled(t *testing.T) {
 	previous := rbac.ChatACLDisabled()
 	rbac.SetChatACLDisabled(false)
-	t.Cleanup(func() { rbac.SetChatACLDisabled(previous) })
+	rbac.ReloadBuiltinRoles(nil)
+	t.Cleanup(func() {
+		rbac.ReloadBuiltinRoles(nil)
+		rbac.SetChatACLDisabled(previous)
+	})
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	values := chatDeploymentValues(t)
