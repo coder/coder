@@ -35,7 +35,7 @@ func TestRun_ChainBrokenRecovers(t *testing.T) {
 			streamCalls++
 			switch streamCalls {
 			case 1:
-				return nil, xerrors.New(chainBrokenErrorMessage)
+				return nil, chainBrokenError()
 			default:
 				secondCallOpt = call.ProviderOptions
 				secondPrompt = call.Prompt
@@ -109,7 +109,7 @@ func TestRun_ChainBrokenRecoveryPreparesReloadedMessages(t *testing.T) {
 			streamCalls++
 			switch streamCalls {
 			case 1:
-				return nil, xerrors.New(chainBrokenErrorMessage)
+				return nil, chainBrokenError()
 			default:
 				secondCallOpt = call.ProviderOptions
 				secondPrompt = call.Prompt
@@ -166,7 +166,7 @@ func TestRun_ChainBrokenRecoveryAppliesProviderPromptPrep(t *testing.T) {
 			streamCalls++
 			switch streamCalls {
 			case 1:
-				return nil, xerrors.New(chainBrokenErrorMessage)
+				return nil, chainBrokenError()
 			default:
 				secondCallOpt = call.ProviderOptions
 				secondPrompt = call.Prompt
@@ -228,7 +228,7 @@ func TestRun_ChainBrokenReloadWithoutDisableChainModeIsExplicit(t *testing.T) {
 			streamCalls++
 			switch streamCalls {
 			case 1:
-				return nil, xerrors.New(chainBrokenErrorMessage)
+				return nil, chainBrokenError()
 			default:
 				secondCallOpt = call.ProviderOptions
 				secondPrompt = call.Prompt
@@ -293,7 +293,7 @@ func TestRun_ChainBrokenComposesWithPostStepChainExit(t *testing.T) {
 			switch attempt {
 			case 1:
 				// Initial chained attempt: 404 from provider.
-				return nil, xerrors.New(chainBrokenErrorMessage)
+				return nil, chainBrokenError()
 			case 2:
 				// Recovery succeeded; emit a tool call so the
 				// step loop continues to a second step.
@@ -370,7 +370,7 @@ func TestRun_ChainBrokenReloadFailureStillClearsChain(t *testing.T) {
 			streamCalls++
 			switch streamCalls {
 			case 1:
-				return nil, xerrors.New(chainBrokenErrorMessage)
+				return nil, chainBrokenError()
 			default:
 				secondCallOpt = call.ProviderOptions
 				secondPrompt = call.Prompt
@@ -430,7 +430,7 @@ func TestRun_ChainBrokenRecoveryPrepareFailureReturnsPreparePhaseError(t *testin
 		ModelName:    "claude-test",
 		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
 			streamCalls++
-			return nil, xerrors.New(chainBrokenErrorMessage)
+			return nil, chainBrokenError()
 		},
 	}
 
@@ -490,7 +490,7 @@ func TestRun_ChainBrokenWithoutChainModeIsSafe(t *testing.T) {
 			streamCalls++
 			switch streamCalls {
 			case 1:
-				return nil, xerrors.New(chainBrokenErrorMessage)
+				return nil, chainBrokenError()
 			default:
 				return finishingStream(), nil
 			}
@@ -699,9 +699,16 @@ func TestFlushActiveStatePreservesEmptySignedReasoning(t *testing.T) {
 	require.Equal(t, "redacted-payload", metadata.RedactedData)
 }
 
-// chainBrokenError is what OpenAI returns when previous_response_id
-// points at a response it does not have stored.
-const chainBrokenErrorMessage = "Previous response with id 'resp_abc' not found."
+// chainBrokenError returns a fantasy.ProviderError that triggers
+// chain-broken classification: HTTP 404 with a request body that
+// carried previous_response_id.
+func chainBrokenError() error {
+	return &fantasy.ProviderError{
+		Message:     "Item with id 'rs_abc' not found.",
+		StatusCode:  404,
+		RequestBody: []byte(`{"previous_response_id":"resp_abc"}`),
+	}
+}
 
 // finishingStream returns a stream that emits a single Finish part.
 // The chatloop treats a finishReason of Stop as "stoppedByModel" and

@@ -976,6 +976,8 @@ func TestClassify_TruncatesProviderDetail(t *testing.T) {
 func TestClassify_ChainBroken(t *testing.T) {
 	t.Parallel()
 
+	chainRequestBody := []byte(`{"previous_response_id":"resp_abc"}`)
+
 	tests := []struct {
 		name            string
 		err             error
@@ -985,21 +987,11 @@ func TestClassify_ChainBroken(t *testing.T) {
 		wantStatusCode  int
 	}{
 		{
-			name: "OpenAIPreviousResponseNotFoundBareString",
-			err: xerrors.New(
+			name: "404WithPreviousResponseID",
+			err: testProviderErrorWithRequestBody(
 				"Previous response with id 'resp_abc' not found.",
-			),
-			wantChainBroken: true,
-			wantRetryable:   true,
-			wantProvider:    "openai",
-			wantStatusCode:  0,
-		},
-		{
-			name: "OpenAIPreviousResponseNotFoundProviderError",
-			err: testProviderError(
-				"Previous response with id 'resp_096c70c5bb8d52bc0069fa11e0630c81a3ba210cddfa75bae9' not found.",
 				404,
-				nil,
+				chainRequestBody,
 			),
 			wantChainBroken: true,
 			wantRetryable:   true,
@@ -1007,11 +999,11 @@ func TestClassify_ChainBroken(t *testing.T) {
 			wantStatusCode:  404,
 		},
 		{
-			name: "OpenAIPreviousResponseCaseInsensitive",
-			err: testProviderError(
-				"PREVIOUS RESPONSE WITH ID 'resp_abc' NOT FOUND.",
+			name: "ItemNotFoundWithPreviousResponseID",
+			err: testProviderErrorWithRequestBody(
+				"Item with id 'rs_052e74a65de5ff25006a0b0d494eb08196bf7aaa892efaadb6' not found.",
 				404,
-				nil,
+				chainRequestBody,
 			),
 			wantChainBroken: true,
 			wantRetryable:   true,
@@ -1019,11 +1011,39 @@ func TestClassify_ChainBroken(t *testing.T) {
 			wantStatusCode:  404,
 		},
 		{
-			name: "PreviousResponseWithoutNotFoundIsNotChainBroken",
+			name: "GenericMessage404WithPreviousResponseID",
+			err: testProviderErrorWithRequestBody(
+				"not found",
+				404,
+				chainRequestBody,
+			),
+			wantChainBroken: true,
+			wantRetryable:   true,
+			wantProvider:    "openai",
+			wantStatusCode:  404,
+		},
+		{
+			name: "404WithoutPreviousResponseIDIsNotChainBroken",
 			err: testProviderError(
+				"Previous response with id 'resp_abc' not found.",
+				404,
+				nil,
+			),
+			wantChainBroken: false,
+		},
+		{
+			name: "Non404WithPreviousResponseIDIsNotChainBroken",
+			err: testProviderErrorWithRequestBody(
 				"Previous response with id 'resp_abc' is invalid.",
 				400,
-				nil,
+				chainRequestBody,
+			),
+			wantChainBroken: false,
+		},
+		{
+			name: "BareStringErrorIsNotChainBroken",
+			err: xerrors.New(
+				"Previous response with id 'resp_abc' not found.",
 			),
 			wantChainBroken: false,
 		},
@@ -1073,10 +1093,10 @@ func TestClassify_ChainBroken(t *testing.T) {
 func TestClassify_ChainBrokenSurvivesWithClassification(t *testing.T) {
 	t.Parallel()
 
-	original := chaterror.Classify(testProviderError(
+	original := chaterror.Classify(testProviderErrorWithRequestBody(
 		"Previous response with id 'resp_abc' not found.",
 		404,
-		nil,
+		[]byte(`{"previous_response_id":"resp_abc"}`),
 	))
 	require.True(t, original.ChainBroken)
 
@@ -1105,6 +1125,18 @@ func testProviderError(
 		StatusCode:      statusCode,
 		ResponseHeaders: headers,
 		ResponseBody:    body,
+	}
+}
+
+func testProviderErrorWithRequestBody(
+	message string,
+	statusCode int,
+	requestBody []byte,
+) error {
+	return &fantasy.ProviderError{
+		Message:     message,
+		StatusCode:  statusCode,
+		RequestBody: requestBody,
 	}
 }
 

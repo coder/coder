@@ -352,21 +352,21 @@ func streamIncompleteMessage(provider string) string {
 	return providerSubject(provider) + " stream closed unexpectedly before the response completed."
 }
 
-// chainBrokenClassification recognizes the OpenAI error
-// "Previous response with id ... not found" returned when a
-// chained turn references a previous_response_id the provider no
-// longer recognizes.
+// chainBrokenClassification detects a broken chain anchor by checking
+// whether the original request carried a previous_response_id and the
+// provider replied with HTTP 404. This is more robust than parsing
+// provider error messages which vary across endpoints and over time.
 func chainBrokenClassification(
-	lowerMessage string,
+	_ string,
 	provider string,
 	statusCode int,
 	structured providerErrorDetails,
 ) (ClassifiedError, bool) {
-	if !(strings.Contains(lowerMessage, "previous response with id") &&
-		strings.Contains(lowerMessage, "not found")) {
+	if !(structured.hadPreviousResponseID && statusCode == 404) {
 		return ClassifiedError{}, false
 	}
-	// This class of error has so far only been observed with OpenAI.
+	// Chain mode with previous_response_id is an OpenAI Responses API
+	// feature, so default to openai when no provider was detected.
 	if provider == "" {
 		provider = "openai"
 	}
