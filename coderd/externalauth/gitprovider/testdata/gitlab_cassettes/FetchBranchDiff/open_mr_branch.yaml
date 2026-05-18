@@ -44,7 +44,7 @@ interactions:
                 - stripped
             User-Agent:
                 - stripped
-        url: https://gitlab.com/api/v4/projects/test-group9945421%2Ftest-project/repository/compare?from=main&to=johnstcn-main-patch-98822
+        url: https://gitlab.com/api/v4/projects/test-group9945421%2Ftest-project/repository/compare?from=main&to=johnstcn-main-patch-98822&unidiff=true
         method: GET
       response:
         proto: HTTP/2.0

@@ -137,6 +137,34 @@ func TestGitLabFetchBranchDiff(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "default branch is empty")
 	})
+
+	t.Run("CompareTimeout", func(t *testing.T) {
+		t.Parallel()
+
+		mux := http.NewServeMux()
+		mux.HandleFunc("/api/v4/projects/owner%2Frepo/repository/compare", func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"compare_timeout":true,"diffs":[]}`))
+		})
+		mux.HandleFunc("/api/v4/projects/owner%2Frepo", func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"default_branch":"main"}`))
+		})
+
+		srv := httptest.NewServer(mux)
+		defer srv.Close()
+
+		gp, err := gitprovider.New("gitlab", srv.URL, srv.Client())
+		require.NoError(t, err)
+
+		_, err = gp.FetchBranchDiff(
+			t.Context(),
+			"test-token",
+			gitprovider.BranchRef{Owner: "owner", Repo: "repo", Branch: "feat"},
+		)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "timed out")
+	})
 }
 
 func TestGitLabResolveBranchPullRequest(t *testing.T) {

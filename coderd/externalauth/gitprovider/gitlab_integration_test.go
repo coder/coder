@@ -785,11 +785,7 @@ func TestGitLabIntegration(t *testing.T) {
 					require.Error(t, err)
 					return
 				}
-				// For branches that may or may not exist, be lenient.
-				if err != nil {
-					t.Logf("FetchBranchDiff returned error (branch may be deleted): %v", err)
-					return
-				}
+				require.NoError(t, err)
 				assert.NotEmpty(t, diff)
 			})
 		}

@@ -296,7 +296,7 @@ func (g *gitlabProvider) FetchBranchDiff(
 		estimated += len(d.Diff) + len(d.OldPath) + len(d.NewPath) + 20
 	}
 	if estimated > MaxDiffSize {
-		estimated = MaxDiffSize
+		return "", ErrDiffTooLarge
 	}
 	sb.Grow(estimated)
 	for _, d := range compare.Diffs {
