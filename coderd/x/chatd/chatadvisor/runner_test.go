@@ -63,6 +63,37 @@ func TestAdvisorRunAdvice(t *testing.T) {
 	require.Equal(t, question, singleText(t, capturedCall.Prompt[len(capturedCall.Prompt)-1]))
 }
 
+func TestAdvisorRunTruncatesLongQuestion(t *testing.T) {
+	t.Parallel()
+
+	var capturedQuestion string
+	runtime, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
+		Model: &chattest.FakeModel{
+			ProviderName: "test-provider",
+			ModelName:    "test-model",
+			StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+				require.NotEmpty(t, call.Prompt)
+				capturedQuestion = singleText(t, call.Prompt[len(call.Prompt)-1])
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "Use the smaller diff."},
+					{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+				}), nil
+			},
+		},
+		MaxUsesPerRun:   1,
+		MaxOutputTokens: 128,
+	})
+	require.NoError(t, err)
+
+	question := strings.Repeat("界", 2001)
+	result, err := runtime.RunAdvisor(t.Context(), question, nil, nil)
+	require.NoError(t, err)
+	require.Equal(t, chatadvisor.ResultTypeAdvice, result.Type)
+	require.Equal(t, strings.Repeat("界", 2000), capturedQuestion)
+}
+
 func TestAdvisorRunStreamsAdviceDeltas(t *testing.T) {
 	t.Parallel()
 
