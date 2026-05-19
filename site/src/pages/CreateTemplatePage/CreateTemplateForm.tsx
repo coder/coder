@@ -51,11 +51,13 @@ import { TemplateUpload, type TemplateUploadProps } from "./TemplateUpload";
 import { VariableInput } from "./VariableInput";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
+const MAX_ABSTRACT_CHAR_LIMIT = 2048;
 
 export interface CreateTemplateFormData {
 	name: string;
 	display_name: string;
 	description: string;
+	abstract: string;
 	icon: string;
 	default_ttl_hours: number;
 	autostart_requirement_days_of_week: TemplateAutostartRequirementDaysValue[];
@@ -79,6 +81,10 @@ const validationSchema = Yup.object({
 		MAX_DESCRIPTION_CHAR_LIMIT,
 		"Please enter a description that is less than or equal to 128 characters.",
 	),
+	abstract: Yup.string().max(
+		MAX_ABSTRACT_CHAR_LIMIT,
+		`Please enter an abstract that is no longer than ${MAX_ABSTRACT_CHAR_LIMIT} characters.`,
+	),
 	icon: Yup.string().optional(),
 });
 
@@ -86,6 +92,7 @@ const defaultInitialValues: CreateTemplateFormData = {
 	name: "",
 	display_name: "",
 	description: "",
+	abstract: "",
 	icon: "",
 	default_ttl_hours: 24,
 	// autostop_requirement is an enterprise-only feature, and the server ignores
@@ -351,6 +358,19 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 						multiline
 						fullWidth
 						label="Description"
+					/>
+
+					<TextField
+						{...getFieldHelpers("abstract", {
+							helperText:
+								"Longer summary surfaced to agents to help pick the right template.",
+							maxLength: MAX_ABSTRACT_CHAR_LIMIT,
+						})}
+						disabled={isSubmitting}
+						rows={5}
+						multiline
+						fullWidth
+						label="Abstract"
 					/>
 
 					<IconField

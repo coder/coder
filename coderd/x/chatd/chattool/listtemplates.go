@@ -128,6 +128,9 @@ func ListTemplates(db database.Store, organizationID uuid.UUID, options ListTemp
 				if desc := strings.TrimSpace(t.Description); desc != "" {
 					item["description"] = truncateRunes(desc, 200)
 				}
+				if abstract := strings.TrimSpace(t.Abstract); abstract != "" {
+					item["abstract"] = abstract
+				}
 				if count, ok := ownerCounts[t.ID]; ok && count > 0 {
 					item["active_developers"] = count
 				}

@@ -3477,6 +3477,11 @@ export interface CreateTemplateRequest {
 	 */
 	readonly description?: string;
 	/**
+	 * Abstract is a longer-form summary used to help agents pick the right
+	 * template. It must be at most 2048 bytes.
+	 */
+	readonly abstract?: string;
+	/**
 	 * Icon is a relative path or external URL that specifies
 	 * an icon to be displayed in the dashboard.
 	 */
@@ -8025,6 +8030,7 @@ export interface Template {
 	readonly active_user_count: number;
 	readonly build_time_stats: TemplateBuildTimeStats;
 	readonly description: string;
+	readonly abstract: string;
 	readonly deprecated: boolean;
 	readonly deprecation_message: string;
 	readonly deleted: boolean;
@@ -8841,6 +8847,7 @@ export interface UpdateTemplateMeta {
 	readonly name?: string;
 	readonly display_name?: string;
 	readonly description?: string;
+	readonly abstract?: string;
 	readonly icon?: string;
 	readonly default_ttl_ms?: number;
 	/**

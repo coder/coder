@@ -30,6 +30,7 @@ type Template struct {
 	ActiveUserCount    int                    `json:"active_user_count"`
 	BuildTimeStats     TemplateBuildTimeStats `json:"build_time_stats"`
 	Description        string                 `json:"description"`
+	Abstract           string                 `json:"abstract"`
 	Deprecated         bool                   `json:"deprecated"`
 	DeprecationMessage string                 `json:"deprecation_message"`
 	Deleted            bool                   `json:"deleted"`
@@ -221,6 +222,7 @@ type UpdateTemplateMeta struct {
 	Name             *string `json:"name,omitempty" validate:"omitempty,template_name"`
 	DisplayName      *string `json:"display_name,omitempty" validate:"omitempty,template_display_name"`
 	Description      *string `json:"description,omitempty"`
+	Abstract         *string `json:"abstract,omitempty" validate:"omitempty,max=2048"`
 	Icon             *string `json:"icon,omitempty"`
 	DefaultTTLMillis *int64  `json:"default_ttl_ms,omitempty"`
 	// ActivityBumpMillis allows optionally specifying the activity bump

@@ -104,6 +104,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"provisioner":                       ActionTrack,
 		"active_version_id":                 ActionTrack,
 		"description":                       ActionTrack,
+		"abstract":                          ActionTrack,
 		"icon":                              ActionTrack,
 		"default_ttl":                       ActionTrack,
 		"autostart_block_days_of_week":      ActionTrack,

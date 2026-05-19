@@ -640,6 +640,7 @@ var ListTemplates = Tool[NoArgs, []MinimalTemplate]{
 				ID:              template.ID.String(),
 				Name:            template.Name,
 				Description:     template.Description,
+				Abstract:        template.Abstract,
 				ActiveVersionID: template.ActiveVersionID,
 				ActiveUserCount: template.ActiveUserCount,
 			}
@@ -777,6 +778,7 @@ When selecting a preset: if a preset is marked default and the user has not spec
 				ID:              template.ID.String(),
 				Name:            template.Name,
 				Description:     template.Description,
+				Abstract:        template.Abstract,
 				ActiveVersionID: template.ActiveVersionID,
 				ActiveUserCount: template.ActiveUserCount,
 			},
@@ -1719,6 +1721,7 @@ type MinimalTemplate struct {
 	ID              string    `json:"id"`
 	Name            string    `json:"name"`
 	Description     string    `json:"description"`
+	Abstract        string    `json:"abstract,omitempty"`
 	ActiveVersionID uuid.UUID `json:"active_version_id"`
 	ActiveUserCount int       `json:"active_user_count"`
 }

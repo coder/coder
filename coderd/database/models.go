@@ -5477,6 +5477,7 @@ type Template struct {
 	UseClassicParameterFlow       bool            `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
 	CorsBehavior                  CorsBehavior    `db:"cors_behavior" json:"cors_behavior"`
 	DisableModuleCache            bool            `db:"disable_module_cache" json:"disable_module_cache"`
+	Abstract                      string          `db:"abstract" json:"abstract"`
 	CreatedByAvatarURL            string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
 	CreatedByName                 string          `db:"created_by_name" json:"created_by_name"`
@@ -5527,6 +5528,8 @@ type TemplateTable struct {
 	UseClassicParameterFlow bool         `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
 	CorsBehavior            CorsBehavior `db:"cors_behavior" json:"cors_behavior"`
 	DisableModuleCache      bool         `db:"disable_module_cache" json:"disable_module_cache"`
+	// Longer-form summary used to help agents pick the right template.
+	Abstract string `db:"abstract" json:"abstract"`
 }
 
 // Records aggregated usage statistics for templates/users. All usage is rounded up to the nearest minute.

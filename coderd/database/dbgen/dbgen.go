@@ -535,6 +535,7 @@ func Template(t testing.TB, db database.Store, seed database.Template) database.
 		Provisioner:                  takeFirst(seed.Provisioner, database.ProvisionerTypeEcho),
 		ActiveVersionID:              takeFirst(seed.ActiveVersionID, uuid.New()),
 		Description:                  takeFirst(seed.Description, testutil.GetRandomName(t)),
+		Abstract:                     seed.Abstract,
 		CreatedBy:                    takeFirst(seed.CreatedBy, uuid.New()),
 		Icon:                         takeFirst(seed.Icon, testutil.GetRandomName(t)),
 		UserACL:                      seed.UserACL,
