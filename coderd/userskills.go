@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/audit"
@@ -73,6 +74,7 @@ func (api *API) postUserSkill(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	params := database.InsertUserSkillParams{
+		ID:          uuid.New(),
 		UserID:      user.ID,
 		Name:        parsedSkill.Name,
 		Description: parsedSkill.Description,

@@ -1,6 +1,6 @@
 -- name: InsertUserSkill :one
-INSERT INTO user_skills (user_id, name, description, content)
-VALUES (@user_id::uuid, @name::text, @description::text, @content::text)
+INSERT INTO user_skills (id, user_id, name, description, content)
+VALUES (@id::uuid, @user_id::uuid, @name::text, @description::text, @content::text)
 RETURNING *;
 
 -- name: GetUserSkillByUserIDAndName :one

@@ -3073,7 +3073,7 @@ CREATE TABLE user_secrets (
 );
 
 CREATE TABLE user_skills (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    id uuid NOT NULL,
     user_id uuid NOT NULL,
     name text NOT NULL,
     description text DEFAULT ''::text NOT NULL,

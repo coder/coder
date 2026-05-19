@@ -26947,12 +26947,13 @@ func (q *sqlQuerier) GetUserSkillByUserIDAndName(ctx context.Context, arg GetUse
 }
 
 const insertUserSkill = `-- name: InsertUserSkill :one
-INSERT INTO user_skills (user_id, name, description, content)
-VALUES ($1::uuid, $2::text, $3::text, $4::text)
+INSERT INTO user_skills (id, user_id, name, description, content)
+VALUES ($1::uuid, $2::uuid, $3::text, $4::text, $5::text)
 RETURNING id, user_id, name, description, content, created_at, updated_at
 `
 
 type InsertUserSkillParams struct {
+	ID          uuid.UUID `db:"id" json:"id"`
 	UserID      uuid.UUID `db:"user_id" json:"user_id"`
 	Name        string    `db:"name" json:"name"`
 	Description string    `db:"description" json:"description"`
@@ -26961,6 +26962,7 @@ type InsertUserSkillParams struct {
 
 func (q *sqlQuerier) InsertUserSkill(ctx context.Context, arg InsertUserSkillParams) (UserSkill, error) {
 	row := q.db.QueryRowContext(ctx, insertUserSkill,
+		arg.ID,
 		arg.UserID,
 		arg.Name,
 		arg.Description,

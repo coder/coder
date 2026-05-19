@@ -6066,8 +6066,16 @@ func (s *MethodTestSuite) TestUserSkills() {
 	}))
 	s.Run("InsertUserSkill", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		user := testutil.Fake(s.T(), faker, database.User{})
-		arg := database.InsertUserSkillParams{UserID: user.ID, Name: "test"}
-		ret := testutil.Fake(s.T(), faker, database.UserSkill{UserID: user.ID, Name: arg.Name})
+		arg := database.InsertUserSkillParams{
+			ID:     uuid.New(),
+			UserID: user.ID,
+			Name:   "test",
+		}
+		ret := testutil.Fake(s.T(), faker, database.UserSkill{
+			ID:     arg.ID,
+			UserID: user.ID,
+			Name:   arg.Name,
+		})
 		dbm.EXPECT().InsertUserSkill(gomock.Any(), arg).Return(ret, nil).AnyTimes()
 		check.Args(arg).
 			Asserts(rbac.ResourceUserSkill.WithOwner(user.ID.String()), policy.ActionCreate).
