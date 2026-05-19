@@ -17884,7 +17884,7 @@ const docTemplate = `{
             ],
             "properties": {
                 "abstract": {
-                    "description": "Abstract is a longer-form summary used to help agents pick the right\ntemplate. It must be at most 2048 bytes.",
+                    "description": "Abstract is a longer-form summary used to help agents pick the right\ntemplate. It must be at most 2048 characters.",
                     "type": "string",
                     "maxLength": 2048
                 },
@@ -23321,6 +23321,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "abstract": {
+                    "description": "Abstract is a longer-form summary surfaced to agents to help them pick\nthe right template. Up to 2048 characters.",
                     "type": "string"
                 },
                 "active_user_count": {
@@ -24436,6 +24437,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "abstract": {
+                    "description": "Abstract is a longer-form summary surfaced to agents to help them pick\nthe right template. Up to 2048 characters.",
                     "type": "string",
                     "maxLength": 2048
                 },

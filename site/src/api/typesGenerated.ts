@@ -3478,7 +3478,7 @@ export interface CreateTemplateRequest {
 	readonly description?: string;
 	/**
 	 * Abstract is a longer-form summary used to help agents pick the right
-	 * template. It must be at most 2048 bytes.
+	 * template. It must be at most 2048 characters.
 	 */
 	readonly abstract?: string;
 	/**
@@ -8030,6 +8030,10 @@ export interface Template {
 	readonly active_user_count: number;
 	readonly build_time_stats: TemplateBuildTimeStats;
 	readonly description: string;
+	/**
+	 * Abstract is a longer-form summary surfaced to agents to help them pick
+	 * the right template. Up to 2048 characters.
+	 */
 	readonly abstract: string;
 	readonly deprecated: boolean;
 	readonly deprecation_message: string;
@@ -8847,6 +8851,10 @@ export interface UpdateTemplateMeta {
 	readonly name?: string;
 	readonly display_name?: string;
 	readonly description?: string;
+	/**
+	 * Abstract is a longer-form summary surfaced to agents to help them pick
+	 * the right template. Up to 2048 characters.
+	 */
 	readonly abstract?: string;
 	readonly icon?: string;
 	readonly default_ttl_ms?: number;

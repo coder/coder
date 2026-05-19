@@ -309,7 +309,33 @@ func TestTools(t *testing.T) {
 		})
 		for i, template := range result {
 			require.Equal(t, expected[i].ID.String(), template.ID)
+			require.Equal(t, expected[i].Abstract, template.Abstract)
 		}
+	})
+
+	t.Run("ListTemplatesPropagatesAbstract", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitShort)
+		// Set Abstract on the existing fixture so the list response surfaces it.
+		abstract := "Agent-targeted summary for the shared fixture template."
+		_, err := client.UpdateTemplateMeta(ctx, r.Template.ID, codersdk.UpdateTemplateMeta{
+			Abstract: &abstract,
+		})
+		require.NoError(t, err)
+
+		tb, err := toolsdk.NewDeps(memberClient)
+		require.NoError(t, err)
+		result, err := testTool(t, toolsdk.ListTemplates, tb, toolsdk.NoArgs{})
+		require.NoError(t, err)
+
+		var found bool
+		for _, template := range result {
+			if template.ID == r.Template.ID.String() {
+				require.Equal(t, abstract, template.Abstract)
+				found = true
+				break
+			}
+		}
+		require.True(t, found, "expected fixture template in list response")
 	})
 
 	t.Run("Whoami", func(t *testing.T) {
@@ -737,6 +763,28 @@ func TestTools(t *testing.T) {
 				TemplateID: uuid.New().String(),
 			})
 			require.ErrorContains(t, err, "get template")
+		})
+
+		t.Run("Abstract", func(t *testing.T) {
+			ctx := testutil.Context(t, testutil.WaitShort)
+			// Isolated fixture so the WithPresets assertions above stay intact.
+			absBuild := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+				OrganizationID: owner.OrganizationID,
+				OwnerID:        member.ID,
+			}).Do()
+			abstract := "Agent-targeted summary for the GetTemplate fixture."
+			_, err := client.UpdateTemplateMeta(ctx, absBuild.Template.ID, codersdk.UpdateTemplateMeta{
+				Abstract: &abstract,
+			})
+			require.NoError(t, err)
+
+			tb, err := toolsdk.NewDeps(memberClient)
+			require.NoError(t, err)
+			result, err := testTool(t, toolsdk.GetTemplate, tb, toolsdk.GetTemplateArgs{
+				TemplateID: absBuild.Template.ID.String(),
+			})
+			require.NoError(t, err)
+			require.Equal(t, abstract, result.Abstract)
 		})
 	})
 

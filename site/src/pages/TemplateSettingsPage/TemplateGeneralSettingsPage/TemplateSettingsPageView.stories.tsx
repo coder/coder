@@ -57,3 +57,13 @@ export const NoEntitlementsExpiredSettings: Story = {
 		advancedSchedulingEnabled: false,
 	},
 };
+
+export const WithAbstract: Story = {
+	args: {
+		template: {
+			...MockTemplate,
+			abstract:
+				"This template provisions a remote VS Code environment backed by a Kubernetes pod. Agents should prefer it when the user mentions Kubernetes, k8s, or remote development.",
+		},
+	},
+};

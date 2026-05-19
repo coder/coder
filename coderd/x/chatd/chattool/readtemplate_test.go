@@ -181,3 +181,89 @@ func TestReadTemplate_NoPresets(t *testing.T) {
 	_, hasPresets := result["presets"]
 	require.False(t, hasPresets, "presets key should be absent when there are none")
 }
+
+func TestReadTemplate_Abstract(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Present", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		user := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         user.ID,
+			OrganizationID: org.ID,
+		})
+
+		tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		const abstract = "A long-form summary used by agents to pick the right template."
+		tmpl := dbgen.Template(t, db, database.Template{
+			OrganizationID:  org.ID,
+			CreatedBy:       user.ID,
+			ActiveVersionID: tv.ID,
+			Abstract:        abstract,
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		tool := chattool.ReadTemplate(db, org.ID, chattool.ReadTemplateOptions{
+			OwnerID: user.ID,
+		})
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "abstract-present",
+			Name:  "read_template",
+			Input: `{"template_id":"` + tmpl.ID.String() + `"}`,
+		})
+		require.NoError(t, err)
+		require.False(t, resp.IsError)
+
+		var result map[string]any
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		tmplInfo := result["template"].(map[string]any)
+		require.Equal(t, abstract, tmplInfo["abstract"].(string))
+	})
+
+	t.Run("Empty", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		user := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         user.ID,
+			OrganizationID: org.ID,
+		})
+
+		tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		tmpl := dbgen.Template(t, db, database.Template{
+			OrganizationID:  org.ID,
+			CreatedBy:       user.ID,
+			ActiveVersionID: tv.ID,
+			Abstract:        "",
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		tool := chattool.ReadTemplate(db, org.ID, chattool.ReadTemplateOptions{
+			OwnerID: user.ID,
+		})
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "abstract-empty",
+			Name:  "read_template",
+			Input: `{"template_id":"` + tmpl.ID.String() + `"}`,
+		})
+		require.NoError(t, err)
+		require.False(t, resp.IsError)
+
+		var result map[string]any
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		tmplInfo := result["template"].(map[string]any)
+		_, hasAbstract := tmplInfo["abstract"]
+		require.False(t, hasAbstract, "abstract key should be absent when empty")
+	})
+}

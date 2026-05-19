@@ -166,6 +166,24 @@ describe("TemplateSettingsPage", { timeout: 20_000 }, () => {
 		expect(validate).toThrowError();
 	});
 
+	it("allows an abstract of 2048 chars", () => {
+		const values: UpdateTemplateMeta = {
+			...validFormValues,
+			abstract: "a".repeat(2048),
+		};
+		const validate = () => validationSchema.validateSync(values);
+		expect(validate).not.toThrowError();
+	});
+
+	it("disallows an abstract of 2048 + 1 chars", () => {
+		const values: UpdateTemplateMeta = {
+			...validFormValues,
+			abstract: "a".repeat(2049),
+		};
+		const validate = () => validationSchema.validateSync(values);
+		expect(validate).toThrowError();
+	});
+
 	describe("Deprecate template", () => {
 		it("deprecates a template when has access control", async () => {
 			server.use(

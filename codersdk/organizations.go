@@ -145,7 +145,7 @@ type CreateTemplateRequest struct {
 	// less than 128 bytes.
 	Description string `json:"description,omitempty" validate:"lt=128"`
 	// Abstract is a longer-form summary used to help agents pick the right
-	// template. It must be at most 2048 bytes.
+	// template. It must be at most 2048 characters.
 	Abstract string `json:"abstract,omitempty" validate:"max=2048"`
 	// Icon is a relative path or external URL that specifies
 	// an icon to be displayed in the dashboard.

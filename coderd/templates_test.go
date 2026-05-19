@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"net/http"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -84,6 +85,47 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[0].Action)
 		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[1].Action)
 		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[2].Action)
+	})
+
+	t.Run("Abstract", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("PersistsValid", func(t *testing.T) {
+			t.Parallel()
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+
+			abstract := strings.Repeat("a", 2048)
+			created := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+				ctr.Abstract = abstract
+			})
+			assert.Equal(t, abstract, created.Abstract)
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			got, err := client.Template(ctx, created.ID)
+			require.NoError(t, err)
+			assert.Equal(t, abstract, got.Abstract)
+		})
+
+		t.Run("RejectsOverLimit", func(t *testing.T) {
+			t.Parallel()
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			_, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
+				Name:      "abstract-too-long",
+				VersionID: version.ID,
+				Abstract:  strings.Repeat("a", 2049),
+			})
+			var apiErr *codersdk.Error
+			require.ErrorAs(t, err, &apiErr)
+			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+			require.Len(t, apiErr.Validations, 1)
+			require.Equal(t, "abstract", apiErr.Validations[0].Field)
+		})
 	})
 
 	t.Run("AlreadyExists", func(t *testing.T) {
@@ -940,6 +982,49 @@ func TestPatchTemplateMeta(t *testing.T) {
 
 		require.Len(t, auditor.AuditLogs(), 5)
 		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[4].Action)
+	})
+
+	t.Run("Abstract", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("PersistsValid", func(t *testing.T) {
+			t.Parallel()
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+			abstract := strings.Repeat("a", 2048)
+			ctx := testutil.Context(t, testutil.WaitLong)
+			updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+				Abstract: &abstract,
+			})
+			require.NoError(t, err)
+			assert.Equal(t, abstract, updated.Abstract)
+
+			got, err := client.Template(ctx, template.ID)
+			require.NoError(t, err)
+			assert.Equal(t, abstract, got.Abstract)
+		})
+
+		t.Run("RejectsOverLimit", func(t *testing.T) {
+			t.Parallel()
+			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			user := coderdtest.CreateFirstUser(t, client)
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+			abstract := strings.Repeat("a", 2049)
+			ctx := testutil.Context(t, testutil.WaitLong)
+			_, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+				Abstract: &abstract,
+			})
+			var apiErr *codersdk.Error
+			require.ErrorAs(t, err, &apiErr)
+			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+			require.Len(t, apiErr.Validations, 1)
+			require.Equal(t, "abstract", apiErr.Validations[0].Field)
+		})
 	})
 
 	t.Run("AlreadyExists", func(t *testing.T) {

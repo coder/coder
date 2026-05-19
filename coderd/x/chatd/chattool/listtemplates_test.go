@@ -125,40 +125,116 @@ func TestListTemplates_OrganizationFilter(t *testing.T) {
 func TestListTemplates_Abstract(t *testing.T) {
 	t.Parallel()
 
-	db, _ := dbtestutil.NewDB(t)
-	user := dbgen.User(t, db, database.User{})
-	org := dbgen.Organization(t, db, database.Organization{})
-	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
-		UserID:         user.ID,
-		OrganizationID: org.ID,
+	t.Run("TruncatesLongAbstract", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		user := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         user.ID,
+			OrganizationID: org.ID,
+		})
+
+		longAbstract := strings.Repeat("a", 1000)
+		tpl := dbgen.Template(t, db, database.Template{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+			Name:           "with-abstract",
+			Description:    "short description",
+			Abstract:       longAbstract,
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		tool := chattool.ListTemplates(db, org.ID, chattool.ListTemplatesOptions{
+			OwnerID: user.ID,
+		})
+		resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "abstract", Name: "list_templates", Input: "{}"})
+		require.NoError(t, err)
+		require.False(t, resp.IsError)
+
+		var result map[string]any
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		templates := result["templates"].([]any)
+		require.Len(t, templates, 1)
+		m := templates[0].(map[string]any)
+		require.Equal(t, tpl.ID.String(), m["id"].(string))
+		require.Equal(t, "short description", m["description"].(string))
+		// List view truncates abstracts to keep responses small; the full text
+		// remains accessible via read_template.
+		require.Equal(t, strings.Repeat("a", 500), m["abstract"].(string))
 	})
 
-	longAbstract := strings.Repeat("a", 1000)
-	tpl := dbgen.Template(t, db, database.Template{
-		OrganizationID: org.ID,
-		CreatedBy:      user.ID,
-		Name:           "with-abstract",
-		Description:    "short description",
-		Abstract:       longAbstract,
+	t.Run("ShortAbstractUntouched", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		user := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         user.ID,
+			OrganizationID: org.ID,
+		})
+
+		shortAbstract := "a concise abstract"
+		dbgen.Template(t, db, database.Template{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+			Name:           "short-abstract",
+			Description:    "short description",
+			Abstract:       shortAbstract,
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		tool := chattool.ListTemplates(db, org.ID, chattool.ListTemplatesOptions{
+			OwnerID: user.ID,
+		})
+		resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "short", Name: "list_templates", Input: "{}"})
+		require.NoError(t, err)
+		require.False(t, resp.IsError)
+
+		var result map[string]any
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		templates := result["templates"].([]any)
+		require.Len(t, templates, 1)
+		require.Equal(t, shortAbstract, templates[0].(map[string]any)["abstract"].(string))
 	})
 
-	ctx := testutil.Context(t, testutil.WaitShort)
-	tool := chattool.ListTemplates(db, org.ID, chattool.ListTemplatesOptions{
-		OwnerID: user.ID,
-	})
-	resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "abstract", Name: "list_templates", Input: "{}"})
-	require.NoError(t, err)
-	require.False(t, resp.IsError)
+	t.Run("EmptyAbstractOmitted", func(t *testing.T) {
+		t.Parallel()
 
-	var result map[string]any
-	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
-	templates := result["templates"].([]any)
-	require.Len(t, templates, 1)
-	m := templates[0].(map[string]any)
-	require.Equal(t, tpl.ID.String(), m["id"].(string))
-	require.Equal(t, "short description", m["description"].(string))
-	// Abstract is surfaced in full, no truncation.
-	require.Equal(t, longAbstract, m["abstract"].(string))
+		db, _ := dbtestutil.NewDB(t)
+		user := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         user.ID,
+			OrganizationID: org.ID,
+		})
+
+		dbgen.Template(t, db, database.Template{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+			Name:           "no-abstract",
+			Description:    "short description",
+			Abstract:       "",
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		tool := chattool.ListTemplates(db, org.ID, chattool.ListTemplatesOptions{
+			OwnerID: user.ID,
+		})
+		resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "empty", Name: "list_templates", Input: "{}"})
+		require.NoError(t, err)
+		require.False(t, resp.IsError)
+
+		var result map[string]any
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		templates := result["templates"].([]any)
+		require.Len(t, templates, 1)
+		m := templates[0].(map[string]any)
+		_, hasAbstract := m["abstract"]
+		require.False(t, hasAbstract, "abstract key should be omitted when empty")
+	})
 }
 
 //nolint:tparallel,paralleltest // Subtests share a single DB and run sequentially.
