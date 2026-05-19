@@ -13,15 +13,20 @@ automatically when a chat attaches to a workspace.
 
 ### How skills work
 
-Place skill directories under `.agents/skills/` relative to the workspace
-working directory. Each directory contains a required `SKILL.md` file and
-any supporting files the skill needs.
+Place skill directories under `.agents/skills/` (project-scoped, relative
+to the workspace working directory) or `~/.coder/skills/` (user-scoped, in
+the home directory of the user running the agent). Each directory contains
+a required `SKILL.md` file and any supporting files the skill needs.
 
-On the first turn of a workspace-attached chat, the agent scans
-`.agents/skills/` and builds an `<available-skills>` block in its system
-prompt listing each skill's name and description. Only frontmatter is read
-during discovery — the full skill content is loaded lazily when the agent
-calls a tool.
+On the first turn of a workspace-attached chat, the agent scans both
+locations in order (`~/.coder/skills/` first, then `.agents/skills/`) and
+builds an `<available-skills>` block in its system prompt listing each
+skill's name and description. If the same skill name appears in both
+locations, the copy in `~/.coder/skills/` wins, which lets developers keep
+user-specific skills on the workspace without committing them to the repo.
+
+Only frontmatter is read during discovery. The full skill content is
+loaded lazily when the agent calls a tool.
 
 Two tools are registered when skills are present:
 
@@ -74,6 +79,32 @@ Instructions for the skill go here...
 `read_skill_file` rejects absolute paths, paths containing `..`, and
 references to hidden files. All paths are resolved relative to the skill
 directory.
+
+### Environment variables
+
+Override the default discovery paths and meta filename with environment
+variables on the workspace. Typically these are set in the workspace
+template, container image, or dotfiles:
+
+| Variable                          | Default                          | Description                                                                                                          |
+|-----------------------------------|----------------------------------|----------------------------------------------------------------------------------------------------------------------|
+| `CODER_AGENT_EXP_SKILLS_DIRS`     | `~/.coder/skills,.agents/skills` | Comma-separated list of directories to search for skills. Earlier entries override later entries on name collisions. |
+| `CODER_AGENT_EXP_SKILL_META_FILE` | `SKILL.md`                       | Filename to look for inside each skill directory.                                                                    |
+
+### Claude Code interoperability
+
+The `SKILL.md` format the agent expects follows the same Agent Skills
+standard as [Claude Code skills](https://docs.claude.com/en/docs/claude-code/skills):
+kebab-case directory name, YAML frontmatter with `name` and `description`,
+free-form markdown body. Only the discovery path differs. Claude Code
+looks under `.claude/skills/` and `~/.claude/skills/`, while Coder looks
+under `.agents/skills/` and `~/.coder/skills/` by default.
+
+To share a skill with both runtimes, either:
+
+- Symlink `.agents/skills` to `.claude/skills` in the workspace.
+- Set `CODER_AGENT_EXP_SKILLS_DIRS=.claude/skills,~/.claude/skills` to
+  point the Coder agent at the Claude Code paths.
 
 ## Workspace MCP tools
 
