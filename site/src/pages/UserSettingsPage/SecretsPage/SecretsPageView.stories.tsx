@@ -136,10 +136,16 @@ export const RefreshingWithRows: Story = {
 export const ListLoadError: Story = {
 	args: {
 		secrets: [],
-		hasLoaded: false,
+		hasLoaded: true,
 		getSecretsError: mockApiError({
 			message: "Failed to load secrets.",
 		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(canvas.getByText("Failed to load secrets.")).toBeVisible();
+		await expect(canvas.queryByText("No secrets yet")).not.toBeInTheDocument();
 	},
 };
 

@@ -1,5 +1,5 @@
 import { EllipsisVerticalIcon, PencilIcon, TrashIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { type FC, useRef, useState } from "react";
 import type { UserSecret } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
@@ -7,6 +7,7 @@ import {
 	Dialog,
 	DialogActions,
 	DialogContent,
+	DialogDescription,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
@@ -35,9 +36,12 @@ type SecretsTableProps = {
 	isLoading: boolean;
 	hasLoaded: boolean;
 	isDeleting: boolean;
-	onAddSecret: () => void;
-	onEditSecret: (secret: UserSecret) => void;
-	onDeleteSecret: (secret: UserSecret) => void;
+	onAddSecret: (returnFocusElement?: HTMLElement | null) => void;
+	onEditSecret: (
+		secret: UserSecret,
+		returnFocusElement?: HTMLElement | null,
+	) => void;
+	onDeleteSecret: (secret: UserSecret) => Promise<unknown> | unknown;
 };
 
 export const SecretsTable: FC<SecretsTableProps> = ({
@@ -49,17 +53,23 @@ export const SecretsTable: FC<SecretsTableProps> = ({
 	onEditSecret,
 	onDeleteSecret,
 }) => {
-	const [secretToDelete, setSecretToDelete] = useState<UserSecret>();
+	const [secretToDelete, setSecretToDelete] = useState<{
+		secret: UserSecret;
+		returnFocusElement: HTMLElement | null;
+	}>();
 
 	return (
 		<>
 			<DeleteSecretDialog
-				secret={secretToDelete}
+				secret={secretToDelete?.secret}
 				isDeleting={isDeleting}
+				returnFocusElement={secretToDelete?.returnFocusElement}
 				onCancel={() => setSecretToDelete(undefined)}
 				onConfirm={(secret) => {
-					onDeleteSecret(secret);
-					setSecretToDelete(undefined);
+					void (async () => {
+						await onDeleteSecret(secret);
+						setSecretToDelete(undefined);
+					})().catch(() => undefined);
 				}}
 			/>
 
@@ -81,7 +91,11 @@ export const SecretsTable: FC<SecretsTableProps> = ({
 						<TableEmpty
 							message="No secrets yet"
 							description="Create a secret to inject it into workspaces you own."
-							cta={<Button onClick={onAddSecret}>Add secret</Button>}
+							cta={
+								<Button onClick={(event) => onAddSecret(event.currentTarget)}>
+									Add secret
+								</Button>
+							}
 						/>
 					)}
 					{!isLoading &&
@@ -103,7 +117,12 @@ export const SecretsTable: FC<SecretsTableProps> = ({
 									<SecretRowActions
 										secret={secret}
 										onEditSecret={onEditSecret}
-										onDeleteSecret={setSecretToDelete}
+										onDeleteSecret={(secret, returnFocusElement) =>
+											setSecretToDelete({
+												secret,
+												returnFocusElement: returnFocusElement ?? null,
+											})
+										}
 									/>
 								</TableCell>
 							</TableRow>
@@ -115,8 +134,8 @@ export const SecretsTable: FC<SecretsTableProps> = ({
 };
 
 const SecretTypeBadge: FC<{ secret: UserSecret }> = ({ secret }) => {
-	const hasEnv = secret.env_name !== "";
-	const hasFile = secret.file_path !== "";
+	const hasEnv = Boolean(secret.env_name);
+	const hasFile = Boolean(secret.file_path);
 	const label =
 		hasEnv && hasFile
 			? ".env + file"
@@ -131,8 +150,14 @@ const SecretTypeBadge: FC<{ secret: UserSecret }> = ({ secret }) => {
 
 type SecretRowActionsProps = {
 	secret: UserSecret;
-	onEditSecret: (secret: UserSecret) => void;
-	onDeleteSecret: (secret: UserSecret) => void;
+	onEditSecret: (
+		secret: UserSecret,
+		returnFocusElement?: HTMLElement | null,
+	) => void;
+	onDeleteSecret: (
+		secret: UserSecret,
+		returnFocusElement?: HTMLElement | null,
+	) => void;
 };
 
 const SecretRowActions: FC<SecretRowActionsProps> = ({
@@ -141,24 +166,32 @@ const SecretRowActions: FC<SecretRowActionsProps> = ({
 	onDeleteSecret,
 }) => {
 	const label = `Open secret actions for ${secret.name}`;
+	const triggerRef = useRef<HTMLButtonElement>(null);
 
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
-				<Button size="icon" variant="subtle" aria-label={label}>
+				<Button
+					ref={triggerRef}
+					size="icon"
+					variant="subtle"
+					aria-label={label}
+				>
 					<EllipsisVerticalIcon aria-hidden="true" />
 				</Button>
 			</DropdownMenuTrigger>
 
 			<DropdownMenuContent align="end">
-				<DropdownMenuItem onSelect={() => onEditSecret(secret)}>
+				<DropdownMenuItem
+					onSelect={() => onEditSecret(secret, triggerRef.current)}
+				>
 					<PencilIcon className="size-icon-xs" />
 					Edit secret...
 				</DropdownMenuItem>
 				<DropdownMenuSeparator />
 				<DropdownMenuItem
 					className="text-content-destructive focus:text-content-destructive"
-					onSelect={() => onDeleteSecret(secret)}
+					onSelect={() => onDeleteSecret(secret, triggerRef.current)}
 				>
 					<TrashIcon className="size-icon-xs" />
 					Delete...
@@ -171,6 +204,7 @@ const SecretRowActions: FC<SecretRowActionsProps> = ({
 type DeleteSecretDialogProps = {
 	secret?: UserSecret;
 	isDeleting: boolean;
+	returnFocusElement?: HTMLElement | null;
 	onCancel: () => void;
 	onConfirm: (secret: UserSecret) => void;
 };
@@ -178,21 +212,38 @@ type DeleteSecretDialogProps = {
 const DeleteSecretDialog: FC<DeleteSecretDialogProps> = ({
 	secret,
 	isDeleting,
+	returnFocusElement,
 	onCancel,
 	onConfirm,
 }) => {
 	return (
-		<Dialog open={Boolean(secret)} onOpenChange={(open) => !open && onCancel()}>
-			<DialogContent variant="destructive" aria-describedby={undefined}>
+		<Dialog
+			open={Boolean(secret)}
+			onOpenChange={(open) => !open && !isDeleting && onCancel()}
+		>
+			<DialogContent
+				variant="destructive"
+				onCloseAutoFocus={(event) => {
+					if (returnFocusElement?.isConnected) {
+						event.preventDefault();
+						returnFocusElement.focus();
+					}
+				}}
+			>
 				<DialogHeader>
 					<DialogTitle>Delete secret</DialogTitle>
 				</DialogHeader>
-				<p className="m-0 text-sm leading-relaxed text-content-secondary">
-					Deleting{" "}
-					<strong className="text-content-primary">{secret?.name}</strong> is
-					irreversible. Workspaces that depend on this secret will no longer
-					receive it on future starts.
-				</p>
+				<DialogDescription
+					asChild
+					className="m-0 text-sm font-normal leading-relaxed text-content-secondary"
+				>
+					<p>
+						Deleting{" "}
+						<strong className="text-content-primary">{secret?.name}</strong> is
+						irreversible. Workspaces that depend on this secret will no longer
+						receive it on future starts.
+					</p>
+				</DialogDescription>
 				<DialogFooter>
 					<DialogActions
 						cancelText="Cancel"

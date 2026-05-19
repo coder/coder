@@ -81,13 +81,17 @@ const SecretsPage: FC = () => {
 
 	const onDeleteSecret = useCallback(
 		(secret: UserSecret) => {
-			deleteSecretMutation.mutate(secret.name, {
-				onError: (error) => {
-					onMutationError(error, "Failed to delete secret.");
-				},
-				onSuccess: () => {
-					toast.success("Secret deleted successfully.");
-				},
+			return new Promise<void>((resolve, reject) => {
+				deleteSecretMutation.mutate(secret.name, {
+					onError: (error) => {
+						onMutationError(error, "Failed to delete secret.");
+						reject(error);
+					},
+					onSuccess: () => {
+						toast.success("Secret deleted successfully.");
+						resolve();
+					},
+				});
 			});
 		},
 		[deleteSecretMutation, onMutationError],
@@ -97,8 +101,8 @@ const SecretsPage: FC = () => {
 		<SecretsPageView
 			secrets={secretsQuery.data}
 			isLoading={!secretsQuery.isFetched && secretsQuery.isFetching}
-			hasLoaded={secretsQuery.isFetched}
-			isRefreshing={secretsQuery.isFetching && secretsQuery.isFetched}
+			hasLoaded={secretsQuery.isSuccess}
+			isRefreshing={secretsQuery.isFetching && secretsQuery.isSuccess}
 			isCreating={createSecretMutation.isPending}
 			isUpdating={updateSecretMutation.isPending}
 			isDeleting={deleteSecretMutation.isPending}

@@ -33,6 +33,7 @@ type SecretDialogProps = {
 	open: boolean;
 	secret?: UserSecret;
 	isSubmitting: boolean;
+	returnFocusElement?: HTMLElement | null;
 	onClose: () => void;
 	onCreateSecret: (
 		request: CreateUserSecretRequest,
@@ -58,6 +59,7 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 	open,
 	secret,
 	isSubmitting,
+	returnFocusElement,
 	onClose,
 	onCreateSecret,
 	onUpdateSecret,
@@ -67,9 +69,9 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 		? {
 				name: secret.name,
 				value: "",
-				description: secret.description,
-				env_name: secret.env_name,
-				file_path: secret.file_path,
+				description: secret.description ?? "",
+				env_name: secret.env_name ?? "",
+				file_path: secret.file_path ?? "",
 			}
 		: emptyValues;
 
@@ -125,6 +127,12 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 			<DialogContent
 				className="max-h-[90vh] overflow-y-auto"
 				aria-describedby={undefined}
+				onCloseAutoFocus={(event) => {
+					if (returnFocusElement?.isConnected) {
+						event.preventDefault();
+						returnFocusElement.focus();
+					}
+				}}
 			>
 				<DialogHeader>
 					<DialogTitle>{secret ? "Edit secret" : "Add secret"}</DialogTitle>

@@ -33,9 +33,9 @@ const badgeColorClasses = {
 
 const badgeSizeClasses = {
 	early_access: {
-		xs: "rounded-[5px] border px-1.5 py-0.5 text-2xs font-normal leading-4",
-		sm: "rounded-[5px] border px-2 py-0.5 text-[10px] font-normal leading-4",
-		md: "rounded-[5px] border px-[7px] py-[3.5px] text-xs font-normal leading-4",
+		xs: "rounded-[5px] px-1.5 py-0.5 text-2xs font-normal leading-4",
+		sm: "rounded-[5px] px-2 py-0.5 text-[10px] font-normal leading-4",
+		md: "rounded-[5px] px-[7px] py-[3.5px] text-xs font-normal leading-4",
 	},
 	beta: {
 		xs: "text-2xs font-normal px-1.5 py-0.5 h-[18px] rounded border-0",
@@ -59,14 +59,16 @@ export const FeatureStageBadge: FC<FeatureStageBadgeProps> = ({
 			<TooltipTrigger asChild>
 				<span
 					className={cn(
-						"block max-w-fit cursor-default flex-shrink-0 leading-none whitespace-nowrap border-solid border-transparent transition-colors duration-200 ease-in-out",
+						"block max-w-fit cursor-default flex-shrink-0 leading-none whitespace-nowrap rounded-md border border-solid border-transparent transition-colors duration-200 ease-in-out",
 						sizeClasses,
 						colorClasses,
 						className,
 					)}
 					{...delegatedProps}
 				>
-					<span className="sr-only"> (This is a</span>
+					<span className="sr-only">
+						{` (This is ${contentType === "early_access" ? "an" : "a"} `}
+					</span>
 					<span className="first-letter:uppercase">
 						{labelText && `${labelText} `}
 						{featureStageBadgeTypes[contentType]}

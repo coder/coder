@@ -1,5 +1,5 @@
 import { PlusIcon, RefreshCwIcon } from "lucide-react";
-import { type FC, useState } from "react";
+import { type FC, useRef, useState } from "react";
 import type {
 	CreateUserSecretRequest,
 	UpdateUserSecretRequest,
@@ -36,8 +36,12 @@ type SecretsPageViewProps = {
 		name: string,
 		request: UpdateUserSecretRequest,
 	) => Promise<unknown> | unknown;
-	onDeleteSecret: (secret: UserSecret) => void;
+	onDeleteSecret: (secret: UserSecret) => Promise<unknown> | unknown;
 };
+
+type SecretDialogState =
+	| { mode: "add"; open: boolean }
+	| { mode: "edit"; open: boolean; secret: UserSecret };
 
 export const SecretsPageView: FC<SecretsPageViewProps> = ({
 	secrets = [],
@@ -53,8 +57,29 @@ export const SecretsPageView: FC<SecretsPageViewProps> = ({
 	onUpdateSecret,
 	onDeleteSecret,
 }) => {
-	const [dialogSecret, setDialogSecret] = useState<UserSecret | null>();
-	const isDialogOpen = dialogSecret !== undefined;
+	const [dialogState, setDialogState] = useState<SecretDialogState>({
+		mode: "add",
+		open: false,
+	});
+	const secretDialogReturnFocusElement = useRef<HTMLElement | null>(null);
+	const dialogSecret =
+		dialogState.mode === "edit" ? dialogState.secret : undefined;
+	const hasLoadedSecrets = hasLoaded && !getSecretsError;
+
+	const openAddSecret = (returnFocusElement?: HTMLElement | null) => {
+		secretDialogReturnFocusElement.current = returnFocusElement ?? null;
+		setDialogState({ mode: "add", open: true });
+	};
+	const openEditSecret = (
+		secret: UserSecret,
+		returnFocusElement?: HTMLElement | null,
+	) => {
+		secretDialogReturnFocusElement.current = returnFocusElement ?? null;
+		setDialogState({ mode: "edit", open: true, secret });
+	};
+	const closeSecretDialog = () => {
+		setDialogState((state) => ({ ...state, open: false }));
+	};
 
 	return (
 		<div className="flex flex-col gap-6">
@@ -80,8 +105,9 @@ export const SecretsPageView: FC<SecretsPageViewProps> = ({
 					Secrets
 				</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
-					When multiple secrets share the same environment variable or file
-					path, you'll choose which one to use during workspace creation.{" "}
+					Secrets with an environment variable or file path are injected into
+					workspaces you own when they start. Each environment variable and file
+					path must be unique.{" "}
 					<Link
 						href={docs("/user-guides/user-secrets")}
 						target="_blank"
@@ -94,10 +120,11 @@ export const SecretsPageView: FC<SecretsPageViewProps> = ({
 			</SettingsHeader>
 
 			<SecretDialog
-				open={isDialogOpen}
-				secret={dialogSecret ?? undefined}
+				open={dialogState.open}
+				secret={dialogSecret}
 				isSubmitting={isCreating || isUpdating}
-				onClose={() => setDialogSecret(undefined)}
+				returnFocusElement={secretDialogReturnFocusElement.current}
+				onClose={closeSecretDialog}
 				onCreateSecret={onCreateSecret}
 				onUpdateSecret={onUpdateSecret}
 			/>
@@ -107,7 +134,7 @@ export const SecretsPageView: FC<SecretsPageViewProps> = ({
 			<section className="flex flex-col gap-4">
 				<div className="flex items-center justify-between gap-4">
 					<h2 className="m-0 text-xl font-semibold">Your secrets</h2>
-					<Button onClick={() => setDialogSecret(null)}>
+					<Button onClick={(event) => openAddSecret(event.currentTarget)}>
 						<PlusIcon />
 						Add secret
 					</Button>
@@ -116,10 +143,10 @@ export const SecretsPageView: FC<SecretsPageViewProps> = ({
 				<SecretsTable
 					secrets={secrets}
 					isLoading={isLoading}
-					hasLoaded={hasLoaded}
+					hasLoaded={hasLoadedSecrets}
 					isDeleting={isDeleting}
-					onAddSecret={() => setDialogSecret(null)}
-					onEditSecret={(secret) => setDialogSecret(secret)}
+					onAddSecret={openAddSecret}
+					onEditSecret={openEditSecret}
 					onDeleteSecret={onDeleteSecret}
 				/>
 			</section>
