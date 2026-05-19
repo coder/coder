@@ -220,57 +220,6 @@
 |--------------------|
 | `prebuild_claimed` |
 
-## coderd.SCIMUser
-
-```json
-{
-  "active": true,
-  "emails": [
-    {
-      "display": "string",
-      "primary": true,
-      "type": "string",
-      "value": "user@example.com"
-    }
-  ],
-  "groups": [
-    null
-  ],
-  "id": "string",
-  "meta": {
-    "resourceType": "string"
-  },
-  "name": {
-    "familyName": "string",
-    "givenName": "string"
-  },
-  "schemas": [
-    "string"
-  ],
-  "userName": "string"
-}
-```
-
-### Properties
-
-| Name             | Type               | Required | Restrictions | Description                                                                 |
-|------------------|--------------------|----------|--------------|-----------------------------------------------------------------------------|
-| `active`         | boolean            | false    |              | Active is a ptr to prevent the empty value from being interpreted as false. |
-| `emails`         | array of object    | false    |              |                                                                             |
-| `» display`      | string             | false    |              |                                                                             |
-| `» primary`      | boolean            | false    |              |                                                                             |
-| `» type`         | string             | false    |              |                                                                             |
-| `» value`        | string             | false    |              |                                                                             |
-| `groups`         | array of undefined | false    |              |                                                                             |
-| `id`             | string             | false    |              |                                                                             |
-| `meta`           | object             | false    |              |                                                                             |
-| `» resourceType` | string             | false    |              |                                                                             |
-| `name`           | object             | false    |              |                                                                             |
-| `» familyName`   | string             | false    |              |                                                                             |
-| `» givenName`    | string             | false    |              |                                                                             |
-| `schemas`        | array of string    | false    |              |                                                                             |
-| `userName`       | string             | false    |              |                                                                             |
-
 ## coderd.cspViolation
 
 ```json

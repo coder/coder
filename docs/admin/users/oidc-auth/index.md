@@ -140,16 +140,15 @@ CODER_DISABLE_PASSWORD_AUTH=true
 > SCIM is a Premium feature
 > ([learn more](https://coder.com/pricing#compare-plans)).
 >
-> Coder's SCIM 2.0 implementation is not a fully certified or guaranteed
-> implementation of the [SCIM 2.0 specification](https://datatracker.ietf.org/doc/html/rfc7644).
-> It is intended to cover common user provisioning and deprovisioning flows
-> with the major identity providers (Okta, Microsoft Entra ID, etc.). Specific
-> attributes, endpoints, or behaviors required by your IdP may not be
-> supported, and compatibility may change between releases. If you depend on
-> a specific SCIM behavior, [contact us](https://coder.com/contact) before
-> rolling it out broadly. See
-> [coder/coder#15830](https://github.com/coder/coder/issues/15830) for
-> tracked gaps and ongoing work.
+> Coder's SCIM 2.0 implementation covers common user provisioning and
+> deprovisioning flows with the major identity providers (Okta,
+> Microsoft Entra ID, etc.) and serves the spec-defined discovery
+> endpoints. Some optional protocol features (filter expressions, bulk
+> operations, `/Groups`, `DELETE /Users/{id}`) are not yet supported.
+> If you depend on one of those features,
+> [contact us](https://coder.com/contact) before rolling it out broadly.
+> See [coder/coder#15830](https://github.com/coder/coder/issues/15830)
+> for tracked gaps and ongoing work.
 
 Coder supports user provisioning and deprovisioning via SCIM 2.0 with header
 authentication. Upon deactivation, users are
@@ -160,6 +159,21 @@ it the Coder server.
 ```env
 CODER_SCIM_AUTH_HEADER="your-api-key"
 ```
+
+### Supported endpoints
+
+All endpoints are served under the `/scim/v2` prefix.
+
+| Endpoint                    | Methods               | Notes                                                                                                                                         |
+|-----------------------------|-----------------------|-----------------------------------------------------------------------------------------------------------------------------------------------|
+| `/ServiceProviderConfig`    | `GET`                 | Unauthenticated; describes Coder's SCIM capabilities.                                                                                         |
+| `/Schemas`, `/Schemas/{id}` | `GET`                 | Core User schema discovery.                                                                                                                   |
+| `/ResourceTypes`, `/{name}` | `GET`                 | Resource-type discovery.                                                                                                                      |
+| `/Users`                    | `GET`, `POST`         | `POST` returns `201` with the existing user when the userName or primary email already exists.                                                |
+| `/Users/{id}`               | `GET`, `PUT`, `PATCH` | `PUT` and `PATCH` honor the `active` attribute. `userName` is immutable. `DELETE` is not yet supported; deprovision via `PATCH active=false`. |
+
+Filtering on `GET /Users` is not implemented; `ServiceProviderConfig`
+advertises `filter.supported=false`.
 
 ## TLS
 
