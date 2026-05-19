@@ -216,7 +216,7 @@ func TestStoreChatAttachment_StrictCapError(t *testing.T) {
 	}).Return(int32(1), nil)
 
 	attachment, err := server.storeChatAttachment(context.Background(), chatSnapshot, "build.log", "build.log", []byte("build output"))
-	require.ErrorContains(t, err, "chat already has the maximum of 20 linked files")
+	require.ErrorContains(t, err, "chat already has the maximum of 50 linked files")
 	require.Equal(t, chattool.AttachmentMetadata{}, attachment)
 }
 
