@@ -13,7 +13,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
-	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
@@ -421,16 +420,27 @@ func TestRun_ChainBrokenReloadFailureStillClearsChain(t *testing.T) {
 	requireTextPrompt(t, secondPrompt, "prepared")
 }
 
-func TestRun_ChainBrokenRecoveryPrepareFailureReturnsPreparePhaseError(t *testing.T) {
+func TestRun_ChainBrokenRecoveryDropsOrphanProviderToolCall(t *testing.T) {
 	t.Parallel()
 
-	var streamCalls int
+	var (
+		streamCalls   int
+		secondCallOpt fantasy.ProviderOptions
+		secondPrompt  []fantasy.Message
+	)
 	model := &chattest.FakeModel{
 		ProviderName: fantasyanthropic.Name,
 		ModelName:    "claude-test",
-		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+		StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
 			streamCalls++
-			return nil, xerrors.New(chainBrokenErrorMessage)
+			switch streamCalls {
+			case 1:
+				return nil, xerrors.New(chainBrokenErrorMessage)
+			default:
+				secondCallOpt = call.ProviderOptions
+				secondPrompt = call.Prompt
+				return finishingStream(), nil
+			}
 		},
 	}
 
@@ -465,18 +475,19 @@ func TestRun_ChainBrokenRecoveryPrepareFailureReturnsPreparePhaseError(t *testin
 		},
 	})
 
-	require.Error(t, err)
+	require.NoError(t, err)
 	require.Equal(t, 1, reloadCalls)
-	require.Equal(t, 1, streamCalls, "retry must fail before issuing another provider call")
-	require.ErrorContains(t, err, "prepare prompt:")
-	require.NotContains(t, err.Error(), "stream response:")
-	require.Equal(t, chaterror.ClassifiedError{
-		Message:   "The chat continuation failed due to an internal state mismatch. This is not a configuration or billing issue. Start a new chat to continue.",
-		Detail:    "Anthropic replay diagnostic: match=provider_tool_guard_postcondition_failed.",
-		Kind:      codersdk.ChatErrorKindGeneric,
-		Provider:  fantasyanthropic.Name,
-		Retryable: false,
-	}, chaterror.Classify(err))
+	require.Equal(t, 2, streamCalls)
+	require.False(t, chatopenai.HasPreviousResponseID(secondCallOpt))
+	requireNoProviderExecutedToolCallPrompt(t, secondPrompt)
+	requireAnthropicProviderToolPromptSafe(t, secondPrompt)
+	requireTextPrompt(t, secondPrompt, "search")
+	requireTextPrompt(t, secondPrompt, "partial")
+	requireTextPrompt(t, secondPrompt, "continue")
+	reasoningPart := requireReasoningPrompt(t, secondPrompt)
+	reasoningMetadata := fantasyanthropic.GetReasoningMetadata(reasoningPart.ProviderOptions)
+	require.NotNil(t, reasoningMetadata)
+	require.Equal(t, "redacted-payload", reasoningMetadata.RedactedData)
 }
 
 func TestRun_ChainBrokenWithoutChainModeIsSafe(t *testing.T) {
