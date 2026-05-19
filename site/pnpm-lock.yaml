@@ -282,9 +282,6 @@ importers:
       '@babel/plugin-syntax-typescript':
         specifier: 7.28.6
         version: 7.28.6(@babel/core@7.29.0)
-      '@biomejs/biome':
-        specifier: 2.4.10
-        version: 2.4.10
       '@chromatic-com/storybook':
         specifier: 5.0.1
         version: 5.0.1(storybook@10.3.3(@testing-library/dom@10.4.0)(prettier@3.4.1)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))
@@ -6831,6 +6828,7 @@ snapshots:
       '@biomejs/cli-linux-x64-musl': 2.4.10
       '@biomejs/cli-win32-arm64': 2.4.10
       '@biomejs/cli-win32-x64': 2.4.10
+    optional: true
 
   '@biomejs/cli-darwin-arm64@2.4.10':
     optional: true
