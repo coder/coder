@@ -3,6 +3,7 @@ package chattool_test
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"charm.land/fantasy"
@@ -119,6 +120,45 @@ func TestListTemplates_OrganizationFilter(t *testing.T) {
 		tmplInfo := result["template"].(map[string]any)
 		require.Equal(t, tAlpha.ID.String(), tmplInfo["id"].(string))
 	})
+}
+
+func TestListTemplates_Abstract(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+
+	longAbstract := strings.Repeat("a", 1000)
+	tpl := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		Name:           "with-abstract",
+		Description:    "short description",
+		Abstract:       longAbstract,
+	})
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	tool := chattool.ListTemplates(db, org.ID, chattool.ListTemplatesOptions{
+		OwnerID: user.ID,
+	})
+	resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "abstract", Name: "list_templates", Input: "{}"})
+	require.NoError(t, err)
+	require.False(t, resp.IsError)
+
+	var result map[string]any
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+	templates := result["templates"].([]any)
+	require.Len(t, templates, 1)
+	m := templates[0].(map[string]any)
+	require.Equal(t, tpl.ID.String(), m["id"].(string))
+	require.Equal(t, "short description", m["description"].(string))
+	// Abstract is surfaced in full, no truncation.
+	require.Equal(t, longAbstract, m["abstract"].(string))
 }
 
 //nolint:tparallel,paralleltest // Subtests share a single DB and run sequentially.
