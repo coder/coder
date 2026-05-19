@@ -72,7 +72,7 @@ export type LoginOptions = {
 
 export async function login(page: Page, options: LoginOptions = users.owner) {
 	const ctx = page.context();
-	// biome-ignore lint/suspicious/noExplicitAny: reset the current user
+	// oxlint-disable-next-line typescript/no-explicit-any -- reset the current user
 	(ctx as any)[Symbol.for("currentUser")] = undefined;
 	await ctx.clearCookies();
 	await page.goto("/login");
@@ -80,13 +80,13 @@ export async function login(page: Page, options: LoginOptions = users.owner) {
 	await page.getByLabel("Password").fill(options.password);
 	await page.getByRole("button", { name: "Sign In" }).click();
 	await expectUrl(page).toHavePathName("/workspaces");
-	// biome-ignore lint/suspicious/noExplicitAny: update once logged in
+	// oxlint-disable-next-line typescript/no-explicit-any -- update once logged in
 	(ctx as any)[Symbol.for("currentUser")] = options;
 }
 
 function currentUser(page: Page): LoginOptions {
 	const ctx = page.context();
-	// biome-ignore lint/suspicious/noExplicitAny: get the current user
+	// oxlint-disable-next-line typescript/no-explicit-any -- get the current user
 	const user = (ctx as any)[Symbol.for("currentUser")];
 
 	if (!user) {

@@ -467,7 +467,7 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 			} // When onSearch is provided, we don't want to filter the options. You can still override it.
 			filter={commandFilter()}
 		>
-			{/* biome-ignore lint/a11y/useKeyWithClickEvents: onKeyDown is not needed here */}
+			{/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events -- onKeyDown is not needed here */}
 			<div
 				className={cn(
 					`min-h-10 rounded-md border border-solid border-border text-sm pr-3
@@ -634,7 +634,7 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 										heading={key}
 										className="h-full overflow-auto"
 									>
-										{/* biome-ignore lint/complexity/noUselessFragments: A parent element is
+										{/* oxlint-disable-next-line react/jsx-no-useless-fragment -- A parent element is
 											    needed for multiple dropdown items */}
 										<>
 											{dropdowns.map((option) => {

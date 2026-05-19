@@ -32,6 +32,7 @@ const renderTemplateVariablesPage = async () => {
 	renderWithTemplateSettingsLayout(<TemplateVariablesPage />, {
 		route: `/templates/${MockTemplate.name}/variables`,
 		path: "/templates/:template/variables",
+		// oxlint-disable-next-line react/jsx-no-useless-fragment -- pre-existing, see follow-up
 		extraRoutes: [{ path: `/templates/${MockTemplate.name}`, element: <></> }],
 	});
 	await waitForLoaderToBeRemoved();

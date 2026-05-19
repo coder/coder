@@ -94,6 +94,7 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
 															</CopyableValue>
 														);
 													}
+													// oxlint-disable-next-line react/jsx-no-useless-fragment -- pre-existing, see follow-up
 													return <>{children}</>;
 												},
 											}}

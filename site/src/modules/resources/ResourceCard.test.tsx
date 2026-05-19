@@ -7,6 +7,7 @@ import { ResourceCard } from "./ResourceCard";
 describe("Resource Card", () => {
 	it("renders daily cost and metadata tiles", async () => {
 		render(
+			// oxlint-disable-next-line react/jsx-no-useless-fragment -- pre-existing, see follow-up
 			<ResourceCard resource={MockWorkspaceResource} agentRow={() => <></>} />,
 		);
 		expect(
@@ -45,6 +46,7 @@ describe("Resource Card", () => {
 			],
 		};
 
+		// oxlint-disable-next-line react/jsx-no-useless-fragment -- pre-existing, see follow-up
 		render(<ResourceCard resource={mockResource} agentRow={() => <></>} />);
 		expect(screen.getByText(mockResource.daily_cost)).toBeInTheDocument();
 		expect(
@@ -90,6 +92,7 @@ describe("Resource Card", () => {
 			],
 		};
 
+		// oxlint-disable-next-line react/jsx-no-useless-fragment -- pre-existing, see follow-up
 		render(<ResourceCard resource={mockResource} agentRow={() => <></>} />);
 		expect(screen.queryByText(mockResource.daily_cost)).not.toBeInTheDocument();
 		expect(

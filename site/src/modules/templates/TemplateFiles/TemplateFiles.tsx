@@ -73,6 +73,7 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
 						}}
 						Label={({ path, filename, isFolder }) => {
 							if (isFolder) {
+								// oxlint-disable-next-line react/jsx-no-useless-fragment -- pre-existing, see follow-up
 								return <>{filename}</>;
 							}
 

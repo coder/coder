@@ -175,7 +175,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 	}, [agent.lifecycle_state, hasAgentIssues, hasStartupFeatures]);
 
 	// This is a layout effect to remove flicker when we're scrolling to the bottom.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: consider refactoring
+	// oxlint-disable-next-line react/exhaustive-deps -- consider refactoring
 	useLayoutEffect(() => {
 		// If we're currently watching the bottom, we always want to stay at the bottom.
 		if (bottomOfLogs && logListRef.current) {

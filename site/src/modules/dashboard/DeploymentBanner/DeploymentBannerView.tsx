@@ -85,7 +85,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 		};
 	}, [fetchStats, stats]);
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies(timeUntilRefresh): periodic refresh
+	// oxlint-disable-next-line react/exhaustive-deps -- periodic refresh
 	const lastAggregated = useMemo(() => {
 		if (!stats) {
 			return;
@@ -95,6 +95,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 			return "just now";
 		}
 		return dayjs().to(dayjs(stats.collected_at));
+		// oxlint-disable-next-line react-hooks/exhaustive-deps -- pre-existing, see follow-up
 	}, [timeUntilRefresh, stats, fetchStats]);
 
 	const healthErrors = health ? getHealthErrors(health) : [];

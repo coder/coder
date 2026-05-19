@@ -93,6 +93,7 @@ const NotificationsPage: FC = () => {
 					description: getErrorDetail(error),
 				});
 			});
+		// oxlint-disable-next-line react-hooks/exhaustive-deps -- pre-existing, see follow-up
 	}, [searchParams.delete, disabledId, disableMutation]);
 
 	const ready =

@@ -9,7 +9,7 @@ import { BODY_FONT_FAMILY, borderRadius } from "../constants";
 import { components } from "../mui";
 import tw from "../tailwindColors";
 
-// biome-ignore lint/suspicious/noExplicitAny: needed for MUI overrides
+// oxlint-disable-next-line typescript/no-explicit-any -- needed for MUI overrides
 type MuiStyle = any;
 
 const muiTheme = createTheme({

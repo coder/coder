@@ -25,7 +25,7 @@ export const DashboardLayout: FC = () => {
 			<AnnouncementBanners />
 
 			<div className="flex flex-col min-h-screen justify-between">
-				{/* biome-ignore lint/a11y/useValidAnchor: Skip links use fragment anchors by design. */}
+				{/* oxlint-disable-next-line jsx-a11y/anchor-is-valid -- Skip links use fragment anchors by design. */}
 				<a
 					href="#main-content"
 					onClick={(e) => {

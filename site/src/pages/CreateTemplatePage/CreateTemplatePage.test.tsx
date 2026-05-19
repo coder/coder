@@ -20,7 +20,9 @@ const renderPage = async (searchParams: URLSearchParams) => {
 		path: "/templates/new",
 		// We need this because after creation, the user will be redirected to here
 		extraRoutes: [
+			// oxlint-disable-next-line react/jsx-no-useless-fragment -- pre-existing, see follow-up
 			{ path: "templates/:organization/:template/files", element: <></> },
+			// oxlint-disable-next-line react/jsx-no-useless-fragment -- pre-existing, see follow-up
 			{ path: "templates/:template/files", element: <></> },
 		],
 	});

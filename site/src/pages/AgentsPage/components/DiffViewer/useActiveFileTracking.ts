@@ -35,6 +35,7 @@ export function useActiveFileTracking({
 	// from null to the actual DOM node (e.g. after a loading state).
 	// Keep a state mirror that flips exactly once when the element mounts.
 	const [viewportEl, setViewportEl] = useState<HTMLElement | null>(null);
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- pre-existing, see follow-up
 	useEffect(() => {
 		setViewportEl(viewportRef.current);
 	});
@@ -115,7 +116,7 @@ export function useActiveFileTracking({
 		}
 	};
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: fileListKey is an intentional trigger dep. The effect reads fileRefs (a mutable ref) and must retry when the file list changes so a previously-unmounted element can be found.
+	// oxlint-disable-next-line react/exhaustive-deps -- fileListKey is an intentional trigger dep. The effect reads fileRefs (a mutable ref) and must retry when the file list changes so a previously-unmounted element can be found.
 	useEffect(() => {
 		if (!scrollToFile) return;
 		const el = fileRefs.current.get(scrollToFile);

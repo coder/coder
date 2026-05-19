@@ -42,5 +42,6 @@ export const RequirePermission: FC<RequirePermissionProps> = ({
 		);
 	}
 
+	// oxlint-disable-next-line react/jsx-no-useless-fragment -- pre-existing, see follow-up
 	return <>{children}</>;
 };

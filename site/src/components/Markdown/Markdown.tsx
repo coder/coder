@@ -65,6 +65,7 @@ export const Markdown: FC<MarkdownProps> = (props) => {
 					// When pre is wrapping a code, the SyntaxHighlighter is already going
 					// to wrap it with a pre so we don't need it
 					if (firstChild.type === "element" && firstChild.tagName === "code") {
+						// oxlint-disable-next-line react/jsx-no-useless-fragment -- pre-existing, see follow-up
 						return <>{children}</>;
 					}
 					return <pre>{children}</pre>;

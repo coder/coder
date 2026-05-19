@@ -30,7 +30,7 @@ export const AgentLogLine: FC<AgentLogLineProps> = ({
 			{sourceIcon}
 			<LogLinePrefix>{timestamp}</LogLinePrefix>
 			<span
-				// biome-ignore lint/security/noDangerouslySetInnerHtml: Output contains HTML to represent ANSI-code formatting
+				// oxlint-disable-next-line react/no-danger -- Output contains HTML to represent ANSI-code formatting
 				dangerouslySetInnerHTML={{
 					__html: output,
 				}}

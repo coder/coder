@@ -154,6 +154,7 @@ export const RenameChatDialog: FC<RenameChatDialogProps> = ({
 		}
 	}
 
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- pre-existing, see follow-up
 	useLayoutEffect(() => {
 		if (synchronizedChatIdRef.current === prevChatId) return;
 		synchronizedChatIdRef.current = prevChatId;

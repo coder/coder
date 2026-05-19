@@ -107,7 +107,7 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
 
 	return (
 		<style
-			// biome-ignore lint/security/noDangerouslySetInnerHtml: necessary to run shadcn/chart component
+			// oxlint-disable-next-line react/no-danger -- necessary to run shadcn/chart component
 			dangerouslySetInnerHTML={{
 				__html: Object.entries(THEMES)
 					.map(

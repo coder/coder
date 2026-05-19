@@ -947,6 +947,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 	);
 
 	const toolContent = (
+		// oxlint-disable-next-line react/jsx-no-useless-fragment -- pre-existing, see follow-up
 		<>
 			{fileContent ? (
 				<ScrollArea

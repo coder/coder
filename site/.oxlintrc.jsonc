@@ -11,7 +11,7 @@
 		"nursery": "off",
 	},
 
-	"plugins": ["react", "typescript", "unicorn"],
+	"plugins": ["react", "typescript", "unicorn", "jsx-a11y"],
 
 	"ignorePatterns": [
 		"**/node_modules/**",
@@ -237,6 +237,18 @@
 			},
 		],
 		// Biome style/useSingleVarDeclarator: no oxlint equivalent (eslint/one-var not implemented)
+
+		// Rules ported from Biome category defaults. These were running
+		// implicitly under Biome and are evidenced by the surviving
+		// `oxlint-disable-next-line` (formerly `biome-ignore`) directives.
+		"react/exhaustive-deps": "warn",
+		"react/no-danger": "error",
+		"react/jsx-no-useless-fragment": "error",
+		"typescript/no-explicit-any": "error",
+		"jsx-a11y/alt-text": "error",
+		"jsx-a11y/anchor-is-valid": "error",
+		"jsx-a11y/click-events-have-key-events": "error",
+		"jsx-a11y/media-has-caption": "error",
 	},
 
 	"overrides": [

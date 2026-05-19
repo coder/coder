@@ -94,6 +94,7 @@ const TokensTableBody: FC<TokensTableBodyProps> = ({
 		return <TableEmpty message="No tokens found" />;
 	}
 	return (
+		// oxlint-disable-next-line react/jsx-no-useless-fragment -- pre-existing, see follow-up
 		<>
 			{tokens?.map((token) => (
 				<TableRow key={token.id} data-testid={`token-${token.id}`} tabIndex={0}>

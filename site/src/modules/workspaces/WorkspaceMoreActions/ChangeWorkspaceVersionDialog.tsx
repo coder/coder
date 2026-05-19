@@ -108,6 +108,7 @@ export const ChangeWorkspaceVersionDialog: FC<
 										</li>
 									)}
 									renderInput={(params) => (
+										// oxlint-disable-next-line react/jsx-no-useless-fragment -- pre-existing, see follow-up
 										<>
 											<TextField
 												{...params}

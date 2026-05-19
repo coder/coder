@@ -119,6 +119,7 @@ export const WorkspaceMoreActions: FC<WorkspaceMoreActionsProps> = ({
 	// need to be sure the menu is closed when the action gets disabled.
 	// Reference: https://github.com/coder/coder/pull/17775#discussion_r2087273706
 	const [open, setOpen] = useState(false);
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- pre-existing, see follow-up
 	useEffect(() => {
 		setOpen((open) => (disabled ? false : open));
 	});

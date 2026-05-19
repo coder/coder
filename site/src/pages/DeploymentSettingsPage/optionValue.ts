@@ -67,7 +67,7 @@ export function optionValue(
 			return experimentMap;
 		}
 		default:
-			// biome-ignore lint/suspicious/noExplicitAny: opt.value is any
+			// oxlint-disable-next-line typescript/no-explicit-any -- opt.value is any
 			return option.value as any;
 	}
 }

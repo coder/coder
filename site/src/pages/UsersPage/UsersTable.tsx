@@ -148,6 +148,7 @@ const UsersTableBody: React.FC<UsersTableProps> = ({
 	}
 
 	return (
+		// oxlint-disable-next-line react/jsx-no-useless-fragment -- pre-existing, see follow-up
 		<>
 			{users?.map((user) => (
 				<TableRow key={user.id} data-testid={`user-${user.id}`}>

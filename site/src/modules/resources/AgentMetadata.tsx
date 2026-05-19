@@ -226,7 +226,7 @@ const StaticWidth: FC<HTMLAttributes<HTMLDivElement>> = ({
 }) => {
 	const ref = useRef<HTMLDivElement>(null);
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: consider refactoring
+	// oxlint-disable-next-line react/exhaustive-deps -- consider refactoring
 	useLayoutEffect(() => {
 		// Ignore this in storybook
 		if (!ref.current || process.env.STORYBOOK === "true") {
