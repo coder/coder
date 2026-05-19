@@ -282,6 +282,27 @@ func TestAIProvidersCRUD(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 	})
 
+	t.Run("LookupInvalidName", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// A string that is neither a UUID nor a syntactically-valid
+		// provider name must surface a 400, not a misleading 404.
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		_, err := client.AIProvider(ctx, "Bad_Name")
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+
+		err = client.DeleteAIProvider(ctx, "Bad_Name")
+		require.Error(t, err)
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+
 	t.Run("NonOwnerForbidden", func(t *testing.T) {
 		t.Parallel()
 		ownerClient := coderdtest.New(t, nil)

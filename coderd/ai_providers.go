@@ -439,6 +439,12 @@ func (api *API) aiProvidersDelete(rw http.ResponseWriter, r *http.Request) {
 // Bedrock-typed provider; the outer handler translates it into a 400.
 var errBedrockRejectsAPIKeys = xerrors.New("bedrock providers do not accept api_keys")
 
+// errAIProviderInvalidName is returned from lookupAIProvider when the
+// idOrName parameter is neither a UUID nor a syntactically-valid name.
+// The handler translates this into a 400 so an integrator gets a hint
+// about the path shape instead of a misleading 404.
+var errAIProviderInvalidName = xerrors.New("invalid provider id or name")
+
 // lookupAIProvider resolves a UUID-or-name path parameter against a Store.
 // Soft-deleted providers are not returned; lookup by name searches active
 // rows only.
@@ -451,9 +457,10 @@ func lookupAIProvider(ctx context.Context, store database.Store, idOrName string
 		return row, nil
 	}
 	if !codersdk.AIProviderNameRegex.MatchString(idOrName) {
-		// The regex check protects against accidental/malicious lookups
-		// against rows that should be impossible to insert.
-		return database.AIProvider{}, sql.ErrNoRows
+		// Bail before hitting the DB: the regex matches the CHECK
+		// constraint on ai_providers.name, so a non-matching string
+		// could not have been inserted.
+		return database.AIProvider{}, errAIProviderInvalidName
 	}
 	return store.GetAIProviderByName(ctx, idOrName)
 }
@@ -461,6 +468,12 @@ func lookupAIProvider(ctx context.Context, store database.Store, idOrName string
 // writeAIProviderLookupError translates lookup errors into the right HTTP
 // status code.
 func writeAIProviderLookupError(ctx context.Context, logger slog.Logger, rw http.ResponseWriter, err error) {
+	if errors.Is(err, errAIProviderInvalidName) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Invalid provider id or name: must be a UUID or match %s.", codersdk.AIProviderNameRegex),
+		})
+		return
+	}
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.ResourceNotFound(rw)
 		return
