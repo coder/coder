@@ -296,7 +296,9 @@ func TestExecuteTool(t *testing.T) {
 		tool := newStreamingExecuteTool(t, mockConn, clock, func(toolCallID string, delta string) {
 			require.Equal(t, "call-stream", toolCallID)
 			deltas = append(deltas, delta)
-		}, nil)
+		}, func(toolCallID string) {
+			require.Equal(t, "call-stream", toolCallID)
+		})
 		trap := clock.Trap().NewTimer("execute", "process-output-poll")
 
 		type runResult struct {
@@ -405,6 +407,303 @@ func TestExecuteTool(t *testing.T) {
 		assert.Equal(t, "after", result.Output)
 		assert.Equal(t, 1, resets)
 		assert.Equal(t, []string{`{"output":"before`, `{"output":"after`}, deltas)
+	})
+
+	t.Run("ForegroundStreamingRecoveryProcessOutputErrorSnapshotFails", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			Return(workspacesdk.StartProcessResponse{ID: "proc-1"}, nil)
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Nil()).
+			Return(workspacesdk.ProcessOutputResponse{}, xerrors.New("EOF"))
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Nil()).
+			Return(workspacesdk.ProcessOutputResponse{}, xerrors.New("agent disconnected"))
+
+		recorder, publishDelta, publishReset := newStreamPublishRecorder(t)
+		tool := newStreamingExecuteTool(t, mockConn, nil, publishDelta, publishReset)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-stream",
+			Name:  "execute",
+			Input: `{"command":"printf hello"}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+
+		result := decodeExecuteResult(t, resp)
+		assert.False(t, result.Success)
+		assert.Contains(t, result.Error, "get process output: EOF")
+		assert.Contains(t, result.Error, "use process_output with ID proc-1 to retry")
+		assert.Equal(t, "proc-1", result.BackgroundProcessID)
+		assert.Empty(t, recorder.deltas)
+		assert.Zero(t, recorder.resets)
+	})
+
+	t.Run("ForegroundStreamingRecoveryProcessOutputErrorProcessDone", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		clock := quartz.NewMock(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			Return(workspacesdk.StartProcessResponse{ID: "proc-1"}, nil)
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Nil()).
+			Return(workspacesdk.ProcessOutputResponse{
+				Running: true,
+				Output:  "hello",
+			}, nil)
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Nil()).
+			Return(workspacesdk.ProcessOutputResponse{}, xerrors.New("EOF"))
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Nil()).
+			Return(workspacesdk.ProcessOutputResponse{
+				Running:  false,
+				ExitCode: ptr(0),
+				Output:   "hello world",
+			}, nil)
+
+		recorder, publishDelta, publishReset := newStreamPublishRecorder(t)
+		tool := newStreamingExecuteTool(t, mockConn, clock, publishDelta, publishReset)
+		trap := clock.Trap().NewTimer("execute", "process-output-poll")
+		done := runExecuteToolAsync(ctx, tool, `{"command":"printf hello"}`)
+
+		trap.MustWait(ctx).MustRelease(ctx)
+		trap.Close()
+		clock.Advance(time.Second).MustWait(ctx)
+
+		got := waitExecuteToolRunResult(ctx, t, done)
+		require.NoError(t, got.err)
+		assert.False(t, got.resp.IsError)
+
+		result := decodeExecuteResult(t, got.resp)
+		assert.True(t, result.Success)
+		assert.Equal(t, "hello world", result.Output)
+		assert.Equal(t, []string{`{"output":"hello`, ` world`}, recorder.deltas)
+		assert.Zero(t, recorder.resets)
+	})
+
+	t.Run("ForegroundStreamingRecoveryProcessOutputErrorProcessStillRunning", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		clock := quartz.NewMock(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			Return(workspacesdk.StartProcessResponse{ID: "proc-1"}, nil)
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Nil()).
+			Return(workspacesdk.ProcessOutputResponse{
+				Running: true,
+				Output:  "before",
+			}, nil)
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Nil()).
+			Return(workspacesdk.ProcessOutputResponse{}, xerrors.New("EOF"))
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Nil()).
+			Return(workspacesdk.ProcessOutputResponse{
+				Running: true,
+				Output:  "after",
+			}, nil)
+
+		recorder, publishDelta, publishReset := newStreamPublishRecorder(t)
+		tool := newStreamingExecuteTool(t, mockConn, clock, publishDelta, publishReset)
+		trap := clock.Trap().NewTimer("execute", "process-output-poll")
+		done := runExecuteToolAsync(ctx, tool, `{"command":"printf hello"}`)
+
+		trap.MustWait(ctx).MustRelease(ctx)
+		trap.Close()
+		clock.Advance(time.Second).MustWait(ctx)
+
+		got := waitExecuteToolRunResult(ctx, t, done)
+		require.NoError(t, got.err)
+		assert.False(t, got.resp.IsError)
+
+		result := decodeExecuteResult(t, got.resp)
+		assert.False(t, result.Success)
+		assert.Equal(t, "after", result.Output)
+		assert.Contains(t, result.Error, "get process output: EOF")
+		assert.Contains(t, result.Error, "process still running")
+		assert.Equal(t, "proc-1", result.BackgroundProcessID)
+		assert.Equal(t, []string{`{"output":"before`, `{"output":"after`}, recorder.deltas)
+		assert.Equal(t, 1, recorder.resets)
+	})
+
+	t.Run("ForegroundStreamingRecoveryTimeoutSnapshotFails", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		clock := quartz.NewMock(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			Return(workspacesdk.StartProcessResponse{ID: "proc-1"}, nil)
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Nil()).
+			Return(workspacesdk.ProcessOutputResponse{
+				Running: true,
+				Output:  "hello",
+			}, nil)
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Nil()).
+			Return(workspacesdk.ProcessOutputResponse{}, xerrors.New("agent disconnected"))
+
+		recorder, publishDelta, publishReset := newStreamPublishRecorder(t)
+		tool := newStreamingExecuteTool(t, mockConn, clock, publishDelta, publishReset)
+		trap := clock.Trap().NewTimer("execute", "process-output-poll")
+		done := runExecuteToolAsync(ctx, tool, `{"command":"printf hello","timeout":"50ms"}`)
+
+		trap.MustWait(ctx).MustRelease(ctx)
+		trap.Close()
+
+		got := waitExecuteToolRunResult(ctx, t, done)
+		require.NoError(t, got.err)
+		assert.False(t, got.resp.IsError)
+
+		result := decodeExecuteResult(t, got.resp)
+		assert.False(t, result.Success)
+		assert.Contains(t, result.Error, "command timed out after 50ms")
+		assert.Contains(t, result.Error, "failed to get output: agent disconnected")
+		assert.Equal(t, "proc-1", result.BackgroundProcessID)
+		assert.Equal(t, []string{`{"output":"hello`}, recorder.deltas)
+		assert.Zero(t, recorder.resets)
+	})
+
+	t.Run("ForegroundStreamingRecoveryTimeoutProcessDone", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		clock := quartz.NewMock(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			Return(workspacesdk.StartProcessResponse{ID: "proc-1"}, nil)
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Nil()).
+			Return(workspacesdk.ProcessOutputResponse{
+				Running: true,
+				Output:  "hello",
+			}, nil)
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Nil()).
+			Return(workspacesdk.ProcessOutputResponse{
+				Running:  false,
+				ExitCode: ptr(0),
+				Output:   "hello world",
+			}, nil)
+
+		recorder, publishDelta, publishReset := newStreamPublishRecorder(t)
+		tool := newStreamingExecuteTool(t, mockConn, clock, publishDelta, publishReset)
+		trap := clock.Trap().NewTimer("execute", "process-output-poll")
+		done := runExecuteToolAsync(ctx, tool, `{"command":"printf hello","timeout":"50ms"}`)
+
+		trap.MustWait(ctx).MustRelease(ctx)
+		trap.Close()
+
+		got := waitExecuteToolRunResult(ctx, t, done)
+		require.NoError(t, got.err)
+		assert.False(t, got.resp.IsError)
+
+		result := decodeExecuteResult(t, got.resp)
+		assert.True(t, result.Success)
+		assert.Equal(t, "hello world", result.Output)
+		assert.Equal(t, []string{`{"output":"hello`, ` world`}, recorder.deltas)
+		assert.Zero(t, recorder.resets)
+	})
+
+	t.Run("ForegroundStreamingRecoveryTimeoutProcessStillRunning", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		clock := quartz.NewMock(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			Return(workspacesdk.StartProcessResponse{ID: "proc-1"}, nil)
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Nil()).
+			Return(workspacesdk.ProcessOutputResponse{
+				Running: true,
+				Output:  "before",
+			}, nil)
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Nil()).
+			Return(workspacesdk.ProcessOutputResponse{
+				Running: true,
+				Output:  "after",
+			}, nil)
+
+		recorder, publishDelta, publishReset := newStreamPublishRecorder(t)
+		tool := newStreamingExecuteTool(t, mockConn, clock, publishDelta, publishReset)
+		trap := clock.Trap().NewTimer("execute", "process-output-poll")
+		done := runExecuteToolAsync(ctx, tool, `{"command":"printf hello","timeout":"50ms"}`)
+
+		trap.MustWait(ctx).MustRelease(ctx)
+		trap.Close()
+
+		got := waitExecuteToolRunResult(ctx, t, done)
+		require.NoError(t, got.err)
+		assert.False(t, got.resp.IsError)
+
+		result := decodeExecuteResult(t, got.resp)
+		assert.False(t, result.Success)
+		assert.Equal(t, "after", result.Output)
+		assert.Contains(t, result.Error, "command timed out after 50ms")
+		assert.Equal(t, "proc-1", result.BackgroundProcessID)
+		assert.Equal(t, []string{`{"output":"before`, `{"output":"after`}, recorder.deltas)
+		assert.Equal(t, 1, recorder.resets)
+	})
+
+	t.Run("ForegroundStreamingRequiresResetCallback", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			Return(workspacesdk.StartProcessResponse{ID: "proc-1"}, nil)
+		exitCode := 0
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+			DoAndReturn(func(_ context.Context, _ string, opts *workspacesdk.ProcessOutputOptions) (workspacesdk.ProcessOutputResponse, error) {
+				require.NotNil(t, opts)
+				assert.True(t, opts.Wait)
+				return workspacesdk.ProcessOutputResponse{
+					Running:  false,
+					ExitCode: &exitCode,
+					Output:   "hello",
+				}, nil
+			})
+
+		recorder, publishDelta, _ := newStreamPublishRecorder(t)
+		tool := newStreamingExecuteTool(t, mockConn, nil, publishDelta, nil)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-stream",
+			Name:  "execute",
+			Input: `{"command":"printf hello"}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+
+		result := decodeExecuteResult(t, resp)
+		assert.True(t, result.Success)
+		assert.Equal(t, "hello", result.Output)
+		assert.Empty(t, recorder.deltas)
 	})
 
 	t.Run("ForegroundNonZeroExit", func(t *testing.T) {
@@ -797,6 +1096,61 @@ func newStreamingExecuteTool(
 		Clock:                     clock,
 		ProcessOutputPollInterval: time.Second,
 	})
+}
+
+type streamPublishRecorder struct {
+	deltas []string
+	resets int
+}
+
+func newStreamPublishRecorder(t *testing.T) (*streamPublishRecorder, func(string, string), func(string)) {
+	t.Helper()
+	recorder := &streamPublishRecorder{}
+	publishDelta := func(toolCallID string, delta string) {
+		require.Equal(t, "call-stream", toolCallID)
+		recorder.deltas = append(recorder.deltas, delta)
+	}
+	publishReset := func(toolCallID string) {
+		require.Equal(t, "call-stream", toolCallID)
+		recorder.resets++
+	}
+	return recorder, publishDelta, publishReset
+}
+
+type executeToolRunResult struct {
+	resp fantasy.ToolResponse
+	err  error
+}
+
+func runExecuteToolAsync(ctx context.Context, tool fantasy.AgentTool, input string) <-chan executeToolRunResult {
+	done := make(chan executeToolRunResult, 1)
+	go func() {
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-stream",
+			Name:  "execute",
+			Input: input,
+		})
+		done <- executeToolRunResult{resp: resp, err: err}
+	}()
+	return done
+}
+
+func waitExecuteToolRunResult(ctx context.Context, t *testing.T, done <-chan executeToolRunResult) executeToolRunResult {
+	t.Helper()
+	select {
+	case got := <-done:
+		return got
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for execute tool")
+		return executeToolRunResult{}
+	}
+}
+
+func decodeExecuteResult(t *testing.T, resp fantasy.ToolResponse) chattool.ExecuteResult {
+	t.Helper()
+	var result chattool.ExecuteResult
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+	return result
 }
 
 func ptr[T any](v T) *T {

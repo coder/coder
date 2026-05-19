@@ -87,7 +87,7 @@ type executeToolOptions struct {
 }
 
 func (o executeToolOptions) streamResults() bool {
-	return o.toolCallID != "" && o.publishResultDelta != nil
+	return o.toolCallID != "" && o.publishResultDelta != nil && o.publishResultReset != nil
 }
 
 func (o executeToolOptions) clockOrReal() quartz.Clock {
@@ -494,36 +494,15 @@ func waitForProcess(
 			}
 		}
 
-		// Snapshot succeeded. If the process finished, return
-		// its real result (transparent recovery).
 		if !resp.Running {
-			exitCode := 0
-			if resp.ExitCode != nil {
-				exitCode = *resp.ExitCode
-			}
-			output := truncateOutput(resp.Output)
-			return ExecuteResult{
-				Success:   exitCode == 0,
-				Output:    output,
-				ExitCode:  exitCode,
-				Truncated: resp.Truncated,
-			}
+			return processOutputResult(resp)
 		}
 
-		// Process still running, return partial output.
-		output := truncateOutput(resp.Output)
 		errMsg := fmt.Sprintf("command timed out after %s", timeout)
 		if !timedOut {
 			errMsg = fmt.Sprintf("get process output: %v (process still running, use process_output to check later)", origErr)
 		}
-		return ExecuteResult{
-			Success:             false,
-			Output:              output,
-			ExitCode:            -1,
-			Error:               errMsg,
-			Truncated:           resp.Truncated,
-			BackgroundProcessID: processID,
-		}
+		return runningProcessResult(resp, processID, errMsg)
 	}
 
 	// The server-side wait may return before the
@@ -535,28 +514,10 @@ func waitForProcess(
 			// Still within the caller's timeout, retry.
 			return waitForProcess(ctx, parentCtx, conn, processID, timeout)
 		}
-		output := truncateOutput(resp.Output)
-		return ExecuteResult{
-			Success:             false,
-			Output:              output,
-			ExitCode:            -1,
-			Error:               fmt.Sprintf("command timed out after %s", timeout),
-			Truncated:           resp.Truncated,
-			BackgroundProcessID: processID,
-		}
+		return runningProcessResult(resp, processID, fmt.Sprintf("command timed out after %s", timeout))
 	}
 
-	exitCode := 0
-	if resp.ExitCode != nil {
-		exitCode = *resp.ExitCode
-	}
-	output := truncateOutput(resp.Output)
-	return ExecuteResult{
-		Success:   exitCode == 0,
-		Output:    output,
-		ExitCode:  exitCode,
-		Truncated: resp.Truncated,
-	}
+	return processOutputResult(resp)
 }
 
 // errorResult builds a ToolResponse from an ExecuteResult with
