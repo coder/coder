@@ -165,13 +165,15 @@ const UpdateProviderPageView: React.FC<UpdateProviderPageViewProps> = ({
 						</Button>
 					}
 				>
-					<div className="flex items-center gap-4">
+					<div className="flex items-center gap-4 min-w-0">
 						<Avatar
 							variant="icon"
 							size="lg"
 							src={getProviderIcon(provider.type)}
 						/>
-						<PageHeaderTitle>{provider.name}</PageHeaderTitle>
+						<PageHeaderTitle className="min-w-0 truncate" title={provider.name}>
+							{provider.name}
+						</PageHeaderTitle>
 					</div>
 				</PageHeader>
 				<div className="border border-solid p-6 rounded-lg">

@@ -31,13 +31,30 @@ export const PageHeader: FC<PageHeaderProps> = ({
 	);
 };
 
-export const PageHeaderTitle: FC<PropsWithChildren> = ({ children }) => {
+export const PageHeaderTitle: FC<PageHeaderTitleProps> = ({
+	children,
+	className,
+	title,
+}) => {
 	return (
-		<h1 className="text-3xl font-semibold m-0 flex items-center leading-snug">
+		<h1
+			className={cn(
+				"text-3xl font-semibold m-0 flex items-center leading-snug",
+				className,
+			)}
+			title={title}
+		>
 			{children}
 		</h1>
 	);
 };
+
+interface PageHeaderTitleProps extends PropsWithChildren {
+	/** Extra Tailwind classes merged onto the h1. */
+	className?: string;
+	/** Native HTML `title` attribute, surfaced as a browser tooltip. */
+	title?: string;
+}
 
 interface PageHeaderSubtitleProps {
 	children?: ReactNode;
