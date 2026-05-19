@@ -255,14 +255,19 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} codersdk.AIProvider
 // @Router /api/v2/ai/providers/{idOrName} [patch]
 func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
+	// keyOpsAudit attaches per-key add/remove/keep counts to the audit
+	// entry. Keys live in a separate table, so a key-only PATCH would
+	// otherwise produce an empty diff and hide rotation from the log.
+	keyOpsAudit := &aiProviderKeyOpsAudit{}
 	var (
 		ctx               = r.Context()
 		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.AIProvider](rw, &audit.RequestParams{
-			Audit:   *auditor,
-			Log:     api.Logger,
-			Request: r,
-			Action:  database.AuditActionWrite,
+			Audit:            *auditor,
+			Log:              api.Logger,
+			Request:          r,
+			Action:           database.AuditActionWrite,
+			AdditionalFields: keyOpsAudit,
 		})
 	)
 	defer commitAudit()
@@ -347,10 +352,14 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		aReq.New = updated
 
 		if req.APIKeys != nil {
-			keys, err = applyAIProviderKeyOps(ctx, tx, updated.ID, *req.APIKeys)
+			var ops aiProviderKeyOpsCounts
+			keys, ops, err = applyAIProviderKeyOps(ctx, tx, updated.ID, *req.APIKeys)
 			if err != nil {
 				return err
 			}
+			keyOpsAudit.KeysAdded = ops.added
+			keyOpsAudit.KeysRemoved = ops.removed
+			keyOpsAudit.KeysKept = ops.kept
 			return nil
 		}
 
@@ -547,16 +556,36 @@ func insertAIProviderKeys(ctx context.Context, tx database.Store, providerID uui
 	return out, nil
 }
 
+// aiProviderKeyOpsCounts tallies the per-key mutation effects applied
+// by applyAIProviderKeyOps so the caller can surface them in the audit
+// entry.
+type aiProviderKeyOpsCounts struct {
+	added   int
+	removed int
+	kept    int
+}
+
+// aiProviderKeyOpsAudit is serialized into the audit entry's
+// additional_fields. Surfacing the counts gives operators a signal
+// that a key rotation happened on a PATCH whose top-level diff would
+// otherwise look empty.
+type aiProviderKeyOpsAudit struct {
+	KeysAdded   int `json:"keys_added"`
+	KeysRemoved int `json:"keys_removed"`
+	KeysKept    int `json:"keys_kept"`
+}
+
 // applyAIProviderKeyOps reconciles a provider's keys against the
 // supplied mutation list inside a transaction: kept-by-ID rows stay,
 // rows whose ID is absent from the list are deleted, and entries
 // carrying a plaintext APIKey are inserted as new rows. Caller is
 // responsible for prior validation (XOR per entry, no duplicate IDs).
 // IDs that do not belong to this provider return errAIProviderKeyUnknown.
-func applyAIProviderKeyOps(ctx context.Context, tx database.Store, providerID uuid.UUID, muts []codersdk.AIProviderKeyMutation) ([]database.AIProviderKey, error) {
+func applyAIProviderKeyOps(ctx context.Context, tx database.Store, providerID uuid.UUID, muts []codersdk.AIProviderKeyMutation) ([]database.AIProviderKey, aiProviderKeyOpsCounts, error) {
+	var counts aiProviderKeyOpsCounts
 	existing, err := tx.GetAIProviderKeysByProviderID(ctx, providerID)
 	if err != nil {
-		return nil, xerrors.Errorf("load existing ai provider keys: %w", err)
+		return nil, counts, xerrors.Errorf("load existing ai provider keys: %w", err)
 	}
 	existingByID := make(map[uuid.UUID]struct{}, len(existing))
 	for _, k := range existing {
@@ -569,7 +598,7 @@ func applyAIProviderKeyOps(ctx context.Context, tx database.Store, providerID uu
 		switch {
 		case m.ID != nil:
 			if _, ok := existingByID[*m.ID]; !ok {
-				return nil, xerrors.Errorf("%w: %s", errAIProviderKeyUnknown, *m.ID)
+				return nil, counts, xerrors.Errorf("%w: %s", errAIProviderKeyUnknown, *m.ID)
 			}
 			keep[*m.ID] = struct{}{}
 		case m.APIKey != nil:
@@ -582,19 +611,22 @@ func applyAIProviderKeyOps(ctx context.Context, tx database.Store, providerID uu
 			continue
 		}
 		if err := tx.DeleteAIProviderKey(ctx, k.ID); err != nil {
-			return nil, xerrors.Errorf("delete ai provider key %s: %w", k.ID, err)
+			return nil, counts, xerrors.Errorf("delete ai provider key %s: %w", k.ID, err)
 		}
+		counts.removed++
 	}
 
 	if _, err := insertAIProviderKeys(ctx, tx, providerID, inserts); err != nil {
-		return nil, err
+		return nil, counts, err
 	}
+	counts.added = len(inserts)
+	counts.kept = len(keep)
 
 	out, err := tx.GetAIProviderKeysByProviderID(ctx, providerID)
 	if err != nil {
-		return nil, xerrors.Errorf("reload ai provider keys: %w", err)
+		return nil, counts, xerrors.Errorf("reload ai provider keys: %w", err)
 	}
-	return out, nil
+	return out, counts, nil
 }
 
 // errAIProviderKeyUnknown is the sentinel returned by

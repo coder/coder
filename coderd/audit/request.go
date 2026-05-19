@@ -284,7 +284,7 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 	case database.AiSeatState:
 		return database.ResourceTypeAiSeat
 	case database.AIProvider:
-		return database.ResourceTypeAiProvider
+		return database.ResourceTypeAIProvider
 	case database.AuditableGroupAiBudget:
 		return database.ResourceTypeGroupAiBudget
 	case database.Chat:

@@ -10,7 +10,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -990,6 +992,59 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 		require.Len(t, sdkErr.Validations, 1)
 		require.Equal(t, "api_keys[1].id", sdkErr.Validations[0].Field)
 		require.Contains(t, sdkErr.Validations[0].Detail, "already referenced")
+	})
+
+	t.Run("PATCHKeysSurfacesCountsInAudit", func(t *testing.T) {
+		t.Parallel()
+		auditor := audit.NewMock()
+		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Without surfacing the counts, a PATCH that only rotates keys
+		// would produce an audit entry whose top-level diff is empty —
+		// invisible key rotation in the log.
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "keys-audit-counts",
+			Enabled: true,
+			BaseURL: "https://api.openai.com/v1",
+			APIKeys: []string{
+				"sk-openai-audit-1-ssssssssssssssssssss", //nolint:gosec // test fixture
+				"sk-openai-audit-2-tttttttttttttttttttt", //nolint:gosec // test fixture
+			},
+		})
+		require.NoError(t, err)
+		keepID := provider.APIKeys[0].ID
+
+		// Keep one, drop one, add one.
+		mutations := []codersdk.AIProviderKeyMutation{
+			{ID: &keepID},
+			{APIKey: ptr.Ref("sk-openai-audit-3-uuuuuuuuuuuuuuuuuuuu")}, //nolint:gosec // test fixture
+		}
+		_, err = client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
+			APIKeys: &mutations,
+		})
+		require.NoError(t, err)
+
+		logs := auditor.AuditLogs()
+		var updated *database.AuditLog
+		for i := range logs {
+			if logs[i].Action == database.AuditActionWrite && logs[i].ResourceType == database.ResourceTypeAIProvider {
+				updated = &logs[i]
+			}
+		}
+		require.NotNil(t, updated, "expected audit log for AI provider update")
+		var got struct {
+			KeysAdded   int `json:"keys_added"`
+			KeysRemoved int `json:"keys_removed"`
+			KeysKept    int `json:"keys_kept"`
+		}
+		require.NoError(t, json.Unmarshal(updated.AdditionalFields, &got))
+		require.Equal(t, 1, got.KeysAdded)
+		require.Equal(t, 1, got.KeysRemoved)
+		require.Equal(t, 1, got.KeysKept)
 	})
 
 	t.Run("MutationUnknownIDRejected", func(t *testing.T) {
