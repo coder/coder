@@ -11,7 +11,7 @@
 		"nursery": "off",
 	},
 
-	"plugins": ["react"],
+	"plugins": ["react", "typescript", "unicorn"],
 
 	"ignorePatterns": [
 		"**/node_modules/**",
