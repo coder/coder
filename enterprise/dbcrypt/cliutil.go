@@ -186,7 +186,7 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 		log.Debug(ctx, "encrypted ai provider settings", slog.F("ai_provider_id", ap.ID), slog.F("name", ap.Name), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
 	}
 
-	aiProviderKeys, err := cryptDB.GetAIProviderKeys(ctx)
+	aiProviderKeys, err := cryptDB.GetAIProviderKeys(ctx, true)
 	if err != nil {
 		return xerrors.Errorf("get ai provider keys: %w", err)
 	}
@@ -392,7 +392,7 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 		log.Debug(ctx, "decrypted ai provider", slog.F("ai_provider_id", ap.ID), slog.F("name", ap.Name), slog.F("current", idx+1))
 	}
 
-	aiProviderKeys, err := cryptDB.GetAIProviderKeys(ctx)
+	aiProviderKeys, err := cryptDB.GetAIProviderKeys(ctx, true)
 	if err != nil {
 		return xerrors.Errorf("get ai provider keys: %w", err)
 	}

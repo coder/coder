@@ -508,11 +508,12 @@ func writeAIProviderLookupError(ctx context.Context, logger slog.Logger, rw http
 	})
 }
 
-// loadAIProviderKeysByProvider fetches every (non-deleted-provider) key
-// in one query and buckets the rows by ProviderID, so a list handler
-// can avoid an N+1 fetch.
+// loadAIProviderKeysByProvider fetches keys for every live provider in
+// one query and buckets the rows by ProviderID, so the list handler
+// can avoid an N+1 fetch. Soft-deleted providers' keys are excluded
+// by the query.
 func loadAIProviderKeysByProvider(ctx context.Context, store database.Store) (map[uuid.UUID][]database.AIProviderKey, error) {
-	rows, err := store.GetAIProviderKeys(ctx)
+	rows, err := store.GetAIProviderKeys(ctx, false)
 	if err != nil {
 		return nil, err
 	}

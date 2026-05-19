@@ -2535,15 +2535,15 @@ func (q *querier) GetAIProviderKeyByID(ctx context.Context, id uuid.UUID) (datab
 	return q.db.GetAIProviderKeyByID(ctx, id)
 }
 
-func (q *querier) GetAIProviderKeys(ctx context.Context) ([]database.AIProviderKey, error) {
-	// This query intentionally returns every key row, including those
-	// whose provider has been soft-deleted, so the dbcrypt key rotation
-	// utility can re-encrypt every row that holds a foreign-key
-	// reference to dbcrypt_keys.
+func (q *querier) GetAIProviderKeys(ctx context.Context, includeDeleted bool) ([]database.AIProviderKey, error) {
+	// Callers pass include_deleted=TRUE only from the dbcrypt key
+	// rotation utility, which needs to re-encrypt every row that holds
+	// a foreign-key reference to dbcrypt_keys regardless of whether
+	// the parent provider is still live.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIProvider); err != nil {
 		return nil, err
 	}
-	return q.db.GetAIProviderKeys(ctx)
+	return q.db.GetAIProviderKeys(ctx, includeDeleted)
 }
 
 func (q *querier) GetAIProviderKeysByProviderID(ctx context.Context, providerID uuid.UUID) ([]database.AIProviderKey, error) {

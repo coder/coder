@@ -282,6 +282,45 @@ func TestAIProvidersCRUD(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 	})
 
+	t.Run("ListExcludesDeletedProviderKeys", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// A soft-deleted provider's keys must not bleed into the list
+		// response. Create one provider, delete it, then create a
+		// second; the list should only contain the live one with its
+		// own keys.
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		deleted, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "list-deleted",
+			Enabled: true,
+			BaseURL: "https://api.openai.com/v1",
+			APIKeys: []string{"sk-openai-deleted-qqqqqqqqqqqqqqqqqq"}, //nolint:gosec // test fixture
+		})
+		require.NoError(t, err)
+		err = client.DeleteAIProvider(ctx, deleted.ID.String())
+		require.NoError(t, err)
+
+		live, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "list-live",
+			Enabled: true,
+			BaseURL: "https://api.openai.com/v1",
+			APIKeys: []string{"sk-openai-live-rrrrrrrrrrrrrrrrrr"}, //nolint:gosec // test fixture
+		})
+		require.NoError(t, err)
+
+		list, err := client.AIProviders(ctx)
+		require.NoError(t, err)
+		require.Len(t, list, 1)
+		require.Equal(t, live.ID, list[0].ID)
+		require.Len(t, list[0].APIKeys, 1)
+		require.Equal(t, live.APIKeys[0].ID, list[0].APIKeys[0].ID)
+	})
+
 	t.Run("LookupInvalidName", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
