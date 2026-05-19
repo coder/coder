@@ -1671,8 +1671,6 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 		ID:                c.ID,
 		OrganizationID:    c.OrganizationID,
 		OwnerID:           c.OwnerID,
-		OwnerUsername:     c.OwnerUsername,
-		OwnerName:         c.OwnerName,
 		LastModelConfigID: c.LastModelConfigID,
 		Title:             c.Title,
 		Status:            codersdk.ChatStatus(c.Status),

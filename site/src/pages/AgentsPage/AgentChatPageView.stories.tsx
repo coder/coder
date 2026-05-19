@@ -52,7 +52,6 @@ const buildChat = (overrides: Partial<TypesGen.Chat> = {}): TypesGen.Chat => ({
 	id: AGENT_ID,
 	organization_id: "test-org-id",
 	owner_id: "owner-1",
-	owner_username: "owner",
 	title: "Help me refactor",
 	status: "completed",
 	last_model_config_id: defaultModelConfigID,

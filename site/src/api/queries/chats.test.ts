@@ -101,7 +101,6 @@ const makeChat = (
 	id,
 	organization_id: "test-org-id",
 	owner_id: "owner-1",
-	owner_username: "owner",
 	last_model_config_id: "model-1",
 	mcp_server_ids: [],
 	labels: {},

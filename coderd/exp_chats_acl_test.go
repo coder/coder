@@ -95,8 +95,6 @@ func TestChatACLSharingLifecycle(t *testing.T) {
 	sharedChat, err := sharedClient.GetChat(ctx, chat.ID)
 	require.NoError(t, err)
 	require.Equal(t, chat.ID, sharedChat.ID)
-	require.Equal(t, coderdtest.FirstUserParams.Username, sharedChat.OwnerUsername)
-	require.Equal(t, coderdtest.FirstUserParams.Name, sharedChat.OwnerName)
 	require.Len(t, sharedChat.Files, 1)
 	require.Equal(t, uploaded.ID, sharedChat.Files[0].ID)
 

@@ -1192,6 +1192,18 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	// enforced in SQL).
 	unlinked, capExceeded := api.linkFilesToChat(ctx, chat.ID, fileIDs)
 
+	// Re-read the chat so the response reflects the authoritative
+	// database state (file links are deduped in the join table).
+	chat, err = api.Database.GetChatByID(ctx, chat.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to read back chat after creation.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	aReq.New = chat
+
 	chatFiles := api.fetchChatFileMetadata(ctx, chat.ID)
 	response := db2sdk.Chat(chat, nil, chatFiles)
 	if len(unlinked) > 0 {
@@ -3532,8 +3544,7 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 		chat = updatedChat
 	}
 
-	response := db2sdk.Chat(chat, nil, nil)
-	httpapi.Write(ctx, rw, http.StatusOK, response)
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(chat, nil, nil))
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -3598,8 +3609,7 @@ func (api *API) regenerateChatTitle(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := db2sdk.Chat(updatedChat, nil, nil)
-	httpapi.Write(ctx, rw, http.StatusOK, response)
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(updatedChat, nil, nil))
 }
 
 //nolint:revive // HTTP handler writes to ResponseWriter.
