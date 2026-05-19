@@ -52,12 +52,9 @@ func (api *API) templateAvailablePermissions(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	// Apply the same q/limit semantics to groups as the users half of this
-	// response. The autocomplete sends q=<input>&limit=25; previously these
-	// were ignored server-side for groups, so deployments with thousands of
-	// groups paid for fetching and shipping every group on each keystroke.
-	// api.AGPL.GetUsers above already validated both, so parsing them again
-	// here cannot fail in a new way.
+	// Apply the same q/limit semantics to groups as the users half of this response.
+	// The query semantics are defined for the users, which is awkward. But we can
+	// just reuse the search part of the query which is a fuzzy match.
 	userFilter, _ := searchquery.Users(r.URL.Query().Get("q"))
 	groupPagination, ok := agpl.ParsePagination(rw, r)
 	if !ok {

@@ -3477,13 +3477,10 @@ func (q *querier) GetGroupMembersCountByGroupID(ctx context.Context, arg databas
 }
 
 func (q *querier) GetGroupMembersCountByGroupIDs(ctx context.Context, arg database.GetGroupMembersCountByGroupIDsParams) ([]database.GetGroupMembersCountByGroupIDsRow, error) {
-	// Mirror GetGroupMembersCountByGroupID: the caller needs ResourceGroup
-	// read access on each group, but does not need ResourceGroupMember
-	// read access for the count itself.
-	for _, id := range arg.GroupIds {
-		if _, err := q.GetGroupByID(ctx, id); err != nil { // AuthZ check
-			return nil, err
-		}
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceGroup); err != nil {
+		// Ideally we would check read access on each group ID, but that would be N queries.
+		// So this function is really only usable by admins.
+		return nil, err
 	}
 	return q.db.GetGroupMembersCountByGroupIDs(ctx, arg)
 }
