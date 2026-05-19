@@ -14595,8 +14595,9 @@ RETURNING id
 
 func (q *sqlQuerier) DeleteLicense(ctx context.Context, id int32) (int32, error) {
 	row := q.db.QueryRowContext(ctx, deleteLicense, id)
-	err := row.Scan(&id)
-	return id, err
+	var id_2 int32
+	err := row.Scan(&id_2)
+	return id_2, err
 }
 
 const getLicenseByID = `-- name: GetLicenseByID :one
