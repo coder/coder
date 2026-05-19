@@ -46,6 +46,23 @@ export const AddBedrock: Story = {
 	},
 };
 
+export const AddBedrockProxy: Story = {
+	args: {
+		initialValues: {
+			type: "bedrock",
+			name: "bedrock-proxy",
+			displayName: "Bedrock via Proxy",
+			baseUrl: "https://bedrock.internal.example.com",
+			region: "us-east-1",
+			model: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+			smallFastModel: "anthropic.claude-3-5-haiku-20241022-v1:0",
+			accessKey: "AKIAIOSFODNN7EXAMPLE",
+			accessKeySecret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+			enabled: true,
+		},
+	},
+};
+
 export const EditBedrockKeepCredentials: Story = {
 	args: {
 		editing: true,

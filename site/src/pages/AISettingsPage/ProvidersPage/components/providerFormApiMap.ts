@@ -6,7 +6,11 @@ import type {
 	CreateAIProviderRequest,
 	UpdateAIProviderRequest,
 } from "#/api/typesGenerated";
-import { type ProviderFormValues, SAVED_CREDENTIAL_MASK } from "./ProviderForm";
+import {
+	type ProviderFormValues,
+	parseBedrockRegionFromBaseUrl,
+	SAVED_CREDENTIAL_MASK,
+} from "./ProviderForm";
 
 /**
  * Treat the saved-credential mask the same as an empty value: never round-trip
@@ -112,8 +116,12 @@ export const providerFormValuesToCreate = (
 	const baseUrl = values.baseUrl.trim();
 
 	if (values.type === "bedrock") {
+		const region =
+			parseBedrockRegionFromBaseUrl(baseUrl) ||
+			values.region.trim() ||
+			undefined;
 		const settings = buildBedrockSettings(
-			undefined,
+			region,
 			values.model.trim(),
 			values.smallFastModel.trim(),
 			sanitizeCredential(values.accessKey),
@@ -185,12 +193,17 @@ export const providerFormValuesToUpdate = (
 	// rotate credentials.
 	const credentialsChanged = newAccessKey !== "" && newAccessKeySecret !== "";
 
-	// Preserve the saved region; the form doesn't surface region today.
-	const savedSettings = existingProvider.settings as SettingsWire | null;
-	const savedRegion = savedSettings?.region;
+	// Region is derived from a canonical AWS Bedrock URL when possible; when
+	// the URL is non-canonical (proxy/sandbox/GovCloud), the form surfaces a
+	// Region field and we send whatever the user typed. Either way we always
+	// emit a region so the AWS SDK has the SigV4 signing scope it needs.
+	const region =
+		parseBedrockRegionFromBaseUrl(base.base_url ?? "") ||
+		values.region.trim() ||
+		undefined;
 
 	const settings = buildBedrockSettings(
-		savedRegion,
+		region,
 		values.model.trim(),
 		values.smallFastModel.trim(),
 		credentialsChanged ? newAccessKey : "",
@@ -223,6 +236,7 @@ export const aiProviderToFormValues = (
 			baseUrl: provider.base_url,
 			model: s.model ?? "",
 			smallFastModel: s.small_fast_model ?? "",
+			region: s.region ?? "",
 			accessKey: "",
 			accessKeySecret: "",
 			enabled: provider.enabled,
