@@ -437,6 +437,8 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"mode":                  ActionTrack,
 		"mcp_server_ids":        ActionTrack,
 		"labels":                ActionTrack,
+		"user_acl":              ActionTrack,
+		"group_acl":             ActionTrack,
 		"pin_order":             ActionTrack,
 		"last_read_message_id":  ActionIgnore, // User-scoped read cursor.
 		"last_injected_context": ActionIgnore, // Internal lifecycle.
