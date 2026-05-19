@@ -343,15 +343,19 @@ func New(options *Options) *API {
 		panic("developer error: options.PrometheusRegistry is nil and not running a unit test")
 	}
 
-	if options.DeploymentValues.DisableOwnerWorkspaceExec || options.DeploymentValues.DisableWorkspaceSharing {
+	if options.DeploymentValues.DisableOwnerWorkspaceExec || options.DeploymentValues.DisableWorkspaceSharing || options.DeploymentValues.DisableChatSharing {
 		rbac.ReloadBuiltinRoles(&rbac.RoleOptions{
 			NoOwnerWorkspaceExec: bool(options.DeploymentValues.DisableOwnerWorkspaceExec),
 			NoWorkspaceSharing:   bool(options.DeploymentValues.DisableWorkspaceSharing),
+			NoChatSharing:        bool(options.DeploymentValues.DisableChatSharing),
 		})
 	}
 
 	if options.DeploymentValues.DisableWorkspaceSharing {
 		rbac.SetWorkspaceACLDisabled(true)
+	}
+	if options.DeploymentValues.DisableChatSharing {
+		rbac.SetChatACLDisabled(true)
 	}
 
 	if options.PrometheusRegistry == nil {
@@ -1178,6 +1182,19 @@ func New(options *Options) *API {
 					r.Post("/pause", api.pauseTask)
 					r.Post("/resume", api.resumeTask)
 				})
+			})
+		})
+		r.Route("/users/{user}/skills", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractUserParam(options.Database),
+			)
+			r.Post("/", api.postUserSkill)
+			r.Get("/", api.getUserSkills)
+			r.Route("/{skillName}", func(r chi.Router) {
+				r.Get("/", api.getUserSkill)
+				r.Patch("/", api.patchUserSkill)
+				r.Delete("/", api.deleteUserSkill)
 			})
 		})
 		r.Route("/chats", func(r chi.Router) {

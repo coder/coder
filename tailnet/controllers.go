@@ -154,6 +154,17 @@ type BasicCoordinationController struct {
 	Logger      slog.Logger
 	Coordinatee Coordinatee
 	SendAcks    bool
+	// Initiator labels which side of the coordination this controller
+	// represents (e.g. "agent", "client", "server"). It is attached as
+	// a slog field to disconnect-related logs emitted by this
+	// coordination so operators can attribute connection-close events
+	// without inspecting call sites. Leave unset on synthetic
+	// controllers (tests, in-memory fakes) and the field will be
+	// omitted from log output.
+	Initiator codersdk.DisconnectInitiator
+	// Direction labels the connection layer (server_to_agent,
+	// agent_to_client, client_to_server) for disconnect logs.
+	Direction codersdk.ConnectionDirection
 }
 
 // New satisfies the method on the CoordinationController interface
@@ -170,6 +181,8 @@ func (c *BasicCoordinationController) NewCoordination(client CoordinatorClient) 
 		client:       client,
 		respLoopDone: make(chan struct{}),
 		sendAcks:     c.SendAcks,
+		initiator:    c.Initiator,
+		direction:    c.Direction,
 	}
 
 	c.Coordinatee.SetNodeCallback(func(node *Node) {
@@ -211,6 +224,8 @@ type BasicCoordination struct {
 	client       CoordinatorClient
 	respLoopDone chan struct{}
 	sendAcks     bool
+	initiator    codersdk.DisconnectInitiator
+	direction    codersdk.ConnectionDirection
 }
 
 // CloseClient forcibly closes the underlying coordinator client connection
@@ -243,11 +258,24 @@ func (c *BasicCoordination) Close(ctx context.Context) (retErr error) {
 	err := c.client.Send(&proto.CoordinateRequest{Disconnect: &proto.CoordinateRequest_Disconnect{}})
 	c.Unlock()
 	if err != nil && !xerrors.Is(err, io.EOF) {
+		reason := codersdk.DisconnectReasonNetworkError
 		// Log but don't return early; we must still clean up below.
-		c.logger.Warn(context.Background(), "failed to send disconnect", slog.Error(err))
+		c.logger.Warn(context.Background(), "failed to send disconnect",
+			c.direction.SlogField(),
+			reason.SlogExpectedField(),
+			reason.SlogField(),
+			c.initiator.SlogField(),
+			slog.Error(err),
+		)
 		retErr = xerrors.Errorf("send disconnect: %w", err)
 	} else {
-		c.logger.Debug(context.Background(), "sent disconnect")
+		reason := codersdk.DisconnectReasonGraceful
+		c.logger.Debug(context.Background(), "sent disconnect",
+			c.direction.SlogField(),
+			reason.SlogExpectedField(),
+			reason.SlogField(),
+			c.initiator.SlogField(),
+		)
 	}
 
 	// We shouldn't just close the protocol right away, because the way dRPC streams work is
@@ -256,10 +284,23 @@ func (c *BasicCoordination) Close(ctx context.Context) (retErr error) {
 	// Disconnect message, so we should wait around for that until the context expires.
 	select {
 	case <-c.respLoopDone:
-		c.logger.Debug(ctx, "responses closed after disconnect")
+		reason := codersdk.DisconnectReasonGraceful
+		c.logger.Debug(ctx, "responses closed after disconnect",
+			c.direction.SlogField(),
+			reason.SlogExpectedField(),
+			reason.SlogField(),
+			c.initiator.SlogField(),
+		)
 		return retErr
 	case <-ctx.Done():
-		c.logger.Warn(ctx, "context expired while waiting for coordinate responses to close")
+		reason := codersdk.DisconnectReasonNetworkError
+		c.logger.Warn(ctx, "context expired while waiting for coordinate responses to close",
+			c.direction.SlogField(),
+			reason.SlogExpectedField(),
+			reason.SlogField(),
+			c.initiator.SlogField(),
+			codersdk.SlogDisconnectDetail("context expired before coordinator hung up"),
+		)
 	}
 	// forcefully close the stream
 	protoErr := c.client.Close()
@@ -369,6 +410,8 @@ func NewTunnelSrcCoordController(
 			Logger:      logger,
 			Coordinatee: coordinatee,
 			SendAcks:    false,
+			Initiator:   codersdk.DisconnectInitiatorClient,
+			Direction:   codersdk.ConnectionDirectionClientToServer,
 		},
 		dests: make(map[uuid.UUID]struct{}),
 	}
@@ -508,6 +551,8 @@ func NewAgentCoordinationController(
 		Logger:      logger,
 		Coordinatee: coordinatee,
 		SendAcks:    true,
+		Initiator:   codersdk.DisconnectInitiatorAgent,
+		Direction:   codersdk.ConnectionDirectionServerToAgent,
 	}
 }
 
@@ -1505,7 +1550,14 @@ func (c *Controller) Run(ctx context.Context) {
 				}
 
 				if errors.Is(err, net.ErrClosed) {
-					c.logger.Warn(c.ctx, "control plane connection closed, retrying", slog.Error(err))
+					reason := codersdk.DisconnectReasonNetworkError
+					c.logger.Warn(c.ctx, "control plane connection closed, retrying",
+						codersdk.ConnectionDirectionServerToAgent.SlogField(),
+						reason.SlogField(),
+						reason.SlogExpectedField(),
+						codersdk.DisconnectInitiatorNetwork.SlogField(),
+						slog.Error(err),
+					)
 					continue
 				}
 

@@ -1362,19 +1362,31 @@ func TestGetAuthorizedChats(t *testing.T) {
 		require.NoError(t, err)
 		require.GreaterOrEqual(t, len(sameOrgAdminRows), 5, "same-org admin should see all chats in their org")
 
-		// OwnerID filter: member queries their own chats.
+		// OwnedOnly filter: member queries their own chats.
 		memberFilterSelf, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{
-			OwnerID: member.ID,
+			OwnedOnly: true,
+			ViewerID:  member.ID,
 		}, preparedMember)
 		require.NoError(t, err)
 		require.Len(t, memberFilterSelf, 2)
 
-		// OwnerID filter: member queries owner's chats → sees 0.
+		// OwnedOnly filter: member queries owner's chats and sees 0.
 		memberFilterOwner, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{
-			OwnerID: owner.ID,
+			OwnedOnly: true,
+			ViewerID:  owner.ID,
 		}, preparedMember)
 		require.NoError(t, err)
 		require.Len(t, memberFilterOwner, 0)
+
+		_, err = db.GetAuthorizedChats(ctx, database.GetChatsParams{
+			OwnedOnly: true,
+		}, preparedMember)
+		require.ErrorContains(t, err, "viewer_id required")
+
+		_, err = db.GetAuthorizedChats(ctx, database.GetChatsParams{
+			SharedOnly: true,
+		}, preparedMember)
+		require.ErrorContains(t, err, "viewer_id required")
 	})
 
 	t.Run("dbauthz", func(t *testing.T) {
@@ -1468,6 +1480,293 @@ func TestGetAuthorizedChats(t *testing.T) {
 		// All 7 member chats should be accounted for with no leakage.
 		require.Len(t, allIDs, 7, "pagination should return all member chats exactly once")
 	})
+}
+
+//nolint:tparallel,paralleltest // It toggles the global chat ACL flag.
+func TestGetAuthorizedChatsACLSharing(t *testing.T) {
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	rbac.SetChatACLDisabled(false)
+	t.Cleanup(func() { rbac.SetChatACLDisabled(false) })
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+	authorizer := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+
+	owner := dbgen.User(t, db, database.User{})
+	recipient := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         owner.ID,
+		OrganizationID: org.ID,
+		Roles:          []string{rbac.RoleAgentsAccess()},
+	})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         recipient.ID,
+		OrganizationID: org.ID,
+		Roles:          []string{rbac.RoleAgentsAccess()},
+	})
+
+	dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
+	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Provider:             "openai",
+		Model:                "test-model",
+		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		IsDefault:            true,
+		CompressionThreshold: 80,
+	})
+
+	ownerChat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           owner.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "shared owner chat",
+	})
+	recipientChat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           recipient.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "recipient chat",
+	})
+
+	sharedACL := database.ChatACL{
+		recipient.ID.String(): database.ChatACLEntry{Permissions: []policy.Action{policy.ActionRead}},
+	}
+	err = db.UpdateChatACLByID(ctx, database.UpdateChatACLByIDParams{
+		ID:       ownerChat.ID,
+		UserACL:  sharedACL,
+		GroupACL: database.ChatACL{},
+	})
+	require.NoError(t, err)
+
+	recipientSubject, _, err := httpmw.UserRBACSubject(ctx, db, recipient.ID, rbac.ExpandableScope(rbac.ScopeAll))
+	require.NoError(t, err)
+	preparedRecipient, err := authorizer.Prepare(ctx, recipientSubject, policy.ActionRead, rbac.ResourceChat.Type)
+	require.NoError(t, err)
+
+	chatIDs := func(rows []database.GetChatsRow) []uuid.UUID {
+		ids := make([]uuid.UUID, 0, len(rows))
+		for _, row := range rows {
+			ids = append(ids, row.Chat.ID)
+		}
+		return ids
+	}
+
+	rows, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{}, preparedRecipient)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []uuid.UUID{ownerChat.ID, recipientChat.ID}, chatIDs(rows))
+
+	sharedOnly, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{
+		SharedOnly: true,
+		ViewerID:   recipient.ID,
+	}, preparedRecipient)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []uuid.UUID{ownerChat.ID}, chatIDs(sharedOnly))
+	require.Equal(t, sharedACL, sharedOnly[0].Chat.UserACL)
+	require.Empty(t, sharedOnly[0].Chat.GroupACL)
+
+	_, err = db.GetAuthorizedChats(ctx, database.GetChatsParams{
+		OwnedOnly:  true,
+		SharedOnly: true,
+		ViewerID:   recipient.ID,
+	}, preparedRecipient)
+	require.ErrorContains(t, err, "owned_only and shared_only")
+
+	authzdb := dbauthz.New(db, authorizer, slogtest.Make(t, &slogtest.Options{}), coderdtest.AccessControlStorePointer())
+	recipientCtx := dbauthz.As(ctx, recipientSubject)
+	authzRows, err := authzdb.GetChats(recipientCtx, database.GetChatsParams{})
+	require.NoError(t, err)
+	require.ElementsMatch(t, []uuid.UUID{ownerChat.ID, recipientChat.ID}, chatIDs(authzRows))
+
+	rbac.SetChatACLDisabled(true)
+	disabledRows, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{}, preparedRecipient)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []uuid.UUID{recipientChat.ID}, chatIDs(disabledRows))
+}
+
+//nolint:tparallel,paralleltest // It toggles the global chat ACL flag.
+func TestGetAuthorizedChatsACLSharingGroupACL(t *testing.T) {
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	rbac.SetChatACLDisabled(false)
+	t.Cleanup(func() { rbac.SetChatACLDisabled(false) })
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+	authorizer := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+
+	owner := dbgen.User(t, db, database.User{})
+	recipient := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         owner.ID,
+		OrganizationID: org.ID,
+		Roles:          []string{rbac.RoleAgentsAccess()},
+	})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         recipient.ID,
+		OrganizationID: org.ID,
+		Roles:          []string{rbac.RoleAgentsAccess()},
+	})
+	group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+	dbgen.GroupMember(t, db, database.GroupMemberTable{UserID: recipient.ID, GroupID: group.ID})
+
+	dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
+	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Provider:             "openai",
+		Model:                "test-model",
+		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		IsDefault:            true,
+		CompressionThreshold: 80,
+	})
+
+	ownerChat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           owner.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "shared owner chat",
+	})
+	recipientChat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           recipient.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "recipient chat",
+	})
+
+	sharedGroupACL := database.ChatACL{
+		group.ID.String(): database.ChatACLEntry{Permissions: []policy.Action{policy.ActionRead}},
+	}
+	err = db.UpdateChatACLByID(ctx, database.UpdateChatACLByIDParams{
+		ID:       ownerChat.ID,
+		UserACL:  database.ChatACL{},
+		GroupACL: sharedGroupACL,
+	})
+	require.NoError(t, err)
+
+	recipientSubject, _, err := httpmw.UserRBACSubject(ctx, db, recipient.ID, rbac.ExpandableScope(rbac.ScopeAll))
+	require.NoError(t, err)
+	preparedRecipient, err := authorizer.Prepare(ctx, recipientSubject, policy.ActionRead, rbac.ResourceChat.Type)
+	require.NoError(t, err)
+
+	chatIDs := func(rows []database.GetChatsRow) []uuid.UUID {
+		ids := make([]uuid.UUID, 0, len(rows))
+		for _, row := range rows {
+			ids = append(ids, row.Chat.ID)
+		}
+		return ids
+	}
+
+	rows, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{}, preparedRecipient)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []uuid.UUID{ownerChat.ID, recipientChat.ID}, chatIDs(rows))
+
+	sharedOnly, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{
+		SharedOnly: true,
+		ViewerID:   recipient.ID,
+	}, preparedRecipient)
+	require.NoError(t, err)
+	require.Len(t, sharedOnly, 1)
+	require.Equal(t, ownerChat.ID, sharedOnly[0].Chat.ID)
+	require.Empty(t, sharedOnly[0].Chat.UserACL)
+	require.Equal(t, sharedGroupACL, sharedOnly[0].Chat.GroupACL)
+}
+
+//nolint:tparallel,paralleltest // It toggles the global chat ACL flag.
+func TestGetAuthorizedChatsByChatFileIDACLSharing(t *testing.T) {
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	rbac.SetChatACLDisabled(false)
+	t.Cleanup(func() { rbac.SetChatACLDisabled(false) })
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+	authorizer := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+
+	owner := dbgen.User(t, db, database.User{})
+	recipient := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         owner.ID,
+		OrganizationID: org.ID,
+		Roles:          []string{rbac.RoleAgentsAccess()},
+	})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         recipient.ID,
+		OrganizationID: org.ID,
+		Roles:          []string{rbac.RoleAgentsAccess()},
+	})
+
+	dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
+	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Provider:             "openai",
+		Model:                "test-model",
+		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		IsDefault:            true,
+		CompressionThreshold: 80,
+	})
+
+	ownerChat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           owner.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "shared owner chat",
+	})
+	sharedACL := database.ChatACL{
+		recipient.ID.String(): database.ChatACLEntry{Permissions: []policy.Action{policy.ActionRead}},
+	}
+	err = db.UpdateChatACLByID(ctx, database.UpdateChatACLByIDParams{
+		ID:       ownerChat.ID,
+		UserACL:  sharedACL,
+		GroupACL: database.ChatACL{},
+	})
+	require.NoError(t, err)
+
+	fileRow, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
+		OwnerID:        owner.ID,
+		OrganizationID: org.ID,
+		Name:           "shared.txt",
+		Mimetype:       "text/plain",
+		Data:           []byte("shared file"),
+	})
+	require.NoError(t, err)
+
+	rejected, err := db.LinkChatFiles(ctx, database.LinkChatFilesParams{
+		ChatID:       ownerChat.ID,
+		FileIds:      []uuid.UUID{fileRow.ID},
+		MaxFileLinks: 10,
+	})
+	require.NoError(t, err)
+	require.Zero(t, rejected)
+
+	recipientSubject, _, err := httpmw.UserRBACSubject(ctx, db, recipient.ID, rbac.ExpandableScope(rbac.ScopeAll))
+	require.NoError(t, err)
+	preparedRecipient, err := authorizer.Prepare(ctx, recipientSubject, policy.ActionRead, rbac.ResourceChat.Type)
+	require.NoError(t, err)
+
+	rows, err := db.GetAuthorizedChatsByChatFileID(ctx, fileRow.ID, preparedRecipient)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.Equal(t, ownerChat.ID, rows[0].ID)
+	require.Equal(t, sharedACL, rows[0].UserACL)
+	require.Empty(t, rows[0].GroupACL)
 }
 
 func TestInsertWorkspaceAgentLogs(t *testing.T) {
@@ -11783,7 +12082,10 @@ func TestChatLabels(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		rows, err := db.GetChats(ctx, database.GetChatsParams{OwnerID: owner.ID})
+		rows, err := db.GetChats(ctx, database.GetChatsParams{
+			OwnedOnly: true,
+			ViewerID:  owner.ID,
+		})
 		require.NoError(t, err)
 
 		chatIndex := slices.IndexFunc(rows, func(row database.GetChatsRow) bool {
@@ -11935,7 +12237,8 @@ func TestChatLabels(t *testing.T) {
 		filterJSON, err := json.Marshal(database.StringMap{"env": "prod"})
 		require.NoError(t, err)
 		results, err := db.GetChats(ctx, database.GetChatsParams{
-			OwnerID: owner.ID,
+			OwnedOnly: true,
+			ViewerID:  owner.ID,
 			LabelFilter: pqtype.NullRawMessage{
 				RawMessage: filterJSON,
 				Valid:      true,
@@ -11955,7 +12258,8 @@ func TestChatLabels(t *testing.T) {
 		filterJSON, err = json.Marshal(database.StringMap{"env": "prod", "team": "backend"})
 		require.NoError(t, err)
 		results, err = db.GetChats(ctx, database.GetChatsParams{
-			OwnerID: owner.ID,
+			OwnedOnly: true,
+			ViewerID:  owner.ID,
 			LabelFilter: pqtype.NullRawMessage{
 				RawMessage: filterJSON,
 				Valid:      true,
@@ -11964,9 +12268,10 @@ func TestChatLabels(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, results, 1)
 		require.Equal(t, "filter-a", results[0].Chat.Title)
-		// No filter — should return all chats for this owner.
+		// No filter should return all chats for this owner.
 		allChats, err := db.GetChats(ctx, database.GetChatsParams{
-			OwnerID: owner.ID,
+			OwnedOnly: true,
+			ViewerID:  owner.ID,
 		})
 		require.NoError(t, err)
 		require.GreaterOrEqual(t, len(allChats), 3)
@@ -13688,7 +13993,8 @@ func TestChatHasUnread(t *testing.T) {
 
 	getHasUnread := func() bool {
 		rows, err := store.GetChats(ctx, database.GetChatsParams{
-			OwnerID: user.ID,
+			OwnedOnly: true,
+			ViewerID:  user.ID,
 		})
 		require.NoError(t, err)
 		for _, row := range rows {
@@ -13764,4 +14070,231 @@ func TestChatHasUnread(t *testing.T) {
 	require.NoError(t, err)
 	insertMsg(database.ChatMessageRoleUser, "user msg")
 	require.False(t, getHasUnread(), "user messages should not trigger unread")
+}
+
+// TestSoftDeletePriorWorkspaceAgents verifies the invariant maintained by
+// wsbuilder.Builder.Build: when a new build of a workspace is created, all
+// agents belonging to prior builds of that same workspace are soft-deleted,
+// and agents belonging to *other* workspaces are untouched.
+func TestSoftDeletePriorWorkspaceAgents(t *testing.T) {
+	t.Parallel()
+
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	// Helper: create a workspace + one build + its agent. Returns the IDs we
+	// need to assert on. The agent uses the shared EC2-style auth_instance_id
+	// so we can prove per-workspace scoping.
+	type buildBundle struct {
+		workspaceID uuid.UUID
+		buildID     uuid.UUID
+		agentID     uuid.UUID
+	}
+
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	tpl := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	tplVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+
+	newBuild := func(t *testing.T, wsID uuid.UUID, buildNumber int32, instanceID string) buildBundle {
+		t.Helper()
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			OrganizationID: org.ID,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		})
+		build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			WorkspaceID:       wsID,
+			JobID:             job.ID,
+			TemplateVersionID: tplVersion.ID,
+			BuildNumber:       buildNumber,
+			Transition:        database.WorkspaceTransitionStart,
+		})
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: job.ID})
+		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID:     resource.ID,
+			AuthInstanceID: sql.NullString{String: instanceID, Valid: true},
+		})
+		return buildBundle{workspaceID: wsID, buildID: build.ID, agentID: agent.ID}
+	}
+
+	// Read `deleted` via raw SQL. GetWorkspaceAgentByID filters deleted rows
+	// out, which is exactly what we want to observe here.
+	agentDeleted := func(id uuid.UUID) bool {
+		t.Helper()
+		var deleted bool
+		err := sqlDB.QueryRowContext(ctx,
+			`SELECT deleted FROM workspace_agents WHERE id = $1`, id).Scan(&deleted)
+		require.NoError(t, err)
+		return deleted
+	}
+
+	// Two workspaces share a single EC2 instance ID across their lifetimes.
+	wsA := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		TemplateID:     tpl.ID,
+		OwnerID:        user.ID,
+	}).ID
+	wsB := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		TemplateID:     tpl.ID,
+		OwnerID:        user.ID,
+	}).ID
+	instance := "i-shared"
+
+	a1 := newBuild(t, wsA, 1, instance)
+	a2 := newBuild(t, wsA, 2, instance)
+	a3 := newBuild(t, wsA, 3, instance)
+	b1 := newBuild(t, wsB, 1, instance)
+	b2 := newBuild(t, wsB, 2, instance)
+
+	// Sanity check: all agents start non-deleted.
+	require.False(t, agentDeleted(a1.agentID))
+	require.False(t, agentDeleted(a2.agentID))
+	require.False(t, agentDeleted(a3.agentID))
+	require.False(t, agentDeleted(b1.agentID))
+	require.False(t, agentDeleted(b2.agentID))
+
+	// Run: "wsA's current build is a3; soft-delete all other wsA agents."
+	err := db.SoftDeletePriorWorkspaceAgents(ctx, database.SoftDeletePriorWorkspaceAgentsParams{
+		WorkspaceID:    wsA,
+		CurrentBuildID: a3.buildID,
+	})
+	require.NoError(t, err)
+
+	assert.True(t, agentDeleted(a1.agentID), "wsA build 1 agent should be soft-deleted")
+	assert.True(t, agentDeleted(a2.agentID), "wsA build 2 agent should be soft-deleted")
+	assert.False(t, agentDeleted(a3.agentID), "wsA current build's agent must stay")
+	assert.False(t, agentDeleted(b1.agentID), "wsB build 1 agent must not be touched")
+	assert.False(t, agentDeleted(b2.agentID), "wsB build 2 agent must not be touched")
+
+	// Idempotency: re-running with the same params is a no-op.
+	err = db.SoftDeletePriorWorkspaceAgents(ctx, database.SoftDeletePriorWorkspaceAgentsParams{
+		WorkspaceID:    wsA,
+		CurrentBuildID: a3.buildID,
+	})
+	require.NoError(t, err)
+	assert.False(t, agentDeleted(a3.agentID))
+
+	// Now age wsB: new current build is b2; b1's agent should flip.
+	err = db.SoftDeletePriorWorkspaceAgents(ctx, database.SoftDeletePriorWorkspaceAgentsParams{
+		WorkspaceID:    wsB,
+		CurrentBuildID: b2.buildID,
+	})
+	require.NoError(t, err)
+	assert.True(t, agentDeleted(b1.agentID))
+	assert.False(t, agentDeleted(b2.agentID))
+}
+
+// TestSoftDeleteWorkspaceAgentsByWorkspaceID verifies the delete-path
+// invariant: when a workspace is soft-deleted, every one of its agents
+// (across all builds) gets soft-deleted in the same transaction. Agents on
+// *other* workspaces, even ones sharing an auth_instance_id, must be
+// untouched.
+func TestSoftDeleteWorkspaceAgentsByWorkspaceID(t *testing.T) {
+	t.Parallel()
+
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	type buildBundle struct {
+		workspaceID uuid.UUID
+		buildID     uuid.UUID
+		agentID     uuid.UUID
+	}
+
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	tpl := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	tplVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+
+	newBuild := func(t *testing.T, wsID uuid.UUID, buildNumber int32, instanceID string) buildBundle {
+		t.Helper()
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			OrganizationID: org.ID,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		})
+		build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			WorkspaceID:       wsID,
+			JobID:             job.ID,
+			TemplateVersionID: tplVersion.ID,
+			BuildNumber:       buildNumber,
+			Transition:        database.WorkspaceTransitionStart,
+		})
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: job.ID})
+		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID:     resource.ID,
+			AuthInstanceID: sql.NullString{String: instanceID, Valid: true},
+		})
+		return buildBundle{workspaceID: wsID, buildID: build.ID, agentID: agent.ID}
+	}
+
+	agentDeleted := func(id uuid.UUID) bool {
+		t.Helper()
+		var deleted bool
+		err := sqlDB.QueryRowContext(ctx,
+			`SELECT deleted FROM workspace_agents WHERE id = $1`, id).Scan(&deleted)
+		require.NoError(t, err)
+		return deleted
+	}
+
+	// wsA: 3 builds (so multiple agents to sweep on delete).
+	// wsB: 1 build, same auth_instance_id as wsA (proves scoping).
+	wsA := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		TemplateID:     tpl.ID,
+		OwnerID:        user.ID,
+	}).ID
+	wsB := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		TemplateID:     tpl.ID,
+		OwnerID:        user.ID,
+	}).ID
+	instance := "i-shared"
+
+	a1 := newBuild(t, wsA, 1, instance)
+	a2 := newBuild(t, wsA, 2, instance)
+	a3 := newBuild(t, wsA, 3, instance)
+	b1 := newBuild(t, wsB, 1, instance)
+
+	// Sanity: all 4 agents start non-deleted.
+	for _, id := range []uuid.UUID{a1.agentID, a2.agentID, a3.agentID, b1.agentID} {
+		require.False(t, agentDeleted(id))
+	}
+
+	err := db.SoftDeleteWorkspaceAgentsByWorkspaceID(ctx, wsA)
+	require.NoError(t, err)
+
+	// All wsA agents flipped; wsB's agent untouched.
+	assert.True(t, agentDeleted(a1.agentID), "wsA build 1 agent")
+	assert.True(t, agentDeleted(a2.agentID), "wsA build 2 agent")
+	assert.True(t, agentDeleted(a3.agentID), "wsA build 3 agent")
+	assert.False(t, agentDeleted(b1.agentID), "wsB agent must not be affected")
+
+	// Idempotency: re-running is a no-op.
+	err = db.SoftDeleteWorkspaceAgentsByWorkspaceID(ctx, wsA)
+	require.NoError(t, err)
+	assert.False(t, agentDeleted(b1.agentID))
+
+	// Calling on an empty workspace (no agents) is a no-op and does not error.
+	wsEmpty := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		TemplateID:     tpl.ID,
+		OwnerID:        user.ID,
+	}).ID
+	err = db.SoftDeleteWorkspaceAgentsByWorkspaceID(ctx, wsEmpty)
+	require.NoError(t, err)
 }

@@ -1275,6 +1275,21 @@ func requireNoProviderExecutedToolResultContent(t *testing.T, content []fantasy.
 	}
 }
 
+func requireReasoningPrompt(t *testing.T, prompt []fantasy.Message) fantasy.ReasoningPart {
+	t.Helper()
+
+	for _, message := range prompt {
+		for _, part := range message.Content {
+			reasoningPart, ok := fantasy.AsMessagePart[fantasy.ReasoningPart](part)
+			if ok {
+				return reasoningPart
+			}
+		}
+	}
+	t.Fatal("missing prompt reasoning")
+	return fantasy.ReasoningPart{}
+}
+
 func requireTextPrompt(t *testing.T, prompt []fantasy.Message, text string) fantasy.TextPart {
 	t.Helper()
 
@@ -3632,7 +3647,7 @@ func TestRun_AnthropicProviderToolPreRequestGuard(t *testing.T) {
 	t.Run("direct guard textifies orphaned provider result", func(t *testing.T) {
 		t.Parallel()
 
-		guarded := chatsanitize.ApplyAnthropicProviderToolGuard(
+		guarded, err := chatsanitize.ApplyAnthropicProviderToolGuard(
 			context.Background(),
 			slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 			fantasyanthropic.Name,
@@ -3651,6 +3666,7 @@ func TestRun_AnthropicProviderToolPreRequestGuard(t *testing.T) {
 				},
 			},
 		)
+		require.NoError(t, err)
 
 		requireNoProviderExecutedToolResultPrompt(t, guarded)
 		requireAnthropicProviderToolPromptSafe(t, guarded)
@@ -3670,13 +3686,14 @@ func TestRun_AnthropicProviderToolPreRequestGuard(t *testing.T) {
 		content := []fantasy.MessagePart{fantasy.TextPart{Text: "keep"}}
 		content = append(content, providerPair("ws-one")...)
 		content = append(content, providerPair("ws-two")...)
-		guarded := chatsanitize.ApplyAnthropicProviderToolGuard(
+		guarded, err := chatsanitize.ApplyAnthropicProviderToolGuard(
 			context.Background(),
 			slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 			fantasyanthropic.Name,
 			"claude-test",
 			[]fantasy.Message{{Role: fantasy.MessageRoleAssistant, Content: content}},
 		)
+		require.NoError(t, err)
 
 		requireAnthropicProviderToolPromptSafe(t, guarded)
 		require.Len(t, guarded, 1)
@@ -3696,13 +3713,14 @@ func TestRun_AnthropicProviderToolPreRequestGuard(t *testing.T) {
 				Content: providerPair("ws-other-provider"),
 			},
 		}
-		guarded := chatsanitize.ApplyAnthropicProviderToolGuard(
+		guarded, err := chatsanitize.ApplyAnthropicProviderToolGuard(
 			context.Background(),
 			slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 			"fake",
 			"fake-model",
 			prompt,
 		)
+		require.NoError(t, err)
 		require.Equal(t, prompt, guarded)
 	})
 
@@ -3712,7 +3730,7 @@ func TestRun_AnthropicProviderToolPreRequestGuard(t *testing.T) {
 		logSink := testutil.NewFakeSink(t)
 		logger := logSink.Logger()
 		logPair := providerPair("ws-log")
-		guarded := chatsanitize.ApplyAnthropicProviderToolGuard(
+		guarded, err := chatsanitize.ApplyAnthropicProviderToolGuard(
 			context.Background(),
 			logger,
 			fantasyanthropic.Name,
@@ -3727,6 +3745,7 @@ func TestRun_AnthropicProviderToolPreRequestGuard(t *testing.T) {
 				},
 			},
 		)
+		require.NoError(t, err)
 
 		requireNoProviderExecutedToolCallPrompt(t, guarded)
 		requireNoProviderExecutedToolResultPrompt(t, guarded)
@@ -3739,6 +3758,62 @@ func TestRun_AnthropicProviderToolPreRequestGuard(t *testing.T) {
 		require.Equal(t, "pre_request_guard", requireLogField(t, entries[0], "phase"))
 		require.Equal(t, 1, requireLogField(t, entries[0], "removed_tool_calls"))
 		require.Equal(t, 1, requireLogField(t, entries[0], "removed_tool_results"))
+	})
+	t.Run("run drops orphan provider call before provider request", func(t *testing.T) {
+		t.Parallel()
+
+		streamCalls := 0
+		var capturedPrompt fantasy.Prompt
+		model := &chattest.FakeModel{
+			ProviderName: fantasyanthropic.Name,
+			ModelName:    "claude-test",
+			StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
+				streamCalls++
+				capturedPrompt = call.Prompt
+				return finishingStream(), nil
+			},
+		}
+
+		err := Run(context.Background(), RunOptions{
+			Model: model,
+			Messages: []fantasy.Message{
+				textMessage(fantasy.MessageRoleUser, "search"),
+				{
+					Role: fantasy.MessageRoleAssistant,
+					Content: []fantasy.MessagePart{
+						fantasy.ReasoningPart{
+							ProviderOptions: fantasy.ProviderOptions{
+								fantasyanthropic.Name: &fantasyanthropic.ReasoningOptionMetadata{
+									RedactedData: "redacted-payload",
+								},
+							},
+						},
+						fantasy.ToolCallPart{
+							ToolCallID:       "ws-orphan",
+							ToolName:         "web_search",
+							Input:            `{"query":"coder"}`,
+							ProviderExecuted: true,
+						},
+						fantasy.TextPart{Text: "partial"},
+					},
+				},
+				textMessage(fantasy.MessageRoleUser, "continue"),
+			},
+			Logger:   slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+			MaxSteps: 1,
+			PersistStep: func(_ context.Context, _ PersistedStep) error {
+				return nil
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, 1, streamCalls)
+		requireNoProviderExecutedToolCallPrompt(t, capturedPrompt)
+		requireAnthropicProviderToolPromptSafe(t, capturedPrompt)
+		requireTextPrompt(t, capturedPrompt, "partial")
+		reasoningPart := requireReasoningPrompt(t, capturedPrompt)
+		reasoningMetadata := fantasyanthropic.GetReasoningMetadata(reasoningPart.ProviderOptions)
+		require.NotNil(t, reasoningMetadata)
+		require.Equal(t, "redacted-payload", reasoningMetadata.RedactedData)
 	})
 }
 
@@ -4356,4 +4431,171 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 		require.Contains(t, textOutput.Text, "hello")
 		require.Contains(t, textOutput.Text, "world")
 	})
+}
+
+// TestRun_ReasoningTimestamps verifies that StreamPartTypeReasoningStart
+// and StreamPartTypeReasoningEnd produce parallel ReasoningStartedAt /
+// ReasoningCompletedAt slices on PersistedStep, in the same occurrence
+// order as the reasoning content blocks. The frontend computes
+// reasoning duration as completed_at - started_at.
+func TestRun_ReasoningTimestamps(t *testing.T) {
+	t.Parallel()
+
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			return streamFromParts([]fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeReasoningStart, ID: "reason-1"},
+				{Type: fantasy.StreamPartTypeReasoningDelta, ID: "reason-1", Delta: "first thought"},
+				{Type: fantasy.StreamPartTypeReasoningEnd, ID: "reason-1"},
+				{Type: fantasy.StreamPartTypeReasoningStart, ID: "reason-2"},
+				{Type: fantasy.StreamPartTypeReasoningDelta, ID: "reason-2", Delta: "second thought"},
+				{Type: fantasy.StreamPartTypeReasoningEnd, ID: "reason-2"},
+				{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "answer"},
+				{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
+				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+			}), nil
+		},
+	}
+
+	var persistedSteps []PersistedStep
+	err := Run(context.Background(), RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "think"),
+		},
+		MaxSteps: 1,
+		PersistStep: func(_ context.Context, step PersistedStep) error {
+			persistedSteps = append(persistedSteps, step)
+			return nil
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, persistedSteps, 1)
+
+	step := persistedSteps[0]
+
+	// Both reasoning blocks must produce parallel timestamp entries.
+	require.Len(t, step.ReasoningStartedAt, 2,
+		"each StreamPartTypeReasoningEnd must record a started_at")
+	require.Len(t, step.ReasoningCompletedAt, 2,
+		"each StreamPartTypeReasoningEnd must record a completed_at")
+
+	// Timestamps must be monotonic per block (completed_at >= started_at),
+	// and both timestamps must be populated. Asserting only monotonicity
+	// is not enough: time.Time{} is year 0001, so completed_at.Before(zero)
+	// is trivially false and a regression that drops the started_at stamp
+	// would slip past the comparison.
+	for i := range step.ReasoningStartedAt {
+		require.False(t, step.ReasoningStartedAt[i].IsZero(),
+			"started_at[%d] must be non-zero", i)
+		require.False(t, step.ReasoningCompletedAt[i].IsZero(),
+			"completed_at[%d] must be non-zero", i)
+		require.False(t,
+			step.ReasoningCompletedAt[i].Before(step.ReasoningStartedAt[i]),
+			"completed_at[%d] must be >= started_at[%d]", i, i)
+	}
+
+	// Successive blocks must be ordered: reasoning-2 cannot start
+	// before reasoning-1 completes.
+	require.False(t,
+		step.ReasoningStartedAt[1].Before(step.ReasoningCompletedAt[0]),
+		"reasoning-2 started_at must be >= reasoning-1 completed_at")
+
+	// The reasoning content blocks must appear in the same order
+	// in step.Content so the persistence layer can correlate by
+	// occurrence order.
+	var reasoningOrder []string
+	for _, c := range step.Content {
+		if r, ok := fantasy.AsContentType[fantasy.ReasoningContent](c); ok {
+			reasoningOrder = append(reasoningOrder, r.Text)
+		}
+	}
+	require.Equal(t, []string{"first thought", "second thought"}, reasoningOrder)
+}
+
+func TestRun_InterruptedReasoningFlushesTimestamps(t *testing.T) {
+	t.Parallel()
+
+	started := make(chan struct{})
+	model := &chattest.FakeModel{
+		ProviderName: "fake",
+		StreamFn: func(ctx context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			return iter.Seq[fantasy.StreamPart](func(yield func(fantasy.StreamPart) bool) {
+				parts := []fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeReasoningStart, ID: "reason-1"},
+					{Type: fantasy.StreamPartTypeReasoningDelta, ID: "reason-1", Delta: "interrupted thought"},
+				}
+				for _, part := range parts {
+					if !yield(part) {
+						return
+					}
+				}
+
+				select {
+				case <-started:
+				default:
+					close(started)
+				}
+
+				<-ctx.Done()
+				_ = yield(fantasy.StreamPart{
+					Type:  fantasy.StreamPartTypeError,
+					Error: ctx.Err(),
+				})
+			}), nil
+		},
+	}
+
+	ctx, cancel := context.WithCancelCause(context.Background())
+	defer cancel(nil)
+
+	go func() {
+		<-started
+		cancel(ErrInterrupted)
+	}()
+
+	var persistedStep PersistedStep
+	err := Run(ctx, RunOptions{
+		Model: model,
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "think"),
+		},
+		MaxSteps: 1,
+		PersistStep: func(_ context.Context, step PersistedStep) error {
+			persistedStep = step
+			return nil
+		},
+	})
+	require.ErrorIs(t, err, ErrInterrupted)
+
+	// flushActiveState must have appended exactly one entry to each
+	// parallel slice, matching the single in-progress reasoning block.
+	require.Len(t, persistedStep.ReasoningStartedAt, 1,
+		"interrupted reasoning must flush its started_at")
+	require.Len(t, persistedStep.ReasoningCompletedAt, 1,
+		"interrupted reasoning must flush a completed_at stamp")
+
+	// Both timestamps must be populated and the completed stamp
+	// must be at or after the started stamp.
+	require.False(t, persistedStep.ReasoningStartedAt[0].IsZero(),
+		"flushed reasoning started_at must be non-zero")
+	require.False(t, persistedStep.ReasoningCompletedAt[0].IsZero(),
+		"flushed reasoning completed_at must be non-zero")
+	require.False(t,
+		persistedStep.ReasoningCompletedAt[0].Before(persistedStep.ReasoningStartedAt[0]),
+		"flushed completed_at must be >= started_at")
+
+	// The flushed reasoning content must appear in step.Content so
+	// the persistence layer's occurrence-order correlation lines up
+	// with the timestamp slices.
+	var reasoningBlocks []fantasy.ReasoningContent
+	for _, c := range persistedStep.Content {
+		if r, ok := fantasy.AsContentType[fantasy.ReasoningContent](c); ok {
+			reasoningBlocks = append(reasoningBlocks, r)
+		}
+	}
+	require.Len(t, reasoningBlocks, 1)
+	require.Equal(t, "interrupted thought", reasoningBlocks[0].Text)
 }

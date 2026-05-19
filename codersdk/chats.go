@@ -31,7 +31,7 @@ const ChatCompactionThresholdKeyPrefix = "chat_compaction_threshold_pct:"
 // associated with a single chat. This limit prevents unbounded
 // growth in the chat_file_links table. It is easier to raise
 // this limit than to lower it.
-const MaxChatFileIDs = 20
+const MaxChatFileIDs = 50
 
 // MaxChatFileSizeBytes is the upload-endpoint cap for chat
 // attachments.
@@ -278,10 +278,20 @@ type ChatMessagePart struct {
 	// ProviderExecuted indicates the tool call was executed by
 	// the provider (e.g. Anthropic computer use).
 	ProviderExecuted bool `json:"provider_executed,omitempty" variants:"tool-call?,tool-result?"`
-	// CreatedAt records when this part was produced. Present on
-	// tool-call and tool-result parts so the frontend can compute
-	// tool execution duration.
-	CreatedAt *time.Time `json:"created_at,omitempty" format:"date-time" variants:"tool-call?,tool-result?"`
+	// CreatedAt is the timestamp this part carries. The semantics
+	// depend on the part type: for tool-call and tool-result parts
+	// it is the time the call was emitted or the result was
+	// produced (tool duration is the result's created_at minus the
+	// call's created_at); for reasoning parts it is the time
+	// reasoning started streaming.
+	CreatedAt *time.Time `json:"created_at,omitempty" format:"date-time" variants:"tool-call?,tool-result?,reasoning?"`
+	// CompletedAt is the time a reasoning part finished streaming,
+	// so reasoning duration can be computed as completed_at minus
+	// created_at. For interrupted reasoning, this is the
+	// interruption time. Absent when reasoning timestamp data was
+	// not recorded (e.g. messages persisted before this feature
+	// was added).
+	CompletedAt *time.Time `json:"completed_at,omitempty" format:"date-time" variants:"reasoning?"`
 	// ContextFilePath is the absolute path of a file loaded into
 	// the LLM context (e.g. an AGENTS.md instruction file).
 	ContextFilePath string `json:"context_file_path" variants:"context-file"`

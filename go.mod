@@ -36,7 +36,7 @@ replace github.com/tcnksm/go-httpstat => github.com/coder/go-httpstat v0.0.0-202
 
 // There are a few minor changes we make to Tailscale that we're slowly upstreaming. Compare here:
 // https://github.com/tailscale/tailscale/compare/main...coder:tailscale:main
-replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20260429163024-85c03fc8fb2a
+replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20260519043957-6f014ff9434f
 
 // This is replaced to include
 // 1. a fix for a data race: c.f. https://github.com/tailscale/wireguard-go/pull/25
@@ -88,8 +88,10 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 //    when paired with reasoning, and validate function_call output pairing.
 // 8) coder/fantasy#33, fail closed when Anthropic or OpenAI Responses
 //    streams close before their terminal events.
-// See: https://github.com/coder/fantasy/commits/246c4ae7aff9e
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260507124503-246c4ae7aff9
+// 9) coder/fantasy#35, preserve Anthropic replay fidelity for signed
+//    reasoning and provider-executed web_search error results.
+// See: https://github.com/coder/fantasy/commits/cfca5fd82c5dd
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20260514123132-cfca5fd82c5d
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.
@@ -511,7 +513,7 @@ require (
 	github.com/dgraph-io/ristretto/v2 v2.4.0
 	github.com/elazarl/goproxy v1.8.0
 	github.com/fsnotify/fsnotify v1.10.1
-	github.com/go-git/go-git/v5 v5.19.0
+	github.com/go-git/go-git/v5 v5.19.1
 	github.com/invopop/jsonschema v0.14.0
 	github.com/mark3labs/mcp-go v0.38.0
 	github.com/openai/openai-go/v3 v3.28.0

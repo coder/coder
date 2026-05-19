@@ -298,6 +298,66 @@ export interface AIConfig {
 	readonly chat?: ChatConfig;
 }
 
+// From codersdk/aiproviders.go
+/**
+ * AIProvider represents an AI provider configuration row as returned
+ * by the API. API keys are stored in a separate ai_provider_keys
+ * table and managed via the keys sub-endpoints; secret fields on
+ * Settings are never included in responses.
+ */
+export interface AIProvider {
+	readonly id: string;
+	readonly type: AIProviderType;
+	readonly name: string;
+	readonly display_name: string;
+	readonly enabled: boolean;
+	readonly base_url: string;
+	readonly settings: AIProviderSettings;
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
+// From codersdk/aiproviders_bedrock.go
+/**
+ * AIProviderBedrockSettings configures providers that authenticate
+ * against AWS Bedrock. AccessKey and AccessKeySecret are write-only:
+ * servers strip them from GET and list responses.
+ */
+export interface AIProviderBedrockSettings {
+	/**
+	 * Region is the AWS region used to construct the Bedrock endpoint
+	 * URL when BaseURL is not set on the parent provider.
+	 */
+	readonly region?: string;
+	/**
+	 * Model is the AWS Bedrock model identifier used for primary
+	 * requests.
+	 */
+	readonly model?: string;
+	/**
+	 * SmallFastModel is the AWS Bedrock model identifier used for
+	 * background tasks (e.g. Claude Code's haiku-class model).
+	 */
+	readonly small_fast_model?: string;
+	/**
+	 * AccessKey is the AWS access key ID used to authenticate against
+	 * Bedrock. Write-only.
+	 */
+	readonly access_key?: string;
+	/**
+	 * AccessKeySecret is the AWS secret access key paired with
+	 * AccessKey. Write-only.
+	 */
+	readonly access_key_secret?: string;
+}
+
+// From codersdk/aiproviders_bedrock.go
+/**
+ * AIProviderBedrockSettingsVersion is the current schema version of
+ * AIProviderBedrockSettings.
+ */
+export const AIProviderBedrockSettingsVersion = 1;
+
 // From codersdk/deployment.go
 /**
  * AIProviderConfig represents a single AI provider instance,
@@ -326,6 +386,64 @@ export interface AIProviderConfig {
 	readonly bedrock_model?: string;
 	readonly bedrock_small_fast_model?: string;
 }
+
+// From codersdk/aiproviders.go
+/**
+ * AIProviderKey represents a single API key registered against an
+ * AI provider, as returned by the API. The plaintext APIKey is
+ * write-only and never included in responses.
+ */
+export interface AIProviderKey {
+	readonly id: string;
+	readonly provider_id: string;
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
+// From codersdk/aiproviders.go
+/**
+ * AIProviderSettings is the discriminated container for type-specific
+ * provider settings stored in ai_providers.settings. Providers that
+ * need no type-specific configuration (current OpenAI and standard
+ * Anthropic flows) leave every field nil; the wire form for those
+ * providers is JSON null.
+ *
+ * On the wire, settings serialize as a JSON object that always carries
+ * _type and _version discriminator keys alongside the type-specific
+ * fields. The custom (Un)MarshalJSON implementations on this type
+ * handle the routing automatically; callers should never marshal the
+ * concrete settings struct directly.
+ */
+export interface AIProviderSettings {}
+
+// From codersdk/aiproviders_bedrock.go
+/**
+ * AIProviderSettingsTypeBedrock is the _type discriminator value for
+ * AIProviderBedrockSettings.
+ */
+export const AIProviderSettingsTypeBedrock = "bedrock";
+
+// From codersdk/aiproviders.go
+export type AIProviderType =
+	| "anthropic"
+	| "azure"
+	| "bedrock"
+	| "google"
+	| "openai"
+	| "openai-compat"
+	| "openrouter"
+	| "vercel";
+
+export const AIProviderTypes: AIProviderType[] = [
+	"anthropic",
+	"azure",
+	"bedrock",
+	"google",
+	"openai",
+	"openai-compat",
+	"openrouter",
+	"vercel",
+];
 
 // From codersdk/allowlist.go
 /**
@@ -403,6 +521,7 @@ export type APIKeyScope =
 	| "chat:create"
 	| "chat:delete"
 	| "chat:read"
+	| "chat:share"
 	| "chat:update"
 	| "coder:all"
 	| "coder:apikeys.manage_self"
@@ -534,6 +653,11 @@ export type APIKeyScope =
 	| "user_secret:delete"
 	| "user_secret:read"
 	| "user_secret:update"
+	| "user_skill:*"
+	| "user_skill:create"
+	| "user_skill:delete"
+	| "user_skill:read"
+	| "user_skill:update"
 	| "user:update"
 	| "user:update_personal"
 	| "webpush_subscription:*"
@@ -623,6 +747,7 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"chat:create",
 	"chat:delete",
 	"chat:read",
+	"chat:share",
 	"chat:update",
 	"coder:all",
 	"coder:apikeys.manage_self",
@@ -754,6 +879,11 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"user_secret:delete",
 	"user_secret:read",
 	"user_secret:update",
+	"user_skill:*",
+	"user_skill:create",
+	"user_skill:delete",
+	"user_skill:read",
+	"user_skill:update",
 	"user:update",
 	"user:update_personal",
 	"webpush_subscription:*",
@@ -2473,6 +2603,24 @@ export interface ChatQueuedMessage {
 export interface ChatReasoningPart {
 	readonly type: "reasoning";
 	readonly text: string;
+	/**
+	 * CreatedAt is the timestamp this part carries. The semantics
+	 * depend on the part type: for tool-call and tool-result parts
+	 * it is the time the call was emitted or the result was
+	 * produced (tool duration is the result's created_at minus the
+	 * call's created_at); for reasoning parts it is the time
+	 * reasoning started streaming.
+	 */
+	readonly created_at?: string;
+	/**
+	 * CompletedAt is the time a reasoning part finished streaming,
+	 * so reasoning duration can be computed as completed_at minus
+	 * created_at. For interrupted reasoning, this is the
+	 * interruption time. Absent when reasoning timestamp data was
+	 * not recorded (e.g. messages persisted before this feature
+	 * was added).
+	 */
+	readonly completed_at?: string;
 }
 
 // From codersdk/chats.go
@@ -2675,9 +2823,12 @@ export interface ChatToolCallPart {
 	 */
 	readonly provider_executed?: boolean;
 	/**
-	 * CreatedAt records when this part was produced. Present on
-	 * tool-call and tool-result parts so the frontend can compute
-	 * tool execution duration.
+	 * CreatedAt is the timestamp this part carries. The semantics
+	 * depend on the part type: for tool-call and tool-result parts
+	 * it is the time the call was emitted or the result was
+	 * produced (tool duration is the result's created_at minus the
+	 * call's created_at); for reasoning parts it is the time
+	 * reasoning started streaming.
 	 */
 	readonly created_at?: string;
 }
@@ -2699,9 +2850,12 @@ export interface ChatToolResultPart {
 	 */
 	readonly provider_executed?: boolean;
 	/**
-	 * CreatedAt records when this part was produced. Present on
-	 * tool-call and tool-result parts so the frontend can compute
-	 * tool execution duration.
+	 * CreatedAt is the timestamp this part carries. The semantics
+	 * depend on the part type: for tool-call and tool-result parts
+	 * it is the time the call was emitted or the result was
+	 * produced (tool duration is the result's created_at minus the
+	 * call's created_at); for reasoning parts it is the time
+	 * reasoning started streaming.
 	 */
 	readonly created_at?: string;
 }
@@ -2854,6 +3008,18 @@ export interface ChatWorkspaceTTLResponse {
  */
 export const CoderDesktopTelemetryHeader = "Coder-Desktop-Telemetry";
 
+// From codersdk/disconnect.go
+export type ConnectionDirection =
+	| "agent_to_client"
+	| "client_to_server"
+	| "server_to_agent";
+
+export const ConnectionDirections: ConnectionDirection[] = [
+	"agent_to_client",
+	"client_to_server",
+	"server_to_agent",
+];
+
 // From codersdk/insights.go
 /**
  * ConnectionLatency shows the latency for a connection.
@@ -2945,6 +3111,11 @@ export interface ConnectionLogsRequest extends Pagination {
 	readonly q?: string;
 }
 
+// From codersdk/disconnect.go
+export type ConnectionMethod = "derp" | "direct" | "";
+
+export const ConnectionMethods: ConnectionMethod[] = ["derp", "direct", ""];
+
 // From codersdk/connectionlog.go
 export type ConnectionType =
 	| "jetbrains"
@@ -2976,6 +3147,34 @@ export interface ConvertLoginRequest {
 	 */
 	readonly to_type: LoginType;
 	readonly password: string;
+}
+
+// From codersdk/aiproviders.go
+/**
+ * CreateAIProviderKeyRequest is the payload for adding an API key to
+ * an AI provider. Only meaningful for openai and anthropic providers;
+ * Bedrock providers reject this call because they use the access
+ * credentials stored in Settings.
+ */
+export interface CreateAIProviderKeyRequest {
+	readonly api_key: string;
+}
+
+// From codersdk/aiproviders.go
+/**
+ * CreateAIProviderRequest is the payload for creating a new AI
+ * provider. Name, Type, and BaseURL are required. API keys for
+ * OpenAI/Anthropic providers are added via the keys sub-endpoint
+ * after the provider is created; Bedrock providers carry their
+ * credentials in Settings and do not use the keys sub-endpoint.
+ */
+export interface CreateAIProviderRequest {
+	readonly type: AIProviderType;
+	readonly name: string;
+	readonly display_name?: string;
+	readonly enabled: boolean;
+	readonly base_url: string;
+	readonly settings?: AIProviderSettings;
 }
 
 // From codersdk/chats.go
@@ -3390,6 +3589,19 @@ export interface CreateUserSecretRequest {
 	readonly description?: string;
 	readonly env_name?: string;
 	readonly file_path?: string;
+}
+
+// From codersdk/userskills.go
+/**
+ * CreateUserSkillRequest is the payload for creating a user skill.
+ */
+export interface CreateUserSkillRequest {
+	/**
+	 * Content must be SKILL.md-format Markdown with YAML frontmatter. The
+	 * frontmatter must include name, may include description, and must be
+	 * followed by a non-empty body.
+	 */
+	readonly content: string;
 }
 
 // From codersdk/workspaces.go
@@ -3821,6 +4033,7 @@ export interface DeploymentValues {
 	readonly wgtunnel_host?: string;
 	readonly disable_owner_workspace_exec?: boolean;
 	readonly disable_workspace_sharing?: boolean;
+	readonly disable_chat_sharing?: boolean;
 	readonly proxy_health_status_interval?: number;
 	readonly enable_terraform_debug_mode?: boolean;
 	readonly user_quiet_hours_schedule?: UserQuietHoursScheduleConfig;
@@ -3857,6 +4070,44 @@ export type DiagnosticSeverityString = "error" | "warning";
 export const DiagnosticSeverityStrings: DiagnosticSeverityString[] = [
 	"error",
 	"warning",
+];
+
+// From codersdk/disconnect.go
+export type DisconnectInitiator =
+	| "agent"
+	| "client"
+	| "network"
+	| "server"
+	| "";
+
+export const DisconnectInitiators: DisconnectInitiator[] = [
+	"agent",
+	"client",
+	"network",
+	"server",
+	"",
+];
+
+// From codersdk/disconnect.go
+export type DisconnectReason =
+	| "client_closed"
+	| "control_plane_lost"
+	| "graceful"
+	| "network_error"
+	| "protocol_error"
+	| "server_shutdown"
+	| ""
+	| "workspace_stopped";
+
+export const DisconnectReasons: DisconnectReason[] = [
+	"client_closed",
+	"control_plane_lost",
+	"graceful",
+	"network_error",
+	"protocol_error",
+	"server_shutdown",
+	"",
+	"workspace_stopped",
 ];
 
 // From codersdk/workspaceagents.go
@@ -4898,7 +5149,7 @@ export interface MatchedProvisioners {
  * growth in the chat_file_links table. It is easier to raise
  * this limit than to lower it.
  */
-export const MaxChatFileIDs = 20;
+export const MaxChatFileIDs = 50;
 
 // From codersdk/chats.go
 /**
@@ -6490,6 +6741,7 @@ export type RBACResource =
 	| "usage_event"
 	| "user"
 	| "user_secret"
+	| "user_skill"
 	| "webpush_subscription"
 	| "*"
 	| "workspace"
@@ -6539,6 +6791,7 @@ export const RBACResources: RBACResource[] = [
 	"usage_event",
 	"user",
 	"user_secret",
+	"user_skill",
 	"webpush_subscription",
 	"*",
 	"workspace",
@@ -6668,6 +6921,7 @@ export type ResourceType =
 	| "custom_role"
 	| "git_ssh_key"
 	| "group"
+	| "group_ai_budget"
 	| "health_settings"
 	| "idp_sync_settings_group"
 	| "idp_sync_settings_organization"
@@ -6685,6 +6939,7 @@ export type ResourceType =
 	| "template_version"
 	| "user"
 	| "user_secret"
+	| "user_skill"
 	| "workspace"
 	| "workspace_agent"
 	| "workspace_app"
@@ -6701,6 +6956,7 @@ export const ResourceTypes: ResourceType[] = [
 	"custom_role",
 	"git_ssh_key",
 	"group",
+	"group_ai_budget",
 	"health_settings",
 	"idp_sync_settings_group",
 	"idp_sync_settings_organization",
@@ -6718,6 +6974,7 @@ export const ResourceTypes: ResourceType[] = [
 	"template_version",
 	"user",
 	"user_secret",
+	"user_skill",
 	"workspace",
 	"workspace_agent",
 	"workspace_app",
@@ -8044,6 +8301,20 @@ export interface TransitionStats {
 	readonly P95: number | null;
 }
 
+// From codersdk/aiproviders.go
+/**
+ * UpdateAIProviderRequest is the payload for partially updating an
+ * AI provider. At least one field must be non-nil. Pointer fields
+ * distinguish "not sent" (nil) from "set to empty/zero" (a pointer
+ * to the zero value).
+ */
+export interface UpdateAIProviderRequest {
+	readonly display_name?: string;
+	readonly enabled?: boolean;
+	readonly base_url?: string;
+	readonly settings?: AIProviderSettings;
+}
+
 // From codersdk/templates.go
 export interface UpdateActiveTemplateVersion {
 	readonly id: string;
@@ -8574,6 +8845,19 @@ export interface UpdateUserSecretRequest {
 	readonly file_path?: string;
 }
 
+// From codersdk/userskills.go
+/**
+ * UpdateUserSkillRequest is the payload for updating a user skill.
+ */
+export interface UpdateUserSkillRequest {
+	/**
+	 * Content must be SKILL.md-format Markdown with YAML frontmatter. The
+	 * frontmatter must include name, may include description, and must be
+	 * followed by a non-empty body.
+	 */
+	readonly content: string;
+}
+
 // From codersdk/workspaces.go
 export interface UpdateWorkspaceACL {
 	/**
@@ -8987,6 +9271,26 @@ export interface UserSecret {
 	readonly description: string;
 	readonly env_name: string;
 	readonly file_path: string;
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
+// From codersdk/userskills.go
+/**
+ * UserSkill represents a user skill with its raw Markdown content.
+ */
+export interface UserSkill extends UserSkillMetadata {
+	readonly content: string;
+}
+
+// From codersdk/userskills.go
+/**
+ * UserSkillMetadata represents a user skill without its raw Markdown content.
+ */
+export interface UserSkillMetadata {
+	readonly id: string;
+	readonly name: string;
+	readonly description: string;
 	readonly created_at: string;
 	readonly updated_at: string;
 }
