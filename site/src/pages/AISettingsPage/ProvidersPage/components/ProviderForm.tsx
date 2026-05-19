@@ -40,6 +40,12 @@ export type ProviderFormValues = {
 const bedrockRuntimeBaseUrlRegex =
 	/^https:\/\/bedrock-runtime\.[a-z0-9-]+\.amazonaws\.com\/?$/i;
 
+// Server requires the base_url scheme to be http or https; Yup's `.url()`
+// otherwise lets through any RFC URL (ftp://..., mailto:..., etc.). Anchored
+// at the start so substrings like "my-https://..." still fail.
+const httpSchemeRegex = /^https?:\/\//i;
+const httpSchemeErrorMessage = "Endpoint must use http or https.";
+
 // Provider names must match the kebab-case pattern enforced by the API.
 const providerNameRegex = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const providerNameErrorMessage =
@@ -91,6 +97,7 @@ const makeOpenAiAnthropicSchema = (editing: boolean) =>
 		displayName: makeDisplayNameSchema(editing),
 		baseUrl: Yup.string()
 			.url("Endpoint must be a valid URL")
+			.matches(httpSchemeRegex, httpSchemeErrorMessage)
 			.required("Endpoint is required"),
 		apiKey: editing
 			? Yup.string()
