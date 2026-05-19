@@ -71,10 +71,14 @@ func newExpecter(t *testing.T, r io.Reader, name string) outExpecter {
 	logDone := make(chan struct{})
 	logr, logw := io.Pipe()
 
-	// Write to log and output buffer.
+	// Write to output buffer and logw.
 	copyDone := make(chan struct{})
 	out := newStdbuf()
-	w := io.MultiWriter(logw, out)
+	w := io.MultiWriter(out, logw)
+
+	// closeCh signals the log goroutine to stop processing buffered lines.
+	closeCh := make(chan struct{})
+	var closeOnce sync.Once
 
 	ex := outExpecter{
 		t:    t,
@@ -96,14 +100,22 @@ func newExpecter(t *testing.T, r io.Reader, name string) outExpecter {
 
 		ex.logf("closing expecter: %s", reason)
 
-		// Caller needs to have closed the PTY so that copying can complete
+		// Signal the log goroutine to stop processing buffered lines,
+		// then close the log pipe writer to unblock any io.Copy that
+		// may be stuck in a Write() call due to pipe backpressure from
+		// slow t.Log() under heavy test parallelism + race detector.
+		closeOnce.Do(func() { close(closeCh) })
+		logClose("logw", logw)
+
+		// Caller needs to have closed the PTY so that copying can complete.
+		// With logw closed, io.Copy will fail on its next Write even if
+		// Read still has data, so this should resolve quickly.
 		select {
 		case <-ctx.Done():
 			ex.fatalf("close", "copy did not close in time")
 		case <-copyDone:
 		}
 
-		logClose("logw", logw)
 		logClose("logr", logr)
 		select {
 		case <-ctx.Done():
@@ -130,6 +142,11 @@ func newExpecter(t *testing.T, r io.Reader, name string) outExpecter {
 		defer close(logDone)
 		s := bufio.NewScanner(logr)
 		for s.Scan() {
+			select {
+			case <-closeCh:
+				return
+			default:
+			}
 			ex.logf("%q", stripansi.Strip(s.Text()))
 		}
 	}()
