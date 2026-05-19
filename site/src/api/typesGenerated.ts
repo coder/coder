@@ -2998,6 +2998,18 @@ export interface ChatWorkspaceTTLResponse {
  */
 export const CoderDesktopTelemetryHeader = "Coder-Desktop-Telemetry";
 
+// From codersdk/disconnect.go
+export type ConnectionDirection =
+	| "agent_to_client"
+	| "client_to_server"
+	| "server_to_agent";
+
+export const ConnectionDirections: ConnectionDirection[] = [
+	"agent_to_client",
+	"client_to_server",
+	"server_to_agent",
+];
+
 // From codersdk/insights.go
 /**
  * ConnectionLatency shows the latency for a connection.
@@ -3088,6 +3100,11 @@ export interface ConnectionLogWebInfo {
 export interface ConnectionLogsRequest extends Pagination {
 	readonly q?: string;
 }
+
+// From codersdk/disconnect.go
+export type ConnectionMethod = "derp" | "direct" | "";
+
+export const ConnectionMethods: ConnectionMethod[] = ["derp", "direct", ""];
 
 // From codersdk/connectionlog.go
 export type ConnectionType =
@@ -4030,6 +4047,44 @@ export type DiagnosticSeverityString = "error" | "warning";
 export const DiagnosticSeverityStrings: DiagnosticSeverityString[] = [
 	"error",
 	"warning",
+];
+
+// From codersdk/disconnect.go
+export type DisconnectInitiator =
+	| "agent"
+	| "client"
+	| "network"
+	| "server"
+	| "";
+
+export const DisconnectInitiators: DisconnectInitiator[] = [
+	"agent",
+	"client",
+	"network",
+	"server",
+	"",
+];
+
+// From codersdk/disconnect.go
+export type DisconnectReason =
+	| "client_closed"
+	| "control_plane_lost"
+	| "graceful"
+	| "network_error"
+	| "protocol_error"
+	| "server_shutdown"
+	| ""
+	| "workspace_stopped";
+
+export const DisconnectReasons: DisconnectReason[] = [
+	"client_closed",
+	"control_plane_lost",
+	"graceful",
+	"network_error",
+	"protocol_error",
+	"server_shutdown",
+	"",
+	"workspace_stopped",
 ];
 
 // From codersdk/workspaceagents.go
