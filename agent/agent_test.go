@@ -3415,6 +3415,86 @@ func TestAgent_ReconnectNoLifecycleReemit(t *testing.T) {
 	closer.Close()
 }
 
+// TestAgent_ReconnectReplaysLifecycleOnNewAgentID is the end-to-end coverage
+// for https://github.com/coder/coder/issues/18571. On reconnect to a new
+// workspace_agent row (manifest.AgentID changes), the agent must replay its
+// most recent lifecycle state so the new row advances past Created. Together
+// with the unit tests in agent_internal_test.go this also exercises the
+// concurrent path between reportLifecycle and resendLastLifecycleState under
+// -race, guarding against regressions on the single-writer invariant on
+// lifecycleLastReportedIndex.
+func TestAgent_ReconnectReplaysLifecycleOnNewAgentID(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := testutil.Logger(t)
+
+	fCoordinator := tailnettest.NewFakeCoordinator()
+	agentID := uuid.New()
+	statsCh := make(chan *proto.Stats, 50)
+	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
+
+	client := agenttest.NewClient(t,
+		logger,
+		agentID,
+		agentsdk.Manifest{
+			DERPMap: derpMap,
+			Scripts: []codersdk.WorkspaceAgentScript{{
+				Script:     "echo hello",
+				Timeout:    30 * time.Second,
+				RunOnStart: true,
+			}},
+		},
+		statsCh,
+		fCoordinator,
+	)
+	defer client.Close()
+
+	closer := agent.New(agent.Options{
+		Client:     client,
+		Logger:     logger.Named("agent"),
+		Filesystem: afero.NewMemMapFs(),
+	})
+	defer closer.Close()
+
+	require.Eventually(t, func() bool {
+		return slices.Contains(client.GetLifecycleStates(), codersdk.WorkspaceAgentLifecycleReady)
+	}, testutil.WaitShort, testutil.IntervalFast,
+		"agent should reach Ready on the first build")
+
+	statesBefore := slices.Clone(client.GetLifecycleStates())
+	readyBefore := 0
+	for _, s := range statesBefore {
+		if s == codersdk.WorkspaceAgentLifecycleReady {
+			readyBefore++
+		}
+	}
+
+	// Simulate the provisioner inserting a new workspace_agent row for the
+	// next build. The next manifest fetch will return a different AgentID.
+	client.SetManifestAgentID(uuid.New())
+
+	// Disconnect by closing the coordinator response channel.
+	call1 := testutil.RequireReceive(ctx, t, fCoordinator.CoordinateCalls)
+	close(call1.Resps)
+
+	// Wait for reconnect.
+	testutil.RequireReceive(ctx, t, fCoordinator.CoordinateCalls)
+
+	// The reporter should replay the latest Ready state to the new row.
+	require.Eventually(t, func() bool {
+		count := 0
+		for _, s := range client.GetLifecycleStates() {
+			if s == codersdk.WorkspaceAgentLifecycleReady {
+				count++
+			}
+		}
+		return count > readyBefore
+	}, testutil.WaitShort, testutil.IntervalFast,
+		"Ready should be re-reported after reconnect to a new agent ID")
+
+	closer.Close()
+}
+
 func TestAgent_WriteVSCodeConfigs(t *testing.T) {
 	t.Parallel()
 	logger := testutil.Logger(t)

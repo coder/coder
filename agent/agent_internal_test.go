@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/spf13/afero"
@@ -94,75 +95,36 @@ func TestContextConfigAPI_InitOnce(t *testing.T) {
 // TestResendLastLifecycleState covers the helper added to fix
 // https://github.com/coder/coder/issues/18571. When the agent reconnects to a
 // new workspace_agent row (new build after a suspend/resume on a long-lived
-// VM), it must replay its latest lifecycle state to the new row.
+// VM), it must replay its latest lifecycle state to the new row. The helper
+// sets an atomic flag and signals the lifecycle channel; reportLifecycle
+// performs the actual rewind so lifecycleLastReportedIndex stays
+// single-writer.
 func TestResendLastLifecycleState(t *testing.T) {
 	t.Parallel()
 
-	newAgent := func(states ...codersdk.WorkspaceAgentLifecycle) *agent {
-		lifecycleStates := make([]agentsdk.PostLifecycleRequest, 0, len(states))
-		for _, s := range states {
-			lifecycleStates = append(lifecycleStates, agentsdk.PostLifecycleRequest{State: s})
-		}
-		return &agent{
-			lifecycleUpdate:            make(chan struct{}, 1),
-			lifecycleStates:            lifecycleStates,
-			lifecycleLastReportedIndex: len(lifecycleStates) - 1,
-		}
-	}
-
-	t.Run("OnlyCreated_NoRewind", func(t *testing.T) {
+	t.Run("SetsFlagAndSignals", func(t *testing.T) {
 		t.Parallel()
-		a := newAgent(codersdk.WorkspaceAgentLifecycleCreated)
+		a := &agent{
+			lifecycleUpdate: make(chan struct{}, 1),
+		}
+		require.False(t, a.lifecycleResendRequested.Load())
+
 		a.resendLastLifecycleState()
-		require.Equal(t, 0, a.lifecycleLastReportedIndex,
-			"with only Created in history, the index should stay at 0")
-		// Channel should have been signaled (non-blocking send into buffered chan).
+
+		require.True(t, a.lifecycleResendRequested.Load(),
+			"flag should be set so reportLifecycle replays on next wake")
 		select {
 		case <-a.lifecycleUpdate:
 		default:
 			t.Fatal("lifecycleUpdate channel was not signaled")
 		}
-	})
-
-	t.Run("StartingReady_RewindsToReadyMinus1", func(t *testing.T) {
-		t.Parallel()
-		a := newAgent(
-			codersdk.WorkspaceAgentLifecycleCreated,
-			codersdk.WorkspaceAgentLifecycleStarting,
-			codersdk.WorkspaceAgentLifecycleReady,
-		)
-		require.Equal(t, 2, a.lifecycleLastReportedIndex)
-		a.resendLastLifecycleState()
-		// After rewind, the reporter loop will send lifecycleStates[index+1]
-		// which is Ready.
-		require.Equal(t, 1, a.lifecycleLastReportedIndex,
-			"index should point one before the latest state so the reporter re-sends it")
-		select {
-		case <-a.lifecycleUpdate:
-		default:
-			t.Fatal("lifecycleUpdate channel was not signaled")
-		}
-	})
-
-	t.Run("ShuttingDown_RewindsToShuttingDownMinus1", func(t *testing.T) {
-		t.Parallel()
-		a := newAgent(
-			codersdk.WorkspaceAgentLifecycleCreated,
-			codersdk.WorkspaceAgentLifecycleStarting,
-			codersdk.WorkspaceAgentLifecycleReady,
-			codersdk.WorkspaceAgentLifecycleShuttingDown,
-		)
-		a.resendLastLifecycleState()
-		require.Equal(t, 2, a.lifecycleLastReportedIndex,
-			"during shutdown reconnect, only the latest (ShuttingDown) should re-emit, not earlier states")
 	})
 
 	t.Run("SignalIsNonBlockingWhenChannelFull", func(t *testing.T) {
 		t.Parallel()
-		a := newAgent(
-			codersdk.WorkspaceAgentLifecycleCreated,
-			codersdk.WorkspaceAgentLifecycleReady,
-		)
+		a := &agent{
+			lifecycleUpdate: make(chan struct{}, 1),
+		}
 		// Pre-fill the buffered channel; the helper must not block.
 		a.lifecycleUpdate <- struct{}{}
 		done := make(chan struct{})
@@ -175,14 +137,15 @@ func TestResendLastLifecycleState(t *testing.T) {
 		case <-testutil.Context(t, testutil.WaitShort).Done():
 			t.Fatal("resendLastLifecycleState blocked on a full channel")
 		}
+		require.True(t, a.lifecycleResendRequested.Load())
 	})
 }
 
 // fakeAgentAPIClient is a tiny stub of proto.DRPCAgentClient28 that satisfies
 // the interface via an embedded nil and overrides only the two methods
 // handleManifest's reconnect path actually invokes. Calling any other method
-// will panic at runtime, which is fine -- the test only exercises the
-// AgentID-change branch where script init + executor are skipped.
+// will panic at runtime, which is fine. The test only exercises the
+// AgentID-change branch where script init and executor are skipped.
 type fakeAgentAPIClient struct {
 	proto.DRPCAgentClient28
 
@@ -193,8 +156,8 @@ func (f *fakeAgentAPIClient) GetManifest(context.Context, *proto.GetManifestRequ
 	return f.manifest, nil
 }
 
-func (*fakeAgentAPIClient) UpdateStartup(context.Context, *proto.UpdateStartupRequest) (*proto.Startup, error) {
-	return nil, nil
+func (*fakeAgentAPIClient) UpdateStartup(_ context.Context, req *proto.UpdateStartupRequest) (*proto.Startup, error) {
+	return req.Startup, nil
 }
 
 // fakeAgentClient stubs out agent.Client with no-op DERPMap rewriting.
@@ -208,19 +171,18 @@ func (*fakeAgentClient) RewriteDERPMap(_ *tailcfg.DERPMap) {}
 // TestHandleManifestResendsLifecycleOnNewAgentID exercises the integration
 // between handleManifest and resendLastLifecycleState: when handleManifest
 // fetches a manifest whose AgentID differs from the previously-stored
-// manifest's AgentID, the lifecycle reporter must be rewound so the next
-// reportLifecycle wake-up replays the latest state to the new
-// workspace_agent row. Issue: https://github.com/coder/coder/issues/18571.
+// manifest's AgentID, the resend flag must be set so reportLifecycle replays
+// the most recent state to the new workspace_agent row on its next wake.
+// Issue: https://github.com/coder/coder/issues/18571.
 func TestHandleManifestResendsLifecycleOnNewAgentID(t *testing.T) {
 	t.Parallel()
 
-	mkAgent := func() *agent {
+	newIntegrationAgent := func(t *testing.T) *agent {
+		t.Helper()
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-		ctx, cancel := context.WithCancel(context.Background())
-		t.Cleanup(cancel)
 		a := &agent{
-			hardCtx:         ctx,
-			gracefulCtx:     ctx,
+			hardCtx:         t.Context(),
+			gracefulCtx:     t.Context(),
 			logger:          logger,
 			filesystem:      afero.NewMemMapFs(),
 			client:          &fakeAgentClient{},
@@ -236,9 +198,9 @@ func TestHandleManifestResendsLifecycleOnNewAgentID(t *testing.T) {
 		return a
 	}
 
-	t.Run("NewAgentID_TriggersResend", func(t *testing.T) {
+	t.Run("NewAgentID_SetsResendFlag", func(t *testing.T) {
 		t.Parallel()
-		a := mkAgent()
+		a := newIntegrationAgent(t)
 
 		oldAgentID := uuid.New()
 		newAgentID := uuid.New()
@@ -266,22 +228,24 @@ func TestHandleManifestResendsLifecycleOnNewAgentID(t *testing.T) {
 			},
 		}
 
-		mok := newCheckpoint(a.logger)
-		err := a.handleManifest(mok)(a.hardCtx, fake)
+		manifestOK := newCheckpoint(a.logger)
+		err := a.handleManifest(manifestOK)(a.hardCtx, fake)
 		require.NoError(t, err)
 
-		require.Equal(t, 1, a.lifecycleLastReportedIndex,
-			"new AgentID should rewind index so the reporter re-emits Ready")
+		require.True(t, a.lifecycleResendRequested.Load(),
+			"new AgentID should request a lifecycle replay")
 		select {
 		case <-a.lifecycleUpdate:
 		default:
 			t.Fatal("expected lifecycleUpdate signal on AgentID change")
 		}
+		require.Equal(t, 2, a.lifecycleLastReportedIndex,
+			"handleManifest must not write lifecycleLastReportedIndex; only reportLifecycle does")
 	})
 
-	t.Run("SameAgentID_NoResend", func(t *testing.T) {
+	t.Run("SameAgentID_DoesNotSetFlag", func(t *testing.T) {
 		t.Parallel()
-		a := mkAgent()
+		a := newIntegrationAgent(t)
 
 		sameAgentID := uuid.New()
 		workspaceID := uuid.New()
@@ -304,16 +268,107 @@ func TestHandleManifestResendsLifecycleOnNewAgentID(t *testing.T) {
 			},
 		}
 
-		mok := newCheckpoint(a.logger)
-		err := a.handleManifest(mok)(a.hardCtx, fake)
+		manifestOK := newCheckpoint(a.logger)
+		err := a.handleManifest(manifestOK)(a.hardCtx, fake)
 		require.NoError(t, err)
 
-		require.Equal(t, 2, a.lifecycleLastReportedIndex,
-			"same AgentID reconnect must not rewind the reporter (preserves TestAgent_ReconnectNoLifecycleReemit invariant)")
+		require.False(t, a.lifecycleResendRequested.Load(),
+			"same AgentID reconnect must not request a replay; preserves TestAgent_ReconnectNoLifecycleReemit")
+		require.Equal(t, 2, a.lifecycleLastReportedIndex)
 		select {
 		case <-a.lifecycleUpdate:
 			t.Fatal("did not expect lifecycleUpdate signal on same-AgentID reconnect")
 		default:
 		}
 	})
+}
+
+// fakeLifecycleCapturingClient implements DRPCAgentClient28 just enough to
+// capture UpdateLifecycle calls for assertion. All other methods panic.
+// The captured channel is non-blocking on send so a buggy reporter that
+// emits more than expected fails the test cleanly instead of deadlocking.
+type fakeLifecycleCapturingClient struct {
+	proto.DRPCAgentClient28
+
+	captured chan *proto.UpdateLifecycleRequest
+}
+
+func (f *fakeLifecycleCapturingClient) UpdateLifecycle(ctx context.Context, req *proto.UpdateLifecycleRequest) (*proto.Lifecycle, error) {
+	select {
+	case f.captured <- req:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	return req.Lifecycle, nil
+}
+
+// TestReportLifecycleRewindRefreshesChangedAt covers the resend path inside
+// reportLifecycle. When lifecycleResendRequested is set, the reporter must
+// rewind lifecycleLastReportedIndex AND refresh the latest entry's ChangedAt
+// so the server's new workspace_agent row gets started_at/ready_at at the
+// resend time, not the original build's stale wall clock. See DEREM-6 in the
+// coder-agents-review on coder/coder#25406.
+func TestReportLifecycleRewindRefreshesChangedAt(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	staleTime := time.Now().Add(-time.Hour)
+
+	a := &agent{
+		hardCtx:           ctx,
+		gracefulCtx:       ctx,
+		logger:            logger,
+		lifecycleUpdate:   make(chan struct{}, 1),
+		lifecycleReported: make(chan codersdk.WorkspaceAgentLifecycle, 1),
+		lifecycleStates: []agentsdk.PostLifecycleRequest{
+			{State: codersdk.WorkspaceAgentLifecycleCreated, ChangedAt: staleTime},
+			{State: codersdk.WorkspaceAgentLifecycleStarting, ChangedAt: staleTime},
+			{State: codersdk.WorkspaceAgentLifecycleReady, ChangedAt: staleTime},
+		},
+		lifecycleLastReportedIndex: 2,
+	}
+
+	// Simulate a reconnect to a new workspace_agent row.
+	a.lifecycleResendRequested.Store(true)
+	a.lifecycleUpdate <- struct{}{}
+
+	captured := make(chan *proto.UpdateLifecycleRequest, 1)
+	fake := &fakeLifecycleCapturingClient{captured: captured}
+
+	reporterDone := make(chan struct{})
+	go func() {
+		defer close(reporterDone)
+		_ = a.reportLifecycle(ctx, fake)
+	}()
+
+	select {
+	case req := <-captured:
+		require.Equal(t, proto.Lifecycle_READY, req.Lifecycle.State,
+			"replay should emit the latest state (Ready)")
+		require.True(t, req.Lifecycle.ChangedAt.AsTime().After(staleTime),
+			"ChangedAt should be refreshed away from the original build's wall clock")
+		require.WithinDuration(t, time.Now(), req.Lifecycle.ChangedAt.AsTime(), testutil.WaitShort,
+			"refreshed ChangedAt should be close to time.Now()")
+	case <-time.After(testutil.WaitShort):
+		t.Fatal("reporter did not emit a replayed lifecycle state")
+	}
+
+	// Reporter increments lifecycleLastReportedIndex after UpdateLifecycle
+	// returns, so we wait for the post-send notification on lifecycleReported
+	// before asserting on the index.
+	select {
+	case <-a.lifecycleReported:
+	case <-time.After(testutil.WaitShort):
+		t.Fatal("reporter did not signal lifecycleReported after replay")
+	}
+
+	require.False(t, a.lifecycleResendRequested.Load(),
+		"reporter must consume the resend flag")
+	require.Equal(t, 2, a.lifecycleLastReportedIndex,
+		"after the rewind + replay, the reporter should have advanced back to len-1")
+
+	cancel()
+	<-reporterDone
 }
