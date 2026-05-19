@@ -172,10 +172,13 @@ const UpdateProviderPageView: React.FC<UpdateProviderPageViewProps> = ({
 							src={getProviderIcon(provider.type)}
 						/>
 						<PageHeaderTitle
-							className="min-w-0 truncate"
+							className="min-w-0"
 							title={provider.display_name || provider.name}
 						>
-							{provider.display_name || provider.name}
+							{/* PageHeaderTitle's h1 is display: flex, which wraps direct text in an anonymous flex item and suppresses text-overflow: ellipsis. Wrap the text in a block-level span so truncation actually kicks in. */}
+							<span className="block min-w-0 truncate">
+								{provider.display_name || provider.name}
+							</span>
 						</PageHeaderTitle>
 					</div>
 				</PageHeader>
