@@ -9,42 +9,71 @@ and Coder's audit log attributes worker activity to them.
 <img src="../../images/guides/cursor-self-hosted-workers/user-identity-flow.svg" alt="When a Cursor session is queued for a user, a routing component maps the Cursor user to their Coder user, mints a per-user sub-token, and claims a warm prebuild on their behalf. The workspace owner flips to the human, Coder external auth wires their git push token, and the worker registers with the user's Cursor identity. User identity is planned and not yet available." />
 
 > [!IMPORTANT]
-> User identity is not available yet, but the **Coder-side mechanism is
-> ready**: a single Terraform template can ship the three presets
-> described below (`Pool: system identity`, `Pool: user identity`, and
-> `Router`), and we have validated that the router can claim a
-> `Pool: user identity` prebuild for a target Coder user and inject a
-> per-user `cursor_auth_token` at claim time via Coder's
-> `CreateUserWorkspace` API. What's still missing:
+> User identity is **not shaped like a pool**, and that is a Cursor-side
+> constraint we have now confirmed with a real service-account API key.
+> The full claim mechanism is validated end to end against a live Coder
+> server, but with one important correction to the earlier design:
+> **Cursor's CLI explicitly rejects `--pool` when the worker is
+> authenticated with a delegated sub-token**, with
+> `Error: Delegated service-account tokens cannot start pool workers (--pool).`
+> Sub-tokens are scoped to the My Machines (personal-worker) surface,
+> not the Self-Hosted Pool surface.
 >
-> - **Cursor side:** service accounts are Enterprise-only;
->   service-account keys need an `agent:*` scope that has no documented
->   UI surface today, so `POST /v1/sub-tokens` returns 403 even on
->   Enterprise; there is no queue-event webhook, only a `statusChange`
->   webhook that fires after the session is already running; and
->   Cursor's docs frame sub-tokens as a My Machines pattern (per-user
->   workers) rather than the Self-Hosted Pool pattern, so pool +
->   sub-token is not the documented configuration even though the CLI
->   flags allow it. Without `agent:*`, the router cannot mint the
->   sub-tokens it needs to inject. The `GET /v0/private-workers/pending-requests`
->   endpoint also requires service-account auth, so polling for queued
->   sessions returns `401 Service-account API key required` on a
->   personal key.
-> - **Coder side:** the router is the new piece. The validation
->   template in this guide runs it as a singleton prebuild
->   (`prebuilds { instances = 1 }`), which makes the reconciler
->   responsible for keeping the routing service alive without a
->   separate deployment. The longer-term shape may fold the routing
->   logic into `coderd` directly; see
->   [Where this depends on Coder](#where-this-depends-on-coder).
+> What this means in practice:
 >
-> Until Cursor turns on `agent:*` and a user-lookup endpoint, the
-> recipe to ship is [System identity](./system-identity.md) for
-> Enterprise pools or [Personal Workers](./personal-workers.md) for
-> Team-plan teams. See
+> - The `Pool: user identity` preset claims a warm prebuild for a
+>   target Coder user and starts `cursor-agent worker` **without**
+>   `--pool`, using the per-user sub-token as `--auth-token-file`. The
+>   resulting worker registers as a multi-use **personal worker** for
+>   that Cursor user. Cursor's routing then targets it by name
+>   (`machine=` or `worker=`), not by `pool=`.
+> - The router still drives this: mint a sub-token for the requesting
+>   user, claim the warm prebuild via `CreateUserWorkspace`. **The
+>   trigger is the missing piece**: queued pool requests do not fire
+>   on user-identity pools, because user-identity workers do not live
+>   in a pool from Cursor's point of view.
+>
+> What's confirmed working today (with a real service-account API key
+> that has `agent:*` scope):
+>
+> - `POST /v1/sub-tokens { forUserEmail | forUserId }` mints a JWT
+>   with `delegatedUserAuthId` set to that user. One-hour TTL.
+> - `GET /v0/private-workers/pending-requests` returns 200 (empty in
+>   our test, but the endpoint is reachable).
+> - `GET /v0/private-workers` lists the pool workers running under
+>   the team service account.
+> - `cursor-agent worker start --pool --pool-name <name>` with the
+>   team service-account key registers as a real pool worker visible
+>   in `/v0/private-workers`.
+> - `CreateUserWorkspace` with an ephemeral `cursor_auth_token` claims
+>   a warm prebuild for the target Coder user, the agent restarts
+>   with the sub-token in env, and the worker authenticates as the
+>   delegated user (without `--pool`).
+>
+> What's still missing:
+>
+> - **A Cursor-side scaling signal for user-identity workers.** Pool
+>   queues only fire on pool workers, and sub-token workers cannot
+>   join a pool. So the router has no native "user X is waiting" hook
+>   today. The viable workaround is an out-of-band trigger: a Slack
+>   bot, GitHub action, or IDE button that calls the router directly
+>   with a target email or Coder username.
+> - **A Cursor user-lookup endpoint.** The router needs `cursorUserId
+>   -> email` to map a queued request back to a Coder user. `GET
+>   /v0/me` returns only the caller. For now the router accepts the
+>   target identity directly, fed by the out-of-band trigger.
+> - **GitHub integration must be connected on the Cursor team** to
+>   POST `/v1/agents`. We hit `integration_not_connected` end to end
+>   on the validation team. That is a one-time team-admin setup, not
+>   a code path we can automate.
+>
+> The shipping recipe for today is
+> [System identity](./system-identity.md) for Enterprise pools or
+> [Personal Workers](./personal-workers.md) for Team-plan teams. The
+> rest of this page describes the user-identity model that runs on the
+> same template, behind the `Pool: user identity` preset. See
 > [Open questions for Cursor](./plan.md#open-questions-for-cursor)
-> for the per-gap status (confirmed shipped, partially shipped, or
-> still open).
+> for the per-gap status.
 
 ## What user identity gives you
 
@@ -131,28 +160,31 @@ sub-tokens.
    credentials inside the workspace.
 6. The agent inside the workspace re-runs its startup script under
    the new owner's environment, reads the `cursor_auth_token`
-   ephemeral parameter, and starts `cursor-agent worker start --pool
-   --pool-name <pool> --auth-token-file <path>`. The worker registers
-   in the fleet with the user's identity.
-7. The pending Cursor session routes to that worker because its
-   registered identity matches the requesting user.
+   ephemeral parameter, and starts `cursor-agent worker start
+   --auth-token-file <path>` **without** `--pool`. Cursor rejects
+   `--pool` for sub-token workers, so the worker registers as a
+   multi-use personal worker authenticated as the delegated user. The
+   pool name still rides in as a custom `--label "pool=<name>"` so
+   the same tooling can identify it.
+7. The user targets the worker by name (`machine=` or `worker=`)
+   from the Cursor UI, Slack bot, GitHub action, or IDE button that
+   spawned it. Cursor's pool scheduler is not involved.
 
 The result: end-to-end attribution. Cursor's fleet shows the worker
 running as the user, Coder's audit log attributes the workspace to
 the user, and any commits the session produces are authored and
 pushed by the user.
 
-### Two pools, one template
+### Three presets, one template
 
 A single Terraform template ships three presets. The same image, the
-same metadata blocks, the same Cursor pool client; only the startup
-behavior diverges per preset.
+same metadata blocks; only the startup behavior diverges per preset.
 
-| Preset                  | What it builds                                                                                                                                                                                                                                                           | Prebuilds   |
-|-------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------|
-| `Pool: system identity` | Warm pool registered against the team service-account key. Workers are visible to Cursor as live capacity in pool `pool-system`. This is the [Worker Pool](./system-identity.md) recipe.                                                                                 | N per repo  |
-| `Pool: user identity`   | Warm pool that **does not register a worker** until a sub-token is injected. Cursor sees pool `pool-user-claim` as having zero workers, so user-targeted sessions queue. On claim, the agent reads `cursor_auth_token` and starts the worker authenticated as that user. | N per repo  |
-| `Router`                | Singleton workspace that polls `pending-requests`, mints sub-tokens, and claims `Pool: user identity` prebuilds via Coder's `CreateUserWorkspace` API.                                                                                                                   | 1 singleton |
+| Preset                  | What it builds                                                                                                                                                                                                                                                                                                               | Prebuilds   |
+|-------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------|
+| `Pool: system identity` | Warm pool registered against the team service-account key with `cursor-agent worker start --pool --pool-name <name>`. Workers are visible to Cursor as live capacity for the team's pool. This is the [Worker Pool](./system-identity.md) recipe.                                                                            | N per repo  |
+| `Pool: user identity`   | Warm prebuild that **does not register a worker** until claimed. On claim, the agent reads the ephemeral `cursor_auth_token`, then starts `cursor-agent worker start --auth-token-file ...` (no `--pool`). The worker registers as a multi-use personal worker authenticated as the delegated user. Targeted by name.        | N per repo  |
+| `Router`                | Singleton workspace that mints sub-tokens and claims `Pool: user identity` prebuilds via `CreateUserWorkspace`. Polls `/v0/private-workers/pending-requests` for observability today; the actual user-identity trigger is expected to be an out-of-band signal (Slack bot, GitHub action, IDE button) until Cursor adds one. | 1 singleton |
 
 The router is itself a Coder workspace with `prebuilds { instances = 1
 }`, so the reconciler keeps it alive: delete or stop it and Coder
