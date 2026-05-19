@@ -2856,6 +2856,7 @@ export interface ChatToolCallPart {
 	readonly mcp_server_config_id?: string;
 	readonly args?: Record<string, string>;
 	readonly args_delta?: string;
+	readonly parsed_commands?: readonly string[][];
 	/**
 	 * ProviderExecuted indicates the tool call was executed by
 	 * the provider (e.g. Anthropic computer use).

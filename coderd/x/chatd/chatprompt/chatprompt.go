@@ -17,6 +17,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/util/shellparse"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
@@ -779,20 +780,24 @@ func sdkPartFromContent(
 			ProviderMetadata: marshalProviderMetadata(value.ProviderMetadata),
 		}
 	case fantasy.ToolCallContent:
+		args := safeToolCallArgs(value.Input)
 		return codersdk.ChatMessagePart{
 			Type:             codersdk.ChatMessagePartTypeToolCall,
 			ToolCallID:       value.ToolCallID,
 			ToolName:         value.ToolName,
-			Args:             safeToolCallArgs(value.Input),
+			Args:             args,
+			ParsedCommands:   executeToolSteps(value.ToolName, args),
 			ProviderExecuted: value.ProviderExecuted,
 			ProviderMetadata: marshalProviderMetadata(value.ProviderMetadata),
 		}
 	case *fantasy.ToolCallContent:
+		args := safeToolCallArgs(value.Input)
 		return codersdk.ChatMessagePart{
 			Type:             codersdk.ChatMessagePartTypeToolCall,
 			ToolCallID:       value.ToolCallID,
 			ToolName:         value.ToolName,
-			Args:             safeToolCallArgs(value.Input),
+			Args:             args,
+			ParsedCommands:   executeToolSteps(value.ToolName, args),
 			ProviderExecuted: value.ProviderExecuted,
 			ProviderMetadata: marshalProviderMetadata(value.ProviderMetadata),
 		}
@@ -1268,6 +1273,20 @@ func safeToolCallArgs(input string) json.RawMessage {
 		return nil
 	}
 	return raw
+}
+
+func executeToolSteps(toolName string, args json.RawMessage) [][]string {
+	if toolName != chattool.ExecuteToolName || len(args) == 0 {
+		return nil
+	}
+	var parsed struct {
+		Command string `json:"command"`
+	}
+	if err := json.Unmarshal(args, &parsed); err != nil || parsed.Command == "" {
+		return nil
+	}
+	steps, _ := shellparse.Parse(parsed.Command)
+	return steps
 }
 
 // TODO: Replace filename-based detection with explicit origin metadata.

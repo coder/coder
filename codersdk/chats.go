@@ -256,6 +256,7 @@ type ChatMessagePart struct {
 	MCPServerConfigID uuid.NullUUID       `json:"mcp_server_config_id,omitempty" format:"uuid" variants:"tool-call?,tool-result?"`
 	Args              json.RawMessage     `json:"args,omitempty" variants:"tool-call?"`
 	ArgsDelta         string              `json:"args_delta,omitempty" variants:"tool-call?"`
+	ParsedCommands    [][]string   `json:"parsed_commands,omitempty" variants:"tool-call?"`
 	Result            json.RawMessage     `json:"result,omitempty" variants:"tool-result?"`
 	ResultDelta       string              `json:"result_delta,omitempty" variants:"tool-result?"`
 	ResultReset       bool                `json:"result_reset,omitempty" variants:"tool-result?"`

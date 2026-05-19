@@ -3237,3 +3237,62 @@ func TestToolResultContentToPart_UTF8Sanitization(t *testing.T) {
 		require.Contains(t, media.Text, "done")
 	})
 }
+
+func TestPartFromContent_ExecuteToolParsedCommands(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name     string
+		toolName string
+		input    string
+		want     [][]string
+	}{
+		{
+			name:     "execute-chained-git",
+			toolName: chattool.ExecuteToolName,
+			input:    `{"command":"cd /repo && git pull && git commit -m fix"}`,
+			want: [][]string{
+				{"cd", "/repo"},
+				{"git", "pull"},
+				{"git", "commit"},
+			},
+		},
+		{
+			name:     "execute-empty-command",
+			toolName: chattool.ExecuteToolName,
+			input:    `{"command":""}`,
+			want:     nil,
+		},
+		{
+			name:     "execute-no-command-key",
+			toolName: chattool.ExecuteToolName,
+			input:    `{"other":"x"}`,
+			want:     nil,
+		},
+		{
+			name:     "execute-invalid-json-args",
+			toolName: chattool.ExecuteToolName,
+			input:    `not-json`,
+			want:     nil,
+		},
+		{
+			name:     "other-tool-ignored",
+			toolName: "read_file",
+			input:    `{"command":"cd /tmp && ls"}`,
+			want:     nil,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			part := chatprompt.PartFromContent(fantasy.ToolCallContent{
+				ToolCallID: "call-1",
+				ToolName:   tc.toolName,
+				Input:      tc.input,
+			})
+			require.Equal(t, codersdk.ChatMessagePartTypeToolCall, part.Type)
+			assert.Equal(t, tc.want, part.ParsedCommands)
+		})
+	}
+}
