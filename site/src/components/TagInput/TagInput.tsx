@@ -83,7 +83,7 @@ export const TagInput: FC<TagInputProps> = ({
 			</div>
 
 			<p className="text-content-secondary text-xs mt-1">
-				{'Type "," to separate the values'}
+				Type "," to separate the values
 			</p>
 		</div>
 	);

@@ -445,55 +445,53 @@ const TemplateUsagePanel: FC<TemplateUsagePanelProps> = ({
 				<PanelTitle>App & IDE Usage</PanelTitle>
 			</PanelHeader>
 			<PanelContent error={error} data={validUsage}>
-				{
-					<div className="flex flex-col gap-6">
-						{(validUsage || []).map((usage, i) => {
-							const percentage = (usage.seconds / totalInSeconds) * 100;
-							return (
-								<div key={usage.slug} className="flex items-center gap-6">
-									<div className="flex items-center gap-2">
-										<div className="flex justify-center items-center w-5 h-5">
-											<ExternalImage
-												src={usage.icon}
-												alt=""
-												className="h-full w-full object-contain"
-											/>
-										</div>
-										<div className="text-[13px] font-medium w-[200px]">
-											{usage.display_name}
-										</div>
+				<div className="flex flex-col gap-6">
+					{(validUsage || []).map((usage, i) => {
+						const percentage = (usage.seconds / totalInSeconds) * 100;
+						return (
+							<div key={usage.slug} className="flex items-center gap-6">
+								<div className="flex items-center gap-2">
+									<div className="flex justify-center items-center w-5 h-5">
+										<ExternalImage
+											src={usage.icon}
+											alt=""
+											className="h-full w-full object-contain"
+										/>
 									</div>
-									<Tooltip>
-										<TooltipTrigger asChild>
-											<div className="relative w-full h-2 rounded-full bg-surface-quaternary">
-												<div
-													className="absolute inset-y-0 left-0 rounded-full"
-													style={{
-														width: `${percentage}%`,
-														backgroundColor: usageColors[i],
-													}}
-												/>
-											</div>
-										</TooltipTrigger>
-										<TooltipContent>
-											{Math.floor(percentage)}%
-											<TooltipArrow className="fill-border" />
-										</TooltipContent>
-									</Tooltip>
-									<div className="flex flex-col text-[13px] shrink-0 leading-[1.5] text-content-secondary w-[120px]">
-										{formatTime(usage.seconds)}
-										{usage.times_used > 0 && (
-											<span className="text-[12px] text-content-disabled">
-												Opened {usage.times_used.toLocaleString()}{" "}
-												{usage.times_used === 1 ? "time" : "times"}
-											</span>
-										)}
+									<div className="text-[13px] font-medium w-[200px]">
+										{usage.display_name}
 									</div>
 								</div>
-							);
-						})}
-					</div>
-				}
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<div className="relative w-full h-2 rounded-full bg-surface-quaternary">
+											<div
+												className="absolute inset-y-0 left-0 rounded-full"
+												style={{
+													width: `${percentage}%`,
+													backgroundColor: usageColors[i],
+												}}
+											/>
+										</div>
+									</TooltipTrigger>
+									<TooltipContent>
+										{Math.floor(percentage)}%
+										<TooltipArrow className="fill-border" />
+									</TooltipContent>
+								</Tooltip>
+								<div className="flex flex-col text-[13px] shrink-0 leading-[1.5] text-content-secondary w-[120px]">
+									{formatTime(usage.seconds)}
+									{usage.times_used > 0 && (
+										<span className="text-[12px] text-content-disabled">
+											Opened {usage.times_used.toLocaleString()}{" "}
+											{usage.times_used === 1 ? "time" : "times"}
+										</span>
+									)}
+								</div>
+							</div>
+						);
+					})}
+				</div>
 			</PanelContent>
 		</Panel>
 	);

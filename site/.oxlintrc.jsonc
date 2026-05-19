@@ -11,7 +11,7 @@
 		"nursery": "off",
 	},
 
-	"plugins": [],
+	"plugins": ["react"],
 
 	"ignorePatterns": [
 		"**/node_modules/**",
@@ -36,13 +36,18 @@
 				"caughtErrorsIgnorePattern": "^_",
 			},
 		],
-
+		"unicorn/prefer-number-properties": [
+			"error",
+			{ "checkInfinity": true, "checkNaN": true },
+		],
+		"react/jsx-curly-brace-presence": [
+			"error",
+			{ "props": "never", "children": "never", "propElementValues": "always" },
+		],
 		"typescript/prefer-as-const": "error",
 		"typescript/prefer-enum-initializers": "error",
 		"typescript/no-inferrable-types": "error",
-
 		"eslint/no-else-return": "error",
-
 		"eslint/no-restricted-imports": [
 			"error",
 			{
@@ -225,13 +230,13 @@
 				],
 			},
 		],
-
 		"eslint/no-console": [
 			"error",
 			{
 				"allow": ["error", "info", "warn"],
 			},
 		],
+		// Biome style/useSingleVarDeclarator: no oxlint equivalent (eslint/one-var not implemented)
 	},
 
 	"overrides": [
