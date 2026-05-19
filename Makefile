@@ -872,21 +872,22 @@ build/vale-$(VALE_VERSION):
 # `vale sync` pulls the packages listed in .vale.ini's Packages directive
 # into StylesPath (docs/.style/styles/). The .vale-synced sentinel makes
 # sync idempotent across `make lint/prose` calls and lets warm checkouts
-# skip the re-sync entirely. Touch any time .vale.ini changes to force a
-# re-sync.
+# skip the re-sync entirely. Make rebuilds this target when `.vale.ini`
+# changes.
 docs/.style/.vale-synced: .vale.ini build/vale-$(VALE_VERSION)
 	@echo "$(GREEN)==>$(RESET) $(BOLD)vale sync$(RESET)"
 	build/vale-$(VALE_VERSION) sync
 	@touch $@
 
-# v1 severity policy lands every rule at warning. Vale exits non-zero when
-# alerts at MinAlertLevel or above are found, so the `|| true` keeps
-# `make lint/prose` from failing while the cleanup PRs land. Promote rules
-# to error (and remove the wrapper) when their existing-content violation
-# count reaches zero. See DOCS-40.
+# Vale exits non-zero only on error-level alerts. `--no-exit` keeps the
+# target green while the un-overridden Google error-level rules still
+# produce a baseline error count; real failures (missing binary, bad
+# config, missing files) still propagate. Once the baseline error count
+# reaches zero, drop `--no-exit` and surface error-level violations as
+# real failures. See DOCS-40.
 lint/prose: docs/.style/.vale-synced
 	@echo "$(GREEN)==>$(RESET) $(BOLD)lint/prose$(RESET)"
-	build/vale-$(VALE_VERSION) docs/ || true
+	build/vale-$(VALE_VERSION) --no-exit docs/
 .PHONY: lint/prose
 
 # pre-commit and pre-push mirror CI checks locally.

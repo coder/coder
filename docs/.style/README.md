@@ -77,12 +77,14 @@ write-good) into `docs/.style/styles/`; subsequent runs are fast.
 make lint/prose
 ```
 
-The target wraps Vale in `|| true` so warnings do not fail the build. To
-see Vale's raw exit code, invoke the binary directly:
+The target uses Vale's `--no-exit` flag so warning- and suggestion-level
+alerts do not produce a non-zero exit; real failures (missing binary,
+bad config) still propagate. To see Vale's raw exit code on errors,
+drop `--no-exit` and invoke the binary directly:
 
 ```shell
 make docs/.style/.vale-synced
-./build/vale-*/vale docs/    # or pass specific files
+./build/vale-* docs/    # or pass specific files
 ```
 
 `.vale.ini` at the repo root selects the curated rule set. See its

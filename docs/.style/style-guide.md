@@ -90,37 +90,40 @@ behind the cherry-picked base styles and the severity policy.
 
 ### Running Vale locally
 
-The canonical entry point is `make lint/prose`. The first run downloads
-the pinned Vale binary and the configured style packages; subsequent
-runs reuse them. The target wraps Vale in `|| true` so warnings do not
-break `make lint`, matching the v1 non-blocking policy.
+See [`docs/.style/README.md`](README.md#running-vale-locally) for the
+make target, the `--no-exit` rationale, and the rule-set pointer.
 
 ### Severity policy (v1)
 
-Every rule lands at `warning`. CI is non-blocking through
-`continue-on-error: true` on the prose step. A rule promotes to `error`
-only when (a) it is objectively correct (typo, brand-name casing, banned
-substitution) and (b) the existing-content violation count reaches zero.
-Judgment-based rules (Wordiness, Weasel, ThereIs) stay at `suggestion`
-and never promote to `error`.
+Rule severity sits at a level that reflects two things together: the
+rule's false-positive rate against real Coder docs and the gravity of the
+rule. Low FPs plus high gravity argues for `error`; lower gravity or more
+judgment calls argue for `warning` or `suggestion`.
+
+v1 lands most rules at `warning` and the wordiness rules at `suggestion`.
+A rule promotes to `error` only when (a) its false-positive rate against
+real content is effectively zero and (b) the existing-content violation
+count for that rule is also zero.
+
+Vale exits non-zero only on error-level alerts, regardless of
+`MinAlertLevel`. The Makefile invokes Vale with `--no-exit` so the
+baseline error count from un-overridden Google rules does not fail CI;
+real failures (missing binary, bad config) still propagate. Drop
+`--no-exit` once the baseline error count is zero.
 
 ### Active rule set
 
-The curated set documented in `.vale.ini`:
+The curated set lives in `.vale.ini`'s inline comments. Run
+`make lint/prose` to see it in action. The high-level shape:
 
-- **Google** (base): all rules except `EmDash` (conflicts with our em-dash
-  ban), `Latin` (i.e. and e.g. are fine in technical writing), and `Spacing`
-  (fires aggressively on codersdk type names in the auto-generated API
-  reference; re-enable once the Go generators emit proper spacing).
-  `Parens` is softened to `suggestion` and `WordList` stays at `warning`.
-- **write-good** (base, with disables): `Passive` and `E-Prime` are off.
-  `TooWordy` and `ThereIs` stay at `suggestion`; `Weasel` is at `warning`.
-- **alex** (cherry-picked): `Ablist`, `Condescending`, `LGBTQ`,
-  `ProfanityLikely`, `Race`, `Suicide` at `warning`. The `ProfanityMaybe`
-  and `ProfanityUnlikely` rules fire on technical terms like `execute`,
-  `kill`, `failed`, and `attack`, so they are left off.
-- **Coder** (custom): empty in v1. Rules land through the rule-specific
-  tickets in this project (see `docs/.style/styles/Coder/README.md`).
+- **Google** as the base, with a handful of disables and softer levels
+  on high-volume rules.
+- **write-good** for wordiness, with passive voice and E-Prime off.
+- **alex** loaded a la carte for the inclusive-language checks that do
+  not fire on technical vocabulary.
+- **Coder** for custom rules. Empty in v1; rules land through the
+  rule-specific tickets in this project (see
+  `docs/.style/styles/Coder/README.md`).
 
 ## Editor setup
 

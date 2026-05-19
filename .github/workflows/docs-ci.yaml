@@ -70,40 +70,60 @@ jobs:
         env:
           ALL_CHANGED_FILES: ${{ steps.changed-md.outputs.all_changed_files }}
 
-      # `make docs/.style/.vale-synced` downloads the pinned Vale binary
-      # into build/ and runs `vale sync` so the configured packages exist
-      # under StylesPath. The sync is idempotent across runs and gated by
-      # an mtime sentinel that the cache below preserves between workflow
-      # invocations.
+      # Vale's behavior on the next two steps:
+      #
+      # - `Prepare Vale styles` downloads the pinned Vale binary and runs
+      #   `vale sync` to materialize the configured packages under
+      #   StylesPath. This step has no `continue-on-error`: a download or
+      #   sync failure should break the job.
+      # - `prose` runs Vale against the changed-md set filtered to docs/
+      #   paths only, excluding the synced upstream packages under
+      #   docs/.style/styles/. We post-filter in shell rather than using a
+      #   second tj-actions/changed-files step because the `docs/**.md`
+      #   glob there silently skips dot-prefixed dirs (it would miss our
+      #   own docs/.style/style-guide.md while still treating the
+      #   top-level `**.md` filter as authoritative). The early exit
+      #   handles PRs that only touched non-docs markdown like AGENTS.md
+      #   or README.md.
+      #
+      # The step uses `vale --no-exit` so warning- and suggestion-level
+      # alerts do not fail CI, while real failures (missing binary, bad
+      # config) still propagate. The problem matcher at
+      # `.github/vale-problem-matcher.json` parses `--output=line` output
+      # and surfaces each alert as an inline PR annotation; remove the
+      # matcher after the run so it does not leak into later steps.
+      #
+      # The cache below covers the synced upstream packages and the Vale
+      # binary. Two layers of defense keep the hand-authored Coder rules
+      # under docs/.style/styles/Coder safe from a stale cache:
+      #
+      #   1. The negation excludes docs/.style/styles/Coder from the
+      #      cached paths. actions/cache negation can be unreliable
+      #      (actions/toolkit#713, actions/cache#494) when patterns mix
+      #      directory levels, but works here because both patterns sit
+      #      directly under docs/.style/styles/.
+      #   2. The cache key includes a hash of docs/.style/styles/Coder/**,
+      #      so any rule change invalidates the cache even if a future
+      #      cache release regresses the negation behavior. The key also
+      #      hashes .vale.ini and mise.toml: either change forces a fresh
+      #      `vale sync` and a fresh binary download.
       - name: Cache Vale styles and binary
         if: steps.changed-md.outputs.any_changed == 'true'
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: |
-            docs/.style/styles/Google
-            docs/.style/styles/alex
-            docs/.style/styles/write-good
+            docs/.style/styles/*
+            !docs/.style/styles/Coder
             docs/.style/.vale-synced
             build/vale-*
-          key: vale-${{ hashFiles('.vale.ini', 'mise.toml') }}
+          key: vale-${{ hashFiles('.vale.ini', 'mise.toml', 'docs/.style/styles/Coder/**') }}
 
-      # Vale runs on the changed-md set filtered to docs/ paths only,
-      # excluding the synced upstream packages under docs/.style/styles/.
-      # We post-filter in shell rather than using a second
-      # tj-actions/changed-files step because the `docs/**.md` glob there
-      # silently skips dot-prefixed dirs (so it would miss our own
-      # docs/.style/style-guide.md while still treating the top-level
-      # `**.md` filter as authoritative). The early exit handles PRs that
-      # only touched non-docs markdown like AGENTS.md or README.md.
-      #
-      # The step is non-blocking by design (continue-on-error: true). v1
-      # lands every rule at `warning`, which makes Vale exit non-zero on
-      # nearly every PR. Annotations stay visible in the step log; promote
-      # rules to `error` (and drop continue-on-error) once their
-      # existing-content violation count reaches zero. See DOCS-40.
+      - name: Prepare Vale styles
+        if: steps.changed-md.outputs.any_changed == 'true'
+        run: make docs/.style/.vale-synced
+
       - name: prose
         if: steps.changed-md.outputs.any_changed == 'true'
-        continue-on-error: true
         run: |
           files=$(printf '%s\n' "$ALL_CHANGED_FILES" \
             | tr ',' '\n' \
@@ -113,8 +133,9 @@ jobs:
             echo "No changed Markdown files under docs/ (excluding synced styles); skipping Vale."
             exit 0
           fi
-          make docs/.style/.vale-synced
           vale=$(find build/ -maxdepth 1 -name 'vale-*' -type f -print -quit)
-          printf '%s\n' "$files" | xargs -d '\n' "$vale"
+          echo "::add-matcher::.github/vale-problem-matcher.json"
+          printf '%s\n' "$files" | xargs -d '\n' "$vale" --no-exit --output=line
+          echo "::remove-matcher owner=vale::"
         env:
           ALL_CHANGED_FILES: ${{ steps.changed-md.outputs.all_changed_files }}
