@@ -14,6 +14,7 @@ import { DesktopPanelContext } from "./DesktopPanelContext";
 import { Tool } from "./Tool";
 
 const executeCommand = "git fetch origin";
+const executeIntentCommand = "npm test";
 const longExecuteCommand =
 	"docker build --no-cache --build-arg NODE_ENV=production --build-arg API_URL=https://coder.example.com/api --build-arg SENTRY_DSN=https://example.com/sentry --build-arg FEATURE_FLAGS=agents,shell-tools --tag coder-agent:latest .";
 const meta: Meta<typeof Tool> = {
@@ -58,10 +59,10 @@ export const ExecuteModelIntent: Story = {
 	args: {
 		status: "completed",
 		args: {
-			command: executeCommand,
-			model_intent: "checking repository state using git fetch origin for 5s",
+			command: executeIntentCommand,
+			model_intent: "Running tests using npm for 5s",
 		},
-		modelIntent: "checking repository state using git fetch origin for 5s",
+		modelIntent: "Running tests using npm for 5s",
 		result: {
 			output: "",
 			wall_duration_ms: 2300,
@@ -73,7 +74,7 @@ export const ExecuteModelIntent: Story = {
 			name: "Expand command",
 		});
 		expect(commandButton).toHaveTextContent(
-			`Checking repository state using ${executeCommand} for 2.3s`,
+			`Running tests using ${executeIntentCommand} for 2.3s`,
 		);
 		expect(commandButton).not.toHaveTextContent("Ran");
 	},
@@ -122,7 +123,7 @@ export const ExecuteModelIntentLeadingUsing: Story = {
 		const commandButton = canvas.getByRole("button", {
 			name: "Expand command",
 		});
-		expect(commandButton).toHaveTextContent(`${executeCommand}2.3s`);
+		expect(commandButton).toHaveTextContent(`Ran ${executeCommand}2.3s`);
 		expect(commandButton).not.toHaveTextContent("using git fetch origin using");
 	},
 };
@@ -220,8 +221,7 @@ export const ExecuteAlwaysCollapsed: Story = {
 		const commandButton = canvas.getByRole("button", {
 			name: "Expand command",
 		});
-		expect(commandButton).toHaveTextContent(executeCommand);
-		expect(commandButton).not.toHaveTextContent("Ran");
+		expect(commandButton).toHaveTextContent(`Ran ${executeCommand}`);
 		expect(canvas.queryByText("exit 0")).not.toBeInTheDocument();
 		expect(canvas.queryByText("2 lines")).not.toBeInTheDocument();
 		expect(
@@ -254,8 +254,7 @@ export const ExecuteLongCommandCollapsed: Story = {
 		const commandButton = canvas.getByRole("button", {
 			name: "Expand command",
 		});
-		expect(commandButton).toHaveTextContent(longExecuteCommand);
-		expect(commandButton).not.toHaveTextContent("Ran");
+		expect(commandButton).toHaveTextContent(`Ran ${longExecuteCommand}`);
 		expect(commandButton).toHaveAttribute("aria-expanded", "false");
 		expect(canvas.queryByText("exit 0")).not.toBeInTheDocument();
 		expect(canvas.getByText("47.2s")).toBeVisible();

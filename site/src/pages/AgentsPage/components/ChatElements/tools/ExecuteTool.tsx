@@ -186,7 +186,7 @@ const ShellCommandLine: React.FC<{
 						<code className="font-mono text-xs">{command}</code>
 					</>
 				) : (
-					<code className="font-mono text-xs">{command}</code>
+					<>Ran {command}</>
 				)}
 			</span>
 			{durationLabel && (
