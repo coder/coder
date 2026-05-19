@@ -1831,7 +1831,7 @@ func (s *MethodTestSuite) TestGroup() {
 		dbm.EXPECT().GetGroupByID(gomock.Any(), g1.ID).Return(g1, nil).AnyTimes()
 		dbm.EXPECT().GetGroupByID(gomock.Any(), g2.ID).Return(g2, nil).AnyTimes()
 		dbm.EXPECT().GetGroupMembersCountByGroupIDs(gomock.Any(), arg).Return(rows, nil).AnyTimes()
-		check.Args(arg).Asserts(g1, policy.ActionRead, g2, policy.ActionRead).Returns(rows)
+		check.Args(arg).Asserts(rbac.ResourceGroup, policy.ActionRead).Returns(rows)
 	}))
 
 	s.Run("GetGroupMembers", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
