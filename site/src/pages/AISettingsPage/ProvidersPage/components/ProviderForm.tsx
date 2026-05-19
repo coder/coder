@@ -260,9 +260,10 @@ const CredentialField: FC<CredentialFieldProps> = ({
 	// Only show the trash button while the input is locked at the seeded
 	// credential mask. Once the user clears the field (or has been typing a
 	// fresh credential since mount), the trash is hidden so they don't see it
-	// floating next to a half-typed key. In grid-row layout we render an
-	// empty placeholder so the parent grid keeps its third column and the
-	// next row stays aligned.
+	// floating next to a half-typed key. CSS Grid auto-sizes the trash column
+	// to the widest cell across all rows, so a row without a trash leaves
+	// empty space when another row has one, and the whole column collapses
+	// when no row in the grid renders a trash at all.
 	const trashNode = disabled ? (
 		<Button
 			type="button"
@@ -285,7 +286,7 @@ const CredentialField: FC<CredentialFieldProps> = ({
 					{descriptionNode}
 					{helperNode}
 				</div>
-				{trashNode ?? <div aria-hidden="true" className="size-10" />}
+				{trashNode}
 			</>
 		);
 	}
