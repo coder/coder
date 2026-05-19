@@ -54,23 +54,28 @@ func New(opts *Options) (*Server, error) {
 			DocumentationURI: optional.NewString("https://coder.com/docs/admin/users/oidc-auth#scim"),
 			AuthenticationSchemes: []scim.AuthenticationScheme{
 				{
-					Type:             scim.AuthenticationTypeOauthBearerToken,
-					Name:             "HTTP Header Authentication",
-					Description:      "Authentication scheme using the Authorization header with the shared token",
+					Type:        scim.AuthenticationTypeOauthBearerToken,
+					Name:        "HTTP Header Authentication",
+					Description: "Authentication scheme using the Authorization header with the shared token",
+					// TODO: Add documentation links for these specific docs once they exist.
 					SpecURI:          optional.String{},
-					DocumentationURI: optional.NewString("https://coder.com/docs/admin/users/oidc-auth#scim"),
+					DocumentationURI: optional.String{},
 					Primary:          true,
 				},
 			},
-			SupportPatch: true,
+			MaxResults:       0,
+			SupportFiltering: false,
+			SupportPatch:     true,
 		},
 		ResourceTypes: []scim.ResourceType{
 			{
-				ID:       optional.NewString("User"),
-				Name:     "User",
-				Endpoint: "/Users",
-				Schema:   schema.CoreUserSchema(),
-				Handler:  userHandler,
+				ID:               optional.NewString("User"),
+				Name:             "User",
+				Description:      optional.NewString("User Account"),
+				Endpoint:         "/Users",
+				Schema:           schema.CoreUserSchema(),
+				Handler:          userHandler,
+				SchemaExtensions: nil,
 			},
 		},
 	}
