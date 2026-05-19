@@ -756,10 +756,50 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 			Name:    "keys-empty-element",
 			Enabled: true,
 			BaseURL: "https://api.openai.com/v1",
-			APIKeys: []string{"   "},
+			APIKeys: []string{""},
 		})
 		require.Error(t, err)
 		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+
+	t.Run("WhitespaceKeyRejected", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Surrounding whitespace would silently break upstream auth,
+		// since the server stores credentials verbatim. Reject up-front
+		// so the operator gets a clear signal instead of a 401 later.
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "keys-whitespace-create",
+			Enabled: true,
+			BaseURL: "https://api.openai.com/v1",
+			APIKeys: []string{" sk-openai-padded-nnnnnnnnnnnnnnnnnnnn "}, //nolint:gosec // test fixture
+		})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+
+		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "keys-whitespace-update",
+			Enabled: true,
+			BaseURL: "https://api.openai.com/v1",
+			APIKeys: []string{"sk-openai-clean-oooooooooooooooooooo"}, //nolint:gosec // test fixture
+		})
+		require.NoError(t, err)
+		padded := " sk-openai-padded-pppppppppppppppppppp "
+		muts := []codersdk.AIProviderKeyMutation{{APIKey: &padded}}
+		_, err = client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
+			APIKeys: &muts,
+		})
+		require.Error(t, err)
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 	})

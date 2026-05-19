@@ -311,15 +311,24 @@ func validateAIProviderBaseURL(raw string) []ValidationError {
 }
 
 // validateAIProviderAPIKeys checks that each supplied key is non-empty
-// after trimming. An empty slice itself is permitted: on create it
-// means "no keys yet"; on update it means "clear all keys".
+// and free of leading/trailing whitespace. An empty slice itself is
+// permitted: on create it means "no keys yet"; on update it means
+// "clear all keys". Keys are stored verbatim; surrounding whitespace
+// would silently corrupt the credential, so callers must trim before
+// sending.
 func validateAIProviderAPIKeys(keys []string) []ValidationError {
 	var validations []ValidationError
 	for i, key := range keys {
-		if strings.TrimSpace(key) == "" {
+		switch {
+		case key == "":
 			validations = append(validations, ValidationError{
 				Field:  fmt.Sprintf("api_keys[%d]", i),
 				Detail: "api_keys entries must not be empty",
+			})
+		case strings.TrimSpace(key) != key:
+			validations = append(validations, ValidationError{
+				Field:  fmt.Sprintf("api_keys[%d]", i),
+				Detail: "api_keys entries must not contain leading or trailing whitespace",
 			})
 		}
 	}
@@ -342,10 +351,15 @@ func validateAIProviderKeyMutations(muts []AIProviderKeyMutation) []ValidationEr
 				Field:  fmt.Sprintf("api_keys[%d]", i),
 				Detail: "exactly one of id or api_key must be set",
 			})
-		case hasKey && strings.TrimSpace(*m.APIKey) == "":
+		case hasKey && *m.APIKey == "":
 			validations = append(validations, ValidationError{
 				Field:  fmt.Sprintf("api_keys[%d].api_key", i),
 				Detail: "api_key must not be empty",
+			})
+		case hasKey && strings.TrimSpace(*m.APIKey) != *m.APIKey:
+			validations = append(validations, ValidationError{
+				Field:  fmt.Sprintf("api_keys[%d].api_key", i),
+				Detail: "api_key must not contain leading or trailing whitespace",
 			})
 		}
 		if hasID && !hasKey {
