@@ -85,11 +85,6 @@ WHERE
 			)
 			ELSE true
 		END
-ORDER BY
-	-- Deterministic ordering for stable pagination. Sort by the value
-	-- the UI displays (display_name, falling back to name).
-	LOWER(COALESCE(NULLIF(groups.display_name, ''), groups.name)) ASC,
-	groups.id ASC
 -- A limit of 0 means "no limit".
 LIMIT NULLIF(@limit_opt :: int, 0)
 ;
