@@ -77,18 +77,20 @@ jobs:
       #   StylesPath. This step has no `continue-on-error`: a download or
       #   sync failure should break the job.
       # - `prose` runs Vale against the changed-md set filtered to docs/
-      #   paths only, excluding the synced upstream packages under
-      #   docs/.style/styles/. We post-filter in shell rather than using a
-      #   second tj-actions/changed-files step because the `docs/**.md`
-      #   glob there silently skips dot-prefixed dirs (it would miss our
-      #   own docs/.style/style-guide.md while still treating the
-      #   top-level `**.md` filter as authoritative). The early exit
-      #   handles PRs that only touched non-docs markdown like AGENTS.md
-      #   or README.md.
+      #   paths only. We post-filter in shell rather than using a second
+      #   tj-actions/changed-files step because the `docs/**.md` glob
+      #   there silently skips dot-prefixed dirs (it would miss our own
+      #   docs/.style/style-guide.md while still treating the top-level
+      #   `**.md` filter as authoritative). The early exit handles PRs
+      #   that only touched non-docs markdown like AGENTS.md or README.md.
+      #   No second filter excludes docs/.style/styles/: synced upstream
+      #   packages are gitignored (so changed-files never lists them) and
+      #   tracked Coder/**.md files should go through Vale.
       #
-      # The step uses `vale --no-exit` so warning- and suggestion-level
-      # alerts do not fail CI, while real failures (missing binary, bad
-      # config) still propagate. The problem matcher at
+      # The step uses `vale --no-exit` so the baseline error count from
+      # un-overridden Google error-level rules does not fail CI, while
+      # real failures (missing binary, bad config) still propagate. The
+      # problem matcher at
       # `.github/vale-problem-matcher.json` parses `--output=line` output
       # and surfaces each alert as an inline PR annotation; remove the
       # matcher after the run so it does not leak into later steps.
@@ -127,10 +129,9 @@ jobs:
         run: |
           files=$(printf '%s\n' "$ALL_CHANGED_FILES" \
             | tr ',' '\n' \
-            | grep -E '^docs/' \
-            | grep -v '^docs/\.style/styles/' || true)
+            | grep -E '^docs/' || true)
           if [ -z "$files" ]; then
-            echo "No changed Markdown files under docs/ (excluding synced styles); skipping Vale."
+            echo "No changed Markdown files under docs/; skipping Vale."
             exit 0
           fi
           vale=$(find build/ -maxdepth 1 -name 'vale-*' -type f -print -quit)

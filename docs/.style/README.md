@@ -77,10 +77,10 @@ write-good) into `docs/.style/styles/`; subsequent runs are fast.
 make lint/prose
 ```
 
-The target uses Vale's `--no-exit` flag so warning- and suggestion-level
-alerts do not produce a non-zero exit; real failures (missing binary,
-bad config) still propagate. To see Vale's raw exit code on errors,
-drop `--no-exit` and invoke the binary directly:
+The target uses Vale's `--no-exit` flag so the baseline error count from
+un-overridden Google rules does not produce a non-zero exit; real
+failures (missing binary, bad config) still propagate. To see Vale's raw
+exit code on errors, drop `--no-exit` and invoke the binary directly:
 
 ```shell
 make docs/.style/.vale-synced
