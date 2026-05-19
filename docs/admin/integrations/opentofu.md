@@ -11,7 +11,7 @@ Coder deployments support any custom Terraform binary, including
 [OpenTofu](https://opentofu.org/docs/) - an open source alternative to
 Terraform.
 
-You can read more about OpenTofu and Hashicorp's licensing in our
+You can read more about OpenTofu and HashiCorp's licensing in our
 [blog post](https://coder.com/blog/hashicorp-license) on the Terraform licensing changes.
 
 ## Using a custom Terraform binary
