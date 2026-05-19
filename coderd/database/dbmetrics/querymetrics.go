@@ -465,6 +465,14 @@ func (m queryMetricsStore) DeleteChatModelConfigByID(ctx context.Context, id uui
 	return r0
 }
 
+func (m queryMetricsStore) DeleteChatModelConfigsByAIProviderID(ctx context.Context, aiProviderID uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteChatModelConfigsByAIProviderID(ctx, aiProviderID)
+	m.queryLatencies.WithLabelValues("DeleteChatModelConfigsByAIProviderID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatModelConfigsByAIProviderID").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) DeleteChatModelConfigsByProvider(ctx context.Context, provider string) error {
 	start := time.Now()
 	r0 := m.s.DeleteChatModelConfigsByProvider(ctx, provider)
@@ -1038,6 +1046,22 @@ func (m queryMetricsStore) GetAIProviderByID(ctx context.Context, id uuid.UUID) 
 	r0, r1 := m.s.GetAIProviderByID(ctx, id)
 	m.queryLatencies.WithLabelValues("GetAIProviderByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIProviderByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAIProviderByIDForReferenceLock(ctx context.Context, id uuid.UUID) (database.AIProvider, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIProviderByIDForReferenceLock(ctx, id)
+	m.queryLatencies.WithLabelValues("GetAIProviderByIDForReferenceLock").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIProviderByIDForReferenceLock").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetAIProviderByIDForUpdate(ctx context.Context, id uuid.UUID) (database.AIProvider, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIProviderByIDForUpdate(ctx, id)
+	m.queryLatencies.WithLabelValues("GetAIProviderByIDForUpdate").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIProviderByIDForUpdate").Inc()
 	return r0, r1
 }
 

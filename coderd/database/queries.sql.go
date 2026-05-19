@@ -366,6 +366,64 @@ func (q *sqlQuerier) GetAIProviderByID(ctx context.Context, id uuid.UUID) (AIPro
 	return i, err
 }
 
+const getAIProviderByIDForReferenceLock = `-- name: GetAIProviderByIDForReferenceLock :one
+SELECT
+    id, type, name, display_name, enabled, deleted, base_url, settings, settings_key_id, created_at, updated_at
+FROM
+    ai_providers
+WHERE
+    id = $1::uuid AND deleted = FALSE
+FOR SHARE
+`
+
+func (q *sqlQuerier) GetAIProviderByIDForReferenceLock(ctx context.Context, id uuid.UUID) (AIProvider, error) {
+	row := q.db.QueryRowContext(ctx, getAIProviderByIDForReferenceLock, id)
+	var i AIProvider
+	err := row.Scan(
+		&i.ID,
+		&i.Type,
+		&i.Name,
+		&i.DisplayName,
+		&i.Enabled,
+		&i.Deleted,
+		&i.BaseUrl,
+		&i.Settings,
+		&i.SettingsKeyID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getAIProviderByIDForUpdate = `-- name: GetAIProviderByIDForUpdate :one
+SELECT
+    id, type, name, display_name, enabled, deleted, base_url, settings, settings_key_id, created_at, updated_at
+FROM
+    ai_providers
+WHERE
+    id = $1::uuid AND deleted = FALSE
+FOR UPDATE
+`
+
+func (q *sqlQuerier) GetAIProviderByIDForUpdate(ctx context.Context, id uuid.UUID) (AIProvider, error) {
+	row := q.db.QueryRowContext(ctx, getAIProviderByIDForUpdate, id)
+	var i AIProvider
+	err := row.Scan(
+		&i.ID,
+		&i.Type,
+		&i.Name,
+		&i.DisplayName,
+		&i.Enabled,
+		&i.Deleted,
+		&i.BaseUrl,
+		&i.Settings,
+		&i.SettingsKeyID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getAIProviderByName = `-- name: GetAIProviderByName :one
 SELECT
     id, type, name, display_name, enabled, deleted, base_url, settings, settings_key_id, created_at, updated_at
@@ -515,19 +573,21 @@ const updateAIProvider = `-- name: UpdateAIProvider :one
 UPDATE
     ai_providers
 SET
-    display_name = $1::text,
-    enabled = $2::boolean,
-    base_url = $3::text,
-    settings = $4::text,
-    settings_key_id = $5::text,
+    name = $1::text,
+    display_name = $2::text,
+    enabled = $3::boolean,
+    base_url = $4::text,
+    settings = $5::text,
+    settings_key_id = $6::text,
     updated_at = NOW()
 WHERE
-    id = $6::uuid AND deleted = FALSE
+    id = $7::uuid AND deleted = FALSE
 RETURNING
     id, type, name, display_name, enabled, deleted, base_url, settings, settings_key_id, created_at, updated_at
 `
 
 type UpdateAIProviderParams struct {
+	Name          string         `db:"name" json:"name"`
 	DisplayName   sql.NullString `db:"display_name" json:"display_name"`
 	Enabled       bool           `db:"enabled" json:"enabled"`
 	BaseUrl       string         `db:"base_url" json:"base_url"`
@@ -538,6 +598,7 @@ type UpdateAIProviderParams struct {
 
 func (q *sqlQuerier) UpdateAIProvider(ctx context.Context, arg UpdateAIProviderParams) (AIProvider, error) {
 	row := q.db.QueryRowContext(ctx, updateAIProvider,
+		arg.Name,
 		arg.DisplayName,
 		arg.Enabled,
 		arg.BaseUrl,
@@ -4948,6 +5009,23 @@ func (q *sqlQuerier) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID
 	return err
 }
 
+const deleteChatModelConfigsByAIProviderID = `-- name: DeleteChatModelConfigsByAIProviderID :exec
+UPDATE
+    chat_model_configs
+SET
+    deleted = TRUE,
+    deleted_at = NOW(),
+    updated_at = NOW()
+WHERE
+    ai_provider_id = $1::uuid
+    AND deleted = FALSE
+`
+
+func (q *sqlQuerier) DeleteChatModelConfigsByAIProviderID(ctx context.Context, aiProviderID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteChatModelConfigsByAIProviderID, aiProviderID)
+	return err
+}
+
 const deleteChatModelConfigsByProvider = `-- name: DeleteChatModelConfigsByProvider :exec
 UPDATE
     chat_model_configs
@@ -5092,13 +5170,18 @@ SELECT
     cmc.id, cmc.provider, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options, cmc.ai_provider_id
 FROM
     chat_model_configs cmc
-JOIN
+LEFT JOIN
+    ai_providers ap ON ap.id = cmc.ai_provider_id AND ap.deleted = FALSE
+LEFT JOIN
     chat_providers cp ON cp.provider = cmc.provider
 WHERE
     cmc.id = $1::uuid
     AND cmc.deleted = FALSE
     AND cmc.enabled = TRUE
-    AND cp.enabled = TRUE
+    AND (
+        (cmc.ai_provider_id IS NOT NULL AND ap.enabled = TRUE)
+        OR (cmc.ai_provider_id IS NULL AND cp.enabled = TRUE)
+    )
 `
 
 // Providers can be disabled independently of their model configs.
@@ -5132,12 +5215,17 @@ SELECT
     cmc.id, cmc.provider, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options, cmc.ai_provider_id
 FROM
     chat_model_configs cmc
-JOIN
+LEFT JOIN
+    ai_providers ap ON ap.id = cmc.ai_provider_id AND ap.deleted = FALSE
+LEFT JOIN
     chat_providers cp ON cp.provider = cmc.provider
 WHERE
     cmc.enabled = TRUE
     AND cmc.deleted = FALSE
-    AND cp.enabled = TRUE
+    AND (
+        (cmc.ai_provider_id IS NOT NULL AND ap.enabled = TRUE)
+        OR (cmc.ai_provider_id IS NULL AND cp.enabled = TRUE)
+    )
 ORDER BY
     cmc.provider ASC,
     cmc.model ASC,

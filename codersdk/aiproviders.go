@@ -151,15 +151,18 @@ func marshalSettings(s settingsTyped) ([]byte, error) {
 // table and managed via the keys sub-endpoints; secret fields on
 // Settings are never included in responses.
 type AIProvider struct {
-	ID          uuid.UUID          `json:"id" format:"uuid"`
-	Type        AIProviderType     `json:"type"`
-	Name        string             `json:"name"`
-	DisplayName string             `json:"display_name"`
-	Enabled     bool               `json:"enabled"`
-	BaseURL     string             `json:"base_url"`
-	Settings    AIProviderSettings `json:"settings"`
-	CreatedAt   time.Time          `json:"created_at" format:"date-time"`
-	UpdatedAt   time.Time          `json:"updated_at" format:"date-time"`
+	ID                uuid.UUID          `json:"id" format:"uuid"`
+	Type              AIProviderType     `json:"type"`
+	Name              string             `json:"name"`
+	DisplayName       string             `json:"display_name"`
+	Enabled           bool               `json:"enabled"`
+	Deleted           bool               `json:"deleted"`
+	HasProviderAPIKey bool               `json:"has_provider_api_key"`
+	BYOKEnabled       bool               `json:"byok_enabled"`
+	BaseURL           string             `json:"base_url"`
+	Settings          AIProviderSettings `json:"settings"`
+	CreatedAt         time.Time          `json:"created_at" format:"date-time"`
+	UpdatedAt         time.Time          `json:"updated_at" format:"date-time"`
 }
 
 // CreateAIProviderRequest is the payload for creating a new AI
@@ -171,9 +174,10 @@ type CreateAIProviderRequest struct {
 	Type        AIProviderType     `json:"type"`
 	Name        string             `json:"name"`
 	DisplayName string             `json:"display_name,omitempty"`
-	Enabled     bool               `json:"enabled"`
-	BaseURL     string             `json:"base_url"`
+	Enabled     *bool              `json:"enabled,omitempty"`
+	BaseURL     string             `json:"base_url,omitempty"`
 	Settings    AIProviderSettings `json:"settings,omitzero"`
+	APIKey      *string            `json:"api_key,omitempty"`
 }
 
 // UpdateAIProviderRequest is the payload for partially updating an
@@ -181,10 +185,12 @@ type CreateAIProviderRequest struct {
 // distinguish "not sent" (nil) from "set to empty/zero" (a pointer
 // to the zero value).
 type UpdateAIProviderRequest struct {
+	Name        *string             `json:"name,omitempty"`
 	DisplayName *string             `json:"display_name,omitempty"`
 	Enabled     *bool               `json:"enabled,omitempty"`
 	BaseURL     *string             `json:"base_url,omitempty"`
 	Settings    *AIProviderSettings `json:"settings,omitempty"`
+	APIKey      *string             `json:"api_key,omitempty"`
 }
 
 // AIProviderKey represents a single API key registered against an

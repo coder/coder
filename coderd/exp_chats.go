@@ -6393,6 +6393,564 @@ func convertChatMessages(messages []database.ChatMessage) []codersdk.ChatMessage
 	return result
 }
 
+func parseAIProviderID(r *http.Request) (uuid.UUID, error) {
+	return uuid.Parse(chi.URLParam(r, "aiProvider"))
+}
+
+func parseAIProviderKeyID(r *http.Request) (uuid.UUID, error) {
+	return uuid.Parse(chi.URLParam(r, "aiProviderKey"))
+}
+
+func aiProviderDisplayName(displayName sql.NullString, name string) string {
+	if displayName.Valid {
+		return displayName.String
+	}
+	return name
+}
+
+func convertAIProvider(provider database.AIProvider) codersdk.AIProvider {
+	return codersdk.AIProvider{
+		ID:          provider.ID,
+		Type:        codersdk.AIProviderType(provider.Type),
+		Name:        provider.Name,
+		DisplayName: aiProviderDisplayName(provider.DisplayName, provider.Name),
+		Enabled:     provider.Enabled,
+		Deleted:     provider.Deleted,
+		BaseURL:     provider.BaseUrl,
+		CreatedAt:   provider.CreatedAt,
+		UpdatedAt:   provider.UpdatedAt,
+	}
+}
+
+func convertAIProviderSummary(provider database.AIProvider) codersdk.AIProviderSummary {
+	return codersdk.AIProviderSummary{
+		ID:          provider.ID,
+		Type:        codersdk.AIProviderType(provider.Type),
+		Name:        provider.Name,
+		DisplayName: aiProviderDisplayName(provider.DisplayName, provider.Name),
+		Enabled:     provider.Enabled,
+		Deleted:     provider.Deleted,
+	}
+}
+
+func convertAIProviderKey(key database.AIProviderKey) codersdk.AIProviderKey {
+	return codersdk.AIProviderKey{
+		ID:         key.ID,
+		ProviderID: key.ProviderID,
+		CreatedAt:  key.CreatedAt,
+		UpdatedAt:  key.UpdatedAt,
+	}
+}
+
+func validAIProviderName(name string) bool {
+	if name == "" || strings.HasPrefix(name, "agents-") {
+		return false
+	}
+	lastHyphen := true
+	for _, r := range name {
+		switch {
+		case r >= 'a' && r <= 'z':
+			lastHyphen = false
+		case r >= '0' && r <= '9':
+			lastHyphen = false
+		case r == '-':
+			if lastHyphen {
+				return false
+			}
+			lastHyphen = true
+		default:
+			return false
+		}
+	}
+	return !lastHyphen
+}
+
+func invalidAIProviderNameResponse() codersdk.Response {
+	return codersdk.Response{
+		Message: "Invalid AI provider name.",
+		Detail:  "Names must use lowercase letters, numbers, and single hyphens, and cannot use the reserved agents- prefix.",
+	}
+}
+
+func writeInvalidAIProviderName(ctx context.Context, rw http.ResponseWriter) {
+	httpapi.Write(ctx, rw, http.StatusBadRequest, invalidAIProviderNameResponse())
+}
+
+func (api *API) writeAIProviderInternalServerError(ctx context.Context, rw http.ResponseWriter, logMessage string, response codersdk.Response, err error, fields ...slog.Field) {
+	fields = append(fields, slog.Error(err))
+	api.Logger.Error(ctx, logMessage, fields...)
+	httpapi.Write(ctx, rw, http.StatusInternalServerError, response)
+}
+
+func (api *API) writeAIProviderResponseError(ctx context.Context, rw http.ResponseWriter, err error, fields ...slog.Field) {
+	if responseErr, ok := httperror.IsResponder(err); ok {
+		status, resp := responseErr.Response()
+		if status >= http.StatusInternalServerError {
+			api.Logger.Error(ctx, resp.Message, append(fields, slog.Error(err))...)
+		}
+		httpapi.Write(ctx, rw, status, resp)
+		return
+	}
+	api.writeAIProviderInternalServerError(ctx, rw, "AI provider handler failed", codersdk.Response{Message: "Internal server error", Detail: err.Error()}, err, fields...)
+}
+
+func (api *API) listAIProviders(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceAIProvider) {
+		httpapi.Forbidden(rw)
+		return
+	}
+	providers, err := api.Database.GetAIProviders(ctx, database.GetAIProvidersParams{IncludeDisabled: true})
+	if err != nil {
+		api.writeAIProviderInternalServerError(ctx, rw, "failed to list AI providers", codersdk.Response{Message: "Failed to list AI providers."}, err)
+		return
+	}
+	resp := make([]codersdk.AIProvider, 0, len(providers))
+	for _, provider := range providers {
+		resp = append(resp, convertAIProvider(provider))
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+func (api *API) createAIProvider(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceAIProvider) {
+		httpapi.Forbidden(rw)
+		return
+	}
+	var req codersdk.CreateAIProviderRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	req.Name = strings.TrimSpace(req.Name)
+	req.DisplayName = strings.TrimSpace(req.DisplayName)
+	if !validAIProviderName(req.Name) {
+		writeInvalidAIProviderName(ctx, rw)
+		return
+	}
+	typ := database.AIProviderType(req.Type)
+	if !typ.Valid() {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Invalid AI provider type."})
+		return
+	}
+	enabled := true
+	if req.Enabled != nil {
+		enabled = *req.Enabled
+	}
+	baseURL, err := normalizeChatProviderBaseURL(req.BaseURL)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid provider base URL.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	provider, err := api.Database.InsertAIProvider(ctx, database.InsertAIProviderParams{
+		ID:            uuid.New(),
+		Type:          typ,
+		Name:          req.Name,
+		DisplayName:   sql.NullString{String: req.DisplayName, Valid: req.DisplayName != ""},
+		Enabled:       enabled,
+		BaseUrl:       baseURL,
+		Settings:      sql.NullString{},
+		SettingsKeyID: sql.NullString{},
+	})
+	if err != nil {
+		switch {
+		case database.IsUniqueViolation(err):
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{Message: "AI provider already exists."})
+		case database.IsCheckViolation(err):
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Invalid AI provider."})
+		default:
+			api.writeAIProviderInternalServerError(ctx, rw, "failed to create AI provider", codersdk.Response{Message: "Failed to create AI provider."}, err)
+		}
+		return
+	}
+	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventProviders, uuid.Nil)
+	httpapi.Write(ctx, rw, http.StatusCreated, convertAIProvider(provider))
+}
+
+func (api *API) readAIProvider(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceAIProvider) {
+		httpapi.Forbidden(rw)
+		return
+	}
+	providerID, err := parseAIProviderID(r)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Invalid AI provider ID."})
+		return
+	}
+	provider, err := api.Database.GetAIProviderByID(ctx, providerID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{Message: "AI provider not found."})
+			return
+		}
+		api.writeAIProviderInternalServerError(ctx, rw, "failed to get AI provider", codersdk.Response{Message: "Failed to get AI provider."}, err, slog.F("ai_provider_id", providerID))
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, convertAIProvider(provider))
+}
+
+func (api *API) updateAIProvider(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceAIProvider) {
+		httpapi.Forbidden(rw)
+		return
+	}
+	providerID, err := parseAIProviderID(r)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Invalid AI provider ID."})
+		return
+	}
+	var req codersdk.UpdateAIProviderRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	var provider database.AIProvider
+	if err := api.Database.InTx(func(tx database.Store) error {
+		current, err := tx.GetAIProviderByIDForUpdate(ctx, providerID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return httperror.NewResponseError(http.StatusNotFound, codersdk.Response{Message: "AI provider not found."})
+			}
+			return httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{Message: "Failed to get AI provider."})
+		}
+		name := current.Name
+		if req.Name != nil {
+			name = strings.TrimSpace(*req.Name)
+			if !validAIProviderName(name) {
+				return httperror.NewResponseError(http.StatusBadRequest, invalidAIProviderNameResponse())
+			}
+		}
+		displayName := current.DisplayName
+		if req.DisplayName != nil {
+			trimmed := strings.TrimSpace(*req.DisplayName)
+			displayName = sql.NullString{String: trimmed, Valid: trimmed != ""}
+		}
+		baseURL := current.BaseUrl
+		if req.BaseURL != nil {
+			baseURL, err = normalizeChatProviderBaseURL(*req.BaseURL)
+			if err != nil {
+				return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
+					Message: "Invalid provider base URL.",
+					Detail:  err.Error(),
+				})
+			}
+		}
+		enabled := current.Enabled
+		if req.Enabled != nil {
+			enabled = *req.Enabled
+		}
+		provider, err = tx.UpdateAIProvider(ctx, database.UpdateAIProviderParams{
+			ID:            providerID,
+			Name:          name,
+			DisplayName:   displayName,
+			Enabled:       enabled,
+			BaseUrl:       baseURL,
+			Settings:      current.Settings,
+			SettingsKeyID: current.SettingsKeyID,
+		})
+		if err != nil {
+			switch {
+			case database.IsUniqueViolation(err):
+				return httperror.NewResponseError(http.StatusConflict, codersdk.Response{Message: "AI provider already exists."})
+			case database.IsCheckViolation(err):
+				return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{Message: "Invalid AI provider."})
+			default:
+				return httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{Message: "Failed to update AI provider."})
+			}
+		}
+		return nil
+	}, nil); err != nil {
+		api.writeAIProviderResponseError(ctx, rw, err, slog.F("ai_provider_id", providerID))
+		return
+	}
+	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventProviders, uuid.Nil)
+	httpapi.Write(ctx, rw, http.StatusOK, convertAIProvider(provider))
+}
+
+func (api *API) deleteAIProvider(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionDelete, rbac.ResourceAIProvider) {
+		httpapi.Forbidden(rw)
+		return
+	}
+	providerID, err := parseAIProviderID(r)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Invalid AI provider ID."})
+		return
+	}
+	if err := api.Database.InTx(func(tx database.Store) error {
+		_, err := tx.GetAIProviderByIDForUpdate(ctx, providerID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return httperror.NewResponseError(http.StatusNotFound, codersdk.Response{Message: "AI provider not found."})
+			}
+			return httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{Message: "Failed to get AI provider."})
+		}
+		if err := tx.DeleteChatModelConfigsByAIProviderID(ctx, providerID); err != nil {
+			return httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{Message: "Failed to delete chat model configs."})
+		}
+		if err := ensureDefaultChatModelConfig(ctx, tx); err != nil {
+			return err
+		}
+		//nolint:gocritic // The route already authorized AI provider deletion.
+		keys, err := tx.GetAIProviderKeysByProviderID(dbauthz.AsSystemRestricted(ctx), providerID)
+		if err != nil {
+			return httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{Message: "Failed to list AI provider keys."})
+		}
+		for _, key := range keys {
+			if err := tx.DeleteAIProviderKey(ctx, key.ID); err != nil {
+				return httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{Message: "Failed to delete AI provider key."})
+			}
+		}
+		if err := tx.DeleteUserAIProviderKeysByProviderID(ctx, providerID); err != nil {
+			return httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{Message: "Failed to delete user AI provider keys."})
+		}
+		if err := tx.DeleteAIProviderByID(ctx, providerID); err != nil {
+			return httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{Message: "Failed to delete AI provider."})
+		}
+		return nil
+	}, nil); err != nil {
+		api.writeAIProviderResponseError(ctx, rw, err, slog.F("ai_provider_id", providerID))
+		return
+	}
+	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventProviders, uuid.Nil)
+	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
+}
+
+func (api *API) listAIProviderKeys(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceAIProvider) {
+		httpapi.Forbidden(rw)
+		return
+	}
+	providerID, err := parseAIProviderID(r)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Invalid AI provider ID."})
+		return
+	}
+	keys, err := api.Database.GetAIProviderKeysByProviderID(ctx, providerID)
+	if err != nil {
+		api.writeAIProviderInternalServerError(ctx, rw, "failed to list AI provider keys", codersdk.Response{Message: "Failed to list AI provider keys."}, err, slog.F("ai_provider_id", providerID))
+		return
+	}
+	resp := make([]codersdk.AIProviderKey, 0, len(keys))
+	for _, key := range keys {
+		resp = append(resp, convertAIProviderKey(key))
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
+func (api *API) createAIProviderKey(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceAIProvider) {
+		httpapi.Forbidden(rw)
+		return
+	}
+	providerID, err := parseAIProviderID(r)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Invalid AI provider ID."})
+		return
+	}
+	var req codersdk.CreateAIProviderKeyRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	trimmedAPIKey := strings.TrimSpace(req.APIKey)
+	if err := validateChatProviderAPIKeySize(trimmedAPIKey); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "API key too large.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if trimmedAPIKey == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "API key is required."})
+		return
+	}
+	var key database.AIProviderKey
+	if err := api.Database.InTx(func(tx database.Store) error {
+		//nolint:gocritic // The route already authorized provider key creation.
+		_, err := tx.GetAIProviderByID(dbauthz.AsSystemRestricted(ctx), providerID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return httperror.NewResponseError(http.StatusNotFound, codersdk.Response{Message: "AI provider not found."})
+			}
+			return httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{Message: "Failed to get AI provider."})
+		}
+		now := api.Clock.Now()
+		key, err = tx.InsertAIProviderKey(ctx, database.InsertAIProviderKeyParams{
+			ID:          uuid.New(),
+			ProviderID:  providerID,
+			APIKey:      trimmedAPIKey,
+			ApiKeyKeyID: sql.NullString{},
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		})
+		if err != nil {
+			return httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{Message: "Failed to create AI provider key."})
+		}
+		return nil
+	}, nil); err != nil {
+		api.writeAIProviderResponseError(ctx, rw, err, slog.F("ai_provider_id", providerID))
+		return
+	}
+	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventProviders, uuid.Nil)
+	httpapi.Write(ctx, rw, http.StatusCreated, convertAIProviderKey(key))
+}
+
+func (api *API) deleteAIProviderKey(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionDelete, rbac.ResourceAIProvider) {
+		httpapi.Forbidden(rw)
+		return
+	}
+	providerID, err := parseAIProviderID(r)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Invalid AI provider ID."})
+		return
+	}
+	keyID, err := parseAIProviderKeyID(r)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Invalid AI provider key ID."})
+		return
+	}
+	key, err := api.Database.GetAIProviderKeyByID(ctx, keyID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{Message: "AI provider key not found."})
+			return
+		}
+		api.writeAIProviderInternalServerError(ctx, rw, "failed to get AI provider key", codersdk.Response{Message: "Failed to get AI provider key."}, err, slog.F("ai_provider_id", providerID), slog.F("ai_provider_key_id", keyID))
+		return
+	}
+	if key.ProviderID != providerID {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{Message: "AI provider key not found."})
+		return
+	}
+	if err := api.Database.DeleteAIProviderKey(ctx, keyID); err != nil {
+		api.writeAIProviderInternalServerError(ctx, rw, "failed to delete AI provider key", codersdk.Response{Message: "Failed to delete AI provider key."}, err, slog.F("ai_provider_id", providerID), slog.F("ai_provider_key_id", keyID))
+		return
+	}
+	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventProviders, uuid.Nil)
+	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
+}
+
+func (api *API) listUserAIProviderKeyConfigs(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+	//nolint:gocritic // Users can list limited enabled provider metadata without AI provider admin permissions.
+	providers, err := api.Database.GetAIProviders(dbauthz.AsSystemRestricted(ctx), database.GetAIProvidersParams{IncludeDisabled: true})
+	if err != nil {
+		api.writeAIProviderInternalServerError(ctx, rw, "failed to list user AI provider configs", codersdk.Response{Message: "Failed to list AI providers."}, err, slog.F("user_id", apiKey.UserID))
+		return
+	}
+	keys, err := api.Database.GetUserAIProviderKeysByUserID(ctx, apiKey.UserID)
+	if err != nil {
+		api.writeAIProviderInternalServerError(ctx, rw, "failed to list user AI provider keys", codersdk.Response{Message: "Failed to list user AI provider keys."}, err, slog.F("user_id", apiKey.UserID))
+		return
+	}
+	keysByProviderID := make(map[uuid.UUID]struct{}, len(keys))
+	for _, key := range keys {
+		keysByProviderID[key.AIProviderID] = struct{}{}
+	}
+	byokEnabled := api.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value()
+	configs := make([]codersdk.UserAIProviderKeyConfig, 0, len(providers))
+	for _, provider := range providers {
+		_, hasKey := keysByProviderID[provider.ID]
+		if provider.Deleted || (!provider.Enabled && !hasKey) {
+			continue
+		}
+		configs = append(configs, codersdk.UserAIProviderKeyConfig{
+			Provider:      convertAIProviderSummary(provider),
+			HasUserAPIKey: hasKey,
+			BYOKEnabled:   byokEnabled,
+		})
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, configs)
+}
+
+func (api *API) upsertUserAIProviderKey(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value() {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{Message: "BYOK is disabled."})
+		return
+	}
+	apiKey := httpmw.APIKey(r)
+	providerID, err := parseAIProviderID(r)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Invalid AI provider ID."})
+		return
+	}
+	//nolint:gocritic // Users can attach their own key to an enabled provider without AI provider admin permissions.
+	provider, err := api.Database.GetAIProviderByID(dbauthz.AsSystemRestricted(ctx), providerID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{Message: "AI provider not found."})
+			return
+		}
+		api.writeAIProviderInternalServerError(ctx, rw, "failed to get AI provider", codersdk.Response{Message: "Failed to get AI provider."}, err, slog.F("ai_provider_id", providerID))
+		return
+	}
+	if !provider.Enabled {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "AI provider is disabled."})
+		return
+	}
+	var req codersdk.CreateUserAIProviderKeyRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	trimmedAPIKey := strings.TrimSpace(req.APIKey)
+	if err := validateChatProviderAPIKeySize(trimmedAPIKey); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "API key too large.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if trimmedAPIKey == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "API key is required."})
+		return
+	}
+	now := api.Clock.Now()
+	_, err = api.Database.UpsertUserAIProviderKey(ctx, database.UpsertUserAIProviderKeyParams{
+		ID:           uuid.New(),
+		UserID:       apiKey.UserID,
+		AIProviderID: providerID,
+		APIKey:       trimmedAPIKey,
+		ApiKeyKeyID:  sql.NullString{},
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	})
+	if err != nil {
+		api.writeAIProviderInternalServerError(ctx, rw, "failed to update user AI provider key", codersdk.Response{Message: "Failed to update user AI provider key."}, err, slog.F("user_id", apiKey.UserID), slog.F("ai_provider_id", providerID))
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserAIProviderKeyConfig{
+		Provider:      convertAIProviderSummary(provider),
+		HasUserAPIKey: true,
+		BYOKEnabled:   true,
+	})
+}
+
+func (api *API) deleteUserAIProviderKey(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+	providerID, err := parseAIProviderID(r)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Invalid AI provider ID."})
+		return
+	}
+	if err := api.Database.DeleteUserAIProviderKey(ctx, database.DeleteUserAIProviderKeyParams{UserID: apiKey.UserID, AIProviderID: providerID}); err != nil {
+		api.writeAIProviderInternalServerError(ctx, rw, "failed to delete user AI provider key", codersdk.Response{Message: "Failed to delete user AI provider key."}, err, slog.F("user_id", apiKey.UserID), slog.F("ai_provider_id", providerID))
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
+}
+
 func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	//nolint:gocritic // System context required to read enabled chat providers.

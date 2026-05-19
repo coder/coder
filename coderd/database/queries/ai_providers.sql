@@ -6,6 +6,24 @@ FROM
 WHERE
     id = @id::uuid AND deleted = FALSE;
 
+-- name: GetAIProviderByIDForUpdate :one
+SELECT
+    *
+FROM
+    ai_providers
+WHERE
+    id = @id::uuid AND deleted = FALSE
+FOR UPDATE;
+
+-- name: GetAIProviderByIDForReferenceLock :one
+SELECT
+    *
+FROM
+    ai_providers
+WHERE
+    id = @id::uuid AND deleted = FALSE
+FOR SHARE;
+
 -- name: GetAIProviderByName :one
 SELECT
     *
@@ -54,6 +72,7 @@ RETURNING
 UPDATE
     ai_providers
 SET
+    name = @name::text,
     display_name = sqlc.narg('display_name')::text,
     enabled = @enabled::boolean,
     base_url = @base_url::text,

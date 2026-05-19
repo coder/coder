@@ -1943,6 +1943,13 @@ func (q *querier) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID) e
 	return q.db.DeleteChatModelConfigByID(ctx, id)
 }
 
+func (q *querier) DeleteChatModelConfigsByAIProviderID(ctx context.Context, aiProviderID uuid.UUID) error {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAIProvider); err != nil {
+		return err
+	}
+	return q.db.DeleteChatModelConfigsByAIProviderID(ctx, aiProviderID)
+}
+
 func (q *querier) DeleteChatModelConfigsByProvider(ctx context.Context, provider string) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return err
@@ -2545,6 +2552,20 @@ func (q *querier) GetAIProviderByID(ctx context.Context, id uuid.UUID) (database
 		return database.AIProvider{}, err
 	}
 	return q.db.GetAIProviderByID(ctx, id)
+}
+
+func (q *querier) GetAIProviderByIDForReferenceLock(ctx context.Context, id uuid.UUID) (database.AIProvider, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIProvider); err != nil {
+		return database.AIProvider{}, err
+	}
+	return q.db.GetAIProviderByIDForReferenceLock(ctx, id)
+}
+
+func (q *querier) GetAIProviderByIDForUpdate(ctx context.Context, id uuid.UUID) (database.AIProvider, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAIProvider); err != nil {
+		return database.AIProvider{}, err
+	}
+	return q.db.GetAIProviderByIDForUpdate(ctx, id)
 }
 
 func (q *querier) GetAIProviderByName(ctx context.Context, name string) (database.AIProvider, error) {

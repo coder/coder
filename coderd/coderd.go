@@ -1267,6 +1267,20 @@ func New(options *Options) *API {
 					r.Delete("/", api.deleteChatProvider)
 				})
 			})
+			r.Route("/ai-providers", func(r chi.Router) {
+				r.Get("/", api.listAIProviders)
+				r.Post("/", api.createAIProvider)
+				r.Route("/{aiProvider}", func(r chi.Router) {
+					r.Get("/", api.readAIProvider)
+					r.Patch("/", api.updateAIProvider)
+					r.Delete("/", api.deleteAIProvider)
+					r.Route("/keys", func(r chi.Router) {
+						r.Get("/", api.listAIProviderKeys)
+						r.Post("/", api.createAIProviderKey)
+						r.Delete("/{aiProviderKey}", api.deleteAIProviderKey)
+					})
+				})
+			})
 			// TODO(cian): place under /api/experimental/chats/config
 			r.Route("/model-configs", func(r chi.Router) {
 				r.Get("/", api.listChatModelConfigs)
@@ -1294,6 +1308,13 @@ func New(options *Options) *API {
 				r.Route("/{providerConfig}", func(r chi.Router) {
 					r.Put("/", api.upsertUserChatProviderKey)
 					r.Delete("/", api.deleteUserChatProviderKey)
+				})
+			})
+			r.Route("/user-ai-provider-keys", func(r chi.Router) {
+				r.Get("/", api.listUserAIProviderKeyConfigs)
+				r.Route("/{aiProvider}", func(r chi.Router) {
+					r.Put("/", api.upsertUserAIProviderKey)
+					r.Delete("/", api.deleteUserAIProviderKey)
 				})
 			})
 			r.Route("/{chat}", func(r chi.Router) {

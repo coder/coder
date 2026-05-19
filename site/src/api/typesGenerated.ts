@@ -311,6 +311,9 @@ export interface AIProvider {
 	readonly name: string;
 	readonly display_name: string;
 	readonly enabled: boolean;
+	readonly deleted: boolean;
+	readonly has_provider_api_key: boolean;
+	readonly byok_enabled: boolean;
 	readonly base_url: string;
 	readonly settings: AIProviderSettings;
 	readonly created_at: string;
@@ -422,6 +425,19 @@ export interface AIProviderSettings {}
  * AIProviderBedrockSettings.
  */
 export const AIProviderSettingsTypeBedrock = "bedrock";
+
+// From codersdk/chats.go
+/**
+ * AIProviderSummary is provider metadata embedded in other API responses.
+ */
+export interface AIProviderSummary {
+	readonly id: string;
+	readonly type: AIProviderType;
+	readonly name: string;
+	readonly display_name: string;
+	readonly enabled: boolean;
+	readonly deleted: boolean;
+}
 
 // From codersdk/aiproviders.go
 export type AIProviderType =
@@ -3172,9 +3188,10 @@ export interface CreateAIProviderRequest {
 	readonly type: AIProviderType;
 	readonly name: string;
 	readonly display_name?: string;
-	readonly enabled: boolean;
-	readonly base_url: string;
+	readonly enabled?: boolean;
+	readonly base_url?: string;
 	readonly settings?: AIProviderSettings;
+	readonly api_key?: string;
 }
 
 // From codersdk/chats.go
@@ -3538,6 +3555,15 @@ export interface CreateTokenRequest {
 	readonly scopes?: readonly APIKeyScope[];
 	readonly token_name: string;
 	readonly allow_list?: readonly APIAllowListTarget[];
+}
+
+// From codersdk/chats.go
+/**
+ * CreateUserAIProviderKeyRequest creates or replaces a user's API key
+ * for an AI provider.
+ */
+export interface CreateUserAIProviderKeyRequest {
+	readonly api_key: string;
 }
 
 // From codersdk/chats.go
@@ -8309,10 +8335,12 @@ export interface TransitionStats {
  * to the zero value).
  */
 export interface UpdateAIProviderRequest {
+	readonly name?: string;
 	readonly display_name?: string;
 	readonly enabled?: boolean;
 	readonly base_url?: string;
 	readonly settings?: AIProviderSettings;
+	readonly api_key?: string;
 }
 
 // From codersdk/templates.go
@@ -9032,6 +9060,17 @@ export interface User extends ReducedUser {
 	 * field, even when false.
 	 */
 	readonly has_ai_seat: boolean;
+}
+
+// From codersdk/chats.go
+/**
+ * UserAIProviderKeyConfig is a provider summary from the current user's
+ * perspective. It reports key presence but never returns key material.
+ */
+export interface UserAIProviderKeyConfig {
+	readonly provider: AIProviderSummary;
+	readonly has_user_api_key: boolean;
+	readonly byok_enabled: boolean;
 }
 
 // From codersdk/insights.go

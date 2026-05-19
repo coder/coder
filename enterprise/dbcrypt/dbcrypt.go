@@ -386,6 +386,9 @@ func (db *dbCrypt) GetCryptoKeysByFeature(ctx context.Context, feature database.
 }
 
 // decryptAIProvider decrypts the secret fields of an AI provider row.
+// API response converters omit these fields, but update paths preserve existing
+// settings by reading and writing them through dbcrypt. Returning plaintext here
+// avoids double-encrypting settings when callers update non-secret metadata.
 func (db *dbCrypt) decryptAIProvider(p *database.AIProvider) error {
 	if !p.Settings.Valid {
 		return nil
@@ -412,6 +415,17 @@ func (db *dbCrypt) encryptAIProviderSettings(settings *sql.NullString, keyID *sq
 
 func (db *dbCrypt) GetAIProviderByID(ctx context.Context, id uuid.UUID) (database.AIProvider, error) {
 	provider, err := db.Store.GetAIProviderByID(ctx, id)
+	if err != nil {
+		return database.AIProvider{}, err
+	}
+	if err := db.decryptAIProvider(&provider); err != nil {
+		return database.AIProvider{}, err
+	}
+	return provider, nil
+}
+
+func (db *dbCrypt) GetAIProviderByIDForUpdate(ctx context.Context, id uuid.UUID) (database.AIProvider, error) {
+	provider, err := db.Store.GetAIProviderByIDForUpdate(ctx, id)
 	if err != nil {
 		return database.AIProvider{}, err
 	}

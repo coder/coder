@@ -2076,6 +2076,520 @@ func TestWatchChats(t *testing.T) {
 	})
 }
 
+func TestAIProviderCRUD(t *testing.T) {
+	t.Parallel()
+
+	t.Run("AdminLifecycle", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		name := "test-openai-" + uuid.NewString()
+
+		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:        codersdk.AIProviderTypeOpenAI,
+			Name:        name,
+			DisplayName: "OpenAI Test",
+			BaseURL:     "https://api.openai.example.com/v1",
+		})
+		require.NoError(t, err)
+		require.NotEqual(t, uuid.Nil, provider.ID)
+		require.Equal(t, codersdk.AIProviderTypeOpenAI, provider.Type)
+		require.Equal(t, name, provider.Name)
+		require.Equal(t, "OpenAI Test", provider.DisplayName)
+		require.True(t, provider.Enabled)
+
+		got, err := client.GetAIProvider(ctx, provider.ID)
+		require.NoError(t, err)
+		require.Equal(t, provider.ID, got.ID)
+
+		providers, err := client.ListAIProviders(ctx)
+		require.NoError(t, err)
+		require.Contains(t, providers, provider)
+
+		updatedName := "test-anthropic-" + uuid.NewString()
+		disabled := false
+		updated, err := client.UpdateAIProvider(ctx, provider.ID, codersdk.UpdateAIProviderRequest{
+			Name:        &updatedName,
+			DisplayName: ptr.Ref("Anthropic Test"),
+			BaseURL:     ptr.Ref("https://api.anthropic.example.com/v1"),
+			Enabled:     &disabled,
+		})
+		require.NoError(t, err)
+		require.Equal(t, updatedName, updated.Name)
+		require.Equal(t, "Anthropic Test", updated.DisplayName)
+		require.Equal(t, "https://api.anthropic.example.com/v1", updated.BaseURL)
+		require.False(t, updated.Enabled)
+
+		key, err := client.CreateAIProviderKey(ctx, provider.ID, codersdk.CreateAIProviderKeyRequest{APIKey: "test-api-key"})
+		require.NoError(t, err)
+		require.Equal(t, provider.ID, key.ProviderID)
+
+		keys, err := client.ListAIProviderKeys(ctx, provider.ID)
+		require.NoError(t, err)
+		require.Len(t, keys, 1)
+		require.Equal(t, key.ID, keys[0].ID)
+
+		require.NoError(t, client.DeleteAIProviderKey(ctx, provider.ID, key.ID))
+		keys, err = client.ListAIProviderKeys(ctx, provider.ID)
+		require.NoError(t, err)
+		require.Empty(t, keys)
+
+		require.NoError(t, client.DeleteAIProvider(ctx, provider.ID))
+		_, err = client.GetAIProvider(ctx, provider.ID)
+		requireSDKError(t, err, http.StatusNotFound)
+	})
+
+	t.Run("CreateValidation", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		name := "test-openai-" + uuid.NewString()
+
+		_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type: codersdk.AIProviderTypeOpenAI,
+			Name: name,
+		})
+		require.NoError(t, err)
+
+		_, err = client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type: codersdk.AIProviderTypeOpenAI,
+			Name: name,
+		})
+		sdkErr := requireSDKError(t, err, http.StatusConflict)
+		require.Equal(t, "AI provider already exists.", sdkErr.Message)
+
+		_, err = client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type: codersdk.AIProviderTypeOpenAI,
+			Name: "InvalidName",
+		})
+		sdkErr = requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid AI provider name.", sdkErr.Message)
+
+		_, err = client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type: codersdk.AIProviderType("not-a-provider"),
+			Name: "test-invalid-" + uuid.NewString(),
+		})
+		sdkErr = requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid AI provider type.", sdkErr.Message)
+
+		for _, validName := range []string{"a", "1", "a-1", "agents"} {
+			_, err = client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+				Type: codersdk.AIProviderTypeOpenAI,
+				Name: validName,
+			})
+			require.NoError(t, err, "valid name %q", validName)
+		}
+
+		for _, invalidName := range []string{"-agents", "agents-openai", "a--1", "a-", "not a valid provider name"} {
+			_, err = client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+				Type: codersdk.AIProviderTypeOpenAI,
+				Name: invalidName,
+			})
+			sdkErr = requireSDKError(t, err, http.StatusBadRequest)
+			require.Equal(t, "Invalid AI provider name.", sdkErr.Message, "invalid name %q", invalidName)
+		}
+	})
+
+	t.Run("CreateNormalizesInput", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		name := "test-normalized-" + uuid.NewString()
+
+		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:        codersdk.AIProviderTypeOpenAI,
+			Name:        "  " + name + "  ",
+			DisplayName: "  Normalized Provider  ",
+			BaseURL:     "  https://api.openai.example.com/v1  ",
+		})
+		require.NoError(t, err)
+		require.Equal(t, name, provider.Name)
+		require.Equal(t, "Normalized Provider", provider.DisplayName)
+		require.Equal(t, "https://api.openai.example.com/v1", provider.BaseURL)
+	})
+
+	t.Run("CreateRejectsInvalidBaseURL", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "test-invalid-base-url-" + uuid.NewString(),
+			BaseURL: "file:///tmp/model",
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid provider base URL.", sdkErr.Message)
+	})
+
+	t.Run("UpdateRejectsInvalidName", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type: codersdk.AIProviderTypeOpenAI,
+			Name: "test-update-invalid-name-" + uuid.NewString(),
+		})
+		require.NoError(t, err)
+
+		_, err = client.UpdateAIProvider(ctx, provider.ID, codersdk.UpdateAIProviderRequest{
+			Name: ptr.Ref("not a valid provider name"),
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid AI provider name.", sdkErr.Message)
+		require.NotEmpty(t, sdkErr.Detail)
+	})
+
+	t.Run("UpdateRejectsDuplicateName", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type: codersdk.AIProviderTypeOpenAI,
+			Name: "test-update-duplicate-name-" + uuid.NewString(),
+		})
+		require.NoError(t, err)
+		other, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type: codersdk.AIProviderTypeOpenAI,
+			Name: "test-update-duplicate-other-" + uuid.NewString(),
+		})
+		require.NoError(t, err)
+
+		_, err = client.UpdateAIProvider(ctx, provider.ID, codersdk.UpdateAIProviderRequest{
+			Name: ptr.Ref(other.Name),
+		})
+		sdkErr := requireSDKError(t, err, http.StatusConflict)
+		require.Equal(t, "AI provider already exists.", sdkErr.Message)
+	})
+
+	t.Run("UpdateRejectsInvalidBaseURL", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type: codersdk.AIProviderTypeOpenAI,
+			Name: "test-update-base-url-" + uuid.NewString(),
+		})
+		require.NoError(t, err)
+
+		_, err = client.UpdateAIProvider(ctx, provider.ID, codersdk.UpdateAIProviderRequest{
+			BaseURL: ptr.Ref("localhost:11434"),
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid provider base URL.", sdkErr.Message)
+	})
+
+	t.Run("DeleteMissingProvider", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		err := client.DeleteAIProvider(ctx, uuid.New())
+		sdkErr := requireSDKError(t, err, http.StatusNotFound)
+		require.Equal(t, "AI provider not found.", sdkErr.Message)
+	})
+
+	t.Run("CreateKeyRejectsLargeAPIKey", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type: codersdk.AIProviderTypeOpenAI,
+			Name: "test-large-key-" + uuid.NewString(),
+		})
+		require.NoError(t, err)
+
+		_, err = client.CreateAIProviderKey(ctx, provider.ID, codersdk.CreateAIProviderKeyRequest{APIKey: strings.Repeat("x", 10241)})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "API key too large.", sdkErr.Message)
+	})
+
+	t.Run("CreateKeyRejectsEmptyAPIKey", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type: codersdk.AIProviderTypeOpenAI,
+			Name: "test-empty-key-" + uuid.NewString(),
+		})
+		require.NoError(t, err)
+
+		_, err = client.CreateAIProviderKey(ctx, provider.ID, codersdk.CreateAIProviderKeyRequest{APIKey: "  "})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "API key is required.", sdkErr.Message)
+	})
+
+	t.Run("CreateKeyForMissingProvider", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		_, err := client.CreateAIProviderKey(ctx, uuid.New(), codersdk.CreateAIProviderKeyRequest{APIKey: "test-api-key"})
+		sdkErr := requireSDKError(t, err, http.StatusNotFound)
+		require.Equal(t, "AI provider not found.", sdkErr.Message)
+	})
+
+	t.Run("DeleteProviderDeletesProviderKeys", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type: codersdk.AIProviderTypeOpenAI,
+			Name: "test-delete-keys-" + uuid.NewString(),
+		})
+		require.NoError(t, err)
+		_, err = client.CreateAIProviderKey(ctx, provider.ID, codersdk.CreateAIProviderKeyRequest{APIKey: "test-api-key"})
+		require.NoError(t, err)
+
+		require.NoError(t, client.DeleteAIProvider(ctx, provider.ID))
+		keys, err := client.ListAIProviderKeys(ctx, provider.ID)
+		require.NoError(t, err)
+		require.Empty(t, keys)
+	})
+
+	t.Run("DeleteProviderDeletesUserKeys", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		adminClient, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+		memberClientRaw, member := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+		provider, err := adminClient.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type: codersdk.AIProviderTypeOpenAI,
+			Name: "test-delete-user-keys-" + uuid.NewString(),
+		})
+		require.NoError(t, err)
+		_, err = memberClient.UpsertUserAIProviderKey(ctx, provider.ID, codersdk.CreateUserAIProviderKeyRequest{APIKey: "test-user-api-key"})
+		require.NoError(t, err)
+
+		_, err = db.GetUserAIProviderKeyByProviderID(dbauthz.AsSystemRestricted(ctx), database.GetUserAIProviderKeyByProviderIDParams{
+			UserID:       member.ID,
+			AIProviderID: provider.ID,
+		})
+		require.NoError(t, err)
+		require.NoError(t, adminClient.DeleteAIProvider(ctx, provider.ID))
+		_, err = db.GetUserAIProviderKeyByProviderID(dbauthz.AsSystemRestricted(ctx), database.GetUserAIProviderKeyByProviderIDParams{
+			UserID:       member.ID,
+			AIProviderID: provider.ID,
+		})
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	})
+
+	t.Run("ForbiddenForOrganizationMember", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		adminClient := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		_, err := memberClient.ListAIProviders(ctx)
+		requireSDKError(t, err, http.StatusForbidden)
+		_, err = memberClient.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type: codersdk.AIProviderTypeOpenAI,
+			Name: "test-member-" + uuid.NewString(),
+		})
+		requireSDKError(t, err, http.StatusForbidden)
+	})
+}
+
+func TestUserAIProviderKeys(t *testing.T) {
+	t.Parallel()
+
+	t.Run("SelfServiceLifecycle", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		adminClient := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		provider, err := adminClient.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type: codersdk.AIProviderTypeOpenAI,
+			Name: "test-user-key-" + uuid.NewString(),
+		})
+		require.NoError(t, err)
+
+		configs, err := memberClient.ListUserAIProviderKeyConfigs(ctx)
+		require.NoError(t, err)
+		var cfg *codersdk.UserAIProviderKeyConfig
+		for i := range configs {
+			if configs[i].Provider.ID == provider.ID {
+				cfg = &configs[i]
+				break
+			}
+		}
+		require.NotNil(t, cfg)
+		require.False(t, cfg.HasUserAPIKey)
+		require.True(t, cfg.BYOKEnabled)
+
+		cfgValue, err := memberClient.UpsertUserAIProviderKey(ctx, provider.ID, codersdk.CreateUserAIProviderKeyRequest{APIKey: "test-user-api-key"})
+		require.NoError(t, err)
+		require.Equal(t, provider.ID, cfgValue.Provider.ID)
+		require.True(t, cfgValue.HasUserAPIKey)
+		require.True(t, cfgValue.BYOKEnabled)
+
+		configs, err = memberClient.ListUserAIProviderKeyConfigs(ctx)
+		require.NoError(t, err)
+		cfg = nil
+		for i := range configs {
+			if configs[i].Provider.ID == provider.ID {
+				cfg = &configs[i]
+				break
+			}
+		}
+		require.NotNil(t, cfg)
+		require.True(t, cfg.HasUserAPIKey)
+
+		cfgValue, err = memberClient.UpsertUserAIProviderKey(ctx, provider.ID, codersdk.CreateUserAIProviderKeyRequest{APIKey: "replacement-user-api-key"})
+		require.NoError(t, err)
+		require.Equal(t, provider.ID, cfgValue.Provider.ID)
+		require.True(t, cfgValue.HasUserAPIKey)
+
+		configs, err = memberClient.ListUserAIProviderKeyConfigs(ctx)
+		require.NoError(t, err)
+		cfg = nil
+		for i := range configs {
+			if configs[i].Provider.ID == provider.ID {
+				cfg = &configs[i]
+				break
+			}
+		}
+		require.NotNil(t, cfg)
+		require.True(t, cfg.HasUserAPIKey)
+
+		require.NoError(t, memberClient.DeleteUserAIProviderKey(ctx, provider.ID))
+		configs, err = memberClient.ListUserAIProviderKeyConfigs(ctx)
+		require.NoError(t, err)
+		for _, listed := range configs {
+			if listed.Provider.ID == provider.ID {
+				require.False(t, listed.HasUserAPIKey)
+				return
+			}
+		}
+		t.Fatal("provider config not found")
+	})
+
+	t.Run("RejectsDisabledProvider", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		adminClient := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		disabled := false
+		provider, err := adminClient.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "test-disabled-user-key-" + uuid.NewString(),
+			Enabled: &disabled,
+		})
+		require.NoError(t, err)
+
+		_, err = memberClient.UpsertUserAIProviderKey(ctx, provider.ID, codersdk.CreateUserAIProviderKeyRequest{APIKey: "test-user-api-key"})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "AI provider is disabled.", sdkErr.Message)
+	})
+
+	t.Run("RejectsLargeAPIKey", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		adminClient := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		provider, err := adminClient.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type: codersdk.AIProviderTypeOpenAI,
+			Name: "test-large-user-key-" + uuid.NewString(),
+		})
+		require.NoError(t, err)
+
+		_, err = memberClient.UpsertUserAIProviderKey(ctx, provider.ID, codersdk.CreateUserAIProviderKeyRequest{APIKey: strings.Repeat("x", 10241)})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "API key too large.", sdkErr.Message)
+	})
+
+	t.Run("RejectsEmptyAPIKey", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		adminClient := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, adminClient.Client)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+
+		provider, err := adminClient.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type: codersdk.AIProviderTypeOpenAI,
+			Name: "test-empty-user-key-" + uuid.NewString(),
+		})
+		require.NoError(t, err)
+
+		_, err = memberClient.UpsertUserAIProviderKey(ctx, provider.ID, codersdk.CreateUserAIProviderKeyRequest{APIKey: "  "})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "API key is required.", sdkErr.Message)
+	})
+
+	t.Run("BYOKDisabledRejectsUpsertAndAllowsDelete", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		values := chatDeploymentValues(t)
+		values.AI.BridgeConfig.AllowBYOK = serpent.Bool(false)
+		client := newChatClientWithDeploymentValues(t, values)
+		_ = coderdtest.CreateFirstUser(t, client.Client)
+
+		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type: codersdk.AIProviderTypeOpenAI,
+			Name: "test-byok-disabled-" + uuid.NewString(),
+		})
+		require.NoError(t, err)
+
+		_, err = client.UpsertUserAIProviderKey(ctx, provider.ID, codersdk.CreateUserAIProviderKeyRequest{APIKey: "test-user-api-key"})
+		sdkErr := requireSDKError(t, err, http.StatusForbidden)
+		require.Equal(t, "BYOK is disabled.", sdkErr.Message)
+
+		configs, err := client.ListUserAIProviderKeyConfigs(ctx)
+		require.NoError(t, err)
+		for _, cfg := range configs {
+			if cfg.Provider.ID == provider.ID {
+				require.False(t, cfg.BYOKEnabled)
+				break
+			}
+		}
+		require.NoError(t, client.DeleteUserAIProviderKey(ctx, provider.ID))
+	})
+}
+
 func TestListChatProviders(t *testing.T) {
 	t.Parallel()
 
