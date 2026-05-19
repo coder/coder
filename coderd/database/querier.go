@@ -316,10 +316,10 @@ type sqlcQuerier interface {
 	// This function returns roles for authorization purposes. Implied member roles
 	// are included.
 	GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUID) (GetAuthorizationUserRolesRow, error)
-	GetChatACLByID(ctx context.Context, id uuid.UUID) (GetChatACLByIDRow, error)
-	// GetChatAdvisorConfig returns the deployment-wide runtime configuration
 	GetBoundaryLogByID(ctx context.Context, id uuid.UUID) (BoundaryLog, error)
 	GetBoundarySessionByID(ctx context.Context, id uuid.UUID) (BoundarySession, error)
+	GetChatACLByID(ctx context.Context, id uuid.UUID) (GetChatACLByIDRow, error)
+	// GetChatAdvisorConfig returns the deployment-wide runtime configuration
 	// for the experimental chat advisor as a JSON blob. Callers unmarshal the
 	// result into codersdk.AdvisorConfig. Returns '{}' when unset so zero
 	// values apply by default.

@@ -2325,15 +2325,6 @@ func (mr *MockStoreMockRecorder) GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx, 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthorizedWorkspacesAndAgentsByOwnerID", reflect.TypeOf((*MockStore)(nil).GetAuthorizedWorkspacesAndAgentsByOwnerID), ctx, ownerID, prepared)
 }
 
-// GetChatACLByID mocks base method.
-func (m *MockStore) GetChatACLByID(ctx context.Context, id uuid.UUID) (database.GetChatACLByIDRow, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatACLByID", ctx, id)
-	ret0, _ := ret[0].(database.GetChatACLByIDRow)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
 // GetBoundaryLogByID mocks base method.
 func (m *MockStore) GetBoundaryLogByID(ctx context.Context, id uuid.UUID) (database.BoundaryLog, error) {
 	m.ctrl.T.Helper()
@@ -2341,12 +2332,6 @@ func (m *MockStore) GetBoundaryLogByID(ctx context.Context, id uuid.UUID) (datab
 	ret0, _ := ret[0].(database.BoundaryLog)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
-}
-
-// GetChatACLByID indicates an expected call of GetChatACLByID.
-func (mr *MockStoreMockRecorder) GetChatACLByID(ctx, id any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatACLByID", reflect.TypeOf((*MockStore)(nil).GetChatACLByID), ctx, id)
 }
 
 // GetBoundaryLogByID indicates an expected call of GetBoundaryLogByID.
@@ -2368,6 +2353,21 @@ func (m *MockStore) GetBoundarySessionByID(ctx context.Context, id uuid.UUID) (d
 func (mr *MockStoreMockRecorder) GetBoundarySessionByID(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBoundarySessionByID", reflect.TypeOf((*MockStore)(nil).GetBoundarySessionByID), ctx, id)
+}
+
+// GetChatACLByID mocks base method.
+func (m *MockStore) GetChatACLByID(ctx context.Context, id uuid.UUID) (database.GetChatACLByIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatACLByID", ctx, id)
+	ret0, _ := ret[0].(database.GetChatACLByIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatACLByID indicates an expected call of GetChatACLByID.
+func (mr *MockStoreMockRecorder) GetChatACLByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatACLByID", reflect.TypeOf((*MockStore)(nil).GetChatACLByID), ctx, id)
 }
 
 // GetChatAdvisorConfig mocks base method.

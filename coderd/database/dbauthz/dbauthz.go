@@ -2749,17 +2749,6 @@ func (q *querier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUI
 	return q.db.GetAuthorizationUserRoles(ctx, userID)
 }
 
-func (q *querier) GetChatACLByID(ctx context.Context, id uuid.UUID) (database.GetChatACLByIDRow, error) {
-	chat, err := q.db.GetChatByID(ctx, id)
-	if err != nil {
-		return database.GetChatACLByIDRow{}, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionRead, chat); err != nil {
-		return database.GetChatACLByIDRow{}, err
-	}
-	return q.db.GetChatACLByID(ctx, id)
-}
-
 func (q *querier) GetBoundaryLogByID(ctx context.Context, id uuid.UUID) (database.BoundaryLog, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAuditLog); err != nil {
 		return database.BoundaryLog{}, err
@@ -2772,6 +2761,17 @@ func (q *querier) GetBoundarySessionByID(ctx context.Context, id uuid.UUID) (dat
 		return database.BoundarySession{}, err
 	}
 	return q.db.GetBoundarySessionByID(ctx, id)
+}
+
+func (q *querier) GetChatACLByID(ctx context.Context, id uuid.UUID) (database.GetChatACLByIDRow, error) {
+	chat, err := q.db.GetChatByID(ctx, id)
+	if err != nil {
+		return database.GetChatACLByIDRow{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, chat); err != nil {
+		return database.GetChatACLByIDRow{}, err
+	}
+	return q.db.GetChatACLByID(ctx, id)
 }
 
 func (q *querier) GetChatAdvisorConfig(ctx context.Context) (string, error) {

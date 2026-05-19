@@ -1257,14 +1257,6 @@ func (m queryMetricsStore) GetAuthorizationUserRoles(ctx context.Context, userID
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetChatACLByID(ctx context.Context, id uuid.UUID) (database.GetChatACLByIDRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetChatACLByID(ctx, id)
-	m.queryLatencies.WithLabelValues("GetChatACLByID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatACLByID").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetBoundaryLogByID(ctx context.Context, id uuid.UUID) (database.BoundaryLog, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetBoundaryLogByID(ctx, id)
@@ -1278,6 +1270,14 @@ func (m queryMetricsStore) GetBoundarySessionByID(ctx context.Context, id uuid.U
 	r0, r1 := m.s.GetBoundarySessionByID(ctx, id)
 	m.queryLatencies.WithLabelValues("GetBoundarySessionByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetBoundarySessionByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatACLByID(ctx context.Context, id uuid.UUID) (database.GetChatACLByIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatACLByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetChatACLByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatACLByID").Inc()
 	return r0, r1
 }
 
