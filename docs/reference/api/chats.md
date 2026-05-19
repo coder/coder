@@ -17,10 +17,10 @@ Experimental: this endpoint is subject to change.
 
 ### Parameters
 
-|Name|In|Type|Required|Description|
-|---|---|---|---|---|
-|`q`|query|string|false|Search query. Supports title:<substring> (case-insensitive, quote multi-word values), archived:bool, has_unread:bool, pr_status:<draft|open|merged|closed> as repeated or comma-separated values, and diff_url:<url> (quote URLs). Bare terms are not supported; use title:<value> for title filtering.|
-|`label`|query|string|false|Filter by label as key:value. Repeat for multiple (AND logic).|
+| Name    | In    | Type   | Required | Description                                                                                                                                                                                                                                                                                                |
+|---------|-------|--------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `q`     | query | string | false    | Search query. Supports title:<substring> (case-insensitive, quote multi-word values), archived:bool, has_unread:bool, pr_status:<draft\|open\|merged\|closed> as repeated or comma-separated values, and diff_url:<url> (quote URLs). Bare terms are not supported; use title:<value> for title filtering. |
+| `label` | query | string | false    | Filter by label as key:value. Repeat for multiple (AND logic).                                                                                                                                                                                                                                             |
 
 ### Example responses
 
