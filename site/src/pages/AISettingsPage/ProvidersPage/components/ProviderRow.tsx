@@ -22,7 +22,7 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 		<TableRow key={provider.name} {...clickableProps}>
 			<TableCell>
 				<AvatarData
-					title={provider.display_name}
+					title={provider.display_name || provider.name}
 					subtitle={provider.name}
 					avatar={
 						<Avatar className="flex items-center justify-center">

@@ -171,8 +171,11 @@ const UpdateProviderPageView: React.FC<UpdateProviderPageViewProps> = ({
 							size="lg"
 							src={getProviderIcon(provider.type)}
 						/>
-						<PageHeaderTitle className="min-w-0 truncate" title={provider.name}>
-							{provider.name}
+						<PageHeaderTitle
+							className="min-w-0 truncate"
+							title={provider.display_name || provider.name}
+						>
+							{provider.display_name || provider.name}
 						</PageHeaderTitle>
 					</div>
 				</PageHeader>
@@ -201,13 +204,15 @@ const UpdateProviderPageView: React.FC<UpdateProviderPageViewProps> = ({
 							const request = providerFormValuesToUpdate(values, provider);
 							updateMutation.mutate(request, {
 								onSuccess: () => {
-									toast.success(`Provider "${provider.name}" updated.`);
+									toast.success(
+										`Provider "${provider.display_name || provider.name}" updated.`,
+									);
 								},
 								onError: (error) => {
 									toast.error(
 										getErrorMessage(
 											error,
-											`Failed to update provider "${provider.name}".`,
+											`Failed to update provider "${provider.display_name || provider.name}".`,
 										),
 									);
 								},
@@ -228,7 +233,9 @@ const UpdateProviderPageView: React.FC<UpdateProviderPageViewProps> = ({
 					onConfirm={() => {
 						deleteMutation.mutate(undefined, {
 							onSuccess: () => {
-								toast.success(`Provider "${provider.name}" deleted.`);
+								toast.success(
+									`Provider "${provider.display_name || provider.name}" deleted.`,
+								);
 								setDeleteDialogOpen(false);
 								void navigate(backHref, { replace: true });
 							},
@@ -236,7 +243,7 @@ const UpdateProviderPageView: React.FC<UpdateProviderPageViewProps> = ({
 								toast.error(
 									getErrorMessage(
 										error,
-										`Failed to delete provider "${provider.name}".`,
+										`Failed to delete provider "${provider.display_name || provider.name}".`,
 									),
 								);
 							},

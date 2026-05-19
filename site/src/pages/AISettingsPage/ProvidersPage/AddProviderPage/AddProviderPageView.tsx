@@ -105,7 +105,9 @@ const AddProviderPageView: React.FC<AddProviderPageViewProps> = ({
 							const request = providerFormValuesToCreate(values);
 							createMutation.mutate(request, {
 								onSuccess: (res) => {
-									toast.success(`Provider "${res.name}" added.`);
+									toast.success(
+										`Provider "${res.display_name || res.name}" added.`,
+									);
 									void navigate(successHref(res.name));
 								},
 								onError: (error) => {
