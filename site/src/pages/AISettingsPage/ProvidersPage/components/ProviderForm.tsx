@@ -81,7 +81,9 @@ const makeOpenAiAnthropicSchema = (editing: boolean) =>
 			.oneOf(["openai", "anthropic"] as const)
 			.required(),
 		name: makeNameSchema(editing),
-		baseUrl: Yup.string().url("Custom endpoint must be a valid URL"),
+		baseUrl: Yup.string()
+			.url("Endpoint must be a valid URL")
+			.required("Endpoint is required"),
 		apiKey: editing
 			? Yup.string()
 			: Yup.string().required("API key is required"),
@@ -104,12 +106,12 @@ const makeBedrockSchema = (editing: boolean) =>
 			.required(),
 		name: makeNameSchema(editing),
 		baseUrl: Yup.string()
-			.url("Base URL must be a valid URL")
+			.url("Endpoint must be a valid URL")
 			.matches(
 				bedrockRuntimeBaseUrlRegex,
-				"Base URL must be a valid Bedrock Runtime API base URL",
+				"Endpoint must be a valid Bedrock Runtime API base URL",
 			)
-			.required("Base URL is required"),
+			.required("Endpoint is required"),
 		apiKey: Yup.string(),
 		model: Yup.string().required("Model is required"),
 		smallFastModel: Yup.string().required("Small fast model is required"),
@@ -512,9 +514,10 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 							trashLabel="Remove saved API key"
 						/>
 						<FormField
+							required
 							field={getFieldHelpers("baseUrl")}
-							label="Custom endpoint"
-							description="Custom endpoint for this provider. Leave empty to use the default."
+							label="Endpoint"
+							description="The base URL where the provider's API is hosted."
 							className="w-full"
 							placeholder={baseUrlPlaceholder(form.values.type)}
 						/>
@@ -538,7 +541,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 						<FormField
 							required
 							field={getFieldHelpers("baseUrl")}
-							label="Base URL"
+							label="Endpoint"
 							description={
 								<>
 									In the format of{" "}
