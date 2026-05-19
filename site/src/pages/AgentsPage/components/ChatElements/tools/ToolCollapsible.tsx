@@ -23,8 +23,10 @@ interface ToolCollapsibleProps {
 	headerClassName?: string;
 }
 
-interface AgentDisplayModeToolCollapsibleProps
-	extends Omit<ToolCollapsibleProps, "defaultExpanded"> {
+interface AgentDisplayModeToolCollapsibleProps extends Omit<
+	ToolCollapsibleProps,
+	"defaultExpanded"
+> {
 	displayMode: AgentDisplayMode | undefined;
 	autoDisplayState: AgentDisplayState;
 }

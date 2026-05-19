@@ -36,8 +36,8 @@
 			top: var(--mobile-dropdown-top, 3.5rem) !important;
 		}
 		[data-radix-popper-content-wrapper]:has(
-				> .mobile-full-width-dropdown-top-below-header
-			) {
+			> .mobile-full-width-dropdown-top-below-header
+		) {
 			bottom: auto !important;
 			top: 5rem !important;
 		}

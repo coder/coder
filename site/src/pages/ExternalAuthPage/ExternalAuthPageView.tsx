@@ -125,7 +125,9 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 							className="flex items-center justify-center gap-2 text-base"
 						>
 							<ExternalLinkIcon className="size-icon-xs" />
-							{externalAuth.installations.length > 0 ? "Configure" : "Install"}{" "}
+							{externalAuth.installations.length > 0
+								? "Configure"
+								: "Install"}{" "}
 							the {externalAuth.display_name} App
 						</Link>
 					)}

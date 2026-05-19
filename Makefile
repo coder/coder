@@ -617,7 +617,7 @@ YELLOW := $(shell tput setaf 3 2>/dev/null)
 DIM := $(shell tput dim 2>/dev/null || tput setaf 8 2>/dev/null)
 RESET := $(shell tput sgr0 2>/dev/null)
 
-fmt: fmt/ts fmt/go fmt/terraform fmt/shfmt fmt/biome fmt/markdown
+fmt: fmt/ts fmt/go fmt/terraform fmt/shfmt fmt/oxfmt fmt/markdown
 .PHONY: fmt
 
 # Subset of fmt that does not require Go or Node toolchains.
@@ -647,29 +647,29 @@ ifdef FILE
 	# Format single TypeScript/JavaScript file
 	if [[ -f "$(FILE)" ]] && [[ "$(FILE)" == *.ts ]] || [[ "$(FILE)" == *.tsx ]] || [[ "$(FILE)" == *.js ]] || [[ "$(FILE)" == *.jsx ]]; then \
 		echo "$(GREEN)==>$(RESET) $(BOLD)fmt/ts$(RESET) $(FILE)"; \
-		(cd site/ && pnpm exec biome format --write "../$(FILE)"); \
+		(cd site/ && pnpm exec oxfmt --write "../$(FILE)"); \
 	fi
 else
 	echo "$(GREEN)==>$(RESET) $(BOLD)fmt/ts$(RESET)"
 	cd site
 # Avoid writing files in CI to reduce file write activity
 ifdef CI
-	pnpm run check --linter-enabled=false
+	pnpm run format:check
 else
 	pnpm run check:fix
 endif
 endif
 .PHONY: fmt/ts
 
-fmt/biome: site/node_modules/.installed
+fmt/oxfmt: site/node_modules/.installed
 ifdef FILE
-	# Format single file with biome
+	# Format single TypeScript/JavaScript file with oxfmt
 	if [[ -f "$(FILE)" ]] && [[ "$(FILE)" == *.ts ]] || [[ "$(FILE)" == *.tsx ]] || [[ "$(FILE)" == *.js ]] || [[ "$(FILE)" == *.jsx ]]; then \
-		echo "$(GREEN)==>$(RESET) $(BOLD)fmt/biome$(RESET) $(FILE)"; \
-		(cd site/ && pnpm exec biome format --write "../$(FILE)"); \
+		echo "$(GREEN)==>$(RESET) $(BOLD)fmt/oxfmt$(RESET) $(FILE)"; \
+		(cd site/ && pnpm exec oxfmt --write "../$(FILE)"); \
 	fi
 else
-	echo "$(GREEN)==>$(RESET) $(BOLD)fmt/biome$(RESET)"
+	echo "$(GREEN)==>$(RESET) $(BOLD)fmt/oxfmt$(RESET)"
 	cd site/
 # Avoid writing files in CI to reduce file write activity
 ifdef CI
@@ -678,7 +678,7 @@ else
 	pnpm run format
 endif
 endif
-.PHONY: fmt/biome
+.PHONY: fmt/oxfmt
 
 fmt/terraform: $(wildcard *.tf)
 ifdef FILE
@@ -1201,7 +1201,7 @@ site/src/api/typesGenerated.ts: site/node_modules/.installed $(wildcard scripts/
 		$(shell find ./codersdk $(FIND_EXCLUSIONS) -type f -name '*.go') \
 		$(wildcard coderd/healthcheck/health/*.go) \
 		$(wildcard codersdk/healthsdk/*.go) | _gen _gen/bin/apitypings
-	$(call atomic_write,_gen/bin/apitypings,./scripts/biome_format.sh)
+	$(call atomic_write,_gen/bin/apitypings,./scripts/oxfmt_format.sh)
 
 site/e2e/provisionerGenerated.ts: site/node_modules/.installed provisionerd/proto/provisionerd.pb.go provisionersdk/proto/provisioner.pb.go
 	(cd site/ && pnpm run gen:provisioner)
@@ -1210,7 +1210,7 @@ site/e2e/provisionerGenerated.ts: site/node_modules/.installed provisionerd/prot
 site/src/theme/icons.json: site/node_modules/.installed $(wildcard scripts/gensite/*) $(wildcard site/static/icon/*) | _gen _gen/bin/gensite
 	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && \
 		_gen/bin/gensite -icons "$$tmpfile" && \
-		./scripts/biome_format.sh "$$tmpfile" && \
+		./scripts/oxfmt_format.sh "$$tmpfile" && \
 		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
 
 examples/examples.gen.json: scripts/examplegen/main.go examples/examples.go $(shell find ./examples/templates) | _gen _gen/bin/examplegen
@@ -1250,13 +1250,13 @@ codersdk/apikey_scopes_gen.go: scripts/apikeyscopesgen/main.go coderd/rbac/scope
 # the generator build compiles coderd/rbac which includes both.
 site/src/api/rbacresourcesGenerated.ts: site/node_modules/.installed scripts/typegen/codersdk.gotmpl scripts/typegen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go \
 	coderd/rbac/object_gen.go coderd/rbac/scopes_constants_gen.go | _gen _gen/bin/typegen
-	$(call atomic_write,_gen/bin/typegen rbac typescript,./scripts/biome_format.sh)
+	$(call atomic_write,_gen/bin/typegen rbac typescript,./scripts/oxfmt_format.sh)
 
 site/src/api/countriesGenerated.ts: site/node_modules/.installed scripts/typegen/countries.tstmpl scripts/typegen/main.go codersdk/countries.go | _gen _gen/bin/typegen
-	$(call atomic_write,_gen/bin/typegen countries,./scripts/biome_format.sh)
+	$(call atomic_write,_gen/bin/typegen countries,./scripts/oxfmt_format.sh)
 
 site/src/api/chatModelOptionsGenerated.json: scripts/modeloptionsgen/main.go codersdk/chats.go | _gen _gen/bin/modeloptionsgen
-	$(call atomic_write,_gen/bin/modeloptionsgen | tail -n +2,./scripts/biome_format.sh)
+	$(call atomic_write,_gen/bin/modeloptionsgen | tail -n +2,./scripts/oxfmt_format.sh)
 
 scripts/metricsdocgen/generated_metrics: $(GO_SRC_FILES) | _gen _gen/bin/metricsdocgen-scanner
 	$(call atomic_write,_gen/bin/metricsdocgen-scanner)
@@ -1307,7 +1307,7 @@ coderd/apidoc/.gen: \
 		SWAG_OUTPUT_DIR="$$swagtmp" APIDOCGEN_DOCS_DIR="$$tmpdir" ./scripts/apidocgen/generate.sh && \
 		pnpm exec markdownlint-cli2 --fix "$$tmpdir/reference/api/*.md" && \
 		pnpm exec markdown-table-formatter "$$tmpdir/reference/api/*.md" && \
-		./scripts/biome_format.sh "$$swagtmp/swagger.json" && \
+		./scripts/oxfmt_format.sh "$$swagtmp/swagger.json" && \
 		for f in "$$tmpdir/reference/api/"*.md; do mv "$$f" "docs/reference/api/$$(basename "$$f")"; done && \
 		mv "$$tmpdir/manifest.json" _gen/manifest-staging.json && \
 		mv "$$swagtmp/docs.go" coderd/apidoc/docs.go && \
@@ -1318,7 +1318,7 @@ coderd/apidoc/.gen: \
 docs/manifest.json: site/node_modules/.installed coderd/apidoc/.gen docs/reference/cli/index.md | _gen
 	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && \
 		cp _gen/manifest-staging.json "$$tmpfile" && \
-		./scripts/biome_format.sh "$$tmpfile" && \
+		./scripts/oxfmt_format.sh "$$tmpfile" && \
 		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
 
 coderd/apidoc/swagger.json: site/node_modules/.installed coderd/apidoc/.gen

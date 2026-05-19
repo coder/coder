@@ -1,0 +1,245 @@
+{
+	"$schema": "./node_modules/oxlint/configuration_schema.json",
+
+	"categories": {
+		"correctness": "off",
+		"suspicious": "off",
+		"pedantic": "off",
+		"perf": "off",
+		"restriction": "off",
+		"style": "off",
+		"nursery": "off",
+	},
+
+	"plugins": [],
+
+	"ignorePatterns": [
+		"**/node_modules/**",
+		"**/pnpm-lock.yaml",
+		"**/static/*.html",
+		"e2e/**/*Generated.ts",
+		"scripts/*.mjs",
+		"storybook-static/**",
+	],
+
+	"options": {
+		"denyWarnings": true,
+	},
+
+	"rules": {
+		"eslint/no-unused-vars": [
+			"warn",
+			{
+				"ignoreRestSiblings": true,
+				"argsIgnorePattern": "^_",
+				"varsIgnorePattern": "^_",
+				"caughtErrorsIgnorePattern": "^_",
+			},
+		],
+
+		"typescript/prefer-as-const": "error",
+		"typescript/prefer-enum-initializers": "error",
+		"typescript/no-inferrable-types": "error",
+
+		"eslint/no-else-return": "error",
+
+		"eslint/no-restricted-imports": [
+			"error",
+			{
+				"paths": [
+					{
+						"name": "react",
+						"importNames": ["forwardRef"],
+						"message": "React 19 no longer requires forwardRef. Use ref as a prop instead.",
+					},
+
+					{
+						"name": "@mui/material/Alert",
+						"message": "Use components/Alert/Alert instead.",
+					},
+					{
+						"name": "@mui/material/AlertTitle",
+						"message": "Use components/Alert/Alert instead.",
+					},
+
+					// { "name": "@mui/material/Autocomplete", "message": "Use shadcn/ui Combobox instead." },
+
+					{
+						"name": "@mui/material/Avatar",
+						"message": "Use components/Avatar/Avatar instead.",
+					},
+					{
+						"name": "@mui/material/Box",
+						"message": "Use a <div> with Tailwind classes instead.",
+					},
+					{
+						"name": "@mui/material/Button",
+						"message": "Use components/Button/Button instead.",
+					},
+
+					// { "name": "@mui/material/Card", "message": "Use shadcn/ui Card component instead." },
+					// { "name": "@mui/material/CardActionArea", "message": "Use shadcn/ui Card component instead." },
+					// { "name": "@mui/material/CardContent", "message": "Use shadcn/ui Card component instead." },
+					// { "name": "@mui/material/Checkbox", "message": "Use shadcn/ui Checkbox component instead." },
+
+					{
+						"name": "@mui/material/Chip",
+						"message": "Use components/Badge or Tailwind styles instead.",
+					},
+
+					// { "name": "@mui/material/CircularProgress", "message": "Use components/Spinner/Spinner instead." },
+					// { "name": "@mui/material/Collapse", "message": "Use shadcn/ui Collapsible instead." },
+					// { "name": "@mui/material/CssBaseline", "message": "Use Tailwind CSS base styles instead." },
+					// { "name": "@mui/material/Dialog", "message": "Use shadcn/ui Dialog component instead." },
+					// { "name": "@mui/material/DialogActions", "message": "Use shadcn/ui Dialog component instead." },
+					// { "name": "@mui/material/DialogContent", "message": "Use shadcn/ui Dialog component instead." },
+					// { "name": "@mui/material/DialogContentText", "message": "Use shadcn/ui Dialog component instead." },
+					// { "name": "@mui/material/DialogTitle", "message": "Use shadcn/ui Dialog component instead." },
+					// { "name": "@mui/material/Divider", "message": "Use shadcn/ui Separator or <hr> with Tailwind instead." },
+					// { "name": "@mui/material/Drawer", "message": "Use shadcn/ui Sheet component instead." },
+					// { "name": "@mui/material/FormControl", "message": "Use native form elements with Tailwind instead." },
+					// { "name": "@mui/material/FormControlLabel", "message": "Use shadcn/ui Label with form components instead." },
+
+					{
+						"name": "@mui/material/FormGroup",
+						"message": "Use a <div> with Tailwind classes instead.",
+					},
+
+					// { "name": "@mui/material/FormHelperText", "message": "Use a <p> with Tailwind classes instead." },
+
+					{
+						"name": "@mui/material/FormLabel",
+						"message": "Use shadcn/ui Label component instead.",
+					},
+					{
+						"name": "@mui/material/Grid",
+						"message": "Use Tailwind grid utilities instead.",
+					},
+					{
+						"name": "@mui/material/IconButton",
+						"message": "Use components/Button/Button with variant='icon' instead.",
+					},
+
+					// { "name": "@mui/material/InputAdornment", "message": "Use Tailwind positioning in input wrapper instead." },
+					// { "name": "@mui/material/InputBase", "message": "Use shadcn/ui Input component instead." },
+
+					{
+						"name": "@mui/material/LinearProgress",
+						"message": "Use a progress bar with Tailwind instead.",
+					},
+
+					// { "name": "@mui/material/Link", "message": "Use React Router Link or native <a> tags instead." },
+					// { "name": "@mui/material/List", "message": "Use native <ul> with Tailwind instead." },
+					// { "name": "@mui/material/ListItem", "message": "Use native <li> with Tailwind instead." },
+
+					{
+						"name": "@mui/material/ListItemIcon",
+						"message": "Use lucide-react icons in list items instead.",
+					},
+
+					// { "name": "@mui/material/ListItemText", "message": "Use native elements with Tailwind instead." },
+					// { "name": "@mui/material/Menu", "message": "Use shadcn/ui DropdownMenu instead." },
+					// { "name": "@mui/material/MenuItem", "message": "Use shadcn/ui DropdownMenu components instead." },
+					// { "name": "@mui/material/MenuList", "message": "Use shadcn/ui DropdownMenu components instead." },
+
+					{
+						"name": "@mui/material/Paper",
+						"message": "Use a <div> with Tailwind shadow/border classes instead.",
+					},
+					{
+						"name": "@mui/material/Popover",
+						"message": "Use components/Popover/Popover instead.",
+					},
+
+					// { "name": "@mui/material/Radio", "message": "Use shadcn/ui RadioGroup instead." },
+					// { "name": "@mui/material/RadioGroup", "message": "Use shadcn/ui RadioGroup instead." },
+					// { "name": "@mui/material/Select", "message": "Use shadcn/ui Select component instead." },
+
+					{
+						"name": "@mui/material/Skeleton",
+						"message": "Use shadcn/ui Skeleton component instead.",
+					},
+
+					// { "name": "@mui/material/Snackbar", "message": "Use components/GlobalSnackbar instead." },
+					// { "name": "@mui/material/Stack", "message": "Use Tailwind flex utilities instead (e.g., <div className='flex flex-col gap-4'>)." },
+					// { "name": "@mui/material/styles", "message": "Use Tailwind CSS instead." },
+
+					{
+						"name": "@mui/material/SvgIcon",
+						"message": "Use lucide-react icons instead.",
+					},
+					{
+						"name": "@mui/material/Switch",
+						"message": "Use shadcn/ui Switch component instead.",
+					},
+					{
+						"name": "@mui/material/Table",
+						"message": "Import from components/Table/Table instead.",
+					},
+					{
+						"name": "@mui/material/TableRow",
+						"message": "Import from components/Table/Table instead.",
+					},
+
+					// { "name": "@mui/material/TextField", "message": "Use shadcn/ui Input component instead." },
+					// { "name": "@mui/material/ToggleButton", "message": "Use shadcn/ui Toggle or custom component instead." },
+					// { "name": "@mui/material/ToggleButtonGroup", "message": "Use shadcn/ui Toggle or custom component instead." },
+
+					{
+						"name": "@mui/material/Tooltip",
+						"message": "Use components/Tooltip/Tooltip instead.",
+					},
+
+					{
+						"name": "@mui/material/Typography",
+						"message": "Use native HTML elements instead. Eg: <span>, <p>, <h1>, etc.",
+					},
+
+					{
+						"name": "@mui/material/useMediaQuery",
+						"message": "Use Tailwind responsive classes or custom hook instead.",
+					},
+
+					// { "name": "@mui/system", "message": "Use Tailwind CSS instead." },
+
+					{
+						"name": "@mui/utils",
+						"message": "Use native alternatives or utility libraries instead.",
+					},
+
+					// { "name": "@emotion/css", "message": "Use Tailwind CSS instead." },
+					// { "name": "@emotion/react", "message": "Use Tailwind CSS instead." },
+
+					{
+						"name": "@emotion/styled",
+						"message": "Use Tailwind CSS instead.",
+					},
+
+					// { "name": "@emotion/cache", "message": "Use Tailwind CSS instead." },
+					// { "name": "#/components/Stack/Stack", "message": "Use Tailwind flex utilities instead (e.g., <div className='flex flex-col gap-4'>)." },
+
+					{
+						"name": "lodash",
+						"message": "Use lodash/<name> instead.",
+					},
+				],
+			},
+		],
+
+		"eslint/no-console": [
+			"error",
+			{
+				"allow": ["error", "info", "warn"],
+			},
+		],
+	},
+
+	"overrides": [
+		{
+			"files": ["**/typesGenerated.ts"],
+			"rules": {
+				"typescript/no-empty-interface": "off",
+			},
+		},
+	],
+}

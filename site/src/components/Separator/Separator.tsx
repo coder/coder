@@ -3,7 +3,7 @@
  * @see {@link https://ui.shadcn.com/docs/components/separator}
  */
 import { Separator as SeparatorPrimitive } from "radix-ui";
-import type * as React from "react";
+import type { ComponentProps } from "react";
 import { cn } from "#/utils/cn";
 
 function Separator({
@@ -11,7 +11,7 @@ function Separator({
 	orientation = "horizontal",
 	decorative = true,
 	...props
-}: React.ComponentProps<typeof SeparatorPrimitive.Root>) {
+}: ComponentProps<typeof SeparatorPrimitive.Root>) {
 	return (
 		<SeparatorPrimitive.Root
 			data-slot="separator"

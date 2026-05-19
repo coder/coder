@@ -6,8 +6,9 @@ import { ScrollArea as ScrollAreaPrimitive } from "radix-ui";
 import { useCallback, useRef } from "react";
 import { cn } from "#/utils/cn";
 
-interface ScrollAreaProps
-	extends React.ComponentPropsWithRef<typeof ScrollAreaPrimitive.Root> {
+interface ScrollAreaProps extends React.ComponentPropsWithRef<
+	typeof ScrollAreaPrimitive.Root
+> {
 	scrollBarClassName?: string;
 	viewportClassName?: string;
 	/** Which scrollbar(s) to show. Defaults to "vertical". */

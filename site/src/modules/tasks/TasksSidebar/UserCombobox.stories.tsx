@@ -78,8 +78,8 @@ export const SearchUser: Story = {
 			}
 
 			return Promise.resolve({
-				count: MockUsers.length,
-				users: MockUsers,
+				count: users.length,
+				users,
 			});
 		});
 	},

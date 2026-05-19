@@ -215,8 +215,8 @@ const TasksNavItem: FC<TasksNavItemProps> = ({ user }) => {
 	const { metadata } = useEmbeddedMetadata();
 	const canSeeTasks = Boolean(
 		metadata["tasks-tab-visible"].value ||
-			process.env.NODE_ENV === "development" ||
-			process.env.STORYBOOK,
+		process.env.NODE_ENV === "development" ||
+		process.env.STORYBOOK,
 	);
 	const filter: TypesGen.TasksFilter = {
 		owner: user.username,

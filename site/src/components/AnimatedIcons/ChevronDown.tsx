@@ -1,8 +1,9 @@
 import { ChevronDownIcon as LucideChevronDown } from "lucide-react";
 import { cn } from "#/utils/cn";
 
-interface ChevronDownIconProps
-	extends React.ComponentProps<typeof LucideChevronDown> {
+interface ChevronDownIconProps extends React.ComponentProps<
+	typeof LucideChevronDown
+> {
 	/**
 	 * Explicitly control rotation state. When omitted, rotation is
 	 * driven by Radix's data-state attribute on a parent element

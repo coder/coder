@@ -5,7 +5,7 @@
 		"./src/**/*.ts",
 		"./src/**/*.tsx",
 		"./test/**/*.ts",
-		"./e2e/**/*.ts"
+		"./e2e/**/*.ts",
 	],
 	"tags": ["-lintignore"],
 	"ignore": [
@@ -18,12 +18,12 @@
 		// TODO(devtools): chatDebugLogging.ts queries are staged in PR 7;
 		// they are consumed by the Debug settings UI in PR 8. Remove this
 		// exclusion once the settings page lands.
-		"src/api/queries/chatDebugLogging.ts"
+		"src/api/queries/chatDebugLogging.ts",
 	],
 	"ignoreBinaries": ["protoc"],
 	"ignoreDependencies": [
 		"@babel/plugin-syntax-typescript",
 		"@types/react-virtualized-auto-sizer",
-		"ts-proto"
-	]
+		"ts-proto",
+	],
 }

@@ -156,7 +156,9 @@ const WorkspaceResultsRow: FC<WorkspaceResultsRowProps> = ({ template }) => {
 					 * basically functioning like a null value in JS. Can safely just
 					 * treat them as if they were 0.
 					 */}
-					{template.active_user_count <= 0 ? "No" : template.active_user_count}{" "}
+					{template.active_user_count <= 0
+						? "No"
+						: template.active_user_count}{" "}
 					developer
 					{template.active_user_count === 1 ? "" : "s"}
 				</span>

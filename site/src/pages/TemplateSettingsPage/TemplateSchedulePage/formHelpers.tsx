@@ -5,11 +5,10 @@ import type {
 	TemplateAutostopRequirementDaysValue,
 } from "#/utils/schedule";
 
-export interface TemplateScheduleFormValues
-	extends Omit<
-		UpdateTemplateMeta,
-		"autostop_requirement" | "autostart_requirement"
-	> {
+export interface TemplateScheduleFormValues extends Omit<
+	UpdateTemplateMeta,
+	"autostop_requirement" | "autostart_requirement"
+> {
 	autostart_requirement_days_of_week: TemplateAutostartRequirementDaysValue[];
 	autostop_requirement_days_of_week: TemplateAutostopRequirementDaysValue;
 	autostop_requirement_weeks: number;

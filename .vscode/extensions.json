@@ -1,6 +1,5 @@
 {
 	"recommendations": [
-		"biomejs.biome",
 		"bradlc.vscode-tailwindcss",
 		"DavidAnson.vscode-markdownlint",
 		"EditorConfig.EditorConfig",
@@ -9,6 +8,7 @@
 		"github.vscode-codeql",
 		"golang.go",
 		"hashicorp.terraform",
+		"oxc.oxc-vscode",
 		"redhat.vscode-yaml",
 		"tekumara.typos-vscode",
 		"zxh404.vscode-proto3"

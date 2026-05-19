@@ -124,8 +124,8 @@ export const ModelForm: FC<ModelFormProps> = ({
 
 	const canManageModels = Boolean(
 		selectedProviderState?.providerConfig &&
-			(selectedProviderState.hasEffectiveAPIKey ||
-				selectedProviderState.providerConfig.allow_user_api_key),
+		(selectedProviderState.hasEffectiveAPIKey ||
+			selectedProviderState.providerConfig.allow_user_api_key),
 	);
 	const formTitle = isEditing
 		? "Edit Model"

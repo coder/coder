@@ -4,8 +4,10 @@ import type { FC, HTMLAttributes } from "react";
 import { cn } from "#/utils/cn";
 import { isAfter, relativeTime, subtractTime } from "#/utils/time";
 
-interface LastSeenProps
-	extends Omit<HTMLAttributes<HTMLSpanElement>, "children"> {
+interface LastSeenProps extends Omit<
+	HTMLAttributes<HTMLSpanElement>,
+	"children"
+> {
 	at: dayjs.ConfigType;
 	"data-chromatic"?: string; // prevents a type error in the stories
 }

@@ -461,8 +461,10 @@ export interface ChatMessageInputRef {
 	getContentParts: () => EditorContentPart[];
 }
 
-interface ChatMessageInputProps
-	extends Omit<React.ComponentProps<"div">, "onChange" | "role" | "ref"> {
+interface ChatMessageInputProps extends Omit<
+	React.ComponentProps<"div">,
+	"onChange" | "role" | "ref"
+> {
 	placeholder?: string;
 	initialValue?: string;
 	/**

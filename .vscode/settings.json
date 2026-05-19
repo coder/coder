@@ -47,12 +47,15 @@
 	"playwright.reuseBrowser": true,
 
 	"[javascript][javascriptreact][json][jsonc][typescript][typescriptreact]": {
-		"editor.defaultFormatter": "biomejs.biome",
+		"editor.defaultFormatter": "oxc.oxc-vscode",
 		"editor.codeActionsOnSave": {
-			"source.fixAll.biome": "explicit"
-			//   "source.organizeImports.biome": "explicit"
+			"source.fixAll.oxc": "explicit"
 		}
 	},
+
+	"oxc.path.oxlint": "site/node_modules/.bin/oxlint",
+	"oxc.path.oxfmt": "site/node_modules/.bin/oxfmt",
+	"oxc.tsConfigPath": "site/tsconfig.json",
 
 	"tailwindCSS.classFunctions": ["cva", "cn"],
 	"[css][html][markdown][yaml]": {
@@ -62,8 +65,6 @@
 	"[markdown]": {
 		"editor.defaultFormatter": "DavidAnson.vscode-markdownlint"
 	},
-	"biome.lsp.bin": "site/node_modules/.bin/biome",
-
 	// Prefer type only imports.
 	"typescript.preferences.preferTypeOnlyAutoImports": true,
 	// Prefer aliased/non-relative imports (e.g. "#/...") over "../../...".

@@ -21,7 +21,7 @@ When investigating or editing TypeScript/React code, always use the TypeScript l
 - `pnpm test:storybook src/path/to/component.stories.tsx` - Run a single story file
 - `pnpm test` - Run jest unit tests
 - `pnpm test -- path/to/specific.test.ts` - Run a single test file
-- `pnpm lint` - Run complete linting suite (Biome + TypeScript + circular deps + knip)
+- `pnpm lint` - Run complete linting suite (oxlint + TypeScript + circular deps + knip)
 - `pnpm lint:fix` - Auto-fix linting issues where possible
 - `pnpm playwright:test` - Run playwright e2e tests. When running e2e tests, remind the user that a license is required to run all the tests
 - `pnpm format` - Format frontend code. Always run before creating a PR
@@ -94,7 +94,7 @@ Debug logs and pprof dumps use the same job name and commit SHA convention.
 - Use ES modules (import/export) syntax, not CommonJS (require)
 - Destructure imports when possible (eg. import { foo } from 'bar')
 - Prefer `for...of` over `forEach` for iteration
-- **Biome** handles both linting and formatting (not ESLint/Prettier)
+- **oxlint** and **oxfmt** handle linting and formatting (not ESLint/Prettier)
 - Access browser globals like `location`, `navigator`, and `document`
   directly. Do not prefix them with `window.` (e.g., write
   `location.href`, not `window.location.href`). They are globally
@@ -111,7 +111,7 @@ Debug logs and pprof dumps use the same job name and commit SHA convention.
 - Match errors by error code or HTTP status, never by comparing error
   message strings. String matching is brittle; messages change, get
   localized, or get reformatted.
-- Do not use emdash (U+2014), endash (U+2013), or ` -- ` as punctuation
+- Do not use emdash (U+2014), endash (U+2013), or `--` as punctuation
   in code, comments, string literals, or documentation. Use commas,
   semicolons, or periods instead. Restructure the sentence if needed.
 - For JSX boolean props that are `true`, use the shorthand form

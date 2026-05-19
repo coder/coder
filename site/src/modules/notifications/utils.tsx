@@ -46,7 +46,7 @@ export function notificationIsDisabled(
 ): boolean {
 	return Boolean(
 		(!tmpl.enabled_by_default && disabledPreferences[tmpl.id] === undefined) ||
-			disabledPreferences[tmpl.id],
+		disabledPreferences[tmpl.id],
 	);
 }
 

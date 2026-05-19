@@ -297,8 +297,8 @@ const RemoteTextAttachmentButton: FC<{
 	const isKnownExpired = hasExpired(fileId);
 	const [content, setContent] = useState<string | null>(null);
 	const [isLoading, setIsLoading] = useState(false);
-	const [failureState, setFailureState] = useState<AttachmentFailureState>(
-		() => (isKnownExpired ? { kind: "expired" } : { kind: "idle" }),
+	const [failureState, setFailureState] = useState<AttachmentFailureState>(() =>
+		isKnownExpired ? { kind: "expired" } : { kind: "idle" },
 	);
 	const request = useLatestAbortController(isKnownExpired);
 
@@ -424,8 +424,8 @@ const RemoteImageBlock: FC<{
 		setProbeResult,
 	} = useFileProbes();
 	const isKnownExpired = fileId !== undefined && hasExpired(fileId);
-	const [failureState, setFailureState] = useState<AttachmentFailureState>(
-		() => (isKnownExpired ? { kind: "expired" } : { kind: "idle" }),
+	const [failureState, setFailureState] = useState<AttachmentFailureState>(() =>
+		isKnownExpired ? { kind: "expired" } : { kind: "idle" },
 	);
 	const probeRequest = useLatestAbortController(isKnownExpired);
 

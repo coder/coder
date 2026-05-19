@@ -16,7 +16,7 @@ trap 'rm -f "$output_file"' EXIT
 
 if (
 	cd "$repo_root/site"
-	pnpm exec biome format --write --vcs-enabled=false "$target"
+	pnpm exec oxfmt --write "$target"
 ) >"$output_file" 2>&1; then
 	cat "$output_file"
 	exit 0
@@ -26,7 +26,7 @@ status=$?
 cat "$output_file" >&2
 
 if [[ $status -eq 127 ]] || grep -q "Could not start dynamically linked executable" "$output_file" || grep -q "NixOS cannot run dynamically linked executables" "$output_file"; then
-	echo "WARNING: skipping biome format for '$target' because the biome binary is unavailable in this environment." >&2
+	echo "WARNING: skipping oxfmt for '$target' because the oxfmt binary is unavailable in this environment." >&2
 	exit 0
 fi
 

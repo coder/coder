@@ -7,7 +7,7 @@ import { DiffViewer } from "../DiffViewer/DiffViewer";
 import { InlinePromptInput } from "../DiffViewer/RemoteDiffPanel";
 import { generateLargeDiff } from "./testHelpers";
 
-// biome-ignore format: raw diff string must preserve exact whitespace
+// prettier-ignore
 const sampleDiff = [
 "diff --git a/src/main.ts b/src/main.ts",
 "index abc1234..def5678 100644",
@@ -100,7 +100,7 @@ export const WithSelectedLines: Story = {
 // Diff with two non-adjacent hunks in one file, producing a
 // mid-file separator that should remain visible even though
 // leading separators are hidden.
-// biome-ignore format: raw diff string must preserve exact whitespace
+// prettier-ignore
 const multiHunkDiff = [
 "diff --git a/src/app.ts b/src/app.ts",
 "index aaa1111..bbb2222 100644",
@@ -154,7 +154,7 @@ export const WithAnnotation: Story = {
 
 // Diff with a change block (both deletions and additions) for
 // testing cross-side selection in split view.
-// biome-ignore format: raw diff string must preserve exact whitespace
+// prettier-ignore
 const changeDiff = [
 "diff --git a/src/config.ts b/src/config.ts",
 "index abc1234..def5678 100644",
@@ -247,7 +247,7 @@ const expectAnnotationTextarea = async ({
 // Diff where deletion and addition line numbers are wildly
 // different (hunk header: @@ -508,4 +218,4 @@). Deletion
 // lines are 509-510, addition lines are 219-220.
-// biome-ignore format: raw diff string must preserve exact whitespace
+// prettier-ignore
 const mismatchedLinesDiff = [
 "diff --git a/src/big.ts b/src/big.ts",
 "index abc1234..def5678 100644",
@@ -315,7 +315,7 @@ export const CrossSideMismatchedLineNumbersUnified: Story = {
 
 // Backward same-side selection (start > end). The user clicks
 // line 9 then shift-clicks line 5 on the additions side.
-// biome-ignore format: raw diff string must preserve exact whitespace
+// prettier-ignore
 const backwardSelectionDiff = [
 "diff --git a/src/utils.ts b/src/utils.ts",
 "index abc1234..def5678 100644",
@@ -408,7 +408,7 @@ export const CrossSideAdditionsToDeletions: Story = {
 // 1. The arrow between old and new names is vertically centered
 // 2. The stat-count pills remain visible (not clipped)
 // 3. File names truncate with ellipsis
-// biome-ignore format: raw diff string must preserve exact whitespace
+// prettier-ignore
 const renameDiff = [
 "diff --git a/site/src/pages/AgentsPage/components/LimitsTab/DefaultLimitSection.tsx b/site/src/pages/AgentsPage/components/UsageLimitsTab/DefaultLimitSection.tsx",
 "similarity index 95%",

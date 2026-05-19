@@ -5,8 +5,10 @@ export const HorizontalContainer: FC<HTMLAttributes<HTMLDivElement>> = ({
 	return <div className="flex flex-col gap-16 md:gap-20" {...attrs} />;
 };
 
-interface HorizontalSectionProps
-	extends Omit<HTMLAttributes<HTMLElement>, "title"> {
+interface HorizontalSectionProps extends Omit<
+	HTMLAttributes<HTMLElement>,
+	"title"
+> {
 	title: ReactNode;
 	description: ReactNode;
 	children?: ReactNode;

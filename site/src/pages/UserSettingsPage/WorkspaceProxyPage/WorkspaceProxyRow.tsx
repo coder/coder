@@ -45,9 +45,9 @@ export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
 		shouldShowMessages = Boolean(
 			(wsproxy.status?.report?.warnings &&
 				wsproxy.status?.report?.warnings.length > 0) ||
-				extraWarnings.length > 0 ||
-				(wsproxy.status?.report?.errors &&
-					wsproxy.status?.report?.errors.length > 0),
+			extraWarnings.length > 0 ||
+			(wsproxy.status?.report?.errors &&
+				wsproxy.status?.report?.errors.length > 0),
 		);
 	}
 

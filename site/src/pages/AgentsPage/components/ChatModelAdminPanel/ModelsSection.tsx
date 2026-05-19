@@ -47,8 +47,8 @@ const clearModelViewParams = (params: URLSearchParams) => {
 const canManageProviderModels = (providerState: ProviderState | undefined) => {
 	return Boolean(
 		providerState?.providerConfig &&
-			(providerState.hasEffectiveAPIKey ||
-				providerState.providerConfig.allow_user_api_key),
+		(providerState.hasEffectiveAPIKey ||
+			providerState.providerConfig.allow_user_api_key),
 	);
 };
 
