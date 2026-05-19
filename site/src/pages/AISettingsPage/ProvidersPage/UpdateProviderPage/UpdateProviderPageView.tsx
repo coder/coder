@@ -206,9 +206,9 @@ const UpdateProviderPageView: React.FC<UpdateProviderPageViewProps> = ({
 						onSubmit={(values) => {
 							const request = providerFormValuesToUpdate(values, provider);
 							updateMutation.mutate(request, {
-								onSuccess: () => {
+								onSuccess: (updated) => {
 									toast.success(
-										`Provider "${provider.display_name || provider.name}" updated.`,
+										`Provider "${updated.display_name || updated.name}" updated.`,
 									);
 								},
 								onError: (error) => {
