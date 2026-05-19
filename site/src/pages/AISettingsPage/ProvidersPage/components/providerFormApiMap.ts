@@ -10,11 +10,19 @@ import { type ProviderFormValues, SAVED_CREDENTIAL_MASK } from "./ProviderForm";
 
 /**
  * Treat the saved-credential mask the same as an empty value: never round-trip
- * the placeholder back to the API.
+ * the placeholder back to the API. Accepts an optional list of extra mask
+ * strings (e.g. the API-supplied `provider.api_keys[0].masked` rendering for
+ * openai/anthropic) so the dynamic mask is filtered the same way.
  */
-const sanitizeCredential = (value: string): string => {
+const sanitizeCredential = (
+	value: string,
+	...extraMasks: (string | undefined)[]
+): string => {
 	const trimmed = value.trim();
 	if (trimmed === "" || trimmed === SAVED_CREDENTIAL_MASK) {
+		return "";
+	}
+	if (extraMasks.some((m) => m !== undefined && m === trimmed)) {
 		return "";
 	}
 	return trimmed;
@@ -153,7 +161,12 @@ export const providerFormValuesToUpdate = (
 	};
 
 	if (values.type !== "bedrock") {
-		const newApiKey = sanitizeCredential(values.apiKey);
+		// Filter out both the static `SAVED_CREDENTIAL_MASK` and the API's own
+		// masked rendering of the saved key. If the user did not focus the
+		// input or clear the mask, the form value is still the seed and the
+		// sanitized result is `""` (no rotation).
+		const savedMasked = existingProvider.api_keys[0]?.masked;
+		const newApiKey = sanitizeCredential(values.apiKey, savedMasked);
 		if (newApiKey === "") {
 			return base;
 		}

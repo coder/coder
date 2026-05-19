@@ -311,6 +311,13 @@ type ProviderFormProps = {
 	bedrockSavedAccessCredentials?: boolean;
 	/** When editing openai/anthropic and a key is on file, show a masked placeholder until cleared. */
 	openAiAnthropicSavedApiKey?: boolean;
+	/**
+	 * Masked rendering of the saved openai/anthropic key returned by the API
+	 * (e.g. `"sk-***\u2026***ABCD"`). Seeded into the input when
+	 * `openAiAnthropicSavedApiKey` is true; ignored otherwise. Falls back to a
+	 * generic `********` mask when omitted.
+	 */
+	openAiAnthropicMaskedApiKey?: string;
 	initialValues?: Partial<ProviderFormValues>;
 	onSubmit?: (values: ProviderFormValues) => void;
 	isLoading?: boolean;
@@ -367,6 +374,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	editing = false,
 	bedrockSavedAccessCredentials = false,
 	openAiAnthropicSavedApiKey = false,
+	openAiAnthropicMaskedApiKey,
 	initialValues,
 	onSubmit,
 	isLoading = false,
@@ -419,8 +427,12 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 				: "",
 			// Mirror the Bedrock pattern for openai/anthropic. A key on file is
 			// shown as a mask; focusing or pressing "Clear key" clears it so the
-			// user can type a replacement.
-			apiKey: openAiAnthropicSavedApiKey ? SAVED_CREDENTIAL_MASK : "",
+			// user can type a replacement. Prefer the API-supplied masked
+			// rendering when available so the user sees the leading/trailing
+			// characters that identify which key is on file.
+			apiKey: openAiAnthropicSavedApiKey
+				? (openAiAnthropicMaskedApiKey ?? SAVED_CREDENTIAL_MASK)
+				: "",
 		},
 		validationSchema: getProviderFormSchema(editing),
 		onSubmit: onSubmit ?? (() => {}),

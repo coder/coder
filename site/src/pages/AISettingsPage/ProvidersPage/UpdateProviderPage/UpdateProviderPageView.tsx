@@ -133,6 +133,9 @@ const UpdateProviderPageView: React.FC<UpdateProviderPageViewProps> = ({
 
 	const openAiAnthropicSavedApiKey =
 		providerIsOpenAiAnthropic && provider.api_keys.length > 0;
+	const openAiAnthropicMaskedApiKey = providerIsOpenAiAnthropic
+		? provider.api_keys[0]?.masked
+		: undefined;
 
 	return (
 		<>
@@ -183,6 +186,7 @@ const UpdateProviderPageView: React.FC<UpdateProviderPageViewProps> = ({
 							provider,
 						)}
 						openAiAnthropicSavedApiKey={openAiAnthropicSavedApiKey}
+						openAiAnthropicMaskedApiKey={openAiAnthropicMaskedApiKey}
 						initialValues={aiProviderToFormValues(provider)}
 						isLoading={updateMutation.isPending}
 						submitError={updateMutation.error}

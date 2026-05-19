@@ -73,6 +73,7 @@ export const EditProvider: Story = {
 	args: {
 		editing: true,
 		openAiAnthropicSavedApiKey: true,
+		openAiAnthropicMaskedApiKey: "sk-ant-***\u2026***ABCD",
 		onOrganizationChange: undefined,
 		initialValues: {
 			type: "anthropic",
