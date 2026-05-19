@@ -71,7 +71,6 @@ RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/u
 	man \
 	meld \
 	ncdu \
-	neovim \
 	net-tools \
 	openjdk-11-jdk-headless \
 	openssh-server \

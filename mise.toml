@@ -44,6 +44,7 @@ terraform = "1.15.2"
 # PATH would bypass it.
 "aqua:crate-ci/typos" = "1.46.1"
 "aqua:jj-vcs/jj" = "0.41.0"
+"aqua:neovim/neovim" = "0.11.6" # stable
 "aqua:watchexec/watchexec" = "2.5.1"
 doctl = "1.158.0"
 lazygit = "0.61.1"
