@@ -1,0 +1,48 @@
+# Coder.GerundHeading - flag titles and headings whose first word ends in
+# -ing (typically a gerund or present participle, e.g., "Installing",
+# "Configuring", "Setting").
+#
+# Why: gerund-leading headings are a common stylistic anti-pattern. Two
+# alternatives almost always read more cleanly:
+#
+#   1. Imperative: "Install Coder" instead of "Installing Coder".
+#   2. Noun:       "Installation"  instead of "Installing".
+#
+# The right choice is context-dependent (imperative for task headings,
+# noun for concept headings), so this rule lands at warning rather than
+# error: it surfaces candidates for review without forcing a rewrite.
+#
+# Implementation: pure regex on a heading-scoped existence rule. Vale's
+# `sequence` rule type would let us condition on the POS tag VBG, but
+# sequence rules are sentence-scoped, not heading-scoped (see
+# https://vale.sh/docs/checks/sequence). For heading-targeted rules,
+# Google's and Microsoft's style packages both use existence + scope:
+# heading + regex; we follow the same pattern.
+#
+# False positives: words that end in "ing" but aren't gerunds, like
+# "Bring" or "String". The exceptions list below collects these. Concept
+# nouns formed from gerunds ("Logging", "Networking", "Monitoring") are
+# intentionally NOT in the exceptions list: those headings often read
+# better as nouns or imperatives, and writers should see the warning and
+# decide.
+extends: existence
+message: "Heading starts with an -ing word ('%s'); consider imperative ('Install') or noun ('Installation') instead. See style-guide.md."
+link: https://github.com/coder/coder/blob/main/docs/.style/style-guide.md#gerund-headings
+level: warning
+scope: heading
+nonword: false
+# These words end in "ing" but are not gerunds (verb-base or non-verb
+# nouns). Headings that begin with one of these are not the target of
+# this rule.
+exceptions:
+  - Bring
+  - Spring
+  - String
+  - King
+  - Ring
+  - Sting
+  - Sing
+  - Thing
+  - Wing
+tokens:
+  - '^[A-Z][a-z]+ing\b'
