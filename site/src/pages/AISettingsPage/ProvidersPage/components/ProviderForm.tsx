@@ -46,6 +46,17 @@ const providerNameRegex = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const providerNameErrorMessage =
 	"Name must be lowercase, hyphen-separated (e.g. 'my-anthropic').";
 
+// On create the user-facing name field becomes the immutable kebab-case slug
+// (server enforces the same regex), so we validate the pattern up front. On
+// edit the same field stores the free-form `display_name`, so we only require
+// it to be non-empty.
+const makeNameSchema = (editing: boolean) =>
+	editing
+		? Yup.string().required("Display name is required")
+		: Yup.string()
+				.matches(providerNameRegex, providerNameErrorMessage)
+				.required("Name is required");
+
 /**
  * Stable mask shown in credential inputs when a value already exists on the
  * server. The companion trash button next to each input clears the field so
@@ -71,9 +82,7 @@ const makeOpenAiAnthropicSchema = (editing: boolean) =>
 		type: Yup.string()
 			.oneOf(["openai", "anthropic"] as const)
 			.required(),
-		name: Yup.string()
-			.matches(providerNameRegex, providerNameErrorMessage)
-			.required("Name is required"),
+		name: makeNameSchema(editing),
 		baseUrl: Yup.string().url("Custom endpoint must be a valid URL"),
 		apiKey: editing
 			? Yup.string()
@@ -95,9 +104,7 @@ const makeBedrockSchema = (editing: boolean) =>
 		type: Yup.string()
 			.oneOf(["bedrock"] as const)
 			.required(),
-		name: Yup.string()
-			.matches(providerNameRegex, providerNameErrorMessage)
-			.required("Name is required"),
+		name: makeNameSchema(editing),
 		baseUrl: Yup.string()
 			.url("Base URL must be a valid URL")
 			.matches(
@@ -542,8 +549,12 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 						<FormField
 							required
 							field={getFieldHelpers("name")}
-							label="Name"
-							description="The name of the provider. This is used to identify the provider in the UI."
+							label={editing ? "Display name" : "Name"}
+							description={
+								editing
+									? "A friendly name shown for this provider in the UI. The original identifier cannot be changed."
+									: "The name of the provider. This is used to identify the provider in the UI."
+							}
 							className="w-full"
 							placeholder={namePlaceholder(form.values.type)}
 						/>
@@ -583,8 +594,12 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 						<FormField
 							required
 							field={getFieldHelpers("name")}
-							label="Name"
-							description="The name of the provider. This is used to identify the provider in the UI."
+							label={editing ? "Display name" : "Name"}
+							description={
+								editing
+									? "A friendly name shown for this provider in the UI. The original identifier cannot be changed."
+									: "The name of the provider. This is used to identify the provider in the UI."
+							}
 							className="w-full"
 							placeholder={namePlaceholder(form.values.type)}
 						/>

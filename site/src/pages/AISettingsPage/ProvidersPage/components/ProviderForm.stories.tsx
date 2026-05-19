@@ -69,6 +69,9 @@ export const EditBedrockKeepCredentials: Story = {
 	},
 };
 
+// On edit, the form `name` slot stores the free-form `display_name`, so
+// stories that exercise the edit flow seed it with a friendly label rather
+// than the kebab-case slug.
 export const EditProvider: Story = {
 	args: {
 		editing: true,
@@ -77,7 +80,7 @@ export const EditProvider: Story = {
 		onOrganizationChange: undefined,
 		initialValues: {
 			type: "anthropic",
-			name: "production-anthropic",
+			name: "Production Anthropic",
 			baseUrl: "https://api.anthropic.com",
 			apiKey: "",
 			enabled: true,

@@ -196,15 +196,23 @@ export const providerFormValuesToUpdate = (
 	return { ...base, settings: settings as AIProviderSettings };
 };
 
-/** Populate the form from an `AIProvider` fetched from the API. */
+/**
+ * Populate the form from an `AIProvider` fetched from the API.
+ *
+ * On the edit form the user-facing "name" field actually edits
+ * `display_name` (the slug `name` is immutable server-side), so we seed
+ * the form-`name` slot with `display_name` and fall back to `name` for
+ * historical providers that never had a friendly label set.
+ */
 export const aiProviderToFormValues = (
 	provider: AIProvider,
 ): Partial<ProviderFormValues> => {
+	const editableName = provider.display_name || provider.name;
 	if (isBedrockProvider(provider)) {
 		const s = (provider.settings as SettingsWire | null) ?? {};
 		return {
 			type: "bedrock",
-			name: provider.name,
+			name: editableName,
 			baseUrl: provider.base_url,
 			model: s.model ?? "",
 			smallFastModel: s.small_fast_model ?? "",
@@ -216,7 +224,7 @@ export const aiProviderToFormValues = (
 
 	return {
 		type: provider.type === "openai" ? "openai" : "anthropic",
-		name: provider.name,
+		name: editableName,
 		baseUrl: provider.base_url,
 		apiKey: "",
 		enabled: provider.enabled,
