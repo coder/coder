@@ -35,11 +35,6 @@ export type ProviderFormValues = {
 	enabled: boolean;
 };
 
-// Public AWS partition Bedrock Runtime API base URL, for example
-// https://bedrock-runtime.us-east-2.amazonaws.com
-const bedrockRuntimeBaseUrlRegex =
-	/^https:\/\/bedrock-runtime\.[a-z0-9-]+\.amazonaws\.com\/?$/i;
-
 // Server requires the base_url scheme to be http or https; Yup's `.url()`
 // otherwise lets through any RFC URL (ftp://..., mailto:..., etc.). Anchored
 // at the start so substrings like "my-https://..." still fail.
@@ -123,10 +118,7 @@ const makeBedrockSchema = (editing: boolean) =>
 		displayName: makeDisplayNameSchema(editing),
 		baseUrl: Yup.string()
 			.url("Endpoint must be a valid URL")
-			.matches(
-				bedrockRuntimeBaseUrlRegex,
-				"Endpoint must be a valid Bedrock Runtime API base URL",
-			)
+			.matches(httpSchemeRegex, httpSchemeErrorMessage)
 			.required("Endpoint is required"),
 		apiKey: Yup.string(),
 		model: Yup.string().required("Model is required"),
