@@ -20,7 +20,7 @@ All validation happens server-side by looking up the key record in the database.
 Generate a token from the Coder UI (**Account settings > Tokens**) or via the CLI:
 
 ```sh
-coder tokens create --lifetime 30d my-ai-token
+coder tokens create --lifetime 30d -n my-ai-token
 ```
 
 ## How AI Gateway validates a token
