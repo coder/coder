@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
-	"unicode/utf8"
 
 	"charm.land/fantasy"
+
+	cstrings "github.com/coder/coder/v2/coderd/util/strings"
 )
 
 // ToolName is the identifier the advisor tool registers under. The parent
@@ -46,7 +47,7 @@ func Tool(opts ToolOptions) fantasy.AgentTool {
 			if question == "" {
 				return fantasy.NewTextErrorResponse("question is required"), nil
 			}
-			question = truncateRunes(question, advisorQuestionMaxRunes)
+			question = cstrings.Truncate(question, advisorQuestionMaxRunes)
 
 			var runOpts *RunAdvisorOptions
 			if call.ID != "" && (opts.PublishAdviceDelta != nil || opts.PublishAdviceReset != nil) {
@@ -74,15 +75,4 @@ func Tool(opts ToolOptions) fantasy.AgentTool {
 			return fantasy.NewTextResponse(string(data)), nil
 		},
 	)
-}
-
-func truncateRunes(s string, maxRunes int) string {
-	if maxRunes <= 0 {
-		return ""
-	}
-	if utf8.RuneCountInString(s) <= maxRunes {
-		return s
-	}
-	runes := []rune(s)
-	return string(runes[:maxRunes])
 }
