@@ -27,6 +27,10 @@ The exact configuration method varies by client — some use environment variabl
 
 Replace `coder.example.com` with your actual Coder deployment URL.
 
+## Authentication
+
+For information about authenticating with AI Gateway, visit [AI Gateway Authentication](../auth.md).
+
 ## Compatibility
 
 The table below shows tested AI clients and their compatibility with AI Gateway.

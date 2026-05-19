@@ -94,7 +94,7 @@ while allowing individual users to bring their own key.
 
 Visit individual [client pages](./clients/index.md) for configuration details.
 
-### Enablie or disable BYOK
+### Enable or disable BYOK
 
 BYOK is enabled by default.
 Administrators can disable it using `--aibridge-allow-byok=false` or `CODER_AIBRIDGE_ALLOW_BYOK=false`:
