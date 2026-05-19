@@ -52,14 +52,13 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
 	);
 	const currentTime = dayjs(now ?? new Date());
 
-	// oxlint-disable-next-line react/exhaustive-deps -- adding form will cause an infinite loop
 	useEffect(() => {
 		if (lifetimeDays !== "custom") {
 			void form.setFieldValue("lifetime", lifetimeDays);
 		} else {
 			void form.setFieldValue("lifetime", expDays);
 		}
-		// oxlint-disable-next-line react/exhaustive-deps -- pre-existing during oxlint migration
+		// oxlint-disable-next-line react/exhaustive-deps -- adding form will cause an infinite loop
 	}, [lifetimeDays, expDays]);
 
 	const getFieldHelpers = getFormHelpers<CreateTokenData>(form, formError);
