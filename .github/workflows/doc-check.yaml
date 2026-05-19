@@ -214,7 +214,7 @@ jobs:
       - name: Run doc-check via Coder Agent Chat
         if: steps.check-secrets.outputs.skip != 'true'
         # Pin to v0 tag once tagged.
-        uses: coder/agents-chat-action@4a306258d449f8a34df7be77be2c6fc63397ad57
+        uses: coder/agents-chat-action@f0b975f503d3ff3e4478517baae290d4d01a2c7e
         with:
           coder-url: ${{ secrets.DOC_CHECK_CODER_URL }}
           coder-token: ${{ secrets.DOC_CHECK_CODER_SESSION_TOKEN }}
