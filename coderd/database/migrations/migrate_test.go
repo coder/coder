@@ -1323,6 +1323,96 @@ func TestMigration000504AIProvidersBackfill(t *testing.T) {
 	require.False(t, aiProviderID.Valid)
 }
 
+// TestMigration000504AIProvidersBackfillOverridesNameConflict verifies that a
+// pre-existing live ai_providers row whose name collides with the backfill
+// (for example, agents-openai) is soft-deleted so the chat_providers-derived
+// row inserted by the migration becomes authoritative. This scenario should
+// not occur in practice since no other process writes to ai_providers before
+// this migration runs, but the migration tolerates it rather than failing.
+func TestMigration000504AIProvidersBackfillOverridesNameConflict(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion = 504
+
+	sqlDB := testSQLDB(t)
+
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == migrationVersion-1 {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	chatProviderID := uuid.New()
+	staleProviderID := uuid.New()
+
+	tx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer tx.Rollback()
+
+	// Pre-existing live ai_providers row that collides on name.
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO ai_providers (id, type, name, display_name, enabled, base_url, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		staleProviderID, "openai", "agents-openai", "Stale OpenAI", true, "https://stale.example.com/v1", now, now,
+	)
+	require.NoError(t, err)
+
+	// chat_providers row whose backfill will collide with the stale row above.
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO chat_providers (id, provider, display_name, api_key, enabled, base_url, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		chatProviderID, "openai", "OpenAI", "sk-provider", true, "https://api.openai.example.com/v1", now, now,
+	)
+	require.NoError(t, err)
+	require.NoError(t, tx.Commit())
+
+	version, more, err := next()
+	require.NoError(t, err)
+	require.True(t, more)
+	require.EqualValues(t, migrationVersion, version)
+
+	// The stale row must be soft-deleted and disabled so the unique name index
+	// (which is partial WHERE deleted = FALSE) no longer covers it.
+	var stale struct {
+		Deleted bool
+		Enabled bool
+	}
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT deleted, enabled FROM ai_providers WHERE id = $1`,
+		staleProviderID,
+	).Scan(&stale.Deleted, &stale.Enabled)
+	require.NoError(t, err)
+	require.True(t, stale.Deleted, "pre-existing conflicting ai_providers row should be soft-deleted")
+	require.False(t, stale.Enabled, "pre-existing conflicting ai_providers row should be disabled")
+
+	// The new authoritative row must exist with the chat_providers id, the
+	// agents-openai name, and the chat_providers base_url.
+	var fresh struct {
+		Name    string
+		BaseURL string
+		Deleted bool
+		Enabled bool
+	}
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT name, base_url, deleted, enabled FROM ai_providers WHERE id = $1`,
+		chatProviderID,
+	).Scan(&fresh.Name, &fresh.BaseURL, &fresh.Deleted, &fresh.Enabled)
+	require.NoError(t, err)
+	require.Equal(t, "agents-openai", fresh.Name)
+	require.Equal(t, "https://api.openai.example.com/v1", fresh.BaseURL)
+	require.False(t, fresh.Deleted)
+	require.True(t, fresh.Enabled)
+}
+
 func TestMigration000498SoftDeleteStaleWorkspaceAgents(t *testing.T) {
 	t.Parallel()
 

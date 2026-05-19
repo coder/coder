@@ -1,22 +1,17 @@
-DO $$
-BEGIN
-    IF EXISTS (
-        SELECT 1
+-- Override any pre-existing live AI providers whose names collide with the
+-- backfill below. No other process should write to ai_providers before this
+-- migration, so any conflicting live row is treated as stale and soft-deleted
+-- to free the name for the chat_providers row inserted below, which becomes
+-- authoritative.
+UPDATE ai_providers
+SET deleted = TRUE,
+    enabled = FALSE,
+    updated_at = NOW()
+WHERE deleted = FALSE
+    AND name IN (
+        SELECT 'agents-' || cp.provider
         FROM chat_providers cp
-        JOIN ai_providers ap ON ap.id = cp.id
-    ) THEN
-        RAISE EXCEPTION 'cannot migrate chat providers to AI providers because an AI provider already uses a legacy chat provider ID';
-    END IF;
-
-    IF EXISTS (
-        SELECT 1
-        FROM chat_providers cp
-        JOIN ai_providers ap ON ap.name = 'agents-' || cp.provider
-        WHERE ap.deleted = FALSE
-    ) THEN
-        RAISE EXCEPTION 'cannot migrate chat providers to AI providers because a live agents-* AI provider name already exists';
-    END IF;
-END $$;
+    );
 
 INSERT INTO ai_providers (
     id,
