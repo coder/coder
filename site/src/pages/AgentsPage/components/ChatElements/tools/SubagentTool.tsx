@@ -244,7 +244,7 @@ export const SubagentTool: React.FC<{
 			</button>
 
 			{showDesktopPreview && desktopChatId && toolStatus !== "completed" && (
-				<div className="mt-1.5 w-fit overflow-hidden rounded-lg border border-solid border-border-default">
+				<div className="mt-1.5 overflow-hidden rounded-lg border border-solid border-border-default">
 					<InlineDesktopPreview
 						chatId={desktopChatId}
 						onClick={onOpenDesktop}
