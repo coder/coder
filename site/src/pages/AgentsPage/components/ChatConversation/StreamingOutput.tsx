@@ -33,7 +33,7 @@ const hasTextOrReasoningBlock = (blocks: readonly RenderBlock[]): boolean =>
  * as the ChatStatusCallout status placeholder.
  */
 const StreamingThinkingPlaceholder: FC = () => (
-	<div data-tool-call="" className="text-content-secondary">
+	<div data-transcript-row="" className="text-content-secondary">
 		<div className="flex w-full items-center gap-2">
 			<Shimmer as="span" className="text-[13px] leading-relaxed">
 				Thinking

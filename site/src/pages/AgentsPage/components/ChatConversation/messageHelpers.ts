@@ -10,7 +10,6 @@ type FileRenderBlock = Extract<RenderBlock, { type: "file" }>;
 
 export type MessageDisplayState = {
 	shouldHide: boolean;
-	hasRenderableContent: boolean;
 	userInlineContent: UserInlineRenderBlock[];
 	userFileBlocks: FileRenderBlock[];
 	hasUserMessageBody: boolean;
@@ -112,7 +111,6 @@ export const deriveMessageDisplayState = ({
 			isProviderToolResultOnlyMessage(parts) ||
 			isMetadataOnlyMessage(parts) ||
 			(!isUser && !hasRenderableContent),
-		hasRenderableContent,
 		userInlineContent,
 		userFileBlocks,
 		hasUserMessageBody,

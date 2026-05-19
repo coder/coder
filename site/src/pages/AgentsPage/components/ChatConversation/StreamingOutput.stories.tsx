@@ -282,7 +282,7 @@ export const ThinkingDuringStreamingWithToolCalls: Story = {
 		expect(canvas.getAllByText("Thinking").length).toBeGreaterThanOrEqual(1);
 
 		const toolCallWrappers = Array.from(
-			canvasElement.querySelectorAll("[data-tool-call]"),
+			canvasElement.querySelectorAll("[data-transcript-row]"),
 		);
 		expect(toolCallWrappers).toHaveLength(3);
 

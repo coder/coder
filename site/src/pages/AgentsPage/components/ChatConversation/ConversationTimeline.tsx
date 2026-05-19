@@ -143,7 +143,7 @@ const ReasoningDisclosure = memo<{
 		}, [displayTextLength, isPreviewConstrained]);
 
 		return (
-			<div data-tool-call="">
+			<div data-transcript-row="">
 				<ToolCollapsible
 					className="w-full"
 					expanded={expanded}

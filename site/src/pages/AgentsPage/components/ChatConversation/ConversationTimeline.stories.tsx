@@ -2257,8 +2257,8 @@ export const ThinkingBlockWithToolCall: Story = {
 		const toolButton = canvas.getByRole("button", {
 			name: /read package\.json/i,
 		});
-		const thinkingContainer = thinkingButton.closest("[data-tool-call]");
-		const toolContainer = toolButton.closest("[data-tool-call]");
+		const thinkingContainer = thinkingButton.closest("[data-transcript-row]");
+		const toolContainer = toolButton.closest("[data-transcript-row]");
 		expect(thinkingContainer).toBeInstanceOf(HTMLElement);
 		expect(toolContainer).toBeInstanceOf(HTMLElement);
 		expect(toolContainer?.firstElementChild).not.toHaveAttribute("data-state");
@@ -2351,12 +2351,15 @@ export const ThinkingBlockWithShellTools: Story = {
 			name: /expand process output/i,
 		});
 
-		const thinkingRow =
-			thinkingButton.closest("[data-tool-call]")?.firstElementChild;
-		const executeRow =
-			executeButton.closest("[data-tool-call]")?.firstElementChild;
-		const processOutputRow =
-			processOutputButton.closest("[data-tool-call]")?.firstElementChild;
+		const thinkingRow = thinkingButton.closest(
+			"[data-transcript-row]",
+		)?.firstElementChild;
+		const executeRow = executeButton.closest(
+			"[data-transcript-row]",
+		)?.firstElementChild;
+		const processOutputRow = processOutputButton.closest(
+			"[data-transcript-row]",
+		)?.firstElementChild;
 
 		expect(thinkingRow).toBeInstanceOf(HTMLElement);
 		expect(executeRow).toBeInstanceOf(HTMLElement);
@@ -2368,9 +2371,9 @@ export const ThinkingBlockWithShellTools: Story = {
 		expect(new Set(rowHeights)).toHaveLength(1);
 
 		const wrappers = [
-			thinkingButton.closest("[data-tool-call]"),
-			executeButton.closest("[data-tool-call]"),
-			processOutputButton.closest("[data-tool-call]"),
+			thinkingButton.closest("[data-transcript-row]"),
+			executeButton.closest("[data-transcript-row]"),
+			processOutputButton.closest("[data-transcript-row]"),
 		].map((row) => row as HTMLElement);
 		const gaps = [
 			Math.round(

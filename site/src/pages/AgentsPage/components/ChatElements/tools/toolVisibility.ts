@@ -51,10 +51,44 @@ export const getExecuteRenderData = (
 	};
 };
 
-export const shouldHideExecuteTool = (data: ExecuteRenderData): boolean => {
-	return data.command.trim().length === 0 && !data.authenticateURL;
+const shouldRenderExecuteTool = (data: ExecuteRenderData): boolean => {
+	return data.command.trim().length > 0 || Boolean(data.authenticateURL);
 };
 
+const shouldHideSubagentLifecycleTool = ({
+	name,
+	status,
+	args,
+	result,
+}: {
+	name: string;
+	status: ToolStatus;
+	args?: unknown;
+	result?: unknown;
+}): boolean => {
+	const descriptor = getSubagentDescriptor({ name, args, result });
+	if (!descriptor || status !== "running") {
+		return false;
+	}
+
+	if (
+		descriptor.action !== "wait" &&
+		descriptor.action !== "message" &&
+		descriptor.action !== "close"
+	) {
+		return false;
+	}
+
+	// Wait, message, and close rows can stream before their target chat_id
+	// arrives. Hiding them until that id exists avoids flashing generic
+	// lifecycle copy before the transcript can resolve the real title.
+	return !getSubagentChatId({ args, result });
+};
+
+/**
+ * Centralize tool-row visibility so transcript message hiding stays in sync
+ * with <Tool> row rendering and hidden rows never leave empty gaps behind.
+ */
 export const shouldRenderTool = ({
 	name,
 	status,
@@ -67,22 +101,10 @@ export const shouldRenderTool = ({
 	result?: unknown;
 }): boolean => {
 	if (name === "execute") {
-		return !shouldHideExecuteTool(getExecuteRenderData(args, result));
+		return shouldRenderExecuteTool(getExecuteRenderData(args, result));
 	}
 
-	const descriptor = getSubagentDescriptor({ name, args, result });
-	if (!descriptor) {
-		return true;
-	}
-
-	const chatId = getSubagentChatId({ args, result });
-	if (
-		!chatId &&
-		status === "running" &&
-		(descriptor.action === "wait" ||
-			descriptor.action === "message" ||
-			descriptor.action === "close")
-	) {
+	if (shouldHideSubagentLifecycleTool({ name, status, args, result })) {
 		return false;
 	}
 

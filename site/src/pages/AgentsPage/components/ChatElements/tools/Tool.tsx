@@ -42,7 +42,7 @@ import {
 import { ToolCollapsible } from "./ToolCollapsible";
 import { ToolIcon } from "./ToolIcon";
 import { ToolLabel } from "./ToolLabel";
-import { getExecuteRenderData, shouldHideExecuteTool } from "./toolVisibility";
+import { getExecuteRenderData, shouldRenderTool } from "./toolVisibility";
 import {
 	asNumber,
 	asRecord,
@@ -226,10 +226,6 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 	shellToolDisplayMode,
 }) => {
 	const data = getExecuteRenderData(args, result);
-
-	if (shouldHideExecuteTool(data)) {
-		return null;
-	}
 
 	if (data.authenticateURL) {
 		return (
@@ -549,20 +545,6 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 		const timedOutInError = errorStr.toLowerCase().includes("timed out");
 		if (timedOutInResult || timedOutInError) {
 			isTimeout = true;
-		}
-	}
-
-	// Postpone rendering wait_agent, message_agent, and close_agent
-	// until the chat_id has been parsed from the streaming args.
-	// Without it we cannot determine variant or title, which causes
-	// a brief flash of the generic lifecycle copy.
-	if (!chatId && status === "running") {
-		if (
-			descriptor.action === "wait" ||
-			descriptor.action === "message" ||
-			descriptor.action === "close"
-		) {
-			return null;
 		}
 	}
 
@@ -1050,18 +1032,14 @@ export const Tool = memo(
 			? SubagentRenderer
 			: (toolRenderers[name] ?? GenericToolRenderer);
 		const isShellTool = name === "execute" || name === "process_output";
-		if (
-			name === "execute" &&
-			shouldHideExecuteTool(getExecuteRenderData(args, result))
-		) {
+		if (!shouldRenderTool({ name, status, args, result })) {
 			return null;
 		}
 
 		return (
 			<div
 				ref={ref}
-				data-tool-call=""
-				data-shell-tool={isShellTool ? "" : undefined}
+				data-transcript-row=""
 				className={cn(
 					isShellTool || name === "propose_plan" || name === "advisor"
 						? "w-full"
