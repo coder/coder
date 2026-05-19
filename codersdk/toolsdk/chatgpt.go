@@ -57,10 +57,19 @@ func searchTemplates(ctx context.Context, deps Deps, query string) ([]SearchResu
 	}
 	results := make([]SearchResultItem, len(templates))
 	for i, template := range templates {
+		// Append Abstract so the discovery surface can rank similarly-described
+		// templates by the agent-targeted summary.
+		text := template.Description
+		if abstract := strings.TrimSpace(template.Abstract); abstract != "" {
+			if text != "" {
+				text += "\n\n"
+			}
+			text += abstract
+		}
 		results[i] = SearchResultItem{
 			ID:    createObjectID(ObjectTypeTemplate, template.ID.String()).String(),
 			Title: template.DisplayName,
-			Text:  template.Description,
+			Text:  text,
 			URL:   fmt.Sprintf("%s/templates/%s/%s", serverURL, template.OrganizationName, template.Name),
 		}
 	}

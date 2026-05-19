@@ -235,6 +235,44 @@ func TestListTemplates_Abstract(t *testing.T) {
 		_, hasAbstract := m["abstract"]
 		require.False(t, hasAbstract, "abstract key should be omitted when empty")
 	})
+
+	t.Run("WhitespaceOnlyAbstractOmitted", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+		user := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         user.ID,
+			OrganizationID: org.ID,
+		})
+
+		// Proves the TrimSpace guard is load-bearing; a non-empty but
+		// whitespace-only abstract must still omit the key.
+		dbgen.Template(t, db, database.Template{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+			Name:           "whitespace-abstract",
+			Description:    "short description",
+			Abstract:       "   \t  \n  ",
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		tool := chattool.ListTemplates(db, org.ID, chattool.ListTemplatesOptions{
+			OwnerID: user.ID,
+		})
+		resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "ws", Name: "list_templates", Input: "{}"})
+		require.NoError(t, err)
+		require.False(t, resp.IsError)
+
+		var result map[string]any
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		templates := result["templates"].([]any)
+		require.Len(t, templates, 1)
+		m := templates[0].(map[string]any)
+		_, hasAbstract := m["abstract"]
+		require.False(t, hasAbstract, "abstract key should be omitted when whitespace-only")
+	})
 }
 
 //nolint:tparallel,paralleltest // Subtests share a single DB and run sequentially.

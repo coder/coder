@@ -151,6 +151,52 @@ func TestChatGPTSearch_TemplateMultipleFilters(t *testing.T) {
 	require.Equal(t, expectedID, result.Results[0].ID, "Should match the docker template in org2")
 }
 
+func TestChatGPTSearch_TemplateAbstractSurfaced(t *testing.T) {
+	t.Parallel()
+
+	client, store := coderdtest.NewWithDatabase(t, nil)
+	owner := coderdtest.CreateFirstUser(t, client)
+
+	const (
+		desc     = "Short description."
+		abstract = "Long-form agent-targeted summary that differentiates this template."
+	)
+
+	dbgen.Template(t, store, database.Template{
+		OrganizationID: owner.OrganizationID,
+		CreatedBy:      owner.UserID,
+		Name:           "with-abstract",
+		DisplayName:    "With Abstract",
+		Description:    desc,
+		Abstract:       abstract,
+	})
+	dbgen.Template(t, store, database.Template{
+		OrganizationID: owner.OrganizationID,
+		CreatedBy:      owner.UserID,
+		Name:           "no-abstract",
+		DisplayName:    "No Abstract",
+		Description:    desc,
+	})
+
+	deps, err := toolsdk.NewDeps(client)
+	require.NoError(t, err)
+
+	result, err := testTool(t, toolsdk.ChatGPTSearch, deps, toolsdk.SearchArgs{Query: "templates"})
+	require.NoError(t, err)
+	require.Len(t, result.Results, 2)
+
+	for _, item := range result.Results {
+		switch item.Title {
+		case "With Abstract":
+			require.Contains(t, item.Text, desc)
+			require.Contains(t, item.Text, abstract,
+				"abstract must be surfaced so the search ranker can differentiate similarly described templates")
+		case "No Abstract":
+			require.Equal(t, desc, item.Text)
+		}
+	}
+}
+
 func TestChatGPTSearch_WorkspaceSearch(t *testing.T) {
 	t.Parallel()
 
