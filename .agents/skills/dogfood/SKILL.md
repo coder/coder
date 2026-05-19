@@ -51,12 +51,12 @@ Pass extra Coder server flags after the delimiter argument named `--`. For trace
 
 Useful defaults:
 
-| Resource | Default |
-| --- | --- |
-| API server | `3000` |
-| Web UI | `8080` |
-| Workspace proxy | `3010` |
-| Coder metrics | `2114` |
+| Resource        | Default |
+|-----------------|---------|
+| API server      | `3000`  |
+| Web UI          | `8080`  |
+| Workspace proxy | `3010`  |
+| Coder metrics   | `2114`  |
 
 Useful overrides:
 
