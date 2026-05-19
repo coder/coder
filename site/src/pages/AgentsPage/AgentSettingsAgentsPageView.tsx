@@ -123,7 +123,7 @@ export const AgentSettingsAgentsPageView: FC<
 			<section aria-label="Compaction model" className="flex flex-col gap-3">
 				<SectionHeader
 					label="Compaction model"
-					description="Deployment-wide model override for chat context compaction. Leave unset to compact with the chat model being summarized."
+					description="Deployment-wide model override for chat context compaction. Leave unset to use the active chat model."
 					level="section"
 				/>
 				<SubagentModelOverrideSettings
