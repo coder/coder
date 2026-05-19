@@ -224,8 +224,7 @@ func TestServerCreateAdminUser(t *testing.T) {
 		}
 		connectionURL, err := dbtestutil.Open(t)
 		require.NoError(t, err)
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		defer cancelFunc()
+		ctx := testutil.Context(testutil.WaitShort)
 
 		root, _ := clitest.New(t,
 			"server", "create-admin-user",
