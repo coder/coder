@@ -18113,7 +18113,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "id": {
-                    "description": "ID identifies the request for response ordering. Websocket response\nIDs are monotonically increasing and may exceed the request ID when\nserver-side events trigger additional renders.",
+                    "description": "ID identifies the request. The response contains the same\nID so that the client can match it to the request.",
                     "type": "integer"
                 },
                 "inputs": {
