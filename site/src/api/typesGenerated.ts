@@ -9279,13 +9279,8 @@ export interface UserSecret {
 /**
  * UserSkill represents a user skill with its raw Markdown content.
  */
-export interface UserSkill {
-	readonly id: string;
-	readonly name: string;
-	readonly description: string;
+export interface UserSkill extends UserSkillMetadata {
 	readonly content: string;
-	readonly created_at: string;
-	readonly updated_at: string;
 }
 
 // From codersdk/userskills.go

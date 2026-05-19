@@ -22,12 +22,8 @@ type UserSkillMetadata struct {
 
 // UserSkill represents a user skill with its raw Markdown content.
 type UserSkill struct {
-	ID          uuid.UUID `json:"id" format:"uuid"`
-	Name        string    `json:"name"`
-	Description string    `json:"description"`
-	Content     string    `json:"content"`
-	CreatedAt   time.Time `json:"created_at" format:"date-time"`
-	UpdatedAt   time.Time `json:"updated_at" format:"date-time"`
+	UserSkillMetadata
+	Content string `json:"content"`
 }
 
 // CreateUserSkillRequest is the payload for creating a user skill.

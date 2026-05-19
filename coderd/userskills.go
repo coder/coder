@@ -223,9 +223,8 @@ func (api *API) patchUserSkill(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var (
-		skill              database.UserSkill
-		oldSkill           database.UserSkill
-		unauthorizedUpdate bool
+		skill    database.UserSkill
+		oldSkill database.UserSkill
 	)
 	err = api.Database.InTx(func(tx database.Store) error {
 		fetched, err := tx.GetUserSkillByUserIDAndName(ctx, database.GetUserSkillByUserIDAndNameParams{
@@ -238,9 +237,6 @@ func (api *API) patchUserSkill(rw http.ResponseWriter, r *http.Request) {
 
 		updated, err := tx.UpdateUserSkillByUserIDAndName(ctx, params)
 		if err != nil {
-			if httpapi.IsUnauthorizedError(err) {
-				unauthorizedUpdate = true
-			}
 			return xerrors.Errorf("update user skill: %w", err)
 		}
 		oldSkill = fetched
@@ -248,12 +244,12 @@ func (api *API) patchUserSkill(rw http.ResponseWriter, r *http.Request) {
 		return nil
 	}, nil)
 	if err != nil {
-		if database.IsCheckViolation(err, userSkillUserDeletedConstraint) {
-			writeCannotModifyUserSkillForDeletedUser(ctx, rw)
+		if httpapi.IsUnauthorizedError(err) {
+			httpapi.Forbidden(rw)
 			return
 		}
-		if unauthorizedUpdate {
-			httpapi.Forbidden(rw)
+		if database.IsCheckViolation(err, userSkillUserDeletedConstraint) {
+			writeCannotModifyUserSkillForDeletedUser(ctx, rw)
 			return
 		}
 		if httpapi.Is404Error(err) {
