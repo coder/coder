@@ -205,6 +205,19 @@ func TestAdvisorToolPassesNormalQuestion(t *testing.T) {
 	require.Equal(t, "What's safest?", capturedQuestion)
 }
 
+func TestAdvisorToolPreservesQuestionAtLimit(t *testing.T) {
+	t.Parallel()
+
+	var capturedQuestion string
+	tool := advisorToolCapturingQuestion(t, &capturedQuestion)
+	question := strings.Repeat("界", 2000)
+
+	resp := runAdvisorTool(t, tool, chatadvisor.AdvisorArgs{Question: question})
+	require.False(t, resp.IsError)
+	require.Equal(t, 2000, utf8.RuneCountInString(capturedQuestion))
+	require.Equal(t, question, capturedQuestion)
+}
+
 func TestAdvisorToolTruncatesLongQuestion(t *testing.T) {
 	t.Parallel()
 
@@ -229,6 +242,7 @@ func TestAdvisorToolInfoDocumentsQuestionLimit(t *testing.T) {
 
 	info := tool.Info()
 	require.Contains(t, info.Description, "2000 runes")
+	require.Contains(t, chatadvisor.ParentGuidanceBlock, "2000 runes")
 
 	questionParam, ok := info.Parameters["question"].(map[string]any)
 	require.True(t, ok)
