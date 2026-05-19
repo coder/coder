@@ -877,6 +877,227 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/experimental/users/{user}/skills": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "List user skills",
+                "operationId": "list-user-skills",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.UserSkillMetadata"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Create a user skill",
+                "operationId": "create-a-user-skill",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Create user skill request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateUserSkillRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserSkill"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/users/{user}/skills/{skillName}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Get a user skill by name",
+                "operationId": "get-a-user-skill-by-name",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Skill name",
+                        "name": "skillName",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserSkill"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Delete a user skill",
+                "operationId": "delete-a-user-skill",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Skill name",
+                        "name": "skillName",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Users"
+                ],
+                "summary": "Update a user skill",
+                "operationId": "update-a-user-skill",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Skill name",
+                        "name": "skillName",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update user skill request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateUserSkillRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserSkill"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/watch-all-workspacebuilds": {
             "get": {
                 "produces": [
@@ -14802,6 +15023,11 @@ const docTemplate = `{
                 "user_secret:delete",
                 "user_secret:read",
                 "user_secret:update",
+                "user_skill:*",
+                "user_skill:create",
+                "user_skill:delete",
+                "user_skill:read",
+                "user_skill:update",
                 "webpush_subscription:*",
                 "webpush_subscription:create",
                 "webpush_subscription:delete",
@@ -15023,6 +15249,11 @@ const docTemplate = `{
                 "APIKeyScopeUserSecretDelete",
                 "APIKeyScopeUserSecretRead",
                 "APIKeyScopeUserSecretUpdate",
+                "APIKeyScopeUserSkillAll",
+                "APIKeyScopeUserSkillCreate",
+                "APIKeyScopeUserSkillDelete",
+                "APIKeyScopeUserSkillRead",
+                "APIKeyScopeUserSkillUpdate",
                 "APIKeyScopeWebpushSubscriptionAll",
                 "APIKeyScopeWebpushSubscriptionCreate",
                 "APIKeyScopeWebpushSubscriptionDelete",
@@ -17396,6 +17627,15 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.CreateUserSkillRequest": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body.",
                     "type": "string"
                 }
             }
@@ -21537,6 +21777,7 @@ const docTemplate = `{
                 "usage_event",
                 "user",
                 "user_secret",
+                "user_skill",
                 "webpush_subscription",
                 "workspace",
                 "workspace_agent_devcontainers",
@@ -21586,6 +21827,7 @@ const docTemplate = `{
                 "ResourceUsageEvent",
                 "ResourceUser",
                 "ResourceUserSecret",
+                "ResourceUserSkill",
                 "ResourceWebpushSubscription",
                 "ResourceWorkspace",
                 "ResourceWorkspaceAgentDevcontainers",
@@ -21811,7 +22053,8 @@ const docTemplate = `{
                 "ai_provider_key",
                 "group_ai_budget",
                 "chat",
-                "user_secret"
+                "user_secret",
+                "user_skill"
             ],
             "x-enum-varnames": [
                 "ResourceTypeTemplate",
@@ -21845,7 +22088,8 @@ const docTemplate = `{
                 "ResourceTypeAIProviderKey",
                 "ResourceTypeGroupAIBudget",
                 "ResourceTypeChat",
-                "ResourceTypeUserSecret"
+                "ResourceTypeUserSecret",
+                "ResourceTypeUserSkill"
             ]
         },
         "codersdk.Response": {
@@ -23781,6 +24025,15 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UpdateUserSkillRequest": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body.",
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.UpdateWorkspaceACL": {
             "type": "object",
             "properties": {
@@ -24292,6 +24545,55 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "file_path": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
+        "codersdk.UserSkill": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
+        "codersdk.UserSkillMetadata": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "description": {
                     "type": "string"
                 },
                 "id": {

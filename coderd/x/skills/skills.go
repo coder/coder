@@ -18,6 +18,14 @@ const MaxPersonalSkillSizeBytes = workspacesdk.MaxSkillMetaBytes
 // personal skill upload. Skill names are also used in URL paths.
 const MaxPersonalSkillNameBytes = 256
 
+// MaxPersonalSkillDescriptionBytes is the maximum frontmatter description size
+// accepted for a personal skill upload.
+const MaxPersonalSkillDescriptionBytes = 4096
+
+// MaxPersonalSkillsPerUser is the maximum number of personal skills a user may
+// create.
+const MaxPersonalSkillsPerUser = 100
+
 // Source identifies where a skill came from.
 type Source string
 
@@ -36,6 +44,8 @@ var (
 	ErrSkillBodyRequired = xerrors.New("skill body is required")
 	// ErrSkillTooLarge indicates that the raw skill Markdown is too large.
 	ErrSkillTooLarge = xerrors.New("skill is too large")
+	// ErrSkillDescriptionTooLarge indicates that the description is too large.
+	ErrSkillDescriptionTooLarge = xerrors.New("skill description is too large")
 	// ErrSkillNotFound indicates that a skill lookup did not match any alias.
 	ErrSkillNotFound = xerrors.New("skill not found")
 	// ErrSkillAmbiguous indicates that a skill lookup matched multiple sources.
@@ -65,8 +75,9 @@ type ResolvedSkill struct {
 // ParsePersonalSkillMarkdown parses raw personal skill Markdown and enforces
 // the personal skill contract. The raw size must not exceed
 // MaxPersonalSkillSizeBytes, frontmatter must contain a valid kebab-case name,
-// the skill name must not exceed MaxPersonalSkillNameBytes, and the body after
-// frontmatter must be non-empty.
+// the skill name must not exceed MaxPersonalSkillNameBytes, the description must
+// not exceed MaxPersonalSkillDescriptionBytes, and the body after frontmatter
+// must be non-empty.
 func ParsePersonalSkillMarkdown(raw []byte) (ParsedSkill, error) {
 	if len(raw) > MaxPersonalSkillSizeBytes {
 		return ParsedSkill{}, xerrors.Errorf(
@@ -100,6 +111,15 @@ func ParsePersonalSkillMarkdown(raw []byte) (ParsedSkill, error) {
 			name,
 			nameBytes,
 			MaxPersonalSkillNameBytes,
+		)
+	}
+	descriptionBytes := len(description)
+	if descriptionBytes > MaxPersonalSkillDescriptionBytes {
+		return ParsedSkill{}, xerrors.Errorf(
+			"%w: got %d bytes, maximum is %d bytes",
+			ErrSkillDescriptionTooLarge,
+			descriptionBytes,
+			MaxPersonalSkillDescriptionBytes,
 		)
 	}
 	if strings.TrimSpace(body) == "" {
