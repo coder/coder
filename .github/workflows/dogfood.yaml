@@ -253,16 +253,26 @@ jobs:
       # The repo checkout is volume-mounted so make gen/fmt can write
       # back and we can verify nothing is unstaged afterwards.
       #
-      # --network=host: simple networking for any tools that need it.
-      # --user: match the runner's UID/GID so written files have the
-      #         correct ownership on the host volume mount.
+      # The checkout is pre-chmod'd a+rwX so the container's coder user
+      # (UID 1000) can write generated files and build artifacts into the
+      # runner-owned volume. Running without --user lets the container
+      # use its own /etc/passwd entry so HOME is resolved correctly.
+
+      - name: Make checkout writable for container user
+        run: |
+          chmod -R a+rwX .
+          # Create a minimal gitconfig for the container's coder user
+          # so git recognizes this runner-owned volume as a safe directory.
+          # Without this, git rev-parse fails in lib.sh, breaking PROJECT_ROOT.
+          printf '[safe]\n\tdirectory = /home/coder/coder\n' > /tmp/coder-gitconfig
+
       - name: make gen
         run: |
           docker run --rm \
             --volume "$(pwd)":/home/coder/coder \
+            --volume /tmp/coder-gitconfig:/home/coder/.gitconfig:ro \
             --workdir /home/coder/coder \
             --network=host \
-            --user "$(id -u):$(id -g)" \
             --env GITHUB_TOKEN \
             "dogfood-test:${{ matrix.variant }}" \
             make --output-sync=line -j gen
@@ -273,9 +283,9 @@ jobs:
         run: |
           docker run --rm \
             --volume "$(pwd)":/home/coder/coder \
+            --volume /tmp/coder-gitconfig:/home/coder/.gitconfig:ro \
             --workdir /home/coder/coder \
             --network=host \
-            --user "$(id -u):$(id -g)" \
             --env GITHUB_TOKEN \
             "dogfood-test:${{ matrix.variant }}" \
             make --output-sync=line -j fmt
@@ -286,9 +296,9 @@ jobs:
         run: |
           docker run --rm \
             --volume "$(pwd)":/home/coder/coder \
+            --volume /tmp/coder-gitconfig:/home/coder/.gitconfig:ro \
             --workdir /home/coder/coder \
             --network=host \
-            --user "$(id -u):$(id -g)" \
             --env GITHUB_TOKEN \
             "dogfood-test:${{ matrix.variant }}" \
             make --output-sync=line -j lint
@@ -301,9 +311,9 @@ jobs:
         run: |
           docker run --rm \
             --volume "$(pwd)":/home/coder/coder \
+            --volume /tmp/coder-gitconfig:/home/coder/.gitconfig:ro \
             --workdir /home/coder/coder \
             --network=host \
-            --user "$(id -u):$(id -g)" \
             --env GITHUB_TOKEN \
             "dogfood-test:${{ matrix.variant }}" \
             make -j build/coder_linux_amd64
