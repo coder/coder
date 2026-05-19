@@ -14,8 +14,6 @@ export const startWorkspaceProxy = async (
 		},
 	});
 
-	const foo = "unused";
-
 	cp.stdout.on("data", (data: Buffer) => {
 		console.info(
 			`[wsproxy] [stdout] [onData] ${data.toString().replace(/\n$/g, "")}`,
