@@ -3,7 +3,6 @@ package chatadvisor
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"strings"
 	"unicode/utf8"
 
@@ -34,7 +33,7 @@ type ToolOptions struct {
 func Tool(opts ToolOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		ToolName,
-		"Ask a separate advisor pass for strategic guidance about planning, architecture, tradeoffs, or debugging strategy. Provide a brief question. The advisor sees recent conversation context, runs without tools for a single step, and responds to the parent agent rather than the end user.",
+		"Ask a separate advisor pass for strategic guidance about planning, architecture, tradeoffs, or debugging strategy. Provide a brief question of 2000 runes or fewer, summarizing context instead of pasting long logs or transcripts. The advisor sees recent conversation context, runs without tools for a single step, and responds to the parent agent rather than the end user.",
 		func(ctx context.Context, args AdvisorArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if opts.Runtime == nil {
 				return fantasy.NewTextErrorResponse("advisor runtime is not configured"), nil
@@ -47,11 +46,7 @@ func Tool(opts ToolOptions) fantasy.AgentTool {
 			if question == "" {
 				return fantasy.NewTextErrorResponse("question is required"), nil
 			}
-			if utf8.RuneCountInString(question) > advisorQuestionMaxRunes {
-				return fantasy.NewTextErrorResponse(
-					fmt.Sprintf("question must be %d runes or fewer", advisorQuestionMaxRunes),
-				), nil
-			}
+			question = truncateRunes(question, advisorQuestionMaxRunes)
 
 			var runOpts *RunAdvisorOptions
 			if call.ID != "" && (opts.PublishAdviceDelta != nil || opts.PublishAdviceReset != nil) {
@@ -79,4 +74,15 @@ func Tool(opts ToolOptions) fantasy.AgentTool {
 			return fantasy.NewTextResponse(string(data)), nil
 		},
 	)
+}
+
+func truncateRunes(s string, maxRunes int) string {
+	if maxRunes <= 0 {
+		return ""
+	}
+	if utf8.RuneCountInString(s) <= maxRunes {
+		return s
+	}
+	runes := []rune(s)
+	return string(runes[:maxRunes])
 }
