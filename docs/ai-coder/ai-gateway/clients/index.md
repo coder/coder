@@ -13,9 +13,8 @@ There are two ways to connect AI tools to AI Gateway:
 - AI Gateway Proxy: For tools that don't support base URL configuration, [AI Gateway Proxy](../ai-gateway-proxy/index.md) can intercept traffic and forward it to AI Gateway.
 
 > [!NOTE]
-> AI Gateway works with tools running inside or outside
-> of Coder workspaces. For non-workspace setup, see
-> [External and Desktop Clients](#external-and-desktop-clients).
+> AI Gateway works with tools running inside or outside of Coder workspaces.
+> For non-workspace setup, visit [External and Desktop Clients](#external-and-desktop-clients).
 
 ## Base URLs
 
@@ -30,61 +29,7 @@ Replace `coder.example.com` with your actual Coder deployment URL.
 
 ## Authentication
 
-Instead of distributing provider-specific API keys (OpenAI/Anthropic keys) to users, they authenticate to AI Gateway using their **Coder API token**:
-
-- **OpenAI clients**: Users set `OPENAI_API_KEY` to their Coder API token
-- **Anthropic clients**: Users set `ANTHROPIC_API_KEY` to their Coder API token
-
-> [!NOTE]
-> Only Coder-issued tokens can authenticate users against AI Gateway.
-> AI Gateway will use provider-specific API keys to [authenticate against upstream AI services](../setup.md#configure-providers).
-
-Again, the exact environment variable or setting naming may differ from tool to tool. See a list of [supported clients](#all-supported-clients) below and consult your tool's documentation for details.
-
-### Retrieving your session token
-
-If you're logged in with the Coder CLI, you can retrieve your current session
-token using [`coder login token`](../../../reference/cli/login_token.md):
-
-```sh
-export ANTHROPIC_API_KEY=$(coder login token)
-export ANTHROPIC_BASE_URL="https://coder.example.com/api/v2/aibridge/anthropic"
-```
-
-Alternatively, [generate a long-lived API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself) via the Coder dashboard.
-
-## Bring Your Own Key (BYOK)
-
-In addition to centralized key management, AI Gateway supports **Bring Your
-Own Key** (BYOK) mode. Users can provide their own LLM API keys or use
-provider subscriptions (such as Claude Pro/Max or ChatGPT Plus/Pro) while
-AI Gateway continues to provide observability and governance.
-
-![BYOK authentication flow](../../../images/aibridge/clients/byok_auth_flow.png)
-
-In BYOK mode, users need two credentials:
-
-- A **Coder API token** to authenticate with AI Gateway.
-- Their **own LLM credential** (personal API key or subscription token) which AI Gateway forwards
-  to the upstream provider.
-
-BYOK and centralized modes can be used together. When a user provides
-their own credential, AI Gateway forwards it directly. When no user
-credential is present, AI Gateway falls back to the admin-configured
-provider key. This lets organizations offer centralized keys as a default
-while allowing individual users to bring their own.
-
-See individual client pages for configuration details.
-
-### Enabling or disabling BYOK
-
-BYOK is enabled by default. Administrators can disable it using `--aibridge-allow-byok=false` or `CODER_AIBRIDGE_ALLOW_BYOK=false`:
-
-```sh
-coder server --aibridge-allow-byok=false
-```
-
-When disabled, BYOK requests are rejected with a `403 Forbidden` response and only centralized key authentication is permitted.
+For information about authenticating with AI Gateway, visit [AI Gateway Authentication](../auth.md).
 
 ## Compatibility
 
@@ -180,3 +125,8 @@ For complete setup instructions, see the [supported client examples](#all-suppor
 ## All Supported Clients
 
 <children></children>
+
+## Learn more
+
+- [AI Gateway Authentication and BYOK](../auth.md)
+- [AI Gateway Reference](../reference.md)
