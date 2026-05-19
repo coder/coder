@@ -483,8 +483,8 @@ func TestAIProvidersCRUD(t *testing.T) {
 		body := string(bodyBytes)
 		require.NotContains(t, body, "AKIA-leak")
 		require.NotContains(t, body, "bedrock-supersecret")
-		require.NotContains(t, body, "bedrock_access_key")
-		require.NotContains(t, body, "bedrock_access_key_secret")
+		require.NotContains(t, body, `"access_key"`)
+		require.NotContains(t, body, `"access_key_secret"`)
 	})
 }
 
