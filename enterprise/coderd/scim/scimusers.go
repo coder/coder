@@ -12,9 +12,11 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	agpl "github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 var _ scim.ResourceHandler = (*ResourceUser)(nil)
@@ -29,12 +31,132 @@ type ResourceUser struct {
 	opts  *Options
 }
 
-func (ru *ResourceUser) Create(_ *http.Request, _ scim.ResourceAttributes) (scim.Resource, error) {
-	// Creating a new user from SCIM is not currently supported.
-	return scim.Resource{}, scimErrors.ScimError{
-		Status: http.StatusNotImplemented,
-		Detail: "User creation via SCIM is not supported",
+// Create implements scim.ResourceHandler. Creates a new Coder user from
+// SCIM attributes, or returns the existing user if a duplicate is found.
+func (ru *ResourceUser) Create(r *http.Request, attributes scim.ResourceAttributes) (scim.Resource, error) {
+	ctx := r.Context()
+
+	auditor := *ru.opts.Auditor.Load()
+	aReq, commitAudit := audit.InitRequestWithCancel[database.User](nil, &audit.RequestParams{
+		Audit:            auditor,
+		Log:              ru.opts.Logger,
+		Request:          r,
+		Action:           database.AuditActionCreate,
+		AdditionalFields: scimAuditAdditionalFields,
+	})
+	defer commitAudit(true)
+
+	// Extract fields from the SCIM attributes.
+	// Do our best to match what the OIDC signup flow also does.
+	username, _ := attributes["userName"].(string)
+	email := primaryEmail(attributes)
+	if email == "" {
+		// email is required
+		return scim.Resource{}, scimErrors.ScimErrorBadRequest("no primary email provided")
 	}
+
+	// This comes from userOIDC
+	// TODO: Ideally this code would be shared between the two places.
+	usernameValidErr := codersdk.NameValid(username)
+	if usernameValidErr != nil {
+		if username == "" {
+			username = email
+		}
+		username = codersdk.UsernameFrom(username)
+	}
+
+	// TODO: OIDC has optional configuration like `EmailDomain` to reject emails outside a specific domain.
+	//   We should consider whether we want to support that for SCIM as well, and if so, apply that validation here.
+
+	active := true
+	if a, ok := attributes["active"]; ok {
+		v, err := BooleanValue(a)
+		if err != nil {
+			return scim.Resource{}, scimErrors.ScimErrorBadRequest(
+				fmt.Sprintf("invalid boolean value for 'active' field: %v", a))
+		}
+		active = v
+	}
+
+	// Check for existing user by email or username.
+	dbUser, err := ru.store.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
+		Email:    email,
+		Username: username,
+	})
+	if err == nil {
+		aReq.Old = dbUser
+		// User already exists. Update their status if needed
+		status := scimUserStatus(dbUser, &active)
+		if active && dbUser.Status != status {
+			newUser, err := ru.store.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
+				ID:         dbUser.ID,
+				Status:     status,
+				UpdatedAt:  dbtime.Now(),
+				UserIsSeen: false,
+			})
+			if err != nil {
+				return scim.Resource{}, err
+			}
+			aReq.New = newUser
+		} else {
+			// No change has occured, skip audit log.
+			commitAudit(false)
+		}
+
+		return userResource(dbUser), nil
+	}
+
+	if !xerrors.Is(err, sql.ErrNoRows) {
+		// Internal DB errors should be returned.
+		// ErrNoRows is expected if the user does not exist.
+		return scim.Resource{}, err
+	}
+
+	// OIDC login runs org, group, and role sync. SCIM does not have (or not yet) these
+	// claims. We only need to sync the default organization if that is enabled.
+	//
+	// When the user eventually logs in via OIDC, the regular sync will run.
+	// However, since org sync can be disabled. We need to assign the default org if
+	// that is how we are configured.
+	organizations := []uuid.UUID{}
+	orgSync, err := ru.opts.IDPSync.OrganizationSyncSettings(ctx, ru.store)
+	if err != nil {
+		return scim.Resource{}, xerrors.Errorf("get organization sync settings: %w", err)
+	}
+	if orgSync.AssignDefault {
+		// Technically, we could just always assign this. When they eventually log in,
+		// the org would be removed if necessary. But to avoid confusion of the user
+		// being in the org before they log in, we apply some intelligence to this guess
+		// of "Do they belong in the default org".
+		defaultOrganization, err := ru.store.GetDefaultOrganization(ctx)
+		if err != nil {
+			return scim.Resource{}, xerrors.Errorf("get default organization: %w", err)
+		}
+		organizations = append(organizations, defaultOrganization.ID)
+	}
+
+	// CreateUser does InsertOrganizationMember internally, which needs
+	// broader permissions than the SCIM provisioner role. Use
+	// AsSystemRestricted for this specific call.
+	dbUser, err = ru.opts.AGPL.CreateUser(ctx, ru.store, agpl.CreateUserRequest{
+		CreateUserRequestWithOrgs: codersdk.CreateUserRequestWithOrgs{
+			Username:        username,
+			Email:           email,
+			OrganizationIDs: organizations,
+		},
+		LoginType: database.LoginTypeOIDC,
+		// Do not send notifications to user admins; SCIM may call this
+		// sequentially for many users.
+		// TODO: Maybe we should spam them anyway?
+		SkipNotifications: true,
+	})
+	if err != nil {
+		return scim.Resource{}, xerrors.Errorf("create user: %w", err)
+	}
+	aReq.New = dbUser
+	aReq.UserID = dbUser.ID
+
+	return userResource(dbUser), nil
 }
 
 // Get implements scim.ResourceHandler. Returns a single user by ID.
@@ -347,7 +469,7 @@ func userResourceFromGetUsersRow(u database.GetUsersRow) scim.Resource {
 }
 
 func BadUUID(idStr string, err error) scimErrors.ScimError {
-	return scimErrors.ScimErrorBadRequest(fmt.Sprintf("expected a UUID but got %q: %w", idStr, err))
+	return scimErrors.ScimErrorBadRequest(fmt.Sprintf("expected a UUID but got %q: %v", idStr, err))
 }
 
 func BooleanValue(v interface{}) (bool, error) {
@@ -373,4 +495,40 @@ func AttributeEqual[T comparable](existing T, attrs scim.ResourceAttributes, key
 	}
 
 	return existing == sameType
+}
+
+// primaryEmail extracts the primary email from SCIM resource attributes.
+func primaryEmail(attributes scim.ResourceAttributes) string {
+	emailsRaw, ok := attributes["emails"]
+	if !ok {
+		return ""
+	}
+
+	emails, ok := emailsRaw.([]interface{})
+	if !ok {
+		return ""
+	}
+
+	for _, e := range emails {
+		emailMap, ok := e.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if primary, _ := emailMap["primary"].(bool); primary {
+			if val, ok := emailMap["value"].(string); ok {
+				return val
+			}
+		}
+	}
+
+	// Fallback: if no email is marked primary, use the first one.
+	if len(emails) > 0 {
+		if emailMap, ok := emails[0].(map[string]interface{}); ok {
+			if val, ok := emailMap["value"].(string); ok {
+				return val
+			}
+		}
+	}
+
+	return ""
 }

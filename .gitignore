@@ -93,6 +93,10 @@ __debug_bin*
 
 **/.claude/settings.local.json
 
+# SCIM verify output (HAR files from compliance testing)
+scripts/scimverify/output/
+
+
 # Local agent configuration
 AGENTS.local.md
 
