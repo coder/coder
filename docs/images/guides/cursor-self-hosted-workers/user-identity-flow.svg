@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 360" width="1000" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="diag-title diag-desc">
   <title id="diag-title">Cursor user-identity flow (planned)</title>
-  <desc id="diag-desc">Placeholder diagram. When a Cursor session is queued for a user, a router maps the Cursor user to their Coder user, mints a per-user sub-token, and claims a warm prebuild on their behalf. The workspace owner flips to the human, Coder external auth wires their git push token, and the worker registers with the user's Cursor identity. User identity is planned and not yet available.</desc>
+  <desc id="diag-desc">Placeholder diagram. When a Cursor session is queued for a user, a router maps the Cursor user to their Coder user and claims a warm prebuild on their behalf. The workspace owner flips to the human, Coder external auth wires their git push token, and the worker registers in the Cursor pool under the team service account with a coder-owner label identifying the human. User identity is planned and not yet generally available.</desc>
   <style>
     .box { fill: #ffffff; stroke: #6366f1; stroke-width: 1.5; stroke-dasharray: 5 5; rx: 8; }
     .title { font-family: ui-sans-serif, system-ui, sans-serif; font-size: 14px; font-weight: 600; fill: #0f172a; }
@@ -17,13 +17,13 @@
   <text class="sub"   x="60" y="95">userId + repoUrl</text>
   <rect class="box" x="40"  y="200" width="240" height="80"/>
   <text class="title" x="60" y="235">Router</text>
-  <text class="sub"   x="60" y="255">mint sub-token, map user</text>
+  <text class="sub"   x="60" y="255">map cursorUserId, claim</text>
   <rect class="box" x="380" y="120" width="240" height="80"/>
   <text class="title" x="400" y="155">Claim warm prebuild</text>
   <text class="sub"   x="400" y="175">workspace owner = human</text>
   <rect class="box" x="720" y="120" width="240" height="80"/>
   <text class="title" x="740" y="155">Worker registers</text>
-  <text class="sub"   x="740" y="175">as the human in Cursor fleet</text>
+  <text class="sub"   x="740" y="175">SA key + coder-owner label</text>
   <path class="arrow" d="M160,120 L160,200"/>
   <path class="arrow" d="M280,240 L380,170"/>
   <path class="arrow" d="M620,160 L720,160"/>
