@@ -3,7 +3,6 @@ import { TrashIcon } from "lucide-react";
 import { type FC, type ReactNode, useEffect, useId, useState } from "react";
 import { Link } from "react-router";
 import * as Yup from "yup";
-import type { Organization } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { Form, FormFields } from "#/components/Form/Form";
@@ -19,7 +18,6 @@ import {
 } from "#/components/Select/Select";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
-import { OrganizationPicker } from "#/pages/AISettingsPage/ProvidersPage/components/OrganizationPicker";
 import { ProviderIcon } from "#/pages/AISettingsPage/ProvidersPage/components/ProviderIcon";
 import { cn } from "#/utils/cn";
 import { type FormHelpers, getFormHelpers } from "#/utils/formUtils";
@@ -300,19 +298,6 @@ type ProviderFormProps = {
 	onSubmit?: (values: ProviderFormValues) => void;
 	isLoading?: boolean;
 	submitError?: unknown;
-	/**
-	 * Organizations rendered in the in-form picker. Pass `undefined` while the
-	 * list is still loading. Pass `null` to hide the picker entirely.
-	 */
-	organizations?: Organization[] | null | undefined;
-	/** Currently-selected organization id (empty string = none). */
-	selectedOrganizationId?: string;
-	/**
-	 * Optional change handler. Omit (or pass `undefined`) to render the picker
-	 * as a disabled dropdown, e.g. on the update-provider page where the user
-	 * can see the org context but can't reassign it.
-	 */
-	onOrganizationChange?: (id: string) => void;
 };
 
 const namePlaceholder = (provider: string) => {
@@ -357,14 +342,9 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	onSubmit,
 	isLoading = false,
 	submitError,
-	organizations,
-	selectedOrganizationId = "",
-	onOrganizationChange,
 }) => {
 	const typeSelectId = useId();
 	const enabledSwitchId = useId();
-	const organizationSelectId = useId();
-	const showOrganizationPicker = organizations !== null;
 
 	// While editing, each credential input is locked at its seeded mask until
 	// the user presses the trash button next to it; pressing trash flips the
@@ -439,24 +419,6 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		<Form onSubmit={form.handleSubmit}>
 			<FormFields>
 				{Boolean(submitError) && <ErrorAlert error={submitError} />}
-				{showOrganizationPicker && (
-					<div className="flex flex-col gap-2">
-						<Label htmlFor={organizationSelectId}>Organization</Label>
-						<div className="text-xs text-content-secondary">
-							{onOrganizationChange
-								? "Pick the organization this provider belongs to."
-								: "The organization this provider belongs to."}
-						</div>
-						<OrganizationPicker
-							id={organizationSelectId}
-							organizations={organizations}
-							value={selectedOrganizationId}
-							onValueChange={onOrganizationChange}
-							disabled={!onOrganizationChange}
-							triggerClassName="w-full"
-						/>
-					</div>
-				)}
 				{!editing && (
 					<div className="flex flex-col gap-2">
 						<Label htmlFor={typeSelectId}>Type</Label>

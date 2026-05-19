@@ -2,13 +2,7 @@ import { isAxiosError } from "axios";
 import { ArrowLeftIcon, TrashIcon } from "lucide-react";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import {
-	Link,
-	Navigate,
-	useNavigate,
-	useParams,
-	useSearchParams,
-} from "react-router";
+import { Link, Navigate, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import {
@@ -16,7 +10,6 @@ import {
 	deleteAIProviderMutation,
 	updateAIProviderMutation,
 } from "#/api/queries/aiProviders";
-import type { Organization } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Button } from "#/components/Button/Button";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
@@ -35,24 +28,12 @@ import {
 	providerFormValuesToUpdate,
 } from "../components/providerFormApiMap";
 
-const ORGANIZATION_QUERY_PARAM = "organizationId";
+const BACK_HREF = "/ai/settings";
 
-interface UpdateProviderPageViewProps {
-	organizations: Organization[] | undefined;
-}
-
-const UpdateProviderPageView: React.FC<UpdateProviderPageViewProps> = ({
-	organizations,
-}) => {
+const UpdateProviderPageView: React.FC = () => {
 	const { providerId } = useParams<{ providerId: string }>();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
-	const [searchParams] = useSearchParams();
-	// TODO: AI providers are not yet organization-scoped on the wire, so the
-	// org id is round-tripped in the URL only. The picker below is rendered
-	// as disabled to surface which org context the user arrived from without
-	// implying they can reassign it.
-	const selectedOrganizationId = searchParams.get(ORGANIZATION_QUERY_PARAM);
 
 	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
@@ -73,10 +54,6 @@ const UpdateProviderPageView: React.FC<UpdateProviderPageViewProps> = ({
 		deleteAIProviderMutation(queryClient, providerId ?? ""),
 	);
 
-	const backHref = selectedOrganizationId
-		? `/ai/settings?${ORGANIZATION_QUERY_PARAM}=${encodeURIComponent(selectedOrganizationId)}`
-		: "/ai/settings";
-
 	// Rendered into every non-redirect return so the document title reflects
 	// the provider as soon as we know it; falls back to a placeholder while
 	// the query is in flight.
@@ -90,7 +67,7 @@ const UpdateProviderPageView: React.FC<UpdateProviderPageViewProps> = ({
 	);
 
 	if (!providerId) {
-		return <Navigate to={backHref} replace />;
+		return <Navigate to={BACK_HREF} replace />;
 	}
 
 	if (providerQuery.isLoading) {
@@ -107,7 +84,7 @@ const UpdateProviderPageView: React.FC<UpdateProviderPageViewProps> = ({
 			? providerQuery.error.response?.status
 			: undefined;
 		if (status === 404) {
-			return <Navigate to={backHref} replace />;
+			return <Navigate to={BACK_HREF} replace />;
 		}
 		return (
 			<>
@@ -116,7 +93,7 @@ const UpdateProviderPageView: React.FC<UpdateProviderPageViewProps> = ({
 					<p className="text-content-secondary">
 						{getErrorMessage(providerQuery.error, "Failed to load provider.")}
 					</p>
-					<Link to={backHref}>
+					<Link to={BACK_HREF}>
 						<Button variant="subtle">
 							<ArrowLeftIcon />
 							<span>Back to providers</span>
@@ -128,7 +105,7 @@ const UpdateProviderPageView: React.FC<UpdateProviderPageViewProps> = ({
 	}
 
 	if (!provider) {
-		return <Navigate to={backHref} replace />;
+		return <Navigate to={BACK_HREF} replace />;
 	}
 
 	const openAiAnthropicSavedApiKey =
@@ -141,7 +118,7 @@ const UpdateProviderPageView: React.FC<UpdateProviderPageViewProps> = ({
 		<>
 			{title}
 			<div className="pt-4 px-6">
-				<Link to={backHref}>
+				<Link to={BACK_HREF}>
 					<Button variant="subtle">
 						<ArrowLeftIcon />
 						<span>Back to providers</span>
@@ -198,11 +175,6 @@ const UpdateProviderPageView: React.FC<UpdateProviderPageViewProps> = ({
 						initialValues={aiProviderToFormValues(provider)}
 						isLoading={updateMutation.isPending}
 						submitError={updateMutation.error}
-						// Show the organization context as a disabled picker so the
-						// user can see which org they entered from; providers aren't
-						// org-scoped on the wire yet so the value can't be edited.
-						organizations={organizations}
-						selectedOrganizationId={selectedOrganizationId ?? ""}
 						onSubmit={(values) => {
 							const request = providerFormValuesToUpdate(values, provider);
 							updateMutation.mutate(request, {
@@ -240,7 +212,7 @@ const UpdateProviderPageView: React.FC<UpdateProviderPageViewProps> = ({
 									`Provider "${provider.display_name || provider.name}" deleted.`,
 								);
 								setDeleteDialogOpen(false);
-								void navigate(backHref, { replace: true });
+								void navigate(BACK_HREF, { replace: true });
 							},
 							onError: (error) => {
 								toast.error(

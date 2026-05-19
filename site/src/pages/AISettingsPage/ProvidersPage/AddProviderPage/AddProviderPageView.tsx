@@ -1,11 +1,9 @@
 import { ArrowLeftIcon } from "lucide-react";
-import { useLayoutEffect } from "react";
 import { useMutation, useQueryClient } from "react-query";
-import { Link, useNavigate, useSearchParams } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { createAIProviderMutation } from "#/api/queries/aiProviders";
-import type { Organization } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
 	PageHeader,
@@ -15,69 +13,15 @@ import {
 import { ProviderForm } from "../components/ProviderForm";
 import { providerFormValuesToCreate } from "../components/providerFormApiMap";
 
-const ORGANIZATION_QUERY_PARAM = "organizationId";
-
-interface AddProviderPageViewProps {
-	organizations: Organization[] | undefined;
-}
-
-const AddProviderPageView: React.FC<AddProviderPageViewProps> = ({
-	organizations,
-}) => {
+const AddProviderPageView: React.FC = () => {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const createMutation = useMutation(createAIProviderMutation(queryClient));
-	const [searchParams, setSearchParams] = useSearchParams();
-	// TODO: AI providers are not yet organization-scoped on the wire, so the
-	// selected org is round-tripped in the URL only. When the server supports
-	// scoping, pass this id through providerFormValuesToCreate / the create
-	// mutation.
-	const selectedOrganizationId = searchParams.get(ORGANIZATION_QUERY_PARAM);
-
-	useLayoutEffect(() => {
-		if (!organizations?.length) {
-			return;
-		}
-		const present =
-			selectedOrganizationId !== null &&
-			organizations.some((o) => o.id === selectedOrganizationId);
-		if (present) {
-			return;
-		}
-		setSearchParams(
-			(prev) => {
-				const next = new URLSearchParams(prev);
-				next.set(ORGANIZATION_QUERY_PARAM, organizations[0].id);
-				return next;
-			},
-			{ replace: true },
-		);
-	}, [organizations, selectedOrganizationId, setSearchParams]);
-
-	const handleSelectOrganization = (id: string) => {
-		setSearchParams(
-			(prev) => {
-				const next = new URLSearchParams(prev);
-				next.set(ORGANIZATION_QUERY_PARAM, id);
-				return next;
-			},
-			{ replace: true },
-		);
-	};
-
-	const backHref = selectedOrganizationId
-		? `/ai/settings?${ORGANIZATION_QUERY_PARAM}=${encodeURIComponent(selectedOrganizationId)}`
-		: "/ai/settings";
-
-	const successHref = (providerName: string) =>
-		selectedOrganizationId
-			? `/ai/settings/${providerName}?${ORGANIZATION_QUERY_PARAM}=${encodeURIComponent(selectedOrganizationId)}`
-			: `/ai/settings/${providerName}`;
 
 	return (
 		<>
 			<div className="pt-4 px-6">
-				<Link to={backHref}>
+				<Link to="/ai/settings">
 					<Button variant="subtle">
 						<ArrowLeftIcon />
 						<span>Back to providers</span>
@@ -98,9 +42,6 @@ const AddProviderPageView: React.FC<AddProviderPageViewProps> = ({
 						editing={false}
 						isLoading={createMutation.isPending}
 						submitError={createMutation.error}
-						organizations={organizations}
-						selectedOrganizationId={selectedOrganizationId ?? ""}
-						onOrganizationChange={handleSelectOrganization}
 						onSubmit={(values) => {
 							const request = providerFormValuesToCreate(values);
 							createMutation.mutate(request, {
@@ -108,7 +49,7 @@ const AddProviderPageView: React.FC<AddProviderPageViewProps> = ({
 									toast.success(
 										`Provider "${res.display_name || res.name}" added.`,
 									);
-									void navigate(successHref(res.name));
+									void navigate(`/ai/settings/${res.name}`);
 								},
 								onError: (error) => {
 									const name = values.name.trim();
