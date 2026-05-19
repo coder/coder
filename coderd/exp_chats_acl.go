@@ -34,7 +34,9 @@ import (
 // @Router /api/experimental/chats/{chat}/acl [get]
 // @x-apidocgen {"skip": true}
 // @Description Experimental: this endpoint is subject to change.
-func (api *API) getChatACL(rw http.ResponseWriter, r *http.Request) { //nolint:revive // HTTP handler writes to ResponseWriter.
+//
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
+func (api *API) getChatACL(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
 
