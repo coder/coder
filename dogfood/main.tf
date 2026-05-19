@@ -121,12 +121,6 @@ resource "coderd_template" "vscode_coder" {
       message   = var.CODER_TEMPLATE_MESSAGE
       directory = "./vscode-coder"
       active    = true
-      tf_vars = [
-        {
-          name  = "anthropic_api_key"
-          value = var.CODER_DOGFOOD_ANTHROPIC_API_KEY
-        }
-      ]
     }
   ]
   acl = {
