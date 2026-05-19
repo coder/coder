@@ -9,6 +9,43 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+func TestUserSecretNameValid(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		input   string
+		wantErr bool
+		errMsg  string
+	}{
+		{name: "Simple", input: "github-token"},
+		{name: "WithUnderscore", input: "github_token"},
+		{name: "WithDot", input: "github.token"},
+		{name: "Empty", input: "", wantErr: true, errMsg: "required"},
+		{name: "WhitespaceOnly", input: "   ", wantErr: true, errMsg: "required"},
+		{name: "LeadingWhitespace", input: " github", wantErr: true, errMsg: "whitespace"},
+		{name: "TrailingWhitespace", input: "github ", wantErr: true, errMsg: "whitespace"},
+		{name: "Slash", input: "foo/bar", wantErr: true, errMsg: "must not contain"},
+		{name: "Question", input: "foo?bar", wantErr: true, errMsg: "must not contain"},
+		{name: "Fragment", input: "foo#bar", wantErr: true, errMsg: "must not contain"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := codersdk.UserSecretNameValid(tt.input)
+			if tt.wantErr {
+				assert.Error(t, err)
+				if tt.errMsg != "" {
+					assert.Contains(t, err.Error(), tt.errMsg)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestUserSecretEnvNameValid(t *testing.T) {
 	t.Parallel()
 
