@@ -14164,7 +14164,8 @@ func TestGetChatsFilter(t *testing.T) {
 			t.Parallel()
 			// Always scope to this user.
 			params := tt.params
-			params.OwnerID = user.ID
+			params.OwnedOnly = true
+			params.ViewerID = user.ID
 
 			rows, err := store.GetChats(ctx, params)
 			require.NoError(t, err)
