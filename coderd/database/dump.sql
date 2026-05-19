@@ -253,7 +253,11 @@ CREATE TYPE api_key_scope AS ENUM (
     'boundary_log:*',
     'boundary_log:create',
     'boundary_log:delete',
-    'boundary_log:read'
+    'boundary_log:read',
+    'ai_gateway_coderd_key:*',
+    'ai_gateway_coderd_key:create',
+    'ai_gateway_coderd_key:delete',
+    'ai_gateway_coderd_key:read'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -564,7 +568,8 @@ CREATE TYPE resource_type AS ENUM (
     'ai_provider',
     'ai_provider_key',
     'group_ai_budget',
-    'user_skill'
+    'user_skill',
+    'ai_gateway_coderd_key'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (
@@ -1351,6 +1356,15 @@ CREATE TABLE ai_seat_state (
     last_event_type ai_seat_usage_reason NOT NULL,
     last_event_description text NOT NULL,
     updated_at timestamp with time zone NOT NULL
+);
+
+CREATE TABLE ai_gateway_coderd_keys (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    name character varying(64) NOT NULL,
+    key_prefix character varying(10) NOT NULL,
+    hashed_secret bytea NOT NULL,
+    last_used_at timestamp with time zone
 );
 
 CREATE TABLE aibridge_interceptions (
@@ -3775,6 +3789,9 @@ ALTER TABLE ONLY ai_providers
 ALTER TABLE ONLY ai_seat_state
     ADD CONSTRAINT ai_seat_state_pkey PRIMARY KEY (user_id);
 
+ALTER TABLE ONLY ai_gateway_coderd_keys
+    ADD CONSTRAINT ai_gateway_coderd_keys_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY aibridge_interceptions
     ADD CONSTRAINT aibridge_interceptions_pkey PRIMARY KEY (id);
 
@@ -4148,6 +4165,8 @@ ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_pkey PRIMARY KEY (id);
 
 CREATE UNIQUE INDEX ai_providers_name_unique ON ai_providers USING btree (name) WHERE (deleted = false);
+
+CREATE UNIQUE INDEX ai_gateway_coderd_keys_name_idx ON ai_gateway_coderd_keys USING btree (lower((name)::text));
 
 CREATE INDEX api_keys_last_used_idx ON api_keys USING btree (last_used DESC);
 

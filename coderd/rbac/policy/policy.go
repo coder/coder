@@ -429,6 +429,14 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionDelete: "delete boundary logs",
 		},
 	},
+	"ai_gateway_coderd_key": {
+		Name: "AIGatewayCoderdKey",
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: "create an AI Gateway coderd key",
+			ActionRead:   "read AI Gateway coderd keys",
+			ActionDelete: "delete an AI Gateway coderd key",
+		},
+	},
 	"boundary_usage": {
 		Actions: map[Action]ActionDefinition{
 			ActionRead:   "read boundary usage statistics",

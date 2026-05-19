@@ -15269,6 +15269,10 @@ const docTemplate = `{
             "enum": [
                 "all",
                 "application_connect",
+                "ai_gateway_coderd_key:*",
+                "ai_gateway_coderd_key:create",
+                "ai_gateway_coderd_key:delete",
+                "ai_gateway_coderd_key:read",
                 "ai_model_price:*",
                 "ai_model_price:read",
                 "ai_model_price:update",
@@ -15499,6 +15503,10 @@ const docTemplate = `{
             "x-enum-varnames": [
                 "APIKeyScopeAll",
                 "APIKeyScopeApplicationConnect",
+                "APIKeyScopeAiGatewayCoderdKeyAll",
+                "APIKeyScopeAiGatewayCoderdKeyCreate",
+                "APIKeyScopeAiGatewayCoderdKeyDelete",
+                "APIKeyScopeAiGatewayCoderdKeyRead",
                 "APIKeyScopeAiModelPriceAll",
                 "APIKeyScopeAiModelPriceRead",
                 "APIKeyScopeAiModelPriceUpdate",
@@ -22329,6 +22337,7 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "*",
+                "ai_gateway_coderd_key",
                 "ai_model_price",
                 "ai_provider",
                 "ai_seat",
@@ -22380,6 +22389,7 @@ const docTemplate = `{
             ],
             "x-enum-varnames": [
                 "ResourceWildcard",
+                "ResourceAIGatewayCoderdKey",
                 "ResourceAiModelPrice",
                 "ResourceAIProvider",
                 "ResourceAiSeat",
@@ -22641,6 +22651,7 @@ const docTemplate = `{
                 "ai_seat",
                 "ai_provider",
                 "ai_provider_key",
+                "ai_gateway_coderd_key",
                 "group_ai_budget",
                 "chat",
                 "user_secret",
@@ -22676,6 +22687,7 @@ const docTemplate = `{
                 "ResourceTypeAISeat",
                 "ResourceTypeAIProvider",
                 "ResourceTypeAIProviderKey",
+                "ResourceTypeAIGatewayCoderdKey",
                 "ResourceTypeGroupAIBudget",
                 "ResourceTypeChat",
                 "ResourceTypeUserSecret",

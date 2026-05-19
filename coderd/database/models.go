@@ -324,6 +324,10 @@ const (
 	ApiKeyScopeBoundaryLogCreate                   APIKeyScope = "boundary_log:create"
 	ApiKeyScopeBoundaryLogDelete                   APIKeyScope = "boundary_log:delete"
 	ApiKeyScopeBoundaryLogRead                     APIKeyScope = "boundary_log:read"
+	ApiKeyScopeAiGatewayCoderdKey                  APIKeyScope = "ai_gateway_coderd_key:*"
+	ApiKeyScopeAiGatewayCoderdKeyCreate            APIKeyScope = "ai_gateway_coderd_key:create"
+	ApiKeyScopeAiGatewayCoderdKeyDelete            APIKeyScope = "ai_gateway_coderd_key:delete"
+	ApiKeyScopeAiGatewayCoderdKeyRead              APIKeyScope = "ai_gateway_coderd_key:read"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -588,7 +592,11 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeBoundaryLog,
 		ApiKeyScopeBoundaryLogCreate,
 		ApiKeyScopeBoundaryLogDelete,
-		ApiKeyScopeBoundaryLogRead:
+		ApiKeyScopeBoundaryLogRead,
+		ApiKeyScopeAiGatewayCoderdKey,
+		ApiKeyScopeAiGatewayCoderdKeyCreate,
+		ApiKeyScopeAiGatewayCoderdKeyDelete,
+		ApiKeyScopeAiGatewayCoderdKeyRead:
 		return true
 	}
 	return false
@@ -822,6 +830,10 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeBoundaryLogCreate,
 		ApiKeyScopeBoundaryLogDelete,
 		ApiKeyScopeBoundaryLogRead,
+		ApiKeyScopeAiGatewayCoderdKey,
+		ApiKeyScopeAiGatewayCoderdKeyCreate,
+		ApiKeyScopeAiGatewayCoderdKeyDelete,
+		ApiKeyScopeAiGatewayCoderdKeyRead,
 	}
 }
 
@@ -3353,6 +3365,7 @@ const (
 	ResourceTypeAIProviderKey               ResourceType = "ai_provider_key"
 	ResourceTypeGroupAiBudget               ResourceType = "group_ai_budget"
 	ResourceTypeUserSkill                   ResourceType = "user_skill"
+	ResourceTypeAiGatewayCoderdKey          ResourceType = "ai_gateway_coderd_key"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3424,7 +3437,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeAIProvider,
 		ResourceTypeAIProviderKey,
 		ResourceTypeGroupAiBudget,
-		ResourceTypeUserSkill:
+		ResourceTypeUserSkill,
+		ResourceTypeAiGatewayCoderdKey:
 		return true
 	}
 	return false
@@ -3465,6 +3479,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeAIProviderKey,
 		ResourceTypeGroupAiBudget,
 		ResourceTypeUserSkill,
+		ResourceTypeAiGatewayCoderdKey,
 	}
 }
 
@@ -4481,6 +4496,15 @@ type APIKey struct {
 	TokenName       string       `db:"token_name" json:"token_name"`
 	Scopes          APIKeyScopes `db:"scopes" json:"scopes"`
 	AllowList       AllowList    `db:"allow_list" json:"allow_list"`
+}
+
+type AiGatewayCoderdKey struct {
+	ID           uuid.UUID    `db:"id" json:"id"`
+	CreatedAt    time.Time    `db:"created_at" json:"created_at"`
+	Name         string       `db:"name" json:"name"`
+	KeyPrefix    string       `db:"key_prefix" json:"key_prefix"`
+	HashedSecret []byte       `db:"hashed_secret" json:"hashed_secret"`
+	LastUsedAt   sql.NullTime `db:"last_used_at" json:"last_used_at"`
 }
 
 // Per-model token prices used by AI Bridge to compute interception cost.

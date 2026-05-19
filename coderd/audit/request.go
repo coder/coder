@@ -138,6 +138,8 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return typed.Name
 	case database.AIProviderKey:
 		return typed.ID.String()
+	case database.AiGatewayCoderdKey:
+		return typed.Name
 	case database.AuditableGroupAiBudget:
 		return typed.GroupName
 	case database.Chat:
@@ -222,6 +224,8 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.ID
 	case database.AIProviderKey:
 		return typed.ID
+	case database.AiGatewayCoderdKey:
+		return typed.ID
 	case database.AuditableGroupAiBudget:
 		return typed.GroupID
 	case database.Chat:
@@ -291,6 +295,8 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeAIProvider
 	case database.AIProviderKey:
 		return database.ResourceTypeAIProviderKey
+	case database.AiGatewayCoderdKey:
+		return database.ResourceTypeAiGatewayCoderdKey
 	case database.AuditableGroupAiBudget:
 		return database.ResourceTypeGroupAiBudget
 	case database.Chat:
@@ -365,6 +371,9 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 	case database.AIProviderKey:
 		// AI provider keys inherit the deployment scope of their parent
 		// provider.
+		return false
+	case database.AiGatewayCoderdKey:
+		// AI Gateway coderd keys are deployment-scoped, not org-scoped.
 		return false
 	case database.AuditableGroupAiBudget:
 		// Group AI budgets are org-scoped through their parent group.
