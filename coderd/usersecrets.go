@@ -367,5 +367,3 @@ func userSecretConflictValidationErrors(err error) []codersdk.ValidationError {
 		return nil
 	}
 }
-
-
