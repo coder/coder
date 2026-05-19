@@ -110,8 +110,8 @@ func redactAIProviderSettings(s codersdk.AIProviderSettings) codersdk.AIProvider
 	if out.Bedrock != nil {
 		// Deep-copy so we don't mutate the caller's struct.
 		b := *out.Bedrock
-		b.AccessKey = ""
-		b.AccessKeySecret = ""
+		b.AccessKey = nil
+		b.AccessKeySecret = nil
 		out.Bedrock = &b
 	}
 	return out

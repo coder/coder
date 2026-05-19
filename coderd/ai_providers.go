@@ -619,9 +619,11 @@ func encodeAIProviderSettings(s codersdk.AIProviderSettings) (sql.NullString, er
 }
 
 // mergeAIProviderSettings overlays a patch onto an existing settings
-// value. Write-only fields (Bedrock AccessKey and AccessKeySecret) are
-// preserved when the patch leaves them blank so callers can rotate
-// non-secret fields without resending the secret.
+// value. Write-only fields (Bedrock AccessKey and AccessKeySecret) use
+// pointers so the patch can distinguish "omitted, keep existing" (nil)
+// from "explicitly clear" (pointer to empty string) — e.g. when an
+// admin migrates from static AWS credentials to IAM role-based auth
+// in a single PATCH.
 func mergeAIProviderSettings(existing, patch codersdk.AIProviderSettings) codersdk.AIProviderSettings {
 	if patch.Bedrock == nil {
 		// Patch carries no type-specific data; treat as a clear.
@@ -629,10 +631,10 @@ func mergeAIProviderSettings(existing, patch codersdk.AIProviderSettings) coders
 	}
 	merged := *patch.Bedrock
 	if existing.Bedrock != nil {
-		if merged.AccessKey == "" {
+		if merged.AccessKey == nil {
 			merged.AccessKey = existing.Bedrock.AccessKey
 		}
-		if merged.AccessKeySecret == "" {
+		if merged.AccessKeySecret == nil {
 			merged.AccessKeySecret = existing.Bedrock.AccessKeySecret
 		}
 	}

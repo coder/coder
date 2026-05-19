@@ -380,8 +380,8 @@ func TestAIProvidersCRUD(t *testing.T) {
 			Settings: codersdk.AIProviderSettings{
 				Bedrock: &codersdk.AIProviderBedrockSettings{
 					Region:          "us-east-1",
-					AccessKey:       "AKIA-fixture",    //nolint:gosec // test fixture
-					AccessKeySecret: "bedrock-fixture", //nolint:gosec // test fixture
+					AccessKey:       ptr.Ref("AKIA-fixture"),    //nolint:gosec // test fixture
+					AccessKeySecret: ptr.Ref("bedrock-fixture"), //nolint:gosec // test fixture
 				},
 			},
 		})
@@ -428,8 +428,8 @@ func TestAIProvidersCRUD(t *testing.T) {
 				Bedrock: &codersdk.AIProviderBedrockSettings{
 					Region:          "us-east-1",
 					Model:           "anthropic.claude-3-5-sonnet",
-					AccessKey:       "AKIA-leak", //nolint:gosec // test fixture, not a real credential
-					AccessKeySecret: "bedrock-supersecret",
+					AccessKey:       ptr.Ref("AKIA-leak"), //nolint:gosec // test fixture, not a real credential
+					AccessKeySecret: ptr.Ref("bedrock-supersecret"),
 				},
 			},
 		})
@@ -698,8 +698,8 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 				Bedrock: &codersdk.AIProviderBedrockSettings{
 					Region:          "us-east-1",
 					Model:           "anthropic.claude-3-5-sonnet",
-					AccessKey:       "AKIA-test", //nolint:gosec // test fixture, not a real credential
-					AccessKeySecret: "bedrock-test-secret",
+					AccessKey:       ptr.Ref("AKIA-test"), //nolint:gosec // test fixture, not a real credential
+					AccessKeySecret: ptr.Ref("bedrock-test-secret"),
 				},
 			},
 		})
@@ -725,8 +725,8 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 				Bedrock: &codersdk.AIProviderBedrockSettings{
 					Region:          "us-east-1",
 					Model:           "anthropic.claude-3-5-sonnet",
-					AccessKey:       "AKIA-test", //nolint:gosec // test fixture, not a real credential
-					AccessKeySecret: "bedrock-test-secret",
+					AccessKey:       ptr.Ref("AKIA-test"), //nolint:gosec // test fixture, not a real credential
+					AccessKeySecret: ptr.Ref("bedrock-test-secret"),
 				},
 			},
 		})
