@@ -205,6 +205,7 @@ func (h *userHandler) Get(r *http.Request, id string) (scim.Resource, error) {
 		return scim.Resource{}, notFound(id)
 	}
 
+	//nolint:gocritic // SCIM operations run as the system user.
 	dbUser, err := h.opts.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), uid)
 	if errors.Is(err, sql.ErrNoRows) {
 		return scim.Resource{}, notFound(id)
@@ -235,6 +236,7 @@ func (h *userHandler) GetAll(r *http.Request, params scim.ListRequestParams) (sc
 
 	// #nosec G115 - StartIndex and Count are bounded by the SCIM
 	// server's MaxResults config; safe to convert to int32.
+	//nolint:gocritic // SCIM operations run as the system user.
 	rows, err := h.opts.Database.GetUsers(dbauthz.AsSystemRestricted(ctx), database.GetUsersParams{
 		OffsetOpt: int32(offset),
 		LimitOpt:  int32(limit),
@@ -369,7 +371,7 @@ func (h *userHandler) Patch(r *http.Request, id string, ops []scim.PatchOperatio
 // Delete handles DELETE /Users/{id}. Not yet implemented; SCIM clients
 // typically deprovision via PATCH active=false, so a 501 is acceptable
 // for the first compliance pass.
-func (h *userHandler) Delete(_ *http.Request, _ string) error {
+func (*userHandler) Delete(_ *http.Request, _ string) error {
 	return scimerrors.ScimError{
 		Status: http.StatusNotImplemented,
 		Detail: "DELETE is not implemented; use PATCH active=false to deprovision users",
@@ -508,8 +510,9 @@ func getUsersRowToDBUser(row database.GetUsersRow) database.User {
 }
 
 // boolAttr returns a bool attribute and whether it was present. SCIM
-// validation guarantees the value is `bool` when present.
-func boolAttr(m scim.ResourceAttributes, key string) (bool, bool) {
+// validation guarantees the value is `bool` when present, so the second
+// return value distinguishes "unset" from "false".
+func boolAttr(m scim.ResourceAttributes, key string) (value, present bool) {
 	v, ok := m[key]
 	if !ok || v == nil {
 		return false, false
