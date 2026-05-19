@@ -106,6 +106,34 @@ func TestResolveCompactionModelOverride(t *testing.T) {
 		require.Equal(t, fallbackConfigID, got.modelConfigID)
 	})
 
+	t.Run("NilUUIDReturnsFallback", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		store := &compactionOverrideStubStore{
+			getChatCompactionModelOverride: func(context.Context) (string, error) {
+				return uuid.Nil.String(), nil
+			},
+			getEnabledChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
+				require.FailNow(t, "nil UUID should not query a model config")
+				return database.ChatModelConfig{}, nil
+			},
+		}
+		p := newAdvisorTestServer(ctx, t, store)
+
+		got := p.resolveCompactionModelOverride(
+			ctx,
+			database.Chat{},
+			fallbackModel,
+			fallbackConfig,
+			chatprovider.ProviderAPIKeys{},
+			logger,
+		)
+		require.Equal(t, fantasy.LanguageModel(fallbackModel), got.model)
+		require.Equal(t, fallbackConfigID, got.modelConfigID)
+		require.Equal(t, "stub", got.provider)
+		require.Equal(t, "stub", got.modelName)
+	})
+
 	t.Run("DisabledModelReturnsFallback", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
