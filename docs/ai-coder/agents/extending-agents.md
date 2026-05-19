@@ -114,6 +114,10 @@ Workspace templates can expose custom
 these tools automatically when it connects to a workspace and registers
 them alongside its built-in tools.
 
+For deployment-level MCP servers that admins register once for the whole
+deployment instead of per workspace, see
+[MCP Servers](./platform-controls/mcp-servers.md) under platform controls.
+
 ### Configuration
 
 Define MCP servers in `.mcp.json` at the workspace root. Each entry under
@@ -143,12 +147,38 @@ agent spawns the process in the workspace.
 **HTTP transport** — set `url`, and optionally `headers`. The agent connects
 to the HTTP endpoint from the workspace.
 
+`env` values in stdio configs support `${VAR}` substitution from the
+agent's process environment, so secrets can live in the workspace template
+or dotfiles rather than the committed `.mcp.json`. References to unset
+variables expand to the empty string.
+
+Server names (the keys under `mcpServers`) are used as a prefix for tool
+names. They cannot contain `__` (the reserved tool-name separator) and
+cannot start or end with an underscore. A single invalid server name
+causes the entire config file to be skipped.
+
+### Environment variables
+
+Override the default config file location with an environment variable on
+the workspace. Typically these are set in the workspace template,
+container image, or dotfiles:
+
+| Variable                           | Default     | Description                                                                                                                                                                                         |
+|------------------------------------|-------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `CODER_AGENT_EXP_MCP_CONFIG_FILES` | `.mcp.json` | Comma-separated list of MCP config files to read. Entries are resolved relative to the workspace working directory. When the same server name appears in multiple files, the first occurrence wins. |
+
 ### How discovery works
 
-The agent reads `.mcp.json` via the workspace agent connection on each chat
-turn. Discovery uses a 5-second timeout. Servers that fail to
-respond are skipped — partial success is acceptable. Empty results are not
-cached because the MCP servers may still be starting.
+The agent reads its MCP config files via the workspace agent connection on
+each chat turn and reuses connected servers across turns. Edits to a
+config file trigger an automatic reload (the agent watches the parent
+directories via fsnotify, debounced by 250 ms), so you do not need to
+restart the chat after changing `.mcp.json`. Empty results are not cached,
+because the MCP servers may still be starting up.
+
+Per-server connect attempts are bounded by a 30-second timeout. Servers
+that fail to respond within that budget are skipped, and partial success
+is acceptable.
 
 ### Tool naming
 
@@ -157,5 +187,7 @@ avoid collisions between servers and with built-in tools.
 
 ### Timeouts
 
-- **Discovery**: 5-second timeout.
+- **Discovery**: 35 seconds per chat turn.
+- **Per-server connect**: 30 seconds.
 - **Tool calls**: 60 seconds per invocation.
+- **Watcher debounce**: 250 ms after a config file change.
