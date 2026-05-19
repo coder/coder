@@ -228,6 +228,8 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideSetUsable(t *testing.T) {
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	chat, messages := titleOverrideTestChatAndMessages(t)
 	overrideConfig := titleOverrideModelConfig("gpt-4.1", true)
+	providerID := uuid.New()
+	overrideConfig.AIProviderID = uuid.NullUUID{UUID: providerID, Valid: true}
 	wantTitle := "Override title"
 
 	var requestCount atomic.Int32
@@ -236,7 +238,12 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideSetUsable(t *testing.T) {
 		require.Equal(t, overrideConfig.Model, req.Model)
 		return chattest.OpenAINonStreamingResponse(`{"title":"` + wantTitle + `"}`)
 	})
-	keys := titleOverrideOpenAIKeys(serverURL)
+	provider := database.AIProvider{
+		ID:      providerID,
+		Type:    database.AiProviderTypeOpenai,
+		Enabled: true,
+		BaseUrl: serverURL,
+	}
 	fallbackModel := &chattest.FakeModel{
 		GenerateObjectFn: func(context.Context, fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
 			t.Fatal("fallback model should not be called when override is usable")
@@ -246,7 +253,11 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideSetUsable(t *testing.T) {
 
 	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return(overrideConfig.ID.String(), nil)
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), overrideConfig.ID).Return(overrideConfig, nil)
-	db.EXPECT().GetEnabledChatProviders(gomock.Any()).Return([]database.ChatProvider{{Provider: "openai"}}, nil)
+	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(provider, nil).AnyTimes()
+	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{
+		ProviderID: providerID,
+		APIKey:     "test-key",
+	}}, nil)
 	db.EXPECT().UpdateChatTitleByID(gomock.Any(), database.UpdateChatTitleByIDParams{
 		ID:    chat.ID,
 		Title: wantTitle,
@@ -261,7 +272,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideSetUsable(t *testing.T) {
 		"openai",
 		"fallback-chat-model",
 		fallbackModel,
-		keys,
+		chatprovider.ProviderAPIKeys{},
 		generated,
 		logger,
 		nil,
@@ -381,7 +392,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideUnset(t *testing.T) {
 	}, nil)
 
 	server := titleOverrideTestServer(db, logger)
-	model, gotConfig, err := server.resolveManualTitleModel(
+	model, gotConfig, _, err := server.resolveManualTitleModel(
 		ctx,
 		db,
 		chat,
@@ -390,6 +401,56 @@ func TestResolveManualTitleModel_TitleGenerationOverrideUnset(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, model)
 	require.Equal(t, preferredConfig, gotConfig)
+}
+
+func TestResolveManualTitleModel_TitleGenerationOverrideUnsetAIProvider(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	chat, _ := titleOverrideTestChatAndMessages(t)
+	providerID := uuid.New()
+	preferredConfig := database.ChatModelConfig{
+		ID:           uuid.New(),
+		Provider:     preferredTitleModels[1].provider,
+		AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
+		Model:        preferredTitleModels[1].model,
+		Enabled:      true,
+	}
+	serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		t.Fatal("model construction should not call the provider")
+		return chattest.OpenAIResponse{}
+	})
+	provider := database.AIProvider{
+		ID:      providerID,
+		Type:    database.AiProviderTypeOpenai,
+		Enabled: true,
+		BaseUrl: serverURL,
+	}
+
+	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", nil)
+	db.EXPECT().GetEnabledChatModelConfigs(gomock.Any()).Return([]database.ChatModelConfig{
+		preferredConfig,
+	}, nil)
+	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(provider, nil)
+	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{
+		ProviderID: providerID,
+		APIKey:     "test-key",
+	}}, nil)
+
+	server := titleOverrideTestServer(db, logger)
+	model, gotConfig, gotKeys, err := server.resolveManualTitleModel(
+		ctx,
+		db,
+		chat,
+		chatprovider.ProviderAPIKeys{},
+	)
+	require.NoError(t, err)
+	require.NotNil(t, model)
+	require.Equal(t, preferredConfig, gotConfig)
+	require.Equal(t, "test-key", gotKeys.APIKey("openai"))
 }
 
 func TestResolveManualTitleModel_TitleGenerationOverrideReadDBError(t *testing.T) {
@@ -414,7 +475,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideReadDBError(t *testing.T
 	}, nil)
 
 	server := titleOverrideTestServer(db, logger)
-	model, gotConfig, err := server.resolveManualTitleModel(
+	model, gotConfig, _, err := server.resolveManualTitleModel(
 		ctx,
 		db,
 		chat,
@@ -440,7 +501,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideSetUsable(t *testing.T) 
 	db.EXPECT().GetEnabledChatProviders(gomock.Any()).Return([]database.ChatProvider{{Provider: "openai"}}, nil)
 
 	server := titleOverrideTestServer(db, logger)
-	model, gotConfig, err := server.resolveManualTitleModel(
+	model, gotConfig, _, err := server.resolveManualTitleModel(
 		ctx,
 		db,
 		chat,
@@ -466,7 +527,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideMissingCredentials(t *te
 	db.EXPECT().GetEnabledChatProviders(gomock.Any()).Return([]database.ChatProvider{{Provider: "openai"}}, nil)
 
 	server := titleOverrideTestServer(db, logger)
-	model, gotConfig, err := server.resolveManualTitleModel(
+	model, gotConfig, _, err := server.resolveManualTitleModel(
 		ctx,
 		db,
 		chat,
@@ -493,7 +554,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideSetUnusable(t *testing.T
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), overrideConfig.ID).Return(overrideConfig, nil)
 
 	server := titleOverrideTestServer(db, logger)
-	model, gotConfig, err := server.resolveManualTitleModel(
+	model, gotConfig, _, err := server.resolveManualTitleModel(
 		ctx,
 		db,
 		chat,

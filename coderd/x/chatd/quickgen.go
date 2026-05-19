@@ -135,7 +135,7 @@ func (p *Server) maybeGenerateChatTitle(
 	titleCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	overrideConfig, overrideModel, overrideSet, overrideErr := p.resolveTitleGenerationModelOverride(
+	overrideConfig, overrideModel, overrideKeys, overrideSet, overrideErr := p.resolveTitleGenerationModelOverride(
 		titleCtx,
 		chat,
 		keys,
@@ -213,11 +213,15 @@ func (p *Server) maybeGenerateChatTitle(
 		candidateCtx := titleCtx
 		candidateModel := candidate.lm
 		finishDebugRun := func(error) {}
+		candidateKeys := keys
+		if overrideSet {
+			candidateKeys = overrideKeys
+		}
 		if debugEnabled {
 			candidateCtx, candidateModel, finishDebugRun = prepareQuickgenDebugCandidate(
 				titleCtx,
 				chat,
-				keys,
+				candidateKeys,
 				debugSvc,
 				candidate,
 				chatdebug.KindTitleGeneration,

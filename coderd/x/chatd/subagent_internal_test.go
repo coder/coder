@@ -213,6 +213,137 @@ func insertEnabledAnthropicProvider(
 	})
 }
 
+func insertInternalAIProvider(
+	t *testing.T,
+	db database.Store,
+	providerType database.AIProviderType,
+	apiKey string,
+	enabled bool,
+) database.AIProvider {
+	t.Helper()
+	return dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{
+		Type: providerType,
+	}, apiKey, func(params *database.InsertAIProviderParams) {
+		params.Enabled = enabled
+	})
+}
+
+func TestResolveUserProviderAPIKeys_AIProvider(t *testing.T) {
+	t.Parallel()
+
+	t.Run("UserKeyWinsWhenBYOKEnabled", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+		ctx := chatdTestContext(t)
+		user, _, _ := seedInternalChatDeps(t, db)
+		provider := insertInternalAIProvider(t, db, database.AiProviderTypeOpenai, "provider-api-key", true)
+		now := time.Now()
+		_, err := db.UpsertUserAIProviderKey(ctx, database.UpsertUserAIProviderKeyParams{
+			ID:           uuid.New(),
+			UserID:       user.ID,
+			AIProviderID: provider.ID,
+			APIKey:       "user-api-key",
+			CreatedAt:    now,
+			UpdatedAt:    now,
+		})
+		require.NoError(t, err)
+
+		keys, err := server.resolveUserProviderAPIKeys(ctx, user.ID, provider.ID)
+		require.NoError(t, err)
+		require.Equal(t, "user-api-key", keys.APIKey("openai"))
+		require.Equal(t, "https://api.example.com/", keys.BaseURL("openai"))
+	})
+
+	t.Run("ProviderKeyUsedWhenBYOKDisabled", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+		server.allowBYOK = false
+		ctx := chatdTestContext(t)
+		user, _, _ := seedInternalChatDeps(t, db)
+		provider := insertInternalAIProvider(t, db, database.AiProviderTypeOpenai, "provider-api-key", true)
+		now := time.Now()
+		_, err := db.UpsertUserAIProviderKey(ctx, database.UpsertUserAIProviderKeyParams{
+			ID:           uuid.New(),
+			UserID:       user.ID,
+			AIProviderID: provider.ID,
+			APIKey:       "user-api-key",
+			CreatedAt:    now,
+			UpdatedAt:    now,
+		})
+		require.NoError(t, err)
+
+		keys, err := server.resolveUserProviderAPIKeys(ctx, user.ID, provider.ID)
+		require.NoError(t, err)
+		require.Equal(t, "provider-api-key", keys.APIKey("openai"))
+	})
+
+	t.Run("ProviderTypeUsesAIProvider", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+		ctx := chatdTestContext(t)
+		user, _, _ := seedInternalChatDeps(t, db)
+		insertInternalAIProvider(t, db, database.AiProviderTypeAzure, "provider-api-key", true)
+
+		keys, err := server.resolveUserProviderAPIKeysForProviderType(ctx, user.ID, "azure")
+		require.NoError(t, err)
+		require.Equal(t, "provider-api-key", keys.APIKey("azure"))
+	})
+
+	t.Run("BedrockUsesAmbientAuth", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+		ctx := chatdTestContext(t)
+		user, _, _ := seedInternalChatDeps(t, db)
+		provider := insertInternalAIProvider(t, db, database.AiProviderTypeBedrock, "", true)
+
+		keys, err := server.resolveUserProviderAPIKeys(ctx, user.ID, provider.ID)
+		require.NoError(t, err)
+		require.True(t, keys.HasProvider("bedrock"))
+		require.Empty(t, keys.APIKey("bedrock"))
+	})
+}
+
+func TestResolveChatModel_AIProviderDisabled(t *testing.T) {
+	t.Parallel()
+
+	ctx := chatdTestContext(t)
+	db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	user, org, _ := seedInternalChatDeps(t, db)
+	provider := insertInternalAIProvider(t, db, database.AiProviderTypeOpenai, "provider-api-key", false)
+	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Provider: "openai",
+		Model:    "gpt-4o-mini",
+	})
+	_, err := sqlDB.ExecContext(ctx, "UPDATE chat_model_configs SET ai_provider_id = $1 WHERE id = $2", provider.ID, modelConfig.ID)
+	require.NoError(t, err)
+	loadedModelConfig, err := db.GetChatModelConfigByID(ctx, modelConfig.ID)
+	require.NoError(t, err)
+	require.True(t, loadedModelConfig.AIProviderID.Valid)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelConfig.ID,
+	})
+
+	model, config, keys, debugEnabled, resolvedProvider, resolvedModel, err := server.resolveChatModel(ctx, chat)
+	require.ErrorContains(t, err, "is disabled")
+	require.Nil(t, model)
+	require.Equal(t, database.ChatModelConfig{}, config)
+	require.Equal(t, chatprovider.ProviderAPIKeys{}, keys)
+	require.False(t, debugEnabled)
+	require.Empty(t, resolvedProvider)
+	require.Empty(t, resolvedModel)
+}
+
 func TestResolveUserProviderAPIKeys_PreservesAnthropicKeyFromDBProvider(t *testing.T) {
 	t.Parallel()
 
@@ -226,7 +357,7 @@ func TestResolveUserProviderAPIKeys_PreservesAnthropicKeyFromDBProvider(t *testi
 		user, _, _ := seedInternalChatDeps(t, db)
 		insertEnabledAnthropicProvider(t, db, user.ID)
 
-		keys, err := server.resolveUserProviderAPIKeys(ctx, user.ID)
+		keys, err := server.resolveUserProviderAPIKeys(ctx, user.ID, uuid.Nil)
 		require.NoError(t, err)
 		require.Equal(t, "test-anthropic-key", keys.Anthropic)
 		require.Equal(t, "test-anthropic-key", keys.APIKey("anthropic"))
@@ -244,7 +375,7 @@ func TestResolveUserProviderAPIKeys_PreservesAnthropicKeyFromDBProvider(t *testi
 		ctx := chatdTestContext(t)
 		user, _, _ := seedInternalChatDeps(t, db)
 
-		keys, err := server.resolveUserProviderAPIKeys(ctx, user.ID)
+		keys, err := server.resolveUserProviderAPIKeys(ctx, user.ID, uuid.Nil)
 		require.NoError(t, err)
 		require.Empty(t, keys.Anthropic)
 		require.Empty(t, keys.APIKey("anthropic"))
@@ -1065,6 +1196,7 @@ func TestResolveConfiguredModelOverride_AcceptsAmbientCredentialsProvider(
 		func(
 			_ context.Context,
 			resolvedOwnerID uuid.UUID,
+			_ uuid.UUID,
 		) (chatprovider.ProviderAPIKeys, error) {
 			require.Equal(t, ownerID, resolvedOwnerID)
 			return chatprovider.ProviderAPIKeys{
