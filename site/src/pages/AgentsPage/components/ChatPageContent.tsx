@@ -505,13 +505,15 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	return (
 		<div>
 			{agentSetupNotice && (
-				<div
-					className={cn("mx-auto w-full pb-2", chatWidthClass(chatFullWidth))}
-				>
+				<div className={cn("mx-auto w-full", chatWidthClass(chatFullWidth))}>
 					{agentSetupNotice}
 				</div>
 			)}
-			{inputElement}
+			{agentSetupNotice ? (
+				<div className="relative -mt-3">{inputElement}</div>
+			) : (
+				inputElement
+			)}
 			{modelSelectorHelp && (
 				<div className="px-3 pt-1 text-2xs text-content-secondary">
 					{modelSelectorHelp}

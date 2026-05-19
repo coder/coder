@@ -448,28 +448,32 @@ export const NoModelOptions: Story = {
 export const MissingProviderAndModelSetup: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			agentSetupNotice={<AgentSetupNotice providerCount={0} modelCount={0} />}
+			agentSetupNotice={
+				<AgentSetupNotice isAdmin providerCount={0} modelCount={0} />
+			}
 			hasModelOptions={false}
 			modelOptions={[]}
 			isInputDisabled
 		/>
 	),
 	play: async ({ canvasElement }) => {
-		const body = within(canvasElement.ownerDocument.body);
-		const dialog = within(
-			body.getByRole("dialog", { name: "Welcome to Coder Agents" }),
-		);
+		const canvas = within(canvasElement);
 
 		await waitFor(() => {
-			expect(dialog.getByText("Welcome to Coder Agents")).toBeVisible();
+			expect(
+				canvas.getByText((_content, element) => {
+					return (
+						element?.textContent ===
+						"To chat with Coder Agents, set up a provider then add a model."
+					);
+				}),
+			).toBeVisible();
 		});
-		expect(dialog.getByText("Connect a chat provider")).toBeVisible();
-		expect(dialog.getByText("Add a chat model")).toBeVisible();
-		expect(dialog.queryByLabelText("Complete")).not.toBeInTheDocument();
-		expect(
-			dialog.getByRole("link", { name: "Go to Providers" }),
-		).toHaveAttribute("href", "/agents/settings/providers");
-		expect(dialog.getByRole("link", { name: "Go to Models" })).toHaveAttribute(
+		expect(canvas.getByRole("link", { name: "provider" })).toHaveAttribute(
+			"href",
+			"/agents/settings/providers",
+		);
+		expect(canvas.getByRole("link", { name: "model" })).toHaveAttribute(
 			"href",
 			"/agents/settings/models",
 		);
@@ -479,28 +483,28 @@ export const MissingProviderAndModelSetup: Story = {
 export const MissingModelSetup: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			agentSetupNotice={<AgentSetupNotice providerCount={1} modelCount={0} />}
+			agentSetupNotice={
+				<AgentSetupNotice isAdmin providerCount={1} modelCount={0} />
+			}
 			hasModelOptions={false}
 			modelOptions={[]}
 			isInputDisabled
 		/>
 	),
 	play: async ({ canvasElement }) => {
-		const body = within(canvasElement.ownerDocument.body);
-		const dialog = within(
-			body.getByRole("dialog", { name: "Welcome to Coder Agents" }),
-		);
+		const canvas = within(canvasElement);
 
 		await waitFor(() => {
-			expect(dialog.getByText("Welcome to Coder Agents")).toBeVisible();
+			expect(
+				canvas.getByText((_content, element) => {
+					return (
+						element?.textContent ===
+						"To chat with Coder Agents, set up a model."
+					);
+				}),
+			).toBeVisible();
 		});
-		expect(dialog.getByText("Connect a chat provider")).toBeVisible();
-		expect(dialog.getByText("Add a chat model")).toBeVisible();
-		expect(dialog.getAllByLabelText("Complete")).toHaveLength(1);
-		expect(
-			dialog.getByRole("link", { name: "Go to Providers" }),
-		).toHaveAttribute("href", "/agents/settings/providers");
-		expect(dialog.getByRole("link", { name: "Go to Models" })).toHaveAttribute(
+		expect(canvas.getByRole("link", { name: "model" })).toHaveAttribute(
 			"href",
 			"/agents/settings/models",
 		);
@@ -510,28 +514,52 @@ export const MissingModelSetup: Story = {
 export const MissingProviderSetup: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			agentSetupNotice={<AgentSetupNotice providerCount={0} modelCount={1} />}
+			agentSetupNotice={
+				<AgentSetupNotice isAdmin providerCount={0} modelCount={1} />
+			}
 		/>
 	),
 	play: async ({ canvasElement }) => {
-		const body = within(canvasElement.ownerDocument.body);
-		const dialog = within(
-			body.getByRole("dialog", { name: "Welcome to Coder Agents" }),
-		);
+		const canvas = within(canvasElement);
 
 		await waitFor(() => {
-			expect(dialog.getByText("Welcome to Coder Agents")).toBeVisible();
+			expect(
+				canvas.getByText((_content, element) => {
+					return (
+						element?.textContent ===
+						"To chat with Coder Agents, set up a provider then add a model."
+					);
+				}),
+			).toBeVisible();
 		});
-		expect(dialog.getByText("Connect a chat provider")).toBeVisible();
-		expect(dialog.getByText("Add a chat model")).toBeVisible();
-		expect(dialog.getAllByLabelText("Complete")).toHaveLength(1);
-		expect(
-			dialog.getByRole("link", { name: "Go to Providers" }),
-		).toHaveAttribute("href", "/agents/settings/providers");
-		expect(dialog.getByRole("link", { name: "Go to Models" })).toHaveAttribute(
+		expect(canvas.getByRole("link", { name: "provider" })).toHaveAttribute(
 			"href",
-			"/agents/settings/models",
+			"/agents/settings/providers",
 		);
+	},
+};
+
+export const MemberNoModelsAvailable: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			agentSetupNotice={
+				<AgentSetupNotice isAdmin={false} providerCount={0} modelCount={0} />
+			}
+			hasModelOptions={false}
+			modelOptions={[]}
+			isInputDisabled
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await waitFor(() => {
+			expect(
+				canvas.getByText(
+					"AI models aren't available yet. Your admin is still getting things set up.",
+				),
+			).toBeVisible();
+		});
 	},
 };
 
