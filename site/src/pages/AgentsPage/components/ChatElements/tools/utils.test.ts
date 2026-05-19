@@ -7,6 +7,7 @@ import {
 	DIFFS_FONT_STYLE,
 	diffViewerCSS,
 	fileViewerCSS,
+	formatModelIntentLabel,
 	formatResultOutput,
 	formatShellDurationMs,
 	getDiffViewerOptions,
@@ -28,6 +29,22 @@ import {
 	stripSvnIndexHeaders,
 	toProviderLabel,
 } from "./utils";
+
+describe("formatModelIntentLabel", () => {
+	it("returns empty string for empty values", () => {
+		expect(formatModelIntentLabel(undefined)).toBe("");
+		expect(formatModelIntentLabel("")).toBe("");
+		expect(formatModelIntentLabel("   ")).toBe("");
+	});
+
+	it("trims and capitalizes labels", () => {
+		expect(formatModelIntentLabel("checking repository state")).toBe(
+			"Checking repository state",
+		);
+		expect(formatModelIntentLabel(" a")).toBe("A");
+		expect(formatModelIntentLabel("Running tests")).toBe("Running tests");
+	});
+});
 
 describe("toProviderLabel", () => {
 	it("returns displayName when provided", () => {

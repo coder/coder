@@ -59,9 +59,9 @@ export const ExecuteModelIntent: Story = {
 		status: "completed",
 		args: {
 			command: executeCommand,
-			model_intent: "checking repository state",
+			model_intent: "checking repository state using git fetch origin for 5s",
 		},
-		modelIntent: "checking repository state",
+		modelIntent: "checking repository state using git fetch origin for 5s",
 		result: {
 			output: "",
 			wall_duration_ms: 2300,
@@ -101,6 +101,29 @@ export const ExecuteModelIntentRunning: Story = {
 		);
 		expect(commandButton).not.toHaveTextContent(" for ");
 		expect(commandButton).not.toHaveTextContent("Ran");
+	},
+};
+
+export const ExecuteModelIntentLeadingUsing: Story = {
+	args: {
+		status: "completed",
+		args: {
+			command: executeCommand,
+			model_intent: "using git fetch origin",
+		},
+		modelIntent: "using git fetch origin",
+		result: {
+			output: "",
+			wall_duration_ms: 2300,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const commandButton = canvas.getByRole("button", {
+			name: "Expand command",
+		});
+		expect(commandButton).toHaveTextContent(`${executeCommand}2.3s`);
+		expect(commandButton).not.toHaveTextContent("using git fetch origin using");
 	},
 };
 

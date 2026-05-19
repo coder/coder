@@ -176,13 +176,14 @@ const ShellCommandLine: React.FC<{
 	durationLabel: string;
 	expanded?: boolean;
 }> = ({ command, modelIntent, durationLabel, expanded }) => {
-	const label = formatExecuteModelIntent(modelIntent);
+	const intentLabel = sanitizeExecuteModelIntent(modelIntent);
 	return (
 		<>
 			<span className="block min-w-0 truncate text-[13px] font-normal text-current">
-				{label ? (
+				{intentLabel ? (
 					<>
-						{label} using <code className="font-mono text-xs">{command}</code>
+						{intentLabel} using{" "}
+						<code className="font-mono text-xs">{command}</code>
 					</>
 				) : (
 					<code className="font-mono text-xs">{command}</code>
@@ -190,7 +191,7 @@ const ShellCommandLine: React.FC<{
 			</span>
 			{durationLabel && (
 				<span className="shrink-0 text-[13px] font-normal text-content-secondary">
-					{label ? ` for ${durationLabel}` : durationLabel}
+					{intentLabel ? ` for ${durationLabel}` : durationLabel}
 				</span>
 			)}
 			{expanded !== undefined && (
@@ -205,13 +206,14 @@ const ShellCommandLine: React.FC<{
 	);
 };
 
-const formatExecuteModelIntent = (modelIntent: string | undefined): string => {
+const sanitizeExecuteModelIntent = (
+	modelIntent: string | undefined,
+): string => {
 	const label = formatModelIntentLabel(modelIntent);
-	const withoutCommand = label.replace(/\s+using\s+.*$/i, "").trim();
-	const withoutDuration = withoutCommand
+	const withoutCommand = label.replace(/(^|\s+)using\s+.*$/i, "").trim();
+	return withoutCommand
 		.replace(/\s+for\s+\d+(?:\.\d+)?\s*(?:ms|s|m|h)\s*$/i, "")
 		.trim();
-	return withoutDuration || label;
 };
 
 const ShellTranscriptBody: React.FC<{
