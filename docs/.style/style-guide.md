@@ -11,6 +11,11 @@ tickets land.
 
 ## How to use this guide
 
+This page is a scaffold while the rule-specific tickets land. Sections
+marked "To be filled in" point at the Linear tickets that fill them. For
+anything not yet covered, see the public summary at
+[`docs/about/contributing/documentation.md`](../about/contributing/documentation.md).
+
 - **Contributors**: read the section that matches what you are writing.
   Each rule notes the Vale rule ID, if any, so you can reproduce the
   warning locally.
@@ -98,10 +103,10 @@ Code, Cursor, JetBrains, and Neovim.
 
 A public-facing prose summary lives today at
 [`docs/about/contributing/documentation.md`](../about/contributing/documentation.md).
-An information-architecture rework will redirect that page to this guide; until
-it does, follow the public summary for anything the scaffolded sections above
-do not yet cover. New prose rules land here; the public page is frozen pending
-the redirect.
+[DOCS-186](https://linear.app/codercom/issue/DOCS-186) tracks redirecting
+that page to this guide; until that lands, follow the public summary for
+anything the scaffolded sections above do not yet cover. New prose rules
+land here; the public page is frozen pending the redirect.
 
 ## Third-party references
 
