@@ -13,6 +13,9 @@ export const startWorkspaceProxy = async (
 			CODER_HTTP_ADDRESS: `localhost:${workspaceProxyPort}`,
 		},
 	});
+
+	const foo = "unused";
+
 	cp.stdout.on("data", (data: Buffer) => {
 		console.info(
 			`[wsproxy] [stdout] [onData] ${data.toString().replace(/\n$/g, "")}`,
