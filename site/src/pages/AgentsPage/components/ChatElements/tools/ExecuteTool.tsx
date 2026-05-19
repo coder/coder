@@ -26,8 +26,8 @@ import {
 	resolveAgentDisplayState,
 } from "./displayMode";
 import {
-	formatModelIntentLabel,
 	formatShellDurationMs,
+	sanitizeExecuteModelIntent,
 	signalTooltipLabel,
 	type ToolStatus,
 } from "./utils";
@@ -85,7 +85,6 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 	const showFailureIndicator = isError && !isRunning;
 	const [outputOpen, setOutputOpen] = useState(outputInitiallyOpen);
 	const outputToggleLabel = outputOpen ? "Collapse command" : "Expand command";
-	const displayModelIntent = modelIntent?.trim();
 	const durationLabel = formatShellDurationMs(durationMs);
 
 	if (!hasCommand) {
@@ -103,7 +102,7 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 			>
 				<ShellCommandLine
 					command={command}
-					modelIntent={displayModelIntent}
+					modelIntent={modelIntent}
 					durationLabel={durationLabel}
 					expanded={outputOpen}
 				/>
@@ -176,7 +175,7 @@ const ShellCommandLine: React.FC<{
 	durationLabel: string;
 	expanded?: boolean;
 }> = ({ command, modelIntent, durationLabel, expanded }) => {
-	const intentLabel = sanitizeExecuteModelIntent(modelIntent);
+	const intentLabel = sanitizeExecuteModelIntent(modelIntent, command);
 	return (
 		<>
 			<span className="block min-w-0 truncate text-[13px] font-normal text-current">
@@ -204,16 +203,6 @@ const ShellCommandLine: React.FC<{
 			)}
 		</>
 	);
-};
-
-const sanitizeExecuteModelIntent = (
-	modelIntent: string | undefined,
-): string => {
-	const label = formatModelIntentLabel(modelIntent);
-	const withoutCommand = label.replace(/(^|\s+)using\s+.*$/i, "").trim();
-	return withoutCommand
-		.replace(/\s+for\s+\d+(?:\.\d+)?\s*(?:ms|s|m|h)\s*$/i, "")
-		.trim();
 };
 
 const ShellTranscriptBody: React.FC<{
