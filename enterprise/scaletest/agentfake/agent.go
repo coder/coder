@@ -185,7 +185,10 @@ func (a *Agent) runMetadata(ctx context.Context, rpc proto.DRPCAgentClient28, de
 	}
 
 	// Per-agent RNG so we don't contend on the global math/rand mutex
-	// when many fake agents run in the same process.
+	// when many fake agents run in the same process. Weak randomness is
+	// fine here since we are generating synthetic scaletest metadata, not
+	// security-sensitive values.
+	//nolint:gosec
 	rng := rand.New(rand.NewSource(a.clock.Now().UnixNano()))
 	buf := make([]byte, metadataValueBytes)
 

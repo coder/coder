@@ -110,7 +110,7 @@ func TestAgent_SendsMetadata(t *testing.T) {
 	// under the hood, which inserts the metadata description rows for each
 	// metadata block on the agent. BatchUpdateMetadata's UPDATE will match
 	// the rows that path created. No manual seeding needed.
-	agentID := workspaceAgentID(t, ctx, client, r.Workspace.ID)
+	agentID := workspaceAgentID(ctx, t, client, r.Workspace.ID)
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	a := agentfake.NewAgent(client.URL, r.AgentToken, logger)
 	t.Cleanup(func() { a.Close() })
@@ -184,7 +184,7 @@ waitLoop:
 	}
 }
 
-func workspaceAgentID(t *testing.T, ctx context.Context, client *codersdk.Client, workspaceID uuid.UUID) uuid.UUID {
+func workspaceAgentID(ctx context.Context, t *testing.T, client *codersdk.Client, workspaceID uuid.UUID) uuid.UUID {
 	t.Helper()
 	ws, err := client.Workspace(ctx, workspaceID)
 	require.NoError(t, err)
