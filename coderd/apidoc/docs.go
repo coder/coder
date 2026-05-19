@@ -15798,6 +15798,12 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "owner_name": {
+                    "type": "string"
+                },
+                "owner_username": {
+                    "type": "string"
+                },
                 "parent_chat_id": {
                     "type": "string",
                     "format": "uuid"
