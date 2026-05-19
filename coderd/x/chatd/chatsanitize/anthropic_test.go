@@ -190,7 +190,7 @@ func TestApplyAnthropicProviderToolGuardRepairsOlderSignedAssistantWhenLatestAss
 	}
 }
 
-func TestApplyAnthropicProviderToolGuardDoesNotMergeAcrossLatestReasoningAssistant(t *testing.T) {
+func TestApplyAnthropicProviderToolGuardDropsOrphanProviderCallsAcrossLatestReasoningAssistant(t *testing.T) {
 	t.Parallel()
 
 	reasoningVariants := []struct {
@@ -216,8 +216,18 @@ func TestApplyAnthropicProviderToolGuardDoesNotMergeAcrossLatestReasoningAssista
 				},
 			)
 
-			require.ErrorIs(t, err, chatsanitize.ErrAnthropicProviderToolPromptUnsafe)
-			require.Nil(t, guarded)
+			require.NoError(t, err)
+			require.Equal(t, []fantasy.Message{
+				sanitizedPriorAssistantForTest(),
+				{
+					Role: fantasy.MessageRoleAssistant,
+					Content: []fantasy.MessagePart{
+						reasoningVariant.part,
+						fantasy.TextPart{Text: "answer"},
+					},
+				},
+			}, guarded)
+			require.Empty(t, chatsanitize.ValidateAnthropicProviderToolHistory(guarded))
 		})
 	}
 }
