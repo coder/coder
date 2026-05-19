@@ -45,13 +45,18 @@ type SettingsWire = AIProviderSettings &
  * The wire API only accepts `openai` and `anthropic` for the user-facing
  * create endpoint; AWS Bedrock is an Anthropic provider with
  * `settings._type === "bedrock"`.
+ *
+ * `AIProvider.settings` is typed as a non-null object by `typesGenerated.ts`,
+ * but the Go side serializes the zero settings as JSON `null` (see
+ * `AIProviderSettings.MarshalJSON`); we have to null-check before reading
+ * any discriminator fields.
  */
 export const isBedrockProvider = (provider: AIProvider): boolean => {
 	if (provider.type !== "anthropic") {
 		return false;
 	}
-	const s = provider.settings as SettingsWire;
-	return s._type === BEDROCK_SETTINGS_TYPE;
+	const s = provider.settings as SettingsWire | null;
+	return s !== null && s._type === BEDROCK_SETTINGS_TYPE;
 };
 
 /** Bedrock has stored credentials on the server. */
@@ -164,7 +169,8 @@ export const providerFormValuesToUpdate = (
 	const credentialsChanged = newAccessKey !== "" && newAccessKeySecret !== "";
 
 	// Preserve the saved region; the form doesn't surface region today.
-	const savedRegion = (existingProvider.settings as SettingsWire).region;
+	const savedSettings = existingProvider.settings as SettingsWire | null;
+	const savedRegion = savedSettings?.region;
 
 	const settings = buildBedrockSettings(
 		savedRegion,
@@ -182,7 +188,7 @@ export const aiProviderToFormValues = (
 	provider: AIProvider,
 ): Partial<ProviderFormValues> => {
 	if (isBedrockProvider(provider)) {
-		const s = provider.settings as SettingsWire;
+		const s = (provider.settings as SettingsWire | null) ?? {};
 		return {
 			type: "bedrock",
 			name: provider.name,

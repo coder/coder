@@ -5484,7 +5484,9 @@ export const MockAIProviderOpenAI: TypesGen.AIProvider = {
 			created_at: "2026-05-14T10:00:00Z",
 		},
 	],
-	settings: {},
+	// The Go server emits JSON null for AIProviderSettings on providers with
+	// no type-specific config; mirror that shape here so mocks match the wire.
+	settings: null as unknown as TypesGen.AIProviderSettings,
 	created_at: "2026-05-14T10:00:00Z",
 	updated_at: "2026-05-14T10:00:00Z",
 };
@@ -5497,7 +5499,7 @@ export const MockAIProviderAnthropic: TypesGen.AIProvider = {
 	base_url: "https://api.anthropic.com",
 	enabled: false,
 	api_keys: [],
-	settings: {},
+	settings: null as unknown as TypesGen.AIProviderSettings,
 	created_at: "2026-05-14T10:00:00Z",
 	updated_at: "2026-05-14T10:00:00Z",
 };
