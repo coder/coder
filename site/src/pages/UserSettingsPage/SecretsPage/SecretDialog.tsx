@@ -37,11 +37,11 @@ type SecretDialogProps = {
 	onClose: () => void;
 	onCreateSecret: (
 		request: CreateUserSecretRequest,
-	) => Promise<unknown> | unknown;
+	) => Promise<UserSecret> | UserSecret;
 	onUpdateSecret: (
 		name: string,
 		request: UpdateUserSecretRequest,
-	) => Promise<unknown> | unknown;
+	) => Promise<UserSecret> | UserSecret;
 };
 
 const emptyValues: SecretFormValues = {
@@ -52,8 +52,7 @@ const emptyValues: SecretFormValues = {
 	file_path: "",
 };
 
-const infoText =
-	"Secret values cannot be retrieved once saved. Save any value you add or update in a secure location.";
+const infoText = "Secret values cannot be retrieved once saved.";
 
 export const SecretDialog: FC<SecretDialogProps> = ({
 	open,
@@ -157,10 +156,12 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 								showValue={false}
 							/>
 							<FormField
-								field={getFieldHelpers("value")}
+								field={getFieldHelpers("value", {
+									helperText: "Leave blank to keep the existing value.",
+								})}
 								label="Value"
 								type="password"
-								placeholder="enter secret value"
+								placeholder="Leave blank to keep existing"
 								autoComplete="off"
 							/>
 							<SecretDescriptionField field={getFieldHelpers("description")} />
@@ -215,14 +216,16 @@ const SecretFields: FC<SecretFieldsProps> = ({
 			/>
 			<FormField
 				field={getFieldHelpers("env_name", {
-					helperText: "Use the same name as the variable in your template.",
+					helperText:
+						"Optional. Exposes the secret as an environment variable with this name in your workspace.",
 				})}
-				label="Env var"
-				placeholder="VARIABLE_NAME"
+				label="Environment variable"
+				placeholder="GITHUB_TOKEN"
 			/>
 			<FormField
 				field={getFieldHelpers("file_path", {
-					helperText: "File paths must start with ~/ or /.",
+					helperText:
+						"Optional. Exposes the secret as a file at this path in your workspace. Path must start with ~/ or /.",
 				})}
 				label="File path"
 				placeholder="/usr/local/secrets"

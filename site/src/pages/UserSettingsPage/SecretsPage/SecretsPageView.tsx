@@ -31,12 +31,12 @@ type SecretsPageViewProps = {
 	onRefresh: () => void;
 	onCreateSecret: (
 		request: CreateUserSecretRequest,
-	) => Promise<unknown> | unknown;
+	) => Promise<UserSecret> | UserSecret;
 	onUpdateSecret: (
 		name: string,
 		request: UpdateUserSecretRequest,
-	) => Promise<unknown> | unknown;
-	onDeleteSecret: (secret: UserSecret) => Promise<unknown> | unknown;
+	) => Promise<UserSecret> | UserSecret;
+	onDeleteSecret: (secret: UserSecret) => Promise<void> | void;
 };
 
 type SecretDialogState =
@@ -89,9 +89,9 @@ export const SecretsPageView: FC<SecretsPageViewProps> = ({
 						<Button
 							variant="outline"
 							onClick={onRefresh}
-							disabled={isRefreshing}
+							disabled={isLoading || isRefreshing}
 						>
-							<Spinner loading={isRefreshing}>
+							<Spinner loading={isLoading || isRefreshing}>
 								<RefreshCwIcon />
 							</Spinner>
 							Refresh

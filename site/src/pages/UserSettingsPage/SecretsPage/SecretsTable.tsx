@@ -41,7 +41,7 @@ type SecretsTableProps = {
 		secret: UserSecret,
 		returnFocusElement?: HTMLElement | null,
 	) => void;
-	onDeleteSecret: (secret: UserSecret) => Promise<unknown> | unknown;
+	onDeleteSecret: (secret: UserSecret) => Promise<void> | void;
 };
 
 export const SecretsTable: FC<SecretsTableProps> = ({
@@ -80,7 +80,7 @@ export const SecretsTable: FC<SecretsTableProps> = ({
 				<TableHeader>
 					<TableRow>
 						<TableHead className="w-[16%]">Name</TableHead>
-						<TableHead className="w-[14%]">Env var</TableHead>
+						<TableHead className="w-[14%]">Environment variable</TableHead>
 						<TableHead className="w-[18%]">File path</TableHead>
 						<TableHead className="w-[11%]">Type</TableHead>
 						<TableHead className="w-[23%]">Description</TableHead>

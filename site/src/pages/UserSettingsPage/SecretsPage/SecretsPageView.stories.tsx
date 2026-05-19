@@ -36,10 +36,7 @@ type CreateSecretMock = ReturnType<
 >;
 type UpdateSecretMock = ReturnType<
 	typeof fn<
-		(
-			name: string,
-			request: UpdateUserSecretRequest,
-		) => Promise<UserSecret | undefined>
+		(name: string, request: UpdateUserSecretRequest) => Promise<UserSecret>
 	>
 >;
 type DeleteSecretMock = ReturnType<
@@ -67,6 +64,14 @@ const createSecretFromRequest = (
 	created_at: "2026-05-04T00:00:00Z",
 	updated_at: "2026-05-04T00:00:00Z",
 });
+
+const findVisibleSecretByName = (name: string): UserSecret => {
+	const secret = visibleSecrets.find((secret) => secret.name === name);
+	if (!secret) {
+		throw new Error(`No visible secret named ${name}`);
+	}
+	return secret;
+};
 
 export const Loaded: Story = {
 	play: async ({ canvasElement }) => {
@@ -99,6 +104,13 @@ export const Loading: Story = {
 		secrets: [],
 		isLoading: true,
 		hasLoaded: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(
+			canvas.getByRole("button", { name: /Refresh/ }),
+		).toBeDisabled();
 	},
 };
 
@@ -173,7 +185,10 @@ export const AddDialogDuplicateEnvValidationError: Story = {
 		await user.click(canvas.getByRole("button", { name: "Add secret" }));
 		const dialog = within(await body.findByRole("dialog"));
 		await user.type(dialog.getByLabelText("Name"), "duplicate-env");
-		await user.type(dialog.getByLabelText("Env var"), "OPENAI_API_KEY");
+		await user.type(
+			dialog.getByLabelText("Environment variable"),
+			"OPENAI_API_KEY",
+		);
 		await user.type(dialog.getByLabelText("Value"), placeholderInput);
 		const saveButton = dialog.getByRole("button", { name: "Save" });
 		await waitFor(() => expect(saveButton).toBeEnabled());
@@ -200,7 +215,10 @@ export const AddSecretFormSaveEnabled: Story = {
 		const saveButton = dialog.getByRole("button", { name: "Save" });
 		await user.type(dialog.getByLabelText("Name"), "example-secret");
 		await expect(saveButton).toBeDisabled();
-		await user.type(dialog.getByLabelText("Env var"), "EXAMPLE_SECRET");
+		await user.type(
+			dialog.getByLabelText("Environment variable"),
+			"EXAMPLE_SECRET",
+		);
 		await user.type(dialog.getByLabelText("Value"), placeholderInput);
 
 		await expect(saveButton).toBeEnabled();
@@ -225,7 +243,10 @@ export const AddSecretSubmit: Story = {
 		await user.click(canvas.getByRole("button", { name: "Add secret" }));
 		const dialog = within(await body.findByRole("dialog"));
 		await user.type(dialog.getByLabelText("Name"), "example-secret");
-		await user.type(dialog.getByLabelText("Env var"), "EXAMPLE_SECRET");
+		await user.type(
+			dialog.getByLabelText("Environment variable"),
+			"EXAMPLE_SECRET",
+		);
 		await user.type(dialog.getByLabelText("File path"), "~/secrets/example");
 		await user.type(dialog.getByLabelText("Value"), placeholderInput);
 		await user.type(dialog.getByLabelText("Description"), "Example secret");
@@ -270,7 +291,7 @@ export const EditDialogOpened: Story = {
 		await expect(dialogView.getByLabelText("Description")).toHaveValue(
 			secret.description,
 		);
-		await expect(dialogView.getByLabelText("Env var")).toHaveValue(
+		await expect(dialogView.getByLabelText("Environment variable")).toHaveValue(
 			secret.env_name,
 		);
 		await expect(dialogView.getByLabelText("File path")).toHaveValue(
@@ -288,11 +309,8 @@ export const EditDialogOpened: Story = {
 export const EditSecretSubmit: Story = {
 	args: {
 		onUpdateSecret: fn<
-			(
-				name: string,
-				request: UpdateUserSecretRequest,
-			) => Promise<UserSecret | undefined>
-		>(async (name) => visibleSecrets.find((secret) => secret.name === name)),
+			(name: string, request: UpdateUserSecretRequest) => Promise<UserSecret>
+		>(async (name) => findVisibleSecretByName(name)),
 	},
 	play: async ({ canvasElement, args }) => {
 		const onUpdateSecret = args.onUpdateSecret as UpdateSecretMock;
@@ -329,10 +347,7 @@ export const EditSecretSubmit: Story = {
 export const EditSecretMutationErrorDisplay: Story = {
 	args: {
 		onUpdateSecret: fn<
-			(
-				name: string,
-				request: UpdateUserSecretRequest,
-			) => Promise<UserSecret | undefined>
+			(name: string, request: UpdateUserSecretRequest) => Promise<UserSecret>
 		>(async () => {
 			throw mockApiError({ message: "Failed to update secret." });
 		}),
