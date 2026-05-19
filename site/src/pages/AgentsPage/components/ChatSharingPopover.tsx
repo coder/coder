@@ -1,5 +1,5 @@
 import { EllipsisVerticalIcon, Share2Icon } from "lucide-react";
-import { type FC, useState } from "react";
+import { type FC, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import {
@@ -72,7 +72,6 @@ const MemberRowMenu: FC<MemberRowMenuProps> = ({ disabled, onRemove }) => (
 				disabled={disabled}
 			>
 				<EllipsisVerticalIcon aria-hidden="true" />
-				<span className="sr-only">Open menu</span>
 			</Button>
 		</DropdownMenuTrigger>
 		<DropdownMenuContent align="end">
@@ -95,17 +94,48 @@ export const ChatSharingPopoverContent: FC<ChatSharingPopoverContentProps> = ({
 	const queryClient = useQueryClient();
 	const [selectedOption, setSelectedOption] =
 		useState<UserOrGroupAutocompleteValue>(null);
+	const hasResetForOpenRef = useRef(false);
 
 	const aclQuery = useQuery({
 		...chatACL(chatId),
 		enabled: open,
 	});
 
-	const userRoleMutation = useMutation(setChatUserRole(queryClient));
-	const groupRoleMutation = useMutation(setChatGroupRole(queryClient));
+	const {
+		error: userRoleError,
+		isPending: isUserRolePending,
+		mutate: mutateUserRole,
+		reset: resetUserRole,
+	} = useMutation(setChatUserRole(queryClient));
+	const {
+		error: groupRoleError,
+		isPending: isGroupRolePending,
+		mutate: mutateGroupRole,
+		reset: resetGroupRole,
+	} = useMutation(setChatGroupRole(queryClient));
 
-	const mutationError = userRoleMutation.error ?? groupRoleMutation.error;
-	const isMutating = userRoleMutation.isPending || groupRoleMutation.isPending;
+	const mutationError = userRoleError ?? groupRoleError;
+	const isMutating = isUserRolePending || isGroupRolePending;
+
+	useEffect(() => {
+		if (!open) {
+			hasResetForOpenRef.current = false;
+			return;
+		}
+
+		if (isMutating || hasResetForOpenRef.current) {
+			return;
+		}
+
+		resetUserRole();
+		resetGroupRole();
+		hasResetForOpenRef.current = true;
+	}, [open, isMutating, resetGroupRole, resetUserRole]);
+
+	const resetMutationErrors = () => {
+		resetUserRole();
+		resetGroupRole();
+	};
 
 	const acl = aclQuery.data;
 	const users = (acl?.users ?? []).filter((user) => user.id !== currentUser.id);
@@ -113,132 +143,73 @@ export const ChatSharingPopoverContent: FC<ChatSharingPopoverContentProps> = ({
 	const excludeFromAutocomplete = [...users, ...groups, currentUser];
 
 	const handleAddMember = () => {
-		if (!selectedOption) {
+		if (!selectedOption || isMutating) {
 			return;
 		}
-
-		const onSuccess = () => {
-			setSelectedOption(null);
-			toast.success("Member added to chat.");
-		};
 
 		if (!isGroup(selectedOption) && selectedOption.id === currentUser.id) {
 			return;
 		}
 
+		resetMutationErrors();
+
 		if (isGroup(selectedOption)) {
-			groupRoleMutation.mutate(
+			mutateGroupRole(
 				{
 					chatId,
 					groupId: selectedOption.id,
 					role: "read",
 				},
-				{ onSuccess },
+				{
+					onSuccess: () => {
+						setSelectedOption(null);
+						toast.success("Group added to chat.");
+					},
+				},
 			);
 			return;
 		}
 
-		userRoleMutation.mutate(
+		mutateUserRole(
 			{
 				chatId,
 				userId: selectedOption.id,
 				role: "read",
 			},
-			{ onSuccess },
+			{
+				onSuccess: () => {
+					setSelectedOption(null);
+					toast.success("Member added to chat.");
+				},
+			},
 		);
 	};
 
 	const handleRemoveUser = (user: TypesGen.ChatUser) => {
-		userRoleMutation.mutate(
+		if (isMutating) {
+			return;
+		}
+
+		resetMutationErrors();
+		mutateUserRole(
 			{ chatId, userId: user.id, role: "" },
 			{ onSuccess: () => toast.success("Member removed from chat.") },
 		);
 	};
 
 	const handleRemoveGroup = (group: TypesGen.ChatGroup) => {
-		groupRoleMutation.mutate(
+		if (isMutating) {
+			return;
+		}
+
+		resetMutationErrors();
+		mutateGroupRole(
 			{ chatId, groupId: group.id, role: "" },
 			{ onSuccess: () => toast.success("Group removed from chat.") },
 		);
 	};
 
-	const tableHeader = (
-		<TableHeader>
-			<TableRow>
-				<TableHead className="w-[50%] py-2">Member</TableHead>
-				<TableHead className="w-[40%] py-2">Role</TableHead>
-				<TableHead className="w-[10%] py-2" />
-			</TableRow>
-		</TableHeader>
-	);
-
 	const isEmpty = groups.length === 0 && users.length === 0;
-
-	const tableBody = (
-		<TableBody>
-			{isEmpty ? (
-				<TableRow>
-					<TableCell colSpan={999}>
-						<EmptyState
-							message="No shared members or groups yet"
-							description="Add a member or group using the controls above."
-							isCompact
-						/>
-					</TableCell>
-				</TableRow>
-			) : (
-				<>
-					{groups.map((group) => (
-						<TableRow key={group.id}>
-							<TableCell className="py-2 w-[50%]">
-								<AvatarData
-									title={group.display_name || group.name}
-									subtitle={getGroupSubtitle(group)}
-									src={group.avatar_url}
-									avatar={
-										<Avatar
-											src={group.avatar_url}
-											fallback={group.display_name || group.name}
-											variant="icon"
-										/>
-									}
-								/>
-							</TableCell>
-							<TableCell className="py-2 w-[40%]">
-								<ReadRoleBadge />
-							</TableCell>
-							<TableCell className="py-2 w-[10%]">
-								<MemberRowMenu
-									disabled={isMutating}
-									onRemove={() => handleRemoveGroup(group)}
-								/>
-							</TableCell>
-						</TableRow>
-					))}
-					{users.map((user) => (
-						<TableRow key={user.id}>
-							<TableCell className="py-2 w-[50%]">
-								<AvatarData
-									title={user.username}
-									subtitle={user.name}
-									src={user.avatar_url}
-								/>
-							</TableCell>
-							<TableCell className="py-2 w-[40%]">
-								<ReadRoleBadge />
-							</TableCell>
-							<TableCell className="py-2 w-[10%]">
-								<MemberRowMenu
-									disabled={isMutating}
-									onRemove={() => handleRemoveUser(user)}
-								/>
-							</TableCell>
-						</TableRow>
-					))}
-				</>
-			)}
-		</TableBody>
-	);
 
 	return (
 		<PopoverContent align="end" className="w-[580px] p-4">
@@ -270,12 +241,85 @@ export const ChatSharingPopoverContent: FC<ChatSharingPopoverContentProps> = ({
 							/>
 						</AddWorkspaceMemberForm>
 
-						<div>
-							<Table>{tableHeader}</Table>
-							<div className="max-h-60 overflow-y-auto">
-								<Table>{tableBody}</Table>
-							</div>
-						</div>
+						<Table
+							aria-label="Shared chat members and groups"
+							wrapperClassName="max-h-60 overflow-y-auto"
+						>
+							<TableHeader>
+								<TableRow>
+									<TableHead className="sticky top-0 z-10 w-[50%] bg-surface-primary py-2">
+										Member
+									</TableHead>
+									<TableHead className="sticky top-0 z-10 w-[40%] bg-surface-primary py-2">
+										Role
+									</TableHead>
+									<TableHead className="sticky top-0 z-10 w-[10%] bg-surface-primary py-2" />
+								</TableRow>
+							</TableHeader>
+							<TableBody>
+								{isEmpty ? (
+									<TableRow>
+										<TableCell colSpan={3}>
+											<EmptyState
+												message="No shared members or groups yet"
+												description="Add a member or group using the controls above."
+												isCompact
+											/>
+										</TableCell>
+									</TableRow>
+								) : (
+									<>
+										{groups.map((group) => (
+											<TableRow key={group.id}>
+												<TableCell className="py-2 w-[50%]">
+													<AvatarData
+														title={group.display_name || group.name}
+														subtitle={getGroupSubtitle(group)}
+														src={group.avatar_url}
+														avatar={
+															<Avatar
+																src={group.avatar_url}
+																fallback={group.display_name || group.name}
+																variant="icon"
+															/>
+														}
+													/>
+												</TableCell>
+												<TableCell className="py-2 w-[40%]">
+													<ReadRoleBadge />
+												</TableCell>
+												<TableCell className="py-2 w-[10%]">
+													<MemberRowMenu
+														disabled={isMutating}
+														onRemove={() => handleRemoveGroup(group)}
+													/>
+												</TableCell>
+											</TableRow>
+										))}
+										{users.map((user) => (
+											<TableRow key={user.id}>
+												<TableCell className="py-2 w-[50%]">
+													<AvatarData
+														title={user.username}
+														subtitle={user.name}
+														src={user.avatar_url}
+													/>
+												</TableCell>
+												<TableCell className="py-2 w-[40%]">
+													<ReadRoleBadge />
+												</TableCell>
+												<TableCell className="py-2 w-[10%]">
+													<MemberRowMenu
+														disabled={isMutating}
+														onRemove={() => handleRemoveUser(user)}
+													/>
+												</TableCell>
+											</TableRow>
+										))}
+									</>
+								)}
+							</TableBody>
+						</Table>
 					</>
 				) : null}
 			</div>

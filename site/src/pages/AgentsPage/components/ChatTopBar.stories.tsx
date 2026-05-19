@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useState } from "react";
 import { useLocation } from "react-router";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
@@ -283,7 +284,7 @@ export const PreservesArchivedFilterOnMobileBack: Story = {
 
 export const ShareChatButton: Story = {
 	args: {
-		chatSharingPopover: () => (
+		renderChatSharingContent: () => (
 			<PopoverContent align="end">Share chat</PopoverContent>
 		),
 	},
@@ -308,7 +309,7 @@ export const ShareChatButton: Story = {
 
 export const ShareChatButtonHiddenWithoutPermission: Story = {
 	args: {
-		chatSharingPopover: undefined,
+		renderChatSharingContent: undefined,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -324,6 +325,61 @@ export const ShareChatButtonHiddenWithoutPermission: Story = {
 		expect(
 			body.queryByRole("menuitem", { name: "Share" }),
 		).not.toBeInTheDocument();
+	},
+};
+
+export const ShareChatButtonResetsWhenContentDisappears: Story = {
+	render: function Render(args) {
+		const [showShare, setShowShare] = useState(true);
+
+		return (
+			<div className="flex flex-col gap-3">
+				<div className="flex gap-2">
+					<button type="button" onClick={() => setShowShare(false)}>
+						Disable share
+					</button>
+					<button type="button" onClick={() => setShowShare(true)}>
+						Enable share
+					</button>
+				</div>
+				<ChatTopBar
+					{...args}
+					renderChatSharingContent={
+						showShare
+							? () => <PopoverContent align="end">Share chat</PopoverContent>
+							: undefined
+					}
+				/>
+			</div>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await userEvent.click(canvas.getByRole("button", { name: "Share chat" }));
+		expect(await body.findByText("Share chat")).toBeInTheDocument();
+
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Disable share" }),
+		);
+		await waitFor(() => {
+			expect(
+				canvas.queryByRole("button", { name: "Share chat" }),
+			).not.toBeInTheDocument();
+			expect(body.queryByText("Share chat")).not.toBeInTheDocument();
+		});
+
+		await userEvent.click(canvas.getByRole("button", { name: "Enable share" }));
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("button", { name: "Share chat" }),
+			).toBeInTheDocument();
+			expect(body.queryByText("Share chat")).not.toBeInTheDocument();
+		});
+
+		await userEvent.click(canvas.getByRole("button", { name: "Share chat" }));
+		expect(await body.findByText("Share chat")).toBeInTheDocument();
 	},
 };
 

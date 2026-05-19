@@ -14,6 +14,7 @@ import {
 import {
 	withAuthProvider,
 	withDashboardProvider,
+	withToaster,
 } from "#/testHelpers/storybook";
 import { ChatShareButton } from "./ChatSharingPopover";
 
@@ -62,19 +63,17 @@ const ignoreResizeObserverLoopError = () => {
 	return () => window.removeEventListener("error", handleError);
 };
 
-type DialogRequestMocks = {
+type LookupRequestMocks = {
 	acl?: TypesGen.ChatACL;
 	aclError?: Error;
 	aclPending?: boolean;
-	updateError?: Error;
 };
 
-const mockDialogRequests = ({
+const mockLookupRequests = ({
 	acl = emptyACL,
 	aclError,
 	aclPending,
-	updateError,
-}: DialogRequestMocks = {}) => {
+}: LookupRequestMocks = {}) => {
 	if (aclPending) {
 		spyOn(API.experimental, "getChatACL").mockReturnValue(
 			new Promise<TypesGen.ChatACL>(() => undefined),
@@ -84,11 +83,7 @@ const mockDialogRequests = ({
 	} else {
 		spyOn(API.experimental, "getChatACL").mockResolvedValue(acl);
 	}
-	if (updateError) {
-		spyOn(API.experimental, "updateChatACL").mockRejectedValue(updateError);
-	} else {
-		spyOn(API.experimental, "updateChatACL").mockResolvedValue();
-	}
+
 	spyOn(API, "getOrganizationPaginatedMembers").mockResolvedValue({
 		members: [MockOrganizationMember, MockOrganizationMember2],
 		count: 2,
@@ -97,7 +92,27 @@ const mockDialogRequests = ({
 		MockGroup,
 		MockGroup2,
 	]);
+
 	return ignoreResizeObserverLoopError();
+};
+
+type DialogRequestMocks = LookupRequestMocks & {
+	updateError?: Error;
+};
+
+const mockDialogRequests = ({
+	updateError,
+	...lookupOptions
+}: DialogRequestMocks = {}) => {
+	const cleanup = mockLookupRequests(lookupOptions);
+
+	if (updateError) {
+		spyOn(API.experimental, "updateChatACL").mockRejectedValue(updateError);
+	} else {
+		spyOn(API.experimental, "updateChatACL").mockResolvedValue();
+	}
+
+	return cleanup;
 };
 
 const openChatSharing = async (canvasElement: HTMLElement) => {
@@ -108,14 +123,28 @@ const openChatSharing = async (canvasElement: HTMLElement) => {
 	return body;
 };
 
+const closeChatSharing = async (canvasElement: HTMLElement) => {
+	const canvas = within(canvasElement);
+	const body = within(canvasElement.ownerDocument.body);
+	await userEvent.click(canvas.getByRole("button", { name: "Share" }));
+	await waitFor(() => {
+		expect(body.queryByText("Chat Sharing")).not.toBeInTheDocument();
+	});
+};
+
 const addAutocompleteOption = async (
 	body: ReturnType<typeof within>,
-	query: string,
-	option: string | RegExp,
+	{
+		query,
+		option,
+		triggerName = "Search for user or group",
+	}: {
+		query: string;
+		option: string | RegExp;
+		triggerName?: string | RegExp;
+	},
 ) => {
-	await userEvent.click(
-		await body.findByRole("button", { name: "Search for user or group" }),
-	);
+	await userEvent.click(await body.findByRole("button", { name: triggerName }));
 	await userEvent.type(
 		body.getByPlaceholderText("Search for user or group"),
 		query,
@@ -162,19 +191,7 @@ export const PopulatedACL: Story = {
 			expect(body.getByText(chatGroup.name)).toBeInTheDocument();
 			expect(body.getAllByText("Read").length).toBeGreaterThan(0);
 		});
-		expect(
-			body.queryByRole("button", {
-				name: new RegExp(`Remove ${chatUser.username}`, "i"),
-			}),
-		).not.toBeInTheDocument();
-		expect(
-			body.queryByRole("button", {
-				name: new RegExp(
-					`Remove ${chatGroup.display_name || chatGroup.name}`,
-					"i",
-				),
-			}),
-		).not.toBeInTheDocument();
+		expect(body.getAllByRole("button", { name: "Open menu" })).toHaveLength(2);
 	},
 };
 
@@ -243,37 +260,43 @@ export const ErrorACL: Story = {
 };
 
 export const AddUser: Story = {
+	decorators: [withToaster],
 	beforeEach: () => mockDialogRequests(),
 	play: async ({ canvasElement }) => {
 		const body = await openChatSharing(canvasElement);
-		await addAutocompleteOption(
-			body,
-			MockOrganizationMember2.email,
-			new RegExp(MockOrganizationMember2.email, "i"),
-		);
+		await addAutocompleteOption(body, {
+			query: MockOrganizationMember2.email,
+			option: new RegExp(MockOrganizationMember2.email, "i"),
+		});
 
 		await waitFor(() => {
 			expect(API.experimental.updateChatACL).toHaveBeenCalledWith(chatId, {
 				user_roles: { [MockUserMember.id]: "read" },
 			});
 		});
+		await waitFor(() => {
+			expect(body.getByText("Member added to chat.")).toBeVisible();
+		});
 	},
 };
 
 export const AddGroup: Story = {
+	decorators: [withToaster],
 	beforeEach: () => mockDialogRequests(),
 	play: async ({ canvasElement }) => {
 		const body = await openChatSharing(canvasElement);
-		await addAutocompleteOption(
-			body,
-			MockGroup.name,
-			new RegExp(MockGroup.display_name || MockGroup.name, "i"),
-		);
+		await addAutocompleteOption(body, {
+			query: MockGroup.name,
+			option: new RegExp(MockGroup.display_name || MockGroup.name, "i"),
+		});
 
 		await waitFor(() => {
 			expect(API.experimental.updateChatACL).toHaveBeenCalledWith(chatId, {
 				group_roles: { [MockGroup.id]: "read" },
 			});
+		});
+		await waitFor(() => {
+			expect(body.getByText("Group added to chat.")).toBeVisible();
 		});
 	},
 };
@@ -329,13 +352,90 @@ export const MutationError: Story = {
 		mockDialogRequests({ updateError: new Error("No share permission") }),
 	play: async ({ canvasElement }) => {
 		const body = await openChatSharing(canvasElement);
-		await addAutocompleteOption(
-			body,
-			MockOrganizationMember2.email,
-			new RegExp(MockOrganizationMember2.email, "i"),
-		);
+		await addAutocompleteOption(body, {
+			query: MockOrganizationMember2.email,
+			option: new RegExp(MockOrganizationMember2.email, "i"),
+		});
 		await waitFor(() => {
 			expect(body.getByText("No share permission")).toBeInTheDocument();
+		});
+	},
+};
+
+export const MutationErrorClearsAcrossMemberTypes: Story = {
+	decorators: [withToaster],
+	beforeEach: () => {
+		const cleanup = mockLookupRequests();
+		spyOn(API.experimental, "updateChatACL")
+			.mockRejectedValueOnce(new Error("User add failed"))
+			.mockResolvedValue(undefined);
+		return cleanup;
+	},
+	play: async ({ canvasElement }) => {
+		const body = await openChatSharing(canvasElement);
+		await addAutocompleteOption(body, {
+			query: MockOrganizationMember2.email,
+			option: new RegExp(MockOrganizationMember2.email, "i"),
+		});
+		await waitFor(() => {
+			expect(body.getByText("User add failed")).toBeInTheDocument();
+		});
+
+		await userEvent.click(
+			body.getByRole("button", { name: "Clear selection" }),
+		);
+		await addAutocompleteOption(body, {
+			query: MockGroup.name,
+			option: new RegExp(MockGroup.display_name || MockGroup.name, "i"),
+		});
+
+		await waitFor(() => {
+			expect(API.experimental.updateChatACL).toHaveBeenNthCalledWith(
+				1,
+				chatId,
+				{
+					user_roles: { [MockUserMember.id]: "read" },
+				},
+			);
+			expect(API.experimental.updateChatACL).toHaveBeenNthCalledWith(
+				2,
+				chatId,
+				{
+					group_roles: { [MockGroup.id]: "read" },
+				},
+			);
+		});
+		await waitFor(() => {
+			expect(body.queryByText("User add failed")).not.toBeInTheDocument();
+			expect(body.getByText("Group added to chat.")).toBeVisible();
+		});
+	},
+};
+
+export const MutationErrorClearsWhenReopened: Story = {
+	beforeEach: () => {
+		const cleanup = mockLookupRequests();
+		spyOn(API.experimental, "updateChatACL").mockRejectedValue(
+			new Error("No share permission"),
+		);
+		return cleanup;
+	},
+	play: async ({ canvasElement }) => {
+		const body = await openChatSharing(canvasElement);
+		await addAutocompleteOption(body, {
+			query: MockOrganizationMember2.email,
+			option: new RegExp(MockOrganizationMember2.email, "i"),
+		});
+		await waitFor(() => {
+			expect(body.getByText("No share permission")).toBeInTheDocument();
+		});
+
+		await closeChatSharing(canvasElement);
+		const reopenedBody = await openChatSharing(canvasElement);
+		await waitFor(() => {
+			expect(
+				reopenedBody.queryByText("No share permission"),
+			).not.toBeInTheDocument();
 		});
 	},
 };

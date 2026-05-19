@@ -11,7 +11,7 @@ import {
 	Trash2Icon,
 	WandSparklesIcon,
 } from "lucide-react";
-import { type FC, type ReactNode, useState } from "react";
+import { type FC, type ReactNode, useEffect, useState } from "react";
 import { Link, useLocation } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus } from "#/api/typesGenerated";
@@ -50,7 +50,7 @@ type ChatTopBarProps = {
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
 	diffStatusData?: ChatDiffStatus;
-	chatSharingPopover?: (open: boolean) => ReactNode;
+	renderChatSharingContent?: (open: boolean) => ReactNode;
 };
 
 export const ChatTopBar: FC<ChatTopBarProps> = ({
@@ -68,11 +68,17 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 	isSidebarCollapsed,
 	onToggleSidebarCollapsed,
 	diffStatusData,
-	chatSharingPopover,
+	renderChatSharingContent,
 }) => {
 	const { isEmbedded } = useEmbedContext();
 	const location = useLocation();
 	const [isChatSharingOpen, setIsChatSharingOpen] = useState(false);
+
+	useEffect(() => {
+		if (!renderChatSharingContent || isEmbedded) {
+			setIsChatSharingOpen(false);
+		}
+	}, [renderChatSharingContent, isEmbedded]);
 
 	const prUrl = diffStatusData?.url;
 	const prState = diffStatusData?.pull_request_state;
@@ -188,7 +194,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 			)}
 			{/* Actions area */}
 			<div className="flex items-center gap-2">
-				{!isEmbedded && chatSharingPopover && (
+				{!isEmbedded && renderChatSharingContent && (
 					<Popover open={isChatSharingOpen} onOpenChange={setIsChatSharingOpen}>
 						<PopoverTrigger asChild>
 							<Button
@@ -200,7 +206,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 								<Share2Icon className="h-4 w-4" />
 							</Button>
 						</PopoverTrigger>
-						{chatSharingPopover(isChatSharingOpen)}
+						{renderChatSharingContent(isChatSharingOpen)}
 					</Popover>
 				)}
 				{!isEmbedded && (

@@ -154,6 +154,7 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		hasModelOptions: true,
 		compressionThreshold: undefined as number | undefined,
 		canUpdateOtherUserChat: false,
+		canUpdateOtherUserChatLoading: false,
 		isInputDisabled: false,
 		isSubmissionPending: false,
 		isInterruptPending: false,
@@ -258,13 +259,24 @@ export const AdminViewingOtherUserChat: Story = {
 };
 
 export const OtherUserChatOwnerPending: Story = {
-	render: () => <StoryAgentChatPageView canUpdateOtherUserChat />,
+	render: () => (
+		<StoryAgentChatPageView
+			canUpdateOtherUserChat
+			canUpdateOtherUserChatLoading
+			chatOwner={{ username: "OtherUser", name: "Other User" }}
+			isInputDisabled
+		/>
+	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(
 			canvas.queryByText(/^This is not your chat/),
 		).not.toBeInTheDocument();
 		expect(canvas.queryByText(/other-user-id/)).not.toBeInTheDocument();
+		expect(canvas.getByLabelText("Chat message")).toHaveAttribute(
+			"aria-disabled",
+			"true",
+		);
 	},
 };
 
@@ -283,11 +295,21 @@ export const ReadOnlyOtherUserChatOwner: Story = {
 };
 
 export const ReadOnlyOtherUserChatOwnerPending: Story = {
-	render: () => <StoryAgentChatPageView />,
+	render: () => (
+		<StoryAgentChatPageView
+			chatOwner={{ username: "OtherUser" }}
+			canUpdateOtherUserChatLoading
+			isInputDisabled
+		/>
+	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.queryByText(/^This chat is owned/)).not.toBeInTheDocument();
 		expect(canvas.queryByText(/other-user-id/)).not.toBeInTheDocument();
+		expect(canvas.getByLabelText("Chat message")).toHaveAttribute(
+			"aria-disabled",
+			"true",
+		);
 	},
 };
 

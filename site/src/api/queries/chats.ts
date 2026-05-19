@@ -1919,7 +1919,10 @@ export const setChatUserRole = (queryClient: QueryClient) => ({
 			user_roles: { [userId]: role },
 		}),
 	onSuccess: async (_data: unknown, { chatId }: SetChatUserRoleVariables) => {
-		await queryClient.invalidateQueries({ queryKey: chatACLKey(chatId) });
+		await queryClient.invalidateQueries({
+			queryKey: chatACLKey(chatId),
+			exact: true,
+		});
 	},
 });
 
@@ -1929,6 +1932,9 @@ export const setChatGroupRole = (queryClient: QueryClient) => ({
 			group_roles: { [groupId]: role },
 		}),
 	onSuccess: async (_data: unknown, { chatId }: SetChatGroupRoleVariables) => {
-		await queryClient.invalidateQueries({ queryKey: chatACLKey(chatId) });
+		await queryClient.invalidateQueries({
+			queryKey: chatACLKey(chatId),
+			exact: true,
+		});
 	},
 });

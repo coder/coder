@@ -825,7 +825,7 @@ export const WithMessageHistory: Story = {
 			},
 			{
 				messages: [
-					// Turn 1: user asks for a summary --
+					// Turn 1: user asks for a summary
 					{
 						id: 1,
 						chat_id: CHAT_ID,
@@ -838,7 +838,7 @@ export const WithMessageHistory: Story = {
 							},
 						],
 					},
-					// Turn 2: assistant with headings, lists, table, blockquote --
+					// Turn 2: assistant with headings, lists, table, blockquote
 					{
 						id: 2,
 						chat_id: CHAT_ID,
@@ -914,7 +914,7 @@ export const WithMessageHistory: Story = {
 							},
 						],
 					},
-					// Turn 3: user follow-up (long message) --
+					// Turn 3: user follow-up (long message)
 					{
 						id: 3,
 						chat_id: CHAT_ID,
@@ -953,7 +953,7 @@ export const WithMessageHistory: Story = {
 							},
 						],
 					},
-					// Turn 4: assistant with code, table, nested list, task list --
+					// Turn 4: assistant with code, table, nested list, task list
 					{
 						id: 4,
 						chat_id: CHAT_ID,
@@ -1027,7 +1027,7 @@ export const WithMessageHistory: Story = {
 							},
 						],
 					},
-					// Turn 5: user asks about middleware --
+					// Turn 5: user asks about middleware
 					{
 						id: 5,
 						chat_id: CHAT_ID,
@@ -1040,7 +1040,7 @@ export const WithMessageHistory: Story = {
 							},
 						],
 					},
-					// Turn 6: assistant with code, inline code, links, images, nested blockquote --
+					// Turn 6: assistant with code, inline code, links, images, nested blockquote
 					{
 						id: 6,
 						chat_id: CHAT_ID,
@@ -2130,7 +2130,7 @@ export const WithEveryTool: Story = {
 			},
 			{
 				messages: [
-					// Turn 1: user kicks off the task --
+					// Turn 1: user kicks off the task
 					{
 						id: 1,
 						chat_id: CHAT_ID,
@@ -2143,7 +2143,7 @@ export const WithEveryTool: Story = {
 							},
 						],
 					},
-					// Turn 2: previous assistant turn (completed) --
+					// Turn 2: previous assistant turn (completed)
 					//    Establishes that the agent already inspected and patched
 					//    a couple of files before the streaming turn begins.
 					{
@@ -2217,7 +2217,7 @@ export const WithEveryTool: Story = {
 							},
 						],
 					},
-					// Turn 3: user asks for a tool-by-tool tour --
+					// Turn 3: user asks for a tool-by-tool tour
 					{
 						id: 3,
 						chat_id: CHAT_ID,
@@ -2230,7 +2230,7 @@ export const WithEveryTool: Story = {
 							},
 						],
 					},
-					// Turn 4: assistant runs every tool exactly once --
+					// Turn 4: assistant runs every tool exactly once
 					EVERY_TOOL_ASSISTANT_TURN,
 				],
 				queued_messages: [],

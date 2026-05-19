@@ -95,6 +95,7 @@ interface AgentChatPageViewProps {
 	isArchived: boolean;
 	chatOwner: Pick<TypesGen.MinimalUser, "name" | "username"> | undefined;
 	canUpdateOtherUserChat: boolean;
+	canUpdateOtherUserChatLoading: boolean;
 	canShareChat: boolean;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 	workspace?: TypesGen.Workspace;
@@ -201,6 +202,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	isArchived,
 	chatOwner,
 	canUpdateOtherUserChat,
+	canUpdateOtherUserChatLoading,
 	canShareChat,
 	workspaceAgent,
 	workspace,
@@ -425,7 +427,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		chatOwner?.name?.trim() ||
 		(chatOwnerUsername ? `@${chatOwnerUsername}` : undefined);
 	const chatOwnerWarning =
-		chatOwnerLabel === undefined
+		isArchived || canUpdateOtherUserChatLoading || chatOwnerLabel === undefined
 			? undefined
 			: canUpdateOtherUserChat
 				? `This is not your chat. Prompting here will use ${chatOwnerLabel}'s identity.`
@@ -480,7 +482,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								diffStatusData={diffStatusData}
 								isSidebarCollapsed={isSidebarCollapsed}
 								onToggleSidebarCollapsed={onToggleSidebarCollapsed}
-								chatSharingPopover={
+								renderChatSharingContent={
 									canOpenChatSharing
 										? (open) => (
 												<ChatSharingPopoverContent
@@ -492,7 +494,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 										: undefined
 								}
 							/>
-							{chatOwnerWarning && !isArchived && (
+							{chatOwnerWarning && (
 								<div
 									role="status"
 									aria-live="polite"

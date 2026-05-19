@@ -861,6 +861,9 @@ const AgentChatPage: FC = () => {
 	const canUpdateOtherUserChat = Boolean(
 		canUpdateOtherUserChatQuery.data?.canUpdateChat,
 	);
+	const canUpdateOtherUserChatLoading =
+		canUpdateOtherUserChatQuery.isLoading ||
+		canUpdateOtherUserChatQuery.isFetching;
 	const isRootChat =
 		chatRecord !== undefined && getParentChatID(chatRecord) === undefined;
 	const canShareChatQuery = useQuery({
@@ -1125,7 +1128,8 @@ const AgentChatPage: FC = () => {
 		!hasModelOptions ||
 		isArchived ||
 		isChatSettingsPending ||
-		(isViewerNotOwner && !canUpdateOtherUserChat);
+		(isViewerNotOwner &&
+			(canUpdateOtherUserChatLoading || !canUpdateOtherUserChat));
 	const selectedWorkspaceId = chatQuery.data?.workspace_id ?? null;
 
 	const isWorkspaceLoading =
@@ -1576,6 +1580,7 @@ const AgentChatPage: FC = () => {
 			isArchived={isArchived}
 			chatOwner={chatOwner}
 			canUpdateOtherUserChat={canUpdateOtherUserChat}
+			canUpdateOtherUserChatLoading={canUpdateOtherUserChatLoading}
 			canShareChat={canShareChat}
 			workspace={workspace}
 			workspaceAgent={workspaceAgent}
