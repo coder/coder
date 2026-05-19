@@ -6320,7 +6320,7 @@ func builtinPlanToolAllowed(name string, isRootChat bool) bool {
 		return true
 	case "write_file", "edit_files", "list_templates", "read_template",
 		"create_workspace", "start_workspace", "stop_workspace", "propose_plan", "spawn_agent",
-		"spawn_explore_agent", "wait_agent", "ask_user_question":
+		"spawn_explore_agent", "wait_agent", "ask_user_question", "attach_file":
 		return isRootChat
 	case "process_list", "process_signal", "message_agent", "close_agent",
 		"spawn_computer_use_agent":
