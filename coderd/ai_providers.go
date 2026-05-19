@@ -308,6 +308,12 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		if req.Settings != nil {
 			existing = mergeAIProviderSettings(existing, *req.Settings)
 		}
+		// Bedrock settings are only meaningful for anthropic-typed
+		// providers; rejecting the mismatch keeps a misconfiguration
+		// from sitting silently in the encrypted blob.
+		if existing.Bedrock != nil && old.Type != database.AiProviderTypeAnthropic {
+			return errAIProviderBedrockTypeMismatch
+		}
 		settings, err := encodeAIProviderSettings(existing)
 		if err != nil {
 			return xerrors.Errorf("encode settings: %w", err)
@@ -357,6 +363,12 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 	if errors.Is(err, errBedrockRejectsAPIKeys) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Bedrock providers do not accept api_keys; configure access credentials via settings.",
+		})
+		return
+	}
+	if errors.Is(err, errAIProviderBedrockTypeMismatch) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Bedrock settings are only valid for type=anthropic.",
 		})
 		return
 	}
@@ -438,6 +450,12 @@ func (api *API) aiProvidersDelete(rw http.ResponseWriter, r *http.Request) {
 // update transaction when a caller attempts to attach api_keys to a
 // Bedrock-typed provider; the outer handler translates it into a 400.
 var errBedrockRejectsAPIKeys = xerrors.New("bedrock providers do not accept api_keys")
+
+// errAIProviderBedrockTypeMismatch is the sentinel returned from
+// inside the update transaction when the post-merge settings carry a
+// Bedrock block but the provider is not anthropic-typed; the outer
+// handler translates it into a 400.
+var errAIProviderBedrockTypeMismatch = xerrors.New("bedrock settings are only valid for type=anthropic")
 
 // errAIProviderInvalidName is returned from lookupAIProvider when the
 // idOrName parameter is neither a UUID nor a syntactically-valid name.

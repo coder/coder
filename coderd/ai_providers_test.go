@@ -362,6 +362,53 @@ func TestAIProvidersCRUD(t *testing.T) {
 		require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode())
 	})
 
+	t.Run("BedrockSettingsRequireAnthropic", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Create: OpenAI-typed provider with Bedrock settings is a type
+		// mismatch and must be rejected so the runtime never silently
+		// drops the operator's authentication intent.
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "bedrock-on-openai",
+			Enabled: true,
+			BaseURL: "https://api.openai.com/v1",
+			Settings: codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region:          "us-east-1",
+					AccessKey:       "AKIA-fixture",    //nolint:gosec // test fixture
+					AccessKeySecret: "bedrock-fixture", //nolint:gosec // test fixture
+				},
+			},
+		})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+
+		// Update: existing OpenAI provider patched with Bedrock settings
+		// must also be rejected.
+		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "openai-then-bedrock",
+			Enabled: true,
+			BaseURL: "https://api.openai.com/v1",
+		})
+		require.NoError(t, err)
+		_, err = client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
+			Settings: &codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"},
+			},
+		})
+		require.Error(t, err)
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+
 	t.Run("BedrockSecretsHidden", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
