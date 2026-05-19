@@ -54,6 +54,25 @@ export const ExecuteRunning: Story = {
 	},
 };
 
+export const ExecuteModelIntent: Story = {
+	args: {
+		status: "running",
+		args: {
+			command: executeCommand,
+			model_intent: "checking git status",
+		},
+		modelIntent: "checking git status",
+		result: {
+			output: "",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Checking git status")).toBeVisible();
+		expect(canvas.getByText(`Ran ${executeCommand}`)).toBeVisible();
+	},
+};
+
 export const ExecuteSuccess: Story = {
 	args: {
 		shellToolDisplayMode: "auto",
@@ -1950,7 +1969,7 @@ export const WaitAgentComputerUseRunning: Story = {
 		expect(canvasElement.querySelector(".lucide-monitor")).not.toBeNull();
 		// The VNC preview container should mount (the connection will
 		// stay in "connecting" state without a real WebSocket, which
-		// is expected — we only verify the container renders).
+		// is expected, we only verify the container renders).
 		await waitFor(() => {
 			expect(
 				canvas.getByRole("button", { name: "Open desktop tab" }),

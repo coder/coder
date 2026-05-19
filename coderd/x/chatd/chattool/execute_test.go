@@ -20,6 +20,19 @@ import (
 func TestExecuteTool(t *testing.T) {
 	t.Parallel()
 
+	t.Run("SchemaIncludesOptionalModelIntent", func(t *testing.T) {
+		t.Parallel()
+
+		tool := chattool.Execute(chattool.ExecuteOptions{})
+		info := tool.Info()
+		modelIntentParam, ok := info.Parameters["model_intent"].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "string", modelIntentParam["type"])
+		assert.Contains(t, modelIntentParam["description"], "status label")
+		assert.Contains(t, info.Required, "command")
+		assert.NotContains(t, info.Required, "model_intent")
+	})
+
 	t.Run("EmptyCommand", func(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)
@@ -201,6 +214,49 @@ func TestExecuteTool(t *testing.T) {
 		assert.Equal(t, "hello world", result.Output)
 		assert.Empty(t, result.BackgroundProcessID)
 		assert.Equal(t, "true", capturedReq.Env["CODER_CHAT_AGENT"])
+	})
+
+	t.Run("ModelIntentIgnoredByExecution", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+
+		var capturedReq workspacesdk.StartProcessRequest
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			DoAndReturn(func(_ context.Context, req workspacesdk.StartProcessRequest) (workspacesdk.StartProcessResponse, error) {
+				capturedReq = req
+				return workspacesdk.StartProcessResponse{ID: "proc-1"}, nil
+			})
+		exitCode := 0
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Any()).
+			Return(workspacesdk.ProcessOutputResponse{
+				Running:  false,
+				ExitCode: &exitCode,
+				Output:   "hello world",
+			}, nil)
+
+		tool := newExecuteTool(t, mockConn)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "execute",
+			Input: `{"command":"echo hello","model_intent":"Running a smoke test"}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+		assert.Equal(t, "echo hello", capturedReq.Command)
+		assert.False(t, capturedReq.Background)
+
+		var result chattool.ExecuteResult
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		assert.True(t, result.Success)
+		assert.Equal(t, "hello world", result.Output)
+
+		var resultMap map[string]any
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &resultMap))
+		assert.NotContains(t, resultMap, "model_intent")
 	})
 
 	t.Run("ForegroundNonZeroExit", func(t *testing.T) {

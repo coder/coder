@@ -39,6 +39,7 @@ type ExecuteToolProps = {
 	durationMs?: number;
 	isBackgrounded?: boolean;
 	killedBySignal?: "kill" | "terminate";
+	modelIntent?: string;
 	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
 };
 
@@ -75,6 +76,7 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 	durationMs,
 	isBackgrounded = false,
 	killedBySignal,
+	modelIntent,
 	outputInitiallyOpen,
 }) => {
 	const hasCommand = command.trim().length > 0;
@@ -82,6 +84,7 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 	const showFailureIndicator = isError && !isRunning;
 	const [outputOpen, setOutputOpen] = useState(outputInitiallyOpen);
 	const outputToggleLabel = outputOpen ? "Collapse command" : "Expand command";
+	const displayModelIntent = modelIntent?.trim();
 	const durationLabel = formatShellDurationMs(durationMs);
 
 	if (!hasCommand) {
@@ -99,6 +102,7 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 			>
 				<ShellCommandLine
 					command={command}
+					modelIntent={displayModelIntent}
 					durationLabel={durationLabel}
 					expanded={outputOpen}
 				/>
@@ -167,11 +171,17 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 
 const ShellCommandLine: React.FC<{
 	command: string;
+	modelIntent?: string;
 	durationLabel: string;
 	expanded?: boolean;
-}> = ({ command, durationLabel, expanded }) => {
+}> = ({ command, modelIntent, durationLabel, expanded }) => {
 	return (
 		<>
+			{modelIntent && (
+				<span className="min-w-0 truncate text-[13px] text-content-secondary">
+					{modelIntent.charAt(0).toUpperCase() + modelIntent.slice(1)}
+				</span>
+			)}
 			<span className="block min-w-0 truncate text-[13px] font-normal text-current">
 				Ran {command}
 			</span>
