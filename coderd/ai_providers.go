@@ -104,7 +104,7 @@ func (api *API) aiProvidersGet(rw http.ResponseWriter, r *http.Request) {
 
 	row, err := lookupAIProvider(ctx, api.Database, chi.URLParam(r, "idOrName"))
 	if err != nil {
-		writeAIProviderLookupError(ctx, api.Logger, rw, err)
+		writeAIProviderError(ctx, api.Logger, rw, err, "lookup AI provider", "Internal error fetching AI provider.")
 		return
 	}
 
@@ -373,13 +373,17 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if errors.Is(err, errAIProviderKeyUnknown) {
+		// Use the sentinel directly so the response message does not
+		// leak the "execute transaction:" wrapper xerrors added on the
+		// way out of InTx.
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: err.Error(),
+			Message: errAIProviderKeyUnknown.Error(),
+			Detail:  err.Error(),
 		})
 		return
 	}
 	if err != nil {
-		writeAIProviderLookupError(ctx, api.Logger, rw, err)
+		writeAIProviderError(ctx, api.Logger, rw, err, "update AI provider", "Internal error updating AI provider.")
 		return
 	}
 
@@ -419,17 +423,16 @@ func (api *API) aiProvidersDelete(rw http.ResponseWriter, r *http.Request) {
 
 	row, err := lookupAIProvider(ctx, api.Database, idOrName)
 	if err != nil {
-		writeAIProviderLookupError(ctx, api.Logger, rw, err)
+		writeAIProviderError(ctx, api.Logger, rw, err, "lookup AI provider", "Internal error fetching AI provider.")
 		return
 	}
 	aReq.Old = row
 
+	// DeleteAIProviderByID is :exec on a soft-delete UPDATE, so it
+	// affects zero rows (and returns nil) when the provider is already
+	// deleted. That makes the operation inherently idempotent without
+	// any sql.ErrNoRows branch to handle.
 	if err := api.Database.DeleteAIProviderByID(ctx, row.ID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			// Already gone; treat as success for idempotency.
-			rw.WriteHeader(http.StatusNoContent)
-			return
-		}
 		if dbauthz.IsNotAuthorizedError(err) {
 			api.Logger.Error(ctx, "delete AI provider", slog.F("provider_id", row.ID), slog.Error(err))
 			httpapi.Forbidden(rw)
@@ -483,9 +486,12 @@ func lookupAIProvider(ctx context.Context, store database.Store, idOrName string
 	return store.GetAIProviderByName(ctx, idOrName)
 }
 
-// writeAIProviderLookupError translates lookup errors into the right HTTP
-// status code.
-func writeAIProviderLookupError(ctx context.Context, logger slog.Logger, rw http.ResponseWriter, err error) {
+// writeAIProviderError translates an error from the AI provider
+// lookup/update/delete paths into the right HTTP status code. logMsg
+// labels the log line for operator debugging, and userMsg is the
+// internal-error response message shown to the API consumer when no
+// more specific branch fires.
+func writeAIProviderError(ctx context.Context, logger slog.Logger, rw http.ResponseWriter, err error, logMsg, userMsg string) {
 	if errors.Is(err, errAIProviderInvalidName) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Invalid provider id or name: must be a UUID or match %s.", codersdk.AIProviderNameRegex),
@@ -497,13 +503,13 @@ func writeAIProviderLookupError(ctx context.Context, logger slog.Logger, rw http
 		return
 	}
 	if dbauthz.IsNotAuthorizedError(err) {
-		logger.Error(ctx, "lookup AI provider", slog.Error(err))
+		logger.Error(ctx, logMsg, slog.Error(err))
 		httpapi.Forbidden(rw)
 		return
 	}
-	logger.Error(ctx, "lookup AI provider", slog.Error(err))
+	logger.Error(ctx, logMsg, slog.Error(err))
 	httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-		Message: "Internal error fetching AI provider.",
+		Message: userMsg,
 		Detail:  err.Error(),
 	})
 }
