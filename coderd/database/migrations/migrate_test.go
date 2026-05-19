@@ -1186,10 +1186,10 @@ func TestMigration000475AgentsAccessOrgRole(t *testing.T) {
 	)
 }
 
-func TestMigration000501AIProvidersBackfill(t *testing.T) {
+func TestMigration000504AIProvidersBackfill(t *testing.T) {
 	t.Parallel()
 
-	const migrationVersion = 501
+	const migrationVersion = 504
 
 	sqlDB := testSQLDB(t)
 
@@ -1304,7 +1304,7 @@ func TestMigration000501AIProvidersBackfill(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, deleted)
 
-	downSQL, err := os.ReadFile("000501_ai_providers_backfill.down.sql")
+	downSQL, err := os.ReadFile("000504_ai_providers_backfill.down.sql")
 	require.NoError(t, err)
 	_, err = sqlDB.ExecContext(ctx, string(downSQL))
 	require.NoError(t, err)
