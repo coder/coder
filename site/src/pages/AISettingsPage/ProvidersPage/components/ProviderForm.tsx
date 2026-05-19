@@ -603,6 +603,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 								required
 								field={getFieldHelpers("model")}
 								label="Model"
+								description="The primary Bedrock model ID used for chat and completion requests."
 								className="w-full"
 								placeholder="anthropic.claude-3-5-sonnet-20241022-v2:0"
 							/>
@@ -610,6 +611,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 								required
 								field={getFieldHelpers("smallFastModel")}
 								label="Small fast model"
+								description="A cheaper, faster model used for lightweight tasks such as summaries, titles, and routing."
 								className="w-full"
 								placeholder="anthropic.claude-3-haiku-20240307-v1:0"
 							/>
