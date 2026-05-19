@@ -75,6 +75,37 @@ Instructions for the skill go here...
 references to hidden files. All paths are resolved relative to the skill
 directory.
 
+## Personal skills
+
+Personal skills are user-owned skills that are available to all of your
+chats. They are not tied to a specific workspace. Manage them from
+**Settings** > **Personal Skills** in the Coder UI.
+
+Personal skills use the same `SKILL.md` format as workspace skills: YAML
+frontmatter with a kebab-case `name`, an optional `description`, and a
+markdown body. This keeps content portable between personal skills and
+workspace skills.
+
+```markdown
+---
+name: personal-reviewer
+description: "Personal review guidance"
+---
+
+# Personal Reviewer
+
+Instructions for the skill go here...
+```
+
+In v1, each personal skill is stored as a single `SKILL.md` file containing
+frontmatter and body content. Supporting files are not supported. Each
+`SKILL.md` file can be up to 64 KB, and each user can create up to 100
+personal skills.
+
+If you need richer skills with supporting files or multiple files, use
+workspace skills instead. Store them in the repo under
+`.agents/skills/<name>/`, or load them from a workspace.
+
 ## Workspace MCP tools
 
 Workspace templates can expose custom
