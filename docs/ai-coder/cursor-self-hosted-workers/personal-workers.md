@@ -9,6 +9,8 @@ themselves. Per-user identity end to end.
 If you're on a Cursor Team plan, or want per-user identity today
 without a Cursor Enterprise contract, this is the recipe.
 
+<img src="../../images/guides/cursor-self-hosted-workers/user-identity-flow.svg" alt="Each developer creates a Coder workspace owned by themselves with their personal Cursor API key. The worker registers as their personal machine. Sessions launch from cursor.com or programmatically via POST /v1/agents with env.type=machine targeting the worker by name. Per-user attribution is end to end: workspace owner, git push via Coder external auth, audit log, and Cursor session log all the human." />
+
 For an admin-operated central pool, see [Worker Pool](./system-identity.md).
 
 > [!IMPORTANT]
@@ -270,6 +272,59 @@ developer's own machines match.
 
 Or from the Cloud Agents dashboard: pick the named machine from the
 environment dropdown.
+
+### Programmatic session submission
+
+Any UI that can make an authenticated HTTP call to Cursor's API can
+launch a session on a developer's personal worker. This is what lets
+a Coder Tasks page, an internal Slack bot, or a one-click IDE button
+become the entrypoint instead of cursor.com.
+
+The call uses the developer's own personal API key (or a sub-token
+minted on their behalf), and targets their worker by name:
+
+```http
+POST https://api.cursor.com/v1/agents
+Authorization: Bearer <user's personal Cursor API key>
+Content-Type: application/json
+
+{
+  "env":    { "type": "machine", "name": "coder-alice-my-cursor-worker" },
+  "repos":  [{ "url": "github.com/your-org/your-repo", "startingRef": "main" }],
+  "prompt": { "text": "fix the flaky test" }
+}
+```
+
+The response contains the new agent's id and a `url` you can
+redirect the user to so they can monitor and reply to the session
+from cursor.com:
+
+```json
+{
+  "agent": {
+    "id":  "bc-c7166709-889a-4f4c-86a4-da5650e77d43",
+    "url": "https://cursor.com/agents/bc-c7166709-889a-4f4c-86a4-da5650e77d43",
+    "env": { "type": "machine", "name": "coder-alice-my-cursor-worker" },
+    "status": "ACTIVE",
+    "latestRunId": "run-..."
+  },
+  "run": { "id": "run-...", "status": "CREATING" }
+}
+```
+
+Caveats:
+
+- The API key in the `Authorization` header must belong to the
+  Cursor user whose personal machine you are targeting. Cursor
+  rejects cross-user targeting.
+- `env.type` accepts `cloud | pool | machine`. `machine` is what
+  targets a personal worker by name; the other two go to Cursor-
+  managed infra or a self-hosted pool, neither of which is per-
+  user.
+- The worker must be currently registered. If the Coder workspace
+  has auto-stopped, the agent run errors immediately. Start the
+  workspace first (Coder's API or `coder start`) and wait for the
+  worker to register before posting.
 
 ## Operate
 

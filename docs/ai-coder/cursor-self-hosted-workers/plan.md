@@ -133,58 +133,44 @@ who watches the pool.
 - The pool maintains N warm workers per repo through drain, error
   exit, and TTL expiry.
 
-## User identity (on the roadmap)
+## User identity
 
-A small router (middleware or in-tree integration) consumes Cursor's
-pending-request signal, maps the Cursor user to a Coder user, and
-claims a warm prebuild on their behalf.
+Two recipes that ship today, both validated end to end against the
+live Cursor API:
 
-This is what unlocks per-user identity: when the workspace is claimed
-on behalf of the human, Coder's external-auth wires git push with the
-human's token, audit log entries attribute to the human, and Coder's
-user secrets resolve to the human's grants. The Cursor side stays on
-the team service-account key, because pool registration requires it,
-but the `coder-owner=<email>` label keeps the human visible in
-Cursor's fleet view and joinable to its session log.
+- **[Personal Workers](./personal-workers.md)** for per-user
+  identity. One Coder workspace per user, the user's own Cursor API
+  key, no `--pool`. Per-user attribution end to end (workspace
+  owner, git push via Coder external auth, Cursor session log,
+  Coder audit log). Programmatic session submission via
+  `POST /v1/agents { env: { type: machine, name } }` lets a Coder
+  Tasks UI launch sessions on a developer's worker without the user
+  leaving Coder.
+- **[Worker Pool](./system-identity.md)** for fleet-wide bot
+  identity. Shared warm pool, every worker authenticates with the
+  team service-account key.
 
-### Pieces
-
-1. **Router service, or in-tree integration.** Two implementation
-   paths, both valid:
-   - **Middleware service.** A few hundred lines of Go or Node.
-     Polls (or receives a webhook for) Cursor's
-     `pending-requests`, maps the queued `userId` to a Coder user,
-     pre-flights that the user exists and has external-auth grants,
-     calls Coder's workspace-claim API on their behalf.
-   - **First-class integration in `coderd`.** Coder's server consumes
-     Cursor's scaling signal directly, with user-mapping rules and
-     the on-behalf-of claim built in. The router collapses from "a
-     service to write" to "a config block in the template." Better
-     long-term shape; absorbs whatever middleware deployments teach
-     us about the right defaults.
-2. **Coder service-account token.** A scoped API token owned by, for
-   example, `svc-cursor-router`. Scopes: claim workspaces on behalf
-   of users, read users, read and delete workspaces. Vaulted,
-   rotated. Never a human admin's PAT.
-3. **A second prebuilds preset, `Pool: user identity`.** Warm
-   prebuilds that **do not register a worker**, sitting in a Cursor
-   pool that holds zero workers (we use `pool-user-claim`). The
-   empty pool is what creates the routable queue. On claim, Coder
-   flips ownership from `prebuilds` to the matching human and the
-   agent registers a `pool-user-claim` worker with the team
-   service-account key plus a `coder-owner=<email>` label. Cursor's
-   pool scheduler then dispatches the queued request.
+The shape we originally tried (per-user identity **with** a shared
+warm pool, driven by a router that polls `pending-requests` and
+claims prebuilds for the matching user) is **not shippable today**.
+Three live findings explain why and what would unblock it. See
+[User identity: status](./user-identity.md) for the long form; the
+gating Cursor gaps are filed below under
+[Open questions for Cursor](#open-questions-for-cursor).
 
 ### User identity acceptance criteria
 
-- The router can convert one Cursor pending request into one Coder
-  workspace owned by the matching human.
-- The worker on the claimed workspace registers in Cursor's pool with
-  a `coder-owner=<email>` label, and Cursor's pool scheduler
-  dispatches the queued request to it.
-- `git push` from the worker uses the human's external-auth token.
-- Coder's audit log attributes the workspace to the human, with the
-  service account shown as the on-behalf-of creator.
+When the shared-pool shape becomes shippable, the recipe must:
+
+- Convert one Cursor pending request into one Coder workspace owned
+  by the matching human (no out-of-band trigger required).
+- Register a worker on the claimed workspace that Cursor's pool
+  scheduler will dispatch the matching queued request to, without
+  ambiguity from other queued requests for other users.
+- Use the human's external-auth token for `git push` from the
+  worker.
+- Attribute the workspace to the human in Coder's audit log, with
+  the router service account shown as the on-behalf-of creator.
 
 ## Sub-stages within system identity (docs follow-ons)
 
@@ -291,7 +277,8 @@ This is purely an image and settings exercise; no product work.
 | Stage B         | lifecycle hooks page            | infra, source-control       | Pair with a Coder template that demonstrates the cache volume layout.                                                                                                          |
 | Stage C         | AI Gateway integration page     | AI Gateway maintainers      | Behind AI Governance Add-on entitlement. Blocked on Cursor exposing a worker-side hook that mediates model calls. See [AI Governance integration (notes)](./ai-governance.md). |
 | Stage D         | permissions and allowlists page | security, AI team           | Cribs from the Cursor docs + existing settings content.                                                                                                                        |
-| User identity   | middleware reference, plan diff | platform-eng, AI team       | Depends on Cursor publishing `agent:*` and stable pending-requests; either middleware or in-tree `coderd` integration on Coder's side.                                         |
+| Personal Workers | personal-workers, user-identity | docs, AI team, platform-eng | Ships today for per-user identity. Includes the programmatic `env.type: machine` submission flow that lets a Coder Tasks UI drive sessions.                                  |
+| User identity (shared pool) | user-identity (status only) | platform-eng, AI team       | Blocked on Cursor shipping empty-pool visibility or per-user pool affinity. See [Open questions for Cursor](#open-questions-for-cursor).                                       |
 
 ## Risks and open issues
 
@@ -323,107 +310,150 @@ the live API; **Partially shipped** when a workable surface exists but
 an important refinement is still missing; **Still open** when there is
 no documented answer or the surface we need does not exist yet.
 
-### `agent:*` scope (confirmed shipped, not needed for pool routing)
+### Empty-pool visibility in the UI (still open, blocks shared-pool user identity)
 
-The shipping recipe does **not** need `agent:*` scope. The router
-runs with the existing team service-account key, polls
-`pending-requests` (HTTP Basic auth with the SA key), and claims
-prebuilds via Coder's admin API. Both presets start their workers
-with the same SA key.
+Cursor's `Self-hosted Pools` dropdown only lists pools that
+currently have at least one registered worker. A pool with zero
+workers is invisible, so a user cannot pick it from cursor.com to
+submit a session. The pool name does not persist after the last
+worker disconnects.
 
-We originally expected `agent:*` to gate sub-tokens, with sub-tokens
-being the per-user worker identity. With a real `agent:*`-scoped key
-in hand, we confirmed that path does not work for pool workers:
-Cursor's CLI rejects `--pool` when authenticated with a delegated
-sub-token, with the explicit error
+The shared-pool user-identity shape needs the user to submit a
+session against a pool that has no workers yet, so the router can
+claim a workspace for the right human and register a worker for
+them. Without UI visibility for the empty pool, the user has no
+entry point. We need one of:
+
+- A documented way to create a pool in the team's UI without
+  registering a worker first (e.g., a `POST /v1/pools` endpoint or
+  a team-admin setting in `cursor.com > Settings`).
+- Per-user pool affinity on the scheduler so a "decoy" worker can
+  exist for visibility without catching the next session (see
+  below).
+
+### Pool scheduler dispatches opportunistically (still open, blocks shared-pool user identity)
+
+When a pool has any registered worker, Cursor's scheduler dispatches
+the next incoming request to that worker immediately. There is no
+queue moment a router can observe.
+
+That is correct behavior for the fleet-bot pool case
+([Worker Pool](./system-identity.md)), where any free worker is fine
+because they all share one identity. It breaks the shared-pool
+user-identity case, where the worker needs to be registered **for
+the requesting user** before the dispatch happens.
+
+We worked around the visibility problem during validation with a
+"decoy" worker registered to `pool-user-claim` so the pool would
+appear in the UI. The decoy then caught the first session the user
+submitted (`activeBcId` bound to the decoy worker owned by the
+`prebuilds` service account) before the router could see a queue.
+
+The unblock options Cursor could ship:
+
+- **Per-user pool affinity on the scheduler.** A worker declares
+  `coder-owner=<email>` (or any documented identity claim), and the
+  scheduler routes only matching users to it. The decoy then never
+  matches anyone, so it can sit there for visibility while a router
+  claims real workspaces on demand.
+- **A pre-dispatch webhook on queue.** A pool can be configured to
+  hold sessions until a hook returns the worker name. The router
+  becomes the hook: claim a workspace, return its worker name. No
+  decoy needed.
+- **A documented per-session worker pre-allocation API.** The user
+  submits a session, Cursor's UI hits a router-defined endpoint to
+  resolve the target worker before posting to `/v1/agents`. Closest
+  to today's `env.type: machine` shape but driven from cursor.com.
+
+Any one of these is sufficient. Until one ships, per-user identity
+ships as [Personal Workers](./personal-workers.md) with a one-time
+workspace setup per developer.
+
+### `agent:*` scope (confirmed shipped, not used in the shipping recipes)
+
+The shipping recipes do not need `agent:*`-scoped service-account
+keys. [Worker Pool](./system-identity.md) uses the un-scoped team
+service-account key directly. [Personal Workers](./personal-workers.md)
+uses each developer's own personal API key.
+
+`agent:*` scope is what lets a key call `POST /v1/sub-tokens` to
+mint per-user delegated tokens, which would otherwise live on a
+single team key. We validated that flow against a real
+`agent:*`-scoped key, but it is not on the path of either shipping
+recipe.
+
+### Pool worker auth: SA key only (confirmed shipped, accepted)
+
+Cursor's CLI rejects `--pool` for delegated sub-token or personal-
+key authentication. The error messages are unambiguous:
 `Delegated service-account tokens cannot start pool workers (--pool).`
-Sub-tokens are scoped to the [My Machines](https://cursor.com/docs/cloud-agent/my-machines.md)
-surface, which is a separate routing surface from the self-hosted
-pool. The router routes around this constraint by leaving Cursor
-identity on the SA key and moving all per-user attribution to the
-Coder side. The team key still needs `agent:*` to call
-`/v1/sub-tokens` for the [Personal Workers](./personal-workers.md)
-recipe, where each developer brings their own key into a single-
-tenant workspace.
+and
+`You must use a team API key or service account to start a pool worker (--pool).`
 
-### Pool worker auth: SA key only (confirmed shipped)
+This is not a limitation the shipping recipes try to remove. Pool
+workers ([Worker Pool](./system-identity.md)) use the team SA key;
+personal workers ([Personal Workers](./personal-workers.md)) do not
+use `--pool` at all.
 
-Cursor's CLI rejects `--pool` for delegated sub-token authentication.
-The error message is unambiguous:
-`Delegated service-account tokens cannot start pool workers (--pool).`
-This is **not a limitation that user identity tries to remove.** The
-shipping recipe accepts it as a Cursor product decision and moves
-per-user attribution off the Cursor side entirely. Pool workers
-authenticate with the team SA key; the human identity rides on the
-`coder-owner=<email>` worker label and is joinable to Cursor's
-session log on `activeBcId`.
-
-If Cursor later supports per-user pool workers (the `--pool` and
-`--auth-token` combination), the recipe simplifies: the agent uses a
-sub-token at startup and the `coder-owner` label becomes redundant
-with Cursor's own identity. Until then, the Coder-side flip is the
-load-bearing piece.
+If Cursor later supports per-user pool workers (e.g., a `--pool`
+and `--auth-token` combination, with the scheduler routing by the
+delegated user), the shared-pool user-identity shape becomes
+tractable. Until then, per-user identity ships as Personal
+Workers.
 
 ### Stable user-lookup endpoint (partially shipped)
 
-The router needs to resolve a Cursor `userId` on a pending request to
-a Coder user. The current surface area:
+A `cursorUserId -> email` mapping is needed before the shared-pool
+user-identity shape can route a queued session to the right Coder
+user. The current surface area:
 
-- `GET /v0/private-workers/pending-requests` returns `userId` on each
-  row.
-- `GET /v1/me` exposes the caller's profile only.
-- No `GET /v1/users/{id}` exists, so the router cannot resolve
+- `GET /v0/private-workers/pending-requests` returns `userId` on
+  each row, but no email.
+- `GET /v1/me` returns the caller's `userId`, `userEmail`, and
+  display name. We confirmed this with a personal API key during
+  validation: any user can self-discover their `userId` by hitting
+  `/v1/me` with their own key.
+- No `GET /v1/users/{id}` exists, so a router cannot resolve
   `userId -> email` for users other than itself.
 
-The shipping recipe handles this with an operator-maintained
-`users.json` on the router workspace, mapping `cursorUserId ->
-coderUsername`. Most operators populate this from their SSO directory
-at first login (the OIDC subject claim that both Cursor and Coder
-share). It's a small file, version-controllable, and reviewable
-alongside the rest of the integration config.
+A practical workaround for any future router is a self-registration
+flow: each developer hits `/v1/me` with their own key once, the
+result lands in a Coder-side mapping table, and the router reads
+from there. We did not need this on the shipping path because
+Personal Workers does not require server-side `userId` resolution.
 
-If the mapping is built on email instead, we still need either an
-email field on the `pending-requests` payload or a
-`GET /v1/users/{id}` endpoint. Either would let the router drop the
-mapping file entirely.
-
-### Pending-requests stability, rate limit, and a queue webhook (partially shipped)
+### Pending-requests stability, rate limit, and a queue webhook (partially shipped, blocks shared-pool user identity)
 
 The scaling signal works today, but only via polling, and the rate
 limit is the cold-start floor:
 
 - **Polling works.** `GET /v0/private-workers/pending-requests` is
-  reachable with a service-account key (HTTP Basic auth: SA key as
-  username, empty password), paginated, and returns
+  reachable with a team service-account key (HTTP Basic auth: SA key
+  as username, empty password), paginated, and returns
   `{id, userId, serviceAccountId, repoOwner, repoName, repoUrl,
-  labels[], createdAtMs}` per request. This is the right shape for
-  the router. It is on the v0 surface; a v1 equivalent has not been
-  published.
+  labels[], createdAtMs}` per request. It is on the v0 surface; a v1
+  equivalent has not been published.
 - **Rate limit is 600 requests per hour.** The endpoint returns
   `429` with `retry-after` (in seconds) when the bucket is empty.
-  At 600/hour we can poll every 6 seconds with no margin; the
-  validation router polls every 10 seconds for headroom. That is
-  the cold-start floor: a queued session waits up to one poll
-  interval before the router sees it, plus one Coder build for the
-  claim, plus one Cursor scheduler tick to dispatch.
+  At 600/hour a poller can hit it every 6 seconds with no margin;
+  every 10 seconds gives headroom.
 - **No queue-event webhook.** The only webhook Cursor documents is
   `statusChange` at
   [Webhooks](https://cursor.com/docs/cloud-agent/api/webhooks.md),
   which fires `FINISHED` or `ERROR` on a run that is **already
   executing**. By that point the worker has been chosen and the
-  identity is fixed; this event is too late for User identity
-  routing.
+  identity is fixed; this event is too late to influence routing.
 
-What we still need:
+What is still needed before this is a usable scaling signal:
 
-- A `/v1/` equivalent of `pending-requests` so the router does not
+- A `/v1/` equivalent of `pending-requests` so consumers do not
   depend on the legacy surface.
-- A higher rate limit or a queue-event webhook. The 600/hour
-  ceiling is fine for steady-state operation but tight for
-  multi-router or debug scenarios.
 - A queue-event webhook for sub-second routing. Polling latency is
-  the dominant factor in cold-start time; a webhook would drop the
-  user-visible delay to round-trip plus one Coder build.
+  the dominant factor in cold-start time on the shared-pool
+  user-identity shape; a webhook would drop the user-visible delay
+  to round-trip plus one Coder build.
+- A higher rate limit, if multiple integrations on one team end up
+  hitting it simultaneously.
 
 ### One-worker-one-repo: permanent or transitional?
 
@@ -492,10 +522,10 @@ workspace. User secrets are similarly disabled.
 
 The workaround System identity ships with is "block pushes" plus
 "pass the Cursor team API key as a sensitive Terraform variable."
-That is fine for system identity, but it means we cannot use Coder's
-external-auth refresh story for the bot, and the same workaround
-leaks into `Pool: user identity` and `Router`: both store secrets
-as template variables on prebuilds-owned workspaces.
+That is fine for the fleet-bot pool, but it means we cannot use
+Coder's external-auth refresh story for the bot identity. Personal
+Workers sidesteps the issue because the workspace owner is the
+human, so external auth resolves normally.
 
 The product change that would close this gap: **let prebuilds be
 configured to use a specific operator-supplied service-account user**
@@ -535,23 +565,18 @@ Low priority. The template-side workaround is one line.
 
 ### First-class headless workspace pool primitive
 
-User identity's router reimplements a small queue manager around
-Coder's workspace API. A Coder primitive that knows how to spawn a
-workspace per external signal (webhook, queue event), bind it to a
-specific external identity, run it until drain, and reclaim it,
-would close this gap. The router collapses from "a service to write"
-to "a config block in the template."
+The shared-pool user-identity shape (once Cursor unblocks it) needs
+a small queue manager around Coder's workspace API: claim a
+prebuild on behalf of a specific external identity, register a
+worker for them, reclaim on drain. A Coder primitive that did this
+natively, driven by an external scaling signal (webhook or polled
+queue), would mean the integration is "a config block in the
+template" instead of "a service to write."
 
-This is the most useful product addition for the autoscaled fleet
-case and would let us ship a single integration story rather than
-"two phases, one of which is middleware you write."
-
-Until that lands, the validation template in this guide runs the
-router itself as a singleton prebuild (`prebuilds { instances = 1 }`),
-so the reconciler keeps the routing service alive without a separate
-deployment to operate. That's a useful intermediate shape: the
-deployment surface area is zero new infrastructure, just one more
-preset on the same template that runs the workers.
+This becomes interesting the moment the Cursor side surfaces a
+pre-dispatch hook or per-user pool affinity. Until then there is no
+queued signal for Coder to consume in the first place, so the
+product change is gated on the Cursor change.
 
 ### AI Gateway client preset for worker children
 

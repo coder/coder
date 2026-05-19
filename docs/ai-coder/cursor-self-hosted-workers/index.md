@@ -165,8 +165,11 @@ network egress, centralized capacity planning.
   (`remote.origin.pushurl = no_push`) because there is no per-user
   identity to attribute commits to. The per-human signal lives in
   Cursor's session log, keyed by the worker's `activeBcId`.
-- **Per-user identity is planned**, not shipped. See
-  [User Identity](./user-identity.md) for the design and what gates it.
+- **Per-user identity on a shared pool is not shippable today.**
+  See [User Identity: status](./user-identity.md) for the live-
+  validated reasons (UI visibility and pool dispatch are coupled on
+  Cursor's side). The per-user path that ships is
+  [Personal Workers](./personal-workers.md).
 
 See [Worker Pool](./system-identity.md) for the copyable Terraform
 recipe and the known limitations.
@@ -197,7 +200,7 @@ See [Personal Workers](./personal-workers.md) for the recipe.
 | Is on Cursor Enterprise and wants central admin control         | [Worker Pool](./system-identity.md)                         |
 | Is on Cursor Team plan                                          | [Personal Workers](./personal-workers.md)                   |
 | Wants per-user identity (git push, audit) today                 | [Personal Workers](./personal-workers.md)                   |
-| Wants Worker Pool with per-user identity                        | Wait for [User Identity](./user-identity.md)                |
+| Wants Worker Pool with per-user identity                        | Use [Personal Workers](./personal-workers.md) today, watch [User Identity: status](./user-identity.md) for the shared-pool shape |
 | Wants both (org-managed pool + power users on personal workers) | Both. They share the same image; only the template differs. |
 
 ## Where to next
@@ -206,8 +209,9 @@ See [Personal Workers](./personal-workers.md) for the recipe.
   requires Cursor Enterprise. Bot identity, label-routed.
 - [Personal Workers](./personal-workers.md): one workspace per
   developer, per-user identity, works on Cursor Team plan.
-- [User Identity](./user-identity.md): per-developer attribution on
-  Worker Pool. On the Coder + Cursor roadmap; not yet available.
+- [User Identity: status](./user-identity.md): why per-user
+  identity on a shared pool is not shippable today, and what would
+  unblock it.
 - [AI Governance Integration](./ai-governance.md): how the two paths
   affect Coder AI Gateway coverage.
 - [Implementation Notes](./plan.md): staged plan and open questions.

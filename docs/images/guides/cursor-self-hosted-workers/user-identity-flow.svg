@@ -1,11 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 360" width="1000" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="diag-title diag-desc">
-  <title id="diag-title">Cursor user-identity flow (planned)</title>
-  <desc id="diag-desc">Placeholder diagram. When a Cursor session is queued for a user, a router maps the Cursor user to their Coder user and claims a warm prebuild on their behalf. The workspace owner flips to the human, Coder external auth wires their git push token, and the worker registers in the Cursor pool under the team service account with a coder-owner label identifying the human. User identity is planned and not yet generally available.</desc>
+  <title id="diag-title">Cursor user-identity flow (Personal Workers, ships today)</title>
+  <desc id="diag-desc">Each developer creates a Coder workspace owned by themselves with their personal Cursor API key. The worker registers as their personal machine. Sessions launch from cursor.com or programmatically via POST /v1/agents with env.type=machine targeting the worker by name. Per-user attribution is end to end: workspace owner, git push via Coder external auth, audit log, and Cursor session log all the human.</desc>
   <style>
-    .box { fill: #ffffff; stroke: #6366f1; stroke-width: 1.5; stroke-dasharray: 5 5; rx: 8; }
+    .box { fill: #ffffff; stroke: #6366f1; stroke-width: 1.5; rx: 8; }
     .title { font-family: ui-sans-serif, system-ui, sans-serif; font-size: 14px; font-weight: 600; fill: #0f172a; }
     .sub { font-family: ui-sans-serif, system-ui, sans-serif; font-size: 12px; fill: #475569; }
-    .arrow { stroke: #6366f1; stroke-width: 1.5; stroke-dasharray: 5 5; fill: none; marker-end: url(#a); }
+    .arrow { stroke: #6366f1; stroke-width: 1.5; fill: none; marker-end: url(#a); }
   </style>
   <defs>
     <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
@@ -13,17 +13,17 @@
     </marker>
   </defs>
   <rect class="box" x="40"  y="40"  width="240" height="80"/>
-  <text class="title" x="60" y="75">Cursor pending request</text>
-  <text class="sub"   x="60" y="95">userId + repoUrl</text>
+  <text class="title" x="60" y="75">Developer</text>
+  <text class="sub"   x="60" y="95">Cursor key + Coder login</text>
   <rect class="box" x="40"  y="200" width="240" height="80"/>
-  <text class="title" x="60" y="235">Router</text>
-  <text class="sub"   x="60" y="255">map cursorUserId, claim</text>
+  <text class="title" x="60" y="235">Coder workspace</text>
+  <text class="sub"   x="60" y="255">owner = the developer</text>
   <rect class="box" x="380" y="120" width="240" height="80"/>
-  <text class="title" x="400" y="155">Claim warm prebuild</text>
-  <text class="sub"   x="400" y="175">workspace owner = human</text>
+  <text class="title" x="400" y="155">cursor-agent worker</text>
+  <text class="sub"   x="400" y="175">personal machine (no --pool)</text>
   <rect class="box" x="720" y="120" width="240" height="80"/>
-  <text class="title" x="740" y="155">Worker registers</text>
-  <text class="sub"   x="740" y="175">SA key + coder-owner label</text>
+  <text class="title" x="740" y="155">Cursor session</text>
+  <text class="sub"   x="740" y="175">env.type=machine, name=...</text>
   <path class="arrow" d="M160,120 L160,200"/>
   <path class="arrow" d="M280,240 L380,170"/>
   <path class="arrow" d="M620,160 L720,160"/>

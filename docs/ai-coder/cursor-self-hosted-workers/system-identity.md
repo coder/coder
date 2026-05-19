@@ -15,15 +15,13 @@ service account, fleet-wide.
 > workers; their workers register as personal machines instead. For
 > Team plan deployments, see [Personal Workers](./personal-workers.md).
 >
-> **Worker Pool runs every session under a shared bot identity today.**
-> Per-user identity on pool workers is planned via the router pattern
-> documented in [User Identity](./user-identity.md): a Coder workspace
-> per session, owned by the human, with the pool worker authenticating
-> as the team service account (the only identity Cursor accepts for
-> pool workers). Per-user attribution lives on the Coder side (owner,
-> external auth, secrets, audit) plus a `coder-owner=<email>` label on
-> the worker for Cursor's session log. If you need per-user identity
-> right now, use [Personal Workers](./personal-workers.md).
+> **Worker Pool runs every session under a shared bot identity.**
+> Per-user identity on a shared warm pool is not shippable today; see
+> [User Identity: status](./user-identity.md) for the live-validated
+> reasons and what would unblock it. If you need per-user identity
+> right now, use [Personal Workers](./personal-workers.md): one
+> Coder workspace per user, the user's own Cursor key, full per-user
+> attribution end to end.
 
 <img src="../../images/guides/cursor-self-hosted-workers/system-identity-flow.svg" alt="Coder maintains warm worker workspaces per repository. When a Cursor session arrives, Cursor's label-based routing matches it to a free worker bound to the requested repo. When work drains the workspace is deleted and the reconciler queues a replacement." />
 
