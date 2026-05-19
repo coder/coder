@@ -87,5 +87,13 @@ make docs/.style/.vale-synced
 ./build/vale-* docs/    # or pass specific files
 ```
 
+The `./build/vale-*` glob expands to whatever Vale binaries exist under
+`build/`. If you bump the version in `mise.toml` without running
+`make clean`, multiple `vale-*` binaries can coexist and the glob expands
+to multiple arguments, breaking the invocation. The canonical `make
+lint/prose` path uses the exact versioned binary and is always correct;
+run `make clean` before using the direct-invocation form if you've ever
+changed the pinned version locally.
+
 `.vale.ini` at the repo root selects the curated rule set. See its
 inline comments for the rationale on each enabled or disabled rule.
