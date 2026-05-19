@@ -555,7 +555,12 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 							label="API key"
 							helpers={getFieldHelpers("apiKey")}
 							onClear={clearOpenAiAnthropicApiKey}
-							inputType="password"
+							// While the field is showing a saved masked value
+							// (e.g. `sk-ant-***\u2026***ABCD`), render as plain text so
+							// the user can see the identifying suffix the API returned.
+							// Once the user clears the input to type a new key, switch
+							// back to password so the plaintext isn't shoulder-surfable.
+							inputType={openAiAnthropicApiKeyMasked ? "text" : "password"}
 							autoComplete="new-password"
 							description="Secret key used to authenticate requests to this provider."
 							placeholder={apiKeyPlaceholder(form.values.type)}
