@@ -12,12 +12,40 @@
 # noun for concept headings), so this rule lands at warning rather than
 # error: it surfaces candidates for review without forcing a rewrite.
 #
-# Implementation: pure regex on a heading-scoped existence rule. Vale's
-# `sequence` rule type would let us condition on the POS tag VBG, but
-# sequence rules are sentence-scoped, not heading-scoped (see
-# https://vale.sh/docs/checks/sequence). For heading-targeted rules,
-# Google's and Microsoft's style packages both use existence + scope:
-# heading + regex; we follow the same pattern.
+# Implementation: pure regex on a heading-scoped existence rule.
+#
+# Why not `extends: sequence` with `tag: VBG`? It cannot reach headings
+# in Vale 3.14.x. Two architectural facts force this:
+#
+#   1. `internal/check/sequence.go` ends NewSequence with
+#      `rule.Definition.Scope = []string{"sentence"}` (and the Run
+#      method's comment reads "This is *always* sentence-scoped."),
+#      so any user-supplied `scope:` is overwritten.
+#   2. `internal/lint/ast.go::lintScope` dispatches heading content
+#      with scope `text.heading.h2.md` straight to `lintBlock` and
+#      skips the `lintProse` path. Only `lintProse` calls
+#      `nlp.Compute`, which is the function that produces the
+#      `sentence.*`-scoped sub-blocks that sequence rules match.
+#
+# Net effect: heading text never appears as a block whose scope
+# contains `sentence`, so a sequence rule's hardcoded `sentence` scope
+# can never match a heading. Verified empirically against Vale 3.14.1
+# with `extends: sequence` + `pattern: '\w+ing'` + `tag: VBG` and
+# `scope: heading`: fires on paragraph text, silent on H1-H6.
+#
+# For heading-targeted rules, Google's and Microsoft's style packages
+# both use existence + scope: heading + regex; we follow the same
+# pattern. The trade-off is that we maintain a small exceptions list
+# for words like "Bring" and "String" that look like gerunds to a
+# regex but aren't. POS tagging would catch those automatically, at
+# the cost of (a) not running on headings at all and (b) the
+# noun-vs-gerund ambiguity on terse heading text. The exceptions list
+# is small and stable, so the maintenance cost is low.
+#
+# DOCS-185 tracks the broader investigation: filing an upstream Vale
+# issue to make sequence rules honor user-supplied `scope:`, or
+# alternatively exposing POS tags to script-based rules so a
+# `extends: script` rule could implement this principled-ly.
 #
 # False positives: words that end in "ing" but aren't gerunds, like
 # "Bring" or "String". The exceptions list below collects these. Concept
