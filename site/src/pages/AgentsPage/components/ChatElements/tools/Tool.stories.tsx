@@ -79,6 +79,31 @@ export const ExecuteModelIntent: Story = {
 	},
 };
 
+export const ExecuteModelIntentRunning: Story = {
+	args: {
+		status: "running",
+		args: {
+			command: executeCommand,
+			model_intent: "checking repository state",
+		},
+		modelIntent: "checking repository state",
+		result: {
+			output: "",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const commandButton = canvas.getByRole("button", {
+			name: "Collapse command",
+		});
+		expect(commandButton).toHaveTextContent(
+			`Checking repository state using ${executeCommand}`,
+		);
+		expect(commandButton).not.toHaveTextContent(" for ");
+		expect(commandButton).not.toHaveTextContent("Ran");
+	},
+};
+
 export const ExecuteSuccess: Story = {
 	args: {
 		shellToolDisplayMode: "auto",
@@ -173,6 +198,7 @@ export const ExecuteAlwaysCollapsed: Story = {
 			name: "Expand command",
 		});
 		expect(commandButton).toHaveTextContent(executeCommand);
+		expect(commandButton).not.toHaveTextContent("Ran");
 		expect(canvas.queryByText("exit 0")).not.toBeInTheDocument();
 		expect(canvas.queryByText("2 lines")).not.toBeInTheDocument();
 		expect(
@@ -206,6 +232,7 @@ export const ExecuteLongCommandCollapsed: Story = {
 			name: "Expand command",
 		});
 		expect(commandButton).toHaveTextContent(longExecuteCommand);
+		expect(commandButton).not.toHaveTextContent("Ran");
 		expect(commandButton).toHaveAttribute("aria-expanded", "false");
 		expect(canvas.queryByText("exit 0")).not.toBeInTheDocument();
 		expect(canvas.getByText("47.2s")).toBeVisible();
@@ -1975,7 +2002,7 @@ export const WaitAgentComputerUseRunning: Story = {
 		expect(canvasElement.querySelector(".lucide-monitor")).not.toBeNull();
 		// The VNC preview container should mount (the connection will
 		// stay in "connecting" state without a real WebSocket, which
-		// is expected, we only verify the container renders).
+		// is expected; we only verify the container renders).
 		await waitFor(() => {
 			expect(
 				canvas.getByRole("button", { name: "Open desktop tab" }),

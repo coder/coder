@@ -28,8 +28,8 @@ func TestExecuteTool(t *testing.T) {
 		modelIntentParam, ok := info.Parameters["model_intent"].(map[string]any)
 		require.True(t, ok)
 		assert.Equal(t, "string", modelIntentParam["type"])
-		assert.Contains(t, modelIntentParam["description"], "status label")
-		assert.Contains(t, modelIntentParam["description"], "Do not include the command")
+		assert.Contains(t, modelIntentParam["description"], "alongside the command")
+		assert.Contains(t, modelIntentParam["description"], "do not repeat the command")
 		assert.Contains(t, info.Required, "command")
 		assert.NotContains(t, info.Required, "model_intent")
 	})
@@ -249,6 +249,11 @@ func TestExecuteTool(t *testing.T) {
 		assert.False(t, resp.IsError)
 		assert.Equal(t, "echo hello", capturedReq.Command)
 		assert.False(t, capturedReq.Background)
+
+		var parsedArgs chattool.ExecuteArgs
+		require.NoError(t, json.Unmarshal([]byte(`{"command":"echo hello","model_intent":"Running a smoke test"}`), &parsedArgs))
+		require.NotNil(t, parsedArgs.ModelIntent)
+		assert.Equal(t, "Running a smoke test", *parsedArgs.ModelIntent)
 
 		var result chattool.ExecuteResult
 		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))

@@ -26,6 +26,16 @@ const fileEntrySchema = Yup.object({
 
 type FileEntry = Yup.InferType<typeof fileEntrySchema>;
 
+export const formatModelIntentLabel = (
+	modelIntent: string | undefined,
+): string => {
+	const trimmed = modelIntent?.trim() ?? "";
+	if (!trimmed) {
+		return "";
+	}
+	return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+};
+
 export const toProviderLabel = (
 	providerDisplayName: string,
 	providerID: string,

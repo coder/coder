@@ -48,6 +48,7 @@ import {
 	asString,
 	buildEditDiff,
 	DIFFS_FONT_STYLE,
+	formatModelIntentLabel,
 	formatResultOutput,
 	getFileContentForViewer,
 	getFileViewerOptions,
@@ -924,7 +925,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 			/>
 			{modelIntent ? (
 				<span className="truncate text-[13px]">
-					{modelIntent.charAt(0).toUpperCase() + modelIntent.slice(1)}
+					{formatModelIntentLabel(modelIntent)}
 				</span>
 			) : (
 				<ToolLabel
