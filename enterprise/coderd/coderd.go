@@ -623,33 +623,24 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		})
 	})
 
-	// TODO: Move this up and on the api struct maybe?
-	scimSrv := scim.New(&scim.Options{
-		DB: options.Database,
+	// TODO: Possibly lift this scimSrv?
+	scimSrv, err := scim.New(&scim.Options{
+		DB:         options.Database,
+		Auditor:    &api.AGPL.Auditor,
+		IDPSync:    options.IDPSync,
+		Logger:     options.Logger,
+		AGPL:       api.AGPL,
+		SCIMAPIKey: options.SCIMAPIKey,
 	})
+	if err != nil {
+		return nil, xerrors.Errorf("create scim server: %w", err)
+	}
 	if len(options.SCIMAPIKey) != 0 {
 		api.AGPL.RootHandler.Route("/scim/v2", func(r chi.Router) {
-			// TODO: Should auth be handled here or in the scimSrv?
 			r.Use(
 				api.RequireFeatureMW(codersdk.FeatureSCIM),
 			)
-			r.Mount("/", scimSrv)
-			//r.Get("/ServiceProviderConfig", api.scimServiceProviderConfig)
-			//r.Post("/Users", api.scimPostUser)
-			//r.Route("/Users", func(r chi.Router) {
-			//	r.Get("/", api.scimGetUsers)
-			//	r.Post("/", api.scimPostUser)
-			//	r.Get("/{id}", api.scimGetUser)
-			//	r.Patch("/{id}", api.scimPatchUser)
-			//	r.Put("/{id}", api.scimPutUser)
-			//})
-			//r.NotFound(func(w http.ResponseWriter, r *http.Request) {
-			//	u := r.URL.String()
-			//	httpapi.Write(r.Context(), w, http.StatusNotFound, codersdk.Response{
-			//		Message: fmt.Sprintf("SCIM endpoint %s not found", u),
-			//		Detail:  "This endpoint is not implemented. If it is correct and required, please contact support.",
-			//	})
-			//})
+			r.Mount("/", scimSrv.Handler())
 		})
 	} else {
 		// Show a helpful 404 error. Because this is not under the /api/v2 routes,
