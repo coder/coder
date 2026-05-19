@@ -174,18 +174,6 @@ type CredentialFieldProps = {
 	 */
 	disabled?: boolean;
 	trashLabel: string;
-	/**
-	 * - `"flex"` (default) renders the field as a self-contained stack: label
-	 *   and description above an input + trash button on a single flex row.
-	 *   Use for single-field credentials.
-	 * - `"grid-row"` renders the field as three sibling grid items (label,
-	 *   input cell, trash button) so it slots into a parent grid using
-	 *   `grid-cols-[auto_1fr_auto]`. Stack multiple `grid-row` credentials
-	 *   inside the same parent grid to keep their labels, inputs, and trash
-	 *   buttons aligned across rows. Descriptions and helperText are placed
-	 *   under the input within the middle cell.
-	 */
-	layout?: "flex" | "grid-row";
 };
 
 /**
@@ -194,9 +182,9 @@ type CredentialFieldProps = {
  * typed (or the seeded `SAVED_CREDENTIAL_MASK` when a credential is already
  * on file). Pass `inputType="password"` to render the value as dots.
  *
- * `CredentialField` is a lightweight rebuild of `FormField` that lets the
- * label, input, and trash button live as siblings so they can participate in
- * the parent's grid layout for paired credentials.
+ * `CredentialField` mirrors `FormField`'s stacking order (label, description,
+ * input, helper text) and slots a destructive trash button next to the input
+ * so the user can clear a saved credential before typing a replacement.
  */
 const CredentialField: FC<CredentialFieldProps> = ({
 	label,
@@ -209,7 +197,6 @@ const CredentialField: FC<CredentialFieldProps> = ({
 	required = false,
 	disabled = false,
 	trashLabel,
-	layout = "flex",
 }) => {
 	const inputId = useId();
 	const errorId = `${inputId}-error`;
@@ -267,12 +254,7 @@ const CredentialField: FC<CredentialFieldProps> = ({
 	// Only show the trash button while the input is locked at the seeded
 	// credential mask. Once the user clears the field (or has been typing a
 	// fresh credential since mount), the trash is hidden so the user doesn't
-	// see it floating next to a half-typed key. In grid-row layout the
-	// hidden case still emits a zero-width placeholder for the third grid
-	// cell (see below), so paired CredentialFields stay aligned; CSS Grid
-	// then auto-sizes the trash column to the widest real button across
-	// rows, leaving empty space when only some rows have one and collapsing
-	// to 0 when none do.
+	// see it floating next to a half-typed key.
 	const trashNode = disabled ? (
 		<Button
 			type="button"
@@ -286,33 +268,13 @@ const CredentialField: FC<CredentialFieldProps> = ({
 		</Button>
 	) : null;
 
-	if (layout === "grid-row") {
-		return (
-			<>
-				<div className="pt-2.5">{labelNode}</div>
-				<div className="flex flex-col gap-2">
-					{inputNode}
-					{descriptionNode}
-					{helperNode}
-				</div>
-				{/* Always emit a third grid item so a row without a trash
-				    button still occupies the third column. Without this,
-				    grid auto-flow would slide the next CredentialField's
-				    label into the trash column. The placeholder has zero
-				    intrinsic width, so an `auto`-sized third column still
-				    collapses to 0 when no row renders a real button. */}
-				{trashNode ?? <div aria-hidden="true" />}
-			</>
-		);
-	}
-
 	return (
 		<div className="flex flex-col gap-2">
 			{labelNode}
+			{descriptionNode}
 			<div className="flex items-start gap-2">
 				<div className="flex min-w-0 flex-1 flex-col gap-2">
 					{inputNode}
-					{descriptionNode}
 					{helperNode}
 				</div>
 				{trashNode}
@@ -645,34 +607,30 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 								placeholder="anthropic.claude-3-haiku-20240307-v1:0"
 							/>
 						</div>
-						<div className="grid grid-cols-[auto_1fr_auto] items-start gap-4">
-							<CredentialField
-								required
-								label="Access key"
-								helpers={getFieldHelpers("accessKey")}
-								onClear={clearBedrockAccessKey}
-								// Hide the access key value when masked so it renders
-								// uniformly with the secret; revert to plain text once
-								// cleared so the typed key is visible.
-								inputType={bedrockAccessKeyMasked ? "password" : "text"}
-								description="Your AWS Access Key ID used to authenticate requests to Bedrock."
-								disabled={bedrockAccessKeyMasked}
-								trashLabel="Remove saved access key"
-								layout="grid-row"
-							/>
-							<CredentialField
-								required
-								label="Access key secret"
-								helpers={getFieldHelpers("accessKeySecret")}
-								onClear={clearBedrockAccessKeySecret}
-								inputType="password"
-								autoComplete="new-password"
-								description="Your AWS Secret Access Key associated with the access key ID. Stored securely and used for request signing."
-								disabled={bedrockAccessKeySecretMasked}
-								trashLabel="Remove saved access key secret"
-								layout="grid-row"
-							/>
-						</div>
+						<CredentialField
+							required
+							label="Access key"
+							helpers={getFieldHelpers("accessKey")}
+							onClear={clearBedrockAccessKey}
+							// Hide the access key value when masked so it renders
+							// uniformly with the secret; revert to plain text once
+							// cleared so the typed key is visible.
+							inputType={bedrockAccessKeyMasked ? "password" : "text"}
+							description="Your AWS Access Key ID used to authenticate requests to Bedrock."
+							disabled={bedrockAccessKeyMasked}
+							trashLabel="Remove saved access key"
+						/>
+						<CredentialField
+							required
+							label="Access key secret"
+							helpers={getFieldHelpers("accessKeySecret")}
+							onClear={clearBedrockAccessKeySecret}
+							inputType="password"
+							autoComplete="new-password"
+							description="Your AWS Secret Access Key associated with the access key ID. Stored securely and used for request signing."
+							disabled={bedrockAccessKeySecretMasked}
+							trashLabel="Remove saved access key secret"
+						/>
 					</>
 				)}
 
