@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"io"
 	"runtime"
 	"testing"
 
@@ -224,7 +225,7 @@ func TestServerCreateAdminUser(t *testing.T) {
 		}
 		connectionURL, err := dbtestutil.Open(t)
 		require.NoError(t, err)
-		ctx := testutil.Context(testutil.WaitShort)
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		root, _ := clitest.New(t,
 			"server", "create-admin-user",
@@ -234,6 +235,7 @@ func TestServerCreateAdminUser(t *testing.T) {
 			"--email", "not-an-email",
 			"--password", "x",
 		)
+		root.Stdout, root.Stderr = io.Discard, io.Discard
 		err = root.WithContext(ctx).Run()
 		require.Error(t, err)
 		require.ErrorContains(t, err, "'email' failed on the 'email' tag")
