@@ -19,6 +19,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/dustin/go-humanize"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -49,11 +50,13 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/x/chatd"
+	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/wsjson"
 	"github.com/coder/websocket"
 )
@@ -2182,19 +2185,54 @@ func (api *API) authorizeChatWorkspaceExec(
 	chat database.Chat,
 	noWorkspaceMessage string,
 ) (database.Workspace, bool) {
+	return api.authorizeChatWorkspaceExecOpts(rw, r, chat, chatWorkspaceExecOpts{
+		NoWorkspaceMessage: noWorkspaceMessage,
+	})
+}
+
+// chatWorkspaceExecOpts customizes the status codes and messages
+// returned by authorizeChatWorkspaceExecOpts. Zero status fields fall
+// back to http.StatusBadRequest; an empty NotFoundMessage falls back
+// to codersdk.ChatGitWatchWorkspaceNotFoundMessage.
+type chatWorkspaceExecOpts struct {
+	NoWorkspaceStatus  int
+	NoWorkspaceMessage string
+	NotFoundStatus     int
+	NotFoundMessage    string
+}
+
+//nolint:revive // HTTP handler writes to ResponseWriter.
+func (api *API) authorizeChatWorkspaceExecOpts(
+	rw http.ResponseWriter,
+	r *http.Request,
+	chat database.Chat,
+	opts chatWorkspaceExecOpts,
+) (database.Workspace, bool) {
 	ctx := r.Context()
+	noWorkspaceStatus := opts.NoWorkspaceStatus
+	if noWorkspaceStatus == 0 {
+		noWorkspaceStatus = http.StatusBadRequest
+	}
+	notFoundStatus := opts.NotFoundStatus
+	if notFoundStatus == 0 {
+		notFoundStatus = http.StatusBadRequest
+	}
+	notFoundMessage := opts.NotFoundMessage
+	if notFoundMessage == "" {
+		notFoundMessage = codersdk.ChatGitWatchWorkspaceNotFoundMessage
+	}
 
 	if !chat.WorkspaceID.Valid {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: noWorkspaceMessage,
+		httpapi.Write(ctx, rw, noWorkspaceStatus, codersdk.Response{
+			Message: opts.NoWorkspaceMessage,
 		})
 		return database.Workspace{}, false
 	}
 
 	workspace, err := api.Database.GetWorkspaceByID(ctx, chat.WorkspaceID.UUID)
 	if httpapi.Is404Error(err) {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: codersdk.ChatGitWatchWorkspaceNotFoundMessage,
+		httpapi.Write(ctx, rw, notFoundStatus, codersdk.Response{
+			Message: notFoundMessage,
 		})
 		return database.Workspace{}, false
 	}
@@ -6055,6 +6093,203 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+const (
+	// chatWorkspaceUploadNoWorkspaceMessage is returned when the
+	// chat has not been associated with a workspace.
+	chatWorkspaceUploadNoWorkspaceMessage = "Chat has no workspace to upload to."
+	// chatWorkspaceUploadWorkspaceNotFoundMessage is returned when
+	// the chat's workspace has been deleted.
+	chatWorkspaceUploadWorkspaceNotFoundMessage = "Chat workspace not found."
+	// chatWorkspaceUploadNoAgentsMessage is returned when the chat's
+	// workspace exists but has no agents in its latest build.
+	chatWorkspaceUploadNoAgentsMessage = "Chat workspace has no agents."
+	// chatWorkspaceUploadArchivedMessage is returned when the chat
+	// has been archived.
+	chatWorkspaceUploadArchivedMessage = "Cannot upload files to an archived chat."
+	// chatWorkspaceUploadOwnerOnlyMessage is returned to non-owners.
+	chatWorkspaceUploadOwnerOnlyMessage = "Only the chat owner may upload files to a chat's workspace."
+	// chatWorkspaceUploadMissingFilenameMessage is returned when the
+	// Content-Disposition header is missing or does not parse to a
+	// non-empty filename after sanitization.
+	chatWorkspaceUploadMissingFilenameMessage = "Filename is required."
+	// chatWorkspaceUploadTooLargeMessage is returned when the upload
+	// body exceeds MaxWorkspaceFileSizeBytes.
+	chatWorkspaceUploadTooLargeMessage = "File too large."
+)
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Upload a file to a chat's workspace
+// @ID upload-chat-workspace-file
+// @Security CoderSessionToken
+// @Accept */*
+// @Tags Chats
+// @Produce json
+// @Param chat path string true "Chat ID" format(uuid)
+// @Param Content-Type header string false "Content type of the file"
+// @Param Content-Disposition header string false "Filename of the file (attachment; filename=...)"
+// @Success 201 {object} codersdk.UploadChatWorkspaceFileResponse
+// @Failure 400 {object} codersdk.Response
+// @Failure 403 {object} codersdk.Response
+// @Failure 409 {object} codersdk.Response
+// @Failure 413 {object} codersdk.Response
+// @Failure 502 {object} codersdk.Response
+// @Router /api/experimental/chats/{chat}/workspace-files [post]
+// @Description Experimental: this endpoint is subject to change.
+func (api *API) postChatWorkspaceFile(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+	chat := httpmw.ChatParam(r)
+
+	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	// Mirror postChatMessages: only the chat owner can stream
+	// arbitrary bytes into the workspace because the bytes share the
+	// workspace filesystem with whatever the owner already trusts
+	// the agent to read.
+	if apiKey.UserID != chat.OwnerID {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: chatWorkspaceUploadOwnerOnlyMessage,
+		})
+		return
+	}
+
+	if chat.Archived {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: chatWorkspaceUploadArchivedMessage,
+		})
+		return
+	}
+
+	workspace, ok := api.authorizeChatWorkspaceExecOpts(rw, r, chat, chatWorkspaceExecOpts{
+		NoWorkspaceStatus:  http.StatusConflict,
+		NoWorkspaceMessage: chatWorkspaceUploadNoWorkspaceMessage,
+		NotFoundStatus:     http.StatusConflict,
+		NotFoundMessage:    chatWorkspaceUploadWorkspaceNotFoundMessage,
+	})
+	if !ok {
+		return
+	}
+
+	agents, err := api.Database.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace agents.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if len(agents) == 0 {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: chatWorkspaceUploadNoAgentsMessage,
+		})
+		return
+	}
+
+	selectedAgent, err := agentselect.FindChatAgent(agents)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: chatWorkspaceUploadNoAgentsMessage,
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	apiAgent, err := db2sdk.WorkspaceAgent(
+		api.DERPMap(),
+		*api.TailnetCoordinator.Load(),
+		selectedAgent,
+		nil,
+		nil,
+		nil,
+		api.AgentInactiveDisconnectTimeout,
+		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
+	)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error reading workspace agent.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if apiAgent.Status != codersdk.WorkspaceAgentConnected {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: fmt.Sprintf("Agent status is %q, must be %q.", apiAgent.Status, codersdk.WorkspaceAgentConnected),
+		})
+		return
+	}
+
+	var filename string
+	if cd := r.Header.Get("Content-Disposition"); cd != "" {
+		if _, params, perr := mime.ParseMediaType(cd); perr == nil {
+			filename = params["filename"]
+		}
+	}
+	// Sanitize here so we can return 400 before opening the tailnet
+	// connection. The agent re-runs SanitizeWorkspaceUploadName as a
+	// defense in depth for direct tailnet callers; both passes are
+	// idempotent.
+	name, err := chatfiles.SanitizeWorkspaceUploadName(filename)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: chatWorkspaceUploadMissingFilenameMessage,
+			Detail:  "Provide a filename via the Content-Disposition header.",
+		})
+		return
+	}
+
+	contentType := chatfiles.BaseMediaType(r.Header.Get("Content-Type"))
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+
+	r.Body = http.MaxBytesReader(rw, r.Body, codersdk.MaxWorkspaceFileSizeBytes)
+	defer r.Body.Close()
+
+	dialCtx, dialCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer dialCancel()
+	agentConn, release, err := api.agentProvider.AgentConn(dialCtx, selectedAgent.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to dial workspace agent.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	defer release()
+
+	resp, err := agentConn.UploadChatFile(ctx, workspacesdk.UploadChatFileRequest{
+		ChatID: chat.ID.String(),
+		Name:   name,
+		Body:   r.Body,
+	})
+	if err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
+				Message: chatWorkspaceUploadTooLargeMessage,
+				Detail:  fmt.Sprintf("Maximum file size is %s.", humanize.IBytes(uint64(codersdk.MaxWorkspaceFileSizeBytes))),
+			})
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
+			Message: "Failed to upload file to workspace agent.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.UploadChatWorkspaceFileResponse{
+		Path:      resp.Path,
+		Name:      resp.Name,
+		Size:      resp.Size,
+		MediaType: contentType,
+	})
+}
+
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 // @Summary Get chat file
@@ -6192,6 +6427,35 @@ func createChatInputFromParts(
 				_, _ = fmt.Fprintf(&sb, "\n```%s\n%s\n```", part.FileName, strings.TrimSpace(part.Content))
 			}
 			textParts = append(textParts, sb.String())
+		// workspace-file parts carry metadata only; the bytes live on
+		// the workspace filesystem at WorkspaceFilePath. There is no
+		// FileID and the database stores no copy.
+		case string(codersdk.ChatInputPartTypeWorkspaceFileReference):
+			if strings.TrimSpace(part.WorkspaceFilePath) == "" {
+				return nil, "", nil, &codersdk.Response{
+					Message: "Invalid input part.",
+					Detail:  fmt.Sprintf("%s[%d].workspace_file_path is required for workspace-file.", fieldName, i),
+				}
+			}
+			if strings.TrimSpace(part.WorkspaceFileName) == "" {
+				return nil, "", nil, &codersdk.Response{
+					Message: "Invalid input part.",
+					Detail:  fmt.Sprintf("%s[%d].workspace_file_name is required for workspace-file.", fieldName, i),
+				}
+			}
+			if part.WorkspaceFileSize < 0 {
+				return nil, "", nil, &codersdk.Response{
+					Message: "Invalid input part.",
+					Detail:  fmt.Sprintf("%s[%d].workspace_file_size must be non-negative.", fieldName, i),
+				}
+			}
+			content = append(content, codersdk.ChatMessageWorkspaceFile(
+				part.WorkspaceFilePath,
+				part.WorkspaceFileName,
+				part.WorkspaceFileSize,
+				part.WorkspaceFileMediaType,
+			))
+			textParts = append(textParts, fmt.Sprintf("[workspace file] %s", part.WorkspaceFileName))
 		default:
 			return nil, "", nil, &codersdk.Response{
 				Message: "Invalid input part.",

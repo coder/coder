@@ -30,6 +30,15 @@ const buildOptimisticEditedContent = ({
 				content: part.content ?? "",
 			};
 		}
+		if (part.type === "workspace-file-reference") {
+			return {
+				type: "workspace-file-reference",
+				workspace_file_path: part.workspace_file_path ?? "",
+				workspace_file_name: part.workspace_file_name ?? "",
+				workspace_file_size: part.workspace_file_size ?? 0,
+				workspace_file_media_type: part.workspace_file_media_type,
+			};
+		}
 		const fileId = part.file_id ?? "";
 		return (
 			existingFilePartsByID.get(fileId) ?? {

@@ -959,6 +959,87 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/experimental/chats/{chat}/workspace-files": {
+            "post": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "consumes": [
+                    "*/*"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Upload a file to a chat's workspace",
+                "operationId": "upload-chat-workspace-file",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Content type of the file",
+                        "name": "Content-Type",
+                        "in": "header"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filename of the file (attachment; filename=...)",
+                        "name": "Content-Disposition",
+                        "in": "header"
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UploadChatWorkspaceFileResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "502": {
+                        "description": "Bad Gateway",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/experimental/users/{user}/skills": {
             "get": {
                 "produces": [
@@ -16673,6 +16754,19 @@ const docTemplate = `{
                 },
                 "type": {
                     "$ref": "#/definitions/codersdk.ChatInputPartType"
+                },
+                "workspace_file_media_type": {
+                    "type": "string"
+                },
+                "workspace_file_name": {
+                    "type": "string"
+                },
+                "workspace_file_path": {
+                    "description": "The following fields are only set when Type is\nChatInputPartTypeWorkspaceFileReference.",
+                    "type": "string"
+                },
+                "workspace_file_size": {
+                    "type": "integer"
                 }
             }
         },
@@ -16681,12 +16775,14 @@ const docTemplate = `{
             "enum": [
                 "text",
                 "file",
-                "file-reference"
+                "file-reference",
+                "workspace-file-reference"
             ],
             "x-enum-varnames": [
                 "ChatInputPartTypeText",
                 "ChatInputPartTypeFile",
-                "ChatInputPartTypeFileReference"
+                "ChatInputPartTypeFileReference",
+                "ChatInputPartTypeWorkspaceFileReference"
             ]
         },
         "codersdk.ChatMessage": {
@@ -16885,6 +16981,22 @@ const docTemplate = `{
                 },
                 "url": {
                     "type": "string"
+                },
+                "workspace_file_media_type": {
+                    "description": "WorkspaceFileMediaType is the best-effort detected MIME for\nthe workspace upload. Falls back to application/octet-stream\nwhen the client cannot classify the file.",
+                    "type": "string"
+                },
+                "workspace_file_name": {
+                    "description": "WorkspaceFileName is the sanitized basename of a workspace\nfile upload, used for chip labels and audit-friendly logs.",
+                    "type": "string"
+                },
+                "workspace_file_path": {
+                    "description": "WorkspaceFilePath is the absolute path of a file uploaded\ndirectly to the chat's workspace filesystem. The bytes live\non the workspace, not in chat_files, so there is no FileID.",
+                    "type": "string"
+                },
+                "workspace_file_size": {
+                    "description": "WorkspaceFileSize is the byte size of a workspace file\nupload at the time of upload. Displayed in chips and used by\nthe LLM-facing summary so the agent can plan downstream\ntooling (e.g. unzip vs. read_file).",
+                    "type": "integer"
                 }
             }
         },
@@ -16899,7 +17011,8 @@ const docTemplate = `{
                 "file",
                 "file-reference",
                 "context-file",
-                "skill"
+                "skill",
+                "workspace-file-reference"
             ],
             "x-enum-varnames": [
                 "ChatMessagePartTypeText",
@@ -16910,7 +17023,8 @@ const docTemplate = `{
                 "ChatMessagePartTypeFile",
                 "ChatMessagePartTypeFileReference",
                 "ChatMessagePartTypeContextFile",
-                "ChatMessagePartTypeSkill"
+                "ChatMessagePartTypeSkill",
+                "ChatMessagePartTypeWorkspaceFileReference"
             ]
         },
         "codersdk.ChatMessageRole": {
@@ -24705,6 +24819,23 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
+                }
+            }
+        },
+        "codersdk.UploadChatWorkspaceFileResponse": {
+            "type": "object",
+            "properties": {
+                "media_type": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "size": {
+                    "type": "integer"
                 }
             }
         },

@@ -1,8 +1,17 @@
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
-import { MaxChatFileSizeBytes } from "#/api/typesGenerated";
+import {
+	MaxChatFileSizeBytes,
+	MaxWorkspaceFileSizeBytes,
+} from "#/api/typesGenerated";
+
+const formatTooLargeForLimit = (fileSize: number, limitBytes: number): string =>
+	`File too large (${(fileSize / 1024 / 1024).toFixed(1)} MiB). Maximum is ${limitBytes / 1024 / 1024} MiB.`;
 
 export const formatAgentAttachmentTooLargeError = (fileSize: number): string =>
-	`File too large (${(fileSize / 1024 / 1024).toFixed(1)} MiB). Maximum is ${MaxChatFileSizeBytes / 1024 / 1024} MiB.`;
+	formatTooLargeForLimit(fileSize, MaxChatFileSizeBytes);
+
+export const formatWorkspaceUploadTooLargeError = (fileSize: number): string =>
+	formatTooLargeForLimit(fileSize, MaxWorkspaceFileSizeBytes);
 
 export const formatAgentAttachmentUploadError = (error: unknown): string => {
 	const message = getErrorMessage(error, "Upload failed");

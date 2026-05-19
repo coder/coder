@@ -2081,15 +2081,28 @@ export interface ChatInputPart {
 	 * The code content from the diff that was commented on.
 	 */
 	readonly content?: string;
+	/**
+	 * The following fields are only set when Type is
+	 * ChatInputPartTypeWorkspaceFileReference.
+	 */
+	readonly workspace_file_path?: string;
+	readonly workspace_file_name?: string;
+	readonly workspace_file_size?: number;
+	readonly workspace_file_media_type?: string;
 }
 
 // From codersdk/chats.go
-export type ChatInputPartType = "file" | "file-reference" | "text";
+export type ChatInputPartType =
+	| "file"
+	| "file-reference"
+	| "text"
+	| "workspace-file-reference";
 
 export const ChatInputPartTypes: ChatInputPartType[] = [
 	"file",
 	"file-reference",
 	"text",
+	"workspace-file-reference",
 ];
 
 // From codersdk/chats.go
@@ -2142,7 +2155,8 @@ export type ChatMessagePart =
 	| ChatFilePart
 	| ChatFileReferencePart
 	| ChatContextFilePart
-	| ChatSkillPart;
+	| ChatSkillPart
+	| ChatWorkspaceFileReferencePart;
 
 // From codersdk/chats.go
 export type ChatMessagePartType =
@@ -2154,7 +2168,8 @@ export type ChatMessagePartType =
 	| "source"
 	| "text"
 	| "tool-call"
-	| "tool-result";
+	| "tool-result"
+	| "workspace-file-reference";
 
 export const ChatMessagePartTypes: ChatMessagePartType[] = [
 	"context-file",
@@ -2166,6 +2181,7 @@ export const ChatMessagePartTypes: ChatMessagePartType[] = [
 	"text",
 	"tool-call",
 	"tool-result",
+	"workspace-file-reference",
 ];
 
 // From codersdk/chats.go
@@ -3031,6 +3047,35 @@ export const ChatWatchEventKinds: ChatWatchEventKind[] = [
 	"summary_change",
 	"title_change",
 ];
+
+// From codersdk/chats.go
+export interface ChatWorkspaceFileReferencePart {
+	readonly type: "workspace-file-reference";
+	/**
+	 * WorkspaceFilePath is the absolute path of a file uploaded
+	 * directly to the chat's workspace filesystem. The bytes live
+	 * on the workspace, not in chat_files, so there is no FileID.
+	 */
+	readonly workspace_file_path: string;
+	/**
+	 * WorkspaceFileName is the sanitized basename of a workspace
+	 * file upload, used for chip labels and audit-friendly logs.
+	 */
+	readonly workspace_file_name: string;
+	/**
+	 * WorkspaceFileSize is the byte size of a workspace file
+	 * upload at the time of upload. Displayed in chips and used by
+	 * the LLM-facing summary so the agent can plan downstream
+	 * tooling (e.g. unzip vs. read_file).
+	 */
+	readonly workspace_file_size: number;
+	/**
+	 * WorkspaceFileMediaType is the best-effort detected MIME for
+	 * the workspace upload. Falls back to application/octet-stream
+	 * when the client cannot classify the file.
+	 */
+	readonly workspace_file_media_type?: string;
+}
 
 // From codersdk/chats.go
 /**
@@ -5204,6 +5249,15 @@ export const MaxChatFileSizeBytes = 10485760;
  * it would be unusual.
  */
 export const MaxSecretValueSize = 32768; // 32KB
+
+// From codersdk/chats.go
+/**
+ * MaxWorkspaceFileSizeBytes is the upload-endpoint cap for files
+ * uploaded directly into a chat's workspace filesystem. It is larger
+ * than MaxChatFileSizeBytes because the data is streamed straight to
+ * the workspace agent and never goes through Postgres.
+ */
+export const MaxWorkspaceFileSizeBytes = 104857600;
 
 // From codersdk/organizations.go
 export interface MinimalOrganization {
@@ -9000,6 +9054,22 @@ export interface UpdateWorkspaceTTLRequest {
  */
 export interface UploadChatFileResponse {
 	readonly id: string;
+}
+
+// From codersdk/chats.go
+/**
+ * UploadChatWorkspaceFileResponse describes a file uploaded directly
+ * into a chat's workspace filesystem via POST
+ * /api/experimental/chats/{chat}/workspace-files. The bytes live on
+ * the workspace, not in chat_files, so the response has no FileID;
+ * the frontend echoes Path back on the next message as a
+ * workspace-file part.
+ */
+export interface UploadChatWorkspaceFileResponse {
+	readonly path: string;
+	readonly name: string;
+	readonly size: number;
+	readonly media_type: string;
 }
 
 // From codersdk/files.go

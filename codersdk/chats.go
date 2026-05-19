@@ -37,6 +37,12 @@ const MaxChatFileIDs = 50
 // attachments.
 const MaxChatFileSizeBytes = 10 * 1024 * 1024
 
+// MaxWorkspaceFileSizeBytes is the upload-endpoint cap for files
+// uploaded directly into a chat's workspace filesystem. It is larger
+// than MaxChatFileSizeBytes because the data is streamed straight to
+// the workspace agent and never goes through Postgres.
+const MaxWorkspaceFileSizeBytes = 100 * 1024 * 1024
+
 // AnthropicInlineImageCapBytes is Anthropic's documented per-image
 // wire limit; the same cap applies to Bedrock-hosted Claude. Other
 // providers have no documented per-image cap.
@@ -198,15 +204,16 @@ const (
 type ChatMessagePartType string
 
 const (
-	ChatMessagePartTypeText          ChatMessagePartType = "text"
-	ChatMessagePartTypeReasoning     ChatMessagePartType = "reasoning"
-	ChatMessagePartTypeToolCall      ChatMessagePartType = "tool-call"
-	ChatMessagePartTypeToolResult    ChatMessagePartType = "tool-result"
-	ChatMessagePartTypeSource        ChatMessagePartType = "source"
-	ChatMessagePartTypeFile          ChatMessagePartType = "file"
-	ChatMessagePartTypeFileReference ChatMessagePartType = "file-reference"
-	ChatMessagePartTypeContextFile   ChatMessagePartType = "context-file"
-	ChatMessagePartTypeSkill         ChatMessagePartType = "skill"
+	ChatMessagePartTypeText                   ChatMessagePartType = "text"
+	ChatMessagePartTypeReasoning              ChatMessagePartType = "reasoning"
+	ChatMessagePartTypeToolCall               ChatMessagePartType = "tool-call"
+	ChatMessagePartTypeToolResult             ChatMessagePartType = "tool-result"
+	ChatMessagePartTypeSource                 ChatMessagePartType = "source"
+	ChatMessagePartTypeFile                   ChatMessagePartType = "file"
+	ChatMessagePartTypeFileReference          ChatMessagePartType = "file-reference"
+	ChatMessagePartTypeContextFile            ChatMessagePartType = "context-file"
+	ChatMessagePartTypeSkill                  ChatMessagePartType = "skill"
+	ChatMessagePartTypeWorkspaceFileReference ChatMessagePartType = "workspace-file-reference"
 )
 
 // AllChatMessagePartTypes returns all known ChatMessagePartType values.
@@ -221,6 +228,7 @@ func AllChatMessagePartTypes() []ChatMessagePartType {
 		ChatMessagePartTypeFileReference,
 		ChatMessagePartTypeContextFile,
 		ChatMessagePartTypeSkill,
+		ChatMessagePartTypeWorkspaceFileReference,
 	}
 }
 
@@ -335,6 +343,22 @@ type ChatMessagePart struct {
 	// read_skill tool uses the correct filename even when the
 	// agent configured a non-default value.
 	ContextFileSkillMetaFile string `json:"context_file_skill_meta_file,omitempty" typescript:"-"`
+	// WorkspaceFilePath is the absolute path of a file uploaded
+	// directly to the chat's workspace filesystem. The bytes live
+	// on the workspace, not in chat_files, so there is no FileID.
+	WorkspaceFilePath string `json:"workspace_file_path" variants:"workspace-file-reference"`
+	// WorkspaceFileName is the sanitized basename of a workspace
+	// file upload, used for chip labels and audit-friendly logs.
+	WorkspaceFileName string `json:"workspace_file_name" variants:"workspace-file-reference"`
+	// WorkspaceFileSize is the byte size of a workspace file
+	// upload at the time of upload. Displayed in chips and used by
+	// the LLM-facing summary so the agent can plan downstream
+	// tooling (e.g. unzip vs. read_file).
+	WorkspaceFileSize int64 `json:"workspace_file_size" variants:"workspace-file-reference"`
+	// WorkspaceFileMediaType is the best-effort detected MIME for
+	// the workspace upload. Falls back to application/octet-stream
+	// when the client cannot classify the file.
+	WorkspaceFileMediaType string `json:"workspace_file_media_type,omitempty" variants:"workspace-file-reference?"`
 }
 
 // StripInternal removes internal-only fields that must not be
@@ -413,6 +437,19 @@ func ChatMessageFileReference(fileName string, startLine, endLine int, content s
 	}
 }
 
+// ChatMessageWorkspaceFile builds a workspace-file chat message part.
+// The bytes live on the workspace filesystem at path; only metadata is
+// persisted on the message.
+func ChatMessageWorkspaceFile(path, name string, size int64, mediaType string) ChatMessagePart {
+	return ChatMessagePart{
+		Type:                   ChatMessagePartTypeWorkspaceFileReference,
+		WorkspaceFilePath:      path,
+		WorkspaceFileName:      name,
+		WorkspaceFileSize:      size,
+		WorkspaceFileMediaType: mediaType,
+	}
+}
+
 // ChatMessageSource builds a source chat message part.
 func ChatMessageSource(sourceID, sourceURL, title string) ChatMessagePart {
 	return ChatMessagePart{
@@ -427,9 +464,10 @@ func ChatMessageSource(sourceID, sourceURL, title string) ChatMessagePart {
 type ChatInputPartType string
 
 const (
-	ChatInputPartTypeText          ChatInputPartType = "text"
-	ChatInputPartTypeFile          ChatInputPartType = "file"
-	ChatInputPartTypeFileReference ChatInputPartType = "file-reference"
+	ChatInputPartTypeText                   ChatInputPartType = "text"
+	ChatInputPartTypeFile                   ChatInputPartType = "file"
+	ChatInputPartTypeFileReference          ChatInputPartType = "file-reference"
+	ChatInputPartTypeWorkspaceFileReference ChatInputPartType = "workspace-file-reference"
 )
 
 // ChatInputPart is a single user input part for creating a chat.
@@ -444,6 +482,12 @@ type ChatInputPart struct {
 	EndLine   int    `json:"end_line,omitempty"`
 	// The code content from the diff that was commented on.
 	Content string `json:"content,omitempty"`
+	// The following fields are only set when Type is
+	// ChatInputPartTypeWorkspaceFileReference.
+	WorkspaceFilePath      string `json:"workspace_file_path,omitempty"`
+	WorkspaceFileName      string `json:"workspace_file_name,omitempty"`
+	WorkspaceFileSize      int64  `json:"workspace_file_size,omitempty"`
+	WorkspaceFileMediaType string `json:"workspace_file_media_type,omitempty"`
 }
 
 // SubmitToolResultsRequest is the body for POST /chats/{id}/tool-results.
@@ -558,6 +602,19 @@ type EditChatMessageResponse struct {
 // UploadChatFileResponse is the response from uploading a chat file.
 type UploadChatFileResponse struct {
 	ID uuid.UUID `json:"id" format:"uuid"`
+}
+
+// UploadChatWorkspaceFileResponse describes a file uploaded directly
+// into a chat's workspace filesystem via POST
+// /api/experimental/chats/{chat}/workspace-files. The bytes live on
+// the workspace, not in chat_files, so the response has no FileID;
+// the frontend echoes Path back on the next message as a
+// workspace-file part.
+type UploadChatWorkspaceFileResponse struct {
+	Path      string `json:"path"`
+	Name      string `json:"name"`
+	Size      int64  `json:"size"`
+	MediaType string `json:"media_type"`
 }
 
 // ChatMessagesResponse contains the messages and queued messages for a chat.
@@ -3205,6 +3262,31 @@ func (c *ExperimentalClient) UploadChatFile(ctx context.Context, organizationID 
 		return UploadChatFileResponse{}, ReadBodyAsError(res)
 	}
 	var resp UploadChatFileResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UploadChatWorkspaceFile streams a file to the chat's workspace
+// filesystem. The bytes land on the workspace agent under
+// $HOME/.coder/chats/<chat-id>/files/<sanitized-name>; the response
+// contains the absolute path the frontend should echo back on the
+// next message as a workspace-file part.
+func (c *ExperimentalClient) UploadChatWorkspaceFile(ctx context.Context, chatID uuid.UUID, contentType, filename string, rd io.Reader) (UploadChatWorkspaceFileResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/%s/workspace-files", chatID), rd, func(r *http.Request) {
+		if contentType != "" {
+			r.Header.Set("Content-Type", contentType)
+		}
+		if filename != "" {
+			r.Header.Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": filename}))
+		}
+	})
+	if err != nil {
+		return UploadChatWorkspaceFileResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return UploadChatWorkspaceFileResponse{}, ReadBodyAsError(res)
+	}
+	var resp UploadChatWorkspaceFileResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 

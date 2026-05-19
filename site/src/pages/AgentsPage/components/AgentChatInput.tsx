@@ -3,6 +3,7 @@ import {
 	ArrowUpIcon,
 	CheckIcon,
 	ChevronRightIcon,
+	HardDriveIcon,
 	MicIcon,
 	MonitorIcon,
 	PaperclipIcon,
@@ -21,6 +22,7 @@ import {
 	useState,
 } from "react";
 import { Link } from "react-router";
+import { toast } from "sonner";
 import type * as TypesGen from "#/api/typesGenerated";
 import type {
 	AgentChatSendShortcut,
@@ -59,12 +61,17 @@ import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useOverflowCount } from "../hooks/useOverflowCount";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 import {
+	isWorkspaceUploadInProgress,
+	type WorkspaceUploadState,
+} from "../hooks/useWorkspaceFileUploads";
+import {
 	DEFAULT_AGENT_CHAT_SEND_SHORTCUT,
 	MODIFIER_AGENT_CHAT_SEND_SHORTCUT,
 } from "../utils/agentChatSendShortcut";
 import {
 	chatAttachmentAcceptAttribute,
 	isChatAttachmentFile,
+	isStrictChatAttachmentFile,
 } from "../utils/chatAttachments";
 import { formatProviderLabel } from "../utils/modelOptions";
 import {
@@ -82,6 +89,7 @@ import { ContextUsageIndicator } from "./ContextUsageIndicator";
 import { ImageLightbox } from "./ImageLightbox";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 import { TextPreviewDialog } from "./TextPreviewDialog";
+import { WorkspaceFileChip } from "./WorkspaceFileChip";
 import { WorkspacePill } from "./WorkspacePill";
 
 export {
@@ -167,6 +175,10 @@ interface AgentChatInputProps {
 	uploadStates?: Map<File, UploadState>;
 	previewUrls?: Map<File, string>;
 	textContents?: Map<File, string>;
+	workspaceUploads?: readonly File[];
+	workspaceUploadStates?: Map<File, WorkspaceUploadState>;
+	onWorkspaceAttach?: (files: File[]) => void;
+	onRemoveWorkspaceUpload?: (attachment: number | File) => void;
 	onTextPreview?: (
 		content: string,
 		fileName: string,
@@ -331,6 +343,10 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	uploadStates,
 	previewUrls,
 	textContents,
+	workspaceUploads = [],
+	workspaceUploadStates,
+	onWorkspaceAttach,
+	onRemoveWorkspaceUpload,
 	onTextPreview,
 	mcpServers,
 	selectedMCPServerIds,
@@ -538,6 +554,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const handleDisablePlanMode = () => onPlanModeToggle?.(false);
 
 	const fileInputRef = useRef<HTMLInputElement>(null);
+	const workspaceFileInputRef = useRef<HTMLInputElement>(null);
 	const [composerElement, setComposerElement] = useState<HTMLDivElement | null>(
 		null,
 	);
@@ -573,6 +590,16 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			onAttach(Array.from(e.target.files));
 		}
 		// Reset so the same file can be selected again.
+		e.target.value = "";
+	};
+
+	const handleWorkspaceFileSelect = (
+		e: React.ChangeEvent<HTMLInputElement>,
+	) => {
+		if (e.target.files && onWorkspaceAttach) {
+			resetPromptCycle();
+			onWorkspaceAttach(Array.from(e.target.files));
+		}
 		e.target.value = "";
 	};
 
@@ -624,13 +651,33 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const handleDrop = (e: React.DragEvent) => {
 		e.preventDefault();
 		setIsDragging(false);
-		if (!onAttach || !e.dataTransfer.files.length) return;
-		const attachable = Array.from(e.dataTransfer.files).filter(
-			isChatAttachmentFile,
-		);
-		if (attachable.length === 0) return;
+		const all = Array.from(e.dataTransfer.files);
+		if (all.length === 0) return;
+		// When workspace upload is available, route unknown-MIME and
+		// octet-stream files there instead of the attachment pipeline,
+		// which would reject them as not on the allowlist.
+		const attachable = onWorkspaceAttach
+			? all.filter(isStrictChatAttachmentFile)
+			: all.filter(isChatAttachmentFile);
+		const forWorkspace = onWorkspaceAttach
+			? all.filter((file) => !isStrictChatAttachmentFile(file))
+			: [];
+		const nonAttachable = onWorkspaceAttach
+			? []
+			: all.filter((file) => !isChatAttachmentFile(file));
+		if (attachable.length === 0 && forWorkspace.length === 0) {
+			if (nonAttachable.length > 0) {
+				toast.error("Connect a workspace to upload files of this type.");
+			}
+			return;
+		}
 		resetPromptCycle();
-		onAttach(attachable);
+		if (attachable.length > 0 && onAttach) {
+			onAttach(attachable);
+		}
+		if (forWorkspace.length > 0) {
+			onWorkspaceAttach?.(forWorkspace);
+		}
 	};
 
 	// Track whether the editor has content so we can gate the
@@ -677,20 +724,33 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const hasActiveUploads = attachments.some((file) =>
 		isUploadInProgress(uploadStates?.get(file)),
 	);
+	const hasActiveWorkspaceUploads = workspaceUploads.some((file) =>
+		isWorkspaceUploadInProgress(workspaceUploadStates?.get(file)),
+	);
 	const hasUploadedAttachments = attachments.some(
 		(f) => uploadStates?.get(f)?.status === "uploaded",
 	);
+	const hasUploadedWorkspaceFiles = workspaceUploads.some(
+		(f) => workspaceUploadStates?.get(f)?.status === "uploaded",
+	);
 	const hasDraftContext =
-		hasContent || attachments.length > 0 || hasFileReferences;
+		hasContent ||
+		attachments.length > 0 ||
+		workspaceUploads.length > 0 ||
+		hasFileReferences;
 	const isComposerEffectivelyEmpty = !hasDraftContext;
 	const hasSendableContent =
-		hasContent || hasUploadedAttachments || hasFileReferences;
+		hasContent ||
+		hasUploadedAttachments ||
+		hasUploadedWorkspaceFiles ||
+		hasFileReferences;
 	const canSend =
 		!isDisabled &&
 		!isLoading &&
 		hasModelOptions &&
 		hasSendableContent &&
-		!hasActiveUploads;
+		!hasActiveUploads &&
+		!hasActiveWorkspaceUploads;
 	const handleSubmit = () => {
 		const text = internalRef.current?.getValue()?.trim() ?? "";
 
@@ -699,10 +759,12 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		if (
 			!text &&
 			!hasUploadedAttachments &&
+			!hasUploadedWorkspaceFiles &&
 			!hasFileReferences &&
 			!isDisabled &&
 			!isLoading &&
 			!hasActiveUploads &&
+			!hasActiveWorkspaceUploads &&
 			queuedMessages.length > 0 &&
 			onPromoteQueuedMessage
 		) {
@@ -711,10 +773,14 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		}
 
 		if (
-			(!text && !hasUploadedAttachments && !hasFileReferences) ||
+			(!text &&
+				!hasUploadedAttachments &&
+				!hasUploadedWorkspaceFiles &&
+				!hasFileReferences) ||
 			isDisabled ||
 			isLoading ||
 			hasActiveUploads ||
+			hasActiveWorkspaceUploads ||
 			!hasModelOptions
 		) {
 			return;
@@ -954,6 +1020,33 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 						onInlineText={handleInlineText}
 					/>
 				)}
+				{workspaceUploads.length > 0 && onRemoveWorkspaceUpload && (
+					<div className="flex flex-wrap gap-2 border-b border-border-default/50 px-3 py-2">
+						{workspaceUploads.map((file, index) => {
+							const state = workspaceUploadStates?.get(file);
+							const uploading = state?.status === "uploading";
+							const errorMessage =
+								state?.status === "error" ? state.error : undefined;
+							const path =
+								state?.status === "uploaded" ? state.path : undefined;
+							const name =
+								state?.status === "uploaded" ? state.name : file.name;
+							const size =
+								state?.status === "uploaded" ? state.size : file.size;
+							return (
+								<WorkspaceFileChip
+									key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
+									name={name}
+									size={size}
+									path={path}
+									isUploading={uploading}
+									errorMessage={errorMessage}
+									onRemove={() => onRemoveWorkspaceUpload(file)}
+								/>
+							);
+						})}
+					</div>
+				)}
 				<ChatMessageInput
 					ref={internalRef}
 					onFilePaste={onAttach ? handleFilePaste : undefined}
@@ -999,6 +1092,16 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 						multiple
 						accept={chatAttachmentAcceptAttribute}
 						onChange={handleFileSelect}
+						className="hidden"
+					/>
+				)}
+				{/* Hidden file input for uploading any file type to the chat's workspace. */}
+				{onWorkspaceAttach && (
+					<input
+						ref={workspaceFileInputRef}
+						type="file"
+						multiple
+						onChange={handleWorkspaceFileSelect}
 						className="hidden"
 					/>
 				)}
@@ -1066,6 +1169,20 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 											>
 												<PaperclipIcon className="size-3.5 shrink-0" />
 												Attach file
+											</button>
+										)}
+										{onWorkspaceAttach && (
+											<button
+												type="button"
+												onClick={() => {
+													resetPromptCycle();
+													setPlusMenuOpen(false);
+													workspaceFileInputRef.current?.click();
+												}}
+												className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
+											>
+												<HardDriveIcon className="size-3.5 shrink-0" />
+												Upload to workspace
 											</button>
 										)}
 										{onPlanModeToggle && (

@@ -76,7 +76,11 @@ import {
 	useChatStore,
 } from "./components/ChatConversation/chatStore";
 import { useChatToolInvalidations } from "./components/ChatConversation/useChatToolInvalidations";
-import type { PendingAttachment } from "./components/ChatPageContent";
+import type {
+	PendingAttachment,
+	PendingWorkspaceUpload,
+	SendChatMessageOptions,
+} from "./components/ChatPageContent";
 import {
 	getDefaultMCPSelection,
 	getSavedMCPSelection,
@@ -111,6 +115,13 @@ export const draftInputStorageKeyPrefix = "agents.draft-input.";
 const clearChatPlanMode = "" satisfies ChatPlanModeOrClear;
 
 type PlanModeSwitch = TypesGen.ChatPlanMode | "clear";
+
+export type SendChatTurnOptions = {
+	message: string;
+	attachments?: readonly PendingAttachment[];
+	workspaceUploads?: readonly PendingWorkspaceUpload[];
+	editedMessageID?: number;
+};
 
 /**
  * Read the persisted plain-text draft for a given chat ID.
@@ -289,11 +300,7 @@ const buildAttachmentMediaTypes = (
 /** @internal Exported for testing. */
 export function useConversationEditingState(deps: {
 	chatID: string | undefined;
-	onSend: (
-		message: string,
-		attachments?: readonly PendingAttachment[],
-		editedMessageID?: number,
-	) => Promise<void>;
+	onSend: (options: SendChatTurnOptions) => Promise<void>;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	chatInputRef: React.RefObject<ChatMessageInputRef | null>;
 	inputValueRef: React.RefObject<string>;
@@ -487,14 +494,20 @@ export function useConversationEditingState(deps: {
 
 	// Wraps the parent onSend to clear local input/editing state
 	// and handle queue-edit deletion.
-	const handleSendFromInput = async (
-		message: string,
-		attachments?: readonly PendingAttachment[],
-	) => {
+	const handleSendFromInput = async ({
+		message,
+		attachments,
+		workspaceUploads,
+	}: SendChatMessageOptions) => {
 		const editedMessageID =
 			editingMessageId !== null ? editingMessageId : undefined;
 		const queueEditID = editingQueuedMessageID;
-		const sendPromise = onSend(message, attachments, editedMessageID);
+		const sendPromise = onSend({
+			message,
+			attachments,
+			workspaceUploads,
+			editedMessageID,
+		});
 
 		// For history edits, clear input immediately and prepare
 		// a rollback in case the send fails.
@@ -1258,10 +1271,12 @@ const AgentChatPage: FC = () => {
 	function buildChatInputContent({
 		message,
 		attachments,
+		workspaceUploads,
 		useComposerContent = true,
 	}: {
 		message: string;
 		attachments?: readonly PendingAttachment[];
+		workspaceUploads?: readonly PendingWorkspaceUpload[];
 		useComposerContent?: boolean;
 	}): { content: TypesGen.ChatInputPart[]; hasContent: boolean } {
 		const content: TypesGen.ChatInputPart[] = [];
@@ -1305,18 +1320,32 @@ const AgentChatPage: FC = () => {
 			}
 		}
 
+		if (workspaceUploads && workspaceUploads.length > 0) {
+			for (const upload of workspaceUploads) {
+				content.push({
+					type: "workspace-file-reference",
+					workspace_file_path: upload.path,
+					workspace_file_name: upload.name,
+					workspace_file_size: upload.size,
+					workspace_file_media_type: upload.mediaType,
+				});
+			}
+		}
+
 		return { content, hasContent: content.length > 0 };
 	}
 
 	async function submitChatTurn({
 		message,
 		attachments,
+		workspaceUploads,
 		editedMessageID,
 		useComposerContent = true,
 		planModeSwitch,
 	}: {
 		message: string;
 		attachments?: readonly PendingAttachment[];
+		workspaceUploads?: readonly PendingWorkspaceUpload[];
 		editedMessageID?: number;
 		useComposerContent?: boolean;
 		planModeSwitch?: PlanModeSwitch;
@@ -1324,6 +1353,7 @@ const AgentChatPage: FC = () => {
 		const { content, hasContent } = buildChatInputContent({
 			message,
 			attachments,
+			workspaceUploads,
 			useComposerContent,
 		});
 		if (!hasContent || isSubmissionPending || !agentId || !hasModelOptions) {
@@ -1459,14 +1489,16 @@ const AgentChatPage: FC = () => {
 		}
 	}
 
-	async function handleSend(
-		message: string,
-		attachments?: readonly PendingAttachment[],
-		editedMessageID?: number,
-	) {
+	async function handleSend({
+		message,
+		attachments,
+		workspaceUploads,
+		editedMessageID,
+	}: SendChatTurnOptions) {
 		await submitChatTurn({
 			message,
 			attachments,
+			workspaceUploads,
 			editedMessageID,
 		});
 	}

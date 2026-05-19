@@ -41,4 +41,46 @@ describe("buildOptimisticEditedMessage", () => {
 
 		expect(message.content).toEqual([existingFilePart]);
 	});
+
+	it("projects workspace-file parts with provided metadata", () => {
+		const message = buildOptimisticEditedMessage({
+			requestContent: [
+				{
+					type: "workspace-file-reference",
+					workspace_file_path: "/home/coder/.coder/chats/abc/files/data.csv",
+					workspace_file_name: "data.csv",
+					workspace_file_size: 1024,
+					workspace_file_media_type: "text/csv",
+				},
+			],
+			originalMessage: makeUserMessage(),
+		});
+
+		expect(message.content).toEqual([
+			{
+				type: "workspace-file-reference",
+				workspace_file_path: "/home/coder/.coder/chats/abc/files/data.csv",
+				workspace_file_name: "data.csv",
+				workspace_file_size: 1024,
+				workspace_file_media_type: "text/csv",
+			},
+		]);
+	});
+
+	it("defaults workspace-file fields when omitted on the request part", () => {
+		const message = buildOptimisticEditedMessage({
+			requestContent: [{ type: "workspace-file-reference" }],
+			originalMessage: makeUserMessage(),
+		});
+
+		expect(message.content).toEqual([
+			{
+				type: "workspace-file-reference",
+				workspace_file_path: "",
+				workspace_file_name: "",
+				workspace_file_size: 0,
+				workspace_file_media_type: undefined,
+			},
+		]);
+	});
 });

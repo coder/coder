@@ -721,6 +721,35 @@ export const UserMessageWithDownloadableFile: Story = {
 	},
 };
 
+export const UserMessageWithWorkspaceFile: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: parseMessagesWithMergedTools([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [
+					{ type: "text", text: "Please unzip this archive." },
+					{
+						type: "workspace-file-reference",
+						workspace_file_path:
+							"/home/coder/.coder/chats/abcd1234/files/release.zip",
+						workspace_file_name: "release.zip",
+						workspace_file_size: 1024 * 1024 * 4,
+						workspace_file_media_type: "application/zip",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(await canvas.findByText("release.zip")).toBeInTheDocument();
+		expect(canvas.getByText(/workspace/i)).toBeInTheDocument();
+	},
+};
+
 export const UserMessageWithMultipleTextAttachments: Story = {
 	args: buildStoryArgs(
 		buildUserMessage({

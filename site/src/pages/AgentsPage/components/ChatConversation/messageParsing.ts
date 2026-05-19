@@ -193,6 +193,10 @@ export const parseMessageContent = (
 				}
 				break;
 			}
+			case "workspace-file-reference": {
+				parsed.blocks = [...parsed.blocks, part];
+				break;
+			}
 			case "source": {
 				if (part.url) {
 					const source = { url: part.url, title: part.title || part.url };

@@ -6,13 +6,19 @@ export type UserInlineRenderBlock =
 	| Extract<RenderBlock, { type: "file-reference" }>;
 
 type FileRenderBlock = Extract<RenderBlock, { type: "file" }>;
+type WorkspaceFileRenderBlock = Extract<
+	RenderBlock,
+	{ type: "workspace-file-reference" }
+>;
 
 export type MessageDisplayState = {
 	shouldHide: boolean;
 	userInlineContent: UserInlineRenderBlock[];
 	userFileBlocks: FileRenderBlock[];
+	userWorkspaceFileBlocks: WorkspaceFileRenderBlock[];
 	hasUserMessageBody: boolean;
 	hasFileBlocks: boolean;
+	hasWorkspaceFileBlocks: boolean;
 	hasCopyableContent: boolean;
 	needsAssistantBottomSpacer: boolean;
 };
@@ -24,6 +30,11 @@ const isUserInlineRenderBlock = (
 
 const isFileRenderBlock = (block: RenderBlock): block is FileRenderBlock =>
 	block.type === "file";
+
+const isWorkspaceFileRenderBlock = (
+	block: RenderBlock,
+): block is WorkspaceFileRenderBlock =>
+	block.type === "workspace-file-reference";
 
 const isProviderToolResultOnlyMessage = (
 	parts: readonly TypesGen.ChatMessagePart[],
@@ -55,10 +66,14 @@ export const deriveMessageDisplayState = ({
 		? parsed.blocks.filter(isUserInlineRenderBlock)
 		: [];
 	const userFileBlocks = isUser ? parsed.blocks.filter(isFileRenderBlock) : [];
+	const userWorkspaceFileBlocks = isUser
+		? parsed.blocks.filter(isWorkspaceFileRenderBlock)
+		: [];
 	const hasFileAttachments = parsed.blocks.some(isFileRenderBlock);
 	const hasUserMessageBody =
 		userInlineContent.length > 0 || Boolean(parsed.markdown.trim());
 	const hasFileBlocks = userFileBlocks.length > 0;
+	const hasWorkspaceFileBlocks = userWorkspaceFileBlocks.length > 0;
 	const hasCopyableContent =
 		Boolean(parsed.markdown.trim()) && !hasFileAttachments;
 	const hasRenderableContent =
@@ -88,8 +103,10 @@ export const deriveMessageDisplayState = ({
 			isMetadataOnlyMessage(parts),
 		userInlineContent,
 		userFileBlocks,
+		userWorkspaceFileBlocks,
 		hasUserMessageBody,
 		hasFileBlocks,
+		hasWorkspaceFileBlocks,
 		hasCopyableContent,
 		needsAssistantBottomSpacer,
 	};

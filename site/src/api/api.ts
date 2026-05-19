@@ -413,6 +413,20 @@ const userChatProviderConfigsPath =
 	"/api/experimental/chats/user-provider-configs";
 const mcpServerConfigsPath = "/api/experimental/mcp/servers";
 
+// Map non-printable, quote, backslash, and non-ASCII bytes to '_'
+// so an HTTP header filename* fallback stays inside the printable
+// ASCII range required by RFC 5322.
+function sanitizeAsciiFilename(name: string): string {
+	let out = "";
+	for (let i = 0; i < name.length; i++) {
+		const code = name.charCodeAt(i);
+		const printable = code >= 0x20 && code <= 0x7e;
+		const safe = printable && code !== 0x22 && code !== 0x5c;
+		out += safe ? name[i] : "_";
+	}
+	return out;
+}
+
 type ChatCostDateParams = {
 	start_date?: string;
 	end_date?: string;
@@ -3145,6 +3159,28 @@ class ExperimentalApiMethods {
 			{ responseType: "text" },
 		);
 		return response.data as string;
+	};
+
+	uploadChatWorkspaceFile = async (
+		chatId: string,
+		file: File,
+		signal?: AbortSignal,
+	): Promise<TypesGen.UploadChatWorkspaceFileResponse> => {
+		// ASCII-safe fallback for middleware that ignores the RFC 5987
+		// starred form; the starred form remains canonical for UTF-8.
+		const asciiName = sanitizeAsciiFilename(file.name) || "upload";
+		const response = await this.axios.post(
+			`/api/experimental/chats/${chatId}/workspace-files`,
+			file,
+			{
+				headers: {
+					"Content-Type": file.type || "application/octet-stream",
+					"Content-Disposition": `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(file.name)}`,
+				},
+				signal,
+			},
+		);
+		return response.data;
 	};
 
 	// Chat API methods

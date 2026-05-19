@@ -19,3 +19,7 @@ var ToolResultPartToMessagePartForTest = toolResultPartToMessagePart
 var ToolResultContentToPartForTest = func(logger slog.Logger, content fantasy.ToolResultContent) codersdk.ChatMessagePart {
 	return toolResultContentToPart(logger, content, nil)
 }
+
+// WorkspaceFilePartToTextForTest exposes workspaceFilePartToText for
+// external tests.
+var WorkspaceFilePartToTextForTest = workspaceFilePartToText

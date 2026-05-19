@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"charm.land/fantasy"
+	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
@@ -1326,6 +1327,22 @@ func formatMissingAttachmentText(mediaType string) string {
 	)
 }
 
+// workspaceFilePartToText formats a workspace-file part for LLM
+// consumption: name, optional human-readable size, and the absolute
+// path the agent can pass to read_file or its own tools.
+func workspaceFilePartToText(part codersdk.ChatMessagePart) string {
+	var sb strings.Builder
+	_, _ = sb.WriteString("[workspace file: ")
+	_, _ = sb.WriteString(part.WorkspaceFileName)
+	if part.WorkspaceFileSize > 0 {
+		_, _ = fmt.Fprintf(&sb, " (%s)", humanize.IBytes(uint64(part.WorkspaceFileSize)))
+	}
+	_, _ = sb.WriteString(" at ")
+	_, _ = sb.WriteString(part.WorkspaceFilePath)
+	_, _ = sb.WriteString("]")
+	return sb.String()
+}
+
 // fileReferencePartToText formats a file-reference SDK part as
 // plain text for LLM consumption. LLMs don't understand
 // file-reference natively, so we convert to a readable text
@@ -1604,6 +1621,13 @@ func partsToMessageParts(
 		case codersdk.ChatMessagePartTypeSource:
 			// Source parts are metadata-only, not sent to LLM.
 			continue
+		case codersdk.ChatMessagePartTypeWorkspaceFileReference:
+			// The agent never receives the bytes; it gets a path and
+			// is expected to read or unzip the file with its own
+			// tools.
+			result = append(result, fantasy.TextPart{
+				Text: workspaceFilePartToText(part),
+			})
 		}
 	}
 	return result

@@ -9,6 +9,10 @@ import { cn } from "#/utils/cn";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
+import {
+	isWorkspaceUploadInProgress,
+	useWorkspaceFileUploads,
+} from "../hooks/useWorkspaceFileUploads";
 import { getChatFileURL } from "../utils/chatAttachments";
 import { getProviderForModelOption } from "../utils/modelOptions";
 import type { ChatDetailError } from "../utils/usageLimitMessage";
@@ -150,15 +154,25 @@ export type PendingAttachment = {
 	mediaType: string;
 };
 
+export type SendChatMessageOptions = {
+	message: string;
+	attachments?: readonly PendingAttachment[];
+	workspaceUploads?: readonly PendingWorkspaceUpload[];
+};
+
+export type PendingWorkspaceUpload = {
+	path: string;
+	name: string;
+	size: number;
+	mediaType: string;
+};
+
 interface ChatPageInputProps {
 	// Organization that owns this chat. Used to scope file uploads.
 	organizationId: string | undefined;
 	store: ChatStoreHandle;
 	compressionThreshold: number | undefined;
-	onSend: (
-		message: string,
-		attachments?: readonly PendingAttachment[],
-	) => Promise<void> | void;
+	onSend: (options: SendChatMessageOptions) => Promise<void> | void;
 	sendShortcut: AgentChatSendShortcut;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	onPromoteQueuedMessage: (id: number) => Promise<void>;
@@ -301,6 +315,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	const composeAttachments = useChatDraftAttachments(organizationId, chatId, {
 		provider: getProviderForModelOption(modelOptions, selectedModel),
 	});
+	const workspaceUploads = useWorkspaceFileUploads(chatId);
 	const editAttachments = useFileAttachments(organizationId, {
 		provider: getProviderForModelOption(modelOptions, selectedModel),
 	});
@@ -403,7 +418,13 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 					const hasActiveUploads = attachments.some((file) =>
 						isUploadInProgress(uploadStates.get(file)),
 					);
-					if (hasActiveUploads) {
+					const hasActiveWorkspaceUploads = workspaceUploads.files.some(
+						(file) =>
+							isWorkspaceUploadInProgress(
+								workspaceUploads.uploadStates.get(file),
+							),
+					);
+					if (hasActiveUploads || hasActiveWorkspaceUploads) {
 						toast.warning("Wait for file uploads to finish before sending.");
 						return;
 					}
@@ -425,15 +446,45 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 							});
 						}
 					}
+					const pendingWorkspaceUploads: PendingWorkspaceUpload[] = [];
+					let skippedWorkspaceErrors = 0;
+					for (const file of workspaceUploads.files) {
+						const state = workspaceUploads.uploadStates.get(file);
+						if (state?.status === "error") {
+							skippedWorkspaceErrors++;
+							continue;
+						}
+						if (state?.status === "uploaded") {
+							pendingWorkspaceUploads.push({
+								path: state.path,
+								name: state.name,
+								size: state.size,
+								mediaType: state.mediaType,
+							});
+						}
+					}
 					if (skippedErrors > 0) {
 						toast.warning(
 							`${skippedErrors} attachment${skippedErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
 						);
 					}
+					if (skippedWorkspaceErrors > 0) {
+						toast.warning(
+							`${skippedWorkspaceErrors} workspace file${skippedWorkspaceErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
+						);
+					}
 					const attachmentArg =
 						pendingAttachments.length > 0 ? pendingAttachments : undefined;
+					const workspaceUploadArg =
+						pendingWorkspaceUploads.length > 0
+							? pendingWorkspaceUploads
+							: undefined;
 					try {
-						await onSend(message, attachmentArg);
+						await onSend({
+							message,
+							attachments: attachmentArg,
+							workspaceUploads: workspaceUploadArg,
+						});
 					} catch {
 						// Attachments preserved for retry on failure.
 						return;
@@ -443,6 +494,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 					} else {
 						composeAttachments.resetAttachments();
 					}
+					workspaceUploads.reset();
 				})();
 			}}
 			sendShortcut={sendShortcut}
@@ -452,6 +504,14 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			uploadStates={uploadStates}
 			previewUrls={previewUrls}
 			textContents={textContents}
+			workspaceUploads={workspaceUploads.files}
+			workspaceUploadStates={workspaceUploads.uploadStates}
+			onWorkspaceAttach={
+				workspace && workspaceAgent?.status === "connected" && chatId
+					? workspaceUploads.handleAttach
+					: undefined
+			}
+			onRemoveWorkspaceUpload={workspaceUploads.handleRemove}
 			inputRef={inputRef}
 			initialValue={initialValue}
 			initialEditorState={initialEditorState}
