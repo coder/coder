@@ -265,22 +265,6 @@ jobs:
           # so git recognizes this runner-owned volume as a safe directory.
           # Without this, git rev-parse fails in lib.sh, breaking PROJECT_ROOT.
           printf '[safe]\n\tdirectory = /home/coder/coder\n' > /tmp/coder-gitconfig
-          # Pre-create .gen-golden sentinel files so make gen skips the
-          # gen/golden-files targets. Those targets run application tests
-          # that need Docker to start PostgreSQL, which is unavailable
-          # inside the dogfood container. The rest of make gen (gen/db,
-          # protobuf, TypeScript types, etc.) still exercises the tooling.
-          touch \
-            agent/unit/testdata/.gen-golden \
-            cli/testdata/.gen-golden \
-            coderd/.gen-golden \
-            coderd/notifications/.gen-golden \
-            enterprise/cli/testdata/.gen-golden \
-            enterprise/tailnet/testdata/.gen-golden \
-            helm/coder/tests/testdata/.gen-golden \
-            helm/provisioner/tests/testdata/.gen-golden \
-            provisioner/terraform/testdata/.gen-golden \
-            tailnet/testdata/.gen-golden
 
       - name: make gen
         run: |
@@ -291,7 +275,7 @@ jobs:
             --network=host \
             --env GITHUB_TOKEN \
             "dogfood-test:${{ matrix.variant }}" \
-            make --output-sync=line -j gen
+            make --output-sync=line -j gen GEN_SKIP_GOLDEN=1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
