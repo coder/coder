@@ -1180,11 +1180,6 @@
 											"path": "./ai-coder/ai-gateway/clients/kilo-code.md"
 										},
 										{
-											"title": "Roo Code",
-											"description": "Configure Roo Code to use AI Gateway",
-											"path": "./ai-coder/ai-gateway/clients/roo-code.md"
-										},
-										{
 											"title": "VS Code",
 											"description": "Configure VS Code to use AI Gateway",
 											"path": "./ai-coder/ai-gateway/clients/vscode.md"

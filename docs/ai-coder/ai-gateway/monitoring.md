@@ -48,7 +48,6 @@ Available query filters:
   - `Kilo Code`
   - `Coder Agents`
   - `Mux`
-  - `Roo Code`
   - `Cursor`
   - `Unknown`
 
