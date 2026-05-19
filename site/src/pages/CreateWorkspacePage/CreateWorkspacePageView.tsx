@@ -211,7 +211,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 			setSelectedPresetIndex(0); // Explicitly set to "None"
 			form.setFieldValue("template_version_preset_id", undefined);
 		}
-		// oxlint-disable-next-line react-hooks/exhaustive-deps -- pre-existing, see follow-up
+		// oxlint-disable-next-line react/exhaustive-deps -- pre-existing during oxlint migration
 	}, [presets, form.setFieldValue]);
 
 	const [presetParameterNames, setPresetParameterNames] = useState<string[]>(
@@ -324,7 +324,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 				})),
 			);
 		}
-		// oxlint-disable-next-line react-hooks/exhaustive-deps -- pre-existing, see follow-up
+		// oxlint-disable-next-line react/exhaustive-deps -- pre-existing during oxlint migration
 	}, [
 		presetOptions,
 		selectedPresetIndex,

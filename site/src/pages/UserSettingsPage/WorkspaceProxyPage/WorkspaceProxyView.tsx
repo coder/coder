@@ -92,7 +92,7 @@ const ProxiesTableBody: FC<ProxiesTableBodyProps> = ({
 		return <TableEmpty message="No workspace proxies found" />;
 	}
 	return (
-		// oxlint-disable-next-line react/jsx-no-useless-fragment -- pre-existing, see follow-up
+		// oxlint-disable-next-line react/jsx-no-useless-fragment -- pre-existing during oxlint migration
 		<>
 			{proxies?.map((proxy) => (
 				<ProxyRow

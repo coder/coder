@@ -93,7 +93,7 @@ const NotificationsPage: FC = () => {
 					description: getErrorDetail(error),
 				});
 			});
-		// oxlint-disable-next-line react-hooks/exhaustive-deps -- pre-existing, see follow-up
+		// oxlint-disable-next-line react/exhaustive-deps -- pre-existing during oxlint migration
 	}, [searchParams.delete, disabledId, disableMutation]);
 
 	const ready =

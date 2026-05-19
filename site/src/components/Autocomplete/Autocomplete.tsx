@@ -353,6 +353,7 @@ export function Autocomplete<TOption>({
 
 											return (
 												<CommandItem
+													// oxlint-disable-next-line jsx-a11y/role-has-required-aria-props -- pre-existing during oxlint migration
 													role="option"
 													id={`${listboxId}-option-${index}`}
 													key={optionValue}

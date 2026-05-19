@@ -59,7 +59,7 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
 		} else {
 			void form.setFieldValue("lifetime", expDays);
 		}
-		// oxlint-disable-next-line react-hooks/exhaustive-deps -- pre-existing, see follow-up
+		// oxlint-disable-next-line react/exhaustive-deps -- pre-existing during oxlint migration
 	}, [lifetimeDays, expDays]);
 
 	const getFieldHelpers = getFormHelpers<CreateTokenData>(form, formError);

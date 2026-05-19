@@ -196,9 +196,11 @@ export const applyMessagePartToStreamState = (
 		case "file-reference":
 		// context-file parts are metadata-only; no streaming
 		// render needed.
+		// oxlint-disable-next-line eslint/no-fallthrough -- pre-existing during oxlint migration
 		case "context-file":
 		// skill parts are metadata-only; no streaming render
 		// needed.
+		// oxlint-disable-next-line eslint/no-fallthrough -- pre-existing during oxlint migration
 		case "skill":
 			return prev;
 		default: {

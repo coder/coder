@@ -154,7 +154,7 @@ export const RenameChatDialog: FC<RenameChatDialogProps> = ({
 		}
 	}
 
-	// oxlint-disable-next-line react-hooks/exhaustive-deps -- pre-existing, see follow-up
+	// oxlint-disable-next-line react/exhaustive-deps -- pre-existing during oxlint migration
 	useLayoutEffect(() => {
 		if (synchronizedChatIdRef.current === prevChatId) return;
 		synchronizedChatIdRef.current = prevChatId;

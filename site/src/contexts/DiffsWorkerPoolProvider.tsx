@@ -28,7 +28,7 @@ export const DiffsWorkerPoolProvider: FC<DiffsWorkerPoolProviderProps> = ({
 	children,
 }) => {
 	if (!hasWorkerSupport()) {
-		// oxlint-disable-next-line react/jsx-no-useless-fragment -- pre-existing, see follow-up
+		// oxlint-disable-next-line react/jsx-no-useless-fragment -- pre-existing during oxlint migration
 		return <>{children}</>;
 	}
 

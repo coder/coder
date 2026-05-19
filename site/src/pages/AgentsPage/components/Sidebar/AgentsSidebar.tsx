@@ -701,7 +701,7 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 							className="flex min-h-0 min-w-0 flex-1 items-start gap-2 rounded-[inherit] py-1 pr-0.5 text-inherit no-underline"
 						>
 							{({ isActive }) => (
-								// oxlint-disable-next-line react/jsx-no-useless-fragment -- pre-existing, see follow-up
+								// oxlint-disable-next-line react/jsx-no-useless-fragment -- pre-existing during oxlint migration
 								<>
 									<div className="min-w-0 flex-1 overflow-hidden text-left">
 										<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">

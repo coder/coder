@@ -95,7 +95,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 			return "just now";
 		}
 		return dayjs().to(dayjs(stats.collected_at));
-		// oxlint-disable-next-line react-hooks/exhaustive-deps -- pre-existing, see follow-up
+		// oxlint-disable-next-line react/exhaustive-deps -- pre-existing during oxlint migration
 	}, [timeUntilRefresh, stats, fetchStats]);
 
 	const healthErrors = health ? getHealthErrors(health) : [];

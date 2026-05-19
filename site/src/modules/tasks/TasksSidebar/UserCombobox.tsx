@@ -59,6 +59,7 @@ export const UserCombobox: FC<UserComboboxProps> = ({
 			<PopoverTrigger asChild>
 				<Button
 					disabled={!isFetched}
+					// oxlint-disable-next-line jsx-a11y/role-has-required-aria-props -- pre-existing during oxlint migration
 					role="combobox"
 					aria-expanded={open}
 					className="justify-between rounded-full bg-surface-tertiary border border-border hover:bg-surface-quaternary text-content-primary pl-3 w-fit"

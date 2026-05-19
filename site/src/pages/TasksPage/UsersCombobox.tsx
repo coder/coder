@@ -58,6 +58,7 @@ export const UsersCombobox: FC<UsersComboboxProps> = ({
 				<Button
 					disabled={!options}
 					variant="outline"
+					// oxlint-disable-next-line jsx-a11y/role-has-required-aria-props -- pre-existing during oxlint migration
 					role="combobox"
 					aria-expanded={open}
 					className="w-[280px] justify-between"

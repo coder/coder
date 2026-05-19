@@ -237,6 +237,7 @@
 			},
 		],
 		// Biome style/useSingleVarDeclarator: no oxlint equivalent (eslint/one-var not implemented)
+		// Biome style/noUnusedTemplateLiteral: no oxlint equivalent (no matching rule)
 
 		// Rules ported from Biome category defaults. These were running
 		// implicitly under Biome and are evidenced by the surviving
@@ -249,8 +250,28 @@
 		"jsx-a11y/anchor-is-valid": "error",
 		"jsx-a11y/click-events-have-key-events": "error",
 		"jsx-a11y/media-has-caption": "error",
+
+		// Additional rules ported from Biome category defaults that had no
+		// suppression evidence: the codebase already complied, but the
+		// rules are still load-bearing regression guards. Biome ran these
+		// via `correctness` / `suspicious` category defaults.
+		"react/jsx-key": "error",
+		"eslint/eqeqeq": ["error", "always", { "null": "ignore" }],
+		"eslint/no-fallthrough": "error",
+		"eslint/use-isnan": "error",
+		"eslint/for-direction": "error",
+		"jsx-a11y/aria-props": "error",
+		"jsx-a11y/aria-role": "error",
+		"jsx-a11y/aria-unsupported-elements": "error",
+		"jsx-a11y/heading-has-content": "error",
+		"jsx-a11y/role-has-required-aria-props": "error",
 	},
 
+	// Defensive override: empty Go structs generate empty TypeScript
+	// interfaces in `typesGenerated.ts`. `typescript/no-empty-interface`
+	// is not currently in the explicit rules block above, but this
+	// override is kept to remain load-bearing if the rule is enabled
+	// later or by a future category default.
 	"overrides": [
 		{
 			"files": ["**/typesGenerated.ts"],

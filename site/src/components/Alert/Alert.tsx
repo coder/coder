@@ -145,5 +145,6 @@ export const AlertTitle: React.FC<React.ComponentPropsWithRef<"h2">> = ({
 	className,
 	...props
 }) => {
+	// oxlint-disable-next-line jsx-a11y/heading-has-content -- pre-existing during oxlint migration
 	return <h2 className={cn("m-0 text-sm", className)} {...props} />;
 };

@@ -111,7 +111,7 @@ Debug logs and pprof dumps use the same job name and commit SHA convention.
 - Match errors by error code or HTTP status, never by comparing error
   message strings. String matching is brittle; messages change, get
   localized, or get reformatted.
-- Do not use emdash (U+2014), endash (U+2013), or ` -- ` as punctuation
+- Do not use emdash (U+2014), endash (U+2013), or `--` as punctuation
   in code, comments, string literals, or documentation. Use commas,
   semicolons, or periods instead. Restructure the sentence if needed.
 - For JSX boolean props that are `true`, use the shorthand form
