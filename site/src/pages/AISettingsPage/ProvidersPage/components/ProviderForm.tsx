@@ -266,11 +266,13 @@ const CredentialField: FC<CredentialFieldProps> = ({
 
 	// Only show the trash button while the input is locked at the seeded
 	// credential mask. Once the user clears the field (or has been typing a
-	// fresh credential since mount), the trash is hidden so they don't see it
-	// floating next to a half-typed key. CSS Grid auto-sizes the trash column
-	// to the widest cell across all rows, so a row without a trash leaves
-	// empty space when another row has one, and the whole column collapses
-	// when no row in the grid renders a trash at all.
+	// fresh credential since mount), the trash is hidden so the user doesn't
+	// see it floating next to a half-typed key. In grid-row layout the
+	// hidden case still emits a zero-width placeholder for the third grid
+	// cell (see below), so paired CredentialFields stay aligned; CSS Grid
+	// then auto-sizes the trash column to the widest real button across
+	// rows, leaving empty space when only some rows have one and collapsing
+	// to 0 when none do.
 	const trashNode = disabled ? (
 		<Button
 			type="button"
@@ -293,7 +295,13 @@ const CredentialField: FC<CredentialFieldProps> = ({
 					{descriptionNode}
 					{helperNode}
 				</div>
-				{trashNode}
+				{/* Always emit a third grid item so a row without a trash
+				    button still occupies the third column. Without this,
+				    grid auto-flow would slide the next CredentialField's
+				    label into the trash column. The placeholder has zero
+				    intrinsic width, so an `auto`-sized third column still
+				    collapses to 0 when no row renders a real button. */}
+				{trashNode ?? <div aria-hidden="true" />}
 			</>
 		);
 	}
