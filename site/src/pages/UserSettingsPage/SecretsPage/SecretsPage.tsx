@@ -1,4 +1,4 @@
-import { type FC, useCallback } from "react";
+import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
@@ -8,11 +8,6 @@ import {
 	updateUserSecret,
 	userSecrets,
 } from "#/api/queries/userSecrets";
-import type {
-	CreateUserSecretRequest,
-	UpdateUserSecretRequest,
-	UserSecret,
-} from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { SecretsPageView } from "./SecretsPageView";
 
@@ -31,78 +26,12 @@ const SecretsPage: FC = () => {
 		deleteUserSecret(queryClient, me.id),
 	);
 
-	const onMutationError = useCallback(
-		(error: unknown, defaultMessage: string) => {
-			toast.error(getErrorMessage(error, defaultMessage), {
-				description: getErrorDetail(error),
-			});
-		},
-		[],
-	);
-
-	const onCreateSecret = useCallback(
-		(request: CreateUserSecretRequest) => {
-			return new Promise<UserSecret>((resolve, reject) => {
-				createSecretMutation.mutate(request, {
-					onError: (error) => {
-						onMutationError(error, "Failed to create secret.");
-						reject(error);
-					},
-					onSuccess: (secret) => {
-						toast.success("Secret created successfully.");
-						resolve(secret);
-					},
-				});
-			});
-		},
-		[createSecretMutation, onMutationError],
-	);
-
-	const onUpdateSecret = useCallback(
-		(name: string, request: UpdateUserSecretRequest) => {
-			return new Promise<UserSecret>((resolve, reject) => {
-				updateSecretMutation.mutate(
-					{ name, request },
-					{
-						onError: (error) => {
-							onMutationError(error, "Failed to update secret.");
-							reject(error);
-						},
-						onSuccess: (secret) => {
-							toast.success("Secret updated successfully.");
-							resolve(secret);
-						},
-					},
-				);
-			});
-		},
-		[onMutationError, updateSecretMutation],
-	);
-
-	const onDeleteSecret = useCallback(
-		(secret: UserSecret) => {
-			return new Promise<void>((resolve, reject) => {
-				deleteSecretMutation.mutate(secret.name, {
-					onError: (error) => {
-						onMutationError(error, "Failed to delete secret.");
-						reject(error);
-					},
-					onSuccess: () => {
-						toast.success("Secret deleted successfully.");
-						resolve();
-					},
-				});
-			});
-		},
-		[deleteSecretMutation, onMutationError],
-	);
-
 	return (
 		<SecretsPageView
 			secrets={secretsQuery.data}
 			isLoading={!secretsQuery.isFetched && secretsQuery.isFetching}
 			hasLoaded={secretsQuery.isSuccess}
-			isRefreshing={secretsQuery.isFetching && secretsQuery.isSuccess}
+			isRefreshing={secretsQuery.isFetching && secretsQuery.isFetched}
 			isCreating={createSecretMutation.isPending}
 			isUpdating={updateSecretMutation.isPending}
 			isDeleting={deleteSecretMutation.isPending}
@@ -112,9 +41,30 @@ const SecretsPage: FC = () => {
 					queryKey: secretsQueryOptions.queryKey,
 				});
 			}}
-			onCreateSecret={onCreateSecret}
-			onUpdateSecret={onUpdateSecret}
-			onDeleteSecret={onDeleteSecret}
+			onCreateSecret={async (request) => {
+				const secret = await createSecretMutation.mutateAsync(request);
+				toast.success("Secret created successfully.");
+				return secret;
+			}}
+			onUpdateSecret={async (name, request) => {
+				const secret = await updateSecretMutation.mutateAsync({
+					name,
+					request,
+				});
+				toast.success("Secret updated successfully.");
+				return secret;
+			}}
+			onDeleteSecret={async (secret) => {
+				try {
+					await deleteSecretMutation.mutateAsync(secret.name);
+					toast.success("Secret deleted successfully.");
+				} catch (error) {
+					toast.error(getErrorMessage(error, "Failed to delete secret."), {
+						description: getErrorDetail(error),
+					});
+					throw error;
+				}
+			}}
 		/>
 	);
 };

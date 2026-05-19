@@ -53,7 +53,7 @@ const emptyValues: SecretFormValues = {
 };
 
 const infoText =
-	"Secrets are encrypted and cannot be retrieved after creation. Make sure to save the secret value in a secure location.";
+	"Secret values cannot be retrieved once saved. Save any value you add or update in a secure location.";
 
 export const SecretDialog: FC<SecretDialogProps> = ({
 	open,
@@ -69,9 +69,9 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 		? {
 				name: secret.name,
 				value: "",
-				description: secret.description ?? "",
-				env_name: secret.env_name ?? "",
-				file_path: secret.file_path ?? "",
+				description: secret.description,
+				env_name: secret.env_name,
+				file_path: secret.file_path,
 			}
 		: emptyValues;
 
@@ -118,7 +118,7 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 		<Dialog
 			open={open}
 			onOpenChange={(nextOpen) => {
-				if (!nextOpen) {
+				if (!nextOpen && !isBusy) {
 					form.resetForm();
 					onClose();
 				}

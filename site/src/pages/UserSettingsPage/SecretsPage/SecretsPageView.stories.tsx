@@ -11,14 +11,6 @@ import { SecretsPageView } from "./SecretsPageView";
 const visibleSecrets = MockUserSecrets.slice(0, 4);
 const placeholderInput = "placeholder input";
 
-type CapturedCreateRequest = Omit<CreateUserSecretRequest, "value"> & {
-	hasValue: boolean;
-};
-
-type CapturedUpdateRequest = Omit<UpdateUserSecretRequest, "value"> & {
-	hasValue: boolean;
-};
-
 const meta: Meta<typeof SecretsPageView> = {
 	title: "pages/UserSettingsPage/SecretsPageView",
 	component: SecretsPageView,
@@ -39,6 +31,20 @@ const meta: Meta<typeof SecretsPageView> = {
 
 export default meta;
 type Story = StoryObj<typeof SecretsPageView>;
+type CreateSecretMock = ReturnType<
+	typeof fn<(request: CreateUserSecretRequest) => Promise<UserSecret>>
+>;
+type UpdateSecretMock = ReturnType<
+	typeof fn<
+		(
+			name: string,
+			request: UpdateUserSecretRequest,
+		) => Promise<UserSecret | undefined>
+	>
+>;
+type DeleteSecretMock = ReturnType<
+	typeof fn<(secret: UserSecret) => Promise<void> | void>
+>;
 
 const waitForDialogToClose = async (body: ReturnType<typeof within>) => {
 	await waitFor(() => {
@@ -62,26 +68,6 @@ const createSecretFromRequest = (
 	updated_at: "2026-05-04T00:00:00Z",
 });
 
-const captureCreateRequest = (
-	request: CreateUserSecretRequest,
-): CapturedCreateRequest => {
-	const { value, ...publicRequest } = request;
-	return {
-		...publicRequest,
-		hasValue: value.length > 0,
-	};
-};
-
-const captureUpdateRequest = (
-	request: UpdateUserSecretRequest,
-): CapturedUpdateRequest => {
-	const { value, ...publicRequest } = request;
-	return {
-		...publicRequest,
-		hasValue: Boolean(value && value.length > 0),
-	};
-};
-
 export const Loaded: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -89,9 +75,9 @@ export const Loaded: Story = {
 		await expect(
 			canvas.getByRole("table", { name: "User secrets" }),
 		).toBeInTheDocument();
-		await expect(canvas.getByText(".env")).toBeInTheDocument();
+		await expect(canvas.getByText("env var")).toBeInTheDocument();
 		await expect(canvas.getByText("file")).toBeInTheDocument();
-		await expect(canvas.getByText(".env + file")).toBeInTheDocument();
+		await expect(canvas.getByText("env var + file")).toBeInTheDocument();
 		await expect(canvas.getByText("not injected")).toBeInTheDocument();
 
 		const docsLink = canvas.getByRole("link", { name: "View docs" });
@@ -157,7 +143,6 @@ export const AddDialogOpened: Story = {
 
 		await user.click(canvas.getByRole("button", { name: "Add secret" }));
 		const dialog = await body.findByRole("dialog");
-		await expect(dialog).toHaveAttribute("data-state", "open");
 		await expect(
 			within(dialog).getByRole("heading", { name: "Add secret" }),
 		).toBeInTheDocument();
@@ -212,27 +197,27 @@ export const AddSecretFormSaveEnabled: Story = {
 
 		await user.click(canvas.getByRole("button", { name: "Add secret" }));
 		const dialog = within(await body.findByRole("dialog"));
+		const saveButton = dialog.getByRole("button", { name: "Save" });
 		await user.type(dialog.getByLabelText("Name"), "example-secret");
+		await expect(saveButton).toBeDisabled();
 		await user.type(dialog.getByLabelText("Env var"), "EXAMPLE_SECRET");
 		await user.type(dialog.getByLabelText("Value"), placeholderInput);
 
-		await expect(dialog.getByRole("button", { name: "Save" })).toBeEnabled();
+		await expect(saveButton).toBeEnabled();
 		await user.click(dialog.getByRole("button", { name: "Cancel" }));
 		await waitForDialogToClose(body);
 	},
 };
 
-const addSaveRequests: CapturedCreateRequest[] = [];
-
 export const AddSecretSubmit: Story = {
 	args: {
-		onCreateSecret: async (request: CreateUserSecretRequest) => {
-			addSaveRequests.push(captureCreateRequest(request));
-			return createSecretFromRequest(request);
-		},
+		onCreateSecret: fn<
+			(request: CreateUserSecretRequest) => Promise<UserSecret>
+		>(async (request) => createSecretFromRequest(request)),
 	},
-	play: async ({ canvasElement }) => {
-		addSaveRequests.length = 0;
+	play: async ({ canvasElement, args }) => {
+		const onCreateSecret = args.onCreateSecret as CreateSecretMock;
+		onCreateSecret.mockClear();
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 		const body = within(canvasElement.ownerDocument.body);
@@ -246,13 +231,13 @@ export const AddSecretSubmit: Story = {
 		await user.type(dialog.getByLabelText("Description"), "Example secret");
 		await user.click(dialog.getByRole("button", { name: "Save" }));
 
-		await waitFor(() => expect(addSaveRequests).toHaveLength(1));
-		expect(addSaveRequests[0]).toEqual({
+		await waitFor(() => expect(onCreateSecret).toHaveBeenCalledTimes(1));
+		expect(onCreateSecret).toHaveBeenCalledWith({
 			name: "example-secret",
 			env_name: "EXAMPLE_SECRET",
 			file_path: "~/secrets/example",
+			value: placeholderInput,
 			description: "Example secret",
-			hasValue: true,
 		});
 		await waitForDialogToClose(body);
 		expectNoValueField(body);
@@ -264,7 +249,7 @@ export const EditDialogOpened: Story = {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 		const body = within(canvasElement.ownerDocument.body);
-		const secret = visibleSecrets[0] as UserSecret;
+		const secret = visibleSecrets[2] as UserSecret;
 
 		await user.click(
 			canvas.getByRole("button", {
@@ -276,33 +261,42 @@ export const EditDialogOpened: Story = {
 		);
 
 		const dialog = await body.findByRole("dialog");
-		await expect(dialog).toHaveAttribute("data-state", "open");
+		const dialogView = within(dialog);
 		await expect(
-			within(dialog).getByRole("heading", { name: "Edit secret" }),
+			dialogView.getByRole("heading", { name: "Edit secret" }),
 		).toBeInTheDocument();
-		await expect(within(dialog).getByLabelText("Value")).toHaveValue("");
-		await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+		await expect(dialogView.getByLabelText("Name")).toHaveValue(secret.name);
+		await expect(dialogView.getByLabelText("Name")).toBeDisabled();
+		await expect(dialogView.getByLabelText("Description")).toHaveValue(
+			secret.description,
+		);
+		await expect(dialogView.getByLabelText("Env var")).toHaveValue(
+			secret.env_name,
+		);
+		await expect(dialogView.getByLabelText("File path")).toHaveValue(
+			secret.file_path,
+		);
+		await expect(dialogView.getByLabelText("Value")).toHaveValue("");
+		await expect(
+			dialogView.getByRole("button", { name: "Update" }),
+		).toBeDisabled();
+		await user.click(dialogView.getByRole("button", { name: "Cancel" }));
 		await waitForDialogToClose(body);
 	},
 };
 
-const updateRequests: Array<{
-	name: string;
-	request: CapturedUpdateRequest;
-}> = [];
-
 export const EditSecretSubmit: Story = {
 	args: {
-		onUpdateSecret: async (name: string, request: UpdateUserSecretRequest) => {
-			updateRequests.push({
-				name,
-				request: captureUpdateRequest(request),
-			});
-			return visibleSecrets.find((secret) => secret.name === name);
-		},
+		onUpdateSecret: fn<
+			(
+				name: string,
+				request: UpdateUserSecretRequest,
+			) => Promise<UserSecret | undefined>
+		>(async (name) => visibleSecrets.find((secret) => secret.name === name)),
 	},
-	play: async ({ canvasElement }) => {
-		updateRequests.length = 0;
+	play: async ({ canvasElement, args }) => {
+		const onUpdateSecret = args.onUpdateSecret as UpdateSecretMock;
+		onUpdateSecret.mockClear();
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 		const body = within(canvasElement.ownerDocument.body);
@@ -323,16 +317,62 @@ export const EditSecretSubmit: Story = {
 		await user.type(description, "Updated example description");
 		await user.click(dialog.getByRole("button", { name: "Update" }));
 
-		await waitFor(() => expect(updateRequests).toHaveLength(1));
-		expect(updateRequests[0]).toEqual({
-			name: secret.name,
-			request: {
-				description: "Updated example description",
-				hasValue: false,
-			},
+		await waitFor(() => expect(onUpdateSecret).toHaveBeenCalledTimes(1));
+		expect(onUpdateSecret).toHaveBeenCalledWith(secret.name, {
+			description: "Updated example description",
 		});
 		await waitForDialogToClose(body);
 		expectNoValueField(body);
+	},
+};
+
+export const EditSecretMutationErrorDisplay: Story = {
+	args: {
+		onUpdateSecret: fn<
+			(
+				name: string,
+				request: UpdateUserSecretRequest,
+			) => Promise<UserSecret | undefined>
+		>(async () => {
+			throw mockApiError({ message: "Failed to update secret." });
+		}),
+	},
+	play: async ({ canvasElement, args }) => {
+		const onUpdateSecret = args.onUpdateSecret as UpdateSecretMock;
+		onUpdateSecret.mockClear();
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		const secret = visibleSecrets[0] as UserSecret;
+
+		await user.click(
+			canvas.getByRole("button", {
+				name: `Open secret actions for ${secret.name}`,
+			}),
+		);
+		await user.click(
+			await body.findByRole("menuitem", { name: "Edit secret..." }),
+		);
+
+		const dialog = within(await body.findByRole("dialog"));
+		const description = dialog.getByLabelText("Description");
+		const value = dialog.getByLabelText("Value");
+		await user.clear(description);
+		await user.type(description, "Updated example description");
+		await user.type(value, placeholderInput);
+		await user.click(dialog.getByRole("button", { name: "Update" }));
+
+		await waitFor(() => expect(onUpdateSecret).toHaveBeenCalledTimes(1));
+		await expect(
+			await dialog.findByText("Failed to update secret."),
+		).toBeVisible();
+		await expect(
+			dialog.getByRole("heading", { name: "Edit secret" }),
+		).toBeVisible();
+		await expect(description).toHaveValue("Updated example description");
+		await expect(value).toHaveValue(placeholderInput);
+		await user.click(dialog.getByRole("button", { name: "Cancel" }));
+		await waitForDialogToClose(body);
 	},
 };
 
@@ -354,7 +394,6 @@ export const KebabActionsAndDeleteConfirmation: Story = {
 		await user.click(body.getByRole("menuitem", { name: "Delete..." }));
 
 		const dialog = await body.findByRole("dialog");
-		await expect(dialog).toHaveAttribute("data-state", "open");
 		await expect(
 			within(dialog).getByRole("heading", { name: "Delete secret" }),
 		).toBeInTheDocument();
@@ -363,16 +402,13 @@ export const KebabActionsAndDeleteConfirmation: Story = {
 	},
 };
 
-const deletedSecrets: UserSecret[] = [];
-
 export const DeleteConfirmSubmit: Story = {
 	args: {
-		onDeleteSecret: (secret: UserSecret) => {
-			deletedSecrets.push(secret);
-		},
+		onDeleteSecret: fn<(secret: UserSecret) => void>(),
 	},
-	play: async ({ canvasElement }) => {
-		deletedSecrets.length = 0;
+	play: async ({ canvasElement, args }) => {
+		const onDeleteSecret = args.onDeleteSecret as DeleteSecretMock;
+		onDeleteSecret.mockClear();
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 		const body = within(canvasElement.ownerDocument.body);
@@ -386,7 +422,41 @@ export const DeleteConfirmSubmit: Story = {
 		await user.click(await body.findByRole("menuitem", { name: "Delete..." }));
 		await user.click(await body.findByRole("button", { name: "Delete" }));
 
-		await waitFor(() => expect(deletedSecrets).toEqual([secret]));
+		await waitFor(() => expect(onDeleteSecret).toHaveBeenCalledTimes(1));
+		expect(onDeleteSecret).toHaveBeenCalledWith(secret);
+		await waitForDialogToClose(body);
+	},
+};
+
+export const DeleteSecretMutationErrorDisplay: Story = {
+	args: {
+		onDeleteSecret: fn<(secret: UserSecret) => Promise<void>>(async () => {
+			throw mockApiError({ message: "Failed to delete secret." });
+		}),
+	},
+	play: async ({ canvasElement, args }) => {
+		const onDeleteSecret = args.onDeleteSecret as DeleteSecretMock;
+		onDeleteSecret.mockClear();
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		const secret = visibleSecrets[0] as UserSecret;
+
+		await user.click(
+			canvas.getByRole("button", {
+				name: `Open secret actions for ${secret.name}`,
+			}),
+		);
+		await user.click(await body.findByRole("menuitem", { name: "Delete..." }));
+		const dialog = within(await body.findByRole("dialog"));
+		await user.click(dialog.getByRole("button", { name: "Delete" }));
+
+		await waitFor(() => expect(onDeleteSecret).toHaveBeenCalledTimes(1));
+		await expect(
+			dialog.getByRole("heading", { name: "Delete secret" }),
+		).toBeVisible();
+		await expect(dialog.getByText(secret.name)).toBeVisible();
+		await user.click(dialog.getByRole("button", { name: "Cancel" }));
 		await waitForDialogToClose(body);
 	},
 };
@@ -413,17 +483,10 @@ export const DeleteAndCancel: Story = {
 export const CreateMutationErrorDisplay: Story = {
 	args: {
 		onCreateSecret: async () => {
-			throw {
-				isAxiosError: true,
-				status: 409,
-				response: {
-					status: 409,
-					data: {
-						message:
-							"A secret with that name, environment variable, or file path already exists.",
-					},
-				},
-			};
+			throw mockApiError({
+				message:
+					"A secret with that name, environment variable, or file path already exists.",
+			});
 		},
 	},
 	play: async ({ canvasElement }) => {

@@ -69,7 +69,10 @@ export const SecretsTable: FC<SecretsTableProps> = ({
 					void (async () => {
 						await onDeleteSecret(secret);
 						setSecretToDelete(undefined);
-					})().catch(() => undefined);
+					})().catch(() => {
+						// onDeleteSecret reports failures with a toast before rejecting.
+						// Swallow the rejection here to avoid an unhandled promise rejection warning.
+					});
 				}}
 			/>
 
@@ -138,9 +141,9 @@ const SecretTypeBadge: FC<{ secret: UserSecret }> = ({ secret }) => {
 	const hasFile = Boolean(secret.file_path);
 	const label =
 		hasEnv && hasFile
-			? ".env + file"
+			? "env var + file"
 			: hasEnv
-				? ".env"
+				? "env var"
 				: hasFile
 					? "file"
 					: "not injected";

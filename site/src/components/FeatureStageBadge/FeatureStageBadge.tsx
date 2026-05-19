@@ -14,7 +14,7 @@ import { docs } from "#/utils/docs";
  */
 const featureStageBadgeTypes = {
 	early_access: "Early Access",
-	beta: "beta",
+	beta: "Beta",
 } as const satisfies Record<string, ReactNode>;
 
 type FeatureStageBadgeProps = Readonly<
@@ -39,8 +39,8 @@ const badgeSizeClasses = {
 	},
 	beta: {
 		xs: "text-2xs font-normal px-1.5 py-0.5 h-[18px] rounded border-0",
-		sm: "text-xs font-medium px-2 py-1 rounded-md border",
-		md: "text-base px-2 py-1 rounded-md border",
+		sm: "text-xs font-medium px-2 py-1",
+		md: "text-base px-2 py-1",
 	},
 } as const;
 

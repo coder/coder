@@ -19,6 +19,13 @@ export const ExtraSmallBeta: Story = {
 	},
 };
 
+export const ExtraSmallEarlyAccess: Story = {
+	args: {
+		size: "xs",
+		contentType: "early_access",
+	},
+};
+
 export const SmallBeta: Story = {
 	args: {
 		size: "sm",
