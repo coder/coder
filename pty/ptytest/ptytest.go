@@ -132,12 +132,7 @@ func newExpecter(t *testing.T, r io.Reader, name string) outExpecter {
 		for s.Scan() {
 			ex.logf("%q", stripansi.Strip(s.Text()))
 		}
-		// s.Err() returns nil on EOF (the normal shutdown path when
-		// logw is closed). A non-nil error here means the scanner
-		// aborted early (e.g. bufio.ErrTooLong), which would leave
-		// logr undrained and wedge logw.Write upstream. Surface it so
-		// downstream "copy did not close in time" failures have an
-		// explanation.
+		// Surface non-EOF scanner errors; otherwise they're invisible.
 		if err := s.Err(); err != nil {
 			ex.logf("log scanner stopped: %v", err)
 		}
