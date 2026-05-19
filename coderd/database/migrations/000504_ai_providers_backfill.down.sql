@@ -1,9 +1,3 @@
-DROP TRIGGER IF EXISTS sync_chat_provider_to_ai_provider ON chat_providers;
-DROP FUNCTION IF EXISTS sync_chat_provider_to_ai_provider();
-
-DROP TRIGGER IF EXISTS sync_user_chat_provider_key_to_ai_provider_key ON user_chat_provider_keys;
-DROP FUNCTION IF EXISTS sync_user_chat_provider_key_to_ai_provider_key();
-
 WITH migrated_provider_ids AS (
     SELECT id
     FROM chat_providers

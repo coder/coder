@@ -31,6 +31,12 @@ BEGIN
         -- trigger_delete_group_members_on_org_member_delete.
         DELETE FROM organization_members
         WHERE user_id = OLD.id;
+
+        -- Remove their user_skills.
+        -- user_skills.user_id has ON DELETE CASCADE, but soft-delete
+        -- does not remove the users row so the FK cascade never fires.
+        DELETE FROM user_skills
+        WHERE user_id = OLD.id;
     END IF;
     RETURN NEW;
 END;
