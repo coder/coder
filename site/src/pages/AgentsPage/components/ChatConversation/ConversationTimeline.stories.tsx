@@ -2034,7 +2034,8 @@ export const ToolDisplayModesFromPreferences: Story = {
 		const commandOutputButton = canvas.getByRole("button", {
 			name: "Expand command",
 		});
-		expect(commandOutputButton).toHaveTextContent("Ran pnpm test");
+		expect(commandOutputButton).toHaveTextContent("pnpm test");
+		expect(commandOutputButton).not.toHaveTextContent("Ran");
 		expect(canvas.queryByText("tests passed")).not.toBeInTheDocument();
 		expect(canvas.getByText(/Edited config\.ts/)).toBeVisible();
 		expect(canvas.queryAllByTestId("edit-file-diff")).toHaveLength(0);
