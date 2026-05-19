@@ -37,7 +37,7 @@ jobs:
       # Per-tool changed-files filters. Each tool gets its own `changed-*`
       # step scoped to the files it processes, keeping workflow-level `paths:`
       # broad. Adding a tool (e.g. image linter) only needs a new step pair.
-      - uses: tj-actions/changed-files@22103cc46bda19c2b464ffe86db46df6922fd323 # v45.0.7
+      - uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v45.0.7
         id: changed-md
         with:
           files: |
