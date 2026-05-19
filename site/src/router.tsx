@@ -694,10 +694,10 @@ export const router = createBrowserRouter(
 							element={<AgentSettingsExperimentsPage />}
 						/>
 						<Route path="lifecycle" element={<AgentSettingsLifecyclePage />} />
-						<Route
-							path="user-agents"
-							element={<AgentSettingsUserAgentsPage />}
-						/>
+							<Route
+								path="user-agents"
+								element={<AgentSettingsUserAgentsPage />}
+							/>
 						<Route path="admin" element={<AgentSettingsAgentsPage />} />
 						<Route path="agents" element={<AgentSettingsAgentsPage />} />
 						<Route path="api-keys" element={<AgentSettingsAPIKeysPage />} />
