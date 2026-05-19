@@ -29,6 +29,7 @@ func TestExecuteTool(t *testing.T) {
 		require.True(t, ok)
 		assert.Equal(t, "string", modelIntentParam["type"])
 		assert.Contains(t, modelIntentParam["description"], "status label")
+		assert.Contains(t, modelIntentParam["description"], "Do not include the command")
 		assert.Contains(t, info.Required, "command")
 		assert.NotContains(t, info.Required, "model_intent")
 	})

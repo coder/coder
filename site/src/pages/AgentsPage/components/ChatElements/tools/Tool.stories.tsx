@@ -56,20 +56,26 @@ export const ExecuteRunning: Story = {
 
 export const ExecuteModelIntent: Story = {
 	args: {
-		status: "running",
+		status: "completed",
 		args: {
 			command: executeCommand,
-			model_intent: "checking git status",
+			model_intent: "checking repository state",
 		},
-		modelIntent: "checking git status",
+		modelIntent: "checking repository state",
 		result: {
 			output: "",
+			wall_duration_ms: 2300,
 		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText("Checking git status")).toBeVisible();
-		expect(canvas.getByText(`Ran ${executeCommand}`)).toBeVisible();
+		const commandButton = canvas.getByRole("button", {
+			name: "Expand command",
+		});
+		expect(commandButton).toHaveTextContent(
+			`Checking repository state using ${executeCommand} for 2.3s`,
+		);
+		expect(commandButton).not.toHaveTextContent("Ran");
 	},
 };
 
@@ -166,7 +172,7 @@ export const ExecuteAlwaysCollapsed: Story = {
 		const commandButton = canvas.getByRole("button", {
 			name: "Expand command",
 		});
-		expect(commandButton).toHaveTextContent(`Ran ${executeCommand}`);
+		expect(commandButton).toHaveTextContent(executeCommand);
 		expect(canvas.queryByText("exit 0")).not.toBeInTheDocument();
 		expect(canvas.queryByText("2 lines")).not.toBeInTheDocument();
 		expect(
@@ -199,7 +205,7 @@ export const ExecuteLongCommandCollapsed: Story = {
 		const commandButton = canvas.getByRole("button", {
 			name: "Expand command",
 		});
-		expect(commandButton).toHaveTextContent(`Ran ${longExecuteCommand}`);
+		expect(commandButton).toHaveTextContent(longExecuteCommand);
 		expect(commandButton).toHaveAttribute("aria-expanded", "false");
 		expect(canvas.queryByText("exit 0")).not.toBeInTheDocument();
 		expect(canvas.getByText("47.2s")).toBeVisible();

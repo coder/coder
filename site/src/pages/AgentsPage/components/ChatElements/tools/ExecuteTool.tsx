@@ -175,17 +175,23 @@ const ShellCommandLine: React.FC<{
 	durationLabel: string;
 	expanded?: boolean;
 }> = ({ command, modelIntent, durationLabel, expanded }) => {
+	const capitalizedModelIntent = modelIntent
+		? modelIntent.charAt(0).toUpperCase() + modelIntent.slice(1)
+		: "";
 	return (
 		<>
-			{modelIntent && (
-				<span className="min-w-0 truncate text-[13px] text-content-secondary">
-					{modelIntent.charAt(0).toUpperCase() + modelIntent.slice(1)}
-				</span>
-			)}
 			<span className="block min-w-0 truncate text-[13px] font-normal text-current">
-				Ran {command}
+				{capitalizedModelIntent ? (
+					<>
+						{capitalizedModelIntent} using{" "}
+						<code className="font-mono text-xs">{command}</code>
+						{durationLabel && <> for {durationLabel}</>}
+					</>
+				) : (
+					<code className="font-mono text-xs">{command}</code>
+				)}
 			</span>
-			{durationLabel && (
+			{!capitalizedModelIntent && durationLabel && (
 				<span className="shrink-0 text-[13px] font-normal text-content-secondary">
 					{durationLabel}
 				</span>
