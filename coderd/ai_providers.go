@@ -421,25 +421,21 @@ func (api *API) aiProvidersDelete(rw http.ResponseWriter, r *http.Request) {
 
 	idOrName := chi.URLParam(r, "idOrName")
 
-	row, err := lookupAIProvider(ctx, api.Database, idOrName)
-	if err != nil {
-		writeAIProviderError(ctx, api.Logger, rw, err, "lookup AI provider", "Internal error fetching AI provider.")
-		return
-	}
-	aReq.Old = row
-
-	// Soft-delete UPDATE; :exec, so re-deletion is a silent no-op.
-	if err := api.Database.DeleteAIProviderByID(ctx, row.ID); err != nil {
-		if dbauthz.IsNotAuthorizedError(err) {
-			api.Logger.Error(ctx, "delete AI provider", slog.F("provider_id", row.ID), slog.Error(err))
-			httpapi.Forbidden(rw)
-			return
+	err := api.Database.InTx(func(tx database.Store) error {
+		row, err := lookupAIProvider(ctx, tx, idOrName)
+		if err != nil {
+			return err
 		}
-		api.Logger.Error(ctx, "delete AI provider", slog.F("provider_id", row.ID), slog.Error(err))
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error deleting AI provider.",
-			Detail:  err.Error(),
-		})
+		aReq.Old = row
+
+		// Soft-delete UPDATE; :exec, so re-deletion is a silent no-op.
+		if err := tx.DeleteAIProviderByID(ctx, row.ID); err != nil {
+			return xerrors.Errorf("delete ai provider: %w", err)
+		}
+		return nil
+	}, &database.TxOptions{TxIdentifier: "delete_ai_provider"})
+	if err != nil {
+		writeAIProviderError(ctx, api.Logger, rw, err, "delete AI provider", "Internal error deleting AI provider.")
 		return
 	}
 
@@ -625,7 +621,7 @@ func encodeAIProviderSettings(s codersdk.AIProviderSettings) (sql.NullString, er
 // mergeAIProviderSettings overlays a patch onto an existing settings
 // value. Write-only fields (Bedrock AccessKey and AccessKeySecret) use
 // pointers so the patch can distinguish "omitted, keep existing" (nil)
-// from "explicitly clear" (pointer to empty string) — e.g. when an
+// from "explicitly clear" (pointer to empty string) - e.g. when an
 // admin migrates from static AWS credentials to IAM role-based auth
 // in a single PATCH.
 func mergeAIProviderSettings(existing, patch codersdk.AIProviderSettings) codersdk.AIProviderSettings {

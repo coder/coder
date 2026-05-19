@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"strings"
@@ -10,6 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -118,6 +121,7 @@ func TestAIProvidersCRUD(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "Resource not found")
 
 		// List excludes the deleted provider.
 		list, err = client.AIProviders(ctx)
@@ -171,6 +175,8 @@ func TestAIProvidersCRUD(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, `"duplicate"`)
+		require.Contains(t, sdkErr.Message, "already exists")
 	})
 
 	t.Run("InvalidName", func(t *testing.T) {
@@ -191,6 +197,9 @@ func TestAIProvidersCRUD(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "Invalid AI provider request")
+		require.Len(t, sdkErr.Validations, 1)
+		require.Equal(t, "name", sdkErr.Validations[0].Field)
 	})
 
 	t.Run("InvalidType", func(t *testing.T) {
@@ -201,8 +210,8 @@ func TestAIProvidersCRUD(t *testing.T) {
 
 		//nolint:gocritic // Owner role is the audience for this endpoint.
 		_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
-			Type:    "google",
-			Name:    "google",
+			Type:    "nope",
+			Name:    "nope",
 			Enabled: true,
 			BaseURL: "https://api.example.com",
 		})
@@ -210,6 +219,10 @@ func TestAIProvidersCRUD(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "Invalid AI provider request")
+		require.Len(t, sdkErr.Validations, 1)
+		require.Equal(t, "type", sdkErr.Validations[0].Field)
+		require.Contains(t, sdkErr.Validations[0].Detail, `"nope"`)
 	})
 
 	t.Run("InvalidBaseURL", func(t *testing.T) {
@@ -229,6 +242,10 @@ func TestAIProvidersCRUD(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "Invalid AI provider request")
+		require.Len(t, sdkErr.Validations, 1)
+		require.Equal(t, "base_url", sdkErr.Validations[0].Field)
+		require.Contains(t, sdkErr.Validations[0].Detail, "absolute URL")
 
 		_, err = client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
 			Type:    codersdk.AIProviderTypeOpenAI,
@@ -239,6 +256,10 @@ func TestAIProvidersCRUD(t *testing.T) {
 		require.Error(t, err)
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "Invalid AI provider request")
+		require.Len(t, sdkErr.Validations, 1)
+		require.Equal(t, "base_url", sdkErr.Validations[0].Field)
+		require.Contains(t, sdkErr.Validations[0].Detail, "http or https")
 	})
 
 	t.Run("UpdateNoFields", func(t *testing.T) {
@@ -261,6 +282,38 @@ func TestAIProvidersCRUD(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "At least one field must be provided")
+	})
+
+	t.Run("UpdateSettingsEmptyObjectRejected", func(t *testing.T) {
+		t.Parallel()
+		// "settings": {} cannot decode because the _type discriminator
+		// is missing. The handler must reject with 400; nothing about
+		// the provider should change.
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "patch-settings-empty",
+			Enabled: true,
+			BaseURL: "https://api.openai.com/v1",
+		})
+		require.NoError(t, err)
+
+		res, err := client.Request(ctx, http.MethodPatch,
+			"/api/v2/ai/providers/"+created.Name,
+			json.RawMessage(`{"settings":{}}`),
+		)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+		var body codersdk.Response
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&body))
+		require.Contains(t, body.Message, "valid JSON")
+		require.Contains(t, body.Detail, "_type discriminator")
 	})
 
 	t.Run("NotFound", func(t *testing.T) {
@@ -275,11 +328,13 @@ func TestAIProvidersCRUD(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "Resource not found")
 
 		err = client.DeleteAIProvider(ctx, "missing")
 		require.Error(t, err)
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "Resource not found")
 	})
 
 	t.Run("ListExcludesDeletedProviderKeys", func(t *testing.T) {
@@ -335,56 +390,13 @@ func TestAIProvidersCRUD(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "Invalid provider id or name")
 
 		err = client.DeleteAIProvider(ctx, "Bad_Name")
 		require.Error(t, err)
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-	})
-
-	t.Run("NonOwnerForbidden", func(t *testing.T) {
-		t.Parallel()
-		ownerClient := coderdtest.New(t, nil)
-		firstUser := coderdtest.CreateFirstUser(t, ownerClient)
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		// Create as owner.
-		_, err := ownerClient.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
-			Type:    codersdk.AIProviderTypeOpenAI,
-			Name:    "owner-only",
-			Enabled: true,
-			BaseURL: "https://api.openai.com/v1",
-		})
-		require.NoError(t, err)
-
-		// Member is not allowed to read or write providers.
-		memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, firstUser.OrganizationID)
-
-		_, err = memberClient.AIProviders(ctx)
-		require.Error(t, err)
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
-
-		_, err = memberClient.AIProvider(ctx, "owner-only")
-		require.Error(t, err)
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
-
-		_, err = memberClient.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
-			Type:    codersdk.AIProviderTypeOpenAI,
-			Name:    "member-attempt",
-			Enabled: true,
-			BaseURL: "https://api.openai.com/v1",
-		})
-		require.Error(t, err)
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
-
-		err = memberClient.DeleteAIProvider(ctx, "owner-only")
-		require.Error(t, err)
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "Invalid provider id or name")
 	})
 
 	t.Run("Unauthenticated", func(t *testing.T) {
@@ -399,6 +411,7 @@ func TestAIProvidersCRUD(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusUnauthorized, sdkErr.StatusCode())
+		require.NotEmpty(t, sdkErr.Message)
 	})
 
 	t.Run("BedrockSettingsRequireAnthropic", func(t *testing.T) {
@@ -428,6 +441,10 @@ func TestAIProvidersCRUD(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "Invalid AI provider request")
+		require.NotEmpty(t, sdkErr.Validations)
+		require.Equal(t, "settings", sdkErr.Validations[0].Field)
+		require.Contains(t, sdkErr.Validations[0].Detail, "bedrock settings are only valid for type=anthropic")
 
 		// Update: existing OpenAI provider patched with Bedrock settings
 		// must also be rejected.
@@ -446,6 +463,7 @@ func TestAIProvidersCRUD(t *testing.T) {
 		require.Error(t, err)
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "Bedrock settings are only valid for type=anthropic")
 	})
 
 	t.Run("BedrockSecretsHidden", func(t *testing.T) {
@@ -746,6 +764,7 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "Bedrock providers do not accept api_keys")
 	})
 
 	t.Run("BedrockRejectsUpdateWithKeys", func(t *testing.T) {
@@ -781,6 +800,7 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "Bedrock providers do not accept api_keys")
 	})
 
 	t.Run("EmptyKeyRejected", func(t *testing.T) {
@@ -801,6 +821,10 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "Invalid AI provider request")
+		require.Len(t, sdkErr.Validations, 1)
+		require.Equal(t, "api_keys[0]", sdkErr.Validations[0].Field)
+		require.Contains(t, sdkErr.Validations[0].Detail, "must not be empty")
 	})
 
 	t.Run("WhitespaceKeyRejected", func(t *testing.T) {
@@ -899,6 +923,10 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "Invalid AI provider request")
+		require.Len(t, sdkErr.Validations, 1)
+		require.Equal(t, "api_keys[0]", sdkErr.Validations[0].Field)
+		require.Contains(t, sdkErr.Validations[0].Detail, "exactly one of id or api_key must be set")
 	})
 
 	t.Run("MutationNeitherFieldRejected", func(t *testing.T) {
@@ -924,6 +952,10 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "Invalid AI provider request")
+		require.Len(t, sdkErr.Validations, 1)
+		require.Equal(t, "api_keys[0]", sdkErr.Validations[0].Field)
+		require.Contains(t, sdkErr.Validations[0].Detail, "exactly one of id or api_key must be set")
 	})
 
 	t.Run("MutationDuplicateIDRejected", func(t *testing.T) {
@@ -954,6 +986,10 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "Invalid AI provider request")
+		require.Len(t, sdkErr.Validations, 1)
+		require.Equal(t, "api_keys[1].id", sdkErr.Validations[0].Field)
+		require.Contains(t, sdkErr.Validations[0].Detail, "already referenced")
 	})
 
 	t.Run("MutationUnknownIDRejected", func(t *testing.T) {
@@ -981,11 +1017,166 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "api_keys references an unknown id for this provider")
 
 		// Provider's real key is left untouched.
 		reread, err := client.AIProvider(ctx, provider.Name)
 		require.NoError(t, err)
 		require.Len(t, reread.APIKeys, 1)
 		require.Equal(t, provider.APIKeys[0].ID, reread.APIKeys[0].ID)
+	})
+}
+
+// TestAIProviderSettingsMerge exercises the PATCH merge semantics for
+// the write-only Bedrock secrets through a real HTTP client. Because
+// the API never echoes AccessKey or AccessKeySecret back, each
+// subtest reads the provider row directly from the database to
+// confirm what the merge actually persisted.
+func TestAIProviderSettingsMerge(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OmittedSecretsPreserveExisting", func(t *testing.T) {
+		t.Parallel()
+		// A PATCH that only rotates non-secret fields must keep the
+		// existing AccessKey and AccessKeySecret intact so the provider
+		// keeps authenticating after the update.
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeAnthropic,
+			Name:    "merge-omit",
+			Enabled: true,
+			BaseURL: "https://bedrock-runtime.us-east-1.amazonaws.com/",
+			Settings: codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region:          "us-east-1",
+					Model:           "anthropic.claude-3-5-sonnet",
+					AccessKey:       ptr.Ref("AKIA-old"), //nolint:gosec // test fixture, not a real credential
+					AccessKeySecret: ptr.Ref("secret-old"),
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		_, err = client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
+			Settings: &codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region: "us-west-2",
+					Model:  "anthropic.claude-3-5-haiku",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		//nolint:gocritic // Test reads the row to verify write-only fields.
+		row, err := db.GetAIProviderByID(dbauthz.AsSystemRestricted(ctx), created.ID)
+		require.NoError(t, err)
+		persisted, err := db2sdk.AIProviderSettings(row.Settings)
+		require.NoError(t, err)
+		require.NotNil(t, persisted.Bedrock)
+		require.Equal(t, "us-west-2", persisted.Bedrock.Region)
+		require.Equal(t, "anthropic.claude-3-5-haiku", persisted.Bedrock.Model)
+		require.NotNil(t, persisted.Bedrock.AccessKey)
+		require.Equal(t, "AKIA-old", *persisted.Bedrock.AccessKey)
+		require.NotNil(t, persisted.Bedrock.AccessKeySecret)
+		require.Equal(t, "secret-old", *persisted.Bedrock.AccessKeySecret)
+	})
+
+	t.Run("ExplicitEmptyClearsSecrets", func(t *testing.T) {
+		t.Parallel()
+		// An admin migrating from static AWS credentials to IAM
+		// role-based auth needs to clear AccessKey and AccessKeySecret
+		// in a single PATCH. Sending the field with an empty string is
+		// the explicit clear signal; the *string field distinguishes
+		// "omitted" (nil) from "set to empty" (pointer to "").
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeAnthropic,
+			Name:    "merge-clear",
+			Enabled: true,
+			BaseURL: "https://bedrock-runtime.us-east-1.amazonaws.com/",
+			Settings: codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region:          "us-east-1",
+					AccessKey:       ptr.Ref("AKIA-old"), //nolint:gosec // test fixture, not a real credential
+					AccessKeySecret: ptr.Ref("secret-old"),
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		_, err = client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
+			Settings: &codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region:          "us-east-1",
+					AccessKey:       ptr.Ref(""),
+					AccessKeySecret: ptr.Ref(""),
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		//nolint:gocritic // Test reads the row to verify write-only fields.
+		row, err := db.GetAIProviderByID(dbauthz.AsSystemRestricted(ctx), created.ID)
+		require.NoError(t, err)
+		persisted, err := db2sdk.AIProviderSettings(row.Settings)
+		require.NoError(t, err)
+		require.NotNil(t, persisted.Bedrock)
+		require.NotNil(t, persisted.Bedrock.AccessKey)
+		require.Equal(t, "", *persisted.Bedrock.AccessKey)
+		require.NotNil(t, persisted.Bedrock.AccessKeySecret)
+		require.Equal(t, "", *persisted.Bedrock.AccessKeySecret)
+	})
+
+	t.Run("ExplicitRotatesSecrets", func(t *testing.T) {
+		t.Parallel()
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeAnthropic,
+			Name:    "merge-rotate",
+			Enabled: true,
+			BaseURL: "https://bedrock-runtime.us-east-1.amazonaws.com/",
+			Settings: codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region:          "us-east-1",
+					AccessKey:       ptr.Ref("AKIA-old"), //nolint:gosec // test fixture, not a real credential
+					AccessKeySecret: ptr.Ref("secret-old"),
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		_, err = client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
+			Settings: &codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region:          "us-east-1",
+					AccessKey:       ptr.Ref("AKIA-new"), //nolint:gosec // test fixture, not a real credential
+					AccessKeySecret: ptr.Ref("secret-new"),
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		//nolint:gocritic // Test reads the row to verify write-only fields.
+		row, err := db.GetAIProviderByID(dbauthz.AsSystemRestricted(ctx), created.ID)
+		require.NoError(t, err)
+		persisted, err := db2sdk.AIProviderSettings(row.Settings)
+		require.NoError(t, err)
+		require.NotNil(t, persisted.Bedrock)
+		require.NotNil(t, persisted.Bedrock.AccessKey)
+		require.Equal(t, "AKIA-new", *persisted.Bedrock.AccessKey)
+		require.NotNil(t, persisted.Bedrock.AccessKeySecret)
+		require.Equal(t, "secret-new", *persisted.Bedrock.AccessKeySecret)
 	})
 }

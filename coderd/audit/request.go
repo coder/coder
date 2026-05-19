@@ -136,11 +136,6 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return "AI Seat"
 	case database.AIProvider:
 		return typed.Name
-	case database.AIProviderKey:
-		// Provider keys have no user-facing name; show the parent
-		// provider's UUID so the row can be correlated back to its
-		// provider in the audit UI.
-		return typed.ProviderID.String()
 	case database.AuditableGroupAiBudget:
 		return typed.GroupName
 	case database.Chat:
@@ -221,8 +216,6 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.UserID
 	case database.AIProvider:
 		return typed.ID
-	case database.AIProviderKey:
-		return typed.ID
 	case database.AuditableGroupAiBudget:
 		return typed.GroupID
 	case database.Chat:
@@ -288,8 +281,6 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeAiSeat
 	case database.AIProvider:
 		return database.ResourceTypeAiProvider
-	case database.AIProviderKey:
-		return database.ResourceTypeAiProviderKey
 	case database.AuditableGroupAiBudget:
 		return database.ResourceTypeGroupAiBudget
 	case database.Chat:
@@ -358,9 +349,6 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 		return false
 	case database.AIProvider:
 		// AI providers are deployment-scoped, not org-scoped.
-		return false
-	case database.AIProviderKey:
-		// AI provider keys are deployment-scoped, not org-scoped.
 		return false
 	case database.AuditableGroupAiBudget:
 		// Group AI budgets are org-scoped through their parent group.
