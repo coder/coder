@@ -14,7 +14,6 @@ import (
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 )
 
@@ -132,8 +131,7 @@ func (ru *ResourceUser) Replace(r *http.Request, idStr string, attributes scim.R
 
 	newStatus := scimUserStatus(dbUser, &active)
 	if dbUser.Status != newStatus {
-		//nolint:gocritic // SCIM operations are a system user
-		dbUser, err = ru.store.UpdateUserStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateUserStatusParams{
+		dbUser, err = ru.store.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
 			ID:         dbUser.ID,
 			Status:     newStatus,
 			UpdatedAt:  dbtime.Now(),
@@ -247,8 +245,7 @@ func (ru *ResourceUser) Patch(r *http.Request, idStr string, operations []scim.P
 
 	newStatus := scimUserStatus(dbUser, activeSet)
 	if dbUser.Status != newStatus {
-		//nolint:gocritic // SCIM operations are a system user
-		dbUser, err = ru.store.UpdateUserStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateUserStatusParams{
+		dbUser, err = ru.store.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
 			ID:         dbUser.ID,
 			Status:     newStatus,
 			UpdatedAt:  dbtime.Now(),
