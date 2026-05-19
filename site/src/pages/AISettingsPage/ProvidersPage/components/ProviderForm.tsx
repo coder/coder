@@ -25,6 +25,7 @@ import { type FormHelpers, getFormHelpers } from "#/utils/formUtils";
 export type ProviderFormValues = {
 	type: "" | "openai" | "anthropic" | "bedrock";
 	name: string;
+	displayName: string;
 	baseUrl: string;
 	model: string;
 	smallFastModel: string;
@@ -44,16 +45,21 @@ const providerNameRegex = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const providerNameErrorMessage =
 	"Name must be lowercase, hyphen-separated (e.g. 'my-anthropic').";
 
-// On create the user-facing name field becomes the immutable kebab-case slug
-// (server enforces the same regex), so we validate the pattern up front. On
-// edit the same field stores the free-form `display_name`, so we only require
-// it to be non-empty.
+// Slug is immutable server-side. We only validate it on create; on edit the
+// form hides the field and the seeded value (read straight back from the API)
+// is already known to satisfy the regex.
 const makeNameSchema = (editing: boolean) =>
 	editing
-		? Yup.string().required("Display name is required")
+		? Yup.string()
 		: Yup.string()
 				.matches(providerNameRegex, providerNameErrorMessage)
 				.required("Name is required");
+
+// Display name is required on edit (we always have one to send), optional on
+// create (server treats empty as "no display name", and the UI falls back to
+// the slug).
+const makeDisplayNameSchema = (editing: boolean) =>
+	editing ? Yup.string().required("Display name is required") : Yup.string();
 
 /**
  * Stable mask shown in credential inputs when a value already exists on the
@@ -66,6 +72,7 @@ export const SAVED_CREDENTIAL_MASK = "********";
 const defaultInitialValues: ProviderFormValues = {
 	type: "anthropic",
 	name: "",
+	displayName: "",
 	baseUrl: "",
 	model: "",
 	smallFastModel: "",
@@ -81,6 +88,7 @@ const makeOpenAiAnthropicSchema = (editing: boolean) =>
 			.oneOf(["openai", "anthropic"] as const)
 			.required(),
 		name: makeNameSchema(editing),
+		displayName: makeDisplayNameSchema(editing),
 		baseUrl: Yup.string()
 			.url("Endpoint must be a valid URL")
 			.required("Endpoint is required"),
@@ -105,6 +113,7 @@ const makeBedrockSchema = (editing: boolean) =>
 			.oneOf(["bedrock"] as const)
 			.required(),
 		name: makeNameSchema(editing),
+		displayName: makeDisplayNameSchema(editing),
 		baseUrl: Yup.string()
 			.url("Endpoint must be a valid URL")
 			.matches(
@@ -480,17 +489,26 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 
 				{(typeSelectValue === "openai" || typeSelectValue === "anthropic") && (
 					<>
+						{!editing && (
+							<FormField
+								required
+								field={getFieldHelpers("name")}
+								label="Name"
+								description="Unique identifier for this provider. Used in URLs and cannot be changed later."
+								className="w-full"
+								placeholder={namePlaceholder(form.values.type)}
+							/>
+						)}
 						<FormField
-							required
-							field={getFieldHelpers("name")}
-							label={editing ? "Display name" : "Name"}
+							required={editing}
+							field={getFieldHelpers("displayName")}
+							label="Display name"
 							description={
 								editing
-									? "A friendly name shown for this provider in the UI. The original identifier cannot be changed."
-									: "The name of the provider. This is used to identify the provider in the UI."
+									? "A friendly name shown for this provider in the UI."
+									: "A friendly name shown for this provider in the UI. Defaults to the identifier if left blank."
 							}
 							className="w-full"
-							placeholder={namePlaceholder(form.values.type)}
 						/>
 						{/* API keys live on a sub-resource server-side; the parent
 						    page chains POST /keys (and revokes the previous key when
@@ -526,17 +544,26 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 
 				{typeSelectValue === "bedrock" && (
 					<>
+						{!editing && (
+							<FormField
+								required
+								field={getFieldHelpers("name")}
+								label="Name"
+								description="Unique identifier for this provider. Used in URLs and cannot be changed later."
+								className="w-full"
+								placeholder={namePlaceholder(form.values.type)}
+							/>
+						)}
 						<FormField
-							required
-							field={getFieldHelpers("name")}
-							label={editing ? "Display name" : "Name"}
+							required={editing}
+							field={getFieldHelpers("displayName")}
+							label="Display name"
 							description={
 								editing
-									? "A friendly name shown for this provider in the UI. The original identifier cannot be changed."
-									: "The name of the provider. This is used to identify the provider in the UI."
+									? "A friendly name shown for this provider in the UI."
+									: "A friendly name shown for this provider in the UI. Defaults to the identifier if left blank."
 							}
 							className="w-full"
-							placeholder={namePlaceholder(form.values.type)}
 						/>
 						<FormField
 							required

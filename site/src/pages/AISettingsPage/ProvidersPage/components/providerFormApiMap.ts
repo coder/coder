@@ -99,13 +99,17 @@ const buildBedrockSettings = (
  * Build a create request from form values. For Bedrock the API key field is
  * ignored; AWS credentials go into `settings`. For openai/anthropic the
  * plaintext API key (if any) is sent in the request body as `api_keys`.
+ *
+ * `display_name` is optional server-side: when the form leaves it blank we
+ * omit it, the server stores NULL, and the UI falls back to `name` via the
+ * standard `display_name || name` pattern.
  */
 export const providerFormValuesToCreate = (
 	values: ProviderFormValues,
 ): CreateAIProviderRequest => {
 	const name = values.name.trim();
+	const displayName = values.displayName.trim();
 	const baseUrl = values.baseUrl.trim();
-	const displayName = name;
 
 	if (values.type === "bedrock") {
 		const settings = buildBedrockSettings(
@@ -118,7 +122,7 @@ export const providerFormValuesToCreate = (
 		return {
 			type: "anthropic",
 			name,
-			display_name: displayName,
+			...(displayName ? { display_name: displayName } : {}),
 			base_url: baseUrl,
 			enabled: values.enabled,
 			settings: settings as AIProviderSettings,
@@ -129,7 +133,7 @@ export const providerFormValuesToCreate = (
 	return {
 		type: values.type === "openai" ? "openai" : "anthropic",
 		name,
-		display_name: displayName,
+		...(displayName ? { display_name: displayName } : {}),
 		base_url: baseUrl,
 		enabled: values.enabled,
 		...(apiKey ? { api_keys: [apiKey] } : {}),
@@ -155,7 +159,7 @@ export const providerFormValuesToUpdate = (
 	existingProvider: AIProvider,
 ): UpdateAIProviderRequest => {
 	const base: UpdateAIProviderRequest = {
-		display_name: values.name.trim(),
+		display_name: values.displayName.trim(),
 		enabled: values.enabled,
 		base_url: values.baseUrl.trim(),
 	};
@@ -199,20 +203,23 @@ export const providerFormValuesToUpdate = (
 /**
  * Populate the form from an `AIProvider` fetched from the API.
  *
- * On the edit form the user-facing "name" field actually edits
- * `display_name` (the slug `name` is immutable server-side), so we seed
- * the form-`name` slot with `display_name` and fall back to `name` for
- * historical providers that never had a friendly label set.
+ * The slug `name` is immutable server-side and the update form keeps it
+ * hidden, but we still seed it so the form values keep parity with the
+ * `ProviderFormValues` type. The user-facing Display name field is seeded
+ * from `display_name`, falling back to the slug for historical providers
+ * that never had a friendly label set; once the user saves, the empty
+ * `display_name` is replaced with whatever they confirm in the input.
  */
 export const aiProviderToFormValues = (
 	provider: AIProvider,
 ): Partial<ProviderFormValues> => {
-	const editableName = provider.display_name || provider.name;
+	const displayName = provider.display_name || provider.name;
 	if (isBedrockProvider(provider)) {
 		const s = (provider.settings as SettingsWire | null) ?? {};
 		return {
 			type: "bedrock",
-			name: editableName,
+			name: provider.name,
+			displayName,
 			baseUrl: provider.base_url,
 			model: s.model ?? "",
 			smallFastModel: s.small_fast_model ?? "",
@@ -224,7 +231,8 @@ export const aiProviderToFormValues = (
 
 	return {
 		type: provider.type === "openai" ? "openai" : "anthropic",
-		name: editableName,
+		name: provider.name,
+		displayName,
 		baseUrl: provider.base_url,
 		apiKey: "",
 		enabled: provider.enabled,

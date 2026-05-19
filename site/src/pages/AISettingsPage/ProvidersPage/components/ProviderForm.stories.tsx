@@ -22,6 +22,7 @@ export const AddOpenAI: Story = {
 		initialValues: {
 			type: "openai",
 			name: "corporate-openai",
+			displayName: "Corporate OpenAI",
 			baseUrl: "https://api.openai.com/v1",
 			apiKey: "sk-example",
 			enabled: true,
@@ -34,6 +35,7 @@ export const AddBedrock: Story = {
 		initialValues: {
 			type: "bedrock",
 			name: "bedrock-prod",
+			displayName: "Bedrock Prod",
 			baseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com",
 			model: "anthropic.claude-3-5-sonnet-20241022-v2:0",
 			smallFastModel: "anthropic.claude-3-5-haiku-20241022-v1:0",
@@ -51,6 +53,7 @@ export const EditBedrockKeepCredentials: Story = {
 		initialValues: {
 			type: "bedrock",
 			name: "bedrock",
+			displayName: "Bedrock",
 			baseUrl: "https://bedrock-runtime.us-east-2.amazonaws.com",
 			model: "anthropic.claude-opus-4-7",
 			smallFastModel: "anthropic.claude-haiku-4-5",
@@ -61,9 +64,6 @@ export const EditBedrockKeepCredentials: Story = {
 	},
 };
 
-// On edit, the form `name` slot stores the free-form `display_name`, so
-// stories that exercise the edit flow seed it with a friendly label rather
-// than the kebab-case slug.
 export const EditProvider: Story = {
 	args: {
 		editing: true,
@@ -71,7 +71,8 @@ export const EditProvider: Story = {
 		openAiAnthropicMaskedApiKey: "sk-ant-***\u2026***ABCD",
 		initialValues: {
 			type: "anthropic",
-			name: "Production Anthropic",
+			name: "production-anthropic",
+			displayName: "Production Anthropic",
 			baseUrl: "https://api.anthropic.com",
 			apiKey: "",
 			enabled: true,
@@ -86,6 +87,7 @@ export const EditOpenAiAnthropicNoSavedKey: Story = {
 		initialValues: {
 			type: "anthropic",
 			name: "production-anthropic",
+			displayName: "Production Anthropic",
 			baseUrl: "https://api.anthropic.com",
 			apiKey: "",
 			enabled: true,
@@ -99,6 +101,7 @@ export const Submitting: Story = {
 		initialValues: {
 			type: "openai",
 			name: "openai",
+			displayName: "OpenAI",
 			baseUrl: "https://api.openai.com/v1",
 			apiKey: "sk-example",
 		},
