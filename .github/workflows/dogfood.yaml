@@ -249,80 +249,12 @@ jobs:
           push: false
           tags: "dogfood-test:${{ matrix.variant }}"
 
-      # Run the CI make targets inside the just-built dogfood image.
-      # The repo checkout is volume-mounted so make gen/fmt can write
-      # back and we can verify nothing is unstaged afterwards.
-      #
-      # The checkout is pre-chmod'd a+rwX so the container's coder user
-      # (UID 1000) can write generated files and build artifacts into the
-      # runner-owned volume. Running without --user lets the container
-      # use its own /etc/passwd entry so HOME is resolved correctly.
-
-      - name: Make checkout writable for container user
-        run: |
-          chmod -R a+rwX .
-          # Create a minimal gitconfig for the container's coder user
-          # so git recognizes this runner-owned volume as a safe directory.
-          # Without this, git rev-parse fails in lib.sh, breaking PROJECT_ROOT.
-          printf '[safe]\n\tdirectory = /home/coder/coder\n' > /tmp/coder-gitconfig
-
-      - name: make gen
-        run: |
-          docker run --rm \
-            --volume "$(pwd)":/home/coder/coder \
-            --volume /tmp/coder-gitconfig:/home/coder/.gitconfig:ro \
-            --workdir /home/coder/coder \
-            --network=host \
-            --env GITHUB_TOKEN \
-            "dogfood-test:${{ matrix.variant }}" \
-            make --output-sync=line -j gen GEN_SKIP_GOLDEN=1
+      # Run the CI make targets inside the just-built dogfood image via the
+      # shared script, which can also be run locally for manual validation.
+      - name: Test image toolchain
+        run: ./scripts/dogfood_test_image.sh "dogfood-test:${{ matrix.variant }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: make fmt
-        run: |
-          docker run --rm \
-            --volume "$(pwd)":/home/coder/coder \
-            --volume /tmp/coder-gitconfig:/home/coder/.gitconfig:ro \
-            --workdir /home/coder/coder \
-            --network=host \
-            --env GITHUB_TOKEN \
-            "dogfood-test:${{ matrix.variant }}" \
-            make --output-sync=line -j fmt
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: make lint
-        run: |
-          docker run --rm \
-            --volume "$(pwd)":/home/coder/coder \
-            --volume /tmp/coder-gitconfig:/home/coder/.gitconfig:ro \
-            --workdir /home/coder/coder \
-            --network=host \
-            --env GITHUB_TOKEN \
-            "dogfood-test:${{ matrix.variant }}" \
-            make --output-sync=line -j lint
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # Fat build validates the full toolchain including Node, pnpm,
-      # and the TypeScript/React frontend build, not just Go.
-      - name: make build
-        run: |
-          docker run --rm \
-            --volume "$(pwd)":/home/coder/coder \
-            --volume /tmp/coder-gitconfig:/home/coder/.gitconfig:ro \
-            --workdir /home/coder/coder \
-            --network=host \
-            --env GITHUB_TOKEN \
-            "dogfood-test:${{ matrix.variant }}" \
-            make -j build/coder_linux_amd64
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Check for unstaged files
-        run: |
-          ./scripts/check_unstaged.sh
 
   deploy_template:
     needs:
