@@ -432,6 +432,10 @@ message PlanRequest {
 
   // state is the provisioner state (if any)
   bytes state = 6;
+
+  // Reserved 7 for `user_secrets` introduced in v1.17 (#24542) and removed
+  // in v1.18 along with the rest of the `coder_secret` Terraform integration.
+  reserved 7;
 }
 
 // PlanComplete indicates a request to plan completed.
