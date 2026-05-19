@@ -1568,7 +1568,7 @@ func TestListChats(t *testing.T) {
 		modelConfig := createChatModelConfig(t, client)
 
 		// Verify that the title: filter is wired through the endpoint.
-		// Exhaustive ILIKE behavior is tested in TestGetChatsFilterByTitle.
+		// Exhaustive ILIKE behavior is tested in TestGetChatsFilter (Title/* subtests).
 		alpha := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    firstUser.OrganizationID,
 			OwnerID:           firstUser.UserID,
@@ -1611,7 +1611,7 @@ func TestListChats(t *testing.T) {
 		modelConfig := createChatModelConfig(t, client)
 
 		// Verify that pr_status filter is wired through the endpoint.
-		// Exhaustive query logic is tested in TestGetChatsFilterByPRStatus.
+		// Exhaustive query logic is tested in TestGetChatsFilter (PRStatus/* subtests).
 		createChatWithPR := func(title, prURL, prState string, prDraft bool) database.Chat {
 			t.Helper()
 
@@ -1674,7 +1674,7 @@ func TestListChats(t *testing.T) {
 		modelConfig := createChatModelConfig(t, client)
 
 		// Verify that has_unread:true filter is wired through the endpoint.
-		// Exhaustive query logic is tested in TestGetChatsFilterByUnread.
+		// Exhaustive query logic is tested in TestGetChatsFilter (Unread/* subtests).
 		unreadChat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    user.OrganizationID,
 			OwnerID:           user.UserID,
