@@ -428,10 +428,7 @@ func (api *API) aiProvidersDelete(rw http.ResponseWriter, r *http.Request) {
 	}
 	aReq.Old = row
 
-	// DeleteAIProviderByID is :exec on a soft-delete UPDATE, so it
-	// affects zero rows (and returns nil) when the provider is already
-	// deleted. That makes the operation inherently idempotent without
-	// any sql.ErrNoRows branch to handle.
+	// Soft-delete UPDATE; :exec, so re-deletion is a silent no-op.
 	if err := api.Database.DeleteAIProviderByID(ctx, row.ID); err != nil {
 		if dbauthz.IsNotAuthorizedError(err) {
 			api.Logger.Error(ctx, "delete AI provider", slog.F("provider_id", row.ID), slog.Error(err))
