@@ -17,6 +17,10 @@ type ExecuteRenderData = {
 	providerLabel: string;
 };
 
+/**
+ * Execute payloads can arrive partially populated, so visibility and rendering
+ * share one defensive, normalized interpretation of args and results here.
+ */
 export const getExecuteRenderData = (
 	args: unknown,
 	result: unknown,
@@ -55,7 +59,7 @@ const shouldRenderExecuteTool = (data: ExecuteRenderData): boolean => {
 	return data.command.trim().length > 0 || Boolean(data.authenticateURL);
 };
 
-const shouldHideSubagentLifecycleTool = ({
+const shouldRenderSubagentLifecycleTool = ({
 	name,
 	status,
 	args,
@@ -68,7 +72,7 @@ const shouldHideSubagentLifecycleTool = ({
 }): boolean => {
 	const descriptor = getSubagentDescriptor({ name, args, result });
 	if (!descriptor || status !== "running") {
-		return false;
+		return true;
 	}
 
 	if (
@@ -76,13 +80,13 @@ const shouldHideSubagentLifecycleTool = ({
 		descriptor.action !== "message" &&
 		descriptor.action !== "close"
 	) {
-		return false;
+		return true;
 	}
 
 	// Wait, message, and close rows can stream before their target chat_id
 	// arrives. Hiding them until that id exists avoids flashing generic
 	// lifecycle copy before the transcript can resolve the real title.
-	return !getSubagentChatId({ args, result });
+	return Boolean(getSubagentChatId({ args, result }));
 };
 
 /**
@@ -104,9 +108,5 @@ export const shouldRenderTool = ({
 		return shouldRenderExecuteTool(getExecuteRenderData(args, result));
 	}
 
-	if (shouldHideSubagentLifecycleTool({ name, status, args, result })) {
-		return false;
-	}
-
-	return true;
+	return shouldRenderSubagentLifecycleTool({ name, status, args, result });
 };

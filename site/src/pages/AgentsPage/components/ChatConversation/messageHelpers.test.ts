@@ -93,6 +93,23 @@ describe("deriveMessageDisplayState", () => {
 		expect(getDisplayState(message).needsAssistantBottomSpacer).toBe(false);
 	});
 
+	it("shows the assistant spacer when thinking is followed by a hidden execute tool", () => {
+		const message = buildMessage(
+			[
+				{ type: "reasoning", text: "I should think before acting." },
+				{
+					type: "tool-call",
+					tool_call_id: "tool-1",
+					tool_name: "execute",
+					args: {},
+				},
+			],
+			"assistant",
+		);
+
+		expect(getDisplayState(message).needsAssistantBottomSpacer).toBe(true);
+	});
+
 	it("suppresses the assistant spacer while awaiting the first stream chunk", () => {
 		const message = buildMessage(
 			[{ type: "reasoning", text: "I should think before answering." }],
