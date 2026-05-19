@@ -56,9 +56,6 @@ replace gvisor.dev => github.com/coder/gvisor v0.0.0-20260313164934-7a658db7b714
 // makes importing it directly a bit messy.
 replace github.com/gliderlabs/ssh => github.com/coder/ssh v0.0.0-20231128192721-70855dedb788
 
-// Waiting on https://github.com/imulab/go-scim/pull/95 to merge.
-replace github.com/imulab/go-scim/pkg/v2 => github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136
-
 // Adds support for a new Listener from a driver.Connector
 // This lets us use rotating authentication tokens for passwords in connection strings
 // which we use in the awsiamrds package.
@@ -178,7 +175,6 @@ require (
 	github.com/hashicorp/terraform-json v0.27.2
 	github.com/hashicorp/yamux v0.1.2
 	github.com/hinshun/vt10x v0.0.0-20220301184237-5011da428d02
-	github.com/imulab/go-scim/pkg/v2 v2.2.0
 	github.com/jedib0t/go-pretty/v6 v6.7.1
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/justinas/nosurf v1.2.0
@@ -422,7 +418,6 @@ require (
 	github.com/riandyrn/otelchi v0.5.1 // indirect
 	github.com/richardartoul/molecule v1.0.1-0.20240531184615-7ca0df43c0b3 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
-	github.com/satori/go.uuid v1.2.1-0.20181028125025-b2ce2384e17b // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.10.0 // indirect
 	github.com/sirupsen/logrus v1.9.4 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
@@ -512,11 +507,13 @@ require (
 	github.com/danieljoos/wincred v1.2.3
 	github.com/dgraph-io/ristretto/v2 v2.4.0
 	github.com/elazarl/goproxy v1.8.0
+	github.com/elimity-com/scim v0.0.0-20260506142751-830e1caafcc3
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-git/go-git/v5 v5.19.1
 	github.com/invopop/jsonschema v0.14.0
 	github.com/mark3labs/mcp-go v0.38.0
 	github.com/openai/openai-go/v3 v3.28.0
+	github.com/scim2/filter-parser/v2 v2.2.0
 	github.com/shopspring/decimal v1.4.0
 	github.com/smallstep/pkcs7 v0.2.1
 	github.com/sony/gobreaker/v2 v2.4.0
@@ -571,6 +568,8 @@ require (
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
 	github.com/daixiang0/gci v0.13.7 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0 // indirect
+	github.com/di-wu/parser v0.2.2 // indirect
+	github.com/di-wu/xsd-datetime v1.0.0 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/envoyproxy/go-control-plane/envoy v1.37.0 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.3.3 // indirect

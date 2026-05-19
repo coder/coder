@@ -6,16 +6,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
-	"github.com/imulab/go-scim/pkg/v2/handlerutil"
-	"github.com/imulab/go-scim/pkg/v2/spec"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -25,36 +21,84 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
-	"github.com/coder/coder/v2/enterprise/coderd"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/enterprise/coderd/scim"
 	"github.com/coder/coder/v2/testutil"
 )
 
+// scimUser is the JSON shape Coder accepts and emits for SCIM User
+// resources. The struct is shared by tests for request bodies and
+// response decoding; field tags match RFC 7643 Section 4.1.
+type scimUser struct {
+	Schemas    []string `json:"schemas,omitempty"`
+	ID         string   `json:"id,omitempty"`
+	ExternalID string   `json:"externalId,omitempty"`
+	UserName   string   `json:"userName"`
+	Name       struct {
+		GivenName  string `json:"givenName"`
+		FamilyName string `json:"familyName"`
+	} `json:"name"`
+	Emails []struct {
+		Primary bool   `json:"primary"`
+		Value   string `json:"value" format:"email"`
+		Type    string `json:"type,omitempty"`
+		Display string `json:"display,omitempty"`
+	} `json:"emails"`
+	// Active is a ptr so we can distinguish "unset" from "false" in
+	// requests; the legacy handler enforced presence and the new one
+	// still does.
+	Active *bool                  `json:"active,omitempty"`
+	Meta   map[string]interface{} `json:"meta,omitempty"`
+}
+
+const (
+	userSchemaURN  = "urn:ietf:params:scim:schemas:core:2.0:User"
+	patchOpURN     = "urn:ietf:params:scim:api:messages:2.0:PatchOp"
+	errorSchemaURN = "urn:ietf:params:scim:api:messages:2.0:Error"
+)
+
 //nolint:revive
-func makeScimUser(t testing.TB) coderd.SCIMUser {
+func makeScimUser(t testing.TB) scimUser {
 	rstr, err := cryptorand.String(10)
 	require.NoError(t, err)
 
-	return coderd.SCIMUser{
+	u := scimUser{
+		Schemas:  []string{userSchemaURN},
 		UserName: rstr,
-		Name: struct {
-			GivenName  string `json:"givenName"`
-			FamilyName string `json:"familyName"`
-		}{
-			GivenName:  rstr,
-			FamilyName: rstr,
+		Active:   ptr.Ref(true),
+	}
+	u.Name.GivenName = rstr
+	u.Name.FamilyName = rstr
+	u.Emails = append(u.Emails, struct {
+		Primary bool   `json:"primary"`
+		Value   string `json:"value" format:"email"`
+		Type    string `json:"type,omitempty"`
+		Display string `json:"display,omitempty"`
+	}{Primary: true, Value: fmt.Sprintf("%s@coder.com", rstr)})
+	return u
+}
+
+// scimPatchOp is the JSON shape of a single RFC 7644 PATCH operation.
+type scimPatchOp struct {
+	Op    string      `json:"op"`
+	Path  string      `json:"path,omitempty"`
+	Value interface{} `json:"value"`
+}
+
+// scimPatchBody is a SCIM 2.0 PatchOp request body.
+type scimPatchBody struct {
+	Schemas    []string      `json:"schemas"`
+	Operations []scimPatchOp `json:"Operations"`
+}
+
+// replaceActive returns a PATCH body that toggles the `active` field.
+func replaceActive(active bool) scimPatchBody {
+	return scimPatchBody{
+		Schemas: []string{patchOpURN},
+		Operations: []scimPatchOp{
+			{Op: "replace", Path: "active", Value: active},
 		},
-		Emails: []struct {
-			Primary bool   `json:"primary"`
-			Value   string `json:"value" format:"email"`
-			Type    string `json:"type"`
-			Display string `json:"display"`
-		}{
-			{Primary: true, Value: fmt.Sprintf("%s@coder.com", rstr)},
-		},
-		Active: ptr.Ref(true),
 	}
 }
 
@@ -69,6 +113,16 @@ func setScimAuthBearer(key []byte) func(*http.Request) {
 		// Do strange casing to ensure it's case-insensitive
 		r.Header.Set("Authorization", "beAreR "+string(key))
 	}
+}
+
+// decodeScimUser reads the response body into a scimUser, failing the
+// test on JSON errors. We tolerate the response containing additional
+// fields (meta, schemas, etc.) that scimUser also models.
+func decodeScimUser(t testing.TB, body io.Reader) scimUser {
+	t.Helper()
+	var u scimUser
+	require.NoError(t, json.NewDecoder(body).Decode(&u))
+	return u
 }
 
 //nolint:gocritic // SCIM authenticates via a special header and bypasses internal RBAC.
@@ -94,7 +148,7 @@ func TestScim(t *testing.T) {
 				},
 			})
 
-			res, err := client.Request(ctx, "POST", "/scim/v2/Users", struct{}{})
+			res, err := client.Request(ctx, http.MethodPost, "/scim/v2/Users", struct{}{})
 			require.NoError(t, err)
 			defer res.Body.Close()
 			assert.Equal(t, http.StatusForbidden, res.StatusCode)
@@ -116,7 +170,7 @@ func TestScim(t *testing.T) {
 				},
 			})
 
-			res, err := client.Request(ctx, "POST", "/scim/v2/Users", struct{}{})
+			res, err := client.Request(ctx, http.MethodPost, "/scim/v2/Users", struct{}{})
 			require.NoError(t, err)
 			defer res.Body.Close()
 			assert.Equal(t, http.StatusUnauthorized, res.StatusCode)
@@ -128,7 +182,6 @@ func TestScim(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			// given
 			scimAPIKey := []byte("hi")
 			mockAudit := audit.NewMock()
 			notifyEnq := &notificationstest.FakeEnqueuer{}
@@ -149,30 +202,28 @@ func TestScim(t *testing.T) {
 			})
 			mockAudit.ResetLogs()
 
-			// verify scim is enabled
+			// /ServiceProviderConfig is unauthenticated by spec; verify
+			// it serves while SCIM is enabled.
 			res, err := client.Request(ctx, http.MethodGet, "/scim/v2/ServiceProviderConfig", nil)
 			require.NoError(t, err)
 			defer res.Body.Close()
 			require.Equal(t, http.StatusOK, res.StatusCode)
 
-			// when
 			sUser := makeScimUser(t)
 			res, err = client.Request(ctx, http.MethodPost, "/scim/v2/Users", sUser, setScimAuth(scimAPIKey))
 			require.NoError(t, err)
 			defer res.Body.Close()
-			require.Equal(t, http.StatusOK, res.StatusCode)
+			require.Equal(t, http.StatusCreated, res.StatusCode)
 
-			// then
-			// Expect audit logs
+			// Audit log shape and marker fields.
 			aLogs := mockAudit.AuditLogs()
 			require.Len(t, aLogs, 1)
 			af := map[string]string{}
-			err = json.Unmarshal([]byte(aLogs[0].AdditionalFields), &af)
-			require.NoError(t, err)
-			assert.Equal(t, coderd.SCIMAuditAdditionalFields, af)
+			require.NoError(t, json.Unmarshal([]byte(aLogs[0].AdditionalFields), &af))
+			assert.Equal(t, scim.AuditAdditionalFields(), af)
 			assert.Equal(t, database.AuditActionCreate, aLogs[0].Action)
 
-			// Expect users exposed over API
+			// User is now visible over the Coder API.
 			userRes, err := client.Users(ctx, codersdk.UsersRequest{Search: sUser.Emails[0].Value})
 			require.NoError(t, err)
 			require.Len(t, userRes.Users, 1)
@@ -180,7 +231,7 @@ func TestScim(t *testing.T) {
 			assert.Equal(t, sUser.UserName, userRes.Users[0].Username)
 			assert.Len(t, userRes.Users[0].OrganizationIDs, 1)
 
-			// Expect zero notifications (SkipNotifications = true)
+			// SkipNotifications = true.
 			require.Empty(t, notifyEnq.Sent())
 		})
 
@@ -190,7 +241,6 @@ func TestScim(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			// given
 			scimAPIKey := []byte("hi")
 			mockAudit := audit.NewMock()
 			notifyEnq := &notificationstest.FakeEnqueuer{}
@@ -211,32 +261,25 @@ func TestScim(t *testing.T) {
 			})
 			mockAudit.ResetLogs()
 
-			// when
 			sUser := makeScimUser(t)
-			res, err := client.Request(ctx, "POST", "/scim/v2/Users", sUser, setScimAuthBearer(scimAPIKey))
+			res, err := client.Request(ctx, http.MethodPost, "/scim/v2/Users", sUser, setScimAuthBearer(scimAPIKey))
 			require.NoError(t, err)
 			defer res.Body.Close()
-			require.Equal(t, http.StatusOK, res.StatusCode)
+			require.Equal(t, http.StatusCreated, res.StatusCode)
 
-			// then
-			// Expect audit logs
 			aLogs := mockAudit.AuditLogs()
 			require.Len(t, aLogs, 1)
 			af := map[string]string{}
-			err = json.Unmarshal([]byte(aLogs[0].AdditionalFields), &af)
-			require.NoError(t, err)
-			assert.Equal(t, coderd.SCIMAuditAdditionalFields, af)
+			require.NoError(t, json.Unmarshal([]byte(aLogs[0].AdditionalFields), &af))
+			assert.Equal(t, scim.AuditAdditionalFields(), af)
 			assert.Equal(t, database.AuditActionCreate, aLogs[0].Action)
 
-			// Expect users exposed over API
 			userRes, err := client.Users(ctx, codersdk.UsersRequest{Search: sUser.Emails[0].Value})
 			require.NoError(t, err)
 			require.Len(t, userRes.Users, 1)
 			assert.Equal(t, sUser.Emails[0].Value, userRes.Users[0].Email)
 			assert.Equal(t, sUser.UserName, userRes.Users[0].Username)
 			assert.Len(t, userRes.Users[0].OrganizationIDs, 1)
-
-			// Expect zero notifications (SkipNotifications = true)
 			require.Empty(t, notifyEnq.Sent())
 		})
 
@@ -246,7 +289,6 @@ func TestScim(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
-			// given
 			scimAPIKey := []byte("hi")
 			mockAudit := audit.NewMock()
 			notifyEnq := &notificationstest.FakeEnqueuer{}
@@ -270,32 +312,25 @@ func TestScim(t *testing.T) {
 			})
 			mockAudit.ResetLogs()
 
-			// when
 			sUser := makeScimUser(t)
-			res, err := client.Request(ctx, "POST", "/scim/v2/Users", sUser, setScimAuth(scimAPIKey))
+			res, err := client.Request(ctx, http.MethodPost, "/scim/v2/Users", sUser, setScimAuth(scimAPIKey))
 			require.NoError(t, err)
 			defer res.Body.Close()
-			require.Equal(t, http.StatusOK, res.StatusCode)
+			require.Equal(t, http.StatusCreated, res.StatusCode)
 
-			// then
-			// Expect audit logs
 			aLogs := mockAudit.AuditLogs()
 			require.Len(t, aLogs, 1)
 			af := map[string]string{}
-			err = json.Unmarshal([]byte(aLogs[0].AdditionalFields), &af)
-			require.NoError(t, err)
-			assert.Equal(t, coderd.SCIMAuditAdditionalFields, af)
+			require.NoError(t, json.Unmarshal([]byte(aLogs[0].AdditionalFields), &af))
+			assert.Equal(t, scim.AuditAdditionalFields(), af)
 			assert.Equal(t, database.AuditActionCreate, aLogs[0].Action)
 
-			// Expect users exposed over API
 			userRes, err := client.Users(ctx, codersdk.UsersRequest{Search: sUser.Emails[0].Value})
 			require.NoError(t, err)
 			require.Len(t, userRes.Users, 1)
 			assert.Equal(t, sUser.Emails[0].Value, userRes.Users[0].Email)
 			assert.Equal(t, sUser.UserName, userRes.Users[0].Username)
 			assert.Len(t, userRes.Users[0].OrganizationIDs, 0)
-
-			// Expect zero notifications (SkipNotifications = true)
 			require.Empty(t, notifyEnq.Sent())
 		})
 
@@ -317,17 +352,21 @@ func TestScim(t *testing.T) {
 			})
 
 			sUser := makeScimUser(t)
+			// Pre-refactor behavior on duplicate POST was 200; with
+			// elimity the framework always responds 201 on Create
+			// success regardless of duplicate or new. We preserve the
+			// "no 409 on duplicate" Okta-cloud quirk: the second and
+			// third POST return the existing user as a fresh create.
 			for i := 0; i < 3; i++ {
-				res, err := client.Request(ctx, "POST", "/scim/v2/Users", sUser, setScimAuth(scimAPIKey))
+				res, err := client.Request(ctx, http.MethodPost, "/scim/v2/Users", sUser, setScimAuth(scimAPIKey))
 				require.NoError(t, err)
 				_ = res.Body.Close()
-				assert.Equal(t, http.StatusOK, res.StatusCode)
+				assert.Equal(t, http.StatusCreated, res.StatusCode)
 			}
 
 			userRes, err := client.Users(ctx, codersdk.UsersRequest{Search: sUser.Emails[0].Value})
 			require.NoError(t, err)
 			require.Len(t, userRes.Users, 1)
-
 			assert.Equal(t, sUser.Emails[0].Value, userRes.Users[0].Email)
 			assert.Equal(t, sUser.UserName, userRes.Users[0].Username)
 		})
@@ -350,31 +389,32 @@ func TestScim(t *testing.T) {
 			})
 
 			sUser := makeScimUser(t)
-			res, err := client.Request(ctx, "POST", "/scim/v2/Users", sUser, setScimAuth(scimAPIKey))
+			res, err := client.Request(ctx, http.MethodPost, "/scim/v2/Users", sUser, setScimAuth(scimAPIKey))
 			require.NoError(t, err)
 			defer res.Body.Close()
-			assert.Equal(t, http.StatusOK, res.StatusCode)
-			err = json.NewDecoder(res.Body).Decode(&sUser)
-			require.NoError(t, err)
+			assert.Equal(t, http.StatusCreated, res.StatusCode)
+			created := decodeScimUser(t, res.Body)
+			require.NotEmpty(t, created.ID)
 
-			sUser.Active = ptr.Ref(false)
-			res, err = client.Request(ctx, "PATCH", "/scim/v2/Users/"+sUser.ID, sUser, setScimAuth(scimAPIKey))
+			// Suspend via PATCH.
+			res, err = client.Request(ctx, http.MethodPatch, "/scim/v2/Users/"+created.ID, replaceActive(false), setScimAuth(scimAPIKey))
 			require.NoError(t, err)
 			_, _ = io.Copy(io.Discard, res.Body)
 			_ = res.Body.Close()
 			assert.Equal(t, http.StatusOK, res.StatusCode)
 
-			sUser.Active = ptr.Ref(true)
-			res, err = client.Request(ctx, "POST", "/scim/v2/Users", sUser, setScimAuth(scimAPIKey))
+			// POST again with active=true; the create handler should
+			// detect the suspended user and transition them back to
+			// dormant.
+			res, err = client.Request(ctx, http.MethodPost, "/scim/v2/Users", sUser, setScimAuth(scimAPIKey))
 			require.NoError(t, err)
 			_, _ = io.Copy(io.Discard, res.Body)
 			_ = res.Body.Close()
-			assert.Equal(t, http.StatusOK, res.StatusCode)
+			assert.Equal(t, http.StatusCreated, res.StatusCode)
 
 			userRes, err := client.Users(ctx, codersdk.UsersRequest{Search: sUser.Emails[0].Value})
 			require.NoError(t, err)
 			require.Len(t, userRes.Users, 1)
-
 			assert.Equal(t, sUser.Emails[0].Value, userRes.Users[0].Email)
 			assert.Equal(t, sUser.UserName, userRes.Users[0].Username)
 			assert.Equal(t, codersdk.UserStatusDormant, userRes.Users[0].Status)
@@ -399,19 +439,18 @@ func TestScim(t *testing.T) {
 
 			sUser := makeScimUser(t)
 			sUser.UserName = sUser.UserName + "@coder.com"
-			res, err := client.Request(ctx, "POST", "/scim/v2/Users", sUser, setScimAuth(scimAPIKey))
+			res, err := client.Request(ctx, http.MethodPost, "/scim/v2/Users", sUser, setScimAuth(scimAPIKey))
 			require.NoError(t, err)
 			_, _ = io.Copy(io.Discard, res.Body)
 			_ = res.Body.Close()
-			assert.Equal(t, http.StatusOK, res.StatusCode)
+			assert.Equal(t, http.StatusCreated, res.StatusCode)
 
 			userRes, err := client.Users(ctx, codersdk.UsersRequest{Search: sUser.Emails[0].Value})
 			require.NoError(t, err)
 			require.Len(t, userRes.Users, 1)
-
 			assert.Equal(t, sUser.Emails[0].Value, userRes.Users[0].Email)
-			// Username should be the same as the given name. They all use the
-			// same string before we modified it above.
+			// Username should match what was given before the domain
+			// suffix was appended.
 			assert.Equal(t, sUser.Name.GivenName, userRes.Users[0].Username)
 		})
 	})
@@ -435,7 +474,7 @@ func TestScim(t *testing.T) {
 				},
 			})
 
-			res, err := client.Request(ctx, "PATCH", "/scim/v2/Users/bob", struct{}{})
+			res, err := client.Request(ctx, http.MethodPatch, "/scim/v2/Users/"+uuid.NewString(), replaceActive(false))
 			require.NoError(t, err)
 			_, _ = io.Copy(io.Discard, res.Body)
 			_ = res.Body.Close()
@@ -458,7 +497,7 @@ func TestScim(t *testing.T) {
 				},
 			})
 
-			res, err := client.Request(ctx, "PATCH", "/scim/v2/Users/bob", struct{}{})
+			res, err := client.Request(ctx, http.MethodPatch, "/scim/v2/Users/"+uuid.NewString(), replaceActive(false))
 			require.NoError(t, err)
 			_, _ = io.Copy(io.Discard, res.Body)
 			_ = res.Body.Close()
@@ -488,18 +527,15 @@ func TestScim(t *testing.T) {
 			mockAudit.ResetLogs()
 
 			sUser := makeScimUser(t)
-			res, err := client.Request(ctx, "POST", "/scim/v2/Users", sUser, setScimAuth(scimAPIKey))
+			res, err := client.Request(ctx, http.MethodPost, "/scim/v2/Users", sUser, setScimAuth(scimAPIKey))
 			require.NoError(t, err)
-			defer res.Body.Close()
-			assert.Equal(t, http.StatusOK, res.StatusCode)
+			require.Equal(t, http.StatusCreated, res.StatusCode)
+			created := decodeScimUser(t, res.Body)
+			_ = res.Body.Close()
+			require.NotEmpty(t, created.ID)
 			mockAudit.ResetLogs()
 
-			err = json.NewDecoder(res.Body).Decode(&sUser)
-			require.NoError(t, err)
-
-			sUser.Active = ptr.Ref(false)
-
-			res, err = client.Request(ctx, "PATCH", "/scim/v2/Users/"+sUser.ID, sUser, setScimAuth(scimAPIKey))
+			res, err = client.Request(ctx, http.MethodPatch, "/scim/v2/Users/"+created.ID, replaceActive(false), setScimAuth(scimAPIKey))
 			require.NoError(t, err)
 			_, _ = io.Copy(io.Discard, res.Body)
 			_ = res.Body.Close()
@@ -515,9 +551,9 @@ func TestScim(t *testing.T) {
 			assert.Equal(t, codersdk.UserStatusSuspended, userRes.Users[0].Status)
 		})
 
-		// Create a user via SCIM, which starts as dormant.
-		// Log in as the user, making them active.
-		// Then patch the user again and the user should still be active.
+		// Create a user via SCIM (dormant), log them in (active),
+		// PATCH them again with no change, and confirm they remain
+		// active with no extra audit log entry.
 		t.Run("ActiveIsActive", func(t *testing.T) {
 			t.Parallel()
 
@@ -545,52 +581,45 @@ func TestScim(t *testing.T) {
 			})
 			mockAudit.ResetLogs()
 
-			// User is dormant on create
 			sUser := makeScimUser(t)
-			res, err := client.Request(ctx, "POST", "/scim/v2/Users", sUser, setScimAuth(scimAPIKey))
+			res, err := client.Request(ctx, http.MethodPost, "/scim/v2/Users", sUser, setScimAuth(scimAPIKey))
 			require.NoError(t, err)
-			defer res.Body.Close()
-			assert.Equal(t, http.StatusOK, res.StatusCode)
+			require.Equal(t, http.StatusCreated, res.StatusCode)
+			created := decodeScimUser(t, res.Body)
+			_ = res.Body.Close()
+			require.NotEmpty(t, created.ID)
 
-			err = json.NewDecoder(res.Body).Decode(&sUser)
-			require.NoError(t, err)
-
-			// Check the audit log
 			aLogs := mockAudit.AuditLogs()
 			require.Len(t, aLogs, 1)
 			assert.Equal(t, database.AuditActionCreate, aLogs[0].Action)
 
-			// Verify the user is dormant
-			scimUser, err := client.User(ctx, sUser.UserName)
+			scimCoderUser, err := client.User(ctx, sUser.UserName)
 			require.NoError(t, err)
-			require.Equal(t, codersdk.UserStatusDormant, scimUser.Status, "user starts as dormant")
+			require.Equal(t, codersdk.UserStatusDormant, scimCoderUser.Status, "user starts as dormant")
 
-			// Log in as the user, making them active
 			//nolint:bodyclose
 			scimUserClient, _ := fake.Login(t, client, jwt.MapClaims{
 				"email": sUser.Emails[0].Value,
 				"sub":   uuid.NewString(),
 			})
-			scimUser, err = scimUserClient.User(ctx, codersdk.Me)
+			scimCoderUser, err = scimUserClient.User(ctx, codersdk.Me)
 			require.NoError(t, err)
-			require.Equal(t, codersdk.UserStatusActive, scimUser.Status, "user should now be active")
+			require.Equal(t, codersdk.UserStatusActive, scimCoderUser.Status, "user should now be active")
 
-			// Patch the user
 			mockAudit.ResetLogs()
-			res, err = client.Request(ctx, "PATCH", "/scim/v2/Users/"+sUser.ID, sUser, setScimAuth(scimAPIKey))
+			res, err = client.Request(ctx, http.MethodPatch, "/scim/v2/Users/"+created.ID, replaceActive(true), setScimAuth(scimAPIKey))
 			require.NoError(t, err)
 			_, _ = io.Copy(io.Discard, res.Body)
 			_ = res.Body.Close()
 			assert.Equal(t, http.StatusOK, res.StatusCode)
 
-			// Should be no audit logs since there is no diff
+			// No audit log expected since no diff.
 			aLogs = mockAudit.AuditLogs()
 			require.Len(t, aLogs, 0)
 
-			// Verify the user is still active.
-			scimUser, err = client.User(ctx, sUser.UserName)
+			scimCoderUser, err = client.User(ctx, sUser.UserName)
 			require.NoError(t, err)
-			require.Equal(t, codersdk.UserStatusActive, scimUser.Status, "user is still active")
+			require.Equal(t, codersdk.UserStatusActive, scimCoderUser.Status, "user is still active")
 		})
 	})
 
@@ -613,7 +642,7 @@ func TestScim(t *testing.T) {
 				},
 			})
 
-			res, err := client.Request(ctx, http.MethodPut, "/scim/v2/Users/bob", struct{}{})
+			res, err := client.Request(ctx, http.MethodPut, "/scim/v2/Users/"+uuid.NewString(), makeScimUser(t))
 			require.NoError(t, err)
 			_, _ = io.Copy(io.Discard, res.Body)
 			_ = res.Body.Close()
@@ -636,7 +665,7 @@ func TestScim(t *testing.T) {
 				},
 			})
 
-			res, err := client.Request(ctx, http.MethodPut, "/scim/v2/Users/bob", struct{}{})
+			res, err := client.Request(ctx, http.MethodPut, "/scim/v2/Users/"+uuid.NewString(), makeScimUser(t))
 			require.NoError(t, err)
 			_, _ = io.Copy(io.Discard, res.Body)
 			_ = res.Body.Close()
@@ -666,18 +695,17 @@ func TestScim(t *testing.T) {
 			mockAudit.ResetLogs()
 
 			sUser := makeScimUser(t)
-			res, err := client.Request(ctx, "POST", "/scim/v2/Users", sUser, setScimAuth(scimAPIKey))
+			res, err := client.Request(ctx, http.MethodPost, "/scim/v2/Users", sUser, setScimAuth(scimAPIKey))
 			require.NoError(t, err)
-			defer res.Body.Close()
-			assert.Equal(t, http.StatusOK, res.StatusCode)
+			require.Equal(t, http.StatusCreated, res.StatusCode)
+			created := decodeScimUser(t, res.Body)
+			_ = res.Body.Close()
+			require.NotEmpty(t, created.ID)
 			mockAudit.ResetLogs()
 
-			err = json.NewDecoder(res.Body).Decode(&sUser)
-			require.NoError(t, err)
-
-			sUser.Active = nil
-
-			res, err = client.Request(ctx, http.MethodPut, "/scim/v2/Users/"+sUser.ID, sUser, setScimAuth(scimAPIKey))
+			noActive := sUser
+			noActive.Active = nil
+			res, err = client.Request(ctx, http.MethodPut, "/scim/v2/Users/"+created.ID, noActive, setScimAuth(scimAPIKey))
 			require.NoError(t, err)
 			defer res.Body.Close()
 			assert.Equal(t, http.StatusBadRequest, res.StatusCode)
@@ -685,7 +713,6 @@ func TestScim(t *testing.T) {
 			data, err := io.ReadAll(res.Body)
 			require.NoError(t, err)
 			require.Contains(t, string(data), "active field is required")
-			mockAudit.ResetLogs()
 		})
 
 		t.Run("ImmutabilityViolation", func(t *testing.T) {
@@ -711,27 +738,24 @@ func TestScim(t *testing.T) {
 			mockAudit.ResetLogs()
 
 			sUser := makeScimUser(t)
-			res, err := client.Request(ctx, "POST", "/scim/v2/Users", sUser, setScimAuth(scimAPIKey))
+			res, err := client.Request(ctx, http.MethodPost, "/scim/v2/Users", sUser, setScimAuth(scimAPIKey))
 			require.NoError(t, err)
-			defer res.Body.Close()
-			assert.Equal(t, http.StatusOK, res.StatusCode)
+			require.Equal(t, http.StatusCreated, res.StatusCode)
+			created := decodeScimUser(t, res.Body)
+			_ = res.Body.Close()
+			require.NotEmpty(t, created.ID)
 			mockAudit.ResetLogs()
 
-			err = json.NewDecoder(res.Body).Decode(&sUser)
-			require.NoError(t, err)
-
-			sUser.UserName += "changed"
-
-			res, err = client.Request(ctx, http.MethodPut, "/scim/v2/Users/"+sUser.ID, sUser, setScimAuth(scimAPIKey))
+			changed := sUser
+			changed.UserName = sUser.UserName + "changed"
+			res, err = client.Request(ctx, http.MethodPut, "/scim/v2/Users/"+created.ID, changed, setScimAuth(scimAPIKey))
 			require.NoError(t, err)
 			defer res.Body.Close()
 			assert.Equal(t, http.StatusBadRequest, res.StatusCode)
-			mockAudit.ResetLogs()
 
 			data, err := io.ReadAll(res.Body)
 			require.NoError(t, err)
 			require.Contains(t, string(data), "mutability")
-			require.NoError(t, err)
 		})
 
 		t.Run("OK", func(t *testing.T) {
@@ -757,18 +781,17 @@ func TestScim(t *testing.T) {
 			mockAudit.ResetLogs()
 
 			sUser := makeScimUser(t)
-			res, err := client.Request(ctx, "POST", "/scim/v2/Users", sUser, setScimAuth(scimAPIKey))
+			res, err := client.Request(ctx, http.MethodPost, "/scim/v2/Users", sUser, setScimAuth(scimAPIKey))
 			require.NoError(t, err)
-			defer res.Body.Close()
-			assert.Equal(t, http.StatusOK, res.StatusCode)
+			require.Equal(t, http.StatusCreated, res.StatusCode)
+			created := decodeScimUser(t, res.Body)
+			_ = res.Body.Close()
+			require.NotEmpty(t, created.ID)
 			mockAudit.ResetLogs()
 
-			err = json.NewDecoder(res.Body).Decode(&sUser)
-			require.NoError(t, err)
-
-			sUser.Active = ptr.Ref(false)
-
-			res, err = client.Request(ctx, http.MethodPatch, "/scim/v2/Users/"+sUser.ID, sUser, setScimAuth(scimAPIKey))
+			suspend := sUser
+			suspend.Active = ptr.Ref(false)
+			res, err = client.Request(ctx, http.MethodPut, "/scim/v2/Users/"+created.ID, suspend, setScimAuth(scimAPIKey))
 			require.NoError(t, err)
 			_, _ = io.Copy(io.Discard, res.Body)
 			_ = res.Body.Close()
@@ -784,9 +807,9 @@ func TestScim(t *testing.T) {
 			assert.Equal(t, codersdk.UserStatusSuspended, userRes.Users[0].Status)
 		})
 
-		// Create a user via SCIM, which starts as dormant.
-		// Log in as the user, making them active.
-		// Then patch the user again and the user should still be active.
+		// Same shape as patchUser/ActiveIsActive: ensure PUT with no
+		// change to an active user does not regress them to dormant
+		// and does not produce a spurious audit log.
 		t.Run("ActiveIsActive", func(t *testing.T) {
 			t.Parallel()
 
@@ -794,7 +817,6 @@ func TestScim(t *testing.T) {
 			defer cancel()
 
 			scimAPIKey := []byte("hi")
-
 			mockAudit := audit.NewMock()
 			fake := oidctest.NewFakeIDP(t, oidctest.WithServing())
 			client, _ := coderdenttest.New(t, &coderdenttest.Options{
@@ -814,70 +836,46 @@ func TestScim(t *testing.T) {
 			})
 			mockAudit.ResetLogs()
 
-			// User is dormant on create
 			sUser := makeScimUser(t)
 			res, err := client.Request(ctx, http.MethodPost, "/scim/v2/Users", sUser, setScimAuth(scimAPIKey))
 			require.NoError(t, err)
-			defer res.Body.Close()
-			assert.Equal(t, http.StatusOK, res.StatusCode)
+			require.Equal(t, http.StatusCreated, res.StatusCode)
+			created := decodeScimUser(t, res.Body)
+			_ = res.Body.Close()
+			require.NotEmpty(t, created.ID)
 
-			err = json.NewDecoder(res.Body).Decode(&sUser)
-			require.NoError(t, err)
-
-			// Check the audit log
 			aLogs := mockAudit.AuditLogs()
 			require.Len(t, aLogs, 1)
 			assert.Equal(t, database.AuditActionCreate, aLogs[0].Action)
 
-			// Verify the user is dormant
-			scimUser, err := client.User(ctx, sUser.UserName)
+			scimCoderUser, err := client.User(ctx, sUser.UserName)
 			require.NoError(t, err)
-			require.Equal(t, codersdk.UserStatusDormant, scimUser.Status, "user starts as dormant")
+			require.Equal(t, codersdk.UserStatusDormant, scimCoderUser.Status, "user starts as dormant")
 
-			// Log in as the user, making them active
 			//nolint:bodyclose
 			scimUserClient, _ := fake.Login(t, client, jwt.MapClaims{
 				"email": sUser.Emails[0].Value,
 				"sub":   uuid.NewString(),
 			})
-			scimUser, err = scimUserClient.User(ctx, codersdk.Me)
+			scimCoderUser, err = scimUserClient.User(ctx, codersdk.Me)
 			require.NoError(t, err)
-			require.Equal(t, codersdk.UserStatusActive, scimUser.Status, "user should now be active")
+			require.Equal(t, codersdk.UserStatusActive, scimCoderUser.Status, "user should now be active")
 
-			// Patch the user
 			mockAudit.ResetLogs()
-			res, err = client.Request(ctx, http.MethodPut, "/scim/v2/Users/"+sUser.ID, sUser, setScimAuth(scimAPIKey))
+			same := sUser
+			same.ID = created.ID
+			res, err = client.Request(ctx, http.MethodPut, "/scim/v2/Users/"+created.ID, same, setScimAuth(scimAPIKey))
 			require.NoError(t, err)
 			_, _ = io.Copy(io.Discard, res.Body)
 			_ = res.Body.Close()
 			assert.Equal(t, http.StatusOK, res.StatusCode)
 
-			// Should be no audit logs since there is no diff
 			aLogs = mockAudit.AuditLogs()
 			require.Len(t, aLogs, 0)
 
-			// Verify the user is still active.
-			scimUser, err = client.User(ctx, sUser.UserName)
+			scimCoderUser, err = client.User(ctx, sUser.UserName)
 			require.NoError(t, err)
-			require.Equal(t, codersdk.UserStatusActive, scimUser.Status, "user is still active")
+			require.Equal(t, codersdk.UserStatusActive, scimCoderUser.Status, "user is still active")
 		})
 	})
-}
-
-func TestScimError(t *testing.T) {
-	t.Parallel()
-
-	// Demonstrates that we cannot use the standard errors
-	rw := httptest.NewRecorder()
-	_ = handlerutil.WriteError(rw, spec.ErrNotFound)
-	resp := rw.Result()
-	defer resp.Body.Close()
-	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
-
-	// Our error wrapper works
-	rw = httptest.NewRecorder()
-	_ = handlerutil.WriteError(rw, scim.NewHTTPError(http.StatusNotFound, spec.ErrNotFound.Type, xerrors.New("not found")))
-	resp = rw.Result()
-	defer resp.Body.Close()
-	require.Equal(t, http.StatusNotFound, resp.StatusCode)
 }
