@@ -60,10 +60,13 @@ const withUnavailableWorkspaceCount = (Story: FC) => {
 // Mirrors the sidebar footer wrapper: a fixed-width container with
 // container-type set so the trigger inside reacts to the wrapper's width
 // instead of the viewport's.
-const withUsageIndicatorFrame = (widthClassName = "w-[320px]"): Decorator => {
+const withUsageIndicatorFrame = (
+	widthClassName = "w-[320px]",
+	frameTestId?: string,
+): Decorator => {
 	return (Story) => (
 		<div
-			data-testid="usage-indicator-frame"
+			data-testid={frameTestId}
 			className={`flex h-12 min-w-0 items-stretch justify-end rounded-md bg-surface-secondary [container-type:inline-size] ${widthClassName}`}
 		>
 			<Story />
@@ -222,7 +225,7 @@ const expectTriggerDetailsHidden = (canvasElement: HTMLElement) => {
 
 export const TriggerTiny: Story = {
 	decorators: [
-		withUsageIndicatorFrame("w-[240px]"),
+		withUsageIndicatorFrame("w-[240px]", "usage-indicator-frame"),
 		withUsageLimitStatus(limitedUsageStatus()),
 		withWorkspaceQuota(defaultWorkspaceQuota),
 		withWorkspaceCount(3),
