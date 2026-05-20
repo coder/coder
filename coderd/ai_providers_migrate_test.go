@@ -89,8 +89,8 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 
 		// Changing the API key alone does NOT count as drift: keys
 		// live in a separate table and operators rotate them via the
-		// API. Only changes to provider-level fields (base_url, type,
-		// Bedrock settings) trip the drift check.
+		// API. Only changes to non-credential provider-level fields
+		// (base_url, type, Bedrock region/model) trip the drift check.
 		cfg.LegacyOpenAI.Key = serpent.String("sk-rotated")
 		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, auditor, testLogger(t)))
 
@@ -98,20 +98,49 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		cfg.LegacyOpenAI.BaseURL = serpent.String("https://api.openai.com/v2")
 		err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, auditor, testLogger(t))
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "different fields")
+		require.Contains(t, err.Error(), "managed via the database")
 	})
 
-	t.Run("LegacyAnthropicWithBedrock", func(t *testing.T) {
+	t.Run("BedrockCredentialRotationIsNotDrift", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 		auditor := audit.NewMock()
 
 		cfg := codersdk.AIBridgeConfig{
-			LegacyAnthropic: codersdk.AIBridgeAnthropicConfig{
-				BaseURL: serpent.String("https://api.anthropic.com/"),
-				Key:     serpent.String("sk-ant"),
+			LegacyBedrock: codersdk.AIBridgeBedrockConfig{
+				Region:          serpent.String("us-east-1"),
+				AccessKey:       serpent.String("AKIA-original"),
+				AccessKeySecret: serpent.String("secret-original"),
+				Model:           serpent.String("anthropic.claude-3-5-sonnet"),
 			},
+		}
+		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, auditor, testLogger(t)))
+
+		// Rotating the Bedrock access key and secret in env must NOT
+		// trip the drift check: they're credentials, equivalent to
+		// bearer API keys, and operators rotate them via the API.
+		cfg.LegacyBedrock.AccessKey = serpent.String("AKIA-rotated")
+		cfg.LegacyBedrock.AccessKeySecret = serpent.String("secret-rotated")
+		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, auditor, testLogger(t)))
+
+		// Changing the Bedrock region (a non-credential field) is
+		// real drift.
+		cfg.LegacyBedrock.Region = serpent.String("us-west-2")
+		err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, auditor, testLogger(t))
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "managed via the database")
+	})
+
+	t.Run("LegacyBedrockOnlyKeepsBedrockSettings", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		auditor := audit.NewMock()
+
+		// Bedrock fields without an Anthropic key produce a Bedrock-
+		// authenticated Anthropic provider with no bearer keys.
+		cfg := codersdk.AIBridgeConfig{
 			LegacyBedrock: codersdk.AIBridgeBedrockConfig{
 				Region:          serpent.String("us-west-2"),
 				AccessKey:       serpent.String("AKIA"),
@@ -125,19 +154,73 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		row, err := db.GetAIProviderByName(ctx, "anthropic")
 		require.NoError(t, err)
 		require.Equal(t, database.AiProviderTypeAnthropic, row.Type)
-		// Settings carry both the Bedrock access key and secret
-		// alongside the model identifiers.
 		require.Contains(t, row.Settings.String, "us-west-2")
 		require.Contains(t, row.Settings.String, "anthropic.claude-3-5-sonnet")
 		require.Contains(t, row.Settings.String, "anthropic.claude-3-5-haiku")
 		require.Contains(t, row.Settings.String, "AKIA")
 		require.Contains(t, row.Settings.String, "secret")
-		// Anthropic + Bedrock together still gets the Anthropic
-		// bearer key as a regular ai_provider_keys row.
+		keys, err := db.GetAIProviderKeysByProviderID(ctx, row.ID)
+		require.NoError(t, err)
+		require.Empty(t, keys, "Bedrock provider must not seed bearer keys")
+	})
+
+	t.Run("LegacyAnthropicKeyOnlyIgnoresBedrockModelDefaults", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		auditor := audit.NewMock()
+
+		// LegacyBedrock.Model and LegacyBedrock.SmallFastModel both
+		// have serpent-level defaults that are always populated in a
+		// real deployment. Apply those defaults here so the test
+		// reflects deployment state rather than a hand-crafted config,
+		// then set only the Anthropic key. The result must be a pure
+		// bearer-token Anthropic row with no Bedrock settings blob.
+		dv := codersdk.DeploymentValues{}
+		opts := dv.Options()
+		require.NoError(t, opts.SetDefaults())
+		// Sanity check: the defaults we rely on are present.
+		require.NotEmpty(t, dv.AI.BridgeConfig.LegacyBedrock.Model.String())
+		require.NotEmpty(t, dv.AI.BridgeConfig.LegacyBedrock.SmallFastModel.String())
+
+		cfg := dv.AI.BridgeConfig
+		cfg.LegacyAnthropic.Key = serpent.String("sk-ant-only")
+		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, auditor, testLogger(t)))
+
+		row, err := db.GetAIProviderByName(ctx, "anthropic")
+		require.NoError(t, err)
+		require.False(t, row.Settings.Valid, "model defaults alone must not produce a Bedrock settings blob")
 		keys, err := db.GetAIProviderKeysByProviderID(ctx, row.ID)
 		require.NoError(t, err)
 		require.Len(t, keys, 1)
-		require.Equal(t, "sk-ant", keys[0].APIKey)
+		require.Equal(t, "sk-ant-only", keys[0].APIKey)
+	})
+
+	t.Run("BedrockWithoutCredentialsUsesAWSEnvAuth", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		auditor := audit.NewMock()
+
+		// Any non-empty Bedrock field signals Bedrock auth. AWS
+		// credentials are optional because Bedrock can authenticate
+		// via the AWS environment (instance profile, AWS_PROFILE, etc.).
+		cfg := codersdk.AIBridgeConfig{
+			LegacyBedrock: codersdk.AIBridgeBedrockConfig{
+				Region: serpent.String("us-east-1"),
+				Model:  serpent.String("anthropic.claude-3-5-sonnet"),
+			},
+		}
+		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, auditor, testLogger(t)))
+
+		row, err := db.GetAIProviderByName(ctx, "anthropic")
+		require.NoError(t, err)
+		require.True(t, row.Settings.Valid, "Bedrock metadata must produce a settings blob")
+		require.Contains(t, row.Settings.String, "us-east-1")
+		require.Contains(t, row.Settings.String, "anthropic.claude-3-5-sonnet")
+		keys, err := db.GetAIProviderKeysByProviderID(ctx, row.ID)
+		require.NoError(t, err)
+		require.Empty(t, keys, "Bedrock provider must not seed bearer keys")
 	})
 
 	t.Run("BedrockOnlyAnthropic", func(t *testing.T) {
@@ -182,13 +265,10 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 					Keys:    []string{"sk-1", "sk-2"},
 				},
 				{
-					Type:                  "anthropic",
-					Name:                  "primary-anthropic",
-					BaseURL:               "https://api.anthropic.com/",
-					Keys:                  []string{"sk-ant-1"},
-					BedrockRegion:         "us-east-1",
-					BedrockModel:          "anthropic.claude-3-5-sonnet",
-					BedrockSmallFastModel: "anthropic.claude-3-5-haiku",
+					Type:    "anthropic",
+					Name:    "primary-anthropic",
+					BaseURL: "https://api.anthropic.com/",
+					Keys:    []string{"sk-ant-1"},
 				},
 			},
 		}
@@ -199,18 +279,16 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		require.Equal(t, database.AiProviderTypeOpenai, oa.Type)
 		oaKeys, err := db.GetAIProviderKeysByProviderID(ctx, oa.ID)
 		require.NoError(t, err)
-		require.Len(t, oaKeys, 2, "openai keys should be seeded in input order")
-		require.Equal(t, "sk-1", oaKeys[0].APIKey)
-		require.Equal(t, "sk-2", oaKeys[1].APIKey)
+		require.Len(t, oaKeys, 2)
+		gotKeys := []string{oaKeys[0].APIKey, oaKeys[1].APIKey}
+		require.ElementsMatch(t, []string{"sk-1", "sk-2"}, gotKeys)
 
 		an, err := db.GetAIProviderByName(ctx, "primary-anthropic")
 		require.NoError(t, err)
 		require.Equal(t, database.AiProviderTypeAnthropic, an.Type)
-		// Without AWS credentials, the bedrock_* env fields are not
-		// stored: the row is a regular bearer-token Anthropic provider
-		// and the discriminated settings would otherwise misrepresent
-		// it as a Bedrock auth.
-		require.False(t, an.Settings.Valid, "no settings blob without AWS credentials")
+		// Plain bearer-token Anthropic with no Bedrock fields: no
+		// settings blob, one bearer key.
+		require.False(t, an.Settings.Valid, "no settings blob for bearer-token Anthropic")
 		anKeys, err := db.GetAIProviderKeysByProviderID(ctx, an.ID)
 		require.NoError(t, err)
 		require.Len(t, anKeys, 1)
@@ -233,10 +311,6 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 					BedrockModel:            "anthropic.claude-3-5-sonnet",
 					BedrockAccessKeys:       []string{"AKIA-indexed"},
 					BedrockAccessKeySecrets: []string{"indexed-secret"},
-					// Keys would normally be a bearer api_key, but
-					// Bedrock providers ignore those: credentials
-					// live in the settings blob.
-					Keys: []string{"sk-should-not-be-seeded"},
 				},
 			},
 		}
@@ -250,8 +324,6 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		keys, err := db.GetAIProviderKeysByProviderID(ctx, row.ID)
 		require.NoError(t, err)
 		require.Empty(t, keys, "Bedrock providers must not seed bearer keys")
-		// The plaintext Keys entry should not appear in settings.
-		require.NotContains(t, row.Settings.String, "sk-should-not-be-seeded")
 	})
 
 	t.Run("LegacyAndIndexedSameNameConflict", func(t *testing.T) {
@@ -296,6 +368,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		}
 		err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, auditor, testLogger(t))
 		require.Error(t, err)
+		require.Contains(t, err.Error(), "invalid AI provider name")
 	})
 
 	t.Run("UnknownProviderTypeIsSkipped", func(t *testing.T) {

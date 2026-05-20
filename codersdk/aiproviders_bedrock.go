@@ -32,6 +32,30 @@ type AIProviderBedrockSettings struct {
 	AccessKeySecret *string `json:"access_key_secret,omitempty"`
 }
 
+// IsConfigured reports whether any load-bearing Bedrock field is set,
+// indicating that the operator wants the provider to authenticate via
+// AWS Bedrock rather than as a bearer-token Anthropic provider.
+//
+// Model and SmallFastModel are intentionally excluded: they have
+// deployment-level defaults declared in codersdk/deployment.go, so
+// they're always non-empty in a real deployment and cannot serve as
+// a detection signal. Region and credentials have no defaults and
+// therefore reliably indicate operator intent. Credentials alone are
+// not required because Bedrock can also authenticate via the AWS
+// environment (instance profile, AWS_PROFILE, IRSA, etc.).
+func (b AIProviderBedrockSettings) IsConfigured() bool {
+	if b.Region != "" {
+		return true
+	}
+	if b.AccessKey != nil && *b.AccessKey != "" {
+		return true
+	}
+	if b.AccessKeySecret != nil && *b.AccessKeySecret != "" {
+		return true
+	}
+	return false
+}
+
 func (AIProviderBedrockSettings) settingsType() string {
 	return AIProviderSettingsTypeBedrock
 }

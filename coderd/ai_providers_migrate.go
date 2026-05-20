@@ -23,215 +23,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// canonicalAIProvider is the shape we hash to detect drift between the
-// configured environment and the row stored in the database. The fields
-// we hash are exactly the operator-controllable inputs that affect
-// runtime behavior. API keys are intentionally NOT part of the hash so
-// operators can rotate keys via the API without forcing a server
-// restart; see the keys array in canonicalAIProviderKeys below.
-type canonicalAIProvider struct {
-	Type                  string `json:"type"`
-	BaseURL               string `json:"base_url"`
-	BedrockRegion         string `json:"bedrock_region"`
-	BedrockModel          string `json:"bedrock_model"`
-	BedrockSmallFastModel string `json:"bedrock_small_fast_model"`
-	// BedrockAccessKey and BedrockAccessSecret are part of the settings
-	// blob on Bedrock providers because Bedrock authenticates via
-	// settings rather than a bearer API key.
-	BedrockAccessKey    string `json:"bedrock_access_key"`
-	BedrockAccessSecret string `json:"bedrock_access_secret"`
-}
-
-// desiredAIProvider is a normalized provider description sourced from
-// environment configuration that we want to materialize as a row.
-type desiredAIProvider struct {
-	Name string
-	Type database.AIProviderType
-	// BaseURL is the upstream provider's HTTP endpoint.
-	BaseURL string
-	// Keys is the list of API keys to seed into ai_provider_keys for
-	// non-Bedrock providers. Bedrock providers have no entries here
-	// because they authenticate via the encrypted settings blob.
-	Keys []string
-	// Bedrock holds the Bedrock-specific settings when the provider
-	// targets AWS Bedrock; nil otherwise.
-	Bedrock *codersdk.AIProviderBedrockSettings
-	Hash    string
-}
-
-func (d desiredAIProvider) canonical() canonicalAIProvider {
-	c := canonicalAIProvider{
-		Type:    string(d.Type),
-		BaseURL: d.BaseURL,
-	}
-	if d.Bedrock != nil {
-		c.BedrockRegion = d.Bedrock.Region
-		c.BedrockModel = d.Bedrock.Model
-		c.BedrockSmallFastModel = d.Bedrock.SmallFastModel
-		c.BedrockAccessKey = ptr.NilToDefault(d.Bedrock.AccessKey, "")
-		c.BedrockAccessSecret = ptr.NilToDefault(d.Bedrock.AccessKeySecret, "")
-	}
-	return c
-}
-
-func computeProviderHash(c canonicalAIProvider) string {
-	// json.Marshal is deterministic for structs because field order is
-	// fixed, but we still sort the resulting JSON via canonical struct
-	// shape rather than maps to keep it deterministic and explicit.
-	b, _ := json.Marshal(c)
-	sum := sha256.Sum256(b)
-	return hex.EncodeToString(sum[:])
-}
-
-// providersFromEnv normalizes the deployment-values AI Bridge config
-// (legacy single-provider env vars and indexed CODER_AIBRIDGE_PROVIDER_<N>_*
-// env vars) into the deduplicated set of providers we want present in
-// the database. Conflicts between legacy and indexed providers under
-// the same canonical name are surfaced as errors.
-func providersFromEnv(cfg codersdk.AIBridgeConfig) ([]desiredAIProvider, error) {
-	out := make(map[string]desiredAIProvider)
-	legacyNames := make(map[string]bool)
-
-	addLegacy := func(name string, p desiredAIProvider) {
-		out[name] = p
-		legacyNames[name] = true
-	}
-
-	// Legacy OpenAI.
-	if cfg.LegacyOpenAI.Key.String() != "" {
-		dp := desiredAIProvider{
-			Name:    aibridge.ProviderOpenAI,
-			Type:    database.AiProviderTypeOpenai,
-			BaseURL: cfg.LegacyOpenAI.BaseURL.String(),
-			Keys:    []string{cfg.LegacyOpenAI.Key.String()},
-		}
-		dp.Hash = computeProviderHash(dp.canonical())
-		addLegacy(aibridge.ProviderOpenAI, dp)
-	}
-
-	// Legacy Anthropic + Bedrock. Anthropic is enabled if either an
-	// Anthropic key OR Bedrock credentials are configured.
-	hasAnthropicKey := cfg.LegacyAnthropic.Key.String() != ""
-	hasLegacyBedrock := cfg.LegacyBedrock.Region.String() != "" ||
-		cfg.LegacyBedrock.BaseURL.String() != "" ||
-		cfg.LegacyBedrock.AccessKey.String() != "" ||
-		cfg.LegacyBedrock.AccessKeySecret.String() != "" ||
-		cfg.LegacyBedrock.Model.String() != "" ||
-		cfg.LegacyBedrock.SmallFastModel.String() != ""
-	if hasAnthropicKey || hasLegacyBedrock {
-		dp := desiredAIProvider{
-			Name:    aibridge.ProviderAnthropic,
-			Type:    database.AiProviderTypeAnthropic,
-			BaseURL: cfg.LegacyAnthropic.BaseURL.String(),
-		}
-		if hasLegacyBedrock {
-			dp.Bedrock = &codersdk.AIProviderBedrockSettings{
-				Region:          cfg.LegacyBedrock.Region.String(),
-				Model:           cfg.LegacyBedrock.Model.String(),
-				SmallFastModel:  cfg.LegacyBedrock.SmallFastModel.String(),
-				AccessKey:       ptr.Ref(cfg.LegacyBedrock.AccessKey.String()),
-				AccessKeySecret: ptr.Ref(cfg.LegacyBedrock.AccessKeySecret.String()),
-			}
-		}
-		// Anthropic providers without Bedrock credentials carry a
-		// regular bearer API key; with Bedrock credentials they
-		// authenticate via the settings blob and have no keys.
-		if hasAnthropicKey {
-			dp.Keys = []string{cfg.LegacyAnthropic.Key.String()}
-		}
-		dp.Hash = computeProviderHash(dp.canonical())
-		addLegacy(aibridge.ProviderAnthropic, dp)
-	}
-
-	// Indexed providers.
-	for _, p := range cfg.Providers {
-		name := p.Name
-		if name == "" {
-			name = p.Type
-		}
-		if name == "" {
-			return nil, xerrors.Errorf("indexed AI provider must have a name or type")
-		}
-		// Reject reserved sub-paths and invalid characters here so
-		// that bad env values fail startup rather than producing a
-		// hidden runtime row.
-		if !codersdk.AIProviderNameRegex.MatchString(name) {
-			return nil, xerrors.Errorf("invalid AI provider name %q: must match %s", name, codersdk.AIProviderNameRegex)
-		}
-
-		dp := desiredAIProvider{
-			Name: name,
-		}
-		switch p.Type {
-		case aibridge.ProviderOpenAI:
-			dp.Type = database.AiProviderTypeOpenai
-		case aibridge.ProviderAnthropic:
-			dp.Type = database.AiProviderTypeAnthropic
-		default:
-			// Skip other types (e.g. copilot) until they are added
-			// to the database enum.
-			continue
-		}
-
-		dp.BaseURL = p.BaseURL
-		// Bedrock fields only apply to Anthropic.
-		isBedrock := false
-		if dp.Type == database.AiProviderTypeAnthropic {
-			bedrock := codersdk.AIProviderBedrockSettings{
-				Region:         p.BedrockRegion,
-				Model:          p.BedrockModel,
-				SmallFastModel: p.BedrockSmallFastModel,
-			}
-			if len(p.BedrockAccessKeys) > 0 {
-				bedrock.AccessKey = ptr.Ref(p.BedrockAccessKeys[0])
-			}
-			if len(p.BedrockAccessKeySecrets) > 0 {
-				bedrock.AccessKeySecret = ptr.Ref(p.BedrockAccessKeySecrets[0])
-			}
-			// Treat the provider as Bedrock only when AWS credentials
-			// are explicitly supplied. Region/model metadata alone is
-			// not enough; those can also accompany a bearer-token
-			// Anthropic provider that happens to know the Bedrock
-			// region for default routing.
-			isBedrock = ptr.NilToDefault(bedrock.AccessKey, "") != "" || ptr.NilToDefault(bedrock.AccessKeySecret, "") != ""
-			if isBedrock {
-				dp.Bedrock = &bedrock
-			}
-		}
-		// Bedrock providers authenticate via settings and have no
-		// bearer keys. Non-Bedrock providers carry their bearer
-		// keys in ai_provider_keys.
-		if !isBedrock {
-			dp.Keys = append(dp.Keys, p.Keys...)
-		}
-
-		dp.Hash = computeProviderHash(dp.canonical())
-		if legacyNames[name] {
-			return nil, xerrors.Errorf("indexed AI provider %q conflicts with the legacy env var of the same name; remove one or the other", name)
-		}
-		if existing, ok := out[name]; ok {
-			if existing.Hash != dp.Hash {
-				return nil, xerrors.Errorf("duplicate AI provider name %q with conflicting fields", name)
-			}
-			continue
-		}
-		out[name] = dp
-	}
-
-	// Stable order so audit log entries are deterministic across
-	// restarts, which makes comparison in tests trivial.
-	names := make([]string, 0, len(out))
-	for name := range out {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-	res := make([]desiredAIProvider, 0, len(out))
-	for _, name := range names {
-		res = append(res, out[name])
-	}
-	return res, nil
-}
-
 // SeedAIProvidersFromEnv reconciles the deployment's environment-
 // derived AI provider configuration with rows in the ai_providers
 // table at server startup. Concurrent server starts are serialized via a
@@ -307,7 +98,7 @@ func SeedAIProvidersFromEnv(
 				// The provider was created here, then explicitly
 				// deleted by an operator. We do NOT re-create it
 				// from env; the operator's deletion is sticky.
-				logger.Info(sysCtx, "skipping env-seeded ai provider that was previously soft-deleted",
+				logger.Warn(sysCtx, "skipping env-seeded ai provider that was previously soft-deleted",
 					slog.F("name", dp.Name))
 				continue
 			case found:
@@ -324,7 +115,7 @@ func SeedAIProvidersFromEnv(
 				if existingHash == dp.Hash {
 					continue
 				}
-				return xerrors.Errorf("AI provider %q exists in the database with different fields than the environment configuration; either remove the env var or update the row via the API to match. The deployment refuses to start until the conflict is resolved", dp.Name)
+				return xerrors.Errorf("AI provider %q is managed via the database and no longer reads from environment variables; remove the corresponding CODER_AIBRIDGE_* env vars and manage the provider through the API", dp.Name)
 			}
 
 			row, err := tx.InsertAIProvider(sysCtx, database.InsertAIProviderParams{
@@ -348,25 +139,19 @@ func SeedAIProvidersFromEnv(
 				New:    row,
 			})
 
-			// Insert one ai_provider_keys row per env-supplied key,
-			// in input order, so the runtime selector's "first by
-			// created_at" picks the operator-preferred primary.
-			// We pass explicit, monotonically increasing timestamps
-			// because the default NOW() inside an InTx evaluates to
-			// transaction_timestamp() for every row, which would tie.
-			baseTime := time.Now().UTC()
-			for i, key := range dp.Keys {
+			// Insert one ai_provider_keys row per env-supplied key.
+			now := time.Now().UTC()
+			for _, key := range dp.Keys {
 				if key == "" {
 					continue
 				}
-				stamp := baseTime.Add(time.Duration(i) * time.Microsecond)
 				keyRow, err := tx.InsertAIProviderKey(sysCtx, database.InsertAIProviderKeyParams{
 					ID:          uuid.New(),
 					ProviderID:  row.ID,
 					APIKey:      key,
 					ApiKeyKeyID: sql.NullString{},
-					CreatedAt:   stamp,
-					UpdatedAt:   stamp,
+					CreatedAt:   now,
+					UpdatedAt:   now,
 				})
 				if err != nil {
 					return xerrors.Errorf("insert ai provider key for %q: %w", dp.Name, err)
@@ -392,4 +177,206 @@ func SeedAIProvidersFromEnv(
 		}
 		return nil
 	}, nil)
+}
+
+// canonicalAIProvider is the shape we hash to detect drift between the
+// configured environment and the row stored in the database. The fields
+// we hash are exactly the operator-controllable inputs that affect
+// runtime behavior. Credentials are intentionally NOT part of the hash
+// so operators can rotate them via the API without forcing a server
+// restart. This applies to both bearer API keys (stored in
+// ai_provider_keys) and to Bedrock access key/secret pairs (stored in
+// the settings blob because Bedrock authenticates via settings rather
+// than a bearer token).
+type canonicalAIProvider struct {
+	Type                  string `json:"type"`
+	BaseURL               string `json:"base_url"`
+	BedrockRegion         string `json:"bedrock_region"`
+	BedrockModel          string `json:"bedrock_model"`
+	BedrockSmallFastModel string `json:"bedrock_small_fast_model"`
+}
+
+// desiredAIProvider is a normalized provider description sourced from
+// environment configuration that we want to materialize as a row.
+type desiredAIProvider struct {
+	Name string
+	Type database.AIProviderType
+	// BaseURL is the upstream provider's HTTP endpoint.
+	BaseURL string
+	// Keys is the list of API keys to seed into ai_provider_keys for
+	// non-Bedrock providers. Bedrock providers have no entries here
+	// because they authenticate via the encrypted settings blob.
+	Keys []string
+	// Bedrock holds the Bedrock-specific settings when the provider
+	// targets AWS Bedrock; nil otherwise.
+	Bedrock *codersdk.AIProviderBedrockSettings
+	Hash    string
+}
+
+func (d desiredAIProvider) canonical() canonicalAIProvider {
+	c := canonicalAIProvider{
+		Type:    string(d.Type),
+		BaseURL: d.BaseURL,
+	}
+	if d.Bedrock != nil {
+		c.BedrockRegion = d.Bedrock.Region
+		c.BedrockModel = d.Bedrock.Model
+		c.BedrockSmallFastModel = d.Bedrock.SmallFastModel
+	}
+	return c
+}
+
+func computeProviderHash(c canonicalAIProvider) string {
+	// json.Marshal is deterministic for structs because field order is
+	// fixed, but we still sort the resulting JSON via canonical struct
+	// shape rather than maps to keep it deterministic and explicit.
+	b, _ := json.Marshal(c)
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])
+}
+
+// providersFromEnv normalizes the deployment-values AI Bridge config
+// (legacy single-provider env vars and indexed CODER_AIBRIDGE_PROVIDER_<N>_*
+// env vars) into the deduplicated set of providers we want present in
+// the database. Conflicts between legacy and indexed providers under
+// the same canonical name are surfaced as errors.
+func providersFromEnv(cfg codersdk.AIBridgeConfig) ([]desiredAIProvider, error) {
+	out := make(map[string]desiredAIProvider)
+	legacyNames := make(map[string]bool)
+
+	addLegacy := func(name string, p desiredAIProvider) {
+		out[name] = p
+		legacyNames[name] = true
+	}
+
+	// Legacy OpenAI.
+	if cfg.LegacyOpenAI.Key.String() != "" {
+		dp := desiredAIProvider{
+			Name:    aibridge.ProviderOpenAI,
+			Type:    database.AiProviderTypeOpenai,
+			BaseURL: cfg.LegacyOpenAI.BaseURL.String(),
+			Keys:    []string{cfg.LegacyOpenAI.Key.String()},
+		}
+		dp.Hash = computeProviderHash(dp.canonical())
+		addLegacy(aibridge.ProviderOpenAI, dp)
+	}
+
+	// Legacy Anthropic + Bedrock. Anthropic is enabled if either an
+	// Anthropic key OR any Bedrock setting is explicitly configured.
+	// Detection goes through AIProviderBedrockSettings.IsConfigured()
+	// so the legacy and indexed paths agree on what counts as a
+	// Bedrock provider.
+	bedrock := codersdk.AIProviderBedrockSettings{
+		Region:         cfg.LegacyBedrock.Region.String(),
+		Model:          cfg.LegacyBedrock.Model.String(),
+		SmallFastModel: cfg.LegacyBedrock.SmallFastModel.String(),
+	}
+	if key := cfg.LegacyBedrock.AccessKey.String(); key != "" {
+		bedrock.AccessKey = ptr.Ref(key)
+	}
+	if secret := cfg.LegacyBedrock.AccessKeySecret.String(); secret != "" {
+		bedrock.AccessKeySecret = ptr.Ref(secret)
+	}
+	hasAnthropicKey := cfg.LegacyAnthropic.Key.String() != ""
+	hasLegacyBedrock := bedrock.IsConfigured()
+	if hasAnthropicKey || hasLegacyBedrock {
+		dp := desiredAIProvider{
+			Name:    aibridge.ProviderAnthropic,
+			Type:    database.AiProviderTypeAnthropic,
+			BaseURL: cfg.LegacyAnthropic.BaseURL.String(),
+		}
+		if hasLegacyBedrock {
+			dp.Bedrock = &bedrock
+		} else {
+			dp.Keys = []string{cfg.LegacyAnthropic.Key.String()}
+		}
+		dp.Hash = computeProviderHash(dp.canonical())
+		addLegacy(aibridge.ProviderAnthropic, dp)
+	}
+
+	// Indexed providers.
+	for _, p := range cfg.Providers {
+		name := p.Name
+		if name == "" {
+			name = p.Type
+		}
+		if name == "" {
+			return nil, xerrors.Errorf("indexed AI provider must have a name or type")
+		}
+		// Reject invalid characters here so that bad env values
+		// fail startup rather than producing a hidden runtime row.
+		if !codersdk.AIProviderNameRegex.MatchString(name) {
+			return nil, xerrors.Errorf("invalid AI provider name %q: must match %s", name, codersdk.AIProviderNameRegex)
+		}
+
+		dp := desiredAIProvider{
+			Name: name,
+		}
+		switch p.Type {
+		case aibridge.ProviderOpenAI:
+			dp.Type = database.AiProviderTypeOpenai
+		case aibridge.ProviderAnthropic:
+			dp.Type = database.AiProviderTypeAnthropic
+		default:
+			// Skip other types (e.g. copilot) until they are added
+			// to the database enum.
+			continue
+		}
+
+		dp.BaseURL = p.BaseURL
+		// Bedrock fields only apply to Anthropic. Detection goes
+		// through AIProviderBedrockSettings.IsConfigured() so the
+		// legacy and indexed paths agree on what counts as a Bedrock
+		// provider.
+		isBedrock := false
+		if dp.Type == database.AiProviderTypeAnthropic {
+			bedrock := codersdk.AIProviderBedrockSettings{
+				Region:         p.BedrockRegion,
+				Model:          p.BedrockModel,
+				SmallFastModel: p.BedrockSmallFastModel,
+			}
+			if len(p.BedrockAccessKeys) > 0 && p.BedrockAccessKeys[0] != "" {
+				bedrock.AccessKey = ptr.Ref(p.BedrockAccessKeys[0])
+			}
+			if len(p.BedrockAccessKeySecrets) > 0 && p.BedrockAccessKeySecrets[0] != "" {
+				bedrock.AccessKeySecret = ptr.Ref(p.BedrockAccessKeySecrets[0])
+			}
+			isBedrock = bedrock.IsConfigured()
+			if isBedrock {
+				dp.Bedrock = &bedrock
+			}
+		}
+		// Non-Bedrock providers carry their bearer keys in
+		// ai_provider_keys. Bedrock providers authenticate via the
+		// settings blob and have no keys; cli/server.go rejects
+		// configs that set both before we get here.
+		if !isBedrock {
+			dp.Keys = append(dp.Keys, p.Keys...)
+		}
+
+		dp.Hash = computeProviderHash(dp.canonical())
+		if legacyNames[name] {
+			return nil, xerrors.Errorf("indexed AI provider %q conflicts with the legacy env var of the same name; remove one or the other", name)
+		}
+		if existing, ok := out[name]; ok {
+			if existing.Hash != dp.Hash {
+				return nil, xerrors.Errorf("duplicate AI provider name %q with conflicting fields", name)
+			}
+			continue
+		}
+		out[name] = dp
+	}
+
+	// Stable order so audit log entries are deterministic across
+	// restarts, which makes comparison in tests trivial.
+	names := make([]string, 0, len(out))
+	for name := range out {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	res := make([]desiredAIProvider, 0, len(out))
+	for _, name := range names {
+		res = append(res, out[name])
+	}
+	return res, nil
 }
