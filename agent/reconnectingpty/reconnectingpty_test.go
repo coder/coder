@@ -39,6 +39,10 @@ func TestWithTerminalEnv(t *testing.T) {
 			env:  []string{"LANG=C.UTF-8"},
 		},
 		{
+			name: "keeps unhyphenated utf8 lang",
+			env:  []string{"LANG=C.UTF8"},
+		},
+		{
 			name:           "keeps utf8 ctype",
 			env:            []string{"LC_CTYPE=C.UTF-8"},
 			wantLCCTYPE:    "C.UTF-8",
