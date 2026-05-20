@@ -13,6 +13,16 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+var inheritedContextAgentID = uuid.MustParse("00000000-0000-0000-0000-000000000001")
+
+func inheritedContextAgentIDPart() uuid.NullUUID {
+	return uuid.NullUUID{UUID: inheritedContextAgentID, Valid: true}
+}
+
+func isInheritedContextAgentID(agentID uuid.NullUUID) bool {
+	return agentID.Valid && agentID.UUID == inheritedContextAgentID
+}
+
 // AgentChatContextSentinelPath marks the synthetic empty context-file
 // part used to preserve skill-only workspace-agent additions across
 // turns without treating them as persisted instruction files.
@@ -82,7 +92,8 @@ func latestContextAgentIDFromParts(parts []codersdk.ChatMessagePart) (uuid.UUID,
 	found := false
 	for _, part := range parts {
 		if part.Type != codersdk.ChatMessagePartTypeContextFile ||
-			!part.ContextFileAgentID.Valid {
+			!part.ContextFileAgentID.Valid ||
+			isInheritedContextAgentID(part.ContextFileAgentID) {
 			continue
 		}
 		lastID = part.ContextFileAgentID.UUID
@@ -116,6 +127,22 @@ func FilterContextPartsToLatestAgent(parts []codersdk.ChatMessagePart) []codersd
 		filtered = append(filtered, part)
 	}
 	return filtered
+}
+
+func markContextPartsInherited(parts []codersdk.ChatMessagePart) []codersdk.ChatMessagePart {
+	if len(parts) == 0 {
+		return parts
+	}
+	marked := make([]codersdk.ChatMessagePart, 0, len(parts))
+	for _, part := range parts {
+		cp := part
+		switch cp.Type {
+		case codersdk.ChatMessagePartTypeContextFile, codersdk.ChatMessagePartTypeSkill:
+			cp.ContextFileAgentID = inheritedContextAgentIDPart()
+		}
+		marked = append(marked, cp)
+	}
+	return marked
 }
 
 // BuildLastInjectedContext filters parts down to non-empty context-file

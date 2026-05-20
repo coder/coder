@@ -1116,9 +1116,8 @@ func (p *Server) createChildSubagentChatWithOptions(
 
 // copyParentContextMessages reads persisted context-file and skill
 // messages from the parent chat and inserts copies into the child
-// chat. This ensures sub-agents inherit the same instruction and
-// skill context as their parent without independently re-fetching
-// from the agent.
+// chat. Copied parts preserve prompt continuity, but they are marked
+// inherited so the child still refreshes workspace context locally.
 func copyParentContextMessages(
 	ctx context.Context,
 	logger slog.Logger,
@@ -1169,7 +1168,7 @@ func copyParentContextMessages(
 		return nil, nil
 	}
 
-	copiedParts = FilterContextPartsToLatestAgent(copiedParts)
+	copiedParts = markContextPartsInherited(FilterContextPartsToLatestAgent(copiedParts))
 	filteredContent, err := chatprompt.MarshalParts(copiedParts)
 	if err != nil {
 		return nil, xerrors.Errorf("marshal filtered context parts: %w", err)

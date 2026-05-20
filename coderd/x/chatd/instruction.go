@@ -76,7 +76,8 @@ func latestContextAgentID(messages []database.ChatMessage) (uuid.UUID, bool) {
 		}
 		for _, part := range parts {
 			if part.Type != codersdk.ChatMessagePartTypeContextFile ||
-				!part.ContextFileAgentID.Valid {
+				!part.ContextFileAgentID.Valid ||
+				isInheritedContextAgentID(part.ContextFileAgentID) {
 				continue
 			}
 			lastID = part.ContextFileAgentID.UUID
@@ -129,9 +130,9 @@ func instructionFromContextFiles(
 }
 
 // hasPersistedInstructionFiles reports whether messages include a
-// persisted context-file part that should suppress another baseline
-// instruction-file lookup. The workspace-agent skill-only sentinel is
-// ignored so default instructions still load on fresh chats.
+// locally persisted context-file part that should suppress another
+// baseline instruction-file lookup. The workspace-agent skill-only
+// sentinel and inherited subagent context markers are ignored.
 func hasPersistedInstructionFiles(
 	messages []database.ChatMessage,
 ) bool {
@@ -147,6 +148,7 @@ func hasPersistedInstructionFiles(
 		for _, part := range parts {
 			if part.Type != codersdk.ChatMessagePartTypeContextFile ||
 				!part.ContextFileAgentID.Valid ||
+				isInheritedContextAgentID(part.ContextFileAgentID) ||
 				part.ContextFilePath == AgentChatContextSentinelPath {
 				continue
 			}

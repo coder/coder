@@ -243,9 +243,9 @@ type Server struct {
 	chatStreams sync.Map // uuid.UUID -> *chatStreamState
 
 	// workspaceMCPToolsCache caches workspace MCP tool definitions
-	// per chat to avoid re-fetching on every turn. The cache is
-	// keyed by chat ID and invalidated when the agent changes.
-	workspaceMCPToolsCache sync.Map // uuid.UUID -> *workspacediscovery.MCPToolsCacheEntry
+	// by owner, workspace, and agent so subagents can reuse metadata
+	// discovered by their parent without re-fetching on every turn.
+	workspaceMCPToolsCache sync.Map // workspacediscovery.MCPToolsCacheKey -> *workspacediscovery.MCPToolsCacheEntry
 
 	usageTracker *workspacestats.UsageTracker
 	clock        quartz.Clock
@@ -477,11 +477,15 @@ func (p *Server) newAdvisorRuntime(
 }
 
 func (p *Server) workspaceMCPAgentTools(
-	chatID uuid.UUID,
+	cacheKey workspacediscovery.MCPToolsCacheKey,
 	rawTools []workspacesdk.MCPToolInfo,
 	getConn func(context.Context) (workspacesdk.AgentConn, error),
 ) []fantasy.AgentTool {
-	invalidate := func() { p.workspaceMCPToolsCache.Delete(chatID) }
+	invalidate := func() {
+		if cacheKey.Valid() {
+			p.workspaceMCPToolsCache.Delete(cacheKey)
+		}
+	}
 	tools := make([]fantasy.AgentTool, 0, len(rawTools))
 	for _, tool := range rawTools {
 		tools = append(tools, chattool.NewWorkspaceMCPTool(tool, getConn, invalidate))
@@ -489,11 +493,25 @@ func (p *Server) workspaceMCPAgentTools(
 	return tools
 }
 
+func workspaceMCPToolsCacheKey(
+	chat database.Chat,
+	agentID uuid.UUID,
+) (workspacediscovery.MCPToolsCacheKey, bool) {
+	if !chat.WorkspaceID.Valid || chat.OwnerID == uuid.Nil || agentID == uuid.Nil {
+		return workspacediscovery.MCPToolsCacheKey{}, false
+	}
+	return workspacediscovery.MCPToolsCacheKey{
+		OwnerID:     chat.OwnerID,
+		WorkspaceID: chat.WorkspaceID.UUID,
+		AgentID:     agentID,
+	}, true
+}
+
 // discoverWorkspaceMCPTools resolves the chat's workspace agent and
 // lists the workspace MCP tools advertised by that agent. Results are
-// cached per chat keyed on the agent ID so subsequent calls hit the
-// cache. Returns nil (and never an error) on every failure mode so the
-// caller can continue without MCP tools.
+// cached by owner, workspace, and agent so related chats can reuse the
+// same metadata. Returns nil on every failure mode so the caller can
+// continue without MCP tools.
 //
 // This helper is shared between the top-of-turn discovery path and the
 // mid-turn PrepareTools path triggered after create_workspace /
@@ -501,13 +519,13 @@ func (p *Server) workspaceMCPAgentTools(
 func (p *Server) discoverWorkspaceMCPTools(
 	ctx context.Context,
 	logger slog.Logger,
-	chatID uuid.UUID,
 	workspaceCtx *turnWorkspaceContext,
 ) []fantasy.AgentTool {
 	result := workspacediscovery.DiscoverMCPTools(ctx, workspacediscovery.MCPToolsOptions{
-		ChatID:            chatID,
-		Cache:             &p.workspaceMCPToolsCache,
-		GetWorkspaceAgent: workspaceCtx.getWorkspaceAgent,
+		Cache: &p.workspaceMCPToolsCache,
+		CacheKey: func(agentID uuid.UUID) (workspacediscovery.MCPToolsCacheKey, bool) {
+			return workspaceMCPToolsCacheKey(workspaceCtx.currentChatSnapshot(), agentID)
+		},
 		ResolveWorkspaceAgentID: func(ctx context.Context) (uuid.UUID, error) {
 			_, agentID, err := workspaceCtx.workspaceAgentIDForConn(ctx)
 			return agentID, err
@@ -522,7 +540,7 @@ func (p *Server) discoverWorkspaceMCPTools(
 	if !result.OK {
 		return nil
 	}
-	return p.workspaceMCPAgentTools(chatID, result.Tools, workspaceCtx.getWorkspaceConn)
+	return p.workspaceMCPAgentTools(result.Key, result.Tools, workspaceCtx.getWorkspaceConn)
 }
 
 // primeWorkspaceMCPCache populates workspaceMCPToolsCache after the
@@ -550,7 +568,7 @@ func (p *Server) primeWorkspaceMCPCache(
 	attempt := 0
 	for {
 		attempt++
-		tools := p.discoverWorkspaceMCPTools(ctx, logger, chatID, workspaceCtx)
+		tools := p.discoverWorkspaceMCPTools(ctx, logger, workspaceCtx)
 		if len(tools) > 0 {
 			logger.Debug(ctx, "primed workspace MCP cache",
 				slog.F("chat_id", chatID),
@@ -4527,7 +4545,6 @@ func (p *Server) cleanupStreamIfIdle(chatID uuid.UUID, state *chatStreamState) b
 	if !p.chatStreams.CompareAndDelete(chatID, state) {
 		return false
 	}
-	p.workspaceMCPToolsCache.Delete(chatID)
 	return true
 }
 
@@ -6328,6 +6345,13 @@ func activeToolNamesForTurn(
 	return toolNames
 }
 
+func exposeWorkspaceMCPToolsForMode(chatMode database.NullChatMode) bool {
+	// Explore intentionally does not expose workspace MCP tools. Discovery
+	// still runs before this policy so cache state and diagnostics stay
+	// consistent with other workspace-backed subagents.
+	return !isExploreSubagentMode(chatMode)
+}
+
 func allowedExploreToolNames(allTools []fantasy.AgentTool) []string {
 	builtinExplorePolicy := map[string]bool{
 		"read_file":         true,
@@ -7079,7 +7103,7 @@ func (p *Server) runChat(
 	if chat.WorkspaceID.Valid && !isPlanModeTurn {
 		g2.Go(func() error {
 			workspaceMCPTools = p.discoverWorkspaceMCPTools(
-				ctx, logger, chat.ID, &workspaceCtx,
+				ctx, logger, &workspaceCtx,
 			)
 			return nil
 		})
@@ -7571,11 +7595,11 @@ func (p *Server) runChat(
 	}
 
 	// Append external MCP tools from the chat's persisted snapshot after the
-	// built-ins so the LLM sees them as additional capabilities. Explore chats
-	// trust only the persisted MCPServerIDs snapshot, and workspace-local MCP
-	// tools stay unavailable to Explore chats.
+	// built-ins so the LLM sees them as additional capabilities. Workspace
+	// MCP discovery runs earlier for all workspace-backed chats, then this
+	// policy decides whether the discovered tools are exposed.
 	tools = append(tools, mcpTools...)
-	if !isExploreSubagent {
+	if exposeWorkspaceMCPToolsForMode(chat.Mode) {
 		tools = append(tools, workspaceMCPTools...)
 	}
 	tools = filterToolsForTurn(
@@ -7856,7 +7880,7 @@ func (p *Server) runChat(
 				return nil
 			}
 			discovered := p.discoverWorkspaceMCPTools(
-				ctx, loopLogger, chat.ID, &workspaceCtx,
+				ctx, loopLogger, &workspaceCtx,
 			)
 			if len(discovered) == 0 {
 				// Leave workspaceMCPDiscovered false so a subsequent
@@ -8285,6 +8309,7 @@ func contextFileAgentID(messages []database.ChatMessage) (uuid.UUID, bool) {
 		for _, p := range parts {
 			if p.Type != codersdk.ChatMessagePartTypeContextFile ||
 				!p.ContextFileAgentID.Valid ||
+				isInheritedContextAgentID(p.ContextFileAgentID) ||
 				p.ContextFilePath == AgentChatContextSentinelPath {
 				continue
 			}

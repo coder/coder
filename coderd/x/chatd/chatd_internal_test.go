@@ -3301,6 +3301,45 @@ func TestInstructionFromContextFilesKeepsLegacyUnstampedParts(t *testing.T) {
 	require.NotContains(t, got, "Operating System: darwin")
 }
 
+func TestSkillsFromPartsDropsInheritedSkillsAfterLocalRefresh(t *testing.T) {
+	t.Parallel()
+
+	localAgentID := uuid.New()
+	msgs := []database.ChatMessage{
+		chattest.ChatMessageWithParts([]codersdk.ChatMessagePart{
+			{
+				Type:               codersdk.ChatMessagePartTypeContextFile,
+				ContextFileAgentID: inheritedContextAgentIDPart(),
+			},
+			{
+				Type:               codersdk.ChatMessagePartTypeSkill,
+				SkillName:          "stale-parent-skill",
+				SkillDir:           "/skills/stale-parent-skill",
+				ContextFileAgentID: inheritedContextAgentIDPart(),
+			},
+		}),
+		chattest.ChatMessageWithParts([]codersdk.ChatMessagePart{
+			{
+				Type:               codersdk.ChatMessagePartTypeContextFile,
+				ContextFilePath:    "/workspace/AGENTS.md",
+				ContextFileAgentID: uuid.NullUUID{UUID: localAgentID, Valid: true},
+			},
+			{
+				Type:               codersdk.ChatMessagePartTypeSkill,
+				SkillName:          "local-skill",
+				SkillDir:           "/skills/local-skill",
+				ContextFileAgentID: uuid.NullUUID{UUID: localAgentID, Valid: true},
+			},
+		}),
+	}
+
+	got := skillsFromParts(msgs)
+	require.Equal(t, []chattool.SkillMeta{{
+		Name: "local-skill",
+		Dir:  "/skills/local-skill",
+	}}, got)
+}
+
 func TestSkillsFromPartsKeepsLegacyUnstampedParts(t *testing.T) {
 	t.Parallel()
 
@@ -5735,6 +5774,17 @@ func TestSubscribeToStream_FiltersBufferedParts_Integration(t *testing.T) {
 		"only in-progress (un-claimed) buffered parts must survive the filter")
 }
 
+func requireWorkspaceMCPToolsCacheKey(
+	t *testing.T,
+	chat database.Chat,
+	agentID uuid.UUID,
+) workspacediscovery.MCPToolsCacheKey {
+	t.Helper()
+	key, ok := workspaceMCPToolsCacheKey(chat, agentID)
+	require.True(t, ok)
+	return key
+}
+
 // TestPrimeWorkspaceMCPCache_SuccessOnFirstAttempt verifies the
 // onChatUpdated cache primer path: when create_workspace /
 // start_workspace finish waitForAgentReady and the agent's MCP
@@ -5751,7 +5801,8 @@ func TestPrimeWorkspaceMCPCache_SuccessOnFirstAttempt(t *testing.T) {
 	workspaceID := uuid.New()
 	agentID := uuid.New()
 	chat := database.Chat{
-		ID: uuid.New(),
+		ID:      uuid.New(),
+		OwnerID: uuid.New(),
 		WorkspaceID: uuid.NullUUID{
 			UUID:  workspaceID,
 			Valid: true,
@@ -5813,13 +5864,94 @@ func TestPrimeWorkspaceMCPCache_SuccessOnFirstAttempt(t *testing.T) {
 
 	server.primeWorkspaceMCPCache(ctx, server.logger, chat.ID, &workspaceCtx)
 
-	cached, ok := server.workspaceMCPToolsCache.Load(chat.ID)
+	cacheKey := requireWorkspaceMCPToolsCacheKey(t, chat, agentID)
+	cached, ok := server.workspaceMCPToolsCache.Load(cacheKey)
 	require.True(t, ok, "primer must populate the cache on success")
 	entry, ok := cached.(*workspacediscovery.MCPToolsCacheEntry)
 	require.True(t, ok)
-	require.Equal(t, agentID, entry.AgentID)
+	require.Equal(t, cacheKey, entry.Key)
 	require.Len(t, entry.Tools, 1)
 	require.Equal(t, toolName, entry.Tools[0].Name)
+}
+
+func TestDiscoverWorkspaceMCPToolsReusesParentCacheForChild(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	workspaceID := uuid.New()
+	agentID := uuid.New()
+	ownerID := uuid.New()
+	parent := database.Chat{
+		ID:      uuid.New(),
+		OwnerID: ownerID,
+		WorkspaceID: uuid.NullUUID{
+			UUID:  workspaceID,
+			Valid: true,
+		},
+		AgentID: uuid.NullUUID{
+			UUID:  agentID,
+			Valid: true,
+		},
+	}
+	child := parent
+	child.ID = uuid.New()
+	child.ParentChatID = uuid.NullUUID{UUID: parent.ID, Valid: true}
+	workspaceAgent := database.WorkspaceAgent{ID: agentID}
+
+	db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
+		Return([]database.WorkspaceAgent{workspaceAgent}, nil).AnyTimes()
+	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
+		Return(workspaceAgent, nil).AnyTimes()
+	conn := agentconnmock.NewMockAgentConn(ctrl)
+	conn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
+
+	server := &Server{
+		db:                             db,
+		logger:                         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		clock:                          quartz.NewMock(t),
+		agentInactiveDisconnectTimeout: 30 * time.Second,
+		dialTimeout:                    time.Second,
+		agentConnFn: func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			return conn, func() {}, nil
+		},
+	}
+	cacheKey := requireWorkspaceMCPToolsCacheKey(t, parent, agentID)
+	workspacediscovery.StoreMCPTools(&server.workspaceMCPToolsCache, cacheKey, []workspacesdk.MCPToolInfo{{
+		ServerName: "workspace-mcp",
+		Name:       "workspace-mcp__cached",
+		Schema:     map[string]any{},
+	}})
+
+	chatStateMu := &sync.Mutex{}
+	currentChat := child
+	workspaceCtx := turnWorkspaceContext{
+		server:           server,
+		chatStateMu:      chatStateMu,
+		currentChat:      &currentChat,
+		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return child, nil },
+	}
+	t.Cleanup(workspaceCtx.close)
+
+	tools := server.discoverWorkspaceMCPTools(ctx, server.logger, &workspaceCtx)
+	require.Len(t, tools, 1)
+	require.Equal(t, "workspace-mcp__cached", tools[0].Info().Name)
+}
+
+func TestExposeWorkspaceMCPToolsForModeKeepsExploreConservative(t *testing.T) {
+	t.Parallel()
+
+	require.True(t, exposeWorkspaceMCPToolsForMode(database.NullChatMode{}))
+	require.True(t, exposeWorkspaceMCPToolsForMode(database.NullChatMode{
+		ChatMode: database.ChatModeComputerUse,
+		Valid:    true,
+	}))
+	require.False(t, exposeWorkspaceMCPToolsForMode(database.NullChatMode{
+		ChatMode: database.ChatModeExplore,
+		Valid:    true,
+	}))
 }
 
 // TestPrimeWorkspaceMCPCache_RetriesUntilToolsAppear simulates the
@@ -5838,7 +5970,8 @@ func TestPrimeWorkspaceMCPCache_RetriesUntilToolsAppear(t *testing.T) {
 	workspaceID := uuid.New()
 	agentID := uuid.New()
 	chat := database.Chat{
-		ID: uuid.New(),
+		ID:      uuid.New(),
+		OwnerID: uuid.New(),
 		WorkspaceID: uuid.NullUUID{
 			UUID:  workspaceID,
 			Valid: true,
@@ -5935,11 +6068,12 @@ func TestPrimeWorkspaceMCPCache_RetriesUntilToolsAppear(t *testing.T) {
 
 	require.GreaterOrEqual(t, listCalls.Load(), int32(2),
 		"primer must retry after empty result")
-	cached, ok := server.workspaceMCPToolsCache.Load(chat.ID)
+	cacheKey := requireWorkspaceMCPToolsCacheKey(t, chat, agentID)
+	cached, ok := server.workspaceMCPToolsCache.Load(cacheKey)
 	require.True(t, ok, "primer must populate the cache on retry success")
 	entry, ok := cached.(*workspacediscovery.MCPToolsCacheEntry)
 	require.True(t, ok)
-	require.Equal(t, agentID, entry.AgentID)
+	require.Equal(t, cacheKey, entry.Key)
 	require.Len(t, entry.Tools, 1)
 	require.Equal(t, toolName, entry.Tools[0].Name)
 }
@@ -5960,7 +6094,8 @@ func TestPrimeWorkspaceMCPCache_GivesUpAfterDeadline(t *testing.T) {
 	workspaceID := uuid.New()
 	agentID := uuid.New()
 	chat := database.Chat{
-		ID: uuid.New(),
+		ID:      uuid.New(),
+		OwnerID: uuid.New(),
 		WorkspaceID: uuid.NullUUID{
 			UUID:  workspaceID,
 			Valid: true,
@@ -6068,7 +6203,8 @@ Loop:
 	expectedAttempts := int32(workspaceMCPPrimeMaxWait/workspaceMCPPrimeRetryInterval) / 2
 	require.GreaterOrEqual(t, listCalls.Load(), expectedAttempts,
 		"primer must retry enough times to consume the full budget")
-	_, ok := server.workspaceMCPToolsCache.Load(chat.ID)
+	cacheKey := requireWorkspaceMCPToolsCacheKey(t, chat, agentID)
+	_, ok := server.workspaceMCPToolsCache.Load(cacheKey)
 	require.False(t, ok,
 		"primer must not cache an empty result; PrepareTools needs to retry on the next step")
 }
@@ -6088,7 +6224,8 @@ func TestPrimeWorkspaceMCPCache_ExitsOnContextCancel(t *testing.T) {
 	workspaceID := uuid.New()
 	agentID := uuid.New()
 	chat := database.Chat{
-		ID: uuid.New(),
+		ID:      uuid.New(),
+		OwnerID: uuid.New(),
 		WorkspaceID: uuid.NullUUID{
 			UUID:  workspaceID,
 			Valid: true,
@@ -6169,6 +6306,7 @@ func TestPrimeWorkspaceMCPCache_ExitsOnContextCancel(t *testing.T) {
 		t.Fatal("primer did not exit after context cancellation")
 	}
 
-	_, ok := server.workspaceMCPToolsCache.Load(chat.ID)
+	cacheKey := requireWorkspaceMCPToolsCacheKey(t, chat, agentID)
+	_, ok := server.workspaceMCPToolsCache.Load(cacheKey)
 	require.False(t, ok, "primer must not cache anything when canceled")
 }

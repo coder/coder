@@ -437,6 +437,79 @@ func TestCreateChildSubagentChatCopiesOnlyLatestAgentContext(t *testing.T) {
 	require.Equal(t, "new-skill", inherited[0][1].SkillName)
 }
 
+func TestCreateChildSubagentChatMarksCopiedBlankContextInherited(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(t, db)
+	parent, err := server.CreateChat(ctx, CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		Title:              "parent-with-blank-context",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+
+	agentID := uuid.New()
+	content, err := json.Marshal([]codersdk.ChatMessagePart{
+		{
+			Type:               codersdk.ChatMessagePartTypeContextFile,
+			ContextFileAgentID: uuid.NullUUID{UUID: agentID, Valid: true},
+		},
+		{
+			Type:               codersdk.ChatMessagePartTypeSkill,
+			SkillName:          "stale-parent-skill",
+			ContextFileAgentID: uuid.NullUUID{UUID: agentID, Valid: true},
+		},
+	})
+	require.NoError(t, err)
+	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:         parent.ID,
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:           database.ChatMessageRoleUser,
+		Content:        pqtype.NullRawMessage{RawMessage: content, Valid: true},
+		ContentVersion: chatprompt.CurrentContentVersion,
+	})
+
+	parentChat, err := db.GetChatByID(ctx, parent.ID)
+	require.NoError(t, err)
+	child, err := server.createChildSubagentChat(ctx, parentChat, "inspect inherited context", "")
+	require.NoError(t, err)
+
+	childMessages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  child.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+	require.False(t, hasPersistedInstructionFiles(childMessages))
+	_, hasLocalAgentID := contextFileAgentID(childMessages)
+	require.False(t, hasLocalAgentID)
+
+	var copied []codersdk.ChatMessagePart
+	for _, msg := range childMessages {
+		if !msg.Content.Valid {
+			continue
+		}
+		var parts []codersdk.ChatMessagePart
+		require.NoError(t, json.Unmarshal(msg.Content.RawMessage, &parts))
+		for _, part := range parts {
+			if part.Type == codersdk.ChatMessagePartTypeContextFile ||
+				part.Type == codersdk.ChatMessagePartTypeSkill {
+				copied = append(copied, part)
+			}
+		}
+	}
+	require.Len(t, copied, 2)
+	for _, part := range copied {
+		require.True(t, isInheritedContextAgentID(part.ContextFileAgentID))
+	}
+}
+
 func TestCreateChildSubagentChatUpdatesInheritedLastInjectedContext(t *testing.T) {
 	t.Parallel()
 

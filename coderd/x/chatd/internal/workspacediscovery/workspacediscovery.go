@@ -94,53 +94,66 @@ func FetchWorkspaceContext(
 	return result
 }
 
-// MCPToolsCacheEntry stores workspace MCP tools discovered from an agent.
-type MCPToolsCacheEntry struct {
-	AgentID uuid.UUID
-	Tools   []workspacesdk.MCPToolInfo
+// MCPToolsCacheKey identifies workspace MCP metadata that is safe to share
+// across chats for the same user, workspace, and agent.
+type MCPToolsCacheKey struct {
+	OwnerID     uuid.UUID
+	WorkspaceID uuid.UUID
+	AgentID     uuid.UUID
 }
 
-// LoadCachedMCPTools checks a chat-scoped MCP cache for an agent match.
+// Valid reports whether key contains every component needed for cache reuse.
+func (k MCPToolsCacheKey) Valid() bool {
+	return k.OwnerID != uuid.Nil && k.WorkspaceID != uuid.Nil && k.AgentID != uuid.Nil
+}
+
+// MCPToolsCacheEntry stores workspace MCP tools discovered from an agent.
+type MCPToolsCacheEntry struct {
+	Key   MCPToolsCacheKey
+	Tools []workspacesdk.MCPToolInfo
+}
+
+// MCPToolsCacheKeyFunc returns the cache key for a resolved workspace agent.
+type MCPToolsCacheKeyFunc func(agentID uuid.UUID) (MCPToolsCacheKey, bool)
+
+// LoadCachedMCPTools checks the shared MCP cache for an exact key match.
 func LoadCachedMCPTools(
 	cache *sync.Map,
-	chatID uuid.UUID,
-	agentID uuid.UUID,
+	key MCPToolsCacheKey,
 ) ([]workspacesdk.MCPToolInfo, bool) {
-	if cache == nil {
+	if cache == nil || !key.Valid() {
 		return nil, false
 	}
-	cached, ok := cache.Load(chatID)
+	cached, ok := cache.Load(key)
 	if !ok {
 		return nil, false
 	}
 	entry, ok := cached.(*MCPToolsCacheEntry)
-	if !ok || entry.AgentID != agentID {
+	if !ok || entry.Key != key {
 		return nil, false
 	}
 	return entry.Tools, true
 }
 
-// StoreMCPTools stores non-empty workspace MCP metadata for a chat and agent.
+// StoreMCPTools stores non-empty workspace MCP metadata for an exact cache key.
 func StoreMCPTools(
 	cache *sync.Map,
-	chatID uuid.UUID,
-	agentID uuid.UUID,
+	key MCPToolsCacheKey,
 	tools []workspacesdk.MCPToolInfo,
 ) {
-	if cache == nil || len(tools) == 0 {
+	if cache == nil || !key.Valid() || len(tools) == 0 {
 		return
 	}
-	cache.Store(chatID, &MCPToolsCacheEntry{
-		AgentID: agentID,
-		Tools:   tools,
+	cache.Store(key, &MCPToolsCacheEntry{
+		Key:   key,
+		Tools: tools,
 	})
 }
 
 // MCPToolsOptions configures raw workspace MCP tool discovery.
 type MCPToolsOptions struct {
-	ChatID                  uuid.UUID
 	Cache                   *sync.Map
-	GetWorkspaceAgent       func(context.Context) (database.WorkspaceAgent, error)
+	CacheKey                MCPToolsCacheKeyFunc
 	ResolveWorkspaceAgentID func(context.Context) (uuid.UUID, error)
 	IsNoWorkspaceAgentError func(error) bool
 	GetWorkspaceConn        func(context.Context) (workspacesdk.AgentConn, error)
@@ -151,36 +164,34 @@ type MCPToolsOptions struct {
 // MCPToolsResult is the raw workspace MCP metadata discovery result.
 type MCPToolsResult struct {
 	Tools []workspacesdk.MCPToolInfo
+	Key   MCPToolsCacheKey
 	OK    bool
 }
 
 // DiscoverMCPTools lists raw workspace MCP tool metadata and caches
-// successful non-empty results by chat and agent ID.
+// successful non-empty results by owner, workspace, and agent.
 func DiscoverMCPTools(
 	ctx context.Context,
 	opts MCPToolsOptions,
 ) MCPToolsResult {
-	if opts.GetWorkspaceAgent != nil {
-		if agent, agentErr := opts.GetWorkspaceAgent(ctx); agentErr == nil {
-			if tools, ok := LoadCachedMCPTools(opts.Cache, opts.ChatID, agent.ID); ok {
-				return MCPToolsResult{Tools: tools, OK: true}
-			}
-		}
-	}
-
-	if opts.ResolveWorkspaceAgentID == nil || opts.GetWorkspaceConn == nil {
+	if opts.ResolveWorkspaceAgentID == nil {
 		return MCPToolsResult{}
 	}
-	_, agentErr := opts.ResolveWorkspaceAgentID(ctx)
+	agentID, agentErr := opts.ResolveWorkspaceAgentID(ctx)
 	if agentErr != nil {
 		if opts.IsNoWorkspaceAgentError != nil && opts.IsNoWorkspaceAgentError(agentErr) {
-			if opts.Cache != nil {
-				opts.Cache.Delete(opts.ChatID)
-			}
 			return MCPToolsResult{}
 		}
 		opts.Logger.Warn(ctx, "failed to resolve workspace agent for MCP tools",
 			slog.Error(agentErr))
+		return MCPToolsResult{}
+	}
+	key, _ := mcpCacheKey(opts.CacheKey, agentID)
+
+	if tools, cached := LoadCachedMCPTools(opts.Cache, key); cached {
+		return MCPToolsResult{Tools: tools, Key: key, OK: true}
+	}
+	if opts.GetWorkspaceConn == nil {
 		return MCPToolsResult{}
 	}
 
@@ -205,10 +216,17 @@ func DiscoverMCPTools(
 		return MCPToolsResult{}
 	}
 
-	if len(toolsResp.Tools) > 0 && opts.GetWorkspaceAgent != nil {
-		if agent, agentErr := opts.GetWorkspaceAgent(ctx); agentErr == nil {
-			StoreMCPTools(opts.Cache, opts.ChatID, agent.ID, toolsResp.Tools)
-		}
+	StoreMCPTools(opts.Cache, key, toolsResp.Tools)
+	return MCPToolsResult{Tools: toolsResp.Tools, Key: key, OK: true}
+}
+
+func mcpCacheKey(keyFunc MCPToolsCacheKeyFunc, agentID uuid.UUID) (MCPToolsCacheKey, bool) {
+	if keyFunc == nil {
+		return MCPToolsCacheKey{}, false
 	}
-	return MCPToolsResult{Tools: toolsResp.Tools, OK: true}
+	key, ok := keyFunc(agentID)
+	if !ok || !key.Valid() {
+		return MCPToolsCacheKey{}, false
+	}
+	return key, true
 }
