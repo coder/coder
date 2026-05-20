@@ -69,14 +69,16 @@ const AIProvidersPage: FC = () => {
 	// Build the list of configured providers from API data.
 	const configuredProviders = useMemo(() => {
 		const configs = providerConfigsQuery.data ?? [];
-		return configs.map((pc) => ({
-			id: pc.id,
-			provider: pc.provider,
-			label:
-				pc.display_name || formatProviderLabel(pc.provider),
-			baseUrl: pc.base_url || "",
-			hasApiKey: pc.has_api_key ?? false,
-		}));
+		return configs
+			.filter((pc) => pc.source === "database" || pc.source === "env_preset")
+			.map((pc) => ({
+				id: pc.id,
+				provider: pc.provider,
+				label:
+					pc.display_name || formatProviderLabel(pc.provider),
+				baseUrl: pc.base_url || "",
+				hasApiKey: pc.has_api_key ?? false,
+			}));
 	}, [providerConfigsQuery.data]);
 
 	return (
