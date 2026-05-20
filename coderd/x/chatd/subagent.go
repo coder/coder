@@ -844,61 +844,71 @@ func parseSubagentToolChatID(raw string) (uuid.UUID, error) {
 
 // childSubagentChatOptions carries per-child overrides for subagent chat
 // creation. modelConfigIDOverride and planModeOverride apply to any
-// subagent. inheritedMCPServerIDs is an Explore-only snapshot of the
-// spawning parent turn's effective external MCP entitlement.
-// resolveExploreToolSnapshot computes and persists it on the child chat.
-// Non-Explore children ignore this field.
+// subagent. mcpGrantParent overrides the chat used for resolving the
+// child's external MCP grant. Explore uses this to preserve the spawning
+// turn's effective grant when the parent row changes before insertion.
 type childSubagentChatOptions struct {
 	chatMode              database.NullChatMode
 	systemPrompt          string
 	modelConfigIDOverride *uuid.UUID
 	planModeOverride      *database.NullChatPlanMode
-	inheritedMCPServerIDs []uuid.UUID
+	mcpGrantParent        *database.Chat
 }
 
-// resolveExploreToolSnapshot computes the child chat's inherited MCP
-// server snapshot from the spawning parent turn.
+// resolveSubagentMCPGrant computes the external MCP server IDs to persist
+// on a child subagent chat.
 //
-// The MCP set is filtered in two stages. First,
-// filterExternalMCPConfigsForTurn applies the parent turn's plan-mode
-// policy to the parent's MCP configs, producing visibleConfigs. Second,
-// if the parent is itself an Explore child, the visible set is narrowed to
-// the parent's persisted MCPServerIDs so an Explore chain cannot
-// re-escalate beyond the original grant. Non-Explore parents pass
-// through the second stage unchanged.
-func (p *Server) resolveExploreToolSnapshot(
+// General and computer-use children keep the parent's persisted MCP IDs.
+// Their runtime tool exposure is still filtered by SendMessage. Explore
+// children persist the spawning turn's effective grant because their plan
+// mode is cleared on the child chat. Explore grants are filtered in two
+// stages. First, filterExternalMCPConfigsForTurn applies the parent turn's
+// plan-mode policy. Second, if the parent is itself an Explore child, the
+// visible set is narrowed to the parent's persisted MCPServerIDs so an
+// Explore chain cannot re-escalate beyond the original grant.
+func (p *Server) resolveSubagentMCPGrant(
 	ctx context.Context,
 	parent database.Chat,
+	childMode database.NullChatMode,
+	planMode database.NullChatPlanMode,
 ) ([]uuid.UUID, error) {
-	inheritedMCPServerIDs := []uuid.UUID{}
-	if len(parent.MCPServerIDs) > 0 {
-		configs, err := p.db.GetMCPServerConfigsByIDs(ctx, parent.MCPServerIDs)
-		if err != nil {
-			return nil, xerrors.Errorf("get parent MCP server configs for chat %s: %w", parent.ID, err)
+	if !isExploreSubagentMode(childMode) {
+		mcpServerIDs := slices.Clone(parent.MCPServerIDs)
+		if mcpServerIDs == nil {
+			mcpServerIDs = []uuid.UUID{}
 		}
+		return mcpServerIDs, nil
+	}
 
-		visibleConfigs, _ := filterExternalMCPConfigsForTurn(
-			configs,
-			parent.PlanMode,
-			parent.ParentChatID,
-		)
-		// Empty means the parent is not Explore, so all plan-filtered
-		// configs remain eligible. Populated means the parent is
-		// Explore, so only its persisted snapshot can pass.
-		allowedParentIDs := map[uuid.UUID]struct{}{}
-		if isExploreSubagentMode(parent.Mode) {
-			for _, id := range parent.MCPServerIDs {
-				allowedParentIDs[id] = struct{}{}
+	inheritedMCPServerIDs := []uuid.UUID{}
+	if len(parent.MCPServerIDs) == 0 {
+		return inheritedMCPServerIDs, nil
+	}
+
+	configs, err := p.db.GetMCPServerConfigsByIDs(ctx, parent.MCPServerIDs)
+	if err != nil {
+		return nil, xerrors.Errorf("get parent MCP server configs for chat %s: %w", parent.ID, err)
+	}
+
+	visibleConfigs, _ := filterExternalMCPConfigsForTurn(
+		configs,
+		planMode,
+		parent.ParentChatID,
+	)
+	enforceParentSnapshot := isExploreSubagentMode(parent.Mode)
+	allowedParentIDs := map[uuid.UUID]struct{}{}
+	if enforceParentSnapshot {
+		for _, id := range parent.MCPServerIDs {
+			allowedParentIDs[id] = struct{}{}
+		}
+	}
+	for _, cfg := range visibleConfigs {
+		if enforceParentSnapshot {
+			if _, ok := allowedParentIDs[cfg.ID]; !ok {
+				continue
 			}
 		}
-		for _, cfg := range visibleConfigs {
-			if len(allowedParentIDs) > 0 {
-				if _, ok := allowedParentIDs[cfg.ID]; !ok {
-					continue
-				}
-			}
-			inheritedMCPServerIDs = append(inheritedMCPServerIDs, cfg.ID)
-		}
+		inheritedMCPServerIDs = append(inheritedMCPServerIDs, cfg.ID)
 	}
 
 	return inheritedMCPServerIDs, nil
@@ -952,12 +962,18 @@ func (p *Server) createChildSubagentChatWithOptions(
 		childPlanMode = *opts.planModeOverride
 	}
 
-	mcpServerIDs := parent.MCPServerIDs
-	if isExploreSubagentMode(opts.chatMode) {
-		mcpServerIDs = slices.Clone(opts.inheritedMCPServerIDs)
+	mcpGrantParent := parent
+	if opts.mcpGrantParent != nil {
+		mcpGrantParent = *opts.mcpGrantParent
 	}
-	if mcpServerIDs == nil {
-		mcpServerIDs = []uuid.UUID{}
+	mcpServerIDs, err := p.resolveSubagentMCPGrant(
+		ctx,
+		mcpGrantParent,
+		opts.chatMode,
+		mcpGrantParent.PlanMode,
+	)
+	if err != nil {
+		return database.Chat{}, err
 	}
 
 	labelsJSON, err := json.Marshal(database.StringMap{})

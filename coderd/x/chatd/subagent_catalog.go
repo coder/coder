@@ -86,15 +86,8 @@ func allSubagentDefinitions() []subagentDefinition {
 				if modelConfigID == uuid.Nil {
 					modelConfigID = currentModelConfigID
 				}
-				inheritedMCPServerIDs, err := p.resolveExploreToolSnapshot(
-					ctx,
-					turnParent,
-				)
-				if err != nil {
-					return childSubagentChatOptions{}, err
-				}
 				// Clearing plan mode changes only the Explore model behavior.
-				// The inherited tool snapshot still comes from the parent turn.
+				// The inherited MCP grant still comes from the parent turn.
 				clearPlanMode := database.NullChatPlanMode{}
 				return childSubagentChatOptions{
 					chatMode: database.NullChatMode{
@@ -103,7 +96,7 @@ func allSubagentDefinitions() []subagentDefinition {
 					},
 					modelConfigIDOverride: &modelConfigID,
 					planModeOverride:      &clearPlanMode,
-					inheritedMCPServerIDs: inheritedMCPServerIDs,
+					mcpGrantParent:        &turnParent,
 				}, nil
 			},
 		},

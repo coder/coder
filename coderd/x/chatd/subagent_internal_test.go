@@ -1423,7 +1423,7 @@ func TestCreateChat_ExploreRootStartsWithoutMCPSnapshot(t *testing.T) {
 	require.Empty(t, rootChat.MCPServerIDs)
 }
 
-func TestResolveExploreToolSnapshot(t *testing.T) {
+func TestResolveSubagentMCPGrant(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -1438,7 +1438,7 @@ func TestResolveExploreToolSnapshot(t *testing.T) {
 	)
 
 	// Build parent chats in memory rather than via server.CreateChat.
-	// resolveExploreToolSnapshot only reads ID, MCPServerIDs, PlanMode,
+	// resolveSubagentMCPGrant only reads ID, MCPServerIDs, PlanMode,
 	// ParentChatID, and Mode from its parent argument, so persisting
 	// the chats is unnecessary. Skipping CreateChat avoids waking the
 	// background acquireLoop, which would otherwise try to dial the
@@ -1468,30 +1468,50 @@ func TestResolveExploreToolSnapshot(t *testing.T) {
 	exploreParent.ParentChatID = uuid.NullUUID{UUID: uuid.New(), Valid: true}
 	exploreParent.MCPServerIDs = []uuid.UUID{approvedMCP.ID}
 
+	exploreChildMode := database.NullChatMode{ChatMode: database.ChatModeExplore, Valid: true}
+	computerUseChildMode := database.NullChatMode{ChatMode: database.ChatModeComputerUse, Valid: true}
+
 	tests := []struct {
 		name             string
 		parent           database.Chat
+		childMode        database.NullChatMode
 		wantMCPServerIDs []uuid.UUID
 	}{
 		{
-			name:             "AskModeRootSnapshotsAllExternalTools",
+			name:             "ExploreAskModeRootSnapshotsAllExternalTools",
 			parent:           askParent,
+			childMode:        exploreChildMode,
 			wantMCPServerIDs: []uuid.UUID{approvedMCP.ID, blockedMCP.ID},
 		},
 		{
-			name:             "PlanModeRootKeepsOnlyApprovedExternalTools",
+			name:             "ExplorePlanModeRootKeepsOnlyApprovedExternalTools",
 			parent:           planParent,
+			childMode:        exploreChildMode,
 			wantMCPServerIDs: []uuid.UUID{approvedMCP.ID},
 		},
 		{
-			name:             "PlanModeSubagentKeepsNoExternalTools",
+			name:             "ExplorePlanModeSubagentKeepsNoExternalTools",
 			parent:           subagentPlanParent,
+			childMode:        exploreChildMode,
 			wantMCPServerIDs: []uuid.UUID{},
 		},
 		{
 			name:             "ExploreParentCannotReEscalateSnapshot",
 			parent:           exploreParent,
+			childMode:        exploreChildMode,
 			wantMCPServerIDs: []uuid.UUID{approvedMCP.ID},
+		},
+		{
+			name:             "GeneralPlanModeRootKeepsPersistedExternalTools",
+			parent:           planParent,
+			childMode:        database.NullChatMode{},
+			wantMCPServerIDs: []uuid.UUID{approvedMCP.ID, blockedMCP.ID},
+		},
+		{
+			name:             "ComputerUsePlanModeRootKeepsPersistedExternalTools",
+			parent:           planParent,
+			childMode:        computerUseChildMode,
+			wantMCPServerIDs: []uuid.UUID{approvedMCP.ID, blockedMCP.ID},
 		},
 	}
 
@@ -1501,9 +1521,11 @@ func TestResolveExploreToolSnapshot(t *testing.T) {
 			t.Parallel()
 
 			ctx := chatdTestContext(t)
-			gotMCPServerIDs, err := server.resolveExploreToolSnapshot(
+			gotMCPServerIDs, err := server.resolveSubagentMCPGrant(
 				ctx,
 				tt.parent,
+				tt.childMode,
+				tt.parent.PlanMode,
 			)
 			require.NoError(t, err)
 			require.ElementsMatch(t, tt.wantMCPServerIDs, gotMCPServerIDs)
@@ -1525,6 +1547,7 @@ func TestCreateChildSubagentChatWithOptions_ExplorePersistsMCPSnapshot(t *testin
 	mcpCfg := insertInternalMCPServerConfig(
 		t, db, user.ID, "snapshot-"+uuid.NewString(), false,
 	)
+	parentChat.MCPServerIDs = []uuid.UUID{mcpCfg.ID}
 
 	child, err := server.createChildSubagentChatWithOptions(
 		ctx,
@@ -1536,7 +1559,6 @@ func TestCreateChildSubagentChatWithOptions_ExplorePersistsMCPSnapshot(t *testin
 				ChatMode: database.ChatModeExplore,
 				Valid:    true,
 			},
-			inheritedMCPServerIDs: []uuid.UUID{mcpCfg.ID},
 		},
 	)
 	require.NoError(t, err)
