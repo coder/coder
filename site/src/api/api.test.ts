@@ -426,4 +426,40 @@ describe("api.ts", () => {
 			);
 		});
 	});
+
+	describe("chat ACL endpoints", () => {
+		const chatId = "chat-1";
+		const chatACL: TypesGen.ChatACL = {
+			users: [],
+			groups: [],
+		};
+
+		it("gets a chat ACL", async () => {
+			vi.spyOn(axiosInstance, "get").mockResolvedValueOnce({
+				data: chatACL,
+			});
+
+			const result = await API.experimental.getChatACL(chatId);
+
+			expect(axiosInstance.get).toHaveBeenCalledWith(
+				`/api/experimental/chats/${chatId}/acl`,
+			);
+			expect(result).toStrictEqual(chatACL);
+		});
+
+		it("updates a chat ACL", async () => {
+			const request: TypesGen.UpdateChatACL = {
+				user_roles: { "user-1": "read" },
+			};
+
+			vi.spyOn(axiosInstance, "patch").mockResolvedValueOnce({});
+
+			await API.experimental.updateChatACL(chatId, request);
+
+			expect(axiosInstance.patch).toHaveBeenCalledWith(
+				`/api/experimental/chats/${chatId}/acl`,
+				request,
+			);
+		});
+	});
 });

@@ -11,6 +11,8 @@ import {
 	addChildToParentInCache,
 	archiveChat,
 	cancelChatListRefetches,
+	chatACL,
+	chatACLKey,
 	chatAdvisorConfig,
 	chatAdvisorConfigKey,
 	chatCostSummary,
@@ -36,6 +38,8 @@ import {
 	regenerateChatTitle,
 	removeChildFromParentInCache,
 	reorderPinnedChat,
+	setChatGroupRole,
+	setChatUserRole,
 	TERMINAL_RUN_STATUSES,
 	unarchiveChat,
 	unpinChat,
@@ -62,6 +66,8 @@ vi.mock("#/api/api", () => ({
 			regenerateChatTitle: vi.fn(),
 			getChatAdvisorConfig: vi.fn(),
 			updateChatAdvisorConfig: vi.fn(),
+			getChatACL: vi.fn(),
+			updateChatACL: vi.fn(),
 		},
 	},
 }));
@@ -2501,5 +2507,58 @@ describe("TERMINAL_RUN_STATUSES", () => {
 				SUCCESS_STATUSES.has(status) || ERROR_STATUSES.has(status);
 			expect(classified).toBe(true);
 		}
+	});
+});
+
+describe("chat ACL query factories", () => {
+	it("builds the ACL query under the chat key hierarchy", async () => {
+		const chatId = "chat-1";
+		const acl: TypesGen.ChatACL = { users: [], groups: [] };
+		vi.mocked(API.experimental.getChatACL).mockResolvedValue(acl);
+
+		const query = chatACL(chatId);
+
+		expect(chatACLKey(chatId)).toEqual(["chats", chatId, "acl"]);
+		expect(query.queryKey).toEqual(chatACLKey(chatId));
+		await expect(query.queryFn()).resolves.toEqual(acl);
+		expect(API.experimental.getChatACL).toHaveBeenCalledWith(chatId);
+	});
+
+	it("sets one chat user role and invalidates the ACL", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		queryClient.setQueryData(chatACLKey(chatId), { users: [], groups: [] });
+		vi.mocked(API.experimental.updateChatACL).mockResolvedValue();
+
+		const mutation = setChatUserRole(queryClient);
+		const variables = { chatId, userId: "user-1", role: "read" as const };
+		await mutation.mutationFn(variables);
+		expect(API.experimental.updateChatACL).toHaveBeenCalledWith(chatId, {
+			user_roles: { "user-1": "read" },
+		});
+
+		await mutation.onSuccess?.(undefined, variables);
+		expect(queryClient.getQueryState(chatACLKey(chatId))?.isInvalidated).toBe(
+			true,
+		);
+	});
+
+	it("sets one chat group role and invalidates the ACL", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		queryClient.setQueryData(chatACLKey(chatId), { users: [], groups: [] });
+		vi.mocked(API.experimental.updateChatACL).mockResolvedValue();
+
+		const mutation = setChatGroupRole(queryClient);
+		const variables = { chatId, groupId: "group-1", role: "" as const };
+		await mutation.mutationFn(variables);
+		expect(API.experimental.updateChatACL).toHaveBeenCalledWith(chatId, {
+			group_roles: { "group-1": "" },
+		});
+
+		await mutation.onSuccess?.(undefined, variables);
+		expect(queryClient.getQueryState(chatACLKey(chatId))?.isInvalidated).toBe(
+			true,
+		);
 	});
 });

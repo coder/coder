@@ -15,6 +15,7 @@ import {
 	watchWorkspace,
 } from "#/api/api";
 import { getErrorMessage, isApiError } from "#/api/errors";
+import { checkAuthorization } from "#/api/queries/authCheck";
 import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import {
 	chat,
@@ -37,7 +38,7 @@ import {
 	userCompactionThresholds,
 } from "#/api/queries/chats";
 import { deploymentSSHConfig } from "#/api/queries/deployment";
-import { preferenceSettings, user as userQuery } from "#/api/queries/users";
+import { preferenceSettings } from "#/api/queries/users";
 import {
 	workspaceById,
 	workspaceByIdKey,
@@ -842,17 +843,51 @@ const AgentChatPage: FC = () => {
 	const isArchived = chatRecord?.archived ?? false;
 	const isViewerNotOwner =
 		chatRecord !== undefined && currentUser.id !== chatRecord.owner_id;
-	const chatOwnerQuery = useQuery({
-		...userQuery(chatRecord?.owner_id ?? ""),
-		enabled: isViewerNotOwner && !isArchived,
-	});
-	const chatOwner =
-		isViewerNotOwner && chatRecord !== undefined
+	const isRootChat =
+		chatRecord !== undefined && getParentChatID(chatRecord) === undefined;
+	const shouldCheckCanUpdateOtherUserChat =
+		isViewerNotOwner && !isArchived && chatRecord !== undefined;
+	const shouldCheckCanShareChat = isRootChat;
+	const chatAuthorizationObject =
+		chatRecord !== undefined
 			? {
-					id: chatRecord.owner_id,
-					...(chatOwnerQuery.data?.username
-						? { username: chatOwnerQuery.data.username }
-						: {}),
+					resource_type: "chat" as const,
+					owner_id: chatRecord.owner_id,
+					organization_id: chatRecord.organization_id,
+				}
+			: undefined;
+	const chatAuthorizationChecks: TypesGen.AuthorizationRequest["checks"] = {};
+	if (
+		chatAuthorizationObject !== undefined &&
+		shouldCheckCanUpdateOtherUserChat
+	) {
+		chatAuthorizationChecks.canUpdateChat = {
+			object: chatAuthorizationObject,
+			action: "update",
+		};
+	}
+	if (chatAuthorizationObject !== undefined && shouldCheckCanShareChat) {
+		chatAuthorizationChecks.canShareChat = {
+			object: chatAuthorizationObject,
+			action: "share",
+		};
+	}
+	const chatAuthorizationQuery = useQuery({
+		...checkAuthorization({ checks: chatAuthorizationChecks }),
+		enabled: Object.keys(chatAuthorizationChecks).length > 0,
+	});
+	const canUpdateOtherUserChat = Boolean(
+		chatAuthorizationQuery.data?.canUpdateChat,
+	);
+	const canUpdateOtherUserChatLoading =
+		shouldCheckCanUpdateOtherUserChat && chatAuthorizationQuery.isLoading;
+	const canShareChat =
+		isRootChat && Boolean(chatAuthorizationQuery.data?.canShareChat);
+	const chatOwner =
+		isViewerNotOwner && chatRecord?.owner_username
+			? {
+					username: chatRecord.owner_username,
+					...(chatRecord.owner_name ? { name: chatRecord.owner_name } : {}),
 				}
 			: undefined;
 	const planModeEnabled = chatRecord?.plan_mode === "plan";
@@ -1090,7 +1125,11 @@ const AgentChatPage: FC = () => {
 	const isChatSettingsPending =
 		isUpdateChatPlanModePending || isUpdateChatWorkspacePending;
 	const isInputDisabled =
-		!hasModelOptions || isArchived || isChatSettingsPending;
+		!hasModelOptions ||
+		isArchived ||
+		isChatSettingsPending ||
+		(isViewerNotOwner &&
+			(canUpdateOtherUserChatLoading || !canUpdateOtherUserChat));
 	const selectedWorkspaceId = chatQuery.data?.workspace_id ?? null;
 
 	const isWorkspaceLoading =
@@ -1540,6 +1579,9 @@ const AgentChatPage: FC = () => {
 			persistedError={persistedError}
 			isArchived={isArchived}
 			chatOwner={chatOwner}
+			canUpdateOtherUserChat={canUpdateOtherUserChat}
+			canUpdateOtherUserChatLoading={canUpdateOtherUserChatLoading}
+			canShareChat={canShareChat}
 			workspace={workspace}
 			workspaceAgent={workspaceAgent}
 			chatBuildId={chatQuery.data?.build_id}
