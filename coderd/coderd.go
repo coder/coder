@@ -2006,6 +2006,7 @@ func New(options *Options) *API {
 		r.Route("/init-script", func(r chi.Router) {
 			r.Get("/{os}/{arch}", api.initScript)
 		})
+		r.Route("/ai/providers", aiProvidersHandler(api, apiKeyMiddleware))
 		r.Route("/tasks", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 

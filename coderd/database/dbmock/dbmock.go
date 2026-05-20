@@ -1802,18 +1802,18 @@ func (mr *MockStoreMockRecorder) GetAIProviderKeyByID(ctx, id any) *gomock.Call 
 }
 
 // GetAIProviderKeys mocks base method.
-func (m *MockStore) GetAIProviderKeys(ctx context.Context) ([]database.AIProviderKey, error) {
+func (m *MockStore) GetAIProviderKeys(ctx context.Context, includeDeleted bool) ([]database.AIProviderKey, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAIProviderKeys", ctx)
+	ret := m.ctrl.Call(m, "GetAIProviderKeys", ctx, includeDeleted)
 	ret0, _ := ret[0].([]database.AIProviderKey)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetAIProviderKeys indicates an expected call of GetAIProviderKeys.
-func (mr *MockStoreMockRecorder) GetAIProviderKeys(ctx any) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetAIProviderKeys(ctx, includeDeleted any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIProviderKeys", reflect.TypeOf((*MockStore)(nil).GetAIProviderKeys), ctx)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIProviderKeys", reflect.TypeOf((*MockStore)(nil).GetAIProviderKeys), ctx, includeDeleted)
 }
 
 // GetAIProviderKeysByProviderID mocks base method.

@@ -1041,9 +1041,9 @@ func (m queryMetricsStore) GetAIProviderKeyByID(ctx context.Context, id uuid.UUI
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetAIProviderKeys(ctx context.Context) ([]database.AIProviderKey, error) {
+func (m queryMetricsStore) GetAIProviderKeys(ctx context.Context, includeDeleted bool) ([]database.AIProviderKey, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetAIProviderKeys(ctx)
+	r0, r1 := m.s.GetAIProviderKeys(ctx, includeDeleted)
 	m.queryLatencies.WithLabelValues("GetAIProviderKeys").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIProviderKeys").Inc()
 	return r0, r1

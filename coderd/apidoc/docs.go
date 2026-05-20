@@ -1143,6 +1143,175 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v2/ai/providers": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AI Providers"
+                ],
+                "summary": "List AI providers",
+                "operationId": "list-ai-providers",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.AIProvider"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AI Providers"
+                ],
+                "summary": "Create an AI provider",
+                "operationId": "create-an-ai-provider",
+                "parameters": [
+                    {
+                        "description": "Create AI provider request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateAIProviderRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AIProvider"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/ai/providers/{idOrName}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AI Providers"
+                ],
+                "summary": "Get an AI provider",
+                "operationId": "get-an-ai-provider",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Provider ID or name",
+                        "name": "idOrName",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AIProvider"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "AI Providers"
+                ],
+                "summary": "Delete an AI provider",
+                "operationId": "delete-an-ai-provider",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Provider ID or name",
+                        "name": "idOrName",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "patch": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "AI Providers"
+                ],
+                "summary": "Update an AI provider",
+                "operationId": "update-an-ai-provider",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Provider ID or name",
+                        "name": "idOrName",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update AI provider request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateAIProviderRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AIProvider"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/aibridge/clients": {
             "get": {
                 "produces": [
@@ -14719,6 +14888,47 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AIProvider": {
+            "type": "object",
+            "properties": {
+                "api_keys": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AIProviderKey"
+                    }
+                },
+                "base_url": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "settings": {
+                    "$ref": "#/definitions/codersdk.AIProviderSettings"
+                },
+                "type": {
+                    "$ref": "#/definitions/codersdk.AIProviderType"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
         "codersdk.AIProviderConfig": {
             "type": "object",
             "properties": {
@@ -14748,6 +14958,60 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.AIProviderKey": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "masked": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.AIProviderKeyMutation": {
+            "type": "object",
+            "properties": {
+                "api_key": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
+        "codersdk.AIProviderSettings": {
+            "type": "object"
+        },
+        "codersdk.AIProviderType": {
+            "type": "string",
+            "enum": [
+                "openai",
+                "anthropic",
+                "azure",
+                "google",
+                "openai-compat",
+                "openrouter",
+                "vercel",
+                "bedrock"
+            ],
+            "x-enum-varnames": [
+                "AIProviderTypeOpenAI",
+                "AIProviderTypeAnthropic",
+                "AIProviderTypeAzure",
+                "AIProviderTypeGoogle",
+                "AIProviderTypeOpenAICompat",
+                "AIProviderTypeOpenrouter",
+                "AIProviderTypeVercel",
+                "AIProviderTypeBedrock"
+            ]
         },
         "codersdk.APIAllowListTarget": {
             "type": "object",
@@ -17005,6 +17269,35 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.LoginType"
                         }
                     ]
+                }
+            }
+        },
+        "codersdk.CreateAIProviderRequest": {
+            "type": "object",
+            "properties": {
+                "api_keys": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "base_url": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "settings": {
+                    "$ref": "#/definitions/codersdk.AIProviderSettings"
+                },
+                "type": {
+                    "$ref": "#/definitions/codersdk.AIProviderType"
                 }
             }
         },
@@ -23638,6 +23931,29 @@ const docTemplate = `{
                 "p95": {
                     "type": "integer",
                     "example": 146
+                }
+            }
+        },
+        "codersdk.UpdateAIProviderRequest": {
+            "type": "object",
+            "properties": {
+                "api_keys": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AIProviderKeyMutation"
+                    }
+                },
+                "base_url": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "settings": {
+                    "$ref": "#/definitions/codersdk.AIProviderSettings"
                 }
             }
         },
