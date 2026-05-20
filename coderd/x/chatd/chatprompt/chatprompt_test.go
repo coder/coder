@@ -3276,6 +3276,15 @@ func TestPartFromContent_ExecuteToolParsedCommands(t *testing.T) {
 			want:     nil,
 		},
 		{
+			name:     "execute-command-parses-to-error",
+			toolName: chattool.ExecuteToolName,
+			// Unterminated double-quoted string fails the shell parser.
+			// Even if shellparse returns partial results, we expect nil
+			// here so the UI falls back to the raw command.
+			input: `{"command":"echo \"unterminated"}`,
+			want:  nil,
+		},
+		{
 			name:     "other-tool-ignored",
 			toolName: "read_file",
 			input:    `{"command":"cd /tmp && ls"}`,

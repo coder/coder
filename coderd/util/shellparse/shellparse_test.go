@@ -105,6 +105,22 @@ done`,
 func TestParse_ParseError(t *testing.T) {
 	t.Parallel()
 
-	_, err := shellparse.Parse(`echo "unterminated`)
-	require.Error(t, err)
+	t.Run("unterminated-string-no-results", func(t *testing.T) {
+		t.Parallel()
+		cmds, err := shellparse.Parse(`echo "unterminated`)
+		require.Error(t, err)
+		require.Nil(t, cmds)
+	})
+
+	t.Run("semicolon-prefix-yields-partial-results-plus-error", func(t *testing.T) {
+		t.Parallel()
+		// Some malformed inputs (e.g. trailing unterminated tokens after
+		// valid semicolon-separated commands) yield partial results
+		// alongside a non-nil error. Pin both sides of the contract so
+		// future mvdan.cc/sh upgrades that change partial-parse behavior
+		// fail this test loudly.
+		cmds, err := shellparse.Parse(`ls; cat; echo "unterminated`)
+		require.Error(t, err)
+		require.Equal(t, [][]string{{"ls"}, {"cat"}}, cmds)
+	})
 }

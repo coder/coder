@@ -786,7 +786,7 @@ func sdkPartFromContent(
 			ToolCallID:       value.ToolCallID,
 			ToolName:         value.ToolName,
 			Args:             args,
-			ParsedCommands:   executeToolSteps(value.ToolName, args),
+			ParsedCommands:   executeToolParsedCommands(value.ToolName, args),
 			ProviderExecuted: value.ProviderExecuted,
 			ProviderMetadata: marshalProviderMetadata(value.ProviderMetadata),
 		}
@@ -797,7 +797,7 @@ func sdkPartFromContent(
 			ToolCallID:       value.ToolCallID,
 			ToolName:         value.ToolName,
 			Args:             args,
-			ParsedCommands:   executeToolSteps(value.ToolName, args),
+			ParsedCommands:   executeToolParsedCommands(value.ToolName, args),
 			ProviderExecuted: value.ProviderExecuted,
 			ProviderMetadata: marshalProviderMetadata(value.ProviderMetadata),
 		}
@@ -1275,7 +1275,7 @@ func safeToolCallArgs(input string) json.RawMessage {
 	return raw
 }
 
-func executeToolSteps(toolName string, args json.RawMessage) [][]string {
+func executeToolParsedCommands(toolName string, args json.RawMessage) [][]string {
 	if toolName != chattool.ExecuteToolName || len(args) == 0 {
 		return nil
 	}
@@ -1285,7 +1285,10 @@ func executeToolSteps(toolName string, args json.RawMessage) [][]string {
 	if err := json.Unmarshal(args, &parsed); err != nil || parsed.Command == "" {
 		return nil
 	}
-	steps, _ := shellparse.Parse(parsed.Command)
+	steps, err := shellparse.Parse(parsed.Command)
+	if err != nil {
+		return nil
+	}
 	return steps
 }
 

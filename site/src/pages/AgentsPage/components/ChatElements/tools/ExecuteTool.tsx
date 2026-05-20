@@ -177,9 +177,7 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 	);
 };
 
-// multiVerbTools lists programs whose first positional argument is
-// conventionally a subcommand verb. For these the summary shows
-// "<prog> <verb>" instead of just "<prog>".
+// Programs whose first positional argument is conventionally a subcommand verb.
 const multiVerbTools = new Set([
 	"git",
 	"gh",

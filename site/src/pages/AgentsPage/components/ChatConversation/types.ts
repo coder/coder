@@ -82,6 +82,7 @@ type StreamToolCall = {
 	name: string;
 	args?: unknown;
 	argsRaw?: string;
+	parsedCommands?: readonly string[][];
 	mcpServerConfigId?: string;
 	modelIntent?: string;
 };

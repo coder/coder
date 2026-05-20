@@ -84,6 +84,7 @@ type ExecuteArgs struct {
 	RunInBackground *bool   `json:"run_in_background,omitempty" description:"Run without blocking. Use for persistent processes (dev servers, file watchers) or when you want to continue working while a command runs and check the result later with process_output. For commands whose result you need before continuing, prefer foreground with a longer timeout. Do NOT use shell & to background processes. It will not work correctly. Always use this parameter instead."`
 }
 
+// ExecuteToolName is the registered name of the execute tool.
 const ExecuteToolName = "execute"
 
 // Execute returns an AgentTool that runs a shell command in the

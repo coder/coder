@@ -2856,6 +2856,13 @@ export interface ChatToolCallPart {
 	readonly mcp_server_config_id?: string;
 	readonly args?: Record<string, string>;
 	readonly args_delta?: string;
+	/**
+	 * ParsedCommands holds parsed programs from an execute tool call's
+	 * shell command, one entry per simple command in source order. Each
+	 * entry is [program] or [program, arg] where arg is the first non-flag
+	 * positional argument. Only populated when ToolName is "execute" and
+	 * the command parses successfully; nil otherwise.
+	 */
 	readonly parsed_commands?: readonly string[][];
 	/**
 	 * ProviderExecuted indicates the tool call was executed by
