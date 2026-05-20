@@ -11,7 +11,7 @@ import {
 	Trash2Icon,
 	WandSparklesIcon,
 } from "lucide-react";
-import { type FC, type ReactNode, useEffect, useState } from "react";
+import { type FC, type ReactNode, useState } from "react";
 import { Link, useLocation } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus } from "#/api/typesGenerated";
@@ -35,6 +35,10 @@ interface SidebarPanelState {
 	onToggleSidebar: () => void;
 }
 
+type ChatSharingTopBarButtonProps = {
+	renderChatSharingContent: (open: boolean) => ReactNode;
+};
+
 type ChatTopBarProps = {
 	chatTitle?: string;
 	parentChat?: TypesGen.Chat;
@@ -51,6 +55,28 @@ type ChatTopBarProps = {
 	onToggleSidebarCollapsed: () => void;
 	diffStatusData?: ChatDiffStatus;
 	renderChatSharingContent?: (open: boolean) => ReactNode;
+};
+
+const ChatSharingTopBarButton: FC<ChatSharingTopBarButtonProps> = ({
+	renderChatSharingContent,
+}) => {
+	const [isChatSharingOpen, setIsChatSharingOpen] = useState(false);
+
+	return (
+		<Popover open={isChatSharingOpen} onOpenChange={setIsChatSharingOpen}>
+			<PopoverTrigger asChild>
+				<Button
+					variant="subtle"
+					size="icon"
+					className="h-7 w-7 text-content-secondary hover:text-content-primary"
+					aria-label="Share chat"
+				>
+					<Share2Icon className="h-4 w-4" />
+				</Button>
+			</PopoverTrigger>
+			{renderChatSharingContent(isChatSharingOpen)}
+		</Popover>
+	);
 };
 
 export const ChatTopBar: FC<ChatTopBarProps> = ({
@@ -72,13 +98,6 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 }) => {
 	const { isEmbedded } = useEmbedContext();
 	const location = useLocation();
-	const [isChatSharingOpen, setIsChatSharingOpen] = useState(false);
-
-	useEffect(() => {
-		if (!renderChatSharingContent || isEmbedded) {
-			setIsChatSharingOpen(false);
-		}
-	}, [renderChatSharingContent, isEmbedded]);
 
 	const prUrl = diffStatusData?.url;
 	const prState = diffStatusData?.pull_request_state;
@@ -195,19 +214,9 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 			{/* Actions area */}
 			<div className="flex items-center gap-2">
 				{!isEmbedded && renderChatSharingContent && (
-					<Popover open={isChatSharingOpen} onOpenChange={setIsChatSharingOpen}>
-						<PopoverTrigger asChild>
-							<Button
-								variant="subtle"
-								size="icon"
-								className="h-7 w-7 text-content-secondary hover:text-content-primary"
-								aria-label="Share chat"
-							>
-								<Share2Icon className="h-4 w-4" />
-							</Button>
-						</PopoverTrigger>
-						{renderChatSharingContent(isChatSharingOpen)}
-					</Popover>
+					<ChatSharingTopBarButton
+						renderChatSharingContent={renderChatSharingContent}
+					/>
 				)}
 				{!isEmbedded && (
 					<DropdownMenu>
