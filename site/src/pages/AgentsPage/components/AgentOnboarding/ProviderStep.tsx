@@ -246,18 +246,20 @@ export const ProviderStep: FC<ProviderStepProps> = ({
 			)}
 
 			<div className="flex items-center justify-between">
-				<button
-					type="button"
+				<span
 					onClick={() => {
 						setSelectedProvider("");
 						setApiKey("");
 						setBaseUrl("");
 						setStarted(false);
 					}}
-					className="text-sm text-content-secondary transition-colors hover:text-content-primary"
+					onKeyDown={(e) => e.key === "Enter" && e.currentTarget.click()}
+					role="button"
+					tabIndex={0}
+					className="cursor-pointer text-sm text-content-secondary transition-colors hover:text-content-primary"
 				>
 					Back
-				</button>
+				</span>
 				<div className="flex items-center gap-3">
 					<Button variant="outline" onClick={onSkip}>
 						Skip
