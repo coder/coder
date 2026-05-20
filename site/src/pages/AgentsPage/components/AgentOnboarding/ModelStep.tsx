@@ -205,9 +205,13 @@ export const ModelStep: FC<ModelStepProps> = ({
 			)}
 
 			<div className="flex items-center justify-between">
-				<Button variant="outline" onClick={onBack}>
+				<button
+					type="button"
+					onClick={onBack}
+					className="text-sm text-content-secondary transition-colors hover:text-content-primary"
+				>
 					Back
-				</Button>
+				</button>
 				<div className="flex items-center gap-3">
 					<Button variant="outline" onClick={onSkip}>
 						Skip
