@@ -133,6 +133,7 @@ const AIProvidersPage: FC = () => {
 									key={provider.id}
 									hover
 									className="cursor-pointer"
+									onClick={() => navigate(`/ai/providers/${provider.provider}`)}
 								>
 									<TableCell>
 										<div className="flex items-center gap-3">
