@@ -895,10 +895,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				/>
 			)}
 			{agentSetupNotice && (
-				<div
-					className="relative z-0 mb-[-2rem]"
-					style={{ clipPath: "inset(0 0 2rem 0)" }}
-				>
+				<div className="relative z-0 mb-[-2.5rem]">
 					{agentSetupNotice}
 				</div>
 			)}
@@ -907,6 +904,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				data-testid="chat-composer"
 				className={cn(
 					"relative z-10 rounded-2xl border border-border-default/80 bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
+					agentSetupNotice && "sm:bg-surface-secondary",
 					isDragging && "ring-2 ring-content-link/40",
 					isEditingHistoryMessage &&
 						"shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
