@@ -636,11 +636,15 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		return nil, xerrors.Errorf("create scim server: %w", err)
 	}
 	if len(options.SCIMAPIKey) != 0 {
-		api.AGPL.RootHandler.Route("/scim/v2", func(r chi.Router) {
+		// The elimity-com/scim library reads r.URL.Path and strips "/v2"
+		// internally. Chi's Route/Mount modifies its own routing context
+		// but not r.URL.Path, so we use http.StripPrefix to ensure the
+		// library sees paths like "/v2/Users" instead of "/scim/v2/Users".
+		api.AGPL.RootHandler.Route("/scim", func(r chi.Router) {
 			r.Use(
 				api.RequireFeatureMW(codersdk.FeatureSCIM),
 			)
-			r.Mount("/", scimSrv.Handler())
+			r.Mount("/", http.StripPrefix("/scim", scimSrv.Handler()))
 		})
 	} else {
 		// Show a helpful 404 error. Because this is not under the /api/v2 routes,

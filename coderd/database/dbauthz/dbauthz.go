@@ -751,8 +751,10 @@ var (
 				Identifier:  rbac.RoleIdentifier{Name: "scim"},
 				DisplayName: "SCIM",
 				Site: rbac.Permissions(map[string][]policy.Action{
-					rbac.ResourceUser.Type:         {policy.ActionCreate, policy.ActionUpdate, policy.ActionRead},
-					rbac.ResourceOrganization.Type: {policy.ActionRead},
+					rbac.ResourceSystem.Type:             {policy.ActionRead}, // Required for idp config reads, this should be fixed
+					rbac.ResourceUser.Type:               {policy.ActionCreate, policy.ActionUpdate, policy.ActionRead},
+					rbac.ResourceOrganization.Type:       {policy.ActionRead},
+					rbac.ResourceOrganizationMember.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionUpdate},
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},
@@ -4659,7 +4661,8 @@ func (q *querier) GetUserCodeDiffDisplayMode(ctx context.Context, userID uuid.UU
 }
 
 func (q *querier) GetUserCount(ctx context.Context, includeSystem bool) (int64, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+	// If you can read every user, then you can read the count of users.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUser); err != nil {
 		return 0, err
 	}
 	return q.db.GetUserCount(ctx, includeSystem)

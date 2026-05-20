@@ -1,0 +1,48 @@
+# The elimity-com/scim library auto-serves /Schemas and /ResourceTypes
+# from the schema definitions, so we can detect them.
+detectSchema: true
+detectResourceTypes: true
+verifyPagination: false
+verifySorting: false
+requireAuthentication: true
+
+users:
+  enabled: true
+  operations:
+    - GET
+    - POST
+    - PUT
+    - PATCH
+    - DELETE
+
+  post_tests:
+    - request:
+        {
+          "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+          "userName": "scimtest1",
+          "name": { "givenName": "SCIM", "familyName": "TestOne" },
+          "emails": [{ "value": "scimtest1@example.com", "primary": true }],
+          "active": true,
+        }
+    - request:
+        {
+          "schemas": ["urn:ietf:params:scim:schemas:core:2.0:User"],
+          "userName": "scimtest2",
+          "name": { "givenName": "SCIM", "familyName": "TestTwo" },
+          "emails": [{ "value": "scimtest2@example.com", "primary": true }],
+          "active": true,
+        }
+
+  # PUT/PATCH/DELETE tests use id: AUTO which resolves to the first user
+  # from GET /Users?count=1. This is typically the admin user, not a test
+  # user. Suspending or deleting the admin breaks the dev server.
+  #
+  # These operations are tested safely in the Go integration tests
+  # (enterprise/coderd/scim_test.go) where user IDs are controlled.
+  # The scimverify config only tests operations safe against a live server.
+  put_tests: []
+  patch_tests: []
+  delete_tests: []
+
+groups:
+  enabled: false

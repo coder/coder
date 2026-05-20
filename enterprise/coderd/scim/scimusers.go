@@ -1,7 +1,9 @@
 package scim
 
 import (
+	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -21,9 +23,34 @@ import (
 
 var _ scim.ResourceHandler = (*ResourceUser)(nil)
 
-var scimAuditAdditionalFields = map[string]string{
-	"automatic_actor":     "coder",
-	"automatic_subsystem": "scim",
+// scimAudit emits an audit log for a SCIM operation. This uses
+// BackgroundAudit instead of InitRequest because the elimity-com/scim
+// library owns the http.ResponseWriter and does not expose it to
+// resource handlers.
+func (ru *ResourceUser) scimAudit(ctx context.Context, r *http.Request, action database.AuditAction, old, new database.User) {
+	raw, _ := json.Marshal(map[string]string{
+		"automatic_actor":     "coder",
+		"automatic_subsystem": "scim",
+	})
+	auditor := *ru.opts.Auditor.Load()
+
+	ip := r.RemoteAddr
+	if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		ip = forwarded
+	}
+
+	audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.User]{
+		Audit:            auditor,
+		Log:              ru.opts.Logger,
+		UserID:           uuid.Nil, // SCIM provisioner, not a real user
+		Action:           action,
+		Old:              old,
+		New:              new,
+		IP:               ip,
+		UserAgent:        r.UserAgent(),
+		AdditionalFields: raw,
+		Status:           http.StatusOK,
+	})
 }
 
 type ResourceUser struct {
@@ -35,16 +62,6 @@ type ResourceUser struct {
 // SCIM attributes, or returns the existing user if a duplicate is found.
 func (ru *ResourceUser) Create(r *http.Request, attributes scim.ResourceAttributes) (scim.Resource, error) {
 	ctx := r.Context()
-
-	auditor := *ru.opts.Auditor.Load()
-	aReq, commitAudit := audit.InitRequestWithCancel[database.User](nil, &audit.RequestParams{
-		Audit:            auditor,
-		Log:              ru.opts.Logger,
-		Request:          r,
-		Action:           database.AuditActionCreate,
-		AdditionalFields: scimAuditAdditionalFields,
-	})
-	defer commitAudit(true)
 
 	// Extract fields from the SCIM attributes.
 	// Do our best to match what the OIDC signup flow also does.
@@ -84,8 +101,7 @@ func (ru *ResourceUser) Create(r *http.Request, attributes scim.ResourceAttribut
 		Username: username,
 	})
 	if err == nil {
-		aReq.Old = dbUser
-		// User already exists. Update their status if needed
+		// User already exists. Update their status if needed.
 		status := scimUserStatus(dbUser, &active)
 		if active && dbUser.Status != status {
 			newUser, err := ru.store.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
@@ -97,10 +113,7 @@ func (ru *ResourceUser) Create(r *http.Request, attributes scim.ResourceAttribut
 			if err != nil {
 				return scim.Resource{}, err
 			}
-			aReq.New = newUser
-		} else {
-			// No change has occured, skip audit log.
-			commitAudit(false)
+			ru.scimAudit(ctx, r, database.AuditActionWrite, dbUser, newUser)
 		}
 
 		return userResource(dbUser), nil
@@ -153,9 +166,8 @@ func (ru *ResourceUser) Create(r *http.Request, attributes scim.ResourceAttribut
 	if err != nil {
 		return scim.Resource{}, xerrors.Errorf("create user: %w", err)
 	}
-	aReq.New = dbUser
-	aReq.UserID = dbUser.ID
 
+	ru.scimAudit(ctx, r, database.AuditActionCreate, database.User{}, dbUser)
 	return userResource(dbUser), nil
 }
 
@@ -211,16 +223,6 @@ func (ru *ResourceUser) GetAll(r *http.Request, params scim.ListRequestParams) (
 func (ru *ResourceUser) Replace(r *http.Request, idStr string, attributes scim.ResourceAttributes) (scim.Resource, error) {
 	ctx := r.Context()
 
-	auditor := *ru.opts.Auditor.Load()
-	aReq, commitAudit := audit.InitRequestWithCancel[database.User](nil, &audit.RequestParams{
-		Audit:            auditor,
-		Log:              ru.opts.Logger,
-		Request:          r,
-		Action:           database.AuditActionWrite,
-		AdditionalFields: scimAuditAdditionalFields,
-	})
-	defer commitAudit(true)
-
 	uid, err := uuid.Parse(idStr)
 	if err != nil {
 		return scim.Resource{}, BadUUID(idStr, err)
@@ -233,8 +235,6 @@ func (ru *ResourceUser) Replace(r *http.Request, idStr string, attributes scim.R
 		}
 		return scim.Resource{}, err
 	}
-	aReq.Old = dbUser
-	aReq.UserID = dbUser.ID
 
 	// All of our fields except for active are immutable.
 	if !AttributeEqual(dbUser.Username, attributes, "userName") {
@@ -253,6 +253,7 @@ func (ru *ResourceUser) Replace(r *http.Request, idStr string, attributes scim.R
 
 	newStatus := scimUserStatus(dbUser, &active)
 	if dbUser.Status != newStatus {
+		oldUser := dbUser
 		dbUser, err = ru.store.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
 			ID:         dbUser.ID,
 			Status:     newStatus,
@@ -262,12 +263,9 @@ func (ru *ResourceUser) Replace(r *http.Request, idStr string, attributes scim.R
 		if err != nil {
 			return scim.Resource{}, err
 		}
-	} else {
-		// No change, skip audit log.
-		commitAudit(false)
+		ru.scimAudit(ctx, r, database.AuditActionWrite, oldUser, dbUser)
 	}
 
-	aReq.New = dbUser
 	return userResource(dbUser), nil
 }
 
@@ -290,17 +288,6 @@ func (ru *ResourceUser) Delete(r *http.Request, idStr string) error {
 	}
 
 	if dbUser.Status != database.UserStatusSuspended {
-		// Audit log the change to suspended status
-		auditor := *ru.opts.Auditor.Load()
-		aReq, commitAudit := audit.InitRequestWithCancel[database.User](nil, &audit.RequestParams{
-			Audit:            auditor,
-			Log:              ru.opts.Logger,
-			Request:          r,
-			Action:           database.AuditActionWrite,
-			AdditionalFields: scimAuditAdditionalFields,
-		})
-		defer commitAudit(true)
-
 		newUser, err := ru.store.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
 			ID:         dbUser.ID,
 			Status:     database.UserStatusSuspended,
@@ -310,9 +297,7 @@ func (ru *ResourceUser) Delete(r *http.Request, idStr string) error {
 		if err != nil {
 			return err
 		}
-		aReq.Old = dbUser
-		aReq.New = newUser
-		aReq.UserID = dbUser.ID
+		ru.scimAudit(ctx, r, database.AuditActionWrite, dbUser, newUser)
 	}
 
 	return nil
@@ -322,16 +307,6 @@ func (ru *ResourceUser) Delete(r *http.Request, idStr string) error {
 // SCIM PatchOp operations. Currently, supports changing the active status.
 func (ru *ResourceUser) Patch(r *http.Request, idStr string, operations []scim.PatchOperation) (scim.Resource, error) {
 	ctx := r.Context()
-
-	auditor := *ru.opts.Auditor.Load()
-	aReq, commitAudit := audit.InitRequestWithCancel[database.User](nil, &audit.RequestParams{
-		Audit:            auditor,
-		Log:              ru.opts.Logger,
-		Request:          r,
-		Action:           database.AuditActionWrite,
-		AdditionalFields: scimAuditAdditionalFields,
-	})
-	defer commitAudit(true)
 
 	uid, err := uuid.Parse(idStr)
 	if err != nil {
@@ -345,8 +320,6 @@ func (ru *ResourceUser) Patch(r *http.Request, idStr string, operations []scim.P
 		}
 		return scim.Resource{}, err
 	}
-	aReq.Old = dbUser
-	aReq.UserID = dbUser.ID
 
 	// Process operations. Currently, we only handle the "active" attribute.
 	var activeSet *bool
@@ -367,6 +340,7 @@ func (ru *ResourceUser) Patch(r *http.Request, idStr string, operations []scim.P
 
 	newStatus := scimUserStatus(dbUser, activeSet)
 	if dbUser.Status != newStatus {
+		oldUser := dbUser
 		dbUser, err = ru.store.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
 			ID:         dbUser.ID,
 			Status:     newStatus,
@@ -376,12 +350,9 @@ func (ru *ResourceUser) Patch(r *http.Request, idStr string, operations []scim.P
 		if err != nil {
 			return scim.Resource{}, err
 		}
-	} else {
-		// No meaningful change, skip audit log.
-		commitAudit(false)
+		ru.scimAudit(ctx, r, database.AuditActionWrite, oldUser, dbUser)
 	}
 
-	aReq.New = dbUser
 	return userResource(dbUser), nil
 }
 
@@ -468,8 +439,11 @@ func userResourceFromGetUsersRow(u database.GetUsersRow) scim.Resource {
 	}
 }
 
-func BadUUID(idStr string, err error) scimErrors.ScimError {
-	return scimErrors.ScimErrorBadRequest(fmt.Sprintf("expected a UUID but got %q: %v", idStr, err))
+// BadUUID returns a 404 not-found error for non-UUID identifiers.
+// SCIM clients may send arbitrary strings as IDs; returning 404
+// (rather than 400) signals that no resource matches.
+func BadUUID(idStr string, _ error) scimErrors.ScimError {
+	return scimErrors.ScimErrorResourceNotFound(idStr)
 }
 
 func BooleanValue(v interface{}) (bool, error) {
