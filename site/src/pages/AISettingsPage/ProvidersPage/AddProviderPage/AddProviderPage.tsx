@@ -1,6 +1,7 @@
-import { Navigate, useSearchParams } from "react-router";
+import { useSearchParams } from "react-router";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import NotFoundPage from "#/pages/404Page/404Page";
 import { pageTitle } from "#/utils/page";
 import {
 	findAddableProvider,
@@ -16,10 +17,10 @@ const AddProviderPage: React.FC = () => {
 
 	// The page is reachable only through the "Add provider" dropdown,
 	// which always appends `?type=<known>`. Anyone hitting a stale
-	// bookmark or an unknown type is sent back to the list page;
-	// without a known type the form has no schema to render against.
+	// bookmark or an unknown type gets the 404 page; without a known
+	// type the form has no schema to render against.
 	if (!isAddableProviderType(typeParam)) {
-		return <Navigate to="/ai/settings" replace />;
+		return <NotFoundPage />;
 	}
 
 	const provider = findAddableProvider(typeParam);
