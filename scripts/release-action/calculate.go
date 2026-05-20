@@ -235,8 +235,7 @@ func calculateReleaseReleaseRequest(ref string) (ReleaseRequest, error) {
 	}
 
 	newVer := version{major: major, minor: minor, patch: nextPatch, rc: -1}
-	// All non-RC releases are stable from day one.
-	channel := "stable"
+	channel := determineChannel(major, minor, allTags)
 	prevTag := findPreviousTag(allTags, newVer)
 
 	return ReleaseRequest{
@@ -299,6 +298,17 @@ func calculateCreateBranchReleaseRequest(ref, commitSHA string) (ReleaseRequest,
 		TargetRef:       targetRef,
 		CreateBranch:    branchName,
 	}, nil
+}
+
+// determineChannel returns "stable" if a newer minor series already
+// has a final release (meaning this is a patch to the previous
+// mainline), or "mainline" if this is the latest minor series.
+func determineChannel(major, minor int, allTags []version) string {
+	latest := findLatestNonRC(allTags)
+	if latest.original != "" && latest.major == major && latest.minor > minor {
+		return "stable"
+	}
+	return "mainline"
 }
 
 // isHexSHA validates that s looks like a hex commit SHA.
