@@ -62,6 +62,8 @@ import {
 } from "./AgentChatPageView";
 import type { AgentsOutletContext } from "./AgentsPage";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
+import { AgentOnboardingDialog } from "./components/AgentOnboarding/AgentOnboardingDialog";
+import { isOnboardingDismissed } from "./components/AgentOnboarding/onboardingState";
 import { AgentSetupNotice } from "./components/AgentSetupNotice";
 import { normalizeChatErrorPayload } from "./components/ChatConversation/chatError";
 import {
@@ -1080,7 +1082,24 @@ const AgentChatPage: FC = () => {
 		hasUserFixableModelProviders,
 	});
 	const isAdmin = permissions.editDeploymentConfig;
+	const [onboardingDismissed, setOnboardingDismissed] = useState(
+		isOnboardingDismissed,
+	);
+	// Latch the wizard open once triggered so that saving a provider
+	// (which changes providerCount) does not close the dialog.
+	const [onboardingActive, setOnboardingActive] = useState(false);
+	const shouldTriggerOnboarding =
+		isAdmin &&
+		!onboardingDismissed &&
+		providerCount !== undefined &&
+		providerCount === 0;
+	if (shouldTriggerOnboarding && !onboardingActive) {
+		setOnboardingActive(true);
+	}
+	const showOnboarding = onboardingActive && !onboardingDismissed;
+
 	const agentSetupNotice = (() => {
+		if (showOnboarding) return undefined;
 		// Admin: show when providers or models are missing
 		if (
 			isAdmin &&
@@ -1547,9 +1566,16 @@ const AgentChatPage: FC = () => {
 	}
 
 	return (
-		<AgentChatPageView
-			agentId={agentId}
-			sendShortcut={getAgentChatSendShortcut(
+		<>
+			{showOnboarding && (
+				<AgentOnboardingDialog
+					open
+					onClose={() => setOnboardingDismissed(true)}
+				/>
+			)}
+			<AgentChatPageView
+				agentId={agentId}
+				sendShortcut={getAgentChatSendShortcut(
 				preferencesQuery.data?.agent_chat_send_shortcut,
 				preferencesQuery.isLoading,
 			)}
@@ -1618,7 +1644,8 @@ const AgentChatPage: FC = () => {
 			onMCPSelectionChange={handleMCPSelectionChange}
 			onMCPAuthComplete={handleMCPAuthComplete}
 			lastInjectedContext={chatQuery.data?.last_injected_context}
-		/>
+			/>
+		</>
 	);
 };
 
