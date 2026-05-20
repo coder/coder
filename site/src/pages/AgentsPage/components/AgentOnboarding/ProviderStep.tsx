@@ -42,10 +42,15 @@ interface ProviderStepProps {
 }
 
 export const ProviderStep: FC<ProviderStepProps> = ({
-	savedProviders,
+	savedProviders: allProviderConfigs,
 	onSkip,
 	onContinue,
 }) => {
+	// Filter to only providers that are actually configured (not just
+	// catalog "supported" entries).
+	const savedProviders = allProviderConfigs.filter(
+		(p) => p.source !== "supported" && p.enabled,
+	);
 	const [started, setStarted] = useState(savedProviders.length > 0);
 	const [selectedProvider, setSelectedProvider] = useState<string>("");
 	const [apiKey, setApiKey] = useState("");

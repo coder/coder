@@ -31,12 +31,15 @@ interface ModelStepProps {
 }
 
 export const ModelStep: FC<ModelStepProps> = ({
-	savedProviders,
+	savedProviders: allProviderConfigs,
 	savedModels,
 	onBack,
 	onSkip,
 	onContinue,
 }) => {
+	const savedProviders = allProviderConfigs.filter(
+		(p) => p.source !== "supported" && p.enabled,
+	);
 	const [selectedProvider, setSelectedProvider] = useState<string>("");
 	const [selectedModel, setSelectedModel] = useState<string>("");
 	const [contextLimit, setContextLimit] = useState<string>("");
