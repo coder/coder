@@ -19,14 +19,12 @@ type ChatSearchDialogProps = {
 	readonly open: boolean;
 	readonly onOpenChange: (open: boolean) => void;
 	readonly location: Location;
-	readonly onBeforeNewAgent?: () => void;
 };
 
 export const ChatSearchDialog: FC<ChatSearchDialogProps> = ({
 	open,
 	onOpenChange,
 	location,
-	onBeforeNewAgent,
 }) => {
 	const navigate = useNavigate();
 	const [inputValue, setInputValue] = useState("");

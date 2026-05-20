@@ -64,7 +64,6 @@ const meta: Meta<typeof ChatSearchDialog> = {
 	args: {
 		open: true,
 		onOpenChange: fn(),
-		onBeforeNewAgent: fn(),
 		location: {
 			pathname: "/agents",
 			search: "",
@@ -102,26 +101,26 @@ export const LoadingState: Story = {
 				}),
 		);
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
+	play: async () => {
+		const body = within(document.body);
 		await userEvent.type(
-			canvas.getByRole("combobox", { name: "Search chats" }),
+			body.getByRole("combobox", { name: "Search chats" }),
 			"Fix",
 		);
-		await expect(await canvas.findByText(/results/i)).toBeInTheDocument();
+		await expect(await body.findByText(/results/i)).toBeInTheDocument();
 		await waitFor(() => {
 			expect(
-				canvasElement.querySelectorAll('[data-slot="skeleton"]').length,
+				document.body.querySelectorAll('[data-slot="skeleton"]').length,
 			).toBeGreaterThan(0);
 		});
 	},
 };
 
 export const Results: Story = {
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
+	play: async () => {
+		const body = within(document.body);
 		await userEvent.type(
-			canvas.getByRole("combobox", { name: "Search chats" }),
+			body.getByRole("combobox", { name: "Search chats" }),
 			"Fix",
 		);
 		await waitFor(() => {
@@ -131,22 +130,22 @@ export const Results: Story = {
 			});
 		});
 		await expect(
-			await canvas.findByText("Fix race condition in auth middleware"),
+			await body.findByText("Fix race condition in auth middleware"),
 		).toBeInTheDocument();
 	},
 };
 
 export const KeyboardNavigation: Story = {
-	play: async ({ canvasElement, args }) => {
-		const canvas = within(canvasElement);
-		const searchInput = canvas.getByRole("combobox", { name: "Search chats" });
+	play: async ({ args }) => {
+		const body = within(document.body);
+		const searchInput = body.getByRole("combobox", { name: "Search chats" });
 
 		await userEvent.type(searchInput, "Fix");
 
-		const firstResult = await canvas.findByRole("option", {
+		const firstResult = await body.findByRole("option", {
 			name: /Fix race condition in auth middleware/i,
 		});
-		const secondResult = await canvas.findByRole("option", {
+		const secondResult = await body.findByRole("option", {
 			name: /Fix flaky workspace search story/i,
 		});
 		const resultsViewport = firstResult.closest(
@@ -180,14 +179,14 @@ export const NoResults: Story = {
 	beforeEach: () => {
 		spyOn(API.experimental, "getChats").mockResolvedValue([]);
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
+	play: async () => {
+		const body = within(document.body);
 		await userEvent.type(
-			canvas.getByRole("combobox", { name: "Search chats" }),
+			body.getByRole("combobox", { name: "Search chats" }),
 			"none",
 		);
 		await expect(
-			await canvas.findByText("No matching chats"),
+			await body.findByText("No matching chats"),
 		).toBeInTheDocument();
 	},
 };
@@ -198,12 +197,12 @@ export const ErrorState: Story = {
 			new Error("Bad filter"),
 		);
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
+	play: async () => {
+		const body = within(document.body);
 		await userEvent.type(
-			canvas.getByRole("combobox", { name: "Search chats" }),
+			body.getByRole("combobox", { name: "Search chats" }),
 			"title:",
 		);
-		await expect(await canvas.findByRole("alert")).toBeInTheDocument();
+		await expect(await body.findByRole("alert")).toBeInTheDocument();
 	},
 };

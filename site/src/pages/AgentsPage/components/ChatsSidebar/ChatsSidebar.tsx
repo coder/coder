@@ -169,7 +169,6 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 			<ChatSearchDialog
 				open={isSearchDialogOpen}
 				onOpenChange={setIsSearchDialogOpen}
-				onBeforeNewAgent={onBeforeNewAgent}
 				location={location}
 			/>
 			{onRenameTitle && (
