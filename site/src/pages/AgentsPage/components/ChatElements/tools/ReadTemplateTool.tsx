@@ -5,7 +5,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { transcriptRowMinHeightClass } from "./transcriptStyles";
+import { TranscriptRow } from "../TranscriptRow";
 import type { ToolStatus } from "./utils";
 
 /**
@@ -27,9 +27,7 @@ export const ReadTemplateTool: React.FC<{
 			: "Read template";
 
 	return (
-		<div
-			className={`flex items-center gap-1.5 text-content-secondary ${transcriptRowMinHeightClass}`}
-		>
+		<TranscriptRow className="gap-1.5 text-content-secondary">
 			<span className="text-[13px]">{label}</span>
 			{isError && (
 				<Tooltip>
@@ -44,6 +42,6 @@ export const ReadTemplateTool: React.FC<{
 			{isRunning && (
 				<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current" />
 			)}
-		</div>
+		</TranscriptRow>
 	);
 };

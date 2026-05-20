@@ -7,8 +7,8 @@ import {
 	MessageContent,
 	Shimmer,
 } from "../ChatElements";
+import { TranscriptRow } from "../ChatElements/TranscriptRow";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
-import { transcriptRowMinHeightClass } from "../ChatElements/tools/transcriptStyles";
 import { ChatStatusCallout } from "./ChatStatusCallout";
 import { BlockList } from "./ConversationTimeline";
 import type { LiveStatusModel } from "./liveStatusModel";
@@ -35,13 +35,11 @@ const hasTextOrReasoningBlock = (blocks: readonly RenderBlock[]): boolean =>
  */
 const StreamingThinkingPlaceholder: FC = () => (
 	<div data-transcript-row="" className="text-content-secondary">
-		<div
-			className={`flex w-full items-center gap-2 ${transcriptRowMinHeightClass}`}
-		>
+		<TranscriptRow className="w-full gap-2">
 			<Shimmer as="span" className="text-[13px] leading-relaxed">
 				Thinking
 			</Shimmer>
-		</div>
+		</TranscriptRow>
 	</div>
 );
 

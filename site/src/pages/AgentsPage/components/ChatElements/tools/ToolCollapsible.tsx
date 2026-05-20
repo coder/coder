@@ -3,12 +3,12 @@ import type { FC, ReactNode } from "react";
 import { useState } from "react";
 import type { AgentDisplayMode } from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
+import { TranscriptRow } from "../TranscriptRow";
 import {
 	type AgentDisplayState,
 	isAgentDisplayOpen,
 	resolveAgentDisplayState,
 } from "./displayMode";
-import { transcriptRowMinHeightClass } from "./transcriptStyles";
 
 type ToolCollapsibleAriaLabel = string | ((expanded: boolean) => string);
 type ToolCollapsibleHeader = ReactNode | ((expanded: boolean) => ReactNode);
@@ -71,41 +71,41 @@ export const ToolCollapsible: FC<ToolCollapsibleProps> = ({
 		onExpandedChange?.(nextExpanded);
 	};
 	const headerButton = hasContent ? (
-		<button
-			type="button"
-			aria-expanded={expanded}
-			aria-label={
-				typeof ariaLabel === "function" ? ariaLabel(expanded) : ariaLabel
-			}
-			onClick={toggleExpanded}
+		<TranscriptRow
+			asChild
 			className={cn(
-				"border-0 bg-transparent p-0 m-0 font-[inherit] text-[inherit] text-left",
-				"flex items-center gap-2 cursor-pointer",
-				transcriptRowMinHeightClass,
-				"text-content-secondary transition-colors hover:text-content-primary",
+				"m-0 cursor-pointer gap-2 border-0 bg-transparent p-0 text-left font-[inherit] text-[inherit] text-content-secondary transition-colors hover:text-content-primary",
 				headerActions ? "min-w-0 flex-1" : "w-full",
 				headerClassName,
 			)}
 		>
-			{renderedHeader}
-			<ChevronDownIcon
-				className={cn(
-					"h-3 w-3 shrink-0 text-current transition-transform",
-					expanded ? "rotate-0" : "-rotate-90",
-				)}
-			/>
-		</button>
+			<button
+				type="button"
+				aria-expanded={expanded}
+				aria-label={
+					typeof ariaLabel === "function" ? ariaLabel(expanded) : ariaLabel
+				}
+				onClick={toggleExpanded}
+			>
+				{renderedHeader}
+				<ChevronDownIcon
+					className={cn(
+						"h-3 w-3 shrink-0 text-current transition-transform",
+						expanded ? "rotate-0" : "-rotate-90",
+					)}
+				/>
+			</button>
+		</TranscriptRow>
 	) : (
-		<div
+		<TranscriptRow
 			className={cn(
-				"flex items-center gap-2 text-content-secondary",
-				transcriptRowMinHeightClass,
+				"gap-2 text-content-secondary",
 				headerActions && "min-w-0 flex-1",
 				headerClassName,
 			)}
 		>
 			{renderedHeader}
-		</div>
+		</TranscriptRow>
 	);
 
 	return (
