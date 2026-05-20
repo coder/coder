@@ -38,7 +38,7 @@ import AgentChatPage, { RIGHT_PANEL_OPEN_KEY } from "./AgentChatPage";
 import type { AgentsOutletContext } from "./AgentsPage";
 
 // ---------------------------------------------------------------------------
-// Layout wrapper, provides outlet context for the child route.
+// Layout wrapper – provides outlet context for the child route.
 // ---------------------------------------------------------------------------
 const AgentChatPageLayout: FC = () => {
 	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
@@ -306,7 +306,7 @@ const EVERY_TOOL_ASSISTANT_TURN = {
 			text: "Here is a recap of every tool I have at my disposal, exercised against this workspace so each card type renders.",
 		},
 
-		// execute, shell command output
+		// execute -- shell command output
 		{
 			type: "tool-call",
 			tool_call_id: "every-execute",
@@ -326,7 +326,7 @@ const EVERY_TOOL_ASSISTANT_TURN = {
 			},
 		},
 
-		// process_output, background process output
+		// process_output -- background process output
 		{
 			type: "tool-call",
 			tool_call_id: "every-process-output",
@@ -347,7 +347,7 @@ const EVERY_TOOL_ASSISTANT_TURN = {
 			},
 		},
 
-		// process_signal, signal sent to a background process
+		// process_signal -- signal sent to a background process
 		{
 			type: "tool-call",
 			tool_call_id: "every-process-signal",
@@ -361,7 +361,7 @@ const EVERY_TOOL_ASSISTANT_TURN = {
 			result: { success: true, signal: "terminate" },
 		},
 
-		// read_file, completed file read with content viewer
+		// read_file -- completed file read with content viewer
 		{
 			type: "tool-call",
 			tool_call_id: "every-read-file",
@@ -383,7 +383,7 @@ const EVERY_TOOL_ASSISTANT_TURN = {
 			},
 		},
 
-		// write_file, completed file write with diff viewer
+		// write_file -- completed file write with diff viewer
 		{
 			type: "tool-call",
 			tool_call_id: "every-write-file",
@@ -407,7 +407,7 @@ const EVERY_TOOL_ASSISTANT_TURN = {
 			result: { content: "wrote 6 lines" },
 		},
 
-		// edit_files, completed multi-file edit
+		// edit_files -- completed multi-file edit
 		{
 			type: "tool-call",
 			tool_call_id: "every-edit-files",
@@ -433,7 +433,7 @@ const EVERY_TOOL_ASSISTANT_TURN = {
 			result: { applied: 1 },
 		},
 
-		// list_templates, completed template listing
+		// list_templates -- completed template listing
 		{
 			type: "tool-call",
 			tool_call_id: "every-list-templates",
@@ -462,7 +462,7 @@ const EVERY_TOOL_ASSISTANT_TURN = {
 			},
 		},
 
-		// read_template, completed single-template read
+		// read_template -- completed single-template read
 		{
 			type: "tool-call",
 			tool_call_id: "every-read-template",
@@ -478,7 +478,7 @@ const EVERY_TOOL_ASSISTANT_TURN = {
 			},
 		},
 
-		// read_skill, completed skill load
+		// read_skill -- completed skill load
 		{
 			type: "tool-call",
 			tool_call_id: "every-read-skill",
@@ -504,7 +504,7 @@ const EVERY_TOOL_ASSISTANT_TURN = {
 			},
 		},
 
-		// read_skill_file, completed skill file fetch
+		// read_skill_file -- completed skill file fetch
 		{
 			type: "tool-call",
 			tool_call_id: "every-read-skill-file",
@@ -524,7 +524,7 @@ const EVERY_TOOL_ASSISTANT_TURN = {
 			},
 		},
 
-		// chat_summarized, compaction summary card
+		// chat_summarized -- compaction summary card
 		{
 			type: "tool-call",
 			tool_call_id: "every-summarized",
@@ -544,7 +544,7 @@ const EVERY_TOOL_ASSISTANT_TURN = {
 			},
 		},
 
-		// ask_user_question, completed clarification
+		// ask_user_question -- completed clarification
 		{
 			type: "tool-call",
 			tool_call_id: "every-ask-user",
@@ -576,7 +576,7 @@ const EVERY_TOOL_ASSISTANT_TURN = {
 			result: { questions: [{ answer: "Incremental migrations" }] },
 		},
 
-		// propose_plan, proposed plan with content
+		// propose_plan -- proposed plan with content
 		{
 			type: "tool-call",
 			tool_call_id: "every-propose-plan",
@@ -600,7 +600,7 @@ const EVERY_TOOL_ASSISTANT_TURN = {
 			},
 		},
 
-		// computer, screenshot tool result with text fallback
+		// computer -- screenshot tool result with text fallback
 		{
 			type: "tool-call",
 			tool_call_id: "every-computer",
@@ -618,7 +618,7 @@ const EVERY_TOOL_ASSISTANT_TURN = {
 			},
 		},
 
-		// attach_file, generic renderer with explicit attach label
+		// attach_file -- generic renderer with explicit attach label
 		{
 			type: "tool-call",
 			tool_call_id: "every-attach-file",
@@ -632,7 +632,7 @@ const EVERY_TOOL_ASSISTANT_TURN = {
 			result: {},
 		},
 
-		// generic / MCP fallback, unknown tool name with no server
+		// generic / MCP fallback -- unknown tool name with no server
 		{
 			type: "tool-call",
 			tool_call_id: "every-generic",
@@ -721,7 +721,7 @@ const EVERY_TOOL_ASSISTANT_TURN = {
 			},
 		},
 
-		// message_agent, send a follow-up to a subagent
+		// message_agent -- send a follow-up to a subagent
 		{
 			type: "tool-call",
 			tool_call_id: "every-message-agent",
@@ -739,7 +739,7 @@ const EVERY_TOOL_ASSISTANT_TURN = {
 			},
 		},
 
-		// wait_agent, wait for a subagent to finish
+		// wait_agent -- wait for a subagent to finish
 		{
 			type: "tool-call",
 			tool_call_id: "every-wait-agent",
@@ -758,7 +758,7 @@ const EVERY_TOOL_ASSISTANT_TURN = {
 			},
 		},
 
-		// close_agent, terminate a subagent
+		// close_agent -- terminate a subagent
 		{
 			type: "tool-call",
 			tool_call_id: "every-close-agent",
@@ -840,7 +840,7 @@ export const WithMessageHistory: Story = {
 			},
 			{
 				messages: [
-					// Turn 1: user asks for a summary
+					// -- Turn 1: user asks for a summary --
 					{
 						id: 1,
 						chat_id: CHAT_ID,
@@ -853,7 +853,7 @@ export const WithMessageHistory: Story = {
 							},
 						],
 					},
-					// Turn 2: assistant with headings, lists, table, blockquote
+					// -- Turn 2: assistant with headings, lists, table, blockquote --
 					{
 						id: 2,
 						chat_id: CHAT_ID,
@@ -929,7 +929,7 @@ export const WithMessageHistory: Story = {
 							},
 						],
 					},
-					// Turn 3: user follow-up (long message)
+					// -- Turn 3: user follow-up (long message) --
 					{
 						id: 3,
 						chat_id: CHAT_ID,
@@ -968,7 +968,7 @@ export const WithMessageHistory: Story = {
 							},
 						],
 					},
-					// Turn 4: assistant with code, table, nested list, task list
+					// -- Turn 4: assistant with code, table, nested list, task list --
 					{
 						id: 4,
 						chat_id: CHAT_ID,
@@ -1042,7 +1042,7 @@ export const WithMessageHistory: Story = {
 							},
 						],
 					},
-					// Turn 5: user asks about middleware
+					// -- Turn 5: user asks about middleware --
 					{
 						id: 5,
 						chat_id: CHAT_ID,
@@ -1055,7 +1055,7 @@ export const WithMessageHistory: Story = {
 							},
 						],
 					},
-					// Turn 6: assistant with code, inline code, links, images, nested blockquote
+					// -- Turn 6: assistant with code, inline code, links, images, nested blockquote --
 					{
 						id: 6,
 						chat_id: CHAT_ID,
@@ -2085,7 +2085,7 @@ export const SidebarWithSingleRepo: Story = {
 	},
 };
 /**
- * Streaming reasoning part via WebSocket, renders inline text.
+ * Streaming reasoning part via WebSocket — renders inline text.
  */
 export const StreamedReasoning: Story = {
 	parameters: {
@@ -2147,7 +2147,7 @@ export const WithEveryTool: Story = {
 			},
 			{
 				messages: [
-					// Turn 1: user kicks off the task
+					// -- Turn 1: user kicks off the task --
 					{
 						id: 1,
 						chat_id: CHAT_ID,
@@ -2160,7 +2160,7 @@ export const WithEveryTool: Story = {
 							},
 						],
 					},
-					// Turn 2: previous assistant turn (completed)
+					// -- Turn 2: previous assistant turn (completed) --
 					//    Establishes that the agent already inspected and patched
 					//    a couple of files before the streaming turn begins.
 					{
@@ -2234,7 +2234,7 @@ export const WithEveryTool: Story = {
 							},
 						],
 					},
-					// Turn 3: user asks for a tool-by-tool tour
+					// -- Turn 3: user asks for a tool-by-tool tour --
 					{
 						id: 3,
 						chat_id: CHAT_ID,
@@ -2247,7 +2247,7 @@ export const WithEveryTool: Story = {
 							},
 						],
 					},
-					// Turn 4: assistant runs every tool exactly once
+					// -- Turn 4: assistant runs every tool exactly once --
 					EVERY_TOOL_ASSISTANT_TURN,
 				],
 				queued_messages: [],

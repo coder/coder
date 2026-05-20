@@ -335,7 +335,7 @@ export function useConversationEditingState(deps: {
 		}
 	}, [editorInitialValue, inputValueRef]);
 
-	// History editing state.
+	// -- History editing state --
 	const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
 	const [draftBeforeHistoryEdit, setDraftBeforeHistoryEdit] =
 		useState<ParsedDraft | null>(null);
@@ -386,7 +386,7 @@ export function useConversationEditingState(deps: {
 		setEditingFileBlocks([]);
 	};
 
-	// Queue editing state.
+	// -- Queue editing state --
 	const [editingQueuedMessageID, setEditingQueuedMessageID] = useState<
 		number | null
 	>(null);
@@ -523,7 +523,7 @@ export function useConversationEditingState(deps: {
 		serializedEditorStateRef.current = serializedEditorState;
 
 		// Don't overwrite the persisted draft while editing a
-		// history or queued message, the original draft (possibly
+		// history or queued message — the original draft (possibly
 		// containing file-reference chips) is saved in React state
 		// and should survive a cancel.
 		if (editingMessageId !== null || editingQueuedMessageID !== null) {
@@ -536,7 +536,7 @@ export function useConversationEditingState(deps: {
 				try {
 					localStorage.setItem(draftStorageKey, serializedEditorState);
 				} catch {
-					// QuotaExceededError, silently discard the draft.
+					// QuotaExceededError — silently discard the draft.
 				}
 			} else {
 				localStorage.removeItem(draftStorageKey);
@@ -1647,7 +1647,7 @@ const AgentChatPage: FC = () => {
 
 // Keyed wrapper so that navigating between agents (changing the
 // :agentId param) fully remounts the component, resetting all
-// internal state, drafts, editing, and queries, cleanly.
+// internal state — drafts, editing, queries — cleanly.
 const KeyedAgentChatPage: FC = () => {
 	const { agentId } = useParams<{ agentId: string }>();
 	return <AgentChatPage key={agentId} />;

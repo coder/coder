@@ -485,7 +485,7 @@ export const SidebarCollapsed: Story = {
 	render: () => <StoryAgentChatPageView isSidebarCollapsed />,
 };
 
-/** No model options available, shows a disabled status message. */
+/** No model options available — shows a disabled status message. */
 export const NoModelOptions: Story = {
 	render: () => (
 		<StoryAgentChatPageView
@@ -673,7 +673,7 @@ export const Loading: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
 			sendShortcut="enter"
-			titleElement={<title>Loading, Agents</title>}
+			titleElement={<title>Loading — Agents</title>}
 			isInputDisabled
 			effectiveSelectedModel={defaultModelConfigID}
 			setSelectedModel={fn()}
@@ -692,7 +692,7 @@ export const LoadingWithModelOptions: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
 			sendShortcut="enter"
-			titleElement={<title>Loading, Agents</title>}
+			titleElement={<title>Loading — Agents</title>}
 			isInputDisabled={false}
 			effectiveSelectedModel={defaultModelConfigID}
 			setSelectedModel={fn()}
@@ -710,7 +710,7 @@ export const LoadingWithRightPanel: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
 			sendShortcut="enter"
-			titleElement={<title>Loading, Agents</title>}
+			titleElement={<title>Loading — Agents</title>}
 			isInputDisabled
 			effectiveSelectedModel={defaultModelConfigID}
 			setSelectedModel={fn()}
@@ -729,7 +729,7 @@ export const LoadingSidebarCollapsed: Story = {
 	render: () => (
 		<AgentChatPageLoadingView
 			sendShortcut="enter"
-			titleElement={<title>Loading, Agents</title>}
+			titleElement={<title>Loading — Agents</title>}
 			isInputDisabled
 			effectiveSelectedModel={defaultModelConfigID}
 			setSelectedModel={fn()}
@@ -785,7 +785,7 @@ const editingMessages = [
 	buildMessage(5, "user", "That was terrible, try again"),
 ];
 
-/** Editing a message in the middle of the conversation, shows the warning
+/** Editing a message in the middle of the conversation — shows the warning
  *  border on the edited message, faded subsequent messages, and the editing
  *  banner + outline on the chat input. */
 export const EditingMessage: Story = {
@@ -808,7 +808,7 @@ export const EditingMessage: Story = {
 export const NotFound: Story = {
 	render: () => (
 		<AgentChatPageNotFoundView
-			titleElement={<title>Not Found, Agents</title>}
+			titleElement={<title>Not Found — Agents</title>}
 			isSidebarCollapsed={false}
 			onToggleSidebarCollapsed={fn()}
 		/>
@@ -819,7 +819,7 @@ export const NotFound: Story = {
 export const NotFoundSidebarCollapsed: Story = {
 	render: () => (
 		<AgentChatPageNotFoundView
-			titleElement={<title>Not Found, Agents</title>}
+			titleElement={<title>Not Found — Agents</title>}
 			isSidebarCollapsed
 			onToggleSidebarCollapsed={fn()}
 		/>
