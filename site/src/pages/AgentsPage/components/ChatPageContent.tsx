@@ -510,7 +510,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			</div>
 		)}
 		{agentSetupNotice ? (
-			<div className="relative z-10 -mt-10 [&_[data-testid=chat-composer]]:bg-surface-secondary">{inputElement}</div>
+			<div className="relative z-10 -mt-10">{inputElement}</div>
 			) : (
 				inputElement
 			)}
