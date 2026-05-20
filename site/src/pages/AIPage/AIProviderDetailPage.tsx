@@ -73,9 +73,32 @@ const AIProviderDetailPage: FC = () => {
 
 	const isEditMode = !!existingConfig;
 
+	// Seed state from existing config when it loads.
+	const [seeded, setSeeded] = useState(false);
 	const [apiKeys, setApiKeys] = useState<ApiKeyRow[]>(() => [makeEmptyRow()]);
 	const [baseUrl, setBaseUrl] = useState("");
 	const [isSaving, setIsSaving] = useState(false);
+
+	if (existingConfig && !seeded) {
+		setSeeded(true);
+		setBaseUrl(existingConfig.base_url ?? "");
+		if (existingConfig.has_api_key) {
+			setApiKeys([
+				{
+					id: `saved-${existingConfig.id}`,
+					name: existingConfig.display_name || "API key",
+					apiKey: "sk-\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022",
+					trackingId: `key_${existingConfig.id.slice(0, 16)}`,
+					updated: existingConfig.updated_at
+						? `${Math.round((Date.now() - new Date(existingConfig.updated_at).getTime()) / 86400000)} days ago`
+						: "",
+					saved: true,
+				},
+				makeEmptyRow(),
+			]);
+		}
+	}
+
 
 	const createMutation = useMutation(createChatProviderConfig(queryClient));
 	const deleteMutation = useMutation(deleteChatProviderConfig(queryClient));
