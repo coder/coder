@@ -78,8 +78,8 @@ directory.
 ## Personal skills
 
 Personal skills are user-owned skills that are available to all of your
-chats. They are not tied to a specific workspace. Manage them from
-**Settings** > **Personal Skills** in the Coder UI.
+chats. They are not tied to a specific workspace. Manage them from the
+**Agents** page, under **Settings** > **Personal Skills**.
 
 Personal skills use the same `SKILL.md` format as workspace skills: YAML
 frontmatter with a kebab-case `name`, an optional `description`, and a
