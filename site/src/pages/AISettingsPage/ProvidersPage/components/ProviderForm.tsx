@@ -635,7 +635,6 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 								required
 								field={getFieldHelpers("model")}
 								label="Model"
-								description="The primary Bedrock model ID used for chat and completion requests."
 								className="w-full"
 								placeholder="anthropic.claude-3-5-sonnet-20241022-v2:0"
 							/>
@@ -643,35 +642,32 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 								required
 								field={getFieldHelpers("smallFastModel")}
 								label="Small fast model"
-								description="A cheaper, faster model used for lightweight tasks such as summaries, titles, and routing."
 								className="w-full"
 								placeholder="anthropic.claude-3-haiku-20240307-v1:0"
 							/>
+							<CredentialField
+								required
+								label="Access key"
+								helpers={getFieldHelpers("accessKey")}
+								onClear={clearBedrockAccessKey}
+								// Hide the access key value when masked so it renders
+								// uniformly with the secret; revert to plain text once
+								// cleared so the typed key is visible.
+								inputType={bedrockAccessKeyMasked ? "password" : "text"}
+								disabled={bedrockAccessKeyMasked}
+								trashLabel="Remove saved access key"
+							/>
+							<CredentialField
+								required
+								label="Access key secret"
+								helpers={getFieldHelpers("accessKeySecret")}
+								onClear={clearBedrockAccessKeySecret}
+								inputType="password"
+								autoComplete="new-password"
+								disabled={bedrockAccessKeySecretMasked}
+								trashLabel="Remove saved access key secret"
+							/>
 						</div>
-						<CredentialField
-							required
-							label="Access key"
-							helpers={getFieldHelpers("accessKey")}
-							onClear={clearBedrockAccessKey}
-							// Hide the access key value when masked so it renders
-							// uniformly with the secret; revert to plain text once
-							// cleared so the typed key is visible.
-							inputType={bedrockAccessKeyMasked ? "password" : "text"}
-							description="Your AWS Access Key ID used to authenticate requests to Bedrock."
-							disabled={bedrockAccessKeyMasked}
-							trashLabel="Remove saved access key"
-						/>
-						<CredentialField
-							required
-							label="Access key secret"
-							helpers={getFieldHelpers("accessKeySecret")}
-							onClear={clearBedrockAccessKeySecret}
-							inputType="password"
-							autoComplete="new-password"
-							description="Your AWS Secret Access Key associated with the access key ID. Stored securely and used for request signing."
-							disabled={bedrockAccessKeySecretMasked}
-							trashLabel="Remove saved access key secret"
-						/>
 					</>
 				)}
 

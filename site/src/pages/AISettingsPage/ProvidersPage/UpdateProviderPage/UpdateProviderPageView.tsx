@@ -117,31 +117,27 @@ const UpdateProviderPageView: React.FC = () => {
 	return (
 		<>
 			{title}
-			<div className="pt-4 px-6">
+			<div className="flex justify-between items-center pt-4 px-6">
 				<Link to={BACK_HREF}>
 					<Button variant="subtle">
 						<ArrowLeftIcon />
 						<span>Back to providers</span>
 					</Button>
 				</Link>
-			</div>
-			<div className="mx-auto w-full max-w-screen-sm flex flex-col gap-6">
-				<PageHeader
-					className="pt-6 pb-0"
-					actions={
-						<Button
-							type="button"
-							variant="destructive"
-							disabled={updateMutation.isPending || deleteMutation.isPending}
-							onClick={() => {
-								setDeleteDialogOpen(true);
-							}}
-						>
-							<TrashIcon />
-							<span>Delete provider</span>
-						</Button>
-					}
+				<Button
+					type="button"
+					variant="destructive"
+					disabled={updateMutation.isPending || deleteMutation.isPending}
+					onClick={() => {
+						setDeleteDialogOpen(true);
+					}}
 				>
+					<TrashIcon />
+					<span>Delete provider</span>
+				</Button>
+			</div>
+			<div className="flex flex-col gap-6 px-8">
+				<PageHeader className="pt-6 pb-0">
 					<div className="flex items-center gap-4 min-w-0">
 						<Avatar
 							variant="icon"
