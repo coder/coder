@@ -22,8 +22,8 @@ func main() {
 		commitSHA      string
 		versionStr     string
 		prevVersionStr string
-		channel        string
 		notesFile      string
+		stable         bool
 	)
 
 	cmd := &serpent.Command{
@@ -82,13 +82,6 @@ func main() {
 						Value:       serpent.StringOf(&prevVersionStr),
 						Required:    true,
 					},
-					{
-						Name:        "channel",
-						Flag:        "channel",
-						Description: "Release channel (stable or rc).",
-						Value:       serpent.StringOf(&channel),
-						Required:    true,
-					},
 				},
 				Handler: func(inv *serpent.Invocation) error {
 					newVer, err := parseVersion(versionStr)
@@ -99,7 +92,7 @@ func main() {
 					if err != nil {
 						return xerrors.Errorf("parse --previous-version: %w", err)
 					}
-					notes, err := generateReleaseNotes(newVer, prevVer, channel)
+					notes, err := generateReleaseNotes(newVer, prevVer)
 					if err != nil {
 						return err
 					}
@@ -109,7 +102,7 @@ func main() {
 			},
 			{
 				Use:   "publish",
-				Short: "Publish a GitHub release with assets, checksums, and GPG signatures.",
+				Short: "Publish a GitHub release with assets and checksums.",
 				Options: serpent.OptionSet{
 					{
 						Name:        "version",
@@ -119,11 +112,10 @@ func main() {
 						Required:    true,
 					},
 					{
-						Name:        "channel",
-						Flag:        "channel",
-						Description: "Release channel (mainline, stable, or rc).",
-						Value:       serpent.StringOf(&channel),
-						Required:    true,
+						Name:        "stable",
+						Flag:        "stable",
+						Description: "Mark this release as the latest stable release.",
+						Value:       serpent.BoolOf(&stable),
 					},
 					{
 						Name:        "release-notes-file",
@@ -138,7 +130,7 @@ func main() {
 					if len(assets) == 0 {
 						return xerrors.New("no asset files provided as arguments")
 					}
-					return publishRelease(versionStr, channel, notesFile, assets)
+					return publishRelease(versionStr, stable, notesFile, assets)
 				},
 			},
 		},

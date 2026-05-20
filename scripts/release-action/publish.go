@@ -15,7 +15,7 @@ import (
 
 // publishRelease creates a GitHub release with the given assets
 // and generates checksums.
-func publishRelease(versionTag, channel, notesFile string, assets []string) error {
+func publishRelease(versionTag string, stable bool, notesFile string, assets []string) error {
 	if len(assets) == 0 {
 		return xerrors.New("no assets provided")
 	}
@@ -80,11 +80,13 @@ func publishRelease(versionTag, channel, notesFile string, assets []string) erro
 		"--notes-file", notesFile,
 	}
 
-	switch channel {
-	case "stable":
-		ghArgs = append(ghArgs, "--latest=true")
-	case "rc":
+	// RC detection from the version tag.
+	isRC := strings.Contains(versionTag, "-rc.")
+	switch {
+	case isRC:
 		ghArgs = append(ghArgs, "--prerelease", "--latest=false")
+	case stable:
+		ghArgs = append(ghArgs, "--latest=true")
 	default:
 		ghArgs = append(ghArgs, "--latest=false")
 	}

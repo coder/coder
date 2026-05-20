@@ -23,8 +23,10 @@ func ghOutput(args ...string) (string, error) {
 // pullRequest holds metadata about a GitHub pull request.
 type pullRequest struct {
 	Number int
+	Title  string
 	Labels []string
 	Author string
+	URL    string
 }
 
 // pullRequestMap holds PR metadata indexed by PR number.
@@ -73,16 +75,6 @@ func ghBuildPullRequestMap(prNumbers []int) pullRequestMap {
 	return m
 }
 
-// openPR represents an open pull request targeting a branch.
-type openPR struct {
-	Number int    `json:"number"`
-	Title  string `json:"title"`
-	Author struct {
-		Login string `json:"login"`
-	} `json:"author"`
-	URL string `json:"url"`
-}
-
 // checkOpenPRs verifies that no pull requests are open against the
 // given branch. If any are found, it returns an error listing them
 // with instructions to merge or close before releasing.
@@ -97,19 +89,24 @@ func checkOpenPRs(branch string) error {
 		return xerrors.Errorf("failed to list open PRs for branch %s: %w", branch, err)
 	}
 
-	var prs []openPR
-	if err := json.Unmarshal([]byte(out), &prs); err != nil {
+	var rawPRs []struct {
+		Number int    `json:"number"`
+		Title  string `json:"title"`
+		Author string `json:"author"`
+		URL    string `json:"url"`
+	}
+	if err := json.Unmarshal([]byte(out), &rawPRs); err != nil {
 		return xerrors.Errorf("failed to parse open PRs response: %w", err)
 	}
 
-	if len(prs) == 0 {
+	if len(rawPRs) == 0 {
 		return nil
 	}
 
 	var b strings.Builder
-	_, _ = fmt.Fprintf(&b, "found %d open pull request(s) targeting %s that must be merged or closed before releasing:\n\n", len(prs), branch)
-	for _, pr := range prs {
-		_, _ = fmt.Fprintf(&b, "  - #%d: %s (by @%s)\n    %s\n", pr.Number, pr.Title, pr.Author.Login, pr.URL)
+	_, _ = fmt.Fprintf(&b, "found %d open pull request(s) targeting %s that must be merged or closed before releasing:\n\n", len(rawPRs), branch)
+	for _, pr := range rawPRs {
+		_, _ = fmt.Fprintf(&b, "  - #%d: %s (by @%s)\n    %s\n", pr.Number, pr.Title, pr.Author, pr.URL)
 	}
 	_, _ = fmt.Fprintf(&b, "\nMerge or close these pull requests, then re-run the release workflow.")
 	return xerrors.New(b.String())

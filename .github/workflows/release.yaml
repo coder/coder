@@ -58,7 +58,7 @@ jobs:
     outputs:
       version: ${{ steps.prepare.outputs.version }}
       previous_version: ${{ steps.prepare.outputs.previous_version }}
-      channel: ${{ steps.prepare.outputs.channel }}
+      stable: ${{ steps.prepare.outputs.stable }}
       target_ref: ${{ steps.prepare.outputs.target_ref }}
       create_branch: ${{ steps.prepare.outputs.create_branch }}
     steps:
@@ -100,12 +100,12 @@ jobs:
 
           version=$(echo "$output" | jq -r '.version')
           previous_version=$(echo "$output" | jq -r '.previous_version')
-          channel=$(echo "$output" | jq -r '.channel')
+          stable=$(echo "$output" | jq -r '.stable')
           target_ref=$(echo "$output" | jq -r '.target_ref')
           create_branch=$(echo "$output" | jq -r '.create_branch // empty')
 
           # Validate required outputs are non-empty.
-          for var in version previous_version channel target_ref; do
+          for var in version previous_version target_ref; do
             eval "val=\$$var"
             if [[ -z "$val" || "$val" == "null" ]]; then
               echo "::error::calculate-version returned empty or null '$var'"
@@ -116,7 +116,7 @@ jobs:
           {
             echo "version=$version"
             echo "previous_version=$previous_version"
-            echo "channel=$channel"
+            echo "stable=$stable"
             echo "target_ref=$target_ref"
             echo "create_branch=$create_branch"
           } >> "$GITHUB_OUTPUT"
@@ -127,7 +127,7 @@ jobs:
             echo "|-------|-------|"
             echo "| Version | \`$version\` |"
             echo "| Previous | \`$previous_version\` |"
-            echo "| Channel | \`$channel\` |"
+            echo "| Stable | \`$stable\` |"
             echo "| Target ref | \`$target_ref\` |"
             if [[ -n "$create_branch" ]]; then
               echo "| Create branch | \`$create_branch\` |"
@@ -167,13 +167,11 @@ jobs:
         env:
           VERSION: ${{ steps.prepare.outputs.version }}
           PREV_VERSION: ${{ steps.prepare.outputs.previous_version }}
-          CHANNEL: ${{ steps.prepare.outputs.channel }}
         run: |
           set -euo pipefail
           go run ./scripts/release-action generate-notes \
             --version "$VERSION" \
-            --previous-version "$PREV_VERSION" \
-            --channel "$CHANNEL" > /tmp/release_notes.md
+            --previous-version "$PREV_VERSION" > /tmp/release_notes.md
 
       - name: Upload release notes
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -199,7 +197,7 @@ jobs:
       attestations: write
     env:
       CODER_RELEASE: "true"
-      CODER_RELEASE_CHANNEL: ${{ needs.prepare-release.outputs.channel }}
+      CODER_RELEASE_STABLE: ${{ needs.prepare-release.outputs.stable }}
       # Necessary for Docker manifest
       DOCKER_CLI_EXPERIMENTAL: "enabled"
     outputs:
@@ -653,9 +651,14 @@ jobs:
             files+=(./coder_latest_sbom.spdx.json)
           fi
 
+          stable_flag=()
+          if [[ "$CODER_RELEASE_STABLE" == "true" ]]; then
+            stable_flag=(--stable)
+          fi
+
           go run ./scripts/release-action publish \
             --version "v${VERSION}" \
-            --channel "$CODER_RELEASE_CHANNEL" \
+            "${stable_flag[@]}" \
             --release-notes-file "$CODER_RELEASE_NOTES_FILE" \
             "${files[@]}"
         env:
@@ -717,19 +720,19 @@ jobs:
           helm push "build/provisioner_helm_${version}.tgz" oci://ghcr.io/coder/chart
 
       - name: Send repository-dispatch event
-        if: ${{ needs.prepare-release.outputs.channel != 'rc' }}
+        if: ${{ inputs.release_type != 'rc' && inputs.release_type != 'create-release-branch' }}
         uses: peter-evans/repository-dispatch@28959ce8df70de7be546dd1250a005dd32156697 # v4.0.1
         with:
           token: ${{ secrets.CDRCI_GITHUB_TOKEN }}
           repository: coder/packages
           event-type: coder-release
-          client-payload: '{"coder_version": "${{ steps.version.outputs.version }}", "release_channel": "${{ needs.prepare-release.outputs.channel }}"}'
+          client-payload: '{"coder_version": "${{ steps.version.outputs.version }}"}'
 
   publish-homebrew:
     name: Publish to Homebrew tap
     runs-on: ubuntu-latest
     needs: [release, prepare-release]
-    if: ${{ needs.prepare-release.outputs.channel == 'mainline' }}
+    if: ${{ inputs.release_type != 'rc' && inputs.release_type != 'create-release-branch' && needs.prepare-release.outputs.stable == 'true' }}
 
     steps:
       - name: Harden Runner
@@ -806,7 +809,7 @@ jobs:
     name: Publish to winget-pkgs
     runs-on: windows-latest
     needs: [release, prepare-release]
-    if: ${{ needs.prepare-release.outputs.channel != 'rc' }}
+    if: ${{ inputs.release_type != 'rc' && inputs.release_type != 'create-release-branch' }}
 
     steps:
       - name: Harden Runner
@@ -899,7 +902,7 @@ jobs:
   update-docs:
     name: Update release docs
     needs: [prepare-release, release]
-    if: ${{ needs.prepare-release.outputs.channel != 'rc' }}
+    if: ${{ inputs.release_type != 'rc' && inputs.release_type != 'create-release-branch' }}
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     permissions:
       contents: write

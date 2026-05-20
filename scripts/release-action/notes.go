@@ -11,7 +11,7 @@ import (
 
 // generateReleaseNotes produces markdown release notes for the given
 // version range by examining the commit log and PR metadata.
-func generateReleaseNotes(newVersion, previousVersion version, channel string) (string, error) {
+func generateReleaseNotes(newVersion, previousVersion version) (string, error) {
 	// Build commit range. If the new tag doesn't exist locally yet,
 	// fall back to ..HEAD.
 	newTag := newVersion.String()
@@ -70,8 +70,8 @@ func generateReleaseNotes(newVersion, previousVersion version, channel string) (
 
 	var b strings.Builder
 
-	// RC channel note.
-	if channel == "rc" {
+	// RC note based on version.
+	if newVersion.IsRC() {
 		_, _ = b.WriteString("> [!NOTE]\n")
 		_, _ = b.WriteString("> This is a **release candidate** build of Coder. Release candidate builds are not intended for production use. Learn more about our [Release Schedule](https://coder.com/docs/install/releases).\n\n")
 	}
