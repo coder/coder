@@ -90,29 +90,21 @@ export const ProviderStep: FC<ProviderStepProps> = ({
 	// Intro sub-state: before the user clicks "Get started"
 	if (!started) {
 		return (
-			<div className="flex flex-col gap-6">
-				<div className="flex flex-col gap-3">
+			<div className="flex min-h-[460px] flex-col gap-6">
+				<div className="flex flex-col gap-4">
 					<h2 className="text-2xl font-semibold">Welcome to Coder Agents.</h2>
-					<p className="text-sm text-content-secondary">
-						You'll need to set up at least one provider to get started. For key
-						policy and API key controls, go to Settings &rarr;{" "}
-						<Link
-							to="/agents/settings/api-keys"
-							className="text-content-link hover:text-content-link/80"
-						>
-							Advanced
-						</Link>
-						.
+					<p className="text-base text-content-secondary">
+						Let's get you set up so you can start building.
 					</p>
 				</div>
 
-				<p className="text-sm text-content-primary">1. set up your provider</p>
+				<ol className="flex flex-col gap-1 text-base text-content-secondary">
+					<li>1. Set up at least one provider</li>
+					<li>2. Add a model</li>
+					<li>3. Start chatting</li>
+				</ol>
 
-				<div className="flex min-h-[200px] items-center justify-center rounded-lg border border-border-default p-6">
-					<p className="text-sm text-content-secondary">No provider selected</p>
-				</div>
-
-				<div className="flex items-center justify-end gap-3">
+				<div className="mt-auto flex items-center justify-end gap-3">
 					<Button variant="outline" onClick={onSkip}>
 						Skip
 					</Button>
@@ -126,9 +118,7 @@ export const ProviderStep: FC<ProviderStepProps> = ({
 	return (
 		<div className="flex flex-col gap-6">
 			<div className="flex flex-col gap-3">
-				<h2 className="text-2xl font-semibold">
-					Welcome to Coder Agents. Connect an AI provider.
-				</h2>
+				<h2 className="text-2xl font-semibold">Connect an AI provider.</h2>
 				<p className="text-sm text-content-secondary">
 					You'll need to set up at least one provider to get started. For key
 					policy and API key controls, go to Settings &rarr;{" "}
