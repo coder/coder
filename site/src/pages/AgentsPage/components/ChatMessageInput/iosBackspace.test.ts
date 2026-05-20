@@ -16,8 +16,8 @@ import {
 	FileReferenceNode,
 } from "./FileReferenceNode";
 import {
+	$shouldUseNativeBackspace,
 	registerIOSBackspaceCommand,
-	shouldUseNativeIOSBackspace,
 } from "./iosBackspace";
 
 function readBackspaceDecision(setup: () => void) {
@@ -33,7 +33,7 @@ function readBackspaceDecision(setup: () => void) {
 	editor.update(
 		() => {
 			setup();
-			result = shouldUseNativeIOSBackspace($getSelection());
+			result = $shouldUseNativeBackspace($getSelection());
 		},
 		{ discrete: true },
 	);
@@ -41,7 +41,7 @@ function readBackspaceDecision(setup: () => void) {
 	return result;
 }
 
-describe("shouldUseNativeIOSBackspace", () => {
+describe("$shouldUseNativeBackspace", () => {
 	it("allows native deletion from plain text selections", () => {
 		const result = readBackspaceDecision(() => {
 			const root = $getRoot();
@@ -50,6 +50,25 @@ describe("shouldUseNativeIOSBackspace", () => {
 			root.append(paragraph);
 			paragraph.append(text);
 			text.select(5, 5);
+		});
+
+		expect(result).toBe(true);
+	});
+
+	it("allows native deletion when a file reference precedes a mid-text caret", () => {
+		const result = readBackspaceDecision(() => {
+			const root = $getRoot();
+			const paragraph = $createParagraphNode();
+			const fileReference = $createFileReferenceNode(
+				"main.go",
+				1,
+				1,
+				"package main",
+			);
+			const text = $createTextNode("hello");
+			root.append(paragraph);
+			paragraph.append(fileReference, text);
+			text.select(3, 3);
 		});
 
 		expect(result).toBe(true);
@@ -68,6 +87,27 @@ describe("shouldUseNativeIOSBackspace", () => {
 			const text = $createTextNode("hello");
 			root.append(paragraph);
 			paragraph.append(fileReference, text);
+			text.select(0, 0);
+		});
+
+		expect(result).toBe(false);
+	});
+
+	it("keeps Lexical deletion when backspace would hit a file reference in the previous paragraph", () => {
+		const result = readBackspaceDecision(() => {
+			const root = $getRoot();
+			const previousParagraph = $createParagraphNode();
+			const currentParagraph = $createParagraphNode();
+			const fileReference = $createFileReferenceNode(
+				"main.go",
+				1,
+				1,
+				"package main",
+			);
+			const text = $createTextNode("hello");
+			root.append(previousParagraph, currentParagraph);
+			previousParagraph.append(fileReference);
+			currentParagraph.append(text);
 			text.select(0, 0);
 		});
 
@@ -100,6 +140,35 @@ describe("shouldUseNativeIOSBackspace", () => {
 });
 
 describe("registerIOSBackspaceCommand", () => {
+	it("falls through when native backspace is disabled", () => {
+		const editor = createEditor({
+			namespace: "ios-backspace-command-disabled-test",
+			onError: (error) => {
+				throw error;
+			},
+		});
+		let deleteCharacterDispatched = false;
+
+		registerIOSBackspaceCommand(editor, false);
+		editor.registerCommand(
+			DELETE_CHARACTER_COMMAND,
+			() => {
+				deleteCharacterDispatched = true;
+				return true;
+			},
+			COMMAND_PRIORITY_HIGH,
+		);
+
+		const event = new KeyboardEvent("keydown", {
+			cancelable: true,
+			key: "Backspace",
+		});
+
+		expect(editor.dispatchCommand(KEY_BACKSPACE_COMMAND, event)).toBe(false);
+		expect(event.defaultPrevented).toBe(false);
+		expect(deleteCharacterDispatched).toBe(false);
+	});
+
 	it("prevents default and dispatches Lexical deletion near file references", () => {
 		const editor = createEditor({
 			namespace: "ios-backspace-command-test",
