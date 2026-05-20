@@ -2,7 +2,7 @@ import type { FC } from "react";
 import { Outlet, useLocation } from "react-router";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { AgentPageHeader } from "./components/AgentPageHeader";
-import { sidebarViewFromPath } from "./components/Sidebar/AgentsSidebar";
+import { sidebarViewFromPath } from "./components/ChatsSidebar/sidebarView";
 
 const AgentSettingsPage: FC = () => {
 	const location = useLocation();

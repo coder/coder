@@ -17,7 +17,7 @@ import {
 	MockUserOwner,
 } from "#/testHelpers/entities";
 import themes, { DEFAULT_THEME } from "#/theme";
-import { AgentsSidebar } from "./AgentsSidebar";
+import { ChatsSidebar } from "./ChatsSidebar";
 
 // ---- IntersectionObserver mock ----
 
@@ -104,7 +104,7 @@ const Wrapper: FC<PropsWithChildren> = ({ children }) => {
 	);
 };
 
-const defaultProps: React.ComponentProps<typeof AgentsSidebar> = {
+const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 	chats: [buildChat({ id: "chat-1", title: "Chat One" })],
 	chatErrorReasons: {},
 	modelOptions: [],
@@ -123,14 +123,14 @@ const defaultProps: React.ComponentProps<typeof AgentsSidebar> = {
 
 // ---- Tests ----
 
-describe("AgentsSidebar archived filter", () => {
+describe("ChatsSidebar archived filter", () => {
 	it("calls the filter change callback from the dropdown", async () => {
 		const user = userEvent.setup();
 		const onArchivedFilterChange = vi.fn();
 
 		render(
 			<Wrapper>
-				<AgentsSidebar
+				<ChatsSidebar
 					{...defaultProps}
 					onArchivedFilterChange={onArchivedFilterChange}
 				/>
@@ -149,7 +149,7 @@ describe("AgentsSidebar archived filter", () => {
 
 		render(
 			<Wrapper>
-				<AgentsSidebar
+				<ChatsSidebar
 					{...defaultProps}
 					chats={[]}
 					archivedFilter="archived"
@@ -164,7 +164,7 @@ describe("AgentsSidebar archived filter", () => {
 	});
 });
 
-describe("AgentsSidebar load-more behavior", () => {
+describe("ChatsSidebar load-more behavior", () => {
 	beforeEach(() => {
 		observerCallback = null;
 		observeCount = 0;
@@ -179,7 +179,7 @@ describe("AgentsSidebar load-more behavior", () => {
 		const onLoadMore = vi.fn();
 		render(
 			<Wrapper>
-				<AgentsSidebar {...defaultProps} hasNextPage onLoadMore={onLoadMore} />
+				<ChatsSidebar {...defaultProps} hasNextPage onLoadMore={onLoadMore} />
 			</Wrapper>,
 		);
 
@@ -194,7 +194,7 @@ describe("AgentsSidebar load-more behavior", () => {
 		const onLoadMore = vi.fn();
 		render(
 			<Wrapper>
-				<AgentsSidebar
+				<ChatsSidebar
 					{...defaultProps}
 					hasNextPage
 					onLoadMore={onLoadMore}
@@ -214,7 +214,7 @@ describe("AgentsSidebar load-more behavior", () => {
 		const onLoadMore1 = vi.fn();
 		const { rerender } = render(
 			<Wrapper>
-				<AgentsSidebar {...defaultProps} hasNextPage onLoadMore={onLoadMore1} />
+				<ChatsSidebar {...defaultProps} hasNextPage onLoadMore={onLoadMore1} />
 			</Wrapper>,
 		);
 
@@ -225,7 +225,7 @@ describe("AgentsSidebar load-more behavior", () => {
 		const onLoadMore2 = vi.fn();
 		rerender(
 			<Wrapper>
-				<AgentsSidebar {...defaultProps} hasNextPage onLoadMore={onLoadMore2} />
+				<ChatsSidebar {...defaultProps} hasNextPage onLoadMore={onLoadMore2} />
 			</Wrapper>,
 		);
 
@@ -244,7 +244,7 @@ describe("AgentsSidebar load-more behavior", () => {
 		const onLoadMore = vi.fn();
 		const { rerender } = render(
 			<Wrapper>
-				<AgentsSidebar {...defaultProps} hasNextPage onLoadMore={onLoadMore} />
+				<ChatsSidebar {...defaultProps} hasNextPage onLoadMore={onLoadMore} />
 			</Wrapper>,
 		);
 
@@ -259,7 +259,7 @@ describe("AgentsSidebar load-more behavior", () => {
 		for (let i = 0; i < 10; i++) {
 			rerender(
 				<Wrapper>
-					<AgentsSidebar
+					<ChatsSidebar
 						{...defaultProps}
 						hasNextPage
 						onLoadMore={() => onLoadMore()}
@@ -277,7 +277,7 @@ describe("AgentsSidebar load-more behavior", () => {
 		const onLoadMore = vi.fn();
 		const { rerender } = render(
 			<Wrapper>
-				<AgentsSidebar
+				<ChatsSidebar
 					{...defaultProps}
 					hasNextPage
 					onLoadMore={onLoadMore}
@@ -295,7 +295,7 @@ describe("AgentsSidebar load-more behavior", () => {
 		// Fetch completes.
 		rerender(
 			<Wrapper>
-				<AgentsSidebar
+				<ChatsSidebar
 					{...defaultProps}
 					hasNextPage
 					onLoadMore={onLoadMore}
@@ -315,7 +315,7 @@ describe("AgentsSidebar load-more behavior", () => {
 		const onLoadMore = vi.fn();
 		const { rerender } = render(
 			<Wrapper>
-				<AgentsSidebar
+				<ChatsSidebar
 					{...defaultProps}
 					hasNextPage
 					onLoadMore={onLoadMore}
@@ -330,7 +330,7 @@ describe("AgentsSidebar load-more behavior", () => {
 		// Start fetching — observer is torn down.
 		rerender(
 			<Wrapper>
-				<AgentsSidebar
+				<ChatsSidebar
 					{...defaultProps}
 					hasNextPage
 					onLoadMore={onLoadMore}
@@ -343,7 +343,7 @@ describe("AgentsSidebar load-more behavior", () => {
 		// an initial entry that detects the still-visible sentinel.
 		rerender(
 			<Wrapper>
-				<AgentsSidebar
+				<ChatsSidebar
 					{...defaultProps}
 					hasNextPage
 					onLoadMore={onLoadMore}
@@ -359,7 +359,7 @@ describe("AgentsSidebar load-more behavior", () => {
 		const onLoadMore = vi.fn();
 		render(
 			<Wrapper>
-				<AgentsSidebar
+				<ChatsSidebar
 					{...defaultProps}
 					hasNextPage={false}
 					onLoadMore={onLoadMore}
@@ -373,7 +373,7 @@ describe("AgentsSidebar load-more behavior", () => {
 	});
 });
 
-describe("AgentsSidebar model display names", () => {
+describe("ChatsSidebar model display names", () => {
 	it("uses the chat model config ID to pick the correct duplicate model label", () => {
 		const modelOptions = [
 			{
@@ -418,7 +418,7 @@ describe("AgentsSidebar model display names", () => {
 
 		const { getByText, queryByText } = render(
 			<Wrapper>
-				<AgentsSidebar
+				<ChatsSidebar
 					{...defaultProps}
 					chats={[
 						buildChat({
@@ -440,7 +440,7 @@ describe("AgentsSidebar model display names", () => {
 	it("falls back to legacy provider/model matching when no config ID match exists", () => {
 		const { getByText } = render(
 			<Wrapper>
-				<AgentsSidebar
+				<ChatsSidebar
 					{...defaultProps}
 					chats={[
 						buildChat({
@@ -467,7 +467,7 @@ describe("AgentsSidebar model display names", () => {
 	it("shows Default model when last_model_config_id is a nil UUID", () => {
 		const { getByText } = render(
 			<Wrapper>
-				<AgentsSidebar
+				<ChatsSidebar
 					{...defaultProps}
 					chats={[
 						buildChat({
@@ -496,7 +496,7 @@ describe("AgentsSidebar model display names", () => {
 	it("shows model name when last_model_config_id matches a config", () => {
 		const { getByText, queryByText } = render(
 			<Wrapper>
-				<AgentsSidebar
+				<ChatsSidebar
 					{...defaultProps}
 					chats={[
 						buildChat({
@@ -524,7 +524,7 @@ describe("AgentsSidebar model display names", () => {
 	});
 });
 
-describe("AgentsSidebar subtitles", () => {
+describe("ChatsSidebar subtitles", () => {
 	const modelOptions = [
 		{
 			id: "model-1",
@@ -537,7 +537,7 @@ describe("AgentsSidebar subtitles", () => {
 	it("shows the last turn summary when present and no error exists", () => {
 		render(
 			<Wrapper>
-				<AgentsSidebar
+				<ChatsSidebar
 					{...defaultProps}
 					chats={[
 						buildChat({
@@ -560,7 +560,7 @@ describe("AgentsSidebar subtitles", () => {
 	it("shows the error when both error and last turn summary exist", () => {
 		render(
 			<Wrapper>
-				<AgentsSidebar
+				<ChatsSidebar
 					{...defaultProps}
 					chats={[
 						buildChat({
@@ -588,7 +588,7 @@ describe("AgentsSidebar subtitles", () => {
 	it("falls back to the model name when no last turn summary exists", () => {
 		render(
 			<Wrapper>
-				<AgentsSidebar
+				<ChatsSidebar
 					{...defaultProps}
 					chats={[
 						buildChat({
@@ -607,7 +607,7 @@ describe("AgentsSidebar subtitles", () => {
 	it("falls back to the model name when the last turn summary is blank", () => {
 		render(
 			<Wrapper>
-				<AgentsSidebar
+				<ChatsSidebar
 					{...defaultProps}
 					chats={[
 						buildChat({

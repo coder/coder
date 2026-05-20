@@ -219,17 +219,9 @@ Preferred order:
 
 Only post to GitHub when the user asked for it or explicitly allowed it.
 
-When posting on Mike's behalf, include:
-
-```markdown
-> Mux working on Mike's behalf
-```
-
 Keep comments concise:
 
 ```markdown
-> Mux working on Mike's behalf
-
 Dogfood results:
 
 Passed:

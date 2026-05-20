@@ -109,6 +109,8 @@ type Chat struct {
 	ID                uuid.UUID          `json:"id" format:"uuid"`
 	OrganizationID    uuid.UUID          `json:"organization_id" format:"uuid"`
 	OwnerID           uuid.UUID          `json:"owner_id" format:"uuid"`
+	OwnerUsername     string             `json:"owner_username,omitempty"`
+	OwnerName         string             `json:"owner_name,omitempty"`
 	WorkspaceID       *uuid.UUID         `json:"workspace_id,omitempty" format:"uuid"`
 	BuildID           *uuid.UUID         `json:"build_id,omitempty" format:"uuid"`
 	AgentID           *uuid.UUID         `json:"agent_id,omitempty" format:"uuid"`
@@ -1967,6 +1969,33 @@ type ChatUsageLimitConfigResponse struct {
 	GroupOverrides     []ChatUsageLimitGroupOverride `json:"group_overrides"`
 }
 
+type ChatRole string
+
+const (
+	ChatRoleRead    ChatRole = "read"
+	ChatRoleDeleted ChatRole = ""
+)
+
+type ChatUser struct {
+	MinimalUser
+	Role ChatRole `json:"role" enums:"read"`
+}
+
+type ChatGroup struct {
+	Group
+	Role ChatRole `json:"role" enums:"read"`
+}
+
+type ChatACL struct {
+	Users  []ChatUser  `json:"users"`
+	Groups []ChatGroup `json:"groups"`
+}
+
+type UpdateChatACL struct {
+	UserRoles  map[string]ChatRole `json:"user_roles,omitempty"`
+	GroupRoles map[string]ChatRole `json:"group_roles,omitempty"`
+}
+
 // ListChatsOptions are optional parameters for ListChats.
 type ListChatsOptions struct {
 	Query  string
@@ -2940,6 +2969,31 @@ func (c *ExperimentalClient) GetChat(ctx context.Context, chatID uuid.UUID) (Cha
 	}
 	var chat Chat
 	return chat, json.NewDecoder(res.Body).Decode(&chat)
+}
+
+func (c *ExperimentalClient) GetChatACL(ctx context.Context, chatID uuid.UUID) (ChatACL, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/acl", chatID), nil)
+	if err != nil {
+		return ChatACL{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatACL{}, ReadBodyAsError(res)
+	}
+	var acl ChatACL
+	return acl, json.NewDecoder(res.Body).Decode(&acl)
+}
+
+func (c *ExperimentalClient) UpdateChatACL(ctx context.Context, chatID uuid.UUID, req UpdateChatACL) error {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/chats/%s/acl", chatID), req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
 }
 
 // GetChatMessages returns the messages and queued messages for a chat.
