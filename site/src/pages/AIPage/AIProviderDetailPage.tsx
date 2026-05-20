@@ -205,14 +205,10 @@ const AIProviderDetailPage: FC = () => {
 						</TableBody>
 					</Table>
 
-					<button
-						type="button"
-						onClick={addRow}
-						className="inline-flex items-center gap-1.5 mt-3 px-3 py-2 text-sm font-medium text-content-primary bg-transparent border-none cursor-pointer hover:text-content-secondary"
-					>
+					<Button variant="outline" onClick={addRow} className="mt-3">
 						<PlusIcon className="size-4" />
 						Add API key
-					</button>
+					</Button>
 				</div>
 
 				{/* Base URL */}
