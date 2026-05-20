@@ -80,10 +80,6 @@ type Options struct {
 	// limits. Setting either field opts out of the default.
 	PendingLimits PendingLimits
 
-	// ConnectTimeout bounds the initial client connection. Zero means 2
-	// seconds.
-	ConnectTimeout time.Duration
-
 	// ReadyTimeout bounds embedded server startup. Zero means
 	// DefaultReadyTimeout.
 	ReadyTimeout time.Duration
@@ -91,10 +87,6 @@ type Options struct {
 	// ReconnectWait controls client reconnect delay. Zero keeps NATS
 	// default.
 	ReconnectWait time.Duration
-
-	// MaxReconnects controls client reconnect attempts. Zero keeps NATS
-	// default. Negative means retry forever, following nats.go semantics.
-	MaxReconnects int
 
 	// InProcess, when true, causes New to construct its publisher and
 	// subscriber connections via nats.InProcessServer instead of
@@ -144,9 +136,6 @@ type Options struct {
 	// a caller-supplied external *natsgo.Conn whose write buffer is
 	// already fixed by whoever opened it.
 	WriteBufferSize int
-
-	// NoServerLog disables routing embedded server logs into logger.
-	NoServerLog bool
 }
 
 // Default values for Options.

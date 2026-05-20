@@ -42,8 +42,8 @@ func (s StaticPeerProvider) Peers(context.Context) ([]Peer, error) {
 }
 
 // normalizePeers trims and validates RouteURL on each peer, preserving
-// order and Name. It rejects empty URLs and any scheme other than
-// "nats" or "tls".
+// order and Name. RouteURL must be a plain nats://host:port URL with no
+// userinfo, path, query, or fragment.
 func normalizePeers(peers []Peer) ([]Peer, error) {
 	if len(peers) == 0 {
 		return nil, nil
@@ -54,18 +54,44 @@ func normalizePeers(peers []Peer) ([]Peer, error) {
 		if raw == "" {
 			return nil, xerrors.Errorf("peer %d: empty RouteURL", i)
 		}
-		u, err := url.Parse(raw)
-		if err != nil {
-			return nil, xerrors.Errorf("peer %d: parse %q: %w", i, raw, err)
-		}
-		switch u.Scheme {
-		case "nats", "tls":
-		default:
-			return nil, xerrors.Errorf("peer %d: unsupported scheme %q (want nats or tls)", i, u.Scheme)
+		if err := validateRouteURL(raw); err != nil {
+			return nil, xerrors.Errorf("peer %d: %w", i, err)
 		}
 		out = append(out, Peer{Name: p.Name, RouteURL: raw})
 	}
 	return out, nil
+}
+
+// validateRouteURL enforces that raw is a plain nats:// route URL:
+// scheme must be "nats", host must be non-empty, and the URL must
+// carry no userinfo, path, query, or fragment. IPv6 literals are
+// accepted when bracketed as required by url.Parse.
+func validateRouteURL(raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return xerrors.Errorf("parse %q: %w", raw, err)
+	}
+	if u.Scheme != "nats" {
+		return xerrors.Errorf("unsupported scheme %q (want nats)", u.Scheme)
+	}
+	if u.User != nil {
+		return xerrors.Errorf("route URL %q must not include userinfo", raw)
+	}
+	if u.Host == "" {
+		return xerrors.Errorf("route URL %q must include a host", raw)
+	}
+	// url.Parse normalizes a bare trailing slash into Path="/"; reject
+	// any non-empty path so callers must use scheme://host[:port] only.
+	if u.Path != "" {
+		return xerrors.Errorf("route URL %q must not include a path", raw)
+	}
+	if u.RawQuery != "" || u.ForceQuery {
+		return xerrors.Errorf("route URL %q must not include a query", raw)
+	}
+	if u.Fragment != "" || u.RawFragment != "" {
+		return xerrors.Errorf("route URL %q must not include a fragment", raw)
+	}
+	return nil
 }
 
 // routeURLs converts already-normalized peers into *url.URL values.

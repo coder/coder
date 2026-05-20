@@ -175,3 +175,65 @@ func TestCluster_LocalRoundTrip(t *testing.T) {
 		t.Fatal("local publish not delivered")
 	}
 }
+
+func TestNormalizePeers_RouteURLValidation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("valid", func(t *testing.T) {
+		t.Parallel()
+		cases := []string{
+			"nats://127.0.0.1:6222",
+			"nats://nats-1.internal:6222",
+			"nats://host",
+			"nats://[::1]:6222",
+			"nats://[2001:db8::1]:6222",
+		}
+		for _, raw := range cases {
+			raw := raw
+			t.Run(raw, func(t *testing.T) {
+				t.Parallel()
+				out, err := normalizePeers([]Peer{{RouteURL: raw}})
+				require.NoError(t, err)
+				require.Len(t, out, 1)
+				require.Equal(t, raw, out[0].RouteURL)
+			})
+		}
+	})
+
+	t.Run("trims whitespace", func(t *testing.T) {
+		t.Parallel()
+		out, err := normalizePeers([]Peer{{RouteURL: "  nats://127.0.0.1:6222  "}})
+		require.NoError(t, err)
+		require.Equal(t, "nats://127.0.0.1:6222", out[0].RouteURL)
+	})
+
+	t.Run("invalid", func(t *testing.T) {
+		t.Parallel()
+		cases := []struct {
+			name string
+			url  string
+		}{
+			{"empty", ""},
+			{"whitespace only", "   "},
+			{"unsupported scheme tls", "tls://127.0.0.1:6222"},
+			{"unsupported scheme http", "http://127.0.0.1:6222"},
+			{"missing scheme", "127.0.0.1:6222"},
+			{"userinfo", "nats://user:pass@127.0.0.1:6222"},
+			{"userinfo no password", "nats://user@127.0.0.1:6222"},
+			{"empty host", "nats://"},
+			{"trailing slash path", "nats://127.0.0.1:6222/"},
+			{"non-empty path", "nats://127.0.0.1:6222/route"},
+			{"query", "nats://127.0.0.1:6222?foo=bar"},
+			{"empty query", "nats://127.0.0.1:6222?"},
+			{"fragment", "nats://127.0.0.1:6222#frag"},
+		}
+		for _, tc := range cases {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				_, err := normalizePeers([]Peer{{RouteURL: tc.url}})
+				require.Error(t, err, "expected error for %q", tc.url)
+			})
+		}
+	})
+}

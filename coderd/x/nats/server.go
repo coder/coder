@@ -155,9 +155,6 @@ func connectClient(ns *natsserver.Server, opts Options, handlers connHandlers, c
 	}
 	connOpts := []natsgo.Option{
 		natsgo.Name(name),
-		// The server lives in this same process; treat any disconnect as
-		// transient and reconnect indefinitely.
-		natsgo.MaxReconnects(-1),
 		// All publish subjects on connections owned by this wrapper are
 		// produced by LegacyEventSubject / BuildSubject, which have
 		// already validated the subject. Skip the redundant per-publish
@@ -169,11 +166,6 @@ func connectClient(ns *natsserver.Server, opts Options, handlers connHandlers, c
 	}
 	if opts.ReconnectWait > 0 {
 		connOpts = append(connOpts, natsgo.ReconnectWait(opts.ReconnectWait))
-	}
-	// Allow callers to override MaxReconnects if they supplied an
-	// explicit non-zero value.
-	if opts.MaxReconnects != 0 {
-		connOpts = append(connOpts, natsgo.MaxReconnects(opts.MaxReconnects))
 	}
 	// WriteBufferSize tunes the per-conn outbound flush threshold in
 	// nats.go. Apply only when positive so zero preserves the nats.go
