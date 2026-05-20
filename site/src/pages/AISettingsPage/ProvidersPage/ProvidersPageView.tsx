@@ -46,7 +46,7 @@ const ProvidersPageView: React.FC<ProvidersPageViewProps> = ({
 				actions={
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
-							<Button>
+							<Button variant="outline">
 								<PlusIcon />
 								<span>Add provider</span>
 								<ChevronDownIcon className="ml-1 size-icon-xs" />
