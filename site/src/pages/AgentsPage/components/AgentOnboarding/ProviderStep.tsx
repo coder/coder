@@ -237,11 +237,13 @@ export const ProviderStep: FC<ProviderStepProps> = ({
 						</Button>
 					</div>
 				</div>
-			) : !hasSavedProviders ? (
+			) : (
 				<div className="flex min-h-[200px] items-center justify-center rounded-xl border border-solid border-border p-6">
-					<p className="text-sm text-content-secondary">No provider selected</p>
+					<p className="text-sm text-content-secondary">
+						{hasSavedProviders ? "Select another provider" : "No provider selected"}
+					</p>
 				</div>
-			) : null}
+			)}
 
 			{createMutation.isError && (
 				<p className="text-sm text-content-destructive">
