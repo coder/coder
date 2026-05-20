@@ -7717,7 +7717,6 @@ func (p *Server) runChat(
 		})
 	}
 
-	// Append skill tools when personal or workspace skills are available.
 	skillOpts := chattool.ReadSkillOptions{
 		GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
 		GetSkills: func() []chattool.SkillMeta {
@@ -7728,8 +7727,6 @@ func (p *Server) runChat(
 			return p.loadPersonalSkillBody(ctx, chat.OwnerID, name)
 		},
 	}
-	skillToolRegistered := false
-	readSkillFileToolRegistered := false
 	appendCurrentSkillTools := func(current []fantasy.AgentTool) ([]fantasy.AgentTool, bool) {
 		if len(personalSkills) == 0 && len(workspaceSkills) == 0 {
 			return current, false
@@ -7738,19 +7735,21 @@ func (p *Server) runChat(
 		updated := current
 		changed := false
 		appendTool := func(tool fantasy.AgentTool) {
+			name := tool.Info().Name
+			if slices.ContainsFunc(current, func(existing fantasy.AgentTool) bool {
+				return existing.Info().Name == name
+			}) {
+				return
+			}
 			if !changed {
 				updated = slices.Clone(current)
 				changed = true
 			}
 			updated = append(updated, tool)
 		}
-		if !skillToolRegistered {
-			appendTool(chattool.ReadSkill(skillOpts))
-			skillToolRegistered = true
-		}
-		if !readSkillFileToolRegistered && len(workspaceSkills) > 0 {
+		appendTool(chattool.ReadSkill(skillOpts))
+		if len(workspaceSkills) > 0 {
 			appendTool(chattool.ReadSkillFile(skillOpts))
-			readSkillFileToolRegistered = true
 		}
 		return updated, changed
 	}

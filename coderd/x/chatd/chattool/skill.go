@@ -266,14 +266,10 @@ const DefaultSkillMetaFile = "SKILL.md"
 // ReadSkillOptions configures the read_skill and read_skill_file
 // tools.
 type ReadSkillOptions struct {
-	// GetWorkspaceConn returns the active workspace connection for workspace skill reads.
 	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
-	// GetSkills returns the currently available workspace skills.
-	GetSkills func() []SkillMeta
+	GetSkills        func() []SkillMeta
 
-	// ResolveAlias maps a requested skill alias to its canonical skill and source.
-	ResolveAlias func(string) (skillspkg.ResolvedSkill, error)
-	// LoadPersonalSkillBody loads the parsed body for a canonical personal skill name.
+	ResolveAlias          func(string) (skillspkg.ResolvedSkill, error)
 	LoadPersonalSkillBody func(context.Context, string) (skillspkg.ParsedSkill, error)
 }
 
@@ -326,9 +322,9 @@ func ReadSkill(options ReadSkillOptions) fantasy.AgentTool {
 					"files": []string{},
 				}), nil
 			case skillspkg.SourceWorkspace:
-				content, response := readWorkspaceSkillBody(ctx, options, args.Name, resolved.Name)
-				if response != nil {
-					return *response, nil
+				content, response, ok := readWorkspaceSkillBody(ctx, options, args.Name, resolved.Name)
+				if ok {
+					return response, nil
 				}
 				return toolResponse(map[string]any{
 					"name":  args.Name,
@@ -446,31 +442,27 @@ func readWorkspaceSkillBody(
 	options ReadSkillOptions,
 	requestedName string,
 	canonicalName string,
-) (SkillContent, *fantasy.ToolResponse) {
+) (SkillContent, fantasy.ToolResponse, bool) {
 	skill, ok := findSkill(options.GetSkills, canonicalName)
 	if !ok {
-		response := skillNotFoundResponse(requestedName)
-		return SkillContent{}, &response
+		return SkillContent{}, skillNotFoundResponse(requestedName), true
 	}
 	if options.GetWorkspaceConn == nil {
-		response := fantasy.NewTextErrorResponse(
+		return SkillContent{}, fantasy.NewTextErrorResponse(
 			"workspace connection resolver is not configured",
-		)
-		return SkillContent{}, &response
+		), true
 	}
 
 	conn, err := options.GetWorkspaceConn(ctx)
 	if err != nil {
-		response := fantasy.NewTextErrorResponse(err.Error())
-		return SkillContent{}, &response
+		return SkillContent{}, fantasy.NewTextErrorResponse(err.Error()), true
 	}
 
 	content, err := LoadSkillBody(ctx, conn, skill, cmp.Or(skill.MetaFile, DefaultSkillMetaFile))
 	if err != nil {
-		response := fantasy.NewTextErrorResponse(err.Error())
-		return SkillContent{}, &response
+		return SkillContent{}, fantasy.NewTextErrorResponse(err.Error()), true
 	}
-	return content, nil
+	return content, fantasy.ToolResponse{}, false
 }
 
 func skillResolveErrorResponse(name string, err error) fantasy.ToolResponse {
