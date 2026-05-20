@@ -45,6 +45,10 @@ func FetchWorkspaceContext(
 
 	loadedAgent, agentErr := opts.GetWorkspaceAgent(ctx)
 	if agentErr != nil {
+		opts.Logger.Debug(ctx, "failed to get workspace agent for context",
+			slog.F("chat_id", opts.Chat.ID),
+			slog.Error(agentErr),
+		)
 		return WorkspaceContextResult{}
 	}
 

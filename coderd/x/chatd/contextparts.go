@@ -13,6 +13,11 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// Reserved synthetic chatd UUIDs:
+//   - 00000000-0000-0000-0000-000000000001: manualTitleLockWorkerID in chatd.go.
+//   - 00000000-0000-0000-0000-000000000002: inheritedContextAgentID.
+//
+// Next available synthetic UUID: 00000000-0000-0000-0000-000000000003.
 var inheritedContextAgentID = uuid.MustParse("00000000-0000-0000-0000-000000000002")
 
 func inheritedContextAgentIDPart() uuid.NullUUID {

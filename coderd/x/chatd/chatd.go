@@ -476,7 +476,7 @@ func (p *Server) newAdvisorRuntime(
 	return rt
 }
 
-// workspaceMCPAgentTools wraps cached MCP metadata in executable chat tools.
+// workspaceMCPAgentTools wraps MCP metadata in executable chat tools.
 func (p *Server) workspaceMCPAgentTools(
 	cacheKey workspacediscovery.MCPToolsCacheKey,
 	rawTools []workspacesdk.MCPToolInfo,
@@ -6374,6 +6374,7 @@ func activeToolNamesForTurn(
 	return toolNames
 }
 
+// exposeWorkspaceMCPToolsForMode applies subagent workspace MCP exposure policy.
 func exposeWorkspaceMCPToolsForMode(chatMode database.NullChatMode) bool {
 	// Discovery runs before this policy so cache state and diagnostics stay
 	// consistent with other workspace-backed subagents.

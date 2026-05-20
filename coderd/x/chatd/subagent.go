@@ -848,7 +848,7 @@ type childSubagentChatOptions struct {
 	systemPrompt          string
 	modelConfigIDOverride *uuid.UUID
 	planModeOverride      *database.NullChatPlanMode
-	mcpGrantParent        *database.Chat
+	mcpSourceChat         *database.Chat
 }
 
 // resolveSubagentMCPGrant computes the external MCP server IDs for a child.
@@ -948,15 +948,15 @@ func (p *Server) createChildSubagentChatWithOptions(
 		childPlanMode = *opts.planModeOverride
 	}
 
-	mcpGrantParent := parent
-	if opts.mcpGrantParent != nil {
-		mcpGrantParent = *opts.mcpGrantParent
+	mcpSourceChat := parent
+	if opts.mcpSourceChat != nil {
+		mcpSourceChat = *opts.mcpSourceChat
 	}
 	mcpServerIDs, err := p.resolveSubagentMCPGrant(
 		ctx,
-		mcpGrantParent,
+		mcpSourceChat,
 		opts.chatMode,
-		mcpGrantParent.PlanMode,
+		mcpSourceChat.PlanMode,
 	)
 	if err != nil {
 		return database.Chat{}, err

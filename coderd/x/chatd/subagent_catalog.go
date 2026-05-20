@@ -96,7 +96,7 @@ func allSubagentDefinitions() []subagentDefinition {
 					},
 					modelConfigIDOverride: &modelConfigID,
 					planModeOverride:      &clearPlanMode,
-					mcpGrantParent:        &turnParent,
+					mcpSourceChat:         &turnParent,
 				}, nil
 			},
 		},
