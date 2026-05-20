@@ -33,7 +33,7 @@ export const CollapsibleSidebar: FC<CollapsibleSidebarProps> = ({
 				style={{ width }}
 			>
 				{/* Clipping container for the nav content. */}
-				<div className="h-full overflow-hidden border-0 border-r border-solid border-border">
+				<div className="h-full overflow-hidden">
 					<nav
 						className={cn(
 							"h-full w-[240px] overflow-y-auto",
