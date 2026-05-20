@@ -42,16 +42,25 @@ func TestParse(t *testing.T) {
 			// "ES=$?" is a pure assignment; not a command.
 			in: `cd /repo && git stash && go build ./... 2>&1; ES=$?; git stash pop 2>&1 | tail -1; exit $ES`,
 			want: [][]string{
-				{"cd", "/repo"}, {"git", "stash"}, {"go", "build"},
-				{"git", "stash"}, {"tail"}, {"exit"},
+				{"cd", "/repo"},
+				{"git", "stash"},
+				{"go", "build"},
+				{"git", "stash"},
+				{"tail"},
+				{"exit"},
 			},
 		},
 		{
 			name: "command-substitution-and-if",
 			in:   `cd /repo && TOKEN=$(cat /tmp/tok || echo "") && if [ -n "$TOKEN" ]; then echo "$TOKEN" | gh auth login --with-token; else echo "missing"; fi`,
 			want: [][]string{
-				{"cd", "/repo"}, {"cat", "/tmp/tok"}, {"echo"},
-				{"[", "]"}, {"echo"}, {"gh", "auth"}, {"echo"},
+				{"cd", "/repo"},
+				{"cat", "/tmp/tok"},
+				{"echo"},
+				{"[", "]"},
+				{"echo"},
+				{"gh", "auth"},
+				{"echo"},
 			},
 		},
 		{

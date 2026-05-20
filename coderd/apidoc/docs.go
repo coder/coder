@@ -16824,6 +16824,15 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
+                "parsed_commands": {
+                    "type": "array",
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
                 "provider_executed": {
                     "description": "ProviderExecuted indicates the tool call was executed by\nthe provider (e.g. Anthropic computer use).",
                     "type": "boolean"

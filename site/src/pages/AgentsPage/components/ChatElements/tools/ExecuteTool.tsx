@@ -42,6 +42,7 @@ type ExecuteToolProps = {
 	isBackgrounded?: boolean;
 	killedBySignal?: "kill" | "terminate";
 	modelIntent?: string;
+	parsedCommands?: readonly string[][];
 	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
 };
 
@@ -79,6 +80,7 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 	isBackgrounded = false,
 	killedBySignal,
 	modelIntent,
+	parsedCommands,
 	outputInitiallyOpen,
 }) => {
 	const hasCommand = command.trim().length > 0;
@@ -107,6 +109,7 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 					<ShellCommandLine
 						command={command}
 						modelIntent={modelIntent}
+						parsedCommands={parsedCommands}
 						durationLabel={durationLabel}
 						expanded={outputOpen}
 					/>
@@ -174,23 +177,67 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 	);
 };
 
+// multiVerbTools lists programs whose first positional argument is
+// conventionally a subcommand verb. For these the summary shows
+// "<prog> <verb>" instead of just "<prog>".
+const multiVerbTools = new Set([
+	"git",
+	"gh",
+	"kubectl",
+	"docker",
+	"podman",
+	"npm",
+	"pnpm",
+	"yarn",
+	"go",
+	"cargo",
+	"make",
+	"helm",
+	"terraform",
+	"systemctl",
+	"brew",
+]);
+
+// summarizeParsedCommands collapses parsed_commands into a comma-joined
+// list. Multi-verb tools render as "<prog> <verb>", others as "<prog>".
+// Consecutive duplicates are deduped.
+const summarizeParsedCommands = (parsed: readonly string[][]): string => {
+	const labels: string[] = [];
+	for (const entry of parsed) {
+		const prog = entry[0];
+		if (!prog) continue;
+		const label =
+			multiVerbTools.has(prog) && entry[1] ? `${prog} ${entry[1]}` : prog;
+		if (labels[labels.length - 1] !== label) {
+			labels.push(label);
+		}
+	}
+	return labels.join(", ");
+};
+
 const ShellCommandLine: React.FC<{
 	command: string;
 	modelIntent?: string;
+	parsedCommands?: readonly string[][];
 	durationLabel: string;
 	expanded?: boolean;
-}> = ({ command, modelIntent, durationLabel, expanded }) => {
+}> = ({ command, modelIntent, parsedCommands, durationLabel, expanded }) => {
 	const intentLabel = sanitizeExecuteModelIntent(modelIntent, command);
+	const summary =
+		parsedCommands && parsedCommands.length > 0
+			? summarizeParsedCommands(parsedCommands)
+			: "";
+	const commandDisplay = summary || command;
 	return (
 		<>
 			<span className="block min-w-0 truncate text-[13px] font-normal text-current">
 				{intentLabel ? (
 					<>
 						{intentLabel} using{" "}
-						<code className="font-mono text-xs">{command}</code>
+						<code className="font-mono text-xs">{commandDisplay}</code>
 					</>
 				) : (
-					<>Ran {command}</>
+					<>Ran {commandDisplay}</>
 				)}
 			</span>
 			{durationLabel && (

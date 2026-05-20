@@ -118,6 +118,11 @@ Experimental: this endpoint is subject to change.
         },
         "media_type": "string",
         "name": "string",
+        "parsed_commands": [
+          [
+            "string"
+          ]
+        ],
         "provider_executed": true,
         "provider_metadata": [
           0
@@ -250,6 +255,7 @@ Status Code **200**
 | `»»» valid`                       | boolean                                                                | false    |              | Valid is true if UUID is not NULL                                                                                                                                                                                                                                                                                                |
 | `»» media_type`                   | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
 | `»» name`                         | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» parsed_commands`              | array                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                  |
 | `»» provider_executed`            | boolean                                                                | false    |              | Provider executed indicates the tool call was executed by the provider (e.g. Anthropic computer use).                                                                                                                                                                                                                            |
 | `»» provider_metadata`            | array                                                                  | false    |              | Provider metadata holds provider-specific response metadata (e.g. Anthropic cache control hints) as raw JSON. Internal only: stripped by db2sdk before API responses.                                                                                                                                                            |
 | `»» result`                       | array                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                  |
@@ -456,6 +462,11 @@ Experimental: this endpoint is subject to change.
           },
           "media_type": "string",
           "name": "string",
+          "parsed_commands": [
+            [
+              "string"
+            ]
+          ],
           "provider_executed": true,
           "provider_metadata": [
             0
@@ -584,6 +595,11 @@ Experimental: this endpoint is subject to change.
       },
       "media_type": "string",
       "name": "string",
+      "parsed_commands": [
+        [
+          "string"
+        ]
+      ],
       "provider_executed": true,
       "provider_metadata": [
         0
@@ -863,6 +879,11 @@ Experimental: this endpoint is subject to change.
         },
         "media_type": "string",
         "name": "string",
+        "parsed_commands": [
+          [
+            "string"
+          ]
+        ],
         "provider_executed": true,
         "provider_metadata": [
           0
@@ -1045,6 +1066,11 @@ Experimental: this endpoint is subject to change.
           },
           "media_type": "string",
           "name": "string",
+          "parsed_commands": [
+            [
+              "string"
+            ]
+          ],
           "provider_executed": true,
           "provider_metadata": [
             0
@@ -1173,6 +1199,11 @@ Experimental: this endpoint is subject to change.
       },
       "media_type": "string",
       "name": "string",
+      "parsed_commands": [
+        [
+          "string"
+        ]
+      ],
       "provider_executed": true,
       "provider_metadata": [
         0
@@ -1436,6 +1467,11 @@ Experimental: this endpoint is subject to change.
           },
           "media_type": "string",
           "name": "string",
+          "parsed_commands": [
+            [
+              "string"
+            ]
+          ],
           "provider_executed": true,
           "provider_metadata": [
             0
@@ -1564,6 +1600,11 @@ Experimental: this endpoint is subject to change.
       },
       "media_type": "string",
       "name": "string",
+      "parsed_commands": [
+        [
+          "string"
+        ]
+      ],
       "provider_executed": true,
       "provider_metadata": [
         0
@@ -1688,6 +1729,11 @@ Experimental: this endpoint is subject to change.
           },
           "media_type": "string",
           "name": "string",
+          "parsed_commands": [
+            [
+              "string"
+            ]
+          ],
           "provider_executed": true,
           "provider_metadata": [
             0
@@ -1766,6 +1812,11 @@ Experimental: this endpoint is subject to change.
           },
           "media_type": "string",
           "name": "string",
+          "parsed_commands": [
+            [
+              "string"
+            ]
+          ],
           "provider_executed": true,
           "provider_metadata": [
             0
@@ -1896,6 +1947,11 @@ Experimental: this endpoint is subject to change.
         },
         "media_type": "string",
         "name": "string",
+        "parsed_commands": [
+          [
+            "string"
+          ]
+        ],
         "provider_executed": true,
         "provider_metadata": [
           0
@@ -1973,6 +2029,11 @@ Experimental: this endpoint is subject to change.
         },
         "media_type": "string",
         "name": "string",
+        "parsed_commands": [
+          [
+            "string"
+          ]
+        ],
         "provider_executed": true,
         "provider_metadata": [
           0
@@ -2101,6 +2162,11 @@ Experimental: this endpoint is subject to change.
         },
         "media_type": "string",
         "name": "string",
+        "parsed_commands": [
+          [
+            "string"
+          ]
+        ],
         "provider_executed": true,
         "provider_metadata": [
           0
@@ -2287,6 +2353,11 @@ Experimental: this endpoint is subject to change.
         },
         "media_type": "string",
         "name": "string",
+        "parsed_commands": [
+          [
+            "string"
+          ]
+        ],
         "provider_executed": true,
         "provider_metadata": [
           0
@@ -2361,6 +2432,11 @@ Experimental: this endpoint is subject to change.
       },
       "media_type": "string",
       "name": "string",
+      "parsed_commands": [
+        [
+          "string"
+        ]
+      ],
       "provider_executed": true,
       "provider_metadata": [
         0
@@ -2424,6 +2500,11 @@ Experimental: this endpoint is subject to change.
           },
           "media_type": "string",
           "name": "string",
+          "parsed_commands": [
+            [
+              "string"
+            ]
+          ],
           "provider_executed": true,
           "provider_metadata": [
             0
@@ -2674,6 +2755,11 @@ Experimental: this endpoint is subject to change.
           },
           "media_type": "string",
           "name": "string",
+          "parsed_commands": [
+            [
+              "string"
+            ]
+          ],
           "provider_executed": true,
           "provider_metadata": [
             0
@@ -2802,6 +2888,11 @@ Experimental: this endpoint is subject to change.
       },
       "media_type": "string",
       "name": "string",
+      "parsed_commands": [
+        [
+          "string"
+        ]
+      ],
       "provider_executed": true,
       "provider_metadata": [
         0
