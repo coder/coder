@@ -99,8 +99,8 @@ const AIProviderDetailPage: FC = () => {
 					saved: true,
 					editing: false,
 				},
-				makeEmptyRow(),
 			]);
+
 		}
 	}
 
