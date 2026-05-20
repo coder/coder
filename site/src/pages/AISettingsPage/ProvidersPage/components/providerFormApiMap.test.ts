@@ -215,13 +215,13 @@ describe("providerFormValuesToCreate", () => {
 			["openai-compat", "https://compat.example.com/v1"],
 			["openrouter", "https://openrouter.ai/api/v1"],
 			["vercel", "https://ai-gateway.vercel.sh/v1"],
-		] as const)("passes the %s type through on the wire", (type, baseUrl) => {
+		] as const)("collapses the %s UI type to type=openai on the wire", (type, baseUrl) => {
 			const req = providerFormValuesToCreate({
 				...baseOpenAIFormValues,
 				type,
 				baseUrl,
 			});
-			expect(req.type).toBe(type);
+			expect(req.type).toBe("openai");
 			expect(req.base_url).toBe(baseUrl);
 			expect(req.api_keys).toEqual(["sk-test"]);
 		});

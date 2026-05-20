@@ -140,8 +140,15 @@ export const providerFormValuesToCreate = (
 	if (values.type === "") {
 		throw new Error("provider type is required");
 	}
+	// The codersdk validator only accepts `openai` and `anthropic` as wire
+	// types today; the OpenAI-compatible UI choices (azure, google,
+	// openai-compat, openrouter, vercel) collapse to `openai` on the wire and
+	// surface only as dropdown presets that drive name/baseUrl/icon defaults.
+	// `anthropic` is the only non-bedrock UI type with its own wire identity.
+	const wireType: AIProvider["type"] =
+		values.type === "anthropic" ? "anthropic" : "openai";
 	return {
-		type: values.type,
+		type: wireType,
 		name,
 		...(displayName ? { display_name: displayName } : {}),
 		base_url: baseUrl,
@@ -251,8 +258,11 @@ export const aiProviderToFormValues = (
 		};
 	}
 
+	// Wire `type` rolls up to one of `openai`/`anthropic` per the
+	// codersdk validator; the form mirrors that and the dropdown's richer
+	// OpenAI-compatible labels apply only on create.
 	return {
-		type: provider.type,
+		type: provider.type === "anthropic" ? "anthropic" : "openai",
 		name: provider.name,
 		displayName,
 		baseUrl: provider.base_url,
