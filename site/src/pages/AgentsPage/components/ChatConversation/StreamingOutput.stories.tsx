@@ -297,5 +297,16 @@ export const ThinkingDuringStreamingWithToolCalls: Story = {
 				(previousToolWrapper as HTMLElement).getBoundingClientRect().bottom,
 		);
 		expect(gap).toBe(8);
+
+		// The placeholder inner row must match the committed collapsed
+		// Thinking row height so the transition from streaming to settled
+		// does not jump. ToolCollapsible enforces min-h-6 (24px).
+		const placeholderRow = (thinkingWrapper as HTMLElement).firstElementChild;
+		expect(placeholderRow).toBeInstanceOf(HTMLElement);
+		expect(
+			Math.round(
+				(placeholderRow as HTMLElement).getBoundingClientRect().height,
+			),
+		).toBe(24);
 	},
 };
