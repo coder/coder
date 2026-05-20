@@ -60,7 +60,7 @@ lazygit = "0.61.1"
 # the dogfood image is linux/amd64-only and nobody on the team runs
 # helm via mise on Windows.
 [tools."http:helm"]
-version = "3.12.0"
+version = "3.21.0"
 url = 'https://get.helm.sh/helm-v{{version}}-{{os(macos="darwin")}}-{{arch(x64="amd64")}}.tar.gz'
 
 # sqlc (coder fork) bundles sqlite via cgo, so the `go install` build
