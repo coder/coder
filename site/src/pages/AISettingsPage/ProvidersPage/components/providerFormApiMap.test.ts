@@ -298,9 +298,10 @@ describe("providerFormValuesToUpdate", () => {
 			expect(req.api_keys).toEqual([{ api_key: "sk-new" }]);
 		});
 
-		it("omits api_keys when the user left the input at the saved mask", () => {
+		it("retains the saved key by id when the user left the masked rendering", () => {
 			// Seed the form with the saved masked rendering exactly as
-			// the API returns it; the helper must treat it as \"keep\".
+			// the API returns it; the declarative payload must reference
+			// the saved id so the server keeps the row.
 			const req = providerFormValuesToUpdate(
 				{
 					...baseOpenAIFormValues,
@@ -308,15 +309,30 @@ describe("providerFormValuesToUpdate", () => {
 				},
 				MockAIProviderOpenAI,
 			);
-			expect(req.api_keys).toBeUndefined();
+			expect(req.api_keys).toEqual([
+				{ id: MockAIProviderOpenAI.api_keys[0].id },
+			]);
 		});
 
-		it("omits api_keys when the user left the static SAVED_CREDENTIAL_MASK", () => {
+		it("retains the saved key by id when the user left SAVED_CREDENTIAL_MASK", () => {
 			const req = providerFormValuesToUpdate(
 				{ ...baseOpenAIFormValues, apiKey: SAVED_CREDENTIAL_MASK },
 				MockAIProviderOpenAI,
 			);
-			expect(req.api_keys).toBeUndefined();
+			expect(req.api_keys).toEqual([
+				{ id: MockAIProviderOpenAI.api_keys[0].id },
+			]);
+		});
+
+		it("sends an empty api_keys list when no key was saved and none was typed", () => {
+			// Declarative wire shape: an empty list is the explicit "no keys"
+			// state, matching the user's intent for a provider that never had
+			// a credential on file.
+			const req = providerFormValuesToUpdate(
+				{ ...baseOpenAIFormValues, apiKey: "" },
+				MockAIProviderAnthropic,
+			);
+			expect(req.api_keys).toEqual([]);
 		});
 	});
 

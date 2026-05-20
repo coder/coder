@@ -158,11 +158,14 @@ export const providerFormValuesToCreate = (
  * blob and the server leaves them unchanged. The non-secret Bedrock settings
  * (region, models) are always sent when the form holds a Bedrock provider.
  *
- * OpenAI/Anthropic API keys also follow "empty = keep": we omit `api_keys`
- * entirely when the user did not type a new value. When the user did supply
- * a new key, we send `api_keys: [{ api_key }]`. The server treats this as an
- * atomic rotation, deleting every existing key whose ID is not referenced
- * (i.e. all of them) and inserting the new plaintext.
+ * OpenAI/Anthropic API keys ship as a declarative list: the supplied
+ * `api_keys` describes the post-patch state of the key set, the server
+ * reconciles it against what's stored, and any saved key whose id is absent
+ * from the request is deleted. The form holds a single credential input, so
+ * we send either a retain-all mutation (one `{ id }` per saved key) when the
+ * user did not type a fresh value, or a single `{ api_key }` when they did.
+ * The latter implicitly deletes every existing key (their ids aren't in the
+ * list) and inserts the new plaintext as a fresh row.
  */
 export const providerFormValuesToUpdate = (
 	values: ProviderFormValues,
@@ -181,10 +184,17 @@ export const providerFormValuesToUpdate = (
 		// sanitized result is `""` (no rotation).
 		const savedMasked = existingProvider.api_keys[0]?.masked;
 		const newApiKey = sanitizeCredential(values.apiKey, savedMasked);
-		if (newApiKey === "") {
-			return base;
-		}
-		const apiKeys: AIProviderKeyMutation[] = [{ api_key: newApiKey }];
+		// Declarative wire shape: the server reconciles api_keys against the
+		// supplied list. `{ id }` retains the saved row, `{ api_key }` inserts
+		// a new plaintext, and any saved key whose id is absent is deleted.
+		// The backend rejects sending both fields on the same entry today, so a
+		// rotation goes out as the new plaintext alone: the saved key's id is
+		// omitted from the list (triggering its deletion) and the plaintext is
+		// inserted as a fresh row.
+		const apiKeys: AIProviderKeyMutation[] =
+			newApiKey === ""
+				? existingProvider.api_keys.map((k) => ({ id: k.id }))
+				: [{ api_key: newApiKey }];
 		return { ...base, api_keys: apiKeys };
 	}
 
