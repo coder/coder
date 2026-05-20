@@ -17,7 +17,7 @@ import {
 import { Spinner } from "#/components/Spinner/Spinner";
 import { formatProviderLabel } from "../../utils/modelOptions";
 import {
-	findKnownModelByExactAlias,
+	findKnownModelByCanonicalId,
 	getKnownModelsForProvider,
 } from "../ChatModelAdminPanel/knownModels";
 import { ProviderIcon } from "../ChatModelAdminPanel/ProviderIcon";
@@ -61,7 +61,7 @@ export const ModelStep: FC<ModelStepProps> = ({
 	const handleModelChange = (value: string) => {
 		setSelectedModel(value);
 		// Auto-fill context limit from known model defaults
-		const known = findKnownModelByExactAlias(selectedProvider, value);
+		const known = findKnownModelByCanonicalId(selectedProvider, value);
 		if (known?.contextLimit) {
 			setContextLimit(String(known.contextLimit));
 		}
