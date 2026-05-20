@@ -11,7 +11,7 @@ export function getLeftSidebarMaxWidth(): number {
 		LEFT_SIDEBAR_MIN_WIDTH,
 		Math.min(
 			LEFT_SIDEBAR_MAX_WIDTH,
-			Math.floor(window.innerWidth * LEFT_SIDEBAR_MAX_WIDTH_RATIO),
+			Math.floor(innerWidth * LEFT_SIDEBAR_MAX_WIDTH_RATIO),
 		),
 	);
 }

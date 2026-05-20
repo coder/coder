@@ -18,15 +18,15 @@ import {
 	persistLeftSidebarWidth,
 } from "./sidebarWidth";
 
-interface ResizableAgentsSidebarFrameProps {
+interface ResizableChatsSidebarFrameProps {
 	children: ReactNode;
 	className?: string;
 }
 
-export const ResizableAgentsSidebarFrame = ({
+export const ResizableChatsSidebarFrame = ({
 	children,
 	className,
-}: ResizableAgentsSidebarFrameProps) => {
+}: ResizableChatsSidebarFrameProps) => {
 	const [width, setWidth] = useState(loadPersistedLeftSidebarWidth);
 	const maxWidth = getLeftSidebarMaxWidth();
 	const isDragging = useRef(false);

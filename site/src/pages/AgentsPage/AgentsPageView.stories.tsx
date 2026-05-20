@@ -38,7 +38,6 @@ import AgentSettingsPage from "./AgentSettingsPage";
 import AgentSettingsSpendPage from "./AgentSettingsSpendPage";
 import { type AgentsOutletContext, AgentsPageView } from "./AgentsPageView";
 import type { ModelSelectorOption } from "./components/ChatElements";
-import { ChatTopBar } from "./components/ChatTopBar";
 import {
 	clampLeftSidebarWidth,
 	getLeftSidebarMaxWidth,
@@ -46,7 +45,8 @@ import {
 	LEFT_SIDEBAR_KEYBOARD_RESIZE_STEP,
 	LEFT_SIDEBAR_MIN_WIDTH,
 	LEFT_SIDEBAR_STORAGE_KEY,
-} from "./components/Sidebar/sidebarWidth";
+} from "./components/ChatsSidebar/sidebarWidth";
+import { ChatTopBar } from "./components/ChatTopBar";
 
 const defaultModelConfigID = "model-config-1";
 

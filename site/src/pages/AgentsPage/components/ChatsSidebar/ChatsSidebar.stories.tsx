@@ -12,7 +12,7 @@ import {
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
 import type { ModelSelectorOption } from "../ChatElements";
-import { AgentsSidebar } from "./AgentsSidebar";
+import { ChatsSidebar } from "./ChatsSidebar";
 
 // Probe element used by the archived-filter preservation story to surface the
 // search string of whatever child route the sidebar's NavLink ends up at.
@@ -59,7 +59,6 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	id: "chat-default",
 	organization_id: "test-org-id",
 	owner_id: "owner-1",
-	owner_username: "owner",
 	title: "Agent",
 	status: "completed",
 	last_model_config_id: defaultModelConfigs[0].id,
@@ -93,9 +92,9 @@ const settingsRouting = [
 	...{ path: string; useStoryElement: boolean }[],
 ];
 
-const meta: Meta<typeof AgentsSidebar> = {
-	title: "pages/AgentsPage/AgentsSidebar",
-	component: AgentsSidebar,
+const meta: Meta<typeof ChatsSidebar> = {
+	title: "pages/AgentsPage/ChatsSidebar",
+	component: ChatsSidebar,
 	decorators: [withAuthProvider, withDashboardProvider],
 	args: {
 		chatErrorReasons: {},
@@ -125,7 +124,7 @@ const meta: Meta<typeof AgentsSidebar> = {
 };
 
 export default meta;
-type Story = StoryObj<typeof AgentsSidebar>;
+type Story = StoryObj<typeof ChatsSidebar>;
 
 export const ChatWithTurnSummary: Story = {
 	args: {
@@ -226,7 +225,7 @@ export const StaleTurnSummaryAfterStreamingIsSuppressed: Story = {
 				>
 					advance
 				</button>
-				<AgentsSidebar {...args} chats={chats} />
+				<ChatsSidebar {...args} chats={chats} />
 			</div>
 		);
 	},

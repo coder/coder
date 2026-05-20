@@ -10,7 +10,7 @@ import type { ReactNode } from "react";
 import { type FC, useEffect, useId, useRef, useState } from "react";
 import { Button } from "#/components/Button/Button";
 import { cn } from "#/utils/cn";
-import { DesktopPanel } from "../RightPanel/DesktopPanel";
+import { DesktopPanel } from "../../RightPanel/DesktopPanel";
 
 /** A single tab definition for the sidebar panel. */
 export interface SidebarTab {
@@ -75,13 +75,9 @@ function useTabScroll() {
 			setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
 		};
 
-		// Initial check.
 		update();
-
-		// Re-check on scroll.
 		el.addEventListener("scroll", update, { passive: true });
 
-		// Re-check when the container or its children resize.
 		const ro = new ResizeObserver(update);
 		ro.observe(el);
 
@@ -122,8 +118,6 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 }) => {
 	const tabIdPrefix = useId();
 
-	// Unified list of panels for rendering. Includes the desktop
-	// tab when available so we don't need to special-case it.
 	const allPanels: { id: string; content: ReactNode }[] = tabs.map((t) => ({
 		id: t.id,
 		content: t.content,
@@ -151,7 +145,6 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 	if (tabs.length === 0 && !desktopChatId) {
 		return (
 			<div className="flex h-full min-w-0 flex-col overflow-hidden bg-surface-primary">
-				{/* Tab bar – always visible for the expand button. */}
 				<div
 					role="tablist"
 					className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-4 py-1.5 lg:px-3 lg:py-1"
@@ -193,12 +186,10 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 
 	return (
 		<div className="flex h-full min-w-0 flex-col overflow-hidden bg-surface-primary">
-			{/* Tab bar */}
 			<div
 				role="tablist"
 				className="relative flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default px-4 py-1.5 lg:px-3 lg:py-1"
 			>
-				{/* Back button (mobile), placed before the tab strip */}
 				{onClose && (
 					<Button
 						variant="subtle"
@@ -210,7 +201,6 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 						<ArrowLeftIcon />
 					</Button>
 				)}
-				{/* Sidebar toggle – only when expanded and sidebar is collapsed */}
 				{isExpanded && isSidebarCollapsed && onToggleSidebarCollapsed && (
 					<Button
 						variant="subtle"
@@ -222,7 +212,6 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 						<PanelLeftIcon />
 					</Button>
 				)}
-				{/* Scrollable tab strip with overlay chevrons */}
 				<div className="relative min-w-0 flex-1">
 					{canScrollLeft && (
 						<button
@@ -300,7 +289,6 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 						</button>
 					)}
 				</div>
-				{/* Center: chat title when expanded */}
 				{isExpanded && chatTitle && (
 					<div className="pointer-events-none absolute inset-0 flex items-center justify-center">
 						<span className="truncate px-24 text-sm text-content-primary">
@@ -308,7 +296,6 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 						</span>
 					</div>
 				)}
-				{/* Expand/collapse (desktop only) */}
 				<Button
 					variant="subtle"
 					size="icon"
@@ -319,7 +306,6 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 					{isExpanded ? <MinimizeIcon /> : <MaximizeIcon />}
 				</Button>
 			</div>
-			{/* Tab panels – all stay mounted, only the active one visible. */}
 			{allPanels.map((panel) => {
 				const isActive = effectiveTabId === panel.id;
 				return (
