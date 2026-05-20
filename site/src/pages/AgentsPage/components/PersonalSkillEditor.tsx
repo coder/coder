@@ -25,6 +25,7 @@ import { cn } from "#/utils/cn";
 import {
 	buildPersonalSkillMarkdown,
 	getPersonalSkillContentSizeBytes,
+	isValidPersonalSkillDescription,
 	isValidPersonalSkillName,
 	PERSONAL_SKILL_MAX_SIZE_BYTES,
 	type PersonalSkillFormValues,
@@ -102,7 +103,11 @@ export const PersonalSkillEditor: FC<PersonalSkillEditorProps> = ({
 						value?.trim().toLocaleLowerCase("en-US") ?? "",
 					),
 			),
-		description: Yup.string(),
+		description: Yup.string().test(
+			"description-size",
+			"Description must be 4096 bytes or smaller.",
+			(value) => isValidPersonalSkillDescription(value ?? ""),
+		),
 		body: Yup.string().test("body-required", "Body is required.", (value) =>
 			Boolean(value?.trim()),
 		),

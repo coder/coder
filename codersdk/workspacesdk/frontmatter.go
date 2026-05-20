@@ -24,6 +24,41 @@ var markdownCommentRe = regexp.MustCompile(`<!--[\s\S]*?-->`)
 // the frontmatter is missing a required name field.
 var ErrFrontmatterNameRequired = xerrors.New("frontmatter missing required 'name' field")
 
+func parseFrontmatterValue(value string) string {
+	if len(value) < 2 {
+		return value
+	}
+	if value[0] == '"' && value[len(value)-1] == '"' {
+		inner := value[1 : len(value)-1]
+		var builder strings.Builder
+		builder.Grow(len(inner))
+		escaping := false
+		for _, r := range inner {
+			if escaping {
+				if r != '"' && r != '\\' {
+					_, _ = builder.WriteRune('\\')
+				}
+				_, _ = builder.WriteRune(r)
+				escaping = false
+				continue
+			}
+			if r == '\\' {
+				escaping = true
+				continue
+			}
+			_, _ = builder.WriteRune(r)
+		}
+		if escaping {
+			_, _ = builder.WriteRune('\\')
+		}
+		return builder.String()
+	}
+	if value[0] == '\'' && value[len(value)-1] == '\'' {
+		return value[1 : len(value)-1]
+	}
+	return value
+}
+
 // ParseSkillFrontmatter extracts name, description, and the
 // remaining body from a skill meta file. The expected format is
 // YAML-ish frontmatter delimited by "---" lines:
@@ -62,13 +97,7 @@ func ParseSkillFrontmatter(content string) (name, description, body string, err 
 		}
 		key = strings.TrimSpace(key)
 		value = strings.TrimSpace(value)
-		// Strip surrounding quotes from YAML string values.
-		if len(value) >= 2 {
-			if (value[0] == '"' && value[len(value)-1] == '"') ||
-				(value[0] == '\'' && value[len(value)-1] == '\'') {
-				value = value[1 : len(value)-1]
-			}
-		}
+		value = parseFrontmatterValue(value)
 		switch strings.ToLower(key) {
 		case "name":
 			name = value

@@ -32,6 +32,15 @@ func TestParseSkillFrontmatter(t *testing.T) {
 		require.Equal(t, "single-quoted", desc)
 	})
 
+	t.Run("EscapedDoubleQuotedValue", func(t *testing.T) {
+		t.Parallel()
+		_, desc, _, err := workspacesdk.ParseSkillFrontmatter(
+			"---\nname: escaped\ndescription: \"Review \\\"critical\\\" C:\\\\paths.\"\n---\nBody\n",
+		)
+		require.NoError(t, err)
+		require.Equal(t, "Review \"critical\" C:\\paths.", desc)
+	})
+
 	t.Run("NoDescription", func(t *testing.T) {
 		t.Parallel()
 		name, desc, body, err := workspacesdk.ParseSkillFrontmatter(

@@ -105,6 +105,37 @@ export const EditDialogOpen: Story = {
 	},
 };
 
+export const EditDialogLoading: Story = {
+	args: {
+		editorState: {
+			mode: "edit",
+			existingNames: skills.map((skill) => skill.name),
+			isLoading: true,
+			isRetrying: false,
+			isSubmitting: false,
+			onRetry: fn(),
+			onSubmit: fn(),
+			onClose: fn(),
+		},
+	},
+};
+
+export const EditDialogLoadError: Story = {
+	args: {
+		editorState: {
+			mode: "edit",
+			existingNames: skills.map((skill) => skill.name),
+			loadError: new Error("Failed to load personal skill."),
+			isLoading: false,
+			isRetrying: true,
+			isSubmitting: false,
+			onRetry: fn(),
+			onSubmit: fn(),
+			onClose: fn(),
+		},
+	},
+};
+
 export const ImportSkillMarkdownPopulatesCreateFields: Story = {
 	args: {
 		editorState: {
@@ -317,6 +348,38 @@ export const InvalidNameIsRejected: Story = {
 
 		await waitFor(() => {
 			expect(nameInput).toHaveAttribute("aria-invalid", "true");
+			expect(
+				dialogCanvas.getByRole("button", { name: "Create skill" }),
+			).toBeDisabled();
+		});
+	},
+};
+
+export const DuplicateNameIsRejected: Story = {
+	args: {
+		editorState: {
+			mode: "create",
+			initialValues: { name: "", description: "", body: "" },
+			existingNames: skills.map((skill) => skill.name),
+			isSubmitting: false,
+			onSubmit: fn(),
+			onClose: fn(),
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		const dialog = await body.findByRole("dialog");
+		const dialogCanvas = within(dialog);
+		const nameInput = dialogCanvas.getByLabelText("Name");
+		const bodyInput = dialogCanvas.getByLabelText("Body");
+
+		await userEvent.type(nameInput, "review-sql");
+		await userEvent.click(bodyInput);
+
+		await waitFor(() => {
+			expect(
+				dialogCanvas.getByText("A skill with this name already exists."),
+			).toBeVisible();
 			expect(
 				dialogCanvas.getByRole("button", { name: "Create skill" }),
 			).toBeDisabled();

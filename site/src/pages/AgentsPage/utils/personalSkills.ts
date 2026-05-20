@@ -1,5 +1,6 @@
 export const PERSONAL_SKILL_MAX_SIZE_BYTES = 64 * 1024;
 const PERSONAL_SKILL_MAX_NAME_BYTES = 256;
+const PERSONAL_SKILL_MAX_DESCRIPTION_BYTES = 4096;
 export const PERSONAL_SKILLS_MAX_PER_USER = 100;
 
 const personalSkillNamePattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -12,6 +13,41 @@ export type PersonalSkillFormValues = {
 };
 
 class PersonalSkillMarkdownError extends Error {}
+
+const parseFrontmatterValue = (value: string): string => {
+	if (value.length < 2) {
+		return value;
+	}
+	const first = value[0];
+	const last = value[value.length - 1];
+	if (first === '"' && last === '"') {
+		let unquoted = "";
+		let escaping = false;
+		for (const character of value.slice(1, -1)) {
+			if (escaping) {
+				unquoted +=
+					character === '"' || character === "\\"
+						? character
+						: `\\${character}`;
+				escaping = false;
+				continue;
+			}
+			if (character === "\\") {
+				escaping = true;
+				continue;
+			}
+			unquoted += character;
+		}
+		if (escaping) {
+			unquoted += "\\";
+		}
+		return unquoted;
+	}
+	if (first === "'" && last === "'") {
+		return value.slice(1, -1);
+	}
+	return value;
+};
 
 export const parsePersonalSkillMarkdown = (
 	content: string,
@@ -40,14 +76,7 @@ export const parsePersonalSkillMarkdown = (
 			continue;
 		}
 		const key = line.slice(0, separatorIndex).trim().toLowerCase();
-		let value = line.slice(separatorIndex + 1).trim();
-		if (value.length >= 2) {
-			const first = value[0];
-			const last = value[value.length - 1];
-			if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
-				value = value.slice(1, -1);
-			}
-		}
+		const value = parseFrontmatterValue(line.slice(separatorIndex + 1).trim());
 		if (key === "name") {
 			name = value;
 		} else if (key === "description") {
@@ -90,7 +119,11 @@ const frontmatterLineValue = (value: string): string =>
 	value.replace(/\r?\n/g, " ").trim();
 
 const frontmatterStringValue = (value: string): string =>
-	`"${frontmatterLineValue(value)}"`;
+	`"${frontmatterLineValue(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+
+export const isValidPersonalSkillDescription = (description: string): boolean =>
+	getPersonalSkillContentSizeBytes(description) <=
+	PERSONAL_SKILL_MAX_DESCRIPTION_BYTES;
 
 export const buildPersonalSkillMarkdown = (
 	values: PersonalSkillFormValues,

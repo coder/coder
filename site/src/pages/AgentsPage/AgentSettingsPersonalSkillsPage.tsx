@@ -112,6 +112,7 @@ const AgentSettingsPersonalSkillsPage: FC = () => {
 		},
 		onError: (error, variables) => {
 			if (errorStatus(error) === 404) {
+				toast.info("That skill was deleted while you were editing it.");
 				setDialogState((current) =>
 					current?.type === "edit" &&
 					current.name === variables.name &&

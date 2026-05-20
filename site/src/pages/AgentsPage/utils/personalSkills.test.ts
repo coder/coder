@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	buildPersonalSkillMarkdown,
 	getPersonalSkillContentSizeBytes,
+	isValidPersonalSkillDescription,
 	isValidPersonalSkillName,
 	PERSONAL_SKILL_MAX_SIZE_BYTES,
 	parsePersonalSkillMarkdown,
@@ -120,6 +121,21 @@ describe("buildPersonalSkillMarkdown", () => {
 			}),
 		).toBe("---\nname: test-skill\n---\nUse this skill.\n");
 	});
+
+	it("escapes quoted description values", () => {
+		const content = buildPersonalSkillMarkdown({
+			name: "test-skill",
+			description: 'Review "critical" C:\\paths.',
+			body: "Use this skill.",
+		});
+
+		expect(content).toContain(
+			'description: "Review \\"critical\\" C:\\\\paths."',
+		);
+		expect(parsePersonalSkillMarkdown(content)).toMatchObject({
+			description: 'Review "critical" C:\\paths.',
+		});
+	});
 });
 
 describe("isValidPersonalSkillName", () => {
@@ -136,6 +152,13 @@ describe("isValidPersonalSkillName", () => {
 	it("rejects names over the backend byte limit", () => {
 		expect(isValidPersonalSkillName("a".repeat(256))).toBe(true);
 		expect(isValidPersonalSkillName("a".repeat(257))).toBe(false);
+	});
+});
+
+describe("isValidPersonalSkillDescription", () => {
+	it("rejects descriptions over the backend byte limit", () => {
+		expect(isValidPersonalSkillDescription("a".repeat(4096))).toBe(true);
+		expect(isValidPersonalSkillDescription("a".repeat(4097))).toBe(false);
 	});
 });
 
