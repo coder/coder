@@ -85,8 +85,9 @@ const ProvidersPageView: React.FC<ProvidersPageViewProps> = ({
 					<TableRow>
 						<TableHead className="w-1/3">Name</TableHead>
 						<TableHead className="w-1/3">Base URL</TableHead>
-						<TableHead className="w-20 text-center">
-							<span className="sr-only">Enabled</span>
+						<TableHead className="w-10 text-center">Enabled</TableHead>
+						<TableHead className="w-12">
+							<span className="sr-only">Open provider</span>
 						</TableHead>
 					</TableRow>
 				</TableHeader>

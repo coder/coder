@@ -41,8 +41,8 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 					{provider.base_url}
 				</span>
 			</TableCell>
-			<TableCell className="w-20 text-center">
-				<div className="flex justify-end items-center gap-8 pr-4">
+			<TableCell>
+				<div className="flex justify-center">
 					{provider.enabled ? (
 						<CheckIcon
 							aria-label="Enabled"
@@ -54,6 +54,10 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 							className="inline size-icon-md text-content-destructive flex-shrink-0"
 						/>
 					)}
+				</div>
+			</TableCell>
+			<TableCell className="w-10 text-center">
+				<div className="flex justify-end items-center gap-8 pr-4">
 					<ChevronRightIcon
 						aria-hidden
 						className="size-icon-md text-content-primary flex-shrink-0"
