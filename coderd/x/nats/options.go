@@ -97,8 +97,7 @@ type Options struct {
 
 // Default values for Options.
 const (
-	DefaultSubjectPrefix = "coder.v1"
-	DefaultReadyTimeout  = 10 * time.Second
+	DefaultReadyTimeout = 10 * time.Second
 	// DefaultMaxPending is the per-client outbound pending byte budget
 	// applied to the embedded server. Raised from the nats-server
 	// default of 64 MiB to 1 GiB so wide local fan-out on the shared

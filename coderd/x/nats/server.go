@@ -110,11 +110,6 @@ func connectClient(ns *natsserver.Server, opts Options, handlers connHandlers, c
 	}
 	connOpts := []natsgo.Option{
 		natsgo.Name(name),
-		// All publish subjects on connections owned by this wrapper are
-		// produced by LegacyEventSubject / BuildSubject, which have
-		// already validated the subject. Skip the redundant per-publish
-		// validation inside nats.go to keep the hot path lean.
-		natsgo.SkipSubjectValidation(),
 	}
 	if opts.DrainTimeout > 0 {
 		connOpts = append(connOpts, natsgo.DrainTimeout(opts.DrainTimeout))

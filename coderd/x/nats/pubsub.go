@@ -376,11 +376,7 @@ func (p *Pubsub) Publish(event string, message []byte) error {
 		return xerrors.New("nats pubsub: closed")
 	}
 
-	subj, err := LegacyEventSubject(event)
-	if err != nil {
-		return xerrors.Errorf("map event %q: %w", event, err)
-	}
-	if err := pickConn(p.publishPool, string(subj)).Publish(string(subj), message); err != nil {
+	if err := pickConn(p.publishPool, event).Publish(event, message); err != nil {
 		return xerrors.Errorf("publish: %w", err)
 	}
 	return nil
@@ -438,11 +434,6 @@ func (p *Pubsub) SubscribeWithErr(event string, listener pubsub.ListenerWithErr)
 		return nil, xerrors.New("nats pubsub: closed")
 	}
 
-	subj, err := LegacyEventSubject(event)
-	if err != nil {
-		return nil, xerrors.Errorf("map event %q: %w", event, err)
-	}
-
 	s := &subscription{
 		event:          event,
 		listener:       listener,
@@ -483,7 +474,7 @@ func (p *Pubsub) SubscribeWithErr(event string, listener pubsub.ListenerWithErr)
 	// (when this caller was the creator) cleaned up the shared registry
 	// state and the underlying NATS subscription. Joiners on a failed
 	// creator are also detached.
-	shared, _, err := p.attachListener(string(subj), s)
+	shared, _, err := p.attachListener(event, s)
 	if err != nil {
 		stopGoroutines()
 		return nil, err

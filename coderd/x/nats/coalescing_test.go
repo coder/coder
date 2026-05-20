@@ -63,14 +63,13 @@ func listenerCountForSubject(p *Pubsub, subject string) int {
 	return len(ss.listeners)
 }
 
-// subjectFor maps a legacy event name to the full NATS subject the
-// wrapper publishes under; used so coalescing assertions can target
-// the same key the wrapper stores in sharedBySubject.
+// subjectFor returns the NATS subject the wrapper publishes under for
+// the given event name. Since the wrapper now uses event names directly
+// as subjects, this is the identity function; it is kept to clarify
+// intent at call sites.
 func subjectFor(t *testing.T, event string) string {
 	t.Helper()
-	subj, err := LegacyEventSubject(event)
-	require.NoError(t, err)
-	return string(subj)
+	return event
 }
 
 // TestCoalescing_OneSubscriptionForManyLocalSubscribers verifies that N

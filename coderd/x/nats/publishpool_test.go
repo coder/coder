@@ -114,9 +114,7 @@ func TestPublishPool_PickPubConn_DistributesSubjects(t *testing.T) {
 	ps := newPoolPubsub(t, n)
 	counts := make(map[*natsgo.Conn]int, n)
 	for i := 0; i < 64; i++ {
-		// Use a subject namespace close to what LegacyEventSubject
-		// produces so the test reflects realistic hashing input.
-		subj := fmt.Sprintf("coder.v1.legacy.event_%03d", i)
+		subj := fmt.Sprintf("legacy.event_%03d", i)
 		counts[pickConn(ps.publishPool, subj)]++
 	}
 	require.GreaterOrEqual(t, len(counts), 2,
@@ -131,7 +129,7 @@ func TestPublishPool_SingleConnPicksOnlyEntry(t *testing.T) {
 	ps := newPoolPubsub(t, 1)
 	only := ps.publishPool[0]
 	for i := 0; i < 32; i++ {
-		subj := fmt.Sprintf("coder.v1.legacy.solo_%03d", i)
+		subj := fmt.Sprintf("legacy.solo_%03d", i)
 		require.Same(t, only, pickConn(ps.publishPool, subj))
 	}
 }
@@ -159,9 +157,7 @@ func TestPublishPool_PublishUsesHashedConn(t *testing.T) {
 	var events []entry
 	for i := 0; len(expectedPerConn) < 2 && i < 4096; i++ {
 		evt := fmt.Sprintf("evt_%04d", i)
-		subj, err := LegacyEventSubject(evt)
-		require.NoError(t, err)
-		conn := pickConn(ps.publishPool, string(subj))
+		conn := pickConn(ps.publishPool, evt)
 		events = append(events, entry{event: evt, conn: conn})
 		expectedPerConn[conn]++
 	}
@@ -202,9 +198,7 @@ func TestPublishPool_SameSubjectSameConn_Concurrent(t *testing.T) {
 	ps := newPoolPubsub(t, n)
 
 	const event = "ordering_evt"
-	subj, err := LegacyEventSubject(event)
-	require.NoError(t, err)
-	expected := pickConn(ps.publishPool, string(subj))
+	expected := pickConn(ps.publishPool, event)
 
 	// Snapshot the chosen conn before; every other conn's counter
 	// must stay flat after a burst of same-subject publishes.
