@@ -136,8 +136,8 @@ const makeBedrockSchema = (editing: boolean) =>
 			.matches(httpSchemeRegex, httpSchemeErrorMessage)
 			.required("Endpoint is required"),
 		apiKey: Yup.string(),
-		model: Yup.string().required("Model is required"),
-		smallFastModel: Yup.string().required("Small fast model is required"),
+		model: Yup.string(),
+		smallFastModel: Yup.string(),
 		// Region is implicit when the URL matches the canonical AWS Bedrock
 		// pattern (we extract it on submit). It is also skipped while baseUrl
 		// is blank so the user only sees one error at a time. Otherwise the
@@ -513,14 +513,12 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 							)}
 						<div className="grid grid-cols-2 items-start gap-4">
 							<FormField
-								required
 								field={getFieldHelpers("model")}
 								label="Model"
 								className="w-full"
 								placeholder="anthropic.claude-3-5-sonnet-20241022-v2:0"
 							/>
 							<FormField
-								required
 								field={getFieldHelpers("smallFastModel")}
 								label="Small fast model"
 								className="w-full"
