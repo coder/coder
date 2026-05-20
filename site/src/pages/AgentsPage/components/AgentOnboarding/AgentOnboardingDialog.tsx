@@ -45,7 +45,9 @@ export const AgentOnboardingDialog: FC<AgentOnboardingDialogProps> = ({
 		<Dialog open={open}>
 			<DialogContent
 				className={
-					step === "extend" ? "max-w-5xl gap-0 p-8" : "max-w-3xl gap-0 p-8"
+					step === "extend"
+					? "max-w-5xl gap-0 p-6"
+					: "max-w-3xl gap-0 p-6"
 				}
 				onEscapeKeyDown={preventClose}
 				onPointerDownOutside={preventClose}
