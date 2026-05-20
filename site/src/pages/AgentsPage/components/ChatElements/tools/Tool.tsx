@@ -1029,6 +1029,7 @@ export const Tool = memo(
 		previousResponseText,
 		modelIntent,
 		parsedCommands,
+		shellToolDisplayMode,
 		codeDiffDisplayMode,
 		ref,
 		...props
@@ -1073,6 +1074,7 @@ export const Tool = memo(
 					previousResponseText={previousResponseText}
 					modelIntent={modelIntent}
 					parsedCommands={parsedCommands}
+					shellToolDisplayMode={shellToolDisplayMode}
 					codeDiffDisplayMode={codeDiffDisplayMode}
 				/>
 			</div>
