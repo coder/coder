@@ -30,6 +30,7 @@ interface TopLevelNavItem {
 	href: string;
 	icon: FC<{ className?: string }>;
 	section: AISection;
+	badge?: string;
 }
 
 const TOP_LEVEL_ITEMS: TopLevelNavItem[] = [
@@ -38,6 +39,7 @@ const TOP_LEVEL_ITEMS: TopLevelNavItem[] = [
 		href: "/ai/governance",
 		icon: ShieldCheckIcon,
 		section: "ai-governance",
+		badge: "AI-addon",
 	},
 	{
 		label: "Providers",
@@ -148,6 +150,11 @@ export const AISidebarView: FC<AISidebarViewProps> = ({ activeSection }) => {
 					>
 						<Icon className="size-4 flex-shrink-0" />
 						{item.label}
+						{item.badge && (
+							<span className="ml-auto rounded px-1.5 py-0.5 text-[10px] font-medium leading-tight bg-content-success text-white">
+								{item.badge}
+							</span>
+						)}
 					</NavLink>
 				);
 			})}

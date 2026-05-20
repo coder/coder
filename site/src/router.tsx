@@ -749,7 +749,7 @@ export const router = createBrowserRouter(
 					</Route>
 					<Route path="/ai" element={<AISettingsLayout />}>
 						<Route path="governance" element={<AIGovernancePage />} />
-						<Route path="providers" element={<AgentSettingsProvidersPage />} />
+						<Route path="providers" element={<AIProvidersPage />} />
 						<Route path="models" element={<AgentSettingsModelsPage />} />
 						<Route path="spend" element={<AgentSettingsSpendPage />} />
 						<Route path="agents">
