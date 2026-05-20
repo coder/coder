@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { MockAIProviders } from "#/testHelpers/entities";
 import ProvidersPageView from "./ProvidersPageView";
@@ -38,5 +39,17 @@ export const Loading: Story = {
 export const EmptyProviders: Story = {
 	args: {
 		providers: [],
+	},
+};
+
+// Open the "Add provider" dropdown so the Storybook surface captures
+// the eight-row provider menu (matching the design) in a single shot.
+export const AddProviderDropdownOpen: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const trigger = await canvas.findByRole("button", {
+			name: /add provider/i,
+		});
+		await userEvent.click(trigger);
 	},
 };

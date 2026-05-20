@@ -7,7 +7,9 @@ type ProviderIconProps = {
 
 /**
  * Path to the provider's bundled icon, or `undefined` when we don't have a
- * dedicated icon for the type.
+ * dedicated icon for the type. Types listed in the "Add provider" dropdown
+ * without a bundled icon fall back to a neutral question-mark glyph so the
+ * row still reads as a real entry.
  */
 export const getProviderIcon = (provider: string): string | undefined => {
 	switch (provider) {
@@ -17,6 +19,10 @@ export const getProviderIcon = (provider: string): string | undefined => {
 			return "/icon/anthropic.svg";
 		case "bedrock":
 			return "/icon/aws.svg";
+		case "azure":
+			return "/icon/azure.svg";
+		case "google":
+			return "/icon/google.svg";
 		default:
 			return undefined;
 	}
@@ -34,6 +40,16 @@ const getProviderName = (provider: string): string => {
 			return "Anthropic";
 		case "bedrock":
 			return "AWS Bedrock";
+		case "azure":
+			return "Azure OpenAI Service";
+		case "google":
+			return "Google";
+		case "openai-compat":
+			return "OpenAI via bridge";
+		case "openrouter":
+			return "OpenRouter";
+		case "vercel":
+			return "Vercel AI Gateway";
 		default:
 			return provider || "Unknown provider";
 	}

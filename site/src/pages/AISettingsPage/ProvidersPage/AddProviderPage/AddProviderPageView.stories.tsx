@@ -21,4 +21,14 @@ const meta: Meta<typeof AddProviderPageView> = {
 export default meta;
 type Story = StoryObj<typeof AddProviderPageView>;
 
-export const Default: Story = {};
+export const AddAnthropic: Story = {
+	args: { type: "anthropic" },
+};
+
+export const AddOpenAI: Story = {
+	args: { type: "openai" },
+};
+
+export const AddBedrock: Story = {
+	args: { type: "bedrock" },
+};

@@ -9,16 +9,8 @@ import { Form, FormFields } from "#/components/Form/Form";
 import { FormField } from "#/components/FormField/FormField";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "#/components/Select/Select";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
-import { ProviderIcon } from "#/pages/AISettingsPage/ProvidersPage/components/ProviderIcon";
 import { cn } from "#/utils/cn";
 import { type FormHelpers, getFormHelpers } from "#/utils/formUtils";
 
@@ -391,7 +383,6 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	isLoading = false,
 	submitError,
 }) => {
-	const typeSelectId = useId();
 	const enabledSwitchId = useId();
 
 	// While editing, each credential input is locked at its seeded mask until
@@ -444,7 +435,6 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		onSubmit: onSubmit ?? (() => {}),
 	});
 	const getFieldHelpers = getFormHelpers(form, submitError);
-	const typeField = getFieldHelpers("type");
 
 	const typeSelectValue = form.values.type;
 
@@ -467,63 +457,6 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		<Form onSubmit={form.handleSubmit}>
 			<FormFields>
 				{Boolean(submitError) && <ErrorAlert error={submitError} />}
-				{!editing && (
-					<div className="flex flex-col gap-2">
-						<Label htmlFor={typeSelectId}>Type</Label>
-						<div className="text-xs text-content-secondary">
-							Select the type of provider you want to connect.
-						</div>
-						<Select
-							value={typeSelectValue}
-							onValueChange={(value) => {
-								void form.setFieldValue("type", value);
-							}}
-						>
-							<SelectTrigger
-								id={typeSelectId}
-								className={cn(
-									"w-full",
-									typeField.error && "border-border-destructive",
-								)}
-								aria-invalid={typeField.error}
-								aria-describedby={
-									typeField.error ? `${typeSelectId}-error` : undefined
-								}
-							>
-								<SelectValue placeholder="Select type" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="anthropic">
-									<span className="flex items-center gap-2">
-										<ProviderIcon provider="anthropic" />
-										Anthropic
-									</span>
-								</SelectItem>
-								<SelectItem value="openai">
-									<span className="flex items-center gap-2">
-										<ProviderIcon provider="openai" />
-										OpenAI
-									</span>
-								</SelectItem>
-								<SelectItem value="bedrock">
-									<span className="flex items-center gap-2">
-										<ProviderIcon provider="bedrock" />
-										Bedrock
-									</span>
-								</SelectItem>
-							</SelectContent>
-						</Select>
-						{typeField.error ? (
-							<span
-								id={`${typeSelectId}-error`}
-								className="text-xs text-content-destructive"
-							>
-								{typeField.helperText}
-							</span>
-						) : null}
-					</div>
-				)}
-
 				{(typeSelectValue === "openai" || typeSelectValue === "anthropic") && (
 					<>
 						{!editing && (

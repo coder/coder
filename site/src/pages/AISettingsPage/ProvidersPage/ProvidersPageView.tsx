@@ -1,7 +1,13 @@
-import { PlusIcon } from "lucide-react";
-import { Link, useNavigate } from "react-router";
+import { ChevronDownIcon, PlusIcon } from "lucide-react";
+import { useNavigate } from "react-router";
 import type { AIProvider } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "#/components/DropdownMenu/DropdownMenu";
 import {
 	PageHeader,
 	PageHeaderSubtitle,
@@ -16,6 +22,8 @@ import {
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
+import { addableProviders } from "#/pages/AISettingsPage/ProvidersPage/components/addableProviderTypes";
+import { ProviderIcon } from "#/pages/AISettingsPage/ProvidersPage/components/ProviderIcon";
 import { ProviderRow } from "#/pages/AISettingsPage/ProvidersPage/components/ProviderRow";
 
 interface ProvidersPageViewProps {
@@ -36,12 +44,41 @@ const ProvidersPageView: React.FC<ProvidersPageViewProps> = ({
 			<PageHeader
 				className="pt-4 pb-8"
 				actions={
-					<Link to="/ai/settings/add">
-						<Button>
-							<PlusIcon />
-							<span>Add provider</span>
-						</Button>
-					</Link>
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button>
+								<PlusIcon />
+								<span>Add provider</span>
+								<ChevronDownIcon className="ml-1 size-icon-xs" />
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end" className="min-w-56">
+							<div className="px-2 py-1.5 text-xs font-medium text-content-secondary">
+								Select a provider
+							</div>
+							{addableProviders.map((entry) => (
+								<DropdownMenuItem
+									key={entry.value}
+									disabled={!entry.isSupported}
+									onSelect={() => {
+										// Radix only invokes onSelect for enabled items,
+										// but the explicit guard makes the navigate call's
+										// dependency on isSupported readable at the
+										// callsite.
+										if (!entry.isSupported) {
+											return;
+										}
+										void navigate(
+											`/ai/settings/add?type=${encodeURIComponent(entry.value)}`,
+										);
+									}}
+								>
+									<ProviderIcon provider={entry.value} />
+									<span>{entry.label}</span>
+								</DropdownMenuItem>
+							))}
+						</DropdownMenuContent>
+					</DropdownMenu>
 				}
 			>
 				<PageHeaderTitle>Providers</PageHeaderTitle>

@@ -10,13 +10,26 @@ import {
 	PageHeaderSubtitle,
 	PageHeaderTitle,
 } from "#/components/PageHeader/PageHeader";
+import { findAddableProvider } from "../components/addableProviderTypes";
 import { ProviderForm } from "../components/ProviderForm";
 import { providerFormValuesToCreate } from "../components/providerFormApiMap";
 
-const AddProviderPageView: React.FC = () => {
+interface AddProviderPageViewProps {
+	/**
+	 * Pre-selected provider type passed from the parent page after it
+	 * validates the `?type=` URL parameter against the supported list.
+	 * The form is type-locked to this value; users return to the
+	 * providers list and reopen the dropdown to switch type.
+	 */
+	type: "openai" | "anthropic" | "bedrock";
+}
+
+const AddProviderPageView: React.FC<AddProviderPageViewProps> = ({ type }) => {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const createMutation = useMutation(createAIProviderMutation(queryClient));
+	const provider = findAddableProvider(type);
+	const providerLabel = provider?.label ?? type;
 
 	return (
 		<>
@@ -30,16 +43,17 @@ const AddProviderPageView: React.FC = () => {
 			</div>
 			<div className="mx-auto w-full max-w-screen-sm flex flex-col gap-6">
 				<PageHeader className="pt-6 pb-0">
-					<PageHeaderTitle>Add a provider</PageHeaderTitle>
+					<PageHeaderTitle>{`Add a ${providerLabel} provider`}</PageHeaderTitle>
 					<PageHeaderSubtitle>
-						Connect third-party LLM services like OpenAI, Anthropic, or Amazon
-						Bedrock. Each provider supplies models that users can select for
-						their conversations.
+						Configure connection details and credentials for this provider. The
+						provider supplies models that users can select for their
+						conversations.
 					</PageHeaderSubtitle>
 				</PageHeader>
 				<div className="border border-solid p-6 rounded-lg">
 					<ProviderForm
 						editing={false}
+						initialValues={{ type }}
 						isLoading={createMutation.isPending}
 						submitError={createMutation.error}
 						onSubmit={(values) => {
