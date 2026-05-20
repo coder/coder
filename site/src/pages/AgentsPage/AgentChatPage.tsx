@@ -47,6 +47,10 @@ import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart } from "#/api/typesGenerated";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import {
+	getDefaultOrganizationName,
+	useDashboard,
+} from "#/modules/dashboard/useDashboard";
 import { isMobileViewport } from "#/utils/mobile";
 import { pageTitle } from "#/utils/page";
 import { rewriteLocalhostURL } from "#/utils/portForward";
@@ -71,7 +75,7 @@ import {
 	useChatSelector,
 	useChatStore,
 } from "./components/ChatConversation/chatStore";
-import { useWorkspaceCreationWatcher } from "./components/ChatConversation/useWorkspaceCreationWatcher";
+import { useChatToolInvalidations } from "./components/ChatConversation/useChatToolInvalidations";
 import type { PendingAttachment } from "./components/ChatPageContent";
 import {
 	getDefaultMCPSelection,
@@ -667,6 +671,8 @@ const AgentChatPage: FC = () => {
 	} = useOutletContext<AgentsOutletContext>();
 	const queryClient = useQueryClient();
 	const { permissions, user: currentUser } = useAuthenticated();
+	const { organizations } = useDashboard();
+	const organizationName = getDefaultOrganizationName(organizations);
 	const [selectedModel, setSelectedModel] = useState("");
 	const scrollToBottomRef = useRef<(() => void) | null>(null);
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
@@ -1003,11 +1009,13 @@ const AgentChatPage: FC = () => {
 		agentStatus: workspaceAgent?.status,
 	});
 
-	// Detect workspace creation so the sidebar can resolve the
-	// workspace and display agent/git info.
-	useWorkspaceCreationWatcher({
+	// Detect completed chat tool results so sidebar data stays in sync
+	// with the server state those tools may have changed.
+	useChatToolInvalidations({
 		store,
 		chatID: agentId,
+		organizationName,
+		username: currentUser.username,
 	});
 
 	const handleCommit = (repoRoot: string) => {

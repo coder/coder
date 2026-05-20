@@ -976,6 +976,13 @@ func WorkspaceRoleActions(role codersdk.WorkspaceRole) []policy.Action {
 	return []policy.Action{}
 }
 
+func ChatRoleActions(role codersdk.ChatRole) []policy.Action {
+	if role == codersdk.ChatRoleRead {
+		return []policy.Action{policy.ActionRead}
+	}
+	return []policy.Action{}
+}
+
 func ConnectionLogConnectionTypeFromAgentProtoConnectionType(typ agentproto.Connection_Type) (database.ConnectionType, error) {
 	switch typ {
 	case agentproto.Connection_SSH:
@@ -1739,6 +1746,8 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 		ID:                c.ID,
 		OrganizationID:    c.OrganizationID,
 		OwnerID:           c.OwnerID,
+		OwnerUsername:     c.OwnerUsername,
+		OwnerName:         c.OwnerName,
 		LastModelConfigID: c.LastModelConfigID,
 		Title:             c.Title,
 		Status:            codersdk.ChatStatus(c.Status),
@@ -2120,4 +2129,38 @@ func UserSecrets(secrets []database.ListUserSecretsRow) []codersdk.UserSecret {
 		result = append(result, UserSecret(s))
 	}
 	return result
+}
+
+// UserSkill converts a database UserSkill to an SDK UserSkill.
+func UserSkill(skill database.UserSkill) codersdk.UserSkill {
+	return codersdk.UserSkill{
+		UserSkillMetadata: codersdk.UserSkillMetadata{
+			ID:          skill.ID,
+			Name:        skill.Name,
+			Description: skill.Description,
+			CreatedAt:   skill.CreatedAt,
+			UpdatedAt:   skill.UpdatedAt,
+		},
+		Content: skill.Content,
+	}
+}
+
+// UserSkillMetadata converts database user skill metadata to an SDK UserSkillMetadata.
+func UserSkillMetadata(skill database.ListUserSkillMetadataByUserIDRow) codersdk.UserSkillMetadata {
+	return codersdk.UserSkillMetadata{
+		ID:          skill.ID,
+		Name:        skill.Name,
+		Description: skill.Description,
+		CreatedAt:   skill.CreatedAt,
+		UpdatedAt:   skill.UpdatedAt,
+	}
+}
+
+// UserSkillMetadataList converts database user skill metadata rows to SDK values.
+func UserSkillMetadataList(rows []database.ListUserSkillMetadataByUserIDRow) []codersdk.UserSkillMetadata {
+	metadata := make([]codersdk.UserSkillMetadata, 0, len(rows))
+	for _, row := range rows {
+		metadata = append(metadata, UserSkillMetadata(row))
+	}
+	return metadata
 }

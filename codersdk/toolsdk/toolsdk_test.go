@@ -2141,7 +2141,7 @@ func TestTools(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		// Ensure the app is healthy (required to send task input).
-		err = store.UpdateWorkspaceAppHealthByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAppHealthByIDParams{
+		err := store.UpdateWorkspaceAppHealthByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAppHealthByIDParams{
 			ID:     task.WorkspaceAppID.UUID,
 			Health: database.WorkspaceAppHealthHealthy,
 		})
@@ -2281,7 +2281,7 @@ func TestTools(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		// Ensure the app is healthy (required to read task logs).
-		err = store.UpdateWorkspaceAppHealthByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAppHealthByIDParams{
+		err := store.UpdateWorkspaceAppHealthByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAppHealthByIDParams{
 			ID:     task.WorkspaceAppID.UUID,
 			Health: database.WorkspaceAppHealthHealthy,
 		})

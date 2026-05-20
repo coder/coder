@@ -5,11 +5,11 @@ import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import type { ModelSelectorOption } from "./components/ChatElements";
 import {
-	AgentsSidebar,
+	ChatsSidebar,
 	isSettingsView,
 	sidebarViewFromPath,
-} from "./components/Sidebar/AgentsSidebar";
-import { ResizableAgentsSidebarFrame } from "./components/Sidebar/ResizableAgentsSidebarFrame";
+} from "./components/ChatsSidebar/ChatsSidebar";
+import { ResizableChatsSidebarFrame } from "./components/ChatsSidebar/ResizableChatsSidebarFrame";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 export interface AgentsOutletContext {
@@ -162,7 +162,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 			className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary sm:flex-row"
 		>
 			<title>{pageTitle("Agents")}</title>
-			<ResizableAgentsSidebarFrame
+			<ResizableChatsSidebarFrame
 				className={cn(
 					"sm:h-full sm:min-h-0 sm:border-b-0",
 					agentId
@@ -173,7 +173,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					isSidebarCollapsed && "sm:hidden",
 				)}
 			>
-				<AgentsSidebar
+				<ChatsSidebar
 					chats={chatList}
 					chatErrorReasons={sidebarChatErrorReasons}
 					modelOptions={catalogModelOptions}
@@ -203,7 +203,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					isPersonalModelOverridesEnabled={isPersonalModelOverridesEnabled}
 					isAdmin={isAgentsAdmin}
 				/>
-			</ResizableAgentsSidebarFrame>
+			</ResizableChatsSidebarFrame>
 			<div
 				data-testid="agents-main-panel"
 				className={cn(

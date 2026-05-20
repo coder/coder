@@ -132,6 +132,24 @@ var (
 	}
 )
 
+// UserSecretNameValid validates a user secret name. Names are used in
+// API route path segments, so they must not include route separators.
+func UserSecretNameValid(s string) error {
+	if strings.TrimSpace(s) == "" {
+		return xerrors.New("Name is required.")
+	}
+
+	if strings.TrimSpace(s) != s {
+		return xerrors.New("Name must not have leading or trailing whitespace.")
+	}
+
+	if strings.ContainsAny(s, "/?#") {
+		return xerrors.New("Name must not contain /, ?, or #.")
+	}
+
+	return nil
+}
+
 // UserSecretEnvNameValid validates an environment variable name for
 // a user secret. Empty string is allowed (means no env injection).
 func UserSecretEnvNameValid(s string) error {

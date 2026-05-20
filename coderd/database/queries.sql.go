@@ -26899,6 +26899,177 @@ func (q *sqlQuerier) UpdateUserSecretByUserIDAndName(ctx context.Context, arg Up
 	return i, err
 }
 
+const deleteUserSkillByUserIDAndName = `-- name: DeleteUserSkillByUserIDAndName :one
+DELETE FROM user_skills
+WHERE user_id = $1 AND name = $2
+RETURNING id, user_id, name, description, content, created_at, updated_at
+`
+
+type DeleteUserSkillByUserIDAndNameParams struct {
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	Name   string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) DeleteUserSkillByUserIDAndName(ctx context.Context, arg DeleteUserSkillByUserIDAndNameParams) (UserSkill, error) {
+	row := q.db.QueryRowContext(ctx, deleteUserSkillByUserIDAndName, arg.UserID, arg.Name)
+	var i UserSkill
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getUserSkillByUserIDAndName = `-- name: GetUserSkillByUserIDAndName :one
+SELECT id, user_id, name, description, content, created_at, updated_at
+FROM user_skills
+WHERE user_id = $1 AND name = $2
+`
+
+type GetUserSkillByUserIDAndNameParams struct {
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	Name   string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) GetUserSkillByUserIDAndName(ctx context.Context, arg GetUserSkillByUserIDAndNameParams) (UserSkill, error) {
+	row := q.db.QueryRowContext(ctx, getUserSkillByUserIDAndName, arg.UserID, arg.Name)
+	var i UserSkill
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const insertUserSkill = `-- name: InsertUserSkill :one
+INSERT INTO user_skills (id, user_id, name, description, content)
+VALUES ($1::uuid, $2::uuid, $3::text, $4::text, $5::text)
+RETURNING id, user_id, name, description, content, created_at, updated_at
+`
+
+type InsertUserSkillParams struct {
+	ID          uuid.UUID `db:"id" json:"id"`
+	UserID      uuid.UUID `db:"user_id" json:"user_id"`
+	Name        string    `db:"name" json:"name"`
+	Description string    `db:"description" json:"description"`
+	Content     string    `db:"content" json:"content"`
+}
+
+func (q *sqlQuerier) InsertUserSkill(ctx context.Context, arg InsertUserSkillParams) (UserSkill, error) {
+	row := q.db.QueryRowContext(ctx, insertUserSkill,
+		arg.ID,
+		arg.UserID,
+		arg.Name,
+		arg.Description,
+		arg.Content,
+	)
+	var i UserSkill
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const listUserSkillMetadataByUserID = `-- name: ListUserSkillMetadataByUserID :many
+SELECT
+    id, user_id, name, description, created_at, updated_at
+FROM user_skills
+WHERE user_id = $1
+ORDER BY name ASC
+`
+
+type ListUserSkillMetadataByUserIDRow struct {
+	ID          uuid.UUID `db:"id" json:"id"`
+	UserID      uuid.UUID `db:"user_id" json:"user_id"`
+	Name        string    `db:"name" json:"name"`
+	Description string    `db:"description" json:"description"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) ListUserSkillMetadataByUserID(ctx context.Context, userID uuid.UUID) ([]ListUserSkillMetadataByUserIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, listUserSkillMetadataByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListUserSkillMetadataByUserIDRow
+	for rows.Next() {
+		var i ListUserSkillMetadataByUserIDRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Name,
+			&i.Description,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateUserSkillByUserIDAndName = `-- name: UpdateUserSkillByUserIDAndName :one
+UPDATE user_skills
+SET
+    description = $1,
+    content     = $2,
+    updated_at  = now()
+WHERE user_id = $3 AND name = $4
+RETURNING id, user_id, name, description, content, created_at, updated_at
+`
+
+type UpdateUserSkillByUserIDAndNameParams struct {
+	Description string    `db:"description" json:"description"`
+	Content     string    `db:"content" json:"content"`
+	UserID      uuid.UUID `db:"user_id" json:"user_id"`
+	Name        string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) UpdateUserSkillByUserIDAndName(ctx context.Context, arg UpdateUserSkillByUserIDAndNameParams) (UserSkill, error) {
+	row := q.db.QueryRowContext(ctx, updateUserSkillByUserIDAndName,
+		arg.Description,
+		arg.Content,
+		arg.UserID,
+		arg.Name,
+	)
+	var i UserSkill
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const deleteUserChatProviderKey = `-- name: DeleteUserChatProviderKey :exec
 DELETE FROM user_chat_provider_keys WHERE user_id = $1 AND chat_provider_id = $2
 `
