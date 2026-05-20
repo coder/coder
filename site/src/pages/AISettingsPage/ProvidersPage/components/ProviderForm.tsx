@@ -2,6 +2,7 @@ import { useFormik } from "formik";
 import { type FC, type ReactNode, useId } from "react";
 import { Link } from "react-router";
 import * as Yup from "yup";
+import type { AIProviderType } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { Form, FormFields } from "#/components/Form/Form";
@@ -14,16 +15,7 @@ import { cn } from "#/utils/cn";
 import { type FormHelpers, getFormHelpers } from "#/utils/formUtils";
 
 export type ProviderFormValues = {
-	type:
-		| ""
-		| "openai"
-		| "anthropic"
-		| "bedrock"
-		| "azure"
-		| "google"
-		| "openai-compat"
-		| "openrouter"
-		| "vercel";
+	type: AIProviderType | "";
 	name: string;
 	displayName: string;
 	baseUrl: string;
