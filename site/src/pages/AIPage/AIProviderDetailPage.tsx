@@ -89,12 +89,16 @@ const AIProviderDetailPage: FC = () => {
 	const [apiKeys, setApiKeys] = useState<ApiKeyRow[]>(() => [makeEmptyRow()]);
 	const [baseUrl, setBaseUrl] = useState("");
 	const [isSaving, setIsSaving] = useState(false);
+	const [initialApiKeys, setInitialApiKeys] = useState<string>("");
+	const [initialBaseUrl, setInitialBaseUrl] = useState("");
+
 
 	if (existingConfig && !seeded) {
 		setSeeded(true);
-		setBaseUrl(existingConfig.base_url ?? "");
+		setSeeded(true);
+		const url = existingConfig.base_url ?? "";
 		if (existingConfig.has_api_key) {
-			setApiKeys([
+			const savedKeys: ApiKeyRow[] = [
 				{
 					id: `saved-${existingConfig.id}`,
 					name: existingConfig.display_name || "API key",
@@ -106,8 +110,9 @@ const AIProviderDetailPage: FC = () => {
 					saved: true,
 					editing: false,
 				},
-			]);
-
+			];
+			setApiKeys(savedKeys);
+			setInitialApiKeys(JSON.stringify(savedKeys));
 		}
 	}
 
@@ -201,6 +206,10 @@ const AIProviderDetailPage: FC = () => {
 	);
 
 	const hasAnyKey = apiKeys.some((row) => row.apiKey.length > 0);
+	const hasChanges = isEditMode
+		? baseUrl !== initialBaseUrl || JSON.stringify(apiKeys) !== initialApiKeys
+		: hasAnyKey;
+
 
 	const handleSave = useCallback(async () => {
 		const firstKey = apiKeys.find((row) => row.apiKey.length > 0);
@@ -432,7 +441,8 @@ const AIProviderDetailPage: FC = () => {
 				<Button variant="outline" asChild>
 					<Link to="/ai/providers">Cancel</Link>
 				</Button>
-				<Button disabled={!hasAnyKey || isSaving} onClick={handleSave}>
+				<Button disabled={!hasChanges || isSaving} onClick={handleSave}>
+
 					{isSaving
 						? "Saving..."
 						: isEditMode
