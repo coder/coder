@@ -14,7 +14,16 @@ import { cn } from "#/utils/cn";
 import { type FormHelpers, getFormHelpers } from "#/utils/formUtils";
 
 export type ProviderFormValues = {
-	type: "" | "openai" | "anthropic" | "bedrock";
+	type:
+		| ""
+		| "openai"
+		| "anthropic"
+		| "bedrock"
+		| "azure"
+		| "google"
+		| "openai-compat"
+		| "openrouter"
+		| "vercel";
 	name: string;
 	displayName: string;
 	baseUrl: string;
@@ -104,7 +113,14 @@ const defaultInitialValues: ProviderFormValues = {
  * single source of truth so the prefill and the hint can't drift apart.
  */
 const providerDefaults: Record<
-	"openai" | "anthropic" | "bedrock",
+	| "openai"
+	| "anthropic"
+	| "bedrock"
+	| "azure"
+	| "google"
+	| "openai-compat"
+	| "openrouter"
+	| "vercel",
 	Partial<ProviderFormValues>
 > = {
 	openai: { name: "openai", baseUrl: "https://api.openai.com/v1/" },
@@ -113,12 +129,31 @@ const providerDefaults: Record<
 		name: "bedrock",
 		baseUrl: "https://bedrock-runtime.us-east-2.amazonaws.com",
 	},
+	azure: {
+		name: "azure",
+		baseUrl: "https://YOUR-RESOURCE.openai.azure.com/openai/v1",
+	},
+	google: {
+		name: "google",
+		baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/",
+	},
+	"openai-compat": { name: "openai-compat", baseUrl: "" },
+	openrouter: { name: "openrouter", baseUrl: "https://openrouter.ai/api/v1" },
+	vercel: { name: "vercel", baseUrl: "https://ai-gateway.vercel.sh/v1" },
 };
 
 const makeOpenAiAnthropicSchema = (editing: boolean) =>
 	Yup.object({
 		type: Yup.string()
-			.oneOf(["openai", "anthropic"] as const)
+			.oneOf([
+				"openai",
+				"anthropic",
+				"azure",
+				"google",
+				"openai-compat",
+				"openrouter",
+				"vercel",
+			] as const)
 			.required(),
 		name: makeNameSchema(editing),
 		displayName: makeDisplayNameSchema(editing),
@@ -190,13 +225,27 @@ const getProviderFormSchema = (editing: boolean) =>
 		switch (value?.type) {
 			case "openai":
 			case "anthropic":
+			case "azure":
+			case "google":
+			case "openai-compat":
+			case "openrouter":
+			case "vercel":
 				return makeOpenAiAnthropicSchema(editing);
 			case "bedrock":
 				return makeBedrockSchema(editing);
 			default:
 				return Yup.object({
 					type: Yup.string()
-						.oneOf(["openai", "anthropic", "bedrock"])
+						.oneOf([
+							"openai",
+							"anthropic",
+							"bedrock",
+							"azure",
+							"google",
+							"openai-compat",
+							"openrouter",
+							"vercel",
+						])
 						.required(),
 				});
 		}
@@ -402,7 +451,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		<Form onSubmit={form.handleSubmit}>
 			<FormFields>
 				{Boolean(submitError) && <ErrorAlert error={submitError} />}
-				{(typeSelectValue === "openai" || typeSelectValue === "anthropic") && (
+				{typeSelectValue !== "" && typeSelectValue !== "bedrock" && (
 					<>
 						{!editing && (
 							<FormField

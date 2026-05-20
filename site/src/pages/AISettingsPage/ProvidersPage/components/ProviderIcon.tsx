@@ -17,6 +17,10 @@ export const getProviderIcon = (provider: string): string | undefined => {
 			return "/icon/anthropic.svg";
 		case "bedrock":
 			return "/icon/aws.svg";
+		case "azure":
+			return "/icon/azure.svg";
+		case "google":
+			return "/icon/google.svg";
 		default:
 			return undefined;
 	}
@@ -34,6 +38,16 @@ const getProviderName = (provider: string): string => {
 			return "Anthropic";
 		case "bedrock":
 			return "AWS Bedrock";
+		case "azure":
+			return "Azure OpenAI";
+		case "google":
+			return "Google";
+		case "openai-compat":
+			return "OpenAI-compatible";
+		case "openrouter":
+			return "OpenRouter";
+		case "vercel":
+			return "Vercel";
 		default:
 			return provider || "Unknown provider";
 	}

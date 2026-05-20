@@ -21,7 +21,15 @@ interface AddProviderPageViewProps {
 	 * The form is type-locked to this value; users return to the
 	 * providers list and reopen the dropdown to switch type.
 	 */
-	type: "openai" | "anthropic" | "bedrock";
+	type:
+		| "openai"
+		| "anthropic"
+		| "bedrock"
+		| "azure"
+		| "google"
+		| "openai-compat"
+		| "openrouter"
+		| "vercel";
 }
 
 const AddProviderPageView: React.FC<AddProviderPageViewProps> = ({ type }) => {

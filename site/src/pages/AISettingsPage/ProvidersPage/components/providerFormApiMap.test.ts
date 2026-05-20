@@ -208,6 +208,31 @@ describe("providerFormValuesToCreate", () => {
 			expect(req.name).toBe("primary-openai");
 			expect(req.base_url).toBe("https://api.openai.com");
 		});
+
+		it.each([
+			["azure", "https://YOUR-RESOURCE.openai.azure.com/openai/v1"],
+			["google", "https://generativelanguage.googleapis.com/v1beta/openai/"],
+			["openai-compat", "https://compat.example.com/v1"],
+			["openrouter", "https://openrouter.ai/api/v1"],
+			["vercel", "https://ai-gateway.vercel.sh/v1"],
+		] as const)("passes the %s type through on the wire", (type, baseUrl) => {
+			const req = providerFormValuesToCreate({
+				...baseOpenAIFormValues,
+				type,
+				baseUrl,
+			});
+			expect(req.type).toBe(type);
+			expect(req.base_url).toBe(baseUrl);
+			expect(req.api_keys).toEqual(["sk-test"]);
+		});
+
+		it("rejects an empty type", () => {
+			// `type: ""` is blocked by the Yup schema; the helper still has
+			// to refuse to send a malformed payload if a caller bypasses it.
+			expect(() =>
+				providerFormValuesToCreate({ ...baseOpenAIFormValues, type: "" }),
+			).toThrowError(/provider type is required/);
+		});
 	});
 
 	describe("Bedrock", () => {

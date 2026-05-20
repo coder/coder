@@ -4,8 +4,23 @@
  * with a discriminated `settings._type:"bedrock"` blob, but the UI
  * surfaces a dedicated Bedrock entry so admins can pick it directly
  * from the dropdown and land on a Bedrock-specific form.
+ *
+ * Azure, Google, OpenAI-compatible, OpenRouter, and Vercel route
+ * through aibridge's OpenAI client today (per the
+ * `ai_provider_type_chatd_values` migration and the matching comment
+ * block on `AIProviderType` in `codersdk/aiproviders.go`). The UI keeps
+ * them as distinct dropdown entries so admins land on a form that's
+ * preconfigured with the canonical endpoint and a friendly name.
  */
-type AddableProviderType = "openai" | "anthropic" | "bedrock";
+type AddableProviderType =
+	| "openai"
+	| "anthropic"
+	| "bedrock"
+	| "azure"
+	| "google"
+	| "openai-compat"
+	| "openrouter"
+	| "vercel";
 
 type AddableProvider = {
 	value: AddableProviderType;
@@ -18,8 +33,13 @@ type AddableProvider = {
  */
 export const addableProviders: readonly AddableProvider[] = [
 	{ value: "anthropic", label: "Anthropic" },
-	{ value: "openai", label: "OpenAI" },
 	{ value: "bedrock", label: "AWS Bedrock" },
+	{ value: "azure", label: "Azure OpenAI" },
+	{ value: "google", label: "Google" },
+	{ value: "openai", label: "OpenAI" },
+	{ value: "openai-compat", label: "OpenAI-compatible" },
+	{ value: "openrouter", label: "OpenRouter" },
+	{ value: "vercel", label: "Vercel" },
 ];
 
 /**

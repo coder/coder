@@ -135,8 +135,13 @@ export const providerFormValuesToCreate = (
 	}
 
 	const apiKey = sanitizeCredential(values.apiKey);
+	// Bedrock branched out above and Yup blocks the empty default, but the
+	// form-values union still allows `""`; narrow here so TS keeps us honest.
+	if (values.type === "") {
+		throw new Error("provider type is required");
+	}
 	return {
-		type: values.type === "openai" ? "openai" : "anthropic",
+		type: values.type,
 		name,
 		...(displayName ? { display_name: displayName } : {}),
 		base_url: baseUrl,
@@ -237,7 +242,7 @@ export const aiProviderToFormValues = (
 	}
 
 	return {
-		type: provider.type === "openai" ? "openai" : "anthropic",
+		type: provider.type,
 		name: provider.name,
 		displayName,
 		baseUrl: provider.base_url,

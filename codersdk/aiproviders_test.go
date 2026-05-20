@@ -296,6 +296,59 @@ func TestUpdateAIProviderRequest_Validate_Bedrock(t *testing.T) {
 	})
 }
 
+// TestCreateAIProviderRequest_Validate_AcceptedTypes covers the
+// wire-type accept-list. The new non-native types (azure, google,
+// openai-compat, openrouter, vercel) route through aibridge's OpenAI
+// client today (see migration 000499); the validator has to accept
+// them so admins can create them through the API.
+func TestCreateAIProviderRequest_Validate_AcceptedTypes(t *testing.T) {
+	t.Parallel()
+
+	cases := []codersdk.AIProviderType{
+		codersdk.AIProviderTypeOpenAI,
+		codersdk.AIProviderTypeAnthropic,
+		codersdk.AIProviderTypeAzure,
+		codersdk.AIProviderTypeGoogle,
+		codersdk.AIProviderTypeOpenAICompat,
+		codersdk.AIProviderTypeOpenrouter,
+		codersdk.AIProviderTypeVercel,
+	}
+	for _, providerType := range cases {
+		t.Run(string(providerType), func(t *testing.T) {
+			t.Parallel()
+			req := codersdk.CreateAIProviderRequest{
+				Type:    providerType,
+				Name:    "my-provider",
+				BaseURL: "https://api.example.com/v1",
+			}
+			require.Empty(t, req.Validate())
+		})
+	}
+
+	t.Run("UnsupportedTypeRejected", func(t *testing.T) {
+		t.Parallel()
+		req := codersdk.CreateAIProviderRequest{
+			Type:    "not-a-provider",
+			Name:    "my-provider",
+			BaseURL: "https://api.example.com/v1",
+		}
+		requireFieldError(t, req.Validate(), "type")
+	})
+
+	t.Run("BedrockNotInAcceptList", func(t *testing.T) {
+		t.Parallel()
+		// Bedrock providers ship on the wire as type=anthropic with a
+		// settings.bedrock blob; the bare "bedrock" type is not a wire
+		// value and must be rejected.
+		req := codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeBedrock,
+			Name:    "my-provider",
+			BaseURL: "https://api.example.com/v1",
+		}
+		requireFieldError(t, req.Validate(), "type")
+	})
+}
+
 // requireFieldError fails the test unless the supplied validations
 // include exactly one error pointing at `field`.
 func requireFieldError(t *testing.T, validations []codersdk.ValidationError, field string) {

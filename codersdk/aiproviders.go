@@ -201,13 +201,22 @@ type CreateAIProviderRequest struct {
 func (req CreateAIProviderRequest) Validate() []ValidationError {
 	var validations []ValidationError
 	switch req.Type {
-	case AIProviderTypeOpenAI, AIProviderTypeAnthropic:
+	case AIProviderTypeOpenAI,
+		AIProviderTypeAnthropic,
+		AIProviderTypeAzure,
+		AIProviderTypeGoogle,
+		AIProviderTypeOpenAICompat,
+		AIProviderTypeOpenrouter,
+		AIProviderTypeVercel:
 	case "":
 		validations = append(validations, ValidationError{Field: "type", Detail: "type is required"})
 	default:
 		validations = append(validations, ValidationError{
-			Field:  "type",
-			Detail: fmt.Sprintf("unsupported provider type %q; expected one of: openai, anthropic", req.Type),
+			Field: "type",
+			Detail: fmt.Sprintf(
+				"unsupported provider type %q; expected one of: openai, anthropic, azure, google, openai-compat, openrouter, vercel",
+				req.Type,
+			),
 		})
 	}
 	validations = append(validations, validateAIProviderName(req.Name)...)
