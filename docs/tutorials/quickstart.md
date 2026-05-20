@@ -34,6 +34,9 @@ explained through a cooking analogy:
 - Familiarity with running commands in the terminal
 - 10 minutes of your time
 
+> [!TIP]
+> If you use a coding agent like Claude Code, the [coder/skills](https://github.com/coder/skills) `setup` skill can train the coding agent on the following steps (install Docker, install Coder, create your first template, and launch a workspace).
+
 ## Step 1: Install Docker and set up permissions
 
 <div class="tabs">

@@ -1,3 +1,8 @@
+> [!NOTE]
+> Features mentioned on this page, such as AI Gateway and Agent Firewall,
+> require the [AI Governance Add-On](./ai-governance.md). As of Coder v2.32,
+> deployments without the add-on will not be able to access these features.
+
 As the AI landscape is evolving, we are working to ensure Coder remains a secure
 platform for running AI agents just as it is for other cloud development
 environments.

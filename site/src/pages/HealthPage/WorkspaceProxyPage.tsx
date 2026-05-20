@@ -1,14 +1,15 @@
-import { useTheme } from "@emotion/react";
 import { GlobeIcon, HashIcon } from "lucide-react";
 import type { FC } from "react";
 import { useOutletContext } from "react-router";
 import type { HealthcheckReport } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { cn } from "#/utils/cn";
 import { createDayString } from "#/utils/createDayString";
 import { pageTitle } from "#/utils/page";
 import {
@@ -26,7 +27,6 @@ const WorkspaceProxyPage: FC = () => {
 	const healthStatus = useOutletContext<HealthcheckReport>();
 	const { workspace_proxy } = healthStatus;
 	const { regions } = workspace_proxy.workspace_proxies;
-	const theme = useTheme();
 
 	return (
 		<>
@@ -66,28 +66,23 @@ const WorkspaceProxyPage: FC = () => {
 					return (
 						<div
 							key={region.id}
-							css={{
-								borderRadius: 8,
-								border: `1px solid ${
-									region.healthy
-										? theme.palette.divider
-										: theme.palette.warning.light
-								}`,
-								fontSize: 14,
-							}}
+							className={cn(
+								"rounded-lg border border-solid text-sm",
+								region.healthy ? "border-border" : "border-border-warning",
+							)}
 						>
 							<header className="p-6 flex items-center justify-between gap-6">
 								<div className="flex items-center gap-6">
 									<div className="w-9 h-9 flex items-center justify-center">
-										<img
+										<ExternalImage
 											src={region.icon_url}
 											className="object-fill w-full h-full"
 											alt=""
 										/>
 									</div>
-									<div className="leading-[160%]">
+									<div className="leading-relaxed">
 										<h4 className="font-medium m-0">{region.display_name}</h4>
-										<span css={{ color: theme.palette.text.secondary }}>
+										<span className="text-content-secondary">
 											{region.version}
 										</span>
 									</div>
@@ -132,17 +127,7 @@ const WorkspaceProxyPage: FC = () => {
 								</div>
 							</header>
 
-							<div
-								css={{
-									borderTop: `1px solid ${theme.palette.divider}`,
-									display: "flex",
-									alignItems: "center",
-									justifyContent: "space-between",
-									padding: "8px 24px",
-									fontSize: 12,
-									color: theme.palette.text.secondary,
-								}}
-							>
+							<div className="border-0 border-t border-solid border-border flex items-center justify-between py-3 px-6 text-xs text-content-secondary">
 								{region.status?.status === "unregistered" ? (
 									<span>Has not connected yet</span>
 								) : warnings.length === 0 && errors.length === 0 ? (

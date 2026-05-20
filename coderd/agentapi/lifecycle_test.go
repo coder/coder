@@ -311,7 +311,7 @@ func TestUpdateLifecycle(t *testing.T) {
 
 		dbM := dbmock.NewMockStore(gomock.NewController(t))
 
-		var publishCalled int64
+		var publishCalled atomic.Int64
 		reg := prometheus.NewRegistry()
 		metrics := agentapi.NewLifecycleMetrics(reg)
 
@@ -324,7 +324,7 @@ func TestUpdateLifecycle(t *testing.T) {
 			Log:         testutil.Logger(t),
 			Metrics:     metrics,
 			PublishWorkspaceUpdateFn: func(ctx context.Context, _ uuid.UUID, kind wspubsub.WorkspaceEventKind) error {
-				atomic.AddInt64(&publishCalled, 1)
+				publishCalled.Add(1)
 				return nil
 			},
 		}
@@ -384,7 +384,7 @@ func TestUpdateLifecycle(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.Equal(t, lifecycle, resp)
-			require.Equal(t, int64(i+1), atomic.LoadInt64(&publishCalled))
+			require.Equal(t, int64(i+1), publishCalled.Load())
 
 			// For future iterations:
 			agent.StartedAt = expectedStartedAt

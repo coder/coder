@@ -6,7 +6,7 @@ import {
 	type UseDesktopConnectionResult,
 	useDesktopConnection,
 } from "#/pages/AgentsPage/hooks/useDesktopConnection";
-import { DEFAULT_ASPECT, PREVIEW_HEIGHT } from "./previewConstants";
+import { DEFAULT_ASPECT } from "./previewConstants";
 
 /**
  * Non-interactive inline VNC desktop preview. The noVNC canvas is
@@ -98,8 +98,8 @@ export const InlineDesktopPreview: React.FC<{
 	if (status === "idle" || status === "connecting") {
 		return wrapWithOverlay(
 			<div
-				className="flex items-center justify-center text-content-secondary"
-				style={{ aspectRatio: DEFAULT_ASPECT, height: PREVIEW_HEIGHT }}
+				className="flex w-full items-center justify-center text-content-secondary"
+				style={{ aspectRatio: DEFAULT_ASPECT }}
 			>
 				<Spinner loading className="h-5 w-5" />
 			</div>,
@@ -109,8 +109,8 @@ export const InlineDesktopPreview: React.FC<{
 	if (status === "disconnected") {
 		return wrapWithOverlay(
 			<div
-				className="flex items-center justify-center text-xs text-content-secondary"
-				style={{ aspectRatio, height: PREVIEW_HEIGHT }}
+				className="flex w-full items-center justify-center text-xs text-content-secondary"
+				style={{ aspectRatio }}
 			>
 				Desktop disconnected. Reconnecting…
 			</div>,
@@ -120,8 +120,8 @@ export const InlineDesktopPreview: React.FC<{
 	if (status === "error") {
 		return wrapWithOverlay(
 			<div
-				className="flex items-center justify-center text-xs text-content-secondary"
-				style={{ aspectRatio: DEFAULT_ASPECT, height: PREVIEW_HEIGHT }}
+				className="flex w-full items-center justify-center text-xs text-content-secondary"
+				style={{ aspectRatio: DEFAULT_ASPECT }}
 			>
 				Could not connect to desktop.
 			</div>,
@@ -136,8 +136,8 @@ export const InlineDesktopPreview: React.FC<{
 				containerRef.current = el;
 				if (el) attach(el);
 			}}
-			className="pointer-events-none"
-			style={{ aspectRatio, height: PREVIEW_HEIGHT }}
+			className="pointer-events-none w-full"
+			style={{ aspectRatio }}
 		/>,
 	);
 };

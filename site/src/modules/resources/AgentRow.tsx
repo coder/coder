@@ -150,6 +150,9 @@ export const AgentRow: FC<AgentRowProps> = ({
 	const showVSCode = hasVSCodeApp && !browser_only;
 
 	const hasStartupFeatures = Boolean(agent.logs_length);
+	const runningScriptsCount = agent.scripts.filter(
+		(s) => s.run_on_start && !s.status,
+	).length;
 	const healthIssues = getAgentHealthIssues(agent);
 	const hasAgentIssues = healthIssues.length > 0;
 	const hasWarningIssues = healthIssues.some((i) => i.severity === "warning");
@@ -510,7 +513,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 						<ChevronDownIcon open={showLogs} />
 						<span>Logs</span>
 						{agent.lifecycle_state === "starting" &&
-							agent.log_sources.length > 0 &&
+							runningScriptsCount > 0 &&
 							healthIssues.length === 0 && (
 								<Badge
 									variant="default"
@@ -520,10 +523,10 @@ export const AgentRow: FC<AgentRowProps> = ({
 								>
 									<Spinner
 										size="lg"
-										loading={true}
+										loading
 										className="text-content-secondary -ml-1"
 									/>
-									<span>{agent.log_sources.length}</span>
+									<span>{runningScriptsCount}</span>
 								</Badge>
 							)}
 						{healthIssues.length > 0 && (

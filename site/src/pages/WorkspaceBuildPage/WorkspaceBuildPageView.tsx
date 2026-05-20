@@ -30,10 +30,10 @@ import {
 	TabsList,
 	TabsTrigger,
 } from "#/components/Tabs/Tabs";
-import { BuildAvatar } from "#/modules/builds/BuildAvatar/BuildAvatar";
 import { DashboardFullPage } from "#/modules/dashboard/DashboardLayout";
 import { AgentLogs } from "#/modules/resources/AgentLogs/AgentLogs";
 import { useAgentLogs } from "#/modules/resources/useAgentLogs";
+import { BuildIcon } from "#/modules/workspaces/BuildIcon/BuildIcon";
 import {
 	WorkspaceBuildData,
 	WorkspaceBuildDataSkeleton,
@@ -101,7 +101,11 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 		<DashboardFullPage>
 			<FullWidthPageHeader sticky={false}>
 				<div className="flex flex-row gap-4">
-					<BuildAvatar build={build} size="lg" />
+					<BuildIcon
+						avatar
+						transition={build.transition}
+						jobStatus={build.job.status}
+					/>
 					<div>
 						<PageHeaderTitle>Build #{build.build_number}</PageHeaderTitle>
 						<PageHeaderSubtitle>{build.initiator_name}</PageHeaderSubtitle>

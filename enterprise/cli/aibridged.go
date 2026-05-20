@@ -10,10 +10,12 @@ import (
 
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/aibridged"
 	"github.com/coder/coder/v2/enterprise/coderd"
+	"github.com/coder/quartz"
 )
 
 func newAIBridgeDaemon(coderAPI *coderd.API, providers []aibridge.Provider) (*aibridged.Server, error) {
@@ -42,7 +44,7 @@ func newAIBridgeDaemon(coderAPI *coderd.API, providers []aibridge.Provider) (*ai
 	return srv, nil
 }
 
-// buildProviders constructs the list of aibridge providers from config.
+// buildProviders constructs the list of AI providers from config.
 // It merges legacy single-provider env vars and indexed provider configs:
 //  1. Legacy providers (from CODER_AIBRIDGE_OPENAI_KEY, etc.) are added first.
 //     If a legacy name conflicts with an indexed provider, startup fails with
@@ -88,16 +90,24 @@ func buildProviders(cfg codersdk.AIBridgeConfig) ([]aibridge.Provider, error) {
 	}
 
 	// Add legacy Anthropic provider if configured. Bedrock credentials
-	// alone are sufficient — an Anthropic API key is not required when
+	// alone are sufficient, an Anthropic API key is not required when
 	// using AWS Bedrock.
 	if cfg.LegacyAnthropic.Key.String() != "" || getBedrockConfig(cfg.LegacyBedrock) != nil {
 		if _, conflict := usedNames[aibridge.ProviderAnthropic]; conflict {
 			return nil, xerrors.Errorf("legacy CODER_AIBRIDGE_ANTHROPIC_KEY conflicts with indexed provider named %q; remove one or the other", aibridge.ProviderAnthropic)
 		}
+		var pool *keypool.Pool
+		if key := cfg.LegacyAnthropic.Key.String(); key != "" {
+			var err error
+			pool, err = keypool.New([]string{key}, quartz.NewReal())
+			if err != nil {
+				return nil, xerrors.Errorf("create legacy anthropic key pool: %w", err)
+			}
+		}
 		providers = append(providers, aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{
 			Name:             aibridge.ProviderAnthropic,
 			BaseURL:          cfg.LegacyAnthropic.BaseURL.String(),
-			Key:              cfg.LegacyAnthropic.Key.String(),
+			KeyPool:          pool,
 			CircuitBreaker:   cbConfig,
 			SendActorHeaders: cfg.SendActorHeaders.Value(),
 		}, getBedrockConfig(cfg.LegacyBedrock)))
@@ -110,27 +120,37 @@ func buildProviders(cfg codersdk.AIBridgeConfig) ([]aibridge.Provider, error) {
 		if name == "" {
 			name = p.Type
 		}
-		// Currently, only the first key is used, if any.
-		// TODO(ssncferreira): pass a keypool.Pool instead.
-		var key string
-		if len(p.Keys) > 0 {
-			key = p.Keys[0]
-		}
 		switch p.Type {
 		case aibridge.ProviderOpenAI:
+			var pool *keypool.Pool
+			if len(p.Keys) > 0 {
+				var err error
+				pool, err = keypool.New(p.Keys, quartz.NewReal())
+				if err != nil {
+					return nil, xerrors.Errorf("create openai key pool for provider %q: %w", name, err)
+				}
+			}
 			providers = append(providers, aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{
 				Name:             name,
 				BaseURL:          p.BaseURL,
-				Key:              key,
+				KeyPool:          pool,
 				APIDumpDir:       p.DumpDir,
 				CircuitBreaker:   cbConfig,
 				SendActorHeaders: cfg.SendActorHeaders.Value(),
 			}))
 		case aibridge.ProviderAnthropic:
+			var pool *keypool.Pool
+			if len(p.Keys) > 0 {
+				var err error
+				pool, err = keypool.New(p.Keys, quartz.NewReal())
+				if err != nil {
+					return nil, xerrors.Errorf("create anthropic key pool for provider %q: %w", name, err)
+				}
+			}
 			providers = append(providers, aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{
 				Name:             name,
 				BaseURL:          p.BaseURL,
-				Key:              key,
+				KeyPool:          pool,
 				APIDumpDir:       p.DumpDir,
 				CircuitBreaker:   cbConfig,
 				SendActorHeaders: cfg.SendActorHeaders.Value(),
@@ -151,9 +171,9 @@ func buildProviders(cfg codersdk.AIBridgeConfig) ([]aibridge.Provider, error) {
 }
 
 // bedrockConfigFromProvider converts Bedrock fields from an indexed
-// AIBridgeProviderConfig into an aibridge AWSBedrockConfig.
+// AIProviderConfig into an aibridge AWSBedrockConfig.
 // Returns nil if no Bedrock fields are set.
-func bedrockConfigFromProvider(p codersdk.AIBridgeProviderConfig) *aibridge.AWSBedrockConfig {
+func bedrockConfigFromProvider(p codersdk.AIProviderConfig) *aibridge.AWSBedrockConfig {
 	if p.BedrockRegion == "" && p.BedrockBaseURL == "" && len(p.BedrockAccessKeys) == 0 && len(p.BedrockAccessKeySecrets) == 0 {
 		return nil
 	}

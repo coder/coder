@@ -1,11 +1,22 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
+import {
+	expect,
+	fn,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
 import { DesktopPanelContext } from "./DesktopPanelContext";
 import { Tool } from "./Tool";
 
 const executeCommand = "git fetch origin";
+const executeIntentCommand = "npm test";
+const longExecuteCommand =
+	"docker build --no-cache --build-arg NODE_ENV=production --build-arg API_URL=https://coder.example.com/api --build-arg SENTRY_DSN=https://example.com/sentry --build-arg FEATURE_FLAGS=agents,shell-tools --tag coder-agent:latest .";
 const meta: Meta<typeof Tool> = {
 	title: "pages/AgentsPage/ChatElements/tools/Tool",
 	component: Tool,
@@ -44,12 +55,257 @@ export const ExecuteRunning: Story = {
 	},
 };
 
+export const ExecuteModelIntent: Story = {
+	args: {
+		status: "completed",
+		args: {
+			command: executeIntentCommand,
+			model_intent: "Running tests using npm for 5s",
+		},
+		modelIntent: "Running tests using npm for 5s",
+		result: {
+			output: "",
+			wall_duration_ms: 2300,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const commandButton = canvas.getByRole("button", {
+			name: "Expand command",
+		});
+		expect(commandButton).toHaveTextContent(
+			`Running tests using ${executeIntentCommand} for 2.3s`,
+		);
+		expect(commandButton).not.toHaveTextContent("Ran");
+	},
+};
+
+export const ExecuteModelIntentRunning: Story = {
+	args: {
+		status: "running",
+		args: {
+			command: executeCommand,
+			model_intent: "checking repository state",
+		},
+		modelIntent: "checking repository state",
+		result: {
+			output: "",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const commandButton = canvas.getByRole("button", {
+			name: "Collapse command",
+		});
+		expect(commandButton).toHaveTextContent(
+			`Checking repository state using ${executeCommand}`,
+		);
+		expect(commandButton).not.toHaveTextContent(" for ");
+		expect(commandButton).not.toHaveTextContent("Ran");
+	},
+};
+
+export const ExecuteModelIntentLeadingUsing: Story = {
+	args: {
+		status: "completed",
+		args: {
+			command: executeCommand,
+			model_intent: "using git fetch origin",
+		},
+		modelIntent: "using git fetch origin",
+		result: {
+			output: "",
+			wall_duration_ms: 2300,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const commandButton = canvas.getByRole("button", {
+			name: "Expand command",
+		});
+		expect(commandButton).toHaveTextContent(`Ran ${executeCommand}2.3s`);
+		expect(commandButton).not.toHaveTextContent("using git fetch origin using");
+	},
+};
+
 export const ExecuteSuccess: Story = {
 	args: {
+		shellToolDisplayMode: "auto",
+		args: { command: longExecuteCommand },
 		result: {
+			wall_duration_ms: 47200,
+			exit_code: 0,
 			output:
 				"From github.com:coder/coder\n * [new branch]      feature/agent-ui -> origin/feature/agent-ui",
 		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/From github\.com:coder\/coder/)).toBeVisible();
+		expect(canvas.queryByText("exit 0")).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("img", { name: "Running in background" }),
+		).not.toBeInTheDocument();
+		expect(canvas.getByText("47.2s")).toBeVisible();
+		expect(canvas.queryByText("2 lines")).not.toBeInTheDocument();
+	},
+};
+
+export const ExecuteError: Story = {
+	args: {
+		name: "execute",
+		status: "error",
+		isError: true,
+		args: { command: longExecuteCommand },
+		shellToolDisplayMode: "always_collapsed",
+		result: {
+			wall_duration_ms: 8600,
+			exit_code: 1,
+			output: Array.from(
+				{ length: 47 },
+				(_, index) => `error line ${index + 1}`,
+			).join("\n"),
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.queryByText(/error line 1/)).not.toBeInTheDocument();
+		expect(canvas.getByRole("img", { name: "Command failed" })).toBeVisible();
+		expect(canvas.queryByText("exit 1")).not.toBeInTheDocument();
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Expand command" }),
+		);
+		await waitFor(() => {
+			expect(canvas.getByText(/error line 1/)).toBeVisible();
+		});
+	},
+};
+
+export const ExecuteBackgrounded: Story = {
+	args: {
+		name: "execute",
+		status: "completed",
+		args: { command: "npm start" },
+		shellToolDisplayMode: "always_collapsed",
+		result: {
+			background_process_id: "process-123",
+			output: "",
+			wall_duration_ms: 2100,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const backgroundIndicator = canvas.getByRole("img", {
+			name: "Running in background",
+		});
+		expect(backgroundIndicator).toBeVisible();
+		await userEvent.hover(backgroundIndicator);
+		expect(await screen.findByRole("tooltip")).toHaveTextContent(
+			"Running in background",
+		);
+	},
+};
+
+export const ExecuteAlwaysCollapsed: Story = {
+	args: {
+		name: "execute",
+		status: "completed",
+		args: { command: executeCommand },
+		shellToolDisplayMode: "always_collapsed",
+		result: {
+			output: "From github.com:coder/coder\nFetching origin/main",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const commandButton = canvas.getByRole("button", {
+			name: "Expand command",
+		});
+		expect(commandButton).toHaveTextContent(`Ran ${executeCommand}`);
+		expect(canvas.queryByText("exit 0")).not.toBeInTheDocument();
+		expect(canvas.queryByText("2 lines")).not.toBeInTheDocument();
+		expect(
+			canvas.queryByText(/From github\.com:coder\/coder/),
+		).not.toBeInTheDocument();
+		await userEvent.click(commandButton);
+		await waitFor(() => {
+			expect(canvas.getByText(/From github\.com:coder\/coder/)).toBeVisible();
+		});
+	},
+};
+
+export const ExecuteLongCommandCollapsed: Story = {
+	args: {
+		name: "execute",
+		status: "completed",
+		args: { command: longExecuteCommand },
+		shellToolDisplayMode: "always_collapsed",
+		result: {
+			wall_duration_ms: 47200,
+			exit_code: 0,
+			output: Array.from(
+				{ length: 61 },
+				(_, index) => `output line ${index + 1}`,
+			).join("\n"),
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const commandButton = canvas.getByRole("button", {
+			name: "Expand command",
+		});
+		expect(commandButton).toHaveTextContent(`Ran ${longExecuteCommand}`);
+		expect(commandButton).toHaveAttribute("aria-expanded", "false");
+		expect(canvas.queryByText("exit 0")).not.toBeInTheDocument();
+		expect(canvas.getByText("47.2s")).toBeVisible();
+		expect(canvas.queryByText("61 lines")).not.toBeInTheDocument();
+	},
+};
+
+export const ProcessOutputAlwaysCollapsed: Story = {
+	args: {
+		name: "process_output",
+		status: "completed",
+		shellToolDisplayMode: "always_collapsed",
+		result: {
+			output: "build completed\n0 errors",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.queryByText(/build completed/)).not.toBeInTheDocument();
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Expand process output" }),
+		);
+		await waitFor(() => {
+			expect(canvas.getByText(/build completed/)).toBeVisible();
+		});
+	},
+};
+
+export const ProcessOutputAlwaysExpanded: Story = {
+	args: {
+		name: "process_output",
+		status: "completed",
+		shellToolDisplayMode: "always_expanded",
+		result: {
+			output: Array.from(
+				{ length: 30 },
+				(_, index) => `process output line ${index + 1}`,
+			).join("\n"),
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/process output line 1/)).toBeVisible();
+		expect(canvas.getByText(/process output line 30/)).toBeVisible();
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("button", {
+					name: "Collapse full process output",
+				}),
+			).toHaveAttribute("aria-expanded", "true");
+		});
 	},
 };
 
@@ -166,6 +422,32 @@ export const SubagentRunning: Story = {
 		expect(canvas.getByRole("link", { name: "View agent" })).toHaveAttribute(
 			"href",
 			"/agents/child-chat-id",
+		);
+	},
+};
+
+export const SubagentMalformedChatIdLinksToRecoverableChatId: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "completed",
+		args: {
+			title: "Workspace diagnostics",
+			prompt: "Collect logs and summarize why startup failed.",
+		},
+		result: {
+			chat_id: ["8f3a6131-1ce8-46f5-9", "b", "a8-4a36-beb2? no"].join(""),
+			title: "Workspace diagnostics",
+			status: "completed",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: /Spawned Workspace diagnostics/ }),
+		).toBeInTheDocument();
+		expect(canvas.getByRole("link", { name: "View agent" })).toHaveAttribute(
+			"href",
+			["/agents/8f3a6131-1ce8-46f5-9", "b", "a8-4a36-beb2"].join(""),
 		);
 	},
 };
@@ -753,6 +1035,7 @@ const sampleMCPServers = [
 		enabled: true,
 		model_intent: false,
 		allow_in_plan_mode: false,
+		forward_coder_headers: false,
 		auth_connected: true,
 		created_at: "2025-01-01T00:00:00Z",
 		updated_at: "2025-01-01T00:00:00Z",
@@ -983,6 +1266,7 @@ export const WriteFileSuccess: Story = {
 	args: {
 		name: "write_file",
 		status: "completed",
+		codeDiffDisplayMode: "auto",
 		args: {
 			path: "src/utils/helpers.ts",
 			content:
@@ -992,6 +1276,30 @@ export const WriteFileSuccess: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText(/Wrote helpers\.ts/)).toBeInTheDocument();
+		expect(canvas.queryByTestId("write-file-diff")).not.toBeInTheDocument();
+		await userEvent.click(
+			canvas.getByRole("button", { name: /Wrote helpers\.ts/ }),
+		);
+		await waitFor(() => {
+			expect(canvas.getByTestId("write-file-diff")).toBeVisible();
+		});
+	},
+};
+
+export const WriteFileAlwaysExpanded: Story = {
+	args: {
+		name: "write_file",
+		status: "completed",
+		codeDiffDisplayMode: "always_expanded",
+		args: {
+			path: "src/utils/helpers.ts",
+			content:
+				"export function greet(name: string): string {\n  return `Hello, ${name}!`;\n}\n",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByTestId("write-file-diff")).toBeVisible();
 	},
 };
 
@@ -1027,6 +1335,7 @@ export const EditFilesSingleSuccess: Story = {
 	args: {
 		name: "edit_files",
 		status: "completed",
+		codeDiffDisplayMode: "auto",
 		args: {
 			files: [
 				{
@@ -1044,6 +1353,39 @@ export const EditFilesSingleSuccess: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText(/Edited config\.ts/)).toBeInTheDocument();
+		expect(canvas.getAllByTestId("edit-file-diff")).toHaveLength(1);
+	},
+};
+
+export const EditFilesAlwaysCollapsed: Story = {
+	args: {
+		name: "edit_files",
+		status: "completed",
+		codeDiffDisplayMode: "always_collapsed",
+		args: {
+			files: [
+				{
+					path: "src/config.ts",
+					edits: [
+						{
+							search: "const timeout = 30;",
+							replace: "const timeout = 60;",
+						},
+					],
+				},
+			],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(/Edited config\.ts/)).toBeVisible();
+		expect(canvas.queryAllByTestId("edit-file-diff")).toHaveLength(0);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /Edited config\.ts/ }),
+		);
+		await waitFor(() => {
+			expect(canvas.getAllByTestId("edit-file-diff")).toHaveLength(1);
+		});
 	},
 };
 
@@ -1708,7 +2050,7 @@ export const WaitAgentComputerUseRunning: Story = {
 		expect(canvasElement.querySelector(".lucide-monitor")).not.toBeNull();
 		// The VNC preview container should mount (the connection will
 		// stay in "connecting" state without a real WebSocket, which
-		// is expected — we only verify the container renders).
+		// is expected; we only verify the container renders).
 		await waitFor(() => {
 			expect(
 				canvas.getByRole("button", { name: "Open desktop tab" }),
@@ -1999,6 +2341,41 @@ export const StartWorkspaceBuildFailed: Story = {
 	},
 };
 
+export const StartWorkspaceQuotaReached: Story = {
+	args: {
+		name: "start_workspace",
+		status: "completed",
+		result: {
+			error_code: "INSUFFICIENT_QUOTA",
+			error: "workspace start build failed: insufficient quota",
+			title: "Workspace quota reached",
+			message:
+				"Coder could not start this workspace because your workspace quota is full.",
+			build_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+			quota: {
+				credits_consumed: 40,
+				budget: 40,
+			},
+		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: [
+					"workspaceBuilds",
+					"a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+					"logs",
+				],
+				data: [],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Workspace quota reached")).toBeInTheDocument();
+	},
+};
+
 // ---------------------------------------------------------------------------
 // create_workspace stories
 // ---------------------------------------------------------------------------
@@ -2060,6 +2437,41 @@ export const CreateWorkspaceCompleted: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("Created my-project")).toBeInTheDocument();
+	},
+};
+
+export const CreateWorkspaceQuotaReached: Story = {
+	args: {
+		name: "create_workspace",
+		status: "completed",
+		result: {
+			error_code: "INSUFFICIENT_QUOTA",
+			error: "workspace build failed: insufficient quota",
+			title: "Workspace quota reached",
+			message:
+				"Coder could not create this workspace because your workspace quota is full.",
+			build_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+			quota: {
+				credits_consumed: 40,
+				budget: 40,
+			},
+		},
+	},
+	parameters: {
+		queries: [
+			{
+				key: [
+					"workspaceBuilds",
+					"a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+					"logs",
+				],
+				data: [],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Workspace quota reached")).toBeInTheDocument();
 	},
 };
 

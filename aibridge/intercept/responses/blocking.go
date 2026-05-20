@@ -100,6 +100,15 @@ func (i *BlockingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r *
 
 		response, upstreamErr = i.newResponse(ctx, srv, opts)
 
+		// The failover loop may return a keypool exhaustion
+		// error. Render it here.
+		if upstreamErr != nil {
+			if keyErr := ProcessKeyPoolError(upstreamErr); keyErr != nil {
+				i.writeUpstreamError(w, keyErr)
+				return xerrors.Errorf("key pool exhausted: %w", upstreamErr)
+			}
+		}
+
 		if upstreamErr != nil || response == nil {
 			break
 		}
@@ -135,10 +144,55 @@ func (i *BlockingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r *
 	return errors.Join(upstreamErr, err)
 }
 
-func (i *BlockingResponsesInterceptor) newResponse(ctx context.Context, srv responses.ResponseService, opts []option.RequestOption) (_ *responses.Response, outErr error) {
-	ctx, span := i.tracer.Start(ctx, "Intercept.ProcessRequest.Upstream", trace.WithAttributes(tracing.InterceptionAttributesFromContext(ctx)...))
+// newResponse routes between BYOK (single attempt) and
+// centralized failover.
+func (i *BlockingResponsesInterceptor) newResponse(ctx context.Context, srv responses.ResponseService, opts []option.RequestOption) (*responses.Response, error) {
+	// BYOK: single attempt, no failover.
+	if i.cfg.KeyPool == nil {
+		return i.newResponseWithKey(ctx, srv, opts)
+	}
+	return i.newResponseWithKeyFailover(ctx, srv, opts)
+}
+
+// newResponseWithKey performs a single upstream call.
+func (i *BlockingResponsesInterceptor) newResponseWithKey(ctx context.Context, srv responses.ResponseService, opts []option.RequestOption) (_ *responses.Response, outErr error) {
+	_, span := i.tracer.Start(ctx, "Intercept.ProcessRequest.Upstream", trace.WithAttributes(tracing.InterceptionAttributesFromContext(ctx)...))
 	defer tracing.EndSpanErr(span, &outErr)
 
 	// The body is overridden by option.WithRequestBody(reqPayload) in requestOptions
 	return srv.New(ctx, responses.ResponseNewParams{}, opts...)
+}
+
+// newResponseWithKeyFailover walks the centralized key pool,
+// trying each key until one succeeds or the pool is exhausted.
+// Keys are marked temporary on 429 and permanent on 401/403.
+// Errors that aren't key-specific don't trigger failover and
+// are returned to the caller.
+func (i *BlockingResponsesInterceptor) newResponseWithKeyFailover(ctx context.Context, srv responses.ResponseService, opts []option.RequestOption) (*responses.Response, error) {
+	// TODO(ssncferreira): update the interception's credential
+	// hint with the actually-used key (the successful key on
+	// success, the last tried key on failure) in the upstack PR.
+	walker := i.cfg.KeyPool.Walker()
+	for {
+		key, err := walker.Next()
+		if err != nil {
+			return nil, err
+		}
+
+		requestOpts := append([]option.RequestOption{}, opts...)
+		requestOpts = append(requestOpts,
+			option.WithAPIKey(key.Value()),
+			// Disable SDK retries because the failover loop
+			// handles retries via key rotation.
+			option.WithMaxRetries(0),
+		)
+		response, err := i.newResponseWithKey(ctx, srv, requestOpts)
+		// Key-specific failure: try the next key.
+		if i.markKeyOnError(ctx, key, err) {
+			continue
+		}
+		// Either success (response, nil) or a non-key error
+		// (nil, err): nothing to retry, return as-is.
+		return response, err
+	}
 }

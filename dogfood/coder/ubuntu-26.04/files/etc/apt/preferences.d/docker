@@ -1,23 +1,35 @@
-# Ignore all packages from this repository by default
+# Ignore all packages from this repository by default.
 Package: *
 Pin: origin download.docker.com
 Pin-Priority: 1
 
-# Docker Community Edition
-# We need to pin docker-ce to a specific version because containerd is pinned
-# to an older version. Newer major versions of docker-ce require a version of
-# containerd.io greater than our pinned version.
+# Docker Community Edition.
+# We need to pin docker-ce to Docker 27 because containerd is pinned to an
+# older version for sysbox / Docker-in-Docker compatibility. Docker 28 and newer
+# require containerd.io >= 1.7.27, but sysbox currently needs 1.7.23.
 Package: docker-ce
-Pin: origin download.docker.com
-Pin: version 5:29.*
-Pin-Priority: 500
+Pin: version 5:27.*
+Pin-Priority: 1001
 
-# Docker command-line tool
+# Docker command-line tool.
+# Keep the CLI on the same major line as the engine. docker-ce only depends on
+# docker-ce-cli without an exact version constraint, so leaving this unpinned can
+# cause apt to pair a Docker 27 engine with a newer CLI.
 Package: docker-ce-cli
-Pin: origin download.docker.com
-Pin-Priority: 500
+Pin: version 5:27.*
+Pin-Priority: 1001
 
-# containerd runtime
+# containerd runtime.
+# Ref: https://github.com/nestybox/sysbox/issues/879
+# We need to pin containerd to this specific version to avoid breaking
+# Docker-in-Docker. Keep this pin in the Docker preferences file so the Docker
+# engine and runtime constraints are maintained together.
 Package: containerd.io
+Pin: version 1.7.23-1
+Pin-Priority: 1001
+
+# Allow Docker plugins from Docker's repository, but keep the repository ignored
+# globally so unpinned Docker packages do not unexpectedly upgrade.
+Package: docker-buildx-plugin docker-compose-plugin
 Pin: origin download.docker.com
 Pin-Priority: 500

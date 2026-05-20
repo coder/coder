@@ -1,5 +1,10 @@
 # Reference
 
+> [!NOTE]
+> AI Gateway requires the [AI Governance Add-On](../ai-governance.md).
+> As of Coder v2.32, deployments without the add-on will not be able to
+> access AI Gateway.
+
 ## Implementation Details
 
 `coderd` runs an in-memory instance of `aibridged`, whose logic is mostly contained in https://github.com/coder/coder/tree/main/aibridge. In future releases we will support running external instances for higher throughput and complete memory isolation from `coderd`.

@@ -10,6 +10,9 @@ minimal installation of Coder, or for a step-by-step guide on how to install and
 configure your first Coder deployment, follow the
 [quickstart guide](../tutorials/quickstart.md).
 
+> [!TIP]
+> If you use a coding agent like Claude Code, the [coder/skills](https://github.com/coder/skills) `setup` skill can train the coding agent to install and bootstrap a Coder deployment end-to-end.
+
 ## Local/Individual Installs
 
 This install guide is meant for **individual developers, small teams, and/or open source community members** setting up Coder locally or on a single server. It covers the light weight install for Linux, macOS, and Windows.

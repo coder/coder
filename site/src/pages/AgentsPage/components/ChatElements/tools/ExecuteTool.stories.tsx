@@ -2,6 +2,9 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { userEvent, within } from "storybook/test";
 import { ExecuteTool } from "./ExecuteTool";
 
+const longCommand =
+	"find /home/coder/project/src -type f -name '*.ts' -not -path '*/node_modules/*' -not -path '*/.git/*' | xargs grep -l 'deprecated' | sort | head -50";
+
 const meta: Meta<typeof ExecuteTool> = {
 	title: "components/ai-elements/tool/ExecuteTool",
 	component: ExecuteTool,
@@ -27,31 +30,48 @@ export const ShortCommand: Story = {
 		command: "git status",
 		output: "",
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const summaryButton = await canvas.findByRole("button", {
+			name: "Expand command",
+		});
+		await userEvent.click(summaryButton);
+	},
 };
 
-/** A long command expanded to show the full text, with the chevron visible on hover. */
-export const LongCommand: Story = {
+export const RunningWithoutCommand: Story = {
 	args: {
-		command:
-			"find /home/coder/project/src -type f -name '*.ts' -not -path '*/node_modules/*' -not -path '*/.git/*' | xargs grep -l 'deprecated' | sort | head -50",
+		command: "",
+		status: "running",
+		output: "",
+	},
+};
+
+export const LongCommand: Story = {
+	decorators: [
+		(Story) => (
+			<div className="w-72">
+				<Story />
+			</div>
+		),
+	],
+	args: {
+		command: longCommand,
 		output: "",
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const chevron = canvas.getByRole("button", {
-			name: /expand command/i,
+		const summaryButton = await canvas.findByRole("button", {
+			name: "Expand command",
 		});
-		await userEvent.click(chevron);
-		// Hover the component so the chevron stays visible.
-		await userEvent.hover(canvasElement.firstElementChild!);
+		await userEvent.click(summaryButton);
 	},
 };
 
 /** A long truncated command with multi-line output below it. */
 export const LongCommandWithOutput: Story = {
 	args: {
-		command:
-			"find /home/coder/project/src -type f -name '*.ts' -not -path '*/node_modules/*' -not -path '*/.git/*' | xargs grep -l 'deprecated' | sort | head -50",
+		command: longCommand,
 		output: [
 			"src/api/legacyClient.ts",
 			"src/components/OldTable/OldTable.tsx",

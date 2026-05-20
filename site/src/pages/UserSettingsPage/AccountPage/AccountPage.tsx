@@ -1,10 +1,14 @@
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { groupsForUser } from "#/api/queries/groups";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
 import { useAuthContext } from "#/contexts/auth/AuthProvider";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
-import { Section } from "../Section";
 import { AccountForm } from "./AccountForm";
 import { AccountUserGroups } from "./AccountUserGroups";
 
@@ -22,7 +26,13 @@ const AccountPage: FC = () => {
 
 	return (
 		<div className="flex flex-col gap-12">
-			<Section title="Account" description="Update your account info">
+			<div>
+				<SettingsHeader>
+					<SettingsHeaderTitle>Account</SettingsHeaderTitle>
+					<SettingsHeaderDescription>
+						Update your account info.
+					</SettingsHeaderDescription>
+				</SettingsHeader>
 				<AccountForm
 					editable={permissions?.updateUsers ?? false}
 					email={me.email}
@@ -31,7 +41,7 @@ const AccountPage: FC = () => {
 					initialValues={{ username: me.username, name: me.name ?? "" }}
 					onSubmit={updateProfile}
 				/>
-			</Section>
+			</div>
 
 			{hasGroupsFeature && (
 				<AccountUserGroups

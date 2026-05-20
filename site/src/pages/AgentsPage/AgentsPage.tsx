@@ -34,13 +34,19 @@ import {
 	updateInfiniteChatsCache,
 	userChatPersonalModelOverrides,
 } from "#/api/queries/chats";
-import { workspaceById } from "#/api/queries/workspaces";
+import {
+	invalidateWorkspaceMutationQueries,
+	workspaceById,
+} from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import {
+	getDefaultOrganizationName,
+	useDashboard,
+} from "#/modules/dashboard/useDashboard";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
-import { clearPersistedSidebarTabId } from "./AgentChatPage";
 import { AgentsPageView } from "./AgentsPageView";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
@@ -53,6 +59,7 @@ import {
 } from "./utils/agentWorkspaceUtils";
 import { maybePlayChime } from "./utils/chime";
 import { getModelOptionsFromConfigs } from "./utils/modelOptions";
+import { clearPersistedSidebarTabId } from "./utils/sidebarTabStorage";
 import {
 	type ChatDetailError,
 	chatDetailErrorsEqual,
@@ -66,7 +73,9 @@ const AgentsPage: FC = () => {
 	const navigate = useNavigate();
 	const location = useLocation();
 	const { agentId } = useParams();
-	const { permissions } = useAuthenticated();
+	const { permissions, user } = useAuthenticated();
+	const { organizations } = useDashboard();
+	const organizationName = getDefaultOrganizationName(organizations);
 	const isAgentsAdmin = permissions.editDeploymentConfig;
 
 	const [archivedFilter, setArchivedFilter] = useArchivedFilterParam();
@@ -199,6 +208,10 @@ const AgentsPage: FC = () => {
 			});
 			await queryClient.invalidateQueries({
 				queryKey: chatsByWorkspaceKeyPrefix,
+			});
+			await invalidateWorkspaceMutationQueries(queryClient, {
+				organizationName,
+				username: user.username,
 			});
 		},
 		onError: (error) => {
@@ -340,6 +353,19 @@ const AgentsPage: FC = () => {
 		try {
 			const action = await resolveArchiveAndDeleteAction(
 				() => queryClient.fetchQuery(workspaceById(workspaceId)),
+				// We only need build_number 1 and 2 to recognise a
+				// prebuild claim. The default page is newest-first; the
+				// resolver degrades safely ("confirm") if those builds
+				// aren't in the returned slice.
+				() =>
+					queryClient.fetchQuery({
+						queryKey: [
+							"workspaceBuilds",
+							workspaceId,
+							"archive-and-delete-resolver",
+						],
+						queryFn: () => API.getWorkspaceBuilds(workspaceId),
+					}),
 				() =>
 					readInfiniteChatsCache(queryClient)?.find((c) => c.id === chatId)
 						?.created_at,

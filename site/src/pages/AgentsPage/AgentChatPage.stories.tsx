@@ -8,19 +8,23 @@ import {
 	reactRouterParameters,
 } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
+import { getAuthorizationKey } from "#/api/queries/authCheck";
 import {
 	chatDiffContentsKey,
 	chatKey,
 	chatMessagesKey,
 	chatModelConfigs,
 	chatModelsKey,
+	chatPromptsKey,
 	chatsKey,
 	mcpServerConfigsKey,
 } from "#/api/queries/chats";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
-	MockUserMember,
+	MockGroup,
+	MockOrganizationMember,
+	MockOrganizationMember2,
 	MockUserOwner,
 	MockWorkspace,
 } from "#/testHelpers/entities";
@@ -127,6 +131,8 @@ const mockModelConfigs: TypesGen.ChatModelConfig[] = [
 const baseChatFields = {
 	organization_id: "test-org-id",
 	owner_id: MockUserOwner.id,
+	owner_username: MockUserOwner.username,
+	owner_name: MockUserOwner.name,
 	workspace_id: mockWorkspace.id,
 	last_model_config_id: MODEL_CONFIG_ID,
 	mcp_server_ids: [],
@@ -160,6 +166,65 @@ index abc1234..def5678 100644
  }
 `;
 
+/** Extract user prompts from messages, newest first, mirroring
+ * the server's `/prompts` endpoint contract: role=user, non-empty
+ * after concatenating only `text` parts.
+ */
+const extractPromptsFromMessages = (
+	messages: readonly TypesGen.ChatMessage[],
+): TypesGen.ChatPrompt[] => {
+	const prompts: TypesGen.ChatPrompt[] = [];
+	for (let i = messages.length - 1; i >= 0; i--) {
+		const message = messages[i];
+		if (message.role !== "user") {
+			continue;
+		}
+		const text = (message.content ?? [])
+			.filter((part): part is TypesGen.ChatTextPart => part.type === "text")
+			.map((part) => part.text)
+			.join("");
+		if (text.trim()) {
+			prompts.push({ id: message.id, text });
+		}
+	}
+	return prompts;
+};
+type ChatAuthorizationFixture = {
+	action: "share" | "update";
+	allowed: boolean;
+};
+
+const buildChatAuthorizationQuery = (
+	chat: Pick<TypesGen.Chat, "owner_id" | "organization_id">,
+	checks: Partial<
+		Record<"canShareChat" | "canUpdateChat", ChatAuthorizationFixture>
+	>,
+) => {
+	const authorizationChecks: TypesGen.AuthorizationRequest["checks"] = {};
+	const authorizationResponse: TypesGen.AuthorizationResponse = {};
+
+	for (const [key, check] of Object.entries(checks)) {
+		if (check === undefined) {
+			continue;
+		}
+
+		authorizationChecks[key] = {
+			object: {
+				resource_type: "chat",
+				owner_id: chat.owner_id,
+				organization_id: chat.organization_id,
+			},
+			action: check.action,
+		};
+		authorizationResponse[key] = check.allowed;
+	}
+
+	return {
+		key: getAuthorizationKey({ checks: authorizationChecks }),
+		data: authorizationResponse,
+	};
+};
+
 /** Build `parameters.queries` entries for a given chat and messages. */
 const buildQueries = (
 	chat: TypesGen.Chat,
@@ -186,6 +251,12 @@ const buildQueries = (
 			key: chatMessagesKey(CHAT_ID),
 			data: { pages: [messagesData], pageParams: [undefined] },
 		},
+		{
+			key: chatPromptsKey(CHAT_ID),
+			data: {
+				prompts: extractPromptsFromMessages(messagesData.messages),
+			} satisfies TypesGen.ChatPromptsResponse,
+		},
 		{ key: chatsKey, data: [chatWithDiffStatus] },
 		{
 			key: chatDiffContentsKey(CHAT_ID),
@@ -202,6 +273,12 @@ const buildQueries = (
 		{ key: chatModelsKey, data: mockModelCatalog },
 		{ key: chatModelConfigs().queryKey, data: mockModelConfigs },
 		{ key: mcpServerConfigsKey, data: [] },
+		buildChatAuthorizationQuery(chat, {
+			canShareChat: {
+				action: "share",
+				allowed: chat.owner_id === MockUserOwner.id && !chat.parent_chat_id,
+			},
+		}),
 	];
 };
 
@@ -1102,11 +1179,52 @@ export const WithMessageHistory: Story = {
 		expect(
 			await canvas.findByText("Markdown rendering showcase"),
 		).toBeVisible();
-		await waitFor(() =>
+		await waitFor(() => {
 			expect(
 				canvas.queryByText(/^This is not your chat/),
-			).not.toBeInTheDocument(),
-		);
+			).not.toBeInTheDocument();
+			expect(
+				canvas.queryByText(/^This chat is owned by/),
+			).not.toBeInTheDocument();
+		});
+	},
+};
+
+export const RootChatShareActionAvailable: Story = {
+	parameters: {
+		queries: buildQueries(
+			{
+				id: CHAT_ID,
+				...baseChatFields,
+				title: "Shareable root chat",
+				status: "completed",
+			},
+			{ messages: [], queued_messages: [], has_more: false },
+			{ diffUrl: undefined },
+		),
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatACL").mockResolvedValue({
+			users: [],
+			groups: [],
+		});
+		spyOn(API.experimental, "updateChatACL").mockResolvedValue(undefined);
+		spyOn(API, "getOrganizationPaginatedMembers").mockResolvedValue({
+			members: [MockOrganizationMember, MockOrganizationMember2],
+			count: 2,
+		});
+		spyOn(API, "getGroupsByOrganization").mockResolvedValue([MockGroup]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByLabelText("Share chat"));
+		const body = within(document.body);
+		await waitFor(() => {
+			expect(body.getByText("Chat Sharing")).toBeVisible();
+		});
+		await waitFor(() => {
+			expect(body.getByText("No shared members or groups yet")).toBeVisible();
+		});
 	},
 };
 
@@ -1136,29 +1254,79 @@ export const AdminViewingOtherUserChat: Story = {
 					id: CHAT_ID,
 					...baseChatFields,
 					owner_id: "other-user-id",
+					owner_username: "OtherUser",
+					owner_name: "Other User",
 					title: "Other user's chat",
 					status: "completed",
 				},
 				{ messages: [], queued_messages: [], has_more: false },
 				{ diffUrl: undefined },
 			),
-			{
-				key: ["user", "other-user-id"],
-				data: {
-					...MockUserMember,
-					id: "other-user-id",
-					username: "OtherUser",
+			buildChatAuthorizationQuery(
+				{
+					owner_id: "other-user-id",
+					organization_id: baseChatFields.organization_id,
 				},
-			},
+				{
+					canUpdateChat: { action: "update", allowed: true },
+					canShareChat: { action: "share", allowed: false },
+				},
+			),
 		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const banner = await canvas.findByText(
-			"This is not your chat. Prompting here will use @OtherUser's identity.",
+			"This is not your chat. Prompting here will use Other User's identity.",
 		);
 		expect(banner).toBeVisible();
 		expect(banner).toHaveAttribute("role", "status");
+		expect(canvas.getByRole("textbox")).toHaveAttribute(
+			"aria-disabled",
+			"false",
+		);
+	},
+};
+
+export const SharedReadOnlyChat: Story = {
+	parameters: {
+		queries: [
+			...buildQueries(
+				{
+					id: CHAT_ID,
+					...baseChatFields,
+					owner_id: "other-user-id",
+					owner_username: "OtherUser",
+					owner_name: "Other User",
+					title: "Shared read-only chat",
+					status: "completed",
+				},
+				{ messages: [], queued_messages: [], has_more: false },
+				{ diffUrl: undefined },
+			),
+			buildChatAuthorizationQuery(
+				{
+					owner_id: "other-user-id",
+					organization_id: baseChatFields.organization_id,
+				},
+				{
+					canUpdateChat: { action: "update", allowed: false },
+					canShareChat: { action: "share", allowed: false },
+				},
+			),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findByText(
+				"This chat is owned by Other User. You have read-only access.",
+			),
+		).toBeVisible();
+		expect(canvas.getByRole("textbox")).toHaveAttribute(
+			"aria-disabled",
+			"true",
+		);
 	},
 };
 
@@ -1170,6 +1338,8 @@ export const ArchivedOtherUserChat: Story = {
 				...baseChatFields,
 				archived: true,
 				owner_id: "other-user-id",
+				owner_username: "OtherUser",
+				owner_name: "Other User",
 				title: "Archived other user's chat",
 				status: "completed",
 			},
@@ -1184,6 +1354,9 @@ export const ArchivedOtherUserChat: Story = {
 		).toBeVisible();
 		expect(
 			canvas.queryByText(/^This is not your chat/),
+		).not.toBeInTheDocument();
+		expect(
+			canvas.queryByText(/^This chat is owned by/),
 		).not.toBeInTheDocument();
 	},
 };

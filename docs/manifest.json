@@ -1081,13 +1081,13 @@
 					"title": "AI Governance Add-On",
 					"description": "Features around managing agents at scale",
 					"path": "./ai-coder/ai-governance.md",
-					"state": ["premium"],
+					"state": ["ai governance add-on"],
 					"children": [
 						{
 							"title": "Agent Firewall",
 							"description": "Understanding Agent Firewall in Coder Tasks",
 							"path": "./ai-coder/agent-firewall/index.md",
-							"state": ["premium"],
+							"state": ["ai governance add-on"],
 							"children": [
 								{
 									"title": "NS Jail",
@@ -1133,12 +1133,17 @@
 							"description": "AI Gateway for Enterprise Governance \u0026 Observability",
 							"path": "./ai-coder/ai-gateway/index.md",
 							"icon_path": "./images/icons/api.svg",
-							"state": ["premium"],
+							"state": ["ai governance add-on"],
 							"children": [
 								{
 									"title": "Setup",
 									"description": "How to set up and configure AI Gateway",
 									"path": "./ai-coder/ai-gateway/setup.md"
+								},
+								{
+									"title": "Authentication",
+									"description": "Learn how to authenticate against AI Gateway",
+									"path": "./ai-coder/ai-gateway/auth.md"
 								},
 								{
 									"title": "Client Configuration",
@@ -1186,11 +1191,6 @@
 											"path": "./ai-coder/ai-gateway/clients/kilo-code.md"
 										},
 										{
-											"title": "Roo Code",
-											"description": "Configure Roo Code to use AI Gateway",
-											"path": "./ai-coder/ai-gateway/clients/roo-code.md"
-										},
-										{
 											"title": "VS Code",
 											"description": "Configure VS Code to use AI Gateway",
 											"path": "./ai-coder/ai-gateway/clients/vscode.md"
@@ -1222,7 +1222,7 @@
 									"title": "AI Gateway Proxy",
 									"description": "Proxy for AI coding tools without base URL override support",
 									"path": "./ai-coder/ai-gateway/ai-gateway-proxy/index.md",
-									"state": ["premium"],
+									"state": ["ai governance add-on"],
 									"children": [
 										{
 											"title": "Setup",
@@ -1481,6 +1481,10 @@
 						{
 							"title": "AI Bridge",
 							"path": "./reference/api/aibridge.md"
+						},
+						{
+							"title": "AI Providers",
+							"path": "./reference/api/aiproviders.md"
 						},
 						{
 							"title": "Agents",

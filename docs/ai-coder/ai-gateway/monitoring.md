@@ -1,5 +1,10 @@
 # Monitoring
 
+> [!NOTE]
+> AI Gateway requires the [AI Governance Add-On](../ai-governance.md).
+> As of Coder v2.32, deployments without the add-on will not be able to
+> access AI Gateway.
+
 AI Gateway records the last `user` prompt, token usage, model reasoning, and every tool invocation for each intercepted request. Each capture is tied to a single "interception" that maps back to the authenticated Coder identity, making it easy to attribute spend and behaviour.
 
 ![User Prompt logging](../../images/aibridge/grafana_user_prompts_logging.png)
@@ -48,7 +53,6 @@ Available query filters:
   - `Kilo Code`
   - `Coder Agents`
   - `Mux`
-  - `Roo Code`
   - `Cursor`
   - `Unknown`
 

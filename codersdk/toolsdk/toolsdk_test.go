@@ -354,20 +354,43 @@ func TestTools(t *testing.T) {
 			require.NoError(t, client.CancelWorkspaceBuild(ctx, result.ID, codersdk.CancelWorkspaceBuildParams{}))
 		})
 
-		t.Run("Start", func(t *testing.T) {
+		t.Run("Start_NoAutoBumpAcrossActiveVersionChange", func(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
+			// Isolated fixture: move the template's active version
+			// forward without changing the workspace's previously built
+			// version, so the start request must choose between them.
+			noBumpBuild := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+				OrganizationID: owner.OrganizationID,
+				OwnerID:        member.ID,
+			}).Do()
+			previousVersionID := noBumpBuild.TemplateVersion.ID
+
+			newActiveVersion := dbfake.TemplateVersion(t, store).
+				// nolint:gocritic // This is in a test package and does not end up in the build
+				Seed(database.TemplateVersion{
+					OrganizationID: owner.OrganizationID,
+					CreatedBy:      owner.UserID,
+					TemplateID:     uuid.NullUUID{UUID: noBumpBuild.Template.ID, Valid: true},
+				}).Do()
+			require.NotEqual(t, previousVersionID, newActiveVersion.TemplateVersion.ID)
+
+			// Confirm v2 is now the template's active version. Without this the test
+			// would silently degrade to a tautology if dbfake.TemplateVersion's
+			// promote-by-default behavior ever changed: the contract being locked in
+			// is "do not auto-bump to the *currently active* version", which requires
+			// v2 to actually be active here.
+			template, err := store.GetTemplateByID(dbauthz.AsSystemRestricted(ctx), noBumpBuild.Template.ID)
+			require.NoError(t, err)
+			require.Equal(t, newActiveVersion.TemplateVersion.ID, template.ActiveVersionID)
+
 			tb, err := toolsdk.NewDeps(memberClient)
 			require.NoError(t, err)
 			result, err := testTool(t, toolsdk.CreateWorkspaceBuild, tb, toolsdk.CreateWorkspaceBuildArgs{
-				WorkspaceID: r.Workspace.ID.String(),
+				WorkspaceID: noBumpBuild.Workspace.ID.String(),
 				Transition:  "start",
 			})
-
 			require.NoError(t, err)
-			require.Equal(t, codersdk.WorkspaceTransitionStart, result.Transition)
-			require.Equal(t, r.Workspace.ID, result.WorkspaceID)
-			require.Equal(t, r.TemplateVersion.ID, result.TemplateVersionID)
-			require.Equal(t, codersdk.WorkspaceTransitionStart, result.Transition)
+			require.Equal(t, previousVersionID, result.TemplateVersionID)
 
 			// Important: cancel the build. We don't run any provisioners, so this
 			// will remain in the 'pending' state indefinitely.
@@ -718,8 +741,10 @@ func TestTools(t *testing.T) {
 	})
 
 	t.Run("GetWorkspaceAgentLogs", func(t *testing.T) {
+		_ = testutil.Context(t, testutil.WaitShort)
 		tb, err := toolsdk.NewDeps(memberClient)
 		require.NoError(t, err)
+
 		logs, err := testTool(t, toolsdk.GetWorkspaceAgentLogs, tb, toolsdk.GetWorkspaceAgentLogsArgs{
 			WorkspaceAgentID: agentID.String(),
 		})
@@ -2116,7 +2141,7 @@ func TestTools(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		// Ensure the app is healthy (required to send task input).
-		err = store.UpdateWorkspaceAppHealthByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAppHealthByIDParams{
+		err := store.UpdateWorkspaceAppHealthByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAppHealthByIDParams{
 			ID:     task.WorkspaceAppID.UUID,
 			Health: database.WorkspaceAppHealthHealthy,
 		})
@@ -2256,7 +2281,7 @@ func TestTools(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 
 		// Ensure the app is healthy (required to read task logs).
-		err = store.UpdateWorkspaceAppHealthByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAppHealthByIDParams{
+		err := store.UpdateWorkspaceAppHealthByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAppHealthByIDParams{
 			ID:     task.WorkspaceAppID.UUID,
 			Health: database.WorkspaceAppHealthHealthy,
 		})

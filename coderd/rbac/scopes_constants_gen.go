@@ -7,6 +7,12 @@ package rbac
 // declared in code, not here, to avoid duplication.
 
 const (
+	ScopeAiModelPriceRead                    ScopeName = "ai_model_price:read"
+	ScopeAiModelPriceUpdate                  ScopeName = "ai_model_price:update"
+	ScopeAiProviderCreate                    ScopeName = "ai_provider:create"
+	ScopeAiProviderDelete                    ScopeName = "ai_provider:delete"
+	ScopeAiProviderRead                      ScopeName = "ai_provider:read"
+	ScopeAiProviderUpdate                    ScopeName = "ai_provider:update"
 	ScopeAiSeatCreate                        ScopeName = "ai_seat:create"
 	ScopeAiSeatRead                          ScopeName = "ai_seat:read"
 	ScopeAibridgeInterceptionCreate          ScopeName = "aibridge_interception:create"
@@ -33,6 +39,7 @@ const (
 	ScopeChatCreate                          ScopeName = "chat:create"
 	ScopeChatDelete                          ScopeName = "chat:delete"
 	ScopeChatRead                            ScopeName = "chat:read"
+	ScopeChatShare                           ScopeName = "chat:share"
 	ScopeChatUpdate                          ScopeName = "chat:update"
 	ScopeConnectionLogRead                   ScopeName = "connection_log:read"
 	ScopeConnectionLogUpdate                 ScopeName = "connection_log:update"
@@ -127,6 +134,10 @@ const (
 	ScopeUserSecretDelete                    ScopeName = "user_secret:delete"
 	ScopeUserSecretRead                      ScopeName = "user_secret:read"
 	ScopeUserSecretUpdate                    ScopeName = "user_secret:update"
+	ScopeUserSkillCreate                     ScopeName = "user_skill:create"
+	ScopeUserSkillDelete                     ScopeName = "user_skill:delete"
+	ScopeUserSkillRead                       ScopeName = "user_skill:read"
+	ScopeUserSkillUpdate                     ScopeName = "user_skill:update"
 	ScopeWebpushSubscriptionCreate           ScopeName = "webpush_subscription:create"
 	ScopeWebpushSubscriptionDelete           ScopeName = "webpush_subscription:delete"
 	ScopeWebpushSubscriptionRead             ScopeName = "webpush_subscription:read"
@@ -173,6 +184,12 @@ func (e ScopeName) Valid() bool {
 	case ScopeName("coder:all"),
 		ScopeName("coder:application_connect"),
 		ScopeName("no_user_data"),
+		ScopeAiModelPriceRead,
+		ScopeAiModelPriceUpdate,
+		ScopeAiProviderCreate,
+		ScopeAiProviderDelete,
+		ScopeAiProviderRead,
+		ScopeAiProviderUpdate,
 		ScopeAiSeatCreate,
 		ScopeAiSeatRead,
 		ScopeAibridgeInterceptionCreate,
@@ -199,6 +216,7 @@ func (e ScopeName) Valid() bool {
 		ScopeChatCreate,
 		ScopeChatDelete,
 		ScopeChatRead,
+		ScopeChatShare,
 		ScopeChatUpdate,
 		ScopeConnectionLogRead,
 		ScopeConnectionLogUpdate,
@@ -293,6 +311,10 @@ func (e ScopeName) Valid() bool {
 		ScopeUserSecretDelete,
 		ScopeUserSecretRead,
 		ScopeUserSecretUpdate,
+		ScopeUserSkillCreate,
+		ScopeUserSkillDelete,
+		ScopeUserSkillRead,
+		ScopeUserSkillUpdate,
 		ScopeWebpushSubscriptionCreate,
 		ScopeWebpushSubscriptionDelete,
 		ScopeWebpushSubscriptionRead,
@@ -340,6 +362,12 @@ func AllScopeNameValues() []ScopeName {
 		ScopeName("coder:all"),
 		ScopeName("coder:application_connect"),
 		ScopeName("no_user_data"),
+		ScopeAiModelPriceRead,
+		ScopeAiModelPriceUpdate,
+		ScopeAiProviderCreate,
+		ScopeAiProviderDelete,
+		ScopeAiProviderRead,
+		ScopeAiProviderUpdate,
 		ScopeAiSeatCreate,
 		ScopeAiSeatRead,
 		ScopeAibridgeInterceptionCreate,
@@ -366,6 +394,7 @@ func AllScopeNameValues() []ScopeName {
 		ScopeChatCreate,
 		ScopeChatDelete,
 		ScopeChatRead,
+		ScopeChatShare,
 		ScopeChatUpdate,
 		ScopeConnectionLogRead,
 		ScopeConnectionLogUpdate,
@@ -460,6 +489,10 @@ func AllScopeNameValues() []ScopeName {
 		ScopeUserSecretDelete,
 		ScopeUserSecretRead,
 		ScopeUserSecretUpdate,
+		ScopeUserSkillCreate,
+		ScopeUserSkillDelete,
+		ScopeUserSkillRead,
+		ScopeUserSkillUpdate,
 		ScopeWebpushSubscriptionCreate,
 		ScopeWebpushSubscriptionDelete,
 		ScopeWebpushSubscriptionRead,

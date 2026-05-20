@@ -199,9 +199,15 @@
 		  success+error axis onto sky-blue (success) + vermilion/orange
 		  (destructive). Warning shifts to fuchsia so it does not collide
 		  with destructive states on the orange axis.
-		- dark-tritan / light-tritan: keep the red/green success+error
-		  axis intact and move warning from amber to fuchsia because
-		  amber and sky-blue blur together under tritanopia.
+		- dark-tritan / light-tritan: keep destructive states on the
+		  red/orange axis and shift `success` (and the green-tinted
+		  diff/git surfaces) onto sky-blue. This matches GitHub
+		  Primer's tritanopia preset, where diff additions render in
+		  blue rather than green so the success+destructive pair stays
+		  consistent with the protan-deuter palette and with other
+		  tritan-aware tools. Warning still moves from amber to
+		  fuchsia because amber and sky-blue blur together under
+		  tritanopia.
 	*/
 	.light-protan-deuter {
 		--content-success: 199 89% 48%;
@@ -252,24 +258,41 @@
 		--surface-git-deleted: 17 75% 15%;
 	}
 	.light-tritan {
+		--content-success: 199 89% 48%;
 		--content-warning: 322 81% 43%;
+		--surface-green: 201 94% 86%;
 		--surface-orange: 289 100% 98%;
+		--border-success: 199 89% 48%;
+		--border-green: 201 94% 86%;
 		--border-warning: 322 81% 60%;
+		--highlight-green: 201 94% 36%;
 		--highlight-orange: 322 81% 43%;
 		--highlight-magenta: 322, 81%, 43%;
 		--syntax-boolean: 322 81% 43%;
+		--syntax-number: 199 89% 38%;
+		--git-added: 199 89% 48%;
 		--git-modified: 322 81% 43%;
+		--git-added-bright: 199 89% 48%;
+		--surface-git-added: 204 94% 94%;
 	}
 	.dark-tritan {
+		--content-success: 199 82% 67%;
 		--content-warning: 322 81% 67%;
+		--surface-green: 201 80% 14%;
 		--surface-orange: 322 70% 15%;
 		--surface-magenta: 322 70% 15%;
+		--border-success: 199 82% 67%;
+		--border-green: 201 94% 86%;
 		--border-magenta: 322 81% 72%;
 		--border-warning: 322 81% 67%;
+		--highlight-green: 201 94% 86%;
 		--highlight-orange: 322 81% 67%;
 		--highlight-magenta: 322 81% 72%;
 		--syntax-boolean: 322 81% 67%;
+		--git-added: 199 82% 67%;
 		--git-modified: 322 81% 72%;
+		--git-added-bright: 199 89% 48%;
+		--surface-git-added: 201 80% 14%;
 	}
 }
 

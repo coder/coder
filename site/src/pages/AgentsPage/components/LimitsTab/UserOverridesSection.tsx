@@ -261,7 +261,7 @@ export const UserOverridesSection: FC<UserOverridesSectionProps> = ({
 						setPendingDeleteUserId(null);
 					}}
 					isPending={deletePending}
-					open={true}
+					open
 					onOpenChange={(open) => !open && setPendingDeleteUserId(null)}
 				/>
 			)}{" "}

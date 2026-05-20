@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"net"
 	"net/http"
 	"net/url"
@@ -52,7 +53,13 @@ const (
 	prometheusContainerName = "coder-prometheus"
 	// defaultPrometheusPort avoids 2112 (agent prometheus) and
 	// 2113 (agent debug) already bound inside Coder workspaces.
-	defaultPrometheusPort  = "2114"
+	defaultPrometheusPort = "2114"
+	// portOffsetBuckets keeps the offset below 1000 while leaving
+	// enough hash buckets for common multi-worktree use.
+	portOffsetBuckets = 50
+	// portOffsetStep avoids overlap between the default API and proxy
+	// ports when two worktrees land in adjacent buckets.
+	portOffsetStep         = 20
 	prometheusImage        = "prom/prometheus:v3.11.2"
 	defaultAccessURL       = "http://127.0.0.1:%d"
 	defaultPassword        = "SomeSecurePassword!"
@@ -95,6 +102,13 @@ func main() {
 				Default:     defaultPrometheusPort,
 				Description: "Prometheus metrics port. Set to 0 to disable.",
 				Value:       serpent.Int64Of(&cfg.coderMetricsPort),
+			},
+			{
+				Flag:        "port-offset",
+				Env:         "CODER_DEV_PORT_OFFSET",
+				Default:     "false",
+				Description: "Apply a deterministic per-worktree offset to default API, web, proxy, and Coder metrics ports. Useful when running multiple worktrees in parallel.",
+				Value:       serpent.BoolOf(&cfg.portOffsetEnabled),
 			},
 			{
 				Flag:        "prometheus-server",
@@ -171,12 +185,13 @@ func main() {
 		},
 		Handler: func(inv *serpent.Invocation) error {
 			cfg.serverExtraArgs = inv.Args
+			cfg.portExplicit = portExplicitFromInvocation(inv)
 
 			logger := slog.Make(sloghuman.Sink(inv.Stderr))
-			if err := cfg.validate(); err != nil {
+			if err := cfg.resolveEnv(); err != nil {
 				return err
 			}
-			if err := cfg.resolveEnv(); err != nil {
+			if err := cfg.validate(); err != nil {
 				return err
 			}
 			return develop(inv.Context(), logger, &cfg)
@@ -191,28 +206,121 @@ func main() {
 }
 
 type devConfig struct {
-	apiPort          int64
-	webPort          int64
-	proxyPort        int64
-	coderMetricsPort int64
-	prometheusServer bool
-	agpl             bool
-	accessURL        string
-	password         string
-	useProxy         bool
-	debug            bool
-	skipSetup        bool
-	multiOrg         bool
-	starterTemplate  string
-	dbRollback       bool
-	dbReset          bool
-	dbContinue       bool
-	projectRoot      string
-	binaryPath       string
-	configDir        string
-	childEnv         []string
+	apiPort           int64
+	webPort           int64
+	proxyPort         int64
+	coderMetricsPort  int64
+	portOffsetEnabled bool
+	prometheusServer  bool
+	agpl              bool
+	accessURL         string
+	password          string
+	useProxy          bool
+	debug             bool
+	skipSetup         bool
+	multiOrg          bool
+	starterTemplate   string
+	dbRollback        bool
+	dbReset           bool
+	dbContinue        bool
+	projectRoot       string
+	binaryPath        string
+	configDir         string
+	childEnv          []string
+	portExplicit      portExplicit
+	portOffset        int
+	apiPortSource     portSource
+	webPortSource     portSource
+	proxyPortSource   portSource
+	metricsPortSource portSource
 	// Extra args after flags forwarded to "coder server".
 	serverExtraArgs []string
+}
+
+type portExplicit struct {
+	api     bool
+	web     bool
+	proxy   bool
+	metrics bool
+}
+
+type portSource string
+
+const (
+	portSourceDefault  portSource = "default"
+	portSourceExplicit portSource = "explicit"
+	portSourceOffset   portSource = "offset"
+)
+
+func portExplicitFromInvocation(inv *serpent.Invocation) portExplicit {
+	return portExplicit{
+		api:     isPortExplicit(inv, "port", "CODER_DEV_PORT"),
+		web:     isPortExplicit(inv, "web-port", "CODER_DEV_WEB_PORT"),
+		proxy:   isPortExplicit(inv, "proxy-port", "CODER_DEV_PROXY_PORT"),
+		metrics: isPortExplicit(inv, "prometheus-port", "CODER_DEV_PROMETHEUS_PORT"),
+	}
+}
+
+func isPortExplicit(inv *serpent.Invocation, flagName, envName string) bool {
+	if flag := inv.ParsedFlags().Lookup(flagName); flag != nil && flag.Changed {
+		return true
+	}
+	if val, ok := inv.Environ.Lookup(envName); ok && val != "" {
+		return true
+	}
+	for _, opt := range inv.Command.Options {
+		if opt.Flag == flagName {
+			return opt.ValueSource == serpent.ValueSourceFlag ||
+				opt.ValueSource == serpent.ValueSourceEnv
+		}
+	}
+	return false
+}
+
+// portOffset returns a deterministic offset in [0, 1000) derived from the
+// worktree path. Successive callers with the same projectRoot get the same
+// offset; different projectRoots get different offsets with high probability.
+func portOffset(projectRoot string) int {
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(projectRoot))
+	bucket := h.Sum64() % uint64(portOffsetBuckets)
+	return int(bucket) * portOffsetStep //nolint:gosec // Bucket is less than portOffsetBuckets.
+}
+
+func (c *devConfig) applyPortOffset() {
+	c.portOffset = 0
+	if !c.portOffsetEnabled {
+		return
+	}
+	c.portOffset = portOffset(c.projectRoot)
+	if c.portExplicit.api {
+		c.apiPortSource = portSourceExplicit
+	} else {
+		c.apiPortSource = c.applyDefaultPortOffset(&c.apiPort)
+	}
+	if c.portExplicit.web {
+		c.webPortSource = portSourceExplicit
+	} else {
+		c.webPortSource = c.applyDefaultPortOffset(&c.webPort)
+	}
+	if c.portExplicit.proxy {
+		c.proxyPortSource = portSourceExplicit
+	} else {
+		c.proxyPortSource = c.applyDefaultPortOffset(&c.proxyPort)
+	}
+	if c.portExplicit.metrics {
+		c.metricsPortSource = portSourceExplicit
+	} else {
+		c.metricsPortSource = c.applyDefaultPortOffset(&c.coderMetricsPort)
+	}
+}
+
+func (c *devConfig) applyDefaultPortOffset(port *int64) portSource {
+	if c.portOffset == 0 {
+		return portSourceDefault
+	}
+	*port += int64(c.portOffset)
+	return portSourceOffset
 }
 
 func (c *devConfig) validate() error {
@@ -293,10 +401,6 @@ func (c *devConfig) validate() error {
 // resolveEnv sets defaults, unsets leaked credentials, resolves
 // filesystem paths, and computes the child process environment.
 func (c *devConfig) resolveEnv() error {
-	if strings.Contains(c.accessURL, "%d") {
-		c.accessURL = fmt.Sprintf(c.accessURL, c.apiPort)
-	}
-
 	// Prevent inherited credentials from leaking into child
 	// processes or being picked up by config reads.
 	_ = os.Unsetenv("CODER_SESSION_TOKEN")
@@ -310,6 +414,11 @@ func (c *devConfig) resolveEnv() error {
 	c.binaryPath = filepath.Join(c.projectRoot, "build",
 		fmt.Sprintf("coder_%s_%s", runtime.GOOS, runtime.GOARCH))
 	c.configDir = filepath.Join(c.projectRoot, ".coderv2")
+
+	c.applyPortOffset()
+	if strings.Contains(c.accessURL, "%d") {
+		c.accessURL = fmt.Sprintf(c.accessURL, c.apiPort)
+	}
 
 	// Compute once, reused by cmd().
 	c.childEnv = filterEnv(os.Environ(), "CODER_SESSION_TOKEN", "CODER_URL")
@@ -596,9 +705,12 @@ func startServer(cfg *devConfig, group *procGroup) error {
 		"server",
 		"--http-address", fmt.Sprintf("0.0.0.0:%d", cfg.apiPort),
 		"--swagger-enable",
-		"--access-url", cfg.accessURL,
 		"--dangerous-allow-cors-requests=true",
 		"--enable-terraform-debug-mode",
+	}
+	if cfg.accessURL != "" {
+		// Setting access url to `""` enables a `try.coder.app` url
+		serverArgs = append(serverArgs, "--access-url", cfg.accessURL)
 	}
 	if cfg.coderMetricsPort != 0 {
 		serverArgs = append(serverArgs,
@@ -1120,6 +1232,28 @@ func prometheusBannerEntry(cfg *devConfig, prometheusServerStarted bool) (label 
 	}
 }
 
+func portBannerLine(label string, port int64, source portSource, offset int) string {
+	portValue := strconv.FormatInt(port, 10)
+	if port == 0 {
+		portValue = "disabled"
+	}
+	if source == "" {
+		return fmt.Sprintf("%s: %s", label, portValue)
+	}
+	return fmt.Sprintf("%s: %s (%s)", label, portValue, portSourceLabel(source, offset))
+}
+
+func portSourceLabel(source portSource, offset int) string {
+	switch source {
+	case portSourceExplicit:
+		return fmt.Sprintf("explicit, offset +%d skipped", offset)
+	case portSourceOffset:
+		return fmt.Sprintf("offset +%d", offset)
+	default:
+		return fmt.Sprintf("default, offset +%d", offset)
+	}
+}
+
 func printBanner(ctx context.Context, logger slog.Logger, cfg *devConfig, prometheusServerStarted bool) {
 	ifaces := []string{"localhost"}
 	if addrs, err := net.InterfaceAddrs(); err == nil {
@@ -1152,6 +1286,12 @@ func printBanner(ctx context.Context, logger slog.Logger, cfg *devConfig, promet
 	line(
 		"",
 		indent("Coder is now running in development mode."),
+		"",
+		"Effective ports:",
+		indent(portBannerLine("API", cfg.apiPort, cfg.apiPortSource, cfg.portOffset)),
+		indent(portBannerLine("Web UI", cfg.webPort, cfg.webPortSource, cfg.portOffset)),
+		indent(portBannerLine("Proxy", cfg.proxyPort, cfg.proxyPortSource, cfg.portOffset)),
+		indent(portBannerLine("Coder metrics", cfg.coderMetricsPort, cfg.metricsPortSource, cfg.portOffset)),
 		"",
 		"API:",
 	)

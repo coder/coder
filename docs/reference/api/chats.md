@@ -6,21 +6,21 @@
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/experimental/chats \
+curl -X GET http://coder-server:8080/api/experimental/chats \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /experimental/chats`
+`GET /api/experimental/chats`
 
 Experimental: this endpoint is subject to change.
 
 ### Parameters
 
-| Name    | In    | Type   | Required | Description                                                    |
-|---------|-------|--------|----------|----------------------------------------------------------------|
-| `q`     | query | string | false    | Search query                                                   |
-| `label` | query | string | false    | Filter by label as key:value. Repeat for multiple (AND logic). |
+| Name    | In    | Type   | Required | Description                                                                 |
+|---------|-------|--------|----------|-----------------------------------------------------------------------------|
+| `q`     | query | string | false    | Search query. Supports archived:bool and diff_url:<url> terms (quote URLs). |
+| `label` | query | string | false    | Filter by label as key:value. Repeat for multiple (AND logic).              |
 
 ### Example responses
 
@@ -88,6 +88,7 @@ Experimental: this endpoint is subject to change.
           0
         ],
         "args_delta": "string",
+        "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
         "context_file_agent_id": {
           "uuid": "string",
@@ -125,6 +126,7 @@ Experimental: this endpoint is subject to change.
           0
         ],
         "result_delta": "string",
+        "result_reset": true,
         "signature": "string",
         "skill_description": "string",
         "skill_dir": "string",
@@ -146,6 +148,8 @@ Experimental: this endpoint is subject to change.
     ],
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+    "owner_name": "string",
+    "owner_username": "string",
     "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
     "pin_order": 0,
     "plan_mode": "plan",
@@ -171,110 +175,114 @@ Experimental: this endpoint is subject to change.
 
 Status Code **200**
 
-| Name                              | Type                                                                   | Required | Restrictions | Description                                                                                                                                                                                                                                                                |
-|-----------------------------------|------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `[array item]`                    | array                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
-| `» agent_id`                      | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                            |
-| `» archived`                      | boolean                                                                | false    |              |                                                                                                                                                                                                                                                                            |
-| `» build_id`                      | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                            |
-| `» children`                      | [codersdk.Chat](schemas.md#codersdkchat)                               | false    |              | Children holds child (subagent) chats nested under this root chat. Always initialized to an empty slice so the JSON field is present as []. Child chats cannot create their own subagents, so nesting depth is capped at 1 and this slice is always empty for child chats. |
-| `» client_type`                   | [codersdk.ChatClientType](schemas.md#codersdkchatclienttype)           | false    |              |                                                                                                                                                                                                                                                                            |
-| `» created_at`                    | string(date-time)                                                      | false    |              |                                                                                                                                                                                                                                                                            |
-| `» diff_status`                   | [codersdk.ChatDiffStatus](schemas.md#codersdkchatdiffstatus)           | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» additions`                    | integer                                                                | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» approved`                     | boolean                                                                | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» author_avatar_url`            | string                                                                 | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» author_login`                 | string                                                                 | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» base_branch`                  | string                                                                 | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» changed_files`                | integer                                                                | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» changes_requested`            | boolean                                                                | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» chat_id`                      | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» commits`                      | integer                                                                | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» deletions`                    | integer                                                                | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» head_branch`                  | string                                                                 | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» pr_number`                    | integer                                                                | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» pull_request_draft`           | boolean                                                                | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» pull_request_state`           | string                                                                 | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» pull_request_title`           | string                                                                 | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» refreshed_at`                 | string(date-time)                                                      | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» reviewer_count`               | integer                                                                | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» stale_at`                     | string(date-time)                                                      | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» url`                          | string                                                                 | false    |              |                                                                                                                                                                                                                                                                            |
-| `» files`                         | array                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» created_at`                   | string(date-time)                                                      | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» id`                           | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» mime_type`                    | string                                                                 | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» name`                         | string                                                                 | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» organization_id`              | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» owner_id`                     | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                            |
-| `» has_unread`                    | boolean                                                                | false    |              | Has unread is true when assistant messages exist beyond the owner's read cursor, which updates on stream connect and disconnect.                                                                                                                                           |
-| `» id`                            | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                            |
-| `» labels`                        | object                                                                 | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» [any property]`               | string                                                                 | false    |              |                                                                                                                                                                                                                                                                            |
-| `» last_error`                    | [codersdk.ChatError](schemas.md#codersdkchaterror)                     | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» detail`                       | string                                                                 | false    |              | Detail is optional provider-specific context shown alongside the normalized error message when available.                                                                                                                                                                  |
-| `»» kind`                         | [codersdk.ChatErrorKind](schemas.md#codersdkchaterrorkind)             | false    |              | Kind classifies the error for consistent client rendering.                                                                                                                                                                                                                 |
-| `»» message`                      | string                                                                 | false    |              | Message is the normalized, user-facing error message.                                                                                                                                                                                                                      |
-| `»» provider`                     | string                                                                 | false    |              | Provider identifies the upstream model provider when known.                                                                                                                                                                                                                |
-| `»» retryable`                    | boolean                                                                | false    |              | Retryable reports whether the underlying error is transient.                                                                                                                                                                                                               |
-| `»» status_code`                  | integer                                                                | false    |              | Status code is the best-effort upstream HTTP status code.                                                                                                                                                                                                                  |
-| `» last_injected_context`         | array                                                                  | false    |              | Last injected context holds the most recently persisted injected context parts (AGENTS.md files and skills). It is updated only when context changes, on first workspace attach or agent change.                                                                           |
-| `»» args`                         | array                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» args_delta`                   | string                                                                 | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» content`                      | string                                                                 | false    |              | The code content from the diff that was commented on.                                                                                                                                                                                                                      |
-| `»» context_file_agent_id`        | [uuid.NullUUID](schemas.md#uuidnulluuid)                               | false    |              | Context file agent ID is the workspace agent that provided this context file. Used to detect when the agent changes (e.g. workspace rebuilt) so instruction files can be re-persisted with fresh content.                                                                  |
-| `»»» uuid`                        | string                                                                 | false    |              |                                                                                                                                                                                                                                                                            |
-| `»»» valid`                       | boolean                                                                | false    |              | Valid is true if UUID is not NULL                                                                                                                                                                                                                                          |
-| `»» context_file_content`         | string                                                                 | false    |              | Context file content holds the file content sent to the LLM. Internal only: stripped before API responses to keep payloads small. The backend reads it when building the prompt via partsToMessageParts.                                                                   |
-| `»» context_file_directory`       | string                                                                 | false    |              | Context file directory is the working directory of the workspace agent. Internal only: same purpose as ContextFileOS.                                                                                                                                                      |
-| `»» context_file_os`              | string                                                                 | false    |              | Context file os is the operating system of the workspace agent. Internal only: used during prompt expansion so the LLM knows the OS even on turns where InsertSystem is not called.                                                                                        |
-| `»» context_file_path`            | string                                                                 | false    |              | Context file path is the absolute path of a file loaded into the LLM context (e.g. an AGENTS.md instruction file).                                                                                                                                                         |
-| `»» context_file_skill_meta_file` | string                                                                 | false    |              | Context file skill meta file is the basename of the skill meta file (e.g. "SKILL.md") at the time of persistence. Internal only: restored on subsequent turns so the read_skill tool uses the correct filename even when the agent configured a non-default value.         |
-| `»» context_file_truncated`       | boolean                                                                | false    |              | Context file truncated indicates the file exceeded the 64KiB instruction file limit and was truncated.                                                                                                                                                                     |
-| `»» created_at`                   | string(date-time)                                                      | false    |              | Created at records when this part was produced. Present on tool-call and tool-result parts so the frontend can compute tool execution duration.                                                                                                                            |
-| `»» data`                         | array                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» end_line`                     | integer                                                                | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» file_id`                      | [uuid.NullUUID](schemas.md#uuidnulluuid)                               | false    |              |                                                                                                                                                                                                                                                                            |
-| `»»» uuid`                        | string                                                                 | false    |              |                                                                                                                                                                                                                                                                            |
-| `»»» valid`                       | boolean                                                                | false    |              | Valid is true if UUID is not NULL                                                                                                                                                                                                                                          |
-| `»» file_name`                    | string                                                                 | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» is_error`                     | boolean                                                                | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» is_media`                     | boolean                                                                | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» mcp_server_config_id`         | [uuid.NullUUID](schemas.md#uuidnulluuid)                               | false    |              |                                                                                                                                                                                                                                                                            |
-| `»»» uuid`                        | string                                                                 | false    |              |                                                                                                                                                                                                                                                                            |
-| `»»» valid`                       | boolean                                                                | false    |              | Valid is true if UUID is not NULL                                                                                                                                                                                                                                          |
-| `»» media_type`                   | string                                                                 | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» name`                         | string                                                                 | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» provider_executed`            | boolean                                                                | false    |              | Provider executed indicates the tool call was executed by the provider (e.g. Anthropic computer use).                                                                                                                                                                      |
-| `»» provider_metadata`            | array                                                                  | false    |              | Provider metadata holds provider-specific response metadata (e.g. Anthropic cache control hints) as raw JSON. Internal only: stripped by db2sdk before API responses.                                                                                                      |
-| `»» result`                       | array                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» result_delta`                 | string                                                                 | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» signature`                    | string                                                                 | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» skill_description`            | string                                                                 | false    |              | Skill description is the short description from the skill's SKILL.md frontmatter.                                                                                                                                                                                          |
-| `»» skill_dir`                    | string                                                                 | false    |              | Skill dir is the absolute path to the skill directory inside the workspace filesystem. Internal only: used by read_skill/read_skill_file tools to locate skill files.                                                                                                      |
-| `»» skill_name`                   | string                                                                 | false    |              | Skill name is the kebab-case name of a discovered skill from the workspace's .agents/skills/ directory.                                                                                                                                                                    |
-| `»» source_id`                    | string                                                                 | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» start_line`                   | integer                                                                | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» text`                         | string                                                                 | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» title`                        | string                                                                 | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» tool_call_id`                 | string                                                                 | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» tool_name`                    | string                                                                 | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» type`                         | [codersdk.ChatMessagePartType](schemas.md#codersdkchatmessageparttype) | false    |              |                                                                                                                                                                                                                                                                            |
-| `»» url`                          | string                                                                 | false    |              |                                                                                                                                                                                                                                                                            |
-| `» last_model_config_id`          | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                            |
-| `» last_turn_summary`             | string                                                                 | false    |              |                                                                                                                                                                                                                                                                            |
-| `» mcp_server_ids`                | array                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
-| `» organization_id`               | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                            |
-| `» owner_id`                      | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                            |
-| `» parent_chat_id`                | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                            |
-| `» pin_order`                     | integer                                                                | false    |              |                                                                                                                                                                                                                                                                            |
-| `» plan_mode`                     | [codersdk.ChatPlanMode](schemas.md#codersdkchatplanmode)               | false    |              |                                                                                                                                                                                                                                                                            |
-| `» root_chat_id`                  | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                            |
-| `» status`                        | [codersdk.ChatStatus](schemas.md#codersdkchatstatus)                   | false    |              |                                                                                                                                                                                                                                                                            |
-| `» title`                         | string                                                                 | false    |              |                                                                                                                                                                                                                                                                            |
-| `» updated_at`                    | string(date-time)                                                      | false    |              |                                                                                                                                                                                                                                                                            |
-| `» warnings`                      | array                                                                  | false    |              |                                                                                                                                                                                                                                                                            |
-| `» workspace_id`                  | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                            |
+| Name                              | Type                                                                   | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                      |
+|-----------------------------------|------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `[array item]`                    | array                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `» agent_id`                      | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `» archived`                      | boolean                                                                | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `» build_id`                      | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `» children`                      | [codersdk.Chat](schemas.md#codersdkchat)                               | false    |              | Children holds child (subagent) chats nested under this root chat. Always initialized to an empty slice so the JSON field is present as []. Child chats cannot create their own subagents, so nesting depth is capped at 1 and this slice is always empty for child chats.                                                       |
+| `» client_type`                   | [codersdk.ChatClientType](schemas.md#codersdkchatclienttype)           | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `» created_at`                    | string(date-time)                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `» diff_status`                   | [codersdk.ChatDiffStatus](schemas.md#codersdkchatdiffstatus)           | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» additions`                    | integer                                                                | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» approved`                     | boolean                                                                | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» author_avatar_url`            | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» author_login`                 | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» base_branch`                  | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» changed_files`                | integer                                                                | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» changes_requested`            | boolean                                                                | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» chat_id`                      | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» commits`                      | integer                                                                | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» deletions`                    | integer                                                                | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» head_branch`                  | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» pr_number`                    | integer                                                                | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» pull_request_draft`           | boolean                                                                | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» pull_request_state`           | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» pull_request_title`           | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» refreshed_at`                 | string(date-time)                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» reviewer_count`               | integer                                                                | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» stale_at`                     | string(date-time)                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» url`                          | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `» files`                         | array                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» created_at`                   | string(date-time)                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» id`                           | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» mime_type`                    | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» name`                         | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» organization_id`              | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» owner_id`                     | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `» has_unread`                    | boolean                                                                | false    |              | Has unread is true when assistant messages exist beyond the owner's read cursor, which updates on stream connect and disconnect.                                                                                                                                                                                                 |
+| `» id`                            | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `» labels`                        | object                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» [any property]`               | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `» last_error`                    | [codersdk.ChatError](schemas.md#codersdkchaterror)                     | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» detail`                       | string                                                                 | false    |              | Detail is optional provider-specific context shown alongside the normalized error message when available.                                                                                                                                                                                                                        |
+| `»» kind`                         | [codersdk.ChatErrorKind](schemas.md#codersdkchaterrorkind)             | false    |              | Kind classifies the error for consistent client rendering.                                                                                                                                                                                                                                                                       |
+| `»» message`                      | string                                                                 | false    |              | Message is the normalized, user-facing error message.                                                                                                                                                                                                                                                                            |
+| `»» provider`                     | string                                                                 | false    |              | Provider identifies the upstream model provider when known.                                                                                                                                                                                                                                                                      |
+| `»» retryable`                    | boolean                                                                | false    |              | Retryable reports whether the underlying error is transient.                                                                                                                                                                                                                                                                     |
+| `»» status_code`                  | integer                                                                | false    |              | Status code is the best-effort upstream HTTP status code.                                                                                                                                                                                                                                                                        |
+| `» last_injected_context`         | array                                                                  | false    |              | Last injected context holds the most recently persisted injected context parts (AGENTS.md files and skills). It is updated only when context changes, on first workspace attach or agent change.                                                                                                                                 |
+| `»» args`                         | array                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» args_delta`                   | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» completed_at`                 | string(date-time)                                                      | false    |              | Completed at is the time a reasoning part finished streaming, so reasoning duration can be computed as completed_at minus created_at. For interrupted reasoning, this is the interruption time. Absent when reasoning timestamp data was not recorded (e.g. messages persisted before this feature was added).                   |
+| `»» content`                      | string                                                                 | false    |              | The code content from the diff that was commented on.                                                                                                                                                                                                                                                                            |
+| `»» context_file_agent_id`        | [uuid.NullUUID](schemas.md#uuidnulluuid)                               | false    |              | Context file agent ID is the workspace agent that provided this context file. Used to detect when the agent changes (e.g. workspace rebuilt) so instruction files can be re-persisted with fresh content.                                                                                                                        |
+| `»»» uuid`                        | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»»» valid`                       | boolean                                                                | false    |              | Valid is true if UUID is not NULL                                                                                                                                                                                                                                                                                                |
+| `»» context_file_content`         | string                                                                 | false    |              | Context file content holds the file content sent to the LLM. Internal only: stripped before API responses to keep payloads small. The backend reads it when building the prompt via partsToMessageParts.                                                                                                                         |
+| `»» context_file_directory`       | string                                                                 | false    |              | Context file directory is the working directory of the workspace agent. Internal only: same purpose as ContextFileOS.                                                                                                                                                                                                            |
+| `»» context_file_os`              | string                                                                 | false    |              | Context file os is the operating system of the workspace agent. Internal only: used during prompt expansion so the LLM knows the OS even on turns where InsertSystem is not called.                                                                                                                                              |
+| `»» context_file_path`            | string                                                                 | false    |              | Context file path is the absolute path of a file loaded into the LLM context (e.g. an AGENTS.md instruction file).                                                                                                                                                                                                               |
+| `»» context_file_skill_meta_file` | string                                                                 | false    |              | Context file skill meta file is the basename of the skill meta file (e.g. "SKILL.md") at the time of persistence. Internal only: restored on subsequent turns so the read_skill tool uses the correct filename even when the agent configured a non-default value.                                                               |
+| `»» context_file_truncated`       | boolean                                                                | false    |              | Context file truncated indicates the file exceeded the 64KiB instruction file limit and was truncated.                                                                                                                                                                                                                           |
+| `»» created_at`                   | string(date-time)                                                      | false    |              | Created at is the timestamp this part carries. The semantics depend on the part type: for tool-call and tool-result parts it is the time the call was emitted or the result was produced (tool duration is the result's created_at minus the call's created_at); for reasoning parts it is the time reasoning started streaming. |
+| `»» data`                         | array                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» end_line`                     | integer                                                                | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» file_id`                      | [uuid.NullUUID](schemas.md#uuidnulluuid)                               | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»»» uuid`                        | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»»» valid`                       | boolean                                                                | false    |              | Valid is true if UUID is not NULL                                                                                                                                                                                                                                                                                                |
+| `»» file_name`                    | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» is_error`                     | boolean                                                                | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» is_media`                     | boolean                                                                | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» mcp_server_config_id`         | [uuid.NullUUID](schemas.md#uuidnulluuid)                               | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»»» uuid`                        | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»»» valid`                       | boolean                                                                | false    |              | Valid is true if UUID is not NULL                                                                                                                                                                                                                                                                                                |
+| `»» media_type`                   | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» name`                         | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» provider_executed`            | boolean                                                                | false    |              | Provider executed indicates the tool call was executed by the provider (e.g. Anthropic computer use).                                                                                                                                                                                                                            |
+| `»» provider_metadata`            | array                                                                  | false    |              | Provider metadata holds provider-specific response metadata (e.g. Anthropic cache control hints) as raw JSON. Internal only: stripped by db2sdk before API responses.                                                                                                                                                            |
+| `»» result`                       | array                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» result_delta`                 | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» result_reset`                 | boolean                                                                | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» signature`                    | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» skill_description`            | string                                                                 | false    |              | Skill description is the short description from the skill's SKILL.md frontmatter.                                                                                                                                                                                                                                                |
+| `»» skill_dir`                    | string                                                                 | false    |              | Skill dir is the absolute path to the skill directory inside the workspace filesystem. Internal only: used by read_skill/read_skill_file tools to locate skill files.                                                                                                                                                            |
+| `»» skill_name`                   | string                                                                 | false    |              | Skill name is the kebab-case name of a discovered skill from the workspace's .agents/skills/ directory.                                                                                                                                                                                                                          |
+| `»» source_id`                    | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» start_line`                   | integer                                                                | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» text`                         | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» title`                        | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» tool_call_id`                 | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» tool_name`                    | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» type`                         | [codersdk.ChatMessagePartType](schemas.md#codersdkchatmessageparttype) | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» url`                          | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `» last_model_config_id`          | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `» last_turn_summary`             | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `» mcp_server_ids`                | array                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `» organization_id`               | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `» owner_id`                      | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `» owner_name`                    | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `» owner_username`                | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `» parent_chat_id`                | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `» pin_order`                     | integer                                                                | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `» plan_mode`                     | [codersdk.ChatPlanMode](schemas.md#codersdkchatplanmode)               | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `» root_chat_id`                  | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `» status`                        | [codersdk.ChatStatus](schemas.md#codersdkchatstatus)                   | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `» title`                         | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `» updated_at`                    | string(date-time)                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `» warnings`                      | array                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `» workspace_id`                  | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                  |
 
 #### Enumerated Values
 
@@ -294,13 +302,13 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/experimental/chats \
+curl -X POST http://coder-server:8080/api/experimental/chats \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /experimental/chats`
+`POST /api/experimental/chats`
 
 Experimental: this endpoint is subject to change.
 
@@ -418,6 +426,7 @@ Experimental: this endpoint is subject to change.
             0
           ],
           "args_delta": "string",
+          "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
           "context_file_agent_id": {
             "uuid": "string",
@@ -455,6 +464,7 @@ Experimental: this endpoint is subject to change.
             0
           ],
           "result_delta": "string",
+          "result_reset": true,
           "signature": "string",
           "skill_description": "string",
           "skill_dir": "string",
@@ -476,6 +486,8 @@ Experimental: this endpoint is subject to change.
       ],
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+      "owner_name": "string",
+      "owner_username": "string",
       "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
       "pin_order": 0,
       "plan_mode": "plan",
@@ -542,6 +554,7 @@ Experimental: this endpoint is subject to change.
         0
       ],
       "args_delta": "string",
+      "completed_at": "2019-08-24T14:15:22Z",
       "content": "string",
       "context_file_agent_id": {
         "uuid": "string",
@@ -579,6 +592,7 @@ Experimental: this endpoint is subject to change.
         0
       ],
       "result_delta": "string",
+      "result_reset": true,
       "signature": "string",
       "skill_description": "string",
       "skill_dir": "string",
@@ -600,6 +614,8 @@ Experimental: this endpoint is subject to change.
   ],
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "owner_name": "string",
+  "owner_username": "string",
   "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
   "pin_order": 0,
   "plan_mode": "plan",
@@ -628,12 +644,12 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/experimental/chats/files?organization=497f6eca-6276-4993-bfeb-53cbbbba6f08 \
+curl -X POST http://coder-server:8080/api/experimental/chats/files?organization=497f6eca-6276-4993-bfeb-53cbbbba6f08 \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /experimental/chats/files`
+`POST /api/experimental/chats/files`
 
 Experimental: this endpoint is subject to change.
 
@@ -667,11 +683,11 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/experimental/chats/files/{file} \
+curl -X GET http://coder-server:8080/api/experimental/chats/files/{file} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /experimental/chats/files/{file}`
+`GET /api/experimental/chats/files/{file}`
 
 Experimental: this endpoint is subject to change.
 
@@ -695,12 +711,12 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/experimental/chats/models \
+curl -X GET http://coder-server:8080/api/experimental/chats/models \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /experimental/chats/models`
+`GET /api/experimental/chats/models`
 
 Experimental: this endpoint is subject to change.
 
@@ -742,12 +758,12 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/experimental/chats/watch \
+curl -X GET http://coder-server:8080/api/experimental/chats/watch \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /experimental/chats/watch`
+`GET /api/experimental/chats/watch`
 
 Experimental: this endpoint is subject to change.
 
@@ -817,6 +833,7 @@ Experimental: this endpoint is subject to change.
           0
         ],
         "args_delta": "string",
+        "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
         "context_file_agent_id": {
           "uuid": "string",
@@ -854,6 +871,7 @@ Experimental: this endpoint is subject to change.
           0
         ],
         "result_delta": "string",
+        "result_reset": true,
         "signature": "string",
         "skill_description": "string",
         "skill_dir": "string",
@@ -875,6 +893,8 @@ Experimental: this endpoint is subject to change.
     ],
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+    "owner_name": "string",
+    "owner_username": "string",
     "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
     "pin_order": 0,
     "plan_mode": "plan",
@@ -912,12 +932,12 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/experimental/chats/{chat} \
+curl -X GET http://coder-server:8080/api/experimental/chats/{chat} \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /experimental/chats/{chat}`
+`GET /api/experimental/chats/{chat}`
 
 Experimental: this endpoint is subject to change.
 
@@ -995,6 +1015,7 @@ Experimental: this endpoint is subject to change.
             0
           ],
           "args_delta": "string",
+          "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
           "context_file_agent_id": {
             "uuid": "string",
@@ -1032,6 +1053,7 @@ Experimental: this endpoint is subject to change.
             0
           ],
           "result_delta": "string",
+          "result_reset": true,
           "signature": "string",
           "skill_description": "string",
           "skill_dir": "string",
@@ -1053,6 +1075,8 @@ Experimental: this endpoint is subject to change.
       ],
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+      "owner_name": "string",
+      "owner_username": "string",
       "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
       "pin_order": 0,
       "plan_mode": "plan",
@@ -1119,6 +1143,7 @@ Experimental: this endpoint is subject to change.
         0
       ],
       "args_delta": "string",
+      "completed_at": "2019-08-24T14:15:22Z",
       "content": "string",
       "context_file_agent_id": {
         "uuid": "string",
@@ -1156,6 +1181,7 @@ Experimental: this endpoint is subject to change.
         0
       ],
       "result_delta": "string",
+      "result_reset": true,
       "signature": "string",
       "skill_description": "string",
       "skill_dir": "string",
@@ -1177,6 +1203,8 @@ Experimental: this endpoint is subject to change.
   ],
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "owner_name": "string",
+  "owner_username": "string",
   "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
   "pin_order": 0,
   "plan_mode": "plan",
@@ -1205,12 +1233,12 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X PATCH http://coder-server:8080/experimental/chats/{chat} \
+curl -X PATCH http://coder-server:8080/api/experimental/chats/{chat} \
   -H 'Content-Type: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PATCH /experimental/chats/{chat}`
+`PATCH /api/experimental/chats/{chat}`
 
 Experimental: this endpoint is subject to change.
 
@@ -1251,12 +1279,12 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/experimental/chats/{chat}/diff \
+curl -X GET http://coder-server:8080/api/experimental/chats/{chat}/diff \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /experimental/chats/{chat}/diff`
+`GET /api/experimental/chats/{chat}/diff`
 
 Experimental: this endpoint is subject to change.
 
@@ -1295,12 +1323,12 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/experimental/chats/{chat}/interrupt \
+curl -X POST http://coder-server:8080/api/experimental/chats/{chat}/interrupt \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /experimental/chats/{chat}/interrupt`
+`POST /api/experimental/chats/{chat}/interrupt`
 
 Experimental: this endpoint is subject to change.
 
@@ -1378,6 +1406,7 @@ Experimental: this endpoint is subject to change.
             0
           ],
           "args_delta": "string",
+          "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
           "context_file_agent_id": {
             "uuid": "string",
@@ -1415,6 +1444,7 @@ Experimental: this endpoint is subject to change.
             0
           ],
           "result_delta": "string",
+          "result_reset": true,
           "signature": "string",
           "skill_description": "string",
           "skill_dir": "string",
@@ -1436,6 +1466,8 @@ Experimental: this endpoint is subject to change.
       ],
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+      "owner_name": "string",
+      "owner_username": "string",
       "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
       "pin_order": 0,
       "plan_mode": "plan",
@@ -1502,6 +1534,7 @@ Experimental: this endpoint is subject to change.
         0
       ],
       "args_delta": "string",
+      "completed_at": "2019-08-24T14:15:22Z",
       "content": "string",
       "context_file_agent_id": {
         "uuid": "string",
@@ -1539,6 +1572,7 @@ Experimental: this endpoint is subject to change.
         0
       ],
       "result_delta": "string",
+      "result_reset": true,
       "signature": "string",
       "skill_description": "string",
       "skill_dir": "string",
@@ -1560,6 +1594,8 @@ Experimental: this endpoint is subject to change.
   ],
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "owner_name": "string",
+  "owner_username": "string",
   "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
   "pin_order": 0,
   "plan_mode": "plan",
@@ -1588,12 +1624,12 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/experimental/chats/{chat}/messages \
+curl -X GET http://coder-server:8080/api/experimental/chats/{chat}/messages \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /experimental/chats/{chat}/messages`
+`GET /api/experimental/chats/{chat}/messages`
 
 Experimental: this endpoint is subject to change.
 
@@ -1622,6 +1658,7 @@ Experimental: this endpoint is subject to change.
             0
           ],
           "args_delta": "string",
+          "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
           "context_file_agent_id": {
             "uuid": "string",
@@ -1659,6 +1696,7 @@ Experimental: this endpoint is subject to change.
             0
           ],
           "result_delta": "string",
+          "result_reset": true,
           "signature": "string",
           "skill_description": "string",
           "skill_dir": "string",
@@ -1698,6 +1736,7 @@ Experimental: this endpoint is subject to change.
             0
           ],
           "args_delta": "string",
+          "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
           "context_file_agent_id": {
             "uuid": "string",
@@ -1735,6 +1774,7 @@ Experimental: this endpoint is subject to change.
             0
           ],
           "result_delta": "string",
+          "result_reset": true,
           "signature": "string",
           "skill_description": "string",
           "skill_dir": "string",
@@ -1771,13 +1811,13 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/experimental/chats/{chat}/messages \
+curl -X POST http://coder-server:8080/api/experimental/chats/{chat}/messages \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /experimental/chats/{chat}/messages`
+`POST /api/experimental/chats/{chat}/messages`
 
 Experimental: this endpoint is subject to change.
 
@@ -1826,6 +1866,7 @@ Experimental: this endpoint is subject to change.
           0
         ],
         "args_delta": "string",
+        "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
         "context_file_agent_id": {
           "uuid": "string",
@@ -1863,6 +1904,7 @@ Experimental: this endpoint is subject to change.
           0
         ],
         "result_delta": "string",
+        "result_reset": true,
         "signature": "string",
         "skill_description": "string",
         "skill_dir": "string",
@@ -1901,6 +1943,7 @@ Experimental: this endpoint is subject to change.
           0
         ],
         "args_delta": "string",
+        "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
         "context_file_agent_id": {
           "uuid": "string",
@@ -1938,6 +1981,7 @@ Experimental: this endpoint is subject to change.
           0
         ],
         "result_delta": "string",
+        "result_reset": true,
         "signature": "string",
         "skill_description": "string",
         "skill_dir": "string",
@@ -1976,13 +2020,13 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X PATCH http://coder-server:8080/experimental/chats/{chat}/messages/{message} \
+curl -X PATCH http://coder-server:8080/api/experimental/chats/{chat}/messages/{message} \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PATCH /experimental/chats/{chat}/messages/{message}`
+`PATCH /api/experimental/chats/{chat}/messages/{message}`
 
 Experimental: this endpoint is subject to change.
 
@@ -2000,7 +2044,8 @@ Experimental: this endpoint is subject to change.
       "text": "string",
       "type": "text"
     }
-  ]
+  ],
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
 }
 ```
 
@@ -2026,6 +2071,7 @@ Experimental: this endpoint is subject to change.
           0
         ],
         "args_delta": "string",
+        "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
         "context_file_agent_id": {
           "uuid": "string",
@@ -2063,6 +2109,7 @@ Experimental: this endpoint is subject to change.
           0
         ],
         "result_delta": "string",
+        "result_reset": true,
         "signature": "string",
         "skill_description": "string",
         "skill_dir": "string",
@@ -2106,18 +2153,69 @@ Experimental: this endpoint is subject to change.
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## List chat user prompts
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/experimental/chats/{chat}/prompts \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/experimental/chats/{chat}/prompts`
+
+Experimental: this endpoint is subject to change.
+
+Returns the user-authored prompts in a chat, newest first,
+with each prompt's text parts concatenated in the order they
+were authored. Used by the composer to power the up/down
+arrow prompt-history cycle without paging through every
+message in the chat.
+
+### Parameters
+
+| Name    | In    | Type         | Required | Description                                                                 |
+|---------|-------|--------------|----------|-----------------------------------------------------------------------------|
+| `chat`  | path  | string(uuid) | true     | Chat ID                                                                     |
+| `limit` | query | integer      | false    | Page size, 0 to 2000. 0 (the default) means the server-side default of 500. |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "prompts": [
+    {
+      "id": 0,
+      "text": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                 |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatPromptsResponse](schemas.md#codersdkchatpromptsresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Stream chat events via WebSockets
 
 ### Code samples
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/experimental/chats/{chat}/stream \
+curl -X GET http://coder-server:8080/api/experimental/chats/{chat}/stream \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /experimental/chats/{chat}/stream`
+`GET /api/experimental/chats/{chat}/stream`
 
 Experimental: this endpoint is subject to change.
 
@@ -2159,6 +2257,7 @@ Experimental: this endpoint is subject to change.
           0
         ],
         "args_delta": "string",
+        "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
         "context_file_agent_id": {
           "uuid": "string",
@@ -2196,6 +2295,7 @@ Experimental: this endpoint is subject to change.
           0
         ],
         "result_delta": "string",
+        "result_reset": true,
         "signature": "string",
         "skill_description": "string",
         "skill_dir": "string",
@@ -2231,6 +2331,7 @@ Experimental: this endpoint is subject to change.
         0
       ],
       "args_delta": "string",
+      "completed_at": "2019-08-24T14:15:22Z",
       "content": "string",
       "context_file_agent_id": {
         "uuid": "string",
@@ -2268,6 +2369,7 @@ Experimental: this endpoint is subject to change.
         0
       ],
       "result_delta": "string",
+      "result_reset": true,
       "signature": "string",
       "skill_description": "string",
       "skill_dir": "string",
@@ -2292,6 +2394,7 @@ Experimental: this endpoint is subject to change.
             0
           ],
           "args_delta": "string",
+          "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
           "context_file_agent_id": {
             "uuid": "string",
@@ -2329,6 +2432,7 @@ Experimental: this endpoint is subject to change.
             0
           ],
           "result_delta": "string",
+          "result_reset": true,
           "signature": "string",
           "skill_description": "string",
           "skill_dir": "string",
@@ -2378,11 +2482,11 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/experimental/chats/{chat}/stream/desktop \
+curl -X GET http://coder-server:8080/api/experimental/chats/{chat}/stream/desktop \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /experimental/chats/{chat}/stream/desktop`
+`GET /api/experimental/chats/{chat}/stream/desktop`
 
 Raw binary WebSocket stream of the chat workspace desktop.
 Experimental: this endpoint is subject to change.
@@ -2407,12 +2511,12 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/experimental/chats/{chat}/stream/git \
+curl -X GET http://coder-server:8080/api/experimental/chats/{chat}/stream/git \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /experimental/chats/{chat}/stream/git`
+`GET /api/experimental/chats/{chat}/stream/git`
 
 Experimental: this endpoint is subject to change.
 
@@ -2457,12 +2561,12 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/experimental/chats/{chat}/title/regenerate \
+curl -X POST http://coder-server:8080/api/experimental/chats/{chat}/title/regenerate \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /experimental/chats/{chat}/title/regenerate`
+`POST /api/experimental/chats/{chat}/title/regenerate`
 
 Experimental: this endpoint is subject to change.
 
@@ -2540,6 +2644,7 @@ Experimental: this endpoint is subject to change.
             0
           ],
           "args_delta": "string",
+          "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
           "context_file_agent_id": {
             "uuid": "string",
@@ -2577,6 +2682,7 @@ Experimental: this endpoint is subject to change.
             0
           ],
           "result_delta": "string",
+          "result_reset": true,
           "signature": "string",
           "skill_description": "string",
           "skill_dir": "string",
@@ -2598,6 +2704,8 @@ Experimental: this endpoint is subject to change.
       ],
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+      "owner_name": "string",
+      "owner_username": "string",
       "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
       "pin_order": 0,
       "plan_mode": "plan",
@@ -2664,6 +2772,7 @@ Experimental: this endpoint is subject to change.
         0
       ],
       "args_delta": "string",
+      "completed_at": "2019-08-24T14:15:22Z",
       "content": "string",
       "context_file_agent_id": {
         "uuid": "string",
@@ -2701,6 +2810,7 @@ Experimental: this endpoint is subject to change.
         0
       ],
       "result_delta": "string",
+      "result_reset": true,
       "signature": "string",
       "skill_description": "string",
       "skill_dir": "string",
@@ -2722,6 +2832,8 @@ Experimental: this endpoint is subject to change.
   ],
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "owner_name": "string",
+  "owner_username": "string",
   "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
   "pin_order": 0,
   "plan_mode": "plan",

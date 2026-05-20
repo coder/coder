@@ -20,6 +20,10 @@ export const chatsKey = ["chats"] as const;
 export const chatKey = (chatId: string) => ["chats", chatId] as const;
 export const chatMessagesKey = (chatId: string) =>
 	["chats", chatId, "messages"] as const;
+export const chatPromptsKey = (chatId: string) =>
+	["chats", chatId, "prompts"] as const;
+
+export const chatACLKey = (chatId: string) => ["chats", chatId, "acl"] as const;
 
 export const chatsByWorkspaceKeyPrefix = [...chatsKey, "by-workspace"] as const;
 
@@ -539,6 +543,11 @@ export const chat = (chatId: string) => ({
 	queryFn: () => API.experimental.getChat(chatId),
 });
 
+export const chatACL = (chatId: string) => ({
+	queryKey: chatACLKey(chatId),
+	queryFn: () => API.experimental.getChatACL(chatId),
+});
+
 const MESSAGES_PAGE_SIZE = 50;
 
 export const chatMessagesForInfiniteScroll = (chatId: string) => ({
@@ -558,6 +567,19 @@ export const chatMessagesForInfiniteScroll = (chatId: string) => ({
 		// Use its ID as the cursor for the next (older) page.
 		return lastPage.messages[lastPage.messages.length - 1].id;
 	},
+});
+
+// Cap requested prompts to keep the response small; well under the server-side maximum.
+const PROMPT_HISTORY_LIMIT = 500;
+
+const PROMPTS_STALE_MS = 30_000;
+
+export const chatPromptsQuery = (chatId: string) => ({
+	queryKey: chatPromptsKey(chatId),
+	queryFn: () =>
+		API.experimental.getChatPrompts(chatId, { limit: PROMPT_HISTORY_LIMIT }),
+	staleTime: PROMPTS_STALE_MS,
+	enabled: chatId !== "",
 });
 
 export const archiveChat = (queryClient: QueryClient) => ({
@@ -1149,6 +1171,10 @@ export const createChatMessage = (
 		API.experimental.createChatMessage(chatId, req),
 	onSuccess: () => {
 		void invalidateChatDebugRuns(queryClient, chatId);
+		void queryClient.invalidateQueries({
+			queryKey: chatPromptsKey(chatId),
+			exact: true,
+		});
 	},
 });
 
@@ -1236,6 +1262,10 @@ export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 		// truncation.
 		void queryClient.invalidateQueries({
 			queryKey: chatKey(chatId),
+			exact: true,
+		});
+		void queryClient.invalidateQueries({
+			queryKey: chatPromptsKey(chatId),
 			exact: true,
 		});
 		void invalidateChatDebugRuns(queryClient, chatId);
@@ -1868,5 +1898,43 @@ export const deleteMCPServerConfig = (queryClient: QueryClient) => ({
 	mutationFn: (id: string) => API.experimental.deleteMCPServerConfig(id),
 	onSuccess: async () => {
 		await invalidateMCPServerConfigQueries(queryClient);
+	},
+});
+
+type SetChatUserRoleVariables = {
+	chatId: string;
+	userId: string;
+	role: TypesGen.ChatRole;
+};
+
+type SetChatGroupRoleVariables = {
+	chatId: string;
+	groupId: string;
+	role: TypesGen.ChatRole;
+};
+
+export const setChatUserRole = (queryClient: QueryClient) => ({
+	mutationFn: ({ chatId, userId, role }: SetChatUserRoleVariables) =>
+		API.experimental.updateChatACL(chatId, {
+			user_roles: { [userId]: role },
+		}),
+	onSuccess: async (_data: unknown, { chatId }: SetChatUserRoleVariables) => {
+		await queryClient.invalidateQueries({
+			queryKey: chatACLKey(chatId),
+			exact: true,
+		});
+	},
+});
+
+export const setChatGroupRole = (queryClient: QueryClient) => ({
+	mutationFn: ({ chatId, groupId, role }: SetChatGroupRoleVariables) =>
+		API.experimental.updateChatACL(chatId, {
+			group_roles: { [groupId]: role },
+		}),
+	onSuccess: async (_data: unknown, { chatId }: SetChatGroupRoleVariables) => {
+		await queryClient.invalidateQueries({
+			queryKey: chatACLKey(chatId),
+			exact: true,
+		});
 	},
 });

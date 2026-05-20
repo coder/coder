@@ -1,5 +1,4 @@
 import { css } from "@emotion/css";
-import type { Interpolation, Theme } from "@emotion/react";
 import Dialog from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
@@ -60,13 +59,13 @@ export const UpdateBuildParametersDialog: FC<
 			>
 				Workspace parameters
 			</DialogTitle>
-			<DialogContent css={styles.content}>
+			<DialogContent className="px-10">
 				<DialogContentText className="m-0">
 					This template has new parameters that must be configured to complete
 					the update
 				</DialogContentText>
 				<VerticalForm
-					css={styles.form}
+					className="pt-8"
 					onSubmit={form.handleSubmit}
 					id="updateParameters"
 				>
@@ -96,7 +95,7 @@ export const UpdateBuildParametersDialog: FC<
 					)}
 				</VerticalForm>
 			</DialogContent>
-			<DialogActions disableSpacing css={styles.dialogActions}>
+			<DialogActions disableSpacing className="flex flex-col gap-2 p-10">
 				<Button
 					variant="outline"
 					className="w-full"
@@ -123,19 +122,3 @@ const classNames = {
 		}
 	`,
 };
-
-const styles = {
-	content: {
-		padding: "0 40px",
-	},
-
-	form: {
-		paddingTop: 32,
-	},
-
-	dialogActions: {
-		padding: 40,
-		flexDirection: "column",
-		gap: 8,
-	},
-} satisfies Record<string, Interpolation<Theme>>;
