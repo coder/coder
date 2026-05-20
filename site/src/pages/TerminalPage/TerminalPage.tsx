@@ -78,7 +78,8 @@ const TerminalPage: FC = () => {
 
 	// Raw ?command= params require explicit user confirmation.
 	// Trusted ?app= commands bypass the dialog.
-	const commandPendingConfirmation = !!command && !appSlug && !commandConfirmed;
+	const commandPendingConfirmation =
+		Boolean(command) && !appSlug && !commandConfirmed;
 	const initialCommand = appCommand
 		? appCommand
 		: command && commandConfirmed

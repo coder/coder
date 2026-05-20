@@ -1449,7 +1449,7 @@ const WorkspacePickerList: FC<WorkspacePickerListProps> = ({
 				<CommandGroup>
 					{workspaceOptions?.map((workspace) => {
 						const isCrossOrg =
-							!!chatOrganizationId &&
+							Boolean(chatOrganizationId) &&
 							workspace.organization_id !== chatOrganizationId;
 
 						const item = (

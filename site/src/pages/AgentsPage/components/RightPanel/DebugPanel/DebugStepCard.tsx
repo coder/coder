@@ -95,10 +95,10 @@ export const DebugStepCard: FC<DebugStepCardProps> = ({
 
 	// Detect whether there is meaningful output.
 	const hasOutput =
-		!!response.content ||
+		Boolean(response.content) ||
 		response.toolCalls.length > 0 ||
 		response.warnings.length > 0 ||
-		!!response.finishReason;
+		Boolean(response.finishReason);
 
 	// Detect whether there is an error payload. `step.error` is typed
 	// as an object but the runtime may deliver either a string or a

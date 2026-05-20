@@ -21,7 +21,7 @@ export const useWebpushNotifications = (): WebpushNotifications => {
 	const enabled =
 		"Notification" in window &&
 		"serviceWorker" in navigator &&
-		!!buildInfoQuery.data?.webpush_public_key;
+		Boolean(buildInfoQuery.data?.webpush_public_key);
 
 	useEffect(() => {
 		// Check if browser supports push notifications

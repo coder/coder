@@ -30,7 +30,7 @@ const OrganizationProvisionersPage: FC = () => {
 			...queryParams,
 			limit: 100,
 		}),
-		enabled: !!organization,
+		enabled: Boolean(organization),
 	});
 
 	if (!organization) {

@@ -49,6 +49,7 @@
 		"typescript/prefer-enum-initializers": "error",
 		"typescript/no-inferrable-types": "error",
 		"eslint/no-else-return": "error",
+		"eslint/no-implicit-coercion": "error",
 		"eslint/no-restricted-imports": [
 			"error",
 			{

@@ -53,7 +53,7 @@ export const ExecuteTool: React.FC<ExecuteToolProps> = (props) => {
 		props.output.length > 0 ||
 		props.status === "running" ||
 		props.isBackgrounded ||
-		!!props.killedBySignal
+		Boolean(props.killedBySignal)
 			? "preview"
 			: "collapsed";
 	const resolvedDisplayState = resolveAgentDisplayState(
