@@ -32,19 +32,22 @@ const (
 	xterm256Color = "xterm-256color"
 )
 
+// withTerminalEnv returns env with the terminal type and UTF-8 character locale expected by the web terminal.
 func withTerminalEnv(env []string) []string {
 	next := make([]string, 0, len(env)+2)
 	next = append(next, env...)
 	next = append(next, "TERM="+xterm256Color)
-	// tmux uses the process locale for glyph width and replacement behavior.
-	// Set only LC_CTYPE so other locale categories keep the user's settings.
-	// Preserve non-empty LC_ALL because it has higher precedence than LC_CTYPE.
+	// Some terminal applications use the process locale for glyph width and
+	// replacement behavior. Set only LC_CTYPE so other locale categories keep
+	// the user's settings. Preserve non-empty LC_ALL because it has higher
+	// precedence than LC_CTYPE.
 	if runtime.GOOS != "windows" && !effectiveLocaleIsUTF8(next) && !hasNonEmptyEnv(next, "LC_ALL") {
 		next = append(next, "LC_CTYPE="+terminalUTF8Locale())
 	}
 	return next
 }
 
+// terminalUTF8Locale returns a widely available UTF-8 character locale for the host OS.
 func terminalUTF8Locale() string {
 	if runtime.GOOS == "darwin" {
 		return "UTF-8"
@@ -52,14 +55,13 @@ func terminalUTF8Locale() string {
 	return "C.UTF-8"
 }
 
+// effectiveLocaleIsUTF8 reports whether the locale precedence chain resolves to UTF-8.
 func effectiveLocaleIsUTF8(env []string) bool {
-	if value, ok := envValue(env, "LC_ALL"); ok {
-		return localeIsUTF8(value)
-	}
-	if value, ok := envValue(env, "LC_CTYPE"); ok {
-		return localeIsUTF8(value)
-	}
-	if value, ok := envValue(env, "LANG"); ok {
+	for _, name := range []string{"LC_ALL", "LC_CTYPE", "LANG"} {
+		value, ok := envValue(env, name)
+		if !ok || value == "" {
+			continue
+		}
 		return localeIsUTF8(value)
 	}
 	return false
@@ -75,11 +77,12 @@ func hasNonEmptyEnv(env []string, name string) bool {
 	return ok && value != ""
 }
 
+// envValue returns the effective value for name using the last assignment.
 func envValue(env []string, name string) (string, bool) {
 	prefix := name + "="
 	for i := len(env) - 1; i >= 0; i-- {
-		if strings.HasPrefix(env[i], prefix) {
-			return strings.TrimPrefix(env[i], prefix), true
+		if value, ok := strings.CutPrefix(env[i], prefix); ok {
+			return value, true
 		}
 	}
 	return "", false

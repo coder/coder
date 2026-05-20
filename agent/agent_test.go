@@ -2314,17 +2314,21 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 			require.NoError(t, err)
 			require.Contains(t, string(bytes), "❯")
 
-			if hasTmux {
+			if !hasTmux {
+				t.Log("`tmux` not found, skipping tmux glyph regression")
+			} else {
 				glyphs := "⚠╭╮╰╯•›│─█▓░▄❯✔╌"
 				tmuxSocket := "coder-test-" + strings.ReplaceAll(uuid.NewString(), "-", "")
 				t.Cleanup(func() {
 					_ = exec.Command(tmuxPath, "-L", tmuxSocket, "kill-server").Run()
 				})
+				// Keep the pane alive with a shell builtin until the read loop sees
+				// the glyphs, otherwise tmux can restore the alternate screen first.
 				command := fmt.Sprintf(
 					"%s -L %s new-session %q",
 					strconv.Quote(tmuxPath),
 					tmuxSocket,
-					fmt.Sprintf("printf '%%s\\n' '%s'; sleep 5", glyphs),
+					fmt.Sprintf("printf '%%s\\n' '%s'; read _", glyphs),
 				)
 				netConn6, err := conn.ReconnectingPTY(ctx, uuid.New(), 80, 80, command)
 				require.NoError(t, err)
