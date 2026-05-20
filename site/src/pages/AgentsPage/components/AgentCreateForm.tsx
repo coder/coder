@@ -510,7 +510,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 						/>
 					)}
 					{agentSetupNotice}
-					<div className={agentSetupNotice ? "relative z-10 -mt-6" : undefined}>
+					<div className={agentSetupNotice ? "relative z-10 -mt-10" : undefined}>
 						<AgentChatInput
 							onSend={handleSendWithAttachments}
 							sendShortcut={sendShortcut}
