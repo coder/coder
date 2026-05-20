@@ -4,7 +4,7 @@ import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
 import {
 	findAddableProvider,
-	isSupportedAddableProviderType,
+	isAddableProviderType,
 } from "../components/addableProviderTypes";
 import AddProviderPageView from "./AddProviderPageView";
 
@@ -16,11 +16,9 @@ const AddProviderPage: React.FC = () => {
 
 	// The page is reachable only through the "Add provider" dropdown,
 	// which always appends `?type=<known>`. Anyone hitting a stale
-	// bookmark, an unknown type, or a known-but-not-yet-supported type
-	// (Azure, Google, OpenAI via bridge, OpenRouter, Vercel) is sent
-	// back to the list page; without a known type the form has no
-	// schema to render against.
-	if (!isSupportedAddableProviderType(typeParam)) {
+	// bookmark or an unknown type is sent back to the list page;
+	// without a known type the form has no schema to render against.
+	if (!isAddableProviderType(typeParam)) {
 		return <Navigate to="/ai/settings" replace />;
 	}
 

@@ -59,19 +59,11 @@ const ProvidersPageView: React.FC<ProvidersPageViewProps> = ({
 							{addableProviders.map((entry) => (
 								<DropdownMenuItem
 									key={entry.value}
-									disabled={!entry.isSupported}
-									onSelect={() => {
-										// Radix only invokes onSelect for enabled items,
-										// but the explicit guard makes the navigate call's
-										// dependency on isSupported readable at the
-										// callsite.
-										if (!entry.isSupported) {
-											return;
-										}
+									onSelect={() =>
 										void navigate(
 											`/ai/settings/add?type=${encodeURIComponent(entry.value)}`,
-										);
-									}}
+										)
+									}
 								>
 									<ProviderIcon provider={entry.value} />
 									<span>{entry.label}</span>
