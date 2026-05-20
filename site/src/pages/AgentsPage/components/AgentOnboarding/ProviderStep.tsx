@@ -104,10 +104,10 @@ export const ProviderStep: FC<ProviderStepProps> = ({ onSkip, onContinue }) => {
 					<br />
 					For key policy and API key controls, go to Settings &rarr;{" "}
 					<Link
-						to="/agents/settings/api-keys"
+						to="/agents/settings/providers"
 						className="text-content-link hover:text-content-link/80"
 					>
-						Advanced
+						Providers
 					</Link>
 					.
 				</p>
