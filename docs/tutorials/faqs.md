@@ -559,6 +559,10 @@ can still SSH into the workspace and manually initiate file transfers. The
 primary purpose of this feature is to warn and discourage users from downloading
 confidential resources to their local machines.
 
+Agent API capabilities, such as file operations performed by AI agents in
+Coder Agents chat (including chat file uploads into the workspace), are not
+affected by this setting because they do not go through the SSH transfer path.
+
 For more advanced security needs, consider adopting an endpoint security
 solution.
 
