@@ -394,7 +394,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	const isStreaming =
 		hasStreamState || chatStatus === "running" || chatStatus === "pending";
 
-	const [chatFullWidth] = useChatFullWidth();
+	const [_chatFullWidth] = useChatFullWidth();
 
 	const inputElement = (
 		<AgentChatInput
@@ -495,25 +495,17 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			sshCommand={sshCommand}
 			attachedWorkspace={attachedWorkspace}
 			folder={folder}
+			agentSetupNotice={agentSetupNotice}
 		/>
 	);
 
-	if (!agentSetupNotice && !modelSelectorHelp) {
+	if (!modelSelectorHelp) {
 		return inputElement;
 	}
 
 	return (
 		<div>
-			{agentSetupNotice ? (
-				<div className="relative">
-					<div className={cn("mx-auto w-full", chatWidthClass(chatFullWidth))}>
-						{agentSetupNotice}
-					</div>
-					<div className="relative z-10 mt-[-2.25rem]">{inputElement}</div>
-				</div>
-			) : (
-				inputElement
-			)}
+			{inputElement}
 			{modelSelectorHelp && (
 				<div className="px-3 pt-1 text-2xs text-content-secondary">
 					{modelSelectorHelp}
