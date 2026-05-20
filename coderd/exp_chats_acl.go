@@ -213,7 +213,7 @@ func (api *API) chatACLUsers(ctx context.Context, rw http.ResponseWriter, chat d
 		userIDs = append(userIDs, id)
 	}
 
-	//nolint:gocritic // Callers authorized to read a chat ACL may lack direct user read access.
+	//nolint:gocritic // Users who can read the chat ACL should see shared users even without user read permission.
 	dbUsers, err := api.Database.GetUsersByIDs(dbauthz.AsSystemRestricted(ctx), userIDs)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 		httpapi.InternalServerError(rw, err)
@@ -245,7 +245,7 @@ func (api *API) chatACLGroups(ctx context.Context, rw http.ResponseWriter, chat 
 	dbGroups := make([]database.GetGroupsRow, 0)
 	if len(groupIDs) > 0 {
 		var err error
-		//nolint:gocritic // Callers authorized to read a chat ACL may lack direct group read access.
+		//nolint:gocritic // Users who can read the chat ACL should see shared groups even without group read permission.
 		dbGroups, err = api.Database.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{GroupIds: groupIDs})
 		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 			httpapi.InternalServerError(rw, err)
@@ -255,7 +255,7 @@ func (api *API) chatACLGroups(ctx context.Context, rw http.ResponseWriter, chat 
 
 	groups := make([]codersdk.ChatGroup, 0, len(dbGroups))
 	for _, group := range dbGroups {
-		//nolint:gocritic // Callers authorized to read a chat ACL may lack direct group membership access.
+		//nolint:gocritic // Users who can read the chat ACL should see shared group sizes even without group read permission.
 		memberCount, err := api.Database.GetGroupMembersCountByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersCountByGroupIDParams{
 			GroupID:       group.Group.ID,
 			IncludeSystem: false,
