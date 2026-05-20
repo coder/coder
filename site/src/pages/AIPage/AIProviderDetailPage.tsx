@@ -5,7 +5,15 @@ import {
 	PencilIcon,
 	PlusIcon,
 	Trash2Icon,
+	TriangleAlertIcon,
 } from "lucide-react";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogTitle,
+} from "#/components/Dialog/Dialog";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -13,7 +21,7 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { type FC, useCallback, useMemo, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useBlocker, useNavigate, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	chatModelConfigs,
@@ -210,6 +218,25 @@ const AIProviderDetailPage: FC = () => {
 		? baseUrl !== initialBaseUrl || JSON.stringify(apiKeys) !== initialApiKeys
 		: hasAnyKey;
 
+	// Delete API key confirmation dialog.
+	const [deleteKeyId, setDeleteKeyId] = useState<string | null>(null);
+	const confirmDeleteKey = useCallback(() => {
+		if (deleteKeyId) {
+			setApiKeys((prev) => {
+				const filtered = prev.filter((row) => row.id !== deleteKeyId);
+				return filtered.length === 0 ? [makeEmptyRow()] : filtered;
+			});
+			setDeleteKeyId(null);
+		}
+	}, [deleteKeyId]);
+
+	// Unsaved changes navigation blocker.
+	const blocker = useBlocker(
+		({ currentLocation, nextLocation }) =>
+			hasChanges && currentLocation.pathname !== nextLocation.pathname,
+	);
+
+
 
 	const handleSave = useCallback(async () => {
 		const firstKey = apiKeys.find((row) => row.apiKey.length > 0);
@@ -236,7 +263,9 @@ const AIProviderDetailPage: FC = () => {
 	}, [existingConfig, deleteMutation, navigate]);
 
 	return (
+		<>
 		<div>
+
 			{/* Top bar */}
 			<div className="flex items-center justify-between mb-6">
 				<Link
@@ -395,7 +424,8 @@ const AIProviderDetailPage: FC = () => {
 													)}
 													<DropdownMenuItem
 														className="gap-2 text-content-destructive"
-														onClick={() => removeRow(row.id)}
+														onClick={() => row.saved ? setDeleteKeyId(row.id) : removeRow(row.id)}
+
 													>
 														<Trash2Icon className="size-4" />
 														Delete
@@ -451,7 +481,45 @@ const AIProviderDetailPage: FC = () => {
 				</Button>
 			</div>
 		</div>
-	);
+
+		{/* Delete API key confirmation dialog */}
+		<Dialog open={deleteKeyId !== null} onOpenChange={(open) => !open && setDeleteKeyId(null)}>
+			<DialogContent>
+				<DialogTitle>Delete API key</DialogTitle>
+				<DialogDescription className="text-content-secondary">
+					This can't be undone.
+				</DialogDescription>
+				<DialogFooter>
+					<Button variant="outline" onClick={() => setDeleteKeyId(null)}>
+						Cancel
+					</Button>
+					<Button variant="destructive" onClick={confirmDeleteKey}>
+						Delete key
+					</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
+
+		{/* Unsaved changes navigation dialog */}
+		<Dialog open={blocker.state === "blocked"} onOpenChange={(open) => !open && blocker.reset?.()}>
+			<DialogContent>
+				<DialogTitle>Unsaved changes</DialogTitle>
+				<DialogDescription className="flex items-center gap-2 text-content-secondary">
+					<TriangleAlertIcon className="size-5 shrink-0" />
+					Your updates haven't been saved. Leave anyway?
+				</DialogDescription>
+				<DialogFooter>
+					<Button variant="outline" onClick={() => blocker.reset?.()}>
+						Cancel
+					</Button>
+					<Button onClick={() => blocker.proceed?.()}>
+						Confirm
+					</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
+		</>);
+
 };
 
 export default AIProviderDetailPage;
