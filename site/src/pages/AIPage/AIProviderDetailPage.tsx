@@ -3,7 +3,14 @@ import {
 	EllipsisVerticalIcon,
 	GripVerticalIcon,
 	PlusIcon,
+	XIcon,
 } from "lucide-react";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "#/components/DropdownMenu/DropdownMenu";
 import { type FC, useCallback, useState } from "react";
 import { Link, useParams } from "react-router";
 import { Button } from "#/components/Button/Button";
@@ -46,6 +53,10 @@ const AIProviderDetailPage: FC = () => {
 
 	const addRow = useCallback(() => {
 		setApiKeys((prev) => [...prev, makeEmptyRow()]);
+	}, []);
+
+	const removeRow = useCallback((id: string) => {
+		setApiKeys((prev) => prev.filter((row) => row.id !== id));
 	}, []);
 
 	const updateRow = useCallback(
@@ -105,7 +116,7 @@ const AIProviderDetailPage: FC = () => {
 							</TableRow>
 						</TableHeader>
 						<TableBody>
-							{apiKeys.map((row) => (
+							{apiKeys.map((row, i) => (
 								<TableRow key={row.id}>
 									<TableCell>
 										<GripVerticalIcon className="size-4 text-content-disabled cursor-grab" />
@@ -140,12 +151,29 @@ const AIProviderDetailPage: FC = () => {
 										</span>
 									</TableCell>
 									<TableCell>
-										<button
-											type="button"
-											className="flex items-center justify-center w-8 h-8 rounded-md bg-transparent border-none cursor-pointer hover:bg-surface-secondary"
-										>
-											<EllipsisVerticalIcon className="size-4 text-content-secondary" />
-										</button>
+										{i > 0 ? (
+											<DropdownMenu>
+													<DropdownMenuTrigger asChild>
+														<button
+															type="button"
+															className="flex items-center justify-center w-8 h-8 rounded-md bg-transparent border-none cursor-pointer hover:bg-surface-secondary"
+													>
+														<EllipsisVerticalIcon className="size-4 text-content-secondary" />
+													</button>
+												</DropdownMenuTrigger>
+												<DropdownMenuContent align="end">
+													<DropdownMenuItem
+														className="gap-2 text-content-destructive"
+														onClick={() => removeRow(row.id)}
+													>
+														<XIcon className="size-4" />
+														Remove
+													</DropdownMenuItem>
+												</DropdownMenuContent>
+											</DropdownMenu>
+										) : (
+											<div className="w-8 h-8" />
+										)}
 									</TableCell>
 								</TableRow>
 							))}
