@@ -494,7 +494,6 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 									<code>
 										{"https://bedrock-runtime.{region}.amazonaws.com"}
 									</code>
-									.
 								</>
 							}
 							className="w-full"
