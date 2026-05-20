@@ -43,7 +43,7 @@ const AddProviderPageView: React.FC<AddProviderPageViewProps> = ({ type }) => {
 			</div>
 			<div className="mx-auto w-full max-w-screen-sm flex flex-col gap-6">
 				<PageHeader className="pt-6 pb-0">
-					<PageHeaderTitle>{`Add a ${providerLabel} provider`}</PageHeaderTitle>
+					<PageHeaderTitle>{`Add ${providerLabel} provider`}</PageHeaderTitle>
 					<PageHeaderSubtitle>
 						Configure connection details and credentials for this provider. The
 						provider supplies models that users can select for their
