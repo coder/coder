@@ -188,10 +188,7 @@ export const ProviderStep: FC<ProviderStepProps> = ({
 
 			{/* Provider config form */}
 			{selectedProvider ? (
-				<div
-					className="flex flex-col gap-4 rounded-xl p-6"
-					style={{ border: "1px solid hsl(240 5% 26%)" }}
-				>
+				<div className="flex flex-col gap-4 rounded-xl border border-border p-6">
 					<div className="flex items-center justify-between">
 						<Label className="text-sm font-medium">
 							{formatProviderLabel(selectedProvider)} API key
@@ -237,10 +234,7 @@ export const ProviderStep: FC<ProviderStepProps> = ({
 					</div>
 				</div>
 			) : !hasSavedProviders ? (
-				<div
-					className="flex min-h-[200px] items-center justify-center rounded-xl p-6"
-					style={{ border: "1px solid hsl(240 5% 26%)" }}
-				>
+				<div className="flex min-h-[200px] items-center justify-center rounded-xl border border-border p-6">
 					<p className="text-sm text-content-secondary">No provider selected</p>
 				</div>
 			) : null}
