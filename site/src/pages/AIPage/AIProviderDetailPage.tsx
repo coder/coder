@@ -32,6 +32,7 @@ import {
 } from "#/components/Table/Table";
 import { ProviderIcon } from "../AgentsPage/components/ChatModelAdminPanel/ProviderIcon";
 import { formatProviderLabel } from "../AgentsPage/utils/modelOptions";
+import { cn } from "#/utils/cn";
 
 interface ApiKeyRow {
 	id: string;
@@ -108,11 +109,13 @@ const AIProviderDetailPage: FC = () => {
 	}, []);
 
 	// Drag-to-reorder state.
+	const [draggingIdx, setDraggingIdx] = useState<number | null>(null);
 	const dragIdx = useRef<number | null>(null);
 	const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
 	const handleDragStart = useCallback((i: number) => {
 		dragIdx.current = i;
+		setDraggingIdx(i);
 	}, []);
 
 	const handleDragOver = useCallback(
@@ -131,6 +134,7 @@ const AIProviderDetailPage: FC = () => {
 			if (from === null || from === i) {
 				dragIdx.current = null;
 				setDragOverIdx(null);
+				setDraggingIdx(null);
 				return;
 			}
 			setApiKeys((prev) => {
@@ -141,6 +145,7 @@ const AIProviderDetailPage: FC = () => {
 			});
 			dragIdx.current = null;
 			setDragOverIdx(null);
+			setDraggingIdx(null);
 		},
 		[],
 	);
@@ -148,13 +153,13 @@ const AIProviderDetailPage: FC = () => {
 	const handleDragEnd = useCallback(() => {
 		dragIdx.current = null;
 		setDragOverIdx(null);
+		setDraggingIdx(null);
 	}, []);
 
 	const removeRow = useCallback(
 		(id: string) => {
 			setApiKeys((prev) => {
 				const filtered = prev.filter((row) => row.id !== id);
-				// If removing the last row, reset to a single empty row.
 				if (filtered.length === 0) {
 					return [makeEmptyRow()];
 				}
@@ -163,6 +168,7 @@ const AIProviderDetailPage: FC = () => {
 		},
 		[],
 	);
+
 
 	const updateRow = useCallback(
 		(id: string, field: keyof ApiKeyRow, value: string) => {
@@ -269,10 +275,15 @@ const AIProviderDetailPage: FC = () => {
 									onDragOver={(e) => handleDragOver(e, i)}
 									onDrop={() => handleDrop(i)}
 									onDragEnd={handleDragEnd}
-									className={dragOverIdx === i ? "bg-surface-secondary/50" : ""}
+									className={cn(
+										"transition-all duration-150",
+										draggingIdx === i && "opacity-40",
+										dragOverIdx === i && draggingIdx !== i && "border-t-2 border-t-content-link bg-surface-secondary/50",
+
+									)}
 								>
 									<TableCell>
-										<GripVerticalIcon className="size-4 text-content-disabled cursor-grab" />
+										<GripVerticalIcon className="size-4 text-content-disabled cursor-grab active:cursor-grabbing" />
 									</TableCell>
 									<TableCell>
 										{row.saved ? (
