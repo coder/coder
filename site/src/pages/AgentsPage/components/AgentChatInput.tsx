@@ -895,7 +895,12 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				/>
 			)}
 			{agentSetupNotice && (
-				<div className="relative z-0 mb-[-1rem]">{agentSetupNotice}</div>
+				<div
+					className="relative z-0 mb-[-2rem]"
+					style={{ clipPath: "inset(0 0 2rem 0)" }}
+				>
+					{agentSetupNotice}
+				</div>
 			)}
 			<div
 				ref={setComposerElement}
