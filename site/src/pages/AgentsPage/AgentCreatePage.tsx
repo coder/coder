@@ -79,11 +79,16 @@ const AgentCreatePage: FC = () => {
 		isOnboardingDismissed,
 	);
 
-	const showOnboarding =
+	const [onboardingActive, setOnboardingActive] = useState(false);
+	const shouldTriggerOnboarding =
 		isAdmin &&
 		!onboardingDismissed &&
 		providerCount !== undefined &&
 		providerCount === 0;
+	if (shouldTriggerOnboarding && !onboardingActive) {
+		setOnboardingActive(true);
+	}
+	const showOnboarding = onboardingActive && !onboardingDismissed;
 
 	const agentSetupNotice = (() => {
 		if (showOnboarding) return undefined;

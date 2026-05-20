@@ -1077,11 +1077,18 @@ const AgentChatPage: FC = () => {
 	const [onboardingDismissed, setOnboardingDismissed] = useState(
 		isOnboardingDismissed,
 	);
-	const showOnboarding =
+	// Latch the wizard open once triggered so that saving a provider
+	// (which changes providerCount) does not close the dialog.
+	const [onboardingActive, setOnboardingActive] = useState(false);
+	const shouldTriggerOnboarding =
 		isAdmin &&
 		!onboardingDismissed &&
 		providerCount !== undefined &&
 		providerCount === 0;
+	if (shouldTriggerOnboarding && !onboardingActive) {
+		setOnboardingActive(true);
+	}
+	const showOnboarding = onboardingActive && !onboardingDismissed;
 
 	const agentSetupNotice = (() => {
 		if (showOnboarding) return undefined;
