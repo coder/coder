@@ -667,8 +667,7 @@ func userSkillMarkdown(name string, description string, body string) string {
 func requireSDKErrorStatus(t *testing.T, err error, status int, msgAndArgs ...any) *codersdk.Error {
 	t.Helper()
 	require.Error(t, err, msgAndArgs...)
-	var sdkErr *codersdk.Error
-	require.ErrorAs(t, err, &sdkErr, msgAndArgs...)
+	sdkErr := coderdtest.SDKError(t, err)
 	require.Equal(t, status, sdkErr.StatusCode(), msgAndArgs...)
 	return sdkErr
 }
