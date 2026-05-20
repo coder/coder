@@ -1453,6 +1453,44 @@ export const DoesNotPersistForArchivedChat: Story = {
 	},
 };
 
+export const ArchivedWithSharing: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			isArchived
+			isInputDisabled
+			canShareChat
+			organizationId={MockDefaultOrganization.id}
+		/>
+	),
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatACL").mockResolvedValue({
+			users: [],
+			groups: [],
+		});
+		spyOn(API.experimental, "updateChatACL").mockResolvedValue(undefined);
+		spyOn(API, "getOrganizationPaginatedMembers").mockResolvedValue({
+			members: [MockOrganizationMember, MockOrganizationMember2],
+			count: 2,
+		});
+		spyOn(API, "getGroupsByOrganization").mockResolvedValue([MockGroup]);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText("This agent has been archived and is read-only."),
+		).toBeVisible();
+
+		await userEvent.click(canvas.getByLabelText("Share chat"));
+		const body = within(document.body);
+		await waitFor(() => {
+			expect(body.getByText("Chat Sharing")).toBeVisible();
+		});
+		await waitFor(() => {
+			expect(body.getByText("No shared members or groups yet")).toBeVisible();
+		});
+	},
+};
+
 export const ShareChatPopoverFromTopBar: Story = {
 	render: () => (
 		<StoryAgentChatPageView
