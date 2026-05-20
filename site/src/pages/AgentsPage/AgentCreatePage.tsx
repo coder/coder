@@ -20,6 +20,8 @@ import {
 	AgentCreateForm,
 	type CreateChatOptions,
 } from "./components/AgentCreateForm";
+import { AgentOnboardingDialog } from "./components/AgentOnboarding/AgentOnboardingDialog";
+import { isOnboardingDismissed } from "./components/AgentOnboarding/onboardingState";
 import { AgentPageHeader } from "./components/AgentPageHeader";
 import { AgentSetupNotice } from "./components/AgentSetupNotice";
 import { ChimeButton } from "./components/ChimeButton";
@@ -73,7 +75,18 @@ const AgentCreatePage: FC = () => {
 			? catalogModelOptions.length
 			: undefined;
 	const isAdmin = permissions.editDeploymentConfig;
+	const [onboardingDismissed, setOnboardingDismissed] = useState(
+		isOnboardingDismissed,
+	);
+
+	const showOnboarding =
+		isAdmin &&
+		!onboardingDismissed &&
+		providerCount !== undefined &&
+		providerCount === 0;
+
 	const agentSetupNotice = (() => {
+		if (showOnboarding) return undefined;
 		if (
 			isAdmin &&
 			providerCount !== undefined &&
@@ -157,6 +170,12 @@ const AgentCreatePage: FC = () => {
 
 	return (
 		<>
+			{showOnboarding && (
+				<AgentOnboardingDialog
+					open
+					onClose={() => setOnboardingDismissed(true)}
+				/>
+			)}
 			<AgentPageHeader
 				chimeEnabled={chimeEnabled}
 				onToggleChime={handleChimeToggle}

@@ -58,6 +58,8 @@ import {
 } from "./AgentChatPageView";
 import type { AgentsOutletContext } from "./AgentsPage";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
+import { AgentOnboardingDialog } from "./components/AgentOnboarding/AgentOnboardingDialog";
+import { isOnboardingDismissed } from "./components/AgentOnboarding/onboardingState";
 import { AgentSetupNotice } from "./components/AgentSetupNotice";
 import { normalizeChatErrorPayload } from "./components/ChatConversation/chatError";
 import {
@@ -1072,7 +1074,17 @@ const AgentChatPage: FC = () => {
 		hasUserFixableModelProviders,
 	});
 	const isAdmin = permissions.editDeploymentConfig;
+	const [onboardingDismissed, setOnboardingDismissed] = useState(
+		isOnboardingDismissed,
+	);
+	const showOnboarding =
+		isAdmin &&
+		!onboardingDismissed &&
+		providerCount !== undefined &&
+		providerCount === 0;
+
 	const agentSetupNotice = (() => {
+		if (showOnboarding) return undefined;
 		// Admin: show when providers or models are missing
 		if (
 			isAdmin &&
@@ -1539,78 +1551,86 @@ const AgentChatPage: FC = () => {
 	}
 
 	return (
-		<AgentChatPageView
-			agentId={agentId}
-			sendShortcut={getAgentChatSendShortcut(
-				preferencesQuery.data?.agent_chat_send_shortcut,
-				preferencesQuery.isLoading,
+		<>
+			{showOnboarding && (
+				<AgentOnboardingDialog
+					open
+					onClose={() => setOnboardingDismissed(true)}
+				/>
 			)}
-			organizationId={chatQuery.data?.organization_id}
-			chatTitle={chatTitle}
-			parentChat={parentChat}
-			persistedError={persistedError}
-			isArchived={isArchived}
-			chatOwner={chatOwner}
-			workspace={workspace}
-			workspaceAgent={workspaceAgent}
-			chatBuildId={chatQuery.data?.build_id}
-			store={store}
-			editing={editing}
-			effectiveSelectedModel={effectiveSelectedModel}
-			setSelectedModel={setSelectedModel}
-			modelOptions={modelOptions}
-			modelSelectorPlaceholder={modelSelectorPlaceholder}
-			modelSelectorHelp={modelSelectorHelp}
-			agentSetupNotice={agentSetupNotice}
-			hasModelOptions={hasModelOptions}
-			isModelCatalogLoading={isModelCatalogLoading}
-			planModeEnabled={planModeEnabled}
-			onPlanModeToggle={handlePlanModeToggle}
-			compressionThreshold={compressionThreshold}
-			isInputDisabled={isInputDisabled}
-			isSubmissionPending={isSubmissionPending}
-			isInterruptPending={isInterruptPending}
-			workspaceOptions={workspaceOptions}
-			selectedWorkspaceId={selectedWorkspaceId}
-			onWorkspaceChange={handleWorkspaceChange}
-			isWorkspaceLoading={isWorkspaceLoading}
-			isSidebarCollapsed={isSidebarCollapsed}
-			onToggleSidebarCollapsed={onToggleSidebarCollapsed}
-			showSidebarPanel={showSidebarPanel}
-			onSetShowSidebarPanel={handleSetShowSidebarPanel}
-			prNumber={prNumber}
-			diffStatusData={chatQuery.data?.diff_status}
-			debugLoggingEnabled={debugLoggingEnabled}
-			gitWatcher={gitWatcher}
-			sshCommand={sshCommand}
-			handleCommit={handleCommit}
-			handleInterrupt={handleInterrupt}
-			handleDeleteQueuedMessage={handleDeleteQueuedMessage}
-			handlePromoteQueuedMessage={handlePromoteQueuedMessage}
-			onImplementPlan={handleImplementPlan}
-			onSendAskUserQuestionResponse={handleSendAskUserQuestionResponse}
-			handleArchiveAgentAction={handleArchiveAgentAction}
-			handleUnarchiveAgentAction={handleUnarchiveAgentAction}
-			handleArchiveAndDeleteWorkspaceAction={
-				handleArchiveAndDeleteWorkspaceAction
-			}
-			handleRegenerateTitle={handleRegenerateTitle}
-			isRegeneratingTitle={isRegeneratingThisChat}
-			isRegenerateTitleDisabled={isRegenerateTitleDisabled}
-			urlTransform={urlTransform}
-			scrollContainerRef={scrollContainerRef}
-			scrollToBottomRef={scrollToBottomRef}
-			hasMoreMessages={chatMessagesQuery.hasNextPage ?? false}
-			isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}
-			onFetchMoreMessages={chatMessagesQuery.fetchNextPage}
-			messageCount={storeMessageCount}
-			desktopChatId={desktopEnabled ? agentId : undefined}
-			mcpServers={mcpServers}
-			selectedMCPServerIds={effectiveMCPServerIds}
-			onMCPSelectionChange={handleMCPSelectionChange}
-			onMCPAuthComplete={handleMCPAuthComplete}
-			lastInjectedContext={chatQuery.data?.last_injected_context}
-		/>
+			<AgentChatPageView
+				agentId={agentId}
+				sendShortcut={getAgentChatSendShortcut(
+					preferencesQuery.data?.agent_chat_send_shortcut,
+					preferencesQuery.isLoading,
+				)}
+				organizationId={chatQuery.data?.organization_id}
+				chatTitle={chatTitle}
+				parentChat={parentChat}
+				persistedError={persistedError}
+				isArchived={isArchived}
+				chatOwner={chatOwner}
+				workspace={workspace}
+				workspaceAgent={workspaceAgent}
+				chatBuildId={chatQuery.data?.build_id}
+				store={store}
+				editing={editing}
+				effectiveSelectedModel={effectiveSelectedModel}
+				setSelectedModel={setSelectedModel}
+				modelOptions={modelOptions}
+				modelSelectorPlaceholder={modelSelectorPlaceholder}
+				modelSelectorHelp={modelSelectorHelp}
+				agentSetupNotice={agentSetupNotice}
+				hasModelOptions={hasModelOptions}
+				isModelCatalogLoading={isModelCatalogLoading}
+				planModeEnabled={planModeEnabled}
+				onPlanModeToggle={handlePlanModeToggle}
+				compressionThreshold={compressionThreshold}
+				isInputDisabled={isInputDisabled}
+				isSubmissionPending={isSubmissionPending}
+				isInterruptPending={isInterruptPending}
+				workspaceOptions={workspaceOptions}
+				selectedWorkspaceId={selectedWorkspaceId}
+				onWorkspaceChange={handleWorkspaceChange}
+				isWorkspaceLoading={isWorkspaceLoading}
+				isSidebarCollapsed={isSidebarCollapsed}
+				onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+				showSidebarPanel={showSidebarPanel}
+				onSetShowSidebarPanel={handleSetShowSidebarPanel}
+				prNumber={prNumber}
+				diffStatusData={chatQuery.data?.diff_status}
+				debugLoggingEnabled={debugLoggingEnabled}
+				gitWatcher={gitWatcher}
+				sshCommand={sshCommand}
+				handleCommit={handleCommit}
+				handleInterrupt={handleInterrupt}
+				handleDeleteQueuedMessage={handleDeleteQueuedMessage}
+				handlePromoteQueuedMessage={handlePromoteQueuedMessage}
+				onImplementPlan={handleImplementPlan}
+				onSendAskUserQuestionResponse={handleSendAskUserQuestionResponse}
+				handleArchiveAgentAction={handleArchiveAgentAction}
+				handleUnarchiveAgentAction={handleUnarchiveAgentAction}
+				handleArchiveAndDeleteWorkspaceAction={
+					handleArchiveAndDeleteWorkspaceAction
+				}
+				handleRegenerateTitle={handleRegenerateTitle}
+				isRegeneratingTitle={isRegeneratingThisChat}
+				isRegenerateTitleDisabled={isRegenerateTitleDisabled}
+				urlTransform={urlTransform}
+				scrollContainerRef={scrollContainerRef}
+				scrollToBottomRef={scrollToBottomRef}
+				hasMoreMessages={chatMessagesQuery.hasNextPage ?? false}
+				isFetchingMoreMessages={chatMessagesQuery.isFetchingNextPage}
+				onFetchMoreMessages={chatMessagesQuery.fetchNextPage}
+				messageCount={storeMessageCount}
+				desktopChatId={desktopEnabled ? agentId : undefined}
+				mcpServers={mcpServers}
+				selectedMCPServerIds={effectiveMCPServerIds}
+				onMCPSelectionChange={handleMCPSelectionChange}
+				onMCPAuthComplete={handleMCPAuthComplete}
+				lastInjectedContext={chatQuery.data?.last_injected_context}
+			/>
+		</>
 	);
 };
 
