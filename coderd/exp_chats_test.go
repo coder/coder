@@ -7309,10 +7309,7 @@ func TestChatMessageWithFiles(t *testing.T) {
 
 		// Only MaxChatFileIDs files should actually be linked.
 		// With SQL-level batch rejection, ALL files are rejected
-		// when the result would exceed the cap. Since we're
-		// sending MaxChatFileIDs+1 files, the deduped count is
-		// 21 > 20, so 0 rows are affected and all files are
-		// unlinked.
+		// when the result would exceed the cap.
 		chatResult, err := client.GetChat(ctx, chat.ID)
 		require.NoError(t, err)
 		require.Empty(t, chatResult.Files, "no files should be linked when batch exceeds cap")

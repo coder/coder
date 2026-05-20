@@ -568,6 +568,54 @@ export const MockUserAppearanceSettings: TypesGen.UserAppearanceSettings = {
 	terminal_font: "",
 };
 
+export const MockUserSecrets: TypesGen.UserSecret[] = [
+	{
+		id: "secret-env-only",
+		name: "EXAMPLE_TOKEN",
+		description: "Used by example templates.",
+		env_name: "EXAMPLE_TOKEN",
+		file_path: "",
+		created_at: "2026-04-28T16:30:00Z",
+		updated_at: "2026-04-30T16:30:00Z",
+	},
+	{
+		id: "secret-file-only",
+		name: "config-json",
+		description: "Mounted as a workspace file.",
+		env_name: "",
+		file_path: "~/.config/example/config.json",
+		created_at: "2026-04-29T16:30:00Z",
+		updated_at: "2026-05-01T16:30:00Z",
+	},
+	{
+		id: "secret-env-and-file",
+		name: "GITHUB_TOKEN",
+		description: "Available as an environment variable and file.",
+		env_name: "GITHUB_TOKEN",
+		file_path: "/var/run/secrets/github-token",
+		created_at: "2026-04-30T16:30:00Z",
+		updated_at: "2026-05-02T16:30:00Z",
+	},
+	{
+		id: "secret-not-injected",
+		name: "ANTHROPIC_API_KEY",
+		description: "",
+		env_name: "",
+		file_path: "",
+		created_at: "2026-05-01T16:30:00Z",
+		updated_at: "2026-05-03T16:30:00Z",
+	},
+	{
+		id: "secret-openai",
+		name: "OPENAI_API_KEY",
+		description: "Used to exercise duplicate validation.",
+		env_name: "OPENAI_API_KEY",
+		file_path: "",
+		created_at: "2026-05-01T18:30:00Z",
+		updated_at: "2026-05-03T18:30:00Z",
+	},
+];
+
 export const MockTasksTabVisible = false;
 
 export const MockOrganizationMember: TypesGen.OrganizationMemberWithUserData = {

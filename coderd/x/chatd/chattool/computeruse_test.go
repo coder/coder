@@ -273,7 +273,7 @@ func TestComputerUseTool_Run_Screenshot_StoreErrorFallsBackToImage(t *testing.T)
 	tool := chattool.NewComputerUseTool(chattool.ComputerUseProviderAnthropic, geometry.DeclaredWidth, geometry.DeclaredHeight, func(_ context.Context) (workspacesdk.AgentConn, error) {
 		return mockConn, nil
 	}, func(_ context.Context, _ string, _ string, _ []byte) (chattool.AttachmentMetadata, error) {
-		return chattool.AttachmentMetadata{}, xerrors.New("chat already has the maximum of 20 linked files")
+		return chattool.AttachmentMetadata{}, xerrors.New("ETOOMANYFILES")
 	}, quartz.NewReal(), slogtest.Make(t, nil))
 
 	resp, err := tool.Run(context.Background(), fantasy.ToolCall{
@@ -652,7 +652,7 @@ func TestComputerUseTool_Run_OpenAI_FinalScreenshotStoreErrorFallsBackToImage(t 
 	recordDesktopActions(t, mockConn, geometry, 1, screenshotPNG)
 
 	tool := newOpenAIComputerUseTool(t, geometry, mockConn, func(_ context.Context, _ string, _ string, _ []byte) (chattool.AttachmentMetadata, error) {
-		return chattool.AttachmentMetadata{}, xerrors.New("chat already has the maximum of 20 linked files")
+		return chattool.AttachmentMetadata{}, xerrors.New("ETOOMANYFILES")
 	}, quartz.NewReal())
 
 	resp, err := tool.Run(context.Background(), openAIComputerUseCall(`{

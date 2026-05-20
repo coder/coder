@@ -27,6 +27,7 @@ import {
 } from "./displayMode";
 import {
 	formatShellDurationMs,
+	sanitizeExecuteModelIntent,
 	signalTooltipLabel,
 	type ToolStatus,
 } from "./utils";
@@ -39,6 +40,7 @@ type ExecuteToolProps = {
 	durationMs?: number;
 	isBackgrounded?: boolean;
 	killedBySignal?: "kill" | "terminate";
+	modelIntent?: string;
 	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
 };
 
@@ -75,6 +77,7 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 	durationMs,
 	isBackgrounded = false,
 	killedBySignal,
+	modelIntent,
 	outputInitiallyOpen,
 }) => {
 	const hasCommand = command.trim().length > 0;
@@ -99,6 +102,7 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 			>
 				<ShellCommandLine
 					command={command}
+					modelIntent={modelIntent}
 					durationLabel={durationLabel}
 					expanded={outputOpen}
 				/>
@@ -167,17 +171,26 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 
 const ShellCommandLine: React.FC<{
 	command: string;
+	modelIntent?: string;
 	durationLabel: string;
 	expanded?: boolean;
-}> = ({ command, durationLabel, expanded }) => {
+}> = ({ command, modelIntent, durationLabel, expanded }) => {
+	const intentLabel = sanitizeExecuteModelIntent(modelIntent, command);
 	return (
 		<>
 			<span className="block min-w-0 truncate text-[13px] font-normal text-current">
-				Ran {command}
+				{intentLabel ? (
+					<>
+						{intentLabel} using{" "}
+						<code className="font-mono text-xs">{command}</code>
+					</>
+				) : (
+					<>Ran {command}</>
+				)}
 			</span>
 			{durationLabel && (
 				<span className="shrink-0 text-[13px] font-normal text-content-secondary">
-					{durationLabel}
+					{intentLabel ? ` for ${durationLabel}` : durationLabel}
 				</span>
 			)}
 			{expanded !== undefined && (
