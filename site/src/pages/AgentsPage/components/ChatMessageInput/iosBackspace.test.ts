@@ -137,6 +137,44 @@ describe("$shouldUseNativeBackspace", () => {
 
 		expect(result).toBe(false);
 	});
+
+	it("keeps Lexical deletion for element anchor at offset 0 after a file reference paragraph", () => {
+		const result = readBackspaceDecision(() => {
+			const root = $getRoot();
+			const firstParagraph = $createParagraphNode();
+			const secondParagraph = $createParagraphNode();
+			const fileReference = $createFileReferenceNode(
+				"main.go",
+				1,
+				1,
+				"package main",
+			);
+			root.append(firstParagraph, secondParagraph);
+			firstParagraph.append(fileReference);
+			secondParagraph.selectStart();
+		});
+
+		expect(result).toBe(false);
+	});
+
+	it("keeps Lexical deletion for element anchor at offset > 0 next to a file reference child", () => {
+		const result = readBackspaceDecision(() => {
+			const root = $getRoot();
+			const paragraph = $createParagraphNode();
+			const fileReference = $createFileReferenceNode(
+				"main.go",
+				1,
+				1,
+				"package main",
+			);
+			const text = $createTextNode("hello");
+			root.append(paragraph);
+			paragraph.append(fileReference, text);
+			paragraph.select(1, 1);
+		});
+
+		expect(result).toBe(false);
+	});
 });
 
 describe("registerIOSBackspaceCommand", () => {
