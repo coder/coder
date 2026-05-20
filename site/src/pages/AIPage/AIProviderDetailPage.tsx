@@ -2,8 +2,9 @@ import {
 	ArrowLeftIcon,
 	EllipsisVerticalIcon,
 	GripVerticalIcon,
+	PencilIcon,
 	PlusIcon,
-	XIcon,
+	Trash2Icon,
 } from "lucide-react";
 import {
 	DropdownMenu,
@@ -11,10 +12,14 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { type FC, useCallback, useState } from "react";
+import { type FC, useCallback, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
-import { useMutation, useQueryClient } from "react-query";
-import { createChatProviderConfig } from "#/api/queries/chats";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import {
+	chatProviderConfigs,
+	createChatProviderConfig,
+	deleteChatProviderConfig,
+} from "#/api/queries/chats";
 import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
 import {
@@ -34,6 +39,8 @@ interface ApiKeyRow {
 	apiKey: string;
 	trackingId: string;
 	updated: string;
+	/** Whether this key was loaded from the server (saved). */
+	saved: boolean;
 }
 
 let nextId = 1;
@@ -43,6 +50,7 @@ const makeEmptyRow = (): ApiKeyRow => ({
 	apiKey: "",
 	trackingId: "",
 	updated: "",
+	saved: false,
 });
 
 const AIProviderDetailPage: FC = () => {
@@ -52,19 +60,43 @@ const AIProviderDetailPage: FC = () => {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 
+	// Check if this provider is already configured.
+	const providerConfigsQuery = useQuery(chatProviderConfigs());
+	const existingConfig = useMemo(() => {
+		const configs = providerConfigsQuery.data ?? [];
+		return configs.find(
+			(pc) =>
+				pc.provider === provider &&
+				(pc.source === "database" || pc.source === "env_preset"),
+		);
+	}, [providerConfigsQuery.data, provider]);
+
+	const isEditMode = !!existingConfig;
+
 	const [apiKeys, setApiKeys] = useState<ApiKeyRow[]>(() => [makeEmptyRow()]);
 	const [baseUrl, setBaseUrl] = useState("");
 	const [isSaving, setIsSaving] = useState(false);
 
 	const createMutation = useMutation(createChatProviderConfig(queryClient));
+	const deleteMutation = useMutation(deleteChatProviderConfig(queryClient));
 
 	const addRow = useCallback(() => {
 		setApiKeys((prev) => [...prev, makeEmptyRow()]);
 	}, []);
 
-	const removeRow = useCallback((id: string) => {
-		setApiKeys((prev) => prev.filter((row) => row.id !== id));
-	}, []);
+	const removeRow = useCallback(
+		(id: string) => {
+			setApiKeys((prev) => {
+				const filtered = prev.filter((row) => row.id !== id);
+				// If removing the last row, reset to a single empty row.
+				if (filtered.length === 0) {
+					return [makeEmptyRow()];
+				}
+				return filtered;
+			});
+		},
+		[],
+	);
 
 	const updateRow = useCallback(
 		(id: string, field: keyof ApiKeyRow, value: string) => {
@@ -79,7 +111,7 @@ const AIProviderDetailPage: FC = () => {
 
 	const hasAnyKey = apiKeys.some((row) => row.apiKey.length > 0);
 
-	const handleAddProvider = useCallback(async () => {
+	const handleSave = useCallback(async () => {
 		const firstKey = apiKeys.find((row) => row.apiKey.length > 0);
 		if (!firstKey) return;
 		setIsSaving(true);
@@ -97,15 +129,29 @@ const AIProviderDetailPage: FC = () => {
 		}
 	}, [apiKeys, baseUrl, provider, createMutation, navigate]);
 
+	const handleDelete = useCallback(async () => {
+		if (!existingConfig) return;
+		await deleteMutation.mutateAsync(existingConfig.id);
+		navigate("/ai/providers");
+	}, [existingConfig, deleteMutation, navigate]);
+
 	return (
 		<div>
-			<Link
-				to="/ai/providers"
-				className="inline-flex items-center gap-1 text-sm text-content-secondary no-underline hover:text-content-primary mb-6"
-			>
-				<ArrowLeftIcon className="size-4" />
-				Back to providers
-			</Link>
+			{/* Top bar */}
+			<div className="flex items-center justify-between mb-6">
+				<Link
+					to="/ai/providers"
+					className="inline-flex items-center gap-1 text-sm text-content-secondary no-underline hover:text-content-primary"
+				>
+					<ArrowLeftIcon className="size-4" />
+					Back to providers
+				</Link>
+				{isEditMode && (
+					<Button variant="destructive" onClick={handleDelete}>
+						Delete
+					</Button>
+				)}
+			</div>
 
 			<div className="flex items-center gap-3 mb-2">
 				<ProviderIcon provider={provider} className="h-10 w-10 shrink-0" />
@@ -115,6 +161,14 @@ const AIProviderDetailPage: FC = () => {
 				Connect third-party LLM services like OpenAI, Anthropic, or
 				Google. Each provider supplies models that users can select for
 				their conversations.
+				{isEditMode && (
+					<>
+						{" "}You have {existingConfig?.display_name ? "" : ""}models added for this provider.{" "}
+						<Link to="/ai/models" className="text-content-link">
+							Manage models
+						</Link>
+					</>
+				)}
 			</p>
 
 			<div className="border border-solid border-border rounded-lg p-8">
@@ -147,28 +201,40 @@ const AIProviderDetailPage: FC = () => {
 										<GripVerticalIcon className="size-4 text-content-disabled cursor-grab" />
 									</TableCell>
 									<TableCell>
-										<Input
-											placeholder="Describe your key"
-											value={row.name}
-											autoComplete="off"
-											onChange={(e) =>
-												updateRow(row.id, "name", e.target.value)
-											}
-										/>
+										{row.saved ? (
+											<span className="text-sm text-content-primary">
+												{row.name}
+											</span>
+										) : (
+											<Input
+												placeholder="Describe your key"
+												value={row.name}
+												autoComplete="off"
+												onChange={(e) =>
+													updateRow(row.id, "name", e.target.value)
+												}
+											/>
+										)}
 									</TableCell>
 									<TableCell>
-										<Input
-											placeholder="Enter key"
-											type="text"
-											autoComplete="off"
-											data-1p-ignore
-											data-lpignore="true"
-											className="font-mono"
-											value={row.apiKey}
-											onChange={(e) =>
-												updateRow(row.id, "apiKey", e.target.value)
-											}
-										/>
+										{row.saved ? (
+											<span className="text-sm text-content-secondary font-mono">
+												{row.apiKey}
+											</span>
+										) : (
+											<Input
+												placeholder="Enter key"
+												type="text"
+												autoComplete="off"
+												data-1p-ignore
+												data-lpignore="true"
+												className="font-mono"
+												value={row.apiKey}
+												onChange={(e) =>
+													updateRow(row.id, "apiKey", e.target.value)
+												}
+											/>
+										)}
 									</TableCell>
 									<TableCell>
 										<span className="text-sm text-content-secondary">
@@ -181,23 +247,29 @@ const AIProviderDetailPage: FC = () => {
 										</span>
 									</TableCell>
 									<TableCell>
-										{i > 0 ? (
+										{isEditMode || i > 0 ? (
 											<DropdownMenu>
-													<DropdownMenuTrigger asChild>
-														<button
-															type="button"
-															className="flex items-center justify-center w-8 h-8 rounded-md bg-transparent border-none cursor-pointer hover:bg-surface-secondary"
+												<DropdownMenuTrigger asChild>
+													<button
+														type="button"
+														className="flex items-center justify-center w-8 h-8 rounded-md bg-transparent border-none cursor-pointer hover:bg-surface-secondary"
 													>
 														<EllipsisVerticalIcon className="size-4 text-content-secondary" />
 													</button>
 												</DropdownMenuTrigger>
 												<DropdownMenuContent align="end">
+													{row.saved && (
+														<DropdownMenuItem className="gap-2">
+															<PencilIcon className="size-4" />
+															Edit API key
+														</DropdownMenuItem>
+													)}
 													<DropdownMenuItem
 														className="gap-2 text-content-destructive"
 														onClick={() => removeRow(row.id)}
 													>
-														<XIcon className="size-4" />
-														Remove
+														<Trash2Icon className="size-4" />
+														Delete
 													</DropdownMenuItem>
 												</DropdownMenuContent>
 											</DropdownMenu>
@@ -240,8 +312,12 @@ const AIProviderDetailPage: FC = () => {
 				<Button variant="outline" asChild>
 					<Link to="/ai/providers">Cancel</Link>
 				</Button>
-				<Button disabled={!hasAnyKey || isSaving} onClick={handleAddProvider}>
-					{isSaving ? "Adding..." : "Add provider"}
+				<Button disabled={!hasAnyKey || isSaving} onClick={handleSave}>
+					{isSaving
+						? "Saving..."
+						: isEditMode
+							? "Update provider"
+							: "Add provider"}
 				</Button>
 			</div>
 		</div>
