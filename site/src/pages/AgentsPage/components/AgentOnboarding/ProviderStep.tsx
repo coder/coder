@@ -206,7 +206,11 @@ export const ProviderStep: FC<ProviderStepProps> = ({
 						)}
 					</div>
 					<Input
-						type="password"
+						type="text"
+						className="[-webkit-text-security:disc]"
+						autoComplete="off"
+						data-1p-ignore
+						data-lpignore="true"
 						placeholder="sk-..."
 						value={apiKey}
 						onChange={(e) => setApiKey(e.target.value)}
