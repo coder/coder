@@ -12,7 +12,9 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { type FC, useCallback, useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
+import { useMutation, useQueryClient } from "react-query";
+import { createChatProviderConfig } from "#/api/queries/chats";
 import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
 import {
@@ -47,9 +49,14 @@ const AIProviderDetailPage: FC = () => {
 	const { providerType } = useParams<{ providerType: string }>();
 	const provider = providerType ?? "anthropic";
 	const label = formatProviderLabel(provider);
+	const navigate = useNavigate();
+	const queryClient = useQueryClient();
 
 	const [apiKeys, setApiKeys] = useState<ApiKeyRow[]>(() => [makeEmptyRow()]);
 	const [baseUrl, setBaseUrl] = useState("");
+	const [isSaving, setIsSaving] = useState(false);
+
+	const createMutation = useMutation(createChatProviderConfig(queryClient));
 
 	const addRow = useCallback(() => {
 		setApiKeys((prev) => [...prev, makeEmptyRow()]);
@@ -71,6 +78,24 @@ const AIProviderDetailPage: FC = () => {
 	);
 
 	const hasAnyKey = apiKeys.some((row) => row.apiKey.length > 0);
+
+	const handleAddProvider = useCallback(async () => {
+		const firstKey = apiKeys.find((row) => row.apiKey.length > 0);
+		if (!firstKey) return;
+		setIsSaving(true);
+		try {
+			await createMutation.mutateAsync({
+				provider,
+				api_key: firstKey.apiKey,
+				base_url: baseUrl || undefined,
+				enabled: true,
+				central_api_key_enabled: true,
+			});
+			navigate("/ai/providers");
+		} finally {
+			setIsSaving(false);
+		}
+	}, [apiKeys, baseUrl, provider, createMutation, navigate]);
 
 	return (
 		<div>
@@ -214,7 +239,9 @@ const AIProviderDetailPage: FC = () => {
 				<Button variant="outline" asChild>
 					<Link to="/ai/providers">Cancel</Link>
 				</Button>
-				<Button disabled={!hasAnyKey}>Add provider</Button>
+				<Button disabled={!hasAnyKey || isSaving} onClick={handleAddProvider}>
+					{isSaving ? "Adding..." : "Add provider"}
+				</Button>
 			</div>
 		</div>
 	);
