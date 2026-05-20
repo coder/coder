@@ -26,3 +26,29 @@ export const Bedrock: Story = {
 		provider: "bedrock",
 	},
 };
+
+export const Azure: Story = {
+	args: {
+		provider: "azure",
+	},
+};
+
+export const Google: Story = {
+	args: {
+		provider: "google",
+	},
+};
+
+export const Vercel: Story = {
+	args: {
+		provider: "vercel",
+	},
+};
+
+// Provider types without a bundled icon (openai-compat, openrouter, or
+// anything we don't recognize) render the generic Building2 glyph.
+export const Fallback: Story = {
+	args: {
+		provider: "openai-compat",
+	},
+};

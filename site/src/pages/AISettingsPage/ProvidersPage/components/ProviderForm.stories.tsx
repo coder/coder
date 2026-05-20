@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { ProviderForm } from "./ProviderForm";
 
 const meta: Meta<typeof ProviderForm> = {
@@ -105,5 +105,28 @@ export const Submitting: Story = {
 			baseUrl: "https://api.openai.com/v1",
 			apiKey: "sk-example",
 		},
+	},
+};
+
+export const CredentialFocusClear: Story = {
+	args: {
+		editing: true,
+		openAiAnthropicSavedApiKey: true,
+		openAiAnthropicMaskedApiKey: "sk-ant-***\u2026***ABCD",
+		initialValues: {
+			type: "anthropic",
+			name: "production-anthropic",
+			displayName: "Production Anthropic",
+			baseUrl: "https://api.anthropic.com",
+			apiKey: "",
+			enabled: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const apiKeyInput = await canvas.findByLabelText(/api key/i);
+		expect(apiKeyInput).toHaveValue("sk-ant-***\u2026***ABCD");
+		await userEvent.click(apiKeyInput);
+		await waitFor(() => expect(apiKeyInput).toHaveValue(""));
 	},
 };
