@@ -2338,6 +2338,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       ],
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+      "owner_name": "string",
+      "owner_username": "string",
       "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
       "pin_order": 0,
       "plan_mode": "plan",
@@ -2464,6 +2466,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   ],
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "owner_name": "string",
+  "owner_username": "string",
   "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
   "pin_order": 0,
   "plan_mode": "plan",
@@ -2501,6 +2505,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `mcp_server_ids`        | array of string                                                 | false    |              |                                                                                                                                                                                                                                                                            |
 | `organization_id`       | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `owner_id`              | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `owner_name`            | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `owner_username`        | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `parent_chat_id`        | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `pin_order`             | integer                                                         | false    |              |                                                                                                                                                                                                                                                                            |
 | `plan_mode`             | [codersdk.ChatPlanMode](#codersdkchatplanmode)                  | false    |              |                                                                                                                                                                                                                                                                            |
@@ -2510,6 +2516,60 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `updated_at`            | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `warnings`              | array of string                                                 | false    |              |                                                                                                                                                                                                                                                                            |
 | `workspace_id`          | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+
+## codersdk.ChatACL
+
+```json
+{
+  "groups": [
+    {
+      "avatar_url": "http://example.com",
+      "display_name": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "members": [
+        {
+          "avatar_url": "http://example.com",
+          "created_at": "2019-08-24T14:15:22Z",
+          "email": "user@example.com",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "is_service_account": true,
+          "last_seen_at": "2019-08-24T14:15:22Z",
+          "login_type": "",
+          "name": "string",
+          "status": "active",
+          "theme_preference": "string",
+          "updated_at": "2019-08-24T14:15:22Z",
+          "username": "string"
+        }
+      ],
+      "name": "string",
+      "organization_display_name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "organization_name": "string",
+      "quota_allowance": 0,
+      "role": "read",
+      "source": "user",
+      "total_member_count": 0
+    }
+  ],
+  "users": [
+    {
+      "avatar_url": "http://example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "role": "read",
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name     | Type                                              | Required | Restrictions | Description |
+|----------|---------------------------------------------------|----------|--------------|-------------|
+| `groups` | array of [codersdk.ChatGroup](#codersdkchatgroup) | false    |              |             |
+| `users`  | array of [codersdk.ChatUser](#codersdkchatuser)   | false    |              |             |
 
 ## codersdk.ChatBusyBehavior
 
@@ -2690,6 +2750,63 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `name`            | string | false    |              |             |
 | `organization_id` | string | false    |              |             |
 | `owner_id`        | string | false    |              |             |
+
+## codersdk.ChatGroup
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "display_name": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "members": [
+    {
+      "avatar_url": "http://example.com",
+      "created_at": "2019-08-24T14:15:22Z",
+      "email": "user@example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_service_account": true,
+      "last_seen_at": "2019-08-24T14:15:22Z",
+      "login_type": "",
+      "name": "string",
+      "status": "active",
+      "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "username": "string"
+    }
+  ],
+  "name": "string",
+  "organization_display_name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organization_name": "string",
+  "quota_allowance": 0,
+  "role": "read",
+  "source": "user",
+  "total_member_count": 0
+}
+```
+
+### Properties
+
+| Name                        | Type                                                  | Required | Restrictions | Description                                                                                                                                                           |
+|-----------------------------|-------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `avatar_url`                | string                                                | false    |              |                                                                                                                                                                       |
+| `display_name`              | string                                                | false    |              |                                                                                                                                                                       |
+| `id`                        | string                                                | false    |              |                                                                                                                                                                       |
+| `members`                   | array of [codersdk.ReducedUser](#codersdkreduceduser) | false    |              |                                                                                                                                                                       |
+| `name`                      | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_display_name` | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_id`           | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_name`         | string                                                | false    |              |                                                                                                                                                                       |
+| `quota_allowance`           | integer                                               | false    |              |                                                                                                                                                                       |
+| `role`                      | [codersdk.ChatRole](#codersdkchatrole)                | false    |              |                                                                                                                                                                       |
+| `source`                    | [codersdk.GroupSource](#codersdkgroupsource)          | false    |              |                                                                                                                                                                       |
+| `total_member_count`        | integer                                               | false    |              | How many members are in this group. Shows the total count, even if the user is not authorized to read group member details. May be greater than `len(Group.Members)`. |
+
+#### Enumerated Values
+
+| Property | Value(s) |
+|----------|----------|
+| `role`   | `read`   |
 
 ## codersdk.ChatInputPart
 
@@ -3377,6 +3494,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |------------------|---------|----------|--------------|-------------|
 | `retention_days` | integer | false    |              |             |
 
+## codersdk.ChatRole
+
+```json
+"read"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)   |
+|------------|
+| ``, `read` |
+
 ## codersdk.ChatStatus
 
 ```json
@@ -3810,6 +3941,34 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `tool_call_id` | string | false    |              |             |
 | `tool_name`    | string | false    |              |             |
 
+## codersdk.ChatUser
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "role": "read",
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name         | Type                                   | Required | Restrictions | Description |
+|--------------|----------------------------------------|----------|--------------|-------------|
+| `avatar_url` | string                                 | false    |              |             |
+| `id`         | string                                 | true     |              |             |
+| `name`       | string                                 | false    |              |             |
+| `role`       | [codersdk.ChatRole](#codersdkchatrole) | false    |              |             |
+| `username`   | string                                 | true     |              |             |
+
+#### Enumerated Values
+
+| Property | Value(s) |
+|----------|----------|
+| `role`   | `read`   |
+
 ## codersdk.ChatWatchEvent
 
 ```json
@@ -3934,6 +4093,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     ],
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+    "owner_name": "string",
+    "owner_username": "string",
     "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
     "pin_order": 0,
     "plan_mode": "plan",
@@ -12892,6 +13053,30 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `application_name`     | string                                                  | false    |              |                                                                     |
 | `logo_url`             | string                                                  | false    |              |                                                                     |
 | `service_banner`       | [codersdk.BannerConfig](#codersdkbannerconfig)          | false    |              | Deprecated: ServiceBanner has been replaced by AnnouncementBanners. |
+
+## codersdk.UpdateChatACL
+
+```json
+{
+  "group_roles": {
+    "property1": "read",
+    "property2": "read"
+  },
+  "user_roles": {
+    "property1": "read",
+    "property2": "read"
+  }
+}
+```
+
+### Properties
+
+| Name               | Type                                   | Required | Restrictions | Description |
+|--------------------|----------------------------------------|----------|--------------|-------------|
+| `group_roles`      | object                                 | false    |              |             |
+| » `[any property]` | [codersdk.ChatRole](#codersdkchatrole) | false    |              |             |
+| `user_roles`       | object                                 | false    |              |             |
+| » `[any property]` | [codersdk.ChatRole](#codersdkchatrole) | false    |              |             |
 
 ## codersdk.UpdateChatRequest
 

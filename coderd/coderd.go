@@ -1298,6 +1298,10 @@ func New(options *Options) *API {
 			})
 			r.Route("/{chat}", func(r chi.Router) {
 				r.Use(httpmw.ExtractChatParam(options.Database))
+				r.Route("/acl", func(r chi.Router) {
+					r.Get("/", api.getChatACL)
+					r.Patch("/", api.patchChatACL)
+				})
 				r.Get("/", api.getChat)
 				r.Patch("/", api.patchChat)
 				r.Get("/messages", api.getChatMessages)
