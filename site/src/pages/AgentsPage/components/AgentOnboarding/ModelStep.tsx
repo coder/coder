@@ -99,7 +99,7 @@ export const ModelStep: FC<ModelStepProps> = ({
 
 	return (
 		<div className="flex flex-col gap-6">
-			<div className="flex flex-col gap-3">
+			<div className="flex flex-col gap-1">
 				<h2 className="text-2xl font-semibold">Add a model</h2>
 				<p className="text-sm text-content-secondary">
 					Set up at least one model to get started. For cost tracking,

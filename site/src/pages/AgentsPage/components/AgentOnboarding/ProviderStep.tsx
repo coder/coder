@@ -97,7 +97,7 @@ export const ProviderStep: FC<ProviderStepProps> = ({ onSkip, onContinue }) => {
 	// Configuring sub-state
 	return (
 		<div className="flex flex-col gap-6">
-			<div className="flex flex-col gap-3">
+			<div className="flex flex-col gap-1">
 				<h2 className="text-2xl font-semibold">Connect an AI provider.</h2>
 				<p className="text-sm text-content-secondary">
 					You'll need to set up at least one provider to get started.
@@ -135,23 +135,24 @@ export const ProviderStep: FC<ProviderStepProps> = ({ onSkip, onContinue }) => {
 			{/* Provider config form */}
 			{selectedProvider ? (
 				<div className="flex flex-col gap-4 rounded-xl border border-solid border-border p-6">
-					<div className="flex items-center justify-between">
-						<Label className="text-sm font-medium">
-							{formatProviderLabel(selectedProvider)} API key
-						</Label>
-						{API_KEY_URLS[selectedProvider] && (
-							<a
-								href={API_KEY_URLS[selectedProvider]}
-								target="_blank"
-								rel="noreferrer"
-								className="inline-flex items-center gap-1 text-sm text-content-link hover:text-content-link/80"
-							>
-								Get API key
-								<ExternalLinkIcon className="size-3" />
-							</a>
-						)}
-					</div>
-					<Input
+					<div className="flex flex-col gap-1.5">
+							<div className="flex items-center justify-between">
+								<Label className="text-sm font-medium">
+									{formatProviderLabel(selectedProvider)} API key
+								</Label>
+								{API_KEY_URLS[selectedProvider] && (
+									<a
+										href={API_KEY_URLS[selectedProvider]}
+										target="_blank"
+										rel="noreferrer"
+										className="inline-flex items-center gap-1 text-sm text-content-link hover:text-content-link/80"
+									>
+										Get API key
+										<ExternalLinkIcon className="size-3" />
+									</a>
+								)}
+							</div>
+							<Input
 						type="text"
 						className="[-webkit-text-security:disc]"
 						autoComplete="off"
@@ -160,21 +161,24 @@ export const ProviderStep: FC<ProviderStepProps> = ({ onSkip, onContinue }) => {
 						placeholder="sk-..."
 						value={apiKey}
 						onChange={(e) => setApiKey(e.target.value)}
-					/>
+							/>
+						</div>
 
-					<Label className="text-sm font-medium">Base URL</Label>
-					<Input
-						type="text"
-						placeholder={
-							selectedProvider === "anthropic" ||
-							selectedProvider === "bedrock" ||
-							selectedProvider === "google"
-								? "https://api.example.com"
-								: "https://api.example.com/v1"
-						}
-						value={baseUrl}
-						onChange={(e) => setBaseUrl(e.target.value)}
-					/>
+					<div className="flex flex-col gap-1.5">
+							<Label className="text-sm font-medium">Base URL</Label>
+							<Input
+								type="text"
+								placeholder={
+									selectedProvider === "anthropic" ||
+									selectedProvider === "bedrock" ||
+									selectedProvider === "google"
+										? "https://api.example.com"
+										: "https://api.example.com/v1"
+								}
+								value={baseUrl}
+								onChange={(e) => setBaseUrl(e.target.value)}
+							/>
+						</div>
 				</div>
 			) : (
 				<div className="flex min-h-[200px] items-center justify-center rounded-xl border border-solid border-border p-6">
