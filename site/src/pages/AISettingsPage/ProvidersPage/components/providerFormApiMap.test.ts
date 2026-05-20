@@ -12,6 +12,7 @@ import {
 } from "./ProviderForm";
 import {
 	aiProviderToFormValues,
+	getProviderDisplayType,
 	hasBedrockStoredCredentials,
 	isBedrockProvider,
 	providerFormValuesToCreate,
@@ -156,6 +157,52 @@ describe("hasBedrockStoredCredentials", () => {
 	it("is false for non-Bedrock providers", () => {
 		expect(hasBedrockStoredCredentials(MockAIProviderOpenAI)).toBe(false);
 		expect(hasBedrockStoredCredentials(MockAIProviderAnthropic)).toBe(false);
+	});
+});
+
+describe("getProviderDisplayType", () => {
+	it("returns bedrock for a Bedrock provider", () => {
+		expect(getProviderDisplayType(MockAIProviderBedrock)).toBe("bedrock");
+	});
+
+	it("returns anthropic for a non-Bedrock Anthropic provider", () => {
+		expect(getProviderDisplayType(MockAIProviderAnthropic)).toBe("anthropic");
+	});
+
+	it("returns openai for the canonical OpenAI host", () => {
+		expect(getProviderDisplayType(MockAIProviderOpenAI)).toBe("openai");
+	});
+
+	it.each([
+		["azure", "https://my-resource.openai.azure.com/openai/v1"],
+		["azure", "https://YOUR-RESOURCE.openai.azure.com/openai/v1"],
+		["google", "https://generativelanguage.googleapis.com/v1beta/openai/"],
+		["openrouter", "https://openrouter.ai/api/v1"],
+		["vercel", "https://ai-gateway.vercel.sh/v1"],
+	])("recovers the %s preset from a canonical base_url", (expected, baseUrl) => {
+		const provider: AIProvider = {
+			...MockAIProviderOpenAI,
+			base_url: baseUrl,
+		};
+		expect(getProviderDisplayType(provider)).toBe(expected);
+	});
+
+	it("falls back to the wire type for an unrecognized base_url", () => {
+		// Internal proxies and custom OpenAI-compatible endpoints keep the
+		// OpenAI glyph rather than dropping to a question mark.
+		const provider: AIProvider = {
+			...MockAIProviderOpenAI,
+			base_url: "https://llm-proxy.internal.example.com/v1",
+		};
+		expect(getProviderDisplayType(provider)).toBe("openai");
+	});
+
+	it("falls back to the wire type when base_url is not a parseable URL", () => {
+		const provider: AIProvider = {
+			...MockAIProviderOpenAI,
+			base_url: "not a url",
+		};
+		expect(getProviderDisplayType(provider)).toBe("openai");
 	});
 });
 

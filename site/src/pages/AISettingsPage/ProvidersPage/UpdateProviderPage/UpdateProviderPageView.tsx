@@ -23,6 +23,7 @@ import { ProviderForm } from "../components/ProviderForm";
 import { getProviderIcon } from "../components/ProviderIcon";
 import {
 	aiProviderToFormValues,
+	getProviderDisplayType,
 	hasBedrockStoredCredentials,
 	isBedrockProvider,
 	providerFormValuesToUpdate,
@@ -142,7 +143,7 @@ const UpdateProviderPageView: React.FC = () => {
 						<Avatar
 							variant="icon"
 							size="lg"
-							src={getProviderIcon(provider.type)}
+							src={getProviderIcon(getProviderDisplayType(provider))}
 						/>
 						<PageHeaderTitle
 							className="min-w-0"

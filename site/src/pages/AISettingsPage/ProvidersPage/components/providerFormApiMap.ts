@@ -83,6 +83,49 @@ export const hasBedrockStoredCredentials = (provider: AIProvider): boolean => {
 	return true;
 };
 
+const parseProviderHost = (url: string): string => {
+	try {
+		return new URL(url).host.toLowerCase();
+	} catch {
+		return "";
+	}
+};
+
+/**
+ * Returns the UI-facing provider type used for icons and labels.
+ *
+ * The wire `type` collapses Azure, Google, OpenRouter, Vercel, and the
+ * generic OpenAI-compatible preset to `openai` (the codersdk validator
+ * only accepts openai/anthropic today), so we sniff the saved `base_url`
+ * against the canonical host of each preset to recover the original UI
+ * choice. Bedrock providers ship as `type="anthropic"` with a
+ * settings.bedrock discriminator and are detected directly. Unrecognized
+ * URLs fall through to the wire type so internal proxies keep the OpenAI
+ * (or Anthropic) glyph rather than dropping to a question mark.
+ */
+export const getProviderDisplayType = (provider: AIProvider): string => {
+	if (isBedrockProvider(provider)) {
+		return "bedrock";
+	}
+	if (provider.type === "anthropic") {
+		return "anthropic";
+	}
+	const host = parseProviderHost(provider.base_url ?? "");
+	if (host.endsWith(".openai.azure.com")) {
+		return "azure";
+	}
+	if (host === "generativelanguage.googleapis.com") {
+		return "google";
+	}
+	if (host === "openrouter.ai") {
+		return "openrouter";
+	}
+	if (host === "ai-gateway.vercel.sh") {
+		return "vercel";
+	}
+	return provider.type;
+};
+
 const buildBedrockSettings = (
 	region: string | undefined,
 	model: string,

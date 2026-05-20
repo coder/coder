@@ -5,6 +5,7 @@ import { AvatarData } from "#/components/Avatar/AvatarData";
 import { TableCell, TableRow } from "#/components/Table/Table";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import { ProviderIcon } from "./ProviderIcon";
+import { getProviderDisplayType } from "./providerFormApiMap";
 
 type ProviderRowProps = {
 	provider: AIProvider;
@@ -28,7 +29,7 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 					subtitle={provider.name}
 					avatar={
 						<Avatar className="flex shrink-0 items-center justify-center">
-							<ProviderIcon provider={provider.type} />
+							<ProviderIcon provider={getProviderDisplayType(provider)} />
 						</Avatar>
 					}
 				/>
