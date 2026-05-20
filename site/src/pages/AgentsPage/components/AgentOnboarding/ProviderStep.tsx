@@ -120,8 +120,10 @@ export const ProviderStep: FC<ProviderStepProps> = ({
 			<div className="flex flex-col gap-3">
 				<h2 className="text-2xl font-semibold">Connect an AI provider.</h2>
 				<p className="text-sm text-content-secondary">
-					You'll need to set up at least one provider to get started. For key
-					policy and API key controls, go to Settings &rarr;{" "}
+					You'll need to set up at least one provider to get started.
+				</p>
+				<p className="text-sm text-content-secondary">
+					For key policy and API key controls, go to Settings &rarr;{" "}
 					<Link
 						to="/agents/settings/api-keys"
 						className="text-content-link hover:text-content-link/80"
