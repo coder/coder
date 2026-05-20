@@ -116,7 +116,9 @@ export function useActiveFileTracking({
 		}
 	};
 
-	// oxlint-disable-next-line react/exhaustive-deps -- fileListKey is an intentional trigger dep. The effect reads fileRefs (a mutable ref) and must retry when the file list changes so a previously-unmounted element can be found.
+	// fileListKey is an intentional trigger dep. The effect reads fileRefs
+	// (a mutable ref) and must retry when the file list changes so a
+	// previously-unmounted element can be found.
 	useEffect(() => {
 		if (!scrollToFile) return;
 		const el = fileRefs.current.get(scrollToFile);

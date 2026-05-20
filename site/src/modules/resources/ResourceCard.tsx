@@ -1,4 +1,4 @@
-import { Children, type FC, type JSX, useState } from "react";
+import { Children, type FC, type ReactNode, useState } from "react";
 import type { WorkspaceAgent, WorkspaceResource } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
@@ -14,7 +14,7 @@ import { SensitiveValue } from "./SensitiveValue";
 
 interface ResourceCardProps {
 	resource: WorkspaceResource;
-	agentRow: (agent: WorkspaceAgent) => JSX.Element;
+	agentRow: (agent: WorkspaceAgent) => ReactNode;
 }
 
 export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
@@ -94,8 +94,7 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
 															</CopyableValue>
 														);
 													}
-													// oxlint-disable-next-line react/jsx-no-useless-fragment -- pre-existing during oxlint migration
-													return <>{children}</>;
+													return children;
 												},
 											}}
 										>

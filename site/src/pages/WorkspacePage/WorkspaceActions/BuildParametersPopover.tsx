@@ -141,55 +141,50 @@ const BuildParametersPopoverContent: FC<BuildParametersPopoverContentProps> = ({
 		);
 	}
 
-	return (
-		// oxlint-disable-next-line react/jsx-no-useless-fragment -- pre-existing during oxlint migration
-		<>
-			{buildParameters && ephemeralParameters ? (
-				ephemeralParameters.length > 0 ? (
-					<div className="divide-y">
-						<div className="p-5 text-content-secondary">
-							<HelpPopoverTitle>Build Options</HelpPopoverTitle>
-							<HelpPopoverText>
-								These parameters only apply for a single workspace start.
-							</HelpPopoverText>
-						</div>
-						<div className="border-0 border-solid p-5">
-							<Form
-								onSubmit={(buildParameters) => {
-									onSubmit(buildParameters);
-									setIsOpen(false);
-								}}
-								ephemeralParameters={ephemeralParameters}
-								buildParameters={buildParameters.map(
-									(p): AutofillBuildParameter => ({
-										...p,
-										source: "active_build",
-									}),
-								)}
-							/>
-						</div>
-					</div>
-				) : (
-					<div className="p-5 text-content-secondary">
-						<HelpPopoverTitle>Build Options</HelpPopoverTitle>
-						<HelpPopoverText>
-							This template has no ephemeral build options.
-						</HelpPopoverText>
-						<HelpPopoverLinksGroup>
-							<HelpPopoverLink
-								href={docs(
-									"/admin/templates/extending-templates/parameters#ephemeral-parameters",
-								)}
-							>
-								Read the docs
-							</HelpPopoverLink>
-						</HelpPopoverLinksGroup>
-					</div>
-				)
-			) : (
-				<Loader />
-			)}
-		</>
+	return buildParameters && ephemeralParameters ? (
+		ephemeralParameters.length > 0 ? (
+			<div className="divide-y">
+				<div className="p-5 text-content-secondary">
+					<HelpPopoverTitle>Build Options</HelpPopoverTitle>
+					<HelpPopoverText>
+						These parameters only apply for a single workspace start.
+					</HelpPopoverText>
+				</div>
+				<div className="border-0 border-solid p-5">
+					<Form
+						onSubmit={(buildParameters) => {
+							onSubmit(buildParameters);
+							setIsOpen(false);
+						}}
+						ephemeralParameters={ephemeralParameters}
+						buildParameters={buildParameters.map(
+							(p): AutofillBuildParameter => ({
+								...p,
+								source: "active_build",
+							}),
+						)}
+					/>
+				</div>
+			</div>
+		) : (
+			<div className="p-5 text-content-secondary">
+				<HelpPopoverTitle>Build Options</HelpPopoverTitle>
+				<HelpPopoverText>
+					This template has no ephemeral build options.
+				</HelpPopoverText>
+				<HelpPopoverLinksGroup>
+					<HelpPopoverLink
+						href={docs(
+							"/admin/templates/extending-templates/parameters#ephemeral-parameters",
+						)}
+					>
+						Read the docs
+					</HelpPopoverLink>
+				</HelpPopoverLinksGroup>
+			</div>
+		)
+	) : (
+		<Loader />
 	);
 };
 

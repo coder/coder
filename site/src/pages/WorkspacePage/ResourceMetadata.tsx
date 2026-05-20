@@ -58,8 +58,7 @@ export const ResourceMetadata: FC<ResourceMetadataProps> = ({
 													</CopyableValue>
 												);
 											}
-											// oxlint-disable-next-line react/jsx-no-useless-fragment -- pre-existing during oxlint migration
-											return <>{children}</>;
+											return children;
 										},
 									}}
 								>

@@ -15,8 +15,9 @@
 		"**/node_modules/**",
 		"**/pnpm-lock.yaml",
 		"**/static/*.html",
+		"**/*.md",
 		"e2e/**/*Generated.ts",
 		"scripts/*.mjs",
-		"storybook-static/**"
-	]
+		"storybook-static/**",
+	],
 }

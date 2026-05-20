@@ -1,4 +1,4 @@
-import { type FC, type JSX, useState } from "react";
+import { type FC, type ReactNode, useState } from "react";
 import type { WorkspaceAgent, WorkspaceResource } from "#/api/typesGenerated";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
@@ -10,7 +10,7 @@ const countAgents = (resource: WorkspaceResource) => {
 
 interface ResourcesProps {
 	resources: WorkspaceResource[];
-	agentRow: (agent: WorkspaceAgent, numberOfAgents: number) => JSX.Element;
+	agentRow: (agent: WorkspaceAgent, numberOfAgents: number) => ReactNode;
 }
 
 export const Resources: FC<ResourcesProps> = ({ resources, agentRow }) => {

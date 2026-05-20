@@ -11,6 +11,8 @@
 	"devDependencies": {
 		"markdown-table-formatter": "^1.6.1",
 		"markdownlint-cli2": "^0.16.0",
+		"oxfmt": "^0.51.0",
+		"oxlint": "^1.66.0",
 		"quicktype": "^23.0.0"
 	},
 	"pnpm": {

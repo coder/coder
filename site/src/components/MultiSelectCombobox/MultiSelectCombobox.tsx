@@ -634,62 +634,58 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 										heading={key}
 										className="h-full overflow-auto"
 									>
-										{/* oxlint-disable-next-line react/jsx-no-useless-fragment -- A parent element is
-											    needed for multiple dropdown items */}
-										<>
-											{dropdowns.map((option) => {
-												return (
-													<CommandItem
-														key={option.value}
-														value={option.value}
-														keywords={[option.label]}
-														disabled={option.disable}
-														onMouseDown={(e) => {
-															e.preventDefault();
-															e.stopPropagation();
-														}}
-														onSelect={() => {
-															if (selected.length >= maxSelected) {
-																onMaxSelected?.(selected.length);
-																return;
-															}
-															setInputValue("");
-															const newOptions = [...selected, option];
-															setSelected(newOptions);
-															onChange?.(newOptions);
-														}}
-														className={cn(
-															"cursor-pointer",
-															option.disable &&
-																"cursor-default text-content-disabled",
+										{dropdowns.map((option) => {
+											return (
+												<CommandItem
+													key={option.value}
+													value={option.value}
+													keywords={[option.label]}
+													disabled={option.disable}
+													onMouseDown={(e) => {
+														e.preventDefault();
+														e.stopPropagation();
+													}}
+													onSelect={() => {
+														if (selected.length >= maxSelected) {
+															onMaxSelected?.(selected.length);
+															return;
+														}
+														setInputValue("");
+														const newOptions = [...selected, option];
+														setSelected(newOptions);
+														onChange?.(newOptions);
+													}}
+													className={cn(
+														"cursor-pointer",
+														option.disable &&
+															"cursor-default text-content-disabled",
+													)}
+												>
+													<div className="flex items-center gap-2">
+														{showIcons && (
+															<Avatar
+																size="sm"
+																src={option.icon}
+																fallback={option.label}
+															/>
 														)}
-													>
-														<div className="flex items-center gap-2">
-															{showIcons && (
-																<Avatar
-																	size="sm"
-																	src={option.icon}
-																	fallback={option.label}
-																/>
-															)}
-															{option.label}
-															{option.description && (
-																<Tooltip>
-																	<TooltipTrigger asChild>
-																		<span className="flex items-center pointer-events-auto">
-																			<InfoIcon className="!w-3.5 !h-3.5 text-content-secondary" />
-																		</span>
-																	</TooltipTrigger>
-																	<TooltipContent side="right" sideOffset={10}>
-																		{option.description}
-																	</TooltipContent>
-																</Tooltip>
-															)}
-														</div>
-													</CommandItem>
-												);
-											})}
-										</>
+														{option.label}
+														{option.description && (
+															<Tooltip>
+																<TooltipTrigger asChild>
+																	<span className="flex items-center pointer-events-auto">
+																		<InfoIcon className="!w-3.5 !h-3.5 text-content-secondary" />
+																	</span>
+																</TooltipTrigger>
+																<TooltipContent side="right" sideOffset={10}>
+																	{option.description}
+																</TooltipContent>
+															</Tooltip>
+														)}
+													</div>
+												</CommandItem>
+											);
+										})}
 									</CommandGroup>
 								))}
 							</>

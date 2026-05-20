@@ -46,8 +46,7 @@ export const InlineMarkdown: FC<InlineMarkdownProps> = (props) => {
 			]}
 			unwrapDisallowed
 			components={{
-				// oxlint-disable-next-line react/jsx-no-useless-fragment -- pre-existing during oxlint migration
-				p: ({ children }) => <>{children}</>,
+				p: ({ children }) => children,
 
 				a: ({ href, target, children }) => (
 					<Link href={href} target={target}>

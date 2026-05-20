@@ -105,7 +105,6 @@ export const ModelIdentifierField = ({
 	const hasError = Boolean(modelField.error);
 	const errorId = hasError ? `${modelField.id}-error` : undefined;
 
-	// oxlint-disable-next-line react/exhaustive-deps -- Provider reset.
 	useEffect(() => {
 		setFeedback(null);
 		lastAppliedProviderModelRef.current = null;

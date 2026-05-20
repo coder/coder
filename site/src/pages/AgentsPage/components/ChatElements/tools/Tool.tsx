@@ -946,43 +946,38 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 		</>
 	);
 
-	const toolContent = (
-		// oxlint-disable-next-line react/jsx-no-useless-fragment -- pre-existing during oxlint migration
-		<>
-			{fileContent ? (
-				<ScrollArea
-					className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
-					viewportClassName="max-h-64"
-					scrollBarClassName="w-1.5"
-				>
-					<FileViewer
-						file={{
-							name: fileContent.path,
-							contents: fileContent.content,
-						}}
-						options={fileContentOptions}
-						style={DIFFS_FONT_STYLE}
-					/>
-				</ScrollArea>
-			) : (
-				resultOutput && (
-					<ScrollArea
-						className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
-						viewportClassName="max-h-64"
-						scrollBarClassName="w-1.5"
-					>
-						<FileViewer
-							file={{
-								name: "output.json",
-								contents: resultOutput,
-							}}
-							options={getFileViewerOptionsNoHeader(isDark)}
-							style={DIFFS_FONT_STYLE}
-						/>
-					</ScrollArea>
-				)
-			)}
-		</>
+	const toolContent = fileContent ? (
+		<ScrollArea
+			className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
+			viewportClassName="max-h-64"
+			scrollBarClassName="w-1.5"
+		>
+			<FileViewer
+				file={{
+					name: fileContent.path,
+					contents: fileContent.content,
+				}}
+				options={fileContentOptions}
+				style={DIFFS_FONT_STYLE}
+			/>
+		</ScrollArea>
+	) : (
+		resultOutput && (
+			<ScrollArea
+				className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
+				viewportClassName="max-h-64"
+				scrollBarClassName="w-1.5"
+			>
+				<FileViewer
+					file={{
+						name: "output.json",
+						contents: resultOutput,
+					}}
+					options={getFileViewerOptionsNoHeader(isDark)}
+					style={DIFFS_FONT_STYLE}
+				/>
+			</ScrollArea>
+		)
 	);
 
 	return (

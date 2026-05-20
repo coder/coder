@@ -108,24 +108,21 @@ export const ChangeWorkspaceVersionDialog: FC<
 										</li>
 									)}
 									renderInput={(params) => (
-										// oxlint-disable-next-line react/jsx-no-useless-fragment -- pre-existing during oxlint migration
-										<>
-											<TextField
-												{...params}
-												fullWidth
-												placeholder="Template version name"
-												InputProps={{
-													...params.InputProps,
-													endAdornment: (
-														<>
-															{!versions && <CircularProgress size={16} />}
-															{params.InputProps.endAdornment}
-														</>
-													),
-													classes: { root: classNames.root },
-												}}
-											/>
-										</>
+										<TextField
+											{...params}
+											fullWidth
+											placeholder="Template version name"
+											InputProps={{
+												...params.InputProps,
+												endAdornment: (
+													<>
+														{!versions && <CircularProgress size={16} />}
+														{params.InputProps.endAdornment}
+													</>
+												),
+												classes: { root: classNames.root },
+											}}
+										/>
 									)}
 								/>
 							</FormFields>

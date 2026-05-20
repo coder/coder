@@ -701,57 +701,54 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 							className="flex min-h-0 min-w-0 flex-1 items-start gap-2 rounded-[inherit] py-1 pr-0.5 text-inherit no-underline"
 						>
 							{({ isActive }) => (
-								// oxlint-disable-next-line react/jsx-no-useless-fragment -- pre-existing during oxlint migration
-								<>
-									<div className="min-w-0 flex-1 overflow-hidden text-left">
-										<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
-											<span
-												aria-busy={isRegeneratingThisChat}
-												className={cn(
-													"block flex-1 truncate text-[13px] text-content-primary",
-													isActive && "font-medium",
-													isRegeneratingThisChat && "animate-pulse",
-												)}
-											>
-												{chat.title}
+								<div className="min-w-0 flex-1 overflow-hidden text-left">
+									<div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
+										<span
+											aria-busy={isRegeneratingThisChat}
+											className={cn(
+												"block flex-1 truncate text-[13px] text-content-primary",
+												isActive && "font-medium",
+												isRegeneratingThisChat && "animate-pulse",
+											)}
+										>
+											{chat.title}
+										</span>
+										{chat.has_unread && !isActiveChat && (
+											<span className="sr-only">(unread)</span>
+										)}
+										{isRegeneratingThisChat && (
+											<span className="sr-only" role="status">
+												Regenerating title…
 											</span>
-											{chat.has_unread && !isActiveChat && (
-												<span className="sr-only">(unread)</span>
-											)}
-											{isRegeneratingThisChat && (
-												<span className="sr-only" role="status">
-													Regenerating title…
-												</span>
-											)}
-										</div>
-										<div className="flex min-w-0 items-center gap-1.5">
-											{hasLinkedDiffStatus && hasLineStats && (
-												<span
-													className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums"
-													title={`${filesChangedLabel}, +${additions} -${deletions}`}
-												>
-													<span className="text-git-added-bright">
-														+{additions}
-													</span>
-													<span className="text-git-deleted-bright">
-														&minus;{deletions}
-													</span>
-												</span>
-											)}
-											<div
-												className={cn(
-													"min-w-0 overflow-hidden text-[13px] leading-4",
-													errorReason
-														? "line-clamp-1 whitespace-normal text-content-destructive [overflow-wrap:anywhere]"
-														: "truncate text-content-secondary",
-												)}
-												title={subtitle}
+										)}
+									</div>
+									<div className="flex min-w-0 items-center gap-1.5">
+										{hasLinkedDiffStatus && hasLineStats && (
+											<span
+												className="inline-flex shrink-0 items-center gap-0.5 text-[13px] leading-4 tabular-nums"
+												title={`${filesChangedLabel}, +${additions} -${deletions}`}
 											>
-												{subtitle}
-											</div>
+												<span className="text-git-added-bright">
+													+{additions}
+												</span>
+												<span className="text-git-deleted-bright">
+													&minus;{deletions}
+												</span>
+											</span>
+										)}
+										<div
+											className={cn(
+												"min-w-0 overflow-hidden text-[13px] leading-4",
+												errorReason
+													? "line-clamp-1 whitespace-normal text-content-destructive [overflow-wrap:anywhere]"
+													: "truncate text-content-secondary",
+											)}
+											title={subtitle}
+										>
+											{subtitle}
 										</div>
 									</div>
-								</>
+								</div>
 							)}
 						</NavLink>
 						<div className="relative mt-1 flex h-6 w-7 shrink-0 items-center justify-end">

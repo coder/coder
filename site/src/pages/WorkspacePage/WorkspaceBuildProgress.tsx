@@ -86,7 +86,6 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
 	// By default workspace is updated every second, which can cause visual stutter
 	// when the build estimate is a few seconds. The timer ensures no observable
 	// stutter in all cases.
-	// oxlint-disable-next-line react/exhaustive-deps -- consider refactoring
 	useEffect(() => {
 		const updateProgress = () => {
 			if (

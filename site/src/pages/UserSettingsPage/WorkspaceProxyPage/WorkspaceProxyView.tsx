@@ -91,16 +91,11 @@ const ProxiesTableBody: FC<ProxiesTableBodyProps> = ({
 	if (hasLoaded && proxies?.length === 0) {
 		return <TableEmpty message="No workspace proxies found" />;
 	}
-	return (
-		// oxlint-disable-next-line react/jsx-no-useless-fragment -- pre-existing during oxlint migration
-		<>
-			{proxies?.map((proxy) => (
-				<ProxyRow
-					latency={proxyLatencies?.[proxy.id]}
-					key={proxy.id}
-					proxy={proxy}
-				/>
-			))}
-		</>
-	);
+	return proxies?.map((proxy) => (
+		<ProxyRow
+			latency={proxyLatencies?.[proxy.id]}
+			key={proxy.id}
+			proxy={proxy}
+		/>
+	));
 };

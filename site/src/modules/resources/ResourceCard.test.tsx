@@ -7,8 +7,7 @@ import { ResourceCard } from "./ResourceCard";
 describe("Resource Card", () => {
 	it("renders daily cost and metadata tiles", async () => {
 		render(
-			// oxlint-disable-next-line react/jsx-no-useless-fragment -- pre-existing during oxlint migration
-			<ResourceCard resource={MockWorkspaceResource} agentRow={() => <></>} />,
+			<ResourceCard resource={MockWorkspaceResource} agentRow={() => null} />,
 		);
 		expect(
 			screen.getByText(MockWorkspaceResource.daily_cost),
@@ -46,8 +45,7 @@ describe("Resource Card", () => {
 			],
 		};
 
-		// oxlint-disable-next-line react/jsx-no-useless-fragment -- pre-existing during oxlint migration
-		render(<ResourceCard resource={mockResource} agentRow={() => <></>} />);
+		render(<ResourceCard resource={mockResource} agentRow={() => null} />);
 		expect(screen.getByText(mockResource.daily_cost)).toBeInTheDocument();
 		expect(
 			screen.getByText(mockResource.metadata?.[0].value),
@@ -92,8 +90,7 @@ describe("Resource Card", () => {
 			],
 		};
 
-		// oxlint-disable-next-line react/jsx-no-useless-fragment -- pre-existing during oxlint migration
-		render(<ResourceCard resource={mockResource} agentRow={() => <></>} />);
+		render(<ResourceCard resource={mockResource} agentRow={() => null} />);
 		expect(screen.queryByText(mockResource.daily_cost)).not.toBeInTheDocument();
 		expect(
 			screen.getByText(mockResource.metadata?.[0].value),

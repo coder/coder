@@ -147,126 +147,115 @@ const UsersTableBody: React.FC<UsersTableProps> = ({
 		);
 	}
 
-	return (
-		// oxlint-disable-next-line react/jsx-no-useless-fragment -- pre-existing during oxlint migration
-		<>
-			{users?.map((user) => (
-				<TableRow key={user.id} data-testid={`user-${user.id}`}>
-					<TableCell>
-						<AvatarData
-							title={user.username}
-							subtitle={
-								user.is_service_account ? "Service Account" : user.email
-							}
-							src={user.avatar_url}
-						/>
-					</TableCell>
+	return users?.map((user) => (
+		<TableRow key={user.id} data-testid={`user-${user.id}`}>
+			<TableCell>
+				<AvatarData
+					title={user.username}
+					subtitle={user.is_service_account ? "Service Account" : user.email}
+					src={user.avatar_url}
+				/>
+			</TableCell>
 
-					<UserRoleCell roles={user.roles} />
+			<UserRoleCell roles={user.roles} />
 
-					<UserGroupsCell userGroups={groupsByUserId?.get(user.id)} />
+			<UserGroupsCell userGroups={groupsByUserId?.get(user.id)} />
 
-					{showAISeatColumn && <AISeatCell hasAISeat={user.has_ai_seat} />}
+			{showAISeatColumn && <AISeatCell hasAISeat={user.has_ai_seat} />}
 
-					<TableCell
-						className={cn(
-							"capitalize",
-							user.status === "suspended" && "text-content-secondary",
-						)}
-					>
-						<div>{user.status}</div>
-						{(user.status === "active" || user.status === "dormant") && (
-							<LastSeen at={user.last_seen_at} className="text-xs" />
-						)}
-					</TableCell>
+			<TableCell
+				className={cn(
+					"capitalize",
+					user.status === "suspended" && "text-content-secondary",
+				)}
+			>
+				<div>{user.status}</div>
+				{(user.status === "active" || user.status === "dormant") && (
+					<LastSeen at={user.last_seen_at} className="text-xs" />
+				)}
+			</TableCell>
 
-					{canEditUsers && (
-						<TableCell>
-							<DropdownMenu>
-								<DropdownMenuTrigger asChild>
-									<Button
-										size="icon-lg"
-										variant="subtle"
-										aria-label="Open menu"
+			{canEditUsers && (
+				<TableCell>
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button size="icon-lg" variant="subtle" aria-label="Open menu">
+								<EllipsisVerticalIcon aria-hidden="true" />
+								<span className="sr-only">Open menu</span>
+							</Button>
+						</DropdownMenuTrigger>
+
+						<DropdownMenuContent align="end">
+							<DropdownMenuItem asChild>
+								<Link
+									to={`/workspaces?filter=${encodeURIComponent(`owner:${user.username}`)}`}
+								>
+									View workspaces
+								</Link>
+							</DropdownMenuItem>
+
+							{canViewActivity && (
+								<DropdownMenuItem asChild disabled={!canViewActivity}>
+									<Link
+										to={`/audit?filter=${encodeURIComponent(`username:${user.username}`)}`}
 									>
-										<EllipsisVerticalIcon aria-hidden="true" />
-										<span className="sr-only">Open menu</span>
-									</Button>
-								</DropdownMenuTrigger>
+										View activity {!canViewActivity && <PremiumBadge />}
+									</Link>
+								</DropdownMenuItem>
+							)}
 
-								<DropdownMenuContent align="end">
-									<DropdownMenuItem asChild>
-										<Link
-											to={`/workspaces?filter=${encodeURIComponent(`owner:${user.username}`)}`}
-										>
-											View workspaces
-										</Link>
-									</DropdownMenuItem>
+							<DropdownMenuItem asChild>
+								<Link to={user.username}>Edit</Link>
+							</DropdownMenuItem>
 
-									{canViewActivity && (
-										<DropdownMenuItem asChild disabled={!canViewActivity}>
-											<Link
-												to={`/audit?filter=${encodeURIComponent(`username:${user.username}`)}`}
-											>
-												View activity {!canViewActivity && <PremiumBadge />}
-											</Link>
-										</DropdownMenuItem>
-									)}
+							<DropdownMenuItem
+								disabled={
+									isUpdatingUserRoles ||
+									(user.login_type === "oidc" && oidcRoleSyncEnabled)
+								}
+								onClick={() => onEditUserRoles(user)}
+							>
+								Edit roles
+							</DropdownMenuItem>
 
-									<DropdownMenuItem asChild>
-										<Link to={user.username}>Edit</Link>
-									</DropdownMenuItem>
+							{user.status !== "suspended" && (
+								<DropdownMenuItem
+									disabled={user.login_type !== "password"}
+									onClick={() => onResetUserPassword(user)}
+								>
+									Reset password&hellip;
+								</DropdownMenuItem>
+							)}
 
-									<DropdownMenuItem
-										disabled={
-											isUpdatingUserRoles ||
-											(user.login_type === "oidc" && oidcRoleSyncEnabled)
-										}
-										onClick={() => onEditUserRoles(user)}
-									>
-										Edit roles
-									</DropdownMenuItem>
+							{user.status === "active" || user.status === "dormant" ? (
+								<DropdownMenuItem
+									data-testid="suspend-button"
+									onClick={() => onSuspendUser(user)}
+								>
+									Suspend&hellip;
+								</DropdownMenuItem>
+							) : (
+								<DropdownMenuItem onClick={() => onActivateUser(user)}>
+									Activate&hellip;
+								</DropdownMenuItem>
+							)}
 
-									{user.status !== "suspended" && (
-										<DropdownMenuItem
-											disabled={user.login_type !== "password"}
-											onClick={() => onResetUserPassword(user)}
-										>
-											Reset password&hellip;
-										</DropdownMenuItem>
-									)}
+							<DropdownMenuSeparator />
 
-									{user.status === "active" || user.status === "dormant" ? (
-										<DropdownMenuItem
-											data-testid="suspend-button"
-											onClick={() => onSuspendUser(user)}
-										>
-											Suspend&hellip;
-										</DropdownMenuItem>
-									) : (
-										<DropdownMenuItem onClick={() => onActivateUser(user)}>
-											Activate&hellip;
-										</DropdownMenuItem>
-									)}
-
-									<DropdownMenuSeparator />
-
-									<DropdownMenuItem
-										className="text-content-destructive focus:text-content-destructive"
-										onClick={() => onDeleteUser(user)}
-										disabled={user.id === me}
-									>
-										<TrashIcon className="size-icon-xs" />
-										Delete&hellip;
-									</DropdownMenuItem>
-								</DropdownMenuContent>
-							</DropdownMenu>
-						</TableCell>
-					)}
-				</TableRow>
-			))}
-		</>
-	);
+							<DropdownMenuItem
+								className="text-content-destructive focus:text-content-destructive"
+								onClick={() => onDeleteUser(user)}
+								disabled={user.id === me}
+							>
+								<TrashIcon className="size-icon-xs" />
+								Delete&hellip;
+							</DropdownMenuItem>
+						</DropdownMenuContent>
+					</DropdownMenu>
+				</TableCell>
+			)}
+		</TableRow>
+	));
 };
 
 type UsersTableSkeletonProps = {

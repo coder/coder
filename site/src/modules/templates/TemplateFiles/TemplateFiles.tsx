@@ -73,8 +73,7 @@ export const TemplateFiles: FC<TemplateFilesProps> = ({
 						}}
 						Label={({ path, filename, isFolder }) => {
 							if (isFolder) {
-								// oxlint-disable-next-line react/jsx-no-useless-fragment -- pre-existing during oxlint migration
-								return <>{filename}</>;
+								return filename;
 							}
 
 							const hasDiff = fileInfo(path).hasDiff;

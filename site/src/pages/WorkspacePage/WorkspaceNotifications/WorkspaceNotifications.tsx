@@ -183,7 +183,6 @@ export const WorkspaceNotifications: FC<WorkspaceNotificationsProps> = ({
 	// figure out if this effect really should run every render (possibly meaning
 	// no dependency array at all), or how to get the array stabilized (ideal)
 	const now = dayjs();
-	// oxlint-disable-next-line react/exhaustive-deps -- consider refactoring
 	useEffect(() => {
 		if (
 			workspace.latest_build.status !== "pending" ||

@@ -93,56 +93,49 @@ const TokensTableBody: FC<TokensTableBodyProps> = ({
 	if (hasLoaded && (!tokens || tokens.length === 0)) {
 		return <TableEmpty message="No tokens found" />;
 	}
-	return (
-		// oxlint-disable-next-line react/jsx-no-useless-fragment -- pre-existing during oxlint migration
-		<>
-			{tokens?.map((token) => (
-				<TableRow key={token.id} data-testid={`token-${token.id}`} tabIndex={0}>
-					<TableCell>
-						<span style={{ color: theme.palette.text.secondary }}>
-							{token.id}
-						</span>
-					</TableCell>
+	return tokens?.map((token) => (
+		<TableRow key={token.id} data-testid={`token-${token.id}`} tabIndex={0}>
+			<TableCell>
+				<span style={{ color: theme.palette.text.secondary }}>{token.id}</span>
+			</TableCell>
 
-					<TableCell>
-						<span style={{ color: theme.palette.text.secondary }}>
-							{token.token_name}
-						</span>
-					</TableCell>
+			<TableCell>
+				<span style={{ color: theme.palette.text.secondary }}>
+					{token.token_name}
+				</span>
+			</TableCell>
 
-					<TableCell>{lastUsedOrNever(token.last_used)}</TableCell>
+			<TableCell>{lastUsedOrNever(token.last_used)}</TableCell>
 
-					<TableCell>
-						<span
-							style={{ color: theme.palette.text.secondary }}
-							data-chromatic="ignore"
-						>
-							{dayjs(token.expires_at).fromNow()}
-						</span>
-					</TableCell>
+			<TableCell>
+				<span
+					style={{ color: theme.palette.text.secondary }}
+					data-chromatic="ignore"
+				>
+					{dayjs(token.expires_at).fromNow()}
+				</span>
+			</TableCell>
 
-					<TableCell>
-						<span style={{ color: theme.palette.text.secondary }}>
-							{dayjs(token.created_at).fromNow()}
-						</span>
-					</TableCell>
+			<TableCell>
+				<span style={{ color: theme.palette.text.secondary }}>
+					{dayjs(token.created_at).fromNow()}
+				</span>
+			</TableCell>
 
-					<TableCell>
-						<span style={{ color: theme.palette.text.secondary }}>
-							<Button
-								onClick={() => {
-									onDelete(token);
-								}}
-								size="icon"
-								variant="destructive"
-								aria-label="Delete token"
-							>
-								<TrashIcon className="size-icon-sm" />
-							</Button>
-						</span>
-					</TableCell>
-				</TableRow>
-			))}
-		</>
-	);
+			<TableCell>
+				<span style={{ color: theme.palette.text.secondary }}>
+					<Button
+						onClick={() => {
+							onDelete(token);
+						}}
+						size="icon"
+						variant="destructive"
+						aria-label="Delete token"
+					>
+						<TrashIcon className="size-icon-sm" />
+					</Button>
+				</span>
+			</TableCell>
+		</TableRow>
+	));
 };

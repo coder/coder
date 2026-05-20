@@ -24,6 +24,7 @@
 
 	"options": {
 		"denyWarnings": true,
+		"reportUnusedDisableDirectives": "error",
 	},
 
 	"rules": {
