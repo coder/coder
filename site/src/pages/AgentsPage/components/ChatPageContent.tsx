@@ -1,4 +1,11 @@
-import { type FC, Profiler, type ReactNode, useEffect, useRef } from "react";
+import {
+	type FC,
+	Profiler,
+	type ReactNode,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 import { useQuery } from "react-query";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
@@ -9,7 +16,16 @@ import { cn } from "#/utils/cn";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
-import { getChatFileURL } from "../utils/chatAttachments";
+import {
+	isWorkspaceUploadInProgress,
+	useWorkspaceFileUploads,
+	type WorkspaceUploadState,
+} from "../hooks/useWorkspaceFileUploads";
+import {
+	getChatFileURL,
+	isWorkspaceFileReferencePart,
+	type PendingWorkspaceUpload,
+} from "../utils/chatAttachments";
 import { getProviderForModelOption } from "../utils/modelOptions";
 import type { ChatDetailError } from "../utils/usageLimitMessage";
 import {
@@ -150,15 +166,108 @@ export type PendingAttachment = {
 	mediaType: string;
 };
 
+export type SendChatMessageOptions = {
+	message: string;
+	attachments?: readonly PendingAttachment[];
+	workspaceUploads?: readonly PendingWorkspaceUpload[];
+};
+
+type EditableWorkspaceUpload = PendingWorkspaceUpload & { file: File };
+
+const pendingWorkspaceUploadFromPart = (
+	part: TypesGen.ChatWorkspaceFileReferencePart,
+): PendingWorkspaceUpload => ({
+	path: part.workspace_file_path,
+	name: part.workspace_file_name,
+	size: part.workspace_file_size,
+	mediaType: part.workspace_file_media_type || "application/octet-stream",
+});
+
+const editableWorkspaceUploadFromPart = (
+	part: TypesGen.ChatWorkspaceFileReferencePart,
+): EditableWorkspaceUpload => {
+	const upload = pendingWorkspaceUploadFromPart(part);
+	return {
+		...upload,
+		file: new File([], upload.name, { type: upload.mediaType }),
+	};
+};
+
+const pendingWorkspaceUploadFromEditable = ({
+	file: _file,
+	...upload
+}: EditableWorkspaceUpload): PendingWorkspaceUpload => upload;
+
+export const collectUploadedAttachments = (
+	files: readonly File[],
+	states: Map<File, UploadState>,
+): { attachments: PendingAttachment[]; skippedErrors: number } => {
+	const attachments: PendingAttachment[] = [];
+	let skippedErrors = 0;
+	for (const file of files) {
+		const state = states.get(file);
+		if (state?.status === "error") {
+			skippedErrors++;
+			continue;
+		}
+		if (state?.status === "uploaded" && state.fileId) {
+			attachments.push({
+				fileId: state.fileId,
+				mediaType: file.type || "application/octet-stream",
+			});
+		}
+	}
+	return { attachments, skippedErrors };
+};
+
+export const collectUploadedWorkspaceFiles = (
+	files: readonly File[],
+	states: Map<File, WorkspaceUploadState>,
+): { uploads: PendingWorkspaceUpload[]; skippedErrors: number } => {
+	const uploads: PendingWorkspaceUpload[] = [];
+	let skippedErrors = 0;
+	for (const file of files) {
+		const state = states.get(file);
+		if (state?.status === "error") {
+			skippedErrors++;
+			continue;
+		}
+		if (state?.status === "uploaded") {
+			uploads.push({
+				path: state.path,
+				name: state.name,
+				size: state.size,
+				mediaType: state.mediaType,
+			});
+		}
+	}
+	return { uploads, skippedErrors };
+};
+
+export const collectWorkspaceUploadsForSend = ({
+	isEditing,
+	editingUploads,
+	files,
+	states,
+}: {
+	isEditing: boolean;
+	editingUploads: readonly PendingWorkspaceUpload[];
+	files: readonly File[];
+	states: Map<File, WorkspaceUploadState>;
+}): { uploads: PendingWorkspaceUpload[]; skippedErrors: number } => {
+	const collected = collectUploadedWorkspaceFiles(files, states);
+	return {
+		uploads: [...(isEditing ? editingUploads : []), ...collected.uploads],
+		skippedErrors: collected.skippedErrors,
+	};
+};
+
 interface ChatPageInputProps {
 	// Organization that owns this chat. Used to scope file uploads.
 	organizationId: string | undefined;
 	store: ChatStoreHandle;
 	compressionThreshold: number | undefined;
-	onSend: (
-		message: string,
-		attachments?: readonly PendingAttachment[],
-	) => Promise<void> | void;
+	onSend: (options: SendChatMessageOptions) => Promise<void> | void;
 	sendShortcut: AgentChatSendShortcut;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	onPromoteQueuedMessage: (id: number) => Promise<void>;
@@ -301,6 +410,8 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	const composeAttachments = useChatDraftAttachments(organizationId, chatId, {
 		provider: getProviderForModelOption(modelOptions, selectedModel),
 	});
+	const composeWorkspaceUploads = useWorkspaceFileUploads(chatId);
+	const editWorkspaceUploads = useWorkspaceFileUploads(chatId);
 	const editAttachments = useFileAttachments(organizationId, {
 		provider: getProviderForModelOption(modelOptions, selectedModel),
 	});
@@ -321,6 +432,23 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		handleRemoveAttachment,
 	} = modeAttachments;
 
+	const [editingWorkspaceUploads, setEditingWorkspaceUploads] = useState<
+		EditableWorkspaceUpload[]
+	>([]);
+	const editingWorkspaceUploadFiles = editingWorkspaceUploads.map(
+		(upload) => upload.file,
+	);
+	const editingWorkspaceUploadStates = new Map<File, WorkspaceUploadState>();
+	for (const upload of editingWorkspaceUploads) {
+		editingWorkspaceUploadStates.set(upload.file, {
+			status: "uploaded",
+			path: upload.path,
+			name: upload.name,
+			size: upload.size,
+			mediaType: upload.mediaType,
+		});
+	}
+
 	// Edit attachments are scoped to the chat being edited, not the compose
 	// draft. Clear them when navigation changes the chat scope.
 	const editScopeRef = useRef({ organizationId, chatId });
@@ -332,6 +460,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		editScopeRef.current = { organizationId, chatId };
 		if (scopeChanged) {
 			resetEditAttachments();
+			setEditingWorkspaceUploads([]);
 		}
 	}, [organizationId, chatId, resetEditAttachments]);
 
@@ -345,10 +474,18 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			setEditAttachments([]);
 			setEditUploadStates(new Map());
 			setEditPreviewUrls(new Map());
+			editWorkspaceUploads.reset();
+			setEditingWorkspaceUploads([]);
 			return;
 		}
+		editWorkspaceUploads.reset();
 		const fileBlocks = editingFileBlocks.filter(
 			(b): b is TypesGen.ChatFilePart => b.type === "file",
+		);
+		setEditingWorkspaceUploads(
+			editingFileBlocks
+				.filter(isWorkspaceFileReferencePart)
+				.map(editableWorkspaceUploadFromPart),
 		);
 		const files = fileBlocks.map((block, i) => {
 			const mt = block.media_type ?? "application/octet-stream";
@@ -380,6 +517,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		setEditAttachments,
 		setEditPreviewUrls,
 		setEditUploadStates,
+		editWorkspaceUploads.reset,
 	]);
 
 	// Exiting edit mode should only clear the edit bucket. Compose draft
@@ -395,6 +533,43 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 		hasStreamState || chatStatus === "running" || chatStatus === "pending";
 
 	const [chatFullWidth] = useChatFullWidth();
+	const modeWorkspaceUploads = isEditing
+		? editWorkspaceUploads
+		: composeWorkspaceUploads;
+	const visibleWorkspaceUploadFiles = isEditing
+		? [...editingWorkspaceUploadFiles, ...editWorkspaceUploads.files]
+		: composeWorkspaceUploads.files;
+	const visibleWorkspaceUploadStates = isEditing
+		? new Map([
+				...editingWorkspaceUploadStates,
+				...editWorkspaceUploads.uploadStates,
+			])
+		: composeWorkspaceUploads.uploadStates;
+	const resetEditWorkspaceDraft = () => {
+		editWorkspaceUploads.reset();
+		setEditingWorkspaceUploads([]);
+	};
+	const handleRemoveVisibleWorkspaceUpload = (attachment: number | File) => {
+		if (!isEditing) {
+			composeWorkspaceUploads.handleRemove(attachment);
+			return;
+		}
+		const index =
+			typeof attachment === "number"
+				? attachment
+				: editingWorkspaceUploadFiles.indexOf(attachment);
+		if (index >= 0 && index < editingWorkspaceUploadFiles.length) {
+			setEditingWorkspaceUploads((current) =>
+				current.filter((_, i) => i !== index),
+			);
+			return;
+		}
+		editWorkspaceUploads.handleRemove(
+			typeof attachment === "number"
+				? attachment - editingWorkspaceUploadFiles.length
+				: attachment,
+		);
+	};
 
 	const inputElement = (
 		<AgentChatInput
@@ -403,45 +578,61 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 					const hasActiveUploads = attachments.some((file) =>
 						isUploadInProgress(uploadStates.get(file)),
 					);
-					if (hasActiveUploads) {
+					const hasActiveWorkspaceUploads = modeWorkspaceUploads.files.some(
+						(file) =>
+							isWorkspaceUploadInProgress(
+								modeWorkspaceUploads.uploadStates.get(file),
+							),
+					);
+					if (hasActiveUploads || hasActiveWorkspaceUploads) {
 						toast.warning("Wait for file uploads to finish before sending.");
 						return;
 					}
-					// Collect uploaded attachment metadata for the optimistic
-					// transcript builder while keeping the server payload
-					// shape unchanged downstream.
-					const pendingAttachments: PendingAttachment[] = [];
-					let skippedErrors = 0;
-					for (const file of attachments) {
-						const state = uploadStates.get(file);
-						if (state?.status === "error") {
-							skippedErrors++;
-							continue;
-						}
-						if (state?.status === "uploaded" && state.fileId) {
-							pendingAttachments.push({
-								fileId: state.fileId,
-								mediaType: file.type || "application/octet-stream",
-							});
-						}
-					}
+					const { attachments: pendingAttachments, skippedErrors } =
+						collectUploadedAttachments(attachments, uploadStates);
+					const {
+						uploads: pendingWorkspaceUploads,
+						skippedErrors: skippedWorkspaceErrors,
+					} = collectWorkspaceUploadsForSend({
+						isEditing,
+						editingUploads: editingWorkspaceUploads.map(
+							pendingWorkspaceUploadFromEditable,
+						),
+						files: modeWorkspaceUploads.files,
+						states: modeWorkspaceUploads.uploadStates,
+					});
 					if (skippedErrors > 0) {
 						toast.warning(
 							`${skippedErrors} attachment${skippedErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
 						);
 					}
+					if (skippedWorkspaceErrors > 0) {
+						toast.warning(
+							`${skippedWorkspaceErrors} workspace file${skippedWorkspaceErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
+						);
+					}
 					const attachmentArg =
 						pendingAttachments.length > 0 ? pendingAttachments : undefined;
+					const workspaceUploadArg =
+						pendingWorkspaceUploads.length > 0
+							? pendingWorkspaceUploads
+							: undefined;
 					try {
-						await onSend(message, attachmentArg);
+						await onSend({
+							message,
+							attachments: attachmentArg,
+							workspaceUploads: workspaceUploadArg,
+						});
 					} catch {
 						// Attachments preserved for retry on failure.
 						return;
 					}
 					if (isEditing) {
 						editAttachments.resetAttachments();
+						resetEditWorkspaceDraft();
 					} else {
 						composeAttachments.resetAttachments();
+						composeWorkspaceUploads.reset();
 					}
 				})();
 			}}
@@ -452,6 +643,15 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			uploadStates={uploadStates}
 			previewUrls={previewUrls}
 			textContents={textContents}
+			workspaceUploadProps={{
+				files: visibleWorkspaceUploadFiles,
+				states: visibleWorkspaceUploadStates,
+				onAttach:
+					workspace && workspaceAgent?.status === "connected" && chatId
+						? modeWorkspaceUploads.handleAttach
+						: undefined,
+				onRemove: handleRemoveVisibleWorkspaceUpload,
+			}}
 			inputRef={inputRef}
 			initialValue={initialValue}
 			initialEditorState={initialEditorState}
@@ -462,9 +662,15 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			onPromoteQueuedMessage={onPromoteQueuedMessage}
 			editingQueuedMessageID={editingQueuedMessageID}
 			onStartQueueEdit={onStartQueueEdit}
-			onCancelQueueEdit={onCancelQueueEdit}
+			onCancelQueueEdit={() => {
+				resetEditWorkspaceDraft();
+				onCancelQueueEdit();
+			}}
 			isEditingHistoryMessage={isEditingHistoryMessage}
-			onCancelHistoryEdit={onCancelHistoryEdit}
+			onCancelHistoryEdit={() => {
+				resetEditWorkspaceDraft();
+				onCancelHistoryEdit();
+			}}
 			userPromptHistory={userPromptHistory}
 			isDisabled={isInputDisabled}
 			isLoading={isSendPending}

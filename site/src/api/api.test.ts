@@ -8,12 +8,41 @@ import {
 	MockWorkspaceBuild,
 	MockWorkspaceBuildParameter1,
 } from "#/testHelpers/entities";
-import { API, getURLWithSearchParams, MissingBuildParameters } from "./api";
+import {
+	API,
+	encodeRFC5987Value,
+	getURLWithSearchParams,
+	MissingBuildParameters,
+	sanitizeAsciiFilename,
+} from "./api";
 import type * as TypesGen from "./typesGenerated";
 
 const axiosInstance = API.getAxiosInstance();
 
 describe("api.ts", () => {
+	describe("sanitizeAsciiFilename", () => {
+		it.each([
+			["report.pdf", "report.pdf"],
+			['quote"name.txt', "quote_name.txt"],
+			["path\\name.txt", "path_name.txt"],
+			["résumé.pdf", "r_sum_.pdf"],
+			["line\nfeed.txt", "line_feed.txt"],
+			["", ""],
+		])("sanitizes %j to %j", (input, expected) => {
+			expect(sanitizeAsciiFilename(input)).toBe(expected);
+		});
+	});
+
+	describe("encodeRFC5987Value", () => {
+		it.each([
+			["report.pdf", "report.pdf"],
+			["résumé (final)*.pdf", "r%C3%A9sum%C3%A9%20%28final%29%2A.pdf"],
+			["quote'name.txt", "quote%27name.txt"],
+		])("encodes %j to %j", (input, expected) => {
+			expect(encodeRFC5987Value(input)).toBe(expected);
+		});
+	});
+
 	describe("login", () => {
 		it("should return LoginResponse", async () => {
 			// given

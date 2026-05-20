@@ -183,7 +183,7 @@ export const watchChatDesktop = (chatId: string): WebSocket => {
 	const socket = createWebSocket(
 		`/api/experimental/chats/${chatId}/stream/desktop`,
 	);
-	// RFB is a binary protocol — noVNC expects arraybuffer, not blob.
+	// RFB is a binary protocol, noVNC expects arraybuffer, not blob.
 	socket.binaryType = "arraybuffer";
 	return socket;
 };
@@ -416,6 +416,26 @@ const userSkillsPath = (user: string) =>
 const userSkillPath = (user: string, name: string) =>
 	`${userSkillsPath(user)}/${encodeURIComponent(name)}`;
 const mcpServerConfigsPath = "/api/experimental/mcp/servers";
+
+// Map non-printable, quote, backslash, and non-ASCII bytes to '_'
+// so the HTTP Content-Disposition fallback stays printable ASCII.
+export function sanitizeAsciiFilename(name: string): string {
+	let out = "";
+	for (let i = 0; i < name.length; i++) {
+		const code = name.charCodeAt(i);
+		const printable = code >= 0x20 && code <= 0x7e;
+		const safe = printable && code !== 0x22 && code !== 0x5c;
+		out += safe ? name[i] : "_";
+	}
+	return out;
+}
+
+export function encodeRFC5987Value(value: string): string {
+	return encodeURIComponent(value).replace(
+		/['()*]/g,
+		(char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
+	);
+}
 
 type ChatCostDateParams = {
 	start_date?: string;
@@ -3136,7 +3156,7 @@ class ExperimentalApiMethods {
 					// non-ASCII characters. Placing the raw name directly in
 					// the header causes XMLHttpRequest to throw because HTTP
 					// headers only allow ISO-8859-1 code points.
-					"Content-Disposition": `attachment; filename="file"; filename*=UTF-8''${encodeURIComponent(file.name)}`,
+					"Content-Disposition": `attachment; filename="file"; filename*=UTF-8''${encodeRFC5987Value(file.name)}`,
 				},
 			},
 		);
@@ -3149,6 +3169,26 @@ class ExperimentalApiMethods {
 			{ responseType: "text" },
 		);
 		return response.data as string;
+	};
+
+	uploadChatWorkspaceFile = async (
+		chatId: string,
+		file: File,
+		signal?: AbortSignal,
+	): Promise<TypesGen.UploadChatWorkspaceFileResponse> => {
+		const asciiName = sanitizeAsciiFilename(file.name) || "upload";
+		const response = await this.axios.post(
+			`/api/experimental/chats/${chatId}/workspace-files`,
+			file,
+			{
+				headers: {
+					"Content-Type": file.type || "application/octet-stream",
+					"Content-Disposition": `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeRFC5987Value(file.name)}`,
+				},
+				signal,
+			},
+		);
+		return response.data;
 	};
 
 	// Chat API methods

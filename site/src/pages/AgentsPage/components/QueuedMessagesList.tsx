@@ -1,7 +1,7 @@
 import {
 	ArrowUpIcon,
 	CornerDownLeftIcon,
-	ImageIcon,
+	PaperclipIcon,
 	PencilIcon,
 	Trash2Icon,
 } from "lucide-react";
@@ -40,7 +40,9 @@ export const getQueuedMessageInfo = (
 	message: ChatQueuedMessage,
 ): QueuedMessageInfo => {
 	const { content } = message;
-	const fileBlocks = content.filter((p) => p.type === "file");
+	const fileBlocks = content.filter(
+		(p) => p.type === "file" || p.type === "workspace-file-reference",
+	);
 	const rawText = content
 		.filter((p) => p.type === "text")
 		.map((p) => p.text)
@@ -206,10 +208,10 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 							{item.attachmentCount > 0 && (
 								<span
 									role="img"
-									aria-label={`${item.attachmentCount} image attachment${item.attachmentCount !== 1 ? "s" : ""}`}
+									aria-label={`${item.attachmentCount} attachment${item.attachmentCount !== 1 ? "s" : ""}`}
 									className="flex shrink-0 items-center gap-1 text-xs text-content-secondary"
 								>
-									<ImageIcon className="h-3 w-3" aria-hidden="true" />
+									<PaperclipIcon className="h-3 w-3" aria-hidden="true" />
 									<span aria-hidden="true">{item.attachmentCount}</span>
 								</span>
 							)}

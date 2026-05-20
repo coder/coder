@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
 	isChatAttachmentFile,
+	isStrictChatAttachmentFile,
 	renameChatFileForUpload,
 	sanitizeChatFileName,
+	workspaceFileReferencePart,
 } from "./chatAttachments";
 
 describe("isChatAttachmentFile", () => {
@@ -35,6 +37,36 @@ describe("isChatAttachmentFile", () => {
 	});
 });
 
+describe("isStrictChatAttachmentFile", () => {
+	it("accepts allowlisted MIME types", () => {
+		const file = new File(["png"], "image.png", { type: "image/png" });
+
+		expect(isStrictChatAttachmentFile(file)).toBe(true);
+	});
+
+	it("rejects files with an empty MIME type", () => {
+		const file = new File(["markdown"], "notes.md");
+
+		expect(isStrictChatAttachmentFile(file)).toBe(false);
+	});
+
+	it("rejects application/octet-stream files", () => {
+		const file = new File(["unknown"], "attachment.bin", {
+			type: "application/octet-stream",
+		});
+
+		expect(isStrictChatAttachmentFile(file)).toBe(false);
+	});
+
+	it("rejects unsupported MIME types", () => {
+		const file = new File(["zip"], "archive.zip", {
+			type: "application/zip",
+		});
+
+		expect(isStrictChatAttachmentFile(file)).toBe(false);
+	});
+});
+
 describe("sanitizeChatFileName", () => {
 	it.each([
 		// Already safe.
@@ -61,6 +93,21 @@ describe("sanitizeChatFileName", () => {
 		["foo!.pdf ", "foo!.pdf"],
 	])("sanitizes %j to %j", (input, expected) => {
 		expect(sanitizeChatFileName(input)).toBe(expected);
+	});
+});
+
+describe("workspaceFileReferencePart", () => {
+	it("defaults missing media type to application/octet-stream", () => {
+		expect(
+			workspaceFileReferencePart({
+				path: "/home/coder/.coder/chats/chat-1/files/data.bin",
+				name: "data.bin",
+				size: 12,
+				mediaType: "",
+			}),
+		).toMatchObject({
+			workspace_file_media_type: "application/octet-stream",
+		});
 	});
 });
 

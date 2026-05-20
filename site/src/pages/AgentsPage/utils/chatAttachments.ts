@@ -1,7 +1,19 @@
 import { isApiErrorResponse } from "#/api/errors";
-import { ChatAttachmentMediaTypes } from "#/api/typesGenerated";
+import {
+	ChatAttachmentMediaTypes,
+	type ChatInputPart,
+	type ChatMessagePart,
+	type ChatWorkspaceFileReferencePart,
+} from "#/api/typesGenerated";
 
 const undisplayableAttachmentDetail = "File exists but could not be displayed.";
+
+export type PendingWorkspaceUpload = {
+	path: string;
+	name: string;
+	size: number;
+	mediaType: string;
+};
 
 export type AttachmentFailure =
 	| { kind: "expired" }
@@ -99,6 +111,16 @@ export const isChatAttachmentFile = (file: File): boolean => {
 	return ChatAttachmentMediaTypes.some((mediaType) => mediaType === file.type);
 };
 
+/**
+ * Returns true only for files whose MIME type positively matches the
+ * chat attachment allowlist. Unknown or octet-stream files return
+ * false so callers can route them to the workspace upload flow.
+ */
+export const isStrictChatAttachmentFile = (file: File): boolean =>
+	Boolean(file.type) &&
+	file.type !== "application/octet-stream" &&
+	ChatAttachmentMediaTypes.some((mediaType) => mediaType === file.type);
+
 // Matches characters that commonly cause trouble downstream: bracketing
 // punctuation, quotes, shell or URL or path metacharacters, path
 // separators, any whitespace, and control characters. ASCII alphanumerics,
@@ -127,6 +149,21 @@ export const sanitizeChatFileName = (name: string): string => {
 	const trimmed = collapsed.replace(/^[_.\s]+|[_.\s]+$/g, "");
 	return trimmed === "" ? "file" : trimmed;
 };
+
+export const isWorkspaceFileReferencePart = (
+	part: ChatMessagePart,
+): part is ChatWorkspaceFileReferencePart =>
+	part.type === "workspace-file-reference";
+
+export const workspaceFileReferencePart = (
+	upload: PendingWorkspaceUpload,
+): ChatInputPart => ({
+	type: "workspace-file-reference",
+	workspace_file_path: upload.path,
+	workspace_file_name: upload.name,
+	workspace_file_size: upload.size,
+	workspace_file_media_type: upload.mediaType || "application/octet-stream",
+});
 
 /**
  * Returns a new File whose `name` is sanitized via `sanitizeChatFileName`.

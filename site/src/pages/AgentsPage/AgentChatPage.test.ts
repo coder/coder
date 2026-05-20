@@ -14,6 +14,7 @@ import {
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
 import { createChatStore } from "./components/ChatConversation/chatStore";
 import type { PendingAttachment } from "./components/ChatPageContent";
+import type { PendingWorkspaceUpload } from "./utils/chatAttachments";
 import {
 	clearPersistedSidebarTabId,
 	getPersistedSidebarTabId,
@@ -483,7 +484,7 @@ describe("useConversationEditingState", () => {
 		expect(result.current.remountKey).toBe(remountKeyBefore + 1);
 
 		await act(async () => {
-			await result.current.handleSendFromInput("hello");
+			await result.current.handleSendFromInput({ message: "hello" });
 		});
 
 		const remountKeyAfterSend = result.current.remountKey;
@@ -496,7 +497,12 @@ describe("useConversationEditingState", () => {
 		// the same text, so the editor is forced to reinitialize.
 		expect(result.current.remountKey).toBe(remountKeyAfterSend + 1);
 		expect(result.current.editorInitialValue).toBe("hello");
-		expect(onSend).toHaveBeenCalledWith("hello", undefined, 7);
+		expect(onSend).toHaveBeenCalledWith({
+			message: "hello",
+			attachments: undefined,
+			workspaceUploads: undefined,
+			editedMessageID: 7,
+		});
 		unmount();
 	});
 
@@ -511,10 +517,49 @@ describe("useConversationEditingState", () => {
 		});
 
 		await act(async () => {
-			await result.current.handleSendFromInput("hello", attachments);
+			await result.current.handleSendFromInput({
+				message: "hello",
+				attachments,
+			});
 		});
 
-		expect(onSend).toHaveBeenCalledWith("hello", attachments, 7);
+		expect(onSend).toHaveBeenCalledWith({
+			message: "hello",
+			attachments,
+			workspaceUploads: undefined,
+			editedMessageID: 7,
+		});
+		unmount();
+	});
+
+	it("forwards pending workspace uploads through history-edit send", async () => {
+		const { result, onSend, unmount } = renderEditing();
+		const workspaceUploads: PendingWorkspaceUpload[] = [
+			{
+				path: "/home/coder/.coder/chats/chat-1/files/data.csv",
+				name: "data.csv",
+				size: 128,
+				mediaType: "text/csv",
+			},
+		];
+
+		act(() => {
+			result.current.handleEditUserMessage(7, "hello");
+		});
+
+		await act(async () => {
+			await result.current.handleSendFromInput({
+				message: "hello",
+				workspaceUploads,
+			});
+		});
+
+		expect(onSend).toHaveBeenCalledWith({
+			message: "hello",
+			attachments: undefined,
+			workspaceUploads,
+			editedMessageID: 7,
+		});
 		unmount();
 	});
 
@@ -545,7 +590,7 @@ describe("useConversationEditingState", () => {
 
 		await act(async () => {
 			await expect(
-				result.current.handleSendFromInput("edited message"),
+				result.current.handleSendFromInput({ message: "edited message" }),
 			).rejects.toThrow("boom");
 		});
 
@@ -569,9 +614,9 @@ describe("useConversationEditingState", () => {
 		});
 
 		await act(async () => {
-			await expect(result.current.handleSendFromInput("hello")).rejects.toThrow(
-				"boom",
-			);
+			await expect(
+				result.current.handleSendFromInput({ message: "hello" }),
+			).rejects.toThrow("boom");
 		});
 
 		expect(mockInput.clear).not.toHaveBeenCalled();
@@ -588,10 +633,15 @@ describe("useConversationEditingState", () => {
 		result.current.chatInputRef.current = mockInput.handle;
 
 		await act(async () => {
-			await result.current.handleSendFromInput("hello");
+			await result.current.handleSendFromInput({ message: "hello" });
 		});
 
-		expect(onSend).toHaveBeenCalledWith("hello", undefined, undefined);
+		expect(onSend).toHaveBeenCalledWith({
+			message: "hello",
+			attachments: undefined,
+			workspaceUploads: undefined,
+			editedMessageID: undefined,
+		});
 		expect(mockInput.clear).toHaveBeenCalled();
 		expect(mockInput.focus).toHaveBeenCalled();
 		expect(localStorage.getItem(expectedKey)).toBeNull();
@@ -628,13 +678,18 @@ describe("useConversationEditingState", () => {
 			getValue: vi.fn().mockReturnValue(""),
 			addFileReference: vi.fn(),
 			getContentParts: vi.fn().mockReturnValue([]),
-		}; // The hook exposes chatInputRef – assign the mock to it.
+		}; // The hook exposes chatInputRef, assign the mock to it.
 		result.current.chatInputRef.current = mockInputRef;
 
 		await act(async () => {
-			result.current.handleSendFromInput("hello");
+			result.current.handleSendFromInput({ message: "hello" });
 			await vi.waitFor(() => {
-				expect(onSend).toHaveBeenCalledWith("hello", undefined, undefined);
+				expect(onSend).toHaveBeenCalledWith({
+					message: "hello",
+					attachments: undefined,
+					workspaceUploads: undefined,
+					editedMessageID: undefined,
+				});
 			});
 		});
 
@@ -649,7 +704,7 @@ describe("useConversationEditingState", () => {
 		localStorage.setItem(`${draftInputStorageKeyPrefix}${chatA}`, "draft A");
 		localStorage.setItem(`${draftInputStorageKeyPrefix}${chatB}`, "draft B");
 
-		// Each chatID should initialize with its own draft — this is
+		// Each chatID should initialize with its own draft, this is
 		// what the key={agentId} wrapper guarantees at the component
 		// level (a new chatID means a full remount).
 		const hookA = renderEditing(chatA);
@@ -669,7 +724,7 @@ describe("useConversationEditingState", () => {
 		expect(localStorage.getItem(expectedKey)).toBe("draft to clear");
 
 		await act(async () => {
-			result.current.handleSendFromInput("hello");
+			result.current.handleSendFromInput({ message: "hello" });
 			await vi.waitFor(() => {
 				expect(localStorage.getItem(expectedKey)).toBeNull();
 			});
@@ -829,7 +884,7 @@ describe("useConversationEditingState", () => {
 		expect(result.current.initialEditorState).toBeUndefined();
 		expect(result.current.editorInitialValue).toBe("old message text");
 
-		// Cancel — should restore both plain text and serialized state.
+		// Cancel should restore both plain text and serialized state.
 		act(() => {
 			result.current.handleCancelHistoryEdit();
 		});

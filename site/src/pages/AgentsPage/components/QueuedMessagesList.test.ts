@@ -66,6 +66,25 @@ describe("getQueuedMessageInfo", () => {
 		});
 	});
 
+	it("counts workspace file references as editable file blocks", () => {
+		const workspaceFile = {
+			type: "workspace-file-reference" as const,
+			workspace_file_path: "/home/coder/.coder/chats/chat-1/files/data.csv",
+			workspace_file_name: "data.csv",
+			workspace_file_size: 2048,
+			workspace_file_media_type: "text/csv",
+		};
+		const result = getQueuedMessageInfo(
+			makeMessage([{ type: "text", text: "use data" }, workspaceFile]),
+		);
+		expect(result).toEqual({
+			displayText: "use data",
+			rawText: "use data",
+			attachmentCount: 1,
+			fileBlocks: [workspaceFile],
+		});
+	});
+
 	it("returns text with attachment count for text + file", () => {
 		const result = getQueuedMessageInfo(
 			makeMessage([

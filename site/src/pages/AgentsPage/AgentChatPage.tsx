@@ -77,7 +77,10 @@ import {
 	useChatStore,
 } from "./components/ChatConversation/chatStore";
 import { useChatToolInvalidations } from "./components/ChatConversation/useChatToolInvalidations";
-import type { PendingAttachment } from "./components/ChatPageContent";
+import type {
+	PendingAttachment,
+	SendChatMessageOptions,
+} from "./components/ChatPageContent";
 import {
 	getDefaultMCPSelection,
 	getSavedMCPSelection,
@@ -86,6 +89,10 @@ import {
 import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useGitWatcher } from "./hooks/useGitWatcher";
 import { getAgentChatSendShortcut } from "./utils/agentChatSendShortcut";
+import {
+	type PendingWorkspaceUpload,
+	workspaceFileReferencePart,
+} from "./utils/chatAttachments";
 import { type ParsedDraft, parseStoredDraft } from "./utils/draftStorage";
 import {
 	countConfiguredProviderConfigs,
@@ -112,6 +119,13 @@ export const draftInputStorageKeyPrefix = "agents.draft-input.";
 const clearChatPlanMode = "" satisfies ChatPlanModeOrClear;
 
 type PlanModeSwitch = TypesGen.ChatPlanMode | "clear";
+
+export type SendChatTurnOptions = {
+	message: string;
+	attachments?: readonly PendingAttachment[];
+	workspaceUploads?: readonly PendingWorkspaceUpload[];
+	editedMessageID?: number;
+};
 
 /**
  * Read the persisted plain-text draft for a given chat ID.
@@ -290,11 +304,7 @@ const buildAttachmentMediaTypes = (
 /** @internal Exported for testing. */
 export function useConversationEditingState(deps: {
 	chatID: string | undefined;
-	onSend: (
-		message: string,
-		attachments?: readonly PendingAttachment[],
-		editedMessageID?: number,
-	) => Promise<void>;
+	onSend: (options: SendChatTurnOptions) => Promise<void>;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	chatInputRef: React.RefObject<ChatMessageInputRef | null>;
 	inputValueRef: React.RefObject<string>;
@@ -335,7 +345,7 @@ export function useConversationEditingState(deps: {
 		}
 	}, [editorInitialValue, inputValueRef]);
 
-	// -- History editing state --
+	// History editing state.
 	const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
 	const [draftBeforeHistoryEdit, setDraftBeforeHistoryEdit] =
 		useState<ParsedDraft | null>(null);
@@ -386,7 +396,7 @@ export function useConversationEditingState(deps: {
 		setEditingFileBlocks([]);
 	};
 
-	// -- Queue editing state --
+	// Queue editing state.
 	const [editingQueuedMessageID, setEditingQueuedMessageID] = useState<
 		number | null
 	>(null);
@@ -488,14 +498,20 @@ export function useConversationEditingState(deps: {
 
 	// Wraps the parent onSend to clear local input/editing state
 	// and handle queue-edit deletion.
-	const handleSendFromInput = async (
-		message: string,
-		attachments?: readonly PendingAttachment[],
-	) => {
+	const handleSendFromInput = async ({
+		message,
+		attachments,
+		workspaceUploads,
+	}: SendChatMessageOptions) => {
 		const editedMessageID =
 			editingMessageId !== null ? editingMessageId : undefined;
 		const queueEditID = editingQueuedMessageID;
-		const sendPromise = onSend(message, attachments, editedMessageID);
+		const sendPromise = onSend({
+			message,
+			attachments,
+			workspaceUploads,
+			editedMessageID,
+		});
 
 		// For history edits, clear input immediately and prepare
 		// a rollback in case the send fails.
@@ -523,7 +539,7 @@ export function useConversationEditingState(deps: {
 		serializedEditorStateRef.current = serializedEditorState;
 
 		// Don't overwrite the persisted draft while editing a
-		// history or queued message — the original draft (possibly
+		// history or queued message, the original draft (possibly
 		// containing file-reference chips) is saved in React state
 		// and should survive a cancel.
 		if (editingMessageId !== null || editingQueuedMessageID !== null) {
@@ -536,7 +552,7 @@ export function useConversationEditingState(deps: {
 				try {
 					localStorage.setItem(draftStorageKey, serializedEditorState);
 				} catch {
-					// QuotaExceededError — silently discard the draft.
+					// QuotaExceededError, silently discard the draft.
 				}
 			} else {
 				localStorage.removeItem(draftStorageKey);
@@ -1297,10 +1313,12 @@ const AgentChatPage: FC = () => {
 	function buildChatInputContent({
 		message,
 		attachments,
+		workspaceUploads,
 		useComposerContent = true,
 	}: {
 		message: string;
 		attachments?: readonly PendingAttachment[];
+		workspaceUploads?: readonly PendingWorkspaceUpload[];
 		useComposerContent?: boolean;
 	}): { content: TypesGen.ChatInputPart[]; hasContent: boolean } {
 		const content: TypesGen.ChatInputPart[] = [];
@@ -1344,18 +1362,26 @@ const AgentChatPage: FC = () => {
 			}
 		}
 
+		if (workspaceUploads && workspaceUploads.length > 0) {
+			for (const upload of workspaceUploads) {
+				content.push(workspaceFileReferencePart(upload));
+			}
+		}
+
 		return { content, hasContent: content.length > 0 };
 	}
 
 	async function submitChatTurn({
 		message,
 		attachments,
+		workspaceUploads,
 		editedMessageID,
 		useComposerContent = true,
 		planModeSwitch,
 	}: {
 		message: string;
 		attachments?: readonly PendingAttachment[];
+		workspaceUploads?: readonly PendingWorkspaceUpload[];
 		editedMessageID?: number;
 		useComposerContent?: boolean;
 		planModeSwitch?: PlanModeSwitch;
@@ -1363,6 +1389,7 @@ const AgentChatPage: FC = () => {
 		const { content, hasContent } = buildChatInputContent({
 			message,
 			attachments,
+			workspaceUploads,
 			useComposerContent,
 		});
 		if (!hasContent || isSubmissionPending || !agentId || !hasModelOptions) {
@@ -1498,14 +1525,16 @@ const AgentChatPage: FC = () => {
 		}
 	}
 
-	async function handleSend(
-		message: string,
-		attachments?: readonly PendingAttachment[],
-		editedMessageID?: number,
-	) {
+	async function handleSend({
+		message,
+		attachments,
+		workspaceUploads,
+		editedMessageID,
+	}: SendChatTurnOptions) {
 		await submitChatTurn({
 			message,
 			attachments,
+			workspaceUploads,
 			editedMessageID,
 		});
 	}
@@ -1645,9 +1674,7 @@ const AgentChatPage: FC = () => {
 	);
 };
 
-// Keyed wrapper so that navigating between agents (changing the
-// :agentId param) fully remounts the component, resetting all
-// internal state — drafts, editing, queries — cleanly.
+// Force a remount when :agentId changes so per-agent drafts, editing state, and queries reset.
 const KeyedAgentChatPage: FC = () => {
 	const { agentId } = useParams<{ agentId: string }>();
 	return <AgentChatPage key={agentId} />;

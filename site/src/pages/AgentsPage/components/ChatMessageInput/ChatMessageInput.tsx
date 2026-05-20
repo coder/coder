@@ -41,7 +41,6 @@ import {
 	DEFAULT_AGENT_CHAT_SEND_SHORTCUT,
 	MODIFIER_AGENT_CHAT_SEND_SHORTCUT,
 } from "../../utils/agentChatSendShortcut";
-import { isChatAttachmentFile } from "../../utils/chatAttachments";
 import {
 	filterPersonalSkills,
 	isPersonalSkillTriggerToken,
@@ -223,20 +222,16 @@ const PasteSanitizationPlugin: FC<{
 					}
 					// Native paste event (ClipboardEvent).
 
-					// Check for attachable files in the clipboard (e.g.
-					// pasted screenshots). Forward them to the parent
-					// via callback instead of inserting text.
+					// Check for files in the clipboard, such as pasted screenshots
+					// or archives. Forward all files to the parent so it can route
+					// each one to regular attachments or workspace uploads.
 					if (onFilePaste && dataTransfer?.files.length) {
-						const attachable = Array.from(dataTransfer.files).filter(
-							isChatAttachmentFile,
-						);
-						if (attachable.length > 0) {
-							event.preventDefault();
-							for (const file of attachable) {
-								onFilePaste(file);
-							}
-							return true;
+						const files = Array.from(dataTransfer.files);
+						event.preventDefault();
+						for (const file of files) {
+							onFilePaste(file);
 						}
+						return true;
 					}
 
 					const text = getPastedPlainText(event, dataTransfer);
