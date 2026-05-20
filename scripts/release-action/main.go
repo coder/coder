@@ -23,6 +23,7 @@ func main() {
 		versionStr     string
 		prevVersionStr string
 		channel        string
+		notesFile      string
 	)
 
 	cmd := &serpent.Command{
@@ -104,6 +105,41 @@ func main() {
 					}
 					_, _ = fmt.Fprint(inv.Stdout, notes)
 					return nil
+				},
+			},
+			{
+				Use:   "publish",
+				Short: "Publish a GitHub release with assets, checksums, and GPG signatures.",
+				Options: serpent.OptionSet{
+					{
+						Name:        "version",
+						Flag:        "version",
+						Description: "Release version tag (e.g. v2.21.0).",
+						Value:       serpent.StringOf(&versionStr),
+						Required:    true,
+					},
+					{
+						Name:        "channel",
+						Flag:        "channel",
+						Description: "Release channel (mainline, stable, or rc).",
+						Value:       serpent.StringOf(&channel),
+						Required:    true,
+					},
+					{
+						Name:        "release-notes-file",
+						Flag:        "release-notes-file",
+						Description: "Path to release notes markdown file.",
+						Value:       serpent.StringOf(&notesFile),
+						Required:    true,
+					},
+				},
+				Handler: func(inv *serpent.Invocation) error {
+					assets := inv.Args
+					if len(assets) == 0 {
+						return xerrors.New("no asset files provided as arguments")
+					}
+					gpgKey := os.Getenv("CODER_GPG_RELEASE_KEY_BASE64")
+					return publishRelease(versionStr, channel, notesFile, assets, gpgKey)
 				},
 			},
 		},

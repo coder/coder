@@ -636,16 +636,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          publish_args=()
-          if [[ $CODER_RELEASE_CHANNEL == "stable" ]]; then
-            publish_args+=(--stable)
-          fi
-          if [[ $CODER_RELEASE_CHANNEL == "rc" ]]; then
-            publish_args+=(--rc)
-          fi
-          declare -p publish_args
-
-          # Build the list of files to publish
+          # Build the list of files to publish.
           files=(
             ./build/*_installer.exe
             ./build/*.zip
@@ -657,13 +648,14 @@ jobs:
             "./coder_${VERSION}_sbom.spdx.json"
           )
 
-          # Only include the latest SBOM file if it was created
+          # Only include the latest SBOM file if it was created.
           if [[ "${CREATED_LATEST_TAG}" == "true" ]]; then
             files+=(./coder_latest_sbom.spdx.json)
           fi
 
-          ./scripts/release/publish.sh \
-            "${publish_args[@]}" \
+          go run ./scripts/release-action publish \
+            --version "v${VERSION}" \
+            --channel "$CODER_RELEASE_CHANNEL" \
             --release-notes-file "$CODER_RELEASE_NOTES_FILE" \
             "${files[@]}"
         env:
