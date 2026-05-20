@@ -44,6 +44,7 @@ export const ProviderStep: FC<ProviderStepProps> = ({ onSkip, onContinue }) => {
 	const [selectedProvider, setSelectedProvider] = useState<string>("");
 	const [apiKey, setApiKey] = useState("");
 	const [baseUrl, setBaseUrl] = useState("");
+	const [_providerSaved, setProviderSaved] = useState(false);
 	const queryClient = useQueryClient();
 
 	const createMutation = useMutation(createChatProviderConfig(queryClient));
@@ -60,7 +61,6 @@ export const ProviderStep: FC<ProviderStepProps> = ({ onSkip, onContinue }) => {
 			},
 			{
 				onSuccess: () => {
-					// Auto-advance to model step after saving
 					onContinue();
 				},
 			},
@@ -175,16 +175,6 @@ export const ProviderStep: FC<ProviderStepProps> = ({ onSkip, onContinue }) => {
 						value={baseUrl}
 						onChange={(e) => setBaseUrl(e.target.value)}
 					/>
-
-					<div className="flex justify-end">
-						<Button
-							onClick={handleSave}
-							disabled={!apiKey.trim() || createMutation.isPending}
-						>
-							{createMutation.isPending && <Spinner className="mr-2" />}
-							Save provider
-						</Button>
-					</div>
 				</div>
 			) : (
 				<div className="flex min-h-[200px] items-center justify-center rounded-xl border border-solid border-border p-6">
@@ -206,6 +196,7 @@ export const ProviderStep: FC<ProviderStepProps> = ({ onSkip, onContinue }) => {
 						setSelectedProvider("");
 						setApiKey("");
 						setBaseUrl("");
+						setProviderSaved(false);
 					}}
 				>
 					Back
@@ -213,6 +204,15 @@ export const ProviderStep: FC<ProviderStepProps> = ({ onSkip, onContinue }) => {
 				<div className="flex items-center gap-3">
 					<Button variant="outline" onClick={onSkip}>
 						Skip
+					</Button>
+					<Button
+						onClick={handleSave}
+						disabled={
+							!selectedProvider || !apiKey.trim() || createMutation.isPending
+						}
+					>
+						{createMutation.isPending && <Spinner className="mr-2" />}
+						Continue
 					</Button>
 				</div>
 			</div>
