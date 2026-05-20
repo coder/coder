@@ -510,7 +510,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			</div>
 		)}
 		{agentSetupNotice ? (
-			<div className="relative z-10 -mt-10">{inputElement}</div>
+			<div className="relative z-10 -mt-14">{inputElement}</div>
 			) : (
 				inputElement
 			)}
