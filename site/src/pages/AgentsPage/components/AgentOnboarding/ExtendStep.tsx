@@ -10,7 +10,7 @@ interface ExtendStepProps {
 
 export const ExtendStep: FC<ExtendStepProps> = ({ onBack, onFinish }) => {
 	return (
-		<div className="flex min-h-[460px] flex-col gap-4">
+		<div className="flex h-full flex-col gap-4">
 			<h2 className="text-2xl font-semibold">Extend Coder Agents</h2>
 
 			<div className="grid grid-cols-1 gap-6 md:grid-cols-3">
@@ -34,7 +34,7 @@ export const ExtendStep: FC<ExtendStepProps> = ({ onBack, onFinish }) => {
 				/>
 			</div>
 
-			<div className="flex items-center justify-between">
+			<div className="mt-auto flex items-center justify-between">
 				<Button variant="subtle" className="min-w-0 px-0" onClick={onBack}>
 					Back
 				</Button>
