@@ -197,7 +197,7 @@ const ShellCommandLine: React.FC<{
 				{intentLabel ? (
 					<>
 						{intentLabel} using{" "}
-						<code className="text-xs">{commandDisplay}</code>
+						<code>{commandDisplay}</code>
 					</>
 				) : (
 					<>Ran {commandDisplay}</>
