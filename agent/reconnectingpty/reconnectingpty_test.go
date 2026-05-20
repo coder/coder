@@ -79,15 +79,16 @@ func TestWithTerminalEnv(t *testing.T) {
 			require.True(t, ok)
 			require.Equal(t, xterm256Color, term)
 
+			wantLCCTYPE := tt.wantLCCTYPE
 			wantLCCTYPESet := tt.wantLCCTYPESet
-			if runtime.GOOS == "windows" && tt.wantLCCTYPE == defaultLocale {
-				wantLCCTYPESet = false
+			if runtime.GOOS == "windows" {
+				wantLCCTYPE, wantLCCTYPESet = envValue(tt.env, "LC_CTYPE")
 			}
 
 			locale, ok := envValue(got, "LC_CTYPE")
 			require.Equal(t, wantLCCTYPESet, ok)
 			if wantLCCTYPESet {
-				require.Equal(t, tt.wantLCCTYPE, locale)
+				require.Equal(t, wantLCCTYPE, locale)
 			}
 		})
 	}
