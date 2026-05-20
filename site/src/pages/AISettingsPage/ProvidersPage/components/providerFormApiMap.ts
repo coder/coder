@@ -3,6 +3,7 @@ import type {
 	AIProviderBedrockSettings,
 	AIProviderKeyMutation,
 	AIProviderSettings,
+	AIProviderType,
 	CreateAIProviderRequest,
 	UpdateAIProviderRequest,
 } from "#/api/typesGenerated";
@@ -91,19 +92,28 @@ const parseProviderHost = (url: string): string => {
 	}
 };
 
+// UI types we recover from a saved provider's base_url because the wire
+// `type` collapses them to `openai`. Matches the bare domain or any
+// subdomain (Azure ships per-resource subdomains).
+const displayTypeHosts: ReadonlyArray<[string, AIProviderType]> = [
+	["openai.azure.com", "azure"],
+	["generativelanguage.googleapis.com", "google"],
+	["openrouter.ai", "openrouter"],
+	["ai-gateway.vercel.sh", "vercel"],
+];
+
+const matchesHost = (host: string, suffix: string): boolean =>
+	host === suffix || host.endsWith(`.${suffix}`);
+
 /**
- * Returns the UI-facing provider type used for icons and labels.
- *
- * The wire `type` collapses Azure, Google, OpenRouter, Vercel, and the
- * generic OpenAI-compatible preset to `openai` (the codersdk validator
- * only accepts openai/anthropic today), so we sniff the saved `base_url`
- * against the canonical host of each preset to recover the original UI
- * choice. Bedrock providers ship as `type="anthropic"` with a
- * settings.bedrock discriminator and are detected directly. Unrecognized
- * URLs fall through to the wire type so internal proxies keep the OpenAI
- * (or Anthropic) glyph rather than dropping to a question mark.
+ * UI type used for icons and labels. Bedrock is detected via the
+ * settings discriminator; the wire `type` collapses azure/google/
+ * openrouter/vercel to `openai`, so we recover the original choice from
+ * the saved host. Unrecognized hosts fall back to the wire type.
  */
-export const getProviderDisplayType = (provider: AIProvider): string => {
+export const getProviderDisplayType = (
+	provider: AIProvider,
+): AIProviderType => {
 	if (isBedrockProvider(provider)) {
 		return "bedrock";
 	}
@@ -111,19 +121,8 @@ export const getProviderDisplayType = (provider: AIProvider): string => {
 		return "anthropic";
 	}
 	const host = parseProviderHost(provider.base_url ?? "");
-	if (host.endsWith(".openai.azure.com")) {
-		return "azure";
-	}
-	if (host === "generativelanguage.googleapis.com") {
-		return "google";
-	}
-	if (host === "openrouter.ai") {
-		return "openrouter";
-	}
-	if (host === "ai-gateway.vercel.sh") {
-		return "vercel";
-	}
-	return provider.type;
+	const match = displayTypeHosts.find(([h]) => matchesHost(host, h));
+	return match?.[1] ?? provider.type;
 };
 
 const buildBedrockSettings = (
