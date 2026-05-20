@@ -479,6 +479,7 @@ export const cancelChatListRefetches = (queryClient: QueryClient) => {
 };
 
 const DEFAULT_CHAT_PAGE_LIMIT = 50;
+const CHAT_SEARCH_LIMIT = 50;
 
 type UpdateChatWorkspaceVariables = {
 	chatId: string;
@@ -535,6 +536,16 @@ export const infiniteChats = (opts?: { q?: string; archived?: boolean }) => {
 		retry: 3,
 	} satisfies UseInfiniteQueryOptions<TypesGen.Chat[]>;
 };
+
+export const chatSearch = (q: string) =>
+	queryOptions({
+		queryKey: [...chatsKey, "search", { q }],
+		queryFn: () =>
+			API.experimental.getChats({
+				limit: CHAT_SEARCH_LIMIT,
+				q,
+			}),
+	});
 
 export const chat = (chatId: string) => ({
 	queryKey: chatKey(chatId),

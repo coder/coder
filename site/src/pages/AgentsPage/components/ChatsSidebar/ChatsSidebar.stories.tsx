@@ -732,6 +732,34 @@ export const SidebarFilterMenu: Story = {
 	},
 };
 
+export const SearchDialogKeyboardShortcut: Story = {
+	args: {
+		chats: sectionHeaderChats,
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+		const searchButton = canvas.getByRole("button", { name: "Search chats" });
+
+		await userEvent.hover(searchButton);
+		await expect(await body.findByText("Search chats")).toBeVisible();
+		await expect(await body.findByText("Ctrl")).toBeVisible();
+		await expect(await body.findByText("K")).toBeVisible();
+
+		await userEvent.keyboard("{Control>}k{/Control}");
+
+		await expect(
+			await body.findByRole("combobox", { name: "Search chats" }),
+		).toHaveFocus();
+	},
+};
+
 export const RenameChatAvailableDuringRegeneration: Story = {
 	args: {
 		chats: [
@@ -2074,7 +2102,10 @@ export const PreservesArchivedFilterOnSettingsNavigation: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const settingsLink = await canvas.findByLabelText("Settings");
+		const body = within(document.body);
+		const searchButton = await canvas.findByLabelText("Search chats");
+		await userEvent.click(searchButton);
+		const settingsLink = await body.findByRole("link", { name: "Settings" });
 		await userEvent.click(settingsLink);
 		await waitFor(() => {
 			const fromValue =

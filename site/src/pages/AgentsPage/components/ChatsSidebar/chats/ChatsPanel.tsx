@@ -14,7 +14,12 @@ import {
 	sortableKeyboardCoordinates,
 	verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
-import { PanelLeftCloseIcon, SettingsIcon, SquarePenIcon } from "lucide-react";
+import {
+	PanelLeftCloseIcon,
+	SearchIcon,
+	SettingsIcon,
+	SquarePenIcon,
+} from "lucide-react";
 import { type FC, useEffect, useRef, useState } from "react";
 import { Link, type Location, NavLink } from "react-router";
 import type { Chat, ChatModelConfig } from "#/api/typesGenerated";
@@ -22,9 +27,16 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { FeatureStageBadge } from "#/components/FeatureStageBadge/FeatureStageBadge";
 import { ProductLogo } from "#/components/Icons/ProductLogo";
+import { Kbd, KbdGroup } from "#/components/Kbd/Kbd";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
+import { getOSKey } from "#/utils/platform";
 import { getTimeGroup, TIME_GROUPS } from "../../../utils/timeGroups";
 import type { ModelSelectorOption } from "../../ChatElements";
 import { FilterDropdown } from "../filters/FilterDropdown";
@@ -63,6 +75,7 @@ interface ChatsPanelProps {
 	readonly onUnpinAgent: (chatId: string) => void;
 	readonly onReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
 	readonly onBeforeNewAgent?: () => void;
+	readonly onOpenSearchDialog?: () => void;
 	readonly onOpenRenameDialog?: (chat: Chat) => void;
 	readonly isCreating: boolean;
 	readonly isArchiving: boolean;
@@ -95,6 +108,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	onUnpinAgent,
 	onReorderPinnedAgent,
 	onBeforeNewAgent,
+	onOpenSearchDialog,
 	onOpenRenameDialog,
 	isCreating,
 	isArchiving,
@@ -281,8 +295,8 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 			aria-hidden={isSettingsPanel}
 			inert={isSettingsPanel ? true : undefined}
 		>
-			<div className="hidden border-b border-border-default px-2 pb-3 pt-1.5 sm:block">
-				<div className="mb-2.5 flex items-center justify-between">
+			<div className="hidden border-b border-border-default px-2 py-1.5 sm:block">
+				<div className="flex items-center justify-between">
 					<div className="flex items-center gap-2">
 						<NavLink to="/workspaces" className="inline-flex">
 							<ProductLogo className="size-6" />
@@ -339,7 +353,40 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 						"sm:[mask-image:none] sm:[-webkit-mask-image:none]",
 					)}
 				>
-					<div className="flex flex-col gap-2 px-2 py-3">
+					<div className="flex flex-col gap-2 px-2 pb-3 pt-6">
+						<div className="ml-2.5 mr-2 flex h-7 items-center justify-between">
+							<h2 className="m-0 text-sm font-normal leading-6 text-content-primary">
+								Chats
+							</h2>
+							<div className="flex flex-row">
+								<Tooltip delayDuration={500}>
+									<TooltipTrigger asChild>
+										<Button
+											variant="subtle"
+											size="icon"
+											aria-label="Search chats"
+											onClick={onOpenSearchDialog}
+											className="h-7 w-7 justify-end px-0"
+										>
+											<SearchIcon />
+										</Button>
+									</TooltipTrigger>
+									<TooltipContent side="bottom" align="end">
+										<span className="flex items-center gap-1">
+											<KbdGroup>
+												<Kbd>{getOSKey()}</Kbd>
+												<Kbd>K</Kbd>
+											</KbdGroup>
+											<span>Search chats</span>
+										</span>
+									</TooltipContent>
+								</Tooltip>
+								<FilterDropdown
+									archivedFilter={archivedFilter}
+									onArchivedFilterChange={onArchivedFilterChange}
+								/>
+							</div>
+						</div>
 						{loadError ? (
 							<div className="space-y-3 px-1">
 								<ErrorAlert error={loadError} />
@@ -397,12 +444,6 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 									</div>
 								) : (
 									<div className="pb-2">
-										<div className="mb-2 flex h-5 justify-end pr-1.5">
-											<FilterDropdown
-												archivedFilter={archivedFilter}
-												onArchivedFilterChange={onArchivedFilterChange}
-											/>
-										</div>
 										{pinnedChats.length > 0 && (
 											<div className="[&:not(:first-child)]:mt-3">
 												<ChatSectionHeader

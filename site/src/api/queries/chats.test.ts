@@ -19,6 +19,7 @@ import {
 	chatDiffContentsKey,
 	chatKey,
 	chatMessagesKey,
+	chatSearch,
 	chatsKey,
 	createChat,
 	createChatMessage,
@@ -1518,6 +1519,21 @@ describe("infiniteChats", () => {
 			expect(() => queryFn({ pageParam: "bad" })).toThrow(
 				"pageParam must be a number",
 			);
+		});
+	});
+});
+
+describe("chatSearch", () => {
+	it("requests chats with q and a fixed limit", async () => {
+		vi.mocked(API.experimental.getChats).mockResolvedValue([]);
+		const query = chatSearch("title:fix");
+		const queryClient = createTestQueryClient();
+
+		expect(query.queryKey).toEqual(["chats", "search", { q: "title:fix" }]);
+		await queryClient.fetchQuery(query);
+		expect(API.experimental.getChats).toHaveBeenCalledWith({
+			limit: 50,
+			q: "title:fix",
 		});
 	});
 });

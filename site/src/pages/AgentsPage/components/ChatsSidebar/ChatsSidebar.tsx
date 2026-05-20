@@ -1,11 +1,11 @@
-import { type FC, useState } from "react";
+import { type FC, useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import { useLocation, useParams } from "react-router";
 import { userChatProviderConfigs } from "#/api/queries/chats";
 import type { Chat, ChatModelConfig } from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "../ChatElements";
 import { ChatsPanel } from "./chats/ChatsPanel";
-import { RenameChatDialog } from "./dialogs";
+import { ChatSearchDialog, RenameChatDialog } from "./dialogs";
 import { SettingsPanel } from "./settings/SettingsPanel";
 import { isSettingsView, sidebarViewFromPath } from "./sidebarView";
 
@@ -97,6 +97,30 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 	const showApiKeysItem =
 		isAdmin || isApiKeysSection || Boolean(providerConfigsQuery.data?.length);
 	const [chatPendingRename, setChatPendingRename] = useState<Chat | null>(null);
+	const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(false);
+
+	useEffect(() => {
+		const handleKeyDown = (event: KeyboardEvent) => {
+			const isModifierPressed = navigator.platform.match("Mac")
+				? event.metaKey
+				: event.ctrlKey;
+
+			if (
+				!isModifierPressed ||
+				event.altKey ||
+				event.shiftKey ||
+				event.key.toLowerCase() !== "k"
+			) {
+				return;
+			}
+
+			event.preventDefault();
+			setIsSearchDialogOpen(true);
+		};
+
+		document.addEventListener("keydown", handleKeyDown);
+		return () => document.removeEventListener("keydown", handleKeyDown);
+	}, []);
 
 	return (
 		<div className="relative flex h-full w-full min-h-0 border-0 border-r border-solid overflow-hidden">
@@ -112,6 +136,7 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 				onUnpinAgent={onUnpinAgent}
 				onReorderPinnedAgent={onReorderPinnedAgent}
 				onBeforeNewAgent={onBeforeNewAgent}
+				onOpenSearchDialog={() => setIsSearchDialogOpen(true)}
 				onOpenRenameDialog={onRenameTitle ? setChatPendingRename : undefined}
 				isCreating={isCreating}
 				isArchiving={isArchiving}
@@ -140,6 +165,12 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 				isAdmin={isAdmin}
 				location={location}
 				onCollapse={onCollapse}
+			/>
+			<ChatSearchDialog
+				open={isSearchDialogOpen}
+				onOpenChange={setIsSearchDialogOpen}
+				onBeforeNewAgent={onBeforeNewAgent}
+				location={location}
 			/>
 			{onRenameTitle && (
 				<RenameChatDialog
