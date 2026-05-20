@@ -4,6 +4,7 @@ import { Link, useNavigate } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { createAIProviderMutation } from "#/api/queries/aiProviders";
+import type { AIProviderType } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
 	PageHeader,
@@ -21,15 +22,7 @@ interface AddProviderPageViewProps {
 	 * The form is type-locked to this value; users return to the
 	 * providers list and reopen the dropdown to switch type.
 	 */
-	type:
-		| "openai"
-		| "anthropic"
-		| "bedrock"
-		| "azure"
-		| "google"
-		| "openai-compat"
-		| "openrouter"
-		| "vercel";
+	type: AIProviderType;
 }
 
 const AddProviderPageView: React.FC<AddProviderPageViewProps> = ({ type }) => {
