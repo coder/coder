@@ -187,7 +187,7 @@ export const ProviderStep: FC<ProviderStepProps> = ({
 
 			{/* Provider config form */}
 			{selectedProvider ? (
-				<div className="flex flex-col gap-4 rounded-lg border border-border-default p-4">
+				<div className="flex flex-col gap-4 rounded-xl border border-border-default p-6">
 					<div className="flex items-center justify-between">
 						<Label className="text-sm font-medium">
 							{formatProviderLabel(selectedProvider)} API key
@@ -233,7 +233,7 @@ export const ProviderStep: FC<ProviderStepProps> = ({
 					</div>
 				</div>
 			) : !hasSavedProviders ? (
-				<div className="flex min-h-[200px] items-center justify-center rounded-lg border border-border-default p-6">
+				<div className="flex min-h-[200px] items-center justify-center rounded-xl border border-border-default p-6">
 					<p className="text-sm text-content-secondary">No provider selected</p>
 				</div>
 			) : null}
@@ -244,13 +244,27 @@ export const ProviderStep: FC<ProviderStepProps> = ({
 				</p>
 			)}
 
-			<div className="flex items-center justify-end gap-3">
-				<Button variant="outline" onClick={onSkip}>
-					Skip
-				</Button>
-				<Button onClick={onContinue} disabled={!hasSavedProviders}>
-					Continue
-				</Button>
+			<div className="flex items-center justify-between">
+				<button
+					type="button"
+					onClick={() => {
+						setSelectedProvider("");
+						setApiKey("");
+						setBaseUrl("");
+						setStarted(false);
+					}}
+					className="text-sm text-content-secondary transition-colors hover:text-content-primary"
+				>
+					Back
+				</button>
+				<div className="flex items-center gap-3">
+					<Button variant="outline" onClick={onSkip}>
+						Skip
+					</Button>
+					<Button onClick={onContinue} disabled={!hasSavedProviders}>
+						Continue
+					</Button>
+				</div>
 			</div>
 		</div>
 	);
