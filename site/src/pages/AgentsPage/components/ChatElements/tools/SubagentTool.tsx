@@ -12,6 +12,7 @@ import { useState } from "react";
 import { Link, useLocation } from "react-router";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { cn } from "#/utils/cn";
+import { safeBuildAgentChatPath } from "../../../utils/navigation";
 import { Response } from "../Response";
 import { Shimmer } from "../Shimmer";
 import { useDesktopPanel } from "./DesktopPanelContext";
@@ -187,6 +188,7 @@ export const SubagentTool: React.FC<{
 	const hasReport = Boolean(report?.trim());
 	const hasExpandableContent = hasPrompt || hasMessage || hasReport;
 	const durationLabel = shortDurationMs(durationMs);
+	const agentChatPath = safeBuildAgentChatPath({ chatId });
 
 	return (
 		<div className="w-full">
@@ -217,9 +219,9 @@ export const SubagentTool: React.FC<{
 						title,
 						isTimeout,
 					)}
-					{chatId && (
+					{agentChatPath && (
 						<Link
-							to={{ pathname: `/agents/${chatId}`, search: location.search }}
+							to={{ pathname: agentChatPath, search: location.search }}
 							onClick={(e) => e.stopPropagation()}
 							className="ml-1 inline-flex align-middle text-content-secondary opacity-50 transition-opacity hover:opacity-100"
 							aria-label="View agent"
