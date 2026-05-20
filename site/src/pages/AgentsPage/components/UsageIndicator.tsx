@@ -38,7 +38,6 @@ type UsageSectionData = {
 	detail: ReactNode;
 	icon: ReactNode;
 	summaryValue: string;
-	triggerAriaLabel: string;
 	secondaryDetail?: ReactNode;
 	tooltip?: ReactNode;
 	severity?: UsageSeverity;
@@ -84,7 +83,6 @@ export const UsageIndicator: FC = () => {
 			severity: getSeverity(currentSpend, spendLimit),
 			icon: <CoinsIcon className="size-3.5" />,
 			summaryValue: formatCostMicros(currentSpend),
-			triggerAriaLabel: `${periodLabel} usage, ${formatCostMicros(currentSpend)} spent of ${formatCostMicros(spendLimit)}`,
 			detail: (
 				<>
 					{formatCostMicros(currentSpend)} of {formatCostMicros(spendLimit)}{" "}
@@ -119,8 +117,10 @@ export const UsageIndicator: FC = () => {
 			percent: getPercent(creditsConsumed, quota.budget),
 			severity: getSeverity(creditsConsumed, quota.budget),
 			icon: <ServerIcon className="size-3.5" />,
-			summaryValue: `${formatNumber(creditsConsumed)} of ${formatNumber(quota.budget)}`,
-			triggerAriaLabel: `Workspace quota, ${formatNumber(creditsConsumed)} of ${formatNumber(quota.budget)} credits used`,
+			summaryValue:
+				quota.budget > 0
+					? `${formatNumber(creditsConsumed)}/${formatNumber(quota.budget)}`
+					: formatNumber(creditsConsumed),
 			detail: quotaDetail,
 			tooltip:
 				"Workspaces, stopped or running, may consume credits. Stop or delete unused ones to free quota.",
@@ -137,9 +137,8 @@ export const UsageIndicator: FC = () => {
 const UsageMenu: FC<{ sections: readonly UsageSectionData[] }> = ({
 	sections,
 }) => {
-	const triggerAriaLabel = sections
-		.map((section) => section.triggerAriaLabel)
-		.join(". ");
+	const triggerAriaLabel =
+		sections.length > 1 ? "Usage" : (sections[0]?.title ?? "Usage");
 
 	return (
 		<DropdownMenu>
@@ -147,7 +146,7 @@ const UsageMenu: FC<{ sections: readonly UsageSectionData[] }> = ({
 				<button
 					type="button"
 					aria-label={triggerAriaLabel}
-					className="ml-auto flex self-stretch items-center justify-center border-none bg-transparent px-3 cursor-pointer select-none transition-colors hover:bg-surface-tertiary/50 outline-none"
+					className="flex shrink-0 self-stretch items-center justify-center border-none bg-transparent px-3 cursor-pointer select-none transition-colors hover:bg-surface-tertiary/50 outline-none"
 				>
 					<UsageTriggerProgress sections={sections} />
 				</button>
@@ -192,9 +191,14 @@ const UsageTriggerProgress: FC<{ sections: readonly UsageSectionData[] }> = ({
 						percent={section.percent}
 						severity={section.severity}
 						size="compact"
-						className="w-20 shrink-0"
+						className="w-20 shrink-0 [@container_(min-width:300px)]:w-24 [@container_(min-width:420px)]:w-32 [@container_(min-width:560px)]:w-40"
 					/>
-					<span className="shrink-0 whitespace-nowrap text-[13px] tabular-nums text-content-secondary">
+					<span
+						className={cn(
+							"hidden shrink-0 whitespace-nowrap text-xs tabular-nums [@container_(min-width:300px)]:inline",
+							getTextClassName(section.severity),
+						)}
+					>
 						{section.summaryValue}
 					</span>
 				</div>
