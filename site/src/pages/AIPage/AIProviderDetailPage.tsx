@@ -523,12 +523,13 @@ const AIProviderDetailPage: FC = () => {
 
 		{/* Unsaved changes navigation dialog */}
 		<Dialog open={blocker.state === "blocked"} onOpenChange={(open) => !open && blocker.reset?.()}>
-			<DialogContent>
-				<DialogTitle>Unsaved changes</DialogTitle>
-				<DialogDescription className="flex items-center gap-2 text-content-secondary">
-					<TriangleAlertIcon className="size-5 shrink-0" />
-					Your updates haven't been saved. Leave anyway?
-				</DialogDescription>
+				<DialogContent>
+					<DialogTitle>Unsaved changes</DialogTitle>
+					<DialogDescription className="flex items-center gap-2 text-content-secondary">
+						<TriangleAlertIcon className="size-5 shrink-0 text-content-warning" />
+						Your updates haven't been saved. Leave anyway?
+					</DialogDescription>
+
 				<DialogFooter>
 					<Button variant="outline" onClick={() => blocker.reset?.()}>
 						Cancel
