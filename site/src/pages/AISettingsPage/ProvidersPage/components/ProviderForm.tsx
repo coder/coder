@@ -336,7 +336,7 @@ const apiKeyPlaceholder = (provider: string) => {
 const baseUrlPlaceholder = (provider: string) => {
 	switch (provider) {
 		case "openai":
-			return "https://api.openai.com";
+			return "https://api.openai.com/v1/";
 		case "anthropic":
 			return "https://api.anthropic.com";
 		case "bedrock":
