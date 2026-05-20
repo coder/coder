@@ -392,6 +392,29 @@ func Test_diff(t *testing.T) {
 
 	runDiffTests(t, []diffTest{
 		{
+			// User skill content is user-authored instruction text, not secret
+			// material, so audit diffs can include the content change.
+			name: "UserSkillContentTracked",
+			left: audit.Empty[database.UserSkill](),
+			right: database.UserSkill{
+				ID:          uuid.UUID{1},
+				UserID:      uuid.UUID{2},
+				Name:        "review-guidance",
+				Description: "How to review private projects",
+				Content:     "review markdown",
+			},
+			exp: audit.Map{
+				"id":          audit.OldNew{Old: "", New: uuid.UUID{1}.String()},
+				"user_id":     audit.OldNew{Old: "", New: uuid.UUID{2}.String()},
+				"name":        audit.OldNew{Old: "", New: "review-guidance"},
+				"description": audit.OldNew{Old: "", New: "How to review private projects"},
+				"content":     audit.OldNew{Old: "", New: "review markdown"},
+			},
+		},
+	})
+
+	runDiffTests(t, []diffTest{
+		{
 			name: "Create",
 			left: audit.Empty[database.WorkspaceTable](),
 			right: database.WorkspaceTable{

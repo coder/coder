@@ -301,8 +301,9 @@ export interface AIConfig {
 // From codersdk/aiproviders.go
 /**
  * AIProvider represents an AI provider configuration row as returned
- * by the API. API keys are stored in a separate ai_provider_keys
- * table and managed via the keys sub-endpoints; secret fields on
+ * by the API. Each APIKey entry carries the row's ID so callers can
+ * reference it in an UpdateAIProviderRequest; the plaintext value is
+ * never echoed back (see AIProviderKey.Masked). Secret fields on
  * Settings are never included in responses.
  */
 export interface AIProvider {
@@ -312,6 +313,7 @@ export interface AIProvider {
 	readonly display_name: string;
 	readonly enabled: boolean;
 	readonly base_url: string;
+	readonly api_keys: readonly AIProviderKey[];
 	readonly settings: AIProviderSettings;
 	readonly created_at: string;
 	readonly updated_at: string;
@@ -321,7 +323,10 @@ export interface AIProvider {
 /**
  * AIProviderBedrockSettings configures providers that authenticate
  * against AWS Bedrock. AccessKey and AccessKeySecret are write-only:
- * servers strip them from GET and list responses.
+ * servers strip them from GET and list responses. Both secret fields
+ * use a pointer so a PATCH can distinguish "leave untouched" (omitted)
+ * from "explicitly clear" (empty string), e.g. when migrating to
+ * IAM role-based authentication.
  */
 export interface AIProviderBedrockSettings {
 	/**
@@ -389,15 +394,31 @@ export interface AIProviderConfig {
 
 // From codersdk/aiproviders.go
 /**
- * AIProviderKey represents a single API key registered against an
- * AI provider, as returned by the API. The plaintext APIKey is
- * write-only and never included in responses.
+ * AIProviderKey is a single API key registered on a provider. The
+ * plaintext is never returned; Masked is a one-way rendering safe for
+ * display (see aibridge utils MaskSecret). ID lets clients reference
+ * the row in an UpdateAIProviderRequest without re-sending plaintext.
  */
 export interface AIProviderKey {
 	readonly id: string;
-	readonly provider_id: string;
+	readonly masked: string;
 	readonly created_at: string;
-	readonly updated_at: string;
+}
+
+// From codersdk/aiproviders.go
+/**
+ * AIProviderKeyMutation describes the intended state of a single key
+ * in an UpdateAIProviderRequest. Exactly one of ID or APIKey must be
+ * set:
+ *
+ *   - ID set, APIKey nil: keep this existing key (matched by ID).
+ *   - ID nil, APIKey set: insert this new plaintext as a new key.
+ *
+ * Any existing key whose ID is absent from the request is deleted.
+ */
+export interface AIProviderKeyMutation {
+	readonly id?: string;
+	readonly api_key?: string;
 }
 
 // From codersdk/aiproviders.go
@@ -653,6 +674,11 @@ export type APIKeyScope =
 	| "user_secret:delete"
 	| "user_secret:read"
 	| "user_secret:update"
+	| "user_skill:*"
+	| "user_skill:create"
+	| "user_skill:delete"
+	| "user_skill:read"
+	| "user_skill:update"
 	| "user:update"
 	| "user:update_personal"
 	| "webpush_subscription:*"
@@ -874,6 +900,11 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"user_secret:delete",
 	"user_secret:read",
 	"user_secret:update",
+	"user_skill:*",
+	"user_skill:create",
+	"user_skill:delete",
+	"user_skill:read",
+	"user_skill:update",
 	"user:update",
 	"user:update_personal",
 	"webpush_subscription:*",
@@ -1449,6 +1480,8 @@ export interface Chat {
 	readonly id: string;
 	readonly organization_id: string;
 	readonly owner_id: string;
+	readonly owner_username?: string;
+	readonly owner_name?: string;
 	readonly workspace_id?: string;
 	readonly build_id?: string;
 	readonly agent_id?: string;
@@ -1491,6 +1524,12 @@ export interface Chat {
 	 * always empty for child chats.
 	 */
 	readonly children: readonly Chat[];
+}
+
+// From codersdk/chats.go
+export interface ChatACL {
+	readonly users: readonly ChatUser[];
+	readonly groups: readonly ChatGroup[];
 }
 
 // From codersdk/chats.go
@@ -2017,6 +2056,11 @@ export const ChatGitWatchWorkspaceNoAgentsMessage =
  * Keep these in sync with coderd/exp_chats.go.
  */
 export const ChatGitWatchWorkspaceNotFoundMessage = "Chat workspace not found.";
+
+// From codersdk/chats.go
+export interface ChatGroup extends Group {
+	readonly role: ChatRole;
+}
 
 // From codersdk/chats.go
 /**
@@ -2622,6 +2666,11 @@ export interface ChatRetentionDaysResponse {
 }
 
 // From codersdk/chats.go
+export type ChatRole = "" | "read";
+
+export const ChatRoles: ChatRole[] = ["", "read"];
+
+// From codersdk/chats.go
 export interface ChatSkillPart {
 	readonly type: "skill";
 	/**
@@ -2945,6 +2994,11 @@ export interface ChatUsageLimitStatus {
 }
 
 // From codersdk/chats.go
+export interface ChatUser extends MinimalUser {
+	readonly role: ChatRole;
+}
+
+// From codersdk/chats.go
 /**
  * ChatWatchEvent represents an event from the global chat watch stream.
  * It delivers lifecycle events (created, status change, summary change,
@@ -2997,6 +3051,18 @@ export interface ChatWorkspaceTTLResponse {
  * fields, including device ID, OS, and Desktop version.
  */
 export const CoderDesktopTelemetryHeader = "Coder-Desktop-Telemetry";
+
+// From codersdk/disconnect.go
+export type ConnectionDirection =
+	| "agent_to_client"
+	| "client_to_server"
+	| "server_to_agent";
+
+export const ConnectionDirections: ConnectionDirection[] = [
+	"agent_to_client",
+	"client_to_server",
+	"server_to_agent",
+];
 
 // From codersdk/insights.go
 /**
@@ -3089,6 +3155,11 @@ export interface ConnectionLogsRequest extends Pagination {
 	readonly q?: string;
 }
 
+// From codersdk/disconnect.go
+export type ConnectionMethod = "derp" | "direct" | "";
+
+export const ConnectionMethods: ConnectionMethod[] = ["derp", "direct", ""];
+
 // From codersdk/connectionlog.go
 export type ConnectionType =
 	| "jetbrains"
@@ -3124,22 +3195,10 @@ export interface ConvertLoginRequest {
 
 // From codersdk/aiproviders.go
 /**
- * CreateAIProviderKeyRequest is the payload for adding an API key to
- * an AI provider. Only meaningful for openai and anthropic providers;
- * Bedrock providers reject this call because they use the access
- * credentials stored in Settings.
- */
-export interface CreateAIProviderKeyRequest {
-	readonly api_key: string;
-}
-
-// From codersdk/aiproviders.go
-/**
  * CreateAIProviderRequest is the payload for creating a new AI
- * provider. Name, Type, and BaseURL are required. API keys for
- * OpenAI/Anthropic providers are added via the keys sub-endpoint
- * after the provider is created; Bedrock providers carry their
- * credentials in Settings and do not use the keys sub-endpoint.
+ * provider. Name, Type, and BaseURL are required. APIKeys carries
+ * the plaintext keys for OpenAI/Anthropic providers; Bedrock
+ * providers authenticate via Settings and must omit APIKeys.
  */
 export interface CreateAIProviderRequest {
 	readonly type: AIProviderType;
@@ -3147,6 +3206,7 @@ export interface CreateAIProviderRequest {
 	readonly display_name?: string;
 	readonly enabled: boolean;
 	readonly base_url: string;
+	readonly api_keys?: readonly string[];
 	readonly settings?: AIProviderSettings;
 }
 
@@ -3562,6 +3622,19 @@ export interface CreateUserSecretRequest {
 	readonly description?: string;
 	readonly env_name?: string;
 	readonly file_path?: string;
+}
+
+// From codersdk/userskills.go
+/**
+ * CreateUserSkillRequest is the payload for creating a user skill.
+ */
+export interface CreateUserSkillRequest {
+	/**
+	 * Content must be SKILL.md-format Markdown with YAML frontmatter. The
+	 * frontmatter must include name, may include description, and must be
+	 * followed by a non-empty body.
+	 */
+	readonly content: string;
 }
 
 // From codersdk/workspaces.go
@@ -4030,6 +4103,44 @@ export type DiagnosticSeverityString = "error" | "warning";
 export const DiagnosticSeverityStrings: DiagnosticSeverityString[] = [
 	"error",
 	"warning",
+];
+
+// From codersdk/disconnect.go
+export type DisconnectInitiator =
+	| "agent"
+	| "client"
+	| "network"
+	| "server"
+	| "";
+
+export const DisconnectInitiators: DisconnectInitiator[] = [
+	"agent",
+	"client",
+	"network",
+	"server",
+	"",
+];
+
+// From codersdk/disconnect.go
+export type DisconnectReason =
+	| "client_closed"
+	| "control_plane_lost"
+	| "graceful"
+	| "network_error"
+	| "protocol_error"
+	| "server_shutdown"
+	| ""
+	| "workspace_stopped";
+
+export const DisconnectReasons: DisconnectReason[] = [
+	"client_closed",
+	"control_plane_lost",
+	"graceful",
+	"network_error",
+	"protocol_error",
+	"server_shutdown",
+	"",
+	"workspace_stopped",
 ];
 
 // From codersdk/workspaceagents.go
@@ -5071,7 +5182,7 @@ export interface MatchedProvisioners {
  * growth in the chat_file_links table. It is easier to raise
  * this limit than to lower it.
  */
-export const MaxChatFileIDs = 20;
+export const MaxChatFileIDs = 50;
 
 // From codersdk/chats.go
 /**
@@ -6663,6 +6774,7 @@ export type RBACResource =
 	| "usage_event"
 	| "user"
 	| "user_secret"
+	| "user_skill"
 	| "webpush_subscription"
 	| "*"
 	| "workspace"
@@ -6712,6 +6824,7 @@ export const RBACResources: RBACResource[] = [
 	"usage_event",
 	"user",
 	"user_secret",
+	"user_skill",
 	"webpush_subscription",
 	"*",
 	"workspace",
@@ -6859,6 +6972,7 @@ export type ResourceType =
 	| "template_version"
 	| "user"
 	| "user_secret"
+	| "user_skill"
 	| "workspace"
 	| "workspace_agent"
 	| "workspace_app"
@@ -6893,6 +7007,7 @@ export const ResourceTypes: ResourceType[] = [
 	"template_version",
 	"user",
 	"user_secret",
+	"user_skill",
 	"workspace",
 	"workspace_agent",
 	"workspace_app",
@@ -8224,12 +8339,16 @@ export interface TransitionStats {
  * UpdateAIProviderRequest is the payload for partially updating an
  * AI provider. At least one field must be non-nil. Pointer fields
  * distinguish "not sent" (nil) from "set to empty/zero" (a pointer
- * to the zero value).
+ * to the zero value). When APIKeys is non-nil, the supplied list
+ * describes the post-patch state of the key set; see
+ * AIProviderKeyMutation for the per-entry semantics. An empty slice
+ * clears all keys.
  */
 export interface UpdateAIProviderRequest {
 	readonly display_name?: string;
 	readonly enabled?: boolean;
 	readonly base_url?: string;
+	readonly api_keys?: AIProviderKeyMutation[];
 	readonly settings?: AIProviderSettings;
 }
 
@@ -8279,6 +8398,12 @@ export interface UpdateAppearanceConfig {
 	 */
 	readonly service_banner: BannerConfig;
 	readonly announcement_banners: readonly BannerConfig[];
+}
+
+// From codersdk/chats.go
+export interface UpdateChatACL {
+	readonly user_roles?: Record<string, ChatRole>;
+	readonly group_roles?: Record<string, ChatRole>;
 }
 
 // From codersdk/chats.go
@@ -8763,6 +8888,19 @@ export interface UpdateUserSecretRequest {
 	readonly file_path?: string;
 }
 
+// From codersdk/userskills.go
+/**
+ * UpdateUserSkillRequest is the payload for updating a user skill.
+ */
+export interface UpdateUserSkillRequest {
+	/**
+	 * Content must be SKILL.md-format Markdown with YAML frontmatter. The
+	 * frontmatter must include name, may include description, and must be
+	 * followed by a non-empty body.
+	 */
+	readonly content: string;
+}
+
 // From codersdk/workspaces.go
 export interface UpdateWorkspaceACL {
 	/**
@@ -9176,6 +9314,26 @@ export interface UserSecret {
 	readonly description: string;
 	readonly env_name: string;
 	readonly file_path: string;
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
+// From codersdk/userskills.go
+/**
+ * UserSkill represents a user skill with its raw Markdown content.
+ */
+export interface UserSkill extends UserSkillMetadata {
+	readonly content: string;
+}
+
+// From codersdk/userskills.go
+/**
+ * UserSkillMetadata represents a user skill without its raw Markdown content.
+ */
+export interface UserSkillMetadata {
+	readonly id: string;
+	readonly name: string;
+	readonly description: string;
 	readonly created_at: string;
 	readonly updated_at: string;
 }

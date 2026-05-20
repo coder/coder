@@ -301,12 +301,14 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		Site: append(
 			// Workspace dormancy and workspace are omitted.
 			// Workspace is specifically handled based on the opts.NoOwnerWorkspaceExec.
-			// Owners cannot access other users' secrets.
-			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUserSecret, ResourceUsageEvent, ResourceBoundaryUsage, ResourceAiSeat),
+			// Owners can inspect and delete personal skills for operability and
+			// abuse handling, but cannot create or edit user-authored instructions.
+			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUserSecret, ResourceUserSkill, ResourceUsageEvent, ResourceBoundaryUsage, ResourceAiSeat),
 			// This adds back in the Workspace permissions.
 			Permissions(map[string][]policy.Action{
 				ResourceWorkspace.Type:        ownerWorkspaceActions,
 				ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent, policy.ActionUpdateAgent},
+				ResourceUserSkill.Type:        {policy.ActionRead, policy.ActionDelete},
 				// PrebuiltWorkspaces are a subset of Workspaces.
 				// Explicitly setting PrebuiltWorkspace permissions for clarity.
 				// Note: even without PrebuiltWorkspace permissions, access is still granted via Workspace permissions.

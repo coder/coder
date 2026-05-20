@@ -2,6 +2,7 @@ package chatd //nolint:testpackage
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/google/uuid"
@@ -216,7 +217,7 @@ func TestStoreChatAttachment_StrictCapError(t *testing.T) {
 	}).Return(int32(1), nil)
 
 	attachment, err := server.storeChatAttachment(context.Background(), chatSnapshot, "build.log", "build.log", []byte("build output"))
-	require.ErrorContains(t, err, "chat already has the maximum of 20 linked files")
+	require.ErrorContains(t, err, fmt.Sprintf("chat already has the maximum of %d linked files", codersdk.MaxChatFileIDs))
 	require.Equal(t, chattool.AttachmentMetadata{}, attachment)
 }
 

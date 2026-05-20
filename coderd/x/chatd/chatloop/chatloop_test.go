@@ -1275,6 +1275,21 @@ func requireNoProviderExecutedToolResultContent(t *testing.T, content []fantasy.
 	}
 }
 
+func requireReasoningPrompt(t *testing.T, prompt []fantasy.Message) fantasy.ReasoningPart {
+	t.Helper()
+
+	for _, message := range prompt {
+		for _, part := range message.Content {
+			reasoningPart, ok := fantasy.AsMessagePart[fantasy.ReasoningPart](part)
+			if ok {
+				return reasoningPart
+			}
+		}
+	}
+	t.Fatal("missing prompt reasoning")
+	return fantasy.ReasoningPart{}
+}
+
 func requireTextPrompt(t *testing.T, prompt []fantasy.Message, text string) fantasy.TextPart {
 	t.Helper()
 
@@ -3744,15 +3759,17 @@ func TestRun_AnthropicProviderToolPreRequestGuard(t *testing.T) {
 		require.Equal(t, 1, requireLogField(t, entries[0], "removed_tool_calls"))
 		require.Equal(t, 1, requireLogField(t, entries[0], "removed_tool_results"))
 	})
-	t.Run("run fails before provider call when latest signed assistant is unreplayable", func(t *testing.T) {
+	t.Run("run drops orphan provider call before provider request", func(t *testing.T) {
 		t.Parallel()
 
 		streamCalls := 0
+		var capturedPrompt fantasy.Prompt
 		model := &chattest.FakeModel{
 			ProviderName: fantasyanthropic.Name,
 			ModelName:    "claude-test",
-			StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
 				streamCalls++
+				capturedPrompt = call.Prompt
 				return finishingStream(), nil
 			},
 		}
@@ -3788,15 +3805,15 @@ func TestRun_AnthropicProviderToolPreRequestGuard(t *testing.T) {
 				return nil
 			},
 		})
-		require.Error(t, err)
-		require.Zero(t, streamCalls)
-		require.Equal(t, chaterror.ClassifiedError{
-			Message:   "The chat continuation failed due to an internal state mismatch. This is not a configuration or billing issue. Start a new chat to continue.",
-			Detail:    "Anthropic replay diagnostic: match=provider_tool_guard_postcondition_failed.",
-			Kind:      codersdk.ChatErrorKindGeneric,
-			Provider:  "anthropic",
-			Retryable: false,
-		}, chaterror.Classify(err))
+		require.NoError(t, err)
+		require.Equal(t, 1, streamCalls)
+		requireNoProviderExecutedToolCallPrompt(t, capturedPrompt)
+		requireAnthropicProviderToolPromptSafe(t, capturedPrompt)
+		requireTextPrompt(t, capturedPrompt, "partial")
+		reasoningPart := requireReasoningPrompt(t, capturedPrompt)
+		reasoningMetadata := fantasyanthropic.GetReasoningMetadata(reasoningPart.ProviderOptions)
+		require.NotNil(t, reasoningMetadata)
+		require.Equal(t, "redacted-payload", reasoningMetadata.RedactedData)
 	})
 }
 
