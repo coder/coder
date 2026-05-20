@@ -19,7 +19,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/dustin/go-humanize"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -6112,10 +6111,36 @@ const (
 	// Content-Disposition header is missing or does not parse to a
 	// non-empty filename after sanitization.
 	chatWorkspaceUploadMissingFilenameMessage = "Filename is required."
-	// chatWorkspaceUploadTooLargeMessage is returned when the upload
-	// body exceeds MaxWorkspaceFileSizeBytes.
-	chatWorkspaceUploadTooLargeMessage = "File too large."
 )
+
+func (api *API) chatWorkspaceUploadMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		apiKey := httpmw.APIKey(r)
+		chat := httpmw.ChatParam(r)
+
+		if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+
+		if apiKey.UserID != chat.OwnerID {
+			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+				Message: chatWorkspaceUploadOwnerOnlyMessage,
+			})
+			return
+		}
+
+		if chat.Archived {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: chatWorkspaceUploadArchivedMessage,
+			})
+			return
+		}
+
+		next.ServeHTTP(rw, r)
+	})
+}
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
@@ -6132,37 +6157,12 @@ const (
 // @Failure 400 {object} codersdk.Response
 // @Failure 403 {object} codersdk.Response
 // @Failure 409 {object} codersdk.Response
-// @Failure 413 {object} codersdk.Response
 // @Failure 502 {object} codersdk.Response
 // @Router /api/experimental/chats/{chat}/workspace-files [post]
 // @Description Experimental: this endpoint is subject to change.
 func (api *API) postChatWorkspaceFile(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	apiKey := httpmw.APIKey(r)
 	chat := httpmw.ChatParam(r)
-
-	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
-	// Mirror postChatMessages: only the chat owner can stream
-	// arbitrary bytes into the workspace because the bytes share the
-	// workspace filesystem with whatever the owner already trusts
-	// the agent to read.
-	if apiKey.UserID != chat.OwnerID {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: chatWorkspaceUploadOwnerOnlyMessage,
-		})
-		return
-	}
-
-	if chat.Archived {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: chatWorkspaceUploadArchivedMessage,
-		})
-		return
-	}
 
 	workspace, ok := api.authorizeChatWorkspaceExecOpts(rw, r, chat, chatWorkspaceExecOpts{
 		NoWorkspaceStatus:  http.StatusConflict,
@@ -6246,7 +6246,6 @@ func (api *API) postChatWorkspaceFile(rw http.ResponseWriter, r *http.Request) {
 		contentType = "application/octet-stream"
 	}
 
-	r.Body = http.MaxBytesReader(rw, r.Body, codersdk.MaxWorkspaceFileSizeBytes)
 	defer r.Body.Close()
 
 	dialCtx, dialCancel := context.WithTimeout(ctx, 30*time.Second)
@@ -6267,14 +6266,6 @@ func (api *API) postChatWorkspaceFile(rw http.ResponseWriter, r *http.Request) {
 		Body:   r.Body,
 	})
 	if err != nil {
-		var maxBytesErr *http.MaxBytesError
-		if errors.As(err, &maxBytesErr) {
-			httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
-				Message: chatWorkspaceUploadTooLargeMessage,
-				Detail:  fmt.Sprintf("Maximum file size is %s.", humanize.IBytes(uint64(codersdk.MaxWorkspaceFileSizeBytes))),
-			})
-			return
-		}
 		httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
 			Message: "Failed to upload file to workspace agent.",
 			Detail:  err.Error(),
@@ -6388,9 +6379,8 @@ func createChatInputFromParts(
 					Detail:  fmt.Sprintf("%s[%d].file_id is required for file parts.", fieldName, i),
 				}
 			}
-			// Validate that the file exists and get its media type.
-			// File data is not loaded here; it's resolved at LLM
-			// dispatch time via chatFileResolver.
+			// Validate that the file exists and get metadata from
+			// the stored row instead of trusting the client.
 			chatFile, err := db.GetChatFileByID(ctx, part.FileID)
 			if err != nil {
 				if httpapi.Is404Error(err) {
@@ -6404,7 +6394,7 @@ func createChatInputFromParts(
 					Detail:  fmt.Sprintf("Failed to retrieve file for %s[%d].", fieldName, i),
 				}
 			}
-			content = append(content, codersdk.ChatMessageFile(part.FileID, chatFile.Mimetype, chatFile.Name))
+			content = append(content, codersdk.ChatMessageFile(part.FileID, chatFile.Mimetype, chatFile.Name, int64(len(chatFile.Data))))
 			fileIDs = append(fileIDs, part.FileID)
 		// file-reference parts carry inline code snippets, not uploaded
 		// files. They have no FileID and are excluded from file tracking.

@@ -52,6 +52,7 @@ const isChatMessage = (
 interface ChatPageTimelineProps {
 	chatID?: string;
 	store: ChatStoreHandle;
+	files?: readonly TypesGen.ChatFileMetadata[];
 	persistedError: ChatDetailError | undefined;
 	onEditUserMessage?: (
 		messageId: number,
@@ -68,6 +69,7 @@ interface ChatPageTimelineProps {
 export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	chatID,
 	store,
+	files,
 	persistedError,
 	onEditUserMessage,
 	editingMessageId,
@@ -100,7 +102,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 			return message;
 		})
 		.filter(isChatMessage);
-	const parsedMessages = parseMessagesWithMergedTools(messages);
+	const parsedMessages = parseMessagesWithMergedTools(messages, files);
 	const { titles: subagentTitles, variants: subagentVariants } =
 		buildSubagentMaps(parsedMessages);
 	const onRenderProfiler = useOnRenderProfiler();

@@ -21,11 +21,6 @@ import (
 // search so a poisoned directory cannot wedge the handler.
 const maxUploadChatFileCollisionAttempts = 1000
 
-// maxAgentUploadBytes caps the agent-side request body. Coderd already
-// wraps requests in MaxBytesReader with the same limit; this is a
-// defense in depth for direct tailnet callers.
-const maxAgentUploadBytes = codersdk.MaxWorkspaceFileSizeBytes
-
 // chatIDPattern restricts chat_id to characters safe for use in a
 // single path component (alphanumerics and dashes for UUIDs) so it
 // cannot inject path separators or `..` into the upload directory.
@@ -42,8 +37,6 @@ var chatIDPattern = regexp.MustCompile(`^[A-Za-z0-9-]+$`)
 // per-chat subdirectory), name (required, original filename).
 func (api *API) HandleUploadChatFile(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-
-	r.Body = http.MaxBytesReader(rw, r.Body, maxAgentUploadBytes)
 
 	query := r.URL.Query()
 	parser := httpapi.NewQueryParamParser().

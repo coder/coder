@@ -326,6 +326,24 @@ describe("parseMessageContent", () => {
 		});
 	});
 
+	it("fills missing file size from chat metadata", () => {
+		const result = parseMessageContent(
+			[
+				{
+					type: "file",
+					media_type: "image/png",
+					file_id: "abc-123-def",
+				},
+			],
+			new Map([["abc-123-def", 4096]]),
+		);
+		expect(result.blocks[0]).toMatchObject({
+			type: "file",
+			file_id: "abc-123-def",
+			size: 4096,
+		});
+	});
+
 	it("parses a file block without file_id (backward compat)", () => {
 		const result = parseMessageContent([
 			{

@@ -4343,7 +4343,7 @@ func (q *sqlQuerier) GetChatFileByID(ctx context.Context, id uuid.UUID) (ChatFil
 }
 
 const getChatFileMetadataByChatID = `-- name: GetChatFileMetadataByChatID :many
-SELECT cf.id, cf.owner_id, cf.organization_id, cf.name, cf.mimetype, cf.created_at
+SELECT cf.id, cf.owner_id, cf.organization_id, cf.name, cf.mimetype, octet_length(cf.data)::bigint AS size, cf.created_at
 FROM chat_files cf
 JOIN chat_file_links cfl ON cfl.file_id = cf.id
 WHERE cfl.chat_id = $1::uuid
@@ -4356,6 +4356,7 @@ type GetChatFileMetadataByChatIDRow struct {
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 	Name           string    `db:"name" json:"name"`
 	Mimetype       string    `db:"mimetype" json:"mimetype"`
+	Size           int64     `db:"size" json:"size"`
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
 }
 
@@ -4377,6 +4378,7 @@ func (q *sqlQuerier) GetChatFileMetadataByChatID(ctx context.Context, chatID uui
 			&i.OrganizationID,
 			&i.Name,
 			&i.Mimetype,
+			&i.Size,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err

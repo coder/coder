@@ -100,39 +100,6 @@ func TestPostChatWorkspaceFile(t *testing.T) {
 		require.NoError(t, err, "original upload was overwritten")
 	})
 
-	t.Run("TooLarge", func(t *testing.T) {
-		// Sequential: tests use t.Setenv to control agent home dir.
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db := newChatClientWithDatabase(t)
-		firstUser := coderdtest.CreateFirstUser(t, client.Client)
-		_ = createChatModelConfig(t, client)
-
-		workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-			OrganizationID: firstUser.OrganizationID,
-			OwnerID:        firstUser.UserID,
-		}).WithAgent().Do()
-
-		home := t.TempDir()
-		t.Setenv("HOME", home)
-		t.Setenv("USERPROFILE", home)
-		_ = agenttest.New(t, client.URL, workspaceBuild.AgentToken)
-		coderdtest.NewWorkspaceAgentWaiter(t, client.Client, workspaceBuild.Workspace.ID).WaitFor(coderdtest.AgentsReady)
-
-		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-			OrganizationID: firstUser.OrganizationID,
-			WorkspaceID:    &workspaceBuild.Workspace.ID,
-			Content: []codersdk.ChatInputPart{
-				{Type: codersdk.ChatInputPartTypeText, Text: "too large"},
-			},
-		})
-		require.NoError(t, err)
-
-		oversize := bytes.Repeat([]byte{0}, int(codersdk.MaxWorkspaceFileSizeBytes)+1)
-		_, err = client.UploadChatWorkspaceFile(ctx, chat.ID, "application/zip", "big.zip", bytes.NewReader(oversize))
-		sdkErr := requireSDKError(t, err, http.StatusRequestEntityTooLarge)
-		require.Contains(t, sdkErr.Message, "too large")
-	})
-
 	t.Run("MissingFilename", func(t *testing.T) {
 		// Sequential: tests use t.Setenv to control agent home dir.
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -215,6 +182,32 @@ func TestPostChatWorkspaceFile(t *testing.T) {
 		_, err = client.UploadChatWorkspaceFile(ctx, chat.ID, "application/zip", "data.zip", bytes.NewReader([]byte("PK")))
 		sdkErr := requireSDKError(t, err, http.StatusConflict)
 		require.Contains(t, sdkErr.Message, "Agent status")
+	})
+
+	t.Run("Archived", func(t *testing.T) {
+		// Sequential: tests use t.Setenv to control agent home dir.
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "archived"},
+			},
+		})
+		require.NoError(t, err)
+
+		archived := true
+		err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+			Archived: &archived,
+		})
+		require.NoError(t, err)
+
+		_, err = client.UploadChatWorkspaceFile(ctx, chat.ID, "application/zip", "data.zip", bytes.NewReader([]byte("PK")))
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Contains(t, sdkErr.Message, "archived")
 	})
 
 	t.Run("NotOwner", func(t *testing.T) {

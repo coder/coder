@@ -2255,7 +2255,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "mime_type": "string",
           "name": "string",
           "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+          "size": 0
         }
       ],
       "has_unread": true,
@@ -2318,6 +2319,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "result_delta": "string",
           "result_reset": true,
           "signature": "string",
+          "size": 0,
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -2387,7 +2389,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "mime_type": "string",
       "name": "string",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+      "size": 0
     }
   ],
   "has_unread": true,
@@ -2450,6 +2453,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "result_delta": "string",
       "result_reset": true,
       "signature": "string",
+      "size": 0,
       "skill_description": "string",
       "skill_dir": "string",
       "skill_name": "string",
@@ -2744,20 +2748,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "mime_type": "string",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "size": 0
 }
 ```
 
 ### Properties
 
-| Name              | Type   | Required | Restrictions | Description |
-|-------------------|--------|----------|--------------|-------------|
-| `created_at`      | string | false    |              |             |
-| `id`              | string | false    |              |             |
-| `mime_type`       | string | false    |              |             |
-| `name`            | string | false    |              |             |
-| `organization_id` | string | false    |              |             |
-| `owner_id`        | string | false    |              |             |
+| Name              | Type    | Required | Restrictions | Description |
+|-------------------|---------|----------|--------------|-------------|
+| `created_at`      | string  | false    |              |             |
+| `id`              | string  | false    |              |             |
+| `mime_type`       | string  | false    |              |             |
+| `name`            | string  | false    |              |             |
+| `organization_id` | string  | false    |              |             |
+| `owner_id`        | string  | false    |              |             |
+| `size`            | integer | false    |              |             |
 
 ## codersdk.ChatGroup
 
@@ -2915,6 +2921,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "result_delta": "string",
       "result_reset": true,
       "signature": "string",
+      "size": 0,
       "skill_description": "string",
       "skill_dir": "string",
       "skill_name": "string",
@@ -3010,6 +3017,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "result_delta": "string",
   "result_reset": true,
   "signature": "string",
+  "size": 0,
   "skill_description": "string",
   "skill_dir": "string",
   "skill_name": "string",
@@ -3059,6 +3067,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `result_delta`                 | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                  |
 | `result_reset`                 | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                  |
 | `signature`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `size`                         | integer                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                  |
 | `skill_description`            | string                                                       | false    |              | Skill description is the short description from the skill's SKILL.md frontmatter.                                                                                                                                                                                                                                                |
 | `skill_dir`                    | string                                                       | false    |              | Skill dir is the absolute path to the skill directory inside the workspace filesystem. Internal only: used by read_skill/read_skill_file tools to locate skill files.                                                                                                                                                            |
 | `skill_name`                   | string                                                       | false    |              | Skill name is the kebab-case name of a discovered skill from the workspace's .agents/skills/ directory.                                                                                                                                                                                                                          |
@@ -3183,6 +3192,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "result_delta": "string",
           "result_reset": true,
           "signature": "string",
+          "size": 0,
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -3265,6 +3275,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "result_delta": "string",
           "result_reset": true,
           "signature": "string",
+          "size": 0,
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -3487,6 +3498,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "result_delta": "string",
       "result_reset": true,
       "signature": "string",
+      "size": 0,
       "skill_description": "string",
       "skill_dir": "string",
       "skill_name": "string",
@@ -3652,6 +3664,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "result_delta": "string",
         "result_reset": true,
         "signature": "string",
+        "size": 0,
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -3730,6 +3743,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "result_delta": "string",
       "result_reset": true,
       "signature": "string",
+      "size": 0,
       "skill_description": "string",
       "skill_dir": "string",
       "skill_name": "string",
@@ -3797,6 +3811,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "result_delta": "string",
           "result_reset": true,
           "signature": "string",
+          "size": 0,
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -3912,6 +3927,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "result_delta": "string",
     "result_reset": true,
     "signature": "string",
+    "size": 0,
     "skill_description": "string",
     "skill_dir": "string",
     "skill_name": "string",
@@ -4066,7 +4082,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "mime_type": "string",
         "name": "string",
         "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-        "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+        "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+        "size": 0
       }
     ],
     "has_unread": true,
@@ -4129,6 +4146,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "result_delta": "string",
         "result_reset": true,
         "signature": "string",
+        "size": 0,
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -4581,6 +4599,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "result_delta": "string",
         "result_reset": true,
         "signature": "string",
+        "size": 0,
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -4662,6 +4681,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "result_delta": "string",
         "result_reset": true,
         "signature": "string",
+        "size": 0,
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -7104,6 +7124,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "result_delta": "string",
         "result_reset": true,
         "signature": "string",
+        "size": 0,
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",

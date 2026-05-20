@@ -1020,12 +1020,6 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Response"
                         }
                     },
-                    "413": {
-                        "description": "Request Entity Too Large",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Response"
-                        }
-                    },
                     "502": {
                         "description": "Bad Gateway",
                         "schema": {
@@ -16670,6 +16664,9 @@ const docTemplate = `{
                 "owner_id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "size": {
+                    "type": "integer"
                 }
             }
         },
@@ -16945,6 +16942,9 @@ const docTemplate = `{
                 },
                 "signature": {
                     "type": "string"
+                },
+                "size": {
+                    "type": "integer"
                 },
                 "skill_description": {
                     "description": "SkillDescription is the short description from the skill's\nSKILL.md frontmatter.",

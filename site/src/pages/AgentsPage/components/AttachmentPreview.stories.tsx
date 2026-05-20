@@ -44,7 +44,10 @@ export const SingleImage: Story = {
 		const canvas = within(canvasElement);
 		const thumbnail = await canvas.findByRole("img", { name: "photo.png" });
 		expect(thumbnail).toBeInTheDocument();
-		await userEvent.click(canvas.getByRole("button", { name: "photo.png" }));
+		expect(await canvas.findByText("9 B")).toBeInTheDocument();
+		await userEvent.click(
+			canvas.getByRole("button", { name: "View photo.png" }),
+		);
 		expect(args.onPreview).toHaveBeenCalledWith(TINY_PNG);
 	},
 };

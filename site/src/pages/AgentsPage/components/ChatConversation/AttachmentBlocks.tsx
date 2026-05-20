@@ -1,11 +1,5 @@
-import {
-	AlertTriangleIcon,
-	DownloadIcon,
-	FileIcon,
-	FileTextIcon,
-} from "lucide-react";
-import { type FC, type ReactNode, useState } from "react";
-import { Spinner } from "#/components/Spinner/Spinner";
+import { AlertTriangleIcon } from "lucide-react";
+import { type FC, useState } from "react";
 import {
 	Tooltip,
 	TooltipContent,
@@ -26,6 +20,7 @@ import {
 	formatTextAttachmentPreview,
 } from "../../utils/fetchTextAttachment";
 import { ImageThumbnail } from "../AgentChatInput";
+import { FileAttachmentTile } from "../FileAttachmentTile";
 import { useFileProbes } from "./FileProbeContext";
 import type { RenderBlock } from "./types";
 
@@ -130,49 +125,6 @@ const getAttachmentDownloadName = (
 	return extension === "file" ? "attachment" : `attachment.${extension}`;
 };
 
-const getAttachmentBadgeLabel = (
-	block: Pick<FileAttachmentBlock, "media_type" | "name">,
-): string => {
-	const extension = getAttachmentExtension(block);
-	return extension === "file" ? "" : extension.toUpperCase();
-};
-
-const DownloadOverlay: FC<{
-	href: string;
-	displayName: string;
-	downloadName: string;
-}> = ({ href, displayName, downloadName }) => (
-	<a
-		href={href}
-		download={downloadName}
-		onClick={(event) => event.stopPropagation()}
-		aria-label={`Download ${displayName}`}
-		className="invisible absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded bg-surface-primary/80 text-content-secondary opacity-0 shadow-sm backdrop-blur-sm transition-opacity hover:text-content-primary group-hover/attachment:visible group-hover/attachment:opacity-100 group-focus-within/attachment:visible group-focus-within/attachment:opacity-100 [@media(hover:none)]:visible [@media(hover:none)]:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
-	>
-		<DownloadIcon aria-hidden="true" className="h-3.5 w-3.5" />
-	</a>
-);
-
-const AttachmentPreviewFrame: FC<{
-	href: string | null;
-	displayName: string;
-	downloadName: string;
-	children: ReactNode;
-}> = ({ href, displayName, downloadName, children }) => {
-	return (
-		<div className="group/attachment relative inline-flex flex-col items-start">
-			{children}
-			{href ? (
-				<DownloadOverlay
-					href={href}
-					displayName={displayName}
-					downloadName={downloadName}
-				/>
-			) : null}
-		</div>
-	);
-};
-
 type AttachmentFailureState = { kind: "idle" } | AttachmentFailure;
 
 type AttachmentFailureLabels = {
@@ -240,39 +192,49 @@ const AttachmentFallbackTile: FC<{
 const InlineTextAttachmentButton: FC<{
 	content: string;
 	fileName?: string;
+	mediaType?: string;
+	size?: number;
+	href?: string | null;
+	downloadName?: string;
 	onPreview?: (attachment: PreviewTextAttachment) => void | Promise<void>;
 	isPlaceholder?: boolean;
-	icon?: ReactNode;
-}> = ({ content, fileName, onPreview, isPlaceholder, icon }) => {
+	isLoading?: boolean;
+}> = ({
+	content,
+	fileName,
+	mediaType,
+	size,
+	href,
+	downloadName,
+	onPreview,
+	isPlaceholder,
+	isLoading,
+}) => {
+	const displayName =
+		fileName && fileName !== "Pasted text" ? fileName : "Pasted text";
 	return (
-		<button
-			type="button"
-			aria-label={
-				fileName && fileName !== "Pasted text"
-					? `View ${fileName}`
-					: "View text attachment"
+		<FileAttachmentTile
+			name={displayName}
+			size={size}
+			mediaType={mediaType}
+			href={href}
+			downloadName={downloadName}
+			clickLabel={
+				displayName === "Pasted text" ? "View text attachment" : undefined
 			}
-			className="inline-flex h-16 max-w-sm items-center gap-2 rounded-md border-0 bg-surface-tertiary px-3 py-2 text-left transition-colors hover:bg-surface-quaternary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
-			onClick={(event) => {
-				event.stopPropagation();
-				void onPreview?.({ content, fileName });
-			}}
-		>
-			{icon ?? (
-				<FileTextIcon
-					aria-hidden="true"
-					className="size-icon-sm shrink-0 text-content-secondary"
-				/>
-			)}
-			<span
-				className={cn(
-					"line-clamp-2 min-w-0 text-content-secondary",
-					isPlaceholder ? "text-sm" : "font-mono text-xs",
-				)}
-			>
-				{isPlaceholder ? content : formatTextAttachmentPreview(content)}
-			</span>
-		</button>
+			isLoading={isLoading}
+			preview={
+				<span
+					className={cn(
+						"line-clamp-2 w-10 text-content-secondary",
+						isPlaceholder ? "text-xs" : "font-mono text-2xs",
+					)}
+				>
+					{isPlaceholder ? content : formatTextAttachmentPreview(content)}
+				</span>
+			}
+			onClick={() => void onPreview?.({ content, fileName, mediaType })}
+		/>
 	);
 };
 
@@ -280,6 +242,7 @@ const RemoteTextAttachmentButton: FC<{
 	fileId: string;
 	fileName?: string;
 	mediaType?: string;
+	size?: number;
 	frameHref?: string | null;
 	downloadName: string;
 	onPreview?: (attachment: PreviewTextAttachment) => void | Promise<void>;
@@ -288,6 +251,7 @@ const RemoteTextAttachmentButton: FC<{
 	fileId,
 	fileName,
 	mediaType,
+	size,
 	frameHref,
 	downloadName,
 	onPreview,
@@ -325,16 +289,12 @@ const RemoteTextAttachmentButton: FC<{
 		<InlineTextAttachmentButton
 			content={content ?? fileName ?? "Pasted text"}
 			fileName={fileName}
-			icon={
-				showStatus && isLoading ? (
-					<Spinner
-						size="sm"
-						loading
-						className="shrink-0 text-content-secondary"
-					/>
-				) : undefined
-			}
+			mediaType={mediaType}
+			size={size}
+			href={frameHref}
+			downloadName={downloadName}
 			isPlaceholder={content === null}
+			isLoading={showStatus && isLoading}
 			onPreview={async () => {
 				if (isLoading) {
 					return;
@@ -380,28 +340,16 @@ const RemoteTextAttachmentButton: FC<{
 		/>
 	);
 
-	const framedButton = frameHref ? (
-		<AttachmentPreviewFrame
-			href={frameHref}
-			displayName={fileName ?? "Pasted text"}
-			downloadName={downloadName}
-		>
-			{button}
-		</AttachmentPreviewFrame>
-	) : (
-		button
-	);
-
 	return (
 		<div className="flex flex-col items-start gap-1">
-			{framedButton}
+			{button}
 			{showStatus && isLoading ? (
 				<span
 					role="status"
 					aria-live="polite"
 					className="text-xs text-content-secondary"
 				>
-					Loading attachment preview…
+					Loading attachment preview
 				</span>
 			) : null}
 		</div>
@@ -412,8 +360,19 @@ const RemoteImageBlock: FC<{
 	fileId?: string;
 	href: string;
 	displayName: string;
+	downloadName: string;
+	mediaType: string;
+	size?: number;
 	onImageClick?: (src: string) => void;
-}> = ({ fileId, href, displayName, onImageClick }) => {
+}> = ({
+	fileId,
+	href,
+	displayName,
+	downloadName,
+	mediaType,
+	size,
+	onImageClick,
+}) => {
 	const {
 		hasExpired,
 		markExpired,
@@ -449,114 +408,62 @@ const RemoteImageBlock: FC<{
 	}
 
 	return (
-		<button
-			type="button"
-			aria-label={`View ${displayName}`}
-			className="inline-block rounded-md border-0 bg-transparent p-0"
-			onClick={(event) => {
-				event.stopPropagation();
-				onImageClick?.(href);
-			}}
-		>
-			<ImageThumbnail
-				previewUrl={href}
-				name={displayName}
-				className="cursor-pointer transition-opacity hover:opacity-80"
-				onError={() => {
-					// Inline (data:) images can't be probed; the browser
-					// already failed to decode them, so fall straight to a
-					// generic failure tile.
-					if (fileId === undefined) {
-						setFailureState({ kind: "failed" });
-						return;
-					}
-					if (hasExpired(fileId)) {
-						setFailureState({ kind: "expired" });
-						return;
-					}
-					// Dedup: skip probe, context will propagate the result.
-					if (isPending(fileId)) {
-						setFailureState({ kind: "failed" });
-						return;
-					}
-
-					markPending(fileId);
-					const controller = probeRequest.start();
-					// Optimistically swap to the generic failure tile. The
-					// probe will either upgrade it to "expired" or fill in
-					// a detail; showing a tile without a label flash is
-					// preferable to leaving the broken-image icon up.
-					setFailureState({ kind: "failed" });
-
-					void probeAttachmentFailure(href, controller.signal)
-						.then((reason) => {
-							clearPending(fileId);
-							// Context writes stay above the clear() guard so
-							// siblings get the result even if this block unmounted.
-							if (reason.kind === "expired") {
-								markExpired(fileId);
-							}
-							setProbeResult(fileId, reason);
-							if (probeRequest.clear(controller)) {
-								setFailureState(reason);
-							}
-						})
-						.catch((error) => {
-							clearPending(fileId);
-							if (isAbortError(error)) {
-								return;
-							}
-							const failure = attachmentFailureFromError(error);
-							setProbeResult(fileId, failure);
-							if (probeRequest.clear(controller)) {
-								setFailureState(failure);
-							}
-						});
-				}}
-			/>
-		</button>
-	);
-};
-
-const FileCard: FC<{
-	block: FileAttachmentBlock;
-	href: string;
-}> = ({ block, href }) => {
-	const displayName = getAttachmentDisplayName(block);
-	const downloadName = getAttachmentDownloadName(block);
-	const badgeLabel = getAttachmentBadgeLabel(block);
-
-	return (
-		<a
+		<FileAttachmentTile
+			name={displayName}
+			size={size}
+			mediaType={mediaType}
 			href={href}
-			download={downloadName}
-			onClick={(event) => event.stopPropagation()}
-			aria-label={`Download ${displayName}`}
-			className="inline-flex h-16 max-w-sm items-center gap-3 rounded-md border border-solid border-border-default bg-surface-tertiary px-3 py-2 no-underline transition-colors hover:bg-surface-quaternary"
-		>
-			<div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-surface-secondary">
-				{badgeLabel ? (
-					<span className="text-[10px] font-semibold tracking-wide text-content-secondary">
-						{badgeLabel}
-					</span>
-				) : (
-					<FileIcon
-						aria-hidden="true"
-						className="h-4 w-4 text-content-secondary"
-					/>
-				)}
-			</div>
-			<div className="min-w-0 flex-1">
-				<div className="truncate text-sm text-content-primary">
-					{displayName}
-				</div>
-				<div className="text-xs text-content-secondary">Download file</div>
-			</div>
-			<DownloadIcon
-				aria-hidden="true"
-				className="h-4 w-4 shrink-0 text-content-secondary"
-			/>
-		</a>
+			downloadName={downloadName}
+			preview={
+				<ImageThumbnail
+					previewUrl={href}
+					name={displayName}
+					className="h-10 w-10 cursor-pointer transition-opacity hover:opacity-80"
+					onError={() => {
+						if (fileId === undefined) {
+							setFailureState({ kind: "failed" });
+							return;
+						}
+						if (hasExpired(fileId)) {
+							setFailureState({ kind: "expired" });
+							return;
+						}
+						if (isPending(fileId)) {
+							setFailureState({ kind: "failed" });
+							return;
+						}
+
+						markPending(fileId);
+						const controller = probeRequest.start();
+						setFailureState({ kind: "failed" });
+
+						void probeAttachmentFailure(href, controller.signal)
+							.then((reason) => {
+								clearPending(fileId);
+								if (reason.kind === "expired") {
+									markExpired(fileId);
+								}
+								setProbeResult(fileId, reason);
+								if (probeRequest.clear(controller)) {
+									setFailureState(reason);
+								}
+							})
+							.catch((error) => {
+								clearPending(fileId);
+								if (isAbortError(error)) {
+									return;
+								}
+								const failure = attachmentFailureFromError(error);
+								setProbeResult(fileId, failure);
+								if (probeRequest.clear(controller)) {
+									setFailureState(failure);
+								}
+							});
+					}}
+				/>
+			}
+			onClick={() => onImageClick?.(href)}
+		/>
 	);
 };
 
@@ -585,6 +492,7 @@ export const AttachmentBlock: FC<{
 					fileId={block.file_id}
 					fileName={displayName}
 					mediaType={block.media_type}
+					size={block.size}
 					frameHref={framePreview ? href : undefined}
 					downloadName={downloadName}
 					onPreview={onTextFileClick}
@@ -596,10 +504,14 @@ export const AttachmentBlock: FC<{
 			return null;
 		}
 		const content = decodeInlineTextAttachment(block.data);
-		const button = (
+		return (
 			<InlineTextAttachmentButton
 				content={revealedInlineText ? content : "Pasted text"}
 				fileName={displayName}
+				mediaType={block.media_type}
+				size={block.size}
+				href={framePreview ? href : undefined}
+				downloadName={downloadName}
 				isPlaceholder={!revealedInlineText}
 				onPreview={() => {
 					setRevealedInlineText(true);
@@ -611,41 +523,22 @@ export const AttachmentBlock: FC<{
 				}}
 			/>
 		);
-		return framePreview && href ? (
-			<AttachmentPreviewFrame
-				href={href}
-				displayName={displayName}
-				downloadName={downloadName}
-			>
-				{button}
-			</AttachmentPreviewFrame>
-		) : (
-			button
-		);
 	}
 
 	if (block.media_type.startsWith("image/")) {
 		if (!href) {
 			return null;
 		}
-		const image = (
+		return (
 			<RemoteImageBlock
 				fileId={block.file_id ?? undefined}
 				href={href}
 				displayName={displayName}
+				downloadName={downloadName}
+				mediaType={block.media_type}
+				size={block.size}
 				onImageClick={onImageClick}
 			/>
-		);
-		return framePreview ? (
-			<AttachmentPreviewFrame
-				href={href}
-				displayName={displayName}
-				downloadName={downloadName}
-			>
-				{image}
-			</AttachmentPreviewFrame>
-		) : (
-			image
 		);
 	}
 
@@ -653,5 +546,13 @@ export const AttachmentBlock: FC<{
 		return null;
 	}
 
-	return <FileCard block={block} href={href} />;
+	return (
+		<FileAttachmentTile
+			name={displayName}
+			size={block.size}
+			mediaType={block.media_type}
+			href={href}
+			downloadName={downloadName}
+		/>
+	);
 };

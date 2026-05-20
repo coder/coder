@@ -1966,6 +1966,7 @@ export interface ChatFileMetadata {
 	readonly organization_id: string;
 	readonly name: string;
 	readonly mime_type: string;
+	readonly size?: number;
 	readonly created_at: string;
 }
 
@@ -1976,6 +1977,7 @@ export interface ChatFilePart {
 	readonly name?: string;
 	readonly data?: string;
 	readonly file_id?: string;
+	readonly size?: number;
 }
 
 // From codersdk/chats.go
@@ -5249,15 +5251,6 @@ export const MaxChatFileSizeBytes = 10485760;
  * it would be unusual.
  */
 export const MaxSecretValueSize = 32768; // 32KB
-
-// From codersdk/chats.go
-/**
- * MaxWorkspaceFileSizeBytes is the upload-endpoint cap for files
- * uploaded directly into a chat's workspace filesystem. It is larger
- * than MaxChatFileSizeBytes because the data is streamed straight to
- * the workspace agent and never goes through Postgres.
- */
-export const MaxWorkspaceFileSizeBytes = 104857600;
 
 // From codersdk/organizations.go
 export interface MinimalOrganization {

@@ -86,10 +86,10 @@ import {
 } from "./ChatMessageInput/ChatMessageInput";
 import type { AgentContextUsage } from "./ContextUsageIndicator";
 import { ContextUsageIndicator } from "./ContextUsageIndicator";
+import { FileAttachmentTile } from "./FileAttachmentTile";
 import { ImageLightbox } from "./ImageLightbox";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 import { TextPreviewDialog } from "./TextPreviewDialog";
-import { WorkspaceFileChip } from "./WorkspaceFileChip";
 import { WorkspacePill } from "./WorkspacePill";
 
 export {
@@ -1033,12 +1033,16 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								state?.status === "uploaded" ? state.name : file.name;
 							const size =
 								state?.status === "uploaded" ? state.size : file.size;
+							const mediaType =
+								state?.status === "uploaded" ? state.mediaType : file.type;
 							return (
-								<WorkspaceFileChip
+								<FileAttachmentTile
 									key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
 									name={name}
 									size={size}
-									path={path}
+									mediaType={mediaType}
+									metadataLabel="workspace"
+									copyPath={path}
 									isUploading={uploading}
 									errorMessage={errorMessage}
 									onRemove={() => onRemoveWorkspaceUpload(file)}

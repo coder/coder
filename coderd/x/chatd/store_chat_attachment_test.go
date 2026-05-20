@@ -59,6 +59,7 @@ func TestStoreChatAttachment_Success(t *testing.T) {
 		FileID:    fileID,
 		MediaType: "text/plain",
 		Name:      "build.log",
+		Size:      int64(len("build output")),
 	}, attachment)
 }
 

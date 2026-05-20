@@ -87,6 +87,7 @@ interface AgentChatPageViewProps {
 	organizationId: string | undefined;
 	chatTitle: string | undefined;
 	parentChat: TypesGen.Chat | undefined;
+	chatFiles?: readonly TypesGen.ChatFileMetadata[];
 	persistedError: ChatDetailError | undefined;
 	isArchived: boolean;
 	chatOwner: { id: string; username?: string } | undefined;
@@ -191,6 +192,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	organizationId,
 	chatTitle,
 	parentChat,
+	chatFiles,
 	persistedError,
 	isArchived,
 	chatOwner,
@@ -511,6 +513,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								<ChatPageTimeline
 									chatID={agentId}
 									store={store}
+									files={chatFiles}
 									persistedError={persistedError}
 									onEditUserMessage={editing.handleEditUserMessage}
 									editingMessageId={editing.editingMessageId}

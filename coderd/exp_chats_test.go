@@ -7057,6 +7057,7 @@ func TestChatMessageWithFiles(t *testing.T) {
 				if part.Type == codersdk.ChatMessagePartTypeFile {
 					require.True(t, part.FileID.Valid, "file part should have a valid file_id")
 					require.Equal(t, uploadResp.ID, part.FileID.UUID)
+					require.Equal(t, int64(len(pngData)), part.Size)
 					require.Nil(t, part.Data, "file data should not be sent when file_id is present")
 				}
 			}
@@ -7097,6 +7098,7 @@ func TestChatMessageWithFiles(t *testing.T) {
 		require.NotEqual(t, uuid.Nil, f.OrganizationID)
 		require.Equal(t, "image/png", f.MimeType)
 		require.Equal(t, "test.png", f.Name)
+		require.Equal(t, int64(len(pngData)), f.Size)
 		require.NotZero(t, f.CreatedAt)
 	})
 
@@ -7640,13 +7642,15 @@ func TestPatchChatMessage(t *testing.T) {
 		require.NotZero(t, userMessageID)
 
 		// Edit the message to include the file.
-		_, err = client.EditChatMessage(ctx, chat.ID, userMessageID, codersdk.EditChatMessageRequest{
+		editResp, err := client.EditChatMessage(ctx, chat.ID, userMessageID, codersdk.EditChatMessageRequest{
 			Content: []codersdk.ChatInputPart{
 				{Type: codersdk.ChatInputPartTypeText, Text: "after file edit"},
 				{Type: codersdk.ChatInputPartTypeFile, FileID: uploadResp.ID},
 			},
 		})
 		require.NoError(t, err)
+		require.Len(t, editResp.Message.Content, 2)
+		require.Equal(t, int64(len(pngData)), editResp.Message.Content[1].Size)
 
 		// GET the chat — file should be linked.
 		chatResult, err := client.GetChat(ctx, chat.ID)
@@ -7656,6 +7660,7 @@ func TestPatchChatMessage(t *testing.T) {
 		require.Equal(t, uploadResp.ID, f.ID)
 		require.Equal(t, "edit-linked.png", f.Name)
 		require.Equal(t, "image/png", f.MimeType)
+		require.Equal(t, int64(len(pngData)), f.Size)
 	})
 
 	t.Run("CapExceededOnEdit", func(t *testing.T) {

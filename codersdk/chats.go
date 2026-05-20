@@ -37,12 +37,6 @@ const MaxChatFileIDs = 50
 // attachments.
 const MaxChatFileSizeBytes = 10 * 1024 * 1024
 
-// MaxWorkspaceFileSizeBytes is the upload-endpoint cap for files
-// uploaded directly into a chat's workspace filesystem. It is larger
-// than MaxChatFileSizeBytes because the data is streamed straight to
-// the workspace agent and never goes through Postgres.
-const MaxWorkspaceFileSizeBytes = 100 * 1024 * 1024
-
 // AnthropicInlineImageCapBytes is Anthropic's documented per-image
 // wire limit; the same cap applies to Bedrock-hosted Claude. Other
 // providers have no documented per-image cap.
@@ -163,6 +157,7 @@ type ChatFileMetadata struct {
 	OrganizationID uuid.UUID `json:"organization_id" format:"uuid"`
 	Name           string    `json:"name"`
 	MimeType       string    `json:"mime_type"`
+	Size           int64     `json:"size,omitempty"`
 	CreatedAt      time.Time `json:"created_at" format:"date-time"`
 }
 
@@ -276,6 +271,7 @@ type ChatMessagePart struct {
 	Name              string              `json:"name,omitempty" variants:"file?"`
 	Data              []byte              `json:"data,omitempty" variants:"file?"`
 	FileID            uuid.NullUUID       `json:"file_id,omitempty" format:"uuid" variants:"file?"`
+	Size              int64               `json:"size,omitempty" variants:"file?"`
 	FileName          string              `json:"file_name" variants:"file-reference"`
 	StartLine         int                 `json:"start_line" variants:"file-reference"`
 	EndLine           int                 `json:"end_line" variants:"file-reference"`
@@ -417,12 +413,13 @@ func ChatMessageToolResult(toolCallID, toolName string, result json.RawMessage, 
 }
 
 // ChatMessageFile builds a file chat message part.
-func ChatMessageFile(fileID uuid.UUID, mediaType string, name string) ChatMessagePart {
+func ChatMessageFile(fileID uuid.UUID, mediaType string, name string, size int64) ChatMessagePart {
 	return ChatMessagePart{
 		Type:      ChatMessagePartTypeFile,
 		FileID:    uuid.NullUUID{UUID: fileID, Valid: true},
 		MediaType: mediaType,
 		Name:      name,
+		Size:      size,
 	}
 }
 

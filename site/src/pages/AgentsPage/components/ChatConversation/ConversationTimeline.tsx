@@ -43,9 +43,9 @@ import {
 } from "../ChatElements";
 import { WebSearchSources } from "../ChatElements/tools";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
+import { FileAttachmentTile } from "../FileAttachmentTile";
 import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
-import { WorkspaceFileChip } from "../WorkspaceFileChip";
 import {
 	AttachmentBlock,
 	type PreviewTextAttachment,
@@ -436,10 +436,12 @@ export const BlockList: FC<{
 								key={`${keyPrefix}-workspace-file-${index}`}
 								className="my-1"
 							>
-								<WorkspaceFileChip
+								<FileAttachmentTile
 									name={block.workspace_file_name}
 									size={block.workspace_file_size}
-									path={block.workspace_file_path}
+									mediaType={block.workspace_file_media_type}
+									metadataLabel="workspace"
+									copyPath={block.workspace_file_path}
 								/>
 							</div>
 						);

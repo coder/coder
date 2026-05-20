@@ -74,6 +74,7 @@ func buildAssistantPartsForPersist(
 				attachment.FileID,
 				attachment.MediaType,
 				attachment.Name,
+				attachment.Size,
 			))
 		}
 	}

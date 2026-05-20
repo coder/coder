@@ -903,12 +903,6 @@
 							"$ref": "#/definitions/codersdk.Response"
 						}
 					},
-					"413": {
-						"description": "Request Entity Too Large",
-						"schema": {
-							"$ref": "#/definitions/codersdk.Response"
-						}
-					},
 					"502": {
 						"description": "Bad Gateway",
 						"schema": {
@@ -15014,6 +15008,9 @@
 				"owner_id": {
 					"type": "string",
 					"format": "uuid"
+				},
+				"size": {
+					"type": "integer"
 				}
 			}
 		},
@@ -15282,6 +15279,9 @@
 				},
 				"signature": {
 					"type": "string"
+				},
+				"size": {
+					"type": "integer"
 				},
 				"skill_description": {
 					"description": "SkillDescription is the short description from the skill's\nSKILL.md frontmatter.",

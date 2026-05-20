@@ -1,14 +1,8 @@
 import { useRef, useState } from "react";
 import { API } from "#/api/api";
-import {
-	MaxWorkspaceFileSizeBytes,
-	type UploadChatWorkspaceFileResponse,
-} from "#/api/typesGenerated";
+import type { UploadChatWorkspaceFileResponse } from "#/api/typesGenerated";
 import { renameChatFileForUpload } from "../utils/chatAttachments";
-import {
-	formatAgentAttachmentUploadError,
-	formatWorkspaceUploadTooLargeError,
-} from "../utils/fileAttachmentLimits";
+import { formatAgentAttachmentUploadError } from "../utils/fileAttachmentLimits";
 
 export type WorkspaceUploadState =
 	| { status: "uploading" }
@@ -33,6 +27,13 @@ interface UseWorkspaceFileUploadsReturn {
 	reset: () => void;
 }
 
+/**
+ * Handles files streamed into the workspace agent. This remains separate
+ * from useFileAttachments because regular attachments upload to coderd,
+ * may be resized, may persist draft preview state, and produce file_id
+ * parts. Workspace uploads require a chat ID and connected workspace,
+ * stream to the agent, and produce workspace-file-reference parts.
+ */
 export function useWorkspaceFileUploads(
 	chatId: string | undefined,
 ): UseWorkspaceFileUploadsReturn {
@@ -95,26 +96,7 @@ export function useWorkspaceFileUploads(
 	const handleAttach = (incoming: File[]) => {
 		const renamed = incoming.map(renameChatFileForUpload);
 		setFiles((prev) => [...prev, ...renamed]);
-		const tooLargeErrors: Array<[File, string]> = [];
 		for (const file of renamed) {
-			if (file.size > MaxWorkspaceFileSizeBytes) {
-				tooLargeErrors.push([
-					file,
-					formatWorkspaceUploadTooLargeError(file.size),
-				]);
-			}
-		}
-		if (tooLargeErrors.length > 0) {
-			setUploadStates((prev) => {
-				const next = new Map(prev);
-				for (const [file, error] of tooLargeErrors) {
-					next.set(file, { status: "error", error });
-				}
-				return next;
-			});
-		}
-		for (const file of renamed) {
-			if (file.size > MaxWorkspaceFileSizeBytes) continue;
 			startUpload(file);
 		}
 	};

@@ -2,7 +2,7 @@ import { type FC, Fragment } from "react";
 import { cn } from "#/utils/cn";
 import { Message, MessageContent } from "../ChatElements";
 import { FileReferenceChip } from "../ChatMessageInput/FileReferenceNode";
-import { WorkspaceFileChip } from "../WorkspaceFileChip";
+import { FileAttachmentTile } from "../FileAttachmentTile";
 import {
 	AttachmentBlock,
 	type PreviewTextAttachment,
@@ -98,11 +98,13 @@ export const UserMessageContent: FC<{
 							)}
 						>
 							{displayState.userWorkspaceFileBlocks.map((block, index) => (
-								<WorkspaceFileChip
+								<FileAttachmentTile
 									key={`user-workspace-file-${index}`}
 									name={block.workspace_file_name}
 									size={block.workspace_file_size}
-									path={block.workspace_file_path}
+									mediaType={block.workspace_file_media_type}
+									metadataLabel="workspace"
+									copyPath={block.workspace_file_path}
 								/>
 							))}
 						</div>

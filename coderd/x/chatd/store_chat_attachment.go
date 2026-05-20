@@ -107,5 +107,6 @@ func storeLinkedChatFileTx(
 		FileID:    row.ID,
 		MediaType: mediaType,
 		Name:      name,
+		Size:      int64(len(data)),
 	}, nil
 }

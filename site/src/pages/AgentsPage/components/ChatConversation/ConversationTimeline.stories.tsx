@@ -200,18 +200,19 @@ const buildFilePart = (
 });
 
 const buildTextAttachmentPart = (fileId: string): TypesGen.ChatFilePart =>
-	buildFilePart({ file_id: fileId, media_type: "text/plain" });
+	buildFilePart({ file_id: fileId, media_type: "text/plain", size: 2048 });
 
 const buildImageAttachmentPart = (
 	fileId: string,
 	mediaType = "image/png",
 ): TypesGen.ChatFilePart =>
-	buildFilePart({ file_id: fileId, media_type: mediaType });
+	buildFilePart({ file_id: fileId, media_type: mediaType, size: 4096 });
 
 const buildInlineAttachmentPart = (
 	mediaType: string,
 	data: string,
-): TypesGen.ChatFilePart => buildFilePart({ media_type: mediaType, data });
+): TypesGen.ChatFilePart =>
+	buildFilePart({ media_type: mediaType, data, size: data.length });
 
 const buildUserMessage = ({
 	id = 1,

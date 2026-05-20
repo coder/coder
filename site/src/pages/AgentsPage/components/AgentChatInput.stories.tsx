@@ -558,7 +558,7 @@ export const WithWorkspaceUploadError: Story = {
 					file,
 					{
 						status: "error",
-						error: "File too large (250 MiB). Maximum is 100 MiB.",
+						error: "Upload failed. Agent disconnected.",
 					},
 				],
 			]),
@@ -569,7 +569,7 @@ export const WithWorkspaceUploadError: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(await canvas.findByText("huge.iso")).toBeInTheDocument();
-		expect(canvas.getByText(/File too large \(250 MiB\)/)).toBeInTheDocument();
+		expect(canvas.getByText(/Upload failed/i)).toBeInTheDocument();
 		expect(
 			canvas.queryByRole("button", {
 				name: /Copy workspace path/i,

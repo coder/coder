@@ -1,7 +1,6 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MaxWorkspaceFileSizeBytes } from "#/api/typesGenerated";
 import { useWorkspaceFileUploads } from "./useWorkspaceFileUploads";
 
 vi.mock("#/api/api", () => ({
@@ -77,20 +76,6 @@ describe("useWorkspaceFileUploads", () => {
 			const [attached] = result.current.files;
 			expect(result.current.uploadStates.get(attached)?.status).toBe("error");
 		});
-	});
-
-	it("rejects oversized files without calling the API", async () => {
-		const { result } = renderHook(() => useWorkspaceFileUploads("chat-1"));
-		const big = makeFile("big.bin", MaxWorkspaceFileSizeBytes + 1);
-
-		act(() => {
-			result.current.handleAttach([big]);
-		});
-
-		const [attached] = result.current.files;
-		const state = result.current.uploadStates.get(attached);
-		expect(state?.status).toBe("error");
-		expect(uploadMock).not.toHaveBeenCalled();
 	});
 
 	it("records an error state when no chat id is supplied", async () => {

@@ -1,12 +1,6 @@
-import { AlertTriangleIcon, ClipboardPasteIcon, XIcon } from "lucide-react";
-import type { FC, ReactEventHandler } from "react";
+import { AlertTriangleIcon, ClipboardPasteIcon } from "lucide-react";
+import type { FC, ReactEventHandler, ReactNode } from "react";
 import { toast } from "sonner";
-import { Spinner } from "#/components/Spinner/Spinner";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 import { useLatestAbortController } from "../hooks/useLatestAbortController";
 import { isAbortError } from "../utils/chatAttachments";
@@ -15,6 +9,7 @@ import {
 	formatTextAttachmentPreview,
 	getTextAttachmentErrorMessage,
 } from "../utils/fetchTextAttachment";
+import { FileAttachmentTile } from "./FileAttachmentTile";
 
 export type UploadState = {
 	// "processing" covers any pre-upload client work (e.g. resize),
@@ -140,27 +135,27 @@ export const AttachmentPreview: FC<{
 					const hasTextAttachment =
 						file.type === "text/plain" &&
 						(textContent !== undefined || textFileId !== undefined);
-					return (
-						<div
-							// Key combines file metadata with index as a fallback for
-							// duplicate names. Acceptable for a small, append-only list.
-							key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
-							className="group relative"
-						>
-							{file.type.startsWith("image/") && previewUrl ? (
-								<button
-									type="button"
-									className="border-0 bg-transparent p-0 cursor-pointer transition-opacity hover:opacity-80"
-									onClick={() => onPreview?.(previewUrl)}
-								>
-									<ImageThumbnail previewUrl={previewUrl} name={file.name} />
-								</button>
-							) : hasTextAttachment ? (
-								<button
-									type="button"
-									aria-label={`View ${file.name}`}
-									className="flex h-16 w-28 flex-col items-start justify-start overflow-hidden rounded-md border-0 bg-surface-tertiary p-2 text-left transition-colors hover:bg-surface-quaternary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
-									onClick={async () => {
+					const isBusy =
+						uploadState?.status === "pending" ||
+						uploadState?.status === "processing" ||
+						uploadState?.status === "uploading";
+					const preview: ReactNode =
+						file.type.startsWith("image/") && previewUrl ? (
+							<ImageThumbnail
+								previewUrl={previewUrl}
+								name={file.name}
+								className="h-10 w-10"
+							/>
+						) : hasTextAttachment ? (
+							<span className="line-clamp-2 w-10 font-mono text-2xs text-content-secondary">
+								{formatTextAttachmentPreview(textContent ?? "")}
+							</span>
+						) : undefined;
+					const onClick =
+						file.type.startsWith("image/") && previewUrl
+							? () => onPreview?.(previewUrl)
+							: hasTextAttachment
+								? async () => {
 										const nextContent = await loadTextAttachmentContent(
 											textContent,
 											textFileId,
@@ -168,70 +163,41 @@ export const AttachmentPreview: FC<{
 										if (nextContent !== undefined) {
 											onTextPreview?.(nextContent, file.name, file.type);
 										}
-									}}
-								>
-									<span className="line-clamp-3 w-full font-mono text-2xs text-content-secondary">
-										{formatTextAttachmentPreview(textContent ?? "")}
-									</span>
-								</button>
-							) : (
-								<div className="flex h-16 w-16 items-center justify-center rounded-md border border-border-default bg-surface-secondary text-xs text-content-secondary">
-									{file.name.split(".").pop()?.toUpperCase() || "FILE"}
-								</div>
-							)}
-							{hasTextAttachment && (
-								<button
-									type="button"
-									onClick={async () => {
-										const nextContent = await loadTextAttachmentContent(
-											textContent,
-											textFileId,
-										);
-										onInlineText?.(file, nextContent);
-									}}
-									className="absolute -bottom-2 -right-2 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-sm opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
-									aria-label="Paste inline"
-								>
-									<ClipboardPasteIcon
-										aria-hidden="true"
-										className="h-3.5 w-3.5"
-									/>
-								</button>
-							)}
-							{(uploadState?.status === "pending" ||
-								uploadState?.status === "processing" ||
-								uploadState?.status === "uploading") && (
-								<div className="absolute inset-0 flex items-center justify-center rounded-md bg-overlay">
-									<Spinner className="h-5 w-5 text-white" loading />
-								</div>
-							)}
-							{uploadState?.status === "error" && (
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<div
-											className="absolute inset-0 flex items-center justify-center rounded-md bg-overlay"
-											role="img"
-											aria-label="Upload error"
-										>
-											<AlertTriangleIcon className="h-5 w-5 text-content-warning" />
-										</div>
-									</TooltipTrigger>
-									<TooltipContent side="top">
-										<p className="max-w-xs text-xs">
-											{uploadState.error ?? "Upload failed"}
-										</p>
-									</TooltipContent>
-								</Tooltip>
-							)}
-							<button
-								type="button"
-								onClick={() => onRemove(file)}
-								className="absolute -right-2 -top-2 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-0 bg-surface-primary text-content-secondary shadow-sm opacity-0 transition-opacity hover:bg-surface-secondary hover:text-content-primary group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
-								aria-label={`Remove ${file.name}`}
-							>
-								<XIcon aria-hidden="true" className="h-3.5 w-3.5" />
-							</button>
-						</div>
+									}
+								: undefined;
+					const inlineAction = hasTextAttachment ? (
+						<button
+							type="button"
+							onClick={async (event) => {
+								event.stopPropagation();
+								const nextContent = await loadTextAttachmentContent(
+									textContent,
+									textFileId,
+								);
+								onInlineText?.(file, nextContent);
+							}}
+							className="inline-flex size-6 items-center justify-center rounded text-content-secondary hover:bg-surface-tertiary hover:text-content-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
+							aria-label="Paste inline"
+						>
+							<ClipboardPasteIcon aria-hidden="true" className="size-3.5" />
+						</button>
+					) : undefined;
+
+					return (
+						<FileAttachmentTile
+							key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
+							name={file.name}
+							size={file.size}
+							mediaType={file.type}
+							preview={preview}
+							onClick={onClick}
+							extraActions={inlineAction}
+							isUploading={isBusy}
+							errorMessage={
+								uploadState?.status === "error" ? uploadState.error : undefined
+							}
+							onRemove={() => onRemove(file)}
+						/>
 					);
 				})}
 			</div>
