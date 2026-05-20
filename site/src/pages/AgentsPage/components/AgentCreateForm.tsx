@@ -509,8 +509,50 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							}}
 						/>
 					)}
-					{agentSetupNotice}
-					<div className={agentSetupNotice ? "relative z-10 -mt-14" : undefined}>
+					{agentSetupNotice ? (
+						<div className="relative">
+							{agentSetupNotice}
+							<div className="relative z-10 mt-[-2.25rem]">
+								<AgentChatInput
+									onSend={handleSendWithAttachments}
+									sendShortcut={sendShortcut}
+									placeholder="Ask Coder to build, fix bugs, or explore your project..."
+									isDisabled={
+										isCreating || isForbidden || isPersonalModelOverridesLoading
+									}
+									isLoading={isCreating}
+									initialValue={initialInputValue}
+									initialEditorState={initialEditorState}
+									onContentChange={handleContentChange}
+									selectedModel={selectedModel}
+									onModelChange={handleModelChange}
+									modelOptions={modelOptions}
+									modelSelectorPlaceholder={modelSelectorPlaceholder}
+									isModelCatalogLoading={isModelCatalogLoading}
+									hasModelOptions={hasModelOptions}
+									planModeEnabled={planModeEnabled}
+									onPlanModeToggle={setPlanModeEnabled}
+									attachments={attachments}
+									onAttach={handleAttach}
+									onRemoveAttachment={handleRemoveAttachment}
+									uploadStates={uploadStates}
+									previewUrls={previewUrls}
+									textContents={textContents}
+									mcpServers={mcpServers}
+									selectedMCPServerIds={effectiveMCPServerIds}
+									onMCPSelectionChange={(ids) => {
+										setUserMCPServerIds(ids);
+										saveMCPSelection(ids);
+									}}
+									onMCPAuthComplete={onMCPAuthComplete}
+									workspaceOptions={filteredWorkspaces}
+									selectedWorkspaceId={effectiveWorkspaceId}
+									onWorkspaceChange={handleWorkspaceChange}
+									isWorkspaceLoading={isWorkspacesLoading}
+								/>
+							</div>
+						</div>
+					) : (
 						<AgentChatInput
 							onSend={handleSendWithAttachments}
 							sendShortcut={sendShortcut}
@@ -548,7 +590,7 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 							onWorkspaceChange={handleWorkspaceChange}
 							isWorkspaceLoading={isWorkspacesLoading}
 						/>
-					</div>
+					)}
 					{modelSelectorHelp ? (
 						<div className="px-3 pt-1 text-2xs text-content-secondary">
 							{modelSelectorHelp}
