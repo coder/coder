@@ -769,9 +769,17 @@ const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 												aria-hidden="true"
 											/>
 										) : (
-											// data-chromatic="ignore" keeps Chromatic snapshots
-											// stable as wall-clock time advances (e.g. "now" → "5m").
-											<span data-chromatic="ignore">
+											// data-chromatic="ignore" disables pixel diffing
+											// inside the span, but Chromatic still diffs the
+											// span's bounding rect. Pin the box to a fixed width
+											// (with the text right-aligned so the trailing edge
+											// stays anchored to the column) so transitions like
+											// "46m" → "now" do not shrink the mask and expose
+											// stale pixels along its edge.
+											<span
+												data-chromatic="ignore"
+												className="inline-block w-7 text-right"
+											>
 												{shortRelativeTime(chat.updated_at)}
 											</span>
 										)}
