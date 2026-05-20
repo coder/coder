@@ -148,20 +148,25 @@ func (q *sqlQuerier) GetAIProviderKeyByID(ctx context.Context, id uuid.UUID) (AI
 
 const getAIProviderKeys = `-- name: GetAIProviderKeys :many
 SELECT
-    id, provider_id, api_key, api_key_key_id, created_at, updated_at
+    ai_provider_keys.id, ai_provider_keys.provider_id, ai_provider_keys.api_key, ai_provider_keys.api_key_key_id, ai_provider_keys.created_at, ai_provider_keys.updated_at
 FROM
     ai_provider_keys
+    JOIN ai_providers ON ai_providers.id = ai_provider_keys.provider_id
+WHERE
+    $1::boolean OR NOT ai_providers.deleted
 ORDER BY
-    provider_id ASC,
-    created_at ASC,
-    id ASC
+    ai_provider_keys.provider_id ASC,
+    ai_provider_keys.created_at ASC,
+    ai_provider_keys.id ASC
 `
 
-// Returns every AI provider key row, including those belonging to a
-// soft-deleted provider, so the dbcrypt key rotation utility can
-// re-encrypt their api_key and clear references to retired keys.
-func (q *sqlQuerier) GetAIProviderKeys(ctx context.Context) ([]AIProviderKey, error) {
-	rows, err := q.db.QueryContext(ctx, getAIProviderKeys)
+// Returns AI provider key rows. By default, only rows whose parent
+// provider is live (deleted = FALSE) are returned, so the API list
+// handler can fetch every visible provider's keys in a single query.
+// The dbcrypt key rotation utility passes include_deleted=TRUE to
+// re-encrypt rows that belong to soft-deleted providers as well.
+func (q *sqlQuerier) GetAIProviderKeys(ctx context.Context, includeDeleted bool) ([]AIProviderKey, error) {
+	rows, err := q.db.QueryContext(ctx, getAIProviderKeys, includeDeleted)
 	if err != nil {
 		return nil, err
 	}

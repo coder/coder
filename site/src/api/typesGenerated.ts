@@ -301,8 +301,9 @@ export interface AIConfig {
 // From codersdk/aiproviders.go
 /**
  * AIProvider represents an AI provider configuration row as returned
- * by the API. API keys are stored in a separate ai_provider_keys
- * table and managed via the keys sub-endpoints; secret fields on
+ * by the API. Each APIKey entry carries the row's ID so callers can
+ * reference it in an UpdateAIProviderRequest; the plaintext value is
+ * never echoed back (see AIProviderKey.Masked). Secret fields on
  * Settings are never included in responses.
  */
 export interface AIProvider {
@@ -312,6 +313,7 @@ export interface AIProvider {
 	readonly display_name: string;
 	readonly enabled: boolean;
 	readonly base_url: string;
+	readonly api_keys: readonly AIProviderKey[];
 	readonly settings: AIProviderSettings;
 	readonly created_at: string;
 	readonly updated_at: string;
@@ -321,7 +323,10 @@ export interface AIProvider {
 /**
  * AIProviderBedrockSettings configures providers that authenticate
  * against AWS Bedrock. AccessKey and AccessKeySecret are write-only:
- * servers strip them from GET and list responses.
+ * servers strip them from GET and list responses. Both secret fields
+ * use a pointer so a PATCH can distinguish "leave untouched" (omitted)
+ * from "explicitly clear" (empty string), e.g. when migrating to
+ * IAM role-based authentication.
  */
 export interface AIProviderBedrockSettings {
 	/**
@@ -389,15 +394,31 @@ export interface AIProviderConfig {
 
 // From codersdk/aiproviders.go
 /**
- * AIProviderKey represents a single API key registered against an
- * AI provider, as returned by the API. The plaintext APIKey is
- * write-only and never included in responses.
+ * AIProviderKey is a single API key registered on a provider. The
+ * plaintext is never returned; Masked is a one-way rendering safe for
+ * display (see aibridge utils MaskSecret). ID lets clients reference
+ * the row in an UpdateAIProviderRequest without re-sending plaintext.
  */
 export interface AIProviderKey {
 	readonly id: string;
-	readonly provider_id: string;
+	readonly masked: string;
 	readonly created_at: string;
-	readonly updated_at: string;
+}
+
+// From codersdk/aiproviders.go
+/**
+ * AIProviderKeyMutation describes the intended state of a single key
+ * in an UpdateAIProviderRequest. Exactly one of ID or APIKey must be
+ * set:
+ *
+ *   - ID set, APIKey nil: keep this existing key (matched by ID).
+ *   - ID nil, APIKey set: insert this new plaintext as a new key.
+ *
+ * Any existing key whose ID is absent from the request is deleted.
+ */
+export interface AIProviderKeyMutation {
+	readonly id?: string;
+	readonly api_key?: string;
 }
 
 // From codersdk/aiproviders.go
@@ -3151,22 +3172,10 @@ export interface ConvertLoginRequest {
 
 // From codersdk/aiproviders.go
 /**
- * CreateAIProviderKeyRequest is the payload for adding an API key to
- * an AI provider. Only meaningful for openai and anthropic providers;
- * Bedrock providers reject this call because they use the access
- * credentials stored in Settings.
- */
-export interface CreateAIProviderKeyRequest {
-	readonly api_key: string;
-}
-
-// From codersdk/aiproviders.go
-/**
  * CreateAIProviderRequest is the payload for creating a new AI
- * provider. Name, Type, and BaseURL are required. API keys for
- * OpenAI/Anthropic providers are added via the keys sub-endpoint
- * after the provider is created; Bedrock providers carry their
- * credentials in Settings and do not use the keys sub-endpoint.
+ * provider. Name, Type, and BaseURL are required. APIKeys carries
+ * the plaintext keys for OpenAI/Anthropic providers; Bedrock
+ * providers authenticate via Settings and must omit APIKeys.
  */
 export interface CreateAIProviderRequest {
 	readonly type: AIProviderType;
@@ -3174,6 +3183,7 @@ export interface CreateAIProviderRequest {
 	readonly display_name?: string;
 	readonly enabled: boolean;
 	readonly base_url: string;
+	readonly api_keys?: readonly string[];
 	readonly settings?: AIProviderSettings;
 }
 
@@ -8306,12 +8316,16 @@ export interface TransitionStats {
  * UpdateAIProviderRequest is the payload for partially updating an
  * AI provider. At least one field must be non-nil. Pointer fields
  * distinguish "not sent" (nil) from "set to empty/zero" (a pointer
- * to the zero value).
+ * to the zero value). When APIKeys is non-nil, the supplied list
+ * describes the post-patch state of the key set; see
+ * AIProviderKeyMutation for the per-entry semantics. An empty slice
+ * clears all keys.
  */
 export interface UpdateAIProviderRequest {
 	readonly display_name?: string;
 	readonly enabled?: boolean;
 	readonly base_url?: string;
+	readonly api_keys?: AIProviderKeyMutation[];
 	readonly settings?: AIProviderSettings;
 }
 

@@ -253,10 +253,12 @@ type sqlcQuerier interface {
 	GetAIProviderByID(ctx context.Context, id uuid.UUID) (AIProvider, error)
 	GetAIProviderByName(ctx context.Context, name string) (AIProvider, error)
 	GetAIProviderKeyByID(ctx context.Context, id uuid.UUID) (AIProviderKey, error)
-	// Returns every AI provider key row, including those belonging to a
-	// soft-deleted provider, so the dbcrypt key rotation utility can
-	// re-encrypt their api_key and clear references to retired keys.
-	GetAIProviderKeys(ctx context.Context) ([]AIProviderKey, error)
+	// Returns AI provider key rows. By default, only rows whose parent
+	// provider is live (deleted = FALSE) are returned, so the API list
+	// handler can fetch every visible provider's keys in a single query.
+	// The dbcrypt key rotation utility passes include_deleted=TRUE to
+	// re-encrypt rows that belong to soft-deleted providers as well.
+	GetAIProviderKeys(ctx context.Context, includeDeleted bool) ([]AIProviderKey, error)
 	// Returns all keys for a provider, ordered by created_at ASC so the
 	// oldest key is returned first. AI Bridge currently uses the oldest
 	// key per provider; multiple keys are stored to support future

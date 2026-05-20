@@ -10,7 +10,10 @@ const AIProviderBedrockSettingsVersion = 1
 
 // AIProviderBedrockSettings configures providers that authenticate
 // against AWS Bedrock. AccessKey and AccessKeySecret are write-only:
-// servers strip them from GET and list responses.
+// servers strip them from GET and list responses. Both secret fields
+// use a pointer so a PATCH can distinguish "leave untouched" (omitted)
+// from "explicitly clear" (empty string), e.g. when migrating to
+// IAM role-based authentication.
 type AIProviderBedrockSettings struct {
 	// Region is the AWS region used to construct the Bedrock endpoint
 	// URL when BaseURL is not set on the parent provider.
@@ -23,10 +26,10 @@ type AIProviderBedrockSettings struct {
 	SmallFastModel string `json:"small_fast_model,omitempty"`
 	// AccessKey is the AWS access key ID used to authenticate against
 	// Bedrock. Write-only.
-	AccessKey string `json:"access_key,omitempty"`
+	AccessKey *string `json:"access_key,omitempty"`
 	// AccessKeySecret is the AWS secret access key paired with
 	// AccessKey. Write-only.
-	AccessKeySecret string `json:"access_key_secret,omitempty"`
+	AccessKeySecret *string `json:"access_key_secret,omitempty"`
 }
 
 func (AIProviderBedrockSettings) settingsType() string {

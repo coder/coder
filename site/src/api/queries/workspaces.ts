@@ -32,6 +32,9 @@ import {
 import { checkAuthorization } from "./authCheck";
 import { disabledRefetchOptions } from "./util";
 import { workspaceBuildsKey } from "./workspaceBuilds";
+import { getWorkspaceQuotaQueryKey } from "./workspaceQuota";
+
+export const workspacesQueryKeyPrefix = ["workspaces"] as const;
 
 export const workspaceByOwnerAndNameKey = (
 	ownerUsername: string,
@@ -126,7 +129,7 @@ export const createWorkspace = (queryClient: QueryClient) => {
 			return API.createWorkspace(userId, req);
 		},
 		onSuccess: async () => {
-			await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+			await invalidateWorkspaceListQueries(queryClient);
 		},
 	};
 };
@@ -185,7 +188,7 @@ export const autoCreateWorkspace = (queryClient: QueryClient) => {
 			});
 		},
 		onSuccess: async () => {
-			await queryClient.invalidateQueries({ queryKey: ["workspaces"] });
+			await invalidateWorkspaceListQueries(queryClient);
 		},
 	};
 };
@@ -212,7 +215,7 @@ async function findMatchWorkspace(q: string): Promise<Workspace | undefined> {
 }
 
 export function workspacesKey(req: WorkspacesRequest = {}) {
-	return ["workspaces", req] as const;
+	return [...workspacesQueryKeyPrefix, req] as const;
 }
 
 export function workspaces(req: WorkspacesRequest = {}) {
@@ -220,6 +223,52 @@ export function workspaces(req: WorkspacesRequest = {}) {
 		queryKey: workspacesKey(req),
 		queryFn: () => API.getWorkspaces(req),
 	} as const satisfies QueryOptions<WorkspacesResponse>;
+}
+
+const isWorkspacesListQuery = (query: {
+	queryKey: readonly unknown[];
+}): boolean => {
+	const key = query.queryKey;
+	if (key.length === 1) {
+		return true;
+	}
+	if (key.length !== 2) {
+		return false;
+	}
+	const segment = key[1];
+	return (
+		segment !== null && typeof segment === "object" && !Array.isArray(segment)
+	);
+};
+
+export const invalidateWorkspaceListQueries = (queryClient: QueryClient) => {
+	return queryClient.invalidateQueries({
+		queryKey: workspacesQueryKeyPrefix,
+		predicate: isWorkspacesListQuery,
+	});
+};
+
+interface WorkspaceMutationInvalidationOptions {
+	organizationName: string;
+	username: string;
+}
+
+export async function invalidateWorkspaceMutationQueries(
+	queryClient: QueryClient,
+	{ organizationName, username }: WorkspaceMutationInvalidationOptions,
+): Promise<void> {
+	const invalidations = [invalidateWorkspaceListQueries(queryClient)];
+
+	if (organizationName !== "") {
+		invalidations.push(
+			queryClient.invalidateQueries({
+				queryKey: getWorkspaceQuotaQueryKey(organizationName, username),
+				exact: true,
+			}),
+		);
+	}
+
+	await Promise.all(invalidations);
 }
 
 export const updateDeadline = (

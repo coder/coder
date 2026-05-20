@@ -22,17 +22,22 @@ ORDER BY
     id ASC;
 
 -- name: GetAIProviderKeys :many
--- Returns every AI provider key row, including those belonging to a
--- soft-deleted provider, so the dbcrypt key rotation utility can
--- re-encrypt their api_key and clear references to retired keys.
+-- Returns AI provider key rows. By default, only rows whose parent
+-- provider is live (deleted = FALSE) are returned, so the API list
+-- handler can fetch every visible provider's keys in a single query.
+-- The dbcrypt key rotation utility passes include_deleted=TRUE to
+-- re-encrypt rows that belong to soft-deleted providers as well.
 SELECT
-    *
+    ai_provider_keys.*
 FROM
     ai_provider_keys
+    JOIN ai_providers ON ai_providers.id = ai_provider_keys.provider_id
+WHERE
+    @include_deleted::boolean OR NOT ai_providers.deleted
 ORDER BY
-    provider_id ASC,
-    created_at ASC,
-    id ASC;
+    ai_provider_keys.provider_id ASC,
+    ai_provider_keys.created_at ASC,
+    ai_provider_keys.id ASC;
 
 -- name: InsertAIProviderKey :one
 INSERT INTO ai_provider_keys (
