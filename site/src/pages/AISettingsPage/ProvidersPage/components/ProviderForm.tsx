@@ -519,7 +519,11 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 								placeholder="anthropic.claude-3-5-sonnet-20241022-v2:0"
 							/>
 							<FormField
-								field={getFieldHelpers("smallFastModel")}
+								field={{
+									...getFieldHelpers("smallFastModel"),
+									helperText:
+										"These models are optimized for tasks like code autocomplete and other small, quick operations.",
+								}}
 								label="Small fast model"
 								className="w-full"
 								placeholder="anthropic.claude-3-haiku-20240307-v1:0"
