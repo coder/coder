@@ -1,9 +1,19 @@
+import type { AIProviderType } from "#/api/typesGenerated";
+
+type AddableProvider = {
+	value: AIProviderType;
+	label: string;
+};
+
 /**
- * AddableProviderType is the UI-facing type set for the "Add provider"
- * dropdown. Bedrock providers ship on the wire as `type:"anthropic"`
- * with a discriminated `settings._type:"bedrock"` blob, but the UI
- * surfaces a dedicated Bedrock entry so admins can pick it directly
- * from the dropdown and land on a Bedrock-specific form.
+ * Provider types listed in the "Add provider" dropdown. The list mirrors
+ * the generated `AIProviderType` union; ordering and labels are owned
+ * here so the dropdown stays stable across regenerations.
+ *
+ * Bedrock providers ship on the wire as `type:"anthropic"` with a
+ * discriminated `settings._type:"bedrock"` blob, but the UI surfaces a
+ * dedicated Bedrock entry so admins can pick it directly from the
+ * dropdown and land on a Bedrock-specific form.
  *
  * Azure, Google, OpenAI-compatible, OpenRouter, and Vercel route
  * through aibridge's OpenAI client today (per the
@@ -11,25 +21,6 @@
  * block on `AIProviderType` in `codersdk/aiproviders.go`). The UI keeps
  * them as distinct dropdown entries so admins land on a form that's
  * preconfigured with the canonical endpoint and a friendly name.
- */
-type AddableProviderType =
-	| "openai"
-	| "anthropic"
-	| "bedrock"
-	| "azure"
-	| "google"
-	| "openai-compat"
-	| "openrouter"
-	| "vercel";
-
-type AddableProvider = {
-	value: AddableProviderType;
-	label: string;
-};
-
-/**
- * Provider types listed in the "Add provider" dropdown. Backed by the
- * server's `CreateAIProviderRequest.Validate` accept-list.
  */
 export const addableProviders: readonly AddableProvider[] = [
 	{ value: "anthropic", label: "Anthropic" },
@@ -58,4 +49,4 @@ export const findAddableProvider = (
  */
 export const isAddableProviderType = (
 	value: string | null | undefined,
-): value is AddableProviderType => findAddableProvider(value) !== undefined;
+): value is AIProviderType => findAddableProvider(value) !== undefined;
