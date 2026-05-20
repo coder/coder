@@ -81,7 +81,7 @@ retention:
   api_keys: 7d
   workspace_agent_logs: 7d
 
-aibridge:
+ai_gateway:
   retention: 60d
 ```
 
@@ -152,7 +152,7 @@ retention:
   api_keys: 7d
   workspace_agent_logs: 7d
 
-aibridge:
+ai_gateway:
   retention: 60d
 ```
 
@@ -198,7 +198,7 @@ retention:
   api_keys: 0s             # Keep expired API keys forever
   workspace_agent_logs: 0s # Keep workspace agent logs forever
 
-aibridge:
+ai_gateway:
   retention: 0s            # Keep AI Gateway records forever
 ```
 

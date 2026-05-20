@@ -97,7 +97,7 @@ Visit individual [client pages](./clients/index.md) for configuration details.
 ### Enable or disable BYOK
 
 BYOK is enabled by default.
-Administrators can disable it using `--ai-gateway-allow-byok=false` or `CODER_AIBRIDGE_ALLOW_BYOK=false`:
+Administrators can disable it using `--ai-gateway-allow-byok=false` or `CODER_AI_GATEWAY_ALLOW_BYOK=false`:
 
 ```sh
 coder server --ai-gateway-allow-byok=false

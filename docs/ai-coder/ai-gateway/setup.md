@@ -265,7 +265,7 @@ coder server --ai-gateway-retention=90d
 Or in YAML:
 
 ```yaml
-aibridge:
+ai_gateway:
   retention: 90d
 ```
 
@@ -288,7 +288,7 @@ coder server --ai-gateway-structured-logging=true
 Or in YAML:
 
 ```yaml
-aibridge:
+ai_gateway:
   structured_logging: true
 ```
 
