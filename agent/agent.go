@@ -298,16 +298,17 @@ type agent struct {
 	blockReversePortForwarding         bool
 	blockLocalPortForwarding           bool
 
-	lifecycleUpdate            chan struct{}
-	lifecycleReported          chan codersdk.WorkspaceAgentLifecycle
-	lifecycleMu                sync.RWMutex // Protects following.
-	lifecycleStates            []agentsdk.PostLifecycleRequest
-	lifecycleLastReportedIndex int // Keeps track of the last lifecycle state we successfully reported.
-	// lifecycleResendRequested is set by resendLastLifecycleState and consumed
-	// by reportLifecycle. Use an atomic flag (not lifecycleMu) so the rewind
-	// stays inside reportLifecycle and lifecycleLastReportedIndex remains
-	// single-writer.
-	lifecycleResendRequested atomic.Bool
+	lifecycleUpdate   chan struct{}
+	lifecycleReported chan codersdk.WorkspaceAgentLifecycle
+	lifecycleMu       sync.RWMutex // Protects following.
+	lifecycleStates   []agentsdk.PostLifecycleRequest
+	// lifecycleLastReportedIndex tracks the last lifecycle state we
+	// successfully reported. Only reportLifecycle writes this field;
+	// other goroutines must request a rewind via lifecycleResendRequested
+	// so the single-writer invariant holds and we do not need a mutex
+	// around index reads/writes inside reportLifecycle.
+	lifecycleLastReportedIndex int
+	lifecycleResendRequested   atomic.Bool
 
 	reportConnectionsUpdate chan struct{}
 	reportConnectionsMu     sync.Mutex
@@ -826,24 +827,46 @@ func (a *agent) reportMetadata(ctx context.Context, aAPI proto.DRPCAgentClient28
 // changes are reported in order.
 func (a *agent) reportLifecycle(ctx context.Context, aAPI proto.DRPCAgentClient28) error {
 	for {
-		select {
-		case <-a.lifecycleUpdate:
-		case <-ctx.Done():
+		// Block on a new signal only when there is no pending work and
+		// no pending resend request. The pending-work guard recovers
+		// from RPC failure mid-replay: if a prior UpdateLifecycle call
+		// failed, reportLifecycle returned and run() restarted it on a
+		// new connection, but no fresh signal arrives on lifecycleUpdate
+		// (the previous signal was already consumed). The rewound index
+		// or set flag still indicates work to do.
+		a.lifecycleMu.RLock()
+		pendingWork := a.lifecycleLastReportedIndex < len(a.lifecycleStates)-1
+		a.lifecycleMu.RUnlock()
+		if !pendingWork && !a.lifecycleResendRequested.Load() {
+			select {
+			case <-a.lifecycleUpdate:
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		} else if ctx.Err() != nil {
 			return ctx.Err()
 		}
 
 		// A new workspace_agent row was detected on reconnect (see
-		// resendLastLifecycleState). Rewind the reported index so the
-		// reporter replays the most recent state to the new row, and
-		// refresh ChangedAt so the new row records started_at/ready_at
-		// at the resend time rather than the original build's wall clock.
-		// Performing the rewind here keeps reportLifecycle as the sole
-		// writer of lifecycleLastReportedIndex.
+		// resendLastLifecycleState). Rewind so the reporter replays the
+		// post-Created chain (Starting and the terminal state) and
+		// refresh each replayed entry's ChangedAt so the new row's
+		// started_at and ready_at are coherent with its created_at and
+		// distinct from each other.
 		if a.lifecycleResendRequested.Swap(false) {
 			a.lifecycleMu.Lock()
-			if len(a.lifecycleStates) >= 2 {
-				a.lifecycleStates[len(a.lifecycleStates)-1].ChangedAt = dbtime.Now()
-				a.lifecycleLastReportedIndex = len(a.lifecycleStates) - 2
+			n := len(a.lifecycleStates)
+			if n >= 2 {
+				// Spread the refreshed timestamps by 1ms per state so
+				// the server records distinct started_at and ready_at
+				// instead of collapsing them to the same instant.
+				now := dbtime.Now()
+				for i := 1; i < n; i++ {
+					a.lifecycleStates[i].ChangedAt = now.Add(time.Duration(i-1) * time.Millisecond)
+				}
+				// Rewind to just before the first post-Created state so
+				// the inner loop replays the full chain.
+				a.lifecycleLastReportedIndex = 0
 			}
 			a.lifecycleMu.Unlock()
 		}
@@ -895,11 +918,10 @@ func (a *agent) reportLifecycle(ctx context.Context, aAPI proto.DRPCAgentClient2
 }
 
 // resendLastLifecycleState requests that the lifecycle reporter replay the
-// most recently observed post-Created state to the server. Called when we
-// detect that the agent has reconnected to a new workspace_agent row (new
-// build) so the new row picks up the correct lifecycle state. The actual
-// rewind happens inside reportLifecycle to keep that goroutine the sole
-// writer of lifecycleLastReportedIndex.
+// most recent post-Created state(s) to the server. Called when we detect
+// that the agent has reconnected to a new workspace_agent row (new build)
+// so the new row picks up the correct lifecycle state. The rewind itself
+// is performed by reportLifecycle (see lifecycleLastReportedIndex).
 func (a *agent) resendLastLifecycleState() {
 	a.lifecycleResendRequested.Store(true)
 	select {

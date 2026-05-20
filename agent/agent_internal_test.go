@@ -97,9 +97,8 @@ func TestContextConfigAPI_InitOnce(t *testing.T) {
 // https://github.com/coder/coder/issues/18571. When the agent reconnects to a
 // new workspace_agent row (new build after a suspend/resume on a long-lived
 // VM), it must replay its latest lifecycle state to the new row. The helper
-// sets an atomic flag and signals the lifecycle channel; reportLifecycle
-// performs the actual rewind so lifecycleLastReportedIndex stays
-// single-writer.
+// sets a flag and signals the lifecycle channel; reportLifecycle performs
+// the actual rewind on its next iteration.
 func TestResendLastLifecycleState(t *testing.T) {
 	t.Parallel()
 
@@ -286,8 +285,8 @@ func TestHandleManifestResendsLifecycleOnNewAgentID(t *testing.T) {
 
 // fakeLifecycleCapturingClient implements DRPCAgentClient28 just enough to
 // capture UpdateLifecycle calls for assertion. All other methods panic.
-// The captured channel is non-blocking on send so a buggy reporter that
-// emits more than expected fails the test cleanly instead of deadlocking.
+// UpdateLifecycle is context-guarded on send so a buggy reporter that emits
+// more than expected fails the test cleanly instead of deadlocking.
 type fakeLifecycleCapturingClient struct {
 	proto.DRPCAgentClient28
 
@@ -303,13 +302,12 @@ func (f *fakeLifecycleCapturingClient) UpdateLifecycle(ctx context.Context, req 
 	return req.Lifecycle, nil
 }
 
-// TestReportLifecycleRewindRefreshesChangedAt covers the resend path inside
+// TestReportLifecycleRewindReplaysAndRefreshes covers the resend path inside
 // reportLifecycle. When lifecycleResendRequested is set, the reporter must
-// rewind lifecycleLastReportedIndex AND refresh the latest entry's ChangedAt
-// so the server's new workspace_agent row gets started_at/ready_at at the
-// resend time, not the original build's stale wall clock. See DEREM-6 in the
-// coder-agents-review on coder/coder#25406.
-func TestReportLifecycleRewindRefreshesChangedAt(t *testing.T) {
+// rewind so the full post-Created chain replays AND refresh each replayed
+// entry's ChangedAt so the new workspace_agent row records distinct
+// started_at and ready_at consistent with its created_at.
+func TestReportLifecycleRewindReplaysAndRefreshes(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -335,7 +333,7 @@ func TestReportLifecycleRewindRefreshesChangedAt(t *testing.T) {
 	a.lifecycleResendRequested.Store(true)
 	a.lifecycleUpdate <- struct{}{}
 
-	captured := make(chan *proto.UpdateLifecycleRequest, 1)
+	captured := make(chan *proto.UpdateLifecycleRequest, 4)
 	fake := &fakeLifecycleCapturingClient{captured: captured}
 
 	reporterDone := make(chan struct{})
@@ -344,34 +342,45 @@ func TestReportLifecycleRewindRefreshesChangedAt(t *testing.T) {
 		_ = a.reportLifecycle(ctx, fake)
 	}()
 
-	select {
-	case req := <-captured:
-		require.Equal(t, proto.Lifecycle_READY, req.Lifecycle.State,
-			"replay should emit the latest state (Ready)")
-		require.True(t, req.Lifecycle.ChangedAt.AsTime().After(staleTime),
-			"ChangedAt should be refreshed away from the original build's wall clock")
-		require.WithinDuration(t, time.Now(), req.Lifecycle.ChangedAt.AsTime(), testutil.WaitShort,
-			"refreshed ChangedAt should be close to time.Now()")
-	case <-time.After(testutil.WaitShort):
-		t.Fatal("reporter did not emit a replayed lifecycle state")
+	receive := func() *proto.UpdateLifecycleRequest {
+		t.Helper()
+		select {
+		case req := <-captured:
+			return req
+		case <-time.After(testutil.WaitShort):
+			t.Fatal("reporter did not emit a replayed lifecycle state in time")
+			return nil
+		}
 	}
 
-	// Reporter increments lifecycleLastReportedIndex after UpdateLifecycle
-	// returns, so we wait for the post-send notification on lifecycleReported
-	// before asserting on the index.
-	select {
-	case <-a.lifecycleReported:
-	case <-time.After(testutil.WaitShort):
-		t.Fatal("reporter did not signal lifecycleReported after replay")
-	}
+	first := receive()
+	require.Equal(t, proto.Lifecycle_STARTING, first.Lifecycle.State,
+		"replay must begin with Starting so the server sets started_at")
+	startingAt := first.Lifecycle.ChangedAt.AsTime()
+	require.True(t, startingAt.After(staleTime),
+		"Starting ChangedAt should be refreshed away from the original build's wall clock")
+	require.WithinDuration(t, time.Now(), startingAt, testutil.WaitShort,
+		"refreshed Starting ChangedAt should be close to time.Now()")
+
+	second := receive()
+	require.Equal(t, proto.Lifecycle_READY, second.Lifecycle.State,
+		"replay must end with the terminal state (Ready)")
+	readyAt := second.Lifecycle.ChangedAt.AsTime()
+	require.True(t, readyAt.After(startingAt),
+		"Ready ChangedAt should be strictly after Starting ChangedAt so the new row records distinct started_at and ready_at")
+
+	// Cancel + wait for the reporter to exit so all writes to
+	// lifecycleLastReportedIndex are visible. We avoid the
+	// lifecycleReported channel for sync because its production send
+	// pattern (drop-older, keep-latest) makes per-iteration counting
+	// non-deterministic.
+	cancel()
+	<-reporterDone
 
 	require.False(t, a.lifecycleResendRequested.Load(),
 		"reporter must consume the resend flag")
 	require.Equal(t, 2, a.lifecycleLastReportedIndex,
-		"after the rewind + replay, the reporter should have advanced back to len-1")
-
-	cancel()
-	<-reporterDone
+		"after the rewind + full-chain replay, the reporter should advance back to len-1")
 }
 
 func TestClassifyCoordinatorRPCExit(t *testing.T) {

@@ -3417,12 +3417,11 @@ func TestAgent_ReconnectNoLifecycleReemit(t *testing.T) {
 
 // TestAgent_ReconnectReplaysLifecycleOnNewAgentID is the end-to-end coverage
 // for https://github.com/coder/coder/issues/18571. On reconnect to a new
-// workspace_agent row (manifest.AgentID changes), the agent must replay its
-// most recent lifecycle state so the new row advances past Created. Together
-// with the unit tests in agent_internal_test.go this also exercises the
-// concurrent path between reportLifecycle and resendLastLifecycleState under
-// -race, guarding against regressions on the single-writer invariant on
-// lifecycleLastReportedIndex.
+// workspace_agent row (manifest.AgentID changes), the agent must replay both
+// Starting and the terminal state so the new row advances past Created with
+// distinct started_at and ready_at. Combined with the unit tests in
+// agent_internal_test.go this also exercises the concurrent path between
+// reportLifecycle and resendLastLifecycleState under -race.
 func TestAgent_ReconnectReplaysLifecycleOnNewAgentID(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -3462,12 +3461,17 @@ func TestAgent_ReconnectReplaysLifecycleOnNewAgentID(t *testing.T) {
 		"agent should reach Ready on the first build")
 
 	statesBefore := slices.Clone(client.GetLifecycleStates())
-	readyBefore := 0
-	for _, s := range statesBefore {
-		if s == codersdk.WorkspaceAgentLifecycleReady {
-			readyBefore++
+	countState := func(states []codersdk.WorkspaceAgentLifecycle, target codersdk.WorkspaceAgentLifecycle) int {
+		n := 0
+		for _, s := range states {
+			if s == target {
+				n++
+			}
 		}
+		return n
 	}
+	startingBefore := countState(statesBefore, codersdk.WorkspaceAgentLifecycleStarting)
+	readyBefore := countState(statesBefore, codersdk.WorkspaceAgentLifecycleReady)
 
 	// Simulate the provisioner inserting a new workspace_agent row for the
 	// next build. The next manifest fetch will return a different AgentID.
@@ -3480,17 +3484,13 @@ func TestAgent_ReconnectReplaysLifecycleOnNewAgentID(t *testing.T) {
 	// Wait for reconnect.
 	testutil.RequireReceive(ctx, t, fCoordinator.CoordinateCalls)
 
-	// The reporter should replay the latest Ready state to the new row.
+	// The reporter should replay both Starting and Ready to the new row.
 	require.Eventually(t, func() bool {
-		count := 0
-		for _, s := range client.GetLifecycleStates() {
-			if s == codersdk.WorkspaceAgentLifecycleReady {
-				count++
-			}
-		}
-		return count > readyBefore
+		states := client.GetLifecycleStates()
+		return countState(states, codersdk.WorkspaceAgentLifecycleStarting) > startingBefore &&
+			countState(states, codersdk.WorkspaceAgentLifecycleReady) > readyBefore
 	}, testutil.WaitShort, testutil.IntervalFast,
-		"Ready should be re-reported after reconnect to a new agent ID")
+		"Starting and Ready should both be re-reported after reconnect to a new agent ID")
 
 	closer.Close()
 }
