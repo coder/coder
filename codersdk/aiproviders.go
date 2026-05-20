@@ -223,7 +223,6 @@ func (req CreateAIProviderRequest) Validate() []ValidationError {
 			Detail: "bedrock settings are only valid for type=anthropic",
 		})
 	}
-	validations = append(validations, validateAIProviderBedrockSettings(req.Settings.Bedrock)...)
 	return validations
 }
 
@@ -269,9 +268,6 @@ func (req UpdateAIProviderRequest) Validate() []ValidationError {
 	}
 	if req.APIKeys != nil {
 		validations = append(validations, validateAIProviderKeyMutations(*req.APIKeys)...)
-	}
-	if req.Settings != nil {
-		validations = append(validations, validateAIProviderBedrockSettings(req.Settings.Bedrock)...)
 	}
 	return validations
 }
@@ -320,32 +316,6 @@ func validateAIProviderBaseURL(raw string) []ValidationError {
 // "clear all keys". Keys are stored verbatim; surrounding whitespace
 // would silently corrupt the credential, so callers must trim before
 // sending.
-// validateAIProviderBedrockSettings checks that a Bedrock settings
-// blob carries the fields the AWS SDK needs at runtime that
-// mergeAIProviderSettings does NOT preserve across patches. Region
-// is in the credential scope of every SigV4 signature
-// (AWS4-HMAC-SHA256 Credential=<key>/<date>/<region>/bedrock/...),
-// so a Bedrock provider with an empty region either signs against
-// the host's AWS_REGION env (almost always wrong) or fails outright.
-// Model and SmallFastModel are intentionally NOT required here: the
-// existing wire contract allows partial Bedrock settings, and the
-// aibridge layer fails closed if either is missing at request time.
-// Secret fields use pointer semantics for omitted vs cleared and are
-// also out of scope for this check.
-func validateAIProviderBedrockSettings(s *AIProviderBedrockSettings) []ValidationError {
-	if s == nil {
-		return nil
-	}
-	var validations []ValidationError
-	if s.Region == "" {
-		validations = append(validations, ValidationError{
-			Field:  "settings.region",
-			Detail: "region is required for bedrock providers",
-		})
-	}
-	return validations
-}
-
 func validateAIProviderAPIKeys(keys []string) []ValidationError {
 	var validations []ValidationError
 	for i, key := range keys {
