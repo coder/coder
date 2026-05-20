@@ -70,8 +70,8 @@ export const ProviderStep: FC<ProviderStepProps> = ({ onSkip, onContinue }) => {
 	// Intro sub-state: before the user clicks "Get started"
 	if (!started) {
 		return (
-			<div className="flex min-h-[460px] flex-col gap-6">
-				<div className="flex flex-col gap-4">
+			<div className="flex min-h-[460px] flex-col gap-4">
+				<div className="flex flex-col gap-1">
 					<h2 className="text-2xl font-semibold">Welcome to Coder Agents.</h2>
 					<p className="text-base text-content-secondary">
 						Let's get you set up so you can start building.
@@ -96,7 +96,7 @@ export const ProviderStep: FC<ProviderStepProps> = ({ onSkip, onContinue }) => {
 
 	// Configuring sub-state
 	return (
-		<div className="flex flex-col gap-6">
+		<div className="flex min-h-[460px] flex-col gap-4">
 			<div className="flex flex-col gap-1">
 				<h2 className="text-2xl font-semibold">Connect an AI provider.</h2>
 				<p className="text-sm text-content-secondary">

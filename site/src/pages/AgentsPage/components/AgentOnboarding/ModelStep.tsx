@@ -98,7 +98,7 @@ export const ModelStep: FC<ModelStepProps> = ({
 		!createMutation.isPending;
 
 	return (
-		<div className="flex flex-col gap-6">
+		<div className="flex min-h-[460px] flex-col gap-4">
 			<div className="flex flex-col gap-1">
 				<h2 className="text-2xl font-semibold">Add a model</h2>
 				<p className="text-sm text-content-secondary">
