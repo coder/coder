@@ -1278,7 +1278,8 @@ func (ns NullChatClientType) Value() (driver.Value, error) {
 
 func (e ChatClientType) Valid() bool {
 	switch e {
-	case ChatClientTypeUi, ChatClientTypeApi:
+	case ChatClientTypeUi,
+		ChatClientTypeApi:
 		return true
 	}
 	return false
@@ -1460,7 +1461,8 @@ func (ns NullChatMode) Value() (driver.Value, error) {
 
 func (e ChatMode) Valid() bool {
 	switch e {
-	case ChatModeComputerUse, ChatModeExplore:
+	case ChatModeComputerUse,
+		ChatModeExplore:
 		return true
 	}
 	return false
@@ -2020,7 +2022,8 @@ func (ns NullGroupSource) Value() (driver.Value, error) {
 
 func (e GroupSource) Valid() bool {
 	switch e {
-	case GroupSourceUser, GroupSourceOidc:
+	case GroupSourceUser,
+		GroupSourceOidc:
 		return true
 	}
 	return false
@@ -3613,7 +3616,8 @@ func (ns NullTailnetStatus) Value() (driver.Value, error) {
 
 func (e TailnetStatus) Valid() bool {
 	switch e {
-	case TailnetStatusOk, TailnetStatusLost:
+	case TailnetStatusOk,
+		TailnetStatusLost:
 		return true
 	}
 	return false

@@ -994,20 +994,20 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 		require.Contains(t, sdkErr.Validations[0].Detail, "already referenced")
 	})
 
-	t.Run("PATCHKeysSurfacesCountsInAudit", func(t *testing.T) {
+	t.Run("PATCHKeysSurfacesOpsInAudit", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
 		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		// Without surfacing the counts, a PATCH that only rotates keys
-		// would produce an audit entry whose top-level diff is empty —
-		// invisible key rotation in the log.
+		// Without surfacing per-op detail, a PATCH that only rotates
+		// keys would produce an audit entry whose top-level diff is
+		// empty: invisible key rotation in the log.
 		//nolint:gocritic // Owner role is the audience for this endpoint.
 		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
 			Type:    codersdk.AIProviderTypeOpenAI,
-			Name:    "keys-audit-counts",
+			Name:    "keys-audit-ops",
 			Enabled: true,
 			BaseURL: "https://api.openai.com/v1",
 			APIKeys: []string{
@@ -1023,10 +1023,25 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 			{ID: &keepID},
 			{APIKey: ptr.Ref("sk-openai-audit-3-uuuuuuuuuuuuuuuuuuuu")}, //nolint:gosec // test fixture
 		}
-		_, err = client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
+		updatedProvider, err := client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
 			APIKeys: &mutations,
 		})
 		require.NoError(t, err)
+
+		// The newly-inserted row's ID and masked rendering are dynamic;
+		// pull them from the PATCH response so we can build the expected
+		// audit payload without re-declaring the audit struct shape.
+		var added codersdk.AIProviderKey
+		for _, k := range updatedProvider.APIKeys {
+			if k.ID != keepID {
+				added = k
+				break
+			}
+		}
+		require.NotEqual(t, uuid.Nil, added.ID)
+		require.NotEmpty(t, added.Masked)
+		require.NotContains(t, added.Masked, "sk-openai-audit-3-uuuuuuuuuuuuuuuuuuuu")
+		removed := provider.APIKeys[1]
 
 		logs := auditor.AuditLogs()
 		var updated *database.AuditLog
@@ -1036,15 +1051,14 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 			}
 		}
 		require.NotNil(t, updated, "expected audit log for AI provider update")
-		var got struct {
-			KeysAdded   int `json:"keys_added"`
-			KeysRemoved int `json:"keys_removed"`
-			KeysKept    int `json:"keys_kept"`
-		}
-		require.NoError(t, json.Unmarshal(updated.AdditionalFields, &got))
-		require.Equal(t, 1, got.KeysAdded)
-		require.Equal(t, 1, got.KeysRemoved)
-		require.Equal(t, 1, got.KeysKept)
+
+		expected, err := json.Marshal(map[string]any{
+			"added":   []map[string]any{{"id": added.ID, "masked": added.Masked}},
+			"removed": []map[string]any{{"id": removed.ID, "masked": removed.Masked}},
+			"kept":    1,
+		})
+		require.NoError(t, err)
+		require.JSONEq(t, string(expected), string(updated.AdditionalFields))
 	})
 
 	t.Run("MutationUnknownIDRejected", func(t *testing.T) {
