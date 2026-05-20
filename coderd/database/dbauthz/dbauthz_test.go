@@ -6829,19 +6829,6 @@ func TestAuthorizeProvisionerJob_SystemFastPath(t *testing.T) {
 	})
 }
 
-func TestAsAutostart(t *testing.T) {
-	t.Parallel()
-
-	ctx := dbauthz.AsAutostart(context.Background())
-	actor, ok := dbauthz.ActorFromContext(ctx)
-	require.True(t, ok, "actor must be present")
-
-	auth := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
-
-	err := auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceUserSecret.WithOwner(uuid.NewString()))
-	require.NoError(t, err, "user secret metadata read should be allowed")
-}
-
 func TestAsChatd(t *testing.T) {
 	t.Parallel()
 
