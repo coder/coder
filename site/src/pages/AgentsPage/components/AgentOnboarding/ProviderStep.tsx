@@ -259,6 +259,7 @@ export const ProviderStep: FC<ProviderStepProps> = ({
 						setSelectedProvider("");
 						setApiKey("");
 						setBaseUrl("");
+						setStarted(false);
 					}}
 				>
 					Back
