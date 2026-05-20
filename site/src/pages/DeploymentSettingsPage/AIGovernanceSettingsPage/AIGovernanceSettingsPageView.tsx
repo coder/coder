@@ -24,21 +24,9 @@ export const AIGovernanceSettingsPageView: FC<
 > = ({ options, featureAIBridgeEntitled, featureAIBridgeEnabled }) => {
 	return (
 		<div className="flex flex-col gap-12">
-			<SettingsHeader
-				actions={
-					<SettingsHeaderDocsLink href={docs("/ai-coder/ai-governance")} />
-				}
-			>
+			<SettingsHeader>
 				<SettingsHeaderTitle>AI Governance</SettingsHeaderTitle>
 			</SettingsHeader>
-
-			<div>
-				<OptionsTable
-					options={options
-						.filter((o) => deploymentGroupHasParent(o.group, "AI Governance"))
-						.filter((o) => !o.annotations?.secret === true)}
-				/>
-			</div>
 
 			<div>
 				<SettingsHeader

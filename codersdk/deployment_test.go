@@ -307,63 +307,6 @@ func must[T any](value T, err error) T {
 	return value
 }
 
-func TestAIConfigUnmarshalJSON(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		name                   string
-		input                  string
-		wantBridgeEnabled      bool
-		wantBridgeProxyEnabled bool
-	}{
-		{
-			name:              "legacy_bridge_field",
-			input:             `{"bridge":{"enabled":true}}`,
-			wantBridgeEnabled: true,
-		},
-		{
-			name:              "gateway_field",
-			input:             `{"gateway":{"enabled":true}}`,
-			wantBridgeEnabled: true,
-		},
-		{
-			name:              "gateway_field_wins_over_legacy_bridge",
-			input:             `{"gateway":{"enabled":true},"bridge":{"enabled":false}}`,
-			wantBridgeEnabled: true,
-		},
-		{
-			name:                   "legacy_aibridge_proxy_field",
-			input:                  `{"aibridge_proxy":{"enabled":true}}`,
-			wantBridgeProxyEnabled: true,
-		},
-		{
-			name:                   "gateway_proxy_field",
-			input:                  `{"gateway_proxy":{"enabled":true}}`,
-			wantBridgeProxyEnabled: true,
-		},
-		{
-			name:                   "gateway_proxy_field_wins_over_legacy_aibridge_proxy",
-			input:                  `{"gateway_proxy":{"enabled":true},"aibridge_proxy":{"enabled":false}}`,
-			wantBridgeProxyEnabled: true,
-		},
-		{
-			name:  "empty",
-			input: `{}`,
-		},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			var cfg codersdk.AIConfig
-			require.NoError(t, json.Unmarshal([]byte(tc.input), &cfg))
-			require.Equal(t, tc.wantBridgeEnabled, cfg.BridgeConfig.Enabled.Value())
-			require.Equal(t, tc.wantBridgeProxyEnabled, cfg.BridgeProxyConfig.Enabled.Value())
-		})
-	}
-}
-
 func TestAIGatewayCompatibilityAliases(t *testing.T) {
 	t.Parallel()
 

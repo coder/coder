@@ -1487,10 +1487,6 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Name: "AI Gateway Proxy",
 			YAML: "ai_gateway_proxy",
 		}
-		deploymentGroupAIGovernance = serpent.Group{
-			Name: "AI Governance",
-			YAML: "ai_governance",
-		}
 		deploymentGroupAIBridge = serpent.Group{
 			Name: "AI Bridge (Deprecated)",
 			YAML: "aibridge",
@@ -4243,7 +4239,7 @@ Write out the current server config as YAML to stdout.`,
 			Env:         "CODER_AI_BUDGET_POLICY",
 			Value:       serpent.EnumOf(&c.AI.BridgeConfig.BudgetPolicy, AIBudgetPolicies...),
 			Default:     string(AIBudgetPolicyHighest),
-			Group:       &deploymentGroupAIGovernance,
+			Group:       &deploymentGroupAIGateway,
 			YAML:        "budget_policy",
 		},
 		{
@@ -4253,7 +4249,7 @@ Write out the current server config as YAML to stdout.`,
 			Env:         "CODER_AI_BUDGET_PERIOD",
 			Value:       serpent.EnumOf(&c.AI.BridgeConfig.BudgetPeriod, AIBudgetPeriods...),
 			Default:     string(AIBudgetPeriodMonth),
-			Group:       &deploymentGroupAIGovernance,
+			Group:       &deploymentGroupAIGateway,
 			YAML:        "budget_period",
 		},
 
@@ -4687,42 +4683,9 @@ type ChatConfig struct {
 }
 
 type AIConfig struct {
-	BridgeConfig      AIBridgeConfig      `json:"gateway,omitempty"`
-	BridgeProxyConfig AIBridgeProxyConfig `json:"gateway_proxy,omitempty"`
+	BridgeConfig      AIBridgeConfig      `json:"bridge,omitempty"`
+	BridgeProxyConfig AIBridgeProxyConfig `json:"aibridge_proxy,omitempty"`
 	Chat              ChatConfig          `json:"chat,omitempty" typescript:",notnull"`
-}
-
-func (c *AIConfig) UnmarshalJSON(data []byte) error {
-	if c == nil {
-		return xerrors.New("AIConfig: UnmarshalJSON on nil pointer")
-	}
-
-	var raw struct {
-		BridgeConfig            *AIBridgeConfig      `json:"gateway,omitempty"`
-		LegacyBridgeConfig      *AIBridgeConfig      `json:"bridge,omitempty"`
-		BridgeProxyConfig       *AIBridgeProxyConfig `json:"gateway_proxy,omitempty"`
-		LegacyBridgeProxyConfig *AIBridgeProxyConfig `json:"aibridge_proxy,omitempty"`
-		Chat                    ChatConfig           `json:"chat,omitempty"`
-	}
-	if err := json.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-
-	*c = AIConfig{
-		Chat: raw.Chat,
-	}
-	if raw.BridgeConfig != nil {
-		c.BridgeConfig = *raw.BridgeConfig
-	} else if raw.LegacyBridgeConfig != nil {
-		c.BridgeConfig = *raw.LegacyBridgeConfig
-	}
-	if raw.BridgeProxyConfig != nil {
-		c.BridgeProxyConfig = *raw.BridgeProxyConfig
-	} else if raw.LegacyBridgeProxyConfig != nil {
-		c.BridgeProxyConfig = *raw.LegacyBridgeProxyConfig
-	}
-
-	return nil
 }
 
 type TemplateBuilderConfig struct {

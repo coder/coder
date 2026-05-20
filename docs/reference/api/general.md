@@ -162,11 +162,24 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     },
     "agent_stat_refresh_interval": 0,
     "ai": {
-      "chat": {
-        "acquire_batch_size": 0,
-        "debug_logging_enabled": true
+      "aibridge_proxy": {
+        "allowed_private_cidrs": [
+          "string"
+        ],
+        "api_dump_dir": "string",
+        "cert_file": "string",
+        "domain_allowlist": [
+          "string"
+        ],
+        "enabled": true,
+        "key_file": "string",
+        "listen_addr": "string",
+        "tls_cert_file": "string",
+        "tls_key_file": "string",
+        "upstream_proxy": "string",
+        "upstream_proxy_ca": "string"
       },
-      "gateway": {
+      "bridge": {
         "allow_byok": true,
         "anthropic": {
           "base_url": "string",
@@ -210,22 +223,9 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "send_actor_headers": true,
         "structured_logging": true
       },
-      "gateway_proxy": {
-        "allowed_private_cidrs": [
-          "string"
-        ],
-        "api_dump_dir": "string",
-        "cert_file": "string",
-        "domain_allowlist": [
-          "string"
-        ],
-        "enabled": true,
-        "key_file": "string",
-        "listen_addr": "string",
-        "tls_cert_file": "string",
-        "tls_key_file": "string",
-        "upstream_proxy": "string",
-        "upstream_proxy_ca": "string"
+      "chat": {
+        "acquire_batch_size": 0,
+        "debug_logging_enabled": true
       }
     },
     "allow_workspace_renames": true,

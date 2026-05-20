@@ -293,8 +293,8 @@ export type AIBudgetPolicy = "highest";
 
 // From codersdk/deployment.go
 export interface AIConfig {
-	readonly gateway?: AIBridgeConfig;
-	readonly gateway_proxy?: AIBridgeProxyConfig;
+	readonly bridge?: AIBridgeConfig;
+	readonly aibridge_proxy?: AIBridgeProxyConfig;
 	readonly chat?: ChatConfig;
 }
 
