@@ -77,7 +77,7 @@ func buildProviders(cfg codersdk.AIBridgeConfig) ([]aibridge.Provider, error) {
 	// Add legacy OpenAI provider if configured.
 	if cfg.LegacyOpenAI.Key.String() != "" {
 		if _, conflict := usedNames[aibridge.ProviderOpenAI]; conflict {
-			return nil, xerrors.Errorf("legacy CODER_AI_GATEWAY_OPENAI_KEY conflicts with indexed provider named %q; remove one or the other", aibridge.ProviderOpenAI)
+			return nil, xerrors.Errorf("legacy CODER_AI_GATEWAY_OPENAI_KEY (or CODER_AIBRIDGE_OPENAI_KEY) conflicts with indexed provider named %q; remove one or the other", aibridge.ProviderOpenAI)
 		}
 		providers = append(providers, aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{
 			Name:             aibridge.ProviderOpenAI,
@@ -94,7 +94,7 @@ func buildProviders(cfg codersdk.AIBridgeConfig) ([]aibridge.Provider, error) {
 	// using AWS Bedrock.
 	if cfg.LegacyAnthropic.Key.String() != "" || getBedrockConfig(cfg.LegacyBedrock) != nil {
 		if _, conflict := usedNames[aibridge.ProviderAnthropic]; conflict {
-			return nil, xerrors.Errorf("legacy CODER_AI_GATEWAY_ANTHROPIC_KEY conflicts with indexed provider named %q; remove one or the other", aibridge.ProviderAnthropic)
+			return nil, xerrors.Errorf("legacy CODER_AI_GATEWAY_ANTHROPIC_KEY (or CODER_AIBRIDGE_ANTHROPIC_KEY) conflicts with indexed provider named %q; remove one or the other", aibridge.ProviderAnthropic)
 		}
 		var pool *keypool.Pool
 		if key := cfg.LegacyAnthropic.Key.String(); key != "" {

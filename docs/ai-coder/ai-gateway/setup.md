@@ -64,7 +64,7 @@ Set the following when routing [Amazon Bedrock](https://coder.com/docs/reference
 Alternatively, set `CODER_AI_GATEWAY_BEDROCK_BASE_URL` or `--ai-gateway-bedrock-base-url` to a full URL (e.g., when routing through a proxy between AI Gateway and AWS Bedrock or using a non-standard endpoint that doesn't follow the `https://bedrock-runtime.<region>.amazonaws.com` format).
 If both are set, `CODER_AI_GATEWAY_BEDROCK_BASE_URL` takes precedence.
 - `CODER_AI_GATEWAY_BEDROCK_MODEL` or `--ai-gateway-bedrock-model`
-- `CODER_AI_GATEWAY_BEDROCK_SMALL_FAST_MODEL` or `--ai-gateway-bedrock-small-fast-model`
+- `CODER_AI_GATEWAY_BEDROCK_SMALL_FAST_MODEL` or `--ai-gateway-bedrock-small-fastmodel`
 
 > [!NOTE]
 > These Bedrock settings configure AI Gateway only. To configure Bedrock as an

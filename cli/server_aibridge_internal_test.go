@@ -394,13 +394,18 @@ func TestReadAIProvidersFromEnv(t *testing.T) {
 		tests := []struct {
 			name             string
 			env              []string
+			expected         []codersdk.AIProviderConfig
 			expectedWarnings []string
 		}{
 			{
 				name: "AIGatewayPrefix",
 				env: []string{
 					"CODER_AI_GATEWAY_PROVIDER_0_TYPE=openai",
+					"CODER_AI_GATEWAY_PROVIDER_0_Name=test",
 					"CODER_AI_GATEWAY_PROVIDER_0_TYYYPPOO=openai",
+				},
+				expected: []codersdk.AIProviderConfig{
+					{Type: "openai", Name: "test"},
 				},
 				expectedWarnings: []string{"CODER_AI_GATEWAY_PROVIDER_0_TYYYPPOO"},
 			},
@@ -408,7 +413,11 @@ func TestReadAIProvidersFromEnv(t *testing.T) {
 				name: "AIBridgePrefix",
 				env: []string{
 					"CODER_AIBRIDGE_PROVIDER_0_TYPE=openai",
+					"CODER_AIBRIDGE_PROVIDER_0_Name=test",
 					"CODER_AIBRIDGE_PROVIDER_0_TYYYPPOO=openai",
+				},
+				expected: []codersdk.AIProviderConfig{
+					{Type: "openai", Name: "test"},
 				},
 				expectedWarnings: []string{"CODER_AIBRIDGE_PROVIDER_0_TYYYPPOO"},
 			},
@@ -418,8 +427,9 @@ func TestReadAIProvidersFromEnv(t *testing.T) {
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
 				sink := testutil.NewFakeSink(t)
-				_, err := ReadAIProvidersFromEnv(sink.Logger(), tt.env)
+				providers, err := ReadAIProvidersFromEnv(sink.Logger(), tt.env)
 				require.NoError(t, err)
+				require.Equal(t, tt.expected, providers)
 
 				warnings := sink.Entries(func(e slog.SinkEntry) bool {
 					return e.Message == "ignoring unknown AI provider field (check for typos)"
