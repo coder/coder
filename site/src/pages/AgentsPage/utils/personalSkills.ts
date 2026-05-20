@@ -12,11 +12,11 @@ export type PersonalSkillFormValues = {
 
 class PersonalSkillMarkdownError extends Error {}
 
-const parseBackendSkillMarkdown = (
+export const parsePersonalSkillMarkdown = (
 	content: string,
 ): PersonalSkillFormValues => {
 	const lines = content.replace(/^\uFEFF/, "").split("\n");
-	if (lines.length === 0 || lines[0]?.trim() !== "---") {
+	if (lines[0]?.trim() !== "---") {
 		throw new PersonalSkillMarkdownError(
 			"Missing opening frontmatter delimiter.",
 		);
@@ -66,10 +66,6 @@ const parseBackendSkillMarkdown = (
 
 	return { name, description, body };
 };
-
-export const parsePersonalSkillMarkdown = (
-	content: string,
-): PersonalSkillFormValues => parseBackendSkillMarkdown(content);
 
 export const tryParsePersonalSkillMarkdown = (
 	content: string,

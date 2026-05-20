@@ -222,12 +222,7 @@ export const AgentSettingsPersonalSkillsPageView: FC<
 	deleteState,
 }) => {
 	const isAtLimit = skills.length >= PERSONAL_SKILLS_MAX_PER_USER;
-	const createAction = (
-		<Button size="sm" onClick={onCreate} disabled={isLoading || isAtLimit}>
-			Add skill
-		</Button>
-	);
-	const emptyCreateAction = (
+	const addSkillAction = (
 		<Button size="sm" onClick={onCreate} disabled={isLoading || isAtLimit}>
 			Add skill
 		</Button>
@@ -238,7 +233,7 @@ export const AgentSettingsPersonalSkillsPageView: FC<
 			<SectionHeader
 				label="Personal Skills"
 				description="Reusable instructions your agents can pick when they need specialized guidance. Personal skills hold a single SKILL.md file. For richer skills with supporting files, add them to your repo under `.agents/skills/` or load them from a workspace."
-				action={createAction}
+				action={addSkillAction}
 			/>
 
 			{isAtLimit && (
@@ -269,7 +264,7 @@ export const AgentSettingsPersonalSkillsPageView: FC<
 				<EmptyState
 					message="No personal skills yet"
 					description="Create a personal skill to save reusable agent guidance for your workflows."
-					cta={emptyCreateAction}
+					cta={addSkillAction}
 				/>
 			) : (
 				<Table aria-label="Personal skills">

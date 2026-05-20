@@ -23,7 +23,10 @@ export const createUserSkill = (queryClient: QueryClient, user: string) => ({
 	mutationFn: (req: TypesGen.CreateUserSkillRequest) =>
 		API.experimental.createUserSkill(user, req),
 	onSuccess: async () => {
-		await queryClient.invalidateQueries({ queryKey: userSkillsKey(user) });
+		await queryClient.invalidateQueries({
+			queryKey: userSkillsKey(user),
+			exact: true,
+		});
 	},
 });
 
@@ -40,7 +43,10 @@ export const updateUserSkill = (queryClient: QueryClient, user: string) => ({
 		{ name }: UpdateUserSkillArgs,
 	) => {
 		await Promise.all([
-			queryClient.invalidateQueries({ queryKey: userSkillsKey(user) }),
+			queryClient.invalidateQueries({
+				queryKey: userSkillsKey(user),
+				exact: true,
+			}),
 			queryClient.invalidateQueries({
 				queryKey: userSkillKey(user, name),
 				exact: true,
@@ -56,6 +62,9 @@ export const deleteUserSkill = (queryClient: QueryClient, user: string) => ({
 			queryKey: userSkillKey(user, name),
 			exact: true,
 		});
-		await queryClient.invalidateQueries({ queryKey: userSkillsKey(user) });
+		await queryClient.invalidateQueries({
+			queryKey: userSkillsKey(user),
+			exact: true,
+		});
 	},
 });
