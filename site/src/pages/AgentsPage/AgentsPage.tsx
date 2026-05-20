@@ -18,6 +18,7 @@ import {
 	chatModelConfigs,
 	chatModels,
 	chatsByWorkspaceKeyPrefix,
+	hasArchivedChats,
 	infiniteChats,
 	invalidateChatListQueries,
 	mergeWatchedChatIntoCaches,
@@ -117,6 +118,7 @@ const AgentsPage: FC = () => {
 	const chatsQuery = useInfiniteQuery(
 		infiniteChats({ archived: archivedFilter === "archived" }),
 	);
+	const hasArchivedQuery = useQuery(hasArchivedChats());
 	// Model queries are kept here for the sidebar, which displays
 	// model info alongside each chat. Child routes that need models
 	// subscribe to the same queries independently, and react-query
@@ -669,6 +671,7 @@ const AgentsPage: FC = () => {
 				isFetchingNextPage={chatsQuery.isFetchingNextPage}
 				archivedFilter={archivedFilter}
 				onArchivedFilterChange={setArchivedFilter}
+				hasArchivedChats={hasArchivedQuery.data ?? false}
 			/>
 			<ConfirmDialog
 				open={pendingArchiveChatId !== null}

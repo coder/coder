@@ -412,6 +412,8 @@ const isChatListQuery = (query: { queryKey: readonly unknown[] }): boolean => {
 	const key = query.queryKey;
 	// Match: ["chats"] (flat list).
 	if (key.length <= 1) return true;
+	// Match: ["chats", "has-archived"] (archived existence check).
+	if (key[1] === "has-archived") return true;
 	// Match: ["chats", <object | undefined>] (infinite query
 	// with optional filter opts like {archived, q}).
 	const segment = key[1];
@@ -498,6 +500,18 @@ const toChatPlanModePayload = (
 	// The API expects an empty string on the wire to clear plan mode.
 	return planMode ?? CLEAR_PLAN_MODE_WIRE_VALUE;
 };
+
+export const hasArchivedChats = () => ({
+	queryKey: [...chatsKey, "has-archived"],
+	queryFn: async () => {
+		const chats = await API.experimental.getChats({
+			limit: 1,
+			q: "archived:true",
+		});
+		return chats.length > 0;
+	},
+	staleTime: 30_000,
+});
 
 export const infiniteChats = (opts?: { q?: string; archived?: boolean }) => {
 	const limit = DEFAULT_CHAT_PAGE_LIMIT;

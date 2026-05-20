@@ -75,6 +75,7 @@ interface AgentsPageViewProps {
 	isFetchingNextPage: boolean;
 	archivedFilter: "active" | "archived";
 	onArchivedFilterChange: (filter: "active" | "archived") => void;
+	hasArchivedChats: boolean;
 }
 
 export const AgentsPageView: FC<AgentsPageViewProps> = ({
@@ -113,6 +114,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	isFetchingNextPage,
 	archivedFilter,
 	onArchivedFilterChange,
+	hasArchivedChats,
 }) => {
 	const location = useLocation();
 	const sidebarView = sidebarViewFromPath(location.pathname);
@@ -199,6 +201,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					isFetchingNextPage={isFetchingNextPage}
 					archivedFilter={archivedFilter}
 					onArchivedFilterChange={onArchivedFilterChange}
+					hasArchivedChats={hasArchivedChats}
 					onCollapse={onCollapseSidebar}
 					isPersonalModelOverridesEnabled={isPersonalModelOverridesEnabled}
 					isAdmin={isAgentsAdmin}

@@ -281,6 +281,7 @@ const defaultArgs: ComponentProps<typeof AgentsPageView> = {
 	isAgentsAdmin: false,
 	archivedFilter: "active",
 	onArchivedFilterChange: fn(),
+	hasArchivedChats: false,
 	hasNextPage: false,
 	onLoadMore: fn(),
 	isFetchingNextPage: false,
