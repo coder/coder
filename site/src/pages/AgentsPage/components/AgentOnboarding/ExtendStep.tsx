@@ -35,15 +35,13 @@ export const ExtendStep: FC<ExtendStepProps> = ({ onBack, onFinish }) => {
 			</div>
 
 			<div className="flex items-center justify-between">
-				<span
+				<button
+					type="button"
 					onClick={onBack}
-					onKeyDown={(e) => e.key === "Enter" && e.currentTarget.click()}
-					role="button"
-					tabIndex={0}
-					className="cursor-pointer text-sm text-content-secondary transition-colors hover:text-content-primary"
+					className="m-0 cursor-pointer border-none bg-transparent p-0 text-sm text-content-secondary transition-colors hover:text-content-primary"
 				>
 					Back
-				</span>
+				</button>
 				<Button onClick={onFinish}>Start chatting</Button>
 			</div>
 		</div>
