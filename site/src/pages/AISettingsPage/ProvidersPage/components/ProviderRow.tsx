@@ -1,4 +1,4 @@
-import { CheckIcon, ChevronRightIcon, XIcon } from "lucide-react";
+import { CheckIcon, ChevronRightIcon } from "lucide-react";
 import type { AIProvider } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
@@ -49,12 +49,7 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 							aria-label="Enabled"
 							className="inline size-icon-md text-content-success flex-shrink-0"
 						/>
-					) : (
-						<XIcon
-							aria-label="Disabled"
-							className="inline size-icon-md text-content-destructive flex-shrink-0"
-						/>
-					)}
+					) : null}
 				</div>
 			</TableCell>
 			<TableCell className="w-10 text-center">
