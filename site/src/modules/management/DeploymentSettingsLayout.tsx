@@ -30,7 +30,7 @@ const DeploymentSettingsLayout: FC = () => {
 
 	return (
 		<RequirePermission isFeatureVisible={canViewDeploymentSettingsPage}>
-			<div className="flex flex-row h-full">
+			<div className="flex flex-row min-h-screen">
 				<CollapsibleSidebar storageKey="deployment-sidebar-width">
 					<DeploymentSidebar />
 				</CollapsibleSidebar>

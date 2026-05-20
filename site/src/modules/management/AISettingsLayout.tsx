@@ -12,7 +12,7 @@ const AISettingsLayout: FC = () => {
 	}
 
 	return (
-		<div className="flex flex-row h-full">
+		<div className="flex flex-row min-h-screen">
 			<CollapsibleSidebar storageKey="ai-sidebar-width">
 				<AISidebar />
 			</CollapsibleSidebar>
