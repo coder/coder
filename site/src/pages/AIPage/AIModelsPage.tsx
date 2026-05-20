@@ -1,13 +1,110 @@
 import type { FC } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useSearchParams } from "react-router";
+import {
+	chatModelConfigs,
+	chatModels,
+	chatProviderConfigs,
+	createChatModelConfig,
+	createChatProviderConfig,
+	deleteChatModelConfig,
+	deleteChatProviderConfig,
+	updateChatModelConfig,
+	updateChatProviderConfig,
+} from "#/api/queries/chats";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import { ChatModelAdminPanel } from "../AgentsPage/components/ChatModelAdminPanel/ChatModelAdminPanel";
 
 const AIModelsPage: FC = () => {
+	const { permissions } = useAuthenticated();
+	const [searchParams] = useSearchParams();
+	const filterProvider = searchParams.get("filterProvider");
+
+	const queryClient = useQueryClient();
+
+	const providerConfigsQuery = useQuery({
+		...chatProviderConfigs(),
+		enabled: permissions.editDeploymentConfig,
+	});
+	const modelConfigsQuery = useQuery(chatModelConfigs());
+	const modelCatalogQuery = useQuery(chatModels());
+
+	const createProviderMutation = useMutation(
+		createChatProviderConfig(queryClient),
+	);
+	const updateProviderMutation = useMutation(
+		updateChatProviderConfig(queryClient),
+	);
+	const deleteProviderMutation = useMutation(
+		deleteChatProviderConfig(queryClient),
+	);
+	const createModelMutation = useMutation(createChatModelConfig(queryClient));
+	const updateModelMutation = useMutation(updateChatModelConfig(queryClient));
+	const deleteModelMutation = useMutation(deleteChatModelConfig(queryClient));
+
+	// Filter model configs by provider if filterProvider param is set.
+	const filteredModelConfigs = filterProvider
+		? modelConfigsQuery.data?.filter((mc) => mc.provider === filterProvider)
+		: modelConfigsQuery.data;
+
 	return (
-		<div>
-			<h1 className="text-3xl font-semibold mt-0 mb-2">Models</h1>
-			<p className="text-content-secondary text-sm">
-				Configure available models and their settings.
-			</p>
-		</div>
+		<RequirePermission isFeatureVisible={permissions.editDeploymentConfig}>
+			<ChatModelAdminPanel
+				section="models"
+				sectionLabel="Models"
+				sectionDescription={
+					filterProvider
+						? `Showing models for ${filterProvider}. Choose which models are available for users to select.`
+						: "Choose which models from your configured providers are available for users to select. You can set a default and adjust context limits."
+				}
+				providerConfigsData={providerConfigsQuery.data}
+				modelConfigsData={filteredModelConfigs}
+				modelCatalogData={modelCatalogQuery.data}
+				isLoading={
+					providerConfigsQuery.isLoading ||
+					modelConfigsQuery.isLoading ||
+					modelCatalogQuery.isLoading
+				}
+				providerConfigsError={
+					providerConfigsQuery.isError ? providerConfigsQuery.error : null
+				}
+				modelConfigsError={
+					modelConfigsQuery.isError ? modelConfigsQuery.error : null
+				}
+				modelCatalogError={
+					modelCatalogQuery.isError ? modelCatalogQuery.error : null
+				}
+				onCreateProvider={(req) => createProviderMutation.mutateAsync(req)}
+				onUpdateProvider={(providerConfigId, req) =>
+					updateProviderMutation.mutateAsync({ providerConfigId, req })
+				}
+				onDeleteProvider={(id) => deleteProviderMutation.mutateAsync(id)}
+				isProviderMutationPending={
+					createProviderMutation.isPending ||
+					updateProviderMutation.isPending ||
+					deleteProviderMutation.isPending
+				}
+				providerMutationError={
+					createProviderMutation.error ??
+					updateProviderMutation.error ??
+					deleteProviderMutation.error
+				}
+				onCreateModel={(req) => createModelMutation.mutateAsync(req)}
+				onUpdateModel={(modelConfigId, req) =>
+					updateModelMutation.mutateAsync({ modelConfigId, req })
+				}
+				onDeleteModel={(id) => deleteModelMutation.mutateAsync(id)}
+				isCreatingModel={createModelMutation.isPending}
+				isUpdatingModel={updateModelMutation.isPending}
+				isDeletingModel={deleteModelMutation.isPending}
+				modelMutationError={
+					createModelMutation.error ??
+					updateModelMutation.error ??
+					deleteModelMutation.error
+				}
+			/>
+		</RequirePermission>
 	);
 };
 

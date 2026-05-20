@@ -756,7 +756,7 @@ export const router = createBrowserRouter(
 							<Route index element={<AIProvidersPage />} />
 							<Route path=":providerType" element={<AIProviderDetailPage />} />
 						</Route>
-						<Route path="models" element={<AgentSettingsModelsPage />} />
+						<Route path="models" element={<AIModelsPage />} />
 						<Route path="spend" element={<AgentSettingsSpendPage />} />
 						<Route path="agents">
 							<Route index element={<AgentSettingsAgentsPage />} />
