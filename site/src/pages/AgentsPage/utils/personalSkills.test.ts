@@ -32,6 +32,22 @@ describe("parsePersonalSkillMarkdown", () => {
 			body: "Body",
 		});
 	});
+
+	it("requires a non-empty body", () => {
+		expect(() =>
+			parsePersonalSkillMarkdown("---\nname: test-skill\n---\n\n"),
+		).toThrow("Skill body is required.");
+	});
+
+	it("preserves HTML comments in the body", () => {
+		expect(
+			parsePersonalSkillMarkdown(
+				"---\nname: test-skill\n---\n\nKeep <!-- TODO --> notes.",
+			),
+		).toMatchObject({
+			body: "Keep <!-- TODO --> notes.",
+		});
+	});
 });
 
 describe("tryParsePersonalSkillMarkdown", () => {
@@ -60,6 +76,21 @@ describe("tryParsePersonalSkillMarkdown", () => {
 			error: "Skill name is required.",
 		});
 	});
+
+	it("keeps delimiter errors distinct", () => {
+		expect(
+			tryParsePersonalSkillMarkdown("name: test-skill\n---\nBody"),
+		).toEqual({
+			ok: false,
+			error: "Missing opening frontmatter delimiter.",
+		});
+		expect(
+			tryParsePersonalSkillMarkdown("---\nname: test-skill\nBody"),
+		).toEqual({
+			ok: false,
+			error: "Missing closing frontmatter delimiter.",
+		});
+	});
 });
 
 describe("buildPersonalSkillMarkdown", () => {
@@ -71,13 +102,23 @@ describe("buildPersonalSkillMarkdown", () => {
 		});
 
 		expect(content).toBe(
-			"---\nname: test-skill\ndescription: Does a thing\n---\nUse this skill.\n",
+			'---\nname: test-skill\ndescription: "Does a thing"\n---\nUse this skill.\n',
 		);
 		expect(parsePersonalSkillMarkdown(content)).toEqual({
 			name: "test-skill",
 			description: "Does a thing",
 			body: "Use this skill.",
 		});
+	});
+
+	it("omits the description line when description is empty", () => {
+		expect(
+			buildPersonalSkillMarkdown({
+				name: "test-skill",
+				description: "",
+				body: "Use this skill.",
+			}),
+		).toBe("---\nname: test-skill\n---\nUse this skill.\n");
 	});
 });
 
@@ -90,6 +131,11 @@ describe("isValidPersonalSkillName", () => {
 		expect(isValidPersonalSkillName("Test Skill")).toBe(false);
 		expect(isValidPersonalSkillName("test--skill")).toBe(false);
 		expect(isValidPersonalSkillName("-test-skill")).toBe(false);
+	});
+
+	it("rejects names over the backend byte limit", () => {
+		expect(isValidPersonalSkillName("a".repeat(256))).toBe(true);
+		expect(isValidPersonalSkillName("a".repeat(257))).toBe(false);
 	});
 });
 

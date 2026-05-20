@@ -223,6 +223,75 @@ export const DeleteConfirmationOpen: Story = {
 			onClose: fn(),
 		},
 	},
+	play: async ({ canvasElement, args }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		const dialog = await body.findByRole("dialog");
+		const dialogCanvas = within(dialog);
+
+		await userEvent.click(
+			dialogCanvas.getByRole("button", { name: "Delete skill" }),
+		);
+
+		await waitFor(() => {
+			expect(args.deleteState?.onConfirm).toHaveBeenCalled();
+		});
+	},
+};
+
+export const CreateDialogSubmitError: Story = {
+	args: {
+		editorState: {
+			mode: "create",
+			initialValues: { name: "", description: "", body: "" },
+			existingNames: skills.map((skill) => skill.name),
+			submitError: {
+				message: "Failed to create personal skill.",
+				detail: "Skill content is invalid.",
+			},
+			isSubmitting: false,
+			onSubmit: fn(),
+			onClose: fn(),
+		},
+	},
+};
+
+export const EditDialogSubmitError: Story = {
+	args: {
+		editorState: {
+			mode: "edit",
+			initialValues: {
+				name: "review-sql",
+				description: "Review SQL changes for query and index risks.",
+				body: "Check query plans, missing indexes, and transaction boundaries.",
+			},
+			existingNames: skills.map((skill) => skill.name),
+			isLoading: false,
+			isRetrying: false,
+			submitError: {
+				message: "Failed to save personal skill.",
+				detail: "That personal skill was not found.",
+			},
+			isSubmitting: false,
+			onRetry: fn(),
+			onSubmit: fn(),
+			onClose: fn(),
+		},
+	},
+};
+
+export const DeleteConfirmationError: Story = {
+	args: {
+		deleteState: {
+			skill: firstSkill,
+			error: {
+				message: "Failed to delete personal skill.",
+				detail: "That personal skill was not found.",
+			},
+			isDeleting: false,
+			onConfirm: fn(),
+			onClose: fn(),
+		},
+	},
 };
 
 export const InvalidNameIsRejected: Story = {
@@ -291,7 +360,7 @@ export const SubmitsCreateDialog: Story = {
 					description: "Debug HTTP handlers.",
 					body: "Inspect request flow and response codes.",
 				},
-				"---\nname: debug-http\ndescription: Debug HTTP handlers.\n---\nInspect request flow and response codes.\n",
+				'---\nname: debug-http\ndescription: "Debug HTTP handlers."\n---\nInspect request flow and response codes.\n',
 			);
 		});
 	},

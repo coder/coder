@@ -22,6 +22,8 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { formatDate } from "#/utils/time";
+import { ConfirmDeleteDialog } from "./components/ConfirmDeleteDialog";
 import type { PersonalSkillErrorDisplay } from "./components/PersonalSkillEditor";
 import { PersonalSkillEditor } from "./components/PersonalSkillEditor";
 import { SectionHeader } from "./components/SectionHeader";
@@ -80,9 +82,14 @@ const formatUpdatedAt = (value: string) => {
 	if (!Number.isFinite(date.getTime())) {
 		return "Unknown";
 	}
-	return date.toLocaleString("en-US", {
-		dateStyle: "medium",
-		timeStyle: "short",
+	return formatDate(date, {
+		locale: "en-US",
+		month: "short",
+		day: "numeric",
+		year: "numeric",
+		hour: "numeric",
+		second: undefined,
+		minute: "2-digit",
 	});
 };
 
@@ -168,42 +175,28 @@ const DeleteSkillDialog: FC<{ state: PersonalSkillDeleteState }> = ({
 	};
 
 	return (
-		<Dialog open onOpenChange={handleOpenChange}>
-			<DialogContent variant="destructive">
-				<DialogHeader>
-					<DialogTitle>Delete personal skill</DialogTitle>
-					<DialogDescription>
-						Delete {state.skill.name}? Agents will no longer be able to use this
-						skill. This action cannot be undone.
-					</DialogDescription>
-				</DialogHeader>
-				{state.error && (
-					<Alert severity="error">
-						<AlertDescription>
-							{state.error.message}
-							{state.error.detail ? ` ${state.error.detail}` : ""}
-						</AlertDescription>
-					</Alert>
-				)}
-				<DialogFooter>
-					<Button
-						variant="outline"
-						onClick={state.onClose}
-						disabled={state.isDeleting}
-					>
-						Cancel
-					</Button>
-					<Button
-						variant="destructive"
-						onClick={state.onConfirm}
-						disabled={state.isDeleting}
-					>
-						{state.isDeleting && <Spinner className="h-4 w-4" loading />}
-						Delete skill
-					</Button>
-				</DialogFooter>
-			</DialogContent>
-		</Dialog>
+		<ConfirmDeleteDialog
+			open
+			onOpenChange={handleOpenChange}
+			entity="skill"
+			description={
+				<>
+					Delete {state.skill.name}? Agents will no longer be able to use this
+					skill. This action cannot be undone.
+				</>
+			}
+			onConfirm={state.onConfirm}
+			isPending={state.isDeleting}
+		>
+			{state.error && (
+				<Alert severity="error">
+					<AlertDescription>
+						{state.error.message}
+						{state.error.detail ? ` ${state.error.detail}` : ""}
+					</AlertDescription>
+				</Alert>
+			)}
+		</ConfirmDeleteDialog>
 	);
 };
 

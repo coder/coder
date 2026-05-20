@@ -33,9 +33,9 @@ const emptySkillFormValues: PersonalSkillFormValues = {
 };
 
 type DialogState =
-	| { type: "create" }
-	| { type: "edit"; name: string }
-	| { type: "delete"; skill: UserSkillMetadata }
+	| { type: "create"; submittedContent?: string }
+	| { type: "edit"; name: string; submittedContent?: string }
+	| { type: "delete"; skill: UserSkillMetadata; submittedName?: string }
 	| null;
 
 const errorStatus = (error: unknown): number | undefined =>
@@ -54,8 +54,7 @@ const personalSkillError = (
 	if (status === 400) {
 		statusFallback = "Skill content is invalid.";
 	} else if (status === 403) {
-		statusFallback =
-			"You do not have permission to manage personal skills, or the skill limit was reached.";
+		statusFallback = "You do not have permission to manage personal skills.";
 	} else if (status === 404) {
 		statusFallback = "That personal skill was not found.";
 	} else if (status === 409) {
@@ -66,14 +65,6 @@ const personalSkillError = (
 		message: getErrorMessage(error, statusFallback),
 		detail: getErrorDetail(error),
 	};
-};
-
-const mutationToast = (error: unknown, fallback: string) => {
-	const display = personalSkillError(error, fallback);
-	if (!display) {
-		return;
-	}
-	toast.error(display.message, { description: display.detail });
 };
 
 const AgentSettingsPersonalSkillsPage: FC = () => {
@@ -93,13 +84,15 @@ const AgentSettingsPersonalSkillsPage: FC = () => {
 	const createMutationOptions = createUserSkill(queryClient, user);
 	const createMutation = useMutation({
 		...createMutationOptions,
-		onSuccess: async () => {
+		onSuccess: async (_skill, variables) => {
 			await createMutationOptions.onSuccess?.();
-			setDialogState(null);
+			setDialogState((current) =>
+				current?.type === "create" &&
+				current.submittedContent === variables.content
+					? null
+					: current,
+			);
 			toast.success("Personal skill created.");
-		},
-		onError: (error) => {
-			mutationToast(error, "Failed to create personal skill.");
 		},
 	});
 
@@ -108,15 +101,26 @@ const AgentSettingsPersonalSkillsPage: FC = () => {
 		...updateMutationOptions,
 		onSuccess: async (skill, variables) => {
 			await updateMutationOptions.onSuccess?.(skill, variables);
-			setDialogState(null);
+			setDialogState((current) =>
+				current?.type === "edit" &&
+				current.name === variables.name &&
+				current.submittedContent === variables.req.content
+					? null
+					: current,
+			);
 			toast.success("Personal skill saved.");
 		},
-		onError: (error) => {
+		onError: (error, variables) => {
 			if (errorStatus(error) === 404) {
-				setDialogState(null);
+				setDialogState((current) =>
+					current?.type === "edit" &&
+					current.name === variables.name &&
+					current.submittedContent === variables.req.content
+						? null
+						: current,
+				);
 				void skillsQuery.refetch();
 			}
-			mutationToast(error, "Failed to save personal skill.");
 		},
 	});
 
@@ -125,15 +129,26 @@ const AgentSettingsPersonalSkillsPage: FC = () => {
 		...deleteMutationOptions,
 		onSuccess: async (data, variables) => {
 			await deleteMutationOptions.onSuccess?.(data, variables);
-			setDialogState(null);
+			setDialogState((current) =>
+				current?.type === "delete" &&
+				current.skill.name === variables &&
+				current.submittedName === variables
+					? null
+					: current,
+			);
 			toast.success("Personal skill deleted.");
 		},
-		onError: (error) => {
+		onError: (error, variables) => {
 			if (errorStatus(error) === 404) {
-				setDialogState(null);
+				setDialogState((current) =>
+					current?.type === "delete" &&
+					current.skill.name === variables &&
+					current.submittedName === variables
+						? null
+						: current,
+				);
 				void skillsQuery.refetch();
 			}
-			mutationToast(error, "Failed to delete personal skill.");
 		},
 	});
 
@@ -158,12 +173,20 @@ const AgentSettingsPersonalSkillsPage: FC = () => {
 			mode: "create",
 			initialValues: emptySkillFormValues,
 			existingNames,
-			submitError: personalSkillError(
-				createMutation.error,
-				"Failed to create personal skill.",
-			),
+			submitError:
+				createMutation.variables?.content === dialogState.submittedContent
+					? personalSkillError(
+							createMutation.error,
+							"Failed to create personal skill.",
+						)
+					: undefined,
 			isSubmitting: createMutation.isPending,
 			onSubmit: (_values, content) => {
+				setDialogState((current) =>
+					current?.type === "create"
+						? { ...current, submittedContent: content }
+						: current,
+				);
 				createMutation.mutate({ content });
 			},
 			onClose: () => setDialogState(null),
@@ -176,15 +199,24 @@ const AgentSettingsPersonalSkillsPage: FC = () => {
 			loadError: editLoadError,
 			isLoading: editSkillQuery.isLoading,
 			isRetrying: editSkillQuery.isFetching,
-			submitError: personalSkillError(
-				updateMutation.error,
-				"Failed to save personal skill.",
-			),
+			submitError:
+				updateMutation.variables?.name === dialogState.name &&
+				updateMutation.variables.req.content === dialogState.submittedContent
+					? personalSkillError(
+							updateMutation.error,
+							"Failed to save personal skill.",
+						)
+					: undefined,
 			isSubmitting: updateMutation.isPending,
 			onRetry: () => {
 				void editSkillQuery.refetch();
 			},
 			onSubmit: (_values, content) => {
+				setDialogState((current) =>
+					current?.type === "edit" && current.name === dialogState.name
+						? { ...current, submittedContent: content }
+						: current,
+				);
 				updateMutation.mutate({
 					name: dialogState.name,
 					req: { content },
@@ -198,14 +230,24 @@ const AgentSettingsPersonalSkillsPage: FC = () => {
 	if (dialogState?.type === "delete") {
 		deleteState = {
 			skill: dialogState.skill,
-			error: personalSkillError(
-				deleteMutation.error,
-				"Failed to delete personal skill.",
-			),
+			error:
+				deleteMutation.variables === dialogState.skill.name &&
+				dialogState.submittedName === dialogState.skill.name
+					? personalSkillError(
+							deleteMutation.error,
+							"Failed to delete personal skill.",
+						)
+					: undefined,
 			isDeleting:
 				deleteMutation.isPending &&
 				deleteMutation.variables === dialogState.skill.name,
 			onConfirm: () => {
+				setDialogState((current) =>
+					current?.type === "delete" &&
+					current.skill.name === dialogState.skill.name
+						? { ...current, submittedName: dialogState.skill.name }
+						: current,
+				);
 				deleteMutation.mutate(dialogState.skill.name);
 			},
 			onClose: () => setDialogState(null),

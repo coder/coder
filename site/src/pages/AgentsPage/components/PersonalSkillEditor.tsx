@@ -3,6 +3,7 @@ import {
 	type ChangeEvent,
 	type ClipboardEvent,
 	type FC,
+	useId,
 	useState,
 } from "react";
 import TextareaAutosize from "react-textarea-autosize";
@@ -60,7 +61,10 @@ type ImportStatus = {
 };
 
 const beginsWithFrontmatterDelimiter = (content: string): boolean =>
-	content.replace(/^\uFEFF/, "").startsWith("---");
+	content
+		.replace(/^\uFEFF/, "")
+		.split(/\r?\n/, 1)[0]
+		?.trim() === "---";
 
 export const PersonalSkillEditor: FC<PersonalSkillEditorProps> = ({
 	open,
@@ -73,13 +77,20 @@ export const PersonalSkillEditor: FC<PersonalSkillEditorProps> = ({
 	onSubmit,
 }) => {
 	const isCreate = mode === "create";
+	const importId = useId();
+	const nameId = useId();
+	const nameErrorId = useId();
+	const descriptionId = useId();
+	const descriptionErrorId = useId();
+	const bodyId = useId();
+	const bodyErrorId = useId();
 	const validationSchema = Yup.object({
 		name: Yup.string()
 			.trim()
 			.required("Name is required.")
 			.test(
 				"skill-name",
-				"Use kebab-case with lowercase letters, numbers, and single hyphens.",
+				"Use kebab-case with lowercase letters, numbers, and single hyphens, up to 256 bytes.",
 				(value) => Boolean(value && isValidPersonalSkillName(value.trim())),
 			)
 			.test(
@@ -235,16 +246,14 @@ export const PersonalSkillEditor: FC<PersonalSkillEditorProps> = ({
 
 						<div className="flex flex-col gap-3 rounded-md border border-border-default p-4">
 							<div className="flex flex-col gap-1">
-								<Label htmlFor="personal-skill-import">
-									Import from SKILL.md
-								</Label>
+								<Label htmlFor={importId}>Import from SKILL.md</Label>
 								<p className="m-0 text-xs text-content-secondary">
 									Paste a full SKILL.md file with frontmatter to auto-fill the
 									fields below.
 								</p>
 							</div>
 							<TextareaAutosize
-								id="personal-skill-import"
+								id={importId}
 								value={importContent}
 								onChange={handleImportContentChange}
 								onPaste={handleImportContentPaste}
@@ -288,9 +297,9 @@ export const PersonalSkillEditor: FC<PersonalSkillEditorProps> = ({
 							</div>
 						</div>
 						<div className="flex flex-col gap-2">
-							<Label htmlFor="personal-skill-name">Name</Label>
+							<Label htmlFor={nameId}>Name</Label>
 							<Input
-								id="personal-skill-name"
+								id={nameId}
 								name="name"
 								value={form.values.name}
 								onChange={form.handleChange}
@@ -299,14 +308,12 @@ export const PersonalSkillEditor: FC<PersonalSkillEditorProps> = ({
 								readOnly={!isCreate}
 								disabled={isSubmitting}
 								aria-invalid={Boolean(nameError)}
-								aria-describedby={
-									nameError ? "personal-skill-name-error" : undefined
-								}
+								aria-describedby={nameError ? nameErrorId : undefined}
 								className={cn(!isCreate && "bg-surface-secondary")}
 							/>
 							{nameError ? (
 								<p
-									id="personal-skill-name-error"
+									id={nameErrorId}
 									className="m-0 text-xs text-content-destructive"
 								>
 									{nameError}
@@ -320,9 +327,9 @@ export const PersonalSkillEditor: FC<PersonalSkillEditorProps> = ({
 						</div>
 
 						<div className="flex flex-col gap-2">
-							<Label htmlFor="personal-skill-description">Description</Label>
+							<Label htmlFor={descriptionId}>Description</Label>
 							<Input
-								id="personal-skill-description"
+								id={descriptionId}
 								name="description"
 								value={form.values.description}
 								onChange={form.handleChange}
@@ -331,14 +338,12 @@ export const PersonalSkillEditor: FC<PersonalSkillEditorProps> = ({
 								disabled={isSubmitting}
 								aria-invalid={Boolean(descriptionError)}
 								aria-describedby={
-									descriptionError
-										? "personal-skill-description-error"
-										: undefined
+									descriptionError ? descriptionErrorId : undefined
 								}
 							/>
 							{descriptionError && (
 								<p
-									id="personal-skill-description-error"
+									id={descriptionErrorId}
 									className="m-0 text-xs text-content-destructive"
 								>
 									{descriptionError}
@@ -347,9 +352,9 @@ export const PersonalSkillEditor: FC<PersonalSkillEditorProps> = ({
 						</div>
 
 						<div className="flex flex-col gap-2">
-							<Label htmlFor="personal-skill-body">Body</Label>
+							<Label htmlFor={bodyId}>Body</Label>
 							<TextareaAutosize
-								id="personal-skill-body"
+								id={bodyId}
 								name="body"
 								value={form.values.body}
 								onChange={form.handleChange}
@@ -358,9 +363,7 @@ export const PersonalSkillEditor: FC<PersonalSkillEditorProps> = ({
 								disabled={isSubmitting}
 								minRows={8}
 								aria-invalid={Boolean(bodyError)}
-								aria-describedby={
-									bodyError ? "personal-skill-body-error" : undefined
-								}
+								aria-describedby={bodyError ? bodyErrorId : undefined}
 								className={cn(
 									"w-full resize-y rounded-md border border-border bg-transparent px-3 py-2 font-mono text-sm leading-relaxed text-content-primary placeholder:text-content-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link disabled:cursor-not-allowed disabled:opacity-50",
 									bodyError && "border-border-destructive",
@@ -368,7 +371,7 @@ export const PersonalSkillEditor: FC<PersonalSkillEditorProps> = ({
 							/>
 							{bodyError && (
 								<p
-									id="personal-skill-body-error"
+									id={bodyErrorId}
 									className="m-0 text-xs text-content-destructive"
 								>
 									{bodyError}

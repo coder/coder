@@ -20,7 +20,7 @@ any supporting files the skill needs.
 On the first turn of a workspace-attached chat, the agent scans
 `.agents/skills/` and builds an `<available-skills>` block in its system
 prompt listing each skill's name and description. Only frontmatter is read
-during discovery — the full skill content is loaded lazily when the agent
+during discovery. The full skill content is loaded lazily when the agent
 calls a tool.
 
 Two tools are registered when skills are present:
@@ -97,7 +97,7 @@ description: "Personal review guidance"
 Instructions for the skill go here...
 ```
 
-In v1, each personal skill is stored as a single `SKILL.md` file containing
+Each personal skill is stored as a single `SKILL.md` file containing
 frontmatter and body content. Supporting files are not supported. Each
 `SKILL.md` file can be up to 64 KB, and each user can create up to 100
 personal skills.
@@ -137,17 +137,17 @@ whether `command` or `url` is present, or you can set it explicitly with
 }
 ```
 
-**Stdio transport** — set `command`, and optionally `args` and `env`. The
+**Stdio transport**: set `command`, and optionally `args` and `env`. The
 agent spawns the process in the workspace.
 
-**HTTP transport** — set `url`, and optionally `headers`. The agent connects
+**HTTP transport**: set `url`, and optionally `headers`. The agent connects
 to the HTTP endpoint from the workspace.
 
 ### How discovery works
 
 The agent reads `.mcp.json` via the workspace agent connection on each chat
 turn. Discovery uses a 5-second timeout. Servers that fail to
-respond are skipped — partial success is acceptable. Empty results are not
+respond are skipped. Partial success is acceptable. Empty results are not
 cached because the MCP servers may still be starting.
 
 ### Tool naming

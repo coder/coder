@@ -1,8 +1,9 @@
 export const PERSONAL_SKILL_MAX_SIZE_BYTES = 64 * 1024;
+const PERSONAL_SKILL_MAX_NAME_BYTES = 256;
 export const PERSONAL_SKILLS_MAX_PER_USER = 100;
 
 const personalSkillNamePattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const htmlCommentPattern = /<!--[\s\S]*?-->/g;
+const textEncoder = new TextEncoder();
 
 export type PersonalSkillFormValues = {
 	name: string;
@@ -57,11 +58,13 @@ export const parsePersonalSkillMarkdown = (
 	const body = lines
 		.slice(closingIndex + 1)
 		.join("\n")
-		.replace(htmlCommentPattern, "")
 		.trim();
 
 	if (!name) {
 		throw new PersonalSkillMarkdownError("Skill name is required.");
+	}
+	if (!body) {
+		throw new PersonalSkillMarkdownError("Skill body is required.");
 	}
 
 	return { name, description, body };
@@ -86,6 +89,9 @@ export const tryParsePersonalSkillMarkdown = (
 const frontmatterLineValue = (value: string): string =>
 	value.replace(/\r?\n/g, " ").trim();
 
+const frontmatterStringValue = (value: string): string =>
+	`"${frontmatterLineValue(value)}"`;
+
 export const buildPersonalSkillMarkdown = (
 	values: PersonalSkillFormValues,
 ): string => {
@@ -94,7 +100,7 @@ export const buildPersonalSkillMarkdown = (
 	const body = values.body.trim();
 	const frontmatter = ["---", `name: ${name}`];
 	if (description) {
-		frontmatter.push(`description: ${description}`);
+		frontmatter.push(`description: ${frontmatterStringValue(description)}`);
 	}
 	frontmatter.push("---");
 
@@ -102,7 +108,8 @@ export const buildPersonalSkillMarkdown = (
 };
 
 export const getPersonalSkillContentSizeBytes = (content: string): number =>
-	new TextEncoder().encode(content).length;
+	textEncoder.encode(content).length;
 
 export const isValidPersonalSkillName = (name: string): boolean =>
-	personalSkillNamePattern.test(name);
+	personalSkillNamePattern.test(name) &&
+	getPersonalSkillContentSizeBytes(name) <= PERSONAL_SKILL_MAX_NAME_BYTES;
