@@ -388,13 +388,17 @@ const AIProviderDetailPage: FC = () => {
 											</span>
 										) : row.saved ? (
 											<Input
-												value={row.apiKey}
-												readOnly
-												tabIndex={-1}
+												placeholder={row.apiKey}
+												type="text"
 												autoComplete="off"
-												className="font-mono select-none pointer-events-none"
-												onCopy={(e) => e.preventDefault()}
+												data-1p-ignore
+												data-lpignore="true"
+												className="font-mono"
+												onChange={(e) =>
+													updateRow(row.id, "apiKey", e.target.value)
+												}
 											/>
+
 										) : (
 											<Input
 												placeholder="Enter key"
