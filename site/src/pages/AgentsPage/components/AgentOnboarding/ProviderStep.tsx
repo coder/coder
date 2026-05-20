@@ -98,10 +98,10 @@ export const ProviderStep: FC<ProviderStepProps> = ({
 					</p>
 				</div>
 
-				<ol className="flex flex-col gap-1 text-base text-content-secondary">
-					<li>1. Set up at least one provider</li>
-					<li>2. Add a model</li>
-					<li>3. Start chatting</li>
+				<ol className="flex list-decimal flex-col gap-1 pl-5 text-base text-content-secondary">
+					<li>Set up at least one provider</li>
+					<li>Add a model</li>
+					<li>Start chatting</li>
 				</ol>
 
 				<div className="mt-auto flex items-center justify-end gap-3">
