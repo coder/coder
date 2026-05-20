@@ -107,9 +107,12 @@ const providerDefaults: Record<
 	"openai" | "anthropic" | "bedrock",
 	Partial<ProviderFormValues>
 > = {
-	openai: { baseUrl: "https://api.openai.com/v1/" },
-	anthropic: { baseUrl: "https://api.anthropic.com" },
-	bedrock: { baseUrl: "https://bedrock-runtime.us-east-2.amazonaws.com" },
+	openai: { name: "openai", baseUrl: "https://api.openai.com/v1/" },
+	anthropic: { name: "anthropic", baseUrl: "https://api.anthropic.com" },
+	bedrock: {
+		name: "bedrock",
+		baseUrl: "https://bedrock-runtime.us-east-2.amazonaws.com",
+	},
 };
 
 const makeOpenAiAnthropicSchema = (editing: boolean) =>
@@ -327,16 +330,8 @@ type ProviderFormProps = {
 	submitError?: unknown;
 };
 
-const namePlaceholder = (provider: string) => {
-	switch (provider) {
-		case "openai":
-			return "openai";
-		case "anthropic":
-			return "anthropic";
-		case "bedrock":
-			return "bedrock";
-	}
-};
+const namePlaceholder = (provider: string) =>
+	providerDefaults[provider as keyof typeof providerDefaults]?.name;
 
 const apiKeyPlaceholder = (provider: string) => {
 	switch (provider) {
