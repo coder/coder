@@ -5013,20 +5013,16 @@ func (p *Server) SubscribeAuthorized(
 						deliveredCount int
 						source         string
 					)
-					// publishMessage runs from PromoteQueued and the worker
-					// concurrently; PG commit reordering can land a lower-ID
-					// notify after lastMessageID has already advanced. Look up
-					// from min(AfterMessageID, lastMessageID) so a late notify
-					// rescans the gap, but never below afterMessageID, which is
-					// the boundary the caller already has via REST. The
-					// delivered set deduplicates either source.
+					// Notifies can arrive out of order. Rescan from
+					// min(AfterMessageID, lastMessageID) to cover the gap,
+					// floored at afterMessageID to respect the subscription
+					// boundary. The delivered set deduplicates.
 					lookupAfter := lastMessageID
 					if !notify.FullRefresh {
 						lookupAfter = max(afterMessageID, min(notify.AfterMessageID, lastMessageID))
 					}
 					cached := p.getCachedDurableMessages(chatID, lookupAfter)
 					if !notify.FullRefresh && len(cached) > 0 {
-						source = "cache"
 						for _, event := range cached {
 							if event.Message == nil {
 								continue
@@ -5044,11 +5040,11 @@ func (p *Server) SubscribeAuthorized(
 								lastMessageID = event.Message.ID
 							}
 							deliveredCount++
+							source = "cache"
 						}
 					}
-					// The DB is authoritative for cross-replica messages the
-					// local cache cannot have. Always run it; the delivered
-					// set dedupes against the cache pass.
+					// DB pass picks up cross-replica messages the local cache
+					// cannot have. Delivered set dedupes against the cache pass.
 					newMessages, msgErr := p.db.GetChatMessagesByChatID(mergedCtx, database.GetChatMessagesByChatIDParams{
 						ChatID:  chatID,
 						AfterID: lookupAfter,

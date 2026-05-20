@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -14,11 +15,9 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// TestSubscribeDeliversOutOfOrderDurableMessage covers the case where
-// the durable cache receives a higher-ID message before a lower-ID one,
-// then a notify arrives for the lower-ID. The merge goroutine has
-// already advanced lastMessageID past the lower ID, so it must rescan
-// the gap range and dedupe.
+// TestSubscribeDeliversOutOfOrderDurableMessage tests that a
+// late-arriving lower-ID durable message is delivered when a
+// higher-ID was already cached and sent.
 func TestSubscribeDeliversOutOfOrderDurableMessage(t *testing.T) {
 	t.Parallel()
 
@@ -91,14 +90,12 @@ func TestSubscribeDeliversOutOfOrderDurableMessage(t *testing.T) {
 	require.NotNil(t, third.Message)
 	require.Equal(t, int64(6), third.Message.ID)
 
-	requireNoStreamEvent(t, events, testutil.IntervalFast)
+	requireNoStreamEvent(t, events, 200*time.Millisecond)
 }
 
-// TestSubscribeRespectsAfterMessageIDOnLateNotify guards against
-// re-emitting messages the subscriber already has via the REST
-// snapshot. A reconnecting client passes afterMessageID > 0 to skip
-// the initial replay; lookupAfter must not drop below that boundary
-// even when a late notify reports AfterMessageID below it.
+// TestSubscribeRespectsAfterMessageIDOnLateNotify tests that
+// lookupAfter never drops below afterMessageID, preventing
+// re-emission of messages the client already has via REST.
 func TestSubscribeRespectsAfterMessageIDOnLateNotify(t *testing.T) {
 	t.Parallel()
 
@@ -147,14 +144,12 @@ func TestSubscribeRespectsAfterMessageIDOnLateNotify(t *testing.T) {
 	require.Equal(t, int64(101), ev.Message.ID,
 		"messages at or below afterMessageID must not be re-emitted")
 
-	requireNoStreamEvent(t, events, testutil.IntervalFast)
+	requireNoStreamEvent(t, events, 200*time.Millisecond)
 }
 
-// TestSubscribeRunsDBFallbackWhenCacheDeliversUnrelatedMessage
-// guards against the deliveredAny gate that historically skipped the
-// DB fallback whenever the cache contributed anything. The DB is
-// authoritative for cross-replica messages the local cache cannot
-// hold, so both passes must always run on every notify.
+// TestSubscribeRunsDBFallbackWhenCacheDeliversUnrelatedMessage tests
+// that the DB fallback runs even when the cache delivers, so
+// cross-replica messages are not dropped.
 func TestSubscribeRunsDBFallbackWhenCacheDeliversUnrelatedMessage(t *testing.T) {
 	t.Parallel()
 
@@ -213,5 +208,5 @@ func TestSubscribeRunsDBFallbackWhenCacheDeliversUnrelatedMessage(t *testing.T) 
 	require.True(t, got[6], "cross-replica DB message id=6 must be delivered")
 	require.True(t, got[8], "locally-cached message id=8 must be delivered")
 
-	requireNoStreamEvent(t, events, testutil.IntervalFast)
+	requireNoStreamEvent(t, events, 200*time.Millisecond)
 }
