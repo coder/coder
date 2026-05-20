@@ -1,5 +1,5 @@
 import { EllipsisVerticalIcon, Share2Icon } from "lucide-react";
-import { type FC, useEffect, useRef, useState } from "react";
+import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import {
@@ -94,7 +94,6 @@ export const ChatSharingPopoverContent: FC<ChatSharingPopoverContentProps> = ({
 	const queryClient = useQueryClient();
 	const [selectedOption, setSelectedOption] =
 		useState<UserOrGroupAutocompleteValue>(null);
-	const hasResetForOpenRef = useRef(false);
 
 	const aclQuery = useQuery({
 		...chatACL(chatId),
@@ -116,21 +115,6 @@ export const ChatSharingPopoverContent: FC<ChatSharingPopoverContentProps> = ({
 
 	const mutationError = userRoleError ?? groupRoleError;
 	const isMutating = isUserRolePending || isGroupRolePending;
-
-	useEffect(() => {
-		if (!open) {
-			hasResetForOpenRef.current = false;
-			return;
-		}
-
-		if (isMutating || hasResetForOpenRef.current) {
-			return;
-		}
-
-		resetUserRole();
-		resetGroupRole();
-		hasResetForOpenRef.current = true;
-	}, [open, isMutating, resetGroupRole, resetUserRole]);
 
 	const resetMutationErrors = () => {
 		resetUserRole();
@@ -332,9 +316,18 @@ export const ChatShareButton: FC<ChatShareButtonProps> = ({
 	organizationId,
 }) => {
 	const [open, setOpen] = useState(false);
+	const [contentGeneration, setContentGeneration] = useState(0);
+
+	const handleOpenChange = (nextOpen: boolean) => {
+		if (nextOpen) {
+			setContentGeneration((generation) => generation + 1);
+		}
+
+		setOpen(nextOpen);
+	};
 
 	return (
-		<Popover open={open} onOpenChange={setOpen}>
+		<Popover open={open} onOpenChange={handleOpenChange}>
 			<PopoverTrigger asChild>
 				<TopbarButton data-testid="chat-share-button">
 					<Share2Icon />
@@ -342,6 +335,7 @@ export const ChatShareButton: FC<ChatShareButtonProps> = ({
 				</TopbarButton>
 			</PopoverTrigger>
 			<ChatSharingPopoverContent
+				key={contentGeneration}
 				chatId={chatId}
 				organizationId={organizationId}
 				open={open}

@@ -11,7 +11,7 @@ import {
 	Trash2Icon,
 	WandSparklesIcon,
 } from "lucide-react";
-import { type FC, type ReactNode, useState } from "react";
+import { type FC, Fragment, type ReactNode, useState } from "react";
 import { Link, useLocation } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus } from "#/api/typesGenerated";
@@ -61,9 +61,18 @@ const ChatSharingTopBarButton: FC<ChatSharingTopBarButtonProps> = ({
 	renderChatSharingContent,
 }) => {
 	const [isChatSharingOpen, setIsChatSharingOpen] = useState(false);
+	const [contentGeneration, setContentGeneration] = useState(0);
+
+	const handleOpenChange = (nextOpen: boolean) => {
+		if (nextOpen) {
+			setContentGeneration((generation) => generation + 1);
+		}
+
+		setIsChatSharingOpen(nextOpen);
+	};
 
 	return (
-		<Popover open={isChatSharingOpen} onOpenChange={setIsChatSharingOpen}>
+		<Popover open={isChatSharingOpen} onOpenChange={handleOpenChange}>
 			<PopoverTrigger asChild>
 				<Button
 					variant="subtle"
@@ -74,7 +83,9 @@ const ChatSharingTopBarButton: FC<ChatSharingTopBarButtonProps> = ({
 					<Share2Icon className="h-4 w-4" />
 				</Button>
 			</PopoverTrigger>
-			{renderChatSharingContent(isChatSharingOpen)}
+			<Fragment key={contentGeneration}>
+				{renderChatSharingContent(isChatSharingOpen)}
+			</Fragment>
 		</Popover>
 	);
 };
