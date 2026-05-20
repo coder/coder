@@ -13,12 +13,7 @@ import {
 	SAVED_CREDENTIAL_MASK,
 } from "./ProviderForm";
 
-/**
- * Treat the saved-credential mask the same as an empty value: never round-trip
- * the placeholder back to the API. Accepts an optional list of extra mask
- * strings (e.g. the API-supplied `provider.api_keys[0].masked` rendering for
- * openai/anthropic) so the dynamic mask is filtered the same way.
- */
+/** Drop placeholder masks so they don't round-trip back to the API. */
 const sanitizeCredential = (
 	value: string,
 	...extraMasks: (string | undefined)[]
@@ -33,13 +28,8 @@ const sanitizeCredential = (
 	return trimmed;
 };
 
-/**
- * Server-side `AIProviderSettings` is a discriminated container that on the
- * wire flattens to a `{_type, _version, ...variantFields}` object. The
- * `codersdk` Go type uses a custom marshaler so the generated TypeScript
- * interface is empty; this is the structural shape we actually encode and
- * decode against.
- */
+// The generated `AIProviderSettings` interface is empty (the Go side uses
+// a custom marshaler), so we redeclare the structural wire shape here.
 const BEDROCK_SETTINGS_TYPE = "bedrock";
 const BEDROCK_SETTINGS_VERSION = 1;
 
@@ -54,16 +44,10 @@ type SettingsWire = AIProviderSettings &
 		_version?: number;
 	};
 
-/**
- * The wire API only accepts `openai` and `anthropic` for the user-facing
- * create endpoint; AWS Bedrock is an Anthropic provider with
- * `settings._type === "bedrock"`.
- *
- * `AIProvider.settings` is typed as a non-null object by `typesGenerated.ts`,
- * but the Go side serializes the zero settings as JSON `null` (see
- * `AIProviderSettings.MarshalJSON`); we have to null-check before reading
- * any discriminator fields.
- */
+// Bedrock providers carry an Anthropic wire type plus a
+// `settings._type === "bedrock"` discriminator. `settings` is non-null in
+// the generated type but Go serializes zero settings as JSON `null`, so we
+// null-check before reading the discriminator.
 export const isBedrockProvider = (provider: AIProvider): boolean => {
 	if (provider.type !== "anthropic") {
 		return false;
@@ -72,15 +56,12 @@ export const isBedrockProvider = (provider: AIProvider): boolean => {
 	return s !== null && s._type === BEDROCK_SETTINGS_TYPE;
 };
 
-/** Bedrock has stored credentials on the server. */
 export const hasBedrockStoredCredentials = (provider: AIProvider): boolean => {
 	if (!isBedrockProvider(provider)) {
 		return false;
 	}
-	// Bedrock secret fields are write-only and never present in responses, so
-	// we can't observe the values directly. The server only persists Bedrock
-	// settings if credentials were supplied, so the presence of a Bedrock
-	// configuration implies credentials are on file.
+	// Bedrock secrets are write-only. The server only persists Bedrock
+	// settings if credentials were supplied, so presence implies "on file".
 	return true;
 };
 
@@ -105,12 +86,9 @@ const displayTypeHosts: ReadonlyArray<[string, AIProviderType]> = [
 const matchesHost = (host: string, suffix: string): boolean =>
 	host === suffix || host.endsWith(`.${suffix}`);
 
-/**
- * UI type used for icons and labels. Bedrock is detected via the
- * settings discriminator; the wire `type` collapses azure/google/
- * openrouter/vercel to `openai`, so we recover the original choice from
- * the saved host. Unrecognized hosts fall back to the wire type.
- */
+// Wire `type` collapses azure/google/openrouter/vercel to `openai`, so
+// we recover the original choice from the saved host. Bedrock comes
+// through the settings discriminator. Unknown hosts fall back to wire.
 export const getProviderDisplayType = (
 	provider: AIProvider,
 ): AIProviderType => {
@@ -141,15 +119,9 @@ const buildBedrockSettings = (
 	...(accessKeySecret ? { access_key_secret: accessKeySecret } : {}),
 });
 
-/**
- * Build a create request from form values. For Bedrock the API key field is
- * ignored; AWS credentials go into `settings`. For openai/anthropic the
- * plaintext API key (if any) is sent in the request body as `api_keys`.
- *
- * `display_name` is optional server-side: when the form leaves it blank we
- * omit it, the server stores NULL, and the UI falls back to `name` via the
- * standard `display_name || name` pattern.
- */
+// Bedrock credentials live in `settings`; openai/anthropic keys go in
+// `api_keys`. `display_name` is omitted when blank so the server stores
+// NULL and the UI falls back to `name`.
 export const providerFormValuesToCreate = (
 	values: ProviderFormValues,
 ): CreateAIProviderRequest => {
@@ -177,16 +149,13 @@ export const providerFormValuesToCreate = (
 	}
 
 	const apiKey = sanitizeCredential(values.apiKey);
-	// Bedrock branched out above and Yup blocks the empty default, but the
-	// form-values union still allows `""`; narrow here so TS keeps us honest.
+	// `""` is unreachable here (Yup blocks it, Bedrock branched out), but the
+	// union still includes it; narrow so TS stays honest.
 	if (values.type === "") {
 		throw new Error("provider type is required");
 	}
-	// The codersdk validator only accepts `openai` and `anthropic` as wire
-	// types today; the OpenAI-compatible UI choices (azure, google,
-	// openai-compat, openrouter, vercel) collapse to `openai` on the wire and
-	// surface only as dropdown presets that drive name/baseUrl/icon defaults.
-	// `anthropic` is the only non-bedrock UI type with its own wire identity.
+	// Wire only accepts `openai` and `anthropic`; the other UI types are
+	// presets that collapse to `openai`.
 	const wireType: AIProvider["type"] =
 		values.type === "anthropic" ? "anthropic" : "openai";
 	return {
@@ -199,23 +168,10 @@ export const providerFormValuesToCreate = (
 	};
 };
 
-/**
- * Build a PATCH payload for an existing provider.
- *
- * Bedrock secrets follow an "empty = keep" contract: if the user did not
- * clear the masked inputs, we omit the access-key fields from the settings
- * blob and the server leaves them unchanged. The non-secret Bedrock settings
- * (region, models) are always sent when the form holds a Bedrock provider.
- *
- * OpenAI/Anthropic API keys ship as a declarative list: the supplied
- * `api_keys` describes the post-patch state of the key set, the server
- * reconciles it against what's stored, and any saved key whose id is absent
- * from the request is deleted. The form holds a single credential input, so
- * we send either a retain-all mutation (one `{ id }` per saved key) when the
- * user did not type a fresh value, or a single `{ api_key }` when they did.
- * The latter implicitly deletes every existing key (their ids aren't in the
- * list) and inserts the new plaintext as a fresh row.
- */
+// Bedrock secrets follow an "empty = keep" contract: blank inputs are
+// omitted and the server leaves them unchanged. OpenAI/Anthropic keys ship
+// as a declarative list: `{ id }` retains a saved key, `{ api_key }` inserts
+// a new one, and any saved id missing from the list is deleted.
 export const providerFormValuesToUpdate = (
 	values: ProviderFormValues,
 	existingProvider: AIProvider,
@@ -227,19 +183,13 @@ export const providerFormValuesToUpdate = (
 	};
 
 	if (values.type !== "bedrock") {
-		// Filter out both the static `SAVED_CREDENTIAL_MASK` and the API's own
-		// masked rendering of the saved key. If the user did not focus the
-		// input or clear the mask, the form value is still the seed and the
-		// sanitized result is `""` (no rotation).
+		// If the user didn't touch the input, the form still holds the seeded
+		// mask and sanitizes to `""` (no rotation).
 		const savedMasked = existingProvider.api_keys[0]?.masked;
 		const newApiKey = sanitizeCredential(values.apiKey, savedMasked);
-		// Declarative wire shape: the server reconciles api_keys against the
-		// supplied list. `{ id }` retains the saved row, `{ api_key }` inserts
-		// a new plaintext, and any saved key whose id is absent is deleted.
-		// The backend rejects sending both fields on the same entry today, so a
-		// rotation goes out as the new plaintext alone: the saved key's id is
-		// omitted from the list (triggering its deletion) and the plaintext is
-		// inserted as a fresh row.
+		// Rotation goes out as the new plaintext alone: the saved key's id is
+		// omitted (which deletes it) and the plaintext is inserted as a fresh
+		// row. The backend rejects sending both fields on the same entry today.
 		const apiKeys: AIProviderKeyMutation[] =
 			newApiKey === ""
 				? existingProvider.api_keys.map((k) => ({ id: k.id }))
@@ -249,15 +199,12 @@ export const providerFormValuesToUpdate = (
 
 	const newAccessKey = sanitizeCredential(values.accessKey);
 	const newAccessKeySecret = sanitizeCredential(values.accessKeySecret);
-	// Yup enforces that access key and secret are entered together before we
-	// reach this point; if both survived the mask filter, the user wants to
-	// rotate credentials.
+	// Yup enforces "both keys together"; if both survived the mask filter,
+	// the user is rotating credentials.
 	const credentialsChanged = newAccessKey !== "" && newAccessKeySecret !== "";
 
-	// Region is derived from the canonical AWS Bedrock URL. The form schema
-	// blocks non-canonical endpoints before we get here, so any saved value
-	// of `undefined` is the server-validation path that the helper itself
-	// must not paper over.
+	// Yup blocks non-canonical Bedrock URLs upstream, so any `undefined`
+	// region here is a real bug that should surface, not be papered over.
 	const region = parseBedrockRegionFromBaseUrl(base.base_url ?? "");
 
 	const settings = buildBedrockSettings(
@@ -271,16 +218,9 @@ export const providerFormValuesToUpdate = (
 	return { ...base, settings: settings as AIProviderSettings };
 };
 
-/**
- * Populate the form from an `AIProvider` fetched from the API.
- *
- * The slug `name` is immutable server-side and the update form keeps it
- * hidden, but we still seed it so the form values keep parity with the
- * `ProviderFormValues` type. The user-facing Display name field is seeded
- * from `display_name`, falling back to the slug for historical providers
- * that never had a friendly label set; once the user saves, the empty
- * `display_name` is replaced with whatever they confirm in the input.
- */
+// `name` is immutable on the server and the edit form hides it; we seed
+// it anyway so the form values stay aligned with `ProviderFormValues`.
+// `displayName` falls back to the slug for providers that never had one set.
 export const aiProviderToFormValues = (
 	provider: AIProvider,
 ): Partial<ProviderFormValues> => {
@@ -300,9 +240,8 @@ export const aiProviderToFormValues = (
 		};
 	}
 
-	// Wire `type` rolls up to one of `openai`/`anthropic` per the
-	// codersdk validator; the form mirrors that and the dropdown's richer
-	// OpenAI-compatible labels apply only on create.
+	// Wire `type` is only `openai` or `anthropic`; the dropdown's richer
+	// labels apply only on create.
 	return {
 		type: provider.type === "anthropic" ? "anthropic" : "openai",
 		name: provider.name,

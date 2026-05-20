@@ -5,10 +5,6 @@ type ProviderIconProps = {
 	provider: string;
 };
 
-/**
- * Path to the provider's bundled icon, or `undefined` when we don't have a
- * dedicated icon for the type.
- */
 export const getProviderIcon = (provider: string): string | undefined => {
 	switch (provider) {
 		case "openai":
@@ -28,10 +24,6 @@ export const getProviderIcon = (provider: string): string | undefined => {
 	}
 };
 
-/**
- * Human-friendly display name for a provider type. Falls back to the raw
- * provider string so we never render an empty label.
- */
 const getProviderName = (provider: string): string => {
 	switch (provider) {
 		case "openai":

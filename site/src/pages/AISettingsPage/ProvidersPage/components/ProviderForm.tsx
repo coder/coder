@@ -27,29 +27,18 @@ export type ProviderFormValues = {
 	enabled: boolean;
 };
 
-// Server requires the base_url scheme to be http or https; Yup's `.url()`
-// otherwise lets through any RFC URL (ftp://..., mailto:..., etc.). Anchored
-// at the start so substrings like "my-https://..." still fail.
+// Yup's `.url()` accepts ftp://, mailto://, etc. Anchored so substrings
+// like "my-https://..." still fail.
 const httpSchemeRegex = /^https?:\/\//i;
 const httpSchemeErrorMessage = "Endpoint must use http or https.";
 
-// Canonical AWS Bedrock Runtime URL, e.g.
-// `https://bedrock-runtime.us-east-1.amazonaws.com` (with optional trailing
-// slash). The form requires the endpoint to match this pattern so the AWS
-// region can always be derived from the URL; non-canonical endpoints
-// (proxies, sandboxes, GovCloud non-bedrock-runtime hosts) are not
-// supported and surface a validation error on the endpoint input.
+// Region is derived from the URL, so non-canonical Bedrock endpoints
+// (proxies, GovCloud, etc.) aren't supported and fail validation.
 const bedrockCanonicalUrlRegex =
 	/^https:\/\/bedrock-runtime\.([a-z0-9-]+)\.amazonaws\.com\/?$/i;
 const bedrockCanonicalUrlErrorMessage =
 	"Endpoint must be a standard AWS Bedrock URL.";
 
-/**
- * Returns the AWS region encoded in the URL when it matches the canonical AWS
- * Bedrock Runtime pattern, otherwise `undefined`. Regions are lowercased to
- * match AWS conventions; the AWS SDK accepts uppercase but normalizes
- * internally.
- */
 export const parseBedrockRegionFromBaseUrl = (
 	baseUrl: string,
 ): string | undefined => {
@@ -62,9 +51,8 @@ const providerNameRegex = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const providerNameErrorMessage =
 	"Name must be lowercase, hyphen-separated (e.g. 'my-anthropic').";
 
-// Slug is immutable server-side. We only validate it on create; on edit the
-// form hides the field and the seeded value (read straight back from the API)
-// is already known to satisfy the regex.
+// Slug is immutable; we only validate on create. On edit the field is
+// hidden and the seeded value (from the API) already satisfies the regex.
 const makeNameSchema = (editing: boolean) =>
 	editing
 		? Yup.string()
@@ -72,18 +60,13 @@ const makeNameSchema = (editing: boolean) =>
 				.matches(providerNameRegex, providerNameErrorMessage)
 				.required("Name is required");
 
-// Display name is required on edit (we always have one to send), optional on
-// create (server treats empty as "no display name", and the UI falls back to
-// the slug).
+// Required on edit; on create the server treats blank as "no display
+// name" and the UI falls back to the slug.
 const makeDisplayNameSchema = (editing: boolean) =>
 	editing ? Yup.string().required("Display name is required") : Yup.string();
 
-/**
- * Stable mask shown in credential inputs when a value already exists on the
- * server. Focusing the input clears the seeded mask so the user can type a
- * replacement; an untouched mask sanitizes to empty on the wire, which the
- * API mapping treats as "keep the existing value".
- */
+// Seeded into credential inputs when a value exists on the server.
+// Focus clears it; a re-submitted seed sanitizes to "" (= "keep existing").
 export const SAVED_CREDENTIAL_MASK = "********";
 
 const defaultInitialValues: ProviderFormValues = {
@@ -99,11 +82,8 @@ const defaultInitialValues: ProviderFormValues = {
 	enabled: true,
 };
 
-/**
- * Per-provider defaults applied both as prefilled values when creating a new
- * provider and as the matching placeholder text on each input. Keeping a
- * single source of truth so the prefill and the hint can't drift apart.
- */
+// Per-type prefills shared by the create form and the input placeholders,
+// so the two can't drift apart.
 const providerDefaults: Record<
 	| "openai"
 	| "anthropic"
@@ -159,9 +139,7 @@ const makeOpenAiAnthropicSchema = (editing: boolean) =>
 		enabled: Yup.boolean(),
 	});
 
-// Treat the saved-credential mask as empty: a value matching the placeholder
-// should never be treated as a real, user-supplied credential during
-// validation.
+// A value equal to the seeded mask isn't a real credential.
 const credentialFilled = (value: string | undefined): boolean => {
 	if (!value) return false;
 	const trimmed = value.trim();
@@ -175,10 +153,8 @@ const makeBedrockSchema = (editing: boolean) =>
 			.required(),
 		name: makeNameSchema(editing),
 		displayName: makeDisplayNameSchema(editing),
-		// Region is always derived from the URL via parseBedrockRegionFromBaseUrl,
-		// so the endpoint must match the canonical AWS Bedrock pattern. The
-		// canonical regex already enforces https, so we drop the standalone
-		// http-scheme check for Bedrock.
+		// Region is derived from the URL, so the endpoint must be canonical.
+		// The canonical regex already enforces https.
 		baseUrl: Yup.string()
 			.url("Endpoint must be a valid URL")
 			.matches(bedrockCanonicalUrlRegex, bedrockCanonicalUrlErrorMessage)
@@ -250,23 +226,11 @@ type CredentialFieldProps = {
 	placeholder?: string;
 	description?: ReactNode;
 	required?: boolean;
-	/**
-	 * Fires when the input first receives focus. Used to clear the seeded
-	 * `SAVED_CREDENTIAL_MASK` so the user can type a replacement without
-	 * having to first delete the mask by hand.
-	 */
+	/** Clears the seeded mask on first focus. */
 	onFocus?: () => void;
 };
 
-/**
- * Single credential input. When a credential is already on file the parent
- * seeds the value with `SAVED_CREDENTIAL_MASK` (or an API-supplied masked
- * rendering) and wires up `onFocus` so the field clears on first focus,
- * letting the user type a fresh value.
- *
- * `CredentialField` mirrors `FormField`'s stacking order (label, description,
- * input, helper text).
- */
+// Like `FormField`, but with focus-to-clear mask seeding for credentials.
 const CredentialField: FC<CredentialFieldProps> = ({
 	label,
 	helpers,
@@ -344,12 +308,7 @@ type ProviderFormProps = {
 	bedrockSavedAccessCredentials?: boolean;
 	/** When editing openai/anthropic and a key is on file, show a masked placeholder until cleared. */
 	openAiAnthropicSavedApiKey?: boolean;
-	/**
-	 * Masked rendering of the saved openai/anthropic key returned by the API
-	 * (e.g. `"sk-***\u2026***ABCD"`). Seeded into the input when
-	 * `openAiAnthropicSavedApiKey` is true; ignored otherwise. Falls back to a
-	 * generic `********` mask when omitted.
-	 */
+	/** Masked rendering of the saved openai/anthropic key (e.g. `sk-***...ABCD`). Falls back to a generic mask when omitted. */
 	openAiAnthropicMaskedApiKey?: string;
 	initialValues?: Partial<ProviderFormValues>;
 	onSubmit?: (values: ProviderFormValues) => void;
@@ -391,26 +350,18 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	const form = useFormik<ProviderFormValues>({
 		initialValues: {
 			...defaultInitialValues,
-			// Per-type prefills (currently just the canonical baseUrl). Slotting
-			// these between the base defaults and the parent's initialValues lets
-			// edit override them with the values returned from the server, while
-			// create gets a sensible prefill from the same source that drives the
-			// placeholder text.
+			// Layer order: base defaults < type prefills < parent's initialValues.
+			// Edit overrides prefills with server values; create gets them as-is.
 			...(typeDefaults ?? {}),
 			...initialValues,
-			// When the server has saved Bedrock credentials, seed the inputs
-			// with the mask so the user sees something is on file. The mask
-			// is replaced (cleared) on focus, and any "" submitted back is
-			// treated by the API mapping as "keep the existing value".
+			// Seed Bedrock credentials with the mask when on file; focus clears it,
+			// and a re-submitted "" tells the API mapping to keep the value.
 			accessKey: bedrockSavedAccessCredentials ? SAVED_CREDENTIAL_MASK : "",
 			accessKeySecret: bedrockSavedAccessCredentials
 				? SAVED_CREDENTIAL_MASK
 				: "",
-			// Mirror the Bedrock pattern for openai/anthropic. A key on file is
-			// shown as a mask; focusing the input clears it so the user can type
-			// a replacement. Prefer the API-supplied masked rendering when
-			// available so the user sees the leading/trailing characters that
-			// identify which key is on file.
+			// Same pattern for openai/anthropic. Prefer the API-supplied masked
+			// rendering so the user sees the key's identifying suffix.
 			apiKey: openAiAnthropicSavedApiKey
 				? (openAiAnthropicMaskedApiKey ?? SAVED_CREDENTIAL_MASK)
 				: "",
@@ -422,10 +373,8 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 
 	const typeSelectValue = form.values.type;
 
-	// When a credential input is showing the seeded mask (its current value
-	// still matches the non-empty initial value), the first focus clears the
-	// field so the user can type a replacement. Once the user has typed (or
-	// cleared) anything, subsequent focus events become no-ops.
+	// Clears the field once if it's still showing the seeded mask;
+	// subsequent focuses are no-ops.
 	const handleCredentialFocus = (
 		field: "apiKey" | "accessKey" | "accessKeySecret",
 	) => {

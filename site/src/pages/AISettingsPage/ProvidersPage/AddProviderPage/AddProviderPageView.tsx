@@ -16,12 +16,6 @@ import { ProviderForm } from "../components/ProviderForm";
 import { providerFormValuesToCreate } from "../components/providerFormApiMap";
 
 interface AddProviderPageViewProps {
-	/**
-	 * Pre-selected provider type passed from the parent page after it
-	 * validates the `?type=` URL parameter against the supported list.
-	 * The form is type-locked to this value; users return to the
-	 * providers list and reopen the dropdown to switch type.
-	 */
 	type: AIProviderType;
 }
 

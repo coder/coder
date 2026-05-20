@@ -15,10 +15,7 @@ const AddProviderPage: React.FC = () => {
 	const [searchParams] = useSearchParams();
 	const typeParam = searchParams.get("type");
 
-	// The page is reachable only through the "Add provider" dropdown,
-	// which always appends `?type=<known>`. Anyone hitting a stale
-	// bookmark or an unknown type gets the 404 page; without a known
-	// type the form has no schema to render against.
+	// Unknown `?type` has no form schema to render against.
 	if (!isAddableProviderType(typeParam)) {
 		return <NotFoundPage />;
 	}
