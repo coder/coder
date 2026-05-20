@@ -21,6 +21,8 @@ export const getProviderIcon = (provider: string): string | undefined => {
 			return "/icon/azure.svg";
 		case "google":
 			return "/icon/google.svg";
+		case "vercel":
+			return "/icon/vercel.svg";
 		default:
 			return undefined;
 	}
