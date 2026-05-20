@@ -302,6 +302,7 @@ export const AddGroup: Story = {
 };
 
 export const RemoveUser: Story = {
+	decorators: [withToaster],
 	beforeEach: () => mockDialogRequests({ acl: populatedACL }),
 	play: async ({ canvasElement }) => {
 		const body = await openChatSharing(canvasElement);
@@ -321,10 +322,14 @@ export const RemoveUser: Story = {
 				user_roles: { [chatUser.id]: "" },
 			});
 		});
+		await waitFor(() => {
+			expect(body.getByText("Member removed from chat.")).toBeVisible();
+		});
 	},
 };
 
 export const RemoveGroup: Story = {
+	decorators: [withToaster],
 	beforeEach: () => mockDialogRequests({ acl: populatedACL }),
 	play: async ({ canvasElement }) => {
 		const body = await openChatSharing(canvasElement);
@@ -343,6 +348,9 @@ export const RemoveGroup: Story = {
 			expect(API.experimental.updateChatACL).toHaveBeenCalledWith(chatId, {
 				group_roles: { [chatGroup.id]: "" },
 			});
+		});
+		await waitFor(() => {
+			expect(body.getByText("Group removed from chat.")).toBeVisible();
 		});
 	},
 };

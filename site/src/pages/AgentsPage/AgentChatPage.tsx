@@ -843,46 +843,46 @@ const AgentChatPage: FC = () => {
 	const isArchived = chatRecord?.archived ?? false;
 	const isViewerNotOwner =
 		chatRecord !== undefined && currentUser.id !== chatRecord.owner_id;
-	const canUpdateOtherUserChatQuery = useQuery({
-		...checkAuthorization({
-			checks: {
-				canUpdateChat: {
-					object: {
-						resource_type: "chat",
-						owner_id: chatRecord?.owner_id ?? "",
-						organization_id: chatRecord?.organization_id ?? "",
-					},
-					action: "update",
-				},
-			},
-		}),
-		enabled: isViewerNotOwner && !isArchived && chatRecord !== undefined,
-	});
-	const canUpdateOtherUserChat = Boolean(
-		canUpdateOtherUserChatQuery.data?.canUpdateChat,
-	);
-	const canUpdateOtherUserChatLoading =
-		canUpdateOtherUserChatQuery.isLoading ||
-		canUpdateOtherUserChatQuery.isFetching;
 	const isRootChat =
 		chatRecord !== undefined && getParentChatID(chatRecord) === undefined;
-	const canShareChatQuery = useQuery({
-		...checkAuthorization({
-			checks: {
-				canShareChat: {
-					object: {
-						resource_type: "chat",
-						owner_id: chatRecord?.owner_id ?? "",
-						organization_id: chatRecord?.organization_id ?? "",
-					},
-					action: "share",
-				},
-			},
-		}),
-		enabled: isRootChat,
+	const shouldCheckCanUpdateOtherUserChat =
+		isViewerNotOwner && !isArchived && chatRecord !== undefined;
+	const shouldCheckCanShareChat = isRootChat;
+	const chatAuthorizationObject =
+		chatRecord !== undefined
+			? {
+					resource_type: "chat" as const,
+					owner_id: chatRecord.owner_id,
+					organization_id: chatRecord.organization_id,
+				}
+			: undefined;
+	const chatAuthorizationChecks: TypesGen.AuthorizationRequest["checks"] = {};
+	if (
+		chatAuthorizationObject !== undefined &&
+		shouldCheckCanUpdateOtherUserChat
+	) {
+		chatAuthorizationChecks.canUpdateChat = {
+			object: chatAuthorizationObject,
+			action: "update",
+		};
+	}
+	if (chatAuthorizationObject !== undefined && shouldCheckCanShareChat) {
+		chatAuthorizationChecks.canShareChat = {
+			object: chatAuthorizationObject,
+			action: "share",
+		};
+	}
+	const chatAuthorizationQuery = useQuery({
+		...checkAuthorization({ checks: chatAuthorizationChecks }),
+		enabled: Object.keys(chatAuthorizationChecks).length > 0,
 	});
+	const canUpdateOtherUserChat = Boolean(
+		chatAuthorizationQuery.data?.canUpdateChat,
+	);
+	const canUpdateOtherUserChatLoading =
+		shouldCheckCanUpdateOtherUserChat && chatAuthorizationQuery.isLoading;
 	const canShareChat =
-		isRootChat && Boolean(canShareChatQuery.data?.canShareChat);
+		isRootChat && Boolean(chatAuthorizationQuery.data?.canShareChat);
 	const chatOwner =
 		isViewerNotOwner && chatRecord?.owner_username
 			? {

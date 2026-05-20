@@ -189,26 +189,41 @@ const extractPromptsFromMessages = (
 	}
 	return prompts;
 };
+type ChatAuthorizationFixture = {
+	action: "share" | "update";
+	allowed: boolean;
+};
+
 const buildChatAuthorizationQuery = (
 	chat: Pick<TypesGen.Chat, "owner_id" | "organization_id">,
-	key: string,
-	action: "share" | "update",
-	allowed: boolean,
-) => ({
-	key: getAuthorizationKey({
-		checks: {
-			[key]: {
-				object: {
-					resource_type: "chat",
-					owner_id: chat.owner_id,
-					organization_id: chat.organization_id,
-				},
-				action,
+	checks: Partial<
+		Record<"canShareChat" | "canUpdateChat", ChatAuthorizationFixture>
+	>,
+) => {
+	const authorizationChecks: TypesGen.AuthorizationRequest["checks"] = {};
+	const authorizationResponse: TypesGen.AuthorizationResponse = {};
+
+	for (const [key, check] of Object.entries(checks)) {
+		if (check === undefined) {
+			continue;
+		}
+
+		authorizationChecks[key] = {
+			object: {
+				resource_type: "chat",
+				owner_id: chat.owner_id,
+				organization_id: chat.organization_id,
 			},
-		},
-	}),
-	data: { [key]: allowed },
-});
+			action: check.action,
+		};
+		authorizationResponse[key] = check.allowed;
+	}
+
+	return {
+		key: getAuthorizationKey({ checks: authorizationChecks }),
+		data: authorizationResponse,
+	};
+};
 
 /** Build `parameters.queries` entries for a given chat and messages. */
 const buildQueries = (
@@ -258,12 +273,12 @@ const buildQueries = (
 		{ key: chatModelsKey, data: mockModelCatalog },
 		{ key: chatModelConfigs().queryKey, data: mockModelConfigs },
 		{ key: mcpServerConfigsKey, data: [] },
-		buildChatAuthorizationQuery(
-			chat,
-			"canShareChat",
-			"share",
-			chat.owner_id === MockUserOwner.id && !chat.parent_chat_id,
-		),
+		buildChatAuthorizationQuery(chat, {
+			canShareChat: {
+				action: "share",
+				allowed: chat.owner_id === MockUserOwner.id && !chat.parent_chat_id,
+			},
+		}),
 	];
 };
 
@@ -1252,9 +1267,10 @@ export const AdminViewingOtherUserChat: Story = {
 					owner_id: "other-user-id",
 					organization_id: baseChatFields.organization_id,
 				},
-				"canUpdateChat",
-				"update",
-				true,
+				{
+					canUpdateChat: { action: "update", allowed: true },
+					canShareChat: { action: "share", allowed: false },
+				},
 			),
 		],
 	},
@@ -1293,9 +1309,10 @@ export const SharedReadOnlyChat: Story = {
 					owner_id: "other-user-id",
 					organization_id: baseChatFields.organization_id,
 				},
-				"canUpdateChat",
-				"update",
-				false,
+				{
+					canUpdateChat: { action: "update", allowed: false },
+					canShareChat: { action: "share", allowed: false },
+				},
 			),
 		],
 	},
