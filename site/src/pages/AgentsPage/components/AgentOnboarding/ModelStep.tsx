@@ -128,7 +128,7 @@ export const ModelStep: FC<ModelStepProps> = ({
 			)}
 
 			{/* Add model form */}
-			<div className="flex flex-col gap-4 rounded-lg border border-border-default p-4">
+			<div className="flex flex-col gap-4 rounded-xl border border-border-primary p-6">
 				<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
 					<div className="flex flex-col gap-2">
 						<Label className="text-sm font-medium">Model provider*</Label>
