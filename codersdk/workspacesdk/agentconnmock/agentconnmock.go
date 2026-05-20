@@ -624,6 +624,21 @@ func (mr *MockAgentConnMockRecorder) TailnetConn() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TailnetConn", reflect.TypeOf((*MockAgentConn)(nil).TailnetConn))
 }
 
+// UploadChatFile mocks base method.
+func (m *MockAgentConn) UploadChatFile(ctx context.Context, req workspacesdk.UploadChatFileRequest) (workspacesdk.AgentUploadChatFileResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UploadChatFile", ctx, req)
+	ret0, _ := ret[0].(workspacesdk.AgentUploadChatFileResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UploadChatFile indicates an expected call of UploadChatFile.
+func (mr *MockAgentConnMockRecorder) UploadChatFile(ctx, req any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UploadChatFile", reflect.TypeOf((*MockAgentConn)(nil).UploadChatFile), ctx, req)
+}
+
 // WatchContainers mocks base method.
 func (m *MockAgentConn) WatchContainers(ctx context.Context, logger slog.Logger) (<-chan codersdk.WorkspaceAgentListContainersResponse, io.Closer, error) {
 	m.ctrl.T.Helper()

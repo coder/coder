@@ -121,6 +121,7 @@ type AgentConn interface {
 	ReadFile(ctx context.Context, path string, offset, limit int64) (io.ReadCloser, string, error)
 	ReadFileLines(ctx context.Context, path string, offset, limit int64, limits ReadFileLinesLimits) (ReadFileLinesResponse, error)
 	WriteFile(ctx context.Context, path string, reader io.Reader) error
+	UploadChatFile(ctx context.Context, req UploadChatFileRequest) (AgentUploadChatFileResponse, error)
 	EditFiles(ctx context.Context, edits FileEditRequest) (FileEditResponse, error)
 	SSH(ctx context.Context) (*gonet.TCPConn, error)
 	SSHClient(ctx context.Context) (*ssh.Client, error)
@@ -1018,6 +1019,53 @@ func (c *agentConn) WriteFile(ctx context.Context, path string, reader io.Reader
 		return xerrors.Errorf("decode response body: %w", err)
 	}
 	return nil
+}
+
+// UploadChatFileRequest is the streaming request for the agent's
+// chat-file upload endpoint.
+type UploadChatFileRequest struct {
+	// ChatID is the full chat UUID used to namespace the upload directory.
+	ChatID string
+	// Name is the filename. Coderd sanitizes it before the call; the
+	// agent sanitizes again as defense in depth for direct tailnet
+	// callers.
+	Name string
+	// Body must remain readable until UploadChatFile returns.
+	Body io.Reader
+}
+
+// AgentUploadChatFileResponse is the response from uploading to a workspace agent.
+type AgentUploadChatFileResponse struct {
+	// Path is the absolute path where the file was written on the workspace.
+	Path string `json:"path"`
+	// Name is the final basename after sanitization and collision suffixing.
+	Name string `json:"name"`
+	// Size is the number of bytes written to the workspace.
+	Size int64 `json:"size"`
+}
+
+// UploadChatFile streams a file body to the workspace agent.
+func (c *agentConn) UploadChatFile(ctx context.Context, req UploadChatFileRequest) (AgentUploadChatFileResponse, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	res, err := c.apiRequest(ctx, http.MethodPost, agentAPIPath("/api/v0/upload-chat-file", neturl.Values{
+		"chat_id": []string{req.ChatID},
+		"name":    []string{req.Name},
+	}), req.Body)
+	if err != nil {
+		return AgentUploadChatFileResponse{}, xerrors.Errorf("upload chat file: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return AgentUploadChatFileResponse{}, codersdk.ReadBodyAsError(res)
+	}
+
+	var out AgentUploadChatFileResponse
+	if err := json.NewDecoder(res.Body).Decode(&out); err != nil {
+		return AgentUploadChatFileResponse{}, xerrors.Errorf("decode upload chat file response: %w", err)
+	}
+	return out, nil
 }
 
 // ReadFileLinesResponse is the response from the line-based file reader.

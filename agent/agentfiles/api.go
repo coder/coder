@@ -35,6 +35,9 @@ func (api *API) Routes() http.Handler {
 	r.Get("/read-file", api.HandleReadFile)
 	r.Get("/read-file-lines", api.HandleReadFileLines)
 	r.Post("/write-file", api.HandleWriteFile)
+	// Workspace chat uploads are workspace-owned after creation, so this
+	// agent API intentionally does not expose chat archive cleanup routes.
+	r.Post("/upload-chat-file", api.HandleUploadChatFile)
 	r.Post("/edit-files", api.HandleEditFiles)
 
 	return r
