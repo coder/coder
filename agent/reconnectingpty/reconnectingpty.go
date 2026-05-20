@@ -7,6 +7,7 @@ import (
 	"net"
 	"os/exec"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -30,6 +31,59 @@ const (
 	// terminal.
 	xterm256Color = "xterm-256color"
 )
+
+func withTerminalEnv(env []string) []string {
+	next := make([]string, 0, len(env)+2)
+	next = append(next, env...)
+	next = append(next, "TERM="+xterm256Color)
+	// tmux uses the process locale for glyph width and replacement behavior.
+	// Set only LC_CTYPE so other locale categories keep the user's settings.
+	// Preserve non-empty LC_ALL because it has higher precedence than LC_CTYPE.
+	if runtime.GOOS != "windows" && !effectiveLocaleIsUTF8(next) && !hasNonEmptyEnv(next, "LC_ALL") {
+		next = append(next, "LC_CTYPE="+terminalUTF8Locale())
+	}
+	return next
+}
+
+func terminalUTF8Locale() string {
+	if runtime.GOOS == "darwin" {
+		return "UTF-8"
+	}
+	return "C.UTF-8"
+}
+
+func effectiveLocaleIsUTF8(env []string) bool {
+	if value, ok := envValue(env, "LC_ALL"); ok {
+		return localeIsUTF8(value)
+	}
+	if value, ok := envValue(env, "LC_CTYPE"); ok {
+		return localeIsUTF8(value)
+	}
+	if value, ok := envValue(env, "LANG"); ok {
+		return localeIsUTF8(value)
+	}
+	return false
+}
+
+func localeIsUTF8(locale string) bool {
+	lower := strings.ToLower(locale)
+	return strings.Contains(lower, "utf-8") || strings.Contains(lower, "utf8")
+}
+
+func hasNonEmptyEnv(env []string, name string) bool {
+	value, ok := envValue(env, name)
+	return ok && value != ""
+}
+
+func envValue(env []string, name string) (string, bool) {
+	prefix := name + "="
+	for i := len(env) - 1; i >= 0; i-- {
+		if strings.HasPrefix(env[i], prefix) {
+			return strings.TrimPrefix(env[i], prefix), true
+		}
+	}
+	return "", false
+}
 
 // Options allows configuring the reconnecting pty.
 type Options struct {
