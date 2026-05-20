@@ -116,10 +116,7 @@ export const providerFormValuesToCreate = (
 	const baseUrl = values.baseUrl.trim();
 
 	if (values.type === "bedrock") {
-		const region =
-			parseBedrockRegionFromBaseUrl(baseUrl) ||
-			values.region.trim() ||
-			undefined;
+		const region = parseBedrockRegionFromBaseUrl(baseUrl);
 		const settings = buildBedrockSettings(
 			region,
 			values.model.trim(),
@@ -193,14 +190,11 @@ export const providerFormValuesToUpdate = (
 	// rotate credentials.
 	const credentialsChanged = newAccessKey !== "" && newAccessKeySecret !== "";
 
-	// Region is derived from a canonical AWS Bedrock URL when possible; when
-	// the URL is non-canonical (proxy/sandbox/GovCloud), the form surfaces a
-	// Region field and we send whatever the user typed. Either way we always
-	// emit a region so the AWS SDK has the SigV4 signing scope it needs.
-	const region =
-		parseBedrockRegionFromBaseUrl(base.base_url ?? "") ||
-		values.region.trim() ||
-		undefined;
+	// Region is derived from the canonical AWS Bedrock URL. The form schema
+	// blocks non-canonical endpoints before we get here, so any saved value
+	// of `undefined` is the server-validation path that the helper itself
+	// must not paper over.
+	const region = parseBedrockRegionFromBaseUrl(base.base_url ?? "");
 
 	const settings = buildBedrockSettings(
 		region,
@@ -236,7 +230,6 @@ export const aiProviderToFormValues = (
 			baseUrl: provider.base_url,
 			model: s.model ?? "",
 			smallFastModel: s.small_fast_model ?? "",
-			region: s.region ?? "",
 			accessKey: "",
 			accessKeySecret: "",
 			enabled: provider.enabled,

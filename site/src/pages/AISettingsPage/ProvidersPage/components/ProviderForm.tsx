@@ -20,7 +20,6 @@ export type ProviderFormValues = {
 	baseUrl: string;
 	model: string;
 	smallFastModel: string;
-	region: string;
 	accessKey: string;
 	accessKeySecret: string;
 	apiKey: string;
@@ -35,12 +34,14 @@ const httpSchemeErrorMessage = "Endpoint must use http or https.";
 
 // Canonical AWS Bedrock Runtime URL, e.g.
 // `https://bedrock-runtime.us-east-1.amazonaws.com` (with optional trailing
-// slash). When the endpoint matches this pattern the form derives the AWS
-// region from the URL instead of asking the user; non-canonical endpoints
-// (proxies, sandboxes, GovCloud non-bedrock-runtime hosts) fall through and
-// surface an explicit Region field.
+// slash). The form requires the endpoint to match this pattern so the AWS
+// region can always be derived from the URL; non-canonical endpoints
+// (proxies, sandboxes, GovCloud non-bedrock-runtime hosts) are not
+// supported and surface a validation error on the endpoint input.
 const bedrockCanonicalUrlRegex =
 	/^https:\/\/bedrock-runtime\.([a-z0-9-]+)\.amazonaws\.com\/?$/i;
+const bedrockCanonicalUrlErrorMessage =
+	"Endpoint must be a standard AWS Bedrock URL.";
 
 /**
  * Returns the AWS region encoded in the URL when it matches the canonical AWS
@@ -91,7 +92,6 @@ const defaultInitialValues: ProviderFormValues = {
 	baseUrl: "",
 	model: "",
 	smallFastModel: "",
-	region: "",
 	accessKey: "",
 	accessKeySecret: "",
 	apiKey: "",
@@ -148,27 +148,17 @@ const makeBedrockSchema = (editing: boolean) =>
 			.required(),
 		name: makeNameSchema(editing),
 		displayName: makeDisplayNameSchema(editing),
+		// Region is always derived from the URL via parseBedrockRegionFromBaseUrl,
+		// so the endpoint must match the canonical AWS Bedrock pattern. The
+		// canonical regex already enforces https, so we drop the standalone
+		// http-scheme check for Bedrock.
 		baseUrl: Yup.string()
 			.url("Endpoint must be a valid URL")
-			.matches(httpSchemeRegex, httpSchemeErrorMessage)
+			.matches(bedrockCanonicalUrlRegex, bedrockCanonicalUrlErrorMessage)
 			.required("Endpoint is required"),
 		apiKey: Yup.string(),
 		model: Yup.string(),
 		smallFastModel: Yup.string(),
-		// Region is implicit when the URL matches the canonical AWS Bedrock
-		// pattern (we extract it on submit). It is also skipped while baseUrl
-		// is blank so the user only sees one error at a time. Otherwise the
-		// AWS SDK needs an explicit region for SigV4 signing.
-		region: Yup.string().when("baseUrl", {
-			is: (baseUrl: string | undefined) => {
-				const trimmed = baseUrl?.trim() ?? "";
-				return (
-					trimmed === "" || parseBedrockRegionFromBaseUrl(trimmed) !== undefined
-				);
-			},
-			then: (schema) => schema,
-			otherwise: (schema) => schema.required("Region is required"),
-		}),
 		accessKey: (editing
 			? Yup.string()
 			: Yup.string().required("Access key is required")
@@ -508,18 +498,6 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 							className="w-full"
 							placeholder={baseUrlPlaceholder(form.values.type)}
 						/>
-						{form.values.baseUrl.trim() !== "" &&
-							parseBedrockRegionFromBaseUrl(form.values.baseUrl) ===
-								undefined && (
-								<FormField
-									required
-									field={getFieldHelpers("region")}
-									label="Region"
-									description="AWS region used to sign requests. Required when the endpoint isn't a standard AWS Bedrock URL."
-									className="w-full"
-									placeholder="us-east-1"
-								/>
-							)}
 						<div className="grid grid-cols-2 items-start gap-4">
 							<FormField
 								field={getFieldHelpers("model")}

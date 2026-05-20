@@ -25,7 +25,6 @@ const baseOpenAIFormValues: ProviderFormValues = {
 	baseUrl: "https://api.openai.com",
 	model: "",
 	smallFastModel: "",
-	region: "",
 	accessKey: "",
 	accessKeySecret: "",
 	apiKey: "sk-test",
@@ -39,7 +38,6 @@ const baseBedrockFormValues: ProviderFormValues = {
 	baseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com",
 	model: "anthropic.claude-sonnet-4-5",
 	smallFastModel: "anthropic.claude-haiku-4-5",
-	region: "",
 	accessKey: "AKIA-test",
 	accessKeySecret: "secret",
 	apiKey: "",
@@ -225,24 +223,13 @@ describe("providerFormValuesToCreate", () => {
 			expect(s.region).toBe("us-east-1");
 		});
 
-		it("uses the explicit form region when the URL is non-canonical", () => {
+		it("omits the region when the URL is non-canonical", () => {
+			// The form schema blocks non-canonical endpoints before submit; the
+			// helper itself stays strict, returning an undefined region rather
+			// than inventing a value.
 			const req = providerFormValuesToCreate({
 				...baseBedrockFormValues,
 				baseUrl: "https://bedrock.internal.example.com",
-				region: "us-west-2",
-			});
-			const s = req.settings as unknown as Record<string, unknown>;
-			expect(s.region).toBe("us-west-2");
-		});
-
-		it("omits the region when neither derivation nor the form value provides one", () => {
-			// This is the server-validation error path: the form schema
-			// will normally block this, but the helper itself must not
-			// invent a value.
-			const req = providerFormValuesToCreate({
-				...baseBedrockFormValues,
-				baseUrl: "https://bedrock.internal.example.com",
-				region: "",
 			});
 			const s = req.settings as unknown as Record<string, unknown>;
 			expect(s.region).toBeUndefined();
@@ -309,14 +296,11 @@ describe("providerFormValuesToUpdate", () => {
 	});
 
 	describe("Bedrock", () => {
-		it("derives the region from a canonical URL even when the form carries a different value", () => {
-			// The URL is the source of truth for canonical hosts; if the
-			// saved region drifted out of step with the URL, the URL wins.
+		it("derives the region from the canonical URL", () => {
 			const req = providerFormValuesToUpdate(
 				{
 					...baseBedrockFormValues,
 					baseUrl: "https://bedrock-runtime.us-west-2.amazonaws.com",
-					region: "us-east-1",
 					accessKey: SAVED_CREDENTIAL_MASK,
 					accessKeySecret: SAVED_CREDENTIAL_MASK,
 				},
@@ -326,19 +310,21 @@ describe("providerFormValuesToUpdate", () => {
 			expect(s.region).toBe("us-west-2");
 		});
 
-		it("uses the form region when the URL is non-canonical", () => {
+		it("omits the region when the URL is non-canonical", () => {
+			// The form schema blocks non-canonical endpoints before submit; the
+			// helper itself stays strict, returning an undefined region rather
+			// than inventing a value.
 			const req = providerFormValuesToUpdate(
 				{
 					...baseBedrockFormValues,
 					baseUrl: "https://bedrock.internal.example.com",
-					region: "ap-southeast-2",
 					accessKey: SAVED_CREDENTIAL_MASK,
 					accessKeySecret: SAVED_CREDENTIAL_MASK,
 				},
 				MockAIProviderBedrock,
 			);
 			const s = req.settings as unknown as Record<string, unknown>;
-			expect(s.region).toBe("ap-southeast-2");
+			expect(s.region).toBeUndefined();
 		});
 
 		it("omits access_key/access_key_secret when the user left both masked (empty = keep)", () => {
@@ -400,7 +386,6 @@ describe("aiProviderToFormValues", () => {
 	it("seeds Bedrock form values from settings", () => {
 		const values = aiProviderToFormValues(MockAIProviderBedrock);
 		expect(values.type).toBe("bedrock");
-		expect(values.region).toBe("us-east-2");
 		expect(values.model).toBe("anthropic.claude-opus-4-7");
 		expect(values.smallFastModel).toBe("anthropic.claude-haiku-4-5");
 	});
@@ -430,6 +415,5 @@ describe("aiProviderToFormValues", () => {
 		};
 		const values = aiProviderToFormValues(provider);
 		expect(values.type).toBe("anthropic");
-		expect(values.region).toBeUndefined();
 	});
 });
