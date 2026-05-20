@@ -115,14 +115,6 @@ type Pubsub struct {
 	// detect no-op refreshes.
 	currentRoutes []*url.URL
 
-	// effectiveClusterToken is the cluster token that was actually
-	// applied to the embedded server. It mirrors opts.ClusterToken when
-	// the caller supplied one and otherwise holds an internally
-	// generated ephemeral token. RefreshPeers uses this to construct
-	// route URLs so that auto-generated tokens stay consistent across
-	// refreshes.
-	effectiveClusterToken string
-
 	// testHookBeforeFlush and testHookBeforeSetPendingLimits are
 	// internal test seams scoped to a single *Pubsub. Production code
 	// never sets these. Tests set them via SetTestHooks (defined in a
@@ -334,7 +326,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error)
 		}
 		peers = normalized
 	}
-	ns, sopts, token, err := startEmbeddedServer(logger, opts, peers)
+	ns, sopts, err := startEmbeddedServer(logger, opts, peers)
 	if err != nil {
 		return nil, err
 	}
@@ -347,7 +339,6 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error)
 	p.provider = opts.PeerProvider
 	p.serverOpts = sopts
 	p.currentRoutes = sortRouteURLs(cloneRouteURLs(sopts.Routes))
-	p.effectiveClusterToken = token
 
 	npub := publishConnCount(opts)
 	pubConns := make([]*natsgo.Conn, 0, npub)
@@ -464,7 +455,7 @@ func (p *Pubsub) RefreshPeers(ctx context.Context) error {
 	if err != nil {
 		return xerrors.Errorf("normalize peers: %w", err)
 	}
-	urls, err := routeURLs(normalized, p.effectiveClusterToken)
+	urls, err := routeURLs(normalized)
 	if err != nil {
 		return xerrors.Errorf("build route urls: %w", err)
 	}

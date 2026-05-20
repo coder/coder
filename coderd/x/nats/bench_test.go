@@ -379,10 +379,6 @@ func setupCoder(b *testing.B, topology string, numPubs, numSubs int) *harness {
 		for i := range ports {
 			ports[i] = freeBenchPort(b)
 		}
-		// Shared route auth secret used by all replicas. Not a
-		// credential; the bench cluster is loopback-only and torn
-		// down at the end of each leaf.
-		token := "bench-coder-cluster-token" //nolint:gosec // G101: see comment
 		for i := 0; i < numReplicas; i++ {
 			peers := make([]xnats.Peer, 0, numReplicas-1)
 			for j := 0; j < numReplicas; j++ {
@@ -397,7 +393,6 @@ func setupCoder(b *testing.B, topology string, numPubs, numSubs int) *harness {
 			opts := xnats.Options{
 				ServerName:       fmt.Sprintf("bench-coder-%d", i),
 				ClusterName:      "bench-coder-cluster",
-				ClusterToken:     token,
 				ClusterHost:      "127.0.0.1",
 				ClusterPort:      ports[i],
 				ClusterAdvertise: net.JoinHostPort("127.0.0.1", strconv.Itoa(ports[i])),

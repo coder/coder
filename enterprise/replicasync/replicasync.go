@@ -122,14 +122,10 @@ type Manager struct {
 	closed      chan (struct{})
 	closeCancel context.CancelFunc
 
-	self  database.Replica
-	mutex sync.Mutex
-	peers []database.Replica
-	// callbacks holds the set of subscribers registered via AddCallback,
-	// keyed by a monotonic ID so each subscription can be removed
-	// independently. Access is guarded by mutex.
-	callbacks      map[uint64]func()
-	callbackNextID uint64
+	self     database.Replica
+	mutex    sync.Mutex
+	peers    []database.Replica
+	callback func()
 }
 
 func (m *Manager) ID() uuid.UUID {
@@ -363,11 +359,8 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 		}
 	}
 	m.self = replica
-	// Dispatch each registered callback in its own goroutine. The
-	// goroutines do not re-acquire m.mutex, so spawning under the lock
-	// is safe and avoids snapshotting the map.
-	for _, cb := range m.callbacks {
-		go cb()
+	if m.callback != nil {
+		go m.callback()
 	}
 	return nil
 }
@@ -446,31 +439,14 @@ func (m *Manager) regionID() int32 {
 	return m.self.RegionID
 }
 
-// AddCallback registers a function to execute whenever new peers are
-// refreshed or updated. The newly-added callback is invoked once
-// immediately in its own goroutine; previously-registered callbacks are
-// not re-fired.
-//
-// The returned remove function detaches the callback so it stops firing
-// on subsequent syncs. remove is idempotent: calling it more than once
-// (or after the manager has been closed) is a no-op and never panics.
-func (m *Manager) AddCallback(callback func()) (remove func()) {
+// SetCallback sets a function to execute whenever new peers
+// are refreshed or updated.
+func (m *Manager) SetCallback(callback func()) {
 	m.mutex.Lock()
-	if m.callbacks == nil {
-		m.callbacks = make(map[uint64]func())
-	}
-	id := m.callbackNextID
-	m.callbackNextID++
-	m.callbacks[id] = callback
-	m.mutex.Unlock()
-	// Fire the just-added callback once so it can pick up the current
-	// replica state without waiting for the next sync tick.
+	defer m.mutex.Unlock()
+	m.callback = callback
+	// Instantly call the callback to inform replicas!
 	go callback()
-	return func() {
-		m.mutex.Lock()
-		defer m.mutex.Unlock()
-		delete(m.callbacks, id)
-	}
 }
 
 func (m *Manager) Close() error {

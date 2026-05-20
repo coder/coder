@@ -14,12 +14,6 @@ import (
 // NATS server whose route configuration can be reloaded.
 var ErrNoEmbeddedServer = xerrors.New("nats pubsub has no embedded server")
 
-// routeAuthUsername is the synthetic username carried in route CONNECT
-// userinfo. The NATS route authenticator requires a nonempty username
-// when Username/Password auth is configured; the actual secret is in
-// the password field (ClusterToken).
-const routeAuthUsername = "coder"
-
 // Peer describes a single NATS cluster peer for startup route discovery.
 type Peer struct {
 	// Name is optional and used only for logs and metrics.
@@ -74,12 +68,8 @@ func normalizePeers(peers []Peer) ([]Peer, error) {
 	return out, nil
 }
 
-// routeURLs converts already-normalized peers into *url.URL values and
-// injects route auth userinfo. Route authentication is performed via
-// CONNECT userinfo: NATS requires a nonempty username, so we always
-// set the username to routeAuthUsername and place the shared cluster
-// token in the password field when token is non-empty.
-func routeURLs(peers []Peer, token string) ([]*url.URL, error) {
+// routeURLs converts already-normalized peers into *url.URL values.
+func routeURLs(peers []Peer) ([]*url.URL, error) {
 	if len(peers) == 0 {
 		return nil, nil
 	}
@@ -88,9 +78,6 @@ func routeURLs(peers []Peer, token string) ([]*url.URL, error) {
 		u, err := url.Parse(p.RouteURL)
 		if err != nil {
 			return nil, xerrors.Errorf("peer %d: parse %q: %w", i, p.RouteURL, err)
-		}
-		if token != "" {
-			u.User = url.UserPassword(routeAuthUsername, token)
 		}
 		out = append(out, u)
 	}

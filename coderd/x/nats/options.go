@@ -1,7 +1,6 @@
 package nats
 
 import (
-	"crypto/tls"
 	"time"
 )
 
@@ -39,16 +38,6 @@ type Options struct {
 	// cluster mode as a "cluster of 1" so peers can be added later via
 	// RefreshPeers without restart.
 	PeerProvider PeerProvider
-
-	// ClusterToken is the shared secret used for NATS route
-	// authentication. Optional; if empty, an ephemeral random token is
-	// generated internally at startup. Supply a stable token when this
-	// process is intended to interoperate with other replicas.
-	ClusterToken string
-
-	// ClusterTLSConfig enables TLS for route connections when non-nil.
-	// Nil means plaintext routes protected only by ClusterToken.
-	ClusterTLSConfig *tls.Config
 
 	// ClusterHost is the local route listener bind host in cluster mode.
 	// If empty, use "127.0.0.1" for tests and non-wired package usage.

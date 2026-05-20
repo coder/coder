@@ -3,7 +3,6 @@ package nats
 
 import (
 	"context"
-	"crypto/tls"
 	"errors"
 	"net"
 	"net/url"
@@ -50,7 +49,7 @@ func (m *mutablePeerProvider) set(peers []Peer) {
 // buildClusterPubsubWithProvider mirrors buildClusterPubsub but allows
 // using an arbitrary PeerProvider so tests can mutate the peer set after
 // startup.
-func buildClusterPubsubWithProvider(t *testing.T, name string, port int, provider PeerProvider, token string, tlsConfig *tls.Config) *Pubsub {
+func buildClusterPubsubWithProvider(t *testing.T, name string, port int, provider PeerProvider) *Pubsub {
 	t.Helper()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).
 		Named(name).Leveled(slog.LevelDebug)
@@ -58,11 +57,9 @@ func buildClusterPubsubWithProvider(t *testing.T, name string, port int, provide
 	opts := Options{
 		ServerName:       name,
 		ClusterName:      "test-cluster",
-		ClusterToken:     token,
 		ClusterHost:      "127.0.0.1",
 		ClusterPort:      port,
 		ClusterAdvertise: net.JoinHostPort("127.0.0.1", strconv.Itoa(port)),
-		ClusterTLSConfig: tlsConfig,
 		PeerProvider:     provider,
 		ReadyTimeout:     testutil.WaitMedium,
 	}
@@ -76,7 +73,6 @@ func buildClusterPubsubWithProvider(t *testing.T, name string, port int, provide
 
 func TestPubsubRefreshPeers_AddPeer(t *testing.T) {
 	t.Parallel()
-	token := "refresh-add"
 	portA := freePort(t)
 	portB := freePort(t)
 	portC := freePort(t)
@@ -87,13 +83,13 @@ func TestPubsubRefreshPeers_AddPeer(t *testing.T) {
 	provA := newMutablePeerProvider([]Peer{{RouteURL: urlB}})
 	provB := newMutablePeerProvider([]Peer{{RouteURL: urlA}})
 
-	a := buildClusterPubsubWithProvider(t, "node-a", portA, provA, token, nil)
-	b := buildClusterPubsubWithProvider(t, "node-b", portB, provB, token, nil)
+	a := buildClusterPubsubWithProvider(t, "node-a", portA, provA)
+	b := buildClusterPubsubWithProvider(t, "node-b", portB, provB)
 	waitForRoutes(t, a, 1)
 	waitForRoutes(t, b, 1)
 
 	// Bring up C clustered with A and B; A and B don't know about C yet.
-	c := buildClusterPubsub(t, "node-c", portC, []Peer{{RouteURL: urlA}, {RouteURL: urlB}}, token, nil)
+	c := buildClusterPubsub(t, "node-c", portC, []Peer{{RouteURL: urlA}, {RouteURL: urlB}})
 	waitForRoutes(t, c, 2)
 
 	// Now hot-add C to A and B's providers and refresh.
@@ -114,7 +110,6 @@ func TestPubsubRefreshPeers_AddPeer(t *testing.T) {
 
 func TestPubsubRefreshPeers_RemovePeer(t *testing.T) {
 	t.Parallel()
-	token := "refresh-remove"
 	portA := freePort(t)
 	portB := freePort(t)
 	portC := freePort(t)
@@ -125,9 +120,9 @@ func TestPubsubRefreshPeers_RemovePeer(t *testing.T) {
 	provA := newMutablePeerProvider([]Peer{{RouteURL: urlB}, {RouteURL: urlC}})
 	provB := newMutablePeerProvider([]Peer{{RouteURL: urlA}, {RouteURL: urlC}})
 
-	a := buildClusterPubsubWithProvider(t, "node-a", portA, provA, token, nil)
-	b := buildClusterPubsubWithProvider(t, "node-b", portB, provB, token, nil)
-	c := buildClusterPubsub(t, "node-c", portC, []Peer{{RouteURL: urlA}, {RouteURL: urlB}}, token, nil)
+	a := buildClusterPubsubWithProvider(t, "node-a", portA, provA)
+	b := buildClusterPubsubWithProvider(t, "node-b", portB, provB)
+	c := buildClusterPubsub(t, "node-c", portC, []Peer{{RouteURL: urlA}, {RouteURL: urlB}})
 	waitForRoutes(t, a, 2)
 	waitForRoutes(t, b, 2)
 	waitForRoutes(t, c, 2)
@@ -184,15 +179,14 @@ func hostFromURL(raw string) string {
 
 func TestPubsubRefreshPeers_NoOp(t *testing.T) {
 	t.Parallel()
-	token := "refresh-noop"
 	portA := freePort(t)
 	portB := freePort(t)
 	urlA := "nats://127.0.0.1:" + strconv.Itoa(portA)
 	urlB := "nats://127.0.0.1:" + strconv.Itoa(portB)
 
 	provA := newMutablePeerProvider([]Peer{{RouteURL: urlB}})
-	a := buildClusterPubsubWithProvider(t, "node-a", portA, provA, token, nil)
-	_ = buildClusterPubsub(t, "node-b", portB, []Peer{{RouteURL: urlA}}, token, nil)
+	a := buildClusterPubsubWithProvider(t, "node-a", portA, provA)
+	_ = buildClusterPubsub(t, "node-b", portB, []Peer{{RouteURL: urlA}})
 	waitForRoutes(t, a, 1)
 
 	// Re-set with the same single peer (order trivially same).
@@ -211,7 +205,6 @@ func TestPubsubRefreshPeers_NoOp(t *testing.T) {
 
 func TestPubsubRefreshPeers_NoOp_DifferentOrder(t *testing.T) {
 	t.Parallel()
-	token := "refresh-noop-order"
 	portA := freePort(t)
 	portB := freePort(t)
 	portC := freePort(t)
@@ -220,9 +213,9 @@ func TestPubsubRefreshPeers_NoOp_DifferentOrder(t *testing.T) {
 	urlC := "nats://127.0.0.1:" + strconv.Itoa(portC)
 
 	provA := newMutablePeerProvider([]Peer{{RouteURL: urlB}, {RouteURL: urlC}})
-	a := buildClusterPubsubWithProvider(t, "node-a", portA, provA, token, nil)
-	_ = buildClusterPubsub(t, "node-b", portB, []Peer{{RouteURL: urlA}, {RouteURL: urlC}}, token, nil)
-	_ = buildClusterPubsub(t, "node-c", portC, []Peer{{RouteURL: urlA}, {RouteURL: urlB}}, token, nil)
+	a := buildClusterPubsubWithProvider(t, "node-a", portA, provA)
+	_ = buildClusterPubsub(t, "node-b", portB, []Peer{{RouteURL: urlA}, {RouteURL: urlC}})
+	_ = buildClusterPubsub(t, "node-c", portC, []Peer{{RouteURL: urlA}, {RouteURL: urlB}})
 	waitForRoutes(t, a, 2)
 
 	// Reorder same set; refresh should be a no-op.
@@ -276,53 +269,4 @@ func TestPubsubRefreshPeers_NewFromConn_NoEmbeddedServer(t *testing.T) {
 	err = p.RefreshPeers(ctx)
 	require.Error(t, err)
 	require.True(t, errors.Is(err, ErrNoEmbeddedServer))
-}
-
-func TestPubsubRefreshPeers_TLSAndToken(t *testing.T) {
-	t.Parallel()
-	pool, cert := genTestCert(t, []string{"localhost"})
-	mkCfg := func() *tls.Config {
-		return &tls.Config{
-			Certificates: []tls.Certificate{cert},
-			RootCAs:      pool,
-			ClientCAs:    pool,
-			ClientAuth:   tls.RequireAndVerifyClientCert,
-			MinVersion:   tls.VersionTLS12,
-			ServerName:   "localhost",
-		}
-	}
-
-	token := "tls-refresh-token" //nolint:gosec // test-only shared cluster token, not a real credential
-	portA := freePort(t)
-	portB := freePort(t)
-	portC := freePort(t)
-	urlA := "tls://127.0.0.1:" + strconv.Itoa(portA)
-	urlB := "tls://127.0.0.1:" + strconv.Itoa(portB)
-	urlC := "tls://127.0.0.1:" + strconv.Itoa(portC)
-
-	provA := newMutablePeerProvider([]Peer{{RouteURL: urlB}})
-	a := buildClusterPubsubWithProvider(t, "tls-a", portA, provA, token, mkCfg())
-	_ = buildClusterPubsub(t, "tls-b", portB, []Peer{{RouteURL: urlA}, {RouteURL: urlC}}, token, mkCfg())
-	c := buildClusterPubsub(t, "tls-c", portC, []Peer{{RouteURL: urlA}, {RouteURL: urlB}}, token, mkCfg())
-	waitForRoutes(t, a, 1)
-
-	// Add C and refresh.
-	provA.set([]Peer{{RouteURL: urlB}, {RouteURL: urlC}})
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
-	defer cancel()
-	require.NoError(t, a.RefreshPeers(ctx))
-
-	// Verify currentRoutes preserve tls scheme + coder:<token> userinfo.
-	require.Len(t, a.currentRoutes, 2)
-	for _, u := range a.currentRoutes {
-		require.Equal(t, "tls", u.Scheme)
-		require.NotNil(t, u.User)
-		require.Equal(t, "coder", u.User.Username())
-		pw, set := u.User.Password()
-		require.True(t, set)
-		require.Equal(t, token, pw)
-	}
-
-	waitForRoutes(t, a, 2)
-	crossPublish(t, a, c, "tls-evt", "tls-refresh-hello")
 }
