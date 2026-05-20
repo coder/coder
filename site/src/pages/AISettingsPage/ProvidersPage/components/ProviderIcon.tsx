@@ -1,4 +1,4 @@
-import { CircleQuestionMarkIcon } from "lucide-react";
+import { Building2Icon } from "lucide-react";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 
 type ProviderIconProps = {
@@ -60,10 +60,7 @@ export const ProviderIcon: React.FC<ProviderIconProps> = ({ provider }) => {
 	const name = getProviderName(provider);
 	if (iconSrc === undefined) {
 		return (
-			<CircleQuestionMarkIcon
-				className="size-icon-sm flex-shrink-0"
-				aria-label={name}
-			/>
+			<Building2Icon className="size-icon-sm flex-shrink-0" aria-label={name} />
 		);
 	}
 	return <ExternalImage src={iconSrc} alt={name} className="size-icon-sm" />;
