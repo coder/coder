@@ -1532,7 +1532,7 @@ func TestArchiveChatMovesPendingChatToWaiting(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = replica.ArchiveChat(ctx, chat)
+	_, err = replica.ArchiveChat(ctx, chat)
 	require.NoError(t, err)
 
 	fromDB, err := db.GetChatByID(ctx, chat.ID)
@@ -1732,7 +1732,7 @@ func TestArchiveChatInterruptsActiveProcessing(t *testing.T) {
 	require.True(t, queuedResult.Queued)
 	require.NotNil(t, queuedResult.QueuedMessage)
 
-	err = server.ArchiveChat(ctx, chat)
+	_, err = server.ArchiveChat(ctx, chat)
 	require.NoError(t, err)
 
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
@@ -3529,7 +3529,7 @@ func TestArchiveChatDebugCleanupDeletesPreArchiveRuns(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = replica.ArchiveChat(ctx, chat)
+	_, err = replica.ArchiveChat(ctx, chat)
 	require.NoError(t, err)
 
 	chatd.WaitUntilIdleForTest(replica)
@@ -8697,7 +8697,7 @@ func TestSendMessageRejectsArchivedChat(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = replica.ArchiveChat(ctx, chat)
+	_, err = replica.ArchiveChat(ctx, chat)
 	require.NoError(t, err)
 
 	_, err = replica.SendMessage(ctx, chatd.SendMessageOptions{
@@ -8733,7 +8733,7 @@ func TestEditMessageRejectsArchivedChat(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, messages, 1)
 
-	err = replica.ArchiveChat(ctx, chat)
+	_, err = replica.ArchiveChat(ctx, chat)
 	require.NoError(t, err)
 
 	_, err = replica.EditMessage(ctx, chatd.EditMessageOptions{
@@ -8939,7 +8939,7 @@ func TestPromoteQueuedRejectsArchivedChat(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = replica.ArchiveChat(ctx, chat)
+	_, err = replica.ArchiveChat(ctx, chat)
 	require.NoError(t, err)
 
 	_, err = replica.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
@@ -9375,7 +9375,7 @@ func TestSubmitToolResultsRejectsArchivedChat(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = replica.ArchiveChat(ctx, chat)
+	_, err = replica.ArchiveChat(ctx, chat)
 	require.NoError(t, err)
 
 	// Set requires_action so the test exercises a realistic

@@ -1955,6 +1955,7 @@ func publishToolAttachments(
 			attachment.FileID,
 			attachment.MediaType,
 			attachment.Name,
+			attachment.Size,
 		)
 		filePart.CreatedAt = &createdAt
 		publishMessagePart(codersdk.ChatMessageRoleAssistant, filePart)

@@ -220,6 +220,10 @@ export const parseMessageContent = (
 				}
 				break;
 			}
+			case "workspace-file-reference": {
+				parsed.blocks.push(part);
+				break;
+			}
 			case "context-file": {
 				// Context files are metadata for the context indicator;
 				// they are not rendered in the conversation timeline.

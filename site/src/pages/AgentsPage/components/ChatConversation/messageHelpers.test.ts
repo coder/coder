@@ -152,6 +152,19 @@ describe("deriveMessageDisplayState", () => {
 		expect(getDisplayState(message).needsAssistantBottomSpacer).toBe(false);
 	});
 
+	it("hides user messages that only contain workspace file references before UI rendering support", () => {
+		const message = buildMessage([
+			{
+				type: "workspace-file-reference",
+				workspace_file_path: "/home/coder/.coder/chats/chat-1/files/data.csv",
+				workspace_file_name: "data.csv",
+				workspace_file_size: 42,
+			},
+		]);
+
+		expect(getDisplayState(message).shouldHide).toBe(true);
+	});
+
 	it("hides assistant messages with no renderable content", () => {
 		const message = buildMessage([], "assistant");
 

@@ -298,7 +298,8 @@ func userMessageContributesToChainMode(msg database.ChatMessage) bool {
 				return true
 			}
 		case codersdk.ChatMessagePartTypeFile,
-			codersdk.ChatMessagePartTypeFileReference:
+			codersdk.ChatMessagePartTypeFileReference,
+			codersdk.ChatMessagePartTypeWorkspaceFileReference:
 			return true
 		case codersdk.ChatMessagePartTypeContextFile:
 			if part.ContextFileContent != "" {

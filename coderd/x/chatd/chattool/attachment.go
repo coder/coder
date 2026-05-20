@@ -26,6 +26,7 @@ type AttachmentMetadata struct {
 	FileID    uuid.UUID `json:"file_id"`
 	MediaType string    `json:"media_type"`
 	Name      string    `json:"name,omitempty"`
+	Size      int64     `json:"size,omitempty"`
 }
 
 type attachmentResponseMetadata struct {
@@ -69,6 +70,9 @@ func storeAttachmentData(
 	}
 	if attachment.Name == "" {
 		attachment.Name = name
+	}
+	if attachment.Size == 0 {
+		attachment.Size = int64(len(data))
 	}
 	return attachment, nil
 }

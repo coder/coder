@@ -1,12 +1,52 @@
 package coderd
 
 import (
+	"context"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk"
 )
+
+func TestWriteWorkspaceAgentUploadError(t *testing.T) {
+	t.Parallel()
+
+	t.Run("AgentStatus", func(t *testing.T) {
+		t.Parallel()
+
+		res := &http.Response{
+			StatusCode: http.StatusConflict,
+			Header: http.Header{
+				"Content-Type": []string{"application/json"},
+			},
+			Body: io.NopCloser(strings.NewReader(`{"message":"too many existing files"}`)),
+		}
+		err := codersdk.ReadBodyAsError(res)
+		rw := httptest.NewRecorder()
+
+		writeWorkspaceAgentUploadError(context.Background(), rw, err)
+
+		require.Equal(t, http.StatusConflict, rw.Code)
+		require.Contains(t, rw.Body.String(), "too many existing files")
+	})
+
+	t.Run("TransportError", func(t *testing.T) {
+		t.Parallel()
+
+		rw := httptest.NewRecorder()
+
+		writeWorkspaceAgentUploadError(context.Background(), rw, xerrors.New("dial failed"))
+
+		require.Equal(t, http.StatusBadGateway, rw.Code)
+		require.Contains(t, rw.Body.String(), "Failed to upload file to workspace agent")
+	})
+}
 
 func TestRewriteChatStartWorkspaceManualUpdateResponse(t *testing.T) {
 	t.Parallel()

@@ -978,6 +978,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 			OrganizationID: uuid.New(),
 			Name:           "test.png",
 			Mimetype:       "image/png",
+			Size:           123,
 			CreatedAt:      now,
 		},
 	}
@@ -1030,6 +1031,7 @@ func TestChat_FileMetadataConversion(t *testing.T) {
 			OrganizationID: orgID,
 			Name:           "screenshot.png",
 			Mimetype:       "image/png",
+			Size:           123,
 			CreatedAt:      now,
 		},
 	}
@@ -1043,6 +1045,7 @@ func TestChat_FileMetadataConversion(t *testing.T) {
 	require.Equal(t, orgID, f.OrganizationID, "OrganizationID must be mapped from DB row")
 	require.Equal(t, "screenshot.png", f.Name)
 	require.Equal(t, "image/png", f.MimeType)
+	require.Equal(t, int64(123), f.Size)
 	require.Equal(t, now, f.CreatedAt)
 
 	// Verify JSON serialization uses snake_case for mime_type.
@@ -1180,6 +1183,7 @@ func TestChat_MultipleFiles(t *testing.T) {
 			OrganizationID: uuid.New(),
 			Name:           "a.png",
 			Mimetype:       "image/png",
+			Size:           123,
 			CreatedAt:      now,
 		},
 		{
@@ -1188,6 +1192,7 @@ func TestChat_MultipleFiles(t *testing.T) {
 			OrganizationID: uuid.New(),
 			Name:           "b.txt",
 			Mimetype:       "text/plain",
+			Size:           456,
 			CreatedAt:      now,
 		},
 	}

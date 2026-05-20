@@ -39,6 +39,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/xjson"
 	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/coderd/workspacestats"
+	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatcost"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
@@ -50,7 +51,6 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
-	"github.com/coder/coder/v2/coderd/x/chatd/internal/agentselect"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	skillspkg "github.com/coder/coder/v2/coderd/x/skills"
 	"github.com/coder/coder/v2/codersdk"
@@ -2162,10 +2162,11 @@ func (p *Server) EditMessage(
 // ArchiveChat archives a chat family and broadcasts deleted events for each
 // affected chat so watching clients converge without a full refetch. If the
 // target chat is pending or running, it first transitions the chat back to
-// waiting so active processing stops before the archive is broadcast.
-func (p *Server) ArchiveChat(ctx context.Context, chat database.Chat) error {
+// waiting so active processing stops before the archive is broadcast. The
+// returned chats are the archived rows after any waiting-status transition.
+func (p *Server) ArchiveChat(ctx context.Context, chat database.Chat) ([]database.Chat, error) {
 	if chat.ID == uuid.Nil {
-		return xerrors.New("chat_id is required")
+		return nil, xerrors.New("chat_id is required")
 	}
 
 	var (
@@ -2205,7 +2206,7 @@ func (p *Server) ArchiveChat(ctx context.Context, chat database.Chat) error {
 		}
 		return nil
 	}, nil); err != nil {
-		return err
+		return nil, err
 	}
 
 	for _, interruptedChat := range interruptedChats {
@@ -2239,7 +2240,7 @@ func (p *Server) ArchiveChat(ctx context.Context, chat database.Chat) error {
 	}
 
 	p.publishChatPubsubEvents(archivedChats, codersdk.ChatWatchEventKindDeleted)
-	return nil
+	return archivedChats, nil
 }
 
 // ErrChildUnarchiveParentArchived is returned by UnarchiveChat when a

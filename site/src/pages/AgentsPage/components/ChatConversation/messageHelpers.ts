@@ -38,6 +38,12 @@ const isMetadataOnlyMessage = (
 	parts.length > 0 &&
 	parts.every((part) => part.type === "context-file" || part.type === "skill");
 
+const isWorkspaceFileOnlyMessage = (
+	parts: readonly TypesGen.ChatMessagePart[],
+): boolean =>
+	parts.length > 0 &&
+	parts.every((part) => part.type === "workspace-file-reference");
+
 const getRenderableContentState = (parsed: ParsedMessageContent) => {
 	const visibleTools = parsed.tools.filter((tool) =>
 		shouldRenderTool({
@@ -49,7 +55,9 @@ const getRenderableContentState = (parsed: ParsedMessageContent) => {
 	);
 	const visibleToolIds = new Set(visibleTools.map((tool) => tool.id));
 	const visibleBlocks = parsed.blocks.filter(
-		(block) => block.type !== "tool" || visibleToolIds.has(block.id),
+		(block) =>
+			block.type !== "workspace-file-reference" &&
+			(block.type !== "tool" || visibleToolIds.has(block.id)),
 	);
 	const hasRenderableContent =
 		visibleBlocks.length > 0 ||
@@ -110,6 +118,7 @@ export const deriveMessageDisplayState = ({
 			hasToolResultsOnly ||
 			isProviderToolResultOnlyMessage(parts) ||
 			isMetadataOnlyMessage(parts) ||
+			(isUser && isWorkspaceFileOnlyMessage(parts)) ||
 			(!isUser && !hasRenderableContent),
 		userInlineContent,
 		userFileBlocks,

@@ -1808,6 +1808,7 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 				OrganizationID: row.OrganizationID,
 				Name:           row.Name,
 				MimeType:       row.Mimetype,
+				Size:           row.Size,
 				CreatedAt:      row.CreatedAt,
 			})
 		}

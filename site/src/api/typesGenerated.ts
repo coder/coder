@@ -1967,6 +1967,7 @@ export interface ChatFileMetadata {
 	readonly organization_id: string;
 	readonly name: string;
 	readonly mime_type: string;
+	readonly size: number;
 	readonly created_at: string;
 }
 
@@ -1977,6 +1978,7 @@ export interface ChatFilePart {
 	readonly name?: string;
 	readonly data?: string;
 	readonly file_id?: string;
+	readonly size?: number;
 }
 
 // From codersdk/chats.go
@@ -2082,15 +2084,28 @@ export interface ChatInputPart {
 	 * The code content from the diff that was commented on.
 	 */
 	readonly content?: string;
+	/**
+	 * The following fields are only set when Type is
+	 * ChatInputPartTypeWorkspaceFileReference.
+	 */
+	readonly workspace_file_path?: string;
+	readonly workspace_file_name?: string;
+	readonly workspace_file_size?: number;
+	readonly workspace_file_media_type?: string;
 }
 
 // From codersdk/chats.go
-export type ChatInputPartType = "file" | "file-reference" | "text";
+export type ChatInputPartType =
+	| "file"
+	| "file-reference"
+	| "text"
+	| "workspace-file-reference";
 
 export const ChatInputPartTypes: ChatInputPartType[] = [
 	"file",
 	"file-reference",
 	"text",
+	"workspace-file-reference",
 ];
 
 // From codersdk/chats.go
@@ -2143,7 +2158,8 @@ export type ChatMessagePart =
 	| ChatFilePart
 	| ChatFileReferencePart
 	| ChatContextFilePart
-	| ChatSkillPart;
+	| ChatSkillPart
+	| ChatWorkspaceFileReferencePart;
 
 // From codersdk/chats.go
 export type ChatMessagePartType =
@@ -2155,7 +2171,8 @@ export type ChatMessagePartType =
 	| "source"
 	| "text"
 	| "tool-call"
-	| "tool-result";
+	| "tool-result"
+	| "workspace-file-reference";
 
 export const ChatMessagePartTypes: ChatMessagePartType[] = [
 	"context-file",
@@ -2167,6 +2184,7 @@ export const ChatMessagePartTypes: ChatMessagePartType[] = [
 	"text",
 	"tool-call",
 	"tool-result",
+	"workspace-file-reference",
 ];
 
 // From codersdk/chats.go
@@ -3040,6 +3058,27 @@ export const ChatWatchEventKinds: ChatWatchEventKind[] = [
 	"summary_change",
 	"title_change",
 ];
+
+// From codersdk/chats.go
+export interface ChatWorkspaceFileReferencePart {
+	readonly type: "workspace-file-reference";
+	/**
+	 * WorkspaceFilePath is the absolute path of a workspace upload.
+	 */
+	readonly workspace_file_path: string;
+	/**
+	 * WorkspaceFileName is the sanitized basename of a workspace upload.
+	 */
+	readonly workspace_file_name: string;
+	/**
+	 * WorkspaceFileSize is the byte size of a workspace upload.
+	 */
+	readonly workspace_file_size: number;
+	/**
+	 * WorkspaceFileMediaType is the best-effort detected MIME type.
+	 */
+	readonly workspace_file_media_type?: string;
+}
 
 // From codersdk/chats.go
 /**
@@ -8993,6 +9032,29 @@ export interface UpdateWorkspaceTTLRequest {
  */
 export interface UploadChatFileResponse {
 	readonly id: string;
+}
+
+// From codersdk/chats.go
+/**
+ * UploadChatWorkspaceFileResponse describes a workspace file upload.
+ */
+export interface UploadChatWorkspaceFileResponse {
+	/**
+	 * Path is the absolute path of the file on the workspace.
+	 */
+	readonly path: string;
+	/**
+	 * Name is the final basename of the uploaded file.
+	 */
+	readonly name: string;
+	/**
+	 * Size is the number of bytes written to the workspace.
+	 */
+	readonly size: number;
+	/**
+	 * MediaType is the client-declared content type for display.
+	 */
+	readonly media_type: string;
 }
 
 // From codersdk/files.go

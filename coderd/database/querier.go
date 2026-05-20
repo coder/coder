@@ -351,8 +351,8 @@ type sqlcQuerier interface {
 	GetChatExploreModelOverride(ctx context.Context) (string, error)
 	GetChatFileByID(ctx context.Context, id uuid.UUID) (ChatFile, error)
 	// GetChatFileMetadataByChatID returns lightweight file metadata for
-	// all files linked to a chat. The data column is excluded to avoid
-	// loading file content.
+	// all files linked to a chat. The raw data bytes are not returned;
+	// only the byte length is computed.
 	GetChatFileMetadataByChatID(ctx context.Context, chatID uuid.UUID) ([]GetChatFileMetadataByChatIDRow, error)
 	GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]ChatFile, error)
 	GetChatGeneralModelOverride(ctx context.Context) (string, error)

@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/x/chatd/internal/agentselect"
+	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
 )
 
 func TestFindChatAgent(t *testing.T) {
@@ -161,7 +161,6 @@ func TestFindChatAgent(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -221,7 +220,6 @@ func TestIsChatAgent(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 

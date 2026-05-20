@@ -137,6 +137,59 @@ func TestChatUsageLimitExceededFrom(t *testing.T) {
 	})
 }
 
+func TestUploadChatWorkspaceFileContentType(t *testing.T) {
+	t.Parallel()
+
+	chatID := uuid.MustParse("00000000-0000-0000-0000-000000000001")
+
+	tests := []struct {
+		name        string
+		contentType string
+		wantHeader  string
+	}{
+		{name: "provided", contentType: "text/csv", wantHeader: "text/csv"},
+		{name: "empty", contentType: "", wantHeader: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+				require.Equal(t, http.MethodPost, r.Method)
+				require.Equal(t, "/api/experimental/chats/"+chatID.String()+"/workspace-files", r.URL.Path)
+				require.Equal(t, tt.wantHeader, r.Header.Get("Content-Type"))
+				rw.Header().Set("Content-Type", "application/json")
+				rw.WriteHeader(http.StatusCreated)
+				require.NoError(t, json.NewEncoder(rw).Encode(codersdk.UploadChatWorkspaceFileResponse{
+					Path:      "/home/coder/.coder/chats/test/files/data.csv",
+					Name:      "data.csv",
+					Size:      4,
+					MediaType: tt.contentType,
+				}))
+			}))
+			defer srv.Close()
+
+			serverURL, err := url.Parse(srv.URL)
+			require.NoError(t, err)
+
+			client := codersdk.NewExperimentalClient(codersdk.New(serverURL))
+			_, err = client.UploadChatWorkspaceFile(context.Background(), chatID, tt.contentType, "data.csv", strings.NewReader("data"))
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestChatMessageFile_SizeOptional(t *testing.T) {
+	t.Parallel()
+
+	fileID := uuid.New()
+	withoutSize := codersdk.ChatMessageFile(fileID, "text/plain", "notes.txt")
+	require.Equal(t, int64(0), withoutSize.Size)
+
+	withSize := codersdk.ChatMessageFile(fileID, "text/plain", "notes.txt", 42)
+	require.Equal(t, int64(42), withSize.Size)
+}
+
 func TestChatErrorKind_JSONRoundTrip(t *testing.T) {
 	t.Parallel()
 

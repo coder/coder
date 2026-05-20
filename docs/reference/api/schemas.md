@@ -2255,7 +2255,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "mime_type": "string",
           "name": "string",
           "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+          "size": 0
         }
       ],
       "has_unread": true,
@@ -2323,6 +2324,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "result_delta": "string",
           "result_reset": true,
           "signature": "string",
+          "size": 0,
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -2333,7 +2335,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "tool_call_id": "string",
           "tool_name": "string",
           "type": "text",
-          "url": "string"
+          "url": "string",
+          "workspace_file_media_type": "string",
+          "workspace_file_name": "string",
+          "workspace_file_path": "string",
+          "workspace_file_size": 0
         }
       ],
       "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
@@ -2388,7 +2394,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "mime_type": "string",
       "name": "string",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+      "size": 0
     }
   ],
   "has_unread": true,
@@ -2456,6 +2463,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "result_delta": "string",
       "result_reset": true,
       "signature": "string",
+      "size": 0,
       "skill_description": "string",
       "skill_dir": "string",
       "skill_name": "string",
@@ -2466,7 +2474,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "tool_call_id": "string",
       "tool_name": "string",
       "type": "text",
-      "url": "string"
+      "url": "string",
+      "workspace_file_media_type": "string",
+      "workspace_file_name": "string",
+      "workspace_file_path": "string",
+      "workspace_file_size": 0
     }
   ],
   "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
@@ -2746,20 +2758,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "mime_type": "string",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "size": 0
 }
 ```
 
 ### Properties
 
-| Name              | Type   | Required | Restrictions | Description |
-|-------------------|--------|----------|--------------|-------------|
-| `created_at`      | string | false    |              |             |
-| `id`              | string | false    |              |             |
-| `mime_type`       | string | false    |              |             |
-| `name`            | string | false    |              |             |
-| `organization_id` | string | false    |              |             |
-| `owner_id`        | string | false    |              |             |
+| Name              | Type    | Required | Restrictions | Description |
+|-------------------|---------|----------|--------------|-------------|
+| `created_at`      | string  | false    |              |             |
+| `id`              | string  | false    |              |             |
+| `mime_type`       | string  | false    |              |             |
+| `name`            | string  | false    |              |             |
+| `organization_id` | string  | false    |              |             |
+| `owner_id`        | string  | false    |              |             |
+| `size`            | integer | false    |              |             |
 
 ## codersdk.ChatGroup
 
@@ -2828,21 +2842,29 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "file_name": "string",
   "start_line": 0,
   "text": "string",
-  "type": "text"
+  "type": "text",
+  "workspace_file_media_type": "string",
+  "workspace_file_name": "string",
+  "workspace_file_path": "string",
+  "workspace_file_size": 0
 }
 ```
 
 ### Properties
 
-| Name         | Type                                                     | Required | Restrictions | Description                                                                    |
-|--------------|----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------|
-| `content`    | string                                                   | false    |              | The code content from the diff that was commented on.                          |
-| `end_line`   | integer                                                  | false    |              |                                                                                |
-| `file_id`    | string                                                   | false    |              |                                                                                |
-| `file_name`  | string                                                   | false    |              | The following fields are only set when Type is ChatInputPartTypeFileReference. |
-| `start_line` | integer                                                  | false    |              |                                                                                |
-| `text`       | string                                                   | false    |              |                                                                                |
-| `type`       | [codersdk.ChatInputPartType](#codersdkchatinputparttype) | false    |              |                                                                                |
+| Name                        | Type                                                     | Required | Restrictions | Description                                                                             |
+|-----------------------------|----------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------|
+| `content`                   | string                                                   | false    |              | The code content from the diff that was commented on.                                   |
+| `end_line`                  | integer                                                  | false    |              |                                                                                         |
+| `file_id`                   | string                                                   | false    |              |                                                                                         |
+| `file_name`                 | string                                                   | false    |              | The following fields are only set when Type is ChatInputPartTypeFileReference.          |
+| `start_line`                | integer                                                  | false    |              |                                                                                         |
+| `text`                      | string                                                   | false    |              |                                                                                         |
+| `type`                      | [codersdk.ChatInputPartType](#codersdkchatinputparttype) | false    |              |                                                                                         |
+| `workspace_file_media_type` | string                                                   | false    |              |                                                                                         |
+| `workspace_file_name`       | string                                                   | false    |              |                                                                                         |
+| `workspace_file_path`       | string                                                   | false    |              | The following fields are only set when Type is ChatInputPartTypeWorkspaceFileReference. |
+| `workspace_file_size`       | integer                                                  | false    |              |                                                                                         |
 
 ## codersdk.ChatInputPartType
 
@@ -2854,9 +2876,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                         |
-|----------------------------------|
-| `file`, `file-reference`, `text` |
+| Value(s)                                                     |
+|--------------------------------------------------------------|
+| `file`, `file-reference`, `text`, `workspace-file-reference` |
 
 ## codersdk.ChatMessage
 
@@ -2914,6 +2936,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "result_delta": "string",
       "result_reset": true,
       "signature": "string",
+      "size": 0,
       "skill_description": "string",
       "skill_dir": "string",
       "skill_name": "string",
@@ -2924,7 +2947,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "tool_call_id": "string",
       "tool_name": "string",
       "type": "text",
-      "url": "string"
+      "url": "string",
+      "workspace_file_media_type": "string",
+      "workspace_file_name": "string",
+      "workspace_file_path": "string",
+      "workspace_file_size": 0
     }
   ],
   "created_at": "2019-08-24T14:15:22Z",
@@ -3010,6 +3037,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "result_delta": "string",
   "result_reset": true,
   "signature": "string",
+  "size": 0,
   "skill_description": "string",
   "skill_dir": "string",
   "skill_name": "string",
@@ -3020,7 +3048,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "tool_call_id": "string",
   "tool_name": "string",
   "type": "text",
-  "url": "string"
+  "url": "string",
+  "workspace_file_media_type": "string",
+  "workspace_file_name": "string",
+  "workspace_file_path": "string",
+  "workspace_file_size": 0
 }
 ```
 
@@ -3056,6 +3088,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `result_delta`                 | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                  |
 | `result_reset`                 | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                  |
 | `signature`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `size`                         | integer                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                  |
 | `skill_description`            | string                                                       | false    |              | Skill description is the short description from the skill's SKILL.md frontmatter.                                                                                                                                                                                                                                                |
 | `skill_dir`                    | string                                                       | false    |              | Skill dir is the absolute path to the skill directory inside the workspace filesystem. Internal only: used by read_skill/read_skill_file tools to locate skill files.                                                                                                                                                            |
 | `skill_name`                   | string                                                       | false    |              | Skill name is the kebab-case name of a discovered skill from the workspace's .agents/skills/ directory.                                                                                                                                                                                                                          |
@@ -3067,6 +3100,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `tool_name`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                  |
 | `type`                         | [codersdk.ChatMessagePartType](#codersdkchatmessageparttype) | false    |              |                                                                                                                                                                                                                                                                                                                                  |
 | `url`                          | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `workspace_file_media_type`    | string                                                       | false    |              | Workspace file media type is the best-effort detected MIME type.                                                                                                                                                                                                                                                                 |
+| `workspace_file_name`          | string                                                       | false    |              | Workspace file name is the sanitized basename of a workspace upload.                                                                                                                                                                                                                                                             |
+| `workspace_file_path`          | string                                                       | false    |              | Workspace file path is the absolute path of a workspace upload.                                                                                                                                                                                                                                                                  |
+| `workspace_file_size`          | integer                                                      | false    |              | Workspace file size is the byte size of a workspace upload.                                                                                                                                                                                                                                                                      |
 
 ## codersdk.ChatMessagePartType
 
@@ -3078,9 +3115,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                     |
-|--------------------------------------------------------------------------------------------------------------|
-| `context-file`, `file`, `file-reference`, `reasoning`, `skill`, `source`, `text`, `tool-call`, `tool-result` |
+| Value(s)                                                                                                                                 |
+|------------------------------------------------------------------------------------------------------------------------------------------|
+| `context-file`, `file`, `file-reference`, `reasoning`, `skill`, `source`, `text`, `tool-call`, `tool-result`, `workspace-file-reference` |
 
 ## codersdk.ChatMessageRole
 
@@ -3181,6 +3218,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "result_delta": "string",
           "result_reset": true,
           "signature": "string",
+          "size": 0,
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -3191,7 +3229,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "tool_call_id": "string",
           "tool_name": "string",
           "type": "text",
-          "url": "string"
+          "url": "string",
+          "workspace_file_media_type": "string",
+          "workspace_file_name": "string",
+          "workspace_file_path": "string",
+          "workspace_file_size": 0
         }
       ],
       "created_at": "2019-08-24T14:15:22Z",
@@ -3264,6 +3306,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "result_delta": "string",
           "result_reset": true,
           "signature": "string",
+          "size": 0,
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -3274,7 +3317,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "tool_call_id": "string",
           "tool_name": "string",
           "type": "text",
-          "url": "string"
+          "url": "string",
+          "workspace_file_media_type": "string",
+          "workspace_file_name": "string",
+          "workspace_file_path": "string",
+          "workspace_file_size": 0
         }
       ],
       "created_at": "2019-08-24T14:15:22Z",
@@ -3487,6 +3534,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "result_delta": "string",
       "result_reset": true,
       "signature": "string",
+      "size": 0,
       "skill_description": "string",
       "skill_dir": "string",
       "skill_name": "string",
@@ -3497,7 +3545,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "tool_call_id": "string",
       "tool_name": "string",
       "type": "text",
-      "url": "string"
+      "url": "string",
+      "workspace_file_media_type": "string",
+      "workspace_file_name": "string",
+      "workspace_file_path": "string",
+      "workspace_file_size": 0
     }
   ],
   "created_at": "2019-08-24T14:15:22Z",
@@ -3653,6 +3705,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "result_delta": "string",
         "result_reset": true,
         "signature": "string",
+        "size": 0,
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -3663,7 +3716,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "tool_call_id": "string",
         "tool_name": "string",
         "type": "text",
-        "url": "string"
+        "url": "string",
+        "workspace_file_media_type": "string",
+        "workspace_file_name": "string",
+        "workspace_file_path": "string",
+        "workspace_file_size": 0
       }
     ],
     "created_at": "2019-08-24T14:15:22Z",
@@ -3732,6 +3789,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "result_delta": "string",
       "result_reset": true,
       "signature": "string",
+      "size": 0,
       "skill_description": "string",
       "skill_dir": "string",
       "skill_name": "string",
@@ -3742,7 +3800,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "tool_call_id": "string",
       "tool_name": "string",
       "type": "text",
-      "url": "string"
+      "url": "string",
+      "workspace_file_media_type": "string",
+      "workspace_file_name": "string",
+      "workspace_file_path": "string",
+      "workspace_file_size": 0
     },
     "role": "system"
   },
@@ -3800,6 +3862,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "result_delta": "string",
           "result_reset": true,
           "signature": "string",
+          "size": 0,
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -3810,7 +3873,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "tool_call_id": "string",
           "tool_name": "string",
           "type": "text",
-          "url": "string"
+          "url": "string",
+          "workspace_file_media_type": "string",
+          "workspace_file_name": "string",
+          "workspace_file_path": "string",
+          "workspace_file_size": 0
         }
       ],
       "created_at": "2019-08-24T14:15:22Z",
@@ -3916,6 +3983,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "result_delta": "string",
     "result_reset": true,
     "signature": "string",
+    "size": 0,
     "skill_description": "string",
     "skill_dir": "string",
     "skill_name": "string",
@@ -3926,7 +3994,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "tool_call_id": "string",
     "tool_name": "string",
     "type": "text",
-    "url": "string"
+    "url": "string",
+    "workspace_file_media_type": "string",
+    "workspace_file_name": "string",
+    "workspace_file_path": "string",
+    "workspace_file_size": 0
   },
   "role": "system"
 }
@@ -4066,7 +4138,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "mime_type": "string",
         "name": "string",
         "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-        "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+        "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+        "size": 0
       }
     ],
     "has_unread": true,
@@ -4134,6 +4207,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "result_delta": "string",
         "result_reset": true,
         "signature": "string",
+        "size": 0,
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -4144,7 +4218,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "tool_call_id": "string",
         "tool_name": "string",
         "type": "text",
-        "url": "string"
+        "url": "string",
+        "workspace_file_media_type": "string",
+        "workspace_file_name": "string",
+        "workspace_file_path": "string",
+        "workspace_file_size": 0
       }
     ],
     "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
@@ -4499,7 +4577,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "file_name": "string",
       "start_line": 0,
       "text": "string",
-      "type": "text"
+      "type": "text",
+      "workspace_file_media_type": "string",
+      "workspace_file_name": "string",
+      "workspace_file_path": "string",
+      "workspace_file_size": 0
     }
   ],
   "mcp_server_ids": [
@@ -4583,6 +4665,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "result_delta": "string",
         "result_reset": true,
         "signature": "string",
+        "size": 0,
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -4593,7 +4676,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "tool_call_id": "string",
         "tool_name": "string",
         "type": "text",
-        "url": "string"
+        "url": "string",
+        "workspace_file_media_type": "string",
+        "workspace_file_name": "string",
+        "workspace_file_path": "string",
+        "workspace_file_size": 0
       }
     ],
     "created_at": "2019-08-24T14:15:22Z",
@@ -4665,6 +4752,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "result_delta": "string",
         "result_reset": true,
         "signature": "string",
+        "size": 0,
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -4675,7 +4763,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "tool_call_id": "string",
         "tool_name": "string",
         "type": "text",
-        "url": "string"
+        "url": "string",
+        "workspace_file_media_type": "string",
+        "workspace_file_name": "string",
+        "workspace_file_path": "string",
+        "workspace_file_size": 0
       }
     ],
     "created_at": "2019-08-24T14:15:22Z",
@@ -4710,7 +4802,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "file_name": "string",
       "start_line": 0,
       "text": "string",
-      "type": "text"
+      "type": "text",
+      "workspace_file_media_type": "string",
+      "workspace_file_name": "string",
+      "workspace_file_path": "string",
+      "workspace_file_size": 0
     }
   ],
   "labels": {
@@ -7020,7 +7116,11 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "file_name": "string",
       "start_line": 0,
       "text": "string",
-      "type": "text"
+      "type": "text",
+      "workspace_file_media_type": "string",
+      "workspace_file_name": "string",
+      "workspace_file_path": "string",
+      "workspace_file_size": 0
     }
   ],
   "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
@@ -7091,6 +7191,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "result_delta": "string",
         "result_reset": true,
         "signature": "string",
+        "size": 0,
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -7101,7 +7202,11 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "tool_call_id": "string",
         "tool_name": "string",
         "type": "text",
-        "url": "string"
+        "url": "string",
+        "workspace_file_media_type": "string",
+        "workspace_file_name": "string",
+        "workspace_file_path": "string",
+        "workspace_file_size": 0
       }
     ],
     "created_at": "2019-08-24T14:15:22Z",
@@ -13621,6 +13726,26 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Name | Type   | Required | Restrictions | Description |
 |------|--------|----------|--------------|-------------|
 | `id` | string | false    |              |             |
+
+## codersdk.UploadChatWorkspaceFileResponse
+
+```json
+{
+  "media_type": "string",
+  "name": "string",
+  "path": "string",
+  "size": 0
+}
+```
+
+### Properties
+
+| Name         | Type    | Required | Restrictions | Description                                                 |
+|--------------|---------|----------|--------------|-------------------------------------------------------------|
+| `media_type` | string  | false    |              | Media type is the client-declared content type for display. |
+| `name`       | string  | false    |              | Name is the final basename of the uploaded file.            |
+| `path`       | string  | false    |              | Path is the absolute path of the file on the workspace.     |
+| `size`       | integer | false    |              | Size is the number of bytes written to the workspace.       |
 
 ## codersdk.UploadResponse
 
