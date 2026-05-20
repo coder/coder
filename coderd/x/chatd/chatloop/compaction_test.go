@@ -71,7 +71,7 @@ func TestStartCompactionDebugRun_DoesNotReportDebugErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("UsesCompactionModelIdentity", func(t *testing.T) {
+	t.Run("UsesDebugModelIdentityForCompactionRun", func(t *testing.T) {
 		t.Parallel()
 
 		ctrl := gomock.NewController(t)
@@ -97,11 +97,11 @@ func TestStartCompactionDebugRun_DoesNotReportDebugErrors(t *testing.T) {
 
 		ctx := newParentContext(chatID)
 		compactionCtx, _ := startCompactionDebugRun(ctx, CompactionOptions{
-			DebugSvc:      svc,
-			ChatID:        chatID,
-			ModelConfigID: compactionModelID,
-			Provider:      "compaction-provider",
-			Model:         "compaction-model",
+			DebugSvc:           svc,
+			ChatID:             chatID,
+			DebugModelConfigID: compactionModelID,
+			DebugProvider:      "compaction-provider",
+			DebugModelName:     "compaction-model",
 		})
 		require.NotSame(t, ctx, compactionCtx)
 

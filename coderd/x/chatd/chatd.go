@@ -7449,10 +7449,6 @@ func (p *Server) runChat(
 			persistCtx context.Context,
 			result chatloop.CompactionResult,
 		) error {
-			// Attribute the durable summary message to the active chat model
-			// config because the summary becomes part of that model's future
-			// conversation. Debug runs separately record the model that
-			// generated the summary.
 			if err := p.persistChatContextSummary(
 				persistCtx,
 				chat.ID,
@@ -7524,9 +7520,9 @@ func (p *Server) runChat(
 		providerKeys,
 		logger,
 	)
-	compactionOptions.ModelConfigID = compactionResolution.modelConfigID
-	compactionOptions.Provider = compactionResolution.provider
-	compactionOptions.Model = compactionResolution.modelName
+	compactionOptions.DebugModelConfigID = compactionResolution.modelConfigID
+	compactionOptions.DebugProvider = compactionResolution.provider
+	compactionOptions.DebugModelName = compactionResolution.modelName
 
 	allowAskUserQuestion := isPlanModeTurn && isRootChat
 	storeChatAttachment := p.newStoreChatAttachmentFunc(&workspaceCtx)
@@ -8049,10 +8045,11 @@ func buildProviderTools(options *codersdk.ChatModelProviderOptions) []chatloop.P
 
 // persistChatContextSummary persists a chat context summary to the database.
 // This is invoked via the chat loop's compaction callback.
+// activeModelConfigID is recorded on the synthetic summary messages.
 func (p *Server) persistChatContextSummary(
 	ctx context.Context,
 	chatID uuid.UUID,
-	modelConfigID uuid.UUID,
+	activeModelConfigID uuid.UUID,
 	toolCallID string,
 	result chatloop.CompactionResult,
 ) error {
@@ -8113,7 +8110,7 @@ func (p *Server) persistChatContextSummary(
 			database.ChatMessageRoleUser,
 			systemContent,
 			database.ChatMessageVisibilityModel,
-			modelConfigID,
+			activeModelConfigID,
 			chatprompt.CurrentContentVersion,
 		).withCompressed())
 
@@ -8122,7 +8119,7 @@ func (p *Server) persistChatContextSummary(
 			database.ChatMessageRoleAssistant,
 			assistantContent,
 			database.ChatMessageVisibilityUser,
-			modelConfigID,
+			activeModelConfigID,
 			chatprompt.CurrentContentVersion,
 		).withCompressed())
 
@@ -8131,7 +8128,7 @@ func (p *Server) persistChatContextSummary(
 			database.ChatMessageRoleTool,
 			toolResult,
 			database.ChatMessageVisibilityBoth,
-			modelConfigID,
+			activeModelConfigID,
 			chatprompt.CurrentContentVersion,
 		).withCompressed())
 

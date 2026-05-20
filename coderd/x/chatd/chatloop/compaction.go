@@ -58,12 +58,13 @@ type CompactionOptions struct {
 	Persist             func(context.Context, CompactionResult) error
 	DebugSvc            *chatdebug.Service
 	ChatID              uuid.UUID
-	// ModelConfigID, Provider, and Model identify the compaction
-	// model for debug run instrumentation. When set, they override
-	// the parent run's model identity in debug records.
-	ModelConfigID       uuid.UUID
-	Provider            string
-	Model               string
+	// DebugModelConfigID, DebugProvider, and DebugModelName populate
+	// the KindCompaction debug run. They identify the model used to
+	// generate the summary. When unset, the run inherits the parent
+	// chat turn identity, which matches the default compaction path.
+	DebugModelConfigID  uuid.UUID
+	DebugProvider       string
+	DebugModelName      string
 	HistoryTipMessageID int64
 
 	// ToolCallID and ToolName identify the synthetic tool call
@@ -306,15 +307,15 @@ func startCompactionDebugRun(
 		historyTipMessageID = parentRun.HistoryTipMessageID
 	}
 
-	modelConfigID := options.ModelConfigID
+	modelConfigID := options.DebugModelConfigID
 	if modelConfigID == uuid.Nil {
 		modelConfigID = parentRun.ModelConfigID
 	}
-	provider := strings.TrimSpace(options.Provider)
+	provider := strings.TrimSpace(options.DebugProvider)
 	if provider == "" {
 		provider = parentRun.Provider
 	}
-	model := strings.TrimSpace(options.Model)
+	model := strings.TrimSpace(options.DebugModelName)
 	if model == "" {
 		model = parentRun.Model
 	}
