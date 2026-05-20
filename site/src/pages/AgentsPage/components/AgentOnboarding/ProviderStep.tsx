@@ -227,7 +227,7 @@ export const ProviderStep: FC<ProviderStepProps> = ({
 					/>
 
 					<div className="flex justify-end">
-						<Button onClick={handleSave} disabled={createMutation.isPending}>
+						<Button onClick={handleSave} disabled={!apiKey.trim() || createMutation.isPending}>
 							{createMutation.isPending && <Spinner className="mr-2" />}
 							Save provider
 						</Button>
