@@ -244,6 +244,9 @@ const AIProvidersPage = lazy(
 const AIProviderDetailPage = lazy(
 	() => import("./pages/AIPage/AIProviderDetailPage"),
 );
+const AIProviderBedrockPage = lazy(
+	() => import("./pages/AIPage/AIProviderBedrockPage"),
+);
 const AIModelsPage = lazy(
 	() => import("./pages/AIPage/AIModelsPage"),
 );
@@ -754,6 +757,7 @@ export const router = createBrowserRouter(
 						<Route path="governance" element={<AIGovernancePage />} />
 						<Route path="providers">
 							<Route index element={<AIProvidersPage />} />
+							<Route path="bedrock" element={<AIProviderBedrockPage />} />
 							<Route path=":providerType" element={<AIProviderDetailPage />} />
 						</Route>
 						<Route path="models" element={<AIModelsPage />} />
