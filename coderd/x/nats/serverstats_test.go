@@ -3,7 +3,6 @@ package nats
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -68,11 +67,4 @@ func TestServerStatsReturnsFalseWithoutEmbeddedServer(t *testing.T) {
 	stats, ok := (*Pubsub)(nil).ServerStats()
 	require.False(t, ok)
 	require.Equal(t, ServerStats{}, stats)
-}
-
-func TestServerStatsErrNoEmbeddedServerSentinelUnchanged(t *testing.T) {
-	t.Parallel()
-	// Sanity: adding ServerStats must not have shadowed the existing
-	// ErrNoEmbeddedServer sentinel used by RefreshPeers.
-	require.True(t, errors.Is(ErrNoEmbeddedServer, ErrNoEmbeddedServer))
 }

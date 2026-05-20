@@ -30,32 +30,6 @@ type Options struct {
 	// connection. If empty, New derives one from ServerName.
 	ClientName string
 
-	// ClusterName is the NATS cluster name. If empty, use DefaultClusterName.
-	ClusterName string
-
-	// PeerProvider returns startup cluster peers. Optional; when nil or
-	// when it returns zero peers, the embedded server still starts in
-	// cluster mode as a "cluster of 1" so peers can be added later via
-	// RefreshPeers without restart.
-	PeerProvider PeerProvider
-
-	// ClusterHost is the local route listener bind host in cluster mode.
-	// If empty, use "127.0.0.1" for tests and non-wired package usage.
-	ClusterHost string
-
-	// ClusterPort is the local route listener port in cluster mode.
-	// Zero means choose an available port where NATS supports random bind.
-	ClusterPort int
-
-	// ClusterAdvertise is the host:port peers should use to reach this
-	// server. In integration, set this to the replica route address, not a
-	// load balancer.
-	ClusterAdvertise string
-
-	// RoutePoolSize is pinned in all replicas. Zero means
-	// DefaultRoutePoolSize.
-	RoutePoolSize int
-
 	// MaxPayload is the NATS max payload. Zero means server default.
 	MaxPayload int32
 
@@ -140,9 +114,7 @@ type Options struct {
 
 // Default values for Options.
 const (
-	DefaultClusterName   = "coder"
 	DefaultSubjectPrefix = "coder.v1"
-	DefaultRoutePoolSize = 3
 	DefaultReadyTimeout  = 10 * time.Second
 	// DefaultMaxPending is the per-client outbound pending byte budget
 	// applied to the embedded server. Raised from the nats-server

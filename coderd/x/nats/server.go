@@ -13,12 +13,10 @@ import (
 	"cdr.dev/slog/v3"
 )
 
-// buildServerOptions constructs the NATS server Options. The server is
-// always started in cluster mode ("cluster of 1" when peers is empty)
-// so that late-joining peers can be added at runtime via RefreshPeers
-// without restarting the server. The peers slice is expected to already
-// be normalized by normalizePeers.
-func buildServerOptions(opts Options, peers []Peer) (*natsserver.Options, error) {
+// buildServerOptions constructs the NATS server Options. The embedded
+// server runs as a standalone (non-clustered) instance and binds only
+// a loopback client listener for wrapper-owned pub/sub connections.
+func buildServerOptions(opts Options) (*natsserver.Options, error) {
 	serverName := opts.ServerName
 	if serverName == "" {
 		serverName = fmt.Sprintf("coder-nats-%d-%d", os.Getpid(), time.Now().UnixNano())
@@ -48,65 +46,23 @@ func buildServerOptions(opts Options, peers []Peer) (*natsserver.Options, error)
 	}
 
 	// Bind a loopback random client listener: the wrapper's pubConns
-	// and subConns dial this listener via connectClient. Additionally,
-	// nats-server v2.12.8 deadlocks the route AcceptLoop on client
-	// listener readiness when DontListen=true is combined with a
-	// non-zero Cluster.Port, so the listener must be real.
+	// and subConns dial this listener via connectClient.
 	sopts.DontListen = false
 	sopts.Host = "127.0.0.1"
 	sopts.Port = natsserver.RANDOM_PORT
 
-	clusterName := opts.ClusterName
-	if clusterName == "" {
-		clusterName = DefaultClusterName
-	}
-	clusterHost := opts.ClusterHost
-	if clusterHost == "" {
-		clusterHost = "127.0.0.1"
-	}
-	// Cluster.Port==0 means "disable routes" in nats-server. Translate
-	// the user-friendly zero to RANDOM_PORT to ensure the cluster
-	// listener actually binds.
-	clusterPort := opts.ClusterPort
-	if clusterPort == 0 {
-		clusterPort = natsserver.RANDOM_PORT
-	}
-	poolSize := opts.RoutePoolSize
-	if poolSize == 0 {
-		poolSize = DefaultRoutePoolSize
-	}
-
-	urls, err := routeURLs(peers)
-	if err != nil {
-		return nil, xerrors.Errorf("build route urls: %w", err)
-	}
-
-	sopts.Cluster = natsserver.ClusterOpts{
-		Name:      clusterName,
-		Host:      clusterHost,
-		Port:      clusterPort,
-		Advertise: opts.ClusterAdvertise,
-		PoolSize:  poolSize,
-	}
-	sopts.Routes = urls
-
 	return sopts, nil
 }
 
-// startEmbeddedServer starts an in-process NATS server. The server is
-// always started in cluster mode; with no peers this is a "cluster of
-// 1" that can later be joined to peers via RefreshPeers without
-// restart. The returned *natsserver.Options is the effective startup
-// options used to build the server; callers may clone it (e.g., for
-// ReloadOptions).
-func startEmbeddedServer(logger slog.Logger, opts Options, peers []Peer) (*natsserver.Server, *natsserver.Options, error) {
-	sopts, err := buildServerOptions(opts, peers)
+// startEmbeddedServer starts an in-process standalone NATS server.
+func startEmbeddedServer(logger slog.Logger, opts Options) (*natsserver.Server, error) {
+	sopts, err := buildServerOptions(opts)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	ns, err := natsserver.NewServer(sopts)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("new embedded nats server: %w", err)
+		return nil, xerrors.Errorf("new embedded nats server: %w", err)
 	}
 	go ns.Start()
 	readyTimeout := opts.ReadyTimeout
@@ -116,13 +72,12 @@ func startEmbeddedServer(logger slog.Logger, opts Options, peers []Peer) (*natss
 	if !ns.ReadyForConnections(readyTimeout) {
 		ns.Shutdown()
 		ns.WaitForShutdown()
-		return nil, nil, xerrors.Errorf("embedded nats server not ready within %s", readyTimeout)
+		return nil, xerrors.Errorf("embedded nats server not ready within %s", readyTimeout)
 	}
-	logger.Info(context.Background(), "embedded nats cluster started",
-		slog.F("cluster_addr", ns.ClusterAddr()),
-		slog.F("peers", len(peers)),
+	logger.Info(context.Background(), "embedded nats server started",
+		slog.F("client_url", ns.ClientURL()),
 	)
-	return ns, sopts, nil
+	return ns, nil
 }
 
 type connHandlers struct {
