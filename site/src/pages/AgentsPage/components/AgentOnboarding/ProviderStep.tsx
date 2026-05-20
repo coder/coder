@@ -121,8 +121,7 @@ export const ProviderStep: FC<ProviderStepProps> = ({
 				<h2 className="text-2xl font-semibold">Connect an AI provider.</h2>
 				<p className="text-sm text-content-secondary">
 					You'll need to set up at least one provider to get started.
-				</p>
-				<p className="text-sm text-content-secondary">
+					<br />
 					For key policy and API key controls, go to Settings &rarr;{" "}
 					<Link
 						to="/agents/settings/api-keys"
