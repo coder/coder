@@ -33,9 +33,9 @@ type ServerStats struct {
 }
 
 // ServerStats returns a snapshot of the embedded nats-server counters
-// alongside ok=true. When the Pubsub was created via NewFromConn (no
-// embedded server) it returns the zero value and ok=false so callers
-// can skip diagnostics rather than special-casing nil.
+// alongside ok=true. If p is nil or has no embedded server attached it
+// returns the zero value and ok=false so callers can skip diagnostics
+// rather than special-casing nil.
 //
 // The snapshot is intended for benchmark and test diagnostics; it is
 // not on the hot path and is safe to call concurrently with publish

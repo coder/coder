@@ -22,12 +22,12 @@ import (
 // newSubPoolPubsub is a small helper that builds a Pubsub with the
 // requested SubscribeConns count and ensures it is closed on test
 // cleanup.
-func newSubPoolPubsub(t *testing.T, subConns int) *Pubsub {
+func newSubPoolPubsub(t *testing.T, subscribePool int) *Pubsub {
 	t.Helper()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
-	ps, err := New(ctx, logger, Options{SubscribeConns: subConns})
+	ps, err := New(ctx, logger, Options{SubscribeConns: subscribePool})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = ps.Close() })
 	return ps
@@ -40,10 +40,9 @@ func newSubPoolPubsub(t *testing.T, subConns int) *Pubsub {
 func TestSubscribePool_DefaultIsOne(t *testing.T) {
 	t.Parallel()
 	ps := newSubPoolPubsub(t, 0)
-	require.Len(t, ps.subConns, 1, "SubscribeConns=0 must default to a single subscribe connection")
-	require.True(t, ps.ownsSubConns, "New must own its subscribe connections")
-	require.Len(t, ps.pubConns, 1, "default PublishConns must be 1")
-	require.NotSame(t, ps.subConns[0], ps.pubConns[0], "subConns[0] and pubConns[0] must be distinct connections")
+	require.Len(t, ps.subscribePool, 1, "SubscribeConns=0 must default to a single subscribe connection")
+	require.Len(t, ps.publishPool, 1, "default PublishConns must be 1")
+	require.NotSame(t, ps.subscribePool[0], ps.publishPool[0], "subscribePool[0] and publishPool[0] must be distinct connections")
 	require.Equal(t, 2, ps.ns.NumClients(),
 		"default Options must produce exactly 2 server-side client connections (1 pub + 1 sub)")
 }
@@ -54,7 +53,7 @@ func TestSubscribePool_DefaultIsOne(t *testing.T) {
 func TestSubscribePool_NegativeDefaults(t *testing.T) {
 	t.Parallel()
 	ps := newSubPoolPubsub(t, -5)
-	require.Len(t, ps.subConns, 1, "negative SubscribeConns must default to a single subscribe connection")
+	require.Len(t, ps.subscribePool, 1, "negative SubscribeConns must default to a single subscribe connection")
 }
 
 // TestSubscribePool_CreatesN asserts that Options.SubscribeConns=N
@@ -65,15 +64,14 @@ func TestSubscribePool_CreatesN(t *testing.T) {
 	t.Parallel()
 	const n = 4
 	ps := newSubPoolPubsub(t, n)
-	require.Len(t, ps.subConns, n)
-	require.True(t, ps.ownsSubConns)
+	require.Len(t, ps.subscribePool, n)
 	seen := make(map[*natsgo.Conn]struct{}, n)
-	for i, nc := range ps.subConns {
-		require.NotNil(t, nc, "subConns[%d] must be non-nil", i)
-		require.True(t, nc.IsConnected(), "subConns[%d] must be connected", i)
-		require.NotSame(t, nc, ps.pubConns[0], "subConns[%d] must be distinct from pubConns[0]", i)
+	for i, nc := range ps.subscribePool {
+		require.NotNil(t, nc, "subscribePool[%d] must be non-nil", i)
+		require.True(t, nc.IsConnected(), "subscribePool[%d] must be connected", i)
+		require.NotSame(t, nc, ps.publishPool[0], "subscribePool[%d] must be distinct from publishPool[0]", i)
 		_, dup := seen[nc]
-		require.False(t, dup, "subConns[%d] must be a distinct *natsgo.Conn", i)
+		require.False(t, dup, "subscribePool[%d] must be a distinct *natsgo.Conn", i)
 		seen[nc] = struct{}{}
 	}
 	// The server must report exactly N sub conns + 1 pub conn.
@@ -111,7 +109,7 @@ func TestSubscribePool_PickSubConn_StablePerSubject(t *testing.T) {
 func TestSubscribePool_SingleConnPicksOnlyEntry(t *testing.T) {
 	t.Parallel()
 	ps := newSubPoolPubsub(t, 1)
-	only := ps.subConns[0]
+	only := ps.subscribePool[0]
 	for i := 0; i < 32; i++ {
 		subj := fmt.Sprintf("coder.v1.legacy.solo_%03d", i)
 		require.Same(t, only, ps.pickSubConn(subj))
@@ -142,7 +140,7 @@ func TestSubscribePool_PickSubConn_DistributesSubjects(t *testing.T) {
 // each subscriber conn's Stats().InMsgs grows only for subjects that
 // pickSubConn assigned to it. This confirms that the underlying
 // *natsgo.Subscription for a subject lives on the hashed conn (not
-// always subConns[0]).
+// always subscribePool[0]).
 func TestSubscribePool_SubscribeUsesHashedConn(t *testing.T) {
 	t.Parallel()
 	const n = 4
@@ -166,11 +164,11 @@ func TestSubscribePool_SubscribeUsesHashedConn(t *testing.T) {
 		expectedPerConn[conn]++
 	}
 	require.GreaterOrEqual(t, len(expectedPerConn), 2,
-		"could not find events spanning at least 2 subConns; FNV distribution unexpectedly degenerate")
+		"could not find events spanning at least 2 subscribePool; FNV distribution unexpectedly degenerate")
 
 	// Snapshot inbound message counters before subscribe/publish.
-	before := make(map[*natsgo.Conn]uint64, len(ps.subConns))
-	for _, nc := range ps.subConns {
+	before := make(map[*natsgo.Conn]uint64, len(ps.subscribePool))
+	for _, nc := range ps.subscribePool {
 		before[nc] = nc.Stats().InMsgs
 	}
 
@@ -212,7 +210,7 @@ func TestSubscribePool_SubscribeUsesHashedConn(t *testing.T) {
 		}
 	}
 
-	for _, nc := range ps.subConns {
+	for _, nc := range ps.subscribePool {
 		got := nc.Stats().InMsgs - before[nc]
 		// expectedPerConn[nc] is bounded by the event search loop
 		// above (<=4096); the int -> uint64 conversion is safe.
@@ -239,8 +237,8 @@ func TestSubscribePool_SameSubjectCoalescesOnOneConn(t *testing.T) {
 
 	// Snapshot inbound counters for all conns.
 	beforeChosen := expected.Stats().InMsgs
-	beforeOthers := make(map[*natsgo.Conn]uint64, len(ps.subConns)-1)
-	for _, nc := range ps.subConns {
+	beforeOthers := make(map[*natsgo.Conn]uint64, len(ps.subscribePool)-1)
+	for _, nc := range ps.subscribePool {
 		if nc == expected {
 			continue
 		}
@@ -340,12 +338,12 @@ func TestSubscribePool_SharedSubsDistributedAcrossConns(t *testing.T) {
 	})
 
 	require.GreaterOrEqual(t, len(expected), 2,
-		"expected shared subs to land on at least 2 subConns (FNV distribution degenerate?)")
+		"expected shared subs to land on at least 2 subscribePool (FNV distribution degenerate?)")
 
 	// Cross-check via NumSubscriptions, the *natsgo.Conn-level
 	// counter of registered subscriptions. Each shared sub maps to
 	// exactly one *natsgo.Subscription on its hashed conn.
-	for _, nc := range ps.subConns {
+	for _, nc := range ps.subscribePool {
 		want := expected[nc]
 		require.Equal(t, want, nc.NumSubscriptions(),
 			"subConn %p must own exactly the subscriptions assigned to it by pickSubConn", nc)
@@ -362,7 +360,7 @@ func TestSubscribePool_ReadinessHoldsOnNonzeroConn(t *testing.T) {
 	const n = 4
 	ps := newSubPoolPubsub(t, n)
 
-	// Find a legacy event whose subject hashes to subConns[i] with
+	// Find a legacy event whose subject hashes to subscribePool[i] with
 	// i > 0 so we exercise the non-default conn path.
 	var event string
 	for i := 0; i < 4096; i++ {
@@ -370,7 +368,7 @@ func TestSubscribePool_ReadinessHoldsOnNonzeroConn(t *testing.T) {
 		subj, err := LegacyEventSubject(evt)
 		require.NoError(t, err)
 		conn := ps.pickSubConn(string(subj))
-		if conn != ps.subConns[0] {
+		if conn != ps.subscribePool[0] {
 			event = evt
 			break
 		}
@@ -427,7 +425,7 @@ func TestSubscribePool_SlowConsumerOnNonzeroConn(t *testing.T) {
 		evt := fmt.Sprintf("slow_nonzero_%04d", i)
 		subj, err := LegacyEventSubject(evt)
 		require.NoError(t, err)
-		if ps.pickSubConn(string(subj)) != ps.subConns[0] {
+		if ps.pickSubConn(string(subj)) != ps.subscribePool[0] {
 			event = evt
 			break
 		}
@@ -475,7 +473,7 @@ collect:
 }
 
 // TestSubscribePool_CloseClosesAllOwnedSubConns asserts that Close
-// drains every owned subscriber connection (every subConns entry
+// drains every owned subscriber connection (every subscribePool entry
 // transitions to IsClosed) and that double-Close is a no-op.
 func TestSubscribePool_CloseClosesAllOwnedSubConns(t *testing.T) {
 	t.Parallel()
@@ -485,17 +483,17 @@ func TestSubscribePool_CloseClosesAllOwnedSubConns(t *testing.T) {
 	const n = 3
 	ps, err := New(ctx, logger, Options{SubscribeConns: n})
 	require.NoError(t, err)
-	require.Len(t, ps.subConns, n)
+	require.Len(t, ps.subscribePool, n)
 
 	// Capture conn refs before Close clears any state.
-	subConns := append([]*natsgo.Conn(nil), ps.subConns...)
-	pubConn := ps.pubConns[0]
+	subscribePool := append([]*natsgo.Conn(nil), ps.subscribePool...)
+	pubConn := ps.publishPool[0]
 
 	require.NoError(t, ps.Close())
-	for i, nc := range subConns {
-		require.True(t, nc.IsClosed(), "subConns[%d] must be closed after Close", i)
+	for i, nc := range subscribePool {
+		require.True(t, nc.IsClosed(), "subscribePool[%d] must be closed after Close", i)
 	}
-	require.True(t, pubConn.IsClosed(), "pubConns[0] must be closed after Close")
+	require.True(t, pubConn.IsClosed(), "publishPool[0] must be closed after Close")
 
 	// Idempotent: second Close must succeed without re-draining or
 	// panicking on already-closed conns.

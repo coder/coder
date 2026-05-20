@@ -45,8 +45,8 @@ func buildServerOptions(opts Options) (*natsserver.Options, error) {
 		NoSigs:     true,
 	}
 
-	// Bind a loopback random client listener: the wrapper's pubConns
-	// and subConns dial this listener via connectClient.
+	// Bind a loopback random client listener: the wrapper's publishPool
+	// and subscribePool dial this listener via connectClient.
 	sopts.DontListen = false
 	sopts.Host = "127.0.0.1"
 	sopts.Port = natsserver.RANDOM_PORT

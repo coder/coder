@@ -78,8 +78,7 @@ type Options struct {
 	// publish connections reduce contention on the per-conn write
 	// mutex and socket under concurrent publishers across distinct
 	// subjects. Zero or negative means 1 (single publish connection),
-	// matching the historical behavior. Ignored by NewFromConn, which
-	// reuses the externally supplied connection.
+	// matching the historical behavior.
 	PublishConns int
 
 	// SubscribeConns sets the number of TCP-loopback subscriber
@@ -92,8 +91,7 @@ type Options struct {
 	// read/parser loops and per-conn server-side pending budgets,
 	// which is the main subscriber-side bottleneck beyond same-
 	// subject coalescing. Zero or negative means 1 (single subscriber
-	// connection), matching the historical behavior. Ignored by
-	// NewFromConn, which reuses the externally supplied connection.
+	// connection), matching the historical behavior.
 	SubscribeConns int
 
 	// WriteBufferSize sets the NATS Go client write buffer size, in
@@ -106,9 +104,7 @@ type Options struct {
 	// in-flight bytes, which matters most for 8 KiB+ payloads.
 	//
 	// Zero preserves the nats.go default (32 KiB). Positive values
-	// override it. NewFromConn does not apply this option: it reuses
-	// a caller-supplied external *natsgo.Conn whose write buffer is
-	// already fixed by whoever opened it.
+	// override it.
 	WriteBufferSize int
 }
 

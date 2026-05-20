@@ -46,9 +46,9 @@ func TestDualConn_ConnectionCount(t *testing.T) {
 	// embedded server reports, independent of subscription count.
 	require.Equal(t, 2, ps.ns.NumClients(),
 		"expected exactly 2 client connections (pubConn + subConn), got %d", ps.ns.NumClients())
-	require.Len(t, ps.pubConns, 1, "default PublishConns must be 1")
-	require.Len(t, ps.subConns, 1, "default SubscribeConns must be 1")
-	require.NotSame(t, ps.pubConns[0], ps.subConns[0], "pubConn and subConn must be distinct")
+	require.Len(t, ps.publishPool, 1, "default PublishConns must be 1")
+	require.Len(t, ps.subscribePool, 1, "default SubscribeConns must be 1")
+	require.NotSame(t, ps.publishPool[0], ps.subscribePool[0], "pubConn and subConn must be distinct")
 }
 
 // TestDualConn_SlowListenerIsolation verifies that when one subscription's
@@ -121,9 +121,9 @@ func TestDualConn_SlowListenerIsolation(t *testing.T) {
 
 	// The single default subConn must stay connected throughout: the
 	// slow-consumer signal is per-subscription, not per-conn.
-	require.Len(t, ps.subConns, 1)
-	require.False(t, ps.subConns[0].IsClosed(), "subConn must not be closed by slow consumer")
-	require.True(t, ps.subConns[0].IsConnected(), "subConn must stay connected")
+	require.Len(t, ps.subscribePool, 1)
+	require.False(t, ps.subscribePool[0].IsClosed(), "subConn must not be closed by slow consumer")
+	require.True(t, ps.subscribePool[0].IsConnected(), "subConn must stay connected")
 	// Connection count must still be exactly 2.
 	require.Equal(t, 2, ps.ns.NumClients(), "slow consumer must not disconnect subConn")
 }

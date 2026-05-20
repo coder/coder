@@ -7,8 +7,6 @@ import (
 	"testing"
 	"time"
 
-	natsserver "github.com/nats-io/nats-server/v2/server"
-	natsgo "github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -122,65 +120,7 @@ func TestStandalone_Ordering(t *testing.T) {
 	}
 }
 
-func TestNewFromConn(t *testing.T) {
-	t.Parallel()
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 
-	sopts := &natsserver.Options{
-		JetStream:  false,
-		DontListen: true,
-		ServerName: fmt.Sprintf("ext-%d", time.Now().UnixNano()),
-		NoLog:      true,
-		NoSigs:     true,
-	}
-	ns, err := natsserver.NewServer(sopts)
-	require.NoError(t, err)
-	go ns.Start()
-	require.True(t, ns.ReadyForConnections(testutil.WaitShort))
-	t.Cleanup(func() {
-		ns.Shutdown()
-		ns.WaitForShutdown()
-	})
-
-	nc, err := natsgo.Connect("", natsgo.InProcessServer(ns))
-	require.NoError(t, err)
-	t.Cleanup(func() { nc.Close() })
-
-	ps, err := xnats.NewFromConn(logger, nc)
-	require.NoError(t, err)
-
-	got := make(chan []byte, 1)
-	cancel, err := ps.Subscribe("ext_evt", func(_ context.Context, msg []byte) {
-		got <- msg
-	})
-	require.NoError(t, err)
-
-	require.NoError(t, ps.Publish("ext_evt", []byte("ok")))
-	select {
-	case msg := <-got:
-		assert.Equal(t, "ok", string(msg))
-	case <-time.After(testutil.WaitShort):
-		t.Fatal("timed out waiting for ext message")
-	}
-
-	cancel()
-	require.NoError(t, ps.Close())
-
-	// External server should still be usable.
-	assert.False(t, nc.IsClosed(), "NewFromConn must not close external connection")
-
-	nc2, err := natsgo.Connect("", natsgo.InProcessServer(ns))
-	require.NoError(t, err)
-	defer nc2.Close()
-
-	sub, err := nc2.SubscribeSync("post.close.subj")
-	require.NoError(t, err)
-	require.NoError(t, nc2.Publish("post.close.subj", []byte("still-alive")))
-	require.NoError(t, nc2.FlushTimeout(testutil.WaitShort))
-	msg, err := sub.NextMsg(testutil.WaitShort)
-	require.NoError(t, err)
-	assert.Equal(t, "still-alive", string(msg.Data))
-}
 
 func TestClose_Idempotent(t *testing.T) {
 	t.Parallel()

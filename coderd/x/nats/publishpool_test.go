@@ -38,11 +38,9 @@ func newPoolPubsub(t *testing.T, publishConns int) *Pubsub {
 func TestPublishPool_DefaultIsOne(t *testing.T) {
 	t.Parallel()
 	ps := newPoolPubsub(t, 0)
-	require.Len(t, ps.pubConns, 1, "PublishConns=0 must default to a single publish connection")
-	require.Len(t, ps.subConns, 1, "SubscribeConns=0 must default to a single subscribe connection")
-	require.True(t, ps.ownsPubConns, "New must own its publish connections")
-	require.True(t, ps.ownsSubConns, "New must own its subscribe connections")
-	require.NotSame(t, ps.pubConns[0], ps.subConns[0], "pubConns[0] and subConns[0] must be distinct connections")
+	require.Len(t, ps.publishPool, 1, "PublishConns=0 must default to a single publish connection")
+	require.Len(t, ps.subscribePool, 1, "SubscribeConns=0 must default to a single subscribe connection")
+	require.NotSame(t, ps.publishPool[0], ps.subscribePool[0], "publishPool[0] and subscribePool[0] must be distinct connections")
 	require.Equal(t, 2, ps.ns.NumClients(),
 		"default Options must produce exactly 2 server-side client connections (1 pub + 1 sub)")
 }
@@ -53,7 +51,7 @@ func TestPublishPool_DefaultIsOne(t *testing.T) {
 func TestPublishPool_NegativeDefaults(t *testing.T) {
 	t.Parallel()
 	ps := newPoolPubsub(t, -5)
-	require.Len(t, ps.pubConns, 1, "negative PublishConns must default to a single publish connection")
+	require.Len(t, ps.publishPool, 1, "negative PublishConns must default to a single publish connection")
 }
 
 // TestPublishPool_CreatesN asserts that Options.PublishConns=N creates
@@ -63,16 +61,15 @@ func TestPublishPool_CreatesN(t *testing.T) {
 	t.Parallel()
 	const n = 4
 	ps := newPoolPubsub(t, n)
-	require.Len(t, ps.pubConns, n)
-	require.True(t, ps.ownsPubConns)
-	require.Len(t, ps.subConns, 1, "SubscribeConns default must still be 1")
+	require.Len(t, ps.publishPool, n)
+	require.Len(t, ps.subscribePool, 1, "SubscribeConns default must still be 1")
 	seen := make(map[*natsgo.Conn]struct{}, n)
-	for i, nc := range ps.pubConns {
-		require.NotNil(t, nc, "pubConns[%d] must be non-nil", i)
-		require.True(t, nc.IsConnected(), "pubConns[%d] must be connected", i)
-		require.NotSame(t, nc, ps.subConns[0], "pubConns[%d] must be distinct from subConns[0]", i)
+	for i, nc := range ps.publishPool {
+		require.NotNil(t, nc, "publishPool[%d] must be non-nil", i)
+		require.True(t, nc.IsConnected(), "publishPool[%d] must be connected", i)
+		require.NotSame(t, nc, ps.subscribePool[0], "publishPool[%d] must be distinct from subscribePool[0]", i)
 		_, dup := seen[nc]
-		require.False(t, dup, "pubConns[%d] must be a distinct *natsgo.Conn", i)
+		require.False(t, dup, "publishPool[%d] must be a distinct *natsgo.Conn", i)
 		seen[nc] = struct{}{}
 	}
 	// The server must report exactly N pub conns + 1 sub conn.
@@ -132,7 +129,7 @@ func TestPublishPool_PickPubConn_DistributesSubjects(t *testing.T) {
 func TestPublishPool_SingleConnPicksOnlyEntry(t *testing.T) {
 	t.Parallel()
 	ps := newPoolPubsub(t, 1)
-	only := ps.pubConns[0]
+	only := ps.publishPool[0]
 	for i := 0; i < 32; i++ {
 		subj := fmt.Sprintf("coder.v1.legacy.solo_%03d", i)
 		require.Same(t, only, ps.pickPubConn(subj))
@@ -142,7 +139,7 @@ func TestPublishPool_SingleConnPicksOnlyEntry(t *testing.T) {
 // TestPublishPool_PublishUsesHashedConn drives real publishes and
 // verifies that each pubConn's Stats().OutMsgs grew only for subjects
 // that pickPubConn assigned to it. This confirms Publish actually
-// routes via pickPubConn (not e.g. always pubConns[0]) and that
+// routes via pickPubConn (not e.g. always publishPool[0]) and that
 // same-subject Publishes preserve per-subject ordering at the
 // connection level by going to a single conn.
 func TestPublishPool_PublishUsesHashedConn(t *testing.T) {
@@ -169,11 +166,11 @@ func TestPublishPool_PublishUsesHashedConn(t *testing.T) {
 		expectedPerConn[conn]++
 	}
 	require.GreaterOrEqual(t, len(expectedPerConn), 2,
-		"could not find events spanning at least 2 pubConns; FNV distribution unexpectedly degenerate")
+		"could not find events spanning at least 2 publishPool; FNV distribution unexpectedly degenerate")
 
 	// Snapshot outbound message counters before publish.
-	before := make(map[*natsgo.Conn]uint64, len(ps.pubConns))
-	for _, nc := range ps.pubConns {
+	before := make(map[*natsgo.Conn]uint64, len(ps.publishPool))
+	for _, nc := range ps.publishPool {
 		before[nc] = nc.Stats().OutMsgs
 	}
 
@@ -185,7 +182,7 @@ func TestPublishPool_PublishUsesHashedConn(t *testing.T) {
 	// Each pubConn must have observed exactly expectedPerConn[conn]
 	// additional outbound publishes; conns that pickPubConn never
 	// selected must have unchanged counters.
-	for _, nc := range ps.pubConns {
+	for _, nc := range ps.publishPool {
 		got := nc.Stats().OutMsgs - before[nc]
 		// expectedPerConn[nc] is bounded by the event search loop above
 		// (<=4096); the int -> uint64 conversion is therefore safe.
@@ -212,8 +209,8 @@ func TestPublishPool_SameSubjectSameConn_Concurrent(t *testing.T) {
 	// Snapshot the chosen conn before; every other conn's counter
 	// must stay flat after a burst of same-subject publishes.
 	beforeChosen := expected.Stats().OutMsgs
-	beforeOthers := make(map[*natsgo.Conn]uint64, len(ps.pubConns)-1)
-	for _, nc := range ps.pubConns {
+	beforeOthers := make(map[*natsgo.Conn]uint64, len(ps.publishPool)-1)
+	for _, nc := range ps.publishPool {
 		if nc == expected {
 			continue
 		}
@@ -269,7 +266,7 @@ func TestPublishPool_FlushFlushesAllConns(t *testing.T) {
 	// Order is the slice order, which matches construction order;
 	// assert that here to keep the contract pinned.
 	for i := 0; i < n; i++ {
-		require.Equal(t, i, got[i], "Flush must visit pubConns in slice order")
+		require.Equal(t, i, got[i], "Flush must visit publishPool in slice order")
 	}
 }
 
@@ -318,7 +315,7 @@ func TestPublishPool_FlushAlsoExercisesRealDelivery(t *testing.T) {
 }
 
 // TestPublishPool_CloseClosesAllOwnedConns asserts that Close drains
-// every owned publisher connection (every pubConns entry transitions
+// every owned publisher connection (every publishPool entry transitions
 // to IsClosed) and that double-Close is a no-op.
 func TestPublishPool_CloseClosesAllOwnedConns(t *testing.T) {
 	t.Parallel()
@@ -328,18 +325,18 @@ func TestPublishPool_CloseClosesAllOwnedConns(t *testing.T) {
 	const n = 3
 	ps, err := New(ctx, logger, Options{PublishConns: n})
 	require.NoError(t, err)
-	require.Len(t, ps.pubConns, n)
+	require.Len(t, ps.publishPool, n)
 
 	// Capture conn refs before Close clears any state.
-	conns := append([]*natsgo.Conn(nil), ps.pubConns...)
-	subConns := append([]*natsgo.Conn(nil), ps.subConns...)
+	conns := append([]*natsgo.Conn(nil), ps.publishPool...)
+	subscribePool := append([]*natsgo.Conn(nil), ps.subscribePool...)
 
 	require.NoError(t, ps.Close())
 	for i, nc := range conns {
-		require.True(t, nc.IsClosed(), "pubConns[%d] must be closed after Close", i)
+		require.True(t, nc.IsClosed(), "publishPool[%d] must be closed after Close", i)
 	}
-	for i, nc := range subConns {
-		require.True(t, nc.IsClosed(), "subConns[%d] must be closed after Close", i)
+	for i, nc := range subscribePool {
+		require.True(t, nc.IsClosed(), "subscribePool[%d] must be closed after Close", i)
 	}
 
 	// Idempotent: second Close must succeed without re-draining or
@@ -347,28 +344,4 @@ func TestPublishPool_CloseClosesAllOwnedConns(t *testing.T) {
 	require.NoError(t, ps.Close())
 }
 
-// TestPublishPool_NewFromConn_HasSingleAliasedPubConn asserts that the
-// NewFromConn path produces a one-entry pubConns slice that aliases
-// the externally supplied connection, that Close does not drain the
-// external conn, and that Options.PublishConns is effectively ignored
-// (NewFromConn does not take Options).
-func TestPublishPool_NewFromConn_HasSingleAliasedPubConn(t *testing.T) {
-	t.Parallel()
-	// Build a host Pubsub solely to obtain an in-process *natsgo.Conn
-	// we control independently of the pubsub under test.
-	host := newPoolPubsub(t, 1)
-	external := host.pubConns[0]
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	p, err := NewFromConn(logger, external)
-	require.NoError(t, err)
-	require.Len(t, p.pubConns, 1, "NewFromConn must expose exactly one publish conn")
-	require.Len(t, p.subConns, 1, "NewFromConn must expose exactly one subscribe conn")
-	require.Same(t, external, p.pubConns[0], "NewFromConn pubConns[0] must alias the supplied connection")
-	require.Same(t, external, p.subConns[0], "NewFromConn subConns[0] must alias the supplied connection")
-	require.False(t, p.ownsPubConns, "NewFromConn must not claim ownership of the external pub conn")
-	require.False(t, p.ownsSubConns, "NewFromConn must not claim ownership of the external sub conn")
-
-	require.NoError(t, p.Close())
-	require.False(t, external.IsClosed(), "Close on a NewFromConn Pubsub must not close the external conn")
-}
