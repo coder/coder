@@ -24,7 +24,7 @@ func generateReleaseNotes(newVersion, previousVersion version, channel string) (
 	}
 
 	// Build PR metadata map for label lookup.
-	prMeta := ghBuildPRMetadataMap(commits)
+	prMeta := ghBuildPullRequestMap(commits)
 
 	// Section definitions in display order.
 	type section struct {
@@ -57,8 +57,10 @@ func generateReleaseNotes(newVersion, previousVersion version, channel string) (
 		}
 
 		var labels []string
-		if meta, ok := prMeta[c.PRCount]; ok {
-			labels = meta.labels
+		for _, prNum := range c.PRNumbers {
+			if meta, ok := prMeta[prNum]; ok {
+				labels = append(labels, meta.Labels...)
+			}
 		}
 		cat := categorizeCommit(c.Title, labels)
 		buckets[cat] = append(buckets[cat], c)
@@ -82,11 +84,11 @@ func generateReleaseNotes(newVersion, previousVersion version, channel string) (
 		_, _ = fmt.Fprintf(&b, "### %s\n\n", sec.title)
 		for _, e := range entries {
 			title := humanizeTitle(e.Title)
-			if e.PRCount > 0 {
+			if len(e.PRNumbers) > 0 {
 				// Strip the trailing PR reference from the title since
 				// we add it as a link.
 				title = stripPRRef(title)
-				_, _ = fmt.Fprintf(&b, "- %s (#%d)\n", title, e.PRCount)
+				_, _ = fmt.Fprintf(&b, "- %s (#%d)\n", title, e.PRNumbers[0])
 			} else {
 				_, _ = fmt.Fprintf(&b, "- %s\n", title)
 			}

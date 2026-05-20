@@ -4,13 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"golang.org/x/xerrors"
 )
 
-// CalculateResult is the JSON output of calculate-version.
-type CalculateResult struct {
+// ReleaseRequest is the JSON output of calculate-version.
+type ReleaseRequest struct {
 	Version         string `json:"version"`
 	PreviousVersion string `json:"previous_version"`
 	Channel         string `json:"channel"`
@@ -19,7 +20,7 @@ type CalculateResult struct {
 }
 
 // String returns the result as indented JSON.
-func (r CalculateResult) String() string {
+func (r ReleaseRequest) String() string {
 	b, _ := json.MarshalIndent(r, "", "  ")
 	return string(b)
 }
@@ -31,10 +32,10 @@ var branchRe = regexp.MustCompile(`^release/(\d+)\.(\d+)$`)
 // ref is the branch name from the "Use workflow from" dropdown
 // (github.ref_name). commitSHA is an optional override; when empty
 // the tool defaults to HEAD of the ref.
-func calculateNextVersion(releaseType, ref, commitSHA string) (CalculateResult, error) {
+func calculateNextVersion(releaseType, ref, commitSHA string) (ReleaseRequest, error) {
 	// Ensure we have up-to-date remote state.
 	if _, err := gitOutput("fetch", "--tags", "--force", "origin"); err != nil {
-		return CalculateResult{}, xerrors.Errorf("git fetch: %w", err)
+		return ReleaseRequest{}, xerrors.Errorf("git fetch: %w", err)
 	}
 
 	isReleaseBranch := branchRe.MatchString(ref)
@@ -43,27 +44,27 @@ func calculateNextVersion(releaseType, ref, commitSHA string) (CalculateResult, 
 	switch releaseType {
 	case "rc":
 		if !isMain && !isReleaseBranch {
-			return CalculateResult{}, xerrors.Errorf("rc must be run from main or a release/X.Y branch, got %q", ref)
+			return ReleaseRequest{}, xerrors.Errorf("rc must be run from main or a release/X.Y branch, got %q", ref)
 		}
 		if isMain {
-			return calculateRCFromMain(ref, commitSHA)
+			return calculateRCFromMainReleaseRequest(ref, commitSHA)
 		}
-		return calculateRCFromBranch(ref, commitSHA)
+		return calculateRCFromBranchReleaseRequest(ref, commitSHA)
 
 	case "release":
 		if !isReleaseBranch {
-			return CalculateResult{}, xerrors.Errorf("release must be run from a release/X.Y branch, got %q", ref)
+			return ReleaseRequest{}, xerrors.Errorf("release must be run from a release/X.Y branch, got %q", ref)
 		}
-		return calculateRelease(ref)
+		return calculateReleaseReleaseRequest(ref)
 
 	case "create-release-branch":
 		if !isMain {
-			return CalculateResult{}, xerrors.Errorf("create-release-branch must be run from main, got %q", ref)
+			return ReleaseRequest{}, xerrors.Errorf("create-release-branch must be run from main, got %q", ref)
 		}
-		return calculateCreateBranch(ref, commitSHA)
+		return calculateCreateBranchReleaseRequest(ref, commitSHA)
 
 	default:
-		return CalculateResult{}, xerrors.Errorf("unknown release type %q (expected rc, release, or create-release-branch)", releaseType)
+		return ReleaseRequest{}, xerrors.Errorf("unknown release type %q (expected rc, release, or create-release-branch)", releaseType)
 	}
 }
 
@@ -84,21 +85,21 @@ func resolveCommit(ref, commitSHA string) (string, error) {
 	return sha, nil
 }
 
-// calculateRCFromMain tags an RC from a commit on main.
-func calculateRCFromMain(ref, commitSHA string) (CalculateResult, error) {
+// calculateRCFromMainReleaseRequest tags an RC from a commit on main.
+func calculateRCFromMainReleaseRequest(ref, commitSHA string) (ReleaseRequest, error) {
 	targetRef, err := resolveCommit(ref, commitSHA)
 	if err != nil {
-		return CalculateResult{}, err
+		return ReleaseRequest{}, err
 	}
 
 	// Verify commit is an ancestor of origin/main.
 	if err := gitRun("merge-base", "--is-ancestor", targetRef, "origin/main"); err != nil {
-		return CalculateResult{}, xerrors.Errorf("commit %s is not an ancestor of origin/main", targetRef)
+		return ReleaseRequest{}, xerrors.Errorf("commit %s is not an ancestor of origin/main", targetRef)
 	}
 
 	allTags, err := listSemverTags()
 	if err != nil {
-		return CalculateResult{}, err
+		return ReleaseRequest{}, err
 	}
 
 	// Find latest RC globally to determine series.
@@ -124,13 +125,13 @@ func calculateRCFromMain(ref, commitSHA string) (CalculateResult, error) {
 		minor = latestRelease.minor + 1
 		rcNum = 0
 	default:
-		return CalculateResult{}, xerrors.New("no existing tags found to base RC on")
+		return ReleaseRequest{}, xerrors.New("no existing tags found to base RC on")
 	}
 
 	newVer := version{major: major, minor: minor, patch: 0, rc: rcNum}
 	prevTag := findPreviousTag(allTags, newVer)
 
-	return CalculateResult{
+	return ReleaseRequest{
 		Version:         newVer.String(),
 		PreviousVersion: prevTag,
 		Channel:         "rc",
@@ -138,29 +139,29 @@ func calculateRCFromMain(ref, commitSHA string) (CalculateResult, error) {
 	}, nil
 }
 
-// calculateRCFromBranch tags an RC from the tip of a release branch.
-func calculateRCFromBranch(ref, commitSHA string) (CalculateResult, error) {
+// calculateRCFromBranchReleaseRequest tags an RC from the tip of a release branch.
+func calculateRCFromBranchReleaseRequest(ref, commitSHA string) (ReleaseRequest, error) {
 	m := branchRe.FindStringSubmatch(ref)
 	if m == nil {
-		return CalculateResult{}, xerrors.Errorf("ref %q does not match release/X.Y", ref)
+		return ReleaseRequest{}, xerrors.Errorf("ref %q does not match release/X.Y", ref)
 	}
 
-	major := mustAtoi(m[1])
-	minor := mustAtoi(m[2])
+	major, _ := strconv.Atoi(m[1])
+	minor, _ := strconv.Atoi(m[2])
 
 	targetRef, err := resolveCommit(ref, commitSHA)
 	if err != nil {
-		return CalculateResult{}, err
+		return ReleaseRequest{}, err
 	}
 
 	// Fail if there are open PRs targeting this release branch.
 	if err := checkOpenPRs(ref); err != nil {
-		return CalculateResult{}, err
+		return ReleaseRequest{}, err
 	}
 
 	allTags, err := listSemverTags()
 	if err != nil {
-		return CalculateResult{}, err
+		return ReleaseRequest{}, err
 	}
 
 	// Find tags for this series.
@@ -170,7 +171,7 @@ func calculateRCFromBranch(ref, commitSHA string) (CalculateResult, error) {
 	// you should be cutting a new minor, not more RCs.
 	for _, t := range seriesTags {
 		if t.rc < 0 {
-			return CalculateResult{}, xerrors.Errorf(
+			return ReleaseRequest{}, xerrors.Errorf(
 				"release %s already exists for this series; cut a new minor instead of another RC",
 				t.original,
 			)
@@ -187,7 +188,7 @@ func calculateRCFromBranch(ref, commitSHA string) (CalculateResult, error) {
 	newVer := version{major: major, minor: minor, patch: 0, rc: rcNum}
 	prevTag := findPreviousTag(allTags, newVer)
 
-	return CalculateResult{
+	return ReleaseRequest{
 		Version:         newVer.String(),
 		PreviousVersion: prevTag,
 		Channel:         "rc",
@@ -195,31 +196,31 @@ func calculateRCFromBranch(ref, commitSHA string) (CalculateResult, error) {
 	}, nil
 }
 
-// calculateRelease calculates the next release (non-RC) version from
+// calculateReleaseReleaseRequest calculates the next release (non-RC) version from
 // a release branch. Uses HEAD of the branch.
-func calculateRelease(ref string) (CalculateResult, error) {
+func calculateReleaseReleaseRequest(ref string) (ReleaseRequest, error) {
 	m := branchRe.FindStringSubmatch(ref)
 	if m == nil {
-		return CalculateResult{}, xerrors.Errorf("ref %q does not match release/X.Y", ref)
+		return ReleaseRequest{}, xerrors.Errorf("ref %q does not match release/X.Y", ref)
 	}
 
-	major := mustAtoi(m[1])
-	minor := mustAtoi(m[2])
+	major, _ := strconv.Atoi(m[1])
+	minor, _ := strconv.Atoi(m[2])
 
 	// Resolve branch HEAD.
 	headSHA, err := gitOutput("rev-parse", fmt.Sprintf("origin/%s", ref))
 	if err != nil {
-		return CalculateResult{}, xerrors.Errorf("resolve branch %s: %w", ref, err)
+		return ReleaseRequest{}, xerrors.Errorf("resolve branch %s: %w", ref, err)
 	}
 
 	// Fail if there are open PRs targeting this release branch.
 	if err := checkOpenPRs(ref); err != nil {
-		return CalculateResult{}, err
+		return ReleaseRequest{}, err
 	}
 
 	allTags, err := listSemverTags()
 	if err != nil {
-		return CalculateResult{}, err
+		return ReleaseRequest{}, err
 	}
 
 	// Find tags for this series.
@@ -234,10 +235,11 @@ func calculateRelease(ref string) (CalculateResult, error) {
 	}
 
 	newVer := version{major: major, minor: minor, patch: nextPatch, rc: -1}
-	channel := determineChannel(major, minor, allTags)
+	// All non-RC releases are stable from day one.
+	channel := "stable"
 	prevTag := findPreviousTag(allTags, newVer)
 
-	return CalculateResult{
+	return ReleaseRequest{
 		Version:         newVer.String(),
 		PreviousVersion: prevTag,
 		Channel:         channel,
@@ -245,28 +247,28 @@ func calculateRelease(ref string) (CalculateResult, error) {
 	}, nil
 }
 
-// calculateCreateBranch creates a release branch and tags the next
+// calculateCreateBranchReleaseRequest creates a release branch and tags the next
 // RC in one atomic step. Must be run from main.
-func calculateCreateBranch(ref, commitSHA string) (CalculateResult, error) {
+func calculateCreateBranchReleaseRequest(ref, commitSHA string) (ReleaseRequest, error) {
 	targetRef, err := resolveCommit(ref, commitSHA)
 	if err != nil {
-		return CalculateResult{}, err
+		return ReleaseRequest{}, err
 	}
 
 	// Verify commit is an ancestor of origin/main.
 	if err := gitRun("merge-base", "--is-ancestor", targetRef, "origin/main"); err != nil {
-		return CalculateResult{}, xerrors.Errorf("commit %s is not an ancestor of origin/main", targetRef)
+		return ReleaseRequest{}, xerrors.Errorf("commit %s is not an ancestor of origin/main", targetRef)
 	}
 
 	allTags, err := listSemverTags()
 	if err != nil {
-		return CalculateResult{}, err
+		return ReleaseRequest{}, err
 	}
 
 	// Find latest non-RC release.
 	latest := findLatestNonRC(allTags)
 	if latest.original == "" {
-		return CalculateResult{}, xerrors.New("no existing releases found")
+		return ReleaseRequest{}, xerrors.New("no existing releases found")
 	}
 
 	nextMajor := latest.major
@@ -275,7 +277,7 @@ func calculateCreateBranch(ref, commitSHA string) (CalculateResult, error) {
 
 	// Check that the branch doesn't already exist.
 	if _, err := gitOutput("rev-parse", "--verify", fmt.Sprintf("origin/%s", branchName)); err == nil {
-		return CalculateResult{}, xerrors.Errorf("branch %s already exists", branchName)
+		return ReleaseRequest{}, xerrors.Errorf("branch %s already exists", branchName)
 	}
 
 	// Find existing RCs for this series to continue the sequence.
@@ -290,19 +292,13 @@ func calculateCreateBranch(ref, commitSHA string) (CalculateResult, error) {
 	newVer := version{major: nextMajor, minor: nextMinor, patch: 0, rc: rcNum}
 	prevTag := findPreviousTag(allTags, newVer)
 
-	return CalculateResult{
+	return ReleaseRequest{
 		Version:         newVer.String(),
 		PreviousVersion: prevTag,
 		Channel:         "rc",
 		TargetRef:       targetRef,
 		CreateBranch:    branchName,
 	}, nil
-}
-
-// determineChannel returns the release channel. Currently always
-// returns "stable" since all non-RC releases are stable from day one.
-func determineChannel(_, _ int, _ []version) string {
-	return "stable"
 }
 
 // isHexSHA validates that s looks like a hex commit SHA.
@@ -325,7 +321,7 @@ func findLatestRC(tags []version) version {
 		if t.rc < 0 {
 			continue
 		}
-		if best.original == "" || versionLess(best, t) {
+		if best.original == "" || versionIsLess(best, t) {
 			best = t
 		}
 	}
@@ -339,7 +335,7 @@ func findLatestNonRC(tags []version) version {
 		if t.rc >= 0 {
 			continue
 		}
-		if best.original == "" || versionLess(best, t) {
+		if best.original == "" || versionIsLess(best, t) {
 			best = t
 		}
 	}
@@ -363,18 +359,18 @@ func filterTagsForSeries(tags []version, major, minor int) []version {
 func findPreviousTag(tags []version, newVer version) string {
 	var best version
 	for _, t := range tags {
-		if !versionLess(t, newVer) {
+		if !versionIsLess(t, newVer) {
 			continue
 		}
-		if best.original == "" || versionLess(best, t) {
+		if best.original == "" || versionIsLess(best, t) {
 			best = t
 		}
 	}
 	return best.original
 }
 
-// versionLess returns true if a < b using semver ordering.
-func versionLess(a, b version) bool {
+// versionIsLess returns true if a < b using semver ordering.
+func versionIsLess(a, b version) bool {
 	if a.major != b.major {
 		return a.major < b.major
 	}
@@ -395,14 +391,6 @@ func versionLess(a, b version) bool {
 		return true
 	}
 	return a.rc < b.rc
-}
-
-func mustAtoi(s string) int {
-	var n int
-	for _, c := range s {
-		n = n*10 + int(c-'0')
-	}
-	return n
 }
 
 // listSemverTags returns all semver tags from the repo.

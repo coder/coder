@@ -12,7 +12,7 @@ type commitEntry struct {
 	SHA       string
 	FullSHA   string
 	Title     string
-	PRCount   int // 0 if no PR number found
+	PRNumbers []int
 	Timestamp int64
 }
 
@@ -21,6 +21,42 @@ var prNumRe = regexp.MustCompile(`\(#(\d+)\)`)
 // cherryPickPRRe matches cherry-pick bot titles like
 // "chore: foo bar (cherry-pick #42) (#43)".
 var cherryPickPRRe = regexp.MustCompile(`\(cherry-pick #(\d+)\)\s*\(#\d+\)$`)
+
+// humanizedAreas maps conventional commit scopes to human-readable area
+// names. Order matters: more specific prefixes must come first so that
+// the first partial match wins.
+var humanizedAreas = []struct {
+	Prefix string
+	Area   string
+}{
+	{"agent/agentssh", "Agent SSH"},
+	{"coderd/database", "Database"},
+	{"enterprise/audit", "Auditing"},
+	{"enterprise/cli", "CLI"},
+	{"enterprise/coderd", "Server"},
+	{"enterprise/dbcrypt", "Database"},
+	{"enterprise/derpmesh", "Networking"},
+	{"enterprise/provisionerd", "Provisioner"},
+	{"enterprise/tailnet", "Networking"},
+	{"enterprise/wsproxy", "Workspace Proxy"},
+	{"agent", "Agent"},
+	{"cli", "CLI"},
+	{"coderd", "Server"},
+	{"codersdk", "SDK"},
+	{"docs", "Documentation"},
+	{"enterprise", "Enterprise"},
+	{"examples", "Examples"},
+	{"helm", "Helm"},
+	{"install.sh", "Installer"},
+	{"provisionersdk", "SDK"},
+	{"provisionerd", "Provisioner"},
+	{"provisioner", "Provisioner"},
+	{"pty", "CLI"},
+	{"scaletest", "Scale Testing"},
+	{"site", "Dashboard"},
+	{"support", "Support"},
+	{"tailnet", "Networking"},
+}
 
 // commitLog returns non-merge commits in the given range, filtering
 // out left-side commits (already in the base) and deduplicating
@@ -84,8 +120,12 @@ func commitLog(commitRange string) ([]commitEntry, error) {
 			Title:     title,
 			Timestamp: ts,
 		}
-		if m := prNumRe.FindStringSubmatch(e.Title); m != nil {
-			e.PRCount, _ = strconv.Atoi(m[1])
+		// Extract all PR numbers from the title. GitHub's squash-merge
+		// convention appends "(#NNN)" to the subject line; some commits
+		// may reference multiple PRs.
+		for _, m := range prNumRe.FindAllStringSubmatch(e.Title, -1) {
+			num, _ := strconv.Atoi(m[1])
+			e.PRNumbers = append(e.PRNumbers, num)
 		}
 		entries = append(entries, e)
 	}
@@ -111,42 +151,6 @@ func commitSortPrefix(title string) string {
 		return title
 	}
 	return title[:idx]
-}
-
-// humanizedAreas maps conventional commit scopes to human-readable area
-// names. Order matters: more specific prefixes must come first so that
-// the first partial match wins.
-var humanizedAreas = []struct {
-	Prefix string
-	Area   string
-}{
-	{"agent/agentssh", "Agent SSH"},
-	{"coderd/database", "Database"},
-	{"enterprise/audit", "Auditing"},
-	{"enterprise/cli", "CLI"},
-	{"enterprise/coderd", "Server"},
-	{"enterprise/dbcrypt", "Database"},
-	{"enterprise/derpmesh", "Networking"},
-	{"enterprise/provisionerd", "Provisioner"},
-	{"enterprise/tailnet", "Networking"},
-	{"enterprise/wsproxy", "Workspace Proxy"},
-	{"agent", "Agent"},
-	{"cli", "CLI"},
-	{"coderd", "Server"},
-	{"codersdk", "SDK"},
-	{"docs", "Documentation"},
-	{"enterprise", "Enterprise"},
-	{"examples", "Examples"},
-	{"helm", "Helm"},
-	{"install.sh", "Installer"},
-	{"provisionersdk", "SDK"},
-	{"provisionerd", "Provisioner"},
-	{"provisioner", "Provisioner"},
-	{"pty", "CLI"},
-	{"scaletest", "Scale Testing"},
-	{"site", "Dashboard"},
-	{"support", "Support"},
-	{"tailnet", "Networking"},
 }
 
 // conventionalPrefixRe extracts prefix, scope, and rest from a

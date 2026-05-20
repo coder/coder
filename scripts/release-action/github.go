@@ -20,26 +20,27 @@ func ghOutput(args ...string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-// prMetadata holds PR labels and author for release notes.
-type prMetadata struct {
-	labels []string
-	author string
+// pullRequest holds metadata about a GitHub pull request.
+type pullRequest struct {
+	Number int
+	Labels []string
+	Author string
 }
 
-// prMetadataMaps holds PR metadata indexed by PR number.
-type prMetadataMaps map[int]prMetadata
+// pullRequestMap holds PR metadata indexed by PR number.
+type pullRequestMap map[int]pullRequest
 
-// ghBuildPRMetadataMap builds a map of PR number to metadata by
+// ghBuildPullRequestMap builds a map of PR number to metadata by
 // querying the GitHub API via the gh CLI for all PRs referenced in
 // the commit list.
-func ghBuildPRMetadataMap(commits []commitEntry) prMetadataMaps {
-	m := make(prMetadataMaps)
+func ghBuildPullRequestMap(commits []commitEntry) pullRequestMap {
+	m := make(pullRequestMap)
 
 	// Collect unique PR numbers.
 	prNums := make(map[int]bool)
 	for _, c := range commits {
-		if c.PRCount > 0 {
-			prNums[c.PRCount] = true
+		for _, num := range c.PRNumbers {
+			prNums[num] = true
 		}
 	}
 
@@ -71,9 +72,10 @@ func ghBuildPRMetadataMap(commits []commitEntry) prMetadataMaps {
 			labels = append(labels, l.Name)
 		}
 
-		m[result.Number] = prMetadata{
-			labels: labels,
-			author: result.Author.Login,
+		m[result.Number] = pullRequest{
+			Number: result.Number,
+			Labels: labels,
+			Author: result.Author.Login,
 		}
 	}
 
