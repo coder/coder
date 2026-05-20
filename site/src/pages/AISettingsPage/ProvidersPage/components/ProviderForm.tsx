@@ -254,7 +254,6 @@ const getProviderFormSchema = (editing: boolean) =>
 type CredentialFieldProps = {
 	label: string;
 	helpers: FormHelpers;
-	inputType?: "text" | "password";
 	autoComplete?: string;
 	placeholder?: string;
 	description?: ReactNode;
@@ -271,8 +270,7 @@ type CredentialFieldProps = {
  * Single credential input. When a credential is already on file the parent
  * seeds the value with `SAVED_CREDENTIAL_MASK` (or an API-supplied masked
  * rendering) and wires up `onFocus` so the field clears on first focus,
- * letting the user type a fresh value. Pass `inputType="password"` to render
- * the value as dots; default `text` keeps the seeded mask legible.
+ * letting the user type a fresh value.
  *
  * `CredentialField` mirrors `FormField`'s stacking order (label, description,
  * input, helper text).
@@ -280,7 +278,6 @@ type CredentialFieldProps = {
 const CredentialField: FC<CredentialFieldProps> = ({
 	label,
 	helpers,
-	inputType,
 	autoComplete,
 	placeholder,
 	description,
@@ -331,7 +328,6 @@ const CredentialField: FC<CredentialFieldProps> = ({
 			onChange={helpers.onChange}
 			onBlur={helpers.onBlur}
 			onFocus={onFocus}
-			type={inputType}
 			autoComplete={autoComplete}
 			placeholder={placeholder}
 			aria-invalid={helpers.error}
@@ -483,17 +479,6 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 							label="API key"
 							helpers={getFieldHelpers("apiKey")}
 							onFocus={() => handleCredentialFocus("apiKey")}
-							// While the field is showing a saved masked value
-							// (e.g. `sk-ant-***\u2026***ABCD`), render as plain text so
-							// the user can see the identifying suffix the API returned.
-							// Once the user focuses the input to type a new key, switch
-							// back to password so the plaintext isn't shoulder-surfable.
-							inputType={
-								form.values.apiKey === form.initialValues.apiKey &&
-								form.initialValues.apiKey !== ""
-									? "text"
-									: "password"
-							}
 							autoComplete="new-password"
 							description="Secret key used to authenticate requests to this provider."
 							placeholder={apiKeyPlaceholder(form.values.type)}
@@ -569,26 +554,12 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 								label="Access key"
 								helpers={getFieldHelpers("accessKey")}
 								onFocus={() => handleCredentialFocus("accessKey")}
-								// Access keys are identifiers (not secrets), so we keep
-								// them legible at all times. The seeded mask renders as
-								// text and any replacement the user types stays visible.
-								inputType="text"
 							/>
 							<CredentialField
 								required
 								label="Access key secret"
 								helpers={getFieldHelpers("accessKeySecret")}
 								onFocus={() => handleCredentialFocus("accessKeySecret")}
-								// Keep the seeded mask legible (it isn't the real secret)
-								// but switch to password once the user focuses to type a
-								// replacement so the plaintext isn't shoulder-surfable.
-								inputType={
-									form.values.accessKeySecret ===
-										form.initialValues.accessKeySecret &&
-									form.initialValues.accessKeySecret !== ""
-										? "text"
-										: "password"
-								}
 								autoComplete="new-password"
 							/>
 						</div>
