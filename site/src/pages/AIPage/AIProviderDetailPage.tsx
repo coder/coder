@@ -150,6 +150,7 @@ const AIProviderDetailPage: FC = () => {
 										<Input
 											placeholder="Describe your key"
 											value={row.name}
+											autoComplete="off"
 											onChange={(e) =>
 												updateRow(row.id, "name", e.target.value)
 											}
@@ -158,7 +159,11 @@ const AIProviderDetailPage: FC = () => {
 									<TableCell>
 										<Input
 											placeholder="Enter key"
-											type="password"
+											type="text"
+											autoComplete="off"
+											data-1p-ignore
+											data-lpignore="true"
+											className="font-mono"
 											value={row.apiKey}
 											onChange={(e) =>
 												updateRow(row.id, "apiKey", e.target.value)
