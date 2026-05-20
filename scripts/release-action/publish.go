@@ -134,7 +134,7 @@ func generateChecksums(dir, outPath string) error {
 		lines = append(lines, fmt.Sprintf("%s  %s", hash, e.Name()))
 	}
 
-	return os.WriteFile(outPath, []byte(strings.Join(lines, "\n")+"\n"), 0o644)
+	return os.WriteFile(outPath, []byte(strings.Join(lines, "\n")+"\n"), 0o600)
 }
 
 // sha256File returns the hex-encoded SHA256 hash of a file.
@@ -151,5 +151,4 @@ func sha256File(path string) (string, error) {
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
-
 
