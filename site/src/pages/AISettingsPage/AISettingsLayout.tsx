@@ -5,7 +5,7 @@ import { AISettingsSidebar } from "#/modules/management/AISettingsSidebar";
 
 const AISettingsLayout = () => {
 	return (
-		<section className="px-10 max-w-screen-2xl mx-auto">
+		<section className="px-10 w-full max-w-screen-2xl mx-auto">
 			<div className="flex flex-row gap-28 py-10">
 				<AISettingsSidebar />
 				<div className="grow">
