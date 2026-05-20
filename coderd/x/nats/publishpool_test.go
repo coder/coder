@@ -77,7 +77,7 @@ func TestPublishPool_CreatesN(t *testing.T) {
 		"server must observe exactly %d client connections (%d pub + 1 sub)", n+1, n)
 }
 
-// TestPublishPool_PickPubConn_StablePerSubject asserts that pickPubConn
+// TestPublishPool_PickPubConn_StablePerSubject asserts that pickConn
 // is deterministic: repeated calls for the same subject always return
 // the same connection, and that the underlying selection is a
 // well-defined function of the subject string alone (no per-process
@@ -94,16 +94,16 @@ func TestPublishPool_PickPubConn_StablePerSubject(t *testing.T) {
 		"coder.v1.event.zeta",
 	}
 	for _, s := range subjects {
-		first := ps.pickPubConn(s)
+		first := pickConn(ps.publishPool, s)
 		for i := 0; i < 32; i++ {
-			require.Same(t, first, ps.pickPubConn(s),
-				"pickPubConn(%q) must be stable across calls", s)
+			require.Same(t, first, pickConn(ps.publishPool, s),
+				"pickConn(%q) must be stable across calls", s)
 		}
 	}
 }
 
 // TestPublishPool_PickPubConn_DistributesSubjects asserts that
-// pickPubConn spreads a moderate variety of distinct subjects across
+// pickConn spreads a moderate variety of distinct subjects across
 // multiple entries of the pool. We do not require uniform distribution
 // (FNV-1a does not guarantee that), but we do require that not every
 // subject hashes to the same connection, which would defeat the whole
@@ -117,14 +117,14 @@ func TestPublishPool_PickPubConn_DistributesSubjects(t *testing.T) {
 		// Use a subject namespace close to what LegacyEventSubject
 		// produces so the test reflects realistic hashing input.
 		subj := fmt.Sprintf("coder.v1.legacy.event_%03d", i)
-		counts[ps.pickPubConn(subj)]++
+		counts[pickConn(ps.publishPool, subj)]++
 	}
 	require.GreaterOrEqual(t, len(counts), 2,
-		"pickPubConn must distribute 64 distinct subjects across at least 2 of %d conns, got %d", n, len(counts))
+		"pickConn must distribute 64 distinct subjects across at least 2 of %d conns, got %d", n, len(counts))
 }
 
 // TestPublishPool_SingleConnPicksOnlyEntry asserts that with a single
-// publish connection pickPubConn always returns the one entry, even
+// publish connection pickConn always returns the one entry, even
 // for many distinct subjects.
 func TestPublishPool_SingleConnPicksOnlyEntry(t *testing.T) {
 	t.Parallel()
@@ -132,14 +132,14 @@ func TestPublishPool_SingleConnPicksOnlyEntry(t *testing.T) {
 	only := ps.publishPool[0]
 	for i := 0; i < 32; i++ {
 		subj := fmt.Sprintf("coder.v1.legacy.solo_%03d", i)
-		require.Same(t, only, ps.pickPubConn(subj))
+		require.Same(t, only, pickConn(ps.publishPool, subj))
 	}
 }
 
 // TestPublishPool_PublishUsesHashedConn drives real publishes and
 // verifies that each pubConn's Stats().OutMsgs grew only for subjects
-// that pickPubConn assigned to it. This confirms Publish actually
-// routes via pickPubConn (not e.g. always publishPool[0]) and that
+// that pickConn assigned to it. This confirms Publish actually
+// routes via pickConn (not e.g. always publishPool[0]) and that
 // same-subject Publishes preserve per-subject ordering at the
 // connection level by going to a single conn.
 func TestPublishPool_PublishUsesHashedConn(t *testing.T) {
@@ -161,7 +161,7 @@ func TestPublishPool_PublishUsesHashedConn(t *testing.T) {
 		evt := fmt.Sprintf("evt_%04d", i)
 		subj, err := LegacyEventSubject(evt)
 		require.NoError(t, err)
-		conn := ps.pickPubConn(string(subj))
+		conn := pickConn(ps.publishPool, string(subj))
 		events = append(events, entry{event: evt, conn: conn})
 		expectedPerConn[conn]++
 	}
@@ -180,7 +180,7 @@ func TestPublishPool_PublishUsesHashedConn(t *testing.T) {
 	require.NoError(t, ps.Flush())
 
 	// Each pubConn must have observed exactly expectedPerConn[conn]
-	// additional outbound publishes; conns that pickPubConn never
+	// additional outbound publishes; conns that pickConn never
 	// selected must have unchanged counters.
 	for _, nc := range ps.publishPool {
 		got := nc.Stats().OutMsgs - before[nc]
@@ -204,7 +204,7 @@ func TestPublishPool_SameSubjectSameConn_Concurrent(t *testing.T) {
 	const event = "ordering_evt"
 	subj, err := LegacyEventSubject(event)
 	require.NoError(t, err)
-	expected := ps.pickPubConn(string(subj))
+	expected := pickConn(ps.publishPool, string(subj))
 
 	// Snapshot the chosen conn before; every other conn's counter
 	// must stay flat after a burst of same-subject publishes.
@@ -343,5 +343,3 @@ func TestPublishPool_CloseClosesAllOwnedConns(t *testing.T) {
 	// panicking on already-closed conns.
 	require.NoError(t, ps.Close())
 }
-
-

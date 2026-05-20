@@ -251,7 +251,7 @@ func TestReadiness_FlushFailureCleansUp(t *testing.T) {
 		// Force the upcoming Flush to fail by closing the subscriber
 		// conn that owns this subject's shared subscription.
 		// nats.go's Flush on a closed conn returns ErrConnectionClosed.
-		ps.pickSubConn(subj).Close()
+		pickConn(ps.subscribePool, subj).Close()
 	}
 
 	_, err = ps.Subscribe(event, func(context.Context, []byte) {})

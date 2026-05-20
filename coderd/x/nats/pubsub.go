@@ -336,61 +336,35 @@ func New(_ context.Context, logger slog.Logger, opts Options) (*Pubsub, error) {
 	return p, nil
 }
 
-// pickPubConn returns the publisher connection for subject. The
-// publishPool slice is immutable after construction so this lookup is
-// safe without holding p.mu, keeping the Publish hot path lock-free.
+// pickConn returns the connection assigned to subject from the given
+// pool. The publish and subscribe pools are both immutable after
+// construction, so this lookup is safe without holding p.mu and keeps
+// the Publish hot path lock-free.
 //
 // Selection uses a stable FNV-1a hash of the subject so same-subject
-// publishes always target the same connection within a process. That
-// preserves per-subject publish ordering: NATS guarantees ordering
-// per-connection per-subject, and routing same-subject traffic to a
-// single connection preserves that guarantee at the wrapper level.
+// traffic always targets the same connection within a process. On the
+// publish side, that preserves per-subject publish ordering: NATS
+// guarantees ordering per-connection per-subject, and routing same-
+// subject traffic to a single connection preserves that guarantee at
+// the wrapper level. On the subscribe side, it pairs with same-subject
+// subscription coalescing so every local subscriber for a subject
+// attaches to the one shared *natsgo.Subscription registered on this
+// conn, and async slow-consumer routing (keyed on *natsgo.Subscription)
+// keeps working regardless of which conn owns the subscription.
+//
 // FNV-1a is deterministic (no per-process seed), which makes the
 // selection reproducible across test runs.
-func (p *Pubsub) pickPubConn(subject string) *natsgo.Conn {
-	conns := p.publishPool
-	if len(conns) == 1 {
-		return conns[0]
+func pickConn(pool []*natsgo.Conn, subject string) *natsgo.Conn {
+	if len(pool) == 1 {
+		return pool[0]
 	}
 	h := fnv.New32a()
 	// fnv.Hash32a.Write never returns an error.
 	_, _ = h.Write([]byte(subject))
-	// len(conns) is bounded by Options.PublishConns, which is set by
-	// the caller and in practice is well below MaxInt32. The
-	// int -> uint32 conversion is therefore safe.
-	n := uint32(len(conns)) //nolint:gosec // pool size bounded by Options.PublishConns
-	return conns[h.Sum32()%n]
-}
-
-// pickSubConn returns the subscriber connection assigned to subject.
-// The subscribePool slice is immutable after construction so this lookup
-// is safe without holding p.mu.
-//
-// Selection uses a stable FNV-1a hash of the subject so the chosen
-// connection is deterministic per subject within a process. This
-// pairs with same-subject subscription coalescing: every local
-// subscriber for a subject attaches to the one shared
-// *natsgo.Subscription registered on this conn. Distributing distinct
-// subjects across multiple TCP read/parser loops and per-conn
-// server-side pending budgets is the throughput reason for the pool;
-// pinning a subject to a single conn keeps the shared-subscription
-// model intact and makes async slow-consumer routing (which is keyed
-// on *natsgo.Subscription, not on the owning conn) work unchanged.
-//
-// FNV-1a is deterministic (no per-process seed), which makes the
-// selection reproducible across test runs.
-func (p *Pubsub) pickSubConn(subject string) *natsgo.Conn {
-	conns := p.subscribePool
-	if len(conns) == 1 {
-		return conns[0]
-	}
-	h := fnv.New32a()
-	// fnv.Hash32a.Write never returns an error.
-	_, _ = h.Write([]byte(subject))
-	// len(conns) is bounded by Options.SubscribeConns, which is set
-	// by the caller and in practice is well below MaxInt32.
-	n := uint32(len(conns)) //nolint:gosec // pool size bounded by Options.SubscribeConns
-	return conns[h.Sum32()%n]
+	// len(pool) is bounded by Options.PublishConns / Options.SubscribeConns,
+	// which are set by the caller and in practice are well below MaxInt32.
+	n := uint32(len(pool)) //nolint:gosec // pool size bounded by Options.{Publish,Subscribe}Conns
+	return pool[h.Sum32()%n]
 }
 
 // Publish publishes a message under the given legacy event name. The
@@ -406,7 +380,7 @@ func (p *Pubsub) Publish(event string, message []byte) error {
 	if err != nil {
 		return xerrors.Errorf("map event %q: %w", event, err)
 	}
-	if err := p.pickPubConn(string(subj)).Publish(string(subj), message); err != nil {
+	if err := pickConn(p.publishPool, string(subj)).Publish(string(subj), message); err != nil {
 		return xerrors.Errorf("publish: %w", err)
 	}
 	return nil
@@ -729,7 +703,7 @@ func (p *Pubsub) attachListener(subject string, s *subscription) (*sharedSub, bo
 	// same conn, and async slow-consumer routing (keyed on
 	// *natsgo.Subscription via sharedByNATS) keeps working regardless
 	// of which conn owns the subscription.
-	subConn := p.pickSubConn(subject)
+	subConn := pickConn(p.subscribePool, subject)
 	natsSub, err := subConn.Subscribe(subject, shared.makeCallback(p))
 	if err != nil {
 		return finishCreator(xerrors.Errorf("subscribe: %w", err))

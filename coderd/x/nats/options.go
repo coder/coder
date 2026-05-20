@@ -93,19 +93,6 @@ type Options struct {
 	// subject coalescing. Zero or negative means 1 (single subscriber
 	// connection), matching the historical behavior.
 	SubscribeConns int
-
-	// WriteBufferSize sets the NATS Go client write buffer size, in
-	// bytes, applied to every wrapper-owned client connection (all
-	// publish conns and all subscriber conns). It maps to
-	// natsgo.WriteBufferSize, which controls the flush threshold for
-	// the per-connection outbound buffer; nats.go auto-flushes when
-	// the buffer fills, and the default is 32 KiB. Larger values
-	// amortize syscall and lock overhead at the cost of bursty
-	// in-flight bytes, which matters most for 8 KiB+ payloads.
-	//
-	// Zero preserves the nats.go default (32 KiB). Positive values
-	// override it.
-	WriteBufferSize int
 }
 
 // Default values for Options.

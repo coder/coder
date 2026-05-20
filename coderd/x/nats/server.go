@@ -122,12 +122,6 @@ func connectClient(ns *natsserver.Server, opts Options, handlers connHandlers, c
 	if opts.ReconnectWait > 0 {
 		connOpts = append(connOpts, natsgo.ReconnectWait(opts.ReconnectWait))
 	}
-	// WriteBufferSize tunes the per-conn outbound flush threshold in
-	// nats.go. Apply only when positive so zero preserves the nats.go
-	// default (32 KiB) and tests that omit it behave like before.
-	if opts.WriteBufferSize > 0 {
-		connOpts = append(connOpts, natsgo.WriteBufferSize(opts.WriteBufferSize))
-	}
 	if handlers.disconnectErr != nil {
 		connOpts = append(connOpts, natsgo.DisconnectErrHandler(handlers.disconnectErr))
 	}

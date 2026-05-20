@@ -80,7 +80,7 @@ func TestSubscribePool_CreatesN(t *testing.T) {
 }
 
 // TestSubscribePool_PickSubConn_StablePerSubject asserts that
-// pickSubConn is deterministic: repeated calls for the same subject
+// pickConn is deterministic: repeated calls for the same subject
 // always return the same connection, with no per-process
 // randomization.
 func TestSubscribePool_PickSubConn_StablePerSubject(t *testing.T) {
@@ -95,16 +95,16 @@ func TestSubscribePool_PickSubConn_StablePerSubject(t *testing.T) {
 		"coder.v1.event.zeta",
 	}
 	for _, s := range subjects {
-		first := ps.pickSubConn(s)
+		first := pickConn(ps.subscribePool, s)
 		for i := 0; i < 32; i++ {
-			require.Same(t, first, ps.pickSubConn(s),
-				"pickSubConn(%q) must be stable across calls", s)
+			require.Same(t, first, pickConn(ps.subscribePool, s),
+				"pickConn(%q) must be stable across calls", s)
 		}
 	}
 }
 
 // TestSubscribePool_SingleConnPicksOnlyEntry asserts that with a
-// single subscribe connection pickSubConn always returns the one
+// single subscribe connection pickConn always returns the one
 // entry, even for many distinct subjects.
 func TestSubscribePool_SingleConnPicksOnlyEntry(t *testing.T) {
 	t.Parallel()
@@ -112,12 +112,12 @@ func TestSubscribePool_SingleConnPicksOnlyEntry(t *testing.T) {
 	only := ps.subscribePool[0]
 	for i := 0; i < 32; i++ {
 		subj := fmt.Sprintf("coder.v1.legacy.solo_%03d", i)
-		require.Same(t, only, ps.pickSubConn(subj))
+		require.Same(t, only, pickConn(ps.subscribePool, subj))
 	}
 }
 
 // TestSubscribePool_PickSubConn_DistributesSubjects asserts that
-// pickSubConn spreads a moderate variety of distinct subjects across
+// pickConn spreads a moderate variety of distinct subjects across
 // multiple entries of the pool. We do not require uniform distribution
 // (FNV-1a does not guarantee that), but we do require that not every
 // subject hashes to the same connection, which would defeat the
@@ -129,16 +129,16 @@ func TestSubscribePool_PickSubConn_DistributesSubjects(t *testing.T) {
 	counts := make(map[*natsgo.Conn]int, n)
 	for i := 0; i < 64; i++ {
 		subj := fmt.Sprintf("coder.v1.legacy.event_%03d", i)
-		counts[ps.pickSubConn(subj)]++
+		counts[pickConn(ps.subscribePool, subj)]++
 	}
 	require.GreaterOrEqual(t, len(counts), 2,
-		"pickSubConn must distribute 64 distinct subjects across at least 2 of %d conns, got %d", n, len(counts))
+		"pickConn must distribute 64 distinct subjects across at least 2 of %d conns, got %d", n, len(counts))
 }
 
 // TestSubscribePool_SubscribeUsesHashedConn creates Subscribes for a
 // set of subjects spanning >=2 subscriber conns and verifies that
 // each subscriber conn's Stats().InMsgs grows only for subjects that
-// pickSubConn assigned to it. This confirms that the underlying
+// pickConn assigned to it. This confirms that the underlying
 // *natsgo.Subscription for a subject lives on the hashed conn (not
 // always subscribePool[0]).
 func TestSubscribePool_SubscribeUsesHashedConn(t *testing.T) {
@@ -159,7 +159,7 @@ func TestSubscribePool_SubscribeUsesHashedConn(t *testing.T) {
 		evt := fmt.Sprintf("sub_evt_%04d", i)
 		subj, err := LegacyEventSubject(evt)
 		require.NoError(t, err)
-		conn := ps.pickSubConn(string(subj))
+		conn := pickConn(ps.subscribePool, string(subj))
 		events = append(events, entry{event: evt, conn: conn})
 		expectedPerConn[conn]++
 	}
@@ -233,7 +233,7 @@ func TestSubscribePool_SameSubjectCoalescesOnOneConn(t *testing.T) {
 	const event = "coalesce_sub_evt"
 	subj, err := LegacyEventSubject(event)
 	require.NoError(t, err)
-	expected := ps.pickSubConn(string(subj))
+	expected := pickConn(ps.subscribePool, string(subj))
 
 	// Snapshot inbound counters for all conns.
 	beforeChosen := expected.Stats().InMsgs
@@ -326,7 +326,7 @@ func TestSubscribePool_SharedSubsDistributedAcrossConns(t *testing.T) {
 		evt := fmt.Sprintf("distrib_evt_%04d", i)
 		subj, err := LegacyEventSubject(evt)
 		require.NoError(t, err)
-		expected[ps.pickSubConn(string(subj))]++
+		expected[pickConn(ps.subscribePool, string(subj))]++
 		c, err := ps.Subscribe(evt, func(context.Context, []byte) {})
 		require.NoError(t, err)
 		cancels = append(cancels, c)
@@ -346,7 +346,7 @@ func TestSubscribePool_SharedSubsDistributedAcrossConns(t *testing.T) {
 	for _, nc := range ps.subscribePool {
 		want := expected[nc]
 		require.Equal(t, want, nc.NumSubscriptions(),
-			"subConn %p must own exactly the subscriptions assigned to it by pickSubConn", nc)
+			"subConn %p must own exactly the subscriptions assigned to it by pickConn", nc)
 	}
 }
 
@@ -367,7 +367,7 @@ func TestSubscribePool_ReadinessHoldsOnNonzeroConn(t *testing.T) {
 		evt := fmt.Sprintf("readiness_nonzero_%04d", i)
 		subj, err := LegacyEventSubject(evt)
 		require.NoError(t, err)
-		conn := ps.pickSubConn(string(subj))
+		conn := pickConn(ps.subscribePool, string(subj))
 		if conn != ps.subscribePool[0] {
 			event = evt
 			break
@@ -425,7 +425,7 @@ func TestSubscribePool_SlowConsumerOnNonzeroConn(t *testing.T) {
 		evt := fmt.Sprintf("slow_nonzero_%04d", i)
 		subj, err := LegacyEventSubject(evt)
 		require.NoError(t, err)
-		if ps.pickSubConn(string(subj)) != ps.subscribePool[0] {
+		if pickConn(ps.subscribePool, string(subj)) != ps.subscribePool[0] {
 			event = evt
 			break
 		}

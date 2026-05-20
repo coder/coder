@@ -120,8 +120,6 @@ func TestStandalone_Ordering(t *testing.T) {
 	}
 }
 
-
-
 func TestClose_Idempotent(t *testing.T) {
 	t.Parallel()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
