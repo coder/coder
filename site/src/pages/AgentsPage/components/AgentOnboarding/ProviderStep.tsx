@@ -139,7 +139,7 @@ export const ProviderStep: FC<ProviderStepProps> = ({
 					{savedProviders.map((p) => (
 						<div
 							key={p.id}
-							className="flex items-center gap-2 rounded-lg border-2 border-green-500 px-3 py-1.5"
+							className="flex items-center gap-2 rounded-lg border-2 border-solid border-green-500 px-3 py-1.5"
 						>
 							<ProviderIcon provider={p.provider} className="size-5" />
 							<span className="text-sm font-medium">
