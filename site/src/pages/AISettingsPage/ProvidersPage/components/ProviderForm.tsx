@@ -1,6 +1,5 @@
 import { useFormik } from "formik";
-import { TrashIcon } from "lucide-react";
-import { type FC, type ReactNode, useEffect, useId, useState } from "react";
+import { type FC, type ReactNode, useId } from "react";
 import { Link } from "react-router";
 import * as Yup from "yup";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -79,9 +78,9 @@ const makeDisplayNameSchema = (editing: boolean) =>
 
 /**
  * Stable mask shown in credential inputs when a value already exists on the
- * server. The companion trash button next to each input clears the field so
- * the user can type a replacement; an untouched mask sanitizes to empty on
- * the wire, which the API mapping treats as "keep the existing value".
+ * server. Focusing the input clears the seeded mask so the user can type a
+ * replacement; an untouched mask sanitizes to empty on the wire, which the
+ * API mapping treats as "keep the existing value".
  */
 export const SAVED_CREDENTIAL_MASK = "********";
 
@@ -199,42 +198,38 @@ const getProviderFormSchema = (editing: boolean) =>
 type CredentialFieldProps = {
 	label: string;
 	helpers: FormHelpers;
-	onClear: () => void;
 	inputType?: "text" | "password";
 	autoComplete?: string;
 	placeholder?: string;
 	description?: ReactNode;
 	required?: boolean;
 	/**
-	 * Disables the input while keeping the trash button clickable. Used for
-	 * the seeded-mask state: until the user presses trash, the credential
-	 * input is locked at `********` so they can't accidentally edit it.
+	 * Fires when the input first receives focus. Used to clear the seeded
+	 * `SAVED_CREDENTIAL_MASK` so the user can type a replacement without
+	 * having to first delete the mask by hand.
 	 */
-	disabled?: boolean;
-	trashLabel: string;
+	onFocus?: () => void;
 };
 
 /**
- * Single credential input + per-field destructive trash button. The trash
- * button stays visible at all times so the user can clear whatever they just
- * typed (or the seeded `SAVED_CREDENTIAL_MASK` when a credential is already
- * on file). Pass `inputType="password"` to render the value as dots.
+ * Single credential input. When a credential is already on file the parent
+ * seeds the value with `SAVED_CREDENTIAL_MASK` (or an API-supplied masked
+ * rendering) and wires up `onFocus` so the field clears on first focus,
+ * letting the user type a fresh value. Pass `inputType="password"` to render
+ * the value as dots; default `text` keeps the seeded mask legible.
  *
  * `CredentialField` mirrors `FormField`'s stacking order (label, description,
- * input, helper text) and slots a destructive trash button next to the input
- * so the user can clear a saved credential before typing a replacement.
+ * input, helper text).
  */
 const CredentialField: FC<CredentialFieldProps> = ({
 	label,
 	helpers,
-	onClear,
 	inputType,
 	autoComplete,
 	placeholder,
 	description,
 	required = false,
-	disabled = false,
-	trashLabel,
+	onFocus,
 }) => {
 	const inputId = useId();
 	const errorId = `${inputId}-error`;
@@ -279,44 +274,22 @@ const CredentialField: FC<CredentialFieldProps> = ({
 			value={helpers.value}
 			onChange={helpers.onChange}
 			onBlur={helpers.onBlur}
+			onFocus={onFocus}
 			type={inputType}
 			autoComplete={autoComplete}
 			placeholder={placeholder}
-			disabled={disabled}
 			aria-invalid={helpers.error}
 			aria-describedby={describedBy || undefined}
 			className={cn("w-full", helpers.error && "border-border-destructive")}
 		/>
 	);
 
-	// Only show the trash button while the input is locked at the seeded
-	// credential mask. Once the user clears the field (or has been typing a
-	// fresh credential since mount), the trash is hidden so the user doesn't
-	// see it floating next to a half-typed key.
-	const trashNode = disabled ? (
-		<Button
-			type="button"
-			variant="destructive"
-			size="icon-lg"
-			onClick={onClear}
-			aria-label={trashLabel}
-		>
-			<TrashIcon aria-hidden="true" />
-			<span className="sr-only">{trashLabel}</span>
-		</Button>
-	) : null;
-
 	return (
 		<div className="flex flex-col gap-2">
 			{labelNode}
 			{descriptionNode}
-			<div className="flex items-start gap-2">
-				<div className="flex min-w-0 flex-1 flex-col gap-2">
-					{inputNode}
-					{helperNode}
-				</div>
-				{trashNode}
-			</div>
+			{inputNode}
+			{helperNode}
 		</div>
 	);
 };
@@ -385,31 +358,6 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 }) => {
 	const enabledSwitchId = useId();
 
-	// While editing, each credential input is locked at its seeded mask until
-	// the user presses the trash button next to it; pressing trash flips the
-	// mask boolean off and empties the form value so the user can type a
-	// replacement. We track one boolean per field rather than one shared flag
-	// so a user can clear (and re-enter) just one half of a paired credential.
-	// The Bedrock access key (not the secret or the API key) also swaps from
-	// password dots back to plain text once cleared so the user can see what
-	// they're typing.
-	const [bedrockAccessKeyMasked, setBedrockAccessKeyMasked] = useState(
-		() => bedrockSavedAccessCredentials,
-	);
-	const [bedrockAccessKeySecretMasked, setBedrockAccessKeySecretMasked] =
-		useState(() => bedrockSavedAccessCredentials);
-	const [openAiAnthropicApiKeyMasked, setOpenAiAnthropicApiKeyMasked] =
-		useState(() => openAiAnthropicSavedApiKey);
-
-	useEffect(() => {
-		setBedrockAccessKeyMasked(bedrockSavedAccessCredentials);
-		setBedrockAccessKeySecretMasked(bedrockSavedAccessCredentials);
-	}, [bedrockSavedAccessCredentials]);
-
-	useEffect(() => {
-		setOpenAiAnthropicApiKeyMasked(openAiAnthropicSavedApiKey);
-	}, [openAiAnthropicSavedApiKey]);
-
 	const form = useFormik<ProviderFormValues>({
 		initialValues: {
 			...defaultInitialValues,
@@ -423,10 +371,10 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 				? SAVED_CREDENTIAL_MASK
 				: "",
 			// Mirror the Bedrock pattern for openai/anthropic. A key on file is
-			// shown as a mask; focusing or pressing "Clear key" clears it so the
-			// user can type a replacement. Prefer the API-supplied masked
-			// rendering when available so the user sees the leading/trailing
-			// characters that identify which key is on file.
+			// shown as a mask; focusing the input clears it so the user can type
+			// a replacement. Prefer the API-supplied masked rendering when
+			// available so the user sees the leading/trailing characters that
+			// identify which key is on file.
 			apiKey: openAiAnthropicSavedApiKey
 				? (openAiAnthropicMaskedApiKey ?? SAVED_CREDENTIAL_MASK)
 				: "",
@@ -438,19 +386,17 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 
 	const typeSelectValue = form.values.type;
 
-	const clearBedrockAccessKey = () => {
-		void form.setFieldValue("accessKey", "");
-		setBedrockAccessKeyMasked(false);
-	};
-
-	const clearBedrockAccessKeySecret = () => {
-		void form.setFieldValue("accessKeySecret", "");
-		setBedrockAccessKeySecretMasked(false);
-	};
-
-	const clearOpenAiAnthropicApiKey = () => {
-		void form.setFieldValue("apiKey", "");
-		setOpenAiAnthropicApiKeyMasked(false);
+	// When a credential input is showing the seeded mask (its current value
+	// still matches the non-empty initial value), the first focus clears the
+	// field so the user can type a replacement. Once the user has typed (or
+	// cleared) anything, subsequent focus events become no-ops.
+	const handleCredentialFocus = (
+		field: "apiKey" | "accessKey" | "accessKeySecret",
+	) => {
+		const initial = form.initialValues[field];
+		if (form.values[field] === initial && initial !== "") {
+			void form.setFieldValue(field, "");
+		}
 	};
 
 	return (
@@ -488,18 +434,21 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 							required
 							label="API key"
 							helpers={getFieldHelpers("apiKey")}
-							onClear={clearOpenAiAnthropicApiKey}
+							onFocus={() => handleCredentialFocus("apiKey")}
 							// While the field is showing a saved masked value
 							// (e.g. `sk-ant-***\u2026***ABCD`), render as plain text so
 							// the user can see the identifying suffix the API returned.
-							// Once the user clears the input to type a new key, switch
+							// Once the user focuses the input to type a new key, switch
 							// back to password so the plaintext isn't shoulder-surfable.
-							inputType={openAiAnthropicApiKeyMasked ? "text" : "password"}
+							inputType={
+								form.values.apiKey === form.initialValues.apiKey &&
+								form.initialValues.apiKey !== ""
+									? "text"
+									: "password"
+							}
 							autoComplete="new-password"
 							description="Secret key used to authenticate requests to this provider."
 							placeholder={apiKeyPlaceholder(form.values.type)}
-							disabled={openAiAnthropicApiKeyMasked}
-							trashLabel="Remove saved API key"
 						/>
 						<FormField
 							required
@@ -582,23 +531,28 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 								required
 								label="Access key"
 								helpers={getFieldHelpers("accessKey")}
-								onClear={clearBedrockAccessKey}
-								// Hide the access key value when masked so it renders
-								// uniformly with the secret; revert to plain text once
-								// cleared so the typed key is visible.
-								inputType={bedrockAccessKeyMasked ? "password" : "text"}
-								disabled={bedrockAccessKeyMasked}
-								trashLabel="Remove saved access key"
+								onFocus={() => handleCredentialFocus("accessKey")}
+								// Access keys are identifiers (not secrets), so we keep
+								// them legible at all times. The seeded mask renders as
+								// text and any replacement the user types stays visible.
+								inputType="text"
 							/>
 							<CredentialField
 								required
 								label="Access key secret"
 								helpers={getFieldHelpers("accessKeySecret")}
-								onClear={clearBedrockAccessKeySecret}
-								inputType="password"
+								onFocus={() => handleCredentialFocus("accessKeySecret")}
+								// Keep the seeded mask legible (it isn't the real secret)
+								// but switch to password once the user focuses to type a
+								// replacement so the plaintext isn't shoulder-surfable.
+								inputType={
+									form.values.accessKeySecret ===
+										form.initialValues.accessKeySecret &&
+									form.initialValues.accessKeySecret !== ""
+										? "text"
+										: "password"
+								}
 								autoComplete="new-password"
-								disabled={bedrockAccessKeySecretMasked}
-								trashLabel="Remove saved access key secret"
 							/>
 						</div>
 					</>
