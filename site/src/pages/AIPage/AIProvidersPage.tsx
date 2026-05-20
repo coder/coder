@@ -97,7 +97,7 @@ const AIProvidersPage: FC = () => {
 					</div>
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
-							<Button variant="default">
+							<Button variant="outline">
 								<PlusIcon />
 								Add provider
 								<ChevronDownIcon className="size-4" />
