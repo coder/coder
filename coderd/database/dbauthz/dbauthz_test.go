@@ -6638,6 +6638,20 @@ func (s *MethodTestSuite) TestAIBridge() {
 		dbm.EXPECT().UpdateEncryptedUserAIProviderKey(gomock.Any(), arg).Return(key, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceAIProvider, policy.ActionUpdate).Returns(key)
 	}))
+
+	s.Run("InsertAIBridgeCoderdKey", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().InsertAIBridgeCoderdKey(gomock.Any(), database.InsertAIBridgeCoderdKeyParams{}).Return(database.InsertAIBridgeCoderdKeyRow{}, nil).AnyTimes()
+		check.Args(database.InsertAIBridgeCoderdKeyParams{}).Asserts(rbac.ResourceAIGatewayCoderdKey, policy.ActionCreate)
+	}))
+	s.Run("ListAIBridgeCoderdKeys", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().ListAIBridgeCoderdKeys(gomock.Any()).Return([]database.ListAIBridgeCoderdKeysRow{}, nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceAIGatewayCoderdKey, policy.ActionRead).Returns([]database.ListAIBridgeCoderdKeysRow{})
+	}))
+	s.Run("DeleteAIBridgeCoderdKey", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		id := uuid.New()
+		dbm.EXPECT().DeleteAIBridgeCoderdKey(gomock.Any(), id).Return(nil).AnyTimes()
+		check.Args(id).Asserts(rbac.ResourceAIGatewayCoderdKey, policy.ActionDelete)
+	}))
 }
 
 func (s *MethodTestSuite) TestTelemetry() {

@@ -377,6 +377,14 @@ func (m queryMetricsStore) CustomRoles(ctx context.Context, arg database.CustomR
 	return r0, r1
 }
 
+func (m queryMetricsStore) DeleteAIBridgeCoderdKey(ctx context.Context, id uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteAIBridgeCoderdKey(ctx, id)
+	m.queryLatencies.WithLabelValues("DeleteAIBridgeCoderdKey").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteAIBridgeCoderdKey").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) DeleteAIProviderByID(ctx context.Context, id uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.DeleteAIProviderByID(ctx, id)
@@ -3681,6 +3689,14 @@ func (m queryMetricsStore) GetWorkspacesForWorkspaceMetrics(ctx context.Context)
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertAIBridgeCoderdKey(ctx context.Context, arg database.InsertAIBridgeCoderdKeyParams) (database.InsertAIBridgeCoderdKeyRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertAIBridgeCoderdKey(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertAIBridgeCoderdKey").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAIBridgeCoderdKey").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertAIBridgeInterception(ctx context.Context, arg database.InsertAIBridgeInterceptionParams) (database.AIBridgeInterception, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertAIBridgeInterception(ctx, arg)
@@ -4342,6 +4358,14 @@ func (m queryMetricsStore) ListAIBridgeClients(ctx context.Context, arg database
 	r0, r1 := m.s.ListAIBridgeClients(ctx, arg)
 	m.queryLatencies.WithLabelValues("ListAIBridgeClients").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAIBridgeClients").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) ListAIBridgeCoderdKeys(ctx context.Context) ([]database.ListAIBridgeCoderdKeysRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListAIBridgeCoderdKeys(ctx)
+	m.queryLatencies.WithLabelValues("ListAIBridgeCoderdKeys").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListAIBridgeCoderdKeys").Inc()
 	return r0, r1
 }
 

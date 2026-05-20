@@ -603,6 +603,20 @@ func (mr *MockStoreMockRecorder) CustomRoles(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CustomRoles", reflect.TypeOf((*MockStore)(nil).CustomRoles), ctx, arg)
 }
 
+// DeleteAIBridgeCoderdKey mocks base method.
+func (m *MockStore) DeleteAIBridgeCoderdKey(ctx context.Context, id uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteAIBridgeCoderdKey", ctx, id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteAIBridgeCoderdKey indicates an expected call of DeleteAIBridgeCoderdKey.
+func (mr *MockStoreMockRecorder) DeleteAIBridgeCoderdKey(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAIBridgeCoderdKey", reflect.TypeOf((*MockStore)(nil).DeleteAIBridgeCoderdKey), ctx, id)
+}
+
 // DeleteAIProviderByID mocks base method.
 func (m *MockStore) DeleteAIProviderByID(ctx context.Context, id uuid.UUID) error {
 	m.ctrl.T.Helper()
@@ -6914,6 +6928,21 @@ func (mr *MockStoreMockRecorder) InTx(arg0, arg1 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InTx", reflect.TypeOf((*MockStore)(nil).InTx), arg0, arg1)
 }
 
+// InsertAIBridgeCoderdKey mocks base method.
+func (m *MockStore) InsertAIBridgeCoderdKey(ctx context.Context, arg database.InsertAIBridgeCoderdKeyParams) (database.InsertAIBridgeCoderdKeyRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertAIBridgeCoderdKey", ctx, arg)
+	ret0, _ := ret[0].(database.InsertAIBridgeCoderdKeyRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertAIBridgeCoderdKey indicates an expected call of InsertAIBridgeCoderdKey.
+func (mr *MockStoreMockRecorder) InsertAIBridgeCoderdKey(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAIBridgeCoderdKey", reflect.TypeOf((*MockStore)(nil).InsertAIBridgeCoderdKey), ctx, arg)
+}
+
 // InsertAIBridgeInterception mocks base method.
 func (m *MockStore) InsertAIBridgeInterception(ctx context.Context, arg database.InsertAIBridgeInterceptionParams) (database.AIBridgeInterception, error) {
 	m.ctrl.T.Helper()
@@ -8142,6 +8171,21 @@ func (m *MockStore) ListAIBridgeClients(ctx context.Context, arg database.ListAI
 func (mr *MockStoreMockRecorder) ListAIBridgeClients(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAIBridgeClients", reflect.TypeOf((*MockStore)(nil).ListAIBridgeClients), ctx, arg)
+}
+
+// ListAIBridgeCoderdKeys mocks base method.
+func (m *MockStore) ListAIBridgeCoderdKeys(ctx context.Context) ([]database.ListAIBridgeCoderdKeysRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListAIBridgeCoderdKeys", ctx)
+	ret0, _ := ret[0].([]database.ListAIBridgeCoderdKeysRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListAIBridgeCoderdKeys indicates an expected call of ListAIBridgeCoderdKeys.
+func (mr *MockStoreMockRecorder) ListAIBridgeCoderdKeys(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAIBridgeCoderdKeys", reflect.TypeOf((*MockStore)(nil).ListAIBridgeCoderdKeys), ctx)
 }
 
 // ListAIBridgeInterceptions mocks base method.

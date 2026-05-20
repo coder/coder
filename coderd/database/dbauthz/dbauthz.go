@@ -1907,6 +1907,13 @@ func (q *querier) CustomRoles(ctx context.Context, arg database.CustomRolesParam
 	return q.db.CustomRoles(ctx, arg)
 }
 
+func (q *querier) DeleteAIBridgeCoderdKey(ctx context.Context, id uuid.UUID) error {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAIGatewayCoderdKey); err != nil {
+		return err
+	}
+	return q.db.DeleteAIBridgeCoderdKey(ctx, id)
+}
+
 func (q *querier) DeleteAIProviderByID(ctx context.Context, id uuid.UUID) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAIProvider); err != nil {
 		return err
@@ -5428,6 +5435,13 @@ func (q *querier) GetWorkspacesForWorkspaceMetrics(ctx context.Context) ([]datab
 	return q.db.GetWorkspacesForWorkspaceMetrics(ctx)
 }
 
+func (q *querier) InsertAIBridgeCoderdKey(ctx context.Context, arg database.InsertAIBridgeCoderdKeyParams) (database.InsertAIBridgeCoderdKeyRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceAIGatewayCoderdKey); err != nil {
+		return database.InsertAIBridgeCoderdKeyRow{}, err
+	}
+	return q.db.InsertAIBridgeCoderdKey(ctx, arg)
+}
+
 func (q *querier) InsertAIBridgeInterception(ctx context.Context, arg database.InsertAIBridgeInterceptionParams) (database.AIBridgeInterception, error) {
 	return insert(q.log, q.auth, rbac.ResourceAibridgeInterception.WithOwner(arg.InitiatorID.String()), q.db.InsertAIBridgeInterception)(ctx, arg)
 }
@@ -6166,6 +6180,13 @@ func (q *querier) ListAIBridgeClients(ctx context.Context, arg database.ListAIBr
 		return nil, xerrors.Errorf("(dev error) prepare sql filter: %w", err)
 	}
 	return q.db.ListAuthorizedAIBridgeClients(ctx, arg, prep)
+}
+
+func (q *querier) ListAIBridgeCoderdKeys(ctx context.Context) ([]database.ListAIBridgeCoderdKeysRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIGatewayCoderdKey); err != nil {
+		return nil, err
+	}
+	return q.db.ListAIBridgeCoderdKeys(ctx)
 }
 
 func (q *querier) ListAIBridgeInterceptions(ctx context.Context, arg database.ListAIBridgeInterceptionsParams) ([]database.ListAIBridgeInterceptionsRow, error) {
