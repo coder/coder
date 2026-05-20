@@ -160,6 +160,43 @@ func TestResolveCompactionModelOverride(t *testing.T) {
 		require.Equal(t, fallbackConfigID, got.modelConfigID)
 	})
 
+	t.Run("SmallerContextLimitReturnsFallback", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		overrideID := uuid.New()
+		store := &compactionOverrideStubStore{
+			getChatCompactionModelOverride: func(context.Context) (string, error) {
+				return overrideID.String(), nil
+			},
+			getEnabledChatModelConfigByID: func(context.Context, uuid.UUID) (database.ChatModelConfig, error) {
+				return database.ChatModelConfig{
+					ID:           overrideID,
+					Provider:     "openai",
+					Model:        "gpt-5.2",
+					Enabled:      true,
+					CreatedAt:    time.Unix(0, 0).UTC(),
+					UpdatedAt:    time.Unix(0, 0).UTC(),
+					DisplayName:  "gpt-5.2",
+					ContextLimit: fallbackConfig.ContextLimit - 1,
+				}, nil
+			},
+		}
+		p := newAdvisorTestServer(ctx, t, store)
+
+		got := p.resolveCompactionModelOverride(
+			ctx,
+			database.Chat{},
+			fallbackModel,
+			fallbackConfig,
+			chatprovider.ProviderAPIKeys{OpenAI: "sk-test"},
+			logger,
+		)
+		require.Equal(t, fantasy.LanguageModel(fallbackModel), got.model)
+		require.Equal(t, fallbackConfigID, got.modelConfigID)
+		require.Equal(t, "stub", got.provider)
+		require.Equal(t, "stub", got.modelName)
+	})
+
 	t.Run("MissingProviderKeyReturnsFallback", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
@@ -211,7 +248,7 @@ func TestResolveCompactionModelOverride(t *testing.T) {
 					CreatedAt:    time.Unix(0, 0).UTC(),
 					UpdatedAt:    time.Unix(0, 0).UTC(),
 					DisplayName:  "gpt-5.2",
-					ContextLimit: 128_000,
+					ContextLimit: fallbackConfig.ContextLimit,
 				}, nil
 			},
 		}

@@ -8176,13 +8176,19 @@ func (p *Server) resolveCompactionModelOverride(
 		provider:      fallbackModel.Provider(),
 		modelName:     fallbackModel.Model(),
 	}
-	logFallback := func(reason string, configuredModelConfigID string, err error) compactionModelResolution {
+	logFallback := func(
+		reason string,
+		configuredModelConfigID string,
+		err error,
+		extraFields ...slog.Field,
+	) compactionModelResolution {
 		fields := []slog.Field{
 			slog.F("active_model_config_id", fallbackConfig.ID),
 			slog.F("configured_compaction_model_config_id", configuredModelConfigID),
 			slog.F("resolved_compaction_model_config_id", fallback.modelConfigID),
 			slog.F("fallback_reason", reason),
 		}
+		fields = append(fields, extraFields...)
 		if err != nil {
 			fields = append(fields, slog.Error(err))
 		}
@@ -8219,9 +8225,10 @@ func (p *Server) resolveCompactionModelOverride(
 
 	if overrideConfig.ContextLimit > 0 && fallbackConfig.ContextLimit > 0 &&
 		overrideConfig.ContextLimit < fallbackConfig.ContextLimit {
-		logger.Warn(ctx, "compaction model context limit is smaller than chat model context limit",
-			slog.F("active_model_config_id", fallbackConfig.ID),
-			slog.F("configured_compaction_model_config_id", overrideID),
+		return logFallback(
+			"context_limit_too_small",
+			overrideID.String(),
+			nil,
 			slog.F("active_context_limit", fallbackConfig.ContextLimit),
 			slog.F("compaction_context_limit", overrideConfig.ContextLimit),
 		)
