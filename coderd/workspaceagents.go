@@ -2322,6 +2322,7 @@ func (api *API) tailnetRPCConn(rw http.ResponseWriter, r *http.Request) {
 			Auth: &rbacAuthorizer{
 				sshPrep: sshPrep,
 				db:      api.Database,
+				store:   api.Database,
 			},
 		},
 	})

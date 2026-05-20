@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"path"
 	"slices"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -20,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/dlppolicy"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -29,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/site"
 )
 
 // DBTokenProvider provides authentication and authorization for workspace apps
@@ -147,6 +150,42 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 	}
 
 	aReq.dbReq = dbReq // Update audit request.
+
+	// DLP enforcement. The token provider is the single source of truth for
+	// both primary and workspace-proxy paths; gating here covers all callers.
+	dlp, err := dlppolicy.ForAgent(dangerousSystemCtx, p.Database, dbReq.Agent.ID)
+	if err != nil {
+		WriteWorkspaceApp500(p.Logger, p.DashboardURL, rw, r, &appReq, err, "check workspace policy")
+		return nil, "", false
+	}
+	if dlp != nil {
+		if appReq.AccessMethod == AccessMethodTerminal && !dlp.WebTerminalAccess {
+			httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+				Message: "The web terminal is not permitted by the workspace policy.",
+			})
+			return nil, "", false
+		}
+		if appReq.AccessMethod != AccessMethodTerminal {
+			slugOrPort := appReq.AppSlugOrPort
+			isPort := appReq.AccessMethod == AccessMethodSubdomain && isPortStr(slugOrPort)
+			if isPort && !dlp.PortForwardingAccess {
+				site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+					Status:      http.StatusForbidden,
+					Title:       "Blocked by workspace policy",
+					Description: "Port forwarding is not permitted by the workspace policy.",
+				})
+				return nil, "", false
+			}
+			if !isPort && !slices.Contains(dlp.AllowedApplications, slugOrPort) {
+				site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+					Status:      http.StatusForbidden,
+					Title:       "Blocked by workspace policy",
+					Description: fmt.Sprintf("The %q application is not permitted by the workspace policy.", slugOrPort),
+				})
+				return nil, "", false
+			}
+		}
+	}
 
 	token.UserID = dbReq.UserID
 	token.WorkspaceID = dbReq.Workspace.ID
@@ -551,4 +590,10 @@ func (p *DBTokenProvider) connLogInitRequest(w http.ResponseWriter, r *http.Requ
 			return
 		}
 	}
+}
+
+// isPortStr returns true if s is a valid TCP port number string.
+func isPortStr(s string) bool {
+	_, err := strconv.ParseUint(s, 10, 16)
+	return err == nil
 }

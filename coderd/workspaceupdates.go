@@ -12,6 +12,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/dlppolicy"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/wspubsub"
@@ -297,6 +298,7 @@ func convertRows(rows []database.GetWorkspacesAndAgentsByOwnerIDRow) workspacesB
 type rbacAuthorizer struct {
 	sshPrep rbac.PreparedAuthorized
 	db      UpdatesQuerier
+	store   database.Store
 }
 
 func (r *rbacAuthorizer) AuthorizeTunnel(ctx context.Context, agentID uuid.UUID) error {
@@ -305,7 +307,19 @@ func (r *rbacAuthorizer) AuthorizeTunnel(ctx context.Context, agentID uuid.UUID)
 		return xerrors.Errorf("get workspace by agent ID: %w", err)
 	}
 	// Authorizes against `ActionSSH`
-	return r.sshPrep.Authorize(ctx, ws.RBACObject())
+	if err := r.sshPrep.Authorize(ctx, ws.RBACObject()); err != nil {
+		return err
+	}
+
+	// DLP gate: reuse ssh_access for Desktop (same data plane as CLI SSH).
+	dlp, err := dlppolicy.ForAgent(ctx, r.store, agentID)
+	if err != nil {
+		return xerrors.Errorf("check dlp policy: %w", err)
+	}
+	if dlp != nil && !dlp.SshAccess {
+		return xerrors.New("workspace agent not found or you do not have permission")
+	}
+	return nil
 }
 
 var _ tailnet.TunnelAuthorizer = (*rbacAuthorizer)(nil)
