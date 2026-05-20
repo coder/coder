@@ -2688,60 +2688,11 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Archived != nil {
-		archived := *req.Archived
-		if archived == chat.Archived {
-			state := "archived"
-			if !archived {
-				state = "not archived"
-			}
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: fmt.Sprintf("Chat is already %s.", state),
-			})
-			return
-		}
-
-		// Archive invariant is one-way: parent archived implies
-		// child archived. Parent archive/unarchive cascade via
-		// root_chat_id; individual child archive is permitted;
-		// child unarchive while the parent is archived is rejected
-		// (enforced atomically in chatd.Server.UnarchiveChat).
-		if chat.ParentChatID.Valid && !archived {
-			if done := api.writeChildUnarchiveGuard(ctx, rw, chat); done {
+		if *req.Archived {
+			if handled := api.archiveChat(ctx, rw, chat); handled {
 				return
 			}
-		}
-		var err error
-		// Use chatDaemon when available so it can interrupt active
-		// processing before broadcasting archive state. Fall back to
-		// direct DB when no daemon is running.
-		if archived {
-			if api.chatDaemon != nil {
-				err = api.chatDaemon.ArchiveChat(ctx, chat)
-			} else {
-				_, err = api.Database.ArchiveChatByID(ctx, chat.ID)
-			}
-		} else {
-			if api.chatDaemon != nil {
-				err = api.chatDaemon.UnarchiveChat(ctx, chat)
-			} else {
-				_, err = api.Database.UnarchiveChatByID(ctx, chat.ID)
-			}
-		}
-		if err != nil {
-			if errors.Is(err, chatd.ErrChildUnarchiveParentArchived) {
-				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "Cannot unarchive a child chat while its parent is archived. Unarchive the parent chat to cascade.",
-				})
-				return
-			}
-			action := "archive"
-			if !archived {
-				action = "unarchive"
-			}
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: fmt.Sprintf("Failed to %s chat.", action),
-				Detail:  err.Error(),
-			})
+		} else if handled := api.unarchiveChat(ctx, rw, chat); handled {
 			return
 		}
 	}
@@ -2878,6 +2829,81 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+func (api *API) archiveChat(
+	ctx context.Context,
+	rw http.ResponseWriter,
+	chat database.Chat,
+) bool {
+	if chat.Archived {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Chat is already archived.",
+		})
+		return true
+	}
+
+	archivedChats, err := api.transitionChatToArchived(ctx, chat)
+	if err != nil {
+		writeChatArchiveTransitionError(ctx, rw, "archive", err)
+		return true
+	}
+
+	api.cleanupArchivedChatWorkspaceFiles(ctx, archivedChats)
+	return false
+}
+
+func (api *API) unarchiveChat(
+	ctx context.Context,
+	rw http.ResponseWriter,
+	chat database.Chat,
+) bool {
+	if !chat.Archived {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Chat is already not archived.",
+		})
+		return true
+	}
+
+	if chat.ParentChatID.Valid {
+		if done := api.writeChildUnarchiveGuard(ctx, rw, chat); done {
+			return true
+		}
+	}
+
+	if err := api.transitionChatToUnarchived(ctx, chat); err != nil {
+		writeChatArchiveTransitionError(ctx, rw, "unarchive", err)
+		return true
+	}
+	return false
+}
+
+func (api *API) transitionChatToArchived(ctx context.Context, chat database.Chat) ([]database.Chat, error) {
+	if api.chatDaemon != nil {
+		return api.chatDaemon.ArchiveChat(ctx, chat)
+	}
+	return api.Database.ArchiveChatByID(ctx, chat.ID)
+}
+
+func (api *API) transitionChatToUnarchived(ctx context.Context, chat database.Chat) error {
+	if api.chatDaemon != nil {
+		return api.chatDaemon.UnarchiveChat(ctx, chat)
+	}
+	_, err := api.Database.UnarchiveChatByID(ctx, chat.ID)
+	return err
+}
+
+func writeChatArchiveTransitionError(ctx context.Context, rw http.ResponseWriter, action string, err error) {
+	if errors.Is(err, chatd.ErrChildUnarchiveParentArchived) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Cannot unarchive a child chat while its parent is archived. Unarchive the parent chat to cascade.",
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+		Message: fmt.Sprintf("Failed to %s chat.", action),
+		Detail:  err.Error(),
+	})
 }
 
 // writeChildUnarchiveGuard returns a 400 early when a child unarchive
@@ -6112,6 +6138,68 @@ const (
 	// non-empty filename after sanitization.
 	chatWorkspaceUploadMissingFilenameMessage = "Filename is required."
 )
+
+func (api *API) cleanupArchivedChatWorkspaceFiles(ctx context.Context, chats []database.Chat) {
+	logger := api.Logger.Named("chat_workspace_file_cleanup")
+	for _, chat := range chats {
+		if err := api.deleteChatWorkspaceFiles(ctx, chat); err != nil {
+			logger.Warn(ctx, "failed to clean up archived chat workspace files",
+				slog.F("chat_id", chat.ID),
+				slog.F("workspace_id", chat.WorkspaceID.UUID),
+				slog.Error(err),
+			)
+		}
+	}
+}
+
+func (api *API) deleteChatWorkspaceFiles(ctx context.Context, chat database.Chat) error {
+	if !chat.WorkspaceID.Valid {
+		return nil
+	}
+
+	agents, err := api.Database.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, chat.WorkspaceID.UUID)
+	if err != nil {
+		return xerrors.Errorf("fetch workspace agents: %w", err)
+	}
+	if len(agents) == 0 {
+		return xerrors.New("workspace has no agents")
+	}
+
+	selectedAgent, err := agentselect.FindChatAgent(agents)
+	if err != nil {
+		return xerrors.Errorf("select chat agent: %w", err)
+	}
+
+	apiAgent, err := db2sdk.WorkspaceAgent(
+		api.DERPMap(),
+		*api.TailnetCoordinator.Load(),
+		selectedAgent,
+		nil,
+		nil,
+		nil,
+		api.AgentInactiveDisconnectTimeout,
+		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
+	)
+	if err != nil {
+		return xerrors.Errorf("read workspace agent status: %w", err)
+	}
+	if apiAgent.Status != codersdk.WorkspaceAgentConnected {
+		return xerrors.Errorf("agent status is %q, must be %q", apiAgent.Status, codersdk.WorkspaceAgentConnected)
+	}
+
+	cleanupCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	agentConn, release, err := api.agentProvider.AgentConn(cleanupCtx, selectedAgent.ID)
+	if err != nil {
+		return xerrors.Errorf("dial workspace agent: %w", err)
+	}
+	defer release()
+
+	if err := agentConn.DeleteChatFiles(cleanupCtx, chat.ID.String()); err != nil {
+		return xerrors.Errorf("delete chat files on workspace agent: %w", err)
+	}
+	return nil
+}
 
 func (api *API) chatWorkspaceUploadMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {

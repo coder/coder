@@ -174,6 +174,20 @@ func (mr *MockAgentConnMockRecorder) DebugManifest(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DebugManifest", reflect.TypeOf((*MockAgentConn)(nil).DebugManifest), ctx)
 }
 
+// DeleteChatFiles mocks base method.
+func (m *MockAgentConn) DeleteChatFiles(ctx context.Context, chatID string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteChatFiles", ctx, chatID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteChatFiles indicates an expected call of DeleteChatFiles.
+func (mr *MockAgentConnMockRecorder) DeleteChatFiles(ctx, chatID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatFiles", reflect.TypeOf((*MockAgentConn)(nil).DeleteChatFiles), ctx, chatID)
+}
+
 // DeleteDevcontainer mocks base method.
 func (m *MockAgentConn) DeleteDevcontainer(ctx context.Context, devcontainerID string) error {
 	m.ctrl.T.Helper()

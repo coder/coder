@@ -98,6 +98,16 @@ func TestPostChatWorkspaceFile(t *testing.T) {
 		require.NotEqual(t, resp.Path, second.Path)
 		_, err = os.Stat(resp.Path)
 		require.NoError(t, err, "original upload was overwritten")
+
+		archived := true
+		err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+			Archived: &archived,
+		})
+		require.NoError(t, err)
+		_, err = os.Stat(resp.Path)
+		require.True(t, os.IsNotExist(err), "archive should clean up the first uploaded file")
+		_, err = os.Stat(second.Path)
+		require.True(t, os.IsNotExist(err), "archive should clean up the second uploaded file")
 	})
 
 	t.Run("MissingFilename", func(t *testing.T) {

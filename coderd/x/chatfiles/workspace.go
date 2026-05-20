@@ -61,15 +61,22 @@ func SanitizeWorkspaceUploadName(name string) (string, error) {
 	return name, nil
 }
 
+// WorkspaceChatDir returns the per-chat directory under the agent's
+// home directory: $HOME/.coder/chats/<chat-id>. chatID is expected to
+// be the full chat UUID; the caller is responsible for validating it.
+func WorkspaceChatDir(homeDir, chatID string) string {
+	if homeDir == "" {
+		homeDir = "~"
+	}
+	return path.Join(homeDir, WorkspaceChatsDir, chatID)
+}
+
 // WorkspaceUploadDir returns the per-chat directory under the agent's
 // home directory where uploads should be written: $HOME/.coder/chats/<chat-id>/files.
 // chatID is expected to be the full chat UUID; the caller is responsible
 // for validating it.
 func WorkspaceUploadDir(homeDir, chatID string) string {
-	if homeDir == "" {
-		homeDir = "~"
-	}
-	return path.Join(homeDir, WorkspaceChatsDir, chatID, WorkspaceUploadFilesSubdir)
+	return path.Join(WorkspaceChatDir(homeDir, chatID), WorkspaceUploadFilesSubdir)
 }
 
 // AddCollisionSuffix returns a candidate filename with a `_<n>` suffix

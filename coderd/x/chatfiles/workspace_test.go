@@ -64,6 +64,15 @@ func TestWorkspaceUploadDir(t *testing.T) {
 		chatfiles.WorkspaceUploadDir("", "abcd1234"))
 }
 
+func TestWorkspaceChatDir(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, "/home/coder/.coder/chats/abcd1234",
+		chatfiles.WorkspaceChatDir("/home/coder", "abcd1234"))
+	require.Equal(t, "~/.coder/chats/abcd1234",
+		chatfiles.WorkspaceChatDir("", "abcd1234"))
+}
+
 func TestAddCollisionSuffix(t *testing.T) {
 	t.Parallel()
 

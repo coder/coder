@@ -110,6 +110,59 @@ func (api *API) HandleUploadChatFile(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// HandleDeleteChatFiles removes the chat-scoped workspace upload directory.
+// It is idempotent so coderd can call it as best-effort lifecycle cleanup.
+//
+// Query parameters: chat_id (required, the chat UUID; used as the
+// per-chat subdirectory).
+func (api *API) HandleDeleteChatFiles(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	query := r.URL.Query()
+	parser := httpapi.NewQueryParamParser().
+		RequiredNotEmpty("chat_id")
+	chatID := parser.String(query, "", "chat_id")
+	parser.ErrorExcessParams(query)
+	if len(parser.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Query parameters have invalid values.",
+			Validations: parser.Errors,
+		})
+		return
+	}
+
+	if !chatIDPattern.MatchString(chatID) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "chat_id must contain only alphanumerics or dashes.",
+		})
+		return
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: fmt.Sprintf("resolve home directory: %s", err),
+		})
+		return
+	}
+
+	dir := chatfiles.WorkspaceChatDir(home, chatID)
+	if err := api.filesystem.RemoveAll(dir); err != nil {
+		status := http.StatusInternalServerError
+		if errors.Is(err, os.ErrPermission) {
+			status = http.StatusForbidden
+		}
+		httpapi.Write(ctx, rw, status, codersdk.Response{
+			Message: fmt.Sprintf("delete chat upload directory: %s", err),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
+		Message: "Chat workspace files deleted.",
+	})
+}
+
 // errUploadCollisionExhausted is returned when the collision-suffix
 // search exceeds maxUploadChatFileCollisionAttempts.
 var errUploadCollisionExhausted = xerrors.New("too many existing files with the same name")

@@ -122,6 +122,7 @@ type AgentConn interface {
 	ReadFileLines(ctx context.Context, path string, offset, limit int64, limits ReadFileLinesLimits) (ReadFileLinesResponse, error)
 	WriteFile(ctx context.Context, path string, reader io.Reader) error
 	UploadChatFile(ctx context.Context, req UploadChatFileRequest) (UploadChatFileResponse, error)
+	DeleteChatFiles(ctx context.Context, chatID string) error
 	EditFiles(ctx context.Context, edits FileEditRequest) (FileEditResponse, error)
 	SSH(ctx context.Context) (*gonet.TCPConn, error)
 	SSHClient(ctx context.Context) (*ssh.Client, error)
@@ -1072,6 +1073,24 @@ func (c *agentConn) UploadChatFile(ctx context.Context, req UploadChatFileReques
 		return UploadChatFileResponse{}, xerrors.Errorf("decode response body: %w", err)
 	}
 	return out, nil
+}
+
+// DeleteChatFiles removes the chat-scoped workspace upload directory.
+func (c *agentConn) DeleteChatFiles(ctx context.Context, chatID string) error {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	res, err := c.apiRequest(ctx, http.MethodDelete, agentAPIPath("/api/v0/delete-chat-files", neturl.Values{
+		"chat_id": []string{chatID},
+	}), nil)
+	if err != nil {
+		return xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return codersdk.ReadBodyAsError(res)
+	}
+	return nil
 }
 
 // ReadFileLinesResponse is the response from the line-based file reader.
