@@ -40,7 +40,9 @@ export const ModelStep: FC<ModelStepProps> = ({
 	const savedProviders = allProviderConfigs.filter(
 		(p) => p.source !== "supported" && p.enabled,
 	);
-	const [selectedProvider, setSelectedProvider] = useState<string>("");
+	const [selectedProvider, setSelectedProvider] = useState<string>(
+		savedProviders.length > 0 ? savedProviders[0].provider : "",
+	);
 	const [selectedModel, setSelectedModel] = useState<string>("");
 	const [contextLimit, setContextLimit] = useState<string>("");
 	const queryClient = useQueryClient();
@@ -205,11 +207,7 @@ export const ModelStep: FC<ModelStepProps> = ({
 			)}
 
 			<div className="flex items-center justify-between">
-				<Button
-					variant="subtle"
-					className="min-w-0 px-0"
-					onClick={onBack}
-				>
+				<Button variant="subtle" className="min-w-0 px-0" onClick={onBack}>
 					Back
 				</Button>
 				<div className="flex items-center gap-3">

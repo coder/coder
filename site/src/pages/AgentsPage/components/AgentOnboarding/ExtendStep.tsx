@@ -35,11 +35,7 @@ export const ExtendStep: FC<ExtendStepProps> = ({ onBack, onFinish }) => {
 			</div>
 
 			<div className="flex items-center justify-between">
-				<Button
-					variant="subtle"
-					className="min-w-0 px-0"
-					onClick={onBack}
-				>
+				<Button variant="subtle" className="min-w-0 px-0" onClick={onBack}>
 					Back
 				</Button>
 				<Button onClick={onFinish}>Start chatting</Button>

@@ -3,7 +3,6 @@ import { type FC, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { Link } from "react-router";
 import { createChatProviderConfig } from "#/api/queries/chats";
-import type { ChatProviderConfig } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
@@ -36,22 +35,12 @@ const API_KEY_URLS: Record<string, string> = {
 };
 
 interface ProviderStepProps {
-	savedProviders: readonly ChatProviderConfig[];
 	onSkip: () => void;
 	onContinue: () => void;
 }
 
-export const ProviderStep: FC<ProviderStepProps> = ({
-	savedProviders: allProviderConfigs,
-	onSkip,
-	onContinue,
-}) => {
-	// Filter to only providers that are actually configured (not just
-	// catalog "supported" entries).
-	const savedProviders = allProviderConfigs.filter(
-		(p) => p.source !== "supported" && p.enabled,
-	);
-	const [started, setStarted] = useState(savedProviders.length > 0);
+export const ProviderStep: FC<ProviderStepProps> = ({ onSkip, onContinue }) => {
+	const [started, setStarted] = useState(false);
 	const [selectedProvider, setSelectedProvider] = useState<string>("");
 	const [apiKey, setApiKey] = useState("");
 	const [baseUrl, setBaseUrl] = useState("");
@@ -71,21 +60,12 @@ export const ProviderStep: FC<ProviderStepProps> = ({
 			},
 			{
 				onSuccess: () => {
-					setSelectedProvider("");
-					setApiKey("");
-					setBaseUrl("");
+					// Auto-advance to model step after saving
+					onContinue();
 				},
 			},
 		);
 	};
-
-	const hasSavedProviders = savedProviders.length > 0;
-	const savedProviderIds = new Set(
-		savedProviders.map((p) => p.provider.toLowerCase()),
-	);
-	const availableProviders = KNOWN_PROVIDERS.filter(
-		(p) => !savedProviderIds.has(p),
-	);
 
 	// Intro sub-state: before the user clicks "Get started"
 	if (!started) {
@@ -133,48 +113,14 @@ export const ProviderStep: FC<ProviderStepProps> = ({
 				</p>
 			</div>
 
-			{/* Saved provider badges */}
-			{hasSavedProviders && (
-				<div className="flex flex-wrap items-center gap-2">
-					{savedProviders.map((p) => (
-						<div
-							key={p.id}
-							className="flex items-center gap-2 rounded-lg border border-solid border-green-500 px-3 py-1.5"
-						>
-							<ProviderIcon provider={p.provider} className="size-5" />
-							<span className="text-sm font-medium">
-								{formatProviderLabel(p.provider)}
-							</span>
-						</div>
-					))}
-					{availableProviders.length > 0 && !selectedProvider && (
-						<Select value="" onValueChange={setSelectedProvider}>
-							<SelectTrigger className="w-auto gap-2">
-								<SelectValue placeholder="Add another..." />
-							</SelectTrigger>
-							<SelectContent>
-								{availableProviders.map((p) => (
-									<SelectItem key={p} value={p}>
-										<div className="flex items-center gap-2">
-											<ProviderIcon provider={p} className="size-5" />
-											{formatProviderLabel(p)}
-										</div>
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					)}
-				</div>
-			)}
-
-			{/* Provider selector (when no providers saved yet) */}
-			{!hasSavedProviders && !selectedProvider && (
+			{/* Provider selector */}
+			{!selectedProvider && (
 				<Select value="" onValueChange={setSelectedProvider}>
 					<SelectTrigger className="w-[200px]">
 						<SelectValue placeholder="Select..." />
 					</SelectTrigger>
 					<SelectContent>
-						{availableProviders.map((p) => (
+						{KNOWN_PROVIDERS.map((p) => (
 							<SelectItem key={p} value={p}>
 								<div className="flex items-center gap-2">
 									<ProviderIcon provider={p} className="size-5" />
@@ -231,7 +177,10 @@ export const ProviderStep: FC<ProviderStepProps> = ({
 					/>
 
 					<div className="flex justify-end">
-						<Button onClick={handleSave} disabled={!apiKey.trim() || createMutation.isPending}>
+						<Button
+							onClick={handleSave}
+							disabled={!apiKey.trim() || createMutation.isPending}
+						>
 							{createMutation.isPending && <Spinner className="mr-2" />}
 							Save provider
 						</Button>
@@ -239,9 +188,7 @@ export const ProviderStep: FC<ProviderStepProps> = ({
 				</div>
 			) : (
 				<div className="flex min-h-[200px] items-center justify-center rounded-xl border border-solid border-border p-6">
-					<p className="text-sm text-content-secondary">
-						{hasSavedProviders ? "Select another provider" : "No provider selected"}
-					</p>
+					<p className="text-sm text-content-secondary">No provider selected</p>
 				</div>
 			)}
 
@@ -266,9 +213,6 @@ export const ProviderStep: FC<ProviderStepProps> = ({
 				<div className="flex items-center gap-3">
 					<Button variant="outline" onClick={onSkip}>
 						Skip
-					</Button>
-					<Button onClick={onContinue} disabled={!hasSavedProviders}>
-						Continue
 					</Button>
 				</div>
 			</div>

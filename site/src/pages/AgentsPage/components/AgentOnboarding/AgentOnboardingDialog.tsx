@@ -45,16 +45,13 @@ export const AgentOnboardingDialog: FC<AgentOnboardingDialogProps> = ({
 		<Dialog open={open}>
 			<DialogContent
 				className={
-					step === "extend"
-					? "max-w-5xl gap-0 p-6"
-					: "max-w-3xl gap-0 p-6"
+					step === "extend" ? "max-w-5xl gap-0 p-6" : "max-w-3xl gap-0 p-6"
 				}
 				onEscapeKeyDown={preventClose}
 				onPointerDownOutside={preventClose}
 			>
 				{step === "provider" && (
 					<ProviderStep
-						savedProviders={savedProviders}
 						onSkip={handleSkip}
 						onContinue={() => setStep("model")}
 					/>
