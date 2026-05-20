@@ -10,6 +10,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { Response } from "../Response";
+import { transcriptRowMinHeightClass } from "./transcriptStyles";
 import type { ToolStatus } from "./utils";
 
 export const ProposePlanTool: React.FC<{
@@ -72,7 +73,9 @@ export const ProposePlanTool: React.FC<{
 
 	return (
 		<div className="w-full">
-			<div className="flex items-center gap-1.5 py-0.5 text-content-secondary">
+			<div
+				className={`flex items-center gap-1.5 text-content-secondary ${transcriptRowMinHeightClass}`}
+			>
 				<span className="text-[13px]">
 					{isRunning ? `Proposing ${filename}…` : `Proposed ${filename}`}
 				</span>
@@ -137,7 +140,9 @@ export const ProposePlanTool: React.FC<{
 				)
 			)}
 			{fetchLoading && (
-				<div className="flex items-center gap-1.5 py-2 text-[13px] text-content-secondary">
+				<div
+					className={`flex items-center gap-1.5 text-[13px] text-content-secondary ${transcriptRowMinHeightClass}`}
+				>
 					<LoaderIcon className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
 					Loading plan…
 				</div>

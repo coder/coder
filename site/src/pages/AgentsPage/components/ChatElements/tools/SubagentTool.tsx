@@ -19,6 +19,7 @@ import { useDesktopPanel } from "./DesktopPanelContext";
 import { InlineDesktopPreview } from "./InlineDesktopPreview";
 import { RecordingPreview } from "./RecordingPreview";
 import type { SubagentAction, SubagentDescriptor } from "./subagentDescriptor";
+import { transcriptRowMinHeightClass } from "./transcriptStyles";
 import {
 	isSubagentSuccessStatus,
 	shortDurationMs,
@@ -199,6 +200,7 @@ export const SubagentTool: React.FC<{
 				className={cn(
 					"border-0 bg-transparent p-0 m-0 font-[inherit] text-[inherit] text-left",
 					"flex w-full items-center gap-2",
+					transcriptRowMinHeightClass,
 					"text-content-secondary transition-colors",
 					hasExpandableContent && "cursor-pointer hover:text-content-primary",
 				)}

@@ -5,6 +5,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { transcriptRowMinHeightClass } from "./transcriptStyles";
 import type { ToolStatus } from "./utils";
 
 /**
@@ -26,7 +27,9 @@ export const ReadTemplateTool: React.FC<{
 			: "Read template";
 
 	return (
-		<div className="flex items-center gap-1.5 text-content-secondary">
+		<div
+			className={`flex items-center gap-1.5 text-content-secondary ${transcriptRowMinHeightClass}`}
+		>
 			<span className="text-[13px]">{label}</span>
 			{isError && (
 				<Tooltip>

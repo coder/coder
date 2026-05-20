@@ -8,6 +8,7 @@ import {
 	isAgentDisplayOpen,
 	resolveAgentDisplayState,
 } from "./displayMode";
+import { transcriptRowMinHeightClass } from "./transcriptStyles";
 
 type ToolCollapsibleAriaLabel = string | ((expanded: boolean) => string);
 type ToolCollapsibleHeader = ReactNode | ((expanded: boolean) => ReactNode);
@@ -79,7 +80,8 @@ export const ToolCollapsible: FC<ToolCollapsibleProps> = ({
 			onClick={toggleExpanded}
 			className={cn(
 				"border-0 bg-transparent p-0 m-0 font-[inherit] text-[inherit] text-left",
-				"flex min-h-6 items-center gap-2 cursor-pointer",
+				"flex items-center gap-2 cursor-pointer",
+				transcriptRowMinHeightClass,
 				"text-content-secondary transition-colors hover:text-content-primary",
 				headerActions ? "min-w-0 flex-1" : "w-full",
 				headerClassName,
@@ -96,7 +98,8 @@ export const ToolCollapsible: FC<ToolCollapsibleProps> = ({
 	) : (
 		<div
 			className={cn(
-				"flex min-h-6 items-center gap-2 text-content-secondary",
+				"flex items-center gap-2 text-content-secondary",
+				transcriptRowMinHeightClass,
 				headerActions && "min-w-0 flex-1",
 				headerClassName,
 			)}

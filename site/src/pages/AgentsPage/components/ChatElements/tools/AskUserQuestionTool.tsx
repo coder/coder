@@ -9,6 +9,7 @@ import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
 import { cn } from "#/utils/cn";
+import { transcriptRowMinHeightClass } from "./transcriptStyles";
 import type { ToolStatus } from "./utils";
 
 export type AskUserQuestion = {
@@ -538,7 +539,10 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 			<div className="w-full">
 				<div
 					role="alert"
-					className="flex items-center gap-1.5 py-0.5 text-[13px] text-content-secondary"
+					className={cn(
+						"flex items-center gap-1.5 text-[13px] text-content-secondary",
+						transcriptRowMinHeightClass,
+					)}
 				>
 					<TriangleAlertIcon
 						aria-label="Error"
@@ -557,7 +561,10 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 					<div
 						role="status"
 						aria-live="polite"
-						className="flex items-center gap-1.5 py-0.5"
+						className={cn(
+							"flex items-center gap-1.5",
+							transcriptRowMinHeightClass,
+						)}
 					>
 						<span className="text-[13px] text-content-secondary">
 							Asking for clarification...
@@ -683,7 +690,10 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 				<div
 					role="status"
 					aria-live="polite"
-					className="flex items-center gap-1.5 py-0.5"
+					className={cn(
+						"flex items-center gap-1.5",
+						transcriptRowMinHeightClass,
+					)}
 				>
 					<span className="text-[13px] text-content-secondary">
 						Asking for clarification...

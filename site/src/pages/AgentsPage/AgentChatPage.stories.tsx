@@ -2433,7 +2433,27 @@ export const WithEveryTool: Story = {
 			expect(canvas.getByText(/Editing 2 files/)).toBeInTheDocument();
 			expect(canvas.getByText(/Reading CHANGELOG\.md/)).toBeInTheDocument();
 			expect(canvas.getByText(/Writing CHANGELOG\.md/)).toBeInTheDocument();
+			expect(canvas.getByText(/Attached auth-split\.md/)).toBeInTheDocument();
+			expect(
+				canvas.getByRole("button", { name: /Spawned Workspace diagnostics/i }),
+			).toBeInTheDocument();
+			expect(
+				canvas.getByRole("button", { name: /Read skill deep-review/i }),
+			).toBeInTheDocument();
 		});
+
+		const rowHeights = [
+			canvas.getByText(/Attached auth-split\.md/),
+			canvas.getByRole("button", {
+				name: /Spawned Workspace diagnostics/i,
+			}),
+			canvas.getByRole("button", { name: /Read skill deep-review/i }),
+		].map((label) => {
+			const row = label.closest("[data-transcript-row]");
+			expect(row).toBeInstanceOf(HTMLElement);
+			return Math.round((row as HTMLElement).getBoundingClientRect().height);
+		});
+		expect(new Set(rowHeights)).toEqual(new Set([24]));
 	},
 };
 
