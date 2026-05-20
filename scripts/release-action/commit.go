@@ -12,11 +12,8 @@ type commitEntry struct {
 	SHA       string
 	FullSHA   string
 	Title     string
-	PRNumbers []int
 	Timestamp int64
 }
-
-var prNumRe = regexp.MustCompile(`\(#(\d+)\)`)
 
 // cherryPickPRRe matches cherry-pick bot titles like
 // "chore: foo bar (cherry-pick #42) (#43)".
@@ -114,20 +111,12 @@ func commitLog(commitRange string) ([]commitEntry, error) {
 			title = title[:cherryPickPRRe.FindStringIndex(title)[0]] + "(#" + m[1] + ")"
 		}
 
-		e := commitEntry{
+		entries = append(entries, commitEntry{
 			SHA:       shortSHA,
 			FullSHA:   fullSHA,
 			Title:     title,
 			Timestamp: ts,
-		}
-		// Extract all PR numbers from the title. GitHub's squash-merge
-		// convention appends "(#NNN)" to the subject line; some commits
-		// may reference multiple PRs.
-		for _, m := range prNumRe.FindAllStringSubmatch(e.Title, -1) {
-			num, _ := strconv.Atoi(m[1])
-			e.PRNumbers = append(e.PRNumbers, num)
-		}
-		entries = append(entries, e)
+		})
 	}
 
 	// Sort by conventional commit prefix, then by timestamp

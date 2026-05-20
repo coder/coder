@@ -31,20 +31,11 @@ type pullRequest struct {
 type pullRequestMap map[int]pullRequest
 
 // ghBuildPullRequestMap builds a map of PR number to metadata by
-// querying the GitHub API via the gh CLI for all PRs referenced in
-// the commit list.
-func ghBuildPullRequestMap(commits []commitEntry) pullRequestMap {
+// querying the GitHub API via the gh CLI for the given PR numbers.
+func ghBuildPullRequestMap(prNumbers []int) pullRequestMap {
 	m := make(pullRequestMap)
 
-	// Collect unique PR numbers.
-	prNums := make(map[int]bool)
-	for _, c := range commits {
-		for _, num := range c.PRNumbers {
-			prNums[num] = true
-		}
-	}
-
-	for prNum := range prNums {
+	for _, prNum := range prNumbers {
 		out, err := ghOutput("pr", "view", fmt.Sprintf("%d", prNum),
 			"--repo", fmt.Sprintf("%s/%s", owner, repo),
 			"--json", "number,labels,author")

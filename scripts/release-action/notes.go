@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"golang.org/x/xerrors"
@@ -23,8 +25,8 @@ func generateReleaseNotes(newVersion, previousVersion version, channel string) (
 		return "", xerrors.Errorf("commit log: %w", err)
 	}
 
-	// Build PR metadata map for label lookup.
-	prMeta := ghBuildPullRequestMap(commits)
+	// Extract PR numbers from commit titles and fetch metadata.
+	prMeta := ghBuildPullRequestMap(extractPRNumbers(commits))
 
 	// Section definitions in display order.
 	type section struct {
@@ -57,7 +59,7 @@ func generateReleaseNotes(newVersion, previousVersion version, channel string) (
 		}
 
 		var labels []string
-		for _, prNum := range c.PRNumbers {
+		for _, prNum := range parsePRNumbers(c.Title) {
 			if meta, ok := prMeta[prNum]; ok {
 				labels = append(labels, meta.Labels...)
 			}
@@ -84,11 +86,11 @@ func generateReleaseNotes(newVersion, previousVersion version, channel string) (
 		_, _ = fmt.Fprintf(&b, "### %s\n\n", sec.title)
 		for _, e := range entries {
 			title := humanizeTitle(e.Title)
-			if len(e.PRNumbers) > 0 {
+			if prNums := parsePRNumbers(e.Title); len(prNums) > 0 {
 				// Strip the trailing PR reference from the title since
 				// we add it as a link.
 				title = stripPRRef(title)
-				_, _ = fmt.Fprintf(&b, "- %s (#%d)\n", title, e.PRNumbers[0])
+				_, _ = fmt.Fprintf(&b, "- %s (#%d)\n", title, prNums[0])
 			} else {
 				_, _ = fmt.Fprintf(&b, "- %s\n", title)
 			}
@@ -119,6 +121,34 @@ func isDependabot(title string) bool {
 	lower := strings.ToLower(title)
 	return strings.Contains(lower, "dependabot") ||
 		strings.HasPrefix(lower, "chore(deps):")
+}
+
+// prNumRe matches GitHub's "(#NNN)" PR reference convention.
+var prNumRe = regexp.MustCompile(`\(#(\d+)\)`)
+
+// parsePRNumbers extracts all PR numbers from a commit title.
+func parsePRNumbers(title string) []int {
+	var nums []int
+	for _, m := range prNumRe.FindAllStringSubmatch(title, -1) {
+		num, _ := strconv.Atoi(m[1])
+		nums = append(nums, num)
+	}
+	return nums
+}
+
+// extractPRNumbers collects all unique PR numbers from a list of commits.
+func extractPRNumbers(commits []commitEntry) []int {
+	seen := make(map[int]bool)
+	var nums []int
+	for _, c := range commits {
+		for _, num := range parsePRNumbers(c.Title) {
+			if !seen[num] {
+				seen[num] = true
+				nums = append(nums, num)
+			}
+		}
+	}
+	return nums
 }
 
 // stripPRRef removes a trailing (#NNN) from a title.
