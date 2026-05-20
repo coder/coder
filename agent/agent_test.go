@@ -2324,15 +2324,30 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 					"%s -L %s new-session %q",
 					strconv.Quote(tmuxPath),
 					tmuxSocket,
-					fmt.Sprintf("printf '%%s\\n' '%s'; sleep 0.1", glyphs),
+					fmt.Sprintf("printf '%%s\\n' '%s'; sleep 5", glyphs),
 				)
 				netConn6, err := conn.ReconnectingPTY(ctx, uuid.New(), 80, 80, command)
 				require.NoError(t, err)
 				defer netConn6.Close()
 
-				bytes, err := io.ReadAll(netConn6)
-				require.NoError(t, err)
-				require.Contains(t, string(bytes), glyphs)
+				var output strings.Builder
+				buffer := make([]byte, 1024)
+				deadline := time.Now().Add(testutil.WaitMedium)
+				for !strings.Contains(output.String(), glyphs) {
+					if time.Now().After(deadline) {
+						require.Contains(t, output.String(), glyphs)
+					}
+					require.NoError(t, netConn6.SetReadDeadline(time.Now().Add(testutil.IntervalMedium)))
+					read, err := netConn6.Read(buffer)
+					if read > 0 {
+						_, _ = output.Write(buffer[:read])
+					}
+					var netErr net.Error
+					if errors.As(err, &netErr) && netErr.Timeout() {
+						continue
+					}
+					require.NoError(t, err)
+				}
 			}
 		})
 	}
