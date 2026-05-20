@@ -60,7 +60,7 @@ func newBuffered(ctx context.Context, logger slog.Logger, execer agentexec.Exece
 	// first argument so remove it.
 	cmdWithEnv := execer.PTYCommandContext(ctx, cmd.Path, cmd.Args[1:]...)
 	//nolint:gocritic
-	cmdWithEnv.Env = append(rpty.command.Env, "TERM=xterm-256color")
+	cmdWithEnv.Env = append(rpty.command.Env, "TERM="+xterm256Color)
 	cmdWithEnv.Dir = rpty.command.Dir
 	ptty, process, err := pty.Start(cmdWithEnv)
 	if err != nil {

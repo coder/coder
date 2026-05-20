@@ -14,6 +14,7 @@ import { DesktopPanelContext } from "./DesktopPanelContext";
 import { Tool } from "./Tool";
 
 const executeCommand = "git fetch origin";
+const executeIntentCommand = "npm test";
 const longExecuteCommand =
 	"docker build --no-cache --build-arg NODE_ENV=production --build-arg API_URL=https://coder.example.com/api --build-arg SENTRY_DSN=https://example.com/sentry --build-arg FEATURE_FLAGS=agents,shell-tools --tag coder-agent:latest .";
 const meta: Meta<typeof Tool> = {
@@ -51,6 +52,79 @@ export const ExecuteRunning: Story = {
 		result: {
 			output: "remote: Enumerating objects: 12, done.\nFetching origin...",
 		},
+	},
+};
+
+export const ExecuteModelIntent: Story = {
+	args: {
+		status: "completed",
+		args: {
+			command: executeIntentCommand,
+			model_intent: "Running tests using npm for 5s",
+		},
+		modelIntent: "Running tests using npm for 5s",
+		result: {
+			output: "",
+			wall_duration_ms: 2300,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const commandButton = canvas.getByRole("button", {
+			name: "Expand command",
+		});
+		expect(commandButton).toHaveTextContent(
+			`Running tests using ${executeIntentCommand} for 2.3s`,
+		);
+		expect(commandButton).not.toHaveTextContent("Ran");
+	},
+};
+
+export const ExecuteModelIntentRunning: Story = {
+	args: {
+		status: "running",
+		args: {
+			command: executeCommand,
+			model_intent: "checking repository state",
+		},
+		modelIntent: "checking repository state",
+		result: {
+			output: "",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const commandButton = canvas.getByRole("button", {
+			name: "Collapse command",
+		});
+		expect(commandButton).toHaveTextContent(
+			`Checking repository state using ${executeCommand}`,
+		);
+		expect(commandButton).not.toHaveTextContent(" for ");
+		expect(commandButton).not.toHaveTextContent("Ran");
+	},
+};
+
+export const ExecuteModelIntentLeadingUsing: Story = {
+	args: {
+		status: "completed",
+		args: {
+			command: executeCommand,
+			model_intent: "using git fetch origin",
+		},
+		modelIntent: "using git fetch origin",
+		result: {
+			output: "",
+			wall_duration_ms: 2300,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const commandButton = canvas.getByRole("button", {
+			name: "Expand command",
+		});
+		expect(commandButton).toHaveTextContent(`Ran ${executeCommand}2.3s`);
+		expect(commandButton).not.toHaveTextContent("using git fetch origin using");
 	},
 };
 
@@ -348,6 +422,32 @@ export const SubagentRunning: Story = {
 		expect(canvas.getByRole("link", { name: "View agent" })).toHaveAttribute(
 			"href",
 			"/agents/child-chat-id",
+		);
+	},
+};
+
+export const SubagentMalformedChatIdLinksToRecoverableChatId: Story = {
+	args: {
+		name: "spawn_agent",
+		status: "completed",
+		args: {
+			title: "Workspace diagnostics",
+			prompt: "Collect logs and summarize why startup failed.",
+		},
+		result: {
+			chat_id: ["8f3a6131-1ce8-46f5-9", "b", "a8-4a36-beb2? no"].join(""),
+			title: "Workspace diagnostics",
+			status: "completed",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: /Spawned Workspace diagnostics/ }),
+		).toBeInTheDocument();
+		expect(canvas.getByRole("link", { name: "View agent" })).toHaveAttribute(
+			"href",
+			["/agents/8f3a6131-1ce8-46f5-9", "b", "a8-4a36-beb2"].join(""),
 		);
 	},
 };
@@ -1950,7 +2050,7 @@ export const WaitAgentComputerUseRunning: Story = {
 		expect(canvasElement.querySelector(".lucide-monitor")).not.toBeNull();
 		// The VNC preview container should mount (the connection will
 		// stay in "connecting" state without a real WebSocket, which
-		// is expected — we only verify the container renders).
+		// is expected; we only verify the container renders).
 		await waitFor(() => {
 			expect(
 				canvas.getByRole("button", { name: "Open desktop tab" }),

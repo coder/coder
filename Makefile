@@ -1294,7 +1294,7 @@ docs/ai-coder/ai-governance-audit.md: node_modules/.installed coderd/database/qu
 		_gen/bin/auditdocgen \
 			--audit-doc-file="$$tmpfile" \
 			--marker-path="docs/ai-coder/ai-governance-audit.md" \
-			--resources="AIProvider,AIProviderKey,AiSeatState,Task,Chat,UserSecret" && \
+			--resources="AIProvider,AiSeatState,AuditableGroupAiBudget,Chat,Task,UserSecret" && \
 		pnpm exec markdownlint-cli2 --fix "$$tmpfile" && \
 		pnpm exec markdown-table-formatter "$$tmpfile" && \
 		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"

@@ -311,6 +311,12 @@ const (
 	ApiKeyScopeAiProviderDelete                    APIKeyScope = "ai_provider:delete"
 	ApiKeyScopeAiProviderRead                      APIKeyScope = "ai_provider:read"
 	ApiKeyScopeAiProviderUpdate                    APIKeyScope = "ai_provider:update"
+	ApiKeyScopeChatShare                           APIKeyScope = "chat:share"
+	ApiKeyScopeUserSkillCreate                     APIKeyScope = "user_skill:create"
+	ApiKeyScopeUserSkillRead                       APIKeyScope = "user_skill:read"
+	ApiKeyScopeUserSkillUpdate                     APIKeyScope = "user_skill:update"
+	ApiKeyScopeUserSkillDelete                     APIKeyScope = "user_skill:delete"
+	ApiKeyScopeUserSkill                           APIKeyScope = "user_skill:*"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -565,7 +571,13 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeAiProviderCreate,
 		ApiKeyScopeAiProviderDelete,
 		ApiKeyScopeAiProviderRead,
-		ApiKeyScopeAiProviderUpdate:
+		ApiKeyScopeAiProviderUpdate,
+		ApiKeyScopeChatShare,
+		ApiKeyScopeUserSkillCreate,
+		ApiKeyScopeUserSkillRead,
+		ApiKeyScopeUserSkillUpdate,
+		ApiKeyScopeUserSkillDelete,
+		ApiKeyScopeUserSkill:
 		return true
 	}
 	return false
@@ -789,6 +801,12 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeAiProviderDelete,
 		ApiKeyScopeAiProviderRead,
 		ApiKeyScopeAiProviderUpdate,
+		ApiKeyScopeChatShare,
+		ApiKeyScopeUserSkillCreate,
+		ApiKeyScopeUserSkillRead,
+		ApiKeyScopeUserSkillUpdate,
+		ApiKeyScopeUserSkillDelete,
+		ApiKeyScopeUserSkill,
 	}
 }
 
@@ -3316,9 +3334,10 @@ const (
 	ResourceTypeAiSeat                      ResourceType = "ai_seat"
 	ResourceTypeChat                        ResourceType = "chat"
 	ResourceTypeUserSecret                  ResourceType = "user_secret"
-	ResourceTypeAiProvider                  ResourceType = "ai_provider"
-	ResourceTypeAiProviderKey               ResourceType = "ai_provider_key"
+	ResourceTypeAIProvider                  ResourceType = "ai_provider"
+	ResourceTypeAIProviderKey               ResourceType = "ai_provider_key"
 	ResourceTypeGroupAiBudget               ResourceType = "group_ai_budget"
+	ResourceTypeUserSkill                   ResourceType = "user_skill"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3387,9 +3406,10 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeAiSeat,
 		ResourceTypeChat,
 		ResourceTypeUserSecret,
-		ResourceTypeAiProvider,
-		ResourceTypeAiProviderKey,
-		ResourceTypeGroupAiBudget:
+		ResourceTypeAIProvider,
+		ResourceTypeAIProviderKey,
+		ResourceTypeGroupAiBudget,
+		ResourceTypeUserSkill:
 		return true
 	}
 	return false
@@ -3426,9 +3446,10 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeAiSeat,
 		ResourceTypeChat,
 		ResourceTypeUserSecret,
-		ResourceTypeAiProvider,
-		ResourceTypeAiProviderKey,
+		ResourceTypeAIProvider,
+		ResourceTypeAIProviderKey,
 		ResourceTypeGroupAiBudget,
+		ResourceTypeUserSkill,
 	}
 }
 
@@ -4533,6 +4554,8 @@ type Chat struct {
 	PlanMode            NullChatPlanMode      `db:"plan_mode" json:"plan_mode"`
 	ClientType          ChatClientType        `db:"client_type" json:"client_type"`
 	LastTurnSummary     sql.NullString        `db:"last_turn_summary" json:"last_turn_summary"`
+	UserACL             ChatACL               `db:"user_acl" json:"user_acl"`
+	GroupACL            ChatACL               `db:"group_acl" json:"group_acl"`
 	OwnerUsername       string                `db:"owner_username" json:"owner_username"`
 	OwnerName           string                `db:"owner_name" json:"owner_name"`
 }
@@ -4712,6 +4735,8 @@ type ChatTable struct {
 	PlanMode            NullChatPlanMode      `db:"plan_mode" json:"plan_mode"`
 	ClientType          ChatClientType        `db:"client_type" json:"client_type"`
 	LastTurnSummary     sql.NullString        `db:"last_turn_summary" json:"last_turn_summary"`
+	UserACL             ChatACL               `db:"user_acl" json:"user_acl"`
+	GroupACL            ChatACL               `db:"group_acl" json:"group_acl"`
 }
 
 type ChatUsageLimitConfig struct {
@@ -5716,6 +5741,16 @@ type UserSecret struct {
 	CreatedAt   time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
 	ValueKeyID  sql.NullString `db:"value_key_id" json:"value_key_id"`
+}
+
+type UserSkill struct {
+	ID          uuid.UUID `db:"id" json:"id"`
+	UserID      uuid.UUID `db:"user_id" json:"user_id"`
+	Name        string    `db:"name" json:"name"`
+	Description string    `db:"description" json:"description"`
+	Content     string    `db:"content" json:"content"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
 }
 
 // Tracks the history of user status changes

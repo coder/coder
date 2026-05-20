@@ -19,11 +19,17 @@ import (
 	"github.com/coder/coder/v2/pty"
 )
 
-// attachTimeout is the initial timeout for attaching and will probably be far
-// shorter than the reconnect timeout in most cases; in tests it might be
-// longer.  It should be at least long enough for the first screen attach to be
-// able to start up the daemon and for the buffered pty to start.
-const attachTimeout = 30 * time.Second
+const (
+	// attachTimeout is the initial timeout for attaching and will probably be far
+	// shorter than the reconnect timeout in most cases; in tests it might be
+	// longer.  It should be at least long enough for the first screen attach to be
+	// able to start up the daemon and for the buffered pty to start.
+	attachTimeout = 30 * time.Second
+
+	// xterm256Color is the terminal type exposed to commands running in the web
+	// terminal.
+	xterm256Color = "xterm-256color"
+)
 
 // Options allows configuring the reconnecting pty.
 type Options struct {

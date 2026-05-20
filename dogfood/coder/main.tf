@@ -382,7 +382,7 @@ module "git-config" {
 module "git-clone" {
   count             = data.coder_workspace.me.start_count
   source            = "dev.registry.coder.com/coder/git-clone/coder"
-  version           = "1.2.3"
+  version           = "1.3.0"
   agent_id          = coder_agent.dev.id
   url               = "https://github.com/coder/coder"
   base_dir          = local.repo_base_dir
@@ -959,7 +959,7 @@ resource "coder_script" "boundary_config_setup" {
 module "claude-code" {
   count             = data.coder_workspace.me.start_count
   source            = "dev.registry.coder.com/coder/claude-code/coder"
-  version           = "5.1.0"
+  version           = "5.2.0"
   enable_ai_gateway = data.coder_parameter.enable_ai_gateway.value
   anthropic_api_key = data.coder_parameter.enable_ai_gateway.value ? "" : var.anthropic_api_key
   agent_id          = coder_agent.dev.id

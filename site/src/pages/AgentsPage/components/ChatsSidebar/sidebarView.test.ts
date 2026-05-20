@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isSettingsView, sidebarViewFromPath } from "./AgentsSidebar";
+import { isSettingsView, sidebarViewFromPath } from "./sidebarView";
 
 describe("sidebarViewFromPath", () => {
 	it("returns chats for the agents index", () => {

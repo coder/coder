@@ -48,6 +48,7 @@ import {
 	asString,
 	buildEditDiff,
 	DIFFS_FONT_STYLE,
+	formatModelIntentLabel,
 	formatResultOutput,
 	getFileContentForViewer,
 	getFileViewerOptions,
@@ -267,6 +268,7 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 	result,
 	isError,
 	killedBySignal,
+	modelIntent,
 	shellToolDisplayMode,
 }) => {
 	const data = getExecuteRenderData(args, result);
@@ -294,6 +296,7 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 			durationMs={data.durationMs}
 			isBackgrounded={data.isBackgrounded}
 			killedBySignal={killedBySignal}
+			modelIntent={modelIntent}
 			shellToolDisplayMode={shellToolDisplayMode}
 		/>
 	);
@@ -922,7 +925,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 			/>
 			{modelIntent ? (
 				<span className="truncate text-[13px]">
-					{modelIntent.charAt(0).toUpperCase() + modelIntent.slice(1)}
+					{formatModelIntentLabel(modelIntent)}
 				</span>
 			) : (
 				<ToolLabel
@@ -992,7 +995,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 };
 
 // ---------------------------------------------------------------------------
-// process_signal — thin wrapper that promotes soft failures (success=false
+// process_signal promotes soft failures (success=false
 // in the result body, isError=false at protocol level) so the generic
 // renderer shows the error indicator and tooltip.
 // ---------------------------------------------------------------------------
@@ -1035,7 +1038,7 @@ const StartWorkspaceRenderer: FC<ToolRendererProps> = ({
 };
 
 // ---------------------------------------------------------------------------
-// Renderer lookup map — maps tool names to their specialized renderers.
+// Renderer lookup map for tool names and specialized renderers.
 // ---------------------------------------------------------------------------
 
 const toolRenderers: Record<string, FC<ToolRendererProps>> = {
@@ -1060,7 +1063,7 @@ const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 };
 
 // ---------------------------------------------------------------------------
-// Public Tool component — single wrapper div + map dispatch.
+// Public Tool component with a single wrapper div and map dispatch.
 // ---------------------------------------------------------------------------
 
 export const Tool = memo(

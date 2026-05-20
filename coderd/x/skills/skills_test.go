@@ -91,6 +91,19 @@ func TestParsePersonalSkillMarkdown(t *testing.T) {
 		require.ErrorContains(t, err, "maximum is 256 bytes")
 	})
 
+	t.Run("DescriptionTooLong", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := skills.ParsePersonalSkillMarkdown([]byte(personalSkillMarkdownForTest(
+			"my-skill",
+			strings.Repeat("a", skills.MaxPersonalSkillDescriptionBytes+1),
+			"Body.",
+		)))
+
+		require.ErrorIs(t, err, skills.ErrSkillDescriptionTooLarge)
+		require.ErrorContains(t, err, "maximum is 4096 bytes")
+	})
+
 	t.Run("EmptyBody", func(t *testing.T) {
 		t.Parallel()
 

@@ -530,6 +530,10 @@ disableOwnerWorkspaceAccess: false
 # --disable-owner-workspace-access.
 # (default: <unset>, type: bool)
 disableWorkspaceSharing: false
+# Disable chat sharing. Chat ACL checking is disabled and only owners can access
+# their chats.
+# (default: <unset>, type: bool)
+disableChatSharing: false
 # These options change the behavior of how clients interact with the Coder.
 # Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
 client:
