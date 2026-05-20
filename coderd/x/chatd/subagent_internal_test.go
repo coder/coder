@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -138,6 +139,18 @@ func newInternalTestServerWithLoggerAndClock(
 		require.NoError(t, server.Close())
 	})
 	return server
+}
+
+type subscribeFailingPubsub struct {
+	pubsub.Pubsub
+}
+
+func (subscribeFailingPubsub) Subscribe(_ string, _ pubsub.Listener) (func(), error) {
+	return nil, errors.New("subscribe disabled")
+}
+
+func (subscribeFailingPubsub) SubscribeWithErr(_ string, _ pubsub.ListenerWithErr) (func(), error) {
+	return nil, errors.New("subscribe disabled")
 }
 
 type subagentTestLogSink struct {
@@ -3335,11 +3348,12 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 	t.Run("CompletesViaPoll", func(t *testing.T) {
 		t.Parallel()
 
-		// Use nil pubsub so awaitSubagentCompletion falls back to
-		// the fast 200ms poll interval.
+		// Force subscription failure so awaitSubagentCompletion
+		// falls back to the fast 200ms poll interval.
 		db, _ := dbtestutil.NewDB(t)
 		mClock := quartz.NewMock(t)
-		server := newInternalTestServerWithClock(t, db, nil, chatprovider.ProviderAPIKeys{}, mClock)
+		ps := subscribeFailingPubsub{Pubsub: pubsub.NewInMemory()}
+		server := newInternalTestServerWithClock(t, db, ps, chatprovider.ProviderAPIKeys{}, mClock)
 		ctx := chatdTestContext(t)
 		user, org, model := seedInternalChatDeps(t, db)
 
@@ -3556,21 +3570,6 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 
 		parent, child := createParentChildChats(ctx, t, server, user, org, model)
 
-		// signalWake from CreateChat triggers background
-		// processing. drainInflight waits for in-flight goroutines
-		// but can't guarantee a pending DB row has been acquired
-		// yet — the child chat may still be pending if the second
-		// wake signal hasn't been consumed. Poll until the child
-		// reaches a terminal DB state so processChat has fully
-		// finished, then reset to running for the cancellation
-		// test.
-		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-			c, err := db.GetChatByID(ctx, child.ID)
-			if err != nil {
-				return false
-			}
-			return c.Status != database.ChatStatusPending && c.Status != database.ChatStatusRunning
-		}, testutil.IntervalFast)
 		setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
 		// Use a short-lived context instead of goroutine + sleep.
 		shortCtx, cancel := context.WithTimeout(ctx, testutil.IntervalMedium)

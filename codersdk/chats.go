@@ -93,6 +93,7 @@ const (
 	ChatStatusCompleted      ChatStatus = "completed"
 	ChatStatusError          ChatStatus = "error"
 	ChatStatusRequiresAction ChatStatus = "requires_action"
+	ChatStatusInterrupting   ChatStatus = "interrupting"
 )
 
 // ChatClientType indicates whether a chat was created from the
@@ -3239,6 +3240,22 @@ func (c *ExperimentalClient) EditChatMessage(
 // InterruptChat cancels an in-flight chat run and leaves it waiting.
 func (c *ExperimentalClient) InterruptChat(ctx context.Context, chatID uuid.UUID) (Chat, error) {
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/%s/interrupt", chatID), nil)
+	if err != nil {
+		return Chat{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return Chat{}, ReadBodyAsError(res)
+	}
+	var chat Chat
+	return chat, json.NewDecoder(res.Body).Decode(&chat)
+}
+
+// ReconcileInvalidChatState recovers a chat stuck in an invalid
+// execution state, moving it into an error state from which the caller
+// can send a new message or edit history to continue.
+func (c *ExperimentalClient) ReconcileInvalidChatState(ctx context.Context, chatID uuid.UUID) (Chat, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/%s/reconcile-invalid", chatID), nil)
 	if err != nil {
 		return Chat{}, err
 	}

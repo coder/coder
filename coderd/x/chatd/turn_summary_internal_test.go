@@ -24,7 +24,7 @@ import (
 func TestUpdateLastTurnSummaryRejectsStaleWrites(t *testing.T) {
 	t.Parallel()
 
-	db, _ := dbtestutil.NewDB(t)
+	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	owner := dbgen.User(t, db, database.User{})
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -66,7 +66,7 @@ func TestUpdateLastTurnSummaryRejectsStaleWrites(t *testing.T) {
 	require.NoError(t, err)
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	server := &Server{db: db}
+	server := &Server{db: db, pubsub: ps}
 	server.updateLastTurnSummary(ctx, chat, chat.UpdatedAt, "fresh summary", logger)
 
 	fetched, err := db.GetChatByID(ctx, chat.ID)
@@ -92,7 +92,7 @@ func TestUpdateLastTurnSummaryRejectsStaleWrites(t *testing.T) {
 func TestPendingChatPersistsSummaryButSkipsWebPush(t *testing.T) {
 	t.Parallel()
 
-	db, _ := dbtestutil.NewDB(t)
+	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	owner := dbgen.User(t, db, database.User{})
 	org := dbgen.Organization(t, db, database.Organization{})
@@ -150,7 +150,7 @@ func TestPendingChatPersistsSummaryButSkipsWebPush(t *testing.T) {
 
 	dispatcher := &recordingWebpushDispatcher{}
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	server := &Server{db: db, webpushDispatcher: dispatcher}
+	server := &Server{db: db, pubsub: ps, webpushDispatcher: dispatcher}
 	server.maybeFinalizeTurnStatusLabelAndPush(
 		context.WithoutCancel(ctx),
 		chat,
