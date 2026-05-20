@@ -16,6 +16,7 @@ import { type FC, useCallback, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
+	chatModelConfigs,
 	chatProviderConfigs,
 	createChatProviderConfig,
 	deleteChatProviderConfig,
@@ -74,6 +75,12 @@ const AIProviderDetailPage: FC = () => {
 				(pc.source === "database" || pc.source === "env_preset"),
 		);
 	}, [providerConfigsQuery.data, provider]);
+
+	const modelConfigsQuery = useQuery(chatModelConfigs());
+	const modelCount = useMemo(() => {
+		const configs = modelConfigsQuery.data ?? [];
+		return configs.filter((mc) => mc.provider === provider).length;
+	}, [modelConfigsQuery.data, provider]);
 
 	const isEditMode = !!existingConfig;
 
@@ -247,7 +254,7 @@ const AIProviderDetailPage: FC = () => {
 				their conversations.
 				{isEditMode && (
 					<>
-						{" "}You have {existingConfig?.display_name ? "" : ""}models added for this provider.{" "}
+						{" "}You have {modelCount === 0 ? "no" : modelCount} {modelCount === 1 ? "model" : "models"} added for this provider.{" "}
 						<Link to="/ai/models" className="text-content-link">
 							Manage models
 						</Link>
