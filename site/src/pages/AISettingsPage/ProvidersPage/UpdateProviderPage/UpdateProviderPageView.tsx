@@ -133,7 +133,7 @@ const UpdateProviderPageView: React.FC = () => {
 					}}
 				>
 					<TrashIcon />
-					<span>Delete provider</span>
+					<span>Delete</span>
 				</Button>
 			</div>
 			<div className="flex flex-col gap-6 px-8">
