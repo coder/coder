@@ -55,7 +55,14 @@ func (api *API) templateAvailablePermissions(rw http.ResponseWriter, r *http.Req
 	// Apply the same q/limit semantics to groups as the users half of this response.
 	// The query semantics are defined for the users, which is awkward. But we can
 	// just reuse the search part of the query which is a fuzzy match.
-	userFilter, _ := searchquery.Users(r.URL.Query().Get("q"))
+	userFilter, verr := searchquery.Users(r.URL.Query().Get("q"))
+	if len(verr) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid user search query.",
+			Validations: verr,
+		})
+		return
+	}
 	groupPagination, ok := agpl.ParsePagination(rw, r)
 	if !ok {
 		return

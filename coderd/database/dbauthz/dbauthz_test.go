@@ -1828,8 +1828,6 @@ func (s *MethodTestSuite) TestGroup() {
 			{GroupID: g1.ID, MemberCount: 1},
 			{GroupID: g2.ID, MemberCount: 2},
 		}
-		dbm.EXPECT().GetGroupByID(gomock.Any(), g1.ID).Return(g1, nil).AnyTimes()
-		dbm.EXPECT().GetGroupByID(gomock.Any(), g2.ID).Return(g2, nil).AnyTimes()
 		dbm.EXPECT().GetGroupMembersCountByGroupIDs(gomock.Any(), arg).Return(rows, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceGroup, policy.ActionRead).Returns(rows)
 	}))
