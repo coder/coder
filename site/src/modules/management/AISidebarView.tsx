@@ -39,7 +39,6 @@ const TOP_LEVEL_ITEMS: TopLevelNavItem[] = [
 		href: "/ai/governance",
 		icon: ShieldCheckIcon,
 		section: "ai-governance",
-		badge: "AI-addon",
 	},
 	{
 		label: "Providers",
