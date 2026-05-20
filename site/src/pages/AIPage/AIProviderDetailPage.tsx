@@ -255,7 +255,13 @@ const AIProviderDetailPage: FC = () => {
 				{isEditMode && (
 					<>
 						{" "}You have {modelCount === 0 ? "no" : modelCount} {modelCount === 1 ? "model" : "models"} added for this provider.{" "}
-						<Link to={`/ai/models?filterProvider=${provider}`} className="text-content-link">
+						<Link
+								to={modelCount === 0
+									? `/ai/models?filterProvider=${provider}&newModel=${provider}`
+									: `/ai/models?filterProvider=${provider}`
+								}
+								className="text-content-link"
+							>
 							Manage models
 						</Link>
 					</>
