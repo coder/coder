@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/coderd/x/chatd/internal/workspacediscovery"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
@@ -5814,11 +5815,11 @@ func TestPrimeWorkspaceMCPCache_SuccessOnFirstAttempt(t *testing.T) {
 
 	cached, ok := server.workspaceMCPToolsCache.Load(chat.ID)
 	require.True(t, ok, "primer must populate the cache on success")
-	entry, ok := cached.(*cachedWorkspaceMCPTools)
+	entry, ok := cached.(*workspacediscovery.MCPToolsCacheEntry)
 	require.True(t, ok)
-	require.Equal(t, agentID, entry.agentID)
-	require.Len(t, entry.tools, 1)
-	require.Equal(t, toolName, entry.tools[0].Name)
+	require.Equal(t, agentID, entry.AgentID)
+	require.Len(t, entry.Tools, 1)
+	require.Equal(t, toolName, entry.Tools[0].Name)
 }
 
 // TestPrimeWorkspaceMCPCache_RetriesUntilToolsAppear simulates the
@@ -5936,11 +5937,11 @@ func TestPrimeWorkspaceMCPCache_RetriesUntilToolsAppear(t *testing.T) {
 		"primer must retry after empty result")
 	cached, ok := server.workspaceMCPToolsCache.Load(chat.ID)
 	require.True(t, ok, "primer must populate the cache on retry success")
-	entry, ok := cached.(*cachedWorkspaceMCPTools)
+	entry, ok := cached.(*workspacediscovery.MCPToolsCacheEntry)
 	require.True(t, ok)
-	require.Equal(t, agentID, entry.agentID)
-	require.Len(t, entry.tools, 1)
-	require.Equal(t, toolName, entry.tools[0].Name)
+	require.Equal(t, agentID, entry.AgentID)
+	require.Len(t, entry.Tools, 1)
+	require.Equal(t, toolName, entry.Tools[0].Name)
 }
 
 // TestPrimeWorkspaceMCPCache_GivesUpAfterDeadline verifies the

@@ -50,6 +50,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/coderd/x/chatd/internal/agentselect"
+	"github.com/coder/coder/v2/coderd/x/chatd/internal/workspacediscovery"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -244,7 +245,7 @@ type Server struct {
 	// workspaceMCPToolsCache caches workspace MCP tool definitions
 	// per chat to avoid re-fetching on every turn. The cache is
 	// keyed by chat ID and invalidated when the agent changes.
-	workspaceMCPToolsCache sync.Map // uuid.UUID -> *cachedWorkspaceMCPTools
+	workspaceMCPToolsCache sync.Map // uuid.UUID -> *workspacediscovery.MCPToolsCacheEntry
 
 	usageTracker *workspacestats.UsageTracker
 	clock        quartz.Clock
@@ -475,36 +476,16 @@ func (p *Server) newAdvisorRuntime(
 	return rt
 }
 
-// cachedWorkspaceMCPTools stores workspace MCP tools discovered
-// from a workspace agent, keyed by the agent ID that provided them.
-type cachedWorkspaceMCPTools struct {
-	agentID uuid.UUID
-	tools   []workspacesdk.MCPToolInfo
-}
-
-// loadCachedWorkspaceContext checks the MCP tools cache for the
-// given chat and agent. Returns non-nil tools when the cache hits,
-// which signals the caller to skip the slow MCP discovery path.
-func (p *Server) loadCachedWorkspaceContext(
+func (p *Server) workspaceMCPAgentTools(
 	chatID uuid.UUID,
-	agent database.WorkspaceAgent,
+	rawTools []workspacesdk.MCPToolInfo,
 	getConn func(context.Context) (workspacesdk.AgentConn, error),
 ) []fantasy.AgentTool {
-	cached, ok := p.workspaceMCPToolsCache.Load(chatID)
-	if !ok {
-		return nil
-	}
-	entry, ok := cached.(*cachedWorkspaceMCPTools)
-	if !ok || entry.agentID != agent.ID {
-		return nil
-	}
-
-	var tools []fantasy.AgentTool
 	invalidate := func() { p.workspaceMCPToolsCache.Delete(chatID) }
-	for _, t := range entry.tools {
-		tools = append(tools, chattool.NewWorkspaceMCPTool(t, getConn, invalidate))
+	tools := make([]fantasy.AgentTool, 0, len(rawTools))
+	for _, tool := range rawTools {
+		tools = append(tools, chattool.NewWorkspaceMCPTool(tool, getConn, invalidate))
 	}
-
 	return tools
 }
 
@@ -523,64 +504,25 @@ func (p *Server) discoverWorkspaceMCPTools(
 	chatID uuid.UUID,
 	workspaceCtx *turnWorkspaceContext,
 ) []fantasy.AgentTool {
-	// Fast path: check cache using the in-memory cached agent
-	// (ensureWorkspaceAgent is free when already loaded). This
-	// avoids a per-turn latest-build DB query on the common
-	// subsequent-turn path.
-	if agent, agentErr := workspaceCtx.getWorkspaceAgent(ctx); agentErr == nil {
-		if tools := p.loadCachedWorkspaceContext(
-			chatID, agent, workspaceCtx.getWorkspaceConn,
-		); tools != nil {
-			return tools
-		}
-	} // Cache miss, agent changed, or no cache: validate
-	// that the workspace still has a live agent before
-	// attempting a dial.
-	_, _, agentErr := workspaceCtx.workspaceAgentIDForConn(ctx)
-	if agentErr != nil {
-		if xerrors.Is(agentErr, errChatHasNoWorkspaceAgent) {
-			p.workspaceMCPToolsCache.Delete(chatID)
-			return nil
-		}
-		logger.Warn(ctx, "failed to resolve workspace agent for MCP tools",
-			slog.Error(agentErr))
+	result := workspacediscovery.DiscoverMCPTools(ctx, workspacediscovery.MCPToolsOptions{
+		ChatID:            chatID,
+		Cache:             &p.workspaceMCPToolsCache,
+		GetWorkspaceAgent: workspaceCtx.getWorkspaceAgent,
+		ResolveWorkspaceAgentID: func(ctx context.Context) (uuid.UUID, error) {
+			_, agentID, err := workspaceCtx.workspaceAgentIDForConn(ctx)
+			return agentID, err
+		},
+		IsNoWorkspaceAgentError: func(err error) bool {
+			return xerrors.Is(err, errChatHasNoWorkspaceAgent)
+		},
+		GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
+		DiscoveryTimeout: workspaceMCPDiscoveryTimeout,
+		Logger:           logger,
+	})
+	if !result.OK {
 		return nil
 	}
-
-	// List workspace MCP tools via the agent conn.
-	conn, connErr := workspaceCtx.getWorkspaceConn(ctx)
-	if connErr != nil {
-		logger.Warn(ctx, "failed to get workspace conn for MCP tools",
-			slog.Error(connErr))
-		return nil
-	}
-	listCtx, cancel := context.WithTimeout(ctx, workspaceMCPDiscoveryTimeout)
-	defer cancel()
-	toolsResp, listErr := conn.ListMCPTools(listCtx)
-	if listErr != nil {
-		logger.Warn(ctx, "failed to list workspace MCP tools",
-			slog.Error(listErr))
-		return nil
-	}
-	// Cache the result for subsequent turns. Skip caching when
-	// the list is empty because the agent's MCP Connect may not
-	// have finished yet; caching an empty list would hide tools
-	// permanently.
-	if len(toolsResp.Tools) > 0 {
-		if agent, agentErr := workspaceCtx.getWorkspaceAgent(ctx); agentErr == nil {
-			p.workspaceMCPToolsCache.Store(chatID, &cachedWorkspaceMCPTools{
-				agentID: agent.ID,
-				tools:   toolsResp.Tools,
-			})
-		}
-	}
-
-	invalidate := func() { p.workspaceMCPToolsCache.Delete(chatID) }
-	tools := make([]fantasy.AgentTool, 0, len(toolsResp.Tools))
-	for _, t := range toolsResp.Tools {
-		tools = append(tools, chattool.NewWorkspaceMCPTool(t, workspaceCtx.getWorkspaceConn, invalidate))
-	}
-	return tools
+	return p.workspaceMCPAgentTools(chatID, result.Tools, workspaceCtx.getWorkspaceConn)
 }
 
 // primeWorkspaceMCPCache populates workspaceMCPToolsCache after the
@@ -8368,73 +8310,19 @@ func (p *Server) fetchWorkspaceContext(
 	getWorkspaceAgent func(context.Context) (database.WorkspaceAgent, error),
 	getWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error),
 ) (agent *database.WorkspaceAgent, agentParts []codersdk.ChatMessagePart, discoveredSkills []chattool.SkillMeta, workspaceConnOK bool) {
-	if !chat.WorkspaceID.Valid || getWorkspaceAgent == nil {
+	result := workspacediscovery.FetchWorkspaceContext(ctx, workspacediscovery.WorkspaceContextOptions{
+		Chat:                     chat,
+		GetWorkspaceAgent:        getWorkspaceAgent,
+		GetWorkspaceConn:         getWorkspaceConn,
+		InstructionLookupTimeout: p.instructionLookupTimeout,
+		Logger:                   p.logger,
+		SanitizePromptText:       SanitizePromptText,
+	})
+	if result.Agent == nil {
 		return nil, nil, nil, false
 	}
 
-	loadedAgent, agentErr := getWorkspaceAgent(ctx)
-	if agentErr != nil {
-		return nil, nil, nil, false
-	}
-
-	directory := loadedAgent.ExpandedDirectory
-	if directory == "" {
-		directory = loadedAgent.Directory
-	}
-
-	// Fetch context configuration from the agent. Parts
-	// arrive pre-populated with context-file and skill entries
-	// so we don't need additional round-trips.
-	if getWorkspaceConn != nil {
-		instructionCtx, cancel := context.WithTimeout(ctx, p.instructionLookupTimeout)
-		defer cancel()
-
-		conn, connErr := getWorkspaceConn(instructionCtx)
-		if connErr != nil {
-			p.logger.Debug(ctx, "failed to resolve workspace connection for instruction files",
-				slog.F("chat_id", chat.ID),
-				slog.Error(connErr),
-			)
-		} else {
-			workspaceConnOK = true
-
-			agentCfg, cfgErr := conn.ContextConfig(instructionCtx)
-			if cfgErr != nil {
-				p.logger.Debug(ctx, "failed to fetch context config from agent",
-					slog.F("chat_id", chat.ID), slog.Error(cfgErr))
-				// Treat a transient ContextConfig failure the
-				// same as a failed connection so no sentinel is
-				// persisted. The next turn will retry.
-				workspaceConnOK = false
-			} else {
-				agentParts = agentCfg.Parts
-			}
-		}
-	}
-
-	// Stamp server-side fields and sanitize content. The
-	// agent cannot know its own UUID, OS metadata, or
-	// directory — those are added here at the trust boundary.
-	agentID := uuid.NullUUID{UUID: loadedAgent.ID, Valid: true}
-
-	for i := range agentParts {
-		agentParts[i].ContextFileAgentID = agentID
-		switch agentParts[i].Type {
-		case codersdk.ChatMessagePartTypeContextFile:
-			agentParts[i].ContextFileContent = SanitizePromptText(agentParts[i].ContextFileContent)
-			agentParts[i].ContextFileOS = loadedAgent.OperatingSystem
-			agentParts[i].ContextFileDirectory = directory
-		case codersdk.ChatMessagePartTypeSkill:
-			discoveredSkills = append(discoveredSkills, chattool.SkillMeta{
-				Name:        agentParts[i].SkillName,
-				Description: agentParts[i].SkillDescription,
-				Dir:         agentParts[i].SkillDir,
-				MetaFile:    agentParts[i].ContextFileSkillMetaFile,
-			})
-		}
-	}
-
-	return &loadedAgent, agentParts, discoveredSkills, workspaceConnOK
+	return result.Agent, result.Parts, skillMetasFromParts(result.Parts), result.WorkspaceConnOK
 }
 
 // persistInstructionFiles fetches AGENTS.md instruction files and

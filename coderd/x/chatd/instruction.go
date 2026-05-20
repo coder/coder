@@ -156,6 +156,22 @@ func hasPersistedInstructionFiles(
 	return false
 }
 
+func skillMetasFromParts(parts []codersdk.ChatMessagePart) []chattool.SkillMeta {
+	var skills []chattool.SkillMeta
+	for _, part := range parts {
+		if part.Type != codersdk.ChatMessagePartTypeSkill {
+			continue
+		}
+		skills = append(skills, chattool.SkillMeta{
+			Name:        part.SkillName,
+			Description: part.SkillDescription,
+			Dir:         part.SkillDir,
+			MetaFile:    part.ContextFileSkillMetaFile,
+		})
+	}
+	return skills
+}
+
 func mergeSkillMetas(
 	persisted []chattool.SkillMeta,
 	discovered []chattool.SkillMeta,
