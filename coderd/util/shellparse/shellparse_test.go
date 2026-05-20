@@ -35,7 +35,7 @@ func TestParse(t *testing.T) {
 		{
 			name: "find-xargs-grep-pipeline",
 			in:   `find /repo -type f | xargs grep "foo" 2>/dev/null | grep -i "bar" | head -30`,
-			want: [][]string{{"find", "/repo"}, {"xargs", "grep"}, {"grep"}, {"head"}},
+			want: [][]string{{"find", "/repo"}, {"xargs", "grep"}, {"grep", "bar"}, {"head"}},
 		},
 		{
 			name: "stash-build-pop-exit",
@@ -60,7 +60,7 @@ func TestParse(t *testing.T) {
 				{"[", "]"},
 				{"echo"},
 				{"gh", "auth"},
-				{"echo"},
+				{"echo", "missing"},
 			},
 		},
 		{
@@ -79,6 +79,28 @@ done`,
 			name: "variable-program-not-literal",
 			in:   `$cmd --help && echo done`,
 			want: [][]string{{"echo", "done"}},
+		},
+		{
+			name: "double-quoted-positional",
+			in:   `cd "/repo with spaces"`,
+			want: [][]string{{"cd", "/repo with spaces"}},
+		},
+		{
+			name: "single-quoted-positional",
+			in:   `grep 'fix bug'`,
+			want: [][]string{{"grep", "fix bug"}},
+		},
+		{
+			name: "quoted-program-name",
+			in:   `"/usr/bin/git" pull`,
+			want: [][]string{{"/usr/bin/git", "pull"}},
+		},
+		{
+			name: "double-quoted-with-variable-expansion-skipped",
+			in:   `echo "hello $name"`,
+			// The quoted word contains a parameter expansion, so the
+			// parser cannot extract a literal; only the program survives.
+			want: [][]string{{"echo"}},
 		},
 		{
 			name: "empty",

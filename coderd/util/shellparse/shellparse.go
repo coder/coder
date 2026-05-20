@@ -45,11 +45,36 @@ func Parse(src string) ([][]string, error) {
 	return out, err
 }
 
+// wordLiteral returns the literal content of w by concatenating the
+// literal pieces of its parts. Bare literals, single-quoted strings,
+// and double-quoted strings (when the inner parts are all literals)
+// contribute their text. Any part involving variable expansion,
+// command substitution, or arithmetic returns "" for the whole word
+// because we cannot resolve those without executing the shell.
 func wordLiteral(w *syntax.Word) string {
 	if w == nil {
 		return ""
 	}
-	return w.Lit()
+	var sb strings.Builder
+	for _, part := range w.Parts {
+		switch p := part.(type) {
+		case *syntax.Lit:
+			_, _ = sb.WriteString(p.Value)
+		case *syntax.SglQuoted:
+			_, _ = sb.WriteString(p.Value)
+		case *syntax.DblQuoted:
+			for _, inner := range p.Parts {
+				lit, ok := inner.(*syntax.Lit)
+				if !ok {
+					return ""
+				}
+				_, _ = sb.WriteString(lit.Value)
+			}
+		default:
+			return ""
+		}
+	}
+	return sb.String()
 }
 
 // firstNonFlagLiteral returns the literal value of the first word in

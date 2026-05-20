@@ -30,6 +30,7 @@ import {
 	formatShellDurationMs,
 	sanitizeExecuteModelIntent,
 	signalTooltipLabel,
+	summarizeParsedCommands,
 	type ToolStatus,
 } from "./utils";
 
@@ -175,42 +176,6 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 			)}
 		</div>
 	);
-};
-
-// Programs whose first positional argument is conventionally a subcommand verb.
-const multiVerbTools = new Set([
-	"git",
-	"gh",
-	"kubectl",
-	"docker",
-	"podman",
-	"npm",
-	"pnpm",
-	"yarn",
-	"go",
-	"cargo",
-	"make",
-	"helm",
-	"terraform",
-	"systemctl",
-	"brew",
-]);
-
-// summarizeParsedCommands collapses parsed_commands into a comma-joined
-// list. Multi-verb tools render as "<prog> <verb>", others as "<prog>".
-// Consecutive duplicates are deduped.
-const summarizeParsedCommands = (parsed: readonly string[][]): string => {
-	const labels: string[] = [];
-	for (const entry of parsed) {
-		const prog = entry[0];
-		if (!prog) continue;
-		const label =
-			multiVerbTools.has(prog) && entry[1] ? `${prog} ${entry[1]}` : prog;
-		if (labels[labels.length - 1] !== label) {
-			labels.push(label);
-		}
-	}
-	return labels.join(", ");
 };
 
 const ShellCommandLine: React.FC<{
