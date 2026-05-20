@@ -5,14 +5,10 @@ import {
 	PlusIcon,
 } from "lucide-react";
 import { type FC, useMemo } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useNavigate } from "react-router";
+import { useQuery } from "react-query";
 import {
-	chatModelConfigs,
-	chatModels,
 	chatProviderConfigs,
-	createChatProviderConfig,
-	deleteChatProviderConfig,
-	updateChatProviderConfig,
 } from "#/api/queries/chats";
 import { Button } from "#/components/Button/Button";
 import {
@@ -47,24 +43,12 @@ const KNOWN_PROVIDERS = [
 
 const AIProvidersPage: FC = () => {
 	const { permissions } = useAuthenticated();
-	const queryClient = useQueryClient();
+	const navigate = useNavigate();
 
 	const providerConfigsQuery = useQuery({
 		...chatProviderConfigs(),
 		enabled: permissions.editDeploymentConfig,
 	});
-	const modelConfigsQuery = useQuery(chatModelConfigs());
-	const modelCatalogQuery = useQuery(chatModels());
-
-	const createProviderMutation = useMutation(
-		createChatProviderConfig(queryClient),
-	);
-	const updateProviderMutation = useMutation(
-		updateChatProviderConfig(queryClient),
-	);
-	const deleteProviderMutation = useMutation(
-		deleteChatProviderConfig(queryClient),
-	);
 
 	// Build the list of configured providers from API data.
 	const configuredProviders = useMemo(() => {
@@ -108,7 +92,11 @@ const AIProvidersPage: FC = () => {
 								Select a provider
 							</div>
 							{KNOWN_PROVIDERS.map((provider) => (
-								<DropdownMenuItem key={provider} className="gap-2.5">
+								<DropdownMenuItem
+									key={provider}
+									className="gap-2.5"
+									onClick={() => navigate(`/ai/providers/${provider}`)}
+								>
 									<ProviderIcon
 										provider={provider}
 										className="h-6 w-6 shrink-0"

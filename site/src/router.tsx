@@ -241,6 +241,9 @@ const AIGovernancePage = lazy(
 const AIProvidersPage = lazy(
 	() => import("./pages/AIPage/AIProvidersPage"),
 );
+const AIProviderDetailPage = lazy(
+	() => import("./pages/AIPage/AIProviderDetailPage"),
+);
 const AIModelsPage = lazy(
 	() => import("./pages/AIPage/AIModelsPage"),
 );
@@ -749,7 +752,10 @@ export const router = createBrowserRouter(
 					</Route>
 					<Route path="/ai" element={<AISettingsLayout />}>
 						<Route path="governance" element={<AIGovernancePage />} />
-						<Route path="providers" element={<AIProvidersPage />} />
+						<Route path="providers">
+							<Route index element={<AIProvidersPage />} />
+							<Route path=":providerType" element={<AIProviderDetailPage />} />
+						</Route>
 						<Route path="models" element={<AgentSettingsModelsPage />} />
 						<Route path="spend" element={<AgentSettingsSpendPage />} />
 						<Route path="agents">
