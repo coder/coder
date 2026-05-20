@@ -842,11 +842,7 @@ func parseSubagentToolChatID(raw string) (uuid.UUID, error) {
 	return chatID, nil
 }
 
-// childSubagentChatOptions carries per-child overrides for subagent chat
-// creation. modelConfigIDOverride and planModeOverride apply to any
-// subagent. mcpGrantParent overrides the chat used for resolving the
-// child's external MCP grant. Explore uses this to preserve the spawning
-// turn's effective grant when the parent row changes before insertion.
+// childSubagentChatOptions carries per-child overrides for subagent chat creation.
 type childSubagentChatOptions struct {
 	chatMode              database.NullChatMode
 	systemPrompt          string
@@ -855,17 +851,7 @@ type childSubagentChatOptions struct {
 	mcpGrantParent        *database.Chat
 }
 
-// resolveSubagentMCPGrant computes the external MCP server IDs to persist
-// on a child subagent chat.
-//
-// General and computer-use children keep the parent's persisted MCP IDs.
-// Their runtime tool exposure is still filtered by SendMessage. Explore
-// children persist the spawning turn's effective grant because their plan
-// mode is cleared on the child chat. Explore grants are filtered in two
-// stages. First, filterExternalMCPConfigsForTurn applies the parent turn's
-// plan-mode policy. Second, if the parent is itself an Explore child, the
-// visible set is narrowed to the parent's persisted MCPServerIDs so an
-// Explore chain cannot re-escalate beyond the original grant.
+// resolveSubagentMCPGrant computes the external MCP server IDs for a child.
 func (p *Server) resolveSubagentMCPGrant(
 	ctx context.Context,
 	parent database.Chat,

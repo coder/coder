@@ -1,6 +1,9 @@
+// Package workspacediscovery contains raw workspace-agent discovery helpers
+// for chatd. Chatd owns persistence, prompt assembly, and tool exposure policy.
 package workspacediscovery
 
 import (
+	"cmp"
 	"context"
 	"sync"
 	"time"
@@ -45,14 +48,15 @@ func FetchWorkspaceContext(
 		return WorkspaceContextResult{}
 	}
 
-	directory := loadedAgent.ExpandedDirectory
-	if directory == "" {
-		directory = loadedAgent.Directory
-	}
+	directory := cmp.Or(loadedAgent.ExpandedDirectory, loadedAgent.Directory)
 
 	result := WorkspaceContextResult{Agent: &loadedAgent}
 	if opts.GetWorkspaceConn != nil {
-		instructionCtx, cancel := context.WithTimeout(ctx, opts.InstructionLookupTimeout)
+		instructionCtx := ctx
+		cancel := func() {}
+		if opts.InstructionLookupTimeout > 0 {
+			instructionCtx, cancel = context.WithTimeout(ctx, opts.InstructionLookupTimeout)
+		}
 		defer cancel()
 
 		conn, connErr := opts.GetWorkspaceConn(instructionCtx)
@@ -129,10 +133,47 @@ func LoadCachedMCPTools(
 		return nil, false
 	}
 	entry, ok := cached.(*MCPToolsCacheEntry)
-	if !ok || entry.Key != key {
+	if !ok {
 		return nil, false
 	}
 	return entry.Tools, true
+}
+
+// DeleteMCPToolsForWorkspace removes cached metadata for a user workspace.
+func DeleteMCPToolsForWorkspace(
+	cache *sync.Map,
+	ownerID uuid.UUID,
+	workspaceID uuid.UUID,
+) {
+	if cache == nil || ownerID == uuid.Nil || workspaceID == uuid.Nil {
+		return
+	}
+	cache.Range(func(rawKey, _ any) bool {
+		key, ok := rawKey.(MCPToolsCacheKey)
+		if ok && key.OwnerID == ownerID && key.WorkspaceID == workspaceID {
+			cache.Delete(key)
+		}
+		return true
+	})
+}
+
+// DeleteStaleMCPToolsForWorkspace removes metadata from older agents.
+func DeleteStaleMCPToolsForWorkspace(
+	cache *sync.Map,
+	currentKey MCPToolsCacheKey,
+) {
+	if cache == nil || !currentKey.Valid() {
+		return
+	}
+	cache.Range(func(rawKey, _ any) bool {
+		key, ok := rawKey.(MCPToolsCacheKey)
+		if ok && key.OwnerID == currentKey.OwnerID &&
+			key.WorkspaceID == currentKey.WorkspaceID &&
+			key.AgentID != currentKey.AgentID {
+			cache.Delete(key)
+		}
+		return true
+	})
 }
 
 // StoreMCPTools stores non-empty workspace MCP metadata for an exact cache key.
@@ -144,6 +185,7 @@ func StoreMCPTools(
 	if cache == nil || !key.Valid() || len(tools) == 0 {
 		return
 	}
+	DeleteStaleMCPToolsForWorkspace(cache, key)
 	cache.Store(key, &MCPToolsCacheEntry{
 		Key:   key,
 		Tools: tools,
@@ -187,6 +229,7 @@ func DiscoverMCPTools(
 		return MCPToolsResult{}
 	}
 	key, _ := mcpCacheKey(opts.CacheKey, agentID)
+	DeleteStaleMCPToolsForWorkspace(opts.Cache, key)
 
 	if tools, cached := LoadCachedMCPTools(opts.Cache, key); cached {
 		return MCPToolsResult{Tools: tools, Key: key, OK: true}

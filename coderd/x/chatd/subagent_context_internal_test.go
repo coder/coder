@@ -141,6 +141,62 @@ func TestFilterContextPartsToLatestAgent(t *testing.T) {
 	require.Equal(t, "repo-helper-new", got[3].SkillName)
 }
 
+func TestContextAgentHelpersIgnoreInheritedContext(t *testing.T) {
+	t.Parallel()
+
+	localAgentID := uuid.New()
+	inheritedParts := []codersdk.ChatMessagePart{
+		{
+			Type:               codersdk.ChatMessagePartTypeContextFile,
+			ContextFilePath:    "/parent/AGENTS.md",
+			ContextFileContent: "parent instructions",
+			ContextFileAgentID: inheritedContextAgentIDPart(),
+		},
+		{
+			Type:               codersdk.ChatMessagePartTypeSkill,
+			SkillName:          "parent-skill",
+			ContextFileAgentID: inheritedContextAgentIDPart(),
+		},
+	}
+	localParts := append([]codersdk.ChatMessagePart{}, inheritedParts...)
+	localParts = append(localParts, codersdk.ChatMessagePart{
+		Type:               codersdk.ChatMessagePartTypeContextFile,
+		ContextFilePath:    "/child/AGENTS.md",
+		ContextFileContent: "child instructions",
+		ContextFileAgentID: uuid.NullUUID{UUID: localAgentID, Valid: true},
+	})
+
+	inheritedRaw, err := json.Marshal(inheritedParts)
+	require.NoError(t, err)
+	localRaw, err := json.Marshal(localParts)
+	require.NoError(t, err)
+	inheritedMessages := []database.ChatMessage{{ //nolint:exhaustruct // Only content matters for this unit test.
+		Content: pqtype.NullRawMessage{RawMessage: inheritedRaw, Valid: true},
+	}}
+	localMessages := []database.ChatMessage{{ //nolint:exhaustruct // Only content matters for this unit test.
+		Content: pqtype.NullRawMessage{RawMessage: localRaw, Valid: true},
+	}}
+
+	_, ok := latestContextAgentID(inheritedMessages)
+	require.False(t, ok)
+	_, ok = contextFileAgentID(inheritedMessages)
+	require.False(t, ok)
+	require.False(t, hasPersistedInstructionFiles(inheritedMessages))
+	_, ok = latestContextAgentIDFromParts(inheritedParts)
+	require.False(t, ok)
+
+	gotLatest, ok := latestContextAgentID(localMessages)
+	require.True(t, ok)
+	require.Equal(t, localAgentID, gotLatest)
+	gotContextFile, ok := contextFileAgentID(localMessages)
+	require.True(t, ok)
+	require.Equal(t, localAgentID, gotContextFile)
+	require.True(t, hasPersistedInstructionFiles(localMessages))
+	gotParts, ok := latestContextAgentIDFromParts(localParts)
+	require.True(t, ok)
+	require.Equal(t, localAgentID, gotParts)
+}
+
 func createParentChatWithInheritedContext(
 	ctx context.Context,
 	t *testing.T,

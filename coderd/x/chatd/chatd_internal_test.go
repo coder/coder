@@ -5901,8 +5901,6 @@ func TestDiscoverWorkspaceMCPToolsReusesParentCacheForChild(t *testing.T) {
 	child.ParentChatID = uuid.NullUUID{UUID: parent.ID, Valid: true}
 	workspaceAgent := database.WorkspaceAgent{ID: agentID}
 
-	db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
-		Return([]database.WorkspaceAgent{workspaceAgent}, nil).AnyTimes()
 	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
 		Return(workspaceAgent, nil).AnyTimes()
 	conn := agentconnmock.NewMockAgentConn(ctrl)
@@ -5938,6 +5936,61 @@ func TestDiscoverWorkspaceMCPToolsReusesParentCacheForChild(t *testing.T) {
 	tools := server.discoverWorkspaceMCPTools(ctx, server.logger, &workspaceCtx)
 	require.Len(t, tools, 1)
 	require.Equal(t, "workspace-mcp__cached", tools[0].Info().Name)
+}
+
+func TestDiscoverWorkspaceMCPToolsEvictsCacheWhenWorkspaceHasNoAgent(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	workspaceID := uuid.New()
+	ownerID := uuid.New()
+	oldAgentID := uuid.New()
+	chat := database.Chat{
+		ID:      uuid.New(),
+		OwnerID: ownerID,
+		WorkspaceID: uuid.NullUUID{
+			UUID:  workspaceID,
+			Valid: true,
+		},
+	}
+	db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
+		Return(nil, nil).AnyTimes()
+
+	server := &Server{
+		db:                             db,
+		logger:                         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		clock:                          quartz.NewMock(t),
+		agentInactiveDisconnectTimeout: 30 * time.Second,
+		dialTimeout:                    time.Second,
+	}
+	cacheKey := workspacediscovery.MCPToolsCacheKey{
+		OwnerID:     ownerID,
+		WorkspaceID: workspaceID,
+		AgentID:     oldAgentID,
+	}
+	workspacediscovery.StoreMCPTools(&server.workspaceMCPToolsCache, cacheKey, []workspacesdk.MCPToolInfo{{
+		ServerName: "workspace-mcp",
+		Name:       "workspace-mcp__stale",
+		Schema:     map[string]any{},
+	}})
+
+	chatStateMu := &sync.Mutex{}
+	currentChat := chat
+	workspaceCtx := turnWorkspaceContext{
+		server:           server,
+		chatStateMu:      chatStateMu,
+		currentChat:      &currentChat,
+		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return chat, nil },
+	}
+	t.Cleanup(workspaceCtx.close)
+
+	tools := server.discoverWorkspaceMCPTools(ctx, server.logger, &workspaceCtx)
+	require.Empty(t, tools)
+	_, ok := server.workspaceMCPToolsCache.Load(cacheKey)
+	require.False(t, ok)
 }
 
 func TestExposeWorkspaceMCPToolsForModeKeepsExploreConservative(t *testing.T) {

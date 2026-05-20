@@ -476,6 +476,7 @@ func (p *Server) newAdvisorRuntime(
 	return rt
 }
 
+// workspaceMCPAgentTools wraps cached MCP metadata in executable chat tools.
 func (p *Server) workspaceMCPAgentTools(
 	cacheKey workspacediscovery.MCPToolsCacheKey,
 	rawTools []workspacesdk.MCPToolInfo,
@@ -493,6 +494,7 @@ func (p *Server) workspaceMCPAgentTools(
 	return tools
 }
 
+// workspaceMCPToolsCacheKey scopes MCP metadata to one user's workspace agent.
 func workspaceMCPToolsCacheKey(
 	chat database.Chat,
 	agentID uuid.UUID,
@@ -521,6 +523,23 @@ func (p *Server) discoverWorkspaceMCPTools(
 	logger slog.Logger,
 	workspaceCtx *turnWorkspaceContext,
 ) []fantasy.AgentTool {
+	snapshot := workspaceCtx.currentChatSnapshot()
+	logger = logger.With(
+		slog.F("chat_id", snapshot.ID),
+		slog.F("owner_id", snapshot.OwnerID),
+	)
+	if snapshot.WorkspaceID.Valid {
+		logger = logger.With(slog.F("workspace_id", snapshot.WorkspaceID.UUID))
+	}
+
+	if agent, agentErr := workspaceCtx.getWorkspaceAgent(ctx); agentErr == nil {
+		if key, ok := workspaceMCPToolsCacheKey(snapshot, agent.ID); ok {
+			if rawTools, cached := workspacediscovery.LoadCachedMCPTools(&p.workspaceMCPToolsCache, key); cached {
+				return p.workspaceMCPAgentTools(key, rawTools, workspaceCtx.getWorkspaceConn)
+			}
+		}
+	}
+
 	result := workspacediscovery.DiscoverMCPTools(ctx, workspacediscovery.MCPToolsOptions{
 		Cache: &p.workspaceMCPToolsCache,
 		CacheKey: func(agentID uuid.UUID) (workspacediscovery.MCPToolsCacheKey, bool) {
@@ -531,7 +550,17 @@ func (p *Server) discoverWorkspaceMCPTools(
 			return agentID, err
 		},
 		IsNoWorkspaceAgentError: func(err error) bool {
-			return xerrors.Is(err, errChatHasNoWorkspaceAgent)
+			if !xerrors.Is(err, errChatHasNoWorkspaceAgent) {
+				return false
+			}
+			if snapshot.WorkspaceID.Valid {
+				workspacediscovery.DeleteMCPToolsForWorkspace(
+					&p.workspaceMCPToolsCache,
+					snapshot.OwnerID,
+					snapshot.WorkspaceID.UUID,
+				)
+			}
+			return true
 		},
 		GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
 		DiscoveryTimeout: workspaceMCPDiscoveryTimeout,
@@ -6346,8 +6375,7 @@ func activeToolNamesForTurn(
 }
 
 func exposeWorkspaceMCPToolsForMode(chatMode database.NullChatMode) bool {
-	// Explore intentionally does not expose workspace MCP tools. Discovery
-	// still runs before this policy so cache state and diagnostics stay
+	// Discovery runs before this policy so cache state and diagnostics stay
 	// consistent with other workspace-backed subagents.
 	return !isExploreSubagentMode(chatMode)
 }
@@ -8347,7 +8375,7 @@ func (p *Server) fetchWorkspaceContext(
 		return nil, nil, nil, false
 	}
 
-	return result.Agent, result.Parts, skillMetasFromParts(result.Parts), result.WorkspaceConnOK
+	return result.Agent, result.Parts, skillsFromParsedParts(result.Parts), result.WorkspaceConnOK
 }
 
 // persistInstructionFiles fetches AGENTS.md instruction files and

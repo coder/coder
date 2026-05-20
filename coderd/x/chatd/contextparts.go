@@ -13,7 +13,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-var inheritedContextAgentID = uuid.MustParse("00000000-0000-0000-0000-000000000001")
+var inheritedContextAgentID = uuid.MustParse("00000000-0000-0000-0000-000000000002")
 
 func inheritedContextAgentIDPart() uuid.NullUUID {
 	return uuid.NullUUID{UUID: inheritedContextAgentID, Valid: true}
@@ -129,6 +129,7 @@ func FilterContextPartsToLatestAgent(parts []codersdk.ChatMessagePart) []codersd
 	return filtered
 }
 
+// markContextPartsInherited tags copied parent context so child chats refresh locally.
 func markContextPartsInherited(parts []codersdk.ChatMessagePart) []codersdk.ChatMessagePart {
 	if len(parts) == 0 {
 		return parts

@@ -158,7 +158,8 @@ func hasPersistedInstructionFiles(
 	return false
 }
 
-func skillMetasFromParts(parts []codersdk.ChatMessagePart) []chattool.SkillMeta {
+// skillsFromParsedParts converts parsed skill parts into skill metadata.
+func skillsFromParsedParts(parts []codersdk.ChatMessagePart) []chattool.SkillMeta {
 	var skills []chattool.SkillMeta
 	for _, part := range parts {
 		if part.Type != codersdk.ChatMessagePartTypeSkill {
@@ -228,7 +229,7 @@ func skillsFromParts(
 	messages []database.ChatMessage,
 ) []chattool.SkillMeta {
 	filterAgentID, filterByAgent := latestContextAgentID(messages)
-	var skills []chattool.SkillMeta
+	var partsForSkills []codersdk.ChatMessagePart
 	for _, msg := range messages {
 		if !msg.Content.Valid ||
 			!bytes.Contains(msg.Content.RawMessage, []byte(`"skill"`)) {
@@ -246,15 +247,10 @@ func skillsFromParts(
 				part.ContextFileAgentID.UUID != filterAgentID {
 				continue
 			}
-			skills = append(skills, chattool.SkillMeta{
-				Name:        part.SkillName,
-				Description: part.SkillDescription,
-				Dir:         part.SkillDir,
-				MetaFile:    part.ContextFileSkillMetaFile,
-			})
+			partsForSkills = append(partsForSkills, part)
 		}
 	}
-	return skills
+	return skillsFromParsedParts(partsForSkills)
 }
 
 // filterSkillParts returns stripped copies of skill-type parts from
