@@ -40,7 +40,7 @@ const ProvidersPageView: React.FC<ProvidersPageViewProps> = ({
 	const navigate = useNavigate();
 
 	return (
-		<>
+		<div className="px-8">
 			<PageHeader
 				className="pt-4 pb-8"
 				actions={
@@ -82,7 +82,7 @@ const ProvidersPageView: React.FC<ProvidersPageViewProps> = ({
 				}
 			>
 				<PageHeaderTitle>Providers</PageHeaderTitle>
-				<PageHeaderSubtitle>
+				<PageHeaderSubtitle className="max-w-2xl w-full">
 					Connect third-party LLM services like OpenAI, Anthropic, or Amazon
 					Bedrock. Each provider supplies models that users can select for their
 					conversations.
@@ -91,8 +91,11 @@ const ProvidersPageView: React.FC<ProvidersPageViewProps> = ({
 			<Table className="table-fixed" aria-label="AI providers">
 				<TableHeader>
 					<TableRow>
-						<TableHead>Name</TableHead>
-						<TableHead>Base URL</TableHead>
+						<TableHead className="w-1/3">Name</TableHead>
+						<TableHead className="w-1/3">Base URL</TableHead>
+						<TableHead className="w-20 text-center">
+							<span className="sr-only">Enabled</span>
+						</TableHead>
 					</TableRow>
 				</TableHeader>
 				<TableBody>
@@ -111,7 +114,7 @@ const ProvidersPageView: React.FC<ProvidersPageViewProps> = ({
 					)}
 				</TableBody>
 			</Table>
-		</>
+		</div>
 	);
 };
 

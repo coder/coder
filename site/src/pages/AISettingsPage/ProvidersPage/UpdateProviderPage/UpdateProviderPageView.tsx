@@ -148,7 +148,6 @@ const UpdateProviderPageView: React.FC = () => {
 							className="min-w-0"
 							title={provider.display_name || provider.name}
 						>
-							{/* PageHeaderTitle's h1 is display: flex, which wraps direct text in an anonymous flex item and suppresses text-overflow: ellipsis. Wrap the text in a block-level span so truncation actually kicks in. */}
 							<span className="block min-w-0 truncate">
 								{provider.display_name || provider.name}
 							</span>
@@ -158,10 +157,6 @@ const UpdateProviderPageView: React.FC = () => {
 				<div className="border border-solid p-6 rounded-lg">
 					<ProviderForm
 						editing
-						// Use the provider identity as the key so navigating to a
-						// different provider remounts the form with fresh values,
-						// while background refetches of the same provider don't
-						// reset in-progress edits.
 						key={provider.id}
 						bedrockSavedAccessCredentials={hasBedrockStoredCredentials(
 							provider,

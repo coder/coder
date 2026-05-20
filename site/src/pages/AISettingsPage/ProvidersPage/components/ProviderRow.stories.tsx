@@ -1,6 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
-import { Table, TableBody } from "#/components/Table/Table";
+import {
+	Table,
+	TableBody,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "#/components/Table/Table";
 import {
 	MockAIProviderAnthropic,
 	MockAIProviderBedrock,
@@ -16,7 +22,19 @@ const meta: Meta<typeof ProviderRow> = {
 	},
 	decorators: [
 		(Story) => (
-			<Table>
+			<Table className="table-fixed" aria-label="AI providers">
+				<TableHeader>
+					<TableRow>
+						<TableHead className="w-[42%]">Name</TableHead>
+						<TableHead className="w-[38%]">Base URL</TableHead>
+						<TableHead className="w-20 text-center">
+							<span className="sr-only">Enabled</span>
+						</TableHead>
+						<TableHead className="w-12">
+							<span className="sr-only">Open provider</span>
+						</TableHead>
+					</TableRow>
+				</TableHeader>
 				<TableBody>
 					<Story />
 				</TableBody>
@@ -43,5 +61,17 @@ export const Anthropic: Story = {
 export const Bedrock: Story = {
 	args: {
 		provider: MockAIProviderBedrock,
+	},
+};
+
+export const LongText: Story = {
+	args: {
+		provider: {
+			...MockAIProviderBedrock,
+			name: "bedrock12341234bedrock12341234bedrock12341234",
+			display_name: "thisisacoolexample11",
+			base_url:
+				"https://bedrock-runtime.us-east-2.amazonaws.com/very/long/path/segment",
+		},
 	},
 };

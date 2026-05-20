@@ -1,3 +1,4 @@
+import type React from "react";
 import type { FC, PropsWithChildren, ReactNode } from "react";
 import { cn } from "#/utils/cn";
 
@@ -31,10 +32,18 @@ export const PageHeader: FC<PageHeaderProps> = ({
 	);
 };
 
+interface PageHeaderTitleProps extends React.ComponentPropsWithRef<"h1"> {
+	/** Extra Tailwind classes merged onto the h1. */
+	className?: string;
+	/** Native HTML `title` attribute, surfaced as a browser tooltip. */
+	title?: string;
+}
+
 export const PageHeaderTitle: FC<PageHeaderTitleProps> = ({
 	children,
 	className,
 	title,
+	...props
 }) => {
 	return (
 		<h1
@@ -43,29 +52,30 @@ export const PageHeaderTitle: FC<PageHeaderTitleProps> = ({
 				className,
 			)}
 			title={title}
+			{...props}
 		>
 			{children}
 		</h1>
 	);
 };
 
-interface PageHeaderTitleProps extends PropsWithChildren {
-	/** Extra Tailwind classes merged onto the h1. */
-	className?: string;
-	/** Native HTML `title` attribute, surfaced as a browser tooltip. */
-	title?: string;
-}
-
-interface PageHeaderSubtitleProps {
-	children?: ReactNode;
+interface PageHeaderSubtitleProps extends React.ComponentPropsWithRef<"h2"> {
 	condensed?: boolean;
 }
 
 export const PageHeaderSubtitle: FC<PageHeaderSubtitleProps> = ({
 	children,
+	className,
+	...props
 }) => {
 	return (
-		<h2 className="text-sm text-content-secondary font-normal block m-0 leading-snug">
+		<h2
+			className={cn(
+				"text-sm text-content-secondary font-normal block m-0 leading-snug",
+				className,
+			)}
+			{...props}
+		>
 			{children}
 		</h2>
 	);
