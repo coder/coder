@@ -42,6 +42,8 @@ interface ApiKeyRow {
 	updated: string;
 	/** Whether this key was loaded from the server (saved). */
 	saved: boolean;
+	/** Whether the user clicked "Edit API key" on a saved row. */
+	editing: boolean;
 }
 
 let nextId = 1;
@@ -52,6 +54,7 @@ const makeEmptyRow = (): ApiKeyRow => ({
 	trackingId: "",
 	updated: "",
 	saved: false,
+	editing: false,
 });
 
 const AIProviderDetailPage: FC = () => {
@@ -94,6 +97,7 @@ const AIProviderDetailPage: FC = () => {
 						? `${Math.round((Date.now() - new Date(existingConfig.updated_at).getTime()) / 86400000)} days ago`
 						: "",
 					saved: true,
+					editing: false,
 				},
 				makeEmptyRow(),
 			]);
@@ -169,8 +173,16 @@ const AIProviderDetailPage: FC = () => {
 		[],
 	);
 
+	const editRow = useCallback((id: string) => {
+		setApiKeys((prev) =>
+			prev.map((row) =>
+				row.id === id ? { ...row, editing: true } : row,
+			),
+		);
+	}, []);
 
 	const updateRow = useCallback(
+
 		(id: string, field: keyof ApiKeyRow, value: string) => {
 			setApiKeys((prev) =>
 				prev.map((row) =>
@@ -286,7 +298,7 @@ const AIProviderDetailPage: FC = () => {
 										<GripVerticalIcon className="size-4 text-content-disabled cursor-grab active:cursor-grabbing" />
 									</TableCell>
 									<TableCell>
-										{row.saved ? (
+										{row.saved && !row.editing ? (
 											<span className="text-sm text-content-primary">
 												{row.name}
 											</span>
@@ -302,10 +314,19 @@ const AIProviderDetailPage: FC = () => {
 										)}
 									</TableCell>
 									<TableCell>
-										{row.saved ? (
+										{row.saved && !row.editing ? (
 											<span className="text-sm text-content-secondary font-mono">
 												{row.apiKey}
 											</span>
+										) : row.saved ? (
+											<Input
+												value={row.apiKey}
+												readOnly
+												tabIndex={-1}
+												autoComplete="off"
+												className="font-mono select-none pointer-events-none"
+												onCopy={(e) => e.preventDefault()}
+											/>
 										) : (
 											<Input
 												placeholder="Enter key"
@@ -343,11 +364,12 @@ const AIProviderDetailPage: FC = () => {
 													</button>
 												</DropdownMenuTrigger>
 												<DropdownMenuContent align="end">
-													{row.saved && (
-														<DropdownMenuItem className="gap-2">
-															<PencilIcon className="size-4" />
-															Edit API key
-														</DropdownMenuItem>
+														{row.saved && (
+															<DropdownMenuItem className="gap-2" onClick={() => editRow(row.id)}>
+																<PencilIcon className="size-4" />
+																Edit API key
+															</DropdownMenuItem>
+
 													)}
 													<DropdownMenuItem
 														className="gap-2 text-content-destructive"
