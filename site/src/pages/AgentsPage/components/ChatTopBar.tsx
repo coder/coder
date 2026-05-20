@@ -7,10 +7,11 @@ import {
 	PanelLeftIcon,
 	PanelRightCloseIcon,
 	PanelRightOpenIcon,
+	Share2Icon,
 	Trash2Icon,
 	WandSparklesIcon,
 } from "lucide-react";
-import type { FC } from "react";
+import { type FC, Fragment, type ReactNode, useState } from "react";
 import { Link, useLocation } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus } from "#/api/typesGenerated";
@@ -22,6 +23,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { Popover, PopoverTrigger } from "#/components/Popover/Popover";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { cn } from "#/utils/cn";
 import { parsePullRequestUrl } from "../utils/pullRequest";
@@ -32,6 +34,10 @@ interface SidebarPanelState {
 	showSidebarPanel: boolean;
 	onToggleSidebar: () => void;
 }
+
+type ChatSharingTopBarButtonProps = {
+	renderChatSharingContent: (open: boolean) => ReactNode;
+};
 
 type ChatTopBarProps = {
 	chatTitle?: string;
@@ -48,6 +54,40 @@ type ChatTopBarProps = {
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
 	diffStatusData?: ChatDiffStatus;
+	renderChatSharingContent?: (open: boolean) => ReactNode;
+};
+
+const ChatSharingTopBarButton: FC<ChatSharingTopBarButtonProps> = ({
+	renderChatSharingContent,
+}) => {
+	const [isChatSharingOpen, setIsChatSharingOpen] = useState(false);
+	const [contentGeneration, setContentGeneration] = useState(0);
+
+	const handleOpenChange = (nextOpen: boolean) => {
+		if (nextOpen) {
+			setContentGeneration((generation) => generation + 1);
+		}
+
+		setIsChatSharingOpen(nextOpen);
+	};
+
+	return (
+		<Popover open={isChatSharingOpen} onOpenChange={handleOpenChange}>
+			<PopoverTrigger asChild>
+				<Button
+					variant="subtle"
+					size="icon"
+					className="h-7 w-7 text-content-secondary hover:text-content-primary"
+					aria-label="Share chat"
+				>
+					<Share2Icon className="h-4 w-4" />
+				</Button>
+			</PopoverTrigger>
+			<Fragment key={contentGeneration}>
+				{renderChatSharingContent(isChatSharingOpen)}
+			</Fragment>
+		</Popover>
+	);
 };
 
 export const ChatTopBar: FC<ChatTopBarProps> = ({
@@ -65,6 +105,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 	isSidebarCollapsed,
 	onToggleSidebarCollapsed,
 	diffStatusData,
+	renderChatSharingContent,
 }) => {
 	const { isEmbedded } = useEmbedContext();
 	const location = useLocation();
@@ -183,6 +224,11 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 			)}
 			{/* Actions area */}
 			<div className="flex items-center gap-2">
+				{!isEmbedded && renderChatSharingContent && (
+					<ChatSharingTopBarButton
+						renderChatSharingContent={renderChatSharingContent}
+					/>
+				)}
 				{!isEmbedded && (
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>

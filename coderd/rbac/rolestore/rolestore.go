@@ -170,6 +170,25 @@ var systemRoles = map[string]permissionsFunc{
 	rbac.RoleOrgServiceAccount(): rbac.OrgServiceAccountPermissions,
 }
 
+func TestingGetSystemRole(name string, orgID uuid.UUID, settings rbac.OrgSettings) (rbac.Role, error) {
+	f, ok := systemRoles[name]
+	if !ok {
+		return rbac.Role{}, xerrors.Errorf("role %q not found", name)
+	}
+	perms := f(settings)
+	return rbac.Role{
+		Identifier:  rbac.RoleIdentifier{Name: name, OrganizationID: orgID},
+		DisplayName: "",
+		Site:        nil,
+		ByOrgID: map[string]rbac.OrgPermissions{
+			orgID.String(): {
+				Org:    perms.Org,
+				Member: perms.Member,
+			},
+		},
+	}, nil
+}
+
 // permissionsFunc produces the desired permissions for a system role
 // given organization settings.
 type permissionsFunc func(rbac.OrgSettings) rbac.OrgRolePermissions
