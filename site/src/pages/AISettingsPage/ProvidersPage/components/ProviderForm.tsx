@@ -558,23 +558,25 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 					</>
 				)}
 
-				<div className="flex items-center justify-between gap-4">
-					<div className="flex min-w-0 flex-1 flex-col gap-2">
-						<Label htmlFor={enabledSwitchId}>Enabled</Label>
-						<p className="m-0 text-xs text-content-secondary">
-							When disabled, this provider is not available for usage.
-						</p>
+				{editing && (
+					<div className="flex items-center justify-between gap-4">
+						<div className="flex min-w-0 flex-1 flex-col gap-2">
+							<Label htmlFor={enabledSwitchId}>Enabled</Label>
+							<p className="m-0 text-xs text-content-secondary">
+								When disabled, this provider is not available for usage.
+							</p>
+						</div>
+						<Switch
+							id={enabledSwitchId}
+							checked={form.values.enabled}
+							onCheckedChange={(checked) => {
+								void form.setFieldValue("enabled", checked);
+							}}
+							disabled={isLoading}
+							aria-label="Provider enabled"
+						/>
 					</div>
-					<Switch
-						id={enabledSwitchId}
-						checked={form.values.enabled}
-						onCheckedChange={(checked) => {
-							void form.setFieldValue("enabled", checked);
-						}}
-						disabled={isLoading}
-						aria-label="Provider enabled"
-					/>
-				</div>
+				)}
 
 				<div className="flex justify-end gap-4">
 					<Link to="/ai/settings">
