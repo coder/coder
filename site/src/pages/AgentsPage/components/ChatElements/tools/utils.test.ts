@@ -747,7 +747,7 @@ describe("buildEditDiff", () => {
 		const spy = vi.spyOn(console, "error").mockImplementation(() => {});
 		try {
 			const diff = buildEditDiff(
-				"/home/coder/coder/site/src/pages/AgentsPage/AgentsSidebar.tsx",
+				"/home/coder/coder/site/src/pages/AgentsPage/components/ChatSidebar/ChatsSidebar.tsx",
 				[
 					{ search: "const a = 1;", replace: "const a = 2;" },
 					{ search: "const b = 3;", replace: "const b = 4;" },
