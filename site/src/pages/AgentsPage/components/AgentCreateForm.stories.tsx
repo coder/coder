@@ -471,28 +471,32 @@ export const NoModelsConfigured: Story = {
 export const MissingProviderAndModelSetup: Story = {
 	args: {
 		...defaultArgs,
-		agentSetupNotice: <AgentSetupNotice providerCount={0} modelCount={0} />,
+		agentSetupNotice: (
+			<AgentSetupNotice isAdmin providerCount={0} modelCount={0} />
+		),
 		modelCatalog: { providers: [] },
 		modelOptions: [],
 		isModelCatalogLoading: false,
 		isModelConfigsLoading: false,
 	},
 	play: async ({ canvasElement }) => {
-		const body = within(canvasElement.ownerDocument.body);
-		const dialog = within(
-			body.getByRole("dialog", { name: "Welcome to Coder Agents" }),
-		);
+		const canvas = within(canvasElement);
 
 		await waitFor(() => {
-			expect(dialog.getByText("Welcome to Coder Agents")).toBeVisible();
+			expect(
+				canvas.getByText((_content, element) => {
+					return (
+						element?.textContent ===
+						"To chat with Coder Agents, set up a provider then add a model."
+					);
+				}),
+			).toBeVisible();
 		});
-		expect(dialog.getByText("Connect a chat provider")).toBeVisible();
-		expect(dialog.getByText("Add a chat model")).toBeVisible();
-		expect(dialog.queryByLabelText("Complete")).not.toBeInTheDocument();
-		expect(
-			dialog.getByRole("link", { name: "Go to Providers" }),
-		).toHaveAttribute("href", "/agents/settings/providers");
-		expect(dialog.getByRole("link", { name: "Go to Models" })).toHaveAttribute(
+		expect(canvas.getByRole("link", { name: "provider" })).toHaveAttribute(
+			"href",
+			"/agents/settings/providers",
+		);
+		expect(canvas.getByRole("link", { name: "model" })).toHaveAttribute(
 			"href",
 			"/agents/settings/models",
 		);

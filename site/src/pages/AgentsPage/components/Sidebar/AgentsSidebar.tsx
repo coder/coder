@@ -185,6 +185,7 @@ interface AgentsSidebarProps {
 	isFetchingNextPage?: boolean;
 	archivedFilter: "active" | "archived";
 	onArchivedFilterChange?: (filter: "active" | "archived") => void;
+	hasArchivedChats?: boolean;
 	onCollapse?: () => void;
 	isPersonalModelOverridesEnabled?: boolean;
 	isAdmin?: boolean;
@@ -942,6 +943,7 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 		isFetchingNextPage,
 		archivedFilter,
 		onArchivedFilterChange,
+		hasArchivedChats = false,
 		onCollapse,
 		isPersonalModelOverridesEnabled = false,
 		isAdmin = false,
@@ -1243,21 +1245,23 @@ export const AgentsSidebar: FC<AgentsSidebarProps> = (props) => {
 														? "No archived agents"
 														: "No agents yet"}
 											</p>
-											<button
-												type="button"
-												className="mt-2 cursor-pointer border-none bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary hover:underline"
-												onClick={() =>
-													onArchivedFilterChange?.(
-														archivedFilter === "archived"
-															? "active"
-															: "archived",
-													)
-												}
-											>
-												{archivedFilter === "archived"
-													? "← Back to active"
-													: "View archived →"}
-											</button>
+											{(archivedFilter === "archived" || hasArchivedChats) && (
+												<button
+														type="button"
+														className="mt-2 cursor-pointer border-none bg-transparent p-0 text-xs text-content-secondary hover:text-content-primary hover:underline"
+													onClick={() =>
+														onArchivedFilterChange?.(
+															archivedFilter === "archived"
+																	? "active"
+																	: "archived",
+															)
+														}
+												>
+													{archivedFilter === "archived"
+															? "← Back to active"
+															: "View archived →"}
+												</button>
+											)}
 										</div>
 									) : (
 										<div>
