@@ -98,6 +98,20 @@ const defaultInitialValues: ProviderFormValues = {
 	enabled: true,
 };
 
+/**
+ * Per-provider defaults applied both as prefilled values when creating a new
+ * provider and as the matching placeholder text on each input. Keeping a
+ * single source of truth so the prefill and the hint can't drift apart.
+ */
+const providerDefaults: Record<
+	"openai" | "anthropic" | "bedrock",
+	Partial<ProviderFormValues>
+> = {
+	openai: { baseUrl: "https://api.openai.com/v1/" },
+	anthropic: { baseUrl: "https://api.anthropic.com" },
+	bedrock: { baseUrl: "https://bedrock-runtime.us-east-2.amazonaws.com" },
+};
+
 const makeOpenAiAnthropicSchema = (editing: boolean) =>
 	Yup.object({
 		type: Yup.string()
@@ -333,18 +347,8 @@ const apiKeyPlaceholder = (provider: string) => {
 	}
 };
 
-const baseUrlPlaceholder = (provider: string) => {
-	switch (provider) {
-		case "openai":
-			return "https://api.openai.com/v1/";
-		case "anthropic":
-			return "https://api.anthropic.com";
-		case "bedrock":
-			return "https://bedrock-runtime.us-east-2.amazonaws.com";
-		default:
-			return;
-	}
-};
+const baseUrlPlaceholder = (provider: string) =>
+	providerDefaults[provider as keyof typeof providerDefaults]?.baseUrl;
 
 export const ProviderForm: FC<ProviderFormProps> = ({
 	editing = false,
@@ -358,9 +362,19 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 }) => {
 	const enabledSwitchId = useId();
 
+	const resolvedType = initialValues?.type ?? defaultInitialValues.type;
+	const typeDefaults =
+		providerDefaults[resolvedType as keyof typeof providerDefaults];
+
 	const form = useFormik<ProviderFormValues>({
 		initialValues: {
 			...defaultInitialValues,
+			// Per-type prefills (currently just the canonical baseUrl). Slotting
+			// these between the base defaults and the parent's initialValues lets
+			// edit override them with the values returned from the server, while
+			// create gets a sensible prefill from the same source that drives the
+			// placeholder text.
+			...(typeDefaults ?? {}),
 			...initialValues,
 			// When the server has saved Bedrock credentials, seed the inputs
 			// with the mask so the user sees something is on file. The mask
