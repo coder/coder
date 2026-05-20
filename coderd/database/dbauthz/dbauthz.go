@@ -3262,6 +3262,15 @@ func (q *querier) GetGroupMembersCountByGroupID(ctx context.Context, arg databas
 	return memberCount, nil
 }
 
+func (q *querier) GetGroupMembersCountByGroupIDs(ctx context.Context, arg database.GetGroupMembersCountByGroupIDsParams) ([]database.GetGroupMembersCountByGroupIDsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceGroup); err != nil {
+		// Ideally we would check read access on each group ID, but that would be N queries.
+		// So this function is really only usable by admins.
+		return nil, err
+	}
+	return q.db.GetGroupMembersCountByGroupIDs(ctx, arg)
+}
+
 func (q *querier) GetGroups(ctx context.Context, arg database.GetGroupsParams) ([]database.GetGroupsRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err == nil {
 		// Optimize this query for system users as it is used in telemetry.
