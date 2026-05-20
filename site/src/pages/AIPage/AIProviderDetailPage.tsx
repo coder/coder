@@ -12,7 +12,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { type FC, useCallback, useMemo, useState } from "react";
+import { type FC, useCallback, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
@@ -105,6 +105,49 @@ const AIProviderDetailPage: FC = () => {
 
 	const addRow = useCallback(() => {
 		setApiKeys((prev) => [...prev, makeEmptyRow()]);
+	}, []);
+
+	// Drag-to-reorder state.
+	const dragIdx = useRef<number | null>(null);
+	const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+
+	const handleDragStart = useCallback((i: number) => {
+		dragIdx.current = i;
+	}, []);
+
+	const handleDragOver = useCallback(
+		(e: React.DragEvent, i: number) => {
+			e.preventDefault();
+			if (dragOverIdx !== i) {
+				setDragOverIdx(i);
+			}
+		},
+		[dragOverIdx],
+	);
+
+	const handleDrop = useCallback(
+		(i: number) => {
+			const from = dragIdx.current;
+			if (from === null || from === i) {
+				dragIdx.current = null;
+				setDragOverIdx(null);
+				return;
+			}
+			setApiKeys((prev) => {
+				const next = [...prev];
+				const [moved] = next.splice(from, 1);
+				next.splice(i, 0, moved);
+				return next;
+			});
+			dragIdx.current = null;
+			setDragOverIdx(null);
+		},
+		[],
+	);
+
+	const handleDragEnd = useCallback(() => {
+		dragIdx.current = null;
+		setDragOverIdx(null);
 	}, []);
 
 	const removeRow = useCallback(
@@ -219,7 +262,15 @@ const AIProviderDetailPage: FC = () => {
 						</TableHeader>
 						<TableBody>
 							{apiKeys.map((row, i) => (
-								<TableRow key={row.id}>
+								<TableRow
+									key={row.id}
+									draggable
+									onDragStart={() => handleDragStart(i)}
+									onDragOver={(e) => handleDragOver(e, i)}
+									onDrop={() => handleDrop(i)}
+									onDragEnd={handleDragEnd}
+									className={dragOverIdx === i ? "bg-surface-secondary/50" : ""}
+								>
 									<TableCell>
 										<GripVerticalIcon className="size-4 text-content-disabled cursor-grab" />
 									</TableCell>
