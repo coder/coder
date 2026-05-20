@@ -41,6 +41,7 @@ import {
 	$createFileReferenceNode,
 	FileReferenceNode,
 } from "./FileReferenceNode";
+import { IOSBackspacePlugin } from "./iosBackspace";
 import {
 	createPasteFile,
 	getPasteDataTransfer,
@@ -376,7 +377,7 @@ const ValueSyncPlugin: FC<{
 				editor.setEditorState(parsed);
 				return;
 			} catch {
-				// Malformed state — fall through to plain-text path.
+				// Malformed state, fall through to plain-text path.
 			}
 		}
 
@@ -736,6 +737,7 @@ const ChatMessageInput = ({
 					onEnter={disabled ? undefined : onEnter}
 					sendShortcut={sendShortcut}
 				/>
+				<IOSBackspacePlugin />
 				<ContentChangePlugin onChange={onChange} />
 				<ValueSyncPlugin
 					initialValue={initialValue}
