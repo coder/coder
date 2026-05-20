@@ -2,7 +2,6 @@ package main
 
 import (
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -14,9 +13,9 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// publishRelease creates a GitHub release with the given assets,
-// generates checksums, and optionally GPG-signs them.
-func publishRelease(versionTag, channel, notesFile string, assets []string, gpgKeyBase64 string) error {
+// publishRelease creates a GitHub release with the given assets
+// and generates checksums.
+func publishRelease(versionTag, channel, notesFile string, assets []string) error {
 	if len(assets) == 0 {
 		return xerrors.New("no assets provided")
 	}
@@ -60,13 +59,6 @@ func publishRelease(versionTag, channel, notesFile string, assets []string, gpgK
 	checksumPath := filepath.Join(tempDir, checksumFile)
 	if err := generateChecksums(tempDir, checksumPath); err != nil {
 		return xerrors.Errorf("generate checksums: %w", err)
-	}
-
-	// GPG-sign the checksums file if a key is provided.
-	if gpgKeyBase64 != "" {
-		if err := gpgSignFile(checksumPath, gpgKeyBase64); err != nil {
-			return xerrors.Errorf("gpg sign checksums: %w", err)
-		}
 	}
 
 	// Determine target commitish from release branch.
@@ -158,67 +150,4 @@ func sha256File(path string) (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
-// gpgSignFile signs the file at path using the base64-encoded GPG
-// private key and writes the detached signature to path+".asc".
-func gpgSignFile(path, keyBase64 string) error {
-	keyBytes, err := base64.StdEncoding.DecodeString(keyBase64)
-	if err != nil {
-		return xerrors.Errorf("decode GPG key: %w", err)
-	}
 
-	// Create a temporary GPG home directory.
-	gpgHome, err := os.MkdirTemp("", "gpg-sign-*")
-	if err != nil {
-		return xerrors.Errorf("create gpg home: %w", err)
-	}
-	defer os.RemoveAll(gpgHome)
-
-	// Import the key.
-	importCmd := exec.Command("gpg", "--homedir", gpgHome, "--import")
-	importCmd.Stdin = strings.NewReader(string(keyBytes))
-	importCmd.Stderr = os.Stderr
-	if err := importCmd.Run(); err != nil {
-		return xerrors.Errorf("gpg import: %w", err)
-	}
-
-	// Get the fingerprint and mark as trusted.
-	fpOut, err := exec.Command("gpg", "--homedir", gpgHome, "--with-colons", "--fingerprint").Output()
-	if err != nil {
-		return xerrors.Errorf("gpg fingerprint: %w", err)
-	}
-	var fingerprint string
-	for _, line := range strings.Split(string(fpOut), "\n") {
-		parts := strings.Split(line, ":")
-		if len(parts) >= 10 && parts[0] == "fpr" {
-			fingerprint = parts[9]
-			break
-		}
-	}
-	if fingerprint == "" {
-		return xerrors.New("could not determine GPG key fingerprint")
-	}
-
-	trustCmd := exec.Command("gpg", "--homedir", gpgHome, "--import-ownertrust")
-	trustCmd.Stdin = strings.NewReader(fingerprint + ":6:\n")
-	trustCmd.Stderr = os.Stderr
-	if err := trustCmd.Run(); err != nil {
-		return xerrors.Errorf("gpg trust: %w", err)
-	}
-
-	// Sign the file.
-	signCmd := exec.Command("gpg", "--homedir", gpgHome, "--detach-sign", "--armor", path)
-	signCmd.Stdin = strings.NewReader("") // prevent interactive prompts
-	signCmd.Stderr = os.Stderr
-	if err := signCmd.Run(); err != nil {
-		return xerrors.Errorf("gpg sign: %w", err)
-	}
-
-	// Verify the signature.
-	verifyCmd := exec.Command("gpg", "--homedir", gpgHome, "--verify", path+".asc", path)
-	verifyCmd.Stderr = os.Stderr
-	if err := verifyCmd.Run(); err != nil {
-		return xerrors.Errorf("gpg signature verification failed: %w", err)
-	}
-
-	return nil
-}

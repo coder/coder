@@ -138,8 +138,7 @@ func main() {
 					if len(assets) == 0 {
 						return xerrors.New("no asset files provided as arguments")
 					}
-					gpgKey := os.Getenv("CODER_GPG_RELEASE_KEY_BASE64")
-					return publishRelease(versionStr, channel, notesFile, assets, gpgKey)
+					return publishRelease(versionStr, channel, notesFile, assets)
 				},
 			},
 		},
