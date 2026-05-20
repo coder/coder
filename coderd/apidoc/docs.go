@@ -1020,6 +1020,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.Response"
                         }
                     },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
                     "502": {
                         "description": "Bad Gateway",
                         "schema": {

@@ -6,6 +6,7 @@ import {
 	FileIcon,
 	XIcon,
 } from "lucide-react";
+import prettyBytes from "pretty-bytes";
 import type { FC, MouseEvent, ReactNode } from "react";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
@@ -15,75 +16,13 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { useClipboard } from "#/hooks/useClipboard";
 import { cn } from "#/utils/cn";
-
-const ATTACHMENT_FALLBACK_EXTENSIONS: Record<string, string> = {
-	"application/json": "json",
-	"application/octet-stream": "bin",
-	"application/pdf": "pdf",
-	"application/vnd.openxmlformats-officedocument.presentationml.presentation":
-		"pptx",
-	"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
-	"application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-		"docx",
-	"application/x-tar": "tar",
-	"image/jpeg": "jpg",
-	"text/markdown": "md",
-	"text/plain": "txt",
-};
-
-const sanitizeAttachmentExtension = (value: string): string => {
-	const sanitized = value
-		.replace(/[^a-z0-9]/gi, "")
-		.slice(0, 4)
-		.toLowerCase();
-	return sanitized || "file";
-};
-
-const getFileAttachmentExtension = (attachment: {
-	mediaType?: string;
-	name?: string;
-}): string => {
-	const mediaType = attachment.mediaType?.trim() ?? "";
-	const mapped = ATTACHMENT_FALLBACK_EXTENSIONS[mediaType];
-	if (mapped) {
-		return mapped;
-	}
-	const trimmedName = attachment.name?.trim();
-	if (trimmedName) {
-		const lastDot = trimmedName.lastIndexOf(".");
-		if (lastDot > 0 && lastDot < trimmedName.length - 1) {
-			return sanitizeAttachmentExtension(trimmedName.slice(lastDot + 1));
-		}
-	}
-	const subtype = mediaType.split("/")[1] ?? "";
-	if (subtype.endsWith("+json")) {
-		return "json";
-	}
-	return sanitizeAttachmentExtension(subtype);
-};
-
-const getFileAttachmentBadgeLabel = (attachment: {
-	mediaType?: string;
-	name?: string;
-}): string => {
-	const extension = getFileAttachmentExtension(attachment);
-	return extension === "file" ? "" : extension.toUpperCase();
-};
+import { getFileAttachmentBadgeLabel } from "../utils/fileAttachmentUtils";
 
 const formatFileSize = (bytes: number | undefined): string | undefined => {
 	if (bytes === undefined || !Number.isFinite(bytes) || bytes < 0) {
 		return undefined;
 	}
-	if (bytes < 1024) return `${bytes} B`;
-	const units = ["KiB", "MiB", "GiB", "TiB"];
-	let value = bytes / 1024;
-	let unitIndex = 0;
-	while (value >= 1024 && unitIndex < units.length - 1) {
-		value /= 1024;
-		unitIndex++;
-	}
-	const rounded = value >= 10 ? Math.round(value).toString() : value.toFixed(1);
-	return `${rounded} ${units[unitIndex]}`;
+	return prettyBytes(bytes, { binary: true });
 };
 
 interface FileAttachmentTileProps {

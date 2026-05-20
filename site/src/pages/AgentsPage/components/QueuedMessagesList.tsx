@@ -40,7 +40,9 @@ export const getQueuedMessageInfo = (
 	message: ChatQueuedMessage,
 ): QueuedMessageInfo => {
 	const { content } = message;
-	const fileBlocks = content.filter((p) => p.type === "file");
+	const fileBlocks = content.filter(
+		(p) => p.type === "file" || p.type === "workspace-file-reference",
+	);
 	const rawText = content
 		.filter((p) => p.type === "text")
 		.map((p) => p.text)

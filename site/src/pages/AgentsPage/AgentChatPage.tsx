@@ -89,6 +89,7 @@ import {
 import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useGitWatcher } from "./hooks/useGitWatcher";
 import { getAgentChatSendShortcut } from "./utils/agentChatSendShortcut";
+import { workspaceFileReferencePart } from "./utils/chatAttachments";
 import { type ParsedDraft, parseStoredDraft } from "./utils/draftStorage";
 import {
 	countConfiguredProviderConfigs,
@@ -1322,13 +1323,7 @@ const AgentChatPage: FC = () => {
 
 		if (workspaceUploads && workspaceUploads.length > 0) {
 			for (const upload of workspaceUploads) {
-				content.push({
-					type: "workspace-file-reference",
-					workspace_file_path: upload.path,
-					workspace_file_name: upload.name,
-					workspace_file_size: upload.size,
-					workspace_file_media_type: upload.mediaType,
-				});
+				content.push(workspaceFileReferencePart(upload));
 			}
 		}
 

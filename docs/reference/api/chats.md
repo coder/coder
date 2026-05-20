@@ -3014,12 +3014,13 @@ Experimental: this endpoint is subject to change.
 
 ### Responses
 
-| Status | Meaning                                                          | Description | Schema                                                                                         |
-|--------|------------------------------------------------------------------|-------------|------------------------------------------------------------------------------------------------|
-| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)     | Created     | [codersdk.UploadChatWorkspaceFileResponse](schemas.md#codersdkuploadchatworkspacefileresponse) |
-| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1) | Bad Request | [codersdk.Response](schemas.md#codersdkresponse)                                               |
-| 403    | [Forbidden](https://tools.ietf.org/html/rfc7231#section-6.5.3)   | Forbidden   | [codersdk.Response](schemas.md#codersdkresponse)                                               |
-| 409    | [Conflict](https://tools.ietf.org/html/rfc7231#section-6.5.8)    | Conflict    | [codersdk.Response](schemas.md#codersdkresponse)                                               |
-| 502    | [Bad Gateway](https://tools.ietf.org/html/rfc7231#section-6.6.3) | Bad Gateway | [codersdk.Response](schemas.md#codersdkresponse)                                               |
+| Status | Meaning                                                                    | Description           | Schema                                                                                         |
+|--------|----------------------------------------------------------------------------|-----------------------|------------------------------------------------------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)               | Created               | [codersdk.UploadChatWorkspaceFileResponse](schemas.md#codersdkuploadchatworkspacefileresponse) |
+| 400    | [Bad Request](https://tools.ietf.org/html/rfc7231#section-6.5.1)           | Bad Request           | [codersdk.Response](schemas.md#codersdkresponse)                                               |
+| 403    | [Forbidden](https://tools.ietf.org/html/rfc7231#section-6.5.3)             | Forbidden             | [codersdk.Response](schemas.md#codersdkresponse)                                               |
+| 409    | [Conflict](https://tools.ietf.org/html/rfc7231#section-6.5.8)              | Conflict              | [codersdk.Response](schemas.md#codersdkresponse)                                               |
+| 500    | [Internal Server Error](https://tools.ietf.org/html/rfc7231#section-6.6.1) | Internal Server Error | [codersdk.Response](schemas.md#codersdkresponse)                                               |
+| 502    | [Bad Gateway](https://tools.ietf.org/html/rfc7231#section-6.6.3)           | Bad Gateway           | [codersdk.Response](schemas.md#codersdkresponse)                                               |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

@@ -58,19 +58,17 @@ func TestSanitizeWorkspaceUploadName_Truncates(t *testing.T) {
 func TestWorkspaceUploadDir(t *testing.T) {
 	t.Parallel()
 
-	require.Equal(t, "/home/coder/.coder/chats/abcd1234/files",
-		chatfiles.WorkspaceUploadDir("/home/coder", "abcd1234"))
-	require.Equal(t, "~/.coder/chats/abcd1234/files",
-		chatfiles.WorkspaceUploadDir("", "abcd1234"))
+	const chatID = "00000000-0000-0000-0000-000000000001"
+	require.Equal(t, "/home/coder/.coder/chats/"+chatID+"/files",
+		chatfiles.WorkspaceUploadDir("/home/coder", chatID))
 }
 
 func TestWorkspaceChatDir(t *testing.T) {
 	t.Parallel()
 
-	require.Equal(t, "/home/coder/.coder/chats/abcd1234",
-		chatfiles.WorkspaceChatDir("/home/coder", "abcd1234"))
-	require.Equal(t, "~/.coder/chats/abcd1234",
-		chatfiles.WorkspaceChatDir("", "abcd1234"))
+	const chatID = "00000000-0000-0000-0000-000000000001"
+	require.Equal(t, "/home/coder/.coder/chats/"+chatID,
+		chatfiles.WorkspaceChatDir("/home/coder", chatID))
 }
 
 func TestAddCollisionSuffix(t *testing.T) {

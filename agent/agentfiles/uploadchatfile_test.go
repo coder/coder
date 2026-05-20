@@ -20,6 +20,8 @@ import (
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
+const uploadChatFileTestChatID = "00000000-0000-0000-0000-000000000001"
+
 // newUploadChatFileRouter wires the upload handler against the
 // supplied filesystem so each test gets its own router and fs.
 func newUploadChatFileRouter(t *testing.T, fs afero.Fs) http.Handler {
@@ -54,7 +56,7 @@ func TestHandleUploadChatFile_HappyPath(t *testing.T) {
 	r := newUploadChatFileRouter(t, fs)
 
 	body := strings.NewReader("zip bytes")
-	req := httptest.NewRequest(http.MethodPost, uploadChatFileURL("abcd1234", "archive.zip"), body)
+	req := httptest.NewRequest(http.MethodPost, uploadChatFileURL(uploadChatFileTestChatID, "archive.zip"), body)
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
 
@@ -63,7 +65,7 @@ func TestHandleUploadChatFile_HappyPath(t *testing.T) {
 	var resp workspacesdk.UploadChatFileResponse
 	require.NoError(t, json.NewDecoder(rr.Body).Decode(&resp))
 
-	want := filepath.Join(home, ".coder", "chats", "abcd1234", "files", "archive.zip")
+	want := filepath.Join(home, ".coder", "chats", uploadChatFileTestChatID, "files", "archive.zip")
 	require.Equal(t, want, resp.Path)
 	require.Equal(t, "archive.zip", resp.Name)
 	require.Equal(t, int64(len("zip bytes")), resp.Size)
@@ -84,7 +86,7 @@ func TestHandleUploadChatFile_SanitizesName(t *testing.T) {
 	body := strings.NewReader("payload")
 	// Path components and unsafe whitespace must be stripped before
 	// the file lands on disk.
-	req := httptest.NewRequest(http.MethodPost, uploadChatFileURL("abcd1234", "../etc/secret file.zip"), body)
+	req := httptest.NewRequest(http.MethodPost, uploadChatFileURL(uploadChatFileTestChatID, "../etc/secret file.zip"), body)
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
 
@@ -94,7 +96,7 @@ func TestHandleUploadChatFile_SanitizesName(t *testing.T) {
 	require.NoError(t, json.NewDecoder(rr.Body).Decode(&resp))
 
 	require.Equal(t, "secret_file.zip", resp.Name)
-	require.Equal(t, filepath.Join(home, ".coder", "chats", "abcd1234", "files", "secret_file.zip"), resp.Path)
+	require.Equal(t, filepath.Join(home, ".coder", "chats", uploadChatFileTestChatID, "files", "secret_file.zip"), resp.Path)
 }
 
 func TestHandleUploadChatFile_CollisionSuffix(t *testing.T) {
@@ -107,7 +109,7 @@ func TestHandleUploadChatFile_CollisionSuffix(t *testing.T) {
 
 	uploadOnce := func(t *testing.T, body string) workspacesdk.UploadChatFileResponse {
 		t.Helper()
-		req := httptest.NewRequest(http.MethodPost, uploadChatFileURL("abcd1234", "archive.zip"),
+		req := httptest.NewRequest(http.MethodPost, uploadChatFileURL(uploadChatFileTestChatID, "archive.zip"),
 			strings.NewReader(body))
 		rr := httptest.NewRecorder()
 		r.ServeHTTP(rr, req)
@@ -147,12 +149,12 @@ func TestHandleDeleteChatFiles(t *testing.T) {
 	fs := afero.NewOsFs()
 	r := newUploadChatFileRouter(t, fs)
 
-	chatDir := filepath.Join(home, ".coder", "chats", "abcd1234")
+	chatDir := filepath.Join(home, ".coder", "chats", uploadChatFileTestChatID)
 	filePath := filepath.Join(chatDir, "files", "archive.zip")
 	require.NoError(t, os.MkdirAll(filepath.Dir(filePath), 0o755))
 	require.NoError(t, os.WriteFile(filePath, []byte("zip bytes"), 0o600))
 
-	req := httptest.NewRequest(http.MethodDelete, deleteChatFilesURL("abcd1234"), nil)
+	req := httptest.NewRequest(http.MethodDelete, deleteChatFilesURL(uploadChatFileTestChatID), nil)
 	rr := httptest.NewRecorder()
 	r.ServeHTTP(rr, req)
 
@@ -208,9 +210,9 @@ func TestHandleUploadChatFile_BadRequest(t *testing.T) {
 		wantSub  string
 	}{
 		{name: "missing_chat_id", chatID: "", filename: "foo.zip", wantSub: "chat_id"},
-		{name: "missing_name", chatID: "abcd1234", filename: "", wantSub: "name"},
-		{name: "name_only_dots", chatID: "abcd1234", filename: "....", wantSub: "required"},
-		{name: "name_only_whitespace", chatID: "abcd1234", filename: "   ", wantSub: "required"},
+		{name: "missing_name", chatID: uploadChatFileTestChatID, filename: "", wantSub: "name"},
+		{name: "name_only_dots", chatID: uploadChatFileTestChatID, filename: "....", wantSub: "required"},
+		{name: "name_only_whitespace", chatID: uploadChatFileTestChatID, filename: "   ", wantSub: "required"},
 		{name: "chat_id_path_traversal", chatID: "../etc", filename: "foo.zip", wantSub: "chat_id"},
 		{name: "chat_id_with_slash", chatID: "a/b", filename: "foo.zip", wantSub: "chat_id"},
 	}

@@ -132,6 +132,31 @@ describe("useWorkspaceFileUploads", () => {
 		expect(result.current.files[0].name).toBe("b.txt");
 	});
 
+	it("aborts pending requests on unmount", async () => {
+		let abortedDuringUpload = false;
+		uploadMock.mockImplementation(
+			(_chatId: string, _file: File, signal?: AbortSignal) =>
+				new Promise((_resolve, reject) => {
+					signal?.addEventListener("abort", () => {
+						abortedDuringUpload = true;
+						reject(new DOMException("aborted", "AbortError"));
+					});
+				}),
+		);
+		const { result, unmount } = renderHook(() =>
+			useWorkspaceFileUploads("chat-1"),
+		);
+
+		act(() => {
+			result.current.handleAttach([makeFile()]);
+		});
+		unmount();
+
+		await waitFor(() => {
+			expect(abortedDuringUpload).toBe(true);
+		});
+	});
+
 	it("aborts pending requests on reset", async () => {
 		let abortedDuringUpload = false;
 		uploadMock.mockImplementation(

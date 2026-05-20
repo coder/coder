@@ -2,6 +2,7 @@ package chatfiles
 
 import (
 	"path"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -10,15 +11,11 @@ import (
 )
 
 const (
-	// MaxWorkspaceUploadFileNameBytes caps the sanitized basename of a
-	// workspace upload. It mirrors MaxStoredFileNameBytes so the chat
-	// composer and workspace flows agree on the longest allowed name.
-	MaxWorkspaceUploadFileNameBytes = 255
+	// MaxWorkspaceUploadFileNameBytes matches the stored attachment name limit.
+	MaxWorkspaceUploadFileNameBytes = MaxStoredFileNameBytes
 
 	// WorkspaceChatsDir is the directory under the agent's home directory
-	// that holds per-chat coder artifacts. Sits under the existing
-	// `~/.coder/` namespace so chat data lives next to other coder
-	// configuration rather than at the top of the home directory.
+	// that holds per-chat coder artifacts.
 	WorkspaceChatsDir = ".coder/chats"
 
 	// WorkspaceUploadFilesSubdir is the subdirectory of a chat's
@@ -65,10 +62,7 @@ func SanitizeWorkspaceUploadName(name string) (string, error) {
 // home directory: $HOME/.coder/chats/<chat-id>. chatID is expected to
 // be the full chat UUID; the caller is responsible for validating it.
 func WorkspaceChatDir(homeDir, chatID string) string {
-	if homeDir == "" {
-		homeDir = "~"
-	}
-	return path.Join(homeDir, WorkspaceChatsDir, chatID)
+	return filepath.Join(homeDir, WorkspaceChatsDir, chatID)
 }
 
 // WorkspaceUploadDir returns the per-chat directory under the agent's
@@ -76,7 +70,7 @@ func WorkspaceChatDir(homeDir, chatID string) string {
 // chatID is expected to be the full chat UUID; the caller is responsible
 // for validating it.
 func WorkspaceUploadDir(homeDir, chatID string) string {
-	return path.Join(WorkspaceChatDir(homeDir, chatID), WorkspaceUploadFilesSubdir)
+	return filepath.Join(WorkspaceChatDir(homeDir, chatID), WorkspaceUploadFilesSubdir)
 }
 
 // AddCollisionSuffix returns a candidate filename with a `_<n>` suffix

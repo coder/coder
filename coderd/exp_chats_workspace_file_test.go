@@ -44,6 +44,64 @@ func uploadChatWorkspaceFile(
 	)
 }
 
+func TestCreateChatWorkspaceFilePartValidation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		part   codersdk.ChatInputPart
+		detail string
+	}{
+		{
+			name: "MissingPath",
+			part: codersdk.ChatInputPart{
+				Type:              codersdk.ChatInputPartTypeWorkspaceFileReference,
+				WorkspaceFileName: "data.csv",
+				WorkspaceFileSize: 42,
+			},
+			detail: "content[0].workspace_file_path is required for workspace-file.",
+		},
+		{
+			name: "MissingName",
+			part: codersdk.ChatInputPart{
+				Type:              codersdk.ChatInputPartTypeWorkspaceFileReference,
+				WorkspaceFilePath: "/home/coder/.coder/chats/chat-id/files/data.csv",
+				WorkspaceFileSize: 42,
+			},
+			detail: "content[0].workspace_file_name is required for workspace-file.",
+		},
+		{
+			name: "NegativeSize",
+			part: codersdk.ChatInputPart{
+				Type:              codersdk.ChatInputPartTypeWorkspaceFileReference,
+				WorkspaceFilePath: "/home/coder/.coder/chats/chat-id/files/data.csv",
+				WorkspaceFileName: "data.csv",
+				WorkspaceFileSize: -1,
+			},
+			detail: "content[0].workspace_file_size must be non-negative.",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			client := newChatClient(t)
+			firstUser := coderdtest.CreateFirstUser(t, client.Client)
+			_ = createChatModelConfig(t, client)
+
+			_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+				OrganizationID: firstUser.OrganizationID,
+				Content:        []codersdk.ChatInputPart{tt.part},
+			})
+			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+			require.Equal(t, "Invalid input part.", sdkErr.Message)
+			require.Equal(t, tt.detail, sdkErr.Detail)
+		})
+	}
+}
+
 //nolint:paralleltest // t.Setenv on agent home dir requires sequential subtests.
 func TestPostChatWorkspaceFile(t *testing.T) {
 	// Subtests use t.Setenv to control the agent's home directory.
@@ -104,10 +162,11 @@ func TestPostChatWorkspaceFile(t *testing.T) {
 			Archived: &archived,
 		})
 		require.NoError(t, err)
-		_, err = os.Stat(resp.Path)
-		require.True(t, os.IsNotExist(err), "archive should clean up the first uploaded file")
-		_, err = os.Stat(second.Path)
-		require.True(t, os.IsNotExist(err), "archive should clean up the second uploaded file")
+		testutil.Eventually(ctx, t, func(context.Context) bool {
+			_, firstErr := os.Stat(resp.Path)
+			_, secondErr := os.Stat(second.Path)
+			return os.IsNotExist(firstErr) && os.IsNotExist(secondErr)
+		}, testutil.IntervalFast, "archive should clean up uploaded files")
 	})
 
 	t.Run("MissingFilename", func(t *testing.T) {
@@ -137,8 +196,7 @@ func TestPostChatWorkspaceFile(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Connected agent + no Content-Disposition reaches the
-		// filename validation branch and returns 400.
+		// Missing Content-Disposition fails filename validation.
 		resp, err := uploadChatWorkspaceFile(ctx, t, client, chat.ID.String(), "", "application/zip", []byte("PK"))
 		require.NoError(t, err)
 		defer resp.Body.Close()

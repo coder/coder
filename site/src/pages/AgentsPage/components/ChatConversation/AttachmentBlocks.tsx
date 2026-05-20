@@ -19,6 +19,7 @@ import {
 	fetchTextAttachmentContent,
 	formatTextAttachmentPreview,
 } from "../../utils/fetchTextAttachment";
+import { getFileAttachmentExtension } from "../../utils/fileAttachmentUtils";
 import { ImageThumbnail } from "../AgentChatInput";
 import { FileAttachmentTile } from "../FileAttachmentTile";
 import { useFileProbes } from "./FileProbeContext";
@@ -38,52 +39,6 @@ const TEXT_ATTACHMENT_MEDIA_TYPES = new Set([
 	"text/csv",
 	"application/json",
 ]);
-
-const ATTACHMENT_FALLBACK_EXTENSIONS: Record<string, string> = {
-	"application/json": "json",
-	"application/octet-stream": "bin",
-	"application/pdf": "pdf",
-	"application/vnd.openxmlformats-officedocument.presentationml.presentation":
-		"pptx",
-	"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
-	"application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-		"docx",
-	"application/x-tar": "tar",
-	"image/jpeg": "jpg",
-	"text/markdown": "md",
-	"text/plain": "txt",
-};
-
-const sanitizeAttachmentExtension = (value: string): string => {
-	const sanitized = value
-		.replace(/[^a-z0-9]/gi, "")
-		.slice(0, 4)
-		.toLowerCase();
-	return sanitized || "file";
-};
-
-const getAttachmentExtension = (
-	block: Pick<FileAttachmentBlock, "media_type" | "name">,
-): string => {
-	const mapped = ATTACHMENT_FALLBACK_EXTENSIONS[block.media_type];
-	if (mapped) {
-		return mapped;
-	}
-	const trimmedName = block.name?.trim();
-	if (trimmedName) {
-		const lastDot = trimmedName.lastIndexOf(".");
-		// Keep dotfiles like `.env` out of the extension path, while still
-		// allowing ordinary `name.ext` filenames to contribute a fallback.
-		if (lastDot > 0 && lastDot < trimmedName.length - 1) {
-			return sanitizeAttachmentExtension(trimmedName.slice(lastDot + 1));
-		}
-	}
-	const subtype = block.media_type.split("/")[1] ?? "";
-	if (subtype.endsWith("+json")) {
-		return "json";
-	}
-	return sanitizeAttachmentExtension(subtype);
-};
 
 const isTextPreviewAttachmentMediaType = (mediaType: string): boolean =>
 	TEXT_ATTACHMENT_MEDIA_TYPES.has(mediaType);
@@ -121,7 +76,10 @@ const getAttachmentDownloadName = (
 	if (name) {
 		return name;
 	}
-	const extension = getAttachmentExtension(block);
+	const extension = getFileAttachmentExtension({
+		mediaType: block.media_type,
+		name: block.name,
+	});
 	return extension === "file" ? "attachment" : `attachment.${extension}`;
 };
 

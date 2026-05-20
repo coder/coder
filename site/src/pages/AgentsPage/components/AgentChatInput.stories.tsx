@@ -489,26 +489,28 @@ export const WithAttachmentError: Story = {
 	})(),
 };
 
-/** Workspace file uploads have separate chip styling and no preview. */
+/** Workspace file uploads share the attachment tile without preview content. */
 export const WithWorkspaceUpload: Story = {
 	args: (() => {
 		const file = createMockFile("archive.zip", "application/zip");
 		return {
-			workspaceUploads: [file],
-			workspaceUploadStates: new Map<File, WorkspaceUploadState>([
-				[
-					file,
-					{
-						status: "uploaded",
-						path: "/home/coder/.coder/chats/abcd1234/files/archive.zip",
-						name: "archive.zip",
-						size: 1024 * 512,
-						mediaType: "application/zip",
-					},
-				],
-			]),
-			onWorkspaceAttach: fn(),
-			onRemoveWorkspaceUpload: fn(),
+			workspaceUploadProps: {
+				files: [file],
+				states: new Map<File, WorkspaceUploadState>([
+					[
+						file,
+						{
+							status: "uploaded",
+							path: "/home/coder/.coder/chats/abcd1234/files/archive.zip",
+							name: "archive.zip",
+							size: 1024 * 512,
+							mediaType: "application/zip",
+						},
+					],
+				]),
+				onAttach: fn(),
+				onRemove: fn(),
+			},
 			initialValue: "unzip this archive please",
 		};
 	})(),
@@ -520,7 +522,7 @@ export const WithWorkspaceUpload: Story = {
 			name: "Remove archive.zip",
 		});
 		await userEvent.click(removeButton);
-		expect(args.onRemoveWorkspaceUpload).toHaveBeenCalledTimes(1);
+		expect(args.workspaceUploadProps?.onRemove).toHaveBeenCalledTimes(1);
 	},
 };
 
@@ -528,12 +530,14 @@ export const WithUploadingWorkspaceFile: Story = {
 	args: (() => {
 		const file = createMockFile("video.mp4", "video/mp4");
 		return {
-			workspaceUploads: [file],
-			workspaceUploadStates: new Map<File, WorkspaceUploadState>([
-				[file, { status: "uploading" }],
-			]),
-			onWorkspaceAttach: fn(),
-			onRemoveWorkspaceUpload: fn(),
+			workspaceUploadProps: {
+				files: [file],
+				states: new Map<File, WorkspaceUploadState>([
+					[file, { status: "uploading" }],
+				]),
+				onAttach: fn(),
+				onRemove: fn(),
+			},
 		};
 	})(),
 	play: async ({ canvasElement }) => {
@@ -552,18 +556,20 @@ export const WithWorkspaceUploadError: Story = {
 	args: (() => {
 		const file = createMockFile("huge.iso", "application/octet-stream");
 		return {
-			workspaceUploads: [file],
-			workspaceUploadStates: new Map<File, WorkspaceUploadState>([
-				[
-					file,
-					{
-						status: "error",
-						error: "Upload failed. Agent disconnected.",
-					},
-				],
-			]),
-			onWorkspaceAttach: fn(),
-			onRemoveWorkspaceUpload: fn(),
+			workspaceUploadProps: {
+				files: [file],
+				states: new Map<File, WorkspaceUploadState>([
+					[
+						file,
+						{
+							status: "error",
+							error: "Upload failed. Agent disconnected.",
+						},
+					],
+				]),
+				onAttach: fn(),
+				onRemove: fn(),
+			},
 		};
 	})(),
 	play: async ({ canvasElement }) => {

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { API } from "#/api/api";
 import type { UploadChatWorkspaceFileResponse } from "#/api/typesGenerated";
 import { renameChatFileForUpload } from "../utils/chatAttachments";
@@ -44,6 +44,15 @@ export function useWorkspaceFileUploads(
 	// Per-file AbortController so removing a file mid-upload cancels
 	// the request without waiting for it to finish.
 	const abortControllersRef = useRef(new Map<File, AbortController>());
+
+	const abortUploads = useCallback(() => {
+		for (const controller of abortControllersRef.current.values()) {
+			controller.abort();
+		}
+		abortControllersRef.current.clear();
+	}, []);
+
+	useEffect(() => abortUploads, [abortUploads]);
 
 	const startUpload = (file: File) => {
 		if (!chatId) {
@@ -102,27 +111,25 @@ export function useWorkspaceFileUploads(
 	};
 
 	const handleRemove = (attachment: File | number) => {
-		setFiles((prev) => {
-			const idx =
-				typeof attachment === "number" ? attachment : prev.indexOf(attachment);
-			if (idx === -1) return prev;
-			const removed = prev[idx];
-			abortControllersRef.current.get(removed)?.abort();
-			abortControllersRef.current.delete(removed);
-			setUploadStates((states) => {
-				const next = new Map(states);
-				next.delete(removed);
-				return next;
-			});
-			return prev.filter((_, i) => i !== idx);
+		const idx =
+			typeof attachment === "number" ? attachment : files.indexOf(attachment);
+		if (idx === -1) {
+			return;
+		}
+
+		const removed = files[idx];
+		abortControllersRef.current.get(removed)?.abort();
+		abortControllersRef.current.delete(removed);
+		setUploadStates((states) => {
+			const next = new Map(states);
+			next.delete(removed);
+			return next;
 		});
+		setFiles((prev) => prev.filter((_, i) => i !== idx));
 	};
 
 	const reset = () => {
-		for (const controller of abortControllersRef.current.values()) {
-			controller.abort();
-		}
-		abortControllersRef.current.clear();
+		abortUploads();
 		setFiles([]);
 		setUploadStates(new Map());
 	};

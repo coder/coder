@@ -12,8 +12,12 @@ import { useFileAttachments } from "../hooks/useFileAttachments";
 import {
 	isWorkspaceUploadInProgress,
 	useWorkspaceFileUploads,
+	type WorkspaceUploadState,
 } from "../hooks/useWorkspaceFileUploads";
-import { getChatFileURL } from "../utils/chatAttachments";
+import {
+	getChatFileURL,
+	isWorkspaceFileReferencePart,
+} from "../utils/chatAttachments";
 import { getProviderForModelOption } from "../utils/modelOptions";
 import type { ChatDetailError } from "../utils/usageLimitMessage";
 import {
@@ -167,6 +171,61 @@ export type PendingWorkspaceUpload = {
 	name: string;
 	size: number;
 	mediaType: string;
+};
+
+const pendingWorkspaceUploadFromPart = (
+	part: TypesGen.ChatWorkspaceFileReferencePart,
+): PendingWorkspaceUpload => ({
+	path: part.workspace_file_path,
+	name: part.workspace_file_name,
+	size: part.workspace_file_size,
+	mediaType: part.workspace_file_media_type || "application/octet-stream",
+});
+
+const collectUploadedAttachments = (
+	files: readonly File[],
+	states: Map<File, UploadState>,
+): { attachments: PendingAttachment[]; skippedErrors: number } => {
+	const attachments: PendingAttachment[] = [];
+	let skippedErrors = 0;
+	for (const file of files) {
+		const state = states.get(file);
+		if (state?.status === "error") {
+			skippedErrors++;
+			continue;
+		}
+		if (state?.status === "uploaded" && state.fileId) {
+			attachments.push({
+				fileId: state.fileId,
+				mediaType: file.type || "application/octet-stream",
+			});
+		}
+	}
+	return { attachments, skippedErrors };
+};
+
+const collectUploadedWorkspaceUploads = (
+	files: readonly File[],
+	states: Map<File, WorkspaceUploadState>,
+): { uploads: PendingWorkspaceUpload[]; skippedErrors: number } => {
+	const uploads: PendingWorkspaceUpload[] = [];
+	let skippedErrors = 0;
+	for (const file of files) {
+		const state = states.get(file);
+		if (state?.status === "error") {
+			skippedErrors++;
+			continue;
+		}
+		if (state?.status === "uploaded") {
+			uploads.push({
+				path: state.path,
+				name: state.name,
+				size: state.size,
+				mediaType: state.mediaType,
+			});
+		}
+	}
+	return { uploads, skippedErrors };
 };
 
 interface ChatPageInputProps {
@@ -430,41 +489,21 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 						toast.warning("Wait for file uploads to finish before sending.");
 						return;
 					}
-					// Collect uploaded attachment metadata for the optimistic
-					// transcript builder while keeping the server payload
-					// shape unchanged downstream.
-					const pendingAttachments: PendingAttachment[] = [];
-					let skippedErrors = 0;
-					for (const file of attachments) {
-						const state = uploadStates.get(file);
-						if (state?.status === "error") {
-							skippedErrors++;
-							continue;
-						}
-						if (state?.status === "uploaded" && state.fileId) {
-							pendingAttachments.push({
-								fileId: state.fileId,
-								mediaType: file.type || "application/octet-stream",
-							});
-						}
-					}
-					const pendingWorkspaceUploads: PendingWorkspaceUpload[] = [];
-					let skippedWorkspaceErrors = 0;
-					for (const file of workspaceUploads.files) {
-						const state = workspaceUploads.uploadStates.get(file);
-						if (state?.status === "error") {
-							skippedWorkspaceErrors++;
-							continue;
-						}
-						if (state?.status === "uploaded") {
-							pendingWorkspaceUploads.push({
-								path: state.path,
-								name: state.name,
-								size: state.size,
-								mediaType: state.mediaType,
-							});
-						}
-					}
+					const { attachments: pendingAttachments, skippedErrors } =
+						collectUploadedAttachments(attachments, uploadStates);
+					const pendingWorkspaceUploads: PendingWorkspaceUpload[] = isEditing
+						? (editingFileBlocks ?? [])
+								.filter(isWorkspaceFileReferencePart)
+								.map(pendingWorkspaceUploadFromPart)
+						: [];
+					const {
+						uploads: uploadedWorkspaceUploads,
+						skippedErrors: skippedWorkspaceErrors,
+					} = collectUploadedWorkspaceUploads(
+						workspaceUploads.files,
+						workspaceUploads.uploadStates,
+					);
+					pendingWorkspaceUploads.push(...uploadedWorkspaceUploads);
 					if (skippedErrors > 0) {
 						toast.warning(
 							`${skippedErrors} attachment${skippedErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
@@ -506,14 +545,15 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			uploadStates={uploadStates}
 			previewUrls={previewUrls}
 			textContents={textContents}
-			workspaceUploads={workspaceUploads.files}
-			workspaceUploadStates={workspaceUploads.uploadStates}
-			onWorkspaceAttach={
-				workspace && workspaceAgent?.status === "connected" && chatId
-					? workspaceUploads.handleAttach
-					: undefined
-			}
-			onRemoveWorkspaceUpload={workspaceUploads.handleRemove}
+			workspaceUploadProps={{
+				files: workspaceUploads.files,
+				states: workspaceUploads.uploadStates,
+				onAttach:
+					workspace && workspaceAgent?.status === "connected" && chatId
+						? workspaceUploads.handleAttach
+						: undefined,
+				onRemove: workspaceUploads.handleRemove,
+			}}
 			inputRef={inputRef}
 			initialValue={initialValue}
 			initialEditorState={initialEditorState}

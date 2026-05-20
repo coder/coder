@@ -153,6 +153,28 @@ describe("getEditableUserMessagePayload", () => {
 		}
 	});
 
+	it("keeps workspace file references editable", () => {
+		const workspaceFile: ChatMessagePart = {
+			type: "workspace-file-reference",
+			workspace_file_path: "/home/coder/.coder/chats/chat-1/files/data.csv",
+			workspace_file_name: "data.csv",
+			workspace_file_size: 2048,
+			workspace_file_media_type: "text/csv",
+		};
+		const message: ChatMessage = {
+			id: 3,
+			chat_id: "chat-1",
+			created_at: "2026-04-21T00:00:00.000Z",
+			role: "user",
+			content: [{ type: "text", text: "Use this data" }, workspaceFile],
+		};
+
+		expect(getEditableUserMessagePayload(message)).toEqual({
+			text: "Use this data",
+			fileBlocks: [workspaceFile],
+		});
+	});
+
 	it("preserves whitespace-only text parts when concatenating", () => {
 		// The server-side prompt-history cycle joins text parts
 		// verbatim via `string_agg(part->>'text', '' ORDER BY ordinality)`.
@@ -412,6 +434,20 @@ describe("parseMessageContent", () => {
 			end_line: 2,
 			content: "nit code content",
 		});
+	});
+
+	it("parses a workspace-file-reference block into blocks", () => {
+		const block: ChatMessagePart = {
+			type: "workspace-file-reference",
+			workspace_file_path: "/home/coder/.coder/chats/chat-id/files/data.csv",
+			workspace_file_name: "data.csv",
+			workspace_file_size: 2048,
+			workspace_file_media_type: "text/csv",
+		};
+		const result = parseMessageContent([block]);
+
+		expect(result.markdown).toBe("");
+		expect(result.blocks).toEqual([block]);
 	});
 
 	it("skips provider_executed tool-call parts", () => {

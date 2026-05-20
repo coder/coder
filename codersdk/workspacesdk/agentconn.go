@@ -1023,19 +1023,15 @@ func (c *agentConn) WriteFile(ctx context.Context, path string, reader io.Reader
 }
 
 // UploadChatFileRequest is the streaming request for the agent's
-// chat-file upload endpoint. Body is the file contents; the caller is
-// responsible for closing it after the response is read.
+// chat-file upload endpoint.
 type UploadChatFileRequest struct {
-	// ChatID is a short opaque per-chat id used to namespace the
-	// upload directory. The handler does not interpret it beyond
-	// joining it into the path.
+	// ChatID is the full chat UUID used to namespace the upload directory.
 	ChatID string
 	// Name is the filename. Coderd sanitizes it before the call; the
 	// agent sanitizes again as defense in depth for direct tailnet
 	// callers.
 	Name string
-	// Body is the file contents. The agent streams it directly to
-	// disk.
+	// Body must remain readable until UploadChatFile returns.
 	Body io.Reader
 }
 
@@ -1050,8 +1046,7 @@ type UploadChatFileResponse struct {
 
 // UploadChatFile streams a file body to the workspace agent and
 // returns the final absolute path. The agent resolves $HOME, creates
-// the per-chat directory, picks a non-colliding filename, and
-// atomically writes the file.
+// the per-chat directory, picks a non-colliding filename, and writes the file.
 func (c *agentConn) UploadChatFile(ctx context.Context, req UploadChatFileRequest) (UploadChatFileResponse, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()

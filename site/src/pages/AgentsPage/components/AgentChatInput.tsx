@@ -100,6 +100,13 @@ export {
 export type { ChatMessageInputRef } from "./ChatMessageInput/ChatMessageInput";
 export type { AgentContextUsage } from "./ContextUsageIndicator";
 
+interface WorkspaceUploadProps {
+	files: readonly File[];
+	states: Map<File, WorkspaceUploadState>;
+	onRemove: (attachment: number | File) => void;
+	onAttach?: (files: File[]) => void;
+}
+
 interface AgentChatInputProps {
 	onSend: (message: string) => void;
 	sendShortcut?: AgentChatSendShortcut;
@@ -175,10 +182,7 @@ interface AgentChatInputProps {
 	uploadStates?: Map<File, UploadState>;
 	previewUrls?: Map<File, string>;
 	textContents?: Map<File, string>;
-	workspaceUploads?: readonly File[];
-	workspaceUploadStates?: Map<File, WorkspaceUploadState>;
-	onWorkspaceAttach?: (files: File[]) => void;
-	onRemoveWorkspaceUpload?: (attachment: number | File) => void;
+	workspaceUploadProps?: WorkspaceUploadProps;
 	onTextPreview?: (
 		content: string,
 		fileName: string,
@@ -343,10 +347,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	uploadStates,
 	previewUrls,
 	textContents,
-	workspaceUploads = [],
-	workspaceUploadStates,
-	onWorkspaceAttach,
-	onRemoveWorkspaceUpload,
+	workspaceUploadProps,
 	onTextPreview,
 	mcpServers,
 	selectedMCPServerIds,
@@ -383,6 +384,11 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const cycleHistorySnapshotRef = useRef<readonly string[] | null>(null);
 	const currentCycleValueRef = useRef<string | null>(null);
 	const previousRemountKeyRef = useRef(remountKey);
+
+	const workspaceUploads = workspaceUploadProps?.files ?? [];
+	const workspaceUploadStates = workspaceUploadProps?.states;
+	const onWorkspaceAttach = workspaceUploadProps?.onAttach;
+	const onRemoveWorkspaceUpload = workspaceUploadProps?.onRemove;
 
 	const resetPromptCycle = () => {
 		setCycleIndex(null);

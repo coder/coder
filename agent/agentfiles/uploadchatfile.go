@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"regexp"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -20,11 +20,6 @@ import (
 // maxUploadChatFileCollisionAttempts bounds the collision-suffix
 // search so a poisoned directory cannot wedge the handler.
 const maxUploadChatFileCollisionAttempts = 1000
-
-// chatIDPattern restricts chat_id to characters safe for use in a
-// single path component (alphanumerics and dashes for UUIDs) so it
-// cannot inject path separators or `..` into the upload directory.
-var chatIDPattern = regexp.MustCompile(`^[A-Za-z0-9-]+$`)
 
 // HandleUploadChatFile streams a request body into the agent's home
 // directory under .coder/chats/<chat-id>/files/<sanitized-name>.
@@ -42,20 +37,13 @@ func (api *API) HandleUploadChatFile(rw http.ResponseWriter, r *http.Request) {
 	parser := httpapi.NewQueryParamParser().
 		RequiredNotEmpty("chat_id").
 		RequiredNotEmpty("name")
-	chatID := parser.String(query, "", "chat_id")
+	chatID := parser.UUID(query, uuid.Nil, "chat_id")
 	rawName := parser.String(query, "", "name")
 	parser.ErrorExcessParams(query)
 	if len(parser.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Query parameters have invalid values.",
 			Validations: parser.Errors,
-		})
-		return
-	}
-
-	if !chatIDPattern.MatchString(chatID) {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "chat_id must contain only alphanumerics or dashes.",
 		})
 		return
 	}
@@ -76,7 +64,7 @@ func (api *API) HandleUploadChatFile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dir := chatfiles.WorkspaceUploadDir(home, chatID)
+	dir := chatfiles.WorkspaceUploadDir(home, chatID.String())
 	if err := api.filesystem.MkdirAll(dir, 0o755); err != nil {
 		status := http.StatusInternalServerError
 		if errors.Is(err, os.ErrPermission) {
@@ -121,19 +109,12 @@ func (api *API) HandleDeleteChatFiles(rw http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 	parser := httpapi.NewQueryParamParser().
 		RequiredNotEmpty("chat_id")
-	chatID := parser.String(query, "", "chat_id")
+	chatID := parser.UUID(query, uuid.Nil, "chat_id")
 	parser.ErrorExcessParams(query)
 	if len(parser.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Query parameters have invalid values.",
 			Validations: parser.Errors,
-		})
-		return
-	}
-
-	if !chatIDPattern.MatchString(chatID) {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "chat_id must contain only alphanumerics or dashes.",
 		})
 		return
 	}
@@ -146,7 +127,7 @@ func (api *API) HandleDeleteChatFiles(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	dir := chatfiles.WorkspaceChatDir(home, chatID)
+	dir := chatfiles.WorkspaceChatDir(home, chatID.String())
 	if err := api.filesystem.RemoveAll(dir); err != nil {
 		status := http.StatusInternalServerError
 		if errors.Is(err, os.ErrPermission) {
@@ -167,10 +148,8 @@ func (api *API) HandleDeleteChatFiles(rw http.ResponseWriter, r *http.Request) {
 // search exceeds maxUploadChatFileCollisionAttempts.
 var errUploadCollisionExhausted = xerrors.New("too many existing files with the same name")
 
-// writeUploadExclusive iterates collision suffixes opening each
-// candidate path with O_CREATE|O_EXCL so concurrent same-name uploads
-// each land on a distinct file. The reader is copied into the
-// reserved fd; on copy or close failure the partial file is removed.
+// writeUploadExclusive reserves a target path before copying so concurrent
+// same-name uploads cannot overwrite each other.
 func (api *API) writeUploadExclusive(dir, name string, r io.Reader) (finalName, finalPath string, size int64, err error) {
 	for i := 1; i <= maxUploadChatFileCollisionAttempts; i++ {
 		candidate := chatfiles.AddCollisionSuffix(name, i)

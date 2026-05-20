@@ -1,5 +1,10 @@
 import { isApiErrorResponse } from "#/api/errors";
-import { ChatAttachmentMediaTypes } from "#/api/typesGenerated";
+import {
+	ChatAttachmentMediaTypes,
+	type ChatInputPart,
+	type ChatMessagePart,
+	type ChatWorkspaceFileReferencePart,
+} from "#/api/typesGenerated";
 
 const undisplayableAttachmentDetail = "File exists but could not be displayed.";
 
@@ -137,6 +142,28 @@ export const sanitizeChatFileName = (name: string): string => {
 	const trimmed = collapsed.replace(/^[_.\s]+|[_.\s]+$/g, "");
 	return trimmed === "" ? "file" : trimmed;
 };
+
+type workspaceFileReferenceInput = {
+	path: string;
+	name: string;
+	size: number;
+	mediaType: string;
+};
+
+export const isWorkspaceFileReferencePart = (
+	part: ChatMessagePart,
+): part is ChatWorkspaceFileReferencePart =>
+	part.type === "workspace-file-reference";
+
+export const workspaceFileReferencePart = (
+	upload: workspaceFileReferenceInput,
+): ChatInputPart => ({
+	type: "workspace-file-reference",
+	workspace_file_path: upload.path,
+	workspace_file_name: upload.name,
+	workspace_file_size: upload.size,
+	workspace_file_media_type: upload.mediaType,
+});
 
 /**
  * Returns a new File whose `name` is sanitized via `sanitizeChatFileName`.
