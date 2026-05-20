@@ -251,7 +251,6 @@ export const ProviderStep: FC<ProviderStepProps> = ({
 						setSelectedProvider("");
 						setApiKey("");
 						setBaseUrl("");
-						setStarted(false);
 					}}
 					onKeyDown={(e) => e.key === "Enter" && e.currentTarget.click()}
 					role="button"
