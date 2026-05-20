@@ -20,7 +20,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { type FC, useCallback, useMemo, useRef, useState } from "react";
+import { type FC, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useBlocker, useNavigate, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
@@ -214,9 +214,10 @@ const AIProviderDetailPage: FC = () => {
 	);
 
 	const hasAnyKey = apiKeys.some((row) => row.apiKey.length > 0);
+	const hasAnyInput = hasAnyKey || apiKeys.some((row) => row.name.length > 0) || baseUrl.length > 0;
 	const hasChanges = isEditMode
 		? baseUrl !== initialBaseUrl || JSON.stringify(apiKeys) !== initialApiKeys
-		: hasAnyKey;
+		: hasAnyInput;
 
 	// Delete API key confirmation dialog.
 	const [deleteKeyId, setDeleteKeyId] = useState<string | null>(null);
@@ -231,11 +232,23 @@ const AIProviderDetailPage: FC = () => {
 	}, [deleteKeyId]);
 
 	// Unsaved changes navigation blocker.
+	const skipBlockerRef = useRef(false);
 	const blocker = useBlocker(
 		({ currentLocation, nextLocation }) =>
-			hasChanges && currentLocation.pathname !== nextLocation.pathname,
+			!skipBlockerRef.current &&
+			hasChanges &&
+			currentLocation.pathname !== nextLocation.pathname,
 	);
 
+	// Also block browser-level navigation (refresh, close tab).
+	useEffect(() => {
+		if (!hasChanges) return;
+		const handler = (e: BeforeUnloadEvent) => {
+			e.preventDefault();
+		};
+		window.addEventListener("beforeunload", handler);
+		return () => window.removeEventListener("beforeunload", handler);
+	}, [hasChanges]);
 
 
 	const handleSave = useCallback(async () => {
@@ -250,7 +263,9 @@ const AIProviderDetailPage: FC = () => {
 				enabled: true,
 				central_api_key_enabled: true,
 			});
-			navigate("/ai/providers");
+				skipBlockerRef.current = true;
+				navigate("/ai/providers");
+
 		} finally {
 			setIsSaving(false);
 		}
@@ -259,7 +274,9 @@ const AIProviderDetailPage: FC = () => {
 	const handleDelete = useCallback(async () => {
 		if (!existingConfig) return;
 		await deleteMutation.mutateAsync(existingConfig.id);
+		skipBlockerRef.current = true;
 		navigate("/ai/providers");
+
 	}, [existingConfig, deleteMutation, navigate]);
 
 	return (
