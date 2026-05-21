@@ -10,8 +10,6 @@ interface UseDesktopConnectionOptions {
 	activated: boolean;
 	/** When true the viewport is scaled to fit the container. Default: false (native 100%). */
 	scaleViewport?: boolean;
-	/** When true the remote session resizes to match the container. Default: false. */
-	resizeSession?: boolean;
 }
 
 type DesktopConnectionStatus =
@@ -87,9 +85,9 @@ export function useDesktopConnection({
 	chatId,
 	activated,
 	scaleViewport = false,
-	resizeSession = false,
 }: UseDesktopConnectionOptions): UseDesktopConnectionResult {
 	const [status, setStatus] = useState<DesktopConnectionStatus>("idle");
+
 	const [hasConnected, setHasConnected] = useState(false);
 	const [remoteClipboardText, setRemoteClipboardText] = useState<string | null>(
 		null,
@@ -234,7 +232,6 @@ export function useDesktopConnection({
 			offscreenContainerRef.current.style.width = "100%";
 			offscreenContainerRef.current.style.height = "100%";
 			offscreenContainerRef.current.style.position = "relative";
-			offscreenContainerRef.current.style.overflow = "hidden";
 
 			const socket = watchChatDesktop(chatId);
 
@@ -242,15 +239,6 @@ export function useDesktopConnection({
 				const rfb = new RFB(offscreenContainerRef.current, socket, {
 					shared: true,
 				});
-
-				// noVNC sets overflow:auto on its internal screen div.
-				// Override it so scrollbars never appear; we handle
-				// panning ourselves via wheel event capture.
-				const screen = offscreenContainerRef.current
-					.firstElementChild as HTMLElement | null;
-				if (screen) {
-					screen.style.overflow = "hidden";
-				}
 
 				rfb.scaleViewport = false;
 				rfb.resizeSession = false;
@@ -521,17 +509,13 @@ export function useDesktopConnection({
 		};
 	}, [activated, chatId, syncRemoteClipboardToLocal]);
 
-	// Sync the scaleViewport and resizeSession options to the RFB
-	// instance whenever they change. rfbInstance triggers the effect
-	// when the connection state changes; we mutate via the ref to
-	// avoid React Compiler immutability checks on the state value.
+	// Sync scaleViewport to the RFB instance whenever it changes.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: rfbInstance triggers re-run on connect/disconnect
 	useEffect(() => {
 		if (rfbRef.current) {
 			rfbRef.current.scaleViewport = scaleViewport;
-			rfbRef.current.resizeSession = resizeSession;
 		}
-	}, [rfbInstance, scaleViewport, resizeSession]);
+	}, [rfbInstance, scaleViewport]);
 
 	return {
 		status,

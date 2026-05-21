@@ -86,7 +86,6 @@ export const DesktopPanel: FC<DesktopPanelProps> = ({ chatId, isVisible }) => {
 		chatId: isPoppedOut ? undefined : chatId,
 		activated: activated && !isPoppedOut,
 		scaleViewport: scaleMode === "fit",
-		resizeSession: scaleMode === "fit",
 	});
 
 	const { agent, workspace } = useDesktopPanel();
@@ -294,16 +293,16 @@ export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
 				desktopApps={desktopApps}
 				onLaunchDesktopApp={onLaunchDesktopApp}
 			/>
-			{/* VNC container. In native mode, overflow is scrollable
-				    (wheel handler pans) with hidden scrollbars. In fit
-				    mode, resizeSession matches the remote desktop to this
-				    container so no overflow occurs. */}
+			{/* VNC container. In fit mode, scaleViewport shrinks the
+			    desktop to fit. In native mode, the desktop overflows
+			    and the wheel handler pans with hidden scrollbars. */}
 			<div
 				ref={scrollRef}
 				className={cn(
-					"min-h-0 flex-1 overflow-hidden",
-					scaleMode === "native" &&
-						"overflow-scroll [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+					"min-h-0 flex-1",
+					scaleMode === "native"
+						? "overflow-scroll [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+						: "overflow-hidden",
 				)}
 			>
 				<div

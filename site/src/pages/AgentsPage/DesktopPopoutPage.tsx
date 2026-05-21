@@ -31,7 +31,6 @@ export default function DesktopPopoutPage() {
 		chatId: agentId,
 		activated: true,
 		scaleViewport: scaleMode === "fit",
-		resizeSession: true,
 	});
 
 	// BroadcastChannel for parent window communication.
