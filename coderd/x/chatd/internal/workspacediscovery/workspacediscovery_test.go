@@ -158,3 +158,46 @@ func TestDiscoverMCPToolsCacheHitAvoidsWorkspaceConn(t *testing.T) {
 	require.Len(t, result.Tools, 1)
 	require.Equal(t, "workspace__cached", result.Tools[0].Name)
 }
+
+func TestDiscoverMCPToolsCacheMissDialsAndStoresTools(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	ctrl := gomock.NewController(t)
+	var cache sync.Map
+	agentID := uuid.New()
+	key := workspacediscovery.MCPToolsCacheKey{OwnerID: uuid.New(), WorkspaceID: uuid.New(), AgentID: agentID}
+	tool := workspacesdk.MCPToolInfo{ServerName: "workspace", Name: "workspace__fresh"}
+
+	conn := agentconnmock.NewMockAgentConn(ctrl)
+	conn.EXPECT().ListMCPTools(gomock.Any()).DoAndReturn(
+		func(ctx context.Context) (workspacesdk.ListMCPToolsResponse, error) {
+			require.NoError(t, ctx.Err())
+			return workspacesdk.ListMCPToolsResponse{Tools: []workspacesdk.MCPToolInfo{tool}}, nil
+		},
+	)
+
+	result := workspacediscovery.DiscoverMCPTools(ctx, workspacediscovery.MCPToolsOptions{
+		Cache: &cache,
+		CacheKey: func(gotAgentID uuid.UUID) (workspacediscovery.MCPToolsCacheKey, bool) {
+			require.Equal(t, agentID, gotAgentID)
+			return key, true
+		},
+		ResolveWorkspaceAgentID: func(context.Context) (uuid.UUID, error) {
+			return agentID, nil
+		},
+		GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+			return conn, nil
+		},
+		DiscoveryTimeout: time.Second,
+		Logger:           slog.Make(),
+	})
+
+	require.True(t, result.OK)
+	require.Equal(t, key, result.Key)
+	require.Equal(t, []workspacesdk.MCPToolInfo{tool}, result.Tools)
+
+	cached, ok := workspacediscovery.LoadCachedMCPTools(&cache, key)
+	require.True(t, ok)
+	require.Equal(t, []workspacesdk.MCPToolInfo{tool}, cached)
+}
