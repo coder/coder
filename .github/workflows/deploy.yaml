@@ -1,0 +1,168 @@
+name: deploy
+
+on:
+  # Via workflow_call, called from ci.yaml
+  workflow_call:
+    inputs:
+      image:
+        description: "Image and tag to potentially deploy. Current branch will be validated against should-deploy check."
+        required: true
+        type: string
+    secrets:
+      FLY_API_TOKEN:
+        required: true
+      FLY_PARIS_CODER_PROXY_SESSION_TOKEN:
+        required: true
+      FLY_SYDNEY_CODER_PROXY_SESSION_TOKEN:
+        required: true
+      FLY_SAO_PAULO_CODER_PROXY_SESSION_TOKEN:
+        required: true
+      FLY_JNB_CODER_PROXY_SESSION_TOKEN:
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }} # no per-branch concurrency
+  cancel-in-progress: false
+
+jobs:
+  # Determines if the given branch should be deployed to dogfood.
+  should-deploy:
+    name: should-deploy
+    runs-on: ubuntu-latest
+    outputs:
+      verdict: ${{ steps.check.outputs.verdict }} # DEPLOY or NOOP
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check if deploy is enabled
+        id: check
+        run: |
+          set -euo pipefail
+          verdict="$(./scripts/should_deploy.sh)"
+          echo "verdict=$verdict" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    name: "deploy"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: should-deploy
+    if: needs.should-deploy.outputs.verdict == 'DEPLOY'
+    permissions:
+      contents: read
+      id-token: write # to authenticate to EKS cluster
+      packages: write # to retag image as dogfood
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: GHCR Login
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37 # v6.1.0
+        with:
+          role-to-assume: ${{ vars.AWS_DOGFOOD_DEPLOY_ROLE }}
+          aws-region: ${{ vars.AWS_DOGFOOD_DEPLOY_REGION }}
+
+      - name: Get Cluster Credentials
+        run: aws eks update-kubeconfig --name "$AWS_DOGFOOD_CLUSTER_NAME" --region "$AWS_DOGFOOD_DEPLOY_REGION"
+        env:
+          AWS_DOGFOOD_CLUSTER_NAME: ${{ vars.AWS_DOGFOOD_CLUSTER_NAME }}
+          AWS_DOGFOOD_DEPLOY_REGION: ${{ vars.AWS_DOGFOOD_DEPLOY_REGION }}
+
+      - name: Set up Flux CLI
+        uses: fluxcd/flux2/action@5adad89dcce7b79f20274ae8e112bcec7bd46764 # v2.8.5
+        with:
+          # Keep this and the github action up to date with the version of flux installed in dogfood cluster
+          version: "2.8.2"
+
+      # Retag image as dogfood while maintaining the multi-arch manifest
+      - name: Tag image as dogfood
+        run: docker buildx imagetools create --tag "ghcr.io/coder/coder-preview:dogfood" "$IMAGE"
+        env:
+          IMAGE: ${{ inputs.image }}
+
+      - name: Reconcile Flux
+        run: |
+          set -euxo pipefail
+          flux --namespace flux-system reconcile source git flux-system
+          flux --namespace flux-system reconcile source git coder-main
+          flux --namespace flux-system reconcile kustomization flux-system
+          flux --namespace flux-system reconcile kustomization coder
+          flux --namespace flux-system reconcile source chart coder-coder
+          flux --namespace flux-system reconcile source chart coder-coder-provisioner
+          flux --namespace coder reconcile helmrelease coder
+          flux --namespace coder reconcile helmrelease coder-provisioner
+          flux --namespace coder reconcile helmrelease coder-provisioner-tagged
+          flux --namespace coder reconcile helmrelease coder-provisioner-tagged-prebuilds
+
+      # Just updating Flux is usually not enough. The Helm release may get
+      # redeployed, but unless something causes the Deployment to update the
+      # pods won't be recreated. It's important that the pods get recreated,
+      # since we use `imagePullPolicy: Always` to ensure we're running the
+      # latest image.
+      - name: Rollout Deployment
+        run: |
+          set -euxo pipefail
+          kubectl --namespace coder rollout restart deployment/coder
+          kubectl --namespace coder rollout status deployment/coder
+          kubectl --namespace coder rollout restart deployment/coder-provisioner
+          kubectl --namespace coder rollout status deployment/coder-provisioner
+          kubectl --namespace coder rollout restart deployment/coder-provisioner-tagged
+          kubectl --namespace coder rollout status deployment/coder-provisioner-tagged
+          kubectl --namespace coder rollout restart deployment/coder-provisioner-tagged-prebuilds
+          kubectl --namespace coder rollout status deployment/coder-provisioner-tagged-prebuilds
+
+  deploy-wsproxies:
+    runs-on: ubuntu-latest
+    needs: deploy
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # v1.6
+
+      - name: Deploy workspace proxies
+        run: |
+          flyctl deploy --image "$IMAGE" --app paris-coder --config ./.github/fly-wsproxies/paris-coder.toml --env "CODER_PROXY_SESSION_TOKEN=$TOKEN_PARIS" --yes
+          flyctl deploy --image "$IMAGE" --app sydney-coder --config ./.github/fly-wsproxies/sydney-coder.toml --env "CODER_PROXY_SESSION_TOKEN=$TOKEN_SYDNEY" --yes
+          flyctl deploy --image "$IMAGE" --app jnb-coder --config ./.github/fly-wsproxies/jnb-coder.toml --env "CODER_PROXY_SESSION_TOKEN=$TOKEN_JNB" --yes
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          IMAGE: ${{ inputs.image }}
+          TOKEN_PARIS: ${{ secrets.FLY_PARIS_CODER_PROXY_SESSION_TOKEN }}
+          TOKEN_SYDNEY: ${{ secrets.FLY_SYDNEY_CODER_PROXY_SESSION_TOKEN }}
+          TOKEN_JNB: ${{ secrets.FLY_JNB_CODER_PROXY_SESSION_TOKEN }}

@@ -1,0 +1,11 @@
+┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ RESOURCE                                                      STATUS       HEALTH     VERSION  ACCESS                                   │
+├─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ compute.main                                                                                                                            │
+│ └─ main (linux, amd64)                                        ⦿ connected  ✔ healthy  v2.15.0  coder ssh test-workspace.main            │
+│    └─ Devcontainers                                                                                                                     │
+│       └─ problematic-dev (linux, amd64) [cranky_mendel]       ⦿ connected  ✔ healthy  v2.15.0  coder ssh test-workspace.problematic-dev │
+│          × Warning: Container started but healthcheck failed                                                                            │
+│          └─ Open Ports                                                                                                                  │
+│             └─  8000/tcp [python]                                                                                                       │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘

@@ -1,0 +1,120 @@
+{
+  "Resources": [
+    {
+      "name": "dev",
+      "type": "null_resource",
+      "agents": [
+        {
+          "id": "047fe781-ea5d-411a-b31c-4400a00e6166",
+          "name": "dev",
+          "operating_system": "windows",
+          "architecture": "arm64",
+          "Auth": {
+            "Token": "261ca0f7-a388-42dd-b113-d25e31e346c9"
+          },
+          "connection_timeout_seconds": 120,
+          "display_apps": {
+            "vscode": true,
+            "web_terminal": true,
+            "ssh_helper": true,
+            "port_forwarding_helper": true
+          },
+          "resources_monitoring": {},
+          "api_key_scope": "all"
+        }
+      ]
+    }
+  ],
+  "Parameters": [
+    {
+      "name": "First parameter from child module",
+      "description": "First parameter from child module",
+      "type": "string",
+      "mutable": true,
+      "default_value": "abcdef",
+      "form_type": 4
+    },
+    {
+      "name": "Second parameter from child module",
+      "description": "Second parameter from child module",
+      "type": "string",
+      "mutable": true,
+      "default_value": "ghijkl",
+      "form_type": 4
+    },
+    {
+      "name": "First parameter from module",
+      "description": "First parameter from module",
+      "type": "string",
+      "mutable": true,
+      "default_value": "abcdef",
+      "form_type": 4
+    },
+    {
+      "name": "Second parameter from module",
+      "description": "Second parameter from module",
+      "type": "string",
+      "mutable": true,
+      "default_value": "ghijkl",
+      "form_type": 4
+    },
+    {
+      "name": "Example",
+      "type": "string",
+      "options": [
+        {
+          "name": "First Option",
+          "value": "first"
+        },
+        {
+          "name": "Second Option",
+          "value": "second"
+        }
+      ],
+      "required": true,
+      "form_type": 2
+    },
+    {
+      "name": "number_example",
+      "type": "number",
+      "default_value": "4",
+      "form_type": 4
+    },
+    {
+      "name": "number_example_max_zero",
+      "type": "number",
+      "default_value": "-2",
+      "validation_min": -3,
+      "validation_max": 0,
+      "form_type": 4
+    },
+    {
+      "name": "number_example_min_max",
+      "type": "number",
+      "default_value": "4",
+      "validation_min": 3,
+      "validation_max": 6,
+      "form_type": 4
+    },
+    {
+      "name": "number_example_min_zero",
+      "type": "number",
+      "default_value": "4",
+      "validation_min": 0,
+      "validation_max": 6,
+      "form_type": 4
+    },
+    {
+      "name": "Sample",
+      "description": "blah blah",
+      "type": "string",
+      "default_value": "ok",
+      "form_type": 4
+    }
+  ],
+  "Presets": [],
+  "ExternalAuthProviders": [],
+  "AITasks": [],
+  "HasAITasks": false,
+  "HasExternalAgents": false
+}

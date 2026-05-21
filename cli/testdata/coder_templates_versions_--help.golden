@@ -1,0 +1,21 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder templates versions
+
+  Manage different versions of the specified template
+
+  Aliases: version
+
+    - List versions of a specific template:
+  
+       $ coder templates versions list my-template
+
+SUBCOMMANDS:
+    archive      Archive a template version(s).
+    list         List all the versions of the specified template
+    promote      Promote a template version to active.
+    unarchive    Unarchive a template version(s).
+
+———
+Run `coder --help` for a list of global options.

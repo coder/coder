@@ -1,0 +1,33 @@
+{
+	"compilerOptions": {
+		"esModuleInterop": true,
+		"forceConsistentCasingInFileNames": true,
+		"incremental": true,
+		"isolatedModules": true,
+		"jsx": "react-jsx",
+		"jsxImportSource": "@emotion/react",
+		"lib": ["dom", "esnext"],
+		"module": "preserve",
+		"moduleResolution": "bundler",
+		"noEmit": true,
+		"outDir": "build/",
+		"preserveWatchOutput": true,
+		"resolveJsonModule": true,
+		"skipLibCheck": true,
+		"strict": true,
+		"target": "esnext",
+		"types": [
+			"node",
+			"react",
+			"react-dom",
+			"vite/client",
+			"vitest/globals",
+			"novnc__novnc"
+		],
+		"paths": {
+			"#/*": ["./src/*"]
+		}
+	},
+	"include": ["**/*"],
+	"exclude": ["node_modules/"]
+}

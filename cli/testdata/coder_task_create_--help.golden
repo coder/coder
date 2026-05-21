@@ -1,0 +1,51 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder task create [flags] [input]
+
+  Create a task
+
+    - Create a task with direct input:
+  
+       $ coder task create "Add authentication to the user service"
+  
+    - Create a task with stdin input:
+  
+       $ echo "Add authentication to the user service" | coder task create
+  
+    - Create a task with a specific name:
+  
+       $ coder task create --name task1 "Add authentication to the user service"
+  
+    - Create a task from a specific template / preset:
+  
+       $ coder task create --template backend-dev --preset "My Preset" "Add
+  authentication to the user service"
+  
+    - Create a task for another user (requires appropriate permissions):
+  
+       $ coder task create --owner user@example.com "Add authentication to the
+  user service"
+
+OPTIONS:
+  -O, --org string, $CODER_ORGANIZATION
+          Select which organization (uuid or name) to use.
+
+      --name string
+          Specify the name of the task. If you do not specify one, a name will
+          be generated for you.
+
+      --owner string (default: me)
+          Specify the owner of the task. Defaults to the current user.
+
+      --preset string, $CODER_TASK_PRESET_NAME (default: none)
+  -q, --quiet bool
+          Only display the created task's ID.
+
+      --stdin bool
+          Reads from stdin for the task input.
+
+      --template string, $CODER_TASK_TEMPLATE_NAME
+      --template-version string, $CODER_TASK_TEMPLATE_VERSION
+———
+Run `coder --help` for a list of global options.

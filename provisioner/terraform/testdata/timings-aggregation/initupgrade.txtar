@@ -1,0 +1,29 @@
+# terraform init -upgrade -json
+-- init --
+{"@level":"info","@message":"Terraform 1.13.3","@module":"terraform.ui","@timestamp":"2025-10-27T14:00:51.988373-05:00","terraform":"1.13.3","type":"version","ui":"1.2"}
+{"@level":"info","@message":"Initializing the backend...","@module":"terraform.ui","@timestamp":"2025-10-27T19:00:51.000000Z","message_code":"initializing_backend_message","type":"init_output"}
+{"@level":"info","@message":"Upgrading modules...","@module":"terraform.ui","@timestamp":"2025-10-27T19:00:51.000000Z","message_code":"upgrading_modules_message","type":"init_output"}
+{"@level":"info","@message":"Downloading registry.coder.com/coder/cursor/coder 1.3.2 for cursor...","@module":"terraform.ui","@timestamp":"2025-10-27T14:00:52.152388-05:00","type":"log"}
+{"@level":"info","@message":"- cursor in .terraform/modules/cursor","@module":"terraform.ui","@timestamp":"2025-10-27T14:00:52.394592-05:00","type":"log"}
+{"@level":"info","@message":"Downloading registry.coder.com/coder/jetbrains/coder 1.1.0 for jetbrains...","@module":"terraform.ui","@timestamp":"2025-10-27T14:00:52.450002-05:00","type":"log"}
+{"@level":"info","@message":"- jetbrains in .terraform/modules/jetbrains","@module":"terraform.ui","@timestamp":"2025-10-27T14:00:52.686200-05:00","type":"log"}
+{"@level":"info","@message":"Downloading git::https://github.com/coder/large-module.git for large-5mb-module...","@module":"terraform.ui","@timestamp":"2025-10-27T14:00:52.686229-05:00","type":"log"}
+{"@level":"info","@message":"- large-5mb-module in .terraform/modules/large-5mb-module","@module":"terraform.ui","@timestamp":"2025-10-27T14:00:54.298240-05:00","type":"log"}
+{"@level":"info","@message":"Initializing provider plugins...","@module":"terraform.ui","@timestamp":"2025-10-27T19:00:54.000000Z","message_code":"initializing_provider_plugin_message","type":"init_output"}
+{"@level":"info","@message":"Finding matching versions for provider: hashicorp/http, version_constraint: \"\u003e= 3.0.0\"","@module":"terraform.ui","@timestamp":"2025-10-27T14:00:54.299465-05:00","type":"log"}
+{"@level":"info","@message":"Finding matching versions for provider: coder/coder, version_constraint: \"\u003e= 2.5.0, ~\u003e 2.9\"","@module":"terraform.ui","@timestamp":"2025-10-27T14:00:54.364986-05:00","type":"log"}
+{"@level":"info","@message":"Finding matching versions for provider: kreuzwerker/docker, version_constraint: \"~\u003e 3.0\"","@module":"terraform.ui","@timestamp":"2025-10-27T14:00:54.391509-05:00","type":"log"}
+{"@level":"info","@message":"Installing provider version: hashicorp/http v3.5.0...","@module":"terraform.ui","@timestamp":"2025-10-27T14:00:54.605182-05:00","type":"log"}
+{"@level":"info","@message":"Installed provider version: hashicorp/http v3.5.0 (signed by HashiCorp)","@module":"terraform.ui","@timestamp":"2025-10-27T14:00:54.892077-05:00","type":"log"}
+{"@level":"info","@message":"Installing provider version: coder/coder v2.12.0...","@module":"terraform.ui","@timestamp":"2025-10-27T14:00:55.246866-05:00","type":"log"}
+{"@level":"info","@message":"Installed provider version: coder/coder v2.12.0 (signed by a HashiCorp partnerkey_id: 93C75807601AA0EC)","@module":"terraform.ui","@timestamp":"2025-10-27T14:00:55.641603-05:00","type":"log"}
+{"@level":"info","@message":"Installing provider version: kreuzwerker/docker v3.6.2...","@module":"terraform.ui","@timestamp":"2025-10-27T14:00:55.862015-05:00","type":"log"}
+{"@level":"info","@message":"Installed provider version: kreuzwerker/docker v3.6.2 (self-signedkey_id: BD080C4571C6104C)","@module":"terraform.ui","@timestamp":"2025-10-27T14:00:56.699002-05:00","type":"log"}
+{"@level":"info","@message":"Partner and community providers are signed by their developers.\nIf you'd like to know more about provider signing, you can read about it here:\nhttps://developer.hashicorp.com/terraform/cli/plugins/signing","@module":"terraform.ui","@timestamp":"2025-10-27T14:00:56.699025-05:00","type":"log"}
+{"@level":"info","@message":"Terraform has made some changes to the provider dependency selections recorded\nin the .terraform.lock.hcl file. Review those changes and commit them to your\nversion control system if they represent changes you intended to make.","@module":"terraform.ui","@timestamp":"2025-10-27T19:00:56Z","message_code":"dependencies_lock_changes_info","type":"init_output"}
+{"@level":"info","@message":"Terraform has been successfully initialized!","@module":"terraform.ui","@timestamp":"2025-10-27T19:00:56.000000Z","message_code":"output_init_success_message","type":"init_output"}
+{"@level":"info","@message":"You may now begin working with Terraform. Try running \"terraform plan\" to see\nany changes that are required for your infrastructure. All Terraform commands\nshould now work.\n\nIf you ever set or change modules or backend configuration for Terraform,\nrerun this command to reinitialize your working directory. If you forget, other\ncommands will detect it and remind you to do so if necessary.","@module":"terraform.ui","@timestamp":"2025-10-27T19:00:56Z","message_code":"output_init_success_cli_message","type":"init_output"}
+-- timings --
+{"start":"2025-10-27T19:00:51Z","end":"2025-10-27T19:00:54Z","action":"load","resource":"modules","stage":"init","state":"COMPLETED"}
+{"start":"2025-10-27T19:00:51Z","end":"2025-10-27T19:00:51Z","action":"load","resource":"backend","stage":"init","state":"COMPLETED"}
+{"start":"2025-10-27T19:00:54Z","end":"2025-10-27T19:00:56Z","action":"load","resource":"provider plugins","stage":"init","state":"COMPLETED"}

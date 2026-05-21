@@ -1,0 +1,333 @@
+name: contrib
+
+on:
+  issue_comment:
+    types: [created, edited]
+  # zizmor: ignore[dangerous-triggers] We explicitly want to run on pull_request_target.
+  pull_request_target:
+    types:
+      - opened
+      - closed
+      - synchronize
+      - labeled
+      - unlabeled
+      - reopened
+      - edited
+      # For jobs that don't run on draft PRs.
+      - ready_for_review
+
+permissions:
+  contents: read
+
+# Only run one instance per PR to ensure in-order execution.
+concurrency: pr-${{ github.ref }}
+
+jobs:
+  community-label:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    if: >-
+      ${{
+        github.event_name == 'pull_request_target' &&
+        github.event.action == 'opened'
+      }}
+    steps:
+      - name: Generate app token
+        id: app-token
+        uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3.1.1
+        with:
+          app-id: ${{ vars.ORG_MEMBERSHIP_APP_ID }}
+          private-key: ${{ secrets.ORG_MEMBERSHIP_APP_PRIVATE_KEY }}
+      - name: Add community label
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+        with:
+          # Default GITHUB_TOKEN handles label writes via the
+          # `github` object (needs pull-requests: write). The App
+          # token is scoped to members: read only and used via a
+          # separate Octokit client for the membership check.
+          script: |
+            const orgClient = getOctokit(process.env.APP_TOKEN)
+
+            const params = {
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            }
+
+            const labels = context.payload.pull_request.labels.map((label) => label.name)
+            if (labels.includes("community")) {
+              console.log('PR already has "community" label.')
+              return
+            }
+
+            // author_association can be unreliable: it returns
+            // CONTRIBUTOR instead of MEMBER when both apply, and
+            // returns NONE for members with private org visibility.
+            // Use the org membership API as the source of truth.
+            // See: https://github.com/actions/github-script/issues/643
+            const author = context.payload.pull_request.user.login
+
+            // Dependabot is not a community contributor.
+            if (author === 'dependabot[bot]') {
+              console.log('Author "%s" is a bot, skipping.', author)
+              return
+            }
+
+            try {
+              await orgClient.rest.orgs.checkMembershipForUser({
+                org: context.repo.owner,
+                username: author,
+              })
+              console.log('Author "%s" is an org member, skipping.', author)
+              return
+            } catch (error) {
+              if (error.status !== 404 && error.status !== 302) {
+                throw error
+              }
+            }
+
+            console.log('Adding "community" label for author "%s".', author)
+            // Uses the default GITHUB_TOKEN via the `github` object.
+            await github.rest.issues.addLabels({
+              ...params,
+              labels: ["community"],
+            })
+
+  cla:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: cla
+        if: (github.event.comment.body == 'recheck' || github.event.comment.body == 'I have read the CLA Document and I hereby sign the CLA') || github.event_name == 'pull_request_target'
+        uses: contributor-assistant/github-action@ca4a40a7d1004f18d9960b404b97e5f30a505a08 # v2.6.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # the below token should have repo scope and must be manually added by you in the repository's secret
+          PERSONAL_ACCESS_TOKEN: ${{ secrets.CDRCI2_GITHUB_TOKEN }}
+        with:
+          remote-organization-name: "coder"
+          remote-repository-name: "cla"
+          path-to-signatures: "v2022-09-04/signatures.json"
+          path-to-document: "https://github.com/coder/cla/blob/main/README.md"
+          # branch should not be protected
+          branch: "main"
+          # Some users have signed a corporate CLA with Coder so are exempt from signing our community one.
+          allowlist: "coryb,aaronlehmann,dependabot*,blink-so*,blinkagent*"
+
+  title:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'pull_request_target' }}
+    steps:
+      - name: Validate PR title
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const { pull_request } = context.payload;
+            const title = pull_request.title;
+            const repo = { owner: context.repo.owner, repo: context.repo.repo };
+
+            const allowedTypes = [
+              "feat", "fix", "docs", "style", "refactor",
+              "perf", "test", "build", "ci", "chore", "revert",
+            ];
+            const expectedFormat = `"type(scope): description" or "type: description"`;
+            const guidelinesLink = `See: https://github.com/coder/coder/blob/main/docs/about/contributing/CONTRIBUTING.md#commit-messages`;
+            const scopeHint = (type) =>
+              `Use a broader scope or no scope (e.g., "${type}: ...") for cross-cutting changes.\n` +
+              guidelinesLink;
+
+            console.log("Title: %s", title);
+
+            // Parse conventional commit format: type(scope)!: description
+            const match = title.match(/^(\w+)(\(([^)]*)\))?(!)?\s*:\s*.+/);
+            if (!match) {
+              core.setFailed(
+                `PR title does not match conventional commit format.\n` +
+                `Expected: ${expectedFormat}\n` +
+                `Allowed types: ${allowedTypes.join(", ")}\n` +
+                guidelinesLink
+              );
+              return;
+            }
+
+            const type = match[1];
+            const scope = match[3]; // undefined if no parentheses
+
+            // Validate type.
+            if (!allowedTypes.includes(type)) {
+              core.setFailed(
+                `PR title has invalid type "${type}".\n` +
+                `Expected: ${expectedFormat}\n` +
+                `Allowed types: ${allowedTypes.join(", ")}\n` +
+                guidelinesLink
+              );
+              return;
+            }
+
+            // If no scope, we're done.
+            if (!scope) {
+              console.log("No scope provided, title is valid.");
+              return;
+            }
+
+            console.log("Scope: %s", scope);
+
+            // Fetch changed files.
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              ...repo,
+              pull_number: pull_request.number,
+              per_page: 100,
+            });
+            const changedPaths = files.map(f => f.filename);
+            console.log("Changed files: %d", changedPaths.length);
+
+            // Derive scope type from the changed files. The diff is the
+            // source of truth: if files exist under the scope, the path
+            // exists on the PR branch. No need for Contents API calls.
+            const isDir = changedPaths.some(f => f.startsWith(scope + "/"));
+            const isFile = changedPaths.some(f => f === scope);
+            const isStem = changedPaths.some(f => f.startsWith(scope + "."));
+
+            if (!isDir && !isFile && !isStem) {
+              core.setFailed(
+                `PR title scope "${scope}" does not match any files changed in this PR.\n` +
+                `Scopes must reference a path (directory or file stem) that contains changed files.\n` +
+                scopeHint(type)
+              );
+              return;
+            }
+
+            // Verify all changed files fall under the scope.
+            const outsideFiles = changedPaths.filter(f => {
+              if (isDir && f.startsWith(scope + "/")) return false;
+              if (f === scope) return false;
+              if (isStem && f.startsWith(scope + ".")) return false;
+              return true;
+            });
+
+            if (outsideFiles.length > 0) {
+              const listed = outsideFiles.map(f => "  - " + f).join("\n");
+              core.setFailed(
+                `PR title scope "${scope}" does not contain all changed files.\n` +
+                `Files outside scope:\n${listed}\n\n` +
+                scopeHint(type)
+              );
+              return;
+            }
+
+            console.log("PR title is valid.");
+
+  release-labels:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    # Skip tagging for draft PRs.
+    if: ${{ github.event_name == 'pull_request_target' && !github.event.pull_request.draft }}
+    steps:
+      - name: release-labels
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          # This script ensures PR title and labels are in sync:
+          #
+          # When release/breaking label is:
+          # - Added, rename PR title to include ! (e.g. feat!:)
+          # - Removed, rename PR title to strip ! (e.g. feat:)
+          #
+          # When title is:
+          # - Renamed (+!), add the release/breaking label
+          # - Renamed (-!), remove the release/breaking label
+          script: |
+            const releaseLabels = {
+              breaking: "release/breaking",
+            }
+
+            const { action, changes, label, pull_request } = context.payload
+            const { title } = pull_request
+            const labels = pull_request.labels.map((label) => label.name)
+            const isBreakingTitle = isBreaking(title)
+
+            // Debug information.
+            console.log("Action: %s", action)
+            console.log("Title: %s", title)
+            console.log("Labels: %s", labels.join(", "))
+
+            const params = {
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            }
+
+            if (action === "opened" || action === "reopened" || action === "ready_for_review") {
+              if (isBreakingTitle && !labels.includes(releaseLabels.breaking)) {
+                console.log('Add "%s" label', releaseLabels.breaking)
+                await github.rest.issues.addLabels({
+                  ...params,
+                  labels: [releaseLabels.breaking],
+                })
+              }
+            }
+
+            if (action === "edited" && changes.title) {
+              if (isBreakingTitle && !labels.includes(releaseLabels.breaking)) {
+                console.log('Add "%s" label', releaseLabels.breaking)
+                await github.rest.issues.addLabels({
+                  ...params,
+                  labels: [releaseLabels.breaking],
+                })
+              }
+
+              if (!isBreakingTitle && labels.includes(releaseLabels.breaking)) {
+                const wasBreakingTitle = isBreaking(changes.title.from)
+                if (wasBreakingTitle) {
+                  console.log('Remove "%s" label', releaseLabels.breaking)
+                  await github.rest.issues.removeLabel({
+                    ...params,
+                    name: releaseLabels.breaking,
+                  })
+                } else {
+                  console.log('Rename title from "%s" to "%s"', title, toBreaking(title))
+                  await github.rest.issues.update({
+                    ...params,
+                    title: toBreaking(title),
+                  })
+                }
+              }
+            }
+
+            if (action === "labeled") {
+              if (label.name === releaseLabels.breaking && !isBreakingTitle) {
+                console.log('Rename title from "%s" to "%s"', title, toBreaking(title))
+                await github.rest.issues.update({
+                  ...params,
+                  title: toBreaking(title),
+                })
+              }
+            }
+
+            if (action === "unlabeled") {
+              if (label.name === releaseLabels.breaking && isBreakingTitle) {
+                console.log('Rename title from "%s" to "%s"', title, fromBreaking(title))
+                await github.rest.issues.update({
+                  ...params,
+                  title: fromBreaking(title),
+                })
+              }
+            }
+
+            function isBreaking(t) {
+              return t.split(" ")[0].endsWith("!:")
+            }
+
+            function toBreaking(t) {
+              const parts = t.split(" ")
+              return [parts[0].replace(/:$/, "!:"), ...parts.slice(1)].join(" ")
+            }
+
+            function fromBreaking(t) {
+              const parts = t.split(" ")
+              return [parts[0].replace(/!:$/, ":"), ...parts.slice(1)].join(" ")
+            }

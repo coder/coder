@@ -1,0 +1,93 @@
+{
+  "Resources": [
+    {
+      "name": "dev",
+      "type": "null_resource",
+      "agents": [
+        {
+          "id": "ca077115-5e6d-4ae5-9ca1-10d3b4f21ca8",
+          "name": "dev1",
+          "operating_system": "linux",
+          "architecture": "amd64",
+          "apps": [
+            {
+              "slug": "app1",
+              "display_name": "app1",
+              "open_in": 1,
+              "id": "634ec976-f595-9122-c51e-8da2e3c6e3ce"
+            },
+            {
+              "slug": "app2",
+              "display_name": "app2",
+              "subdomain": true,
+              "healthcheck": {
+                "url": "http://localhost:13337/healthz",
+                "interval": 5,
+                "threshold": 6
+              },
+              "open_in": 1,
+              "id": "13922208-d2bc-196b-54cb-3fc084916309"
+            }
+          ],
+          "Auth": {
+            "Token": "91e41276-344e-4664-a560-85f0ceb71a7e"
+          },
+          "connection_timeout_seconds": 120,
+          "display_apps": {
+            "vscode": true,
+            "web_terminal": true,
+            "ssh_helper": true,
+            "port_forwarding_helper": true
+          },
+          "resources_monitoring": {
+            "memory": {
+              "enabled": true,
+              "threshold": 80
+            }
+          },
+          "api_key_scope": "all"
+        },
+        {
+          "id": "e3ce0177-ce0c-4136-af81-90d0751bf3de",
+          "name": "dev2",
+          "operating_system": "linux",
+          "architecture": "amd64",
+          "Auth": {
+            "Token": "2ce64d1c-c57f-4b6b-af87-b693c5998182"
+          },
+          "connection_timeout_seconds": 120,
+          "display_apps": {
+            "vscode": true,
+            "web_terminal": true,
+            "ssh_helper": true,
+            "port_forwarding_helper": true
+          },
+          "resources_monitoring": {
+            "memory": {
+              "enabled": true,
+              "threshold": 99
+            },
+            "volumes": [
+              {
+                "path": "/volume2",
+                "threshold": 50
+              },
+              {
+                "path": "/volume1",
+                "enabled": true,
+                "threshold": 80
+              }
+            ]
+          },
+          "api_key_scope": "all"
+        }
+      ]
+    }
+  ],
+  "Parameters": [],
+  "Presets": [],
+  "ExternalAuthProviders": [],
+  "AITasks": [],
+  "HasAITasks": false,
+  "HasExternalAgents": false
+}

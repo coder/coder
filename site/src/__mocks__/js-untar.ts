@@ -1,0 +1,1 @@
+export default vi.fn();

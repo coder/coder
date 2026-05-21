@@ -1,0 +1,2 @@
+ALTER TABLE ONLY users
+	ADD COLUMN last_seen_at timestamp NOT NULL DEFAULT '0001-01-01 00:00:00+00:00';

@@ -1,0 +1,8 @@
+# Example request using curl
+curl -X {{=data.methodUpper}} http://coder-server:8080{{=data.url}}{{=data.requiredQueryString}}{{?data.allHeaders.length}} \{{?}}
+{{~data.allHeaders :p:index}}{{
+	if (p.name == "Content-Type" && p.exampleValues.object == "application/x-www-form-urlencoded") {
+		continue;
+	}
+}}  -H '{{=p.name}}: {{=p.exampleValues.object}}'{{?index < data.allHeaders.length-1}} \
+{{?}}{{~}}

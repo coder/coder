@@ -1,0 +1,12 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder aibridge interceptions
+
+  Manage AI Bridge interceptions.
+
+SUBCOMMANDS:
+    list    List AI Bridge interceptions as JSON.
+
+———
+Run `coder --help` for a list of global options.

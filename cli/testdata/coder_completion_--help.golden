@@ -1,0 +1,16 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder completion [flags]
+
+  Install or update shell completion scripts for the detected or chosen shell.
+
+OPTIONS:
+  -p, --print bool
+          Print the completion script instead of installing it.
+
+  -s, --shell bash|fish|zsh|powershell
+          The shell to install completion for.
+
+———
+Run `coder --help` for a list of global options.

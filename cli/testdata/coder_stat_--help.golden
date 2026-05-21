@@ -1,0 +1,21 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder stat [flags]
+
+  Show resource usage for the current workspace.
+
+SUBCOMMANDS:
+    cpu     Show CPU usage, in cores.
+    disk    Show disk usage, in gigabytes.
+    mem     Show memory usage, in gigabytes.
+
+OPTIONS:
+  -c, --column [host cpu|host memory|home disk|container cpu|container memory] (default: host cpu,host memory,home disk,container cpu,container memory)
+          Columns to display in table output.
+
+  -o, --output table|json (default: table)
+          Output format.
+
+———
+Run `coder --help` for a list of global options.

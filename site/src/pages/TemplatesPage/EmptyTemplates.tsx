@@ -1,0 +1,96 @@
+import Link from "@mui/material/Link";
+import type { FC } from "react";
+import { Link as RouterLink } from "react-router";
+import type { TemplateExample } from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
+import { CodeExample } from "#/components/CodeExample/CodeExample";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
+import { TemplateExampleCard } from "#/modules/templates/TemplateExampleCard/TemplateExampleCard";
+import { docs } from "#/utils/docs";
+
+// Those are from https://github.com/coder/coder/tree/main/examples/templates
+const featuredExampleIds = [
+	"quickstart",
+	"docker",
+	"kubernetes",
+	"aws-linux",
+	"gcp-linux",
+	"azure-linux",
+];
+
+const findFeaturedExamples = (examples: TemplateExample[]) => {
+	const featuredExamples: TemplateExample[] = [];
+
+	// We loop the featuredExampleIds first to keep the order
+	for (const exampleId of featuredExampleIds) {
+		for (const example of examples) {
+			if (exampleId === example.id) {
+				featuredExamples.push(example);
+			}
+		}
+	}
+
+	return featuredExamples;
+};
+
+interface EmptyTemplatesProps {
+	canCreateTemplates: boolean;
+	examples: TemplateExample[];
+	isUsingFilter: boolean;
+}
+
+export const EmptyTemplates: FC<EmptyTemplatesProps> = ({
+	canCreateTemplates,
+	examples,
+	isUsingFilter,
+}) => {
+	if (isUsingFilter) {
+		return <TableEmpty message="No results matched your search" />;
+	}
+
+	const featuredExamples = findFeaturedExamples(examples);
+
+	if (canCreateTemplates) {
+		return (
+			<TableEmpty
+				message="Create your first template"
+				description={
+					<>
+						Templates are written in Terraform and describe the infrastructure
+						for workspaces. You can start using a starter template below or{" "}
+						<Link
+							href={docs("/admin/templates/creating-templates")}
+							target="_blank"
+							rel="noreferrer"
+						>
+							create your own
+						</Link>
+						.
+					</>
+				}
+				cta={
+					<div className="flex flex-col gap-8 items-center">
+						<div className="flex flex-wrap justify-center gap-4">
+							{featuredExamples.map((example) => (
+								<TemplateExampleCard example={example} key={example.id} />
+							))}
+						</div>
+						<Button size="sm" asChild className="rounded-full">
+							<RouterLink to="/starter-templates">
+								View all starter templates
+							</RouterLink>
+						</Button>
+					</div>
+				}
+			/>
+		);
+	}
+
+	return (
+		<TableEmpty
+			message="Create a Template"
+			description="Contact your Coder administrator to create a template. You can share the code below."
+			cta={<CodeExample secret={false} code="coder templates init" />}
+		/>
+	);
+};

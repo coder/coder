@@ -1,0 +1,13 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder state pull [flags] <workspace> [file]
+
+  Pull a Terraform state file from a workspace.
+
+OPTIONS:
+  -b, --build int
+          Specify a workspace build to target by name. Defaults to latest.
+
+———
+Run `coder --help` for a list of global options.

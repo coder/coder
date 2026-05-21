@@ -1,0 +1,10 @@
+coder:
+  image:
+    tag: latest
+  resources:
+    limits:
+      cpu: 4000m
+      memory: 8192Mi
+    requests:
+      cpu: 1000m
+      memory: 2048Mi

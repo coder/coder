@@ -1,0 +1,10 @@
+strict digraph ForwardAndReverseEdges {
+  // Node definitions.
+  1;
+  2;
+  3;
+
+  // Edge definitions.
+  1 -> 2;
+  1 -> 3;
+}

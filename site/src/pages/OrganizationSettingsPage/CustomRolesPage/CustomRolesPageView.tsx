@@ -1,0 +1,273 @@
+import { EllipsisVerticalIcon, PlusIcon } from "lucide-react";
+import type { FC } from "react";
+import { Link as RouterLink, useNavigate } from "react-router";
+import type { AssignableRoles, Role } from "#/api/typesGenerated";
+import { Button, Button as ShadcnButton } from "#/components/Button/Button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "#/components/DropdownMenu/DropdownMenu";
+import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "#/components/Table/Table";
+import {
+	TableLoaderSkeleton,
+	TableRowSkeleton,
+} from "#/components/TableLoader/TableLoader";
+import { docs } from "#/utils/docs";
+import { PermissionPillsList } from "./PermissionPillsList";
+
+interface CustomRolesPageViewProps {
+	builtInRoles: AssignableRoles[] | undefined;
+	customRoles: AssignableRoles[] | undefined;
+	onDeleteRole: (role: Role) => void;
+	canCreateOrgRole: boolean;
+	canUpdateOrgRole: boolean;
+	canDeleteOrgRole: boolean;
+	isCustomRolesEnabled: boolean;
+}
+
+export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
+	builtInRoles,
+	customRoles,
+	onDeleteRole,
+	canCreateOrgRole,
+	canUpdateOrgRole,
+	canDeleteOrgRole,
+	isCustomRolesEnabled,
+}) => {
+	return (
+		<div className="flex flex-col gap-8">
+			{!isCustomRolesEnabled && (
+				<PaywallPremium
+					message="Custom Roles"
+					description="Create custom roles to grant users a tailored set of granular permissions."
+					documentationLink={docs("/admin/users/groups-roles")}
+				/>
+			)}
+			<div className="flex flex-row gap-4 items-baseline justify-between">
+				<span>
+					<h2 className="mb-0 text-lg">Custom Roles</h2>
+					<span className="text-sm text-content-secondary leading-relaxed">
+						Create custom roles to grant users a tailored set of granular
+						permissions.
+					</span>
+				</span>
+				{canCreateOrgRole && isCustomRolesEnabled && (
+					<Button variant="outline" asChild>
+						<RouterLink to="create">
+							<PlusIcon />
+							Create custom role
+						</RouterLink>
+					</Button>
+				)}
+			</div>
+			<RoleTable
+				roles={customRoles}
+				isCustomRolesEnabled={isCustomRolesEnabled}
+				canCreateOrgRole={canCreateOrgRole}
+				canUpdateOrgRole={canUpdateOrgRole}
+				canDeleteOrgRole={canDeleteOrgRole}
+				onDeleteRole={onDeleteRole}
+			/>
+			<span>
+				<h2 className="mb-0 text-lg">Built-In Roles</h2>
+				<span className="text-sm text-content-secondary leading-relaxed">
+					Built-in roles have predefined permissions. You cannot edit or delete
+					built-in roles.
+				</span>
+			</span>
+			<RoleTable
+				roles={builtInRoles}
+				isCustomRolesEnabled={isCustomRolesEnabled}
+				canCreateOrgRole={canCreateOrgRole}
+				canUpdateOrgRole={canUpdateOrgRole}
+				canDeleteOrgRole={canDeleteOrgRole}
+				onDeleteRole={onDeleteRole}
+			/>
+		</div>
+	);
+};
+
+interface RoleTableProps {
+	roles: AssignableRoles[] | undefined;
+	isCustomRolesEnabled: boolean;
+	canCreateOrgRole: boolean;
+	canUpdateOrgRole: boolean;
+	canDeleteOrgRole: boolean;
+	onDeleteRole: (role: Role) => void;
+}
+
+const RoleTable: FC<RoleTableProps> = ({
+	roles,
+	isCustomRolesEnabled,
+	canCreateOrgRole,
+	canUpdateOrgRole,
+	canDeleteOrgRole,
+	onDeleteRole,
+}) => {
+	return (
+		<Table>
+			<TableHeader>
+				<TableRow>
+					<TableHead className="w-2/5">Name</TableHead>
+					<TableHead className="w-3/5">Permissions</TableHead>
+					<TableHead className="w-auto" />
+				</TableRow>
+			</TableHeader>
+			<TableBody>
+				<RoleTableBody
+					roles={roles}
+					isCustomRolesEnabled={isCustomRolesEnabled}
+					canCreateOrgRole={canCreateOrgRole}
+					canUpdateOrgRole={canUpdateOrgRole}
+					canDeleteOrgRole={canDeleteOrgRole}
+					onDeleteRole={onDeleteRole}
+				/>
+			</TableBody>
+		</Table>
+	);
+};
+
+const RoleTableBody: FC<RoleTableProps> = ({
+	roles,
+	isCustomRolesEnabled,
+	canCreateOrgRole,
+	canUpdateOrgRole,
+	canDeleteOrgRole,
+	onDeleteRole,
+}) => {
+	if (roles === undefined) {
+		return <TableLoader />;
+	}
+	if (roles.length === 0) {
+		return (
+			<TableRow className="h-14">
+				<TableCell colSpan={999}>
+					<EmptyState
+						message="No custom roles yet"
+						description={
+							canCreateOrgRole && isCustomRolesEnabled
+								? "Create your first custom role"
+								: !isCustomRolesEnabled
+									? "Upgrade to a premium license to create a custom role"
+									: "You don't have permission to create a custom role"
+						}
+						cta={
+							canCreateOrgRole &&
+							isCustomRolesEnabled && (
+								<Button asChild>
+									<RouterLink to="create">
+										<PlusIcon />
+										Create custom role
+									</RouterLink>
+								</Button>
+							)
+						}
+					/>
+				</TableCell>
+			</TableRow>
+		);
+	}
+	return (
+		<>
+			{[...roles]
+				.sort((a, b) => a.name.localeCompare(b.name))
+				.map((role) => (
+					<RoleRow
+						key={role.name}
+						role={role}
+						canUpdateOrgRole={canUpdateOrgRole}
+						canDeleteOrgRole={canDeleteOrgRole}
+						onDelete={() => onDeleteRole(role)}
+					/>
+				))}
+		</>
+	);
+};
+
+interface RoleRowProps {
+	role: AssignableRoles;
+	canUpdateOrgRole: boolean;
+	canDeleteOrgRole: boolean;
+	onDelete: () => void;
+}
+
+const RoleRow: FC<RoleRowProps> = ({
+	role,
+	onDelete,
+	canUpdateOrgRole,
+	canDeleteOrgRole,
+}) => {
+	const navigate = useNavigate();
+
+	return (
+		<TableRow data-testid={`role-${role.name}`} className="h-14">
+			<TableCell>{role.display_name || role.name}</TableCell>
+
+			<TableCell>
+				<PermissionPillsList permissions={role.organization_permissions} />
+			</TableCell>
+
+			<TableCell>
+				{!role.built_in && (canUpdateOrgRole || canDeleteOrgRole) && (
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<ShadcnButton
+								size="icon-lg"
+								variant="subtle"
+								aria-label="Open menu"
+							>
+								<EllipsisVerticalIcon aria-hidden="true" />
+								<span className="sr-only">Open menu</span>
+							</ShadcnButton>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end">
+							{canUpdateOrgRole && (
+								<DropdownMenuItem onClick={() => navigate(role.name)}>
+									Edit
+								</DropdownMenuItem>
+							)}
+							{canDeleteOrgRole && (
+								<DropdownMenuItem
+									className="text-content-destructive focus:text-content-destructive"
+									onClick={onDelete}
+								>
+									Delete&hellip;
+								</DropdownMenuItem>
+							)}
+						</DropdownMenuContent>
+					</DropdownMenu>
+				)}
+			</TableCell>
+		</TableRow>
+	);
+};
+
+const TableLoader = () => {
+	return (
+		<TableLoaderSkeleton>
+			<TableRowSkeleton>
+				<TableCell>
+					<Skeleton variant="text" width="25%" />
+				</TableCell>
+				<TableCell>
+					<Skeleton variant="text" width="25%" />
+				</TableCell>
+				<TableCell>
+					<Skeleton variant="text" width="25%" />
+				</TableCell>
+			</TableRowSkeleton>
+		</TableLoaderSkeleton>
+	);
+};

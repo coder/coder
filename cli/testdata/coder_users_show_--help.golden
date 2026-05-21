@@ -1,0 +1,15 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder users show [flags] <username|user_id|'me'>
+
+  Show a single user. Use 'me' to indicate the currently authenticated user.
+
+   $ coder users show me
+
+OPTIONS:
+  -o, --output table|json (default: table)
+          Output format.
+
+———
+Run `coder --help` for a list of global options.

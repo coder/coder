@@ -1,0 +1,31 @@
+## Acceptance
+
+By using any software and associated documentation files under Coder 
+Technologies Inc.’s ("Coder") directory named "enterprise" ("Enterprise
+Software"), you agree to all of the terms and conditions below.
+
+## Copyright License
+
+The licensor grants you a non-exclusive, royalty-free, worldwide, 
+non-sublicensable, non-transferable license to use, copy, distribute, make 
+available, modify and prepare derivative works of the Enterprise Software, in 
+each case subject to the limitations and conditions below.
+
+## Limitations
+
+You may not move, change, disable, or circumvent the license key functionality 
+in the software, and you may not remove or obscure any functionality in the 
+software that is protected by the license key.
+
+You may not alter, remove, or obscure any licensing, copyright, or other notices
+of the licensor in the software. 
+
+You agree that Coder and/or its licensors (as applicable) retain all right, 
+title and interest in and to all such modifications and/or patches.
+
+## Additional Terms
+
+This Enterprise Software may only be used in production, if you (and any entity 
+that you represent) have agreed to, and are in compliance with, the Coder’s 
+Terms of Service, available at https://coder.com/legal/terms-of-service, or 
+other agreement governing the use of the Software, as agreed by you and Coder. 

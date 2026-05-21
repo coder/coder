@@ -1,0 +1,717 @@
+import Collapse from "@mui/material/Collapse";
+import {
+	CopyIcon,
+	EllipsisIcon,
+	InfoIcon,
+	PackageIcon,
+	PlayIcon,
+	SquareCheckBigIcon,
+	TriangleAlertIcon,
+} from "lucide-react";
+import {
+	type FC,
+	type ReactNode,
+	useEffect,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
+import { Link as RouterLink } from "react-router";
+import AutoSizer from "react-virtualized-auto-sizer";
+import type { FixedSizeList as List, ListOnScrollProps } from "react-window";
+import type {
+	AgentScriptTiming,
+	Template,
+	Workspace,
+	WorkspaceAgent,
+	WorkspaceAgentMetadata,
+} from "#/api/typesGenerated";
+import { CheckIcon } from "#/components/AnimatedIcons/Check";
+import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
+import { Badge } from "#/components/Badge/Badge";
+import { Button } from "#/components/Button/Button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuRadioGroup,
+	DropdownMenuRadioItem,
+	DropdownMenuTrigger,
+} from "#/components/DropdownMenu/DropdownMenu";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import type { Line } from "#/components/Logs/LogLine";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { Spinner } from "#/components/Spinner/Spinner";
+import {
+	Tabs,
+	TabsContent,
+	TabsList,
+	TabsTrigger,
+} from "#/components/Tabs/Tabs";
+import { useKebabMenu } from "#/components/Tabs/utils/useKebabMenu";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
+import { useProxy } from "#/contexts/ProxyContext";
+import { useClipboard } from "#/hooks/useClipboard";
+import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
+import { getAgentHealthIssues } from "#/modules/workspaces/health";
+import { AgentAlert } from "#/pages/WorkspacePage/AgentAlert";
+import { AppStatuses } from "#/pages/WorkspacePage/AppStatuses";
+import { cn } from "#/utils/cn";
+import { AgentApps, organizeAgentApps } from "./AgentApps/AgentApps";
+import { AgentDevcontainerCard } from "./AgentDevcontainerCard";
+import { AgentExternal } from "./AgentExternal";
+import { AgentLatency } from "./AgentLatency";
+import { AGENT_LOG_LINE_HEIGHT } from "./AgentLogs/AgentLogLine";
+import { AgentLogs } from "./AgentLogs/AgentLogs";
+import { AgentMetadata } from "./AgentMetadata";
+import { AgentStatus } from "./AgentStatus";
+import { AgentVersion } from "./AgentVersion";
+import { DownloadSelectedAgentLogsButton } from "./DownloadSelectedAgentLogsButton";
+import { PortForwardButton } from "./PortForwardButton";
+import { AgentSSHButton } from "./SSHButton/SSHButton";
+import { TerminalLink } from "./TerminalLink/TerminalLink";
+import { useAgentContainers } from "./useAgentContainers";
+import { useAgentLogs } from "./useAgentLogs";
+import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
+import { WildcardHostnameWarning } from "./WildcardHostnameWarning";
+
+interface AgentRowProps {
+	agent: WorkspaceAgent;
+	subAgents?: WorkspaceAgent[];
+	workspace: Workspace;
+	template: Template;
+	initialMetadata?: WorkspaceAgentMetadata[];
+	agentScriptTimings?: readonly AgentScriptTiming[];
+	onUpdateAgent: () => void;
+}
+
+const statusBorderClassByStatus: Partial<
+	Record<WorkspaceAgent["status"], string>
+> = {
+	connected: "border-border-success",
+	connecting: "border-border-pending",
+	timeout: "border-border-warning",
+};
+
+const statusBorderClassByLifecycle: Partial<
+	Record<WorkspaceAgent["lifecycle_state"], string>
+> = {
+	starting: "border-border-pending",
+	shutting_down: "border-border-pending",
+	ready: "border-border-success",
+	start_timeout: "border-border-warning",
+	shutdown_timeout: "border-border-warning",
+	start_error: "border-border-warning",
+	shutdown_error: "border-border-warning",
+	off: "border-border",
+};
+
+const getAgentBorderClass = (
+	agent: WorkspaceAgent,
+	hasErrorState: boolean,
+): string => {
+	if (hasErrorState) {
+		return "border-border";
+	}
+
+	// Lifecycle state is more specific than connection status, so it wins.
+	return (
+		statusBorderClassByLifecycle[agent.lifecycle_state] ??
+		statusBorderClassByStatus[agent.status] ??
+		"border-border"
+	);
+};
+
+const STARTUP_SCRIPT_DISPLAY_NAME = "Startup Script";
+
+export const AgentRow: FC<AgentRowProps> = ({
+	agent,
+	subAgents,
+	workspace,
+	template,
+	onUpdateAgent,
+	initialMetadata,
+}) => {
+	const { browser_only, workspace_external_agent } = useFeatureVisibility();
+	const appSections = organizeAgentApps(agent.apps);
+	const hasAppsToDisplay =
+		!browser_only || appSections.some((it) => it.apps.length > 0);
+	const isExternalAgent = workspace.latest_build.has_external_agent;
+	const shouldDisplayAgentApps =
+		(agent.status === "connected" && hasAppsToDisplay) ||
+		(agent.status === "connecting" && !isExternalAgent);
+	const hasVSCodeApp =
+		agent.display_apps.includes("vscode") ||
+		agent.display_apps.includes("vscode_insiders");
+	const showVSCode = hasVSCodeApp && !browser_only;
+
+	const hasStartupFeatures = Boolean(agent.logs_length);
+	const runningScriptsCount = agent.scripts.filter(
+		(s) => s.run_on_start && !s.status,
+	).length;
+	const healthIssues = getAgentHealthIssues(agent);
+	const hasAgentIssues = healthIssues.length > 0;
+	const hasWarningIssues = healthIssues.some((i) => i.severity === "warning");
+	const { proxy } = useProxy();
+	const [showLogs, setShowLogs] = useState(
+		(["starting", "start_timeout"].includes(agent.lifecycle_state) ||
+			hasAgentIssues) &&
+			hasStartupFeatures,
+	);
+	const agentLogs = useAgentLogs({ agentId: agent.id, enabled: showLogs });
+	const logListRef = useRef<List>(null);
+	const logListDivRef = useRef<HTMLDivElement>(null);
+	const [bottomOfLogs, setBottomOfLogs] = useState(true);
+
+	useEffect(() => {
+		setShowLogs(
+			(agent.lifecycle_state !== "ready" || hasAgentIssues) &&
+				hasStartupFeatures,
+		);
+	}, [agent.lifecycle_state, hasAgentIssues, hasStartupFeatures]);
+
+	// This is a layout effect to remove flicker when we're scrolling to the bottom.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: consider refactoring
+	useLayoutEffect(() => {
+		// If we're currently watching the bottom, we always want to stay at the bottom.
+		if (bottomOfLogs && logListRef.current) {
+			logListRef.current.scrollToItem(agentLogs.length - 1, "end");
+		}
+	}, [showLogs, agentLogs, bottomOfLogs]);
+
+	// This is a bit of a hack on the react-window API to get the scroll position.
+	// If we're scrolled to the bottom, we want to keep the list scrolled to the bottom.
+	// This makes it feel similar to a terminal that auto-scrolls downwards!
+	const handleLogScroll = (props: ListOnScrollProps) => {
+		if (
+			props.scrollOffset === 0 ||
+			props.scrollUpdateWasRequested ||
+			!logListDivRef.current
+		) {
+			return;
+		}
+		// The parent holds the height of the list!
+		const parent = logListDivRef.current.parentElement;
+		if (!parent) {
+			return;
+		}
+		// Use the parent's scrollHeight (not the inner div's) so that
+		// any padding on the scroll container is included in the
+		// calculation and doesn't inflate the "at bottom" zone.
+		const distanceFromBottom =
+			parent.scrollHeight - (props.scrollOffset + parent.clientHeight);
+		setBottomOfLogs(distanceFromBottom < AGENT_LOG_LINE_HEIGHT);
+	};
+
+	const devcontainers = useAgentContainers(agent);
+
+	// This is used to show the parent apps of the devcontainer.
+	const [showParentApps, setShowParentApps] = useState(false);
+
+	const anyRunningOrStartingDevcontainers =
+		devcontainers?.find(
+			(dc) => dc.status === "running" || dc.status === "starting",
+		) !== undefined;
+
+	// We only want to hide the parent apps by default when there are dev
+	// containers that are either starting or running. If they are all in
+	// the stopped state, it doesn't make sense to hide the parent apps.
+	let shouldDisplayAppsSection = shouldDisplayAgentApps;
+	if (anyRunningOrStartingDevcontainers && !showParentApps) {
+		shouldDisplayAppsSection = false;
+	}
+
+	// Check if any devcontainers have errors to gray out agent border
+	const hasDevcontainerErrors = devcontainers?.some((dc) => dc.error);
+
+	const hasSubdomainApps = agent.apps?.some((app) => app.subdomain);
+	const shouldShowWildcardWarning =
+		hasSubdomainApps && !proxy.proxy?.wildcard_hostname;
+	const borderClass = getAgentBorderClass(
+		agent,
+		Boolean(hasDevcontainerErrors || shouldShowWildcardWarning),
+	);
+	const failedStartupScriptSource = hasAgentIssues
+		? agent.log_sources.find(
+				(s) => s.display_name === STARTUP_SCRIPT_DISPLAY_NAME,
+			)
+		: undefined;
+	const [selectedLogTab, setSelectedLogTab] = useState(
+		failedStartupScriptSource?.id ?? "all",
+	);
+	const sortedSourceLogTabs = agent.log_sources
+		.filter((logSource) => {
+			// Remove the logSources that have no entries.
+			return agentLogs.some(
+				(log) =>
+					log.source_id === logSource.id && (log.output?.length ?? 0) > 0,
+			);
+		})
+		.map((logSource) => {
+			const script = agent.scripts.find(
+				(s) => s.log_source_id === logSource.id,
+			);
+			return {
+				// Show the icon for the log source if it has one.
+				// In the startup script case, we show a bespoke play icon.
+				startIcon: logSource.icon ? (
+					<ExternalImage
+						src={logSource.icon}
+						alt=""
+						className="size-icon-xs shrink-0"
+					/>
+				) : logSource.display_name === STARTUP_SCRIPT_DISPLAY_NAME ? (
+					<PlayIcon className="size-icon-xs shrink-0" />
+				) : null,
+				title: logSource.display_name,
+				value: logSource.id,
+				error: Boolean(
+					script?.exit_code || (script?.status && script.status !== "ok"),
+				),
+			};
+		})
+		.sort((a, b) => {
+			// Errored scripts first, then startup script, then the rest.
+			if (a.error && !b.error) {
+				return -1;
+			}
+			if (b.error && !a.error) {
+				return 1;
+			}
+			if (a.title === STARTUP_SCRIPT_DISPLAY_NAME) {
+				return -1;
+			}
+			if (b.title === STARTUP_SCRIPT_DISPLAY_NAME) {
+				return 1;
+			}
+			return a.title.localeCompare(b.title);
+		});
+	const logTabs: {
+		startIcon?: ReactNode;
+		title: string;
+		value: string;
+		error: boolean;
+	}[] = [
+		{
+			title: "All Logs",
+			value: "all",
+			startIcon: <PackageIcon className="size-icon-xs shrink-0" />,
+			error: false,
+		},
+		...sortedSourceLogTabs,
+	];
+	const hasAnyLogs = agentLogs.length > 0;
+	const logTabsMeasureEnabled = hasStartupFeatures && hasAnyLogs && showLogs;
+	const {
+		containerRef: logTabsListContainerRef,
+		visibleTabs: visibleLogTabs,
+		overflowTabs: overflowLogTabs,
+		getTabMeasureProps,
+	} = useKebabMenu({
+		tabs: logTabs,
+		enabled: logTabsMeasureEnabled,
+		isActive: showLogs,
+	});
+	const overflowLogTabValuesSet = new Set(
+		overflowLogTabs.map((tab) => tab.value),
+	);
+	const selectedLogs =
+		selectedLogTab === "all"
+			? agentLogs
+			: agentLogs.filter((log) => log.source_id === selectedLogTab);
+	const selectedLogLines: readonly Line[] = selectedLogs.map((log) => ({
+		id: log.id,
+		output: log.output,
+		time: log.created_at,
+		level: log.level,
+		sourceId: log.source_id,
+	}));
+	const allLogsText = agentLogs.map((log) => log.output).join("\n");
+	const selectedLogsText = selectedLogs.map((log) => log.output).join("\n");
+	const hasSelectedLogs = selectedLogs.length > 0;
+	const { showCopiedSuccess, copyToClipboard } = useClipboard();
+	const downloadableLogSets = logTabs
+		.filter((tab) => tab.value !== "all")
+		.map((tab) => {
+			const logsText = agentLogs
+				.filter((log) => log.source_id === tab.value)
+				.map((log) => log.output)
+				.join("\n");
+			const filenameSuffix = tab.title
+				.toLowerCase()
+				.replaceAll(/[^a-z0-9]+/g, "-")
+				.replaceAll(/(^-|-$)/g, "");
+			return {
+				label: tab.title,
+				filenameSuffix: filenameSuffix || tab.value,
+				logsText,
+				startIcon: tab.startIcon,
+			};
+		});
+
+	return (
+		<div
+			key={agent.id}
+			className={cn(
+				"flex max-w-full flex-col rounded-lg border border-solid bg-surface-primary text-sm shadow-md overflow-clip",
+				borderClass,
+			)}
+		>
+			<header className="flex flex-wrap items-center justify-between gap-4 px-4 pt-4 pl-8 leading-normal md:gap-6 [&:has(+_[role='alert'])]:pb-4">
+				<div className="flex min-w-0 items-center gap-6 text-sm text-content-secondary">
+					<div className="flex min-w-0 w-full items-center gap-4 md:w-auto">
+						<AgentStatus agent={agent} />
+						<span className="block max-w-[260px] overflow-hidden text-ellipsis whitespace-nowrap text-base font-semibold text-content-primary">
+							{agent.name}
+						</span>
+					</div>
+					{agent.status === "connected" && (
+						<>
+							<AgentVersion agent={agent} onUpdate={onUpdateAgent} />
+							<AgentLatency agent={agent} />
+						</>
+					)}
+					{agent.status === "connecting" && (
+						<>
+							<Skeleton width={160} variant="text" />
+							<Skeleton width={36} variant="text" />
+						</>
+					)}
+				</div>
+
+				<div className="flex items-center gap-2">
+					{anyRunningOrStartingDevcontainers && (
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => setShowParentApps((show) => !show)}
+						>
+							Show parent apps
+							<ChevronDownIcon open={showParentApps} />
+						</Button>
+					)}
+
+					{!browser_only && agent.display_apps.includes("ssh_helper") && (
+						<AgentSSHButton
+							workspaceName={workspace.name}
+							agentName={agent.name}
+							workspaceOwnerUsername={workspace.owner_name}
+						/>
+					)}
+					{proxy.preferredWildcardHostname !== "" &&
+						agent.display_apps.includes("port_forwarding_helper") && (
+							<PortForwardButton
+								host={proxy.preferredWildcardHostname}
+								workspace={workspace}
+								agent={agent}
+								template={template}
+							/>
+						)}
+				</div>
+			</header>
+
+			<div className="flex flex-col gap-8 p-8">
+				{workspace.latest_app_status?.agent_id === agent.id && (
+					<section>
+						<h3 className="sr-only">App statuses</h3>
+						<AppStatuses workspace={workspace} agent={agent} />
+					</section>
+				)}
+
+				{workspace.task_id && (
+					<Button asChild size="sm" variant="outline" className="w-fit">
+						<RouterLink
+							to={`/tasks/${workspace.owner_name}/${workspace.task_id}`}
+						>
+							<SquareCheckBigIcon />
+							View task
+						</RouterLink>
+					</Button>
+				)}
+
+				{shouldShowWildcardWarning && <WildcardHostnameWarning />}
+
+				{shouldDisplayAppsSection && (
+					<section className="flex flex-wrap gap-4 [&:empty]:hidden">
+						{shouldDisplayAgentApps && (
+							<>
+								{showVSCode && (
+									<VSCodeDesktopButton
+										userName={workspace.owner_name}
+										workspaceName={workspace.name}
+										agentName={agent.name}
+										folderPath={agent.expanded_directory}
+										displayApps={agent.display_apps}
+									/>
+								)}
+								{appSections.map((section, i) => (
+									<AgentApps
+										key={section.group ?? i}
+										section={section}
+										agent={agent}
+										workspace={workspace}
+									/>
+								))}
+							</>
+						)}
+
+						{agent.display_apps.includes("web_terminal") && (
+							<TerminalLink
+								workspaceName={workspace.name}
+								agentName={agent.name}
+								userName={workspace.owner_name}
+							/>
+						)}
+					</section>
+				)}
+
+				{agent.status === "connecting" && !isExternalAgent && (
+					<section className="flex flex-wrap gap-4 [&:empty]:hidden">
+						<Skeleton width={80} height={32} className="rounded" />
+						<Skeleton width={110} height={32} className="rounded" />
+					</section>
+				)}
+
+				{devcontainers && devcontainers.length > 0 && (
+					<section className="flex flex-col gap-4">
+						{devcontainers.map((devcontainer) => {
+							return (
+								<AgentDevcontainerCard
+									key={devcontainer.id}
+									devcontainer={devcontainer}
+									workspace={workspace}
+									template={template}
+									wildcardHostname={proxy.preferredWildcardHostname}
+									parentAgent={agent}
+									subAgents={subAgents ?? []}
+								/>
+							);
+						})}
+					</section>
+				)}
+
+				{isExternalAgent &&
+					(agent.status === "timeout" || agent.status === "connecting") &&
+					workspace_external_agent && (
+						<AgentExternal agent={agent} workspace={workspace} />
+					)}
+
+				<AgentMetadata initialMetadata={initialMetadata} agent={agent} />
+			</div>
+
+			<section className="border-0 border-t border-solid border-border">
+				<div className="px-4 py-2 relative">
+					<Button
+						variant="subtle"
+						onClick={() => setShowLogs((v) => !v)}
+						className="after:content-[''] after:absolute after:inset-0"
+					>
+						<ChevronDownIcon open={showLogs} />
+						<span>Logs</span>
+						{agent.lifecycle_state === "starting" &&
+							runningScriptsCount > 0 &&
+							healthIssues.length === 0 && (
+								<Badge
+									variant="default"
+									size="xs"
+									className="ml-1.5"
+									svgSize="sm"
+								>
+									<Spinner
+										size="lg"
+										loading
+										className="text-content-secondary -ml-1"
+									/>
+									<span>{runningScriptsCount}</span>
+								</Badge>
+							)}
+						{healthIssues.length > 0 && (
+							<Badge
+								variant={hasWarningIssues ? "warning" : "info"}
+								size="xs"
+								className="ml-1.5"
+							>
+								{hasWarningIssues ? (
+									<TriangleAlertIcon className="-ml-0.5" />
+								) : (
+									<InfoIcon className="-ml-0.5" />
+								)}
+								<span>{healthIssues.length}</span>
+							</Badge>
+						)}
+					</Button>
+				</div>
+				<Collapse in={showLogs || (!hasStartupFeatures && hasAgentIssues)}>
+					<div className={cn("px-4", hasStartupFeatures ? "pb-4" : "py-4")}>
+						{healthIssues.length > 0 && (
+							<div className="mb-4 flex flex-col gap-3">
+								{healthIssues.map((issue) => (
+									<AgentAlert
+										key={`${issue.title}-${issue.detail}`}
+										{...issue}
+										troubleshootingURL={agent.troubleshooting_url}
+									/>
+								))}
+							</div>
+						)}
+						{hasStartupFeatures && hasAnyLogs && (
+							<div className="border border-solid rounded-md overflow-clip">
+								<Tabs
+									className="-mx-px -mt-px"
+									value={selectedLogTab}
+									onValueChange={setSelectedLogTab}
+								>
+									<div className="flex items-stretch">
+										<div className="min-w-0 flex-1 overflow-hidden">
+											<TabsList
+												variant="outsideBox"
+												overflowKebabMenu
+												ref={logTabsListContainerRef}
+												className="px-4"
+											>
+												{visibleLogTabs.map((tab) => (
+													<TabsTrigger
+														key={tab.value}
+														value={tab.value}
+														{...getTabMeasureProps(tab.value)}
+													>
+														{tab.startIcon}
+														<span className="whitespace-nowrap">
+															{tab.title}
+														</span>
+														{tab.error && (
+															<Badge
+																variant="warning"
+																size="xs"
+																className="ml-1.5"
+															>
+																<TriangleAlertIcon />
+															</Badge>
+														)}
+													</TabsTrigger>
+												))}
+												{overflowLogTabs.length > 0 && (
+													<DropdownMenu>
+														<DropdownMenuTrigger asChild>
+															<button
+																type="button"
+																data-slot="tabs-trigger"
+																data-log-overflow-trigger
+																data-state={
+																	overflowLogTabValuesSet.has(selectedLogTab)
+																		? "active"
+																		: "inactive"
+																}
+																aria-label="More log tabs"
+																className={cn(
+																	"cursor-pointer -mb-px",
+																	"inline-flex items-center justify-center",
+																	"border-none py-3 bg-transparent text-inherit",
+																	"transition-colors duration-150 ease-linear",
+																)}
+															>
+																<EllipsisIcon className="size-icon-sm" />
+																<span className="sr-only">More log tabs</span>
+															</button>
+														</DropdownMenuTrigger>
+														<DropdownMenuContent align="end">
+															<DropdownMenuRadioGroup
+																value={selectedLogTab}
+																onValueChange={setSelectedLogTab}
+															>
+																{overflowLogTabs.map((tab) => (
+																	<DropdownMenuRadioItem
+																		key={tab.value}
+																		value={tab.value}
+																		className="gap-2"
+																	>
+																		{tab.startIcon}
+																		<span className="whitespace-nowrap">
+																			{tab.title}
+																		</span>
+																		{tab.error && (
+																			<Badge
+																				variant="warning"
+																				size="xs"
+																				className="ml-1.5"
+																			>
+																				<TriangleAlertIcon />
+																			</Badge>
+																		)}
+																	</DropdownMenuRadioItem>
+																))}
+															</DropdownMenuRadioGroup>
+														</DropdownMenuContent>
+													</DropdownMenu>
+												)}
+											</TabsList>
+										</div>
+										<div
+											className={cn(
+												"h-12.5 shrink-0 flex items-center gap-2 pl-2 pr-3",
+												"border-solid border-0 border-b border-l",
+											)}
+										>
+											<TooltipProvider>
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<Button
+															variant="subtle"
+															size="sm"
+															className="min-w-0"
+															disabled={!hasSelectedLogs}
+															onClick={() => copyToClipboard(selectedLogsText)}
+														>
+															{showCopiedSuccess ? <CheckIcon /> : <CopyIcon />}
+														</Button>
+													</TooltipTrigger>
+													<TooltipContent>
+														{showCopiedSuccess
+															? "Copied!"
+															: "Copy selected logs"}
+													</TooltipContent>
+												</Tooltip>
+											</TooltipProvider>
+											<DownloadSelectedAgentLogsButton
+												agentName={agent.name}
+												logSets={downloadableLogSets}
+												allLogsText={allLogsText}
+												disabled={!hasAnyLogs}
+											/>
+										</div>
+									</div>
+									{/*
+										Using a singular TabsContent is necessary to avoid scrolling
+										issues when the selected log tab changes.
+									*/}
+									<TabsContent value={selectedLogTab}>
+										<AutoSizer disableHeight>
+											{({ width }) => (
+												<AgentLogs
+													ref={logListRef}
+													innerRef={logListDivRef}
+													height={256}
+													width={width}
+													onScroll={handleLogScroll}
+													logs={selectedLogLines}
+													sources={agent.log_sources}
+													overflowed={agent.logs_overflowed}
+													className="bg-transparent"
+													showSourceIcons={selectedLogTab === "all"}
+												/>
+											)}
+										</AutoSizer>
+									</TabsContent>
+								</Tabs>
+							</div>
+						)}
+					</div>
+				</Collapse>
+			</section>
+		</div>
+	);
+};
