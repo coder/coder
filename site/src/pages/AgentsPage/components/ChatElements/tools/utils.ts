@@ -230,6 +230,37 @@ const getToolInputPayload = (args: unknown): unknown => {
 	);
 };
 
+const isEmptyObjectOrArray = (value: unknown): boolean => {
+	if (Array.isArray(value)) {
+		return value.length === 0;
+	}
+	const rec = asRecord(value);
+	return rec ? Object.keys(rec).length === 0 : false;
+};
+
+const formatValue = (value: unknown): string => {
+	if (typeof value === "object") {
+		try {
+			return JSON.stringify(value, null, 2) ?? String(value);
+		} catch {
+			return String(value);
+		}
+	}
+	return String(value);
+};
+
+export const hasToolInput = (args: unknown): boolean => {
+	const input = getToolInputPayload(args);
+	if (input === undefined || input === null) {
+		return false;
+	}
+	if (typeof input === "string") {
+		const trimmed = input.trim();
+		return Boolean(trimmed && trimmed !== "{}" && trimmed !== "[]");
+	}
+	return !isEmptyObjectOrArray(input);
+};
+
 export const formatToolInput = (args: unknown): string | null => {
 	const input = getToolInputPayload(args);
 	if (input === undefined || input === null) {
@@ -246,22 +277,7 @@ export const formatToolInput = (args: unknown): string | null => {
 			return trimmed;
 		}
 	}
-	if (Array.isArray(input) && input.length === 0) {
-		return null;
-	}
-	const rec = asRecord(input);
-	if (rec && Object.keys(rec).length === 0) {
-		return null;
-	}
-	if (typeof input === "object") {
-		try {
-			const formatted = JSON.stringify(input, null, 2);
-			return formatted === "{}" || formatted === "[]" ? null : formatted;
-		} catch {
-			return String(input);
-		}
-	}
-	return String(input);
+	return isEmptyObjectOrArray(input) ? null : formatValue(input);
 };
 
 export const formatResultOutput = (result: unknown): string | null => {
@@ -285,14 +301,7 @@ export const formatResultOutput = (result: unknown): string | null => {
 			return content;
 		}
 	}
-	if (typeof result === "object") {
-		try {
-			return JSON.stringify(result, null, 2);
-		} catch {
-			return String(result);
-		}
-	}
-	return String(result);
+	return formatValue(result);
 };
 
 export const fileViewerCSS =

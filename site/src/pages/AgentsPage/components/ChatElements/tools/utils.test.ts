@@ -17,6 +17,7 @@ import {
 	getFileViewerOptionsMinimal,
 	getFileViewerOptionsNoHeader,
 	getWriteFileDiff,
+	hasToolInput,
 	humanizeMCPToolName,
 	isSubagentRunningStatus,
 	isSubagentSuccessStatus,
@@ -308,6 +309,17 @@ describe("parseArgs", () => {
 });
 
 describe("formatToolInput", () => {
+	it("detects displayable input", () => {
+		expect(hasToolInput(null)).toBe(false);
+		expect(hasToolInput(undefined)).toBe(false);
+		expect(hasToolInput("")).toBe(false);
+		expect(hasToolInput({})).toBe(false);
+		expect(hasToolInput([])).toBe(false);
+		expect(hasToolInput("{}")).toBe(false);
+		expect(hasToolInput("[]")).toBe(false);
+		expect(hasToolInput({ project: "backend" })).toBe(true);
+	});
+
 	it("returns null for null, undefined, and empty inputs", () => {
 		expect(formatToolInput(null)).toBeNull();
 		expect(formatToolInput(undefined)).toBeNull();
