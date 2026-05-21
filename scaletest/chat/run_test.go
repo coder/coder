@@ -105,6 +105,31 @@ func TestRunnerRunConversation(t *testing.T) {
 		require.Equal(t, 1, sendCount)
 	})
 
+	t.Run("FirstOutputFromAssistantMessageEvent", func(t *testing.T) {
+		t.Parallel()
+
+		// Covers the snapshot race where a turn finishes before the
+		// runner attaches its stream: StreamChat replays the persisted
+		// rows as message events, never as message_part deltas. The
+		// runner must still record first-output for the assistant row,
+		// and must not count the persisted user row as output.
+		runner := newTestRunner(t, newRunConfig(t))
+		events := make(chan codersdk.ChatStreamEvent, 3)
+		events <- messageEvent(chatID, codersdk.ChatMessageRoleUser)
+		events <- messageEvent(chatID, codersdk.ChatMessageRoleAssistant)
+		events <- statusEvent(chatID, codersdk.ChatStatusWaiting)
+		close(events)
+
+		result, err := runner.runConversation(context.Background(), chatID, io.Discard, time.Now(), events, func(_ context.Context, nextTurn int, phase string) error {
+			t.Fatalf("unexpected next-turn send for turn %d in phase %s", nextTurn, phase)
+			return nil
+		})
+		require.NoError(t, err)
+		require.True(t, result.sawFirstOutput, "first output not recorded from assistant message event")
+		require.Equal(t, 1, result.turnsCompleted)
+		require.Equal(t, string(codersdk.ChatStatusWaiting), result.finalStatus)
+	})
+
 	t.Run("ImmediateWaitingCountsNextTurn", func(t *testing.T) {
 		t.Parallel()
 
@@ -215,5 +240,13 @@ func messagePartEvent(chatID uuid.UUID) codersdk.ChatStreamEvent {
 	return codersdk.ChatStreamEvent{
 		Type:   codersdk.ChatStreamEventTypeMessagePart,
 		ChatID: chatID,
+	}
+}
+
+func messageEvent(chatID uuid.UUID, role codersdk.ChatMessageRole) codersdk.ChatStreamEvent {
+	return codersdk.ChatStreamEvent{
+		Type:    codersdk.ChatStreamEventTypeMessage,
+		ChatID:  chatID,
+		Message: &codersdk.ChatMessage{Role: role},
 	}
 }

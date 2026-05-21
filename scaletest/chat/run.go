@@ -224,6 +224,18 @@ func (r *Runner) runConversation(ctx context.Context, chatID uuid.UUID, logs io.
 			}
 		case codersdk.ChatStreamEventTypeMessagePart:
 			r.handleMessagePartEvent(chatID, logs, &state)
+		case codersdk.ChatStreamEventTypeMessage:
+			// StreamChat replays persisted rows as message events when the
+			// initial snapshot includes a turn that already finished server-
+			// side; in that case the runner never sees message_part deltas
+			// for that turn. Treat the assistant row as first output so the
+			// metric still records a sample, but skip user rows so the
+			// prompt persisted by CreateChat / CreateChatMessage is not
+			// counted as model output.
+			if event.Message == nil || event.Message.Role != codersdk.ChatMessageRoleAssistant {
+				continue
+			}
+			r.handleMessagePartEvent(chatID, logs, &state)
 		case codersdk.ChatStreamEventTypeRetry:
 			r.handleRetryEvent(chatID, logs, &state, event.Retry)
 		case codersdk.ChatStreamEventTypeError:
