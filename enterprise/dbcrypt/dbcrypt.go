@@ -538,13 +538,13 @@ func (db *dbCrypt) InsertAIProviderKey(ctx context.Context, params database.Inse
 	return key, nil
 }
 
-// GetAIProviderKeys returns every AI provider key row, including
-// those whose provider has been soft-deleted, with their api_key
-// decrypted. The dbcrypt key rotation utility uses this to walk
-// every row holding a foreign-key reference to dbcrypt_keys before
-// old keys are revoked.
-func (db *dbCrypt) GetAIProviderKeys(ctx context.Context) ([]database.AIProviderKey, error) {
-	keys, err := db.Store.GetAIProviderKeys(ctx)
+// GetAIProviderKeys returns AI provider key rows with their api_key
+// decrypted. The list handler relies on the default scope (live
+// providers only); the dbcrypt key rotation utility calls with
+// includeDeleted=TRUE so it can walk every row holding a foreign-key
+// reference to dbcrypt_keys before old keys are revoked.
+func (db *dbCrypt) GetAIProviderKeys(ctx context.Context, includeDeleted bool) ([]database.AIProviderKey, error) {
+	keys, err := db.Store.GetAIProviderKeys(ctx, includeDeleted)
 	if err != nil {
 		return nil, err
 	}

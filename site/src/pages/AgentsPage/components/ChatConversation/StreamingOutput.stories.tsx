@@ -279,13 +279,34 @@ export const ThinkingDuringStreamingWithToolCalls: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		// Tool-only stream chunks can otherwise clear the activity indicator before text arrives.
-		const matches = canvas.getAllByText("Thinking");
-		expect(matches.length).toBeGreaterThanOrEqual(1);
+		expect(canvas.getAllByText("Thinking").length).toBeGreaterThanOrEqual(1);
 
-		const thinkingBlock = matches[0].parentElement;
-		expect(thinkingBlock).toBeInstanceOf(HTMLElement);
-		expect(getComputedStyle(thinkingBlock as HTMLElement).marginTop).toBe(
-			"8px",
+		const toolCallWrappers = Array.from(
+			canvasElement.querySelectorAll("[data-transcript-row]"),
 		);
+		expect(toolCallWrappers).toHaveLength(3);
+
+		const thinkingWrapper = toolCallWrappers.at(-1);
+		const previousToolWrapper = toolCallWrappers.at(-2);
+		expect(thinkingWrapper).toBeInstanceOf(HTMLElement);
+		expect(previousToolWrapper).toBeInstanceOf(HTMLElement);
+		expect(thinkingWrapper).toHaveTextContent("Thinking");
+
+		const gap = Math.round(
+			(thinkingWrapper as HTMLElement).getBoundingClientRect().top -
+				(previousToolWrapper as HTMLElement).getBoundingClientRect().bottom,
+		);
+		expect(gap).toBe(8);
+
+		// The placeholder inner row must match the committed collapsed
+		// Thinking row height so the transition from streaming to settled
+		// does not jump. ToolCollapsible enforces min-h-6 (24px).
+		const placeholderRow = (thinkingWrapper as HTMLElement).firstElementChild;
+		expect(placeholderRow).toBeInstanceOf(HTMLElement);
+		expect(
+			Math.round(
+				(placeholderRow as HTMLElement).getBoundingClientRect().height,
+			),
+		).toBe(24);
 	},
 };

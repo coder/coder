@@ -1820,6 +1820,18 @@ func (s *MethodTestSuite) TestGroup() {
 		check.Args(arg).Asserts(g, policy.ActionRead)
 	}))
 
+	s.Run("GetGroupMembersCountByGroupIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		g1 := testutil.Fake(s.T(), faker, database.Group{})
+		g2 := testutil.Fake(s.T(), faker, database.Group{})
+		arg := database.GetGroupMembersCountByGroupIDsParams{GroupIds: []uuid.UUID{g1.ID, g2.ID}, IncludeSystem: false}
+		rows := []database.GetGroupMembersCountByGroupIDsRow{
+			{GroupID: g1.ID, MemberCount: 1},
+			{GroupID: g2.ID, MemberCount: 2},
+		}
+		dbm.EXPECT().GetGroupMembersCountByGroupIDs(gomock.Any(), arg).Return(rows, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceGroup, policy.ActionRead).Returns(rows)
+	}))
+
 	s.Run("GetGroupMembers", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().GetGroupMembers(gomock.Any(), false).Return([]database.GroupMember{}, nil).AnyTimes()
 		check.Args(false).Asserts(rbac.ResourceSystem, policy.ActionRead)
@@ -6046,6 +6058,61 @@ func (s *MethodTestSuite) TestUserSecrets() {
 	}))
 }
 
+func (s *MethodTestSuite) TestUserSkills() {
+	s.Run("GetUserSkillByUserIDAndName", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		skill := testutil.Fake(s.T(), faker, database.UserSkill{UserID: user.ID})
+		arg := database.GetUserSkillByUserIDAndNameParams{UserID: user.ID, Name: skill.Name}
+		dbm.EXPECT().GetUserSkillByUserIDAndName(gomock.Any(), arg).Return(skill, nil).AnyTimes()
+		check.Args(arg).
+			Asserts(rbac.ResourceUserSkill.WithOwner(user.ID.String()), policy.ActionRead).
+			Returns(skill)
+	}))
+	s.Run("ListUserSkillMetadataByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		row := testutil.Fake(s.T(), faker, database.ListUserSkillMetadataByUserIDRow{UserID: user.ID})
+		dbm.EXPECT().ListUserSkillMetadataByUserID(gomock.Any(), user.ID).Return([]database.ListUserSkillMetadataByUserIDRow{row}, nil).AnyTimes()
+		check.Args(user.ID).
+			Asserts(rbac.ResourceUserSkill.WithOwner(user.ID.String()), policy.ActionRead).
+			Returns([]database.ListUserSkillMetadataByUserIDRow{row})
+	}))
+	s.Run("InsertUserSkill", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		arg := database.InsertUserSkillParams{
+			ID:     uuid.New(),
+			UserID: user.ID,
+			Name:   "test",
+		}
+		ret := testutil.Fake(s.T(), faker, database.UserSkill{
+			ID:     arg.ID,
+			UserID: user.ID,
+			Name:   arg.Name,
+		})
+		dbm.EXPECT().InsertUserSkill(gomock.Any(), arg).Return(ret, nil).AnyTimes()
+		check.Args(arg).
+			Asserts(rbac.ResourceUserSkill.WithOwner(user.ID.String()), policy.ActionCreate).
+			Returns(ret)
+	}))
+	s.Run("UpdateUserSkillByUserIDAndName", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		arg := database.UpdateUserSkillByUserIDAndNameParams{UserID: user.ID, Name: "test"}
+		updated := testutil.Fake(s.T(), faker, database.UserSkill{UserID: user.ID, Name: arg.Name})
+		dbm.EXPECT().UpdateUserSkillByUserIDAndName(gomock.Any(), arg).Return(updated, nil).AnyTimes()
+		check.Args(arg).
+			Asserts(rbac.ResourceUserSkill.WithOwner(user.ID.String()), policy.ActionUpdate).
+			Returns(updated)
+	}))
+	s.Run("DeleteUserSkillByUserIDAndName", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		arg := database.DeleteUserSkillByUserIDAndNameParams{UserID: user.ID, Name: "test"}
+		deleted := testutil.Fake(s.T(), faker, database.UserSkill{UserID: user.ID, Name: arg.Name})
+		dbm.EXPECT().DeleteUserSkillByUserIDAndName(gomock.Any(), arg).Return(deleted, nil).AnyTimes()
+		check.Args(arg).
+			Asserts(rbac.ResourceUserSkill.WithOwner(user.ID.String()), policy.ActionDelete).
+			Returns(deleted)
+	}))
+}
+
 func (s *MethodTestSuite) TestUsageEvents() {
 	s.Run("InsertUsageEvent", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		params := database.InsertUsageEventParams{
@@ -6502,8 +6569,8 @@ func (s *MethodTestSuite) TestAIBridge() {
 	s.Run("GetAIProviderKeys", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		keyA := testutil.Fake(s.T(), faker, database.AIProviderKey{})
 		keyB := testutil.Fake(s.T(), faker, database.AIProviderKey{})
-		dbm.EXPECT().GetAIProviderKeys(gomock.Any()).Return([]database.AIProviderKey{keyA, keyB}, nil).AnyTimes()
-		check.Args().Asserts(rbac.ResourceAIProvider, policy.ActionRead).Returns([]database.AIProviderKey{keyA, keyB})
+		dbm.EXPECT().GetAIProviderKeys(gomock.Any(), gomock.Any()).Return([]database.AIProviderKey{keyA, keyB}, nil).AnyTimes()
+		check.Args(false).Asserts(rbac.ResourceAIProvider, policy.ActionRead).Returns([]database.AIProviderKey{keyA, keyB})
 	}))
 	s.Run("InsertAIProviderKey", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		provider := testutil.Fake(s.T(), faker, database.AIProvider{})
@@ -6812,19 +6879,6 @@ func TestAuthorizeProvisionerJob_SystemFastPath(t *testing.T) {
 		require.True(t, dbauthz.IsNotAuthorizedError(err),
 			"cascade must run and produce a NotAuthorized error for auditor: got %v", err)
 	})
-}
-
-func TestAsAutostart(t *testing.T) {
-	t.Parallel()
-
-	ctx := dbauthz.AsAutostart(context.Background())
-	actor, ok := dbauthz.ActorFromContext(ctx)
-	require.True(t, ok, "actor must be present")
-
-	auth := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
-
-	err := auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceUserSecret.WithOwner(uuid.NewString()))
-	require.NoError(t, err, "user secret metadata read should be allowed")
 }
 
 func TestAsChatd(t *testing.T) {

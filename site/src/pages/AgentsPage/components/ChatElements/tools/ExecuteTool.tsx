@@ -20,6 +20,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
+import { TranscriptRow } from "../TranscriptRow";
 import {
 	type AgentDisplayState,
 	isAgentDisplayOpen,
@@ -27,7 +28,9 @@ import {
 } from "./displayMode";
 import {
 	formatShellDurationMs,
+	sanitizeExecuteModelIntent,
 	signalTooltipLabel,
+	summarizeParsedCommands,
 	type ToolStatus,
 } from "./utils";
 
@@ -39,6 +42,8 @@ type ExecuteToolProps = {
 	durationMs?: number;
 	isBackgrounded?: boolean;
 	killedBySignal?: "kill" | "terminate";
+	modelIntent?: string;
+	parsedCommands?: readonly string[][];
 	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
 };
 
@@ -75,6 +80,8 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 	durationMs,
 	isBackgrounded = false,
 	killedBySignal,
+	modelIntent,
+	parsedCommands,
 	outputInitiallyOpen,
 }) => {
 	const hasCommand = command.trim().length > 0;
@@ -90,20 +97,26 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 
 	return (
 		<div className="group/exec grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-x-2 rounded-md bg-surface-primary font-sans font-normal text-xs leading-5">
-			<button
-				type="button"
-				aria-expanded={outputOpen}
-				aria-label={outputToggleLabel}
-				onClick={() => setOutputOpen((value) => !value)}
-				className="col-start-1 row-start-1 m-0 flex w-full min-w-0 cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-left font-[inherit] font-normal text-[inherit] text-content-secondary transition-colors hover:text-content-primary"
+			<TranscriptRow
+				asChild
+				className="col-start-1 row-start-1 m-0 w-full min-w-0 cursor-pointer gap-2 border-0 bg-transparent p-0 text-left font-[inherit] font-normal text-[inherit] text-content-secondary transition-colors hover:text-content-primary"
 			>
-				<ShellCommandLine
-					command={command}
-					durationLabel={durationLabel}
-					expanded={outputOpen}
-				/>
-			</button>
-			<div className="col-start-2 row-start-1 flex shrink-0 items-center gap-1">
+				<button
+					type="button"
+					aria-expanded={outputOpen}
+					aria-label={outputToggleLabel}
+					onClick={() => setOutputOpen((value) => !value)}
+				>
+					<ShellCommandLine
+						command={command}
+						modelIntent={modelIntent}
+						parsedCommands={parsedCommands}
+						durationLabel={durationLabel}
+						expanded={outputOpen}
+					/>
+				</button>
+			</TranscriptRow>
+			<TranscriptRow className="col-start-2 row-start-1 shrink-0 gap-1">
 				{isRunning && (
 					<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-content-secondary" />
 				)}
@@ -153,7 +166,7 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 					label="Copy command"
 					className="-my-0.5 size-6 p-0 opacity-0 transition-opacity hover:bg-surface-tertiary group-hover/exec:opacity-100"
 				/>
-			</div>
+			</TranscriptRow>
 			{outputOpen && (
 				<ShellTranscriptBody
 					command={command}
@@ -167,17 +180,31 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 
 const ShellCommandLine: React.FC<{
 	command: string;
+	modelIntent?: string;
+	parsedCommands?: readonly string[][];
 	durationLabel: string;
 	expanded?: boolean;
-}> = ({ command, durationLabel, expanded }) => {
+}> = ({ command, modelIntent, parsedCommands, durationLabel, expanded }) => {
+	const intentLabel = sanitizeExecuteModelIntent(modelIntent, command);
+	const summary =
+		parsedCommands && parsedCommands.length > 0
+			? summarizeParsedCommands(parsedCommands)
+			: "";
+	const commandDisplay = summary || command;
 	return (
 		<>
 			<span className="block min-w-0 truncate text-[13px] font-normal text-current">
-				Ran {command}
+				{intentLabel ? (
+					<>
+						{intentLabel} using {commandDisplay}
+					</>
+				) : (
+					<>Ran {commandDisplay}</>
+				)}
 			</span>
 			{durationLabel && (
 				<span className="shrink-0 text-[13px] font-normal text-content-secondary">
-					{durationLabel}
+					{intentLabel ? ` for ${durationLabel}` : durationLabel}
 				</span>
 			)}
 			{expanded !== undefined && (

@@ -17,10 +17,10 @@ Experimental: this endpoint is subject to change.
 
 ### Parameters
 
-| Name    | In    | Type   | Required | Description                                                                 |
-|---------|-------|--------|----------|-----------------------------------------------------------------------------|
-| `q`     | query | string | false    | Search query. Supports archived:bool and diff_url:<url> terms (quote URLs). |
-| `label` | query | string | false    | Filter by label as key:value. Repeat for multiple (AND logic).              |
+| Name    | In    | Type   | Required | Description                                                                                                                                                                                                                                                                                                |
+|---------|-------|--------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `q`     | query | string | false    | Search query. Supports title:<substring> (case-insensitive, quote multi-word values), archived:bool, has_unread:bool, pr_status:<draft\|open\|merged\|closed> as repeated or comma-separated values, and diff_url:<url> (quote URLs). Bare terms are not supported; use title:<value> for title filtering. |
+| `label` | query | string | false    | Filter by label as key:value. Repeat for multiple (AND logic).                                                                                                                                                                                                                                             |
 
 ### Example responses
 
@@ -118,6 +118,11 @@ Experimental: this endpoint is subject to change.
         },
         "media_type": "string",
         "name": "string",
+        "parsed_commands": [
+          [
+            "string"
+          ]
+        ],
         "provider_executed": true,
         "provider_metadata": [
           0
@@ -148,6 +153,8 @@ Experimental: this endpoint is subject to change.
     ],
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+    "owner_name": "string",
+    "owner_username": "string",
     "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
     "pin_order": 0,
     "plan_mode": "plan",
@@ -248,6 +255,7 @@ Status Code **200**
 | `»»» valid`                       | boolean                                                                | false    |              | Valid is true if UUID is not NULL                                                                                                                                                                                                                                                                                                |
 | `»» media_type`                   | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
 | `»» name`                         | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `»» parsed_commands`              | array                                                                  | false    |              | Parsed commands holds parsed programs from an execute tool call's shell command, one entry per simple command in source order. Each entry is [program] or [program, arg] where arg is the first non-flag positional argument. Only populated when ToolName is "execute" and the command parses successfully; nil otherwise.      |
 | `»» provider_executed`            | boolean                                                                | false    |              | Provider executed indicates the tool call was executed by the provider (e.g. Anthropic computer use).                                                                                                                                                                                                                            |
 | `»» provider_metadata`            | array                                                                  | false    |              | Provider metadata holds provider-specific response metadata (e.g. Anthropic cache control hints) as raw JSON. Internal only: stripped by db2sdk before API responses.                                                                                                                                                            |
 | `»» result`                       | array                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                  |
@@ -270,6 +278,8 @@ Status Code **200**
 | `» mcp_server_ids`                | array                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                  |
 | `» organization_id`               | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                  |
 | `» owner_id`                      | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `» owner_name`                    | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `» owner_username`                | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
 | `» parent_chat_id`                | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                  |
 | `» pin_order`                     | integer                                                                | false    |              |                                                                                                                                                                                                                                                                                                                                  |
 | `» plan_mode`                     | [codersdk.ChatPlanMode](schemas.md#codersdkchatplanmode)               | false    |              |                                                                                                                                                                                                                                                                                                                                  |
@@ -452,6 +462,11 @@ Experimental: this endpoint is subject to change.
           },
           "media_type": "string",
           "name": "string",
+          "parsed_commands": [
+            [
+              "string"
+            ]
+          ],
           "provider_executed": true,
           "provider_metadata": [
             0
@@ -482,6 +497,8 @@ Experimental: this endpoint is subject to change.
       ],
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+      "owner_name": "string",
+      "owner_username": "string",
       "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
       "pin_order": 0,
       "plan_mode": "plan",
@@ -578,6 +595,11 @@ Experimental: this endpoint is subject to change.
       },
       "media_type": "string",
       "name": "string",
+      "parsed_commands": [
+        [
+          "string"
+        ]
+      ],
       "provider_executed": true,
       "provider_metadata": [
         0
@@ -608,6 +630,8 @@ Experimental: this endpoint is subject to change.
   ],
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "owner_name": "string",
+  "owner_username": "string",
   "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
   "pin_order": 0,
   "plan_mode": "plan",
@@ -855,6 +879,11 @@ Experimental: this endpoint is subject to change.
         },
         "media_type": "string",
         "name": "string",
+        "parsed_commands": [
+          [
+            "string"
+          ]
+        ],
         "provider_executed": true,
         "provider_metadata": [
           0
@@ -885,6 +914,8 @@ Experimental: this endpoint is subject to change.
     ],
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+    "owner_name": "string",
+    "owner_username": "string",
     "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
     "pin_order": 0,
     "plan_mode": "plan",
@@ -1035,6 +1066,11 @@ Experimental: this endpoint is subject to change.
           },
           "media_type": "string",
           "name": "string",
+          "parsed_commands": [
+            [
+              "string"
+            ]
+          ],
           "provider_executed": true,
           "provider_metadata": [
             0
@@ -1065,6 +1101,8 @@ Experimental: this endpoint is subject to change.
       ],
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+      "owner_name": "string",
+      "owner_username": "string",
       "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
       "pin_order": 0,
       "plan_mode": "plan",
@@ -1161,6 +1199,11 @@ Experimental: this endpoint is subject to change.
       },
       "media_type": "string",
       "name": "string",
+      "parsed_commands": [
+        [
+          "string"
+        ]
+      ],
       "provider_executed": true,
       "provider_metadata": [
         0
@@ -1191,6 +1234,8 @@ Experimental: this endpoint is subject to change.
   ],
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "owner_name": "string",
+  "owner_username": "string",
   "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
   "pin_order": 0,
   "plan_mode": "plan",
@@ -1422,6 +1467,11 @@ Experimental: this endpoint is subject to change.
           },
           "media_type": "string",
           "name": "string",
+          "parsed_commands": [
+            [
+              "string"
+            ]
+          ],
           "provider_executed": true,
           "provider_metadata": [
             0
@@ -1452,6 +1502,8 @@ Experimental: this endpoint is subject to change.
       ],
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+      "owner_name": "string",
+      "owner_username": "string",
       "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
       "pin_order": 0,
       "plan_mode": "plan",
@@ -1548,6 +1600,11 @@ Experimental: this endpoint is subject to change.
       },
       "media_type": "string",
       "name": "string",
+      "parsed_commands": [
+        [
+          "string"
+        ]
+      ],
       "provider_executed": true,
       "provider_metadata": [
         0
@@ -1578,6 +1635,8 @@ Experimental: this endpoint is subject to change.
   ],
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "owner_name": "string",
+  "owner_username": "string",
   "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
   "pin_order": 0,
   "plan_mode": "plan",
@@ -1670,6 +1729,11 @@ Experimental: this endpoint is subject to change.
           },
           "media_type": "string",
           "name": "string",
+          "parsed_commands": [
+            [
+              "string"
+            ]
+          ],
           "provider_executed": true,
           "provider_metadata": [
             0
@@ -1748,6 +1812,11 @@ Experimental: this endpoint is subject to change.
           },
           "media_type": "string",
           "name": "string",
+          "parsed_commands": [
+            [
+              "string"
+            ]
+          ],
           "provider_executed": true,
           "provider_metadata": [
             0
@@ -1878,6 +1947,11 @@ Experimental: this endpoint is subject to change.
         },
         "media_type": "string",
         "name": "string",
+        "parsed_commands": [
+          [
+            "string"
+          ]
+        ],
         "provider_executed": true,
         "provider_metadata": [
           0
@@ -1955,6 +2029,11 @@ Experimental: this endpoint is subject to change.
         },
         "media_type": "string",
         "name": "string",
+        "parsed_commands": [
+          [
+            "string"
+          ]
+        ],
         "provider_executed": true,
         "provider_metadata": [
           0
@@ -2083,6 +2162,11 @@ Experimental: this endpoint is subject to change.
         },
         "media_type": "string",
         "name": "string",
+        "parsed_commands": [
+          [
+            "string"
+          ]
+        ],
         "provider_executed": true,
         "provider_metadata": [
           0
@@ -2269,6 +2353,11 @@ Experimental: this endpoint is subject to change.
         },
         "media_type": "string",
         "name": "string",
+        "parsed_commands": [
+          [
+            "string"
+          ]
+        ],
         "provider_executed": true,
         "provider_metadata": [
           0
@@ -2343,6 +2432,11 @@ Experimental: this endpoint is subject to change.
       },
       "media_type": "string",
       "name": "string",
+      "parsed_commands": [
+        [
+          "string"
+        ]
+      ],
       "provider_executed": true,
       "provider_metadata": [
         0
@@ -2406,6 +2500,11 @@ Experimental: this endpoint is subject to change.
           },
           "media_type": "string",
           "name": "string",
+          "parsed_commands": [
+            [
+              "string"
+            ]
+          ],
           "provider_executed": true,
           "provider_metadata": [
             0
@@ -2656,6 +2755,11 @@ Experimental: this endpoint is subject to change.
           },
           "media_type": "string",
           "name": "string",
+          "parsed_commands": [
+            [
+              "string"
+            ]
+          ],
           "provider_executed": true,
           "provider_metadata": [
             0
@@ -2686,6 +2790,8 @@ Experimental: this endpoint is subject to change.
       ],
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+      "owner_name": "string",
+      "owner_username": "string",
       "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
       "pin_order": 0,
       "plan_mode": "plan",
@@ -2782,6 +2888,11 @@ Experimental: this endpoint is subject to change.
       },
       "media_type": "string",
       "name": "string",
+      "parsed_commands": [
+        [
+          "string"
+        ]
+      ],
       "provider_executed": true,
       "provider_metadata": [
         0
@@ -2812,6 +2923,8 @@ Experimental: this endpoint is subject to change.
   ],
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "owner_name": "string",
+  "owner_username": "string",
   "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
   "pin_order": 0,
   "plan_mode": "plan",

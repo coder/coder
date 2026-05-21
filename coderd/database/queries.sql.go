@@ -148,20 +148,25 @@ func (q *sqlQuerier) GetAIProviderKeyByID(ctx context.Context, id uuid.UUID) (AI
 
 const getAIProviderKeys = `-- name: GetAIProviderKeys :many
 SELECT
-    id, provider_id, api_key, api_key_key_id, created_at, updated_at
+    ai_provider_keys.id, ai_provider_keys.provider_id, ai_provider_keys.api_key, ai_provider_keys.api_key_key_id, ai_provider_keys.created_at, ai_provider_keys.updated_at
 FROM
     ai_provider_keys
+    JOIN ai_providers ON ai_providers.id = ai_provider_keys.provider_id
+WHERE
+    $1::boolean OR NOT ai_providers.deleted
 ORDER BY
-    provider_id ASC,
-    created_at ASC,
-    id ASC
+    ai_provider_keys.provider_id ASC,
+    ai_provider_keys.created_at ASC,
+    ai_provider_keys.id ASC
 `
 
-// Returns every AI provider key row, including those belonging to a
-// soft-deleted provider, so the dbcrypt key rotation utility can
-// re-encrypt their api_key and clear references to retired keys.
-func (q *sqlQuerier) GetAIProviderKeys(ctx context.Context) ([]AIProviderKey, error) {
-	rows, err := q.db.QueryContext(ctx, getAIProviderKeys)
+// Returns AI provider key rows. By default, only rows whose parent
+// provider is live (deleted = FALSE) are returned, so the API list
+// handler can fetch every visible provider's keys in a single query.
+// The dbcrypt key rotation utility passes include_deleted=TRUE to
+// re-encrypt rows that belong to soft-deleted providers as well.
+func (q *sqlQuerier) GetAIProviderKeys(ctx context.Context, includeDeleted bool) ([]AIProviderKey, error) {
+	rows, err := q.db.QueryContext(ctx, getAIProviderKeys, includeDeleted)
 	if err != nil {
 		return nil, err
 	}
@@ -7875,6 +7880,44 @@ WHERE
         )
         ELSE true
     END
+    -- Filter by title substring (case-insensitive). Applied when the
+    -- caller provides a non-empty title_query.
+    AND CASE
+        WHEN $8 :: text != '' THEN chats_expanded.title ILIKE '%' || $8 || '%'
+        ELSE true
+    END
+    AND CASE
+        WHEN $9::boolean IS NOT NULL THEN (
+            EXISTS (
+                SELECT 1 FROM chat_messages cm
+                WHERE cm.chat_id = chats_expanded.id
+                    AND cm.role = 'assistant'
+                    AND cm.deleted = false
+                    AND cm.id > COALESCE(chats_expanded.last_read_message_id, 0)
+            )
+        ) = $9::boolean
+        ELSE true
+    END
+    -- Filter by pull request status. Unlike the diff_url filter above,
+    -- this intentionally checks only the root chat's own diff status.
+    -- Child chats share the same workspace and git branch as their
+    -- parent, so gitsync populates identical PR state on both; traversing
+    -- descendants would be redundant.
+    AND CASE
+        WHEN COALESCE(array_length($10::text[], 1), 0) > 0 THEN EXISTS (
+            SELECT 1
+            FROM chat_diff_statuses cds
+            WHERE cds.chat_id = chats_expanded.id
+                AND (
+                    CASE
+                        WHEN cds.pull_request_state = 'open' AND cds.pull_request_draft THEN 'draft'
+                        WHEN cds.pull_request_state = 'open' THEN 'open'
+                        ELSE cds.pull_request_state
+                    END
+                ) = ANY($10::text[])
+        )
+        ELSE true
+    END
     -- Paginate over root chats only. Children are fetched
     -- separately via GetChildChatsByParentIDs and embedded under
     -- each parent. Other callers that need the full set should
@@ -7891,23 +7934,26 @@ ORDER BY
     -chats_expanded.pin_order DESC,
     chats_expanded.updated_at DESC,
     chats_expanded.id DESC
-OFFSET $8
+OFFSET $11
 LIMIT
     -- The chat list is unbounded and expected to grow large.
     -- Default to 50 to prevent accidental excessively large queries.
-    COALESCE(NULLIF($9 :: int, 0), 50)
+    COALESCE(NULLIF($12 :: int, 0), 50)
 `
 
 type GetChatsParams struct {
-	OwnedOnly   bool                  `db:"owned_only" json:"owned_only"`
-	ViewerID    uuid.UUID             `db:"viewer_id" json:"viewer_id"`
-	SharedOnly  bool                  `db:"shared_only" json:"shared_only"`
-	Archived    sql.NullBool          `db:"archived" json:"archived"`
-	AfterID     uuid.UUID             `db:"after_id" json:"after_id"`
-	LabelFilter pqtype.NullRawMessage `db:"label_filter" json:"label_filter"`
-	DiffURL     sql.NullString        `db:"diff_url" json:"diff_url"`
-	OffsetOpt   int32                 `db:"offset_opt" json:"offset_opt"`
-	LimitOpt    int32                 `db:"limit_opt" json:"limit_opt"`
+	OwnedOnly           bool                  `db:"owned_only" json:"owned_only"`
+	ViewerID            uuid.UUID             `db:"viewer_id" json:"viewer_id"`
+	SharedOnly          bool                  `db:"shared_only" json:"shared_only"`
+	Archived            sql.NullBool          `db:"archived" json:"archived"`
+	AfterID             uuid.UUID             `db:"after_id" json:"after_id"`
+	LabelFilter         pqtype.NullRawMessage `db:"label_filter" json:"label_filter"`
+	DiffURL             sql.NullString        `db:"diff_url" json:"diff_url"`
+	TitleQuery          string                `db:"title_query" json:"title_query"`
+	HasUnread           sql.NullBool          `db:"has_unread" json:"has_unread"`
+	PullRequestStatuses []string              `db:"pull_request_statuses" json:"pull_request_statuses"`
+	OffsetOpt           int32                 `db:"offset_opt" json:"offset_opt"`
+	LimitOpt            int32                 `db:"limit_opt" json:"limit_opt"`
 }
 
 type GetChatsRow struct {
@@ -7924,6 +7970,9 @@ func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]GetCha
 		arg.AfterID,
 		arg.LabelFilter,
 		arg.DiffURL,
+		arg.TitleQuery,
+		arg.HasUnread,
+		pq.Array(arg.PullRequestStatuses),
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)
@@ -12767,6 +12816,56 @@ func (q *sqlQuerier) GetGroupMembersCountByGroupID(ctx context.Context, arg GetG
 	return count, err
 }
 
+const getGroupMembersCountByGroupIDs = `-- name: GetGroupMembersCountByGroupIDs :many
+SELECT
+	group_id,
+	COUNT(*) AS member_count
+FROM group_members_expanded
+WHERE group_id = ANY($1 :: uuid[])
+	AND CASE
+		WHEN $2::bool THEN TRUE
+		ELSE user_is_system = false
+	END
+GROUP BY group_id
+`
+
+type GetGroupMembersCountByGroupIDsParams struct {
+	GroupIds      []uuid.UUID `db:"group_ids" json:"group_ids"`
+	IncludeSystem bool        `db:"include_system" json:"include_system"`
+}
+
+type GetGroupMembersCountByGroupIDsRow struct {
+	GroupID     uuid.UUID `db:"group_id" json:"group_id"`
+	MemberCount int64     `db:"member_count" json:"member_count"`
+}
+
+// Returns the total member count for each of the given group IDs in a
+// single query. Used to avoid N+1 lookups when listing many groups. Like
+// GetGroupMembersCountByGroupID, the count is returned even when the
+// caller does not have read access to individual group members.
+func (q *sqlQuerier) GetGroupMembersCountByGroupIDs(ctx context.Context, arg GetGroupMembersCountByGroupIDsParams) ([]GetGroupMembersCountByGroupIDsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getGroupMembersCountByGroupIDs, pq.Array(arg.GroupIds), arg.IncludeSystem)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetGroupMembersCountByGroupIDsRow
+	for rows.Next() {
+		var i GetGroupMembersCountByGroupIDsRow
+		if err := rows.Scan(&i.GroupID, &i.MemberCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertGroupMember = `-- name: InsertGroupMember :exec
 INSERT INTO
     group_members (user_id, group_id)
@@ -12984,6 +13083,14 @@ WHERE
 				groups.id = ANY($4)
 			ELSE true
 		END
+		-- Filter by group name or display name (substring, case-insensitive).
+		AND CASE WHEN $5 :: text != '' THEN (
+				groups.name ILIKE concat('%', $5, '%')
+				OR groups.display_name ILIKE concat('%', $5, '%')
+			)
+			ELSE true
+		END
+LIMIT NULLIF($6 :: int, 0)
 `
 
 type GetGroupsParams struct {
@@ -12991,6 +13098,8 @@ type GetGroupsParams struct {
 	HasMemberID    uuid.UUID   `db:"has_member_id" json:"has_member_id"`
 	GroupNames     []string    `db:"group_names" json:"group_names"`
 	GroupIds       []uuid.UUID `db:"group_ids" json:"group_ids"`
+	Search         string      `db:"search" json:"search"`
+	LimitOpt       int32       `db:"limit_opt" json:"limit_opt"`
 }
 
 type GetGroupsRow struct {
@@ -12999,12 +13108,15 @@ type GetGroupsRow struct {
 	OrganizationDisplayName string `db:"organization_display_name" json:"organization_display_name"`
 }
 
+// A limit of 0 means "no limit".
 func (q *sqlQuerier) GetGroups(ctx context.Context, arg GetGroupsParams) ([]GetGroupsRow, error) {
 	rows, err := q.db.QueryContext(ctx, getGroups,
 		arg.OrganizationID,
 		arg.HasMemberID,
 		pq.Array(arg.GroupNames),
 		pq.Array(arg.GroupIds),
+		arg.Search,
+		arg.LimitOpt,
 	)
 	if err != nil {
 		return nil, err
@@ -26973,6 +27085,177 @@ func (q *sqlQuerier) UpdateUserSecretByUserIDAndName(ctx context.Context, arg Up
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ValueKeyID,
+	)
+	return i, err
+}
+
+const deleteUserSkillByUserIDAndName = `-- name: DeleteUserSkillByUserIDAndName :one
+DELETE FROM user_skills
+WHERE user_id = $1 AND name = $2
+RETURNING id, user_id, name, description, content, created_at, updated_at
+`
+
+type DeleteUserSkillByUserIDAndNameParams struct {
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	Name   string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) DeleteUserSkillByUserIDAndName(ctx context.Context, arg DeleteUserSkillByUserIDAndNameParams) (UserSkill, error) {
+	row := q.db.QueryRowContext(ctx, deleteUserSkillByUserIDAndName, arg.UserID, arg.Name)
+	var i UserSkill
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getUserSkillByUserIDAndName = `-- name: GetUserSkillByUserIDAndName :one
+SELECT id, user_id, name, description, content, created_at, updated_at
+FROM user_skills
+WHERE user_id = $1 AND name = $2
+`
+
+type GetUserSkillByUserIDAndNameParams struct {
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
+	Name   string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) GetUserSkillByUserIDAndName(ctx context.Context, arg GetUserSkillByUserIDAndNameParams) (UserSkill, error) {
+	row := q.db.QueryRowContext(ctx, getUserSkillByUserIDAndName, arg.UserID, arg.Name)
+	var i UserSkill
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const insertUserSkill = `-- name: InsertUserSkill :one
+INSERT INTO user_skills (id, user_id, name, description, content)
+VALUES ($1::uuid, $2::uuid, $3::text, $4::text, $5::text)
+RETURNING id, user_id, name, description, content, created_at, updated_at
+`
+
+type InsertUserSkillParams struct {
+	ID          uuid.UUID `db:"id" json:"id"`
+	UserID      uuid.UUID `db:"user_id" json:"user_id"`
+	Name        string    `db:"name" json:"name"`
+	Description string    `db:"description" json:"description"`
+	Content     string    `db:"content" json:"content"`
+}
+
+func (q *sqlQuerier) InsertUserSkill(ctx context.Context, arg InsertUserSkillParams) (UserSkill, error) {
+	row := q.db.QueryRowContext(ctx, insertUserSkill,
+		arg.ID,
+		arg.UserID,
+		arg.Name,
+		arg.Description,
+		arg.Content,
+	)
+	var i UserSkill
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const listUserSkillMetadataByUserID = `-- name: ListUserSkillMetadataByUserID :many
+SELECT
+    id, user_id, name, description, created_at, updated_at
+FROM user_skills
+WHERE user_id = $1
+ORDER BY name ASC
+`
+
+type ListUserSkillMetadataByUserIDRow struct {
+	ID          uuid.UUID `db:"id" json:"id"`
+	UserID      uuid.UUID `db:"user_id" json:"user_id"`
+	Name        string    `db:"name" json:"name"`
+	Description string    `db:"description" json:"description"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
+}
+
+func (q *sqlQuerier) ListUserSkillMetadataByUserID(ctx context.Context, userID uuid.UUID) ([]ListUserSkillMetadataByUserIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, listUserSkillMetadataByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListUserSkillMetadataByUserIDRow
+	for rows.Next() {
+		var i ListUserSkillMetadataByUserIDRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Name,
+			&i.Description,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateUserSkillByUserIDAndName = `-- name: UpdateUserSkillByUserIDAndName :one
+UPDATE user_skills
+SET
+    description = $1,
+    content     = $2,
+    updated_at  = now()
+WHERE user_id = $3 AND name = $4
+RETURNING id, user_id, name, description, content, created_at, updated_at
+`
+
+type UpdateUserSkillByUserIDAndNameParams struct {
+	Description string    `db:"description" json:"description"`
+	Content     string    `db:"content" json:"content"`
+	UserID      uuid.UUID `db:"user_id" json:"user_id"`
+	Name        string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) UpdateUserSkillByUserIDAndName(ctx context.Context, arg UpdateUserSkillByUserIDAndNameParams) (UserSkill, error) {
+	row := q.db.QueryRowContext(ctx, updateUserSkillByUserIDAndName,
+		arg.Description,
+		arg.Content,
+		arg.UserID,
+		arg.Name,
+	)
+	var i UserSkill
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Description,
+		&i.Content,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }

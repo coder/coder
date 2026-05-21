@@ -3,9 +3,7 @@ package chatadvisor
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"strings"
-	"unicode/utf8"
 
 	"charm.land/fantasy"
 )
@@ -34,7 +32,7 @@ type ToolOptions struct {
 func Tool(opts ToolOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		ToolName,
-		"Ask a separate advisor pass for strategic guidance about planning, architecture, tradeoffs, or debugging strategy. Provide a brief question. The advisor sees recent conversation context, runs without tools for a single step, and responds to the parent agent rather than the end user.",
+		"Ask a separate advisor pass for strategic guidance about planning, architecture, tradeoffs, or debugging strategy. Provide a brief question of 2000 runes or fewer, summarizing context instead of pasting long logs or transcripts. The advisor sees recent conversation context, runs without tools for a single step, and responds to the parent agent rather than the end user.",
 		func(ctx context.Context, args AdvisorArgs, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if opts.Runtime == nil {
 				return fantasy.NewTextErrorResponse("advisor runtime is not configured"), nil
@@ -46,11 +44,6 @@ func Tool(opts ToolOptions) fantasy.AgentTool {
 			question := strings.TrimSpace(args.Question)
 			if question == "" {
 				return fantasy.NewTextErrorResponse("question is required"), nil
-			}
-			if utf8.RuneCountInString(question) > advisorQuestionMaxRunes {
-				return fantasy.NewTextErrorResponse(
-					fmt.Sprintf("question must be %d runes or fewer", advisorQuestionMaxRunes),
-				), nil
 			}
 
 			var runOpts *RunAdvisorOptions

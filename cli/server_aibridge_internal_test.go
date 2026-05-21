@@ -47,6 +47,23 @@ func TestReadAIProvidersFromEnv(t *testing.T) {
 			},
 		},
 		{
+			name: "SingleProviderAIGatewayPrefix",
+			env: []string{
+				"CODER_AI_GATEWAY_PROVIDER_0_TYPE=anthropic",
+				"CODER_AI_GATEWAY_PROVIDER_0_NAME=anthropic-zdr",
+				"CODER_AI_GATEWAY_PROVIDER_0_KEY=sk-ant-xxx",
+				"CODER_AI_GATEWAY_PROVIDER_0_BASE_URL=https://api.anthropic.com/",
+			},
+			expected: []codersdk.AIProviderConfig{
+				{
+					Type:    aibridge.ProviderAnthropic,
+					Name:    "anthropic-zdr",
+					Keys:    []string{"sk-ant-xxx"},
+					BaseURL: "https://api.anthropic.com/",
+				},
+			},
+		},
+		{
 			name: "MultipleProvidersSameType",
 			env: []string{
 				"CODER_AIBRIDGE_PROVIDER_0_TYPE=anthropic",
@@ -311,6 +328,16 @@ func TestReadAIProvidersFromEnv(t *testing.T) {
 			errContains: "BEDROCK_ACCESS_KEYS count (2) must match BEDROCK_ACCESS_KEY_SECRETS count (1)",
 		},
 		{
+			name: "MixedPrefixesAreNotAllowed",
+			env: []string{
+				"CODER_AIBRIDGE_PROVIDER_0_TYPE=anthropic",
+				"CODER_AIBRIDGE_PROVIDER_0_NAME=anthropic-1",
+				"CODER_AI_GATEWAY_PROVIDER_0_TYPE=anthropic",
+				"CODER_AI_GATEWAY_PROVIDER_0_NAME=anthropic-2",
+			},
+			errContains: "cannot mix CODER_AIBRIDGE_PROVIDER_* and CODER_AI_GATEWAY_PROVIDER_* environment variables",
+		},
+		{
 			name: "BedrockKeysTooMany",
 			env: []string{
 				"CODER_AIBRIDGE_PROVIDER_0_TYPE=anthropic",
@@ -339,7 +366,7 @@ func TestReadAIProvidersFromEnv(t *testing.T) {
 
 	t.Run("MultiDigitIndices", func(t *testing.T) {
 		t.Parallel()
-		// Indices 0, 1, 2, ..., 10 — verifies that 10 sorts after 2,
+		// Indices 0, 1, 2, ..., 10, verifies that 10 sorts after 2,
 		// not between 1 and 2 as a lexicographic sort would do.
 		var env []string
 		var expected []codersdk.AIProviderConfig
@@ -362,23 +389,57 @@ func TestReadAIProvidersFromEnv(t *testing.T) {
 
 	t.Run("UnknownFieldWarnsButSucceeds", func(t *testing.T) {
 		t.Parallel()
-		// A typo like TPYE instead of TYPE should not prevent startup;
+		// A typo like TYYYPPOO instead of TYPE should not prevent startup;
 		// the function logs a warning and continues.
-		sink := testutil.NewFakeSink(t)
-		providers, err := ReadAIProvidersFromEnv(sink.Logger(), []string{
-			"CODER_AIBRIDGE_PROVIDER_0_TYPE=openai",
-			"CODER_AIBRIDGE_PROVIDER_0_TPYE=openai",
-		})
-		require.NoError(t, err)
-		require.Equal(t, []codersdk.AIProviderConfig{
-			{Type: aibridge.ProviderOpenAI, Name: aibridge.ProviderOpenAI},
-		}, providers)
+		tests := []struct {
+			name             string
+			env              []string
+			expected         []codersdk.AIProviderConfig
+			expectedWarnings []string
+		}{
+			{
+				name: "AIGatewayPrefix",
+				env: []string{
+					"CODER_AI_GATEWAY_PROVIDER_0_TYPE=openai",
+					"CODER_AI_GATEWAY_PROVIDER_0_Name=test",
+					"CODER_AI_GATEWAY_PROVIDER_0_TYYYPPOO=openai",
+				},
+				expected: []codersdk.AIProviderConfig{
+					{Type: "openai", Name: "test"},
+				},
+				expectedWarnings: []string{"CODER_AI_GATEWAY_PROVIDER_0_TYYYPPOO"},
+			},
+			{
+				name: "AIBridgePrefix",
+				env: []string{
+					"CODER_AIBRIDGE_PROVIDER_0_TYPE=openai",
+					"CODER_AIBRIDGE_PROVIDER_0_Name=test",
+					"CODER_AIBRIDGE_PROVIDER_0_TYYYPPOO=openai",
+				},
+				expected: []codersdk.AIProviderConfig{
+					{Type: "openai", Name: "test"},
+				},
+				expectedWarnings: []string{"CODER_AIBRIDGE_PROVIDER_0_TYYYPPOO"},
+			},
+		}
 
-		warnings := sink.Entries(func(e slog.SinkEntry) bool {
-			return e.Message == "ignoring unknown AI provider field (check for typos)"
-		})
-		require.Len(t, warnings, 1)
-		require.Len(t, warnings[0].Fields, 1)
-		assert.Equal(t, "CODER_AIBRIDGE_PROVIDER_0_TPYE", warnings[0].Fields[0].Value)
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				sink := testutil.NewFakeSink(t)
+				providers, err := ReadAIProvidersFromEnv(sink.Logger(), tt.env)
+				require.NoError(t, err)
+				require.Equal(t, tt.expected, providers)
+
+				warnings := sink.Entries(func(e slog.SinkEntry) bool {
+					return e.Message == "ignoring unknown AI provider field (check for typos)"
+				})
+				require.Len(t, warnings, len(tt.expectedWarnings))
+				for i, want := range tt.expectedWarnings {
+					require.Len(t, warnings[i].Fields, 1)
+					assert.Equal(t, want, warnings[i].Fields[0].Value)
+				}
+			})
+		}
 	})
 }

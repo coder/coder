@@ -26,6 +26,65 @@ const fileEntrySchema = Yup.object({
 
 type FileEntry = Yup.InferType<typeof fileEntrySchema>;
 
+export const formatModelIntentLabel = (
+	modelIntent: string | undefined,
+): string => {
+	const trimmed = modelIntent?.trim() ?? "";
+	if (!trimmed) {
+		return "";
+	}
+	return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+};
+
+const trailingDurationPattern =
+	/(^|\s+)for\s+\d+(?:\.\d+)?\s*(?:ms|s|m|h)\s*$/i;
+
+export const sanitizeExecuteModelIntent = (
+	modelIntent: string | undefined,
+	command: string,
+): string => {
+	const label = formatModelIntentLabel(modelIntent);
+	const withoutCommand = stripRedundantUsingSuffix(label, command);
+	return stripTrailingDuration(withoutCommand);
+};
+
+const stripRedundantUsingSuffix = (label: string, command: string): string => {
+	const usingMatches = Array.from(label.matchAll(/(^|\s+)using\s+/gi));
+	for (let i = usingMatches.length - 1; i >= 0; i--) {
+		const match = usingMatches[i];
+		if (match.index === undefined) {
+			continue;
+		}
+
+		const suffix = stripTrailingDuration(
+			label.slice(match.index + match[0].length),
+		);
+		if (isCommandReference(suffix, command)) {
+			return label.slice(0, match.index).trim();
+		}
+	}
+	return label;
+};
+
+const stripTrailingDuration = (label: string): string =>
+	label.replace(trailingDurationPattern, "").trim();
+
+const isCommandReference = (value: string, command: string): boolean => {
+	const normalizedValue = normalizeCommandReference(value);
+	const normalizedCommand = normalizeCommandReference(command);
+	if (!normalizedValue || !normalizedCommand) {
+		return false;
+	}
+	return (
+		normalizedValue === normalizedCommand ||
+		normalizedCommand.startsWith(`${normalizedValue} `) ||
+		normalizedValue.startsWith(`${normalizedCommand} `)
+	);
+};
+
+const normalizeCommandReference = (value: string): string =>
+	value.trim().toLowerCase().replace(/\s+/g, " ");
+
 export const toProviderLabel = (
 	providerDisplayName: string,
 	providerID: string,
@@ -696,3 +755,43 @@ export { asNumber, asRecord, asString } from "../runtimeTypeUtils";
  */
 export const signalTooltipLabel = (signal: "kill" | "terminate"): string =>
 	signal === "kill" ? "Killed (SIGKILL)" : "Terminated (SIGTERM)";
+
+// Programs whose first positional argument is conventionally a subcommand verb.
+const multiVerbTools = new Set([
+	"git",
+	"gh",
+	"kubectl",
+	"docker",
+	"podman",
+	"npm",
+	"pnpm",
+	"yarn",
+	"go",
+	"cargo",
+	"make",
+	"helm",
+	"terraform",
+	"systemctl",
+	"brew",
+]);
+
+/**
+ * Collapses parsed_commands into a comma-joined summary. Multi-verb
+ * tools render as "<prog> <verb>"; others render as just "<prog>".
+ * Consecutive duplicates are deduped.
+ */
+export const summarizeParsedCommands = (
+	parsed: readonly string[][],
+): string => {
+	const labels: string[] = [];
+	for (const entry of parsed) {
+		const prog = entry[0];
+		if (!prog) continue;
+		const label =
+			multiVerbTools.has(prog) && entry[1] ? `${prog} ${entry[1]}` : prog;
+		if (labels[labels.length - 1] !== label) {
+			labels.push(label);
+		}
+	}
+	return labels.join(", ");
+};

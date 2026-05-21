@@ -246,7 +246,6 @@ var (
 					rbac.ResourceWorkspaceAgentDevcontainers.Type:   {policy.ActionCreate},
 					// Provisionerd creates usage events
 					rbac.ResourceUsageEvent.Type: {policy.ActionCreate},
-					rbac.ResourceUserSecret.Type: {policy.ActionRead},
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},
@@ -271,7 +270,6 @@ var (
 					rbac.ResourceTask.Type:                {policy.ActionRead, policy.ActionUpdate},
 					rbac.ResourceTemplate.Type:            {policy.ActionRead, policy.ActionUpdate},
 					rbac.ResourceUser.Type:                {policy.ActionRead},
-					rbac.ResourceUserSecret.Type:          {policy.ActionRead},
 					rbac.ResourceWorkspace.Type:           {policy.ActionDelete, policy.ActionRead, policy.ActionUpdate, policy.ActionWorkspaceStart, policy.ActionWorkspaceStop},
 					rbac.ResourceWorkspaceDormant.Type:    {policy.ActionDelete, policy.ActionRead, policy.ActionUpdate, policy.ActionWorkspaceStop},
 				}),
@@ -2316,6 +2314,14 @@ func (q *querier) DeleteUserSecretByUserIDAndName(ctx context.Context, arg datab
 	return q.db.DeleteUserSecretByUserIDAndName(ctx, arg)
 }
 
+func (q *querier) DeleteUserSkillByUserIDAndName(ctx context.Context, arg database.DeleteUserSkillByUserIDAndNameParams) (database.UserSkill, error) {
+	obj := rbac.ResourceUserSkill.WithOwner(arg.UserID.String())
+	if err := q.authorizeContext(ctx, policy.ActionDelete, obj); err != nil {
+		return database.UserSkill{}, err
+	}
+	return q.db.DeleteUserSkillByUserIDAndName(ctx, arg)
+}
+
 func (q *querier) DeleteWebpushSubscriptionByUserIDAndEndpoint(ctx context.Context, arg database.DeleteWebpushSubscriptionByUserIDAndEndpointParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceWebpushSubscription.WithOwner(arg.UserID.String())); err != nil {
 		return err
@@ -2561,15 +2567,15 @@ func (q *querier) GetAIProviderKeyByID(ctx context.Context, id uuid.UUID) (datab
 	return q.db.GetAIProviderKeyByID(ctx, id)
 }
 
-func (q *querier) GetAIProviderKeys(ctx context.Context) ([]database.AIProviderKey, error) {
-	// This query intentionally returns every key row, including those
-	// whose provider has been soft-deleted, so the dbcrypt key rotation
-	// utility can re-encrypt every row that holds a foreign-key
-	// reference to dbcrypt_keys.
+func (q *querier) GetAIProviderKeys(ctx context.Context, includeDeleted bool) ([]database.AIProviderKey, error) {
+	// Callers pass include_deleted=TRUE only from the dbcrypt key
+	// rotation utility, which needs to re-encrypt every row that holds
+	// a foreign-key reference to dbcrypt_keys regardless of whether
+	// the parent provider is still live.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIProvider); err != nil {
 		return nil, err
 	}
-	return q.db.GetAIProviderKeys(ctx)
+	return q.db.GetAIProviderKeys(ctx, includeDeleted)
 }
 
 func (q *querier) GetAIProviderKeysByProviderID(ctx context.Context, providerID uuid.UUID) ([]database.AIProviderKey, error) {
@@ -3499,6 +3505,15 @@ func (q *querier) GetGroupMembersCountByGroupID(ctx context.Context, arg databas
 		return 0, err
 	}
 	return memberCount, nil
+}
+
+func (q *querier) GetGroupMembersCountByGroupIDs(ctx context.Context, arg database.GetGroupMembersCountByGroupIDsParams) ([]database.GetGroupMembersCountByGroupIDsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceGroup); err != nil {
+		// Ideally we would check read access on each group ID, but that would be N queries.
+		// So this function is really only usable by admins.
+		return nil, err
+	}
+	return q.db.GetGroupMembersCountByGroupIDs(ctx, arg)
 }
 
 func (q *querier) GetGroups(ctx context.Context, arg database.GetGroupsParams) ([]database.GetGroupsRow, error) {
@@ -4727,6 +4742,14 @@ func (q *querier) GetUserShellToolDisplayMode(ctx context.Context, userID uuid.U
 	return q.db.GetUserShellToolDisplayMode(ctx, userID)
 }
 
+func (q *querier) GetUserSkillByUserIDAndName(ctx context.Context, arg database.GetUserSkillByUserIDAndNameParams) (database.UserSkill, error) {
+	obj := rbac.ResourceUserSkill.WithOwner(arg.UserID.String())
+	if err := q.authorizeContext(ctx, policy.ActionRead, obj); err != nil {
+		return database.UserSkill{}, err
+	}
+	return q.db.GetUserSkillByUserIDAndName(ctx, arg)
+}
+
 func (q *querier) GetUserStatusCounts(ctx context.Context, arg database.GetUserStatusCountsParams) ([]database.GetUserStatusCountsRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUser); err != nil {
 		return nil, err
@@ -5820,6 +5843,14 @@ func (q *querier) InsertUserLink(ctx context.Context, arg database.InsertUserLin
 	return q.db.InsertUserLink(ctx, arg)
 }
 
+func (q *querier) InsertUserSkill(ctx context.Context, arg database.InsertUserSkillParams) (database.UserSkill, error) {
+	obj := rbac.ResourceUserSkill.WithOwner(arg.UserID.String())
+	if err := q.authorizeContext(ctx, policy.ActionCreate, obj); err != nil {
+		return database.UserSkill{}, err
+	}
+	return q.db.InsertUserSkill(ctx, arg)
+}
+
 func (q *querier) InsertVolumeResourceMonitor(ctx context.Context, arg database.InsertVolumeResourceMonitorParams) (database.WorkspaceAgentVolumeResourceMonitor, error) {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceWorkspaceAgentResourceMonitor); err != nil {
 		return database.WorkspaceAgentVolumeResourceMonitor{}, err
@@ -6177,6 +6208,14 @@ func (q *querier) ListUserSecretsWithValues(ctx context.Context, userID uuid.UUI
 		return nil, err
 	}
 	return q.db.ListUserSecretsWithValues(ctx, userID)
+}
+
+func (q *querier) ListUserSkillMetadataByUserID(ctx context.Context, userID uuid.UUID) ([]database.ListUserSkillMetadataByUserIDRow, error) {
+	obj := rbac.ResourceUserSkill.WithOwner(userID.String())
+	if err := q.authorizeContext(ctx, policy.ActionRead, obj); err != nil {
+		return nil, err
+	}
+	return q.db.ListUserSkillMetadataByUserID(ctx, userID)
 }
 
 func (q *querier) ListWorkspaceAgentPortShares(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkspaceAgentPortShare, error) {
@@ -7484,6 +7523,14 @@ func (q *querier) UpdateUserShellToolDisplayMode(ctx context.Context, arg databa
 		return "", err
 	}
 	return q.db.UpdateUserShellToolDisplayMode(ctx, arg)
+}
+
+func (q *querier) UpdateUserSkillByUserIDAndName(ctx context.Context, arg database.UpdateUserSkillByUserIDAndNameParams) (database.UserSkill, error) {
+	obj := rbac.ResourceUserSkill.WithOwner(arg.UserID.String())
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, obj); err != nil {
+		return database.UserSkill{}, err
+	}
+	return q.db.UpdateUserSkillByUserIDAndName(ctx, arg)
 }
 
 func (q *querier) UpdateUserStatus(ctx context.Context, arg database.UpdateUserStatusParams) (database.User, error) {

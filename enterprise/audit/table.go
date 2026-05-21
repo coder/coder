@@ -34,6 +34,7 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"AuditableGroupAiBudget": {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"Chat":                   {codersdk.AuditActionCreate, codersdk.AuditActionWrite}, // chats get 'archived' by users, not deleted.
 	"UserSecret":             {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"UserSkill":              {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 }
 
 type Action string
@@ -394,7 +395,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 	&database.AIProviderKey{}: {
 		"id":             ActionTrack,
 		"provider_id":    ActionTrack,
-		"api_key":        ActionSecret, // Provider API key, never expose in audit diffs.
+		"api_key":        ActionTrack,  // Callers must pre-mask before auditing; the audit pipeline never sees plaintext.
 		"api_key_key_id": ActionIgnore, // dbcrypt key reference, derivable.
 		"created_at":     ActionIgnore, // Implicit; not useful in a diff.
 		"updated_at":     ActionIgnore, // Changes; not useful in a diff.
@@ -445,6 +446,15 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"dynamic_tools":         ActionIgnore, // Internal lifecycle.
 		"plan_mode":             ActionIgnore, // Can flip back and forth during a session.
 		"client_type":           ActionIgnore, // Set at creation.
+	},
+	&database.UserSkill{}: {
+		"id":          ActionTrack,
+		"user_id":     ActionTrack,
+		"name":        ActionTrack,
+		"description": ActionTrack,
+		"content":     ActionTrack,
+		"created_at":  ActionIgnore,
+		"updated_at":  ActionIgnore,
 	},
 	&database.UserSecret{}: {
 		"id":          ActionTrack,

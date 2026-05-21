@@ -817,6 +817,14 @@ func (m queryMetricsStore) DeleteUserSecretByUserIDAndName(ctx context.Context, 
 	return r0, r1
 }
 
+func (m queryMetricsStore) DeleteUserSkillByUserIDAndName(ctx context.Context, arg database.DeleteUserSkillByUserIDAndNameParams) (database.UserSkill, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteUserSkillByUserIDAndName(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteUserSkillByUserIDAndName").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteUserSkillByUserIDAndName").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) DeleteWebpushSubscriptionByUserIDAndEndpoint(ctx context.Context, arg database.DeleteWebpushSubscriptionByUserIDAndEndpointParams) error {
 	start := time.Now()
 	r0 := m.s.DeleteWebpushSubscriptionByUserIDAndEndpoint(ctx, arg)
@@ -1041,9 +1049,9 @@ func (m queryMetricsStore) GetAIProviderKeyByID(ctx context.Context, id uuid.UUI
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetAIProviderKeys(ctx context.Context) ([]database.AIProviderKey, error) {
+func (m queryMetricsStore) GetAIProviderKeys(ctx context.Context, includeDeleted bool) ([]database.AIProviderKey, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetAIProviderKeys(ctx)
+	r0, r1 := m.s.GetAIProviderKeys(ctx, includeDeleted)
 	m.queryLatencies.WithLabelValues("GetAIProviderKeys").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIProviderKeys").Inc()
 	return r0, r1
@@ -1950,6 +1958,14 @@ func (m queryMetricsStore) GetGroupMembersCountByGroupID(ctx context.Context, ar
 	r0, r1 := m.s.GetGroupMembersCountByGroupID(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetGroupMembersCountByGroupID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetGroupMembersCountByGroupID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetGroupMembersCountByGroupIDs(ctx context.Context, arg database.GetGroupMembersCountByGroupIDsParams) ([]database.GetGroupMembersCountByGroupIDsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetGroupMembersCountByGroupIDs(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetGroupMembersCountByGroupIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetGroupMembersCountByGroupIDs").Inc()
 	return r0, r1
 }
 
@@ -3097,6 +3113,14 @@ func (m queryMetricsStore) GetUserShellToolDisplayMode(ctx context.Context, user
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetUserSkillByUserIDAndName(ctx context.Context, arg database.GetUserSkillByUserIDAndNameParams) (database.UserSkill, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserSkillByUserIDAndName(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetUserSkillByUserIDAndName").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserSkillByUserIDAndName").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetUserStatusCounts(ctx context.Context, arg database.GetUserStatusCountsParams) ([]database.GetUserStatusCountsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserStatusCounts(ctx, arg)
@@ -4121,6 +4145,14 @@ func (m queryMetricsStore) InsertUserLink(ctx context.Context, arg database.Inse
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertUserSkill(ctx context.Context, arg database.InsertUserSkillParams) (database.UserSkill, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertUserSkill(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertUserSkill").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertUserSkill").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertVolumeResourceMonitor(ctx context.Context, arg database.InsertVolumeResourceMonitorParams) (database.WorkspaceAgentVolumeResourceMonitor, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertVolumeResourceMonitor(ctx, arg)
@@ -4430,6 +4462,14 @@ func (m queryMetricsStore) ListUserSecretsWithValues(ctx context.Context, userID
 	r0, r1 := m.s.ListUserSecretsWithValues(ctx, userID)
 	m.queryLatencies.WithLabelValues("ListUserSecretsWithValues").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListUserSecretsWithValues").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) ListUserSkillMetadataByUserID(ctx context.Context, userID uuid.UUID) ([]database.ListUserSkillMetadataByUserIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListUserSkillMetadataByUserID(ctx, userID)
+	m.queryLatencies.WithLabelValues("ListUserSkillMetadataByUserID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListUserSkillMetadataByUserID").Inc()
 	return r0, r1
 }
 
@@ -5350,6 +5390,14 @@ func (m queryMetricsStore) UpdateUserShellToolDisplayMode(ctx context.Context, a
 	r0, r1 := m.s.UpdateUserShellToolDisplayMode(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateUserShellToolDisplayMode").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUserShellToolDisplayMode").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateUserSkillByUserIDAndName(ctx context.Context, arg database.UpdateUserSkillByUserIDAndNameParams) (database.UserSkill, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateUserSkillByUserIDAndName(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateUserSkillByUserIDAndName").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateUserSkillByUserIDAndName").Inc()
 	return r0, r1
 }
 

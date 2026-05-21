@@ -8,6 +8,7 @@ import (
 	"charm.land/fantasy"
 	"golang.org/x/xerrors"
 
+	stringutil "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/codersdk"
@@ -29,9 +30,11 @@ func (rt *Runtime) RunAdvisor(
 ) (AdvisorResult, error) {
 	// Model, MaxUsesPerRun, and MaxOutputTokens are validated by NewRuntime.
 	// Runtime fields are unexported so callers cannot bypass that.
-	if strings.TrimSpace(question) == "" {
+	question = strings.TrimSpace(question)
+	if question == "" {
 		return AdvisorResult{}, xerrors.New("advisor question is required")
 	}
+	question = stringutil.Truncate(question, advisorQuestionMaxRunes)
 
 	if !rt.tryAcquire() {
 		return AdvisorResult{
