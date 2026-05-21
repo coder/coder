@@ -512,13 +512,16 @@ export function useDesktopConnection({
 	}, [activated, chatId, syncRemoteClipboardToLocal]);
 
 	// Sync the scaleViewport and resizeSession options to the RFB
-	// instance whenever they change, without triggering a reconnect.
+	// instance whenever they change. rfbInstance triggers the effect
+	// when the connection state changes; we mutate via the ref to
+	// avoid React Compiler immutability checks on the state value.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: rfbInstance triggers re-run on connect/disconnect
 	useEffect(() => {
 		if (rfbRef.current) {
 			rfbRef.current.scaleViewport = scaleViewport;
 			rfbRef.current.resizeSession = resizeSession;
 		}
-	}, [scaleViewport, resizeSession]);
+	}, [rfbInstance, scaleViewport, resizeSession]);
 
 	return {
 		status,

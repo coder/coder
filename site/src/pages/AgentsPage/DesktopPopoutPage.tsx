@@ -132,7 +132,7 @@ export default function DesktopPopoutPage() {
 				ref={(el) => {
 					if (el) attach(el);
 				}}
-				className="min-h-0 flex-1"
+				className="min-h-0 flex-1 overflow-hidden"
 			/>
 		</div>
 	);
