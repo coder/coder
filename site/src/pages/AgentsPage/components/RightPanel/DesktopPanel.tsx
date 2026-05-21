@@ -294,12 +294,16 @@ export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
 				desktopApps={desktopApps}
 				onLaunchDesktopApp={onLaunchDesktopApp}
 			/>
-			{/* Scrollable container for native zoom panning */}
+			{/* VNC container. In native mode, overflow is scrollable
+				    (wheel handler pans) with hidden scrollbars. In fit
+				    mode, resizeSession matches the remote desktop to this
+				    container so no overflow occurs. */}
 			<div
 				ref={scrollRef}
 				className={cn(
-					"min-h-0 flex-1",
-					scaleMode === "native" ? "overflow-auto" : "overflow-hidden",
+					"min-h-0 flex-1 overflow-hidden",
+					scaleMode === "native" &&
+						"overflow-scroll [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
 				)}
 			>
 				<div
