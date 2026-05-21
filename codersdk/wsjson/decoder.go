@@ -3,6 +3,7 @@ package wsjson
 import (
 	"context"
 	"encoding/json"
+	"sync"
 	"sync/atomic"
 
 	"cdr.dev/slog/v3"
@@ -16,6 +17,8 @@ type Decoder[T any] struct {
 	cancel     context.CancelFunc
 	chanCalled atomic.Bool
 	logger     slog.Logger
+	closeOnce  sync.Once
+	closeErr   error
 }
 
 // Chan returns a `chan` that you can read incoming messages from. The returned
@@ -31,7 +34,7 @@ func (d *Decoder[T]) Chan() <-chan T {
 	values := make(chan T, 1)
 	go func() {
 		defer close(values)
-		defer d.conn.Close(websocket.StatusGoingAway, "")
+		defer func() { _ = d.closeConn(websocket.StatusGoingAway, "") }()
 		for {
 			// we don't use d.ctx here because it only gets canceled after closing the connection
 			// and a "connection closed" type error is more clear than context canceled.
@@ -62,9 +65,22 @@ func (d *Decoder[T]) Chan() <-chan T {
 	return values
 }
 
+// closeConn closes the underlying websocket connection. It is safe to call
+// multiple times; only the first call sends a close frame. Subsequent calls
+// return the result of the first close.
+func (d *Decoder[T]) closeConn(code websocket.StatusCode, reason string) error {
+	d.closeOnce.Do(func() {
+		d.closeErr = d.conn.Close(code, reason)
+	})
+	return d.closeErr
+}
+
+// Close closes the decoder and the underlying websocket connection. It is safe
+// to call multiple times or concurrently with the Chan goroutine.
+//
 // nolint: revive // complains that Encoder has the same function name
 func (d *Decoder[T]) Close() error {
-	err := d.conn.Close(websocket.StatusNormalClosure, "")
+	err := d.closeConn(websocket.StatusNormalClosure, "")
 	d.cancel()
 	return err
 }
