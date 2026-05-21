@@ -597,10 +597,7 @@ export const router = createBrowserRouter(
 								path="observability"
 								element={<ObservabilitySettingsPage />}
 							/>
-							<Route
-								path="ai-governance"
-								element={<AIGovernanceSettingsPage />}
-							/>
+
 							<Route path="network" element={<NetworkSettingsPage />} />
 							<Route path="userauth" element={<UserAuthSettingsPage />} />
 							<Route
@@ -695,12 +692,15 @@ export const router = createBrowserRouter(
 					</Route>
 
 					<Route path="/ai/settings" element={<AISettingsLayout />}>
+						<Route element={<DeploymentConfigProvider />}>
+							<Route path="governance" element={<AIGovernanceSettingsPage />} />
+						</Route>
 						<Route index element={<AISettingsProvidersPage />} />
+						<Route path="add" element={<AISettingsAddProviderPage />} />
 						<Route
 							path=":providerId"
 							element={<AISettingsUpdateProviderPage />}
 						/>
-						<Route path="add" element={<AISettingsAddProviderPage />} />
 					</Route>
 
 					<Route path="/health" element={<HealthLayout />}>

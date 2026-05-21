@@ -18616,6 +18616,101 @@ None
 | `disable_direct_connections` | boolean                            | false    |              |             |
 | `hostname_suffix`            | string                             | false    |              |             |
 
+## workspacesdk.AgentUpdate
+
+```json
+{
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "lifecycle": "created"
+}
+```
+
+### Properties
+
+| Name        | Type                                                                 | Required | Restrictions | Description |
+|-------------|----------------------------------------------------------------------|----------|--------------|-------------|
+| `id`        | string                                                               | false    |              |             |
+| `lifecycle` | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle) | false    |              |             |
+
+## workspacesdk.BuildUpdate
+
+```json
+{
+  "job_status": "pending",
+  "transition": "start"
+}
+```
+
+### Properties
+
+| Name         | Type                                                           | Required | Restrictions | Description |
+|--------------|----------------------------------------------------------------|----------|--------------|-------------|
+| `job_status` | [codersdk.ProvisionerJobStatus](#codersdkprovisionerjobstatus) | false    |              |             |
+| `transition` | [codersdk.WorkspaceTransition](#codersdkworkspacetransition)   | false    |              |             |
+
+## workspacesdk.ConnectionWatchEvent
+
+```json
+{
+  "agent_update": {
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "lifecycle": "created"
+  },
+  "build_update": {
+    "job_status": "pending",
+    "transition": "start"
+  },
+  "error": {
+    "code": 0,
+    "details": "string",
+    "message": "string",
+    "retryable": true
+  }
+}
+```
+
+### Properties
+
+| Name           | Type                                                 | Required | Restrictions | Description |
+|----------------|------------------------------------------------------|----------|--------------|-------------|
+| `agent_update` | [workspacesdk.AgentUpdate](#workspacesdkagentupdate) | false    |              |             |
+| `build_update` | [workspacesdk.BuildUpdate](#workspacesdkbuildupdate) | false    |              |             |
+| `error`        | [workspacesdk.WatchError](#workspacesdkwatcherror)   | false    |              |             |
+
+## workspacesdk.WatchError
+
+```json
+{
+  "code": 0,
+  "details": "string",
+  "message": "string",
+  "retryable": true
+}
+```
+
+### Properties
+
+| Name        | Type                                                       | Required | Restrictions | Description |
+|-------------|------------------------------------------------------------|----------|--------------|-------------|
+| `code`      | [workspacesdk.WatchErrorCode](#workspacesdkwatcherrorcode) | false    |              |             |
+| `details`   | string                                                     | false    |              |             |
+| `message`   | string                                                     | false    |              |             |
+| `retryable` | boolean                                                    | false    |              |             |
+
+## workspacesdk.WatchErrorCode
+
+```json
+0
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                          |
+|-----------------------------------|
+| `0`, `1`, `2`, `3`, `4`, `5`, `6` |
+
 ## wsproxysdk.CryptoKeysResponse
 
 ```json

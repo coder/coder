@@ -3189,6 +3189,20 @@ class ExperimentalApiMethods {
 	};
 
 	// Chat API methods
+	getChatACL = async (chatId: string): Promise<TypesGen.ChatACL> => {
+		const response = await this.axios.get<TypesGen.ChatACL>(
+			`/api/experimental/chats/${chatId}/acl`,
+		);
+		return response.data;
+	};
+
+	updateChatACL = async (
+		chatId: string,
+		req: TypesGen.UpdateChatACL,
+	): Promise<void> => {
+		await this.axios.patch(`/api/experimental/chats/${chatId}/acl`, req);
+	};
+
 	getChats = async (req?: {
 		after_id?: string;
 		limit?: number;

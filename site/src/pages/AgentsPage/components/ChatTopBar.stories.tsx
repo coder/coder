@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useLocation } from "react-router";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { PopoverContent } from "#/components/Popover/Popover";
 import { ChatTopBar } from "./ChatTopBar";
 
 // Probe element rendered at /agents to verify search params are preserved
@@ -277,6 +278,52 @@ export const PreservesArchivedFilterOnMobileBack: Story = {
 				"?archived=archived",
 			);
 		});
+	},
+};
+
+export const ShareChatButton: Story = {
+	args: {
+		renderChatSharingContent: () => (
+			<PopoverContent align="end">Share chat</PopoverContent>
+		),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.queryByText("Share")).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: "Share" }),
+		).not.toBeInTheDocument();
+
+		await userEvent.click(canvas.getByRole("button", { name: "Share chat" }));
+		const body = within(document.body);
+		expect(await body.findByText("Share chat")).toBeInTheDocument();
+
+		await userEvent.click(canvas.getByLabelText("Open agent actions"));
+		await body.findByText("Generate new title");
+		expect(
+			body.queryByRole("menuitem", { name: "Share" }),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const ShareChatButtonHiddenWithoutPermission: Story = {
+	args: {
+		renderChatSharingContent: undefined,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.queryByRole("button", { name: "Share chat" }),
+		).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: "Share" }),
+		).not.toBeInTheDocument();
+		await userEvent.click(canvas.getByLabelText("Open agent actions"));
+		const body = within(document.body);
+		await body.findByText("Generate new title");
+		expect(
+			body.queryByRole("menuitem", { name: "Share" }),
+		).not.toBeInTheDocument();
 	},
 };
 

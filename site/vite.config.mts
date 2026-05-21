@@ -26,6 +26,7 @@ const plugins: PluginOption[] = [
 	babel({ presets: [compilerPreset] }),
 	checker({
 		typescript: true,
+		overlay: false,
 	}),
 ];
 
