@@ -266,14 +266,9 @@ const DefaultSkillMetaFile = "SKILL.md"
 // ReadSkillOptions configures the read_skill and read_skill_file
 // tools.
 type ReadSkillOptions struct {
-	// GetWorkspaceConn returns the active workspace connection for workspace skill reads.
-	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
-	// GetSkills returns the currently available workspace skills.
-	GetSkills func() []SkillMeta
-
-	// ResolveAlias maps a requested skill alias to its canonical skill and source.
-	ResolveAlias func(string) (skillspkg.ResolvedSkill, error)
-	// LoadPersonalSkillBody loads the parsed body for a canonical personal skill name.
+	GetWorkspaceConn      func(context.Context) (workspacesdk.AgentConn, error)
+	GetSkills             func() []SkillMeta
+	ResolveAlias          func(string) (skillspkg.ResolvedSkill, error)
 	LoadPersonalSkillBody func(context.Context, string) (skillspkg.ParsedSkill, error)
 }
 

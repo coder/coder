@@ -24,8 +24,6 @@ import {
 	parsePersonalSkillMarkdown,
 } from "./utils/personalSkills";
 
-const user = "me";
-
 const emptySkillFormValues: PersonalSkillFormValues = {
 	name: "",
 	description: "",
@@ -38,9 +36,6 @@ type DialogState =
 	| { type: "delete"; skill: UserSkillMetadata; submittedName?: string }
 	| null;
 
-const errorStatus = (error: unknown): number | undefined =>
-	isAxiosError(error) ? error.response?.status : undefined;
-
 const personalSkillError = (
 	error: unknown,
 	fallback: string,
@@ -49,7 +44,7 @@ const personalSkillError = (
 		return undefined;
 	}
 
-	const status = errorStatus(error);
+	const status = isAxiosError(error) ? error.response?.status : undefined;
 	let statusFallback = fallback;
 	if (status === 400) {
 		statusFallback = "Skill content is invalid.";
@@ -70,22 +65,22 @@ const personalSkillError = (
 const AgentSettingsPersonalSkillsPage: FC = () => {
 	const queryClient = useQueryClient();
 	const [dialogState, setDialogState] = useState<DialogState>(null);
-	const skillsQuery = useQuery(userSkills(user));
+	const skillsQuery = useQuery(userSkills());
 	const skills = skillsQuery.data ?? [];
 	const existingNames = skills.map((skill) =>
 		skill.name.toLocaleLowerCase("en-US"),
 	);
 	const editName = dialogState?.type === "edit" ? dialogState.name : "";
 	const editSkillQuery = useQuery({
-		...userSkill(user, editName),
+		...userSkill(editName),
 		enabled: Boolean(editName),
 	});
 
-	const createMutationOptions = createUserSkill(queryClient, user);
+	const createMutationOptions = createUserSkill(queryClient);
 	const createMutation = useMutation({
 		...createMutationOptions,
 		onSuccess: async (_skill, variables) => {
-			await createMutationOptions.onSuccess?.();
+			await createMutationOptions.onSuccess?.(_skill);
 			setDialogState((current) =>
 				current?.type === "create" &&
 				current.submittedContent === variables.content
@@ -96,7 +91,7 @@ const AgentSettingsPersonalSkillsPage: FC = () => {
 		},
 	});
 
-	const updateMutationOptions = updateUserSkill(queryClient, user);
+	const updateMutationOptions = updateUserSkill(queryClient);
 	const updateMutation = useMutation({
 		...updateMutationOptions,
 		onSuccess: async (skill, variables) => {
@@ -111,7 +106,7 @@ const AgentSettingsPersonalSkillsPage: FC = () => {
 			toast.success("Personal skill saved.");
 		},
 		onError: (error, variables) => {
-			if (errorStatus(error) === 404) {
+			if (isAxiosError(error) && error.response?.status === 404) {
 				toast.info("That skill was deleted while you were editing it.");
 				setDialogState((current) =>
 					current?.type === "edit" &&
@@ -125,7 +120,7 @@ const AgentSettingsPersonalSkillsPage: FC = () => {
 		},
 	});
 
-	const deleteMutationOptions = deleteUserSkill(queryClient, user);
+	const deleteMutationOptions = deleteUserSkill(queryClient);
 	const deleteMutation = useMutation({
 		...deleteMutationOptions,
 		onSuccess: async (data, variables) => {
@@ -140,7 +135,7 @@ const AgentSettingsPersonalSkillsPage: FC = () => {
 			toast.success("Personal skill deleted.");
 		},
 		onError: (error, variables) => {
-			if (errorStatus(error) === 404) {
+			if (isAxiosError(error) && error.response?.status === 404) {
 				setDialogState((current) =>
 					current?.type === "delete" &&
 					current.skill.name === variables &&

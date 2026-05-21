@@ -24,17 +24,21 @@ var markdownCommentRe = regexp.MustCompile(`<!--[\s\S]*?-->`)
 // the frontmatter is missing a required name field.
 var ErrFrontmatterNameRequired = xerrors.New("frontmatter missing required 'name' field")
 
-func parseFrontmatterValue(value string) string {
-	if len(value) < 2 || value[0] != value[len(value)-1] {
+func unquoteFrontmatterScalar(value string) string {
+	if len(value) < 2 {
+		return value
+	}
+
+	quote := value[0]
+	if quote != value[len(value)-1] {
 		return value
 	}
 
 	inner := value[1 : len(value)-1]
-	switch value[0] {
+	switch quote {
 	case '"':
-		// SKILL.md frontmatter only accepts scalar values here. For
-		// double-quoted values, support the two escapes needed for quoted
-		// text and Windows paths without interpreting other YAML escapes.
+		// This parser supports a small SKILL.md scalar subset, not full
+		// YAML. Double quotes only unescape quoted text and Windows paths.
 		return strings.NewReplacer(`\"`, `"`, `\\`, `\`).Replace(inner)
 	case '\'':
 		return inner
@@ -81,7 +85,7 @@ func ParseSkillFrontmatter(content string) (name, description, body string, err 
 		}
 		key = strings.TrimSpace(key)
 		value = strings.TrimSpace(value)
-		value = parseFrontmatterValue(value)
+		value = unquoteFrontmatterScalar(value)
 		switch strings.ToLower(key) {
 		case "name":
 			name = value

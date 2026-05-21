@@ -22,6 +22,7 @@ import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { cn } from "#/utils/cn";
+import { formatKiB } from "#/utils/fileSize";
 import {
 	buildPersonalSkillMarkdown,
 	getPersonalSkillContentSizeBytes,
@@ -47,13 +48,6 @@ interface PersonalSkillEditorProps {
 	onOpenChange: (open: boolean) => void;
 	onSubmit: (values: PersonalSkillFormValues, content: string) => void;
 }
-
-const formatSize = (bytes: number) => `${(bytes / 1024).toFixed(1)} KiB`;
-
-const getFieldError = (
-	touched: boolean | undefined,
-	error: string | undefined,
-): string | undefined => (touched ? error : undefined);
 
 type ImportStatus = {
 	kind: "success" | "error";
@@ -123,7 +117,7 @@ export const PersonalSkillEditor: FC<PersonalSkillEditorProps> = ({
 			return {};
 		}
 		return {
-			body: `Skill content must be ${formatSize(PERSONAL_SKILL_MAX_SIZE_BYTES)} or smaller.`,
+			body: `Skill content must be ${formatKiB(PERSONAL_SKILL_MAX_SIZE_BYTES)} or smaller.`,
 		};
 	};
 
@@ -211,12 +205,11 @@ export const PersonalSkillEditor: FC<PersonalSkillEditorProps> = ({
 
 	const content = buildPersonalSkillMarkdown(form.values);
 	const sizeBytes = getPersonalSkillContentSizeBytes(content);
-	const nameError = getFieldError(form.touched.name, form.errors.name);
-	const descriptionError = getFieldError(
-		form.touched.description,
-		form.errors.description,
-	);
-	const bodyError = getFieldError(form.touched.body, form.errors.body);
+	const nameError = form.touched.name ? form.errors.name : undefined;
+	const descriptionError = form.touched.description
+		? form.errors.description
+		: undefined;
+	const bodyError = form.touched.body ? form.errors.body : undefined;
 	const isTooLarge = sizeBytes > PERSONAL_SKILL_MAX_SIZE_BYTES;
 	const isNearLimit = sizeBytes > PERSONAL_SKILL_MAX_SIZE_BYTES * 0.9;
 	const title = isCreate ? "Create personal skill" : "Edit personal skill";
@@ -389,8 +382,8 @@ export const PersonalSkillEditor: FC<PersonalSkillEditorProps> = ({
 									isTooLarge && "text-content-destructive",
 								)}
 							>
-								{formatSize(sizeBytes)} of{" "}
-								{formatSize(PERSONAL_SKILL_MAX_SIZE_BYTES)}
+								{formatKiB(sizeBytes)} of{" "}
+								{formatKiB(PERSONAL_SKILL_MAX_SIZE_BYTES)}
 								used.
 							</p>
 						</div>

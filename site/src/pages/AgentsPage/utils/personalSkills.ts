@@ -14,7 +14,7 @@ export type PersonalSkillFormValues = {
 
 class PersonalSkillMarkdownError extends Error {}
 
-const parseFrontmatterValue = (value: string): string => {
+const unquoteFrontmatterScalar = (value: string): string => {
 	if (value.length < 2) {
 		return value;
 	}
@@ -35,6 +35,9 @@ const parseFrontmatterValue = (value: string): string => {
 	return value;
 };
 
+// This parser is only for projecting SKILL.md content into form fields.
+// The API reparses and validates saved content on submit, so this mirrors the
+// backend scalar subset instead of accepting full YAML semantics.
 export const parsePersonalSkillMarkdown = (
 	content: string,
 ): PersonalSkillFormValues => {
@@ -62,7 +65,9 @@ export const parsePersonalSkillMarkdown = (
 			continue;
 		}
 		const key = line.slice(0, separatorIndex).trim().toLowerCase();
-		const value = parseFrontmatterValue(line.slice(separatorIndex + 1).trim());
+		const value = unquoteFrontmatterScalar(
+			line.slice(separatorIndex + 1).trim(),
+		);
 		if (key === "name") {
 			name = value;
 		} else if (key === "description") {
