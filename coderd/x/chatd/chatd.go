@@ -1907,11 +1907,11 @@ func (p *Server) ClearChatContext(ctx context.Context, chatID uuid.UUID) error {
 		// status with non-empty queue is also possible in the transient
 		// window between insert and worker pickup; the more specific
 		// conflict wins there too.
-		queuedMessages, err := tx.GetChatQueuedMessages(ctx, chatID)
+		hasQueuedMessages, err := tx.ChatHasQueuedMessages(ctx, chatID)
 		if err != nil {
-			return xerrors.Errorf("get queued messages: %w", err)
+			return xerrors.Errorf("check queued messages: %w", err)
 		}
-		if len(queuedMessages) > 0 {
+		if hasQueuedMessages {
 			return ErrChatHasQueuedMessages
 		}
 
