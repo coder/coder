@@ -13,9 +13,8 @@ import (
 	"cdr.dev/slog/v3"
 )
 
-// buildServerOptions constructs the NATS server Options. The embedded
-// server runs as a standalone (non-clustered) instance and binds only
-// a loopback client listener for wrapper-owned pub/sub connections.
+// buildServerOptions constructs the embedded NATS server options. The
+// server runs standalone with a loopback random client listener.
 func buildServerOptions(opts Options) (*natsserver.Options, error) {
 	serverName := opts.ServerName
 	if serverName == "" {
@@ -25,9 +24,8 @@ func buildServerOptions(opts Options) (*natsserver.Options, error) {
 	if maxPayload == 0 {
 		maxPayload = natsserver.MAX_PAYLOAD_SIZE
 	}
-	// MaxPending: zero means use DefaultMaxPending (1 GiB). Negative
-	// means use the nats-server default by leaving the field at zero
-	// (the server fills in 64 MiB during processOptions).
+	// Zero => DefaultMaxPending; negative => leave zero so nats-server
+	// applies its own default.
 	maxPending := opts.MaxPending
 	switch {
 	case maxPending == 0:
@@ -45,8 +43,6 @@ func buildServerOptions(opts Options) (*natsserver.Options, error) {
 		NoSigs:     true,
 	}
 
-	// Bind a loopback random client listener: the wrapper's publishPool
-	// and subscribePool dial this listener via connectClient.
 	sopts.DontListen = false
 	sopts.Host = "127.0.0.1"
 	sopts.Port = natsserver.RANDOM_PORT
@@ -87,22 +83,10 @@ type connHandlers struct {
 	errH          natsgo.ErrHandler
 }
 
-// connectClient builds a NATS client that dials the embedded server's
-// client listener over TCP loopback. The wrapper opens one or more
-// publisher conns plus one or more subscriber conns per *Pubsub: the
-// publisher pool carries all publishes (sized by Options.PublishConns),
-// and the subscriber pool carries all subscriptions (sized by
-// Options.SubscribeConns), with each underlying shared
-// *natsgo.Subscription assigned to one subscriber conn by a stable
-// hash of its subject. TCP loopback gives the server-to-client edge a
-// real kernel socket buffer, which is what makes multiplexing many
-// subscriptions on each subscriber conn viable.
-// See docs/internal/wrapper-conn-pool-plan.md.
-//
-// connName is applied via natsgo.Name and identifies the connection in
-// server logs (e.g., "coder-pubsub-pub", "coder-pubsub-pub-0",
-// "coder-pubsub-sub", or "coder-pubsub-sub-0"). If opts.ClientName is
-// set, it takes precedence.
+// connectClient dials the embedded server's client listener over TCP
+// loopback (or net.Pipe when opts.InProcess is true) and returns the
+// resulting *natsgo.Conn. connName identifies the connection in server
+// logs; opts.ClientName overrides it when set.
 func connectClient(ns *natsserver.Server, opts Options, handlers connHandlers, connName string) (*natsgo.Conn, error) {
 	name := opts.ClientName
 	if name == "" {
@@ -131,9 +115,8 @@ func connectClient(ns *natsserver.Server, opts Options, handlers connHandlers, c
 	}
 	url := ns.ClientURL()
 	if opts.InProcess {
-		// InProcessServer overrides the URL dial with a net.Pipe
-		// directly into the server. The url argument to Connect is
-		// ignored in that case but must still be syntactically valid.
+		// InProcessServer overrides URL dialing with a net.Pipe; the
+		// url argument is ignored but must still be syntactically valid.
 		connOpts = append(connOpts, natsgo.InProcessServer(ns))
 	}
 	nc, err := natsgo.Connect(url, connOpts...)

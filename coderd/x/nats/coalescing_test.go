@@ -63,9 +63,8 @@ func listenerCountForSubject(p *Pubsub, subject string) int {
 	return len(ss.listeners)
 }
 
-// subjectFor returns the NATS subject the wrapper publishes under for
-// the given event name. Since the wrapper now uses event names directly
-// as subjects, this is the identity function; it is kept to clarify
+// subjectFor returns the NATS subject for the given event name. The
+// wrapper uses event names directly as subjects; this helper clarifies
 // intent at call sites.
 func subjectFor(t *testing.T, event string) string {
 	t.Helper()
