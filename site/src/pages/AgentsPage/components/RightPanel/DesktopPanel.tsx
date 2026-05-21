@@ -1,6 +1,7 @@
 import { ExternalLinkIcon } from "lucide-react";
 import type { FC } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { cn } from "#/utils/cn";
@@ -210,33 +211,6 @@ export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
 	desktopApps,
 	onLaunchDesktopApp,
 }) => {
-	const scrollRef = useRef<HTMLDivElement>(null);
-
-	// Intercept wheel events in the capture phase before noVNC can
-	// forward them to the remote desktop (which triggers XFCE
-	// workspace switching). In native mode, translate the delta
-	// into scroll offsets for panning. In fit mode, just block.
-	useEffect(() => {
-		const el = scrollRef.current;
-		if (!el) return;
-
-		const handleWheel = (e: WheelEvent) => {
-			e.preventDefault();
-			e.stopPropagation();
-			if (scaleMode === "native") {
-				el.scrollLeft += e.deltaX || e.deltaY;
-				el.scrollTop += e.deltaY;
-			}
-		};
-
-		el.addEventListener("wheel", handleWheel, {
-			passive: false,
-			capture: true,
-		});
-		return () =>
-			el.removeEventListener("wheel", handleWheel, { capture: true });
-	}, [scaleMode]);
-
 	if (status === "connecting") {
 		return (
 			<div className="flex h-full flex-col items-center justify-center gap-2 text-content-secondary">
@@ -293,18 +267,7 @@ export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
 				desktopApps={desktopApps}
 				onLaunchDesktopApp={onLaunchDesktopApp}
 			/>
-			{/* VNC container. In fit mode, scaleViewport shrinks the
-			    desktop to fit. In native mode, the desktop overflows
-			    and the wheel handler pans with hidden scrollbars. */}
-			<div
-				ref={scrollRef}
-				className={cn(
-					"min-h-0 flex-1",
-					scaleMode === "native"
-						? "overflow-scroll [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-						: "overflow-hidden",
-				)}
-			>
+			<div className="min-h-0 flex-1 overflow-hidden">
 				<div
 					ref={(el) => {
 						if (el) attach(el);
