@@ -433,7 +433,62 @@ func TestOpenVSCodeDevContainer(t *testing.T) {
 			agentcontainers.WithContainerLabelIncludeFilter("coder.test", t.Name()),
 		)
 	})
-	coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).AgentNames([]string{parentAgentName, devcontainerName}).Wait()
+	resources := coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).AgentNames([]string{parentAgentName}).Wait()
+
+	var parentAgentID uuid.UUID
+	for _, resource := range resources {
+		for _, workspaceAgent := range resource.Agents {
+			if workspaceAgent.Name == parentAgentName {
+				parentAgentID = workspaceAgent.ID
+			}
+		}
+	}
+	require.NotEqual(t, uuid.Nil, parentAgentID)
+
+	// WorkspaceAgentWaiter only observes coderd state. The CLI exercises
+	// the parent agent container API through tailnet, so wait for that path
+	// before starting parallel open commands.
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		resp, err := client.WorkspaceAgentListContainers(ctx, parentAgentID, nil)
+		if err != nil {
+			t.Logf("list containers: %v", err)
+			return false
+		}
+		var devcontainerAgentID uuid.UUID
+		for _, dc := range resp.Devcontainers {
+			if dc.ID != devcontainerID {
+				continue
+			}
+			if dc.Status != codersdk.WorkspaceAgentDevcontainerStatusRunning {
+				return false
+			}
+			if dc.Container == nil || dc.Container.ID != containerID {
+				return false
+			}
+			if dc.Agent == nil || dc.Agent.Name != devcontainerName {
+				return false
+			}
+			devcontainerAgentID = dc.Agent.ID
+		}
+		if devcontainerAgentID == uuid.Nil {
+			return false
+		}
+
+		workspace, err := client.Workspace(ctx, workspace.ID)
+		if err != nil {
+			t.Logf("get workspace: %v", err)
+			return false
+		}
+		for _, resource := range workspace.LatestBuild.Resources {
+			for _, workspaceAgent := range resource.Agents {
+				if workspaceAgent.ID == devcontainerAgentID && workspaceAgent.Status == codersdk.WorkspaceAgentConnected {
+					return true
+				}
+			}
+		}
+		return false
+	}, testutil.IntervalMedium, "devcontainer did not become ready")
 
 	insideWorkspaceEnv := map[string]string{
 		"CODER":                      "true",
