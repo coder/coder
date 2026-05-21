@@ -82,8 +82,17 @@ const ProvidersPageView: React.FC<ProvidersPageViewProps> = ({
 				<SettingsHeaderTitle>Providers</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Connect third-party LLM services like OpenAI, Anthropic, or Amazon
-					Bedrock. Each provider supplies models that users can select for their
-					conversations.
+					Bedrock. Providers configured here power Coder Agents, AI Gateway,
+					and other Coder features that use LLMs. By default, users can
+					supply their own keys for any provider.{" "}
+					<a
+						href="https://coder.com/docs/ai-coder/ai-gateway/auth#enable-or-disable-byok"
+						target="_blank"
+						rel="noreferrer"
+						className="text-content-link no-underline hover:underline"
+					>
+						Manage deployment-wide BYOK
+					</a>
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 			<Table className="table-fixed" aria-label="AI providers">
