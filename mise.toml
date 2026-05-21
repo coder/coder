@@ -1,5 +1,23 @@
 [settings]
 lockfile = true
+# Require installs to use pre-resolved URLs/checksums from mise.lock.
+# Stops `mise install` from rewriting the lockfile on individual dev
+# machines (the source of platform-asymmetric drift). Maintainers
+# refresh the lockfile with `mise lock --platform <list>`.
+locked = true
+# Pin the explicit set of platforms the lockfile tracks. Without this,
+# mise auto-locks "all common platforms plus the current one", which
+# varies per developer (e.g. macos-x64-baseline gets added by an x64
+# Mac user) and produces churn.
+lockfile_platforms = [
+  "linux-x64",
+  "linux-x64-musl",
+  "linux-arm64",
+  "linux-arm64-musl",
+  "macos-x64",
+  "macos-arm64",
+  "windows-x64",
+]
 
 [tools]
 # Languages and runtimes.
