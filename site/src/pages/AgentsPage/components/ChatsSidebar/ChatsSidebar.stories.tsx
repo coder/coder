@@ -143,7 +143,7 @@ const ChatsSidebarWithKeybindings = (
 
 	useAgentsPageKeybindings({
 		onNewAgent: args.onBeforeNewAgent ?? (() => {}),
-		onOpenSearch: () => handleSearchDialogOpenChange(true),
+		onToggleSearch: () => handleSearchDialogOpenChange(!isSearchDialogOpen),
 	});
 
 	return (
@@ -791,10 +791,26 @@ export const SearchDialogKeyboardShortcut: Story = {
 		await waitFor(() => {
 			expect(searchInput).toHaveFocus();
 		});
+
+		await userEvent.type(searchInput, "Fix");
+		await expect(searchInput).toHaveValue("Fix");
+
+		await userEvent.keyboard("{Control>}k{/Control}");
+		await waitFor(() => {
+			expect(
+				body.queryByRole("combobox", { name: "Search chats" }),
+			).not.toBeInTheDocument();
+		});
+
+		await userEvent.keyboard("{Control>}k{/Control}");
+		const reopenedSearchInput = await body.findByRole("combobox", {
+			name: "Search chats",
+		});
+		await expect(reopenedSearchInput).toHaveValue("");
 	},
 };
 
-export const SearchDialogKeyboardShortcutIgnoresRenameInput: Story = {
+export const SearchDialogKeyboardShortcutHandlesRenameInput: Story = {
 	render: ChatsSidebarWithKeybindings,
 	args: {
 		chats: [
@@ -828,12 +844,16 @@ export const SearchDialogKeyboardShortcutIgnoresRenameInput: Story = {
 		const input = await body.findByRole<HTMLInputElement>("textbox", {
 			name: "Chat title",
 		});
+		expect(input).toHaveFocus();
+
 		await userEvent.keyboard("{Control>}k{/Control}");
 
-		expect(input).toHaveFocus();
-		expect(
-			body.queryByRole("combobox", { name: "Search chats" }),
-		).not.toBeInTheDocument();
+		const searchInput = await body.findByRole("combobox", {
+			name: "Search chats",
+		});
+		await waitFor(() => {
+			expect(searchInput).toHaveFocus();
+		});
 	},
 };
 

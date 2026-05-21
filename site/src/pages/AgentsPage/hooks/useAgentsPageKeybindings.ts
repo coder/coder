@@ -5,27 +5,17 @@ import { isMac } from "#/utils/platform";
  * Global keyboard shortcuts for the Agents page.
  *
  * - Ctrl+N / Cmd+N: Create a new agent.
- * - Ctrl+K / Cmd+K: Open agent search.
+ * - Ctrl+K / Cmd+K: Toggle agent search.
  */
 export function useAgentsPageKeybindings({
 	onNewAgent,
-	onOpenSearch,
+	onToggleSearch,
 }: {
 	onNewAgent: () => void;
-	onOpenSearch?: () => void;
+	onToggleSearch?: () => void;
 }) {
 	useEffect(() => {
 		const handler = (event: KeyboardEvent) => {
-			// Ignore events originating from inputs / textareas / contenteditable
-			// so we don't hijack normal typing.
-			const target = event.target;
-			if (target instanceof HTMLElement) {
-				const tag = target.tagName;
-				if (tag === "INPUT" || tag === "TEXTAREA" || target.isContentEditable) {
-					return;
-				}
-			}
-
 			const isModifierPressed = isMac() ? event.metaKey : event.ctrlKey;
 			if (!isModifierPressed || event.altKey || event.shiftKey) {
 				return;
@@ -38,13 +28,13 @@ export function useAgentsPageKeybindings({
 				return;
 			}
 
-			if (key === "k" && onOpenSearch) {
+			if (key === "k" && onToggleSearch) {
 				event.preventDefault();
-				onOpenSearch();
+				onToggleSearch();
 			}
 		};
 
 		document.addEventListener("keydown", handler);
 		return () => document.removeEventListener("keydown", handler);
-	}, [onNewAgent, onOpenSearch]);
+	}, [onNewAgent, onToggleSearch]);
 }

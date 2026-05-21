@@ -627,7 +627,7 @@ const AgentsPage: FC = () => {
 
 	useAgentsPageKeybindings({
 		onNewAgent: handleNewAgent,
-		onOpenSearch: () => setIsSearchDialogOpen(true),
+		onToggleSearch: () => setIsSearchDialogOpen((open) => !open),
 	});
 
 	// Fetch workspace name for the confirmation dialog. Only

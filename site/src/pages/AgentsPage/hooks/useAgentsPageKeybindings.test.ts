@@ -29,34 +29,36 @@ describe("useAgentsPageKeybindings", () => {
 		vi.clearAllMocks();
 	});
 
-	it("opens search with Ctrl+K on non-macOS", () => {
+	it("toggles search with Ctrl+K on non-macOS", () => {
 		isMacMock.mockReturnValue(false);
 		const onNewAgent = vi.fn();
-		const onOpenSearch = vi.fn();
+		const onToggleSearch = vi.fn();
 
 		renderHook(() =>
 			useAgentsPageKeybindings({
 				onNewAgent,
-				onOpenSearch,
+				onToggleSearch,
 			}),
 		);
 
-		const event = dispatchKeyDown("k", { ctrlKey: true });
+		const firstEvent = dispatchKeyDown("k", { ctrlKey: true });
+		const secondEvent = dispatchKeyDown("k", { ctrlKey: true });
 
-		expect(event.defaultPrevented).toBe(true);
-		expect(onOpenSearch).toHaveBeenCalledTimes(1);
+		expect(firstEvent.defaultPrevented).toBe(true);
+		expect(secondEvent.defaultPrevented).toBe(true);
+		expect(onToggleSearch).toHaveBeenCalledTimes(2);
 		expect(onNewAgent).not.toHaveBeenCalled();
 	});
 
 	it("uses Cmd instead of Ctrl on macOS", () => {
 		isMacMock.mockReturnValue(true);
 		const onNewAgent = vi.fn();
-		const onOpenSearch = vi.fn();
+		const onToggleSearch = vi.fn();
 
 		renderHook(() =>
 			useAgentsPageKeybindings({
 				onNewAgent,
-				onOpenSearch,
+				onToggleSearch,
 			}),
 		);
 
@@ -65,18 +67,18 @@ describe("useAgentsPageKeybindings", () => {
 
 		expect(ctrlEvent.defaultPrevented).toBe(false);
 		expect(metaEvent.defaultPrevented).toBe(true);
-		expect(onOpenSearch).toHaveBeenCalledTimes(1);
+		expect(onToggleSearch).toHaveBeenCalledTimes(1);
 	});
 
 	it("creates a new agent with Ctrl+N", () => {
 		isMacMock.mockReturnValue(false);
 		const onNewAgent = vi.fn();
-		const onOpenSearch = vi.fn();
+		const onToggleSearch = vi.fn();
 
 		renderHook(() =>
 			useAgentsPageKeybindings({
 				onNewAgent,
-				onOpenSearch,
+				onToggleSearch,
 			}),
 		);
 
@@ -84,28 +86,30 @@ describe("useAgentsPageKeybindings", () => {
 
 		expect(event.defaultPrevented).toBe(true);
 		expect(onNewAgent).toHaveBeenCalledTimes(1);
-		expect(onOpenSearch).not.toHaveBeenCalled();
+		expect(onToggleSearch).not.toHaveBeenCalled();
 	});
 
-	it("ignores shortcuts from editable elements", () => {
+	it("handles shortcuts from editable elements", () => {
 		isMacMock.mockReturnValue(false);
 		const onNewAgent = vi.fn();
-		const onOpenSearch = vi.fn();
+		const onToggleSearch = vi.fn();
 		const input = document.createElement("input");
 		document.body.appendChild(input);
 
 		renderHook(() =>
 			useAgentsPageKeybindings({
 				onNewAgent,
-				onOpenSearch,
+				onToggleSearch,
 			}),
 		);
 
-		const event = dispatchKeyDown("k", { ctrlKey: true }, input);
+		const searchEvent = dispatchKeyDown("k", { ctrlKey: true }, input);
+		const newAgentEvent = dispatchKeyDown("n", { ctrlKey: true }, input);
 
-		expect(event.defaultPrevented).toBe(false);
-		expect(onOpenSearch).not.toHaveBeenCalled();
-		expect(onNewAgent).not.toHaveBeenCalled();
+		expect(searchEvent.defaultPrevented).toBe(true);
+		expect(newAgentEvent.defaultPrevented).toBe(true);
+		expect(onToggleSearch).toHaveBeenCalledTimes(1);
+		expect(onNewAgent).toHaveBeenCalledTimes(1);
 
 		input.remove();
 	});

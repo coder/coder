@@ -1,4 +1,4 @@
-import type { FC } from "react";
+import type { FC, RefObject } from "react";
 import { type KeyboardEventHandler, useId, useRef, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { type Location, useNavigate } from "react-router";
@@ -22,12 +22,46 @@ export const ChatSearchDialog: FC<ChatSearchDialogProps> = ({
 	onOpenChange,
 	location,
 }) => {
+	const inputRef = useRef<HTMLInputElement | null>(null);
+
+	return (
+		<Dialog open={open} onOpenChange={onOpenChange}>
+			<DialogContent
+				className="max-w-[560px] gap-4 border-border-default bg-surface-primary p-6 sm:p-6"
+				aria-describedby={undefined}
+				onOpenAutoFocus={(event) => {
+					event.preventDefault();
+					requestAnimationFrame(() => {
+						inputRef.current?.focus();
+					});
+				}}
+			>
+				<ChatSearchDialogContent
+					open={open}
+					onOpenChange={onOpenChange}
+					location={location}
+					inputRef={inputRef}
+				/>
+			</DialogContent>
+		</Dialog>
+	);
+};
+
+type ChatSearchDialogContentProps = ChatSearchDialogProps & {
+	readonly inputRef: RefObject<HTMLInputElement | null>;
+};
+
+const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
+	open,
+	onOpenChange,
+	location,
+	inputRef,
+}) => {
 	const navigate = useNavigate();
 	const [inputValue, setInputValue] = useState("");
 	const [selectedChatIndex, setSelectedChatIndex] = useState<
 		number | undefined
 	>(undefined);
-	const inputRef = useRef<HTMLInputElement | null>(null);
 	const listboxId = useId();
 	const debouncedInput = useDebouncedValue(inputValue, SEARCH_DEBOUNCE_MS);
 	const normalizedQuery = normalizeChatSearchInput(debouncedInput);
@@ -36,16 +70,10 @@ export const ChatSearchDialog: FC<ChatSearchDialogProps> = ({
 	const searchQuery = useQuery({
 		...chatSearch(normalizedQuery ?? ""),
 		enabled: open && hasQuery,
-		// Keep the previous results visible while debouncing the next query.
-		// Without this, every debounced keystroke would briefly flash the loading
-		// skeleton between results sets.
 		placeholderData: keepPreviousData,
 	});
 
 	const resultCount = searchQuery.data?.length ?? 0;
-	// `selectedChatIndex` may reference an option that no longer exists if the
-	// result set has shrunk since the user pressed an arrow key. Clamp to the
-	// current results so stale state does not appear selected in the UI.
 	const safeSelectedChatIndex =
 		selectedChatIndex !== undefined && selectedChatIndex < resultCount
 			? selectedChatIndex
@@ -58,14 +86,7 @@ export const ChatSearchDialog: FC<ChatSearchDialogProps> = ({
 		safeSelectedChatIndex !== undefined
 			? `${listboxId}-option-${safeSelectedChatIndex}`
 			: undefined;
-	const handleOpenChange = (nextOpen: boolean) => {
-		if (!nextOpen) {
-			setInputValue("");
-			setSelectedChatIndex(undefined);
-		}
-		onOpenChange(nextOpen);
-	};
-	const closeDialog = () => handleOpenChange(false);
+	const closeDialog = () => onOpenChange(false);
 
 	const showResultsLoading =
 		hasQuery &&
@@ -105,42 +126,31 @@ export const ChatSearchDialog: FC<ChatSearchDialogProps> = ({
 	};
 
 	return (
-		<Dialog open={open} onOpenChange={handleOpenChange}>
-			<DialogContent
-				className="max-w-[560px] gap-4 border-border-default bg-surface-primary p-6 sm:p-6"
-				aria-describedby={undefined}
-				onOpenAutoFocus={(event) => {
-					event.preventDefault();
-					requestAnimationFrame(() => {
-						inputRef.current?.focus();
-					});
+		<>
+			<DialogTitle className="sr-only">Search chats</DialogTitle>
+			<ChatSearchInput
+				activeResultId={activeResultId}
+				hasResults={resultCount > 0}
+				inputRef={inputRef}
+				listboxId={listboxId}
+				value={inputValue}
+				onChange={(event) => {
+					setInputValue(event.target.value);
+					setSelectedChatIndex(undefined);
 				}}
-			>
-				<DialogTitle className="sr-only">Search chats</DialogTitle>
-				<ChatSearchInput
-					activeResultId={activeResultId}
-					hasResults={resultCount > 0}
-					inputRef={inputRef}
-					listboxId={listboxId}
-					value={inputValue}
-					onChange={(event) => {
-						setInputValue(event.target.value);
-						setSelectedChatIndex(undefined);
-					}}
-					onKeyDown={handleInputKeyDown}
-				/>
+				onKeyDown={handleInputKeyDown}
+			/>
 
-				<ChatSearchResults
-					chats={searchQuery.data}
-					error={searchQuery.error}
-					hasQuery={hasQuery}
-					location={location}
-					listboxId={listboxId}
-					selectedChatIndex={safeSelectedChatIndex}
-					showLoading={showResultsLoading}
-					onSelectChat={closeDialog}
-				/>
-			</DialogContent>
-		</Dialog>
+			<ChatSearchResults
+				chats={searchQuery.data}
+				error={searchQuery.error}
+				hasQuery={hasQuery}
+				location={location}
+				listboxId={listboxId}
+				selectedChatIndex={safeSelectedChatIndex}
+				showLoading={showResultsLoading}
+				onSelectChat={closeDialog}
+			/>
+		</>
 	);
 };
