@@ -1,7 +1,6 @@
 import { UserPenIcon } from "lucide-react";
 import { type FC, useEffect, useId, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { Link } from "react-router";
 import TextareaAutosize from "react-textarea-autosize";
 import {
 	chatUserCustomPrompt,
@@ -84,7 +83,7 @@ export const PersonalInstructionsButton: FC<
 					type="button"
 					variant="subtle"
 					size="icon"
-					className="size-7 shrink-0 rounded-full [&>svg]:!size-icon-sm [&>svg]:p-0"
+					className="size-7 shrink-0 rounded-full [&>svg]:!size-icon-sm [&>svg]:p-0 data-[state=open]:bg-surface-tertiary data-[state=open]:text-content-primary"
 					disabled={disabled}
 					aria-label="Edit personal instructions"
 				>
@@ -127,42 +126,23 @@ export const PersonalInstructionsButton: FC<
 						be stripped on save.
 					</p>
 				)}
-				<div className="mt-1 flex items-center justify-between gap-2">
-					<Link
-						to="/agents/settings/general"
-						className="text-xs text-content-link hover:underline"
-						onClick={() => setIsOpen(false)}
-					>
-						Open full settings
-					</Link>
-					<div className="flex items-center gap-2">
-						{isSavedVisible ? (
-							<TemporarySavedState />
-						) : (
-							<>
-								<Button
-									size="xs"
-									variant="outline"
-									type="button"
-									onClick={() => setIsOpen(false)}
-									disabled={saveMutation.isPending}
-								>
-									Cancel
-								</Button>
-								<Button
-									size="xs"
-									type="button"
-									onClick={handleSave}
-									disabled={!dirty || saveMutation.isPending}
-								>
-									{saveMutation.isPending && (
-										<Spinner loading className="h-4 w-4" />
-									)}
-									Save
-								</Button>
-							</>
-						)}
-					</div>
+				<div className="mt-1 flex items-center justify-end gap-2">
+					{isSavedVisible ? (
+						<TemporarySavedState />
+					) : (
+						<Button
+							size="sm"
+							type="button"
+							onClick={handleSave}
+							disabled={!dirty || saveMutation.isPending}
+							className="text-[13px]"
+						>
+							{saveMutation.isPending && (
+								<Spinner loading className="h-4 w-4" />
+							)}
+							Save
+						</Button>
+					)}
 				</div>
 				{saveMutation.isError && (
 					<p className="m-0 text-xs text-content-destructive">
