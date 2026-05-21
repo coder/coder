@@ -43,8 +43,8 @@ export const ChatSearchResults: FC<ChatSearchResultsProps> = ({
 
 	if (!hasQuery) {
 		return (
-			<div className="flex min-h-[180px] min-w-0 items-center justify-center">
-				<div className="max-w-md text-sm text-balance text-content-secondary">
+			<div className="min-h-[260px]">
+				<div className="pt-2 text-sm text-content-secondary">
 					Type to search by title, or use filters like{" "}
 					<code>has_unread:true</code>, <code>archived:true</code>,{" "}
 					<code>pr_status:open</code>, or <code>diff_url:"..."</code>.
