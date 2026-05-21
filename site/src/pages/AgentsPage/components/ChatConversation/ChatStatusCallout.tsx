@@ -20,7 +20,7 @@ const StatusPlaceholder: FC<{
 	shimmer?: boolean;
 }> = ({ text, shimmer = false }) => {
 	return (
-		<div className="relative">
+		<div className="relative min-h-6">
 			{/* Reserve the final response height without exposing a selectable copy. */}
 			<Response aria-hidden className="invisible select-none">
 				{text}
