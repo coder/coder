@@ -1,4 +1,4 @@
-package scim
+package legacyscim
 
 import (
 	"encoding/json"

@@ -96,6 +96,7 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 			ConnectionLogging:         true,
 			BrowserOnly:               options.DeploymentValues.BrowserOnly.Value(),
 			SCIMAPIKey:                []byte(options.DeploymentValues.SCIMAPIKey.Value()),
+			UseLegacySCIM:             options.DeploymentValues.UseLegacySCIM.Value(),
 			RBAC:                      true,
 			DERPServerRelayAddress:    options.DeploymentValues.DERP.Server.RelayURL.String(),
 			DERPServerRegionID:        int(options.DeploymentValues.DERP.Server.RegionID.Value()),

@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -325,18 +326,25 @@ func (ru *ResourceUser) Patch(r *http.Request, idStr string, operations []scim.P
 	// Process operations. Currently, we only handle the "active" attribute.
 	var activeSet *bool
 	for _, op := range operations {
-		path := ""
-		if op.Path != nil {
-			path = op.Path.String()
-		}
-		if path == "active" {
-			v, err := BooleanValue(op.Value)
-			if err != nil {
-				return scim.Resource{}, scimErrors.ScimErrorBadRequest(fmt.Sprintf("invalid boolean value for 'active' field: %v", op.Value))
+		switch op.Op {
+		case "add":
+		case "remove":
+			if op.Path.String() == "active" {
+				activeSet = ptr.Ref(false)
 			}
-			activeSet = &v
+		case "replace":
+			if m, ok := op.Value.(map[string]interface{}); ok {
+				// TODO: Should we log other unsupported operations or silently ignore them? For now, we ignore them.
+				if actV, ok := m["active"]; ok {
+					v, err := BooleanValue(actV)
+					if err != nil {
+						return scim.Resource{}, scimErrors.ScimErrorBadRequest(fmt.Sprintf("invalid boolean value for 'active' field: %v", actV))
+					}
+					activeSet = &v
+				}
+			}
+		default:
 		}
-		// TODO: Should we log other unsupported operations or silently ignore them? For now, we ignore them.
 	}
 
 	newStatus := scimUserStatus(dbUser, activeSet)
@@ -394,8 +402,7 @@ func userResource(u database.User) scim.Resource {
 		Attributes: scim.ResourceAttributes{
 			"userName": u.Username,
 			"name": map[string]interface{}{
-				"givenName":  u.Name,
-				"familyName": "",
+				"formatted": u.Name,
 			},
 			"emails": []map[string]interface{}{
 				{
@@ -421,8 +428,7 @@ func userResourceFromGetUsersRow(u database.GetUsersRow) scim.Resource {
 		Attributes: scim.ResourceAttributes{
 			"userName": u.Username,
 			"name": map[string]interface{}{
-				"givenName":  u.Name,
-				"familyName": "",
+				"formatted": u.Name,
 			},
 			"emails": []map[string]interface{}{
 				{

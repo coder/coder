@@ -4083,6 +4083,7 @@ export interface DeploymentValues {
 	readonly agent_fallback_troubleshooting_url?: string;
 	readonly browser_only?: boolean;
 	readonly scim_api_key?: string;
+	readonly scim_use_legacy?: boolean;
 	readonly external_token_encryption_keys?: string;
 	readonly provisioner?: ProvisionerConfig;
 	readonly rate_limit?: RateLimitConfig;

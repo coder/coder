@@ -55,7 +55,6 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/prebuilds"
 	"github.com/coder/coder/v2/enterprise/coderd/proxyhealth"
 	"github.com/coder/coder/v2/enterprise/coderd/schedule"
-	"github.com/coder/coder/v2/enterprise/coderd/scim"
 	"github.com/coder/coder/v2/enterprise/coderd/usage"
 	entchatd "github.com/coder/coder/v2/enterprise/coderd/x/chatd"
 	"github.com/coder/coder/v2/enterprise/dbcrypt"
@@ -623,42 +622,12 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		})
 	})
 
-	if len(options.SCIMAPIKey) != 0 {
-		// TODO: Possibly lift this scimSrv?
-		scimSrv, err := scim.New(&scim.Options{
-			DB:         options.Database,
-			Auditor:    &api.AGPL.Auditor,
-			IDPSync:    options.IDPSync,
-			Logger:     options.Logger,
-			AGPL:       api.AGPL,
-			SCIMAPIKey: options.SCIMAPIKey,
-		})
-		if err != nil {
-			return nil, xerrors.Errorf("create scim server: %w", err)
-		}
-
-		// The elimity-com/scim library reads r.URL.Path and strips "/v2"
-		// internally. Chi's Route/Mount modifies its own routing context
-		// but not r.URL.Path, so we use http.StripPrefix to ensure the
-		// library sees paths like "/v2/Users" instead of "/scim/v2/Users".
-		api.AGPL.RootHandler.Route("/scim", func(r chi.Router) {
-			r.Use(
-				api.RequireFeatureMW(codersdk.FeatureSCIM),
-			)
-			r.Mount("/", http.StripPrefix("/scim", scimSrv.Handler()))
-		})
-	} else {
-		// Show a helpful 404 error. Because this is not under the /api/v2 routes,
-		// the frontend is the fallback. A html page is not a helpful error for
-		// a SCIM provider. This JSON has a call to action that __may__ resolve
-		// the issue.
-		// Using Mount to cover all subroute possibilities.
-		api.AGPL.RootHandler.Mount("/scim/v2", http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			httpapi.Write(r.Context(), w, http.StatusNotFound, codersdk.Response{
-				Message: "SCIM is disabled, please contact your administrator if you believe this is an error",
-				Detail:  "SCIM endpoints are disabled if no SCIM is configured. Configure 'CODER_SCIM_AUTH_HEADER' to enable.",
-			})
-		})))
+	var mountScimError error
+	api.AGPL.RootHandler.Route("/scim", func(r chi.Router) {
+		mountScimError = api.mountScimRoute(options, r)
+	})
+	if mountScimError != nil {
+		return nil, xerrors.Errorf("mount scim routes: %w", mountScimError)
 	}
 
 	// We always want to run the replica manager even if we don't have DERP
@@ -757,6 +726,11 @@ type Options struct {
 	// Whether to block non-browser connections.
 	BrowserOnly bool
 	SCIMAPIKey  []byte
+	// UseLegacySCIM opts into the legacy SCIM handler implementation
+	// (imulab/go-scim based). This is provided for backward compatibility
+	// during the transition to the new elimity-com/scim implementation.
+	// It will be removed in a future release.
+	UseLegacySCIM bool
 
 	ExternalTokenEncryption []dbcrypt.Cipher
 

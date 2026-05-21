@@ -638,6 +638,7 @@ type DeploymentValues struct {
 	AgentFallbackTroubleshootingURL         serpent.URL                          `json:"agent_fallback_troubleshooting_url,omitempty" typescript:",notnull"`
 	BrowserOnly                             serpent.Bool                         `json:"browser_only,omitempty" typescript:",notnull"`
 	SCIMAPIKey                              serpent.String                       `json:"scim_api_key,omitempty" typescript:",notnull"`
+	UseLegacySCIM                           serpent.Bool                         `json:"scim_use_legacy,omitempty" typescript:",notnull"`
 	ExternalTokenEncryptionKeys             serpent.StringArray                  `json:"external_token_encryption_keys,omitempty" typescript:",notnull"`
 	Provisioner                             ProvisionerConfig                    `json:"provisioner,omitempty" typescript:",notnull"`
 	RateLimit                               RateLimitConfig                      `json:"rate_limit,omitempty" typescript:",notnull"`
@@ -3436,6 +3437,17 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Env:         "CODER_SCIM_AUTH_HEADER",
 			Annotations: serpent.Annotations{}.Mark(annotationEnterpriseKey, "true").Mark(annotationSecretKey, "true"),
 			Value:       &c.SCIMAPIKey,
+		},
+		{
+			Name: "SCIM Use Legacy",
+			// The legacy SCIM is a weird mix of SCIM 1.0 and SCIM 2.0
+			Description: "Use the legacy SCIM implementation instead of the SCIM 2.0 handler. This is provided for backward compatibility for existing users.",
+			Flag:        "scim-use-legacy",
+			Env:         "CODER_SCIM_USE_LEGACY",
+			Hidden:      true,
+			Default:     "false",
+			Annotations: serpent.Annotations{}.Mark(annotationEnterpriseKey, "true"),
+			Value:       &c.UseLegacySCIM,
 		},
 		{
 			Name:        "External Token Encryption Keys",
