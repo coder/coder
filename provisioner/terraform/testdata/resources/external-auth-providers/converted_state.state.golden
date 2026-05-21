@@ -1,0 +1,42 @@
+{
+  "Resources": [
+    {
+      "name": "dev",
+      "type": "null_resource",
+      "agents": [
+        {
+          "id": "1682dc74-4f8a-49da-8c36-3df839f5c1f0",
+          "name": "main",
+          "operating_system": "linux",
+          "architecture": "amd64",
+          "Auth": {
+            "Token": "c018b99e-4370-409c-b81d-6305c5cd9078"
+          },
+          "connection_timeout_seconds": 120,
+          "display_apps": {
+            "vscode": true,
+            "web_terminal": true,
+            "ssh_helper": true,
+            "port_forwarding_helper": true
+          },
+          "resources_monitoring": {},
+          "api_key_scope": "all"
+        }
+      ]
+    }
+  ],
+  "Parameters": [],
+  "Presets": [],
+  "ExternalAuthProviders": [
+    {
+      "id": "github"
+    },
+    {
+      "id": "gitlab",
+      "optional": true
+    }
+  ],
+  "AITasks": [],
+  "HasAITasks": false,
+  "HasExternalAgents": false
+}

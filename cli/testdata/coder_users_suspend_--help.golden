@@ -1,0 +1,16 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder users suspend [flags] <username|user_id>
+
+  Update a user's status to 'suspended'. A suspended user cannot log into the
+  platform
+
+   $ coder users suspend example_user
+
+OPTIONS:
+  -c, --column [username|email|created at|status] (default: username,email,created at,status)
+          Specify a column to filter in the table.
+
+———
+Run `coder --help` for a list of global options.

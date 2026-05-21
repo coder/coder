@@ -1,0 +1,474 @@
+name: Update coder.com/docs
+
+# Triggers updates to the public docs at coder.com/docs whenever this
+# branch's docs/** content changes. One preflight job (`changes`) feeds
+# two parallel sibling jobs so that search records, the static cache,
+# and any new routes register at the same time:
+#
+#   1. algolia-and-isr: HMAC-signed POST to coder.com/api/algolia-docs-sync.
+#      The handler re-extracts records for the (corpus, ref) pair and
+#      atomically replaces the slice of the Algolia `docs` index, then
+#      calls `res.revalidate(p)` for every navigable manifest entry to
+#      refresh Vercel's static-page cache without a full rebuild. Runs
+#      on every docs/** push.
+#
+#   2. vercel-rebuild: fires the Vercel deploy hook for a full
+#      build+deploy. Only runs when docs/manifest.json changed, since a
+#      manifest change can introduce or remove routes that Next.js's
+#      `getStaticPaths` only re-evaluates on a full rebuild.
+#
+# Markdown-only edits hit only path 1 and surface in seconds. Manifest
+# edits hit both paths in parallel; the ISR revalidate is harmless
+# against the previous deployment while the new build is in flight,
+# and Vercel only swaps to the new build atomically when ready.
+#
+# https://vercel.com/docs/deploy-hooks#triggering-a-deploy-hook
+# See coder/coder.com/src/pages/api/algolia-docs-sync.ts.
+
+on:
+  push:
+    branches:
+      - main
+      - "release/*"
+    paths:
+      # Intentionally only docs/**. Edits to this workflow file must not
+      # auto-trigger a production reindex; use workflow_dispatch instead.
+      # See DOCS-121 (incident) and DOCS-124 (fix).
+      - "docs/**"
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Algolia action to perform"
+        required: true
+        type: choice
+        default: index
+        options:
+          - index
+          - delete
+      ref:
+        description: "Branch to (re)index or delete (e.g. main, release/2.32). Defaults to the workflow's checkout ref."
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+# Do not cancel in-progress runs. Each run's `changes` job diffs the
+# event's own (before, after) SHA pair, so two rapid pushes produce two
+# non-overlapping surgical-mode requests. Cancelling the first run
+# would silently drop its diff: the second run only sees its own pair,
+# never sees the cancelled run's paths, and the dropped pages would
+# stay stale until the next whole-branch reindex (manifest change,
+# >50-file push, or manual workflow_dispatch). Runs are lightweight
+# (shell + curl, ~2 minutes), so overlapping runs are cheap.
+concurrency:
+  group: deploy-docs-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # Detect what changed so the dependent jobs know:
+  #  - whether a Vercel full rebuild is needed (manifest changed), and
+  #  - which markdown pages to surgically reindex (the changed set).
+  #
+  # Outputs:
+  #   manifest_changed: "true" | "false"
+  #   paths_json:        a JSON array of {path, status} objects, or "[]"
+  #                      when no markdown changes are eligible for
+  #                      surgical mode (manifest-only push, an
+  #                      uncomputable diff, a workflow_dispatch trigger,
+  #                      or a diff that exceeds the surgical-mode cap).
+  #                      An empty array tells the handler to fall back
+  #                      to whole-branch reindex.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      manifest_changed: ${{ steps.diff.outputs.manifest_changed }}
+      paths_json: ${{ steps.diff.outputs.paths_json }}
+    steps:
+      - name: Compute changed-files signal
+        id: diff
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+          AFTER_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          emit_whole_branch_fallback() {
+            # Tells the algolia-and-isr job to operate in whole-branch
+            # mode by sending an empty paths array. The handler treats
+            # the absence of paths (or an empty list) as "reindex
+            # everything for this (corpus, ref)".
+            echo "paths_json=[]" >> "$GITHUB_OUTPUT"
+          }
+          # workflow_dispatch never has a diff range; treat as
+          # "manifest unchanged" so the manual reindex/delete path
+          # doesn't trigger a Vercel rebuild it didn't ask for, and as
+          # whole-branch so a manual reindex is exhaustive.
+          if [ "$EVENT_NAME" != "push" ]; then
+            echo "manifest_changed=false" >> "$GITHUB_OUTPUT"
+            emit_whole_branch_fallback
+            exit 0
+          fi
+          # First push to a brand-new branch has BEFORE_SHA = all zeros.
+          # In that edge case we conservatively assume the manifest is
+          # part of the initial state and trigger a full rebuild + a
+          # whole-branch reindex.
+          if [ -z "${BEFORE_SHA:-}" ] || [ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ]; then
+            echo "manifest_changed=true" >> "$GITHUB_OUTPUT"
+            emit_whole_branch_fallback
+            exit 0
+          fi
+          # We don't need a full checkout for `git diff` against two
+          # known SHAs. A shallow fetch of just those two commits is
+          # enough.
+          git init -q
+          git remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          GIT_ERR=$(mktemp)
+          if ! git -c protocol.version=2 fetch --depth=1 origin "$BEFORE_SHA" "$AFTER_SHA" 2>"$GIT_ERR"; then
+            # Fall back to whole-branch if the shallow fetch failed
+            # (e.g. force-push rewrote history). Surfacing the git
+            # stderr line in the warning lets operators diagnose
+            # network or auth failures without reproducing the fetch
+            # manually.
+            FIRST_ERR=$(head -1 "$GIT_ERR" 2>/dev/null || true)
+            echo "::warning::Could not fetch BEFORE_SHA=$BEFORE_SHA: ${FIRST_ERR:-unknown}; assuming manifest changed"
+            echo "manifest_changed=true" >> "$GITHUB_OUTPUT"
+            emit_whole_branch_fallback
+            exit 0
+          fi
+          # Manifest signal.
+          if git diff --name-only "$BEFORE_SHA" "$AFTER_SHA" -- docs/manifest.json | grep -q .; then
+            echo "manifest_changed=true" >> "$GITHUB_OUTPUT"
+            # Manifest changes can rename or restructure routes, so
+            # surgical mode is not safe; a per-path delete keyed off
+            # the new canonical URL would miss records under old URLs.
+            # Whole-branch reindex is the right behavior here.
+            emit_whole_branch_fallback
+            exit 0
+          else
+            echo "manifest_changed=false" >> "$GITHUB_OUTPUT"
+          fi
+          # Surgical mode: emit the changed markdown set as a JSON
+          # array of {path, status} objects. We use --name-status -z
+          # so the handler can distinguish modified/added (re-extract
+          # + save) from deleted/renamed-old-side (delete only), and
+          # so paths containing whitespace or quotes survive intact.
+          DIFF_FILE=$(mktemp)
+          git diff --name-status -z "$BEFORE_SHA" "$AFTER_SHA" -- 'docs/**/*.md' > "$DIFF_FILE"
+          # Parse the NUL-delimited diff into <path>\t<status> lines.
+          # `--name-status -z` uses NUL between fields and between
+          # records, with a special twist for renames: the record is
+          # `R<n>\0<old>\0<new>\0`, three NUL-delimited fields instead
+          # of two. Status codes: A=added, M=modified, T=type-changed
+          # (treated as modified), D=deleted, R<n>=renamed (we index
+          # the new path since that is the live route). Unknown codes
+          # log a warning and are skipped; a single awk handles both
+          # the parsing and the count so the two cannot disagree.
+          #
+          # Tested in test-deploy-docs-diff.sh. Keep that script in
+          # sync with any changes to this block.
+          PARSED=$(mktemp)
+          awk -v RS='\0' '
+            function emit(path, status) {
+              printf "%s\t%s\n", path, status
+            }
+            {
+              code = substr($0, 1, 1)
+              if (code == "A") { getline; emit($0, "added"); next }
+              if (code == "M") { getline; emit($0, "modified"); next }
+              if (code == "T") { getline; emit($0, "modified"); next }
+              if (code == "D") { getline; emit($0, "deleted"); next }
+              if (code == "R") {
+                # R<similarity>\0<old>\0<new>\0
+                getline old_path
+                getline new_path
+                emit(new_path, "renamed")
+                next
+              }
+              if ($0 != "") {
+                # Unknown status code. Consume the path field so the
+                # record alignment stays correct, then warn.
+                unknown_code = $0
+                getline unknown_path
+                printf "::warning::Unknown git diff status %s for %s; skipping.\n", unknown_code, unknown_path > "/dev/stderr"
+              }
+            }
+          ' "$DIFF_FILE" > "$PARSED"
+          # Count is derived from the emitter output, so the count and
+          # the JSON payload cannot diverge by construction (DEREM-21).
+          CHANGED=$(wc -l < "$PARSED" | tr -d ' ')
+          if [ "$CHANGED" -eq 0 ]; then
+            # Markdown-only path filter on the trigger means we should
+            # only get here on edits to non-markdown files under docs/
+            # (e.g., images). Whole-branch reindex is overkill for
+            # those, but it is also harmless and avoids a special case;
+            # an empty paths array makes the handler skip both the
+            # save and the revalidate when no manifest entry maps to
+            # the changed file.
+            emit_whole_branch_fallback
+            exit 0
+          fi
+          # Cap at 50 changed files. Above that a whole-branch reindex
+          # is faster (one deleteBy + one saveObjects vs N deleteBy
+          # calls), and the surgical-mode payload also stays well under
+          # GitHub Actions' output size limit.
+          if [ "$CHANGED" -gt 50 ]; then
+            echo "::notice::$CHANGED markdown files changed; falling back to whole-branch reindex (cap is 50 for surgical mode)"
+            emit_whole_branch_fallback
+            exit 0
+          fi
+          # jq -Rcn slurps the <path>\t<status> lines and handles JSON
+          # escaping for quotes, backslashes, and any other special
+          # characters in the path.
+          PATHS_JSON=$(jq -Rcn '
+              [ inputs
+                | split("\t")
+                | { path: .[0], status: .[1] }
+              ]
+            ' < "$PARSED")
+          # Defense in depth: fail loudly if jq could not parse what
+          # we built. jq -c already validates structure; this catches
+          # the empty-stdin edge case.
+          if [ -z "$PATHS_JSON" ] || [ "$PATHS_JSON" = "null" ]; then
+            PATHS_JSON='[]'
+          fi
+          echo "paths_json=$PATHS_JSON" >> "$GITHUB_OUTPUT"
+          echo "Surgical mode: $CHANGED path(s) changed."
+
+  # Path 1: always run. Notifies coder.com to refresh Algolia records
+  # and ISR-revalidate the affected pages.
+  algolia-and-isr:
+    runs-on: ubuntu-latest
+    needs: changes
+    steps:
+      - name: Compute action and ref
+        id: input
+        env:
+          INPUT_ACTION: ${{ inputs.action }}
+          INPUT_REF: ${{ inputs.ref }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          ACTION="${INPUT_ACTION:-index}"
+          REF="${INPUT_REF:-$GITHUB_REF_NAME}"
+          # Reject newlines/carriage returns in either input. GitHub
+          # Actions parses GITHUB_OUTPUT line-by-line with last-writer-
+          # wins, so a newline in $REF would let an operator dispatch
+          # `release/x\naction=delete\nref=main` past the validation
+          # below (the case `*` glob matches the multi-line string),
+          # then have `echo "ref=$REF" >> $GITHUB_OUTPUT` write three
+          # lines whose effective outputs are `action=delete ref=main`.
+          # `inputs.ref` is a single-line UI field; the REST API will
+          # accept anything. Reject embedded newlines explicitly.
+          case "$ACTION" in
+            *[$'\n\r']*)
+              echo "::error::action must not contain newlines."
+              exit 1
+              ;;
+          esac
+          case "$REF" in
+            *[$'\n\r']*)
+              echo "::error::ref must not contain newlines."
+              exit 1
+              ;;
+          esac
+          # The workflow_dispatch `type: choice` is enforced only by
+          # the GitHub UI. The REST API will accept any string. We
+          # validate explicitly so a malformed action never reaches
+          # the handler (which trusts this value after HMAC check).
+          case "$ACTION" in
+            index|delete) ;;
+            *)
+              echo "::error::Unsupported action '$ACTION'. Must be 'index' or 'delete'."
+              exit 1
+              ;;
+          esac
+          case "$REF" in
+            main|release/*) ;;
+            *)
+              echo "::error::Unsupported ref '$REF'. Only main and release/* are eligible."
+              exit 1
+              ;;
+          esac
+          # Refuse to run `action=delete` against main. The dispatch
+          # UI defaults `ref` to the dispatching branch (typically
+          # `main`), so a single forgotten field when cleaning up a
+          # release branch would wipe production search records.
+          # Force the operator to type the ref explicitly for delete.
+          if [ "$ACTION" = "delete" ] && [ "$REF" = "main" ]; then
+            echo "::error::Refusing to delete records for ref=main. Specify a release/* ref explicitly when dispatching delete."
+            exit 1
+          fi
+          echo "action=$ACTION" >> "$GITHUB_OUTPUT"
+          echo "ref=$REF" >> "$GITHUB_OUTPUT"
+
+      - name: POST to coder.com docs indexer
+        env:
+          ACTION: ${{ steps.input.outputs.action }}
+          REF: ${{ steps.input.outputs.ref }}
+          PATHS_JSON: ${{ needs.changes.outputs.paths_json }}
+          SECRET: ${{ secrets.ALGOLIA_DOCS_SYNC_SECRET }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SECRET:-}" ]; then
+            echo "::error::ALGOLIA_DOCS_SYNC_SECRET is not configured."
+            exit 1
+          fi
+          # Build the webhook body. paths_json is always a valid JSON
+          # array (possibly empty) thanks to the changes job. An empty
+          # array tells the handler to do a whole-branch reindex; a
+          # non-empty array triggers surgical per-page mode.
+          if [ -z "${PATHS_JSON:-}" ]; then
+            PATHS_JSON='[]'
+          fi
+          BODY=$(jq -nc \
+            --arg action "$ACTION" \
+            --arg corpus "v2" \
+            --arg ref "$REF" \
+            --argjson paths "$PATHS_JSON" \
+            '{action: $action, corpus: $corpus, ref: $ref, paths: $paths}')
+          # SHA-256 HMAC over the exact bytes we POST. The handler verifies
+          # with crypto.timingSafeEqual on the same raw body, so the
+          # prefix and hex casing must match.
+          SIG="sha256=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$SECRET" -hex | awk '{print $2}')"
+          PATHS_COUNT=$(printf '%s' "$PATHS_JSON" | jq 'length')
+          MODE="whole-branch"
+          if [ "$PATHS_COUNT" -gt 0 ]; then
+            MODE="surgical ($PATHS_COUNT path(s))"
+          fi
+          echo "Action: $ACTION  Ref: $REF  Mode: $MODE"
+          RESPONSE=$(mktemp)
+          RC=0
+          HTTP_STATUS=$(curl --fail-with-body -sS \
+            --connect-timeout 10 \
+            --max-time 120 \
+            -o "$RESPONSE" \
+            -w '%{http_code}' \
+            -X POST \
+            -H 'Content-Type: application/json' \
+            -H "X-Coder-Signature: $SIG" \
+            --data "$BODY" \
+            https://coder.com/api/algolia-docs-sync) || RC=$?
+          # Render only an allowlisted subset of the handler response in
+          # the step summary. The handler can include free-form fields
+          # (error, reason, revalidateSampleErrors, skippedReasons,
+          # recordsByType) that may reflect upstream error strings. This
+          # repository is public, so the step summary is visible to
+          # anyone with read access; filter those fields out before the
+          # summary is written. The full response remains in the curl
+          # output captured in the workflow logs, which are restricted
+          # to repo collaborators.
+          #
+          # Keep this allowlist in sync with SyncResponseBody in
+          # coder/coder.com/src/pages/api/algolia-docs-sync.ts; add a
+          # field here only after confirming it is bounded enough to be
+          # safe for a public UI.
+          SAFE_RESPONSE=$(jq '
+            if type == "object" then
+              {
+                action,
+                corpus,
+                ref,
+                records,
+                pagesIndexed,
+                pagesSkipped,
+                revalidated,
+                revalidateFailed,
+                mode,
+                pathsRequested,
+                pathsSkipped,
+                index,
+                tookMs
+              } | with_entries(select(.value != null))
+            else
+              {}
+            end
+          ' "$RESPONSE" 2>/dev/null) || SAFE_RESPONSE='{}'
+          {
+            echo "## Algolia + ISR sync"
+            echo
+            echo "- Action: \`$ACTION\`"
+            echo "- Ref: \`$REF\`"
+            echo "- Mode: \`$MODE\`"
+            echo "- HTTP status: \`${HTTP_STATUS:-n/a}\`"
+            echo
+            echo "### Response (allowlisted fields)"
+            echo
+            echo '```json'
+            printf '%s\n' "$SAFE_RESPONSE"
+            echo '```'
+            if [ "$RC" -ne 0 ]; then
+              echo
+              echo "### Error"
+              echo
+              echo "The request failed. See the workflow logs for the full handler response; the step summary suppresses free-form error strings because this repository is public."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$RC" -ne 0 ]; then
+            exit "$RC"
+          fi
+
+  # Path 2: full Vercel rebuild. Only fires when docs/manifest.json
+  # changed, because manifest changes can introduce or remove routes
+  # that Next.js's `getStaticPaths` only re-evaluates on a full build.
+  # Markdown-only edits don't need this; ISR revalidate covers them.
+  vercel-rebuild:
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.manifest_changed == 'true'
+    steps:
+      - name: Trigger Vercel deploy hook
+        env:
+          HOOK: ${{ secrets.DEPLOY_DOCS_VERCEL_WEBHOOK }}
+        run: |
+          set -euo pipefail
+          if [ -z "${HOOK:-}" ]; then
+            echo "::error::DEPLOY_DOCS_VERCEL_WEBHOOK is not configured."
+            exit 1
+          fi
+          # Mirror the sibling job's pattern: capture response body and
+          # HTTP status, write the step summary unconditionally, then
+          # propagate failure. Without this, set -e would kill the
+          # script before the summary block on curl failure.
+          RESPONSE=$(mktemp)
+          RC=0
+          HTTP_STATUS=$(curl --fail-with-body -sS \
+            --connect-timeout 10 \
+            --max-time 120 \
+            -o "$RESPONSE" \
+            -w '%{http_code}' \
+            -X POST "$HOOK") || RC=$?
+          # Render only an allowlisted subset of the Vercel deploy hook
+          # response (job.id, job.state, job.createdAt). The deploy hook
+          # URL itself is the only secret in this flow; the response
+          # shape is bounded today, but we filter explicitly to insulate
+          # the public step summary from any future shape change
+          # upstream and to keep the two summary blocks consistent.
+          SAFE_RESPONSE=$(jq '
+            if type == "object" and (.job | type) == "object" then
+              { job: (.job | { id, state, createdAt } | with_entries(select(.value != null))) }
+            else
+              {}
+            end
+          ' "$RESPONSE" 2>/dev/null) || SAFE_RESPONSE='{}'
+          {
+            echo "## Vercel rebuild"
+            echo
+            echo "- Reason: \`docs/manifest.json\` changed"
+            echo "- HTTP status: \`${HTTP_STATUS:-n/a}\`"
+            echo
+            echo "### Response (allowlisted fields)"
+            echo
+            echo '```json'
+            printf '%s\n' "$SAFE_RESPONSE"
+            echo '```'
+            if [ "$RC" -ne 0 ]; then
+              echo
+              echo "### Error"
+              echo
+              echo "The request failed. See the workflow logs for the full hook response; the step summary suppresses free-form error strings because this repository is public."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$RC" -ne 0 ]; then
+            exit "$RC"
+          fi

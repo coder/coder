@@ -1,0 +1,73 @@
+# This script gets run once when the VM is first created.
+
+# Initialize the data disk & home directory.
+$disk = Get-Disk -Number 2
+if ($disk.PartitionStyle -Eq 'RAW')
+{
+    "Initializing data disk"
+    $disk | Initialize-Disk
+} else {
+    "data disk already initialized"
+}
+
+$partitions = Get-Partition -DiskNumber $disk.Number | Where-Object Type -Ne 'Reserved'
+if ($partitions.Count -Eq 0) {
+    "Creating partition on data disk"
+    $partition = New-Partition -DiskNumber $disk.Number -UseMaximumSize
+} else {
+    $partition = $partitions[0]
+    $s = "data disk already has partition of size {0:n1} GiB" -f ($partition.Size / 1073741824)
+    Write-Output $s
+}
+
+$volume = Get-Volume -Partition $partition
+if ($volume.FileSystemType -Eq 'Unknown')
+{
+    "Formatting data disk"
+    Format-Volume -InputObject $volume -FileSystem NTFS -Confirm:$false
+} else {
+    "data disk is already formatted"
+}
+
+# Mount the partition
+Add-PartitionAccessPath -InputObject $partition -AccessPath "F:"
+
+# Enable RDP
+Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -value 0
+# Enable RDP through Windows Firewall
+Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+# Disable Network Level Authentication (NLA)
+# Clients will connect via Coder's tunnel
+(Get-WmiObject -class "Win32_TSGeneralSetting" -Namespace root\cimv2\terminalservices -ComputerName $env:COMPUTERNAME -Filter "TerminalName='RDP-tcp'").SetUserAuthenticationRequired(0)
+
+# Install Chocolatey package manager
+Set-ExecutionPolicy Bypass -Scope Process -Force
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+# Reload path so sessions include "choco" and "refreshenv"
+$env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+
+# Install Git and reload path
+choco install -y git
+$env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+
+# Set protocol to TLS1.2 for agent download
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+# Set Coder Agent to run immediately, and on each restart
+$init_script = @'
+${init_script}
+'@
+Out-File -FilePath "C:\AzureData\CoderAgent.ps1" -InputObject $init_script
+$task = @{
+	TaskName = 'CoderAgent'
+	Action = (New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-sta -ExecutionPolicy Unrestricted -Command "C:\AzureData\CoderAgent.ps1 *>>  C:\AzureData\CoderAgent.log"')
+	Trigger = (New-ScheduledTaskTrigger -AtStartup), (New-ScheduledTaskTrigger -Once -At (Get-Date).AddSeconds(15))
+	Settings = (New-ScheduledTaskSettingsSet -DontStopOnIdleEnd -ExecutionTimeLimit ([TimeSpan]::FromDays(3650)) -Compatibility Win8)
+	Principal = (New-ScheduledTaskPrincipal -UserId "$env:COMPUTERNAME\$env:USERNAME" -RunLevel Highest -LogonType S4U)
+}
+Register-ScheduledTask @task -Force
+
+# Additional Chocolatey package installs (optional, uncomment to enable)
+# choco feature enable -n=allowGlobalConfirmation
+# choco install visualstudio2022community --package-parameters "--add=Microsoft.VisualStudio.Workload.ManagedDesktop;includeRecommended --passive --locale en-US"

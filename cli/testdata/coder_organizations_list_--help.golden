@@ -1,0 +1,21 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder organizations list [flags]
+
+  List all organizations
+
+  Aliases: ls
+
+  List all organizations. Requires a role which grants ResourceOrganization:
+  read.
+
+OPTIONS:
+  -c, --column [id|name|display name|icon|description|created at|updated at|default] (default: name,display name,id,default)
+          Columns to display in table output.
+
+  -o, --output table|json (default: table)
+          Output format.
+
+———
+Run `coder --help` for a list of global options.

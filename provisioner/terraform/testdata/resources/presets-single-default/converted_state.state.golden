@@ -1,0 +1,68 @@
+{
+  "Resources": [
+    {
+      "name": "dev",
+      "type": "null_resource",
+      "agents": [
+        {
+          "id": "5d66372f-a526-44ee-9eac-0c16bcc57aa2",
+          "name": "dev",
+          "operating_system": "linux",
+          "architecture": "amd64",
+          "Auth": {
+            "Token": "70ab06e5-ef86-4ac2-a1d9-58c8ad85d379"
+          },
+          "connection_timeout_seconds": 120,
+          "display_apps": {
+            "vscode": true,
+            "web_terminal": true,
+            "ssh_helper": true,
+            "port_forwarding_helper": true
+          },
+          "resources_monitoring": {},
+          "api_key_scope": "all"
+        }
+      ]
+    }
+  ],
+  "Parameters": [
+    {
+      "name": "instance_type",
+      "description": "Instance type",
+      "type": "string",
+      "default_value": "t3.micro",
+      "form_type": 4
+    }
+  ],
+  "Presets": [
+    {
+      "name": "development",
+      "parameters": [
+        {
+          "name": "instance_type",
+          "value": "t3.micro"
+        }
+      ],
+      "prebuild": {
+        "instances": 1
+      },
+      "default": true
+    },
+    {
+      "name": "production",
+      "parameters": [
+        {
+          "name": "instance_type",
+          "value": "t3.large"
+        }
+      ],
+      "prebuild": {
+        "instances": 2
+      }
+    }
+  ],
+  "ExternalAuthProviders": [],
+  "AITasks": [],
+  "HasAITasks": false,
+  "HasExternalAgents": false
+}

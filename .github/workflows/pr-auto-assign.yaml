@@ -1,0 +1,23 @@
+# Filtering pull requests is much easier when we can reliably guarantee
+# that the "Assignee" field is populated.
+name: PR Auto Assign
+
+on:
+  # zizmor: ignore[dangerous-triggers] We explicitly want to run on pull_request_target.
+  pull_request_target:
+    types: [opened]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  assign-author:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        with:
+          egress-policy: audit
+
+      - name: Assign author
+        uses: toshimaru/auto-author-assign@4d585cc37690897bd9015942ed6e766aa7cdb97f # v3.0.1

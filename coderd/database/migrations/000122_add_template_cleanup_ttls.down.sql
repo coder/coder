@@ -1,0 +1,2 @@
+ALTER TABLE ONLY templates DROP COLUMN IF EXISTS failure_ttl;
+ALTER TABLE ONLY templates DROP COLUMN IF EXISTS inactivity_ttl;

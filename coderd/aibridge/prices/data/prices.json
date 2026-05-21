@@ -1,0 +1,570 @@
+[
+  {
+    "provider": "anthropic",
+    "model": "claude-3-5-haiku-20241022",
+    "input_price": 800000,
+    "output_price": 4000000,
+    "cache_read_price": 80000,
+    "cache_write_price": 1000000
+  },
+  {
+    "provider": "anthropic",
+    "model": "claude-3-5-haiku-latest",
+    "input_price": 800000,
+    "output_price": 4000000,
+    "cache_read_price": 80000,
+    "cache_write_price": 1000000
+  },
+  {
+    "provider": "anthropic",
+    "model": "claude-3-5-sonnet-20240620",
+    "input_price": 3000000,
+    "output_price": 15000000,
+    "cache_read_price": 300000,
+    "cache_write_price": 3750000
+  },
+  {
+    "provider": "anthropic",
+    "model": "claude-3-5-sonnet-20241022",
+    "input_price": 3000000,
+    "output_price": 15000000,
+    "cache_read_price": 300000,
+    "cache_write_price": 3750000
+  },
+  {
+    "provider": "anthropic",
+    "model": "claude-3-7-sonnet-20250219",
+    "input_price": 3000000,
+    "output_price": 15000000,
+    "cache_read_price": 300000,
+    "cache_write_price": 3750000
+  },
+  {
+    "provider": "anthropic",
+    "model": "claude-3-haiku-20240307",
+    "input_price": 250000,
+    "output_price": 1250000,
+    "cache_read_price": 30000,
+    "cache_write_price": 300000
+  },
+  {
+    "provider": "anthropic",
+    "model": "claude-3-opus-20240229",
+    "input_price": 15000000,
+    "output_price": 75000000,
+    "cache_read_price": 1500000,
+    "cache_write_price": 18750000
+  },
+  {
+    "provider": "anthropic",
+    "model": "claude-3-sonnet-20240229",
+    "input_price": 3000000,
+    "output_price": 15000000,
+    "cache_read_price": 300000,
+    "cache_write_price": 300000
+  },
+  {
+    "provider": "anthropic",
+    "model": "claude-haiku-4-5",
+    "input_price": 1000000,
+    "output_price": 5000000,
+    "cache_read_price": 100000,
+    "cache_write_price": 1250000
+  },
+  {
+    "provider": "anthropic",
+    "model": "claude-haiku-4-5-20251001",
+    "input_price": 1000000,
+    "output_price": 5000000,
+    "cache_read_price": 100000,
+    "cache_write_price": 1250000
+  },
+  {
+    "provider": "anthropic",
+    "model": "claude-opus-4-0",
+    "input_price": 15000000,
+    "output_price": 75000000,
+    "cache_read_price": 1500000,
+    "cache_write_price": 18750000
+  },
+  {
+    "provider": "anthropic",
+    "model": "claude-opus-4-1",
+    "input_price": 15000000,
+    "output_price": 75000000,
+    "cache_read_price": 1500000,
+    "cache_write_price": 18750000
+  },
+  {
+    "provider": "anthropic",
+    "model": "claude-opus-4-1-20250805",
+    "input_price": 15000000,
+    "output_price": 75000000,
+    "cache_read_price": 1500000,
+    "cache_write_price": 18750000
+  },
+  {
+    "provider": "anthropic",
+    "model": "claude-opus-4-20250514",
+    "input_price": 15000000,
+    "output_price": 75000000,
+    "cache_read_price": 1500000,
+    "cache_write_price": 18750000
+  },
+  {
+    "provider": "anthropic",
+    "model": "claude-opus-4-5",
+    "input_price": 5000000,
+    "output_price": 25000000,
+    "cache_read_price": 500000,
+    "cache_write_price": 6250000
+  },
+  {
+    "provider": "anthropic",
+    "model": "claude-opus-4-5-20251101",
+    "input_price": 5000000,
+    "output_price": 25000000,
+    "cache_read_price": 500000,
+    "cache_write_price": 6250000
+  },
+  {
+    "provider": "anthropic",
+    "model": "claude-opus-4-6",
+    "input_price": 5000000,
+    "output_price": 25000000,
+    "cache_read_price": 500000,
+    "cache_write_price": 6250000
+  },
+  {
+    "provider": "anthropic",
+    "model": "claude-opus-4-7",
+    "input_price": 5000000,
+    "output_price": 25000000,
+    "cache_read_price": 500000,
+    "cache_write_price": 6250000
+  },
+  {
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-0",
+    "input_price": 3000000,
+    "output_price": 15000000,
+    "cache_read_price": 300000,
+    "cache_write_price": 3750000
+  },
+  {
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-20250514",
+    "input_price": 3000000,
+    "output_price": 15000000,
+    "cache_read_price": 300000,
+    "cache_write_price": 3750000
+  },
+  {
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5",
+    "input_price": 3000000,
+    "output_price": 15000000,
+    "cache_read_price": 300000,
+    "cache_write_price": 3750000
+  },
+  {
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5-20250929",
+    "input_price": 3000000,
+    "output_price": 15000000,
+    "cache_read_price": 300000,
+    "cache_write_price": 3750000
+  },
+  {
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-6",
+    "input_price": 3000000,
+    "output_price": 15000000,
+    "cache_read_price": 300000,
+    "cache_write_price": 3750000
+  },
+  {
+    "provider": "openai",
+    "model": "gpt-3.5-turbo",
+    "input_price": 500000,
+    "output_price": 1500000,
+    "cache_read_price": 1250000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "gpt-4",
+    "input_price": 30000000,
+    "output_price": 60000000,
+    "cache_read_price": null,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "gpt-4-turbo",
+    "input_price": 10000000,
+    "output_price": 30000000,
+    "cache_read_price": null,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "gpt-4.1",
+    "input_price": 2000000,
+    "output_price": 8000000,
+    "cache_read_price": 500000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "gpt-4.1-mini",
+    "input_price": 400000,
+    "output_price": 1600000,
+    "cache_read_price": 100000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "gpt-4.1-nano",
+    "input_price": 100000,
+    "output_price": 400000,
+    "cache_read_price": 30000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "gpt-4o",
+    "input_price": 2500000,
+    "output_price": 10000000,
+    "cache_read_price": 1250000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "gpt-4o-2024-05-13",
+    "input_price": 5000000,
+    "output_price": 15000000,
+    "cache_read_price": null,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "gpt-4o-2024-08-06",
+    "input_price": 2500000,
+    "output_price": 10000000,
+    "cache_read_price": 1250000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "gpt-4o-2024-11-20",
+    "input_price": 2500000,
+    "output_price": 10000000,
+    "cache_read_price": 1250000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "gpt-4o-mini",
+    "input_price": 150000,
+    "output_price": 600000,
+    "cache_read_price": 80000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "gpt-5",
+    "input_price": 1250000,
+    "output_price": 10000000,
+    "cache_read_price": 125000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "gpt-5-chat-latest",
+    "input_price": 1250000,
+    "output_price": 10000000,
+    "cache_read_price": null,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "gpt-5-codex",
+    "input_price": 1250000,
+    "output_price": 10000000,
+    "cache_read_price": 125000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "gpt-5-mini",
+    "input_price": 250000,
+    "output_price": 2000000,
+    "cache_read_price": 25000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "gpt-5-nano",
+    "input_price": 50000,
+    "output_price": 400000,
+    "cache_read_price": 5000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "gpt-5-pro",
+    "input_price": 15000000,
+    "output_price": 120000000,
+    "cache_read_price": null,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "gpt-5.1",
+    "input_price": 1250000,
+    "output_price": 10000000,
+    "cache_read_price": 130000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "gpt-5.1-chat-latest",
+    "input_price": 1250000,
+    "output_price": 10000000,
+    "cache_read_price": 125000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "gpt-5.1-codex",
+    "input_price": 1250000,
+    "output_price": 10000000,
+    "cache_read_price": 125000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "gpt-5.1-codex-max",
+    "input_price": 1250000,
+    "output_price": 10000000,
+    "cache_read_price": 125000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "gpt-5.1-codex-mini",
+    "input_price": 250000,
+    "output_price": 2000000,
+    "cache_read_price": 25000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "gpt-5.2",
+    "input_price": 1750000,
+    "output_price": 14000000,
+    "cache_read_price": 175000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "gpt-5.2-chat-latest",
+    "input_price": 1750000,
+    "output_price": 14000000,
+    "cache_read_price": 175000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "gpt-5.2-codex",
+    "input_price": 1750000,
+    "output_price": 14000000,
+    "cache_read_price": 175000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "gpt-5.2-pro",
+    "input_price": 21000000,
+    "output_price": 168000000,
+    "cache_read_price": null,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "gpt-5.3-chat-latest",
+    "input_price": 1750000,
+    "output_price": 14000000,
+    "cache_read_price": 175000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "gpt-5.3-codex",
+    "input_price": 1750000,
+    "output_price": 14000000,
+    "cache_read_price": 175000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "gpt-5.3-codex-spark",
+    "input_price": 1750000,
+    "output_price": 14000000,
+    "cache_read_price": 175000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "gpt-5.4",
+    "input_price": 2500000,
+    "output_price": 15000000,
+    "cache_read_price": 250000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "gpt-5.4-mini",
+    "input_price": 750000,
+    "output_price": 4500000,
+    "cache_read_price": 75000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "gpt-5.4-nano",
+    "input_price": 200000,
+    "output_price": 1250000,
+    "cache_read_price": 20000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "gpt-5.4-pro",
+    "input_price": 30000000,
+    "output_price": 180000000,
+    "cache_read_price": null,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "gpt-5.5",
+    "input_price": 5000000,
+    "output_price": 30000000,
+    "cache_read_price": 500000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "gpt-5.5-pro",
+    "input_price": 30000000,
+    "output_price": 180000000,
+    "cache_read_price": null,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "o1",
+    "input_price": 15000000,
+    "output_price": 60000000,
+    "cache_read_price": 7500000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "o1-mini",
+    "input_price": 1100000,
+    "output_price": 4400000,
+    "cache_read_price": 550000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "o1-preview",
+    "input_price": 15000000,
+    "output_price": 60000000,
+    "cache_read_price": 7500000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "o1-pro",
+    "input_price": 150000000,
+    "output_price": 600000000,
+    "cache_read_price": null,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "o3",
+    "input_price": 2000000,
+    "output_price": 8000000,
+    "cache_read_price": 500000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "o3-deep-research",
+    "input_price": 10000000,
+    "output_price": 40000000,
+    "cache_read_price": 2500000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "o3-mini",
+    "input_price": 1100000,
+    "output_price": 4400000,
+    "cache_read_price": 550000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "o3-pro",
+    "input_price": 20000000,
+    "output_price": 80000000,
+    "cache_read_price": null,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "o4-mini",
+    "input_price": 1100000,
+    "output_price": 4400000,
+    "cache_read_price": 280000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "o4-mini-deep-research",
+    "input_price": 2000000,
+    "output_price": 8000000,
+    "cache_read_price": 500000,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "text-embedding-3-large",
+    "input_price": 130000,
+    "output_price": 0,
+    "cache_read_price": null,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "text-embedding-3-small",
+    "input_price": 20000,
+    "output_price": 0,
+    "cache_read_price": null,
+    "cache_write_price": null
+  },
+  {
+    "provider": "openai",
+    "model": "text-embedding-ada-002",
+    "input_price": 100000,
+    "output_price": 0,
+    "cache_read_price": null,
+    "cache_write_price": null
+  }
+]

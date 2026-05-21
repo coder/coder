@@ -1,0 +1,404 @@
+package coderd
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"net/http"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+	"golang.org/x/xerrors"
+
+	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/usersecretspubsub"
+	"github.com/coder/coder/v2/codersdk"
+)
+
+const (
+	userSecretNameField     = "name"
+	userSecretValueField    = "value"
+	userSecretEnvNameField  = "env_name"
+	userSecretFilePathField = "file_path"
+)
+
+// @Summary Create a new user secret
+// @ID create-a-new-user-secret
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Secrets
+// @Param user path string true "User ID, username, or me"
+// @Param request body codersdk.CreateUserSecretRequest true "Create secret request"
+// @Success 201 {object} codersdk.UserSecret
+// @Router /api/v2/users/{user}/secrets [post]
+func (api *API) postUserSecret(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx               = r.Context()
+		user              = httpmw.UserParam(r)
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.UserSecret](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionCreate,
+		})
+	)
+	defer commitAudit()
+
+	var req codersdk.CreateUserSecretRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	if validations := createUserSecretValidationErrors(req); len(validations) > 0 {
+		writeUserSecretValidationErrors(ctx, rw, http.StatusBadRequest, validations)
+		return
+	}
+
+	secret, err := api.Database.CreateUserSecret(ctx, database.CreateUserSecretParams{
+		ID:          uuid.New(),
+		UserID:      user.ID,
+		Name:        req.Name,
+		Description: req.Description,
+		Value:       req.Value,
+		ValueKeyID:  sql.NullString{},
+		EnvName:     req.EnvName,
+		FilePath:    req.FilePath,
+	})
+	if err != nil {
+		if validations := userSecretConflictValidationErrors(err); len(validations) > 0 {
+			writeUserSecretValidationErrors(ctx, rw, http.StatusConflict, validations)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error creating secret.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	aReq.New = secret
+
+	api.publishUserSecretEvent(ctx, usersecretspubsub.Event{
+		Kind:     usersecretspubsub.EventKindCreated,
+		UserID:   secret.UserID,
+		Name:     secret.Name,
+		EnvName:  secret.EnvName,
+		FilePath: secret.FilePath,
+	})
+
+	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.UserSecretFromFull(secret))
+}
+
+// @Summary List user secrets
+// @ID list-user-secrets
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Secrets
+// @Param user path string true "User ID, username, or me"
+// @Success 200 {array} codersdk.UserSecret
+// @Router /api/v2/users/{user}/secrets [get]
+func (api *API) getUserSecrets(rw http.ResponseWriter, r *http.Request) { //nolint:revive // Method name matches route.
+	ctx := r.Context()
+	user := httpmw.UserParam(r)
+
+	secrets, err := api.Database.ListUserSecrets(ctx, user.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error listing secrets.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.UserSecrets(secrets))
+}
+
+// @Summary Get a user secret by name
+// @ID get-a-user-secret-by-name
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Secrets
+// @Param user path string true "User ID, username, or me"
+// @Param name path string true "Secret name"
+// @Success 200 {object} codersdk.UserSecret
+// @Router /api/v2/users/{user}/secrets/{name} [get]
+func (api *API) getUserSecret(rw http.ResponseWriter, r *http.Request) { //nolint:revive // Method name matches route.
+	ctx := r.Context()
+	user := httpmw.UserParam(r)
+	name := chi.URLParam(r, userSecretNameField)
+
+	secret, err := api.Database.GetUserSecretByUserIDAndName(ctx, database.GetUserSecretByUserIDAndNameParams{
+		UserID: user.ID,
+		Name:   name,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching secret.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.UserSecretFromFull(secret))
+}
+
+// @Summary Update a user secret
+// @ID update-a-user-secret
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Secrets
+// @Param user path string true "User ID, username, or me"
+// @Param name path string true "Secret name"
+// @Param request body codersdk.UpdateUserSecretRequest true "Update secret request"
+// @Success 200 {object} codersdk.UserSecret
+// @Router /api/v2/users/{user}/secrets/{name} [patch]
+func (api *API) patchUserSecret(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx               = r.Context()
+		user              = httpmw.UserParam(r)
+		name              = chi.URLParam(r, userSecretNameField)
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.UserSecret](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionWrite,
+		})
+	)
+	defer commitAudit()
+
+	var req codersdk.UpdateUserSecretRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	if req.Value == nil && req.Description == nil && req.EnvName == nil && req.FilePath == nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "At least one field must be provided.",
+		})
+		return
+	}
+	if validations := updateUserSecretValidationErrors(req); len(validations) > 0 {
+		writeUserSecretValidationErrors(ctx, rw, http.StatusBadRequest, validations)
+		return
+	}
+
+	params := database.UpdateUserSecretByUserIDAndNameParams{
+		UserID:            user.ID,
+		Name:              name,
+		UpdateValue:       req.Value != nil,
+		Value:             "",
+		ValueKeyID:        sql.NullString{},
+		UpdateDescription: req.Description != nil,
+		Description:       "",
+		UpdateEnvName:     req.EnvName != nil,
+		EnvName:           "",
+		UpdateFilePath:    req.FilePath != nil,
+		FilePath:          "",
+	}
+	if req.Value != nil {
+		params.Value = *req.Value
+	}
+	if req.Description != nil {
+		params.Description = *req.Description
+	}
+	if req.EnvName != nil {
+		params.EnvName = *req.EnvName
+	}
+	if req.FilePath != nil {
+		params.FilePath = *req.FilePath
+	}
+
+	// Pre-read the secret inside a transaction so the audit diff has both an
+	// "old" and "new" snapshot.
+	//
+	// Under read committed isolation, a concurrent writer between our SELECT
+	// and our UPDATE can cause the audit diff to attribute changes to us that
+	// we did not make. We accept this race to match other audit log diffs
+	// (templates, workspaces, chats, etc). In practice this should be unlikely
+	// to hit since a user can only modify their own secrets.
+	var secret database.UserSecret
+	err := api.Database.InTx(func(tx database.Store) error {
+		old, err := tx.GetUserSecretByUserIDAndName(ctx, database.GetUserSecretByUserIDAndNameParams{
+			UserID: user.ID,
+			Name:   name,
+		})
+		if err != nil {
+			return xerrors.Errorf("fetch user secret: %w", err)
+		}
+		aReq.Old = old
+
+		updated, err := tx.UpdateUserSecretByUserIDAndName(ctx, params)
+		if err != nil {
+			return xerrors.Errorf("update user secret: %w", err)
+		}
+		secret = updated
+		aReq.New = updated
+		return nil
+	}, nil)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		if validations := userSecretConflictValidationErrors(err); len(validations) > 0 {
+			writeUserSecretValidationErrors(ctx, rw, http.StatusConflict, validations)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating secret.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	api.publishUserSecretEvent(ctx, usersecretspubsub.Event{
+		Kind:     usersecretspubsub.EventKindUpdated,
+		UserID:   secret.UserID,
+		Name:     secret.Name,
+		EnvName:  secret.EnvName,
+		FilePath: secret.FilePath,
+	})
+
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.UserSecretFromFull(secret))
+}
+
+// @Summary Delete a user secret
+// @ID delete-a-user-secret
+// @Security CoderSessionToken
+// @Tags Secrets
+// @Param user path string true "User ID, username, or me"
+// @Param name path string true "Secret name"
+// @Success 204
+// @Router /api/v2/users/{user}/secrets/{name} [delete]
+func (api *API) deleteUserSecret(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx               = r.Context()
+		user              = httpmw.UserParam(r)
+		name              = chi.URLParam(r, userSecretNameField)
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.UserSecret](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionDelete,
+		})
+	)
+	defer commitAudit()
+
+	deleted, err := api.Database.DeleteUserSecretByUserIDAndName(ctx, database.DeleteUserSecretByUserIDAndNameParams{
+		UserID: user.ID,
+		Name:   name,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error deleting secret.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	aReq.Old = deleted
+
+	api.publishUserSecretEvent(ctx, usersecretspubsub.Event{
+		Kind:   usersecretspubsub.EventKindDeleted,
+		UserID: user.ID,
+		Name:   name,
+	})
+
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+func writeUserSecretValidationErrors(ctx context.Context, rw http.ResponseWriter, status int, validations []codersdk.ValidationError) {
+	httpapi.Write(ctx, rw, status, codersdk.Response{
+		Message:     "Validation failed.",
+		Validations: validations,
+	})
+}
+
+func createUserSecretValidationErrors(req codersdk.CreateUserSecretRequest) []codersdk.ValidationError {
+	var validations []codersdk.ValidationError
+	validations = appendUserSecretValidationError(validations, userSecretNameField, codersdk.UserSecretNameValid(req.Name))
+	if req.Value == "" {
+		validations = append(validations, codersdk.ValidationError{
+			Field:  userSecretValueField,
+			Detail: "Value is required.",
+		})
+	} else {
+		validations = appendUserSecretValidationError(validations, userSecretValueField, codersdk.UserSecretValueValid(req.Value))
+	}
+	validations = appendUserSecretValidationError(validations, userSecretEnvNameField, codersdk.UserSecretEnvNameValid(req.EnvName))
+	validations = appendUserSecretValidationError(validations, userSecretFilePathField, codersdk.UserSecretFilePathValid(req.FilePath))
+	return validations
+}
+
+func updateUserSecretValidationErrors(req codersdk.UpdateUserSecretRequest) []codersdk.ValidationError {
+	var validations []codersdk.ValidationError
+	if req.Value != nil {
+		validations = appendUserSecretValidationError(validations, userSecretValueField, codersdk.UserSecretValueValid(*req.Value))
+	}
+	if req.EnvName != nil {
+		validations = appendUserSecretValidationError(validations, userSecretEnvNameField, codersdk.UserSecretEnvNameValid(*req.EnvName))
+	}
+	if req.FilePath != nil {
+		validations = appendUserSecretValidationError(validations, userSecretFilePathField, codersdk.UserSecretFilePathValid(*req.FilePath))
+	}
+	return validations
+}
+
+func appendUserSecretValidationError(validations []codersdk.ValidationError, field string, err error) []codersdk.ValidationError {
+	if err == nil {
+		return validations
+	}
+	return append(validations, codersdk.ValidationError{
+		Field:  field,
+		Detail: err.Error(),
+	})
+}
+
+func userSecretConflictValidationErrors(err error) []codersdk.ValidationError {
+	switch {
+	case database.IsUniqueViolation(err, database.UniqueUserSecretsUserNameIndex):
+		return []codersdk.ValidationError{{
+			Field:  userSecretNameField,
+			Detail: "name already in use",
+		}}
+	case database.IsUniqueViolation(err, database.UniqueUserSecretsUserEnvNameIndex):
+		return []codersdk.ValidationError{{
+			Field:  userSecretEnvNameField,
+			Detail: "environment variable already in use",
+		}}
+	case database.IsUniqueViolation(err, database.UniqueUserSecretsUserFilePathIndex):
+		return []codersdk.ValidationError{{
+			Field:  userSecretFilePathField,
+			Detail: "file path already in use",
+		}}
+	default:
+		return nil
+	}
+}
+
+func (api *API) publishUserSecretEvent(ctx context.Context, event usersecretspubsub.Event) {
+	if err := usersecretspubsub.Publish(api.Pubsub, event); err != nil {
+		api.Logger.Warn(ctx, "failed to publish user secret event",
+			slog.F("user_id", event.UserID),
+			slog.F("secret_name", event.Name),
+			slog.F("event_kind", event.Kind),
+			slog.Error(err),
+		)
+	}
+}

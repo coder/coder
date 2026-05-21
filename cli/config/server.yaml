@@ -1,0 +1,25 @@
+# Coder Server Configuration
+
+# Automatically authenticate HTTP(s) Git requests.
+gitauth:
+# Supported: azure-devops, bitbucket, github, gitlab
+# - type: github
+#   client_id: xxxxxx
+#   client_secret: xxxxxx
+
+# Multiple providers are an Enterprise feature.
+# Contact sales@coder.com for a license.
+#
+# If multiple providers are used, a unique "id"
+# must be provided for each one.
+# - id: example
+#   type: azure-devops
+#   client_id: xxxxxxx
+#   client_secret: xxxxxxx
+# A custom regex can be used to match a specific
+# repository or organization to limit auth scope.
+#   regex: github.com/coder
+# Custom authentication and token URLs should be
+# used for self-managed Git provider deployments.
+#   auth_url: https://example.com/oauth/authorize
+#   token_url: https://example.com/oauth/token

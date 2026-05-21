@@ -1,0 +1,313 @@
+#!/bin/bash
+set -euo pipefail
+
+# Only source this script once, this env comes from sourcing
+# scripts/lib.sh from coder/coder below.
+if [[ ${SCRIPTS_LIB_IS_SOURCED:-0} == 1 ]]; then
+	return 0
+fi
+
+# Source scripts/lib.sh from coder/coder for common functions.
+# shellcheck source=scripts/lib.sh
+. "${HOME}/coder/scripts/lib.sh"
+
+# Make shellcheck happy.
+DRY_RUN=${DRY_RUN:-0}
+
+# Environment variables shared between scripts.
+SCALETEST_STATE_DIR="${SCALETEST_RUN_DIR}/state"
+SCALETEST_PHASE_FILE="${SCALETEST_STATE_DIR}/phase"
+# shellcheck disable=SC2034
+SCALETEST_RESULTS_DIR="${SCALETEST_RUN_DIR}/results"
+SCALETEST_LOGS_DIR="${SCALETEST_RUN_DIR}/logs"
+SCALETEST_PPROF_DIR="${SCALETEST_RUN_DIR}/pprof"
+# https://github.com/kubernetes/kubernetes/issues/72501 :-(
+SCALETEST_CODER_BINARY="/tmp/coder-full-${SCALETEST_RUN_ID}"
+
+mkdir -p "${SCALETEST_STATE_DIR}" "${SCALETEST_RESULTS_DIR}" "${SCALETEST_LOGS_DIR}" "${SCALETEST_PPROF_DIR}"
+
+coder() {
+	if [[ ! -x "${SCALETEST_CODER_BINARY}" ]]; then
+		log "Fetching full coder binary..."
+		fetch_coder_full
+	fi
+	maybedryrun "${DRY_RUN}" "${SCALETEST_CODER_BINARY}" "${@}"
+}
+
+show_json() {
+	maybedryrun "${DRY_RUN}" jq 'del(.. | .logs?)' "${1}"
+}
+
+set_status() {
+	dry_run=
+	if [[ ${DRY_RUN} == 1 ]]; then
+		dry_run=" (dry-run)"
+	fi
+	prev_status=$(get_status)
+	if [[ ${prev_status} != *"Not started"* ]]; then
+		annotate_grafana_end "status" "Status: ${prev_status}"
+	fi
+	echo "$(date -Ins) ${*}${dry_run}" >>"${SCALETEST_STATE_DIR}/status"
+
+	annotate_grafana "status" "Status: ${*}"
+
+	status_lower=$(tr '[:upper:]' '[:lower:]' <<<"${*}")
+	set_pod_status_annotation "${status_lower}"
+}
+lock_status() {
+	chmod 0440 "${SCALETEST_STATE_DIR}/status"
+}
+get_status() {
+	# Order of importance (reverse of creation).
+	if [[ -f "${SCALETEST_STATE_DIR}/status" ]]; then
+		tail -n1 "${SCALETEST_STATE_DIR}/status" | cut -d' ' -f2-
+	else
+		echo "Not started"
+	fi
+}
+
+phase_num=0
+start_phase() {
+	# This may be incremented from another script, so we read it every time.
+	if [[ -f "${SCALETEST_PHASE_FILE}" ]]; then
+		phase_num=$(grep -c START: "${SCALETEST_PHASE_FILE}")
+	fi
+	phase_num=$((phase_num + 1))
+	log "Start phase ${phase_num}: ${*}"
+	echo "$(date -Ins) START:${phase_num}: ${*}" >>"${SCALETEST_PHASE_FILE}"
+
+	GRAFANA_EXTRA_TAGS="${PHASE_TYPE:-phase-default}" annotate_grafana "phase" "Phase ${phase_num}: ${*}"
+}
+end_phase() {
+	phase=$(tail -n 1 "${SCALETEST_PHASE_FILE}" | grep "START:${phase_num}:" | cut -d' ' -f3-)
+	if [[ -z ${phase} ]]; then
+		log "BUG: Could not find start phase ${phase_num} in ${SCALETEST_PHASE_FILE}"
+		return 1
+	fi
+	log "End phase ${phase_num}: ${phase}"
+	echo "$(date -Ins) END:${phase_num}: ${phase}" >>"${SCALETEST_PHASE_FILE}"
+
+	GRAFANA_EXTRA_TAGS="${PHASE_TYPE:-phase-default}" GRAFANA_ADD_TAGS="${PHASE_ADD_TAGS:-}" annotate_grafana_end "phase" "Phase ${phase_num}: ${phase}"
+}
+get_phase() {
+	if [[ -f "${SCALETEST_PHASE_FILE}" ]]; then
+		phase_raw=$(tail -n1 "${SCALETEST_PHASE_FILE}")
+		phase=$(echo "${phase_raw}" | cut -d' ' -f3-)
+		if [[ ${phase_raw} == *"END:"* ]]; then
+			phase+=" [done]"
+		fi
+		echo "${phase}"
+	else
+		echo "None"
+	fi
+}
+get_previous_phase() {
+	if [[ -f "${SCALETEST_PHASE_FILE}" ]] && [[ $(grep -c START: "${SCALETEST_PHASE_FILE}") -gt 1 ]]; then
+		grep START: "${SCALETEST_PHASE_FILE}" | tail -n2 | head -n1 | cut -d' ' -f3-
+	else
+		echo "None"
+	fi
+}
+
+annotate_grafana() {
+	local tags=${1} text=${2} start=${3:-$(($(date +%s) * 1000))}
+	local json resp id
+
+	if [[ -z $tags ]]; then
+		tags="scaletest,runner"
+	else
+		tags="scaletest,runner,${tags}"
+	fi
+	if [[ -n ${GRAFANA_EXTRA_TAGS:-} ]]; then
+		tags="${tags},${GRAFANA_EXTRA_TAGS}"
+	fi
+
+	log "Annotating Grafana (start=${start}): ${text} [${tags}]"
+
+	json="$(
+		jq \
+			--argjson time "${start}" \
+			--arg text "${text}" \
+			--arg tags "${tags}" \
+			'{time: $time, tags: $tags | split(","), text: $text}' <<<'{}'
+	)"
+	if [[ ${DRY_RUN} == 1 ]]; then
+		echo "FAKEID:${tags}:${text}:${start}" >>"${SCALETEST_STATE_DIR}/grafana-annotations"
+		log "Would have annotated Grafana, data=${json}"
+		return 0
+	fi
+	if ! resp="$(
+		curl -sSL \
+			--insecure \
+			-H "Authorization: Bearer ${GRAFANA_API_TOKEN}" \
+			-H "Content-Type: application/json" \
+			-d "${json}" \
+			"${GRAFANA_URL}/api/annotations"
+	)"; then
+		# Don't abort scaletest just because we couldn't annotate Grafana.
+		log "Failed to annotate Grafana: ${resp}"
+		return 0
+	fi
+
+	if [[ $(jq -r '.message' <<<"${resp}") != "Annotation added" ]]; then
+		log "Failed to annotate Grafana: ${resp}"
+		return 0
+	fi
+
+	log "Grafana annotation added!"
+
+	id="$(jq -r '.id' <<<"${resp}")"
+	echo "${id}:${tags}:${text}:${start}" >>"${SCALETEST_STATE_DIR}/grafana-annotations"
+}
+annotate_grafana_end() {
+	local tags=${1} text=${2} start=${3:-} end=${4:-$(($(date +%s) * 1000))}
+	local id json resp
+
+	if [[ -z $tags ]]; then
+		tags="scaletest,runner"
+	else
+		tags="scaletest,runner,${tags}"
+	fi
+	if [[ -n ${GRAFANA_EXTRA_TAGS:-} ]]; then
+		tags="${tags},${GRAFANA_EXTRA_TAGS}"
+	fi
+
+	if ! id=$(grep ":${tags}:${text}:${start}" "${SCALETEST_STATE_DIR}/grafana-annotations" | sort -n | tail -n1 | cut -d: -f1); then
+		log "NOTICE: Could not find Grafana annotation to end: '${tags}:${text}:${start}', skipping..."
+		return 0
+	fi
+
+	log "Updating Grafana annotation (end=${end}): ${text} [${tags}, add=${GRAFANA_ADD_TAGS:-}]"
+
+	if [[ -n ${GRAFANA_ADD_TAGS:-} ]]; then
+		json="$(
+			jq -n \
+				--argjson timeEnd "${end}" \
+				--arg tags "${tags},${GRAFANA_ADD_TAGS}" \
+				'{timeEnd: $timeEnd, tags: $tags | split(",")}'
+		)"
+	else
+		json="$(
+			jq -n \
+				--argjson timeEnd "${end}" \
+				'{timeEnd: $timeEnd}'
+		)"
+	fi
+	if [[ ${DRY_RUN} == 1 ]]; then
+		log "Would have patched Grafana annotation: id=${id}, data=${json}"
+		return 0
+	fi
+	if ! resp="$(
+		curl -sSL \
+			--insecure \
+			-H "Authorization: Bearer ${GRAFANA_API_TOKEN}" \
+			-H "Content-Type: application/json" \
+			-X PATCH \
+			-d "${json}" \
+			"${GRAFANA_URL}/api/annotations/${id}"
+	)"; then
+		# Don't abort scaletest just because we couldn't annotate Grafana.
+		log "Failed to annotate Grafana end: ${resp}"
+		return 0
+	fi
+
+	if [[ $(jq -r '.message' <<<"${resp}") != "Annotation patched" ]]; then
+		log "Failed to annotate Grafana end: ${resp}"
+		return 0
+	fi
+
+	log "Grafana annotation patched!"
+}
+
+wait_baseline() {
+	s=${1:-2}
+	PHASE_TYPE="phase-wait" start_phase "Waiting ${s}m to establish baseline"
+	maybedryrun "$DRY_RUN" sleep $((s * 60))
+	PHASE_TYPE="phase-wait" end_phase
+}
+
+get_appearance() {
+	session_token=$CODER_USER_TOKEN
+	if [[ -f "${CODER_CONFIG_DIR}/session" ]]; then
+		session_token="$(<"${CODER_CONFIG_DIR}/session")"
+	fi
+	curl -sSL \
+		-H "Coder-Session-Token: ${session_token}" \
+		"${CODER_URL}/api/v2/appearance"
+}
+set_appearance() {
+	local json=$1 color=$2 message=$3
+
+	session_token=$CODER_USER_TOKEN
+	if [[ -f "${CODER_CONFIG_DIR}/session" ]]; then
+		session_token="$(<"${CODER_CONFIG_DIR}/session")"
+	fi
+	newjson="$(
+		jq \
+			--arg color "${color}" \
+			--arg message "${message}" \
+			'. | .service_banner.message |= $message | .service_banner.background_color |= $color' <<<"${json}"
+	)"
+	maybedryrun "${DRY_RUN}" curl -sSL \
+		-X PUT \
+		-H 'Content-Type: application/json' \
+		-H "Coder-Session-Token: ${session_token}" \
+		--data "${newjson}" \
+		"${CODER_URL}/api/v2/appearance"
+}
+
+namespace() {
+	cat /var/run/secrets/kubernetes.io/serviceaccount/namespace
+}
+coder_pods() {
+	kubectl get pods \
+		--namespace "$(namespace)" \
+		--selector "app.kubernetes.io/name=coder,app.kubernetes.io/part-of=coder" \
+		--output jsonpath='{.items[*].metadata.name}'
+}
+
+# fetch_coder_full fetches the full (non-slim) coder binary from one of the coder pods
+# running in the same namespace as the current pod.
+fetch_coder_full() {
+	if [[ -x "${SCALETEST_CODER_BINARY}" ]]; then
+		log "Full Coder binary already exists at ${SCALETEST_CODER_BINARY}"
+		return 0
+	fi
+	ns=$(namespace)
+	if [[ -z "${ns}" ]]; then
+		log "Could not determine namespace!"
+		return 1
+	fi
+	log "Namespace from serviceaccount token is ${ns}"
+	pods=$(coder_pods)
+	if [[ -z ${pods} ]]; then
+		log "Could not find coder pods!"
+		return 1
+	fi
+	pod=$(cut -d ' ' -f 1 <<<"${pods}")
+	if [[ -z ${pod} ]]; then
+		log "Could not find coder pod!"
+		return 1
+	fi
+	log "Fetching full Coder binary from ${pod}"
+	# We need --retries due to https://github.com/kubernetes/kubernetes/issues/60140 :(
+	maybedryrun "${DRY_RUN}" kubectl \
+		--namespace "${ns}" \
+		cp \
+		--container coder \
+		--retries 10 \
+		"${pod}:/opt/coder" "${SCALETEST_CODER_BINARY}"
+	maybedryrun "${DRY_RUN}" chmod +x "${SCALETEST_CODER_BINARY}"
+	log "Full Coder binary downloaded to ${SCALETEST_CODER_BINARY}"
+}
+
+# set_pod_status_annotation annotates the currently running pod with the key
+# com.coder.scaletest.status. It will overwrite the previous status.
+set_pod_status_annotation() {
+	if [[ $# -ne 1 ]]; then
+		log "BUG: Must specify an annotation value"
+		return 1
+	else
+		maybedryrun "${DRY_RUN}" kubectl --namespace "$(namespace)" annotate pod "$(hostname)" "com.coder.scaletest.status=$1" --overwrite
+	fi
+}

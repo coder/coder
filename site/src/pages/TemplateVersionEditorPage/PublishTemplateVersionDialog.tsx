@@ -1,0 +1,144 @@
+import Checkbox from "@mui/material/Checkbox";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import TextField from "@mui/material/TextField";
+import { useFormik } from "formik";
+import type { FC } from "react";
+import * as Yup from "yup";
+import { EnterpriseBadge } from "#/components/Badges/Badges";
+import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import type { DialogProps } from "#/components/Dialogs/Dialog";
+import { FormFields } from "#/components/Form/Form";
+import {
+	HelpPopover,
+	HelpPopoverContent,
+	HelpPopoverIconTrigger,
+	HelpPopoverLink,
+	HelpPopoverLinksGroup,
+	HelpPopoverText,
+	HelpPopoverTitle,
+} from "#/components/HelpPopover/HelpPopover";
+import type { PublishVersionData } from "#/pages/TemplateVersionEditorPage/types";
+import { docs } from "#/utils/docs";
+import { getFormHelpers } from "#/utils/formUtils";
+
+type PublishTemplateVersionDialogProps = DialogProps & {
+	defaultName: string;
+	isPublishing: boolean;
+	publishingError?: unknown;
+	onClose: () => void;
+	onConfirm: (data: PublishVersionData) => void;
+};
+
+export const PublishTemplateVersionDialog: FC<
+	PublishTemplateVersionDialogProps
+> = ({
+	onConfirm,
+	isPublishing,
+	onClose,
+	defaultName,
+	publishingError,
+	...dialogProps
+}) => {
+	const form = useFormik({
+		initialValues: {
+			name: defaultName,
+			message: "",
+			isActiveVersion: true,
+		},
+		validationSchema: Yup.object({
+			name: Yup.string().required(),
+			message: Yup.string(),
+			isActiveVersion: Yup.boolean(),
+		}),
+		onSubmit: onConfirm,
+	});
+	const getFieldHelpers = getFormHelpers(form, publishingError);
+	const handleClose = () => {
+		form.resetForm();
+		onClose();
+	};
+
+	return (
+		<ConfirmDialog
+			{...dialogProps}
+			confirmLoading={isPublishing}
+			onClose={handleClose}
+			onConfirm={async () => {
+				await form.submitForm();
+			}}
+			hideCancel={false}
+			type="success"
+			cancelText="Cancel"
+			confirmText="Publish"
+			title="Publish new version"
+			description={
+				<form id="publish-version" onSubmit={form.handleSubmit}>
+					<div className="flex flex-col gap-4">
+						<p>You are about to publish a new version of this template.</p>
+						<FormFields>
+							<TextField
+								{...getFieldHelpers("name")}
+								label="Version name"
+								autoFocus
+								disabled={isPublishing}
+							/>
+
+							<TextField
+								{...getFieldHelpers("message")}
+								label="Message"
+								placeholder="Write a short message about the changes you made..."
+								disabled={isPublishing}
+								multiline
+								rows={5}
+							/>
+
+							<div className="flex flex-row gap-4">
+								<FormControlLabel
+									label="Promote to active version"
+									control={
+										<Checkbox
+											size="small"
+											checked={form.values.isActiveVersion}
+											onChange={async (e) => {
+												await form.setFieldValue(
+													"isActiveVersion",
+													e.target.checked,
+												);
+											}}
+											name="isActiveVersion"
+										/>
+									}
+								/>
+
+								<HelpPopover>
+									<HelpPopoverIconTrigger />
+
+									{/**
+									 * 2025-09-03 - Without disablePortal, the tooltip will render under the dialog;
+									 * this prop may not need to be set when we switch away from MuiDialog
+									 */}
+									<HelpPopoverContent disablePortal>
+										<HelpPopoverTitle>Active versions</HelpPopoverTitle>
+										<HelpPopoverText>
+											Templates can enforce that the active version be used for
+											all workspaces <EnterpriseBadge />
+										</HelpPopoverText>
+										<HelpPopoverLinksGroup>
+											<HelpPopoverLink
+												href={docs(
+													"/admin/templates/managing-templates#template-update-policies",
+												)}
+											>
+												Review the documentation
+											</HelpPopoverLink>
+										</HelpPopoverLinksGroup>
+									</HelpPopoverContent>
+								</HelpPopover>
+							</div>
+						</FormFields>
+					</div>
+				</form>
+			}
+		/>
+	);
+};

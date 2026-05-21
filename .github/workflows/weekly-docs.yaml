@@ -1,0 +1,76 @@
+name: weekly-docs
+# runs every monday at 9 am
+on:
+  schedule:
+    - cron: "0 9 * * 1"
+  workflow_dispatch: # allows to run manually for testing
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "docs/**"
+
+permissions:
+  contents: read
+
+jobs:
+  check-docs:
+    # later versions of Ubuntu have disabled unprivileged user namespaces, which are required by the action
+    runs-on: ubuntu-22.04
+    permissions:
+      pull-requests: write # required to post PR review comments by the action
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Rewrite same-repo links for PR branch
+        if: github.event_name == 'pull_request'
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # Rewrite same-repo blob/tree main links to the PR head SHA
+          # so that files or directories introduced in the PR are
+          # reachable during link checking.
+          {
+            echo 'replacementPatterns:'
+            echo "  - pattern: \"https://github.com/coder/coder/blob/main/\""
+            echo "    replacement: \"https://github.com/coder/coder/blob/${HEAD_SHA}/\""
+            echo "  - pattern: \"https://github.com/coder/coder/tree/main/\""
+            echo "    replacement: \"https://github.com/coder/coder/tree/${HEAD_SHA}/\""
+          } >> .github/.linkspector.yml
+
+      # TODO: Remove this workaround once action-linkspector sets
+      # package-manager-cache: false in its internal setup-node step.
+      # See: https://github.com/UmbrellaDocs/action-linkspector/issues/54
+      - name: Enable corepack and create pnpm store
+        run: |
+          corepack enable pnpm
+          mkdir -p "$(pnpm store path --silent)"
+
+      - name: Check Markdown links
+        uses: umbrelladocs/action-linkspector@37c85bcde51b30bf929936502bac6bfb7e8f0a4d # v1.4.1
+        id: markdown-link-check
+        # checks all markdown files from /docs including all subfolders
+        with:
+          reporter: github-pr-review
+          config_file: ".github/.linkspector.yml"
+          fail_on_error: "true"
+          filter_mode: "file"
+
+      - name: Send Slack notification
+        if: failure() && github.event_name == 'schedule'
+        run: |
+          curl \
+            -X POST \
+            -H 'Content-type: application/json' \
+            -d '{"msg":"Broken links found in the documentation. Please check the logs at '"${LOGS_URL}"'"}' "${{ secrets.DOCS_LINK_SLACK_WEBHOOK }}"
+          echo "Sent Slack notification"
+        env:
+          LOGS_URL: https://github.com/coder/coder/actions/runs/${{ github.run_id }}

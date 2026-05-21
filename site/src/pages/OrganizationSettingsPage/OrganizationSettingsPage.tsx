@@ -1,0 +1,134 @@
+import type { FC } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useNavigate } from "react-router";
+import { toast } from "sonner";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import {
+	deleteOrganization,
+	patchWorkspaceSharingSettings,
+	updateOrganization,
+	workspaceSharingSettings,
+} from "#/api/queries/organizations";
+import type { ShareableWorkspaceOwners } from "#/api/typesGenerated";
+import { EmptyState } from "#/components/EmptyState/EmptyState";
+import { useOrganizationSettings } from "#/modules/management/OrganizationSettingsLayout";
+import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import { pageTitle } from "#/utils/page";
+import { OrganizationSettingsPageView } from "./OrganizationSettingsPageView";
+
+const sharingUpdatedToastLabels: Record<ShareableWorkspaceOwners, string> = {
+	none: "Workspace sharing disabled.",
+	service_accounts: "Workspace sharing restricted to service accounts.",
+	everyone: "Workspace sharing enabled for all users.",
+};
+
+const OrganizationSettingsPage: FC = () => {
+	const navigate = useNavigate();
+	const queryClient = useQueryClient();
+	const { organization, organizationPermissions } = useOrganizationSettings();
+
+	const updateOrganizationMutation = useMutation(
+		updateOrganization(queryClient),
+	);
+	const deleteOrganizationMutation = useMutation(
+		deleteOrganization(queryClient),
+	);
+
+	const sharingSettingsQuery = useQuery({
+		...workspaceSharingSettings(organization?.id ?? ""),
+		enabled: Boolean(organization),
+	});
+
+	const patchSharingSettingsMutation = useMutation(
+		patchWorkspaceSharingSettings(organization?.id ?? "", queryClient),
+	);
+
+	if (!organization) {
+		return <EmptyState message="Organization not found" />;
+	}
+
+	const title = (
+		<title>
+			{pageTitle("Settings", organization.display_name || organization.name)}
+		</title>
+	);
+
+	if (!organizationPermissions?.editSettings) {
+		return (
+			<>
+				{title}
+				<RequirePermission isFeatureVisible={false} />
+			</>
+		);
+	}
+
+	const error =
+		updateOrganizationMutation.error ?? deleteOrganizationMutation.error;
+
+	const handleChangeShareableOwners = async (
+		value: ShareableWorkspaceOwners,
+	) => {
+		const mutation = patchSharingSettingsMutation.mutateAsync({
+			shareable_workspace_owners: value,
+		});
+
+		toast.promise(mutation, {
+			loading: "Updating workspace sharing settings...",
+			success: sharingUpdatedToastLabels[value],
+			error: (error) => ({
+				message: "Failed to update workspace sharing settings.",
+				description: getErrorDetail(error),
+			}),
+		});
+	};
+
+	return (
+		<>
+			{title}
+			<OrganizationSettingsPageView
+				organization={organization}
+				error={error}
+				onSubmit={async (values) => {
+					const updatedOrganization =
+						await updateOrganizationMutation.mutateAsync({
+							organizationId: organization.id,
+							req: values,
+						});
+					navigate(`/organizations/${updatedOrganization.name}/settings`);
+					toast.success(
+						`Organization "${updatedOrganization.name}" settings updated successfully.`,
+					);
+				}}
+				onDeleteOrganization={async () => {
+					try {
+						await deleteOrganizationMutation.mutateAsync(organization.id);
+						toast.success(
+							`Organization "${organization.display_name || organization.name}" deleted successfully.`,
+						);
+						navigate("/organizations");
+					} catch (error) {
+						toast.error(
+							getErrorMessage(
+								error,
+								`Failed to delete organization "${organization.name}".`,
+							),
+							{
+								description: getErrorDetail(error),
+							},
+						);
+					}
+				}}
+				workspaceSharingGloballyDisabled={
+					sharingSettingsQuery.data?.sharing_globally_disabled
+				}
+				shareableWorkspaceOwners={
+					sharingSettingsQuery.data?.shareable_workspace_owners ?? "none"
+				}
+				onChangeShareableOwners={handleChangeShareableOwners}
+				isTogglingWorkspaceSharing={patchSharingSettingsMutation.isPending}
+			/>
+		</>
+	);
+};
+
+export default OrganizationSettingsPage;

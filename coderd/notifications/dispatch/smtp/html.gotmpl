@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ .Labels._subject }}</title>
+  </head>
+  <body style="margin: 0; padding: 0; font-family: -apple-system, system-ui, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif; color: #020617; background: #f8fafc;">
+    <div style="max-width: 600px; margin: 20px auto; padding: 60px; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #fff; text-align: left; font-size: 14px; line-height: 1.5;">
+      <div style="text-align: center;">
+        <img src="{{ logo_url }}" alt="{{ app_name }} Logo" style="height: 40px;" />
+      </div>
+      <h1 style="text-align: center; font-size: 24px; font-weight: 400; margin: 8px 0 32px; line-height: 1.5;">
+        {{ .Labels._subject }}
+      </h1>
+      <div style="line-height: 1.5;">
+        <p>Hi {{ .UserName }},</p>
+        {{ .Labels._body }}
+      </div>
+      <div style="text-align: center; margin-top: 32px;">
+        {{ range $action := .Actions }}
+        <a href="{{ $action.URL }}" style="display: inline-block; padding: 13px 24px; background-color: #020617; color: #f8fafc; text-decoration: none; border-radius: 8px; margin: 0 4px;">
+          {{ $action.Label }}
+        </a>
+        {{ end }}
+      </div>
+      <div style="border-top: 1px solid #e2e8f0; color: #475569; font-size: 12px; margin-top: 64px; padding-top: 24px; line-height: 1.6;">
+        <p>&copy;&nbsp;{{ current_year }}&nbsp;Coder. All rights reserved&nbsp;-&nbsp;<a href="{{ base_url }}" style="color: #2563eb; text-decoration: none;">{{ base_url }}</a></p>
+        <p><a href="{{ base_url }}/settings/notifications" style="color: #2563eb; text-decoration: none;">Click here to manage your notification settings</a></p>
+        <p><a href="{{ base_url }}/settings/notifications?disabled={{ .NotificationTemplateID }}" style="color: #2563eb; text-decoration: none;">Stop receiving emails like this</a></p>
+      </div>
+    </div>
+  </body>
+</html>

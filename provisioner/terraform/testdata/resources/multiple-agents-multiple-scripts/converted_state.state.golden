@@ -1,0 +1,77 @@
+{
+  "Resources": [
+    {
+      "name": "dev1",
+      "type": "null_resource",
+      "agents": [
+        {
+          "id": "9d9c16e7-5828-4ca4-9c9d-ba4b61d2b0db",
+          "name": "dev1",
+          "operating_system": "linux",
+          "architecture": "amd64",
+          "Auth": {
+            "Token": "2054bc44-b3d1-44e3-8f28-4ce327081ddb"
+          },
+          "connection_timeout_seconds": 120,
+          "display_apps": {
+            "vscode": true,
+            "web_terminal": true,
+            "ssh_helper": true,
+            "port_forwarding_helper": true
+          },
+          "scripts": [
+            {
+              "display_name": "Foobar Script 1",
+              "script": "echo foobar 1",
+              "run_on_start": true
+            },
+            {
+              "display_name": "Foobar Script 2",
+              "script": "echo foobar 2",
+              "run_on_start": true
+            }
+          ],
+          "resources_monitoring": {},
+          "api_key_scope": "all"
+        }
+      ]
+    },
+    {
+      "name": "dev2",
+      "type": "null_resource",
+      "agents": [
+        {
+          "id": "69cb645c-7a6a-4ad6-be86-dcaab810e7c1",
+          "name": "dev2",
+          "operating_system": "linux",
+          "architecture": "amd64",
+          "Auth": {
+            "Token": "c3e73db7-a589-4364-bcf7-0224a9be5c70"
+          },
+          "connection_timeout_seconds": 120,
+          "display_apps": {
+            "vscode": true,
+            "web_terminal": true,
+            "ssh_helper": true,
+            "port_forwarding_helper": true
+          },
+          "scripts": [
+            {
+              "display_name": "Foobar Script 3",
+              "script": "echo foobar 3",
+              "run_on_start": true
+            }
+          ],
+          "resources_monitoring": {},
+          "api_key_scope": "all"
+        }
+      ]
+    }
+  ],
+  "Parameters": [],
+  "Presets": [],
+  "ExternalAuthProviders": [],
+  "AITasks": [],
+  "HasAITasks": false,
+  "HasExternalAgents": false
+}

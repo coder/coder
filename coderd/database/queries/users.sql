@@ -1,0 +1,672 @@
+-- name: UpdateUserLoginType :one
+UPDATE
+	users
+SET
+	login_type = @new_login_type,
+	hashed_password = CASE WHEN @new_login_type = 'password' :: login_type THEN
+		users.hashed_password
+	ELSE
+		-- If the login type is not password, then the password should be
+        -- cleared.
+		'':: bytea
+	END
+WHERE
+	id = @user_id
+	AND NOT is_system
+RETURNING *;
+
+-- name: GetUserByID :one
+SELECT
+	*
+FROM
+	users
+WHERE
+	id = $1
+LIMIT
+	1;
+
+-- name: ValidateUserIDs :one
+WITH input AS (
+	SELECT
+		unnest(@user_ids::uuid[]) AS id
+)
+SELECT
+	array_agg(input.id)::uuid[] as invalid_user_ids,
+	COUNT(*) = 0 as ok
+FROM
+	-- Preserve rows where there is not a matching left (users) row for each
+	-- right (input) row...
+	users
+	RIGHT JOIN input ON users.id = input.id
+WHERE
+	-- ...so that we can retain exactly those rows where an input ID does not
+	-- match an existing user...
+	users.id IS NULL OR
+	-- ...or that only matches a user that was deleted.
+	users.deleted = true;
+
+-- name: GetUsersByIDs :many
+-- This shouldn't check for deleted, because it's frequently used
+-- to look up references to actions. eg. a user could build a workspace
+-- for another user, then be deleted... we still want them to appear!
+SELECT * FROM users WHERE id = ANY(@ids :: uuid [ ]);
+
+-- name: GetUserByEmailOrUsername :one
+SELECT
+	*
+FROM
+	users
+WHERE
+	(LOWER(username) = LOWER(@username) OR (@email != '' AND LOWER(email) = LOWER(@email))) AND
+	deleted = false
+LIMIT
+	1;
+
+-- name: GetUserCount :one
+SELECT
+	COUNT(*)
+FROM
+	users
+WHERE
+	deleted = false
+  	AND CASE WHEN @include_system::bool THEN TRUE ELSE is_system = false END;
+
+-- name: GetActiveUserCount :one
+SELECT
+	COUNT(*)
+FROM
+	users
+WHERE
+	status = 'active'::user_status AND deleted = false
+	AND is_service_account = false
+	AND CASE WHEN @include_system::bool THEN TRUE ELSE is_system = false END;
+
+-- name: InsertUser :one
+INSERT INTO
+	users (
+		id,
+		email,
+		username,
+		name,
+		hashed_password,
+		created_at,
+		updated_at,
+		rbac_roles,
+		login_type,
+		status,
+		is_service_account
+	)
+VALUES
+	($1, $2, $3, $4, $5, $6, $7, $8, $9,
+		-- if the status passed in is empty, fallback to dormant, which is what
+		-- we were doing before.
+		COALESCE(NULLIF(@status::text, '')::user_status, 'dormant'::user_status),
+		@is_service_account::bool
+	) RETURNING *;
+
+-- name: UpdateUserProfile :one
+UPDATE
+	users
+SET
+	email = $2,
+	username = $3,
+	avatar_url = $4,
+	updated_at = $5,
+	name = $6
+WHERE
+	id = $1
+RETURNING *;
+
+-- name: UpdateUserGithubComUserID :exec
+UPDATE
+	users
+SET
+	github_com_user_id = $2
+WHERE
+	id = $1;
+
+-- name: GetUserAppearanceSettings :one
+SELECT
+	COALESCE(MAX(value) FILTER (WHERE key = 'theme_preference'), '')::text AS theme_preference,
+	COALESCE(MAX(value) FILTER (WHERE key = 'theme_mode'), '')::text AS theme_mode,
+	COALESCE(MAX(value) FILTER (WHERE key = 'theme_light'), '')::text AS theme_light,
+	COALESCE(MAX(value) FILTER (WHERE key = 'theme_dark'), '')::text AS theme_dark,
+	COALESCE(MAX(value) FILTER (WHERE key = 'terminal_font'), '')::text AS terminal_font
+FROM
+	user_configs
+WHERE
+	user_id = @user_id
+	AND key IN (
+		'theme_preference',
+		'theme_mode',
+		'theme_light',
+		'theme_dark',
+		'terminal_font'
+	);
+
+-- name: UpdateUserThemePreference :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'theme_preference', @theme_preference)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @theme_preference
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'theme_preference'
+RETURNING *;
+
+-- name: UpdateUserTerminalFont :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'terminal_font', @terminal_font)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @terminal_font
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'terminal_font'
+RETURNING *;
+
+-- name: UpdateUserThemeMode :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'theme_mode', @theme_mode)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @theme_mode
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'theme_mode'
+RETURNING *;
+
+-- name: UpdateUserThemeLight :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'theme_light', @theme_light)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @theme_light
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'theme_light'
+RETURNING *;
+
+-- name: UpdateUserThemeDark :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'theme_dark', @theme_dark)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @theme_dark
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'theme_dark'
+RETURNING *;
+
+-- name: GetUserChatCustomPrompt :one
+SELECT
+	value as chat_custom_prompt
+FROM
+	user_configs
+WHERE
+	user_id = @user_id
+	AND key = 'chat_custom_prompt';
+
+-- name: UpdateUserChatCustomPrompt :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'chat_custom_prompt', @chat_custom_prompt)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @chat_custom_prompt
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'chat_custom_prompt'
+RETURNING *;
+
+-- name: ListUserChatCompactionThresholds :many
+SELECT user_id, key, value FROM user_configs
+WHERE user_id = @user_id
+	AND key LIKE 'chat\_compaction\_threshold\_pct:%'
+ORDER BY key;
+
+-- name: GetUserChatCompactionThreshold :one
+SELECT value AS threshold_percent FROM user_configs
+WHERE user_id = @user_id AND key = @key;
+
+-- name: UpdateUserChatCompactionThreshold :one
+INSERT INTO user_configs (user_id, key, value)
+VALUES (@user_id, @key, (@threshold_percent::int)::text)
+ON CONFLICT ON CONSTRAINT user_configs_pkey
+DO UPDATE SET value = (@threshold_percent::int)::text
+RETURNING *;
+
+-- name: DeleteUserChatCompactionThreshold :exec
+DELETE FROM user_configs WHERE user_id = @user_id AND key = @key;
+
+-- name: GetUserChatDebugLoggingEnabled :one
+SELECT
+	COALESCE((
+		SELECT value = 'true'
+		FROM user_configs
+		WHERE user_id = @user_id
+			AND key = 'chat_debug_logging_enabled'
+	), false) :: boolean AS debug_logging_enabled;
+
+-- name: UpsertUserChatDebugLoggingEnabled :exec
+INSERT INTO user_configs (user_id, key, value)
+VALUES (
+	@user_id,
+	'chat_debug_logging_enabled',
+	CASE
+		WHEN sqlc.arg(debug_logging_enabled)::bool THEN 'true'
+		ELSE 'false'
+	END
+)
+ON CONFLICT ON CONSTRAINT user_configs_pkey
+DO UPDATE SET value = CASE
+	WHEN sqlc.arg(debug_logging_enabled)::bool THEN 'true'
+	ELSE 'false'
+END
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'chat_debug_logging_enabled';
+
+-- name: ListUserChatPersonalModelOverrides :many
+SELECT key, value FROM user_configs
+WHERE user_id = @user_id
+	AND key LIKE 'chat\_personal\_model\_override:%'
+ORDER BY key;
+
+-- name: GetUserChatPersonalModelOverride :one
+SELECT value AS personal_model_override FROM user_configs
+WHERE user_id = @user_id
+	AND key = @key;
+
+-- name: UpsertUserChatPersonalModelOverride :exec
+INSERT INTO user_configs (user_id, key, value)
+VALUES (@user_id::uuid, @key::text, @value::text)
+ON CONFLICT ON CONSTRAINT user_configs_pkey
+DO UPDATE SET value = @value::text;
+
+-- name: GetUserTaskNotificationAlertDismissed :one
+SELECT
+	value::boolean as task_notification_alert_dismissed
+FROM
+	user_configs
+WHERE
+	user_id = @user_id
+	AND key = 'preference_task_notification_alert_dismissed';
+
+-- name: UpdateUserTaskNotificationAlertDismissed :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'preference_task_notification_alert_dismissed', (@task_notification_alert_dismissed::boolean)::text)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @task_notification_alert_dismissed
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'preference_task_notification_alert_dismissed'
+RETURNING value::boolean AS task_notification_alert_dismissed;
+
+-- name: GetUserThinkingDisplayMode :one
+SELECT
+	value AS thinking_display_mode
+FROM
+	user_configs
+WHERE
+	user_id = @user_id
+	AND key = 'preference_thinking_display_mode';
+
+-- name: UpdateUserThinkingDisplayMode :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'preference_thinking_display_mode', @thinking_display_mode::text)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @thinking_display_mode
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'preference_thinking_display_mode'
+RETURNING value AS thinking_display_mode;
+
+-- name: GetUserShellToolDisplayMode :one
+SELECT
+	value AS shell_tool_display_mode
+FROM
+	user_configs
+WHERE
+	user_id = @user_id
+	AND key = 'preference_shell_tool_display_mode';
+
+-- name: UpdateUserShellToolDisplayMode :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'preference_shell_tool_display_mode', @shell_tool_display_mode::text)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @shell_tool_display_mode
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'preference_shell_tool_display_mode'
+RETURNING value AS shell_tool_display_mode;
+
+-- name: GetUserCodeDiffDisplayMode :one
+SELECT
+	value AS code_diff_display_mode
+FROM
+	user_configs
+WHERE
+	user_id = @user_id
+	AND key = 'preference_code_diff_display_mode';
+
+-- name: UpdateUserCodeDiffDisplayMode :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'preference_code_diff_display_mode', @code_diff_display_mode::text)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @code_diff_display_mode
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'preference_code_diff_display_mode'
+RETURNING value AS code_diff_display_mode;
+
+-- name: GetUserAgentChatSendShortcut :one
+SELECT
+	value AS agent_chat_send_shortcut
+FROM
+	user_configs
+WHERE
+	user_id = @user_id
+	AND key = 'preference_agent_chat_send_shortcut';
+
+-- name: UpdateUserAgentChatSendShortcut :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	(@user_id, 'preference_agent_chat_send_shortcut', @agent_chat_send_shortcut::text)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = @agent_chat_send_shortcut
+WHERE user_configs.user_id = @user_id
+	AND user_configs.key = 'preference_agent_chat_send_shortcut'
+RETURNING value AS agent_chat_send_shortcut;
+
+-- name: UpdateUserRoles :one
+UPDATE
+	users
+SET
+	-- Remove all duplicates from the roles.
+	rbac_roles = ARRAY(SELECT DISTINCT UNNEST(@granted_roles :: text[]))
+WHERE
+	id = @id
+RETURNING *;
+
+-- name: UpdateUserHashedPassword :exec
+UPDATE
+	users
+SET
+	hashed_password = $2,
+	hashed_one_time_passcode = NULL,
+	one_time_passcode_expires_at = NULL
+WHERE
+	id = $1;
+
+-- name: UpdateUserDeletedByID :exec
+UPDATE
+	users
+SET
+	deleted = true
+WHERE
+	id = $1;
+
+-- name: GetUsers :many
+-- This will never return deleted users.
+SELECT
+	*, COUNT(*) OVER() AS count
+FROM
+	users
+WHERE
+	users.deleted = false
+	AND CASE
+		-- This allows using the last element on a page as effectively a cursor.
+		-- This is an important option for scripts that need to paginate without
+		-- duplicating or missing data.
+		WHEN @after_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+			-- The pagination cursor is the last ID of the previous page.
+			-- The query is ordered by the username field, so select all
+			-- rows after the cursor.
+			(LOWER(username)) > (
+				SELECT
+					LOWER(username)
+				FROM
+					users
+				WHERE
+					id = @after_id
+			)
+		)
+		ELSE true
+	END
+	-- Start filters
+	-- Filter by email or username
+	AND CASE
+		WHEN @search :: text != '' THEN (
+			email ILIKE concat('%', @search, '%')
+			OR username ILIKE concat('%', @search, '%')
+		)
+		ELSE true
+	END
+	-- Filter by name (display name)
+	AND CASE
+		WHEN @name :: text != '' THEN
+			name ILIKE concat('%', @name, '%')
+		ELSE true
+	END
+	-- Filter by status
+	AND CASE
+		-- @status needs to be a text because it can be empty, If it was
+		-- user_status enum, it would not.
+		WHEN cardinality(@status :: user_status[]) > 0 THEN
+			status = ANY(@status :: user_status[])
+		ELSE true
+	END
+	-- Filter by rbac_roles
+	AND CASE
+		-- @rbac_role allows filtering by rbac roles. If 'member' is included, show everyone, as
+		-- everyone is a member.
+		WHEN cardinality(@rbac_role :: text[]) > 0 AND 'member' != ANY(@rbac_role :: text[]) THEN
+			rbac_roles && @rbac_role :: text[]
+		ELSE true
+	END
+	-- Filter by last_seen
+	AND CASE
+		WHEN @last_seen_before :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			last_seen_at <= @last_seen_before
+		ELSE true
+	END
+	AND CASE
+		WHEN @last_seen_after :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			last_seen_at >= @last_seen_after
+		ELSE true
+	END
+	-- Filter by created_at
+	AND CASE
+		WHEN @created_before :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			created_at <= @created_before
+		ELSE true
+	END
+	AND CASE
+		WHEN @created_after :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			created_at >= @created_after
+		ELSE true
+	END
+	-- Filter by system type
+	AND CASE
+		WHEN @include_system::bool THEN TRUE
+		ELSE is_system = false
+	END
+	-- Filter by github.com user ID
+	AND CASE
+		WHEN @github_com_user_id :: bigint != 0 THEN
+			github_com_user_id = @github_com_user_id
+		ELSE true
+	END
+	-- Filter by login_type
+	AND CASE
+		WHEN cardinality(@login_type :: login_type[]) > 0 THEN
+			login_type = ANY(@login_type :: login_type[])
+		ELSE true
+	END
+	-- Filter by service account.
+	AND CASE
+		WHEN sqlc.narg('is_service_account') :: boolean IS NOT NULL THEN
+			is_service_account = sqlc.narg('is_service_account') :: boolean
+		ELSE true
+	END
+	-- End of filters
+
+	-- Authorize Filter clause will be injected below in GetAuthorizedUsers
+	-- @authorize_filter
+ORDER BY
+	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.
+	LOWER(username) ASC OFFSET @offset_opt
+LIMIT
+	-- A null limit means "no limit", so 0 means return all
+	NULLIF(@limit_opt :: int, 0);
+
+-- name: UpdateUserStatus :one
+UPDATE
+	users
+SET
+	status = $2,
+	updated_at = $3,
+	-- If the user is logging in, set last_seen_at to updated_at.
+	last_seen_at = CASE WHEN @user_is_seen :: boolean THEN $3 :: timestamptz ELSE last_seen_at END
+WHERE
+	id = $1 RETURNING *;
+
+-- name: UpdateUserLastSeenAt :one
+UPDATE
+	users
+SET
+	last_seen_at = $2,
+	updated_at = $3
+WHERE
+	id = $1 RETURNING *;
+
+
+-- name: GetAuthorizationUserRoles :one
+-- This function returns roles for authorization purposes. Implied member roles
+-- are included.
+SELECT
+	-- username and email are returned just to help for logging purposes
+	-- status is used to enforce 'suspended' users, as all roles are ignored
+	--	when suspended.
+	id, username, status, email,
+	-- All user roles, including their org roles.
+	array_cat(
+		-- All users are members
+		array_append(users.rbac_roles, 'member'),
+		(
+			SELECT
+				-- The roles are returned as a flat array, org scoped and site side.
+				-- Concatenating the organization id scopes the organization roles.
+				array_agg(org_roles || ':' || organization_members.organization_id::text)
+			FROM
+				organization_members,
+				-- All org members get an implied role for their orgs. Most members
+				-- get organization-member, but service accounts will get
+				-- organization-service-account instead. They're largely the same,
+				-- but having them be distinct means we can allow configuring
+				-- service-accounts to have slightly broader permissions–such as
+				-- for workspace sharing.
+				unnest(
+					array_append(
+						roles,
+						CASE WHEN users.is_service_account THEN
+							'organization-service-account'
+						ELSE
+							'organization-member'
+						END
+					)
+				) AS org_roles
+			WHERE
+				user_id = users.id
+		)
+	) :: text[] AS roles,
+	-- All groups the user is in.
+	(
+		SELECT
+			array_agg(
+				group_members.group_id :: text
+			)
+		FROM
+			group_members
+		WHERE
+			user_id = users.id
+	) :: text[] AS groups
+FROM
+	users
+WHERE
+	id = @user_id;
+
+-- name: UpdateUserQuietHoursSchedule :one
+UPDATE
+	users
+SET
+	quiet_hours_schedule = $2
+WHERE
+	id = $1
+RETURNING *;
+
+
+-- name: UpdateInactiveUsersToDormant :many
+UPDATE
+    users
+SET
+    status = 'dormant'::user_status,
+    updated_at = @updated_at
+WHERE
+    last_seen_at < @last_seen_after :: timestamp
+    AND status = 'active'::user_status
+		AND NOT is_system
+RETURNING id, email, username, last_seen_at;
+
+-- AllUserIDs returns all UserIDs regardless of user status or deletion.
+-- name: AllUserIDs :many
+SELECT DISTINCT id FROM USERS
+	WHERE CASE WHEN @include_system::bool THEN TRUE ELSE is_system = false END;
+
+-- name: UpdateUserHashedOneTimePasscode :exec
+UPDATE
+    users
+SET
+    hashed_one_time_passcode = $2,
+    one_time_passcode_expires_at = $3
+WHERE
+    id = $1
+;

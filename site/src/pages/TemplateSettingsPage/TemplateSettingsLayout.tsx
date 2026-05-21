@@ -1,0 +1,78 @@
+import { createContext, type FC, Suspense, useContext } from "react";
+import { useQuery } from "react-query";
+import { Outlet, useParams } from "react-router";
+import { checkAuthorization } from "#/api/queries/authCheck";
+import { templateByName } from "#/api/queries/templates";
+import type { AuthorizationResponse, Template } from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Loader } from "#/components/Loader/Loader";
+import { Margins } from "#/components/Margins/Margins";
+import { pageTitle } from "#/utils/page";
+import { Sidebar } from "./Sidebar";
+
+const TemplateSettings = createContext<
+	{ template: Template; permissions: AuthorizationResponse } | undefined
+>(undefined);
+
+export function useTemplateSettings() {
+	const value = useContext(TemplateSettings);
+	if (!value) {
+		throw new Error("This hook can only be used from a template settings page");
+	}
+
+	return value;
+}
+
+export const TemplateSettingsLayout: FC = () => {
+	const { organization: organizationName = "default", template: templateName } =
+		useParams() as { organization?: string; template: string };
+	const templateQuery = useQuery(
+		templateByName(organizationName, templateName),
+	);
+	const permissionsQuery = useQuery({
+		...checkAuthorization({
+			checks: {
+				canUpdateTemplate: {
+					object: {
+						resource_type: "template",
+						resource_id: templateQuery.data?.id ?? "",
+					},
+					action: "update",
+				},
+			},
+		}),
+		enabled: templateQuery.isSuccess,
+	});
+
+	if (!(templateQuery.data && permissionsQuery.data)) {
+		return <Loader />;
+	}
+
+	return (
+		<>
+			<title>{pageTitle(templateName, "Settings")}</title>
+
+			<Margins>
+				<div className="flex flex-row gap-20 py-12">
+					{templateQuery.isError || permissionsQuery.isError ? (
+						<ErrorAlert error={templateQuery.error} />
+					) : (
+						<TemplateSettings.Provider
+							value={{
+								template: templateQuery.data,
+								permissions: permissionsQuery.data,
+							}}
+						>
+							<Sidebar template={templateQuery.data} />
+							<Suspense fallback={<Loader />}>
+								<div className="w-full">
+									<Outlet />
+								</div>
+							</Suspense>
+						</TemplateSettings.Provider>
+					)}
+				</div>
+			</Margins>
+		</>
+	);
+};

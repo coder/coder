@@ -1,0 +1,52 @@
+{
+  "Resources": [
+    {
+      "name": "dev",
+      "type": "null_resource",
+      "agents": [
+        {
+          "name": "main",
+          "operating_system": "linux",
+          "architecture": "amd64",
+          "Auth": {
+            "Token": ""
+          },
+          "connection_timeout_seconds": 120,
+          "display_apps": {
+            "vscode": true,
+            "web_terminal": true,
+            "ssh_helper": true,
+            "port_forwarding_helper": true
+          },
+          "resources_monitoring": {},
+          "devcontainers": [
+            {
+              "workspace_folder": "/workspace1",
+              "name": "dev1"
+            },
+            {
+              "workspace_folder": "/workspace2",
+              "config_path": "/workspace2/.devcontainer/devcontainer.json",
+              "name": "dev2"
+            }
+          ],
+          "api_key_scope": "all"
+        }
+      ]
+    },
+    {
+      "name": "dev1",
+      "type": "coder_devcontainer"
+    },
+    {
+      "name": "dev2",
+      "type": "coder_devcontainer"
+    }
+  ],
+  "Parameters": [],
+  "Presets": [],
+  "ExternalAuthProviders": [],
+  "AITasks": [],
+  "HasAITasks": false,
+  "HasExternalAgents": false
+}

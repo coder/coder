@@ -1,0 +1,10 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: coder
+  annotations:
+    github.com/project-slug: 'coder/coder'
+spec:
+  type: service
+  lifecycle: production
+  owner: rd

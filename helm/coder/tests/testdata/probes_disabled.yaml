@@ -1,0 +1,7 @@
+coder:
+  image:
+    tag: latest
+  readinessProbe:
+    enabled: false
+  livenessProbe:
+    enabled: false

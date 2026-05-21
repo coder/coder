@@ -1,0 +1,34 @@
+# Ignore all packages from this repository by default
+Package: *
+Pin: origin ppa.launchpad.net
+Pin-Priority: 1
+
+# Ansible
+Package: ansible-base
+Pin: origin ppa.launchpad.net
+Pin-Priority: 500
+
+# Fish
+Package: fish
+Pin: origin ppa.launchpad.net
+Pin-Priority: 500
+
+# Git
+Package: git
+Pin: origin ppa.launchpad.net
+Pin-Priority: 500
+
+# Helix
+Package: helix
+Pin: origin ppa.launchpad.net
+Pin-Priority: 500
+
+# Neovim
+Package: neovim
+Pin: origin ppa.launchpad.net
+Pin-Priority: 500
+
+# Neovim Runtime
+Package: neovim-runtime
+Pin: origin ppa.launchpad.net
+Pin-Priority: 500

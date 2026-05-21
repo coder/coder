@@ -1,0 +1,85 @@
+{
+  "Resources": [
+    {
+      "name": "coder_workspace",
+      "type": "kubernetes_config_map"
+    },
+    {
+      "name": "coder_workspace",
+      "type": "kubernetes_role"
+    },
+    {
+      "name": "coder_workspace",
+      "type": "kubernetes_role_binding"
+    },
+    {
+      "name": "coder_workspace",
+      "type": "kubernetes_secret"
+    },
+    {
+      "name": "coder_workspace",
+      "type": "kubernetes_service_account"
+    },
+    {
+      "name": "main",
+      "type": "kubernetes_pod",
+      "agents": [
+        {
+          "name": "main",
+          "operating_system": "linux",
+          "architecture": "amd64",
+          "apps": [
+            {
+              "slug": "code-server",
+              "display_name": "code-server",
+              "url": "http://localhost:13337?folder=/home/coder",
+              "icon": "/icon/code.svg",
+              "open_in": 1,
+              "id": "73971185-3dea-f456-c568-4f285dbcdb52"
+            }
+          ],
+          "Auth": {
+            "Token": ""
+          },
+          "connection_timeout_seconds": 120,
+          "display_apps": {
+            "vscode": true,
+            "web_terminal": true,
+            "ssh_helper": true,
+            "port_forwarding_helper": true
+          },
+          "scripts": [
+            {
+              "display_name": "Startup Script",
+              "icon": "/emojis/25b6-fe0f.png",
+              "script": "    #!/bin/bash\n    # home folder can be empty, so copying default bash settings\n    if [ ! -f ~/.profile ]; then\n      cp /etc/skel/.profile $HOME\n    fi\n    if [ ! -f ~/.bashrc ]; then\n      cp /etc/skel/.bashrc $HOME\n    fi\n    # install and start code-server\n    curl -fsSL https://code-server.dev/install.sh | sh  | tee code-server-install.log\n    code-server --auth none --port 13337 | tee code-server-install.log \u0026\n",
+              "run_on_start": true,
+              "log_path": "coder-startup-script.log"
+            }
+          ],
+          "resources_monitoring": {}
+        }
+      ],
+      "metadata": [
+        {
+          "key": "cpu",
+          "value": "1"
+        },
+        {
+          "key": "memory",
+          "value": "1Gi"
+        },
+        {
+          "key": "gpu",
+          "value": "1"
+        }
+      ]
+    }
+  ],
+  "Parameters": [],
+  "Presets": [],
+  "ExternalAuthProviders": [],
+  "AITasks": [],
+  "HasAITasks": false,
+  "HasExternalAgents": false
+}

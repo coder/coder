@@ -1,0 +1,19 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder stat mem [flags]
+
+  Show memory usage, in gigabytes.
+
+OPTIONS:
+      --host bool
+          Force host memory measurement.
+
+  -o, --output text|json (default: text)
+          Output format.
+
+      --prefix Ki|Mi|Gi|Ti (default: Gi)
+          SI Prefix for memory measurement.
+
+———
+Run `coder --help` for a list of global options.

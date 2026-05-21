@@ -1,0 +1,17 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder groups
+
+  Manage groups
+
+  Aliases: group
+
+SUBCOMMANDS:
+    create    Create a user group
+    delete    Delete a user group
+    edit      Edit a user group
+    list      List user groups
+
+———
+Run `coder --help` for a list of global options.

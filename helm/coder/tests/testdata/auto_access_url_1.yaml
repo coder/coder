@@ -1,0 +1,11 @@
+coder:
+  image:
+    tag: latest
+
+  env:
+    - name: "SOME_ENV"
+      value: "some value"
+    - name: "CODER_ACCESS_URL"
+      value: "https://dev.coder.com"
+
+  envUseClusterAccessURL: true # default

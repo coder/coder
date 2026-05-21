@@ -1,0 +1,18 @@
+# This config file is used in conjunction with `.editorconfig` to specify
+# formatting for prettier-supported files. See `.editorconfig` and
+# `site/.editorconfig` for whitespace formatting options.
+printWidth: 80
+proseWrap: always
+trailingComma: all
+useTabs: true
+tabWidth: 2
+overrides:
+  - files:
+      - README.md
+      - docs/reference/api/**/*.md
+      - docs/reference/cli/**/*.md
+      - docs/changelogs/*.md
+      - .github/**/*.{yaml,yml,toml}
+      - scripts/**/*.{yaml,yml,toml}
+    options:
+      proseWrap: preserve

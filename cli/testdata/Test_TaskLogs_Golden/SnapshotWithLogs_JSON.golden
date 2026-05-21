@@ -1,0 +1,16 @@
+err: WARN: Task is paused. Showing last 2 messages from snapshot.
+err: 
+out: [
+out:   {
+out:     "id": 0,
+out:     "content": "What is 1 + 1?",
+out:     "type": "input",
+out:     "time": "====[timestamp]====="
+out:   },
+out:   {
+out:     "id": 1,
+out:     "content": "2",
+out:     "type": "output",
+out:     "time": "====[timestamp]====="
+out:   }
+out: ]

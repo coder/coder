@@ -1,0 +1,8 @@
+coder:
+  image:
+    tag: latest
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL

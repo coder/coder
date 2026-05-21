@@ -1,0 +1,7 @@
+The presence of an apply_start and apply_complete on the same resource results in a complete timing.
+
+-- plan --
+{"@level":"info","@message":"module.jetbrains_gateway.data.coder_parameter.jetbrains_ide: Refreshing...","@module":"terraform.ui","@timestamp":"2024-08-14T16:29:29.953727+02:00","hook":{"resource":{"addr":"module.jetbrains_gateway.data.coder_parameter.jetbrains_ide","module":"module.jetbrains_gateway","resource":"data.coder_parameter.jetbrains_ide","implied_provider":"coder","resource_type":"coder_parameter","resource_name":"jetbrains_ide","resource_key":null},"action":"read"},"type":"apply_start"}
+{"@level":"info","@message":"module.jetbrains_gateway.data.coder_parameter.jetbrains_ide: Refresh complete after 0s [id=60e62a98-97e4-459b-9af2-617ea9ccc385]","@module":"terraform.ui","@timestamp":"2024-08-14T16:29:29.955272+02:00","hook":{"resource":{"addr":"module.jetbrains_gateway.data.coder_parameter.jetbrains_ide","module":"module.jetbrains_gateway","resource":"data.coder_parameter.jetbrains_ide","implied_provider":"coder","resource_type":"coder_parameter","resource_name":"jetbrains_ide","resource_key":null},"action":"read","id_key":"id","id_value":"60e62a98-97e4-459b-9af2-617ea9ccc385","elapsed_seconds":0},"type":"apply_complete"}
+-- timings --
+{"start":"2024-08-14T14:29:29.953727Z", "end":"2024-08-14T14:29:29.955272Z", "action":"read", "source":"coder", "resource":"module.jetbrains_gateway.data.coder_parameter.jetbrains_ide", "stage":"plan", "state":"COMPLETED"}

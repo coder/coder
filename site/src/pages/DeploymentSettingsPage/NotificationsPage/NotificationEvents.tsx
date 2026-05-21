@@ -1,0 +1,262 @@
+import type { Interpolation, Theme } from "@emotion/react";
+import Card from "@mui/material/Card";
+import Divider from "@mui/material/Divider";
+import List from "@mui/material/List";
+import ListItem from "@mui/material/ListItem";
+import ListItemText, { listItemTextClasses } from "@mui/material/ListItemText";
+import ToggleButton from "@mui/material/ToggleButton";
+import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
+import { type FC, Fragment } from "react";
+import { useMutation, useQueryClient } from "react-query";
+import { toast } from "sonner";
+import { getErrorDetail, getErrorMessage } from "#/api/errors";
+import {
+	type selectTemplatesByGroup,
+	updateNotificationTemplateMethod,
+} from "#/api/queries/notifications";
+import type { DeploymentValues } from "#/api/typesGenerated";
+import { Alert } from "#/components/Alert/Alert";
+import { Button } from "#/components/Button/Button";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
+import {
+	castNotificationMethod,
+	methodIcons,
+	methodLabels,
+	type NotificationMethod,
+} from "#/modules/notifications/utils";
+import { docs } from "#/utils/docs";
+
+type NotificationEventsProps = {
+	defaultMethod: NotificationMethod;
+	availableMethods: NotificationMethod[];
+	templatesByGroup: ReturnType<typeof selectTemplatesByGroup>;
+	deploymentConfig: DeploymentValues;
+	canEdit?: boolean;
+};
+
+export const NotificationEvents: FC<NotificationEventsProps> = ({
+	defaultMethod,
+	availableMethods,
+	templatesByGroup,
+	deploymentConfig,
+	canEdit = true,
+}) => {
+	// Webhook
+	const hasWebhookNotifications = Object.values(templatesByGroup)
+		.flat()
+		.some((t) => t.method === "webhook");
+	const webhookValues = deploymentConfig.notifications?.webhook ?? {};
+	const isWebhookConfigured = requiredFieldsArePresent(webhookValues, [
+		"endpoint",
+	]);
+
+	// SMTP
+	const hasSMTPNotifications = Object.values(templatesByGroup)
+		.flat()
+		.some((t) => t.method === "smtp");
+	const smtpValues = deploymentConfig.notifications?.email ?? {};
+	const isSMTPConfigured = requiredFieldsArePresent(smtpValues, [
+		"smarthost",
+		"from",
+		"hello",
+	]);
+
+	return (
+		<div className="flex flex-col gap-8">
+			{hasWebhookNotifications && !isWebhookConfigured && (
+				<Alert
+					severity="warning"
+					prominent
+					actions={
+						<Button size="sm" asChild>
+							<a
+								target="_blank"
+								rel="noreferrer"
+								href={docs("/admin/monitoring/notifications#webhook")}
+							>
+								Read the docs
+							</a>
+						</Button>
+					}
+				>
+					Webhook notifications are enabled, but not properly configured.
+				</Alert>
+			)}
+
+			{hasSMTPNotifications && !isSMTPConfigured && (
+				<Alert
+					severity="warning"
+					prominent
+					actions={
+						<Button size="sm" asChild>
+							<a
+								target="_blank"
+								rel="noreferrer"
+								href={docs("/admin/monitoring/notifications#smtp-email")}
+							>
+								Read the docs
+							</a>
+						</Button>
+					}
+				>
+					SMTP notifications are enabled but not properly configured.
+				</Alert>
+			)}
+
+			{Object.entries(templatesByGroup).map(([group, templates]) => (
+				<Card key={group} variant="outlined" className="bg-transparent w-full">
+					<List>
+						<ListItem css={styles.listHeader}>
+							<ListItemText css={styles.listItemText} primary={group} />
+						</ListItem>
+
+						{templates.map((tpl, i) => {
+							const value = castNotificationMethod(tpl.method || defaultMethod);
+							const isLastItem = i === templates.length - 1;
+
+							return (
+								<Fragment key={tpl.id}>
+									<ListItem>
+										<ListItemText
+											css={styles.listItemText}
+											primary={tpl.name}
+										/>
+										<MethodToggleGroup
+											templateId={tpl.id}
+											options={availableMethods}
+											value={value}
+											canEdit={canEdit}
+										/>
+									</ListItem>
+									{!isLastItem && <Divider />}
+								</Fragment>
+							);
+						})}
+					</List>
+				</Card>
+			))}
+		</div>
+	);
+};
+
+function requiredFieldsArePresent(
+	obj: Record<string, string | undefined>,
+	fields: string[],
+): boolean {
+	return fields.every((field) => Boolean(obj[field]));
+}
+
+type MethodToggleGroupProps = {
+	templateId: string;
+	options: NotificationMethod[];
+	value: NotificationMethod;
+	canEdit: boolean;
+};
+
+const MethodToggleGroup: FC<MethodToggleGroupProps> = ({
+	value,
+	options,
+	templateId,
+	canEdit,
+}) => {
+	const queryClient = useQueryClient();
+	const updateMethodMutation = useMutation(
+		updateNotificationTemplateMethod(templateId, queryClient),
+	);
+
+	return (
+		<ToggleButtonGroup
+			exclusive
+			value={value}
+			size="small"
+			disabled={!canEdit}
+			aria-label="Notification method"
+			css={styles.toggleGroup}
+			onChange={async (_, method) => {
+				if (!method) {
+					return;
+				}
+				try {
+					await updateMethodMutation.mutateAsync({
+						method,
+					});
+					toast.success("Notification method updated.");
+				} catch (error) {
+					toast.error(
+						getErrorMessage(error, "Failed to update notification method."),
+						{
+							description: getErrorDetail(error),
+						},
+					);
+				}
+			}}
+		>
+			{options.map((method) => {
+				const Icon = methodIcons[method];
+				const label = methodLabels[method];
+				return (
+					<Tooltip key={method}>
+						<TooltipTrigger asChild>
+							<ToggleButton
+								value={method}
+								css={styles.toggleButton}
+								disabled={!canEdit}
+								onClick={(e) => {
+									// Retain the value if the user clicks the same button, ensuring
+									// at least one value remains selected.
+									if (method === value) {
+										e.preventDefault();
+										e.stopPropagation();
+										return;
+									}
+								}}
+							>
+								<Icon aria-label={label} />
+							</ToggleButton>
+						</TooltipTrigger>
+						<TooltipContent side="bottom">{label}</TooltipContent>
+					</Tooltip>
+				);
+			})}
+		</ToggleButtonGroup>
+	);
+};
+
+const styles = {
+	listHeader: (theme) => ({
+		background: theme.palette.background.paper,
+		borderBottom: `1px solid ${theme.palette.divider}`,
+	}),
+	listItemText: {
+		[`& .${listItemTextClasses.primary}`]: {
+			fontSize: 14,
+			fontWeight: 500,
+		},
+		[`& .${listItemTextClasses.secondary}`]: {
+			fontSize: 14,
+		},
+	},
+	toggleGroup: (theme) => ({
+		border: `1px solid ${theme.palette.divider}`,
+		borderRadius: 4,
+	}),
+	toggleButton: (theme) => ({
+		border: 0,
+		borderRadius: 4,
+		fontSize: 16,
+		padding: "4px 8px",
+		color: theme.palette.text.disabled,
+
+		"&:hover": {
+			color: theme.palette.text.primary,
+		},
+
+		"& svg": {
+			fontSize: "inherit",
+		},
+	}),
+} as Record<string, Interpolation<Theme>>;

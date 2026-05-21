@@ -1,0 +1,60 @@
+{
+	"name": "coder-docs-generator",
+	"private": true,
+	"scripts": {
+		"dev": "pnpm copy-images && next dev",
+		"build": "next build",
+		"start": "next start",
+		"export": "pnpm copy-images && next build",
+		"copy-images": "sh ./scripts/copyImages.sh",
+		"lint": "pnpm run lint:types",
+		"lint:types": "tsc --noEmit",
+		"format": "prettier --cache --write './**/*.{css,html,js,json,jsx,md,ts,tsx,yaml,yml}'",
+		"format:check": "prettier --cache --check './**/*.{css,html,js,json,jsx,md,ts,tsx,yaml,yml}'"
+	},
+	"dependencies": {
+		"@chakra-ui/react": "2.10.9",
+		"@emotion/react": "11.14.0",
+		"@emotion/styled": "11.14.1",
+		"archiver": "6.0.2",
+		"framer-motion": "^10.18.0",
+		"front-matter": "4.0.2",
+		"lodash": "4.18.1",
+		"next": "15.5.18",
+		"react": "18.3.1",
+		"react-dom": "18.3.1",
+		"react-icons": "4.12.0",
+		"react-markdown": "9.1.0",
+		"rehype-raw": "7.0.0",
+		"remark-gfm": "4.0.1",
+		"sanitize-html": "2.17.3"
+	},
+	"devDependencies": {
+		"@types/lodash": "4.17.24",
+		"@types/node": "20.19.39",
+		"@types/react": "18.3.12",
+		"@types/react-dom": "18.3.1",
+		"@types/sanitize-html": "2.16.1",
+		"eslint": "8.57.1",
+		"eslint-config-next": "14.2.35",
+		"prettier": "3.8.3",
+		"typescript": "6.0.3"
+	},
+	"engines": {
+		"npm": ">=9.0.0 <10.0.0",
+		"node": ">=22.0.0 <25.0.0"
+	},
+	"pnpm": {
+		"overrides": {
+			"@babel/runtime": "7.26.10",
+			"brace-expansion": "1.1.13",
+			"minimatch": "5.1.8",
+			"glob@>=10": "10.5.0",
+			"postcss": "8.5.10",
+			"js-yaml": "3.14.2",
+			"yaml": "1.10.3",
+			"flatted": "3.4.2",
+			"mdast-util-to-hast": "13.2.1"
+		}
+	}
+}

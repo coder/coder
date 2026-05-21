@@ -1,0 +1,47 @@
+import { cva, type VariantProps } from "class-variance-authority";
+import { SquareArrowOutUpRightIcon } from "lucide-react";
+import { Slot } from "radix-ui";
+import { cn } from "#/utils/cn";
+
+const linkVariants = cva(
+	`relative inline-flex items-center no-underline font-medium text-content-link hover:cursor-pointer
+	 after:hover:content-[''] after:hover:absolute after:hover:left-0 after:hover:w-full after:hover:h-px after:hover:bg-current after:hover:bottom-px
+	 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link
+	 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-primary focus-visible:rounded-sm
+	 visited:text-content-link pl-0.5`, //pl-0.5 adjusts the underline spacing to align with the icon on the right.
+	{
+		variants: {
+			size: {
+				lg: "text-sm gap-0.5 [&_svg]:size-icon-sm [&_svg]:p-0.5 leading-6",
+				sm: "text-xs gap-1 [&_svg]:size-icon-xs [&_svg]:p-px leading-5",
+			},
+		},
+		defaultVariants: {
+			size: "lg",
+		},
+	},
+);
+
+type LinkProps = React.AnchorHTMLAttributes<HTMLAnchorElement> &
+	VariantProps<typeof linkVariants> & {
+		asChild?: boolean;
+		showExternalIcon?: boolean;
+		ref?: React.Ref<HTMLAnchorElement>;
+	};
+
+export const Link: React.FC<LinkProps> = ({
+	className,
+	children,
+	size,
+	asChild,
+	showExternalIcon = true,
+	...props
+}) => {
+	const Comp = asChild ? Slot.Root : "a";
+	return (
+		<Comp className={cn(linkVariants({ size }), className)} {...props}>
+			<Slot.Slottable>{children}</Slot.Slottable>
+			{showExternalIcon && <SquareArrowOutUpRightIcon />}
+		</Comp>
+	);
+};
