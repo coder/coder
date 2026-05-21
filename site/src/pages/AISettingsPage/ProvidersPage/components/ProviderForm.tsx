@@ -278,10 +278,11 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 
 	// When the parent's mutation finishes without an error, treat the just-
 	// submitted values as the new baseline so the unsaved-changes prompt does
-	// not fire on subsequent navigations.
+	// not fire on subsequent navigations. React Query reports a missing error
+	// as `null`, so a truthy check covers both null and undefined.
 	const previousIsLoading = useRef(isLoading);
 	useEffect(() => {
-		if (previousIsLoading.current && !isLoading && submitError === undefined) {
+		if (previousIsLoading.current && !isLoading && !submitError) {
 			form.resetForm({ values: form.values });
 		}
 		previousIsLoading.current = isLoading;
