@@ -1,6 +1,6 @@
 import { ShieldIcon } from "lucide-react";
-import type { FC } from "react";
-import { Link, type To } from "react-router";
+import type { ComponentProps, FC } from "react";
+import { Link } from "react-router";
 import {
 	Tooltip,
 	TooltipContent,
@@ -16,13 +16,22 @@ type SettingsNavItemProps = {
 	disabled?: boolean;
 	trailingIcon?: FC<{ className?: string }>;
 } & (
-	| { to: To; replace?: boolean; state?: unknown; onClick?: () => void }
+	| {
+			to: ComponentProps<typeof Link>["to"];
+			replace?: boolean;
+			state?: unknown;
+			onClick?: () => void;
+	  }
 	| { to?: never; replace?: never; state?: never; onClick: () => void }
 );
 
+/** Structural layout classes shared by all sidebar nav items. Does not include color or state (hover/active/disabled) variants. */
+export const navItemBaseClassName =
+	"flex w-full items-center gap-2.5 rounded-md border-0 px-2.5 py-2 text-left text-sm cursor-pointer transition-colors no-underline";
+
 const navItemClassName = (active: boolean, disabled: boolean | undefined) =>
 	cn(
-		"flex w-full items-center gap-2.5 rounded-md border-0 px-2.5 py-2 text-left text-sm cursor-pointer transition-colors no-underline",
+		navItemBaseClassName,
 		active
 			? "bg-surface-quaternary/25 text-content-primary font-medium"
 			: "bg-transparent text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",

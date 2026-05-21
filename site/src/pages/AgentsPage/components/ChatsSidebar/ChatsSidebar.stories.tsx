@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ComponentProps } from "react";
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { userChatProviderConfigsKey } from "#/api/queries/chats";
@@ -12,9 +13,27 @@ import {
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
 import { useAgentsPageKeybindings } from "../../hooks/useAgentsPageKeybindings";
-import type { AgentSidebarFilters } from "../../utils/agentSidebarFilters";
+import {
+	AGENT_CHAT_STATUS_ORDER,
+	type AgentSidebarFilters,
+} from "../../utils/agentSidebarFilters";
 import type { ModelSelectorOption } from "../ChatElements";
 import { ChatsSidebar } from "./ChatsSidebar";
+
+// Probe element used by the archived-filter preservation story to surface the
+// search string of whatever child route the sidebar's NavLink ends up at.
+const ChildSearchProbe = () => {
+	const location = useLocation();
+	return <div data-testid="child-search">{location.search}</div>;
+};
+
+// Probe element used by the settings-link preservation story to surface the
+// state.from value passed when navigating to settings.
+const SettingsStateProbe = () => {
+	const location = useLocation();
+	const from = (location.state as { from?: string })?.from ?? "";
+	return <div data-testid="settings-state-from">{from}</div>;
+};
 
 const defaultModelOptions: ModelSelectorOption[] = [
 	{
@@ -24,13 +43,6 @@ const defaultModelOptions: ModelSelectorOption[] = [
 		displayName: "GPT-4o",
 	},
 ];
-
-const defaultSidebarFilters: AgentSidebarFilters = {
-	archiveStatus: "active",
-	groupBy: "date",
-	prStatuses: [],
-	chatStatuses: ["unread", "read"],
-};
 
 const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
 	{
@@ -48,6 +60,13 @@ const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
 ];
 
 const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+const defaultSidebarFilters: AgentSidebarFilters = {
+	archiveStatus: "active",
+	groupBy: "date",
+	prStatuses: [],
+	chatStatuses: AGENT_CHAT_STATUS_ORDER,
+};
 
 const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 	id: "chat-default",
@@ -106,8 +125,8 @@ const meta: Meta<typeof ChatsSidebar> = {
 		isCreating: false,
 		regeneratingTitleChatIds: [],
 		sidebarFilters: defaultSidebarFilters,
-		onSidebarFiltersChange: fn(),
 		isPersonalModelOverridesEnabled: true,
+		onSidebarFiltersChange: fn(),
 	},
 	parameters: {
 		layout: "fullscreen",
@@ -724,6 +743,35 @@ export const SectionHeadersCollapse: Story = {
 	},
 };
 
+export const SidebarFilterMenu: Story = {
+	args: {
+		chats: sectionHeaderChats,
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Filter agents" }),
+		);
+		await expect(
+			await body.findByRole("menuitem", { name: /Archived/i }),
+		).toBeInTheDocument();
+		await userEvent.keyboard("{Escape}");
+		await waitFor(() => {
+			expect(
+				body.queryByRole("menuitem", { name: /Archived/i }),
+			).not.toBeInTheDocument();
+		});
+	},
+};
+
 export const SearchDialogKeyboardShortcut: Story = {
 	render: ChatsSidebarWithKeybindings,
 	args: {
@@ -740,11 +788,9 @@ export const SearchDialogKeyboardShortcut: Story = {
 		const body = within(document.body);
 		const searchButton = canvas.getByRole("button", { name: "Search chats" });
 
-		await userEvent.hover(searchButton);
-		const tooltip = await body.findByRole("tooltip");
-		await expect(tooltip).toHaveTextContent("Search chats");
-		await expect(tooltip).toHaveTextContent("Ctrl");
-		await expect(tooltip).toHaveTextContent("K");
+		await expect(searchButton).toHaveTextContent("Search");
+		await expect(searchButton).toHaveTextContent("Ctrl");
+		await expect(searchButton).toHaveTextContent("K");
 
 		await userEvent.keyboard("{Control>}k{/Control}");
 
@@ -1346,10 +1392,7 @@ export const ArchivedFilterShowsArchivedAgents: Story = {
 				updated_at: recentTimestamp,
 			}),
 		],
-		sidebarFilters: {
-			...defaultSidebarFilters,
-			archiveStatus: "archived",
-		},
+		sidebarFilters: { ...defaultSidebarFilters, archiveStatus: "archived" },
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({
@@ -1364,6 +1407,44 @@ export const ArchivedFilterShowsArchivedAgents: Story = {
 			expect(canvas.getByText("Archived agent two")).toBeInTheDocument();
 		});
 		expect(canvas.getByLabelText("Filter agents")).toBeInTheDocument();
+	},
+};
+
+export const PreservesArchivedFilterOnChatNavigation: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "archived-nav-1",
+				title: "Archived nav target",
+				archived: true,
+				updated_at: recentTimestamp,
+			}),
+		],
+		sidebarFilters: { ...defaultSidebarFilters, archiveStatus: "archived" },
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents",
+				searchParams: { archived: "archived" },
+			},
+			routing: [
+				{ path: "/agents", useStoryElement: true },
+				{ path: "/agents/:agentId", element: <ChildSearchProbe /> },
+			],
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const link = await canvas.findByRole("link", {
+			name: /Archived nav target/,
+		});
+		await userEvent.click(link);
+		await waitFor(() => {
+			expect(canvas.getByTestId("child-search")).toHaveTextContent(
+				"archived=archived",
+			);
+		});
 	},
 };
 
@@ -1757,10 +1838,7 @@ export const ArchivedAgentUnarchiveOption: Story = {
 				updated_at: recentTimestamp,
 			}),
 		],
-		sidebarFilters: {
-			...defaultSidebarFilters,
-			archiveStatus: "archived",
-		},
+		sidebarFilters: { ...defaultSidebarFilters, archiveStatus: "archived" },
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({
@@ -2098,5 +2176,45 @@ export const SettingsAdminAgentsEntryPreserved: Story = {
 		const agentsLink = canvas.getByRole("link", { name: "Agents" });
 		await expect(agentsLink).toHaveAttribute("aria-current", "page");
 		expect(canvas.getByText("Manage Agents")).toBeInTheDocument();
+	},
+};
+
+export const PreservesArchivedFilterOnSettingsNavigation: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "archived-settings-1",
+				title: "Archived settings target",
+				archived: true,
+				updated_at: recentTimestamp,
+			}),
+		],
+		sidebarFilters: { ...defaultSidebarFilters, archiveStatus: "archived" },
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: {
+				path: "/agents",
+				searchParams: { archived: "archived" },
+			},
+			routing: [
+				{
+					path: "/agents/settings",
+					element: <SettingsStateProbe />,
+				},
+				...agentsRouting,
+			],
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const settingsLink = await canvas.findByRole("link", { name: "Settings" });
+		await userEvent.click(settingsLink);
+		await waitFor(() => {
+			const fromValue =
+				canvas.getByTestId("settings-state-from").textContent ?? "";
+			expect(fromValue).toContain("/agents");
+			expect(fromValue).toContain("archived=archived");
+		});
 	},
 };
