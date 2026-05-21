@@ -12,8 +12,10 @@ import { useState } from "react";
 import { Link, useLocation } from "react-router";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { cn } from "#/utils/cn";
+import { safeBuildAgentChatPath } from "../../../utils/navigation";
 import { Response } from "../Response";
 import { Shimmer } from "../Shimmer";
+import { TranscriptRow } from "../TranscriptRow";
 import { useDesktopPanel } from "./DesktopPanelContext";
 import { InlineDesktopPreview } from "./InlineDesktopPreview";
 import { RecordingPreview } from "./RecordingPreview";
@@ -187,61 +189,64 @@ export const SubagentTool: React.FC<{
 	const hasReport = Boolean(report?.trim());
 	const hasExpandableContent = hasPrompt || hasMessage || hasReport;
 	const durationLabel = shortDurationMs(durationMs);
+	const agentChatPath = safeBuildAgentChatPath({ chatId });
 
 	return (
 		<div className="w-full">
-			<button
-				type="button"
-				aria-expanded={hasExpandableContent ? expanded : undefined}
-				onClick={() => hasExpandableContent && setExpanded((v) => !v)}
+			<TranscriptRow
+				asChild
 				className={cn(
-					"border-0 bg-transparent p-0 m-0 font-[inherit] text-[inherit] text-left",
-					"flex w-full items-center gap-2",
-					"text-content-secondary transition-colors",
+					"m-0 w-full gap-2 border-0 bg-transparent p-0 text-left font-[inherit] text-[inherit] text-content-secondary transition-colors",
 					hasExpandableContent && "cursor-pointer hover:text-content-primary",
 				)}
 			>
-				<SubagentStatusIcon
-					subagentStatus={subagentStatus}
-					toolStatus={toolStatus}
-					isError={isError}
-					isTimeout={isTimeout}
-					iconKind={descriptor.iconKind}
-					showDesktopPreview={showDesktopPreview}
-				/>{" "}
-				<span className="min-w-0 truncate text-[13px]">
-					{getSubagentLabel(
-						showDesktopPreview,
-						toolStatus,
-						descriptor,
-						title,
-						isTimeout,
-					)}
-					{chatId && (
-						<Link
-							to={{ pathname: `/agents/${chatId}`, search: location.search }}
-							onClick={(e) => e.stopPropagation()}
-							className="ml-1 inline-flex align-middle text-content-secondary opacity-50 transition-opacity hover:opacity-100"
-							aria-label="View agent"
-						>
-							<ExternalLinkIcon className="h-3 w-3" />
-						</Link>
-					)}
-				</span>
-				{hasExpandableContent && (
-					<ChevronDownIcon
-						className={cn(
-							"h-3 w-3 shrink-0 text-current transition-transform",
-							expanded ? "rotate-0" : "-rotate-90",
+				<button
+					type="button"
+					aria-expanded={hasExpandableContent ? expanded : undefined}
+					onClick={() => hasExpandableContent && setExpanded((v) => !v)}
+				>
+					<SubagentStatusIcon
+						subagentStatus={subagentStatus}
+						toolStatus={toolStatus}
+						isError={isError}
+						isTimeout={isTimeout}
+						iconKind={descriptor.iconKind}
+						showDesktopPreview={showDesktopPreview}
+					/>{" "}
+					<span className="min-w-0 truncate text-[13px]">
+						{getSubagentLabel(
+							showDesktopPreview,
+							toolStatus,
+							descriptor,
+							title,
+							isTimeout,
 						)}
-					/>
-				)}
-				{durationLabel && (
-					<span className="ml-auto shrink-0 text-xs">
-						{`Worked for ${durationLabel}`}
+						{agentChatPath && (
+							<Link
+								to={{ pathname: agentChatPath, search: location.search }}
+								onClick={(e) => e.stopPropagation()}
+								className="ml-1 inline-flex align-middle text-content-secondary opacity-50 transition-opacity hover:opacity-100"
+								aria-label="View agent"
+							>
+								<ExternalLinkIcon className="h-3 w-3" />
+							</Link>
+						)}
 					</span>
-				)}
-			</button>
+					{hasExpandableContent && (
+						<ChevronDownIcon
+							className={cn(
+								"h-3 w-3 shrink-0 text-current transition-transform",
+								expanded ? "rotate-0" : "-rotate-90",
+							)}
+						/>
+					)}
+					{durationLabel && (
+						<span className="ml-auto shrink-0 text-xs">
+							{`Worked for ${durationLabel}`}
+						</span>
+					)}
+				</button>
+			</TranscriptRow>
 
 			{showDesktopPreview && desktopChatId && toolStatus !== "completed" && (
 				<div className="mt-1.5 overflow-hidden rounded-lg border border-solid border-border-default">

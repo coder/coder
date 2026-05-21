@@ -28,6 +28,7 @@ import {
 	sanitizeExecuteModelIntent,
 	shortDurationMs,
 	stripSvnIndexHeaders,
+	summarizeParsedCommands,
 	toProviderLabel,
 } from "./utils";
 
@@ -747,7 +748,7 @@ describe("buildEditDiff", () => {
 		const spy = vi.spyOn(console, "error").mockImplementation(() => {});
 		try {
 			const diff = buildEditDiff(
-				"/home/coder/coder/site/src/pages/AgentsPage/AgentsSidebar.tsx",
+				"/home/coder/coder/site/src/pages/AgentsPage/components/ChatSidebar/ChatsSidebar.tsx",
 				[
 					{ search: "const a = 1;", replace: "const a = 2;" },
 					{ search: "const b = 3;", replace: "const b = 4;" },
@@ -1002,5 +1003,53 @@ describe("parseServerEditDiffText", () => {
 		);
 		expect(diff).not.toBeNull();
 		expect(diff?.name).toBe("/abs/a.txt");
+	});
+});
+
+describe("summarizeParsedCommands", () => {
+	it("renders <prog> <verb> for multi-verb tools", () => {
+		expect(
+			summarizeParsedCommands([
+				["git", "pull"],
+				["git", "add"],
+				["git", "commit"],
+			]),
+		).toBe("git pull, git add, git commit");
+	});
+
+	it("renders just <prog> for non-multi-verb tools", () => {
+		expect(
+			summarizeParsedCommands([
+				["cd", "/repo"],
+				["ls", "/tmp"],
+			]),
+		).toBe("cd, ls");
+	});
+
+	it("renders single-arg entries as just the program", () => {
+		expect(summarizeParsedCommands([["pwd"]])).toBe("pwd");
+	});
+
+	it("dedupes consecutive duplicates", () => {
+		expect(
+			summarizeParsedCommands([
+				["git", "pull"],
+				["git", "pull"],
+			]),
+		).toBe("git pull");
+	});
+
+	it("keeps non-consecutive duplicates", () => {
+		expect(
+			summarizeParsedCommands([["git", "pull"], ["ls"], ["git", "pull"]]),
+		).toBe("git pull, ls, git pull");
+	});
+
+	it("returns empty string for empty input", () => {
+		expect(summarizeParsedCommands([])).toBe("");
+	});
+
+	it("skips entries with no program", () => {
+		expect(summarizeParsedCommands([[""], ["git", "pull"]])).toBe("git pull");
 	});
 });

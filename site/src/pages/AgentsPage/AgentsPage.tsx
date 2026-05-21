@@ -79,6 +79,7 @@ const AgentsPage: FC = () => {
 	const isAgentsAdmin = permissions.editDeploymentConfig;
 
 	const [archivedFilter, setArchivedFilter] = useArchivedFilterParam();
+	const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(false);
 
 	// The global CSS sets scrollbar-gutter: stable on <html> to prevent
 	// layout shift on pages that toggle scrollbars. The agents page
@@ -626,6 +627,7 @@ const AgentsPage: FC = () => {
 
 	useAgentsPageKeybindings({
 		onNewAgent: handleNewAgent,
+		onToggleSearch: () => setIsSearchDialogOpen((open) => !open),
 	});
 
 	// Fetch workspace name for the confirmation dialog. Only
@@ -650,6 +652,8 @@ const AgentsPage: FC = () => {
 				catalogModelOptions={catalogModelOptions}
 				modelConfigs={chatModelConfigsQuery.data ?? []}
 				handleNewAgent={handleNewAgent}
+				isSearchDialogOpen={isSearchDialogOpen}
+				onSearchDialogOpenChange={setIsSearchDialogOpen}
 				isCreating={false}
 				isArchiving={isArchiving}
 				archivingChatId={archivingChatId}

@@ -10,7 +10,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -990,6 +992,138 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 		require.Len(t, sdkErr.Validations, 1)
 		require.Equal(t, "api_keys[1].id", sdkErr.Validations[0].Field)
 		require.Contains(t, sdkErr.Validations[0].Detail, "already referenced")
+	})
+
+	t.Run("PATCHPropertiesAudited", func(t *testing.T) {
+		t.Parallel()
+		auditor := audit.NewMock()
+		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "keys-props-audit",
+			Enabled: true,
+			BaseURL: "https://api.openai.com/v1",
+		})
+		require.NoError(t, err)
+
+		// Reset before the update so we look only at audits produced by
+		// the PATCH (the create path emits its own AIProvider audit).
+		auditor.ResetLogs()
+
+		newDisplay := "Renamed"
+		newURL := "https://api.openai.com/v2"
+		disabled := false
+		_, err = client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
+			DisplayName: &newDisplay,
+			BaseURL:     &newURL,
+			Enabled:     &disabled,
+		})
+		require.NoError(t, err)
+
+		// The parent AIProvider audit entry fires for property-only
+		// PATCHes; the enterprise auditor populates the diff with the
+		// changed fields (display_name, base_url, enabled). The mock
+		// auditor used here returns an empty diff so we only assert the
+		// entry shape; the actual diff content is exercised by the
+		// enterprise audit unit tests.
+		var sawUpdate bool
+		for _, lg := range auditor.AuditLogs() {
+			if lg.Action == database.AuditActionWrite && lg.ResourceType == database.ResourceTypeAIProvider {
+				require.Equal(t, provider.ID, lg.ResourceID)
+				sawUpdate = true
+			}
+		}
+		require.True(t, sawUpdate, "expected parent AIProvider audit for property-only PATCH")
+	})
+
+	t.Run("PATCHKeysSurfacesOpsInAudit", func(t *testing.T) {
+		t.Parallel()
+		auditor := audit.NewMock()
+		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Without surfacing per-op detail, a PATCH that only rotates
+		// keys would produce an audit entry whose top-level diff is
+		// empty: invisible key rotation in the log.
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "keys-audit-ops",
+			Enabled: true,
+			BaseURL: "https://api.openai.com/v1",
+			APIKeys: []string{
+				"sk-openai-audit-1-ssssssssssssssssssss", //nolint:gosec // test fixture
+				"sk-openai-audit-2-tttttttttttttttttttt", //nolint:gosec // test fixture
+			},
+		})
+		require.NoError(t, err)
+		keepID := provider.APIKeys[0].ID
+
+		// Keep one, drop one, add one.
+		mutations := []codersdk.AIProviderKeyMutation{
+			{ID: &keepID},
+			{APIKey: ptr.Ref("sk-openai-audit-3-uuuuuuuuuuuuuuuuuuuu")}, //nolint:gosec // test fixture
+		}
+		updatedProvider, err := client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
+			APIKeys: &mutations,
+		})
+		require.NoError(t, err)
+
+		// The newly-inserted row's ID and masked rendering are dynamic;
+		// pull them from the PATCH response so we can build the expected
+		// audit payload without re-declaring the audit struct shape.
+		var added codersdk.AIProviderKey
+		for _, k := range updatedProvider.APIKeys {
+			if k.ID != keepID {
+				added = k
+				break
+			}
+		}
+		require.NotEqual(t, uuid.Nil, added.ID)
+		require.NotEmpty(t, added.Masked)
+		require.NotContains(t, added.Masked, "sk-openai-audit-3-uuuuuuuuuuuuuuuuuuuu")
+		removed := provider.APIKeys[1]
+
+		logs := auditor.AuditLogs()
+		var updated *database.AuditLog
+		for i := range logs {
+			if logs[i].Action == database.AuditActionWrite && logs[i].ResourceType == database.ResourceTypeAIProvider {
+				updated = &logs[i]
+			}
+		}
+		require.NotNil(t, updated, "expected audit log for AI provider update")
+
+		expected, err := json.Marshal(map[string]any{
+			"added":   []map[string]any{{"id": added.ID, "masked": added.Masked}},
+			"removed": []map[string]any{{"id": removed.ID, "masked": removed.Masked}},
+			"kept":    1,
+		})
+		require.NoError(t, err)
+		require.JSONEq(t, string(expected), string(updated.AdditionalFields))
+
+		// Per-key audit entries surface the added/removed keys as their
+		// own log lines, so a key-only PATCH is visible even without
+		// frontend changes. The Create handler also emits per-key
+		// audits for the initial two keys, so match by ResourceID.
+		var sawCreate, sawDelete bool
+		for _, lg := range logs {
+			if lg.ResourceType != database.ResourceTypeAIProviderKey {
+				continue
+			}
+			switch {
+			case lg.Action == database.AuditActionCreate && lg.ResourceID == added.ID:
+				sawCreate = true
+			case lg.Action == database.AuditActionDelete && lg.ResourceID == removed.ID:
+				sawDelete = true
+			}
+		}
+		require.True(t, sawCreate, "expected create audit for added key")
+		require.True(t, sawDelete, "expected delete audit for removed key")
 	})
 
 	t.Run("MutationUnknownIDRejected", func(t *testing.T) {

@@ -2164,8 +2164,13 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 	_, err := exec.LookPath("screen")
 	hasScreen := err == nil
 
-	// Make sure UTF-8 works even with LANG set to something like C.
+	tmuxPath, err := exec.LookPath("tmux")
+	hasTmux := err == nil
+
+	// Make sure UTF-8 works even with locale variables set to C.
 	t.Setenv("LANG", "C")
+	t.Setenv("LC_CTYPE", "C")
+	t.Setenv("LC_ALL", "")
 
 	for _, backendType := range backends {
 		t.Run(backendType, func(t *testing.T) {
@@ -2308,6 +2313,46 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 			bytes, err := io.ReadAll(netConn5)
 			require.NoError(t, err)
 			require.Contains(t, string(bytes), "❯")
+
+			if !hasTmux {
+				t.Log("`tmux` not found, skipping tmux glyph regression")
+			} else {
+				glyphs := "⚠╭╮╰╯•›│─█▓░▄❯✔╌"
+				tmuxSocket := "coder-test-" + strings.ReplaceAll(uuid.NewString(), "-", "")
+				t.Cleanup(func() {
+					_ = exec.Command(tmuxPath, "-L", tmuxSocket, "kill-server").Run()
+				})
+				// Keep the pane alive with a shell builtin until the read loop sees
+				// the glyphs, otherwise tmux can restore the alternate screen first.
+				command := fmt.Sprintf(
+					"%s -L %s new-session %q",
+					strconv.Quote(tmuxPath),
+					tmuxSocket,
+					fmt.Sprintf("printf '%%s\\n' '%s'; read _", glyphs),
+				)
+				netConn6, err := conn.ReconnectingPTY(ctx, uuid.New(), 80, 80, command)
+				require.NoError(t, err)
+				defer netConn6.Close()
+
+				var output strings.Builder
+				buffer := make([]byte, 1024)
+				deadline := time.Now().Add(testutil.WaitMedium)
+				for !strings.Contains(output.String(), glyphs) {
+					if time.Now().After(deadline) {
+						require.Contains(t, output.String(), glyphs)
+					}
+					require.NoError(t, netConn6.SetReadDeadline(time.Now().Add(testutil.IntervalMedium)))
+					read, err := netConn6.Read(buffer)
+					if read > 0 {
+						_, _ = output.Write(buffer[:read])
+					}
+					var netErr net.Error
+					if errors.As(err, &netErr) && netErr.Timeout() {
+						continue
+					}
+					require.NoError(t, err)
+				}
+			}
 		})
 	}
 }

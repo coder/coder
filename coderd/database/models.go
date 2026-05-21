@@ -3334,8 +3334,8 @@ const (
 	ResourceTypeAiSeat                      ResourceType = "ai_seat"
 	ResourceTypeChat                        ResourceType = "chat"
 	ResourceTypeUserSecret                  ResourceType = "user_secret"
-	ResourceTypeAiProvider                  ResourceType = "ai_provider"
-	ResourceTypeAiProviderKey               ResourceType = "ai_provider_key"
+	ResourceTypeAIProvider                  ResourceType = "ai_provider"
+	ResourceTypeAIProviderKey               ResourceType = "ai_provider_key"
 	ResourceTypeGroupAiBudget               ResourceType = "group_ai_budget"
 	ResourceTypeUserSkill                   ResourceType = "user_skill"
 )
@@ -3406,8 +3406,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeAiSeat,
 		ResourceTypeChat,
 		ResourceTypeUserSecret,
-		ResourceTypeAiProvider,
-		ResourceTypeAiProviderKey,
+		ResourceTypeAIProvider,
+		ResourceTypeAIProviderKey,
 		ResourceTypeGroupAiBudget,
 		ResourceTypeUserSkill:
 		return true
@@ -3446,8 +3446,8 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeAiSeat,
 		ResourceTypeChat,
 		ResourceTypeUserSecret,
-		ResourceTypeAiProvider,
-		ResourceTypeAiProviderKey,
+		ResourceTypeAIProvider,
+		ResourceTypeAIProviderKey,
 		ResourceTypeGroupAiBudget,
 		ResourceTypeUserSkill,
 	}
