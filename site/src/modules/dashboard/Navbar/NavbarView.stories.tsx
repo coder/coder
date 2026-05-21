@@ -33,8 +33,8 @@ const meta: Meta<typeof NavbarView> = {
 		canViewAuditLog: true,
 		canViewDeployment: true,
 		canViewHealth: true,
-		canViewOrganizations: true,
 		canViewAISettings: true,
+		canViewOrganizations: true,
 		canCreateChat: true,
 		supportLinks: [],
 	},
@@ -59,8 +59,8 @@ export const ForAuditor: Story = {
 		canViewAuditLog: true,
 		canViewDeployment: false,
 		canViewHealth: false,
-		canViewOrganizations: false,
 		canViewAISettings: false,
+		canViewOrganizations: false,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -76,8 +76,8 @@ export const ForOrgAdmin: Story = {
 		canViewAuditLog: true,
 		canViewDeployment: false,
 		canViewHealth: false,
-		canViewOrganizations: true,
 		canViewAISettings: false,
+		canViewOrganizations: true,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -109,8 +109,8 @@ export const ForMember: Story = {
 		canViewAuditLog: false,
 		canViewDeployment: false,
 		canViewHealth: false,
-		canViewOrganizations: false,
 		canViewAISettings: false,
+		canViewOrganizations: false,
 		canCreateChat: false,
 	},
 };
@@ -121,8 +121,8 @@ export const ForMemberWithAgentsAccess: Story = {
 		canViewAuditLog: false,
 		canViewDeployment: false,
 		canViewHealth: false,
-		canViewOrganizations: false,
 		canViewAISettings: false,
+		canViewOrganizations: false,
 		canCreateChat: true,
 	},
 };
@@ -144,8 +144,8 @@ export const SupportLinks: Story = {
 		canViewAuditLog: false,
 		canViewDeployment: false,
 		canViewHealth: false,
-		canViewOrganizations: false,
 		canViewAISettings: false,
+		canViewOrganizations: false,
 		supportLinks: [
 			{
 				name: "This is a bug",
@@ -185,8 +185,8 @@ export const DefaultSupportLinks: Story = {
 		canViewAuditLog: false,
 		canViewDeployment: false,
 		canViewHealth: false,
-		canViewOrganizations: false,
 		canViewAISettings: false,
+		canViewOrganizations: false,
 		supportLinks: [
 			{ icon: "docs", name: "Documentation", target: "" },
 			{ icon: "bug", name: "Report a bug", target: "" },

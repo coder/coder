@@ -1,6 +1,6 @@
 import { useFormik } from "formik";
 import { TriangleAlertIcon } from "lucide-react";
-import { type FC, useEffect, useId, useRef } from "react";
+import { type FC, useEffect, useRef } from "react";
 import { Link } from "react-router";
 import * as Yup from "yup";
 import type { AIProviderType } from "#/api/typesGenerated";
@@ -9,9 +9,7 @@ import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { Form, FormFields } from "#/components/Form/Form";
 import { FormField } from "#/components/FormField/FormField";
-import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { Switch } from "#/components/Switch/Switch";
 import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
 import { getFormHelpers } from "#/utils/formUtils";
 import { CredentialField } from "./CredentialField";
@@ -233,8 +231,6 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	isLoading = false,
 	submitError,
 }) => {
-	const enabledSwitchId = useId();
-
 	const resolvedType = initialValues?.type ?? defaultInitialValues.type;
 	const typeDefaults =
 		providerDefaults[resolvedType as keyof typeof providerDefaults];
@@ -259,6 +255,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 				: "",
 		},
 		validationSchema: getProviderFormSchema(editing),
+		validateOnMount: true,
 		onSubmit: onSubmit ?? (() => {}),
 	});
 	const getFieldHelpers = getFormHelpers(form, submitError);
@@ -298,40 +295,23 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 				{Boolean(submitError) && <ErrorAlert error={submitError} />}
 				{typeSelectValue !== "" && typeSelectValue !== "bedrock" && (
 					<>
-						{!editing && (
+						<div className="grid grid-cols-2 items-start gap-4">
 							<FormField
 								required
 								field={getFieldHelpers("name")}
 								label="Name"
-								description="Unique identifier for this provider. Used in URLs and cannot be changed later."
+								description="Unique identifier (used in urls, can't be changed)"
 								className="w-full"
 								placeholder={namePlaceholder(form.values.type)}
+								disabled={editing}
 							/>
-						)}
-						<FormField
-							required={editing}
-							field={getFieldHelpers("displayName")}
-							label="Display name"
-							description={
-								editing
-									? "A friendly name shown for this provider in the UI."
-									: "A friendly name shown for this provider in the UI. Defaults to the identifier if left blank."
-							}
-							className="w-full"
-						/>
-						{/* API keys live on a sub-resource server-side; the parent
-						    page chains POST /keys (and revokes the previous key when
-						    rotating) after the provider PATCH succeeds. We treat an
-						    untouched mask as "keep the existing key". */}
-						<CredentialField
-							required
-							label="API key"
-							helpers={getFieldHelpers("apiKey")}
-							onFocus={() => handleCredentialFocus("apiKey")}
-							autoComplete="new-password"
-							description="Secret key used to authenticate requests to this provider."
-							placeholder={apiKeyPlaceholder(form.values.type)}
-						/>
+							<FormField
+								field={getFieldHelpers("displayName")}
+								label="Display name"
+								description="Friendly name. Defaults to name if blank."
+								className="w-full"
+							/>
+						</div>
 						<FormField
 							required
 							field={getFieldHelpers("baseUrl")}
@@ -340,32 +320,36 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 							className="w-full"
 							placeholder={baseUrlPlaceholder(form.values.type)}
 						/>
+						<CredentialField
+							required
+							label="API key"
+							helpers={getFieldHelpers("apiKey")}
+							onFocus={() => handleCredentialFocus("apiKey")}
+							autoComplete="new-password"
+							placeholder={apiKeyPlaceholder(form.values.type)}
+						/>
 					</>
 				)}
 
 				{typeSelectValue === "bedrock" && (
 					<>
-						{!editing && (
+						<div className="grid grid-cols-2 items-start gap-4">
 							<FormField
 								required
 								field={getFieldHelpers("name")}
 								label="Name"
-								description="Unique identifier for this provider. Used in URLs and cannot be changed later."
+								description="Unique identifier (used in urls, can't be changed)"
 								className="w-full"
 								placeholder={namePlaceholder(form.values.type)}
+								disabled={editing}
 							/>
-						)}
-						<FormField
-							required={editing}
-							field={getFieldHelpers("displayName")}
-							label="Display name"
-							description={
-								editing
-									? "A friendly name shown for this provider in the UI."
-									: "A friendly name shown for this provider in the UI. Defaults to the identifier if left blank."
-							}
-							className="w-full"
-						/>
+							<FormField
+								field={getFieldHelpers("displayName")}
+								label="Display name"
+								description="Friendly name. Defaults to name if blank."
+								className="w-full"
+							/>
+						</div>
 						<FormField
 							required
 							field={getFieldHelpers("baseUrl")}
@@ -383,21 +367,21 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 						/>
 						<div className="grid grid-cols-2 items-start gap-4">
 							<FormField
+								required
 								field={getFieldHelpers("model")}
 								label="Model"
 								className="w-full"
 								placeholder="anthropic.claude-3-5-sonnet-20241022-v2:0"
 							/>
 							<FormField
-								field={{
-									...getFieldHelpers("smallFastModel"),
-									helperText:
-										"These models are optimized for tasks like code autocomplete and other small, quick operations.",
-								}}
-								label="Small fast model"
+								required
+								field={getFieldHelpers("smallFastModel")}
+								label="Small-fast model"
 								className="w-full"
 								placeholder="anthropic.claude-3-haiku-20240307-v1:0"
 							/>
+						</div>
+						<div className="grid grid-cols-2 items-start gap-4">
 							<CredentialField
 								required
 								label="Access key"
@@ -415,33 +399,16 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 					</>
 				)}
 
-				{editing && (
-					<div className="flex items-center justify-between gap-4">
-						<div className="flex min-w-0 flex-1 flex-col gap-2">
-							<Label htmlFor={enabledSwitchId}>Enabled</Label>
-							<p className="m-0 text-xs text-content-secondary">
-								When disabled, this provider is not available for usage.
-							</p>
-						</div>
-						<Switch
-							id={enabledSwitchId}
-							checked={form.values.enabled}
-							onCheckedChange={(checked) => {
-								void form.setFieldValue("enabled", checked);
-							}}
-							disabled={isLoading}
-							aria-label="Provider enabled"
-						/>
-					</div>
-				)}
-
 				<div className="flex justify-end gap-4">
 					<Link to="/ai/settings">
 						<Button variant="outline" type="button">
 							Cancel
 						</Button>
 					</Link>
-					<Button disabled={isLoading} type="submit">
+					<Button
+						disabled={isLoading || !form.dirty || !form.isValid}
+						type="submit"
+					>
 						<Spinner loading={isLoading} />
 						{editing ? "Update provider" : "Add provider"}
 					</Button>

@@ -42,6 +42,7 @@ import {
 import { ToolCollapsible } from "./ToolCollapsible";
 import { ToolIcon } from "./ToolIcon";
 import { ToolLabel } from "./ToolLabel";
+import { getExecuteRenderData, shouldRenderTool } from "./toolVisibility";
 import {
 	asNumber,
 	asRecord,
@@ -215,53 +216,6 @@ const parseAskUserQuestionResult = (
 	return null;
 };
 
-type ExecuteRenderData = {
-	command: string;
-	output: string;
-	durationMs?: number;
-	isBackgrounded: boolean;
-	authenticateURL: string;
-	providerLabel: string;
-};
-
-const getExecuteRenderData = (
-	args: unknown,
-	result: unknown,
-): ExecuteRenderData => {
-	const parsedArgs = parseArgs(args);
-	const command = parsedArgs ? asString(parsedArgs.command) : "";
-	const rec = asRecord(result);
-	const output = rec ? asString(rec.output).trim() : "";
-	const durationMs = rec
-		? (asNumber(rec.wall_duration_ms, { parseString: true }) ??
-			asNumber(rec.duration_ms, { parseString: true }))
-		: undefined;
-	const isBackgrounded = Boolean(
-		rec && asString(rec.background_process_id).trim(),
-	);
-	const authenticateURL = rec?.auth_required
-		? asString(rec.authenticate_url).trim()
-		: "";
-	const providerLabel = toProviderLabel(
-		rec ? asString(rec.provider_display_name).trim() : "",
-		rec ? asString(rec.provider_id).trim() : "",
-		rec ? asString(rec.provider_type).trim() : "",
-	);
-
-	return {
-		command,
-		output,
-		durationMs,
-		isBackgrounded,
-		authenticateURL,
-		providerLabel,
-	};
-};
-
-const shouldHideExecuteTool = (data: ExecuteRenderData): boolean => {
-	return data.command.trim().length === 0 && !data.authenticateURL;
-};
-
 const ExecuteRenderer: FC<ToolRendererProps> = ({
 	status,
 	args,
@@ -272,10 +226,6 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 	shellToolDisplayMode,
 }) => {
 	const data = getExecuteRenderData(args, result);
-
-	if (shouldHideExecuteTool(data)) {
-		return null;
-	}
 
 	if (data.authenticateURL) {
 		return (
@@ -595,20 +545,6 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 		const timedOutInError = errorStr.toLowerCase().includes("timed out");
 		if (timedOutInResult || timedOutInError) {
 			isTimeout = true;
-		}
-	}
-
-	// Postpone rendering wait_agent, message_agent, and close_agent
-	// until the chat_id has been parsed from the streaming args.
-	// Without it we cannot determine variant or title, which causes
-	// a brief flash of the generic lifecycle copy.
-	if (!chatId && status === "running") {
-		if (
-			descriptor.action === "wait" ||
-			descriptor.action === "message" ||
-			descriptor.action === "close"
-		) {
-			return null;
 		}
 	}
 
@@ -1096,25 +1032,18 @@ export const Tool = memo(
 			? SubagentRenderer
 			: (toolRenderers[name] ?? GenericToolRenderer);
 		const isShellTool = name === "execute" || name === "process_output";
-		if (
-			name === "execute" &&
-			shouldHideExecuteTool(getExecuteRenderData(args, result))
-		) {
+		if (!shouldRenderTool({ name, status, args, result })) {
 			return null;
 		}
 
 		return (
 			<div
 				ref={ref}
-				data-tool-call=""
-				data-shell-tool={isShellTool ? "" : undefined}
+				data-transcript-row=""
 				className={cn(
 					isShellTool || name === "propose_plan" || name === "advisor"
-						? "w-full py-0.5"
-						: "py-0.5",
-					// Keep back-to-back tool cards visually grouped so stacked tool calls do not look double-spaced.
-					"[&:has(+[data-tool-call])]:pb-0",
-					"[[data-tool-call]+&]:pt-0",
+						? "w-full"
+						: undefined,
 					className,
 				)}
 				{...props}

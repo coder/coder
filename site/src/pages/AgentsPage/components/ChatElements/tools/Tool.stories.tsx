@@ -848,6 +848,7 @@ export const CloseAgentRunningWithoutChatId: Story = {
 		await waitFor(() => {
 			expect(canvasElement.textContent?.trim()).toBe("");
 		});
+		expect(canvasElement.querySelector("[data-transcript-row]")).toBeNull();
 		expect(canvas.queryByRole("button")).toBeNull();
 		expect(canvas.queryByRole("link", { name: "View agent" })).toBeNull();
 	},

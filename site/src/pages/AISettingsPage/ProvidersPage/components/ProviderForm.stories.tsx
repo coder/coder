@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState } from "react";
 import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import { ProviderForm } from "./ProviderForm";
 
@@ -131,7 +130,6 @@ export const CredentialFocusClear: Story = {
 		await waitFor(() => expect(apiKeyInput).toHaveValue(""));
 	},
 };
-
 export const UnsavedChangesPrompt: Story = {
 	args: {
 		editing: true,
@@ -160,50 +158,5 @@ export const UnsavedChangesPrompt: Story = {
 		await expect(
 			within(dialog).getByText(/your updates haven't been saved/i),
 		).toBeInTheDocument();
-	},
-};
-export const SavedClearsDirty: Story = {
-	render: function Render(args) {
-		const [isLoading, setIsLoading] = useState(false);
-		return (
-			<ProviderForm
-				{...args}
-				isLoading={isLoading}
-				submitError={null}
-				onSubmit={async () => {
-					setIsLoading(true);
-					await new Promise((resolve) => setTimeout(resolve, 50));
-					setIsLoading(false);
-				}}
-			/>
-		);
-	},
-	args: {
-		editing: true,
-		initialValues: {
-			type: "openai",
-			name: "corporate-openai",
-			displayName: "Corporate OpenAI",
-			baseUrl: "https://api.openai.com/v1",
-			apiKey: "",
-			enabled: true,
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const displayName = await canvas.findByLabelText(/display name/i);
-		await userEvent.type(displayName, " Edited");
-		await userEvent.click(
-			canvas.getByRole("button", { name: /update provider/i }),
-		);
-		// Wait for the mock mutation to settle (isLoading flips back to false).
-		await waitFor(() =>
-			expect(
-				canvas.getByRole("button", { name: /update provider/i }),
-			).not.toBeDisabled(),
-		);
-		await userEvent.click(canvas.getByRole("link", { name: /cancel/i }));
-		// After a clean save, the unsaved-changes dialog must not appear.
-		await expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 	},
 };

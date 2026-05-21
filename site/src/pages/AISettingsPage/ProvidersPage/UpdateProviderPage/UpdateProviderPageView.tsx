@@ -1,5 +1,5 @@
 import { isAxiosError } from "axios";
-import { ArrowLeftIcon, TrashIcon } from "lucide-react";
+import { ArrowLeftIcon } from "lucide-react";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link, Navigate, useNavigate, useParams } from "react-router";
@@ -11,13 +11,12 @@ import {
 	updateAIProviderMutation,
 } from "#/api/queries/aiProviders";
 import { Avatar } from "#/components/Avatar/Avatar";
+import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
 import { Loader } from "#/components/Loader/Loader";
-import {
-	PageHeader,
-	PageHeaderTitle,
-} from "#/components/PageHeader/PageHeader";
+import { SettingsHeaderTitle } from "#/components/SettingsHeader/SettingsHeader";
+import { Switch } from "#/components/Switch/Switch";
 import { pageTitle } from "#/utils/page";
 import { ProviderForm } from "../components/ProviderForm";
 import { getProviderIcon } from "../components/ProviderIcon";
@@ -90,11 +89,11 @@ const UpdateProviderPageView: React.FC = () => {
 		return (
 			<>
 				{title}
-				<div className="pt-4 px-6 flex flex-col gap-4">
+				<div className="flex flex-col gap-4">
 					<p className="text-content-secondary">
 						{getErrorMessage(providerQuery.error, "Failed to load provider.")}
 					</p>
-					<Link to={BACK_HREF}>
+					<Link to={BACK_HREF} className="-ml-3">
 						<Button variant="subtle">
 							<ArrowLeftIcon />
 							<span>Back to providers</span>
@@ -118,8 +117,8 @@ const UpdateProviderPageView: React.FC = () => {
 	return (
 		<>
 			{title}
-			<div className="flex justify-between items-center pt-4 px-6">
-				<Link to={BACK_HREF}>
+			<div className="flex justify-between items-center">
+				<Link to={BACK_HREF} className="-ml-3">
 					<Button variant="subtle">
 						<ArrowLeftIcon />
 						<span>Back to providers</span>
@@ -133,28 +132,54 @@ const UpdateProviderPageView: React.FC = () => {
 						setDeleteDialogOpen(true);
 					}}
 				>
-					<TrashIcon />
 					<span>Delete</span>
 				</Button>
 			</div>
-			<div className="flex flex-col gap-6 px-8">
-				<PageHeader className="pt-6 pb-0">
-					<div className="flex items-center gap-4 min-w-0">
-						<Avatar
-							variant="icon"
-							size="lg"
-							src={getProviderIcon(getProviderDisplayType(provider))}
-						/>
-						<PageHeaderTitle
-							className="min-w-0"
-							title={provider.display_name || provider.name}
+			<div className="flex flex-col gap-6 pt-6">
+				<div className="flex items-center gap-4 min-w-0">
+					<Avatar
+						variant="icon"
+						size="lg"
+						src={getProviderIcon(getProviderDisplayType(provider))}
+					/>
+					<SettingsHeaderTitle>
+						<span className="block min-w-0 truncate">
+							{provider.display_name || provider.name}
+						</span>
+					</SettingsHeaderTitle>
+					{!provider.enabled && <Badge variant="default">Disabled</Badge>}
+				</div>
+				<div className="flex items-center justify-between w-full">
+					<p className="text-sm text-content-secondary m-0">
+						Add or update models for this provider.{" "}
+						<a
+							href="/agents/settings/models"
+							className="text-content-link no-underline hover:underline"
 						>
-							<span className="block min-w-0 truncate">
-								{provider.display_name || provider.name}
-							</span>
-						</PageHeaderTitle>
+							Model settings
+						</a>
+					</p>
+					<div className="flex items-center gap-2">
+						<Switch
+							checked={provider.enabled}
+							onCheckedChange={(checked) => {
+								updateMutation.mutate(
+									{ enabled: checked },
+									{
+										onSuccess: (updated) => {
+											toast.success(
+												`Provider "${updated.display_name || updated.name}" ${checked ? "enabled" : "disabled"}.`,
+											);
+										},
+									},
+								);
+							}}
+							disabled={updateMutation.isPending}
+							aria-label="Provider enabled"
+						/>
+						<span className="text-sm">Enable</span>
 					</div>
-				</PageHeader>
+				</div>
 				<div className="border border-solid p-6 rounded-lg">
 					<ProviderForm
 						editing
