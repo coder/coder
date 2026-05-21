@@ -818,6 +818,10 @@ func (r *RootCmd) createHTTPClient(ctx context.Context, serverURL *url.URL, inv 
 		customTransport := defaultTransport.Clone()
 		customTransport.TLSClientConfig = r.tlsConfig
 		transport = customTransport
+	} else if defaultTransport, ok := http.DefaultTransport.(*http.Transport); ok {
+		// Clone the default transport so we don't share it with other code
+		// (including parallel tests that may call CloseIdleConnections).
+		transport = defaultTransport.Clone()
 	}
 
 	transport = wrapTransportWithTelemetryHeader(transport, inv)
