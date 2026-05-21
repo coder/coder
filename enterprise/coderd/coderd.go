@@ -623,19 +623,20 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		})
 	})
 
-	// TODO: Possibly lift this scimSrv?
-	scimSrv, err := scim.New(&scim.Options{
-		DB:         options.Database,
-		Auditor:    &api.AGPL.Auditor,
-		IDPSync:    options.IDPSync,
-		Logger:     options.Logger,
-		AGPL:       api.AGPL,
-		SCIMAPIKey: options.SCIMAPIKey,
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("create scim server: %w", err)
-	}
 	if len(options.SCIMAPIKey) != 0 {
+		// TODO: Possibly lift this scimSrv?
+		scimSrv, err := scim.New(&scim.Options{
+			DB:         options.Database,
+			Auditor:    &api.AGPL.Auditor,
+			IDPSync:    options.IDPSync,
+			Logger:     options.Logger,
+			AGPL:       api.AGPL,
+			SCIMAPIKey: options.SCIMAPIKey,
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("create scim server: %w", err)
+		}
+
 		// The elimity-com/scim library reads r.URL.Path and strips "/v2"
 		// internally. Chi's Route/Mount modifies its own routing context
 		// but not r.URL.Path, so we use http.StripPrefix to ensure the

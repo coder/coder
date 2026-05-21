@@ -27,7 +27,7 @@ var _ scim.ResourceHandler = (*ResourceUser)(nil)
 // BackgroundAudit instead of InitRequest because the elimity-com/scim
 // library owns the http.ResponseWriter and does not expose it to
 // resource handlers.
-func (ru *ResourceUser) scimAudit(ctx context.Context, r *http.Request, action database.AuditAction, old, new database.User) {
+func (ru *ResourceUser) scimAudit(ctx context.Context, r *http.Request, action database.AuditAction, old, changed database.User) {
 	raw, _ := json.Marshal(map[string]string{
 		"automatic_actor":     "coder",
 		"automatic_subsystem": "scim",
@@ -45,7 +45,7 @@ func (ru *ResourceUser) scimAudit(ctx context.Context, r *http.Request, action d
 		UserID:           uuid.Nil, // SCIM provisioner, not a real user
 		Action:           action,
 		Old:              old,
-		New:              new,
+		New:              changed,
 		IP:               ip,
 		UserAgent:        r.UserAgent(),
 		AdditionalFields: raw,
@@ -242,13 +242,14 @@ func (ru *ResourceUser) Replace(r *http.Request, idStr string, attributes scim.R
 	}
 
 	// TODO: Check primary email
+	activeStr, ok := attributes["active"]
+	if !ok {
+		return scim.Resource{}, scimErrors.ScimErrorBadRequest("missing required 'active' field")
+	}
 
-	active := true
-	if activeStr, ok := attributes["active"]; ok {
-		active, err = BooleanValue(activeStr)
-		if err != nil {
-			return scim.Resource{}, scimErrors.ScimErrorBadRequest(fmt.Sprintf("invalid boolean value for 'active' field: %v", activeStr))
-		}
+	active, err := BooleanValue(activeStr)
+	if err != nil {
+		return scim.Resource{}, scimErrors.ScimErrorBadRequest(fmt.Sprintf("invalid boolean value for 'active' field: %v", activeStr))
 	}
 
 	newStatus := scimUserStatus(dbUser, &active)

@@ -752,7 +752,9 @@ var (
 				DisplayName: "SCIM",
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceSystem.Type:             {policy.ActionRead}, // Required for idp config reads, this should be fixed
-					rbac.ResourceUser.Type:               {policy.ActionCreate, policy.ActionUpdate, policy.ActionRead},
+					rbac.ResourceAssignRole.Type:         rbac.ResourceAssignRole.AvailableActions(),
+					rbac.ResourceAssignOrgRole.Type:      rbac.ResourceAssignOrgRole.AvailableActions(),
+					rbac.ResourceUser.Type:               {policy.ActionCreate, policy.ActionUpdate, policy.ActionRead, policy.ActionUpdatePersonal},
 					rbac.ResourceOrganization.Type:       {policy.ActionRead},
 					rbac.ResourceOrganizationMember.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionUpdate},
 				}),
