@@ -78,7 +78,10 @@ export const DesktopToolbar: FC<DesktopToolbarProps> = ({
 	onPopOut,
 	isPoppedOut,
 }) => {
-	const apps = agent?.apps.filter((app) => !app.hidden) ?? [];
+	// Only show web apps (those with a URL) in the dropdown.
+	// Command-type apps would open a terminal tab, which is wrong
+	// for a desktop context.
+	const apps = agent?.apps.filter((app) => !app.hidden && !app.command) ?? [];
 
 	return (
 		<div
