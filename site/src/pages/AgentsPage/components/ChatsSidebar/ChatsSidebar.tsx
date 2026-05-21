@@ -3,6 +3,7 @@ import { useQuery } from "react-query";
 import { useLocation, useParams } from "react-router";
 import { userChatProviderConfigs } from "#/api/queries/chats";
 import type { Chat, ChatModelConfig } from "#/api/typesGenerated";
+import { isMac } from "#/utils/platform";
 import type { ModelSelectorOption } from "../ChatElements";
 import { ChatsPanel } from "./chats/ChatsPanel";
 import { ChatSearchDialog, RenameChatDialog } from "./dialogs";
@@ -101,9 +102,15 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 
 	useEffect(() => {
 		const handleKeyDown = (event: KeyboardEvent) => {
-			const isModifierPressed = navigator.platform.match("Mac")
-				? event.metaKey
-				: event.ctrlKey;
+			const target = event.target as HTMLElement | null;
+			if (target) {
+				const tag = target.tagName;
+				if (tag === "INPUT" || tag === "TEXTAREA" || target.isContentEditable) {
+					return;
+				}
+			}
+
+			const isModifierPressed = isMac() ? event.metaKey : event.ctrlKey;
 
 			if (
 				!isModifierPressed ||

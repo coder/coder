@@ -748,15 +748,58 @@ export const SearchDialogKeyboardShortcut: Story = {
 		const searchButton = canvas.getByRole("button", { name: "Search chats" });
 
 		await userEvent.hover(searchButton);
-		await expect(await body.findByText("Search chats")).toBeVisible();
-		await expect(await body.findByText("Ctrl")).toBeVisible();
-		await expect(await body.findByText("K")).toBeVisible();
+		const tooltip = await body.findByRole("tooltip");
+		await expect(tooltip).toHaveTextContent("Search chats");
+		await expect(tooltip).toHaveTextContent("Ctrl");
+		await expect(tooltip).toHaveTextContent("K");
 
 		await userEvent.keyboard("{Control>}k{/Control}");
 
 		await expect(
 			await body.findByRole("combobox", { name: "Search chats" }),
 		).toHaveFocus();
+	},
+};
+
+export const SearchDialogKeyboardShortcutIgnoresRenameInput: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "rename-shortcut-target",
+				title: "Editable shortcut target",
+				updated_at: recentTimestamp,
+			}),
+		],
+		onRenameTitle: fn(() => Promise.resolve()),
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents" },
+			routing: agentsRouting,
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: "Open actions for Editable shortcut target",
+			}),
+		);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: "Rename chat" }),
+		);
+
+		const input = await body.findByRole<HTMLInputElement>("textbox", {
+			name: "Chat title",
+		});
+		await userEvent.keyboard("{Control>}k{/Control}");
+
+		expect(input).toHaveFocus();
+		expect(
+			body.queryByRole("combobox", { name: "Search chats" }),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -2102,10 +2145,7 @@ export const PreservesArchivedFilterOnSettingsNavigation: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = within(document.body);
-		const searchButton = await canvas.findByLabelText("Search chats");
-		await userEvent.click(searchButton);
-		const settingsLink = await body.findByRole("link", { name: "Settings" });
+		const settingsLink = await canvas.findByRole("link", { name: "Settings" });
 		await userEvent.click(settingsLink);
 		await waitFor(() => {
 			const fromValue =

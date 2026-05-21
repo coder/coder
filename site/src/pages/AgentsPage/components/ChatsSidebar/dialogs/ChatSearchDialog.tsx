@@ -9,7 +9,7 @@ import {
 import { useQuery } from "react-query";
 import { type Location, useNavigate } from "react-router";
 import { chatSearch } from "#/api/queries/chats";
-import { Dialog, DialogContent } from "#/components/Dialog/Dialog";
+import { Dialog, DialogContent, DialogTitle } from "#/components/Dialog/Dialog";
 import { useDebouncedValue } from "#/hooks/debounce";
 import { ChatSearchInput } from "./ChatSearchInput";
 import { ChatSearchResults } from "./ChatSearchResults";
@@ -114,6 +114,7 @@ export const ChatSearchDialog: FC<ChatSearchDialogProps> = ({
 					});
 				}}
 			>
+				<DialogTitle className="sr-only">Search chats</DialogTitle>
 				<ChatSearchInput
 					activeResultId={activeResultId}
 					hasResults={resultCount > 0}

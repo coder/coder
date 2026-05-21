@@ -27,11 +27,15 @@ describe("normalizeChatSearchInput", () => {
 		expect(normalizeChatSearchInput("fix auth middleware")).toBe(
 			'title:"fix auth middleware"',
 		);
+		expect(normalizeChatSearchInput("fix:lint")).toBe('title:"fix:lint"');
 	});
 
 	it("combines key:value filters with a title fallback for bare text", () => {
 		expect(normalizeChatSearchInput("has_unread:true fix auth")).toBe(
 			'has_unread:true title:"fix auth"',
+		);
+		expect(normalizeChatSearchInput("archived:true fix:lint")).toBe(
+			'archived:true title:"fix:lint"',
 		);
 		expect(normalizeChatSearchInput("fix has_unread:true auth")).toBe(
 			'has_unread:true title:"fix auth"',

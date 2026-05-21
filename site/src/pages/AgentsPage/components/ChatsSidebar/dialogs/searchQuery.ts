@@ -2,6 +2,13 @@ const escapeChatSearchValue = (value: string): string => {
 	return value.replaceAll('"', '\\"');
 };
 
+const supportedChatSearchFilterKeys = new Set([
+	"archived",
+	"diff_url",
+	"has_unread",
+	"pr_status",
+]);
+
 const splitSearchInput = (input: string): string[] => {
 	const tokens: string[] = [];
 	let token = "";
@@ -87,6 +94,12 @@ export const normalizeChatSearchInput = (
 
 		if (keyValuePair.key === "title") {
 			titleTerms.push(keyValuePair.value);
+			continue;
+		}
+
+		if (!supportedChatSearchFilterKeys.has(keyValuePair.key)) {
+			titleTerms.push(token);
+			hasFallbackTitle = true;
 			continue;
 		}
 
