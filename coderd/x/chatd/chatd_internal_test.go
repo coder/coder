@@ -5270,6 +5270,9 @@ func TestGetWorkspaceConn_DialTimeoutParentCanceled(t *testing.T) {
 	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
 		Return(connectedAgent, nil).
 		Times(1)
+	db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
+		Return([]database.WorkspaceAgent{connectedAgent}, nil).
+		AnyTimes()
 
 	parentErr := xerrors.New("parent canceled")
 	ctx, cancel := context.WithCancelCause(testutil.Context(t, testutil.WaitShort))
