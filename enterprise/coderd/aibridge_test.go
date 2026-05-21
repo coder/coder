@@ -3029,6 +3029,102 @@ func TestUserAIBudgetOverride(t *testing.T) {
 	})
 }
 
+// TestUserAIBudgetOverrideRoleAccess verifies the authz matrix for the roles
+// expected to interact with user budget overrides:
+//
+//   - Owner / UserAdmin: full CRUD.
+//   - OrgAdmin / OrgUserAdmin: read-only. Writes require ActionUpdate on the
+//     User resource (site-scoped), which neither role has.
+func TestUserAIBudgetOverrideRoleAccess(t *testing.T) {
+	t.Parallel()
+
+	dv := coderdtest.DeploymentValues(t)
+	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{DeploymentValues: dv},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+				codersdk.FeatureAIBridge:     1,
+			},
+		},
+	})
+	userAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
+	orgAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgAdmin(owner.OrganizationID))
+	orgUserAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgUserAdmin(owner.OrganizationID))
+
+	setupCtx := testutil.Context(t, testutil.WaitLong)
+	group, err := ownerClient.CreateGroup(setupCtx, owner.OrganizationID, codersdk.CreateGroupRequest{
+		Name: "role-access-group",
+	})
+	require.NoError(t, err)
+
+	cases := []struct {
+		Name     string
+		Client   *codersdk.Client
+		CanWrite bool
+	}{
+		{Name: "Owner", Client: ownerClient, CanWrite: true},
+		{Name: "UserAdmin", Client: userAdminClient, CanWrite: true},
+		{Name: "OrgAdmin", Client: orgAdminClient, CanWrite: false},
+		{Name: "OrgUserAdmin", Client: orgUserAdminClient, CanWrite: false},
+	}
+
+	for _, tc := range cases {
+		// Subtests run sequentially: they share the same deployment and group,
+		// and parallel PatchGroup calls on the same group race.
+		t.Run(tc.Name, func(t *testing.T) {
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			// Each case gets a fresh target user.
+			_, targetUser := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+			_, err := ownerClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+				AddUsers: []string{targetUser.ID.String()},
+			})
+			require.NoError(t, err)
+
+			upsertReq := codersdk.UpsertUserAIBudgetOverrideRequest{
+				GroupID:          group.ID,
+				SpendLimitMicros: 500_000_000,
+			}
+
+			if tc.CanWrite {
+				// Full CRUD lifecycle.
+				override, err := tc.Client.UpsertUserAIBudgetOverride(ctx, targetUser.ID, upsertReq)
+				require.NoError(t, err, "PUT")
+				require.Equal(t, group.ID, override.GroupID)
+
+				got, err := tc.Client.UserAIBudgetOverride(ctx, targetUser.ID)
+				require.NoError(t, err, "GET")
+				require.EqualValues(t, 500_000_000, got.SpendLimitMicros)
+
+				err = tc.Client.DeleteUserAIBudgetOverride(ctx, targetUser.ID)
+				require.NoError(t, err, "DELETE")
+			} else {
+				// PUT rejected.
+				_, err := tc.Client.UpsertUserAIBudgetOverride(ctx, targetUser.ID, upsertReq)
+				var sdkErr *codersdk.Error
+				require.ErrorAs(t, err, &sdkErr)
+				require.Equal(t, http.StatusNotFound, sdkErr.StatusCode(), "PUT")
+
+				// Seed a row via owner so we can verify read access still works.
+				_, err = ownerClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, upsertReq)
+				require.NoError(t, err)
+
+				// GET still works (all roles have ActionRead on User).
+				got, err := tc.Client.UserAIBudgetOverride(ctx, targetUser.ID)
+				require.NoError(t, err, "GET")
+				require.EqualValues(t, 500_000_000, got.SpendLimitMicros)
+
+				// DELETE rejected.
+				err = tc.Client.DeleteUserAIBudgetOverride(ctx, targetUser.ID)
+				require.ErrorAs(t, err, &sdkErr)
+				require.Equal(t, http.StatusNotFound, sdkErr.StatusCode(), "DELETE")
+			}
+		})
+	}
+}
+
 // setupUserAIBudgetOverrideTest returns an Admin client, a target user, and a
 // group the target user is a member of.
 func setupUserAIBudgetOverrideTest(t *testing.T) (adminClient *codersdk.Client, targetUser codersdk.User, group codersdk.Group) {
