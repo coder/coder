@@ -276,7 +276,15 @@ func TestWatcher_LostAccess(t *testing.T) {
 
 	dec, err := h.Dial(ctx, "wss://local.test/")
 	require.NoError(t, err)
-	defer dec.Close()
+	defer func() {
+		err := dec.Close()
+		// The Chan goroutine may win the close race after the server
+		// tears down the connection, returning a network error.
+		// Both nil and closed-connection errors are acceptable here.
+		if err != nil {
+			require.ErrorContains(t, err, "use of closed network connection")
+		}
+	}()
 	events := dec.Chan()
 	e0 := testutil.RequireReceive(ctx, t, events)
 	require.NotNil(t, e0.Error)

@@ -65,24 +65,38 @@ func (d *Decoder[T]) Chan() <-chan T {
 	return values
 }
 
-// closeConn closes the underlying websocket connection. It is safe to call
-// multiple times; only the first call sends a close frame. Subsequent calls
-// return the result of the first close.
+// closeConn closes the underlying websocket connection and cancels the
+// decoder context. It is safe to call multiple times or concurrently;
+// only the first call sends a close frame and cancels the context.
+// Subsequent calls return the result of that first close.
+//
+// The close code and reason are determined by whichever caller wins the
+// race (Chan goroutine uses StatusGoingAway, Close uses
+// StatusNormalClosure). After a server-initiated close the underlying
+// TCP connection may already be torn down, so the close frame send is
+// best-effort.
 func (d *Decoder[T]) closeConn(code websocket.StatusCode, reason string) error {
 	d.closeOnce.Do(func() {
 		d.closeErr = d.conn.Close(code, reason)
+		d.cancel()
 	})
+	// closeErr is safe to read without a mutex: sync.Once guarantees the
+	// Do callback happens-before any subsequent Do call returns.
 	return d.closeErr
 }
 
-// Close closes the decoder and the underlying websocket connection. It is safe
-// to call multiple times or concurrently with the Chan goroutine.
+// Close closes the decoder and the underlying websocket connection.
+// It is safe to call multiple times or concurrently with the Chan
+// goroutine.
 //
-// nolint: revive // complains that Encoder has the same function name
+// The returned error is from the first close attempt, which may have
+// been initiated by the Chan goroutine (with StatusGoingAway) rather
+// than by this call (StatusNormalClosure) depending on goroutine
+// scheduling.
+//
+//nolint:revive // complains that Encoder has the same function name
 func (d *Decoder[T]) Close() error {
-	err := d.closeConn(websocket.StatusNormalClosure, "")
-	d.cancel()
-	return err
+	return d.closeConn(websocket.StatusNormalClosure, "")
 }
 
 // NewDecoder creates a JSON-over-websocket decoder for type T, which must be deserializable from
