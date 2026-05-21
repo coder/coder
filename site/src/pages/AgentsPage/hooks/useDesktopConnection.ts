@@ -243,6 +243,15 @@ export function useDesktopConnection({
 					shared: true,
 				});
 
+				// noVNC sets overflow:auto on its internal screen div.
+				// Override it so scrollbars never appear; we handle
+				// panning ourselves via wheel event capture.
+				const screen = offscreenContainerRef.current
+					.firstElementChild as HTMLElement | null;
+				if (screen) {
+					screen.style.overflow = "hidden";
+				}
+
 				rfb.scaleViewport = false;
 				rfb.resizeSession = false;
 				rfb.focusOnClick = true;
