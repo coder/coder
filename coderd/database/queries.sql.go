@@ -7815,6 +7815,44 @@ WHERE
         )
         ELSE true
     END
+    -- Filter by title substring (case-insensitive). Applied when the
+    -- caller provides a non-empty title_query.
+    AND CASE
+        WHEN $8 :: text != '' THEN chats_expanded.title ILIKE '%' || $8 || '%'
+        ELSE true
+    END
+    AND CASE
+        WHEN $9::boolean IS NOT NULL THEN (
+            EXISTS (
+                SELECT 1 FROM chat_messages cm
+                WHERE cm.chat_id = chats_expanded.id
+                    AND cm.role = 'assistant'
+                    AND cm.deleted = false
+                    AND cm.id > COALESCE(chats_expanded.last_read_message_id, 0)
+            )
+        ) = $9::boolean
+        ELSE true
+    END
+    -- Filter by pull request status. Unlike the diff_url filter above,
+    -- this intentionally checks only the root chat's own diff status.
+    -- Child chats share the same workspace and git branch as their
+    -- parent, so gitsync populates identical PR state on both; traversing
+    -- descendants would be redundant.
+    AND CASE
+        WHEN COALESCE(array_length($10::text[], 1), 0) > 0 THEN EXISTS (
+            SELECT 1
+            FROM chat_diff_statuses cds
+            WHERE cds.chat_id = chats_expanded.id
+                AND (
+                    CASE
+                        WHEN cds.pull_request_state = 'open' AND cds.pull_request_draft THEN 'draft'
+                        WHEN cds.pull_request_state = 'open' THEN 'open'
+                        ELSE cds.pull_request_state
+                    END
+                ) = ANY($10::text[])
+        )
+        ELSE true
+    END
     -- Paginate over root chats only. Children are fetched
     -- separately via GetChildChatsByParentIDs and embedded under
     -- each parent. Other callers that need the full set should
@@ -7831,23 +7869,26 @@ ORDER BY
     -chats_expanded.pin_order DESC,
     chats_expanded.updated_at DESC,
     chats_expanded.id DESC
-OFFSET $8
+OFFSET $11
 LIMIT
     -- The chat list is unbounded and expected to grow large.
     -- Default to 50 to prevent accidental excessively large queries.
-    COALESCE(NULLIF($9 :: int, 0), 50)
+    COALESCE(NULLIF($12 :: int, 0), 50)
 `
 
 type GetChatsParams struct {
-	OwnedOnly   bool                  `db:"owned_only" json:"owned_only"`
-	ViewerID    uuid.UUID             `db:"viewer_id" json:"viewer_id"`
-	SharedOnly  bool                  `db:"shared_only" json:"shared_only"`
-	Archived    sql.NullBool          `db:"archived" json:"archived"`
-	AfterID     uuid.UUID             `db:"after_id" json:"after_id"`
-	LabelFilter pqtype.NullRawMessage `db:"label_filter" json:"label_filter"`
-	DiffURL     sql.NullString        `db:"diff_url" json:"diff_url"`
-	OffsetOpt   int32                 `db:"offset_opt" json:"offset_opt"`
-	LimitOpt    int32                 `db:"limit_opt" json:"limit_opt"`
+	OwnedOnly           bool                  `db:"owned_only" json:"owned_only"`
+	ViewerID            uuid.UUID             `db:"viewer_id" json:"viewer_id"`
+	SharedOnly          bool                  `db:"shared_only" json:"shared_only"`
+	Archived            sql.NullBool          `db:"archived" json:"archived"`
+	AfterID             uuid.UUID             `db:"after_id" json:"after_id"`
+	LabelFilter         pqtype.NullRawMessage `db:"label_filter" json:"label_filter"`
+	DiffURL             sql.NullString        `db:"diff_url" json:"diff_url"`
+	TitleQuery          string                `db:"title_query" json:"title_query"`
+	HasUnread           sql.NullBool          `db:"has_unread" json:"has_unread"`
+	PullRequestStatuses []string              `db:"pull_request_statuses" json:"pull_request_statuses"`
+	OffsetOpt           int32                 `db:"offset_opt" json:"offset_opt"`
+	LimitOpt            int32                 `db:"limit_opt" json:"limit_opt"`
 }
 
 type GetChatsRow struct {
@@ -7864,6 +7905,9 @@ func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]GetCha
 		arg.AfterID,
 		arg.LabelFilter,
 		arg.DiffURL,
+		arg.TitleQuery,
+		arg.HasUnread,
+		pq.Array(arg.PullRequestStatuses),
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)
