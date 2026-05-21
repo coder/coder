@@ -12,7 +12,7 @@ The strict label match test verifies that label comparison is performed exactly:
 ## Running Tests
 
 ```bash
-python tests/strict_label_match_test.py
+python3 tests/strict_label_match_test.py
 ```
 
 ## Test Cases
