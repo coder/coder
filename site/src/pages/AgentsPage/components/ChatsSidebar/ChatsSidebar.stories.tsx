@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { ComponentProps } from "react";
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
@@ -11,6 +12,7 @@ import {
 	withAuthProvider,
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
+import { useAgentsPageKeybindings } from "../../hooks/useAgentsPageKeybindings";
 import type { ModelSelectorOption } from "../ChatElements";
 import { ChatsSidebar } from "./ChatsSidebar";
 
@@ -127,6 +129,27 @@ const meta: Meta<typeof ChatsSidebar> = {
 
 export default meta;
 type Story = StoryObj<typeof ChatsSidebar>;
+
+const ChatsSidebarWithKeybindings = (
+	args: ComponentProps<typeof ChatsSidebar>,
+) => {
+	const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(
+		args.isSearchDialogOpen,
+	);
+
+	useAgentsPageKeybindings({
+		onNewAgent: args.onBeforeNewAgent ?? (() => {}),
+		onOpenSearch: () => setIsSearchDialogOpen(true),
+	});
+
+	return (
+		<ChatsSidebar
+			{...args}
+			isSearchDialogOpen={isSearchDialogOpen}
+			onSearchDialogOpenChange={setIsSearchDialogOpen}
+		/>
+	);
+};
 
 export const ChatWithTurnSummary: Story = {
 	args: {
@@ -735,6 +758,7 @@ export const SidebarFilterMenu: Story = {
 };
 
 export const SearchDialogKeyboardShortcut: Story = {
+	render: ChatsSidebarWithKeybindings,
 	args: {
 		chats: sectionHeaderChats,
 	},
@@ -764,6 +788,7 @@ export const SearchDialogKeyboardShortcut: Story = {
 };
 
 export const SearchDialogKeyboardShortcutIgnoresRenameInput: Story = {
+	render: ChatsSidebarWithKeybindings,
 	args: {
 		chats: [
 			buildChat({

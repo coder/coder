@@ -156,8 +156,18 @@ export const CappedResults: Story = {
 			body.getByRole("combobox", { name: "Search chats" }),
 			"Fix",
 		);
+		await waitFor(() => {
+			expect(API.experimental.getChats).toHaveBeenCalledWith({
+				limit: CHAT_SEARCH_LIMIT,
+				q: 'title:"Fix"',
+			});
+		});
 		await expect(
-			await body.findByText(`Showing first ${CHAT_SEARCH_LIMIT} results.`),
+			await body.findByText(
+				(_content, element) =>
+					element?.textContent?.replace(/\s+/g, " ").trim() ===
+					`Showing first ${CHAT_SEARCH_LIMIT} results.`,
+			),
 		).toBeInTheDocument();
 	},
 };
