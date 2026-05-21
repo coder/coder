@@ -48,7 +48,7 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 		Use:   "chat",
 		Short: "Run a chat scale test against the Coder API",
 		Long:  "Creates chats-per-workspace concurrent chats against each selected workspace. Use --workspace-id to target one existing workspace or --template with --workspace-count to pre-create workspaces before the chat storm begins. --chats-per-workspace must be at least 1.",
-		Handler: func(inv *serpent.Invocation) error {
+		Handler: func(inv *serpent.Invocation) (runErr error) {
 			baseCtx := inv.Context()
 			ctx, stop := inv.SignalNotifyContext(baseCtx, StopSignals...)
 			defer stop()
@@ -197,7 +197,10 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 				tracer = tracerProvider.Tracer(scaletestTracerName)
 			}
 
-			var workspaceHarness *harness.TestHarness
+			var (
+				workspaceHarness        *harness.TestHarness
+				cleanupWorkspaceHarness func() error
+			)
 
 			// Provision template workspaces before the chat storm starts.
 			if workspaceBuildConfig != nil {
@@ -218,8 +221,28 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 					workspaceHarness.AddRun("workspace", fmt.Sprintf("workspace-%d", i), runner)
 				}
 
-				if err := workspaceHarness.Run(testCtx); err != nil {
-					return xerrors.Errorf("create template workspaces: %w", err)
+				workspaceRunErr := workspaceHarness.Run(testCtx)
+				workspaceCleaned := false
+				cleanupWorkspaceHarness = func() error {
+					if workspaceCleaned {
+						return nil
+					}
+					workspaceCleaned = true
+					cleanupCtx, cleanupCancel := cleanupStrategy.toContext(context.Background())
+					defer cleanupCancel()
+					_, _ = fmt.Fprintln(inv.Stderr, "Cleaning up created workspaces...")
+					if err := workspaceHarness.Cleanup(cleanupCtx); err != nil {
+						return xerrors.Errorf("cleanup workspaces: %w", err)
+					}
+					return nil
+				}
+				defer func() {
+					if err := cleanupWorkspaceHarness(); err != nil {
+						runErr = errors.Join(runErr, err)
+					}
+				}()
+				if workspaceRunErr != nil {
+					return xerrors.Errorf("create template workspaces: %w", workspaceRunErr)
 				}
 
 				workspaceResults := workspaceHarness.Results()
@@ -374,10 +397,9 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 			if err := chatHarness.Cleanup(cleanupCtx); err != nil {
 				return xerrors.Errorf("cleanup chats: %w", err)
 			}
-			if workspaceHarness != nil {
-				_, _ = fmt.Fprintln(inv.Stderr, "Cleaning up created workspaces...")
-				if err := workspaceHarness.Cleanup(cleanupCtx); err != nil {
-					return xerrors.Errorf("cleanup workspaces: %w", err)
+			if cleanupWorkspaceHarness != nil {
+				if err := cleanupWorkspaceHarness(); err != nil {
+					return err
 				}
 			}
 

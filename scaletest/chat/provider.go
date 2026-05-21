@@ -52,11 +52,15 @@ func EnsureScaletestModelConfig(ctx context.Context, client *codersdk.Experiment
 	}
 
 	for i := range modelConfigs {
-		if modelConfigs[i].Provider == provider.Provider && modelConfigs[i].Model == scaletestModelName {
-			modelConfigID := modelConfigs[i].ID
-			_, _ = fmt.Fprintf(stderr, "Reusing existing scaletest model config %s\n", modelConfigID)
-			return &modelConfigID, nil
+		if modelConfigs[i].Provider != provider.Provider || modelConfigs[i].Model != scaletestModelName {
+			continue
 		}
+		if !modelConfigs[i].Enabled {
+			return nil, xerrors.Errorf("existing scaletest chat model config %s is disabled; re-enable or delete it before running scaletests", modelConfigs[i].ID)
+		}
+		modelConfigID := modelConfigs[i].ID
+		_, _ = fmt.Fprintf(stderr, "Reusing existing scaletest model config %s\n", modelConfigID)
+		return &modelConfigID, nil
 	}
 
 	enabled := true
@@ -115,7 +119,10 @@ func ensureScaletestProvider(ctx context.Context, client *codersdk.ExperimentalC
 		return codersdk.ChatProviderConfig{}, "", xerrors.Errorf("refusing to overwrite existing %s provider %s with display name %q", scaletestProviderType, existing.ID, existing.DisplayName)
 	}
 
-	if existing.BaseURL == llmMockURL && existing.Enabled {
+	if !existing.Enabled {
+		return codersdk.ChatProviderConfig{}, "", xerrors.Errorf("existing scaletest chat provider %s is disabled; re-enable or delete it before running scaletests", existing.ID)
+	}
+	if existing.BaseURL == llmMockURL {
 		return *existing, scaletestProviderActionReused, nil
 	}
 
