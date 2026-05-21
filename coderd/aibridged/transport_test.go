@@ -23,7 +23,7 @@ func TestTransportFactory_TransportFor(t *testing.T) {
 
 	t.Run("CoderAgentReturnsTransport", func(t *testing.T) {
 		t.Parallel()
-		f := aibridged.NewTransportFactory(http.NotFoundHandler())
+		f := aibridged.NewTransportFactory(http.NotFoundHandler(), nil)
 		rt, err := f.TransportFor(uuid.New(), true)
 		require.NoError(t, err)
 		require.NotNil(t, rt)
@@ -31,7 +31,7 @@ func TestTransportFactory_TransportFor(t *testing.T) {
 
 	t.Run("NonCoderAgentFallsThrough", func(t *testing.T) {
 		t.Parallel()
-		f := aibridged.NewTransportFactory(http.NotFoundHandler())
+		f := aibridged.NewTransportFactory(http.NotFoundHandler(), nil)
 		rt, err := f.TransportFor(uuid.New(), false)
 		require.NoError(t, err)
 		require.Nil(t, rt)
@@ -39,7 +39,7 @@ func TestTransportFactory_TransportFor(t *testing.T) {
 
 	t.Run("NilHandlerErrors", func(t *testing.T) {
 		t.Parallel()
-		f := aibridged.NewTransportFactory(nil)
+		f := aibridged.NewTransportFactory(nil, nil)
 		_, err := f.TransportFor(uuid.New(), true)
 		require.Error(t, err)
 	})
@@ -55,7 +55,7 @@ func TestInMemoryRoundTripper_PassesHeadersAndStatus(t *testing.T) {
 		_, _ = w.Write([]byte(`{"ok":true}`))
 	})
 
-	rt, err := aibridged.NewTransportFactory(handler).TransportFor(uuid.New(), true)
+	rt, err := aibridged.NewTransportFactory(handler, nil).TransportFor(uuid.New(), true)
 	require.NoError(t, err)
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -100,7 +100,7 @@ func TestInMemoryRoundTripper_Streams(t *testing.T) {
 		}
 	})
 
-	rt, err := aibridged.NewTransportFactory(handler).TransportFor(uuid.New(), true)
+	rt, err := aibridged.NewTransportFactory(handler, nil).TransportFor(uuid.New(), true)
 	require.NoError(t, err)
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -139,7 +139,7 @@ func TestInMemoryRoundTripper_CancelCloses(t *testing.T) {
 		close(handlerCtxObserved)
 	})
 
-	rt, err := aibridged.NewTransportFactory(handler).TransportFor(uuid.New(), true)
+	rt, err := aibridged.NewTransportFactory(handler, nil).TransportFor(uuid.New(), true)
 	require.NoError(t, err)
 
 	parentCtx := testutil.Context(t, testutil.WaitShort)
@@ -173,7 +173,7 @@ func TestInMemoryRoundTripper_ConcurrentRequests(t *testing.T) {
 		_, _ = w.Write(body)
 	})
 
-	rt, err := aibridged.NewTransportFactory(handler).TransportFor(uuid.New(), true)
+	rt, err := aibridged.NewTransportFactory(handler, nil).TransportFor(uuid.New(), true)
 	require.NoError(t, err)
 
 	const n = 16
@@ -222,7 +222,7 @@ func TestInMemoryRoundTripper_HandlerReturnsWithoutWriting(t *testing.T) {
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
 
-	rt, err := aibridged.NewTransportFactory(handler).TransportFor(uuid.New(), true)
+	rt, err := aibridged.NewTransportFactory(handler, nil).TransportFor(uuid.New(), true)
 	require.NoError(t, err)
 
 	ctx := testutil.Context(t, testutil.WaitShort)

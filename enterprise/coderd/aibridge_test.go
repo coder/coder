@@ -1844,7 +1844,7 @@ func TestAIBridgeRouting(t *testing.T) {
 		rw.WriteHeader(http.StatusOK)
 		_, _ = rw.Write([]byte(r.URL.Path))
 	})
-	api.AGPL.RegisterInMemoryAIBridgedHTTPHandler(testHandler)
+	api.AGPL.RegisterInMemoryAIBridgedHTTPHandler(testHandler, nil)
 
 	cases := []struct {
 		name         string
@@ -1907,7 +1907,7 @@ func TestAIBridgeRateLimiting(t *testing.T) {
 	testHandler := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		rw.WriteHeader(http.StatusOK)
 	})
-	api.AGPL.RegisterInMemoryAIBridgedHTTPHandler(testHandler)
+	api.AGPL.RegisterInMemoryAIBridgedHTTPHandler(testHandler, nil)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	httpClient := &http.Client{}
@@ -1967,7 +1967,7 @@ func TestAIBridgeConcurrencyLimiting(t *testing.T) {
 		<-unblock
 		rw.WriteHeader(http.StatusOK)
 	})
-	api.AGPL.RegisterInMemoryAIBridgedHTTPHandler(testHandler)
+	api.AGPL.RegisterInMemoryAIBridgedHTTPHandler(testHandler, nil)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	httpClient := &http.Client{}
@@ -2583,7 +2583,7 @@ func TestAIBridgeAllowBYOK(t *testing.T) {
 			testHandler := http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
 				rw.WriteHeader(http.StatusOK)
 			})
-			api.AGPL.RegisterInMemoryAIBridgedHTTPHandler(testHandler)
+			api.AGPL.RegisterInMemoryAIBridgedHTTPHandler(testHandler, nil)
 
 			ctx := testutil.Context(t, testutil.WaitLong)
 			reqURL := client.URL.String() + "/api/v2/aibridge/test"

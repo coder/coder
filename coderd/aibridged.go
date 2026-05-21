@@ -37,14 +37,20 @@ func (api *API) GetAIBridgedHandler() http.Handler {
 // the HTTP route. No license entitlement gate is applied at the factory layer:
 // the entitlement check stays on the HTTP route for external callers, while
 // in-process coder-agent traffic is the explicit carve-out.
-func (api *API) RegisterInMemoryAIBridgedHTTPHandler(srv http.Handler) {
+//
+// providerFromHost maps an upstream hostname to the configured aibridge
+// provider name so the in-memory transport can rewrite SDK-style paths
+// ("/v1/messages" against "api.anthropic.com") to bridge-style paths
+// ("/anthropic/v1/messages"). May be nil; the gated /api/v2/aibridge HTTP
+// route is unaffected either way.
+func (api *API) RegisterInMemoryAIBridgedHTTPHandler(srv http.Handler, providerFromHost func(host string) string) {
 	if srv == nil {
 		panic("aibridged cannot be nil")
 	}
 
 	api.aibridgedHandler = srv
 
-	factory := aibridged.NewTransportFactory(srv)
+	factory := aibridged.NewTransportFactory(srv, providerFromHost)
 	var asInterface agplaibridge.TransportFactory = factory
 	api.AIBridgeTransportFactory.Store(&asInterface)
 }

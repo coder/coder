@@ -29,6 +29,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -232,6 +233,7 @@ type Server struct {
 	providerAPIKeys                chatprovider.ProviderAPIKeys
 	allowBYOK                      bool
 	oidcTokenSource                mcpclient.UserOIDCTokenSource
+	aibridgeTransportFactory       func() aibridge.TransportFactory
 	debugSvc                       *chatdebug.Service
 	debugSvcFactory                func() *chatdebug.Service
 	debugSvcReady                  atomic.Bool
@@ -4066,6 +4068,13 @@ type Config struct {
 	// May be nil if the deployment has no OIDC provider; servers
 	// using user_oidc will then send no Authorization header.
 	OIDCTokenSource mcpclient.UserOIDCTokenSource
+
+	// AIBridgeTransportFactory, when non-nil, is called per LLM request to
+	// look up an in-process aibridge transport. Returning nil makes chatd
+	// fall back to calling the upstream provider directly. The callback is
+	// re-evaluated each request so a factory registered by enterprise after
+	// chatd starts is picked up without a restart.
+	AIBridgeTransportFactory func() aibridge.TransportFactory
 }
 
 // New creates a new chat processor. The processor polls for pending
@@ -4132,6 +4141,7 @@ func New(cfg Config) *Server {
 		providerAPIKeys:                cfg.ProviderAPIKeys,
 		allowBYOK:                      allowBYOK,
 		oidcTokenSource:                cfg.OIDCTokenSource,
+		aibridgeTransportFactory:       cfg.AIBridgeTransportFactory,
 		debugSvcFactory: func() *chatdebug.Service {
 			debugSvc := chatdebug.NewService(
 				cfg.Database,

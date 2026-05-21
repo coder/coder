@@ -4,6 +4,8 @@ package cli
 
 import (
 	"context"
+	"net/url"
+	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/xerrors"
@@ -17,6 +19,36 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/quartz"
 )
+
+// providerNameFromHost builds a host -> provider-name lookup from the given
+// providers' BaseURLs, so the in-memory transport can rewrite SDK-style paths
+// like "POST api.anthropic.com/v1/messages" to bridge-style paths like
+// "POST /anthropic/v1/messages" before invoking the aibridged handler.
+// Matches the host-to-provider mapping that aibridgeproxyd uses for the
+// network path; see [enterprise/cli/aibridgeproxyd.go:domainsFromProviders].
+func providerNameFromHost(providers []aibridge.Provider) func(host string) string {
+	hostToProvider := make(map[string]string, len(providers))
+	for _, p := range providers {
+		raw := p.BaseURL()
+		if raw == "" {
+			continue
+		}
+		u, err := url.Parse(raw)
+		if err != nil || u.Hostname() == "" {
+			continue
+		}
+		host := strings.ToLower(u.Hostname())
+		// First provider wins; duplicates can occur when multiple
+		// providers share a base-URL host.
+		if _, exists := hostToProvider[host]; exists {
+			continue
+		}
+		hostToProvider[host] = p.Name()
+	}
+	return func(host string) string {
+		return hostToProvider[strings.ToLower(host)]
+	}
+}
 
 func newAIBridgeDaemon(coderAPI *coderd.API, providers []aibridge.Provider) (*aibridged.Server, error) {
 	ctx := context.Background()

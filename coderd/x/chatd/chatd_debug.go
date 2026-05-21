@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"charm.land/fantasy"
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -109,6 +110,33 @@ func (p *Server) scheduleDebugCleanup(
 	}()
 }
 
+// aibridgeRoundTripper asks the registered factory for an in-process aibridge
+// transport. Returns nil when no factory is registered (AGPL builds, or before
+// the enterprise wiring runs), when the factory itself returns nil (the carve-
+// out does not apply), or when the factory returns an error.
+//
+// chatd is treated as coder-agent traffic for the licensing carve-out, so we
+// pass isCoderAgent=true. providerID is uuid.Nil for now; chatd does not yet
+// resolve the ai_providers row that backs a given chat config, and the current
+// factory implementation does not branch on it.
+func (p *Server) aibridgeRoundTripper() http.RoundTripper {
+	if p.aibridgeTransportFactory == nil {
+		return nil
+	}
+	factory := p.aibridgeTransportFactory()
+	if factory == nil {
+		return nil
+	}
+	rt, err := factory.TransportFor(uuid.Nil, true)
+	if err != nil {
+		p.logger.Warn(p.ctx, "aibridge transport factory returned error, falling back to direct upstream",
+			slog.Error(err),
+		)
+		return nil
+	}
+	return rt
+}
+
 func (p *Server) newDebugAwareModelFromConfig(
 	ctx context.Context,
 	chat database.Chat,
@@ -127,8 +155,18 @@ func (p *Server) newDebugAwareModelFromConfig(
 	debugEnabled := debugSvc != nil && debugSvc.IsEnabled(ctx, chat.ID, chat.OwnerID)
 
 	var httpClient *http.Client
-	if debugEnabled {
+	switch {
+	case debugEnabled:
 		httpClient = &http.Client{Transport: &chatdebug.RecordingTransport{}}
+	default:
+		if rt := p.aibridgeRoundTripper(); rt != nil {
+			httpClient = &http.Client{Transport: rt}
+			p.logger.Debug(ctx, "routing chat through in-process aibridge transport",
+				slog.F("chat_id", chat.ID),
+				slog.F("provider", provider),
+				slog.F("model", resolvedModel),
+			)
+		}
 	}
 
 	model, err := chatprovider.ModelFromConfig(

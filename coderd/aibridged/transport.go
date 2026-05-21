@@ -3,6 +3,7 @@ package aibridged
 import (
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/google/uuid"
@@ -18,12 +19,22 @@ import (
 //
 // handler is typically the aibridged HTTP entrypoint registered via
 // [API.RegisterInMemoryAIBridgedHTTPHandler].
-func NewTransportFactory(handler http.Handler) aibridge.TransportFactory {
-	return &transportFactory{handler: handler}
+//
+// providerFromHost maps an upstream hostname (e.g. "api.anthropic.com") to the
+// aibridge provider name (e.g. "anthropic"). The roundtripper prepends
+// "/{providerName}" to the request path when a match is found, since the
+// aibridge mux dispatches on the provider-prefixed path
+// (e.g. "/anthropic/v1/messages") rather than the upstream-native path
+// ("/v1/messages") that SDK clients construct. May be nil; in that case the
+// path is passed through unchanged and callers are expected to set the
+// provider-prefixed path themselves.
+func NewTransportFactory(handler http.Handler, providerFromHost func(host string) string) aibridge.TransportFactory {
+	return &transportFactory{handler: handler, providerFromHost: providerFromHost}
 }
 
 type transportFactory struct {
-	handler http.Handler
+	handler          http.Handler
+	providerFromHost func(host string) string
 }
 
 // TransportFor returns an in-process [http.RoundTripper] for coder-agent
@@ -39,13 +50,14 @@ func (f *transportFactory) TransportFor(_ uuid.UUID, isCoderAgent bool) (http.Ro
 	if !isCoderAgent {
 		return nil, nil
 	}
-	return &inMemoryRoundTripper{handler: f.handler}, nil
+	return &inMemoryRoundTripper{handler: f.handler, providerFromHost: f.providerFromHost}, nil
 }
 
 // inMemoryRoundTripper implements [http.RoundTripper] by invoking handler
 // in a goroutine and streaming its response back through an [io.Pipe].
 type inMemoryRoundTripper struct {
-	handler http.Handler
+	handler          http.Handler
+	providerFromHost func(host string) string
 }
 
 func (t *inMemoryRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -61,6 +73,30 @@ func (t *inMemoryRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 	// handler operate on its own request value without surprising the caller
 	// if it mutates Headers or stores the request.
 	served := req.Clone(req.Context())
+
+	// SDK clients (e.g. fantasy/anthropic) construct URLs against the
+	// upstream host ("https://api.anthropic.com/v1/messages") so the path
+	// arrives here as "/v1/messages". The aibridge mux dispatches on the
+	// provider-prefixed path ("/anthropic/v1/messages"), so we rewrite
+	// based on the request's Host. If providerFromHost is nil or the host
+	// is unknown, leave the path alone; the bridge will return 404 and
+	// surface the misconfiguration.
+	if t.providerFromHost != nil && served.URL != nil {
+		host := served.URL.Host
+		if host == "" {
+			host = served.Host
+		}
+		if name := t.providerFromHost(host); name != "" {
+			prefix := "/" + name
+			if !strings.HasPrefix(served.URL.Path, prefix+"/") && served.URL.Path != prefix {
+				served.URL.Path = prefix + served.URL.Path
+				// Force net/http to recompute the escaped path from
+				// the rewritten Path field on the next read.
+				served.URL.RawPath = ""
+				served.RequestURI = ""
+			}
+		}
+	}
 
 	go func() {
 		defer func() {

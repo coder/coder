@@ -1042,7 +1042,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				if err != nil {
 					return xerrors.Errorf("create aibridged: %w", err)
 				}
-				coderAPI.RegisterInMemoryAIBridgedHTTPHandler(aibridgeDaemon)
+				coderAPI.RegisterInMemoryAIBridgedHTTPHandler(aibridgeDaemon, providerNameFromHost(providers))
 				// The handler is bound to coderAPI's lifecycle; Close() on the
 				// daemon does not affect in-flight requests but is needed to
 				// release pool/recorder resources at shutdown.

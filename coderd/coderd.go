@@ -828,6 +828,13 @@ func New(options *Options) *API {
 			UsageTracker:                   options.WorkspaceUsageTracker,
 			PrometheusRegistry:             options.PrometheusRegistry,
 			OIDCTokenSource:                oidcMCPSrc,
+			AIBridgeTransportFactory: func() aibridge.TransportFactory {
+				p := api.AIBridgeTransportFactory.Load()
+				if p == nil {
+					return nil
+				}
+				return *p
+			},
 		}).Start()
 		gitSyncLogger := options.Logger.Named("gitsync")
 		refresher := gitsync.NewRefresher(
