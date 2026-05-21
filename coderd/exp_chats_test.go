@@ -890,6 +890,26 @@ func TestPostChats_ClientType(t *testing.T) {
 func TestListChats(t *testing.T) {
 	t.Parallel()
 
+	sortedChatIDs := func(ids []uuid.UUID) []uuid.UUID {
+		out := append([]uuid.UUID(nil), ids...)
+		slices.SortFunc(out, func(a, b uuid.UUID) int {
+			return strings.Compare(a.String(), b.String())
+		})
+		return out
+	}
+	requireRootIDs := func(t *testing.T, chats []codersdk.Chat, want ...uuid.UUID) []uuid.UUID {
+		t.Helper()
+
+		got := make([]uuid.UUID, 0, len(chats))
+		for _, chat := range chats {
+			require.Nil(t, chat.ParentChatID, "list should only return root chats")
+			got = append(got, chat.ID)
+		}
+
+		require.Equal(t, sortedChatIDs(want), sortedChatIDs(got))
+		return got
+	}
+
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
 
@@ -1537,6 +1557,171 @@ func TestListChats(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, chats, 1)
 			require.Equal(t, archivedWithPR.ID, chats[0].ID)
+		})
+	})
+
+	t.Run("TitleSearch", func(t *testing.T) {
+		t.Parallel()
+
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		// Verify that the title: filter is wired through the endpoint.
+		// Exhaustive ILIKE behavior is tested in TestGetChatsFilter (Title/* subtests).
+		alpha := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    firstUser.OrganizationID,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "alpha project",
+		})
+		_ = dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    firstUser.OrganizationID,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "beta unrelated",
+		})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		t.Run("SingleWord", func(t *testing.T) {
+			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "title:alpha"})
+			require.NoError(t, err)
+			requireRootIDs(t, chats, alpha.ID)
+		})
+
+		t.Run("MultiWord", func(t *testing.T) {
+			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: `title:"alpha project"`})
+			require.NoError(t, err)
+			requireRootIDs(t, chats, alpha.ID)
+		})
+
+		t.Run("BareTermsRejected", func(t *testing.T) {
+			_, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "bare words"})
+			requireSDKError(t, err, http.StatusBadRequest)
+		})
+	})
+
+	t.Run("PRStatusFilter", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		// Verify that pr_status filter is wired through the endpoint.
+		// Exhaustive query logic is tested in TestGetChatsFilter (PRStatus/* subtests).
+		createChatWithPR := func(title, prURL, prState string, prDraft bool) database.Chat {
+			t.Helper()
+
+			chat := dbgen.Chat(t, db, database.Chat{
+				OrganizationID:    user.OrganizationID,
+				OwnerID:           user.UserID,
+				LastModelConfigID: modelConfig.ID,
+				Title:             title,
+				Status:            database.ChatStatusCompleted,
+			})
+			refreshedAt := time.Now().UTC().Truncate(time.Second)
+			staleAt := refreshedAt.Add(time.Hour)
+			_, err := db.UpsertChatDiffStatusReference(
+				dbauthz.AsSystemRestricted(ctx),
+				database.UpsertChatDiffStatusReferenceParams{
+					ChatID:          chat.ID,
+					Url:             sql.NullString{String: prURL, Valid: true},
+					GitBranch:       "feature/test",
+					GitRemoteOrigin: "git@github.com:coder/coder.git",
+					StaleAt:         staleAt,
+				},
+			)
+			require.NoError(t, err)
+			_, err = db.UpsertChatDiffStatus(
+				dbauthz.AsSystemRestricted(ctx),
+				database.UpsertChatDiffStatusParams{
+					ChatID:           chat.ID,
+					Url:              sql.NullString{String: prURL, Valid: true},
+					PullRequestState: sql.NullString{String: prState, Valid: true},
+					PullRequestDraft: prDraft,
+					RefreshedAt:      refreshedAt,
+					StaleAt:          staleAt,
+				},
+			)
+			require.NoError(t, err)
+			return chat
+		}
+
+		draftChat := createChatWithPR("draft pr", "https://github.com/coder/coder/pull/301", "open", true)
+		_ = createChatWithPR("open pr", "https://github.com/coder/coder/pull/302", "open", false)
+
+		t.Run("MatchesDraft", func(t *testing.T) {
+			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "pr_status:draft"})
+			require.NoError(t, err)
+			requireRootIDs(t, chats, draftChat.ID)
+		})
+
+		t.Run("InvalidPRStatus", func(t *testing.T) {
+			_, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "pr_status:bogus"})
+			requireSDKError(t, err, http.StatusBadRequest)
+		})
+	})
+
+	t.Run("UnreadFilter", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		// Verify that has_unread:true filter is wired through the endpoint.
+		// Exhaustive query logic is tested in TestGetChatsFilter (Unread/* subtests).
+		unreadChat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    user.OrganizationID,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "unread chat",
+			Status:            database.ChatStatusCompleted,
+		})
+		_, err := db.InsertChatMessages(dbauthz.AsSystemRestricted(ctx), database.InsertChatMessagesParams{
+			ChatID:              unreadChat.ID,
+			CreatedBy:           []uuid.UUID{user.UserID},
+			ModelConfigID:       []uuid.UUID{modelConfig.ID},
+			Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
+			Content:             []string{`[{"type":"text","text":"hello"}]`},
+			ContentVersion:      []int16{0},
+			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+			InputTokens:         []int64{0},
+			OutputTokens:        []int64{0},
+			TotalTokens:         []int64{0},
+			ReasoningTokens:     []int64{0},
+			CacheCreationTokens: []int64{0},
+			CacheReadTokens:     []int64{0},
+			ContextLimit:        []int64{0},
+			Compressed:          []bool{false},
+			TotalCostMicros:     []int64{0},
+			RuntimeMs:           []int64{0},
+			ProviderResponseID:  []string{""},
+		})
+		require.NoError(t, err)
+
+		// Create a second chat with NO unread messages to prove filtering works.
+		_ = dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    user.OrganizationID,
+			OwnerID:           user.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "read chat",
+			Status:            database.ChatStatusCompleted,
+		})
+
+		t.Run("MatchesUnread", func(t *testing.T) {
+			chats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "has_unread:true"})
+			require.NoError(t, err)
+			requireRootIDs(t, chats, unreadChat.ID)
+		})
+
+		t.Run("InvalidHasUnread", func(t *testing.T) {
+			_, err := client.ListChats(ctx, &codersdk.ListChatsOptions{Query: "has_unread:bogus"})
+			requireSDKError(t, err, http.StatusBadRequest)
 		})
 	})
 }

@@ -22,7 +22,7 @@ func main() {
 	}
 
 	err := gen.New().Build(&gen.Config{
-		SearchDir:          "./coderd,./codersdk,./enterprise/coderd,./enterprise/wsproxy/wsproxysdk",
+		SearchDir:          "./coderd,./coderd/workspaceconnwatcher,./codersdk,./enterprise/coderd,./enterprise/wsproxy/wsproxysdk",
 		MainAPIFile:        "coderd.go",
 		OutputDir:          outputDir,
 		OutputTypes:        []string{"go", "json"},

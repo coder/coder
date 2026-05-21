@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -233,6 +234,8 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 	}
 	aReq.New = row
 
+	auditAIProviderKeyChanges(ctx, r, *auditor, api.Logger, aiProviderKeyChanges{Added: keys})
+
 	sdk, err := db2sdk.AIProvider(row, keys)
 	if err != nil {
 		api.Logger.Error(ctx, "convert AI provider", slog.F("provider_id", row.ID), slog.Error(err))
@@ -295,8 +298,9 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 	idOrName := chi.URLParam(r, "idOrName")
 
 	var (
-		updated database.AIProvider
-		keys    []database.AIProviderKey
+		updated    database.AIProvider
+		keys       []database.AIProviderKey
+		keyChanges aiProviderKeyChanges
 	)
 	err := api.Database.InTx(func(tx database.Store) error {
 		old, err := lookupAIProvider(ctx, tx, idOrName)
@@ -354,7 +358,7 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 
 		if req.APIKeys != nil {
 			var ops aiProviderKeyOpsAudit
-			keys, ops, err = applyAIProviderKeyOps(ctx, tx, updated.ID, *req.APIKeys)
+			keys, ops, keyChanges, err = applyAIProviderKeyOps(ctx, tx, updated.ID, *req.APIKeys)
 			if err != nil {
 				return err
 			}
@@ -394,6 +398,8 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		writeAIProviderError(ctx, api.Logger, rw, err, "update AI provider", "Internal error updating AI provider.")
 		return
 	}
+
+	auditAIProviderKeyChanges(ctx, r, *auditor, api.Logger, keyChanges)
 
 	sdk, err := db2sdk.AIProvider(updated, keys)
 	if err != nil {
@@ -575,17 +581,70 @@ type aiProviderKeyOp struct {
 	Masked string    `json:"masked"`
 }
 
+// aiProviderKeyChanges captures the rows added and removed by
+// applyAIProviderKeyOps so the caller can emit one audit entry per
+// affected key after the transaction commits.
+type aiProviderKeyChanges struct {
+	Added   []database.AIProviderKey
+	Removed []database.AIProviderKey
+}
+
+// auditAIProviderKeyChanges emits one audit entry per added or removed
+// key, attributed to the actor on the HTTP request. Per-key entries
+// keep key rotation visible in the audit log because the parent
+// AIProvider audit diff is empty for key-only PATCHes (keys live in a
+// separate table).
+//
+// APIKey is replaced with the masked rendering before the row reaches
+// the audit pipeline so plaintext keys never land in the diff or any
+// audit backend, independent of the api_key column's audit policy.
+func auditAIProviderKeyChanges(ctx context.Context, r *http.Request, auditor audit.Auditor, log slog.Logger, changes aiProviderKeyChanges) {
+	if len(changes.Added) == 0 && len(changes.Removed) == 0 {
+		return
+	}
+	key, ok := httpmw.APIKeyOptional(r)
+	if !ok {
+		return
+	}
+	requestID, _ := httpmw.RequestIDOptional(r)
+	emit := func(action database.AuditAction, before, after database.AIProviderKey) {
+		before.APIKey = aibridgeutils.MaskSecret(before.APIKey)
+		after.APIKey = aibridgeutils.MaskSecret(after.APIKey)
+		audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.AIProviderKey]{
+			Audit:     auditor,
+			Log:       log,
+			UserID:    key.UserID,
+			RequestID: requestID,
+			Status:    http.StatusOK,
+			IP:        r.RemoteAddr,
+			UserAgent: r.UserAgent(),
+			Action:    action,
+			Old:       before,
+			New:       after,
+		})
+	}
+	for _, k := range changes.Removed {
+		emit(database.AuditActionDelete, k, database.AIProviderKey{})
+	}
+	for _, k := range changes.Added {
+		emit(database.AuditActionCreate, database.AIProviderKey{}, k)
+	}
+}
+
 // applyAIProviderKeyOps reconciles a provider's keys against the
 // supplied mutation list inside a transaction: kept-by-ID rows stay,
 // rows whose ID is absent from the list are deleted, and entries
 // carrying a plaintext APIKey are inserted as new rows. Caller is
 // responsible for prior validation (XOR per entry, no duplicate IDs).
 // IDs that do not belong to this provider return errAIProviderKeyUnknown.
-func applyAIProviderKeyOps(ctx context.Context, tx database.Store, providerID uuid.UUID, muts []codersdk.AIProviderKeyMutation) ([]database.AIProviderKey, aiProviderKeyOpsAudit, error) {
-	var ops aiProviderKeyOpsAudit
+func applyAIProviderKeyOps(ctx context.Context, tx database.Store, providerID uuid.UUID, muts []codersdk.AIProviderKeyMutation) ([]database.AIProviderKey, aiProviderKeyOpsAudit, aiProviderKeyChanges, error) {
+	var (
+		ops     aiProviderKeyOpsAudit
+		changes aiProviderKeyChanges
+	)
 	existing, err := tx.GetAIProviderKeysByProviderID(ctx, providerID)
 	if err != nil {
-		return nil, ops, xerrors.Errorf("load existing ai provider keys: %w", err)
+		return nil, ops, changes, xerrors.Errorf("load existing ai provider keys: %w", err)
 	}
 	existingByID := make(map[uuid.UUID]struct{}, len(existing))
 	for _, k := range existing {
@@ -598,7 +657,7 @@ func applyAIProviderKeyOps(ctx context.Context, tx database.Store, providerID uu
 		switch {
 		case m.ID != nil:
 			if _, ok := existingByID[*m.ID]; !ok {
-				return nil, ops, xerrors.Errorf("%w: %s", errAIProviderKeyUnknown, *m.ID)
+				return nil, ops, changes, xerrors.Errorf("%w: %s", errAIProviderKeyUnknown, *m.ID)
 			}
 			keep[*m.ID] = struct{}{}
 		case m.APIKey != nil:
@@ -611,25 +670,27 @@ func applyAIProviderKeyOps(ctx context.Context, tx database.Store, providerID uu
 			continue
 		}
 		if err := tx.DeleteAIProviderKey(ctx, k.ID); err != nil {
-			return nil, ops, xerrors.Errorf("delete ai provider key %s: %w", k.ID, err)
+			return nil, ops, changes, xerrors.Errorf("delete ai provider key %s: %w", k.ID, err)
 		}
 		ops.Removed = append(ops.Removed, aiProviderKeyOp{ID: k.ID, Masked: aibridgeutils.MaskSecret(k.APIKey)})
+		changes.Removed = append(changes.Removed, k)
 	}
 
 	added, err := insertAIProviderKeys(ctx, tx, providerID, inserts)
 	if err != nil {
-		return nil, ops, err
+		return nil, ops, changes, err
 	}
 	for _, k := range added {
 		ops.Added = append(ops.Added, aiProviderKeyOp{ID: k.ID, Masked: aibridgeutils.MaskSecret(k.APIKey)})
 	}
+	changes.Added = append(changes.Added, added...)
 	ops.Kept = len(keep)
 
 	out, err := tx.GetAIProviderKeysByProviderID(ctx, providerID)
 	if err != nil {
-		return nil, ops, xerrors.Errorf("reload ai provider keys: %w", err)
+		return nil, ops, changes, xerrors.Errorf("reload ai provider keys: %w", err)
 	}
-	return out, ops, nil
+	return out, ops, changes, nil
 }
 
 // errAIProviderKeyUnknown is the sentinel returned by

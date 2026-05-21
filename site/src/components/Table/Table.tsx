@@ -5,12 +5,17 @@
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "#/utils/cn";
 
-export const Table: React.FC<React.ComponentPropsWithRef<"table">> = ({
+type TableProps = React.ComponentPropsWithRef<"table"> & {
+	wrapperClassName?: string;
+};
+
+export const Table: React.FC<TableProps> = ({
 	className,
+	wrapperClassName,
 	...props
 }) => {
 	return (
-		<div className="relative w-full overflow-auto">
+		<div className={cn("relative w-full overflow-auto", wrapperClassName)}>
 			<table
 				className={cn(
 					"w-full caption-bottom text-xs font-medium text-content-secondary border-separate border-spacing-0",

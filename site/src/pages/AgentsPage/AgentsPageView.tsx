@@ -42,6 +42,8 @@ interface AgentsPageViewProps {
 	catalogModelOptions: readonly ModelSelectorOption[];
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
 	handleNewAgent: () => void;
+	isSearchDialogOpen: boolean;
+	onSearchDialogOpenChange: (open: boolean) => void;
 	isCreating: boolean;
 	isArchiving: boolean;
 	archivingChatId: string | undefined;
@@ -83,6 +85,8 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	catalogModelOptions,
 	modelConfigs,
 	handleNewAgent,
+	isSearchDialogOpen,
+	onSearchDialogOpenChange,
 	isCreating,
 	isArchiving,
 	archivingChatId,
@@ -188,6 +192,8 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					onProposeTitle={onProposeTitle}
 					regeneratingTitleChatIds={regeneratingTitleChatIds}
 					onBeforeNewAgent={handleNewAgent}
+					isSearchDialogOpen={isSearchDialogOpen}
+					onSearchDialogOpenChange={onSearchDialogOpenChange}
 					isCreating={isCreating}
 					isArchiving={isArchiving}
 					archivingChatId={archivingChatId}

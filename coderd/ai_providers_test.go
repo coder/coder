@@ -994,6 +994,52 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 		require.Contains(t, sdkErr.Validations[0].Detail, "already referenced")
 	})
 
+	t.Run("PATCHPropertiesAudited", func(t *testing.T) {
+		t.Parallel()
+		auditor := audit.NewMock()
+		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "keys-props-audit",
+			Enabled: true,
+			BaseURL: "https://api.openai.com/v1",
+		})
+		require.NoError(t, err)
+
+		// Reset before the update so we look only at audits produced by
+		// the PATCH (the create path emits its own AIProvider audit).
+		auditor.ResetLogs()
+
+		newDisplay := "Renamed"
+		newURL := "https://api.openai.com/v2"
+		disabled := false
+		_, err = client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
+			DisplayName: &newDisplay,
+			BaseURL:     &newURL,
+			Enabled:     &disabled,
+		})
+		require.NoError(t, err)
+
+		// The parent AIProvider audit entry fires for property-only
+		// PATCHes; the enterprise auditor populates the diff with the
+		// changed fields (display_name, base_url, enabled). The mock
+		// auditor used here returns an empty diff so we only assert the
+		// entry shape; the actual diff content is exercised by the
+		// enterprise audit unit tests.
+		var sawUpdate bool
+		for _, lg := range auditor.AuditLogs() {
+			if lg.Action == database.AuditActionWrite && lg.ResourceType == database.ResourceTypeAIProvider {
+				require.Equal(t, provider.ID, lg.ResourceID)
+				sawUpdate = true
+			}
+		}
+		require.True(t, sawUpdate, "expected parent AIProvider audit for property-only PATCH")
+	})
+
 	t.Run("PATCHKeysSurfacesOpsInAudit", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
@@ -1059,6 +1105,25 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.JSONEq(t, string(expected), string(updated.AdditionalFields))
+
+		// Per-key audit entries surface the added/removed keys as their
+		// own log lines, so a key-only PATCH is visible even without
+		// frontend changes. The Create handler also emits per-key
+		// audits for the initial two keys, so match by ResourceID.
+		var sawCreate, sawDelete bool
+		for _, lg := range logs {
+			if lg.ResourceType != database.ResourceTypeAIProviderKey {
+				continue
+			}
+			switch {
+			case lg.Action == database.AuditActionCreate && lg.ResourceID == added.ID:
+				sawCreate = true
+			case lg.Action == database.AuditActionDelete && lg.ResourceID == removed.ID:
+				sawDelete = true
+			}
+		}
+		require.True(t, sawCreate, "expected create audit for added key")
+		require.True(t, sawDelete, "expected delete audit for removed key")
 	})
 
 	t.Run("MutationUnknownIDRejected", func(t *testing.T) {
