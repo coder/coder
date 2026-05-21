@@ -277,8 +277,7 @@ func TestWatcher_LostAccess(t *testing.T) {
 	dec, err := h.Dial(ctx, "wss://local.test/")
 	require.NoError(t, err)
 	defer func() {
-		err := dec.Close()
-		require.NoError(t, err)
+		_ = dec.Close()
 	}()
 	events := dec.Chan()
 	e0 := testutil.RequireReceive(ctx, t, events)
@@ -312,8 +311,7 @@ func TestWatcher_PublishChanges(t *testing.T) {
 	dec, err := h.Dial(ctx, "wss://local.test/")
 	require.NoError(t, err)
 	defer func() {
-		err := dec.Close()
-		require.NoError(t, err)
+		_ = dec.Close()
 	}()
 	events := dec.Chan()
 

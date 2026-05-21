@@ -4171,9 +4171,8 @@ export const DisplayApps: DisplayApp[] = [
 // From codersdk/parameters.go
 export interface DynamicParametersRequest {
 	/**
-	 * ID identifies the request for response ordering. Websocket response
-	 * IDs are monotonically increasing and may exceed the request ID when
-	 * server-side events trigger additional renders.
+	 * ID identifies the request. The response contains the same
+	 * ID so that the client can match it to the request.
 	 */
 	readonly id: number;
 	readonly inputs: Record<string, string>;
@@ -4188,7 +4187,6 @@ export interface DynamicParametersResponse {
 	readonly id: number;
 	readonly diagnostics: readonly FriendlyDiagnostic[];
 	readonly parameters: readonly PreviewParameter[];
-	readonly secret_requirements?: readonly SecretRequirementStatus[];
 }
 
 // From codersdk/chats.go
@@ -6944,12 +6942,6 @@ export interface RequestOneTimePasscodeRequest {
 // From codersdk/workspaces.go
 export interface ResolveAutostartResponse {
 	readonly parameter_mismatch: boolean;
-	/**
-	 * SecretMismatch is true when the active template version declares
-	 * `coder_secret` requirements that the workspace owner's secrets do not
-	 * satisfy.
-	 */
-	readonly secret_mismatch: boolean;
 }
 
 // From codersdk/audit.go
@@ -7239,14 +7231,6 @@ export interface STUNReport {
 	readonly Enabled: boolean;
 	readonly CanSTUN: boolean;
 	readonly Error: string | null;
-}
-
-// From codersdk/parameters.go
-export interface SecretRequirementStatus {
-	readonly env?: string;
-	readonly file?: string;
-	readonly help_message: string;
-	readonly satisfied: boolean;
 }
 
 // From serpent/serpent.go

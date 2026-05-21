@@ -6897,12 +6897,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name               | Type    | Required | Restrictions | Description                                                                                                                                                                            |
-|--------------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `id`               | integer | false    |              | ID identifies the request for response ordering. Websocket response IDs are monotonically increasing and may exceed the request ID when server-side events trigger additional renders. |
-| `inputs`           | object  | false    |              |                                                                                                                                                                                        |
-| » `[any property]` | string  | false    |              |                                                                                                                                                                                        |
-| `owner_id`         | string  | false    |              | Owner ID if uuid.Nil, it defaults to `codersdk.Me`                                                                                                                                     |
+| Name               | Type    | Required | Restrictions | Description                                                                                                  |
+|--------------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------|
+| `id`               | integer | false    |              | ID identifies the request. The response contains the same ID so that the client can match it to the request. |
+| `inputs`           | object  | false    |              |                                                                                                              |
+| » `[any property]` | string  | false    |              |                                                                                                              |
+| `owner_id`         | string  | false    |              | Owner ID if uuid.Nil, it defaults to `codersdk.Me`                                                           |
 
 ## codersdk.DynamicParametersResponse
 
@@ -6976,26 +6976,17 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "value": "string"
       }
     }
-  ],
-  "secret_requirements": [
-    {
-      "env": "string",
-      "file": "string",
-      "help_message": "string",
-      "satisfied": true
-    }
   ]
 }
 ```
 
 ### Properties
 
-| Name                  | Type                                                                          | Required | Restrictions | Description |
-|-----------------------|-------------------------------------------------------------------------------|----------|--------------|-------------|
-| `diagnostics`         | array of [codersdk.FriendlyDiagnostic](#codersdkfriendlydiagnostic)           | false    |              |             |
-| `id`                  | integer                                                                       | false    |              |             |
-| `parameters`          | array of [codersdk.PreviewParameter](#codersdkpreviewparameter)               | false    |              |             |
-| `secret_requirements` | array of [codersdk.SecretRequirementStatus](#codersdksecretrequirementstatus) | false    |              |             |
+| Name          | Type                                                                | Required | Restrictions | Description |
+|---------------|---------------------------------------------------------------------|----------|--------------|-------------|
+| `diagnostics` | array of [codersdk.FriendlyDiagnostic](#codersdkfriendlydiagnostic) | false    |              |             |
+| `id`          | integer                                                             | false    |              |             |
+| `parameters`  | array of [codersdk.PreviewParameter](#codersdkpreviewparameter)     | false    |              |             |
 
 ## codersdk.DynamicTool
 
@@ -11074,17 +11065,15 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ```json
 {
-  "parameter_mismatch": true,
-  "secret_mismatch": true
+  "parameter_mismatch": true
 }
 ```
 
 ### Properties
 
-| Name                 | Type    | Required | Restrictions | Description                                                                                                                                      |
-|----------------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
-| `parameter_mismatch` | boolean | false    |              |                                                                                                                                                  |
-| `secret_mismatch`    | boolean | false    |              | Secret mismatch is true when the active template version declares `coder_secret` requirements that the workspace owner's secrets do not satisfy. |
+| Name                 | Type    | Required | Restrictions | Description |
+|----------------------|---------|----------|--------------|-------------|
+| `parameter_mismatch` | boolean | false    |              |             |
 
 ## codersdk.ResourceType
 
@@ -11478,26 +11467,6 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `hostname_suffix`    | string | false    |              | Hostname suffix is the suffix to append to workspace names for SSH hostnames.                                         |
 | `ssh_config_options` | object | false    |              |                                                                                                                       |
 | » `[any property]`   | string | false    |              |                                                                                                                       |
-
-## codersdk.SecretRequirementStatus
-
-```json
-{
-  "env": "string",
-  "file": "string",
-  "help_message": "string",
-  "satisfied": true
-}
-```
-
-### Properties
-
-| Name           | Type    | Required | Restrictions | Description |
-|----------------|---------|----------|--------------|-------------|
-| `env`          | string  | false    |              |             |
-| `file`         | string  | false    |              |             |
-| `help_message` | string  | false    |              |             |
-| `satisfied`    | boolean | false    |              |             |
 
 ## codersdk.ServerSentEvent
 

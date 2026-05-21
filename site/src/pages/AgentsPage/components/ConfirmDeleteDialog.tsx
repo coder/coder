@@ -20,6 +20,7 @@ interface ConfirmDeleteDialogProps {
 	 * delete this {entity}? This action is irreversible."
 	 */
 	description?: ReactNode;
+	children?: ReactNode;
 	onConfirm: () => void;
 	isPending?: boolean;
 }
@@ -29,6 +30,7 @@ export const ConfirmDeleteDialog: FC<ConfirmDeleteDialogProps> = ({
 	onOpenChange,
 	entity,
 	description,
+	children,
 	onConfirm,
 	isPending = false,
 }) => (
@@ -41,6 +43,7 @@ export const ConfirmDeleteDialog: FC<ConfirmDeleteDialogProps> = ({
 						`Are you sure you want to delete this ${entity}? This action is irreversible.`}
 				</DialogDescription>
 			</DialogHeader>
+			{children}
 			<DialogFooter>
 				<Button
 					variant="outline"

@@ -5,6 +5,7 @@ import type { Chat } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { Spinner } from "#/components/Spinner/Spinner";
 import { cn } from "#/utils/cn";
 import { shortRelativeTime } from "#/utils/time";
 import { getChatDisplayConfig } from "../tree/statusConfig";
@@ -17,6 +18,7 @@ type ChatSearchResultsProps = {
 	readonly listboxId: string;
 	readonly selectedChatIndex: number | undefined;
 	readonly showLoading: boolean;
+	readonly isRefreshing: boolean;
 	readonly onSelectChat: () => void;
 };
 
@@ -28,6 +30,7 @@ export const ChatSearchResults: FC<ChatSearchResultsProps> = ({
 	listboxId,
 	selectedChatIndex,
 	showLoading,
+	isRefreshing,
 	onSelectChat,
 }) => {
 	if (error) {
@@ -68,9 +71,22 @@ export const ChatSearchResults: FC<ChatSearchResultsProps> = ({
 	return (
 		<div className="min-h-[260px]">
 			<div className="space-y-3">
-				<p className="text-sm text-content-secondary">{resultSummary}</p>
+				<p className="inline-flex items-center gap-1.5 text-sm text-content-secondary">
+					<span>{resultSummary}</span>
+					{isRefreshing && (
+						<Spinner
+							loading
+							size="sm"
+							className="text-content-secondary"
+							aria-label="Searching chats"
+						/>
+					)}
+				</p>
 				<ScrollArea
-					className="h-[300px]"
+					// `!block` overrides the Radix ScrollArea viewport wrapper's inline
+					// `display: table` so that descendants using `truncate` can shrink
+					// inside the scroll container instead of forcing the table to grow.
+					className="h-[300px] w-full [&_[data-radix-scroll-area-viewport]>div]:!block"
 					scrollBarClassName="w-[0.375rem]"
 					viewportClassName="pr-3"
 					viewportTabIndex={-1}
@@ -184,20 +200,18 @@ const ChatSearchResultRow: FC<ChatSearchResultRowProps> = ({
 			to={{ pathname: `/agents/${chat.id}`, search: location.search }}
 			onClick={onSelect}
 			className={cn(
-				"flex items-start gap-2 rounded-md px-1.5 py-1 text-content-secondary no-underline hover:bg-surface-tertiary/40 hover:text-content-primary",
+				"grid w-full min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-2 rounded-md px-1.5 py-1 text-content-secondary no-underline hover:bg-surface-tertiary/40 hover:text-content-primary",
 				isSelected && "bg-surface-tertiary/40 text-content-primary",
 			)}
 		>
 			<StatusIcon
 				className={cn("mt-1 h-3.5 w-3.5 shrink-0", statusClassName)}
 			/>
-			<div className="min-w-0 flex-1">
-				<div className="flex items-center gap-1.5">
-					<span className="truncate text-sm text-content-primary">
-						{chat.title}
-					</span>
+			<div className="min-w-0">
+				<div className="truncate text-sm text-content-primary">
+					{chat.title}
 				</div>
-				<div className="flex items-center gap-1.5 text-xs">
+				<div className="flex min-w-0 items-center gap-1.5 text-xs">
 					{hasLineStats && (
 						<span className="inline-flex shrink-0 items-center gap-0.5 tabular-nums">
 							<span className="text-git-added-bright">+{additions}</span>
@@ -206,7 +220,9 @@ const ChatSearchResultRow: FC<ChatSearchResultRowProps> = ({
 							</span>
 						</span>
 					)}
-					<span className="truncate text-content-secondary">{subtitle}</span>
+					<span className="min-w-0 flex-1 truncate text-content-secondary">
+						{subtitle}
+					</span>
 				</div>
 			</div>
 			<span className="inline-flex shrink-0 items-center gap-1.5 pt-0.5 text-xs text-content-secondary">
