@@ -411,6 +411,10 @@ const chatProviderConfigsPath = "/api/experimental/chats/providers";
 const chatModelConfigsPath = "/api/experimental/chats/model-configs";
 const userChatProviderConfigsPath =
 	"/api/experimental/chats/user-provider-configs";
+const userSkillsPath = (user: string) =>
+	`/api/experimental/users/${encodeURIComponent(user)}/skills`;
+const userSkillPath = (user: string, name: string) =>
+	`${userSkillsPath(user)}/${encodeURIComponent(name)}`;
 const mcpServerConfigsPath = "/api/experimental/mcp/servers";
 
 type ChatCostDateParams = {
@@ -3590,6 +3594,52 @@ class ExperimentalApiMethods {
 			req,
 		);
 		return response.data;
+	};
+
+	createUserSkill = async (
+		user: string,
+		req: TypesGen.CreateUserSkillRequest,
+	): Promise<TypesGen.UserSkill> => {
+		const response = await this.axios.post<TypesGen.UserSkill>(
+			userSkillsPath(user),
+			req,
+		);
+		return response.data;
+	};
+
+	getUserSkills = async (
+		user: string,
+	): Promise<TypesGen.UserSkillMetadata[]> => {
+		const response = await this.axios.get<TypesGen.UserSkillMetadata[]>(
+			userSkillsPath(user),
+		);
+		return response.data;
+	};
+
+	getUserSkillByName = async (
+		user: string,
+		name: string,
+	): Promise<TypesGen.UserSkill> => {
+		const response = await this.axios.get<TypesGen.UserSkill>(
+			userSkillPath(user, name),
+		);
+		return response.data;
+	};
+
+	updateUserSkill = async (
+		user: string,
+		name: string,
+		req: TypesGen.UpdateUserSkillRequest,
+	): Promise<TypesGen.UserSkill> => {
+		const response = await this.axios.patch<TypesGen.UserSkill>(
+			userSkillPath(user, name),
+			req,
+		);
+		return response.data;
+	};
+
+	deleteUserSkill = async (user: string, name: string): Promise<void> => {
+		await this.axios.delete(userSkillPath(user, name));
 	};
 
 	getUserChatCompactionThresholds =
