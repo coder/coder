@@ -472,7 +472,7 @@ export function useDesktopConnection({
 				// shrinks to 0×0. When the container becomes visible
 				// again, noVNC may skip rescaling because it believes
 				// the viewport size hasn't changed. Re-assigning
-				// scaleViewport = true forces a fresh scale pass
+				// scaleViewport forces a fresh scale pass
 				// regardless.
 				let prevContainerW = 0;
 				let prevContainerH = 0;

@@ -12,6 +12,7 @@ const defaults: DesktopPanelViewProps = {
 	isControlling: false,
 	onTakeControl: fn(),
 	onReleaseControl: fn(),
+	onPopOut: fn(),
 };
 
 const meta: Meta<typeof DesktopPanelView> = {

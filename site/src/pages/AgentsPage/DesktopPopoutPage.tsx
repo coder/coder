@@ -3,11 +3,9 @@ import { useParams } from "react-router";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { DesktopToolbar } from "./components/RightPanel/DesktopToolbar";
+import { CHANNEL_PREFIX, type ScaleMode } from "./desktopConstants";
 import { useDesktopConnection } from "./hooks/useDesktopConnection";
-
-type ScaleMode = "native" | "fit";
-
-const CHANNEL_PREFIX = "coder-desktop-";
+import { useZoomShortcuts } from "./hooks/useZoomShortcuts";
 
 export default function DesktopPopoutPage() {
 	const { agentId } = useParams() as { agentId: string };
@@ -44,21 +42,7 @@ export default function DesktopPopoutPage() {
 		};
 	}, [agentId]);
 
-	// Keyboard shortcuts for zoom toggle.
-	useEffect(() => {
-		const handleKeyDown = (e: KeyboardEvent) => {
-			const mod = e.ctrlKey || e.metaKey;
-			if (mod && e.key === "0") {
-				e.preventDefault();
-				setScaleMode("fit");
-			} else if (mod && e.key === "1") {
-				e.preventDefault();
-				setScaleMode("native");
-			}
-		};
-		addEventListener("keydown", handleKeyDown);
-		return () => removeEventListener("keydown", handleKeyDown);
-	}, []);
+	useZoomShortcuts(setScaleMode);
 
 	if (status === "idle" || status === "connecting") {
 		return (

@@ -5,10 +5,10 @@ import { useEffect, useState } from "react";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { cn } from "#/utils/cn";
+import { CHANNEL_PREFIX, type ScaleMode } from "../../desktopConstants";
 import { useDesktopConnection } from "../../hooks/useDesktopConnection";
+import { useZoomShortcuts } from "../../hooks/useZoomShortcuts";
 import { DesktopToolbar } from "./DesktopToolbar";
-
-type ScaleMode = "native" | "fit";
 
 type DesktopConnectionStatus =
 	| "idle"
@@ -16,8 +16,6 @@ type DesktopConnectionStatus =
 	| "connected"
 	| "disconnected"
 	| "error";
-
-const CHANNEL_PREFIX = "coder-desktop-";
 
 interface DesktopPanelProps {
 	chatId: string;
@@ -48,22 +46,7 @@ export const DesktopPanel: FC<DesktopPanelProps> = ({ chatId, isVisible }) => {
 		scaleViewport: scaleMode === "fit",
 	});
 
-	// Keyboard shortcuts for zoom toggle.
-	useEffect(() => {
-		if (!isVisible) return;
-		const handleKeyDown = (e: KeyboardEvent) => {
-			const mod = e.ctrlKey || e.metaKey;
-			if (mod && e.key === "0") {
-				e.preventDefault();
-				setScaleMode("fit");
-			} else if (mod && e.key === "1") {
-				e.preventDefault();
-				setScaleMode("native");
-			}
-		};
-		addEventListener("keydown", handleKeyDown);
-		return () => removeEventListener("keydown", handleKeyDown);
-	}, [isVisible]);
+	useZoomShortcuts(setScaleMode, isVisible);
 
 	// Listen for BroadcastChannel messages from the pop-out window.
 	useEffect(() => {

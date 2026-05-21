@@ -7,8 +7,7 @@ import {
 } from "lucide-react";
 import type { FC } from "react";
 import { Button } from "#/components/Button/Button";
-
-type ScaleMode = "native" | "fit";
+import type { ScaleMode } from "../../desktopConstants";
 
 interface DesktopToolbarProps {
 	scaleMode: ScaleMode;
