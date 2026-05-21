@@ -4,14 +4,12 @@ import { Link, useNavigate } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { createAIProviderMutation } from "#/api/queries/aiProviders";
+import { Avatar } from "#/components/Avatar/Avatar";
 import { Button } from "#/components/Button/Button";
-import {
-	PageHeader,
-	PageHeaderSubtitle,
-	PageHeaderTitle,
-} from "#/components/PageHeader/PageHeader";
+import { SettingsHeaderTitle } from "#/components/SettingsHeader/SettingsHeader";
 import type { AddableProvider } from "../components/addableProviderTypes";
 import { ProviderForm } from "../components/ProviderForm";
+import { getProviderIcon } from "../components/ProviderIcon";
 import { providerFormValuesToCreate } from "../components/providerFormApiMap";
 
 interface AddProviderPageViewProps {
@@ -27,23 +25,24 @@ const AddProviderPageView: React.FC<AddProviderPageViewProps> = ({
 
 	return (
 		<>
-			<div className="pt-4 px-6">
-				<Link to="/ai/settings">
-					<Button variant="subtle">
-						<ArrowLeftIcon />
-						<span>Back to providers</span>
-					</Button>
-				</Link>
-			</div>
-			<div className="mx-auto w-full max-w-screen-sm flex flex-col gap-6">
-				<PageHeader className="pt-6 pb-0">
-					<PageHeaderTitle>{`Add ${provider.label} provider`}</PageHeaderTitle>
-					<PageHeaderSubtitle>
-						Configure connection details and credentials for this provider. The
-						provider supplies models that users can select for their
-						conversations.
-					</PageHeaderSubtitle>
-				</PageHeader>
+			<Link to="/ai/settings">
+				<Button variant="subtle">
+					<ArrowLeftIcon />
+					<span>Back to providers</span>
+				</Button>
+			</Link>
+			<div className="flex flex-col gap-6 pt-6">
+				<div className="flex items-center gap-4 min-w-0">
+					<Avatar
+						variant="icon"
+						size="lg"
+						src={getProviderIcon(provider.value)}
+					/>
+					<SettingsHeaderTitle>{`Add a ${provider.label} provider`}</SettingsHeaderTitle>
+				</div>
+				<p className="text-sm text-content-secondary m-0">
+					Configure connection details and credentials.
+				</p>
 				<div className="border border-solid p-6 rounded-lg">
 					<ProviderForm
 						editing={false}
@@ -73,8 +72,8 @@ const AddProviderPageView: React.FC<AddProviderPageViewProps> = ({
 							});
 						}}
 					/>
-				</div>
 			</div>
+		</div>
 		</>
 	);
 };
