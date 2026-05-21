@@ -1,5 +1,5 @@
 import { type FormikTouched, useFormik } from "formik";
-import type { FC } from "react";
+import { type FC, type ReactNode, useEffect, useState } from "react";
 import type {
 	CreateUserSecretRequest,
 	UpdateUserSecretRequest,
@@ -53,6 +53,7 @@ const emptyValues: SecretFormValues = {
 };
 
 const infoText = "Secret values cannot be retrieved once saved.";
+const savedSecretValueDisplay = "••••••••••••••••••••";
 
 export const SecretDialog: FC<SecretDialogProps> = ({
 	open,
@@ -137,7 +138,11 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 					<DialogTitle>{secret ? "Edit secret" : "Add secret"}</DialogTitle>
 				</DialogHeader>
 
-				<form onSubmit={form.handleSubmit} className="flex flex-col gap-5">
+				<form
+					onSubmit={form.handleSubmit}
+					className="flex flex-col gap-5"
+					autoComplete="off"
+				>
 					<Alert severity="info" className="text-content-secondary">
 						<AlertDescription>{infoText}</AlertDescription>
 					</Alert>
@@ -155,20 +160,22 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 								disableName
 								showValue={false}
 							/>
-							<FormField
+							<SecretValueField
 								field={getFieldHelpers("value", {
 									helperText: "Leave blank to keep the existing value.",
 								})}
-								label="Value"
-								type="password"
 								placeholder="Leave blank to keep existing"
-								autoComplete="off"
+								showSavedValue={open}
 							/>
 							<SecretDescriptionField field={getFieldHelpers("description")} />
 						</>
 					) : (
 						<>
-							<SecretFields getFieldHelpers={getFieldHelpers} showValue />
+							<SecretFields
+								getFieldHelpers={getFieldHelpers}
+								showRequiredLabels
+								showValue
+							/>
 							<SecretDescriptionField field={getFieldHelpers("description")} />
 						</>
 					)}
@@ -198,21 +205,35 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 type SecretFieldsProps = {
 	getFieldHelpers: ReturnType<typeof getFormHelpers<SecretFormValues>>;
 	disableName?: boolean;
+	showRequiredLabels?: boolean;
 	showValue: boolean;
 };
 
 const SecretFields: FC<SecretFieldsProps> = ({
 	getFieldHelpers,
 	disableName,
+	showRequiredLabels,
 	showValue,
 }) => {
 	return (
 		<>
 			<FormField
 				field={getFieldHelpers("name")}
-				label="Name"
-				placeholder="enter name"
+				label={
+					showRequiredLabels ? (
+						<RequiredFieldLabel>Name</RequiredFieldLabel>
+					) : (
+						"Name"
+					)
+				}
+				placeholder="Service token"
+				autoComplete="off"
+				className="placeholder:text-content-disabled"
 				disabled={disableName}
+				aria-required={showRequiredLabels}
+				data-lpignore="true"
+				data-1p-ignore="true"
+				data-form-type="other"
 			/>
 			<FormField
 				field={getFieldHelpers("env_name", {
@@ -220,7 +241,12 @@ const SecretFields: FC<SecretFieldsProps> = ({
 						"Optional. Exposes the secret as an environment variable with this name in your workspace.",
 				})}
 				label="Environment variable"
-				placeholder="GITHUB_TOKEN"
+				placeholder="SERVICE_TOKEN"
+				autoComplete="off"
+				className="placeholder:text-content-disabled"
+				data-lpignore="true"
+				data-1p-ignore="true"
+				data-form-type="other"
 			/>
 			<FormField
 				field={getFieldHelpers("file_path", {
@@ -228,18 +254,99 @@ const SecretFields: FC<SecretFieldsProps> = ({
 						"Optional. Exposes the secret as a file at this path in your workspace. Path must start with ~/ or /.",
 				})}
 				label="File path"
-				placeholder="/usr/local/secrets"
+				placeholder="~/usr/var"
+				autoComplete="off"
+				className="placeholder:text-content-disabled"
+				data-lpignore="true"
+				data-1p-ignore="true"
+				data-form-type="other"
 			/>
 			{showValue && (
-				<FormField
+				<SecretValueField
 					field={getFieldHelpers("value")}
-					label="Value"
-					type="password"
-					placeholder="enter secret value"
-					autoComplete="off"
+					placeholder="Enter secret value"
+					required={showRequiredLabels}
 				/>
 			)}
 		</>
+	);
+};
+
+type RequiredFieldLabelProps = {
+	children: ReactNode;
+};
+
+const RequiredFieldLabel: FC<RequiredFieldLabelProps> = ({ children }) => {
+	return (
+		<span className="after:ml-1 after:text-content-destructive after:content-['*']">
+			{children}
+		</span>
+	);
+};
+
+type SecretValueFieldProps = {
+	field: ReturnType<ReturnType<typeof getFormHelpers<SecretFormValues>>>;
+	placeholder: string;
+	required?: boolean;
+	showSavedValue?: boolean;
+};
+
+const SecretValueField: FC<SecretValueFieldProps> = ({
+	field,
+	placeholder,
+	required,
+	showSavedValue = false,
+}) => {
+	const [isShowingSavedValue, setIsShowingSavedValue] =
+		useState(showSavedValue);
+
+	useEffect(() => {
+		setIsShowingSavedValue(showSavedValue);
+	}, [showSavedValue]);
+
+	const value = isShowingSavedValue ? savedSecretValueDisplay : field.value;
+	const maskTypedValue =
+		!isShowingSavedValue &&
+		typeof field.value === "string" &&
+		field.value !== "";
+
+	return (
+		<FormField
+			field={field}
+			label={
+				required ? <RequiredFieldLabel>Value</RequiredFieldLabel> : "Value"
+			}
+			type="text"
+			value={value}
+			placeholder={placeholder}
+			autoComplete="off"
+			aria-required={required}
+			className={cn(
+				"placeholder:text-content-disabled",
+				maskTypedValue && "[-webkit-text-security:disc]",
+			)}
+			data-lpignore="true"
+			data-1p-ignore="true"
+			data-form-type="other"
+			onFocus={(event) => {
+				if (isShowingSavedValue) {
+					event.currentTarget.value = "";
+					setIsShowingSavedValue(false);
+				}
+			}}
+			onChange={(event) => {
+				if (isShowingSavedValue) {
+					setIsShowingSavedValue(false);
+				}
+				field.onChange(event);
+			}}
+			onBlur={(event) => {
+				field.onBlur(event);
+				if (showSavedValue && event.currentTarget.value === "") {
+					setIsShowingSavedValue(true);
+				}
+			}}
+		/>
 	);
 };
 
@@ -262,7 +369,10 @@ const SecretDescriptionField: FC<SecretDescriptionFieldProps> = ({ field }) => {
 				placeholder="Optional"
 				aria-invalid={field.error}
 				aria-describedby={field.error ? errorId : undefined}
-				className={cn(field.error && "border-border-destructive")}
+				className={cn(
+					"placeholder:text-content-disabled",
+					field.error && "border-border-destructive",
+				)}
 			/>
 			{field.error && (
 				<span id={errorId} className="text-xs text-content-destructive">

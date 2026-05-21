@@ -324,6 +324,8 @@
 	input:-webkit-autofill:focus,
 	input:-webkit-autofill:active {
 		-webkit-box-shadow: 0 0 0 100px hsl(var(--surface-primary)) inset !important;
+		-webkit-text-fill-color: hsl(var(--content-primary)) !important;
+		caret-color: hsl(var(--content-primary));
 	}
 
 	::placeholder {

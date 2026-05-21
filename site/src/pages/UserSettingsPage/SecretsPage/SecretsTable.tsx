@@ -148,7 +148,7 @@ const SecretTypeBadge: FC<{ secret: UserSecret }> = ({ secret }) => {
 					? "file"
 					: "not injected";
 
-	return <Badge size="sm">{label}</Badge>;
+	return <Badge>{label}</Badge>;
 };
 
 type SecretRowActionsProps = {

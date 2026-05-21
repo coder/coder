@@ -10,6 +10,7 @@ import { SecretsPageView } from "./SecretsPageView";
 
 const visibleSecrets = MockUserSecrets.slice(0, 4);
 const placeholderInput = "placeholder input";
+const savedSecretValueDisplay = "••••••••••••••••••••";
 
 const meta: Meta<typeof SecretsPageView> = {
 	title: "pages/UserSettingsPage/SecretsPageView",
@@ -155,11 +156,20 @@ export const AddDialogOpened: Story = {
 
 		await user.click(canvas.getByRole("button", { name: "Add secret" }));
 		const dialog = await body.findByRole("dialog");
+		const dialogView = within(dialog);
 		await expect(
-			within(dialog).getByRole("heading", { name: "Add secret" }),
+			dialogView.getByRole("heading", { name: "Add secret" }),
 		).toBeInTheDocument();
-		await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
-		await waitForDialogToClose(body);
+		await expect(dialogView.getByLabelText("Name")).toBeRequired();
+		await expect(dialogView.getByLabelText("Name")).toHaveAttribute(
+			"placeholder",
+			"Service token",
+		);
+		await expect(dialogView.getByLabelText("Value")).toBeRequired();
+		await expect(dialogView.getByLabelText("Value")).toHaveAttribute(
+			"placeholder",
+			"Enter secret value",
+		);
 	},
 };
 
@@ -187,7 +197,7 @@ export const AddDialogDuplicateEnvValidationError: Story = {
 		await user.type(dialog.getByLabelText("Name"), "duplicate-env");
 		await user.type(
 			dialog.getByLabelText("Environment variable"),
-			"OPENAI_API_KEY",
+			"SERVICE_API_KEY",
 		);
 		await user.type(dialog.getByLabelText("Value"), placeholderInput);
 		const saveButton = dialog.getByRole("button", { name: "Save" });
@@ -297,12 +307,15 @@ export const EditDialogOpened: Story = {
 		await expect(dialogView.getByLabelText("File path")).toHaveValue(
 			secret.file_path,
 		);
-		await expect(dialogView.getByLabelText("Value")).toHaveValue("");
+		const valueField = dialogView.getByLabelText("Value");
+		await expect(valueField).toHaveValue(savedSecretValueDisplay);
+		await user.click(valueField);
+		await expect(valueField).toHaveValue("");
+		await user.tab();
+		await expect(valueField).toHaveValue(savedSecretValueDisplay);
 		await expect(
 			dialogView.getByRole("button", { name: "Update" }),
 		).toBeDisabled();
-		await user.click(dialogView.getByRole("button", { name: "Cancel" }));
-		await waitForDialogToClose(body);
 	},
 };
 
@@ -412,8 +425,6 @@ export const KebabActionsAndDeleteConfirmation: Story = {
 		await expect(
 			within(dialog).getByRole("heading", { name: "Delete secret" }),
 		).toBeInTheDocument();
-		await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
-		await waitForDialogToClose(body);
 	},
 };
 
