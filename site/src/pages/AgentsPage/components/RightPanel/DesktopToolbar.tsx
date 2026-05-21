@@ -7,11 +7,6 @@ import {
 } from "lucide-react";
 import type { FC } from "react";
 import { Button } from "#/components/Button/Button";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
 
 type ScaleMode = "native" | "fit";
 
@@ -91,20 +86,16 @@ export const DesktopToolbar: FC<DesktopToolbarProps> = ({
 
 				{/* Pop-out button */}
 				{onPopOut && !isPoppedOut && (
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Button
-								variant="subtle"
-								size="icon"
-								onClick={onPopOut}
-								aria-label="Open desktop in new window"
-								className="h-6 w-6 text-content-secondary hover:text-content-primary"
-							>
-								<ExternalLinkIcon className="size-3.5" />
-							</Button>
-						</TooltipTrigger>
-						<TooltipContent>Open in new window</TooltipContent>
-					</Tooltip>
+					<Button
+						variant="subtle"
+						size="sm"
+						onClick={onPopOut}
+						aria-label="Detach desktop to new window"
+						className="h-6 gap-1.5 px-2 text-xs"
+					>
+						<ExternalLinkIcon className="size-3.5" />
+						Detach
+					</Button>
 				)}
 			</div>
 		</div>
