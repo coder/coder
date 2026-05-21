@@ -24,18 +24,17 @@ const DEFAULT_DESKTOP_APPS: readonly DesktopApp[] = [
  * through a short-lived reconnecting PTY websocket.
  */
 function launchDesktopApp(app: DesktopApp, agentId: string) {
-	const cmd = `DISPLAY=:1 nohup ${app.command} > /dev/null 2>&1 &\n`;
+	const cmd = `DISPLAY=:1 nohup ${app.command} > /dev/null 2>&1 &\nexit\n`;
 	const reconnect = crypto.randomUUID();
 	const proto = location.protocol === "https:" ? "wss:" : "ws:";
 	const url = `${proto}//${location.host}/api/v2/workspaceagents/${agentId}/pty?reconnect=${reconnect}&height=1&width=80`;
 
 	try {
 		const ws = new WebSocket(url);
-		ws.binaryType = "arraybuffer";
 		ws.addEventListener("open", () => {
-			// The reconnecting PTY expects raw text data.
-			ws.send(new TextEncoder().encode(cmd));
-			setTimeout(() => ws.close(), 2000);
+			// The reconnecting PTY expects JSON messages.
+			ws.send(JSON.stringify({ data: cmd }));
+			setTimeout(() => ws.close(), 3000);
 		});
 		ws.addEventListener("error", () => {
 			try {
