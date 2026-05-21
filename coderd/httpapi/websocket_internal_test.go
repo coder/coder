@@ -154,19 +154,30 @@ func TestHeartbeatClose(t *testing.T) {
 
 		serverConn := websocketPair(ctx, t)
 		exitCalled := make(chan struct{}, 1)
+		done := make(chan struct{})
 
-		go heartbeatCloseWith(ctx, logger, func() {
-			exitCalled <- struct{}{}
-		}, serverConn, mClock, time.Second)
+		go func() {
+			defer close(done)
+			heartbeatCloseWith(ctx, logger, func() {
+				exitCalled <- struct{}{}
+			}, serverConn, mClock, time.Second)
+		}()
+		defer func() {
+			_ = serverConn.CloseNow()
+			mClock.Advance(time.Second).MustWait(ctx)
+			select {
+			case <-done:
+			case <-ctx.Done():
+				t.Fatal("timed out waiting for heartbeatClose to return")
+			}
+		}()
 
 		trap.MustWait(ctx).MustRelease(ctx)
 
-		// Fire several ticks — pings should succeed each time.
+		// Fire several ticks. Pings should succeed each time.
 		for range 3 {
 			mClock.Advance(time.Second).MustWait(ctx)
 
-			// Give the ping round-trip time to complete.
-			// If exit were called, we'd catch it.
 			select {
 			case <-exitCalled:
 				t.Fatal("exit should not be called when pings succeed")
