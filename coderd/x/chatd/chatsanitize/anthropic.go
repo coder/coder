@@ -304,6 +304,93 @@ func SanitizeAnthropicProviderToolHistory(
 	}
 }
 
+// SanitizeUnsupportedProviderToolHistory removes Anthropic provider-
+// executed tool blocks (e.g. web_search) when sending to a provider that
+// does not recognize them. Tool calls are dropped and tool results are
+// preserved as plain text so the model can still see the payload.
+//
+// Bedrock shares the Anthropic message format but rejects
+// web_search_tool_result blocks with HTTP 400. This lets a chat switch
+// from Anthropic to Bedrock mid-conversation without leaking unsupported
+// provider-executed tool blocks into the next request.
+func SanitizeUnsupportedProviderToolHistory(
+	provider string,
+	messages []fantasy.Message,
+) ([]fantasy.Message, AnthropicProviderToolSanitizationStats) {
+	var stats AnthropicProviderToolSanitizationStats
+	if provider == "" || provider == fantasyanthropic.Name || len(messages) == 0 {
+		return messages, stats
+	}
+
+	affected := providerExecutedToolMessageIndexes(messages)
+	if len(affected) == 0 {
+		return messages, stats
+	}
+
+	out := make([]fantasy.Message, 0, len(messages))
+	for messageIndex, message := range messages {
+		if _, ok := affected[messageIndex]; !ok {
+			out = appendSanitizedMessage(out, message)
+			continue
+		}
+		parts := make([]fantasy.MessagePart, 0, len(message.Content))
+		removed := 0
+		for _, part := range message.Content {
+			if toolCall, ok := safeMessageToolCallPart(part); ok && toolCall.ProviderExecuted {
+				stats.RemovedToolCalls++
+				removed++
+				continue
+			}
+			if toolResult, ok := safeMessageToolResultPart(part); ok && toolResult.ProviderExecuted {
+				stats.RemovedToolResults++
+				if textPart, ok := AnthropicProviderToolResultTextPart(part); ok {
+					parts = append(parts, textPart)
+				}
+				removed++
+				continue
+			}
+			parts = append(parts, part)
+		}
+		if removed > 0 && len(parts) == 0 {
+			stats.DroppedMessages++
+			continue
+		}
+		if removed > 0 {
+			message.Content = parts
+		}
+		out = appendSanitizedMessage(out, message)
+	}
+	return out, stats
+}
+
+// LogUnsupportedProviderToolSanitization logs prompt changes made while
+// removing provider-executed tool blocks unsupported by the target
+// provider.
+func LogUnsupportedProviderToolSanitization(
+	ctx context.Context,
+	logger slog.Logger,
+	phase string,
+	provider string,
+	modelName string,
+	stats AnthropicProviderToolSanitizationStats,
+	extra ...slog.Field,
+) {
+	if stats.RemovedToolCalls == 0 && stats.RemovedToolResults == 0 {
+		return
+	}
+	fields := []slog.Field{
+		slog.F("phase", phase),
+		slog.F("tool_type", "provider_executed_unsupported"),
+		slog.F("provider", provider),
+		slog.F("model", modelName),
+		slog.F("removed_tool_calls", stats.RemovedToolCalls),
+		slog.F("removed_tool_results", stats.RemovedToolResults),
+		slog.F("dropped_messages", stats.DroppedMessages),
+	}
+	fields = append(fields, extra...)
+	logger.Warn(ctx, "removed provider-executed tool history unsupported by target provider", fields...)
+}
+
 // SanitizeAnthropicProviderToolStepContent removes invalid Anthropic
 // provider-executed tool content from a streamed step and logs removals.
 func SanitizeAnthropicProviderToolStepContent(

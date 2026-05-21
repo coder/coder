@@ -7327,6 +7327,10 @@ func (p *Server) runChat(
 	chatsanitize.LogAnthropicProviderToolSanitization(
 		ctx, logger, "persisted_history_replay", model.Provider(), model.Model(), sanitizeStats,
 	)
+	prompt, unsupportedStats := chatsanitize.SanitizeUnsupportedProviderToolHistory(model.Provider(), prompt)
+	chatsanitize.LogUnsupportedProviderToolSanitization(
+		ctx, logger, "persisted_history_replay", model.Provider(), model.Model(), unsupportedStats,
+	)
 	subagentInstruction := ""
 	if !isRootChat {
 		subagentInstruction = defaultSubagentInstruction
@@ -8047,6 +8051,10 @@ func (p *Server) runChat(
 			reloadedPrompt, sanitizeStats := chatsanitize.SanitizeAnthropicProviderToolHistory(model.Provider(), reloadedPrompt)
 			chatsanitize.LogAnthropicProviderToolSanitization(
 				reloadCtx, logger, "reload_messages", model.Provider(), model.Model(), sanitizeStats,
+			)
+			reloadedPrompt, unsupportedStats := chatsanitize.SanitizeUnsupportedProviderToolHistory(model.Provider(), reloadedPrompt)
+			chatsanitize.LogUnsupportedProviderToolSanitization(
+				reloadCtx, logger, "reload_messages", model.Provider(), model.Model(), unsupportedStats,
 			)
 			// Re-derive instruction and skills from the reloaded
 			// messages so that any context added during the

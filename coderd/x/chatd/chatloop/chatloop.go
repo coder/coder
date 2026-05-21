@@ -760,6 +760,12 @@ func prepareMessagesForRequest(
 		slog.F("step_index", step),
 		slog.F("total_steps", totalSteps),
 	)
+	prompt, unsupportedStats := chatsanitize.SanitizeUnsupportedProviderToolHistory(provider, prompt)
+	chatsanitize.LogUnsupportedProviderToolSanitization(
+		ctx, opts.Logger, "pre_request", provider, modelName, unsupportedStats,
+		slog.F("step_index", step),
+		slog.F("total_steps", totalSteps),
+	)
 	prompt, err = chatsanitize.ApplyAnthropicProviderToolGuard(
 		ctx, opts.Logger, provider, modelName, prompt,
 	)
