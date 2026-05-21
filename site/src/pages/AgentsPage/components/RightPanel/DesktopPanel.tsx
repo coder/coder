@@ -6,7 +6,39 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { cn } from "#/utils/cn";
 import { useDesktopConnection } from "../../hooks/useDesktopConnection";
 import { useDesktopPanel } from "../ChatElements/tools/DesktopPanelContext";
-import { DesktopToolbar } from "./DesktopToolbar";
+import { type DesktopApp, DesktopToolbar } from "./DesktopToolbar";
+
+/** Default desktop apps available in the VNC session. */
+const DEFAULT_DESKTOP_APPS: readonly DesktopApp[] = [
+	{
+		name: "Chrome",
+		icon: "/icon/google.svg",
+		command:
+			"google-chrome-stable --no-sandbox --disable-gpu --disable-dev-shm-usage --no-first-run --no-default-browser-check --window-size=1280,720",
+	},
+];
+
+/**
+ * Launch a desktop app inside the VNC session by opening a throwaway
+ * terminal connection that sends the command with DISPLAY set.
+ */
+function launchDesktopApp(
+	app: DesktopApp,
+	workspaceName: string,
+	agentName: string,
+	ownerName: string,
+) {
+	// Build the terminal URL that runs the command in the background.
+	// The &command= parameter makes the terminal execute the command
+	// instead of opening an interactive shell.
+	const cmd = `DISPLAY=:1 ${app.command}`;
+	const url = `/@${ownerName}/${workspaceName}/terminal?agent=${agentName}&command=${encodeURIComponent(`nohup bash -c '${cmd}' > /dev/null 2>&1 &`)}`;
+	// Open in a tiny popup that auto-closes.
+	const popup = open(url, `_desktop_app_${Date.now()}`, "width=1,height=1");
+	if (popup) {
+		setTimeout(() => popup.close(), 3000);
+	}
+}
 
 type ScaleMode = "native" | "fit";
 
@@ -114,6 +146,12 @@ export const DesktopPanel: FC<DesktopPanelProps> = ({ chatId, isVisible }) => {
 		);
 	}
 
+	const handleLaunchDesktopApp = (app: DesktopApp) => {
+		if (agent && workspace) {
+			launchDesktopApp(app, workspace.name, agent.name, workspace.owner_name);
+		}
+	};
+
 	return (
 		<DesktopPanelView
 			status={status}
@@ -127,6 +165,8 @@ export const DesktopPanel: FC<DesktopPanelProps> = ({ chatId, isVisible }) => {
 			onPopOut={handlePopOut}
 			agent={agent}
 			workspace={workspace}
+			desktopApps={DEFAULT_DESKTOP_APPS}
+			onLaunchDesktopApp={handleLaunchDesktopApp}
 		/>
 	);
 };
@@ -143,6 +183,8 @@ export interface DesktopPanelViewProps {
 	onPopOut?: () => void;
 	agent?: import("#/api/typesGenerated").WorkspaceAgent;
 	workspace?: import("#/api/typesGenerated").Workspace;
+	desktopApps?: readonly DesktopApp[];
+	onLaunchDesktopApp?: (app: DesktopApp) => void;
 }
 
 export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
@@ -157,6 +199,8 @@ export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
 	onPopOut,
 	agent,
 	workspace,
+	desktopApps,
+	onLaunchDesktopApp,
 }) => {
 	const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -238,6 +282,8 @@ export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
 				onTakeControl={onTakeControl}
 				onReleaseControl={onReleaseControl}
 				onPopOut={onPopOut}
+				desktopApps={desktopApps}
+				onLaunchDesktopApp={onLaunchDesktopApp}
 			/>
 			{/* Scrollable container for native zoom panning */}
 			<div

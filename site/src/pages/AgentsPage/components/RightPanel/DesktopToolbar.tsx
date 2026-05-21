@@ -13,6 +13,7 @@ import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
+	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
@@ -25,6 +26,13 @@ import { useAppLink } from "#/modules/apps/useAppLink";
 
 type ScaleMode = "native" | "fit";
 
+/** A desktop app that can be launched inside the VNC session. */
+export interface DesktopApp {
+	name: string;
+	icon?: string;
+	command: string;
+}
+
 interface DesktopToolbarProps {
 	agent?: TypesGen.WorkspaceAgent;
 	workspace?: TypesGen.Workspace;
@@ -35,12 +43,16 @@ interface DesktopToolbarProps {
 	onReleaseControl: () => void;
 	onPopOut?: () => void;
 	isPoppedOut?: boolean;
+	/** Desktop apps launched inside the VNC session. */
+	desktopApps?: readonly DesktopApp[];
+	/** Called when a desktop app is selected for launch. */
+	onLaunchDesktopApp?: (app: DesktopApp) => void;
 }
 
 /**
- * A single app entry inside the Apps dropdown menu.
+ * A single workspace web app entry inside the Apps dropdown.
  */
-const AppMenuItem: FC<{
+const WebAppMenuItem: FC<{
 	app: TypesGen.WorkspaceApp;
 	agent: TypesGen.WorkspaceAgent;
 	workspace: TypesGen.Workspace;
@@ -77,11 +89,16 @@ export const DesktopToolbar: FC<DesktopToolbarProps> = ({
 	onReleaseControl,
 	onPopOut,
 	isPoppedOut,
+	desktopApps,
+	onLaunchDesktopApp,
 }) => {
-	// Only show web apps (those with a URL) in the dropdown.
-	// Command-type apps would open a terminal tab, which is wrong
-	// for a desktop context.
-	const apps = agent?.apps.filter((app) => !app.hidden && !app.command) ?? [];
+	// Web apps open in a browser tab (code-server, etc.).
+	const webApps =
+		agent?.apps.filter((app) => !app.hidden && !app.command) ?? [];
+
+	const hasDesktopApps = desktopApps && desktopApps.length > 0;
+	const hasWebApps = webApps.length > 0;
+	const hasAnyApps = hasDesktopApps || hasWebApps;
 
 	return (
 		<div
@@ -91,7 +108,7 @@ export const DesktopToolbar: FC<DesktopToolbarProps> = ({
 		>
 			{/* Left: Apps dropdown */}
 			<div className="flex items-center gap-1">
-				{agent && workspace && apps.length > 0 && (
+				{hasAnyApps && (
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
 							<Button
@@ -104,14 +121,37 @@ export const DesktopToolbar: FC<DesktopToolbarProps> = ({
 							</Button>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="start">
-							{apps.map((app) => (
-								<AppMenuItem
-									key={app.slug}
-									app={app}
-									agent={agent}
-									workspace={workspace}
-								/>
-							))}
+							{hasDesktopApps &&
+								desktopApps.map((app) => (
+									<DropdownMenuItem
+										key={app.name}
+										onClick={() => onLaunchDesktopApp?.(app)}
+									>
+										<div className="flex items-center gap-2">
+											{app.icon ? (
+												<ExternalImage
+													src={app.icon}
+													alt=""
+													className="size-4 shrink-0"
+												/>
+											) : (
+												<AppWindowIcon className="size-4 shrink-0 text-content-secondary" />
+											)}
+											{app.name}
+										</div>
+									</DropdownMenuItem>
+								))}
+							{hasDesktopApps && hasWebApps && <DropdownMenuSeparator />}
+							{agent &&
+								workspace &&
+								webApps.map((app) => (
+									<WebAppMenuItem
+										key={app.slug}
+										app={app}
+										agent={agent}
+										workspace={workspace}
+									/>
+								))}
 						</DropdownMenuContent>
 					</DropdownMenu>
 				)}
