@@ -247,11 +247,11 @@ export function useDesktopConnection({
 				// Override the noVNC default background (rgb(40,40,40))
 				// so the letterbox margins match the app surface color
 				// in both light and dark themes.
-				rfb.background = getComputedStyle(document.documentElement)
+				const surfaceHsl = getComputedStyle(document.documentElement)
 					.getPropertyValue("--surface-primary")
 					.trim();
-				if (rfb.background) {
-					rfb.background = `hsl(${rfb.background})`;
+				if (surfaceHsl) {
+					rfb.background = `hsl(${surfaceHsl})`;
 				}
 
 				// Per-session flags scoped to this RFB instance.
