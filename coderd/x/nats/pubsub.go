@@ -123,12 +123,8 @@ type Pubsub struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	// Test seams installed via SetTestHooks in *_test.go. Production
-	// code never sets these. Per-Pubsub scoping lets parallel tests
-	// install distinct hooks without stomping on each other.
-	testHookBeforeFlush            func(subject string)
-	testHookBeforeSetPendingLimits func(subject string)
-	testHookOnFlushConn            func(idx int)
+	// Test seam for readiness tests. Production code never sets this.
+	testHookBeforeFlush func(subject string)
 }
 
 // sharedSub coalesces local subscribers on the same NATS subject onto
@@ -363,9 +359,6 @@ func (p *Pubsub) Flush() error {
 
 	var firstErr error
 	for i, nc := range p.publishPool {
-		if hook := p.testHookOnFlushConn; hook != nil {
-			hook(i)
-		}
 		if err := nc.Flush(); err != nil && firstErr == nil {
 			firstErr = xerrors.Errorf("flush pub conn %d: %w", i, err)
 		}
@@ -598,9 +591,6 @@ func (p *Pubsub) attachListener(subject string, s *subscription) (*sharedSub, bo
 	if err := subConn.Flush(); err != nil {
 		return finishCreator(xerrors.Errorf("flush subscribe: %w", err))
 	}
-	if hook := p.testHookBeforeSetPendingLimits; hook != nil {
-		hook(subject)
-	}
 	limits := defaultPendingLimits(p.opts.PendingLimits)
 	if err := natsSub.SetPendingLimits(limits.Msgs, limits.Bytes); err != nil {
 		return finishCreator(xerrors.Errorf("set pending limits: %w", err))
@@ -761,15 +751,6 @@ func (p *Pubsub) handleAsyncError(sub *natsgo.Subscription, err error) {
 		return
 	}
 	p.handleSharedSlowConsumer(shared)
-}
-
-// handleSlowConsumer is a white-box test entry point that forwards to
-// handleSharedSlowConsumer.
-func (p *Pubsub) handleSlowConsumer(s *subscription) {
-	if s == nil || s.shared == nil {
-		return
-	}
-	p.handleSharedSlowConsumer(s.shared)
 }
 
 // handleSharedSlowConsumer broadcasts pubsub.ErrDroppedMessages to
