@@ -49,27 +49,27 @@ const AddProviderPageView: React.FC<AddProviderPageViewProps> = ({
 						initialValues={{ type: provider.value }}
 						isLoading={createMutation.isPending}
 						submitError={createMutation.error}
-						onSubmit={(values) => {
+						onSubmit={async (values) => {
 							const request = providerFormValuesToCreate(values);
-							createMutation.mutate(request, {
-								onSuccess: (res) => {
-									toast.success(
-										`Provider "${res.display_name || res.name}" added.`,
-									);
-									void navigate(`/ai/settings/${res.name}`);
-								},
-								onError: (error) => {
-									const name = values.name.trim();
-									toast.error(
-										getErrorMessage(
-											error,
-											name
-												? `Failed to add provider "${name}".`
-												: "Failed to add provider.",
-										),
-									);
-								},
-							});
+							try {
+								const res = await createMutation.mutateAsync(request);
+								toast.success(
+									`Provider "${res.display_name || res.name}" added.`,
+								);
+								// Awaited so the form's submitting state stays true through
+								// navigation, keeping the unsaved-changes prompt suppressed.
+								await navigate(`/ai/settings/${res.name}`);
+							} catch (error) {
+								const name = values.name.trim();
+								toast.error(
+									getErrorMessage(
+										error,
+										name
+											? `Failed to add provider "${name}".`
+											: "Failed to add provider.",
+									),
+								);
+							}
 						}}
 					/>
 			</div>

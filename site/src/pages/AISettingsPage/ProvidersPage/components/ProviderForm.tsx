@@ -1,13 +1,16 @@
 import { useFormik } from "formik";
-import { type FC } from "react";
+import { TriangleAlertIcon } from "lucide-react";
+import { type FC, useEffect, useRef } from "react";
 import { Link } from "react-router";
 import * as Yup from "yup";
 import type { AIProviderType } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
+import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { Form, FormFields } from "#/components/Form/Form";
 import { FormField } from "#/components/FormField/FormField";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
 import { getFormHelpers } from "#/utils/formUtils";
 import { CredentialField } from "./CredentialField";
 
@@ -271,6 +274,22 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		}
 	};
 
+	// When the parent's mutation finishes without an error, treat the just-
+	// submitted values as the new baseline so the unsaved-changes prompt does
+	// not fire on subsequent navigations. React Query reports a missing error
+	// as `null`, so a truthy check covers both null and undefined.
+	const previousIsLoading = useRef(isLoading);
+	useEffect(() => {
+		if (previousIsLoading.current && !isLoading && !submitError) {
+			form.resetForm({ values: form.values });
+		}
+		previousIsLoading.current = isLoading;
+	}, [isLoading, submitError, form]);
+
+	const unsavedChanges = useUnsavedChangesPrompt(
+		form.dirty && !form.isSubmitting,
+	);
+
 	return (
 		<Form onSubmit={form.handleSubmit}>
 			<FormFields>
@@ -393,6 +412,23 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 					</Button>
 				</div>
 			</FormFields>
+			<ConfirmDialog
+				type="info"
+				hideCancel={false}
+				open={unsavedChanges.isOpen}
+				onClose={unsavedChanges.onCancel}
+				onConfirm={unsavedChanges.onConfirm}
+				title="Unsaved changes"
+				confirmText="Confirm"
+				description={
+					<div className="flex items-start gap-3">
+						<TriangleAlertIcon className="size-icon-sm mt-1 shrink-0" />
+						<p className="m-0">
+							Your updates haven't been saved. Leave anyway?
+						</p>
+					</div>
+				}
+			/>
 		</Form>
 	);
 };

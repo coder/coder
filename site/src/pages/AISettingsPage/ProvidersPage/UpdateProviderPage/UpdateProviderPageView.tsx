@@ -189,23 +189,21 @@ const UpdateProviderPageView: React.FC = () => {
 						initialValues={aiProviderToFormValues(provider)}
 						isLoading={updateMutation.isPending}
 						submitError={updateMutation.error}
-						onSubmit={(values) => {
+						onSubmit={async (values) => {
 							const request = providerFormValuesToUpdate(values, provider);
-							updateMutation.mutate(request, {
-								onSuccess: (updated) => {
-									toast.success(
-										`Provider "${updated.display_name || updated.name}" updated.`,
-									);
-								},
-								onError: (error) => {
-									toast.error(
-										getErrorMessage(
-											error,
-											`Failed to update provider "${provider.display_name || provider.name}".`,
-										),
-									);
-								},
-							});
+							try {
+								const updated = await updateMutation.mutateAsync(request);
+								toast.success(
+									`Provider "${updated.display_name || updated.name}" updated.`,
+								);
+							} catch (error) {
+								toast.error(
+									getErrorMessage(
+										error,
+										`Failed to update provider "${provider.display_name || provider.name}".`,
+									),
+								);
+							}
 						}}
 					/>
 				</div>
