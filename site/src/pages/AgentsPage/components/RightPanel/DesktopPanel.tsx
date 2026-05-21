@@ -86,6 +86,7 @@ export const DesktopPanel: FC<DesktopPanelProps> = ({ chatId, isVisible }) => {
 		chatId: isPoppedOut ? undefined : chatId,
 		activated: activated && !isPoppedOut,
 		scaleViewport: scaleMode === "fit",
+		resizeSession: scaleMode === "fit",
 	});
 
 	const { agent, workspace } = useDesktopPanel();
