@@ -11,7 +11,7 @@ const CHANNEL_PREFIX = "coder-desktop-";
 
 export default function DesktopPopoutPage() {
 	const { agentId } = useParams() as { agentId: string };
-	const [scaleMode, setScaleMode] = useState<ScaleMode>("fit");
+	const [scaleMode, setScaleMode] = useState<ScaleMode>("native");
 	const [isControlling, setIsControlling] = useState(false);
 
 	const { status, reconnect, attach } = useDesktopConnection({

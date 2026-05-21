@@ -84,8 +84,8 @@ export const DesktopPanel: FC<DesktopPanelProps> = ({ chatId, isVisible }) => {
 	}, [chatId]);
 
 	const handlePopOut = () => {
-		const width = Math.round(screen.availWidth * 0.8);
-		const height = Math.round(screen.availHeight * 0.8);
+		const width = Math.round(screen.availWidth * 0.5);
+		const height = Math.round(screen.availHeight * 0.5);
 		const left = Math.round((screen.availWidth - width) / 2);
 		const top = Math.round((screen.availHeight - height) / 2);
 		open(

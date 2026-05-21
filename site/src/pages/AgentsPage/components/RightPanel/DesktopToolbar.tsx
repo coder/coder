@@ -1,4 +1,5 @@
 import {
+	AppWindowIcon,
 	ExternalLinkIcon,
 	HandIcon,
 	MaximizeIcon,
@@ -8,6 +9,12 @@ import {
 import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "#/components/DropdownMenu/DropdownMenu";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import {
 	Tooltip,
@@ -15,7 +22,6 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useAppLink } from "#/modules/apps/useAppLink";
-import { cn } from "#/utils/cn";
 
 type ScaleMode = "native" | "fit";
 
@@ -32,9 +38,9 @@ interface DesktopToolbarProps {
 }
 
 /**
- * Compact icon button for a single workspace app in the desktop toolbar.
+ * A single app entry inside the Apps dropdown menu.
  */
-const ToolbarAppIcon: FC<{
+const AppMenuItem: FC<{
 	app: TypesGen.WorkspaceApp;
 	agent: TypesGen.WorkspaceAgent;
 	workspace: TypesGen.Workspace;
@@ -42,27 +48,22 @@ const ToolbarAppIcon: FC<{
 	const link = useAppLink(app, { agent, workspace });
 
 	return (
-		<Tooltip>
-			<TooltipTrigger asChild>
-				<a
-					href={link.href}
-					onClick={link.onClick}
-					target="_blank"
-					rel="noreferrer"
-					className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary"
-					aria-label={link.label}
-				>
-					{app.icon ? (
-						<ExternalImage src={app.icon} alt="" className="size-4" />
-					) : (
-						<span className="text-xs font-medium">
-							{(app.display_name || app.slug).charAt(0).toUpperCase()}
-						</span>
-					)}
-				</a>
-			</TooltipTrigger>
-			<TooltipContent>{link.label}</TooltipContent>
-		</Tooltip>
+		<DropdownMenuItem asChild>
+			<a
+				href={link.href}
+				onClick={link.onClick}
+				target="_blank"
+				rel="noreferrer"
+				className="flex items-center gap-2"
+			>
+				{app.icon ? (
+					<ExternalImage src={app.icon} alt="" className="size-4 shrink-0" />
+				) : (
+					<AppWindowIcon className="size-4 shrink-0 text-content-secondary" />
+				)}
+				{link.label}
+			</a>
+		</DropdownMenuItem>
 	);
 };
 
@@ -77,32 +78,40 @@ export const DesktopToolbar: FC<DesktopToolbarProps> = ({
 	onPopOut,
 	isPoppedOut,
 }) => {
-	// Filter to visible apps only.
 	const apps = agent?.apps.filter((app) => !app.hidden) ?? [];
 
 	return (
 		<div
-			className={cn(
-				"group/toolbar absolute top-0 right-0 left-0 z-20 flex items-center justify-between px-2 transition-all duration-200",
-				isControlling
-					? "h-1 opacity-0 hover:h-9 hover:opacity-100 hover:bg-surface-primary/90 hover:backdrop-blur-sm"
-					: "h-9 bg-surface-primary/90 backdrop-blur-sm",
-			)}
+			className="absolute top-0 right-0 left-0 z-20 flex h-8 items-center justify-between border-0 border-b border-solid border-border-default bg-surface-primary px-1.5"
 			role="toolbar"
 			aria-label="Desktop controls"
 		>
-			{/* Left: App icons */}
-			<div className="flex items-center gap-0.5">
-				{agent &&
-					workspace &&
-					apps.map((app) => (
-						<ToolbarAppIcon
-							key={app.slug}
-							app={app}
-							agent={agent}
-							workspace={workspace}
-						/>
-					))}
+			{/* Left: Apps dropdown */}
+			<div className="flex items-center gap-1">
+				{agent && workspace && apps.length > 0 && (
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button
+								variant="subtle"
+								size="sm"
+								className="h-6 gap-1 px-2 text-xs text-content-secondary hover:text-content-primary"
+							>
+								<AppWindowIcon className="size-3.5" />
+								Apps
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="start">
+							{apps.map((app) => (
+								<AppMenuItem
+									key={app.slug}
+									app={app}
+									agent={agent}
+									workspace={workspace}
+								/>
+							))}
+						</DropdownMenuContent>
+					</DropdownMenu>
+				)}
 			</div>
 
 			{/* Right: Controls */}
@@ -121,7 +130,7 @@ export const DesktopToolbar: FC<DesktopToolbarProps> = ({
 									? "Switch to fit-to-window (Ctrl+0)"
 									: "Switch to 100% zoom (Ctrl+1)"
 							}
-							className="h-7 w-7 text-content-secondary hover:text-content-primary"
+							className="h-6 w-6 text-content-secondary hover:text-content-primary"
 						>
 							{scaleMode === "native" ? (
 								<MinimizeIcon className="size-3.5" />
@@ -146,7 +155,7 @@ export const DesktopToolbar: FC<DesktopToolbarProps> = ({
 								size="icon"
 								onClick={onPopOut}
 								aria-label="Open desktop in new window"
-								className="h-7 w-7 text-content-secondary hover:text-content-primary"
+								className="h-6 w-6 text-content-secondary hover:text-content-primary"
 							>
 								<ExternalLinkIcon className="size-3.5" />
 							</Button>
@@ -162,7 +171,7 @@ export const DesktopToolbar: FC<DesktopToolbarProps> = ({
 							variant={isControlling ? "default" : "outline"}
 							size="sm"
 							onClick={isControlling ? onReleaseControl : onTakeControl}
-							className="h-7 gap-1.5 px-2 text-xs"
+							className="h-6 gap-1.5 px-2 text-xs"
 						>
 							{isControlling ? (
 								<>
