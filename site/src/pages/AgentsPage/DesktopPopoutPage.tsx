@@ -99,7 +99,7 @@ export default function DesktopPopoutPage() {
 				ref={(el) => {
 					if (el) attach(el);
 				}}
-				className="min-h-0 flex-1 overflow-hidden bg-surface-secondary"
+				className="min-h-0 flex-1 overflow-hidden bg-surface-secondary [&>div>div]:!overflow-hidden"
 			/>
 		</div>
 	);
