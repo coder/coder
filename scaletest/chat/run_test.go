@@ -45,6 +45,70 @@ func TestRunnerRunConversation(t *testing.T) {
 		require.Equal(t, 3, result.eventCount)
 	})
 
+	t.Run("FirstTurnGatesFollowUpStorm", func(t *testing.T) {
+		t.Parallel()
+
+		// Reproduces the contract that the turn-start gate is checked
+		// after the first turn finishes, not before it begins. The runner
+		// must mark itself ready, wait for the release channel, and only
+		// then call sendNextTurn for turn 2.
+		cfg := newRunConfig(t)
+		cfg.Turns = 2
+		readyWG := &sync.WaitGroup{}
+		readyWG.Add(1)
+		releaseChan := make(chan struct{})
+		cfg.TurnStartReadyWaitGroup = readyWG
+		cfg.StartTurnsChan = releaseChan
+		cfg.TurnStartDelay = time.Millisecond // any non-zero value
+		runner := newTestRunner(t, cfg)
+
+		events := make(chan codersdk.ChatStreamEvent, 4)
+		events <- statusEvent(chatID, codersdk.ChatStatusRunning)
+		events <- messagePartEvent(chatID)
+		events <- statusEvent(chatID, codersdk.ChatStatusWaiting)
+
+		ready := make(chan struct{})
+		go func() {
+			readyWG.Wait()
+			close(ready)
+		}()
+
+		errCh := make(chan error, 1)
+		var sendCount int
+		go func() {
+			_, runErr := runner.runConversation(context.Background(), chatID, io.Discard, time.Now(), events, func(_ context.Context, nextTurn int, phase string) error {
+				sendCount++
+				require.Equal(t, 2, nextTurn)
+				require.Equal(t, phaseFollowUp, phase)
+				events <- statusEvent(chatID, codersdk.ChatStatusWaiting)
+				close(events)
+				return nil
+			})
+			errCh <- runErr
+		}()
+
+		// Wait for the gate to mark itself ready (after turn 1 completes).
+		select {
+		case <-ready:
+		case <-time.After(2 * time.Second):
+			t.Fatal("runner did not mark turn-start gate ready after first turn")
+		}
+
+		// The runner must still be blocked on the release channel:
+		// sendNextTurn has not been called yet.
+		require.Equal(t, 0, sendCount, "sendNextTurn fired before turn-start release")
+
+		close(releaseChan)
+
+		select {
+		case err := <-errCh:
+			require.NoError(t, err)
+		case <-time.After(2 * time.Second):
+			t.Fatal("runner did not finish after turn-start release")
+		}
+		require.Equal(t, 1, sendCount)
+	})
+
 	t.Run("ImmediateWaitingCountsNextTurn", func(t *testing.T) {
 		t.Parallel()
 

@@ -381,7 +381,7 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 				if err := waitForRunners(turnStartReadyWaitGroup); err != nil {
 					return drainChatHarnessAfterCancel()
 				}
-				_, _ = fmt.Fprintf(inv.Stderr, "All %d chats created, waiting %s before starting the turn storm...\n", totalChats, turnStartDelay)
+				_, _ = fmt.Fprintf(inv.Stderr, "All %d initial turns completed, waiting %s before starting the follow-up turn storm...\n", totalChats, turnStartDelay)
 				select {
 				case <-testCtx.Done():
 					return drainChatHarnessAfterCancel()
@@ -444,7 +444,7 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 		},
 		{
 			Flag:        "turn-start-delay",
-			Description: "Delay between creating chats and starting the storm of turn exchanges. Use this to separate chat creation from the turn storm.",
+			Description: "Delay between every chat completing its initial turn and starting the follow-up turn storm. Use this to separate initial-turn load from follow-up-turn load.",
 			Default:     "0s",
 			Value:       serpent.DurationOf(&turnStartDelay),
 		},

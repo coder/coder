@@ -158,16 +158,12 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	span.SetAttributes(attribute.String("chat.chat_id", chat.ID.String()))
 	_, _ = fmt.Fprintf(logs, "created chat %s in %s\n", chat.ID, time.Since(createStartedAt))
 
-	r.turnStartGate.markReady()
-	if r.turnStartGate.releaseChan != nil {
-		_, _ = fmt.Fprintf(logs, "chat %s waiting for turn start release (%s)\n", chat.ID, r.cfg.TurnStartDelay)
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-r.turnStartGate.releaseChan:
-		}
-	}
-
+	// CreateChat already queues the first prompt for processing on the
+	// server, so the initial turn is in flight as soon as CreateChat
+	// returns. Open the stream immediately and let the conversation loop
+	// drive the gate at the natural phase boundary (after the first turn
+	// reaches a terminal Waiting status), rather than fencing here on a
+	// turn that has already started running.
 	events, closer, err := codersdk.NewExperimentalClient(r.client).StreamChat(ctx, chat.ID, nil)
 	if err != nil {
 		result.failureStage = failureStageStreamOpen
@@ -271,6 +267,17 @@ func (r *Runner) handleStatusEvent(ctx context.Context, chatID uuid.UUID, logs i
 			return true, nil
 		}
 
+		// After the very first turn completes, hand off to the CLI-
+		// coordinated turn-start gate so that the inter-phase delay
+		// measures the gap between every chat actually finishing its
+		// initial turn and the start of the follow-up storm, not the gap
+		// between CreateChat returning and the storm.
+		if state.result.turnsCompleted == 1 {
+			if err := r.waitForTurnStartRelease(ctx, logs, chatID); err != nil {
+				return false, err
+			}
+		}
+
 		nextTurn := state.result.turnsCompleted + 1
 		state.currentPhase = phaseFollowUp
 		state.turnStartTime = time.Now()
@@ -367,6 +374,26 @@ func (r *Runner) GetMetrics() map[string]any {
 
 func (r *Runner) labelValues(extra string) []string {
 	return append(slices.Clone(r.cfg.MetricLabelValues), extra)
+}
+
+// waitForTurnStartRelease signals that this runner has completed its first
+// turn and then blocks until the CLI releases the follow-up turn storm.
+// When the gate is not configured (no --turn-start-delay) this is a no-op
+// beyond the idempotent ready signal. The signal goes through the same
+// sync.Once-backed markReady as the function-scope defer in Run, so
+// calling it here and again via defer on an error path is safe.
+func (r *Runner) waitForTurnStartRelease(ctx context.Context, logs io.Writer, chatID uuid.UUID) error {
+	r.turnStartGate.markReady()
+	if r.turnStartGate.releaseChan == nil {
+		return nil
+	}
+	_, _ = fmt.Fprintf(logs, "chat %s waiting for turn start release (%s)\n", chatID, r.cfg.TurnStartDelay)
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-r.turnStartGate.releaseChan:
+		return nil
+	}
 }
 
 func (r *Runner) recordStageFailure(stage string) {

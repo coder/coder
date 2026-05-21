@@ -30,8 +30,9 @@ type Config struct {
 	// Must be at least 1.
 	Turns int `json:"turns"`
 
-	// TurnStartDelay is the shared delay between chat creation and the
-	// release of the turn storm.
+	// TurnStartDelay is the shared delay between every runner completing
+	// its initial turn and the release of the follow-up turn storm. Set
+	// to 0 to fire all turns back-to-back without an inter-phase pause.
 	TurnStartDelay time.Duration `json:"turn_start_delay"`
 
 	// ReadyWaitGroup is used to coordinate thundering-herd fanout from the CLI
@@ -42,9 +43,11 @@ type Config struct {
 	// once all runners have reached the start barrier.
 	StartChan chan struct{} `json:"-"`
 
-	// TurnStartReadyWaitGroup coordinates the gap between chat creation and
-	// the turn storm. Each runner signals once its chat is created, or knows
-	// it will never reach that point.
+	// TurnStartReadyWaitGroup coordinates the gap between the initial turn
+	// finishing and the follow-up turn storm. Each runner signals once its
+	// first turn has reached a terminal status, or it knows it will never
+	// reach that point. Signaling happens via a sync.Once, so safety-net
+	// defers and the natural-path signal are both safe to fire.
 	TurnStartReadyWaitGroup *sync.WaitGroup `json:"-"`
 
 	// StartTurnsChan blocks the turn storm until the CLI layer releases it.
