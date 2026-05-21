@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, screen, userEvent, waitFor, within } from "storybook/test";
 import { ProviderForm } from "./ProviderForm";
 
 const meta: Meta<typeof ProviderForm> = {
@@ -128,5 +128,36 @@ export const CredentialFocusClear: Story = {
 		expect(apiKeyInput).toHaveValue("sk-ant-***\u2026***ABCD");
 		await userEvent.click(apiKeyInput);
 		await waitFor(() => expect(apiKeyInput).toHaveValue(""));
+	},
+};
+
+export const UnsavedChangesPrompt: Story = {
+	args: {
+		editing: true,
+		initialValues: {
+			type: "openai",
+			name: "corporate-openai",
+			displayName: "Corporate OpenAI",
+			baseUrl: "https://api.openai.com/v1",
+			apiKey: "",
+			enabled: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Dirty the form by editing the display name.
+		const displayName = await canvas.findByLabelText(/display name/i);
+		await userEvent.type(displayName, " Edited");
+		// Attempt to leave via the in-form Cancel link.
+		const cancelLink = canvas.getByRole("link", { name: /cancel/i });
+		await userEvent.click(cancelLink);
+		// The dialog renders in a portal, so search the document.
+		const dialog = await screen.findByRole("dialog");
+		await expect(
+			within(dialog).getByText("Unsaved changes"),
+		).toBeInTheDocument();
+		await expect(
+			within(dialog).getByText(/your updates haven't been saved/i),
+		).toBeInTheDocument();
 	},
 };
