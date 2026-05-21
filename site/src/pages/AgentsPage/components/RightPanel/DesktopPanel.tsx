@@ -6,47 +6,7 @@ import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { cn } from "#/utils/cn";
 import { useDesktopConnection } from "../../hooks/useDesktopConnection";
-import { useDesktopPanel } from "../ChatElements/tools/DesktopPanelContext";
-import { type DesktopApp, DesktopToolbar } from "./DesktopToolbar";
-
-/** Default desktop apps available in the VNC session. */
-const DEFAULT_DESKTOP_APPS: readonly DesktopApp[] = [
-	{
-		name: "Chrome",
-		icon: "/icon/google.svg",
-		command:
-			"google-chrome-stable --no-sandbox --disable-gpu --disable-dev-shm-usage --no-first-run --no-default-browser-check --window-size=1280,720",
-	},
-];
-
-/**
- * Launch a desktop app inside the VNC session by sending the command
- * through a short-lived reconnecting PTY websocket.
- */
-function launchDesktopApp(app: DesktopApp, agentId: string) {
-	const cmd = `DISPLAY=:1 nohup ${app.command} > /dev/null 2>&1 &\nexit\n`;
-	const reconnect = crypto.randomUUID();
-	const proto = location.protocol === "https:" ? "wss:" : "ws:";
-	const url = `${proto}//${location.host}/api/v2/workspaceagents/${agentId}/pty?reconnect=${reconnect}&height=1&width=80`;
-
-	try {
-		const ws = new WebSocket(url);
-		ws.addEventListener("open", () => {
-			// The reconnecting PTY expects JSON messages.
-			ws.send(JSON.stringify({ data: cmd }));
-			setTimeout(() => ws.close(), 3000);
-		});
-		ws.addEventListener("error", () => {
-			try {
-				ws.close();
-			} catch {
-				// ignore
-			}
-		});
-	} catch {
-		// Silently fail; the user can retry from the menu.
-	}
-}
+import { DesktopToolbar } from "./DesktopToolbar";
 
 type ScaleMode = "native" | "fit";
 
@@ -87,8 +47,6 @@ export const DesktopPanel: FC<DesktopPanelProps> = ({ chatId, isVisible }) => {
 		activated: activated && !isPoppedOut,
 		scaleViewport: scaleMode === "fit",
 	});
-
-	const { agent, workspace } = useDesktopPanel();
 
 	// Keyboard shortcuts for zoom toggle.
 	useEffect(() => {
@@ -154,12 +112,6 @@ export const DesktopPanel: FC<DesktopPanelProps> = ({ chatId, isVisible }) => {
 		);
 	}
 
-	const handleLaunchDesktopApp = (app: DesktopApp) => {
-		if (agent) {
-			launchDesktopApp(app, agent.id);
-		}
-	};
-
 	return (
 		<DesktopPanelView
 			status={status}
@@ -171,10 +123,6 @@ export const DesktopPanel: FC<DesktopPanelProps> = ({ chatId, isVisible }) => {
 			onTakeControl={() => setIsControlling(true)}
 			onReleaseControl={() => setIsControlling(false)}
 			onPopOut={handlePopOut}
-			agent={agent}
-			workspace={workspace}
-			desktopApps={DEFAULT_DESKTOP_APPS}
-			onLaunchDesktopApp={handleLaunchDesktopApp}
 		/>
 	);
 };
@@ -189,10 +137,6 @@ export interface DesktopPanelViewProps {
 	onTakeControl: () => void;
 	onReleaseControl: () => void;
 	onPopOut?: () => void;
-	agent?: import("#/api/typesGenerated").WorkspaceAgent;
-	workspace?: import("#/api/typesGenerated").Workspace;
-	desktopApps?: readonly DesktopApp[];
-	onLaunchDesktopApp?: (app: DesktopApp) => void;
 }
 
 export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
@@ -205,10 +149,6 @@ export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
 	onTakeControl,
 	onReleaseControl,
 	onPopOut,
-	agent,
-	workspace,
-	desktopApps,
-	onLaunchDesktopApp,
 }) => {
 	if (status === "connecting") {
 		return (
@@ -255,17 +195,14 @@ export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
 	return (
 		<div className="flex h-full w-full flex-col">
 			<DesktopToolbar
-				agent={agent}
-				workspace={workspace}
 				scaleMode={scaleMode}
 				onScaleModeChange={onScaleModeChange}
 				isControlling={isControlling}
 				onTakeControl={onTakeControl}
 				onReleaseControl={onReleaseControl}
 				onPopOut={onPopOut}
-				desktopApps={desktopApps}
-				onLaunchDesktopApp={onLaunchDesktopApp}
 			/>
+
 			<div className="min-h-0 flex-1 overflow-hidden">
 				<div
 					ref={(el) => {

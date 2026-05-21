@@ -1,12 +1,7 @@
 import { useEffect, useState } from "react";
-
-import { useQuery } from "react-query";
 import { useParams } from "react-router";
-import { chat } from "#/api/queries/chats";
-import { workspaceById } from "#/api/queries/workspaces";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { getWorkspaceAgent } from "./components/ChatConversation/chatHelpers";
 import { DesktopToolbar } from "./components/RightPanel/DesktopToolbar";
 import { useDesktopConnection } from "./hooks/useDesktopConnection";
 
@@ -18,15 +13,6 @@ export default function DesktopPopoutPage() {
 	const { agentId } = useParams() as { agentId: string };
 	const [scaleMode, setScaleMode] = useState<ScaleMode>("native");
 	const [isControlling, setIsControlling] = useState(false);
-
-	const chatQuery = useQuery(chat(agentId));
-	const workspaceId = chatQuery.data?.workspace_id;
-	const workspaceQuery = useQuery({
-		...workspaceById(workspaceId ?? ""),
-		enabled: Boolean(workspaceId),
-	});
-	const workspace = workspaceQuery.data;
-	const workspaceAgent = getWorkspaceAgent(workspace, undefined);
 
 	const { status, reconnect, attach } = useDesktopConnection({
 		chatId: agentId,
@@ -118,8 +104,6 @@ export default function DesktopPopoutPage() {
 	return (
 		<div className="flex h-screen w-screen flex-col overflow-hidden bg-black">
 			<DesktopToolbar
-				agent={workspaceAgent}
-				workspace={workspace}
 				scaleMode={scaleMode}
 				onScaleModeChange={setScaleMode}
 				isControlling={isControlling}
