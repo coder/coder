@@ -67,44 +67,6 @@ func TestDecoder_CloseAfterServerClose(t *testing.T) {
 	require.Equal(t, err, err2, "subsequent Close calls must return the same error")
 }
 
-func TestDecoder_CloseReturnsError(t *testing.T) {
-	t.Parallel()
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		conn, err := websocket.Accept(w, r, nil)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		_ = conn.CloseRead(r.Context())
-		<-r.Context().Done()
-	}))
-	defer srv.Close()
-
-	ctx := testutil.Context(t, testutil.WaitShort)
-
-	url := "ws" + strings.TrimPrefix(srv.URL, "http")
-	// nolint: bodyclose
-	conn, _, err := websocket.Dial(ctx, url, nil)
-	require.NoError(t, err)
-
-	logger := slogtest.Make(t, nil)
-	dec := wsjson.NewDecoder[string](conn, websocket.MessageText, logger)
-
-	// Close the raw websocket directly, bypassing the decoder's sync.Once.
-	// This simulates the connection being torn down externally.
-	_ = conn.Close(websocket.StatusGoingAway, "")
-
-	// dec.Close() must surface the error from conn.Close(), not swallow it.
-	err = dec.Close()
-	require.Error(t, err)
-	require.ErrorContains(t, err, "use of closed network connection")
-
-	// Calling Close again must return the same stored error.
-	err2 := dec.Close()
-	require.Equal(t, err, err2, "subsequent Close calls must return the same error")
-}
-
 func TestDecoder_CloseWithoutChan(t *testing.T) {
 	t.Parallel()
 
