@@ -2,10 +2,12 @@ CREATE TABLE ai_gateway_coderd_keys (
     id uuid PRIMARY KEY,
     created_at timestamptz NOT NULL,
     name varchar(64) NOT NULL,
-    secret_prefix varchar(11) NOT NULL CHECK (length(secret_prefix) = 11),
+    secret_prefix varchar(11) NOT NULL,
     hashed_secret bytea NOT NULL,
     last_used_at timestamptz NULL,
-    CONSTRAINT ai_gateway_coderd_keys_name_check CHECK (name ~ '^[a-z0-9]+(-[a-z0-9]+)*$')
+    CONSTRAINT ai_gateway_coderd_keys_name_check CHECK (name ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
+    CONSTRAINT ai_gateway_coderd_keys_secret_prefix_check CHECK (length(secret_prefix) = 11),
+    CONSTRAINT ai_gateway_coderd_keys_hashed_secret_check CHECK (length(hashed_secret) > 0)
 );
 
 COMMENT ON TABLE ai_gateway_coderd_keys IS 'Hashed bearer secrets used by AI Gateway standalone replicas to authenticate into coderd.';
