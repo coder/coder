@@ -4498,11 +4498,13 @@ type APIKey struct {
 	AllowList       AllowList    `db:"allow_list" json:"allow_list"`
 }
 
+// Hashed bearer secrets used by AI Gateway standalone replicas to authenticate into coderd.
 type AiGatewayCoderdKey struct {
-	ID           uuid.UUID    `db:"id" json:"id"`
-	CreatedAt    time.Time    `db:"created_at" json:"created_at"`
-	Name         string       `db:"name" json:"name"`
-	KeyPrefix    string       `db:"key_prefix" json:"key_prefix"`
+	ID        uuid.UUID `db:"id" json:"id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	Name      string    `db:"name" json:"name"`
+	// Public token prefix for display and audit correlation. Auth uses hashed_secret.
+	SecretPrefix string       `db:"secret_prefix" json:"secret_prefix"`
 	HashedSecret []byte       `db:"hashed_secret" json:"hashed_secret"`
 	LastUsedAt   sql.NullTime `db:"last_used_at" json:"last_used_at"`
 }

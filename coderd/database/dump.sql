@@ -1292,6 +1292,20 @@ BEGIN
 END;
 $$;
 
+CREATE TABLE ai_gateway_coderd_keys (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    name character varying(64) NOT NULL,
+    secret_prefix character varying(11) NOT NULL,
+    hashed_secret bytea NOT NULL,
+    last_used_at timestamp with time zone,
+    CONSTRAINT ai_gateway_coderd_keys_secret_prefix_check CHECK ((length((secret_prefix)::text) = 11))
+);
+
+COMMENT ON TABLE ai_gateway_coderd_keys IS 'Hashed bearer secrets used by AI Gateway standalone replicas to authenticate into coderd.';
+
+COMMENT ON COLUMN ai_gateway_coderd_keys.secret_prefix IS 'Public token prefix for display and audit correlation. Auth uses hashed_secret.';
+
 CREATE TABLE ai_model_prices (
     provider text NOT NULL,
     model text NOT NULL,
@@ -1356,15 +1370,6 @@ CREATE TABLE ai_seat_state (
     last_event_type ai_seat_usage_reason NOT NULL,
     last_event_description text NOT NULL,
     updated_at timestamp with time zone NOT NULL
-);
-
-CREATE TABLE ai_gateway_coderd_keys (
-    id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    name character varying(64) NOT NULL,
-    key_prefix character varying(10) NOT NULL,
-    hashed_secret bytea NOT NULL,
-    last_used_at timestamp with time zone
 );
 
 CREATE TABLE aibridge_interceptions (
@@ -3777,6 +3782,9 @@ ALTER TABLE ONLY workspace_resource_metadata ALTER COLUMN id SET DEFAULT nextval
 ALTER TABLE ONLY workspace_agent_stats
     ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY ai_gateway_coderd_keys
+    ADD CONSTRAINT ai_gateway_coderd_keys_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY ai_model_prices
     ADD CONSTRAINT ai_model_prices_pkey PRIMARY KEY (provider, model);
 
@@ -3788,9 +3796,6 @@ ALTER TABLE ONLY ai_providers
 
 ALTER TABLE ONLY ai_seat_state
     ADD CONSTRAINT ai_seat_state_pkey PRIMARY KEY (user_id);
-
-ALTER TABLE ONLY ai_gateway_coderd_keys
-    ADD CONSTRAINT ai_gateway_coderd_keys_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY aibridge_interceptions
     ADD CONSTRAINT aibridge_interceptions_pkey PRIMARY KEY (id);
@@ -4164,9 +4169,13 @@ ALTER TABLE ONLY workspace_resources
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_pkey PRIMARY KEY (id);
 
-CREATE UNIQUE INDEX ai_providers_name_unique ON ai_providers USING btree (name) WHERE (deleted = false);
+CREATE UNIQUE INDEX ai_gateway_coderd_keys_hashed_secret_idx ON ai_gateway_coderd_keys USING btree (hashed_secret);
 
 CREATE UNIQUE INDEX ai_gateway_coderd_keys_name_idx ON ai_gateway_coderd_keys USING btree (lower((name)::text));
+
+CREATE UNIQUE INDEX ai_gateway_coderd_keys_secret_prefix_idx ON ai_gateway_coderd_keys USING btree (secret_prefix);
+
+CREATE UNIQUE INDEX ai_providers_name_unique ON ai_providers USING btree (name) WHERE (deleted = false);
 
 CREATE INDEX api_keys_last_used_idx ON api_keys USING btree (last_used DESC);
 

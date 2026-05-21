@@ -404,7 +404,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 	&database.AiGatewayCoderdKey{}: {
 		"id":            ActionTrack,
 		"name":          ActionTrack,
-		"key_prefix":    ActionTrack,
+		"secret_prefix": ActionTrack,
 		"hashed_secret": ActionSecret, // Bearer token hash, never expose.
 		"created_at":    ActionIgnore, // Implicit; not useful in a diff.
 		"last_used_at":  ActionIgnore, // Bumped on every use.
