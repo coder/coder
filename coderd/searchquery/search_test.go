@@ -1499,32 +1499,6 @@ func TestSearchChats(t *testing.T) {
 			},
 		},
 		{
-			Name:  "ArchivesOn",
-			Query: "archives_on:2025-06-15",
-			Expected: database.GetChatsParams{
-				Archived:               sql.NullBool{Bool: false, Valid: true},
-				ArchivesOnActivityDate: sql.NullTime{Time: time.Date(2025, 6, 15, 0, 0, 0, 0, time.UTC), Valid: true},
-			},
-		},
-		{
-			Name:                  "ArchivesOnInvalidDate",
-			Query:                 "archives_on:not-a-date",
-			ExpectedErrorContains: "archives_on",
-		},
-		{
-			Name:                  "ArchivesOnWithArchivedTrue",
-			Query:                 "archives_on:2025-06-15 archived:true",
-			ExpectedErrorContains: "cannot combine archives_on with archived:true",
-		},
-		{
-			Name:  "ArchivesOnWithArchivedFalse",
-			Query: "archives_on:2025-06-15 archived:false",
-			Expected: database.GetChatsParams{
-				Archived:               sql.NullBool{Bool: false, Valid: true},
-				ArchivesOnActivityDate: sql.NullTime{Time: time.Date(2025, 6, 15, 0, 0, 0, 0, time.UTC), Valid: true},
-			},
-		},
-		{
 			Name:  "CombinedNewFilters",
 			Query: "pr:99 repo:coder/coder pr_title:deploy",
 			Expected: database.GetChatsParams{

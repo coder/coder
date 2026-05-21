@@ -6,13 +6,16 @@ are rejected; use `title:` for title filtering.
 
 ## Filters
 
-| Key          | Values                              | Description                                                |
-|--------------|-------------------------------------|------------------------------------------------------------|
-| `title`      | substring                           | Case-insensitive substring match. Quote multi-word values. |
-| `archived`   | `true`, `false`                     | Filter by archived state. Default: `false`.                |
-| `has_unread` | `true`, `false`                     | Conversations with unread assistant messages.              |
-| `pr_status`  | `draft`, `open`, `merged`, `closed` | Linked pull request state. Comma-separated for OR.         |
-| `diff_url`   | URL                                 | Match by associated diff URL. Quote the value.             |
+| Key          | Values                              | Description                                                       |
+|--------------|-------------------------------------|-------------------------------------------------------------------|
+| `title`      | substring                           | Case-insensitive substring match. Quote multi-word values.        |
+| `archived`   | `true`, `false`                     | Filter by archived state. Default: `false`.                       |
+| `has_unread` | `true`, `false`                     | Conversations with unread assistant messages.                     |
+| `pr_status`  | `draft`, `open`, `merged`, `closed` | Linked pull request state. Comma-separated for OR.                |
+| `diff_url`   | URL                                 | Match by associated diff URL. Quote the value.                    |
+| `pr`         | positive integer                    | Exact PR number match.                                            |
+| `repo`       | substring                           | Substring match against git remote origin or URL.                 |
+| `pr_title`   | substring                           | Case-insensitive PR title substring match. Quote multi-word values. |
 
 Multiple filters in one query combine with AND logic.
 
@@ -33,12 +36,21 @@ Multiple filters in one query combine with AND logic.
 
 # Combine filters
 ?q=title:refactor+has_unread:true+pr_status:merged
+
+# Conversations linked to PR #42
+?q=pr:42
+
+# Conversations for a specific repository
+?q=repo:coder/coder
+
+# Conversations with a specific PR title
+?q=pr_title:"fix auth bug"
 ```
 
 ## Notes
 
-- `title:` uses ILIKE matching. `%` and `_` act as wildcards.
+- `title:`, `repo:`, and `pr_title:` use ILIKE matching. `%` and `_` act as wildcards.
 - `pr_status:draft` means the PR is open **and** marked as a draft.
   `pr_status:open` means the PR is open and not a draft.
-- Conversations without a linked PR are excluded when `pr_status` is set.
+- Conversations without a linked PR are excluded when `pr_status`, `pr`, `repo`, or `pr_title` is set.
 - Unrecognized keys or bare terms return HTTP 400 with a validation error.

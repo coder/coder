@@ -781,7 +781,6 @@ func (q *sqlQuerier) GetAuthorizedChats(ctx context.Context, arg GetChatsParams,
 		arg.PrNumber,
 		arg.RepoQuery,
 		arg.PrTitleQuery,
-		arg.ArchivesOnActivityDate,
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)
