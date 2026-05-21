@@ -61,7 +61,7 @@ export const AgentSSHButton: FC<AgentSSHButtonProps> = ({
 				</ol>
 
 				<HelpPopoverLinksGroup>
-					<HelpPopoverLink href={docs("/install")}>
+					<HelpPopoverLink href="/install">
 						Install Coder CLI
 					</HelpPopoverLink>
 					<HelpPopoverLink href={docs("/user-guides/workspace-access/vscode")}>
