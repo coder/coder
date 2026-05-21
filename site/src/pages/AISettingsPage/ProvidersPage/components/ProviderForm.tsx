@@ -253,6 +253,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 				: "",
 		},
 		validationSchema: getProviderFormSchema(editing),
+		validateOnMount: true,
 		onSubmit: onSubmit ?? (() => {}),
 	});
 	const getFieldHelpers = getFormHelpers(form, submitError);
@@ -386,7 +387,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 							Cancel
 						</Button>
 					</Link>
-					<Button disabled={isLoading} type="submit">
+					<Button disabled={isLoading || !form.dirty || !form.isValid} type="submit">
 						<Spinner loading={isLoading} />
 						{editing ? "Update provider" : "Add provider"}
 					</Button>
