@@ -5,10 +5,10 @@ lockfile = true
 # machines (the source of platform-asymmetric drift). Maintainers
 # refresh the lockfile with `mise lock --platform <list>`.
 locked = true
-# Pin the explicit set of platforms the lockfile tracks. Without this,
-# mise auto-locks "all common platforms plus the current one", which
-# varies per developer (e.g. macos-x64-baseline gets added by an x64
-# Mac user) and produces churn.
+# Pin the platforms the team develops on. Without this, mise auto-locks
+# "all common platforms plus the current one", so the lockfile grows
+# entries for whichever platform the most recent installer happened to
+# be on. Keep this list to platforms the team actually uses.
 lockfile_platforms = [
   "linux-x64",
   "macos-arm64",
