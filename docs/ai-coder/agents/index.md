@@ -125,6 +125,21 @@ are queued and delivered when the agent completes its current step, so there is
 no need to wait for a response before providing additional context or changing
 direction.
 
+### Chat sharing
+
+Users with chat share permission can share root chats with other users or
+groups from the chat top bar. Click **Share chat**, add a user or group, and
+Coder grants **Read** access to that conversation.
+
+Shared users can open the chat from a direct link, view messages, stream live
+updates, and download chat attachments. Shared chats do not appear in the
+recipient's normal chat list. Read-only users cannot continue the chat,
+edit messages, archive it, regenerate its title, or change sharing. Sub-agent
+child chats inherit sharing from the root chat and are not shared separately.
+
+Administrators can disable chat sharing with `--disable-chat-sharing`,
+`CODER_DISABLE_CHAT_SHARING`, or `disableChatSharing`.
+
 ### Image attachments
 
 Users can attach images to chat messages by pasting from the clipboard, dragging
