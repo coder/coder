@@ -248,7 +248,7 @@ export function useDesktopConnection({
 				// so the letterbox margins match the app surface color
 				// in both light and dark themes.
 				const surfaceHsl = getComputedStyle(document.documentElement)
-					.getPropertyValue("--surface-primary")
+					.getPropertyValue("--surface-secondary")
 					.trim();
 				if (surfaceHsl) {
 					rfb.background = `hsl(${surfaceHsl})`;
