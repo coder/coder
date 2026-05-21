@@ -110,7 +110,7 @@ const UpdateProviderPageView: React.FC = () => {
 					<p className="text-content-secondary">
 						{getErrorMessage(providerQuery.error, "Failed to load provider.")}
 					</p>
-					<Link to={BACK_HREF}>
+					<Link to={BACK_HREF} className="-ml-3">
 						<Button variant="subtle">
 							<ArrowLeftIcon />
 							<span>Back to providers</span>
@@ -136,7 +136,7 @@ const UpdateProviderPageView: React.FC = () => {
 		<>
 			{title}
 			<div className="flex justify-between items-center">
-				<Link to={BACK_HREF}>
+				<Link to={BACK_HREF} className="-ml-3">
 					<Button variant="subtle">
 						<ArrowLeftIcon />
 						<span>Back to providers</span>

@@ -25,7 +25,7 @@ const AddProviderPageView: React.FC<AddProviderPageViewProps> = ({
 
 	return (
 		<>
-			<Link to="/ai/settings">
+			<Link to="/ai/settings" className="-ml-3">
 				<Button variant="subtle">
 					<ArrowLeftIcon />
 					<span>Back to providers</span>
