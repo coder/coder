@@ -104,6 +104,18 @@ func (r *Runner) RunReturningWorkspace(ctx context.Context, id string, logs io.W
 	return SlimWorkspace{ID: workspace.ID, Name: workspace.Name}, nil
 }
 
+// Run implements harness.Runnable by discarding the created workspace value.
+func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
+	_, err := r.RunReturningWorkspace(ctx, id, logs)
+	return err
+}
+
+// WorkspaceID returns the workspace created by Run or RunReturningWorkspace.
+// It returns uuid.Nil before either method has completed successfully.
+func (r *Runner) WorkspaceID() uuid.UUID {
+	return r.workspaceID
+}
+
 // CleanupRunner is a runner that deletes a workspace in the Run phase.
 type CleanupRunner struct {
 	client      *codersdk.Client
