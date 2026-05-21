@@ -48,7 +48,7 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 		Use:   "chat",
 		Short: "Run a chat scale test against the Coder API",
 		Long:  "Creates chats-per-workspace concurrent chats against each selected workspace. Use --workspace-id to target one existing workspace or --template with --workspace-count to pre-create workspaces before the chat storm begins. --chats-per-workspace must be at least 1.",
-		Handler: func(inv *serpent.Invocation) (runErr error) {
+		Handler: func(inv *serpent.Invocation) error {
 			baseCtx := inv.Context()
 			ctx, stop := inv.SignalNotifyContext(baseCtx, StopSignals...)
 			defer stop()
@@ -197,36 +197,7 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 				tracer = tracerProvider.Tracer(scaletestTracerName)
 			}
 
-			// Register cleanup before provisioning resources.
-			var (
-				workspaceHarness *harness.TestHarness
-				chatHarness      *harness.TestHarness
-			)
-			defer func() {
-				if chatHarness == nil && workspaceHarness == nil {
-					return
-				}
-
-				cleanupCtx, cleanupCancel := cleanupStrategy.toContext(context.Background())
-				defer cleanupCancel()
-
-				var cleanupErr error
-				if chatHarness != nil {
-					_, _ = fmt.Fprintln(inv.Stderr, "Cleaning up (archiving chats)...")
-					if err := chatHarness.Cleanup(cleanupCtx); err != nil {
-						cleanupErr = errors.Join(cleanupErr, xerrors.Errorf("cleanup chats: %w", err))
-					}
-				}
-				if workspaceHarness != nil {
-					_, _ = fmt.Fprintln(inv.Stderr, "Cleaning up created workspaces...")
-					if err := workspaceHarness.Cleanup(cleanupCtx); err != nil {
-						cleanupErr = errors.Join(cleanupErr, xerrors.Errorf("cleanup workspaces: %w", err))
-					}
-				}
-				if cleanupErr != nil {
-					runErr = errors.Join(runErr, cleanupErr)
-				}
-			}()
+			var workspaceHarness *harness.TestHarness
 
 			// Provision template workspaces before the chat storm starts.
 			if workspaceBuildConfig != nil {
@@ -280,10 +251,6 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 				startTurnsChan = make(chan struct{})
 			}
 
-			// Validate all chat configs before constructing the harness so
-			// that validation failures (for example, an empty --prompt) return
-			// cleanly instead of triggering the deferred cleanup against a
-			// harness whose Run never started.
 			type chatRunConfig struct {
 				workspaceIndex int
 				chatIndex      int64
@@ -323,7 +290,7 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 				}
 			}
 
-			chatHarness = harness.NewTestHarness(
+			chatHarness := harness.NewTestHarness(
 				timeoutStrategy.wrapStrategy(harness.ConcurrentExecutionStrategy{}),
 				cleanupStrategy.toStrategy(),
 			)
@@ -400,6 +367,20 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 					return xerrors.Errorf("write output %q to %q: %w", o.format, o.path, err)
 				}
 			}
+
+			cleanupCtx, cleanupCancel := cleanupStrategy.toContext(context.Background())
+			defer cleanupCancel()
+			_, _ = fmt.Fprintln(inv.Stderr, "Cleaning up (archiving chats)...")
+			if err := chatHarness.Cleanup(cleanupCtx); err != nil {
+				return xerrors.Errorf("cleanup chats: %w", err)
+			}
+			if workspaceHarness != nil {
+				_, _ = fmt.Fprintln(inv.Stderr, "Cleaning up created workspaces...")
+				if err := workspaceHarness.Cleanup(cleanupCtx); err != nil {
+					return xerrors.Errorf("cleanup workspaces: %w", err)
+				}
+			}
+
 			if results.TotalFail > 0 {
 				return xerrors.Errorf("scale test failed: %d/%d runs failed", results.TotalFail, results.TotalRuns)
 			}
