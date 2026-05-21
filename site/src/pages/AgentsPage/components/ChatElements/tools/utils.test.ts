@@ -10,6 +10,7 @@ import {
 	formatModelIntentLabel,
 	formatResultOutput,
 	formatShellDurationMs,
+	formatToolInput,
 	getDiffViewerOptions,
 	getFileContentForViewer,
 	getFileViewerOptions,
@@ -303,6 +304,49 @@ describe("parseArgs", () => {
 
 	it("returns null for arrays", () => {
 		expect(parseArgs([1, 2, 3])).toBeNull();
+	});
+});
+
+describe("formatToolInput", () => {
+	it("returns null for null, undefined, and empty inputs", () => {
+		expect(formatToolInput(null)).toBeNull();
+		expect(formatToolInput(undefined)).toBeNull();
+		expect(formatToolInput("")).toBeNull();
+		expect(formatToolInput({})).toBeNull();
+		expect(formatToolInput([])).toBeNull();
+		expect(formatToolInput("{}")).toBeNull();
+		expect(formatToolInput("[]")).toBeNull();
+	});
+
+	it("formats object input as pretty JSON", () => {
+		expect(formatToolInput({ project: "backend", limit: 2 })).toBe(
+			JSON.stringify({ project: "backend", limit: 2 }, null, 2),
+		);
+	});
+
+	it("formats JSON string input as pretty JSON", () => {
+		expect(formatToolInput('{"project":"backend","limit":2}')).toBe(
+			JSON.stringify({ project: "backend", limit: 2 }, null, 2),
+		);
+	});
+
+	it("unwraps model intent input wrappers", () => {
+		expect(
+			formatToolInput({
+				model_intent: "Reading backend issues",
+				properties: { project: "backend" },
+			}),
+		).toBe(JSON.stringify({ project: "backend" }, null, 2));
+		expect(
+			formatToolInput({
+				model_intent: "Reading backend issues",
+				project: "backend",
+			}),
+		).toBe(JSON.stringify({ project: "backend" }, null, 2));
+	});
+
+	it("preserves non-JSON string input", () => {
+		expect(formatToolInput("search text")).toBe("search text");
 	});
 });
 

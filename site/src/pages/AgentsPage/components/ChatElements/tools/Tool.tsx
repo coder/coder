@@ -51,6 +51,7 @@ import {
 	DIFFS_FONT_STYLE,
 	formatModelIntentLabel,
 	formatResultOutput,
+	formatToolInput,
 	getFileContentForViewer,
 	getFileViewerOptions,
 	getFileViewerOptionsNoHeader,
@@ -834,6 +835,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 }) => {
 	const theme = useTheme();
 	const isDark = theme.palette.mode === "dark";
+	const toolInput = formatToolInput(args);
 	const resultOutput = formatResultOutput(result);
 	const fileContent = getFileContentForViewer(name, args, result);
 	const fileViewerOpts = getFileViewerOptions(isDark);
@@ -850,7 +852,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 		? mcpServers?.find((s) => s.id === mcpServerConfigId)
 		: undefined;
 
-	const hasContent = Boolean(fileContent || resultOutput);
+	const hasContent = Boolean(toolInput || fileContent || resultOutput);
 	const isRunning = status === "running";
 	const rec = asRecord(result);
 	const errorMessage = rec ? asString(rec.error || rec.message) : "";
@@ -892,23 +894,11 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 
 	const toolContent = (
 		<>
-			{fileContent ? (
-				<ScrollArea
-					className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
-					viewportClassName="max-h-64"
-					scrollBarClassName="w-1.5"
-				>
-					<FileViewer
-						file={{
-							name: fileContent.path,
-							contents: fileContent.content,
-						}}
-						options={fileContentOptions}
-						style={DIFFS_FONT_STYLE}
-					/>
-				</ScrollArea>
-			) : (
-				resultOutput && (
+			{toolInput && (
+				<>
+					<div className="mt-2 text-2xs font-medium text-content-secondary">
+						Input
+					</div>
 					<ScrollArea
 						className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
 						viewportClassName="max-h-64"
@@ -916,13 +906,60 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 					>
 						<FileViewer
 							file={{
-								name: "output.json",
-								contents: resultOutput,
+								name: "input.json",
+								contents: toolInput,
 							}}
 							options={getFileViewerOptionsNoHeader(isDark)}
 							style={DIFFS_FONT_STYLE}
 						/>
 					</ScrollArea>
+				</>
+			)}
+			{fileContent ? (
+				<>
+					{toolInput && (
+						<div className="mt-2 text-2xs font-medium text-content-secondary">
+							Output
+						</div>
+					)}
+					<ScrollArea
+						className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
+						viewportClassName="max-h-64"
+						scrollBarClassName="w-1.5"
+					>
+						<FileViewer
+							file={{
+								name: fileContent.path,
+								contents: fileContent.content,
+							}}
+							options={fileContentOptions}
+							style={DIFFS_FONT_STYLE}
+						/>
+					</ScrollArea>
+				</>
+			) : (
+				resultOutput && (
+					<>
+						{toolInput && (
+							<div className="mt-2 text-2xs font-medium text-content-secondary">
+								Output
+							</div>
+						)}
+						<ScrollArea
+							className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
+							viewportClassName="max-h-64"
+							scrollBarClassName="w-1.5"
+						>
+							<FileViewer
+								file={{
+									name: "output.json",
+									contents: resultOutput,
+								}}
+								options={getFileViewerOptionsNoHeader(isDark)}
+								style={DIFFS_FONT_STYLE}
+							/>
+						</ScrollArea>
+					</>
 				)
 			)}
 		</>

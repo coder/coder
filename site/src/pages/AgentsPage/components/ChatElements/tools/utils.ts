@@ -217,6 +217,53 @@ export const parseArgs = (args: unknown): Record<string, unknown> | null => {
 	return asRecord(args);
 };
 
+const getToolInputPayload = (args: unknown): unknown => {
+	const rec = asRecord(args);
+	if (!rec || typeof rec.model_intent !== "string") {
+		return args;
+	}
+	if ("properties" in rec) {
+		return rec.properties;
+	}
+	return Object.fromEntries(
+		Object.entries(rec).filter(([key]) => key !== "model_intent"),
+	);
+};
+
+export const formatToolInput = (args: unknown): string | null => {
+	const input = getToolInputPayload(args);
+	if (input === undefined || input === null) {
+		return null;
+	}
+	if (typeof input === "string") {
+		const trimmed = input.trim();
+		if (!trimmed) {
+			return null;
+		}
+		try {
+			return formatToolInput(JSON.parse(trimmed));
+		} catch {
+			return trimmed;
+		}
+	}
+	if (Array.isArray(input) && input.length === 0) {
+		return null;
+	}
+	const rec = asRecord(input);
+	if (rec && Object.keys(rec).length === 0) {
+		return null;
+	}
+	if (typeof input === "object") {
+		try {
+			const formatted = JSON.stringify(input, null, 2);
+			return formatted === "{}" || formatted === "[]" ? null : formatted;
+		} catch {
+			return String(input);
+		}
+	}
+	return String(input);
+};
+
 export const formatResultOutput = (result: unknown): string | null => {
 	if (result === undefined || result === null) {
 		return null;
