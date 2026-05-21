@@ -260,6 +260,8 @@ sql:
           ai_provider: AIProvider
           ai_provider_key: AIProviderKey
           ai_provider_type: AIProviderType
+          resource_type_ai_provider: ResourceTypeAIProvider
+          resource_type_ai_provider_key: ResourceTypeAIProviderKey
           mcp_server_config: MCPServerConfig
           mcp_server_configs: MCPServerConfigs
           mcp_server_user_token: MCPServerUserToken

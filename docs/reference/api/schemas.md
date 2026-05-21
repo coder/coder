@@ -484,27 +484,27 @@
 
 ### Properties
 
-| Name                                | Type                                                                 | Required | Restrictions | Description                                                                                                                                                                 |
-|-------------------------------------|----------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `allow_byok`                        | boolean                                                              | false    |              |                                                                                                                                                                             |
-| `anthropic`                         | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig) | false    |              | Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.                                                                                      |
-| `bedrock`                           | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)     | false    |              | Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.                                                                                      |
-| `budget_period`                     | string                                                               | false    |              |                                                                                                                                                                             |
-| `budget_policy`                     | string                                                               | false    |              | Budget settings for AI Governance cost controls.                                                                                                                            |
-| `circuit_breaker_enabled`           | boolean                                                              | false    |              | Circuit breaker protects against cascading failures from upstream AI provider overload (503, 529).                                                                          |
-| `circuit_breaker_failure_threshold` | integer                                                              | false    |              |                                                                                                                                                                             |
-| `circuit_breaker_interval`          | integer                                                              | false    |              |                                                                                                                                                                             |
-| `circuit_breaker_max_requests`      | integer                                                              | false    |              |                                                                                                                                                                             |
-| `circuit_breaker_timeout`           | integer                                                              | false    |              |                                                                                                                                                                             |
-| `enabled`                           | boolean                                                              | false    |              |                                                                                                                                                                             |
-| `inject_coder_mcp_tools`            | boolean                                                              | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                                |
-| `max_concurrency`                   | integer                                                              | false    |              |                                                                                                                                                                             |
-| `openai`                            | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              | Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.                                                                                      |
-| `providers`                         | array of [codersdk.AIProviderConfig](#codersdkaiproviderconfig)      | false    |              | Providers holds provider instances populated from CODER_AIBRIDGE_PROVIDER_<N>_<KEY> env vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above. |
-| `rate_limit`                        | integer                                                              | false    |              |                                                                                                                                                                             |
-| `retention`                         | integer                                                              | false    |              |                                                                                                                                                                             |
-| `send_actor_headers`                | boolean                                                              | false    |              |                                                                                                                                                                             |
-| `structured_logging`                | boolean                                                              | false    |              |                                                                                                                                                                             |
+| Name                                | Type                                                                 | Required | Restrictions | Description                                                                                                                                                                   |
+|-------------------------------------|----------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `allow_byok`                        | boolean                                                              | false    |              |                                                                                                                                                                               |
+| `anthropic`                         | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig) | false    |              | Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.                                                                                      |
+| `bedrock`                           | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)     | false    |              | Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.                                                                                      |
+| `budget_period`                     | string                                                               | false    |              |                                                                                                                                                                               |
+| `budget_policy`                     | string                                                               | false    |              | Budget settings for AI Governance cost controls.                                                                                                                              |
+| `circuit_breaker_enabled`           | boolean                                                              | false    |              | Circuit breaker protects against cascading failures from upstream AI provider overload (503, 529).                                                                            |
+| `circuit_breaker_failure_threshold` | integer                                                              | false    |              |                                                                                                                                                                               |
+| `circuit_breaker_interval`          | integer                                                              | false    |              |                                                                                                                                                                               |
+| `circuit_breaker_max_requests`      | integer                                                              | false    |              |                                                                                                                                                                               |
+| `circuit_breaker_timeout`           | integer                                                              | false    |              |                                                                                                                                                                               |
+| `enabled`                           | boolean                                                              | false    |              |                                                                                                                                                                               |
+| `inject_coder_mcp_tools`            | boolean                                                              | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                                  |
+| `max_concurrency`                   | integer                                                              | false    |              |                                                                                                                                                                               |
+| `openai`                            | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              | Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.                                                                                      |
+| `providers`                         | array of [codersdk.AIProviderConfig](#codersdkaiproviderconfig)      | false    |              | Providers holds provider instances populated from CODER_AI_GATEWAY_PROVIDER_<N>_<KEY> env vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above. |
+| `rate_limit`                        | integer                                                              | false    |              |                                                                                                                                                                               |
+| `retention`                         | integer                                                              | false    |              |                                                                                                                                                                               |
+| `send_actor_headers`                | boolean                                                              | false    |              |                                                                                                                                                                               |
+| `structured_logging`                | boolean                                                              | false    |              |                                                                                                                                                                               |
 
 ## codersdk.AIBridgeInterception
 
@@ -1298,6 +1298,44 @@
 | `bridge`         | [codersdk.AIBridgeConfig](#codersdkaibridgeconfig)           | false    |              |             |
 | `chat`           | [codersdk.ChatConfig](#codersdkchatconfig)                   | false    |              |             |
 
+## codersdk.AIProvider
+
+```json
+{
+  "api_keys": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "masked": "string"
+    }
+  ],
+  "base_url": "string",
+  "created_at": "2019-08-24T14:15:22Z",
+  "display_name": "string",
+  "enabled": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "settings": {},
+  "type": "openai",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name           | Type                                                       | Required | Restrictions | Description |
+|----------------|------------------------------------------------------------|----------|--------------|-------------|
+| `api_keys`     | array of [codersdk.AIProviderKey](#codersdkaiproviderkey)  | false    |              |             |
+| `base_url`     | string                                                     | false    |              |             |
+| `created_at`   | string                                                     | false    |              |             |
+| `display_name` | string                                                     | false    |              |             |
+| `enabled`      | boolean                                                    | false    |              |             |
+| `id`           | string                                                     | false    |              |             |
+| `name`         | string                                                     | false    |              |             |
+| `settings`     | [codersdk.AIProviderSettings](#codersdkaiprovidersettings) | false    |              |             |
+| `type`         | [codersdk.AIProviderType](#codersdkaiprovidertype)         | false    |              |             |
+| `updated_at`   | string                                                     | false    |              |             |
+
 ## codersdk.AIProviderConfig
 
 ```json
@@ -1323,6 +1361,64 @@
 | `dump_dir`                 | string | false    |              | Dump dir is the directory path for dumping API requests and responses.                     |
 | `name`                     | string | false    |              | Name is the unique instance identifier used for routing. Defaults to Type if not provided. |
 | `type`                     | string | false    |              | Type is the provider type: "openai", "anthropic", or "copilot".                            |
+
+## codersdk.AIProviderKey
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "masked": "string"
+}
+```
+
+### Properties
+
+| Name         | Type   | Required | Restrictions | Description |
+|--------------|--------|----------|--------------|-------------|
+| `created_at` | string | false    |              |             |
+| `id`         | string | false    |              |             |
+| `masked`     | string | false    |              |             |
+
+## codersdk.AIProviderKeyMutation
+
+```json
+{
+  "api_key": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+}
+```
+
+### Properties
+
+| Name      | Type   | Required | Restrictions | Description |
+|-----------|--------|----------|--------------|-------------|
+| `api_key` | string | false    |              |             |
+| `id`      | string | false    |              |             |
+
+## codersdk.AIProviderSettings
+
+```json
+{}
+```
+
+### Properties
+
+None
+
+## codersdk.AIProviderType
+
+```json
+"openai"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                                                     |
+|----------------------------------------------------------------------------------------------|
+| `anthropic`, `azure`, `bedrock`, `google`, `openai`, `openai-compat`, `openrouter`, `vercel` |
 
 ## codersdk.APIAllowListTarget
 
@@ -2212,6 +2308,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           },
           "media_type": "string",
           "name": "string",
+          "parsed_commands": [
+            [
+              "string"
+            ]
+          ],
           "provider_executed": true,
           "provider_metadata": [
             0
@@ -2242,6 +2343,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       ],
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+      "owner_name": "string",
+      "owner_username": "string",
       "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
       "pin_order": 0,
       "plan_mode": "plan",
@@ -2338,6 +2441,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       },
       "media_type": "string",
       "name": "string",
+      "parsed_commands": [
+        [
+          "string"
+        ]
+      ],
       "provider_executed": true,
       "provider_metadata": [
         0
@@ -2368,6 +2476,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   ],
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "owner_name": "string",
+  "owner_username": "string",
   "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
   "pin_order": 0,
   "plan_mode": "plan",
@@ -2405,6 +2515,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `mcp_server_ids`        | array of string                                                 | false    |              |                                                                                                                                                                                                                                                                            |
 | `organization_id`       | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `owner_id`              | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `owner_name`            | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `owner_username`        | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `parent_chat_id`        | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `pin_order`             | integer                                                         | false    |              |                                                                                                                                                                                                                                                                            |
 | `plan_mode`             | [codersdk.ChatPlanMode](#codersdkchatplanmode)                  | false    |              |                                                                                                                                                                                                                                                                            |
@@ -2414,6 +2526,60 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `updated_at`            | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `warnings`              | array of string                                                 | false    |              |                                                                                                                                                                                                                                                                            |
 | `workspace_id`          | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+
+## codersdk.ChatACL
+
+```json
+{
+  "groups": [
+    {
+      "avatar_url": "http://example.com",
+      "display_name": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "members": [
+        {
+          "avatar_url": "http://example.com",
+          "created_at": "2019-08-24T14:15:22Z",
+          "email": "user@example.com",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "is_service_account": true,
+          "last_seen_at": "2019-08-24T14:15:22Z",
+          "login_type": "",
+          "name": "string",
+          "status": "active",
+          "theme_preference": "string",
+          "updated_at": "2019-08-24T14:15:22Z",
+          "username": "string"
+        }
+      ],
+      "name": "string",
+      "organization_display_name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "organization_name": "string",
+      "quota_allowance": 0,
+      "role": "read",
+      "source": "user",
+      "total_member_count": 0
+    }
+  ],
+  "users": [
+    {
+      "avatar_url": "http://example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "role": "read",
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name     | Type                                              | Required | Restrictions | Description |
+|----------|---------------------------------------------------|----------|--------------|-------------|
+| `groups` | array of [codersdk.ChatGroup](#codersdkchatgroup) | false    |              |             |
+| `users`  | array of [codersdk.ChatUser](#codersdkchatuser)   | false    |              |             |
 
 ## codersdk.ChatBusyBehavior
 
@@ -2595,6 +2761,63 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `organization_id` | string | false    |              |             |
 | `owner_id`        | string | false    |              |             |
 
+## codersdk.ChatGroup
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "display_name": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "members": [
+    {
+      "avatar_url": "http://example.com",
+      "created_at": "2019-08-24T14:15:22Z",
+      "email": "user@example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_service_account": true,
+      "last_seen_at": "2019-08-24T14:15:22Z",
+      "login_type": "",
+      "name": "string",
+      "status": "active",
+      "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "username": "string"
+    }
+  ],
+  "name": "string",
+  "organization_display_name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organization_name": "string",
+  "quota_allowance": 0,
+  "role": "read",
+  "source": "user",
+  "total_member_count": 0
+}
+```
+
+### Properties
+
+| Name                        | Type                                                  | Required | Restrictions | Description                                                                                                                                                           |
+|-----------------------------|-------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `avatar_url`                | string                                                | false    |              |                                                                                                                                                                       |
+| `display_name`              | string                                                | false    |              |                                                                                                                                                                       |
+| `id`                        | string                                                | false    |              |                                                                                                                                                                       |
+| `members`                   | array of [codersdk.ReducedUser](#codersdkreduceduser) | false    |              |                                                                                                                                                                       |
+| `name`                      | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_display_name` | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_id`           | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_name`         | string                                                | false    |              |                                                                                                                                                                       |
+| `quota_allowance`           | integer                                               | false    |              |                                                                                                                                                                       |
+| `role`                      | [codersdk.ChatRole](#codersdkchatrole)                | false    |              |                                                                                                                                                                       |
+| `source`                    | [codersdk.GroupSource](#codersdkgroupsource)          | false    |              |                                                                                                                                                                       |
+| `total_member_count`        | integer                                               | false    |              | How many members are in this group. Shows the total count, even if the user is not authorized to read group member details. May be greater than `len(Group.Members)`. |
+
+#### Enumerated Values
+
+| Property | Value(s) |
+|----------|----------|
+| `role`   | `read`   |
+
 ## codersdk.ChatInputPart
 
 ```json
@@ -2676,6 +2899,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       },
       "media_type": "string",
       "name": "string",
+      "parsed_commands": [
+        [
+          "string"
+        ]
+      ],
       "provider_executed": true,
       "provider_metadata": [
         0
@@ -2767,6 +2995,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   },
   "media_type": "string",
   "name": "string",
+  "parsed_commands": [
+    [
+      "string"
+    ]
+  ],
   "provider_executed": true,
   "provider_metadata": [
     0
@@ -2816,6 +3049,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `mcp_server_config_id`         | [uuid.NullUUID](#uuidnulluuid)                               | false    |              |                                                                                                                                                                                                                                                                                                                                  |
 | `media_type`                   | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                  |
 | `name`                         | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                  |
+| `parsed_commands`              | array of array                                               | false    |              | Parsed commands holds parsed programs from an execute tool call's shell command, one entry per simple command in source order. Each entry is [program] or [program, arg] where arg is the first non-flag positional argument. Only populated when ToolName is "execute" and the command parses successfully; nil otherwise.      |
 | `provider_executed`            | boolean                                                      | false    |              | Provider executed indicates the tool call was executed by the provider (e.g. Anthropic computer use).                                                                                                                                                                                                                            |
 | `provider_metadata`            | array of integer                                             | false    |              | Provider metadata holds provider-specific response metadata (e.g. Anthropic cache control hints) as raw JSON. Internal only: stripped by db2sdk before API responses.                                                                                                                                                            |
 | `result`                       | array of integer                                             | false    |              |                                                                                                                                                                                                                                                                                                                                  |
@@ -2932,6 +3166,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           },
           "media_type": "string",
           "name": "string",
+          "parsed_commands": [
+            [
+              "string"
+            ]
+          ],
           "provider_executed": true,
           "provider_metadata": [
             0
@@ -3010,6 +3249,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           },
           "media_type": "string",
           "name": "string",
+          "parsed_commands": [
+            [
+              "string"
+            ]
+          ],
           "provider_executed": true,
           "provider_metadata": [
             0
@@ -3228,6 +3472,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       },
       "media_type": "string",
       "name": "string",
+      "parsed_commands": [
+        [
+          "string"
+        ]
+      ],
       "provider_executed": true,
       "provider_metadata": [
         0
@@ -3280,6 +3529,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name             | Type    | Required | Restrictions | Description |
 |------------------|---------|----------|--------------|-------------|
 | `retention_days` | integer | false    |              |             |
+
+## codersdk.ChatRole
+
+```json
+"read"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)   |
+|------------|
+| ``, `read` |
 
 ## codersdk.ChatStatus
 
@@ -3375,6 +3638,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         },
         "media_type": "string",
         "name": "string",
+        "parsed_commands": [
+          [
+            "string"
+          ]
+        ],
         "provider_executed": true,
         "provider_metadata": [
           0
@@ -3449,6 +3717,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       },
       "media_type": "string",
       "name": "string",
+      "parsed_commands": [
+        [
+          "string"
+        ]
+      ],
       "provider_executed": true,
       "provider_metadata": [
         0
@@ -3512,6 +3785,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           },
           "media_type": "string",
           "name": "string",
+          "parsed_commands": [
+            [
+              "string"
+            ]
+          ],
           "provider_executed": true,
           "provider_metadata": [
             0
@@ -3623,6 +3901,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     },
     "media_type": "string",
     "name": "string",
+    "parsed_commands": [
+      [
+        "string"
+      ]
+    ],
     "provider_executed": true,
     "provider_metadata": [
       0
@@ -3713,6 +3996,34 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `args`         | string | false    |              |             |
 | `tool_call_id` | string | false    |              |             |
 | `tool_name`    | string | false    |              |             |
+
+## codersdk.ChatUser
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "role": "read",
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name         | Type                                   | Required | Restrictions | Description |
+|--------------|----------------------------------------|----------|--------------|-------------|
+| `avatar_url` | string                                 | false    |              |             |
+| `id`         | string                                 | true     |              |             |
+| `name`       | string                                 | false    |              |             |
+| `role`       | [codersdk.ChatRole](#codersdkchatrole) | false    |              |             |
+| `username`   | string                                 | true     |              |             |
+
+#### Enumerated Values
+
+| Property | Value(s) |
+|----------|----------|
+| `role`   | `read`   |
 
 ## codersdk.ChatWatchEvent
 
@@ -3808,6 +4119,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         },
         "media_type": "string",
         "name": "string",
+        "parsed_commands": [
+          [
+            "string"
+          ]
+        ],
         "provider_executed": true,
         "provider_metadata": [
           0
@@ -3838,6 +4154,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     ],
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+    "owner_name": "string",
+    "owner_username": "string",
     "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
     "pin_order": 0,
     "plan_mode": "plan",
@@ -4140,6 +4458,34 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `password` | string                                   | true     |              |                                          |
 | `to_type`  | [codersdk.LoginType](#codersdklogintype) | true     |              | To type is the login type to convert to. |
 
+## codersdk.CreateAIProviderRequest
+
+```json
+{
+  "api_keys": [
+    "string"
+  ],
+  "base_url": "string",
+  "display_name": "string",
+  "enabled": true,
+  "name": "string",
+  "settings": {},
+  "type": "openai"
+}
+```
+
+### Properties
+
+| Name           | Type                                                       | Required | Restrictions | Description |
+|----------------|------------------------------------------------------------|----------|--------------|-------------|
+| `api_keys`     | array of string                                            | false    |              |             |
+| `base_url`     | string                                                     | false    |              |             |
+| `display_name` | string                                                     | false    |              |             |
+| `enabled`      | boolean                                                    | false    |              |             |
+| `name`         | string                                                     | false    |              |             |
+| `settings`     | [codersdk.AIProviderSettings](#codersdkaiprovidersettings) | false    |              |             |
+| `type`         | [codersdk.AIProviderType](#codersdkaiprovidertype)         | false    |              |             |
+
 ## codersdk.CreateChatMessageRequest
 
 ```json
@@ -4222,6 +4568,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         },
         "media_type": "string",
         "name": "string",
+        "parsed_commands": [
+          [
+            "string"
+          ]
+        ],
         "provider_executed": true,
         "provider_metadata": [
           0
@@ -4299,6 +4650,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         },
         "media_type": "string",
         "name": "string",
+        "parsed_commands": [
+          [
+            "string"
+          ]
+        ],
         "provider_executed": true,
         "provider_metadata": [
           0
@@ -6541,12 +6897,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name               | Type    | Required | Restrictions | Description                                                                                                                                                                            |
-|--------------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `id`               | integer | false    |              | ID identifies the request for response ordering. Websocket response IDs are monotonically increasing and may exceed the request ID when server-side events trigger additional renders. |
-| `inputs`           | object  | false    |              |                                                                                                                                                                                        |
-| » `[any property]` | string  | false    |              |                                                                                                                                                                                        |
-| `owner_id`         | string  | false    |              | Owner ID if uuid.Nil, it defaults to `codersdk.Me`                                                                                                                                     |
+| Name               | Type    | Required | Restrictions | Description                                                                                                  |
+|--------------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------|
+| `id`               | integer | false    |              | ID identifies the request. The response contains the same ID so that the client can match it to the request. |
+| `inputs`           | object  | false    |              |                                                                                                              |
+| » `[any property]` | string  | false    |              |                                                                                                              |
+| `owner_id`         | string  | false    |              | Owner ID if uuid.Nil, it defaults to `codersdk.Me`                                                           |
 
 ## codersdk.DynamicParametersResponse
 
@@ -6620,26 +6976,17 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "value": "string"
       }
     }
-  ],
-  "secret_requirements": [
-    {
-      "env": "string",
-      "file": "string",
-      "help_message": "string",
-      "satisfied": true
-    }
   ]
 }
 ```
 
 ### Properties
 
-| Name                  | Type                                                                          | Required | Restrictions | Description |
-|-----------------------|-------------------------------------------------------------------------------|----------|--------------|-------------|
-| `diagnostics`         | array of [codersdk.FriendlyDiagnostic](#codersdkfriendlydiagnostic)           | false    |              |             |
-| `id`                  | integer                                                                       | false    |              |             |
-| `parameters`          | array of [codersdk.PreviewParameter](#codersdkpreviewparameter)               | false    |              |             |
-| `secret_requirements` | array of [codersdk.SecretRequirementStatus](#codersdksecretrequirementstatus) | false    |              |             |
+| Name          | Type                                                                | Required | Restrictions | Description |
+|---------------|---------------------------------------------------------------------|----------|--------------|-------------|
+| `diagnostics` | array of [codersdk.FriendlyDiagnostic](#codersdkfriendlydiagnostic) | false    |              |             |
+| `id`          | integer                                                             | false    |              |             |
+| `parameters`  | array of [codersdk.PreviewParameter](#codersdkpreviewparameter)     | false    |              |             |
 
 ## codersdk.DynamicTool
 
@@ -6729,6 +7076,11 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         },
         "media_type": "string",
         "name": "string",
+        "parsed_commands": [
+          [
+            "string"
+          ]
+        ],
         "provider_executed": true,
         "provider_metadata": [
           0
@@ -10713,17 +11065,15 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ```json
 {
-  "parameter_mismatch": true,
-  "secret_mismatch": true
+  "parameter_mismatch": true
 }
 ```
 
 ### Properties
 
-| Name                 | Type    | Required | Restrictions | Description                                                                                                                                      |
-|----------------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
-| `parameter_mismatch` | boolean | false    |              |                                                                                                                                                  |
-| `secret_mismatch`    | boolean | false    |              | Secret mismatch is true when the active template version declares `coder_secret` requirements that the workspace owner's secrets do not satisfy. |
+| Name                 | Type    | Required | Restrictions | Description |
+|----------------------|---------|----------|--------------|-------------|
+| `parameter_mismatch` | boolean | false    |              |             |
 
 ## codersdk.ResourceType
 
@@ -11117,26 +11467,6 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `hostname_suffix`    | string | false    |              | Hostname suffix is the suffix to append to workspace names for SSH hostnames.                                         |
 | `ssh_config_options` | object | false    |              |                                                                                                                       |
 | » `[any property]`   | string | false    |              |                                                                                                                       |
-
-## codersdk.SecretRequirementStatus
-
-```json
-{
-  "env": "string",
-  "file": "string",
-  "help_message": "string",
-  "satisfied": true
-}
-```
-
-### Properties
-
-| Name           | Type    | Required | Restrictions | Description |
-|----------------|---------|----------|--------------|-------------|
-| `env`          | string  | false    |              |             |
-| `file`         | string  | false    |              |             |
-| `help_message` | string  | false    |              |             |
-| `satisfied`    | boolean | false    |              |             |
 
 ## codersdk.ServerSentEvent
 
@@ -12698,6 +13028,33 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `p50` | integer | false    |              |             |
 | `p95` | integer | false    |              |             |
 
+## codersdk.UpdateAIProviderRequest
+
+```json
+{
+  "api_keys": [
+    {
+      "api_key": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+    }
+  ],
+  "base_url": "string",
+  "display_name": "string",
+  "enabled": true,
+  "settings": {}
+}
+```
+
+### Properties
+
+| Name           | Type                                                                      | Required | Restrictions | Description |
+|----------------|---------------------------------------------------------------------------|----------|--------------|-------------|
+| `api_keys`     | array of [codersdk.AIProviderKeyMutation](#codersdkaiproviderkeymutation) | false    |              |             |
+| `base_url`     | string                                                                    | false    |              |             |
+| `display_name` | string                                                                    | false    |              |             |
+| `enabled`      | boolean                                                                   | false    |              |             |
+| `settings`     | [codersdk.AIProviderSettings](#codersdkaiprovidersettings)                | false    |              |             |
+
 ## codersdk.UpdateActiveTemplateVersion
 
 ```json
@@ -12741,6 +13098,30 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `application_name`     | string                                                  | false    |              |                                                                     |
 | `logo_url`             | string                                                  | false    |              |                                                                     |
 | `service_banner`       | [codersdk.BannerConfig](#codersdkbannerconfig)          | false    |              | Deprecated: ServiceBanner has been replaced by AnnouncementBanners. |
+
+## codersdk.UpdateChatACL
+
+```json
+{
+  "group_roles": {
+    "property1": "read",
+    "property2": "read"
+  },
+  "user_roles": {
+    "property1": "read",
+    "property2": "read"
+  }
+}
+```
+
+### Properties
+
+| Name               | Type                                   | Required | Restrictions | Description |
+|--------------------|----------------------------------------|----------|--------------|-------------|
+| `group_roles`      | object                                 | false    |              |             |
+| » `[any property]` | [codersdk.ChatRole](#codersdkchatrole) | false    |              |             |
+| `user_roles`       | object                                 | false    |              |             |
+| » `[any property]` | [codersdk.ChatRole](#codersdkchatrole) | false    |              |             |
 
 ## codersdk.UpdateChatRequest
 
@@ -18279,6 +18660,101 @@ None
 | `derp_map`                   | [tailcfg.DERPMap](#tailcfgderpmap) | false    |              |             |
 | `disable_direct_connections` | boolean                            | false    |              |             |
 | `hostname_suffix`            | string                             | false    |              |             |
+
+## workspacesdk.AgentUpdate
+
+```json
+{
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "lifecycle": "created"
+}
+```
+
+### Properties
+
+| Name        | Type                                                                 | Required | Restrictions | Description |
+|-------------|----------------------------------------------------------------------|----------|--------------|-------------|
+| `id`        | string                                                               | false    |              |             |
+| `lifecycle` | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle) | false    |              |             |
+
+## workspacesdk.BuildUpdate
+
+```json
+{
+  "job_status": "pending",
+  "transition": "start"
+}
+```
+
+### Properties
+
+| Name         | Type                                                           | Required | Restrictions | Description |
+|--------------|----------------------------------------------------------------|----------|--------------|-------------|
+| `job_status` | [codersdk.ProvisionerJobStatus](#codersdkprovisionerjobstatus) | false    |              |             |
+| `transition` | [codersdk.WorkspaceTransition](#codersdkworkspacetransition)   | false    |              |             |
+
+## workspacesdk.ConnectionWatchEvent
+
+```json
+{
+  "agent_update": {
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "lifecycle": "created"
+  },
+  "build_update": {
+    "job_status": "pending",
+    "transition": "start"
+  },
+  "error": {
+    "code": 0,
+    "details": "string",
+    "message": "string",
+    "retryable": true
+  }
+}
+```
+
+### Properties
+
+| Name           | Type                                                 | Required | Restrictions | Description |
+|----------------|------------------------------------------------------|----------|--------------|-------------|
+| `agent_update` | [workspacesdk.AgentUpdate](#workspacesdkagentupdate) | false    |              |             |
+| `build_update` | [workspacesdk.BuildUpdate](#workspacesdkbuildupdate) | false    |              |             |
+| `error`        | [workspacesdk.WatchError](#workspacesdkwatcherror)   | false    |              |             |
+
+## workspacesdk.WatchError
+
+```json
+{
+  "code": 0,
+  "details": "string",
+  "message": "string",
+  "retryable": true
+}
+```
+
+### Properties
+
+| Name        | Type                                                       | Required | Restrictions | Description |
+|-------------|------------------------------------------------------------|----------|--------------|-------------|
+| `code`      | [workspacesdk.WatchErrorCode](#workspacesdkwatcherrorcode) | false    |              |             |
+| `details`   | string                                                     | false    |              |             |
+| `message`   | string                                                     | false    |              |             |
+| `retryable` | boolean                                                    | false    |              |             |
+
+## workspacesdk.WatchErrorCode
+
+```json
+0
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                          |
+|-----------------------------------|
+| `0`, `1`, `2`, `3`, `4`, `5`, `6` |
 
 ## wsproxysdk.CryptoKeysResponse
 

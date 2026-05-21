@@ -6,11 +6,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 )
+
+// AIProviderNameRegex mirrors the CHECK constraint on ai_providers.name.
+// Provider names are lowercase alphanumeric with hyphen separators so
+// they are safe in URLs.
+var AIProviderNameRegex = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
 // AIProviderType identifies the protocol Coder uses to communicate
 // with an upstream AI provider.
@@ -147,8 +155,9 @@ func marshalSettings(s settingsTyped) ([]byte, error) {
 }
 
 // AIProvider represents an AI provider configuration row as returned
-// by the API. API keys are stored in a separate ai_provider_keys
-// table and managed via the keys sub-endpoints; secret fields on
+// by the API. Each APIKey entry carries the row's ID so callers can
+// reference it in an UpdateAIProviderRequest; the plaintext value is
+// never echoed back (see AIProviderKey.Masked). Secret fields on
 // Settings are never included in responses.
 type AIProvider struct {
 	ID          uuid.UUID          `json:"id" format:"uuid"`
@@ -157,52 +166,214 @@ type AIProvider struct {
 	DisplayName string             `json:"display_name"`
 	Enabled     bool               `json:"enabled"`
 	BaseURL     string             `json:"base_url"`
+	APIKeys     []AIProviderKey    `json:"api_keys"`
 	Settings    AIProviderSettings `json:"settings"`
 	CreatedAt   time.Time          `json:"created_at" format:"date-time"`
 	UpdatedAt   time.Time          `json:"updated_at" format:"date-time"`
 }
 
+// AIProviderKey is a single API key registered on a provider. The
+// plaintext is never returned; Masked is a one-way rendering safe for
+// display (see aibridge utils MaskSecret). ID lets clients reference
+// the row in an UpdateAIProviderRequest without re-sending plaintext.
+type AIProviderKey struct {
+	ID        uuid.UUID `json:"id" format:"uuid"`
+	Masked    string    `json:"masked"`
+	CreatedAt time.Time `json:"created_at" format:"date-time"`
+}
+
 // CreateAIProviderRequest is the payload for creating a new AI
-// provider. Name, Type, and BaseURL are required. API keys for
-// OpenAI/Anthropic providers are added via the keys sub-endpoint
-// after the provider is created; Bedrock providers carry their
-// credentials in Settings and do not use the keys sub-endpoint.
+// provider. Name, Type, and BaseURL are required. APIKeys carries
+// the plaintext keys for OpenAI/Anthropic providers; Bedrock
+// providers authenticate via Settings and must omit APIKeys.
 type CreateAIProviderRequest struct {
 	Type        AIProviderType     `json:"type"`
 	Name        string             `json:"name"`
 	DisplayName string             `json:"display_name,omitempty"`
 	Enabled     bool               `json:"enabled"`
 	BaseURL     string             `json:"base_url"`
+	APIKeys     []string           `json:"api_keys,omitempty"`
 	Settings    AIProviderSettings `json:"settings,omitzero"`
+}
+
+// Validate returns the field-level validation errors for a create
+// request. An empty slice indicates the request is valid.
+func (req CreateAIProviderRequest) Validate() []ValidationError {
+	var validations []ValidationError
+	switch req.Type {
+	case AIProviderTypeOpenAI, AIProviderTypeAnthropic:
+	case "":
+		validations = append(validations, ValidationError{Field: "type", Detail: "type is required"})
+	default:
+		validations = append(validations, ValidationError{
+			Field:  "type",
+			Detail: fmt.Sprintf("unsupported provider type %q; expected one of: openai, anthropic", req.Type),
+		})
+	}
+	validations = append(validations, validateAIProviderName(req.Name)...)
+	if req.BaseURL == "" {
+		validations = append(validations, ValidationError{Field: "base_url", Detail: "base_url is required"})
+	} else {
+		validations = append(validations, validateAIProviderBaseURL(req.BaseURL)...)
+	}
+	validations = append(validations, validateAIProviderAPIKeys(req.APIKeys)...)
+	if req.Settings.Bedrock != nil && req.Type != AIProviderTypeAnthropic {
+		validations = append(validations, ValidationError{
+			Field:  "settings",
+			Detail: "bedrock settings are only valid for type=anthropic",
+		})
+	}
+	return validations
 }
 
 // UpdateAIProviderRequest is the payload for partially updating an
 // AI provider. At least one field must be non-nil. Pointer fields
 // distinguish "not sent" (nil) from "set to empty/zero" (a pointer
-// to the zero value).
+// to the zero value). When APIKeys is non-nil, the supplied list
+// describes the post-patch state of the key set; see
+// AIProviderKeyMutation for the per-entry semantics. An empty slice
+// clears all keys.
 type UpdateAIProviderRequest struct {
-	DisplayName *string             `json:"display_name,omitempty"`
-	Enabled     *bool               `json:"enabled,omitempty"`
-	BaseURL     *string             `json:"base_url,omitempty"`
-	Settings    *AIProviderSettings `json:"settings,omitempty"`
+	DisplayName *string                  `json:"display_name,omitempty"`
+	Enabled     *bool                    `json:"enabled,omitempty"`
+	BaseURL     *string                  `json:"base_url,omitempty"`
+	APIKeys     *[]AIProviderKeyMutation `json:"api_keys,omitempty"`
+	Settings    *AIProviderSettings      `json:"settings,omitempty"`
 }
 
-// AIProviderKey represents a single API key registered against an
-// AI provider, as returned by the API. The plaintext APIKey is
-// write-only and never included in responses.
-type AIProviderKey struct {
-	ID         uuid.UUID `json:"id" format:"uuid"`
-	ProviderID uuid.UUID `json:"provider_id" format:"uuid"`
-	CreatedAt  time.Time `json:"created_at" format:"date-time"`
-	UpdatedAt  time.Time `json:"updated_at" format:"date-time"`
+// AIProviderKeyMutation describes the intended state of a single key
+// in an UpdateAIProviderRequest. Exactly one of ID or APIKey must be
+// set:
+//
+//   - ID set, APIKey nil: keep this existing key (matched by ID).
+//   - ID nil, APIKey set: insert this new plaintext as a new key.
+//
+// Any existing key whose ID is absent from the request is deleted.
+type AIProviderKeyMutation struct {
+	ID     *uuid.UUID `json:"id,omitempty" format:"uuid"`
+	APIKey *string    `json:"api_key,omitempty"`
 }
 
-// CreateAIProviderKeyRequest is the payload for adding an API key to
-// an AI provider. Only meaningful for openai and anthropic providers;
-// Bedrock providers reject this call because they use the access
-// credentials stored in Settings.
-type CreateAIProviderKeyRequest struct {
-	APIKey string `json:"api_key"`
+// Validate returns the field-level validation errors for an update
+// request. An empty slice indicates the request is valid. Callers
+// should reject empty patches with IsEmpty before invoking Validate.
+func (req UpdateAIProviderRequest) Validate() []ValidationError {
+	var validations []ValidationError
+	switch {
+	case req.BaseURL == nil:
+	case *req.BaseURL == "":
+		validations = append(validations, ValidationError{Field: "base_url", Detail: "base_url cannot be empty"})
+	default:
+		validations = append(validations, validateAIProviderBaseURL(*req.BaseURL)...)
+	}
+	if req.APIKeys != nil {
+		validations = append(validations, validateAIProviderKeyMutations(*req.APIKeys)...)
+	}
+	return validations
+}
+
+// IsEmpty reports whether the patch carries no fields.
+func (req UpdateAIProviderRequest) IsEmpty() bool {
+	return req.DisplayName == nil && req.Enabled == nil && req.BaseURL == nil && req.APIKeys == nil && req.Settings == nil
+}
+
+func validateAIProviderName(name string) []ValidationError {
+	var validations []ValidationError
+	switch {
+	case name == "":
+		validations = append(validations, ValidationError{Field: "name", Detail: "name is required"})
+	case !AIProviderNameRegex.MatchString(name):
+		validations = append(validations, ValidationError{
+			Field:  "name",
+			Detail: fmt.Sprintf("name must match %s (lowercase alphanumeric, hyphens between words)", AIProviderNameRegex),
+		})
+	}
+	return validations
+}
+
+func validateAIProviderBaseURL(raw string) []ValidationError {
+	var validations []ValidationError
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		validations = append(validations, ValidationError{
+			Field:  "base_url",
+			Detail: "base_url must be an absolute URL (e.g. https://api.example.com/)",
+		})
+		return validations
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		validations = append(validations, ValidationError{
+			Field:  "base_url",
+			Detail: fmt.Sprintf("base_url scheme must be http or https, got %q", parsed.Scheme),
+		})
+	}
+	return validations
+}
+
+// validateAIProviderAPIKeys checks that each supplied key is non-empty
+// and free of leading/trailing whitespace. An empty slice itself is
+// permitted: on create it means "no keys yet"; on update it means
+// "clear all keys". Keys are stored verbatim; surrounding whitespace
+// would silently corrupt the credential, so callers must trim before
+// sending.
+func validateAIProviderAPIKeys(keys []string) []ValidationError {
+	var validations []ValidationError
+	for i, key := range keys {
+		switch {
+		case key == "":
+			validations = append(validations, ValidationError{
+				Field:  fmt.Sprintf("api_keys[%d]", i),
+				Detail: "api_keys entries must not be empty",
+			})
+		case strings.TrimSpace(key) != key:
+			validations = append(validations, ValidationError{
+				Field:  fmt.Sprintf("api_keys[%d]", i),
+				Detail: "api_keys entries must not contain leading or trailing whitespace",
+			})
+		}
+	}
+	return validations
+}
+
+// validateAIProviderKeyMutations checks each entry has exactly one of
+// ID or APIKey set, that plaintexts are non-empty after trimming, and
+// that no ID is referenced twice in the same request. An empty slice
+// itself is permitted (it clears all keys).
+func validateAIProviderKeyMutations(muts []AIProviderKeyMutation) []ValidationError {
+	var validations []ValidationError
+	seen := make(map[uuid.UUID]int, len(muts))
+	for i, m := range muts {
+		hasID := m.ID != nil
+		hasKey := m.APIKey != nil
+		switch {
+		case hasID == hasKey:
+			validations = append(validations, ValidationError{
+				Field:  fmt.Sprintf("api_keys[%d]", i),
+				Detail: "exactly one of id or api_key must be set",
+			})
+		case hasKey && *m.APIKey == "":
+			validations = append(validations, ValidationError{
+				Field:  fmt.Sprintf("api_keys[%d].api_key", i),
+				Detail: "api_key must not be empty",
+			})
+		case hasKey && strings.TrimSpace(*m.APIKey) != *m.APIKey:
+			validations = append(validations, ValidationError{
+				Field:  fmt.Sprintf("api_keys[%d].api_key", i),
+				Detail: "api_key must not contain leading or trailing whitespace",
+			})
+		}
+		if hasID && !hasKey {
+			if prev, ok := seen[*m.ID]; ok {
+				validations = append(validations, ValidationError{
+					Field:  fmt.Sprintf("api_keys[%d].id", i),
+					Detail: fmt.Sprintf("id %s already referenced at api_keys[%d]", *m.ID, prev),
+				})
+			} else {
+				seen[*m.ID] = i
+			}
+		}
+	}
+	return validations
 }
 
 // AIProviders lists all (non-deleted) AI providers.
@@ -266,34 +437,6 @@ func (c *Client) UpdateAIProvider(ctx context.Context, idOrName string, req Upda
 // name. The row is preserved for audit/FK history.
 func (c *Client) DeleteAIProvider(ctx context.Context, idOrName string) error {
 	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/ai/providers/%s", idOrName), nil)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
-}
-
-// CreateAIProviderKey registers a new API key against an AI
-// provider identified by ID or name.
-func (c *Client) CreateAIProviderKey(ctx context.Context, idOrName string, req CreateAIProviderKeyRequest) (AIProviderKey, error) {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/ai/providers/%s/keys", idOrName), req)
-	if err != nil {
-		return AIProviderKey{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusCreated {
-		return AIProviderKey{}, ReadBodyAsError(res)
-	}
-	var key AIProviderKey
-	return key, json.NewDecoder(res.Body).Decode(&key)
-}
-
-// DeleteAIProviderKey removes a single API key from an AI provider.
-func (c *Client) DeleteAIProviderKey(ctx context.Context, idOrName string, keyID uuid.UUID) error {
-	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/ai/providers/%s/keys/%s", idOrName, keyID), nil)
 	if err != nil {
 		return err
 	}

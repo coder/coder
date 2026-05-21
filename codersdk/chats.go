@@ -109,6 +109,8 @@ type Chat struct {
 	ID                uuid.UUID          `json:"id" format:"uuid"`
 	OrganizationID    uuid.UUID          `json:"organization_id" format:"uuid"`
 	OwnerID           uuid.UUID          `json:"owner_id" format:"uuid"`
+	OwnerUsername     string             `json:"owner_username,omitempty"`
+	OwnerName         string             `json:"owner_name,omitempty"`
 	WorkspaceID       *uuid.UUID         `json:"workspace_id,omitempty" format:"uuid"`
 	BuildID           *uuid.UUID         `json:"build_id,omitempty" format:"uuid"`
 	AgentID           *uuid.UUID         `json:"agent_id,omitempty" format:"uuid"`
@@ -254,21 +256,27 @@ type ChatMessagePart struct {
 	MCPServerConfigID uuid.NullUUID       `json:"mcp_server_config_id,omitempty" format:"uuid" variants:"tool-call?,tool-result?"`
 	Args              json.RawMessage     `json:"args,omitempty" variants:"tool-call?"`
 	ArgsDelta         string              `json:"args_delta,omitempty" variants:"tool-call?"`
-	Result            json.RawMessage     `json:"result,omitempty" variants:"tool-result?"`
-	ResultDelta       string              `json:"result_delta,omitempty" variants:"tool-result?"`
-	ResultReset       bool                `json:"result_reset,omitempty" variants:"tool-result?"`
-	IsError           bool                `json:"is_error,omitempty" variants:"tool-result?"`
-	IsMedia           bool                `json:"is_media,omitempty" variants:"tool-result?"`
-	SourceID          string              `json:"source_id,omitempty" variants:"source?"`
-	URL               string              `json:"url" variants:"source"`
-	Title             string              `json:"title,omitempty" variants:"source?"`
-	MediaType         string              `json:"media_type" variants:"file"`
-	Name              string              `json:"name,omitempty" variants:"file?"`
-	Data              []byte              `json:"data,omitempty" variants:"file?"`
-	FileID            uuid.NullUUID       `json:"file_id,omitempty" format:"uuid" variants:"file?"`
-	FileName          string              `json:"file_name" variants:"file-reference"`
-	StartLine         int                 `json:"start_line" variants:"file-reference"`
-	EndLine           int                 `json:"end_line" variants:"file-reference"`
+	// ParsedCommands holds parsed programs from an execute tool call's
+	// shell command, one entry per simple command in source order. Each
+	// entry is [program] or [program, arg] where arg is the first non-flag
+	// positional argument. Only populated when ToolName is "execute" and
+	// the command parses successfully; nil otherwise.
+	ParsedCommands [][]string      `json:"parsed_commands,omitempty" variants:"tool-call?"`
+	Result         json.RawMessage `json:"result,omitempty" variants:"tool-result?"`
+	ResultDelta    string          `json:"result_delta,omitempty" variants:"tool-result?"`
+	ResultReset    bool            `json:"result_reset,omitempty" variants:"tool-result?"`
+	IsError        bool            `json:"is_error,omitempty" variants:"tool-result?"`
+	IsMedia        bool            `json:"is_media,omitempty" variants:"tool-result?"`
+	SourceID       string          `json:"source_id,omitempty" variants:"source?"`
+	URL            string          `json:"url" variants:"source"`
+	Title          string          `json:"title,omitempty" variants:"source?"`
+	MediaType      string          `json:"media_type" variants:"file"`
+	Name           string          `json:"name,omitempty" variants:"file?"`
+	Data           []byte          `json:"data,omitempty" variants:"file?"`
+	FileID         uuid.NullUUID   `json:"file_id,omitempty" format:"uuid" variants:"file?"`
+	FileName       string          `json:"file_name" variants:"file-reference"`
+	StartLine      int             `json:"start_line" variants:"file-reference"`
+	EndLine        int             `json:"end_line" variants:"file-reference"`
 	// The code content from the diff that was commented on.
 	Content string `json:"content" variants:"file-reference"`
 	// ProviderMetadata holds provider-specific response metadata
@@ -1967,6 +1975,33 @@ type ChatUsageLimitConfigResponse struct {
 	GroupOverrides     []ChatUsageLimitGroupOverride `json:"group_overrides"`
 }
 
+type ChatRole string
+
+const (
+	ChatRoleRead    ChatRole = "read"
+	ChatRoleDeleted ChatRole = ""
+)
+
+type ChatUser struct {
+	MinimalUser
+	Role ChatRole `json:"role" enums:"read"`
+}
+
+type ChatGroup struct {
+	Group
+	Role ChatRole `json:"role" enums:"read"`
+}
+
+type ChatACL struct {
+	Users  []ChatUser  `json:"users"`
+	Groups []ChatGroup `json:"groups"`
+}
+
+type UpdateChatACL struct {
+	UserRoles  map[string]ChatRole `json:"user_roles,omitempty"`
+	GroupRoles map[string]ChatRole `json:"group_roles,omitempty"`
+}
+
 // ListChatsOptions are optional parameters for ListChats.
 type ListChatsOptions struct {
 	Query  string
@@ -2940,6 +2975,31 @@ func (c *ExperimentalClient) GetChat(ctx context.Context, chatID uuid.UUID) (Cha
 	}
 	var chat Chat
 	return chat, json.NewDecoder(res.Body).Decode(&chat)
+}
+
+func (c *ExperimentalClient) GetChatACL(ctx context.Context, chatID uuid.UUID) (ChatACL, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/acl", chatID), nil)
+	if err != nil {
+		return ChatACL{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatACL{}, ReadBodyAsError(res)
+	}
+	var acl ChatACL
+	return acl, json.NewDecoder(res.Body).Decode(&acl)
+}
+
+func (c *ExperimentalClient) UpdateChatACL(ctx context.Context, chatID uuid.UUID, req UpdateChatACL) error {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/chats/%s/acl", chatID), req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
 }
 
 // GetChatMessages returns the messages and queued messages for a chat.

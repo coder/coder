@@ -92,6 +92,7 @@ import (
 	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
+	"github.com/coder/coder/v2/coderd/workspaceconnwatcher"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/x/chatd"
@@ -923,6 +924,8 @@ func New(options *Options) *API {
 		APIKeyEncryptionKeycache: options.AppEncryptionKeyCache,
 	})
 
+	api.workspaceAgentConnWatcher = workspaceconnwatcher.New(api.ctx, options.Logger, options.Pubsub, options.Database)
+
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:                            options.Database,
 		ActivateDormantUser:           ActivateDormantUser(options.Logger, &api.Auditor, options.Database),
@@ -1298,6 +1301,10 @@ func New(options *Options) *API {
 			})
 			r.Route("/{chat}", func(r chi.Router) {
 				r.Use(httpmw.ExtractChatParam(options.Database))
+				r.Route("/acl", func(r chi.Router) {
+					r.Get("/", api.getChatACL)
+					r.Patch("/", api.patchChatACL)
+				})
 				r.Get("/", api.getChat)
 				r.Patch("/", api.patchChat)
 				r.Get("/messages", api.getChatMessages)
@@ -1816,6 +1823,7 @@ func New(options *Options) *API {
 					r.Patch("/", api.patchWorkspaceACL)
 					r.Delete("/", api.deleteWorkspaceACL)
 				})
+				r.Get("/agent-connection-watch", api.workspaceAgentConnWatcher.WorkspaceAgentConnectionWatch)
 			})
 		})
 		r.Route("/workspacebuilds/{workspacebuild}", func(r chi.Router) {
@@ -2006,6 +2014,7 @@ func New(options *Options) *API {
 		r.Route("/init-script", func(r chi.Router) {
 			r.Get("/{os}/{arch}", api.initScript)
 		})
+		r.Route("/ai/providers", aiProvidersHandler(api, apiKeyMiddleware))
 		r.Route("/tasks", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 
@@ -2233,6 +2242,8 @@ type API struct {
 	// profile collection (via /debug/profile) can run at a time. The CPU
 	// profiler is process-global, so concurrent collections would fail.
 	ProfileCollecting atomic.Bool
+
+	workspaceAgentConnWatcher *workspaceconnwatcher.Watcher
 }
 
 // Close waits for all WebSocket connections to drain before returning.
@@ -2296,6 +2307,7 @@ func (api *API) Close() error {
 	_ = api.AppSigningKeyCache.Close()
 	_ = api.AppEncryptionKeyCache.Close()
 	_ = api.UpdatesProvider.Close()
+	api.workspaceAgentConnWatcher.Close()
 
 	if current := api.PrebuildsReconciler.Load(); current != nil {
 		ctx, giveUp := context.WithTimeoutCause(context.Background(), time.Second*30, xerrors.New("gave up waiting for reconciler to stop before shutdown"))

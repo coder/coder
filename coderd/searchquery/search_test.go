@@ -1258,6 +1258,96 @@ func TestSearchChats(t *testing.T) {
 			},
 		},
 		{
+			Name:  "HasUnreadTrue",
+			Query: "has_unread:true",
+			Expected: database.GetChatsParams{
+				Archived:  sql.NullBool{Bool: false, Valid: true},
+				HasUnread: sql.NullBool{Bool: true, Valid: true},
+			},
+		},
+		{
+			Name:  "HasUnreadFalse",
+			Query: "has_unread:false",
+			Expected: database.GetChatsParams{
+				Archived:  sql.NullBool{Bool: false, Valid: true},
+				HasUnread: sql.NullBool{Bool: false, Valid: true},
+			},
+		},
+		{
+			Name:                  "HasUnreadInvalid",
+			Query:                 "has_unread:bogus",
+			ExpectedErrorContains: "has_unread",
+		},
+		{
+			Name:  "PRStatusDraft",
+			Query: "pr_status:draft",
+			Expected: database.GetChatsParams{
+				Archived:            sql.NullBool{Bool: false, Valid: true},
+				PullRequestStatuses: []string{"draft"},
+			},
+		},
+		{
+			Name:  "PRStatusOpen",
+			Query: "pr_status:open",
+			Expected: database.GetChatsParams{
+				Archived:            sql.NullBool{Bool: false, Valid: true},
+				PullRequestStatuses: []string{"open"},
+			},
+		},
+		{
+			Name:  "PRStatusMerged",
+			Query: "pr_status:merged",
+			Expected: database.GetChatsParams{
+				Archived:            sql.NullBool{Bool: false, Valid: true},
+				PullRequestStatuses: []string{"merged"},
+			},
+		},
+		{
+			Name:  "PRStatusClosed",
+			Query: "pr_status:closed",
+			Expected: database.GetChatsParams{
+				Archived:            sql.NullBool{Bool: false, Valid: true},
+				PullRequestStatuses: []string{"closed"},
+			},
+		},
+		{
+			Name:  "PRStatusMultipleRepeated",
+			Query: "pr_status:draft pr_status:merged",
+			Expected: database.GetChatsParams{
+				Archived:            sql.NullBool{Bool: false, Valid: true},
+				PullRequestStatuses: []string{"draft", "merged"},
+			},
+		},
+		{
+			Name:  "PRStatusMultipleCSV",
+			Query: "pr_status:draft,closed",
+			Expected: database.GetChatsParams{
+				Archived:            sql.NullBool{Bool: false, Valid: true},
+				PullRequestStatuses: []string{"draft", "closed"},
+			},
+		},
+		{
+			Name:  "PRStatusValueCaseInsensitive",
+			Query: "pr_status:DRAFT",
+			Expected: database.GetChatsParams{
+				Archived:            sql.NullBool{Bool: false, Valid: true},
+				PullRequestStatuses: []string{"draft"},
+			},
+		},
+		{
+			Name:                  "PRStatusInvalid",
+			Query:                 "pr_status:review",
+			ExpectedErrorContains: "pr_status",
+		},
+		{
+			Name:  "PRStatusWithArchived",
+			Query: "archived:true pr_status:open",
+			Expected: database.GetChatsParams{
+				Archived:            sql.NullBool{Bool: true, Valid: true},
+				PullRequestStatuses: []string{"open"},
+			},
+		},
+		{
 			Name:                  "ExtraParam",
 			Query:                 "archived:true invalid:param",
 			ExpectedErrorContains: "is not a valid query param",
@@ -1335,6 +1425,44 @@ func TestSearchChats(t *testing.T) {
 			Name:                  "DiffURLMalformed",
 			Query:                 `diff_url:"http://%41:8080/"`,
 			ExpectedErrorContains: "not a valid URL",
+		},
+		{
+			Name:  "TitleSearch",
+			Query: `title:"hello world"`,
+			Expected: database.GetChatsParams{
+				Archived:   sql.NullBool{Bool: false, Valid: true},
+				TitleQuery: "hello world",
+			},
+		},
+		{
+			Name:  "TitleSearchWithArchived",
+			Query: `title:"my chat" archived:true`,
+			Expected: database.GetChatsParams{
+				Archived:   sql.NullBool{Bool: true, Valid: true},
+				TitleQuery: "my chat",
+			},
+		},
+		{
+			Name:  "TitleSearchSingleWord",
+			Query: "title:deploy",
+			Expected: database.GetChatsParams{
+				Archived:   sql.NullBool{Bool: false, Valid: true},
+				TitleQuery: "deploy",
+			},
+		},
+		{
+			Name:  "TitleSearchWithDiffURL",
+			Query: `title:deploy diff_url:"https://github.com/coder/coder/pull/456"`,
+			Expected: database.GetChatsParams{
+				Archived:   sql.NullBool{Bool: false, Valid: true},
+				TitleQuery: "deploy",
+				DiffURL:    sql.NullString{String: "https://github.com/coder/coder/pull/456", Valid: true},
+			},
+		},
+		{
+			Name:                  "BareTermsRejected",
+			Query:                 "some random words",
+			ExpectedErrorContains: `unsupported search term: "some random words"`,
 		},
 	}
 

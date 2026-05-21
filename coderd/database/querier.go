@@ -253,10 +253,12 @@ type sqlcQuerier interface {
 	GetAIProviderByID(ctx context.Context, id uuid.UUID) (AIProvider, error)
 	GetAIProviderByName(ctx context.Context, name string) (AIProvider, error)
 	GetAIProviderKeyByID(ctx context.Context, id uuid.UUID) (AIProviderKey, error)
-	// Returns every AI provider key row, including those belonging to a
-	// soft-deleted provider, so the dbcrypt key rotation utility can
-	// re-encrypt their api_key and clear references to retired keys.
-	GetAIProviderKeys(ctx context.Context) ([]AIProviderKey, error)
+	// Returns AI provider key rows. By default, only rows whose parent
+	// provider is live (deleted = FALSE) are returned, so the API list
+	// handler can fetch every visible provider's keys in a single query.
+	// The dbcrypt key rotation utility passes include_deleted=TRUE to
+	// re-encrypt rows that belong to soft-deleted providers as well.
+	GetAIProviderKeys(ctx context.Context, includeDeleted bool) ([]AIProviderKey, error)
 	// Returns all keys for a provider, ordered by created_at ASC so the
 	// oldest key is returned first. AI Bridge currently uses the oldest
 	// key per provider; multiple keys are stored to support future
@@ -471,6 +473,12 @@ type sqlcQuerier interface {
 	// count even if the caller does not have read access to ResourceGroupMember.
 	// They only need ResourceGroup read access.
 	GetGroupMembersCountByGroupID(ctx context.Context, arg GetGroupMembersCountByGroupIDParams) (int64, error)
+	// Returns the total member count for each of the given group IDs in a
+	// single query. Used to avoid N+1 lookups when listing many groups. Like
+	// GetGroupMembersCountByGroupID, the count is returned even when the
+	// caller does not have read access to individual group members.
+	GetGroupMembersCountByGroupIDs(ctx context.Context, arg GetGroupMembersCountByGroupIDsParams) ([]GetGroupMembersCountByGroupIDsRow, error)
+	// A limit of 0 means "no limit".
 	GetGroups(ctx context.Context, arg GetGroupsParams) ([]GetGroupsRow, error)
 	GetHealthSettings(ctx context.Context) (string, error)
 	GetInboxNotificationByID(ctx context.Context, id uuid.UUID) (InboxNotification, error)

@@ -111,7 +111,13 @@ const ProcessOutputToolInner: React.FC<ProcessOutputToolInnerProps> = ({
 								exit {exitCode}
 							</span>
 						)}
-						{hasOutput && <CopyButton text={output} label="Copy output" />}
+						{hasOutput && (
+							<CopyButton
+								text={output}
+								label="Copy output"
+								className="-my-0.5 size-6 p-0"
+							/>
+						)}
 					</>
 				) : undefined
 			}

@@ -705,9 +705,12 @@ func startServer(cfg *devConfig, group *procGroup) error {
 		"server",
 		"--http-address", fmt.Sprintf("0.0.0.0:%d", cfg.apiPort),
 		"--swagger-enable",
-		"--access-url", cfg.accessURL,
 		"--dangerous-allow-cors-requests=true",
 		"--enable-terraform-debug-mode",
+	}
+	if cfg.accessURL != "" {
+		// Setting access url to `""` enables a `try.coder.app` url
+		serverArgs = append(serverArgs, "--access-url", cfg.accessURL)
 	}
 	if cfg.coderMetricsPort != 0 {
 		serverArgs = append(serverArgs,

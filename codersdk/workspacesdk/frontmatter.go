@@ -25,38 +25,22 @@ var markdownCommentRe = regexp.MustCompile(`<!--[\s\S]*?-->`)
 var ErrFrontmatterNameRequired = xerrors.New("frontmatter missing required 'name' field")
 
 func parseFrontmatterValue(value string) string {
-	if len(value) < 2 {
+	if len(value) < 2 || value[0] != value[len(value)-1] {
 		return value
 	}
-	if value[0] == '"' && value[len(value)-1] == '"' {
-		inner := value[1 : len(value)-1]
-		var builder strings.Builder
-		builder.Grow(len(inner))
-		escaping := false
-		for _, r := range inner {
-			if escaping {
-				if r != '"' && r != '\\' {
-					_, _ = builder.WriteRune('\\')
-				}
-				_, _ = builder.WriteRune(r)
-				escaping = false
-				continue
-			}
-			if r == '\\' {
-				escaping = true
-				continue
-			}
-			_, _ = builder.WriteRune(r)
-		}
-		if escaping {
-			_, _ = builder.WriteRune('\\')
-		}
-		return builder.String()
+
+	inner := value[1 : len(value)-1]
+	switch value[0] {
+	case '"':
+		// SKILL.md frontmatter only accepts scalar values here. For
+		// double-quoted values, support the two escapes needed for quoted
+		// text and Windows paths without interpreting other YAML escapes.
+		return strings.NewReplacer(`\"`, `"`, `\\`, `\`).Replace(inner)
+	case '\'':
+		return inner
+	default:
+		return value
 	}
-	if value[0] == '\'' && value[len(value)-1] == '\'' {
-		return value[1 : len(value)-1]
-	}
-	return value
 }
 
 // ParseSkillFrontmatter extracts name, description, and the

@@ -1041,9 +1041,9 @@ func (m queryMetricsStore) GetAIProviderKeyByID(ctx context.Context, id uuid.UUI
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetAIProviderKeys(ctx context.Context) ([]database.AIProviderKey, error) {
+func (m queryMetricsStore) GetAIProviderKeys(ctx context.Context, includeDeleted bool) ([]database.AIProviderKey, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetAIProviderKeys(ctx)
+	r0, r1 := m.s.GetAIProviderKeys(ctx, includeDeleted)
 	m.queryLatencies.WithLabelValues("GetAIProviderKeys").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIProviderKeys").Inc()
 	return r0, r1
@@ -1942,6 +1942,14 @@ func (m queryMetricsStore) GetGroupMembersCountByGroupID(ctx context.Context, ar
 	r0, r1 := m.s.GetGroupMembersCountByGroupID(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetGroupMembersCountByGroupID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetGroupMembersCountByGroupID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetGroupMembersCountByGroupIDs(ctx context.Context, arg database.GetGroupMembersCountByGroupIDsParams) ([]database.GetGroupMembersCountByGroupIDsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetGroupMembersCountByGroupIDs(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetGroupMembersCountByGroupIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetGroupMembersCountByGroupIDs").Inc()
 	return r0, r1
 }
 
