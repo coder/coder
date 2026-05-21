@@ -108,11 +108,9 @@ func TestRunnerRunConversation(t *testing.T) {
 	t.Run("FirstOutputFromAssistantMessageEvent", func(t *testing.T) {
 		t.Parallel()
 
-		// Covers the snapshot race where a turn finishes before the
-		// runner attaches its stream: StreamChat replays the persisted
-		// rows as message events, never as message_part deltas. The
-		// runner must still record first-output for the assistant row,
-		// and must not count the persisted user row as output.
+		// Snapshot race: when a turn finishes before stream attach,
+		// StreamChat replays rows as message events, never as
+		// message_part deltas; the assistant row must record first output.
 		runner := newTestRunner(t, newRunConfig(t))
 		events := make(chan codersdk.ChatStreamEvent, 3)
 		events <- messageEvent(chatID, codersdk.ChatMessageRoleUser)
