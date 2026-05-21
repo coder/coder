@@ -5,7 +5,6 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link, Navigate, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
-import type { AIProvider } from "#/api/typesGenerated";
 import {
 	aiProvider,
 	deleteAIProviderMutation,
@@ -30,22 +29,6 @@ import {
 } from "../components/providerFormApiMap";
 
 const BACK_HREF = "/ai/settings";
-
-/**
- * Counts models configured on a provider. Bedrock stores models in its
- * settings blob; other provider types do not track models in the API yet.
- */
-function countProviderModels(provider: AIProvider): number {
-	if (!isBedrockProvider(provider)) {
-		return 0;
-	}
-	const s = provider.settings as { model?: string; small_fast_model?: string } | null;
-	if (!s) return 0;
-	let count = 0;
-	if (s.model) count++;
-	if (s.small_fast_model) count++;
-	return count;
-}
 
 const UpdateProviderPageView: React.FC = () => {
 	const { providerId } = useParams<{ providerId: string }>();
@@ -130,7 +113,6 @@ const UpdateProviderPageView: React.FC = () => {
 	const openAiAnthropicMaskedApiKey = providerIsOpenAiAnthropic
 		? provider.api_keys[0]?.masked
 		: undefined;
-	const modelCount = countProviderModels(provider);
 
 	return (
 		<>
@@ -171,15 +153,8 @@ const UpdateProviderPageView: React.FC = () => {
 				</div>
 				<div className="flex items-center justify-between w-full">
 					<p className="text-sm text-content-secondary m-0">
-						{modelCount === 0 ? (
-							<>You have no models added for this provider.{" "}
-							<Link to={`/ai/settings/${provider.name}#models`} className="text-content-link no-underline hover:underline">Add a model</Link>
-							</>
-						) : (
-							<>You have {modelCount} model{modelCount !== 1 ? "s" : ""} added for this provider.{" "}
-							<Link to={`/ai/settings/${provider.name}#models`} className="text-content-link no-underline hover:underline">Manage models</Link>
-							</>
-						)}
+						Add or update models for this provider.{" "}
+							<a href="/agents/settings/models" className="text-content-link no-underline hover:underline">Model settings</a>
 					</p>
 					<div className="flex items-center gap-2">
 						<Switch
