@@ -23,6 +23,8 @@ export const chatMessagesKey = (chatId: string) =>
 export const chatPromptsKey = (chatId: string) =>
 	["chats", chatId, "prompts"] as const;
 
+export const chatACLKey = (chatId: string) => ["chats", chatId, "acl"] as const;
+
 export const chatsByWorkspaceKeyPrefix = [...chatsKey, "by-workspace"] as const;
 
 export const chatsByWorkspace = (workspaceIds: string[]) => {
@@ -550,6 +552,11 @@ export const chatSearch = (q: string) =>
 export const chat = (chatId: string) => ({
 	queryKey: chatKey(chatId),
 	queryFn: () => API.experimental.getChat(chatId),
+});
+
+export const chatACL = (chatId: string) => ({
+	queryKey: chatACLKey(chatId),
+	queryFn: () => API.experimental.getChatACL(chatId),
 });
 
 const MESSAGES_PAGE_SIZE = 50;
@@ -1902,5 +1909,43 @@ export const deleteMCPServerConfig = (queryClient: QueryClient) => ({
 	mutationFn: (id: string) => API.experimental.deleteMCPServerConfig(id),
 	onSuccess: async () => {
 		await invalidateMCPServerConfigQueries(queryClient);
+	},
+});
+
+type SetChatUserRoleVariables = {
+	chatId: string;
+	userId: string;
+	role: TypesGen.ChatRole;
+};
+
+type SetChatGroupRoleVariables = {
+	chatId: string;
+	groupId: string;
+	role: TypesGen.ChatRole;
+};
+
+export const setChatUserRole = (queryClient: QueryClient) => ({
+	mutationFn: ({ chatId, userId, role }: SetChatUserRoleVariables) =>
+		API.experimental.updateChatACL(chatId, {
+			user_roles: { [userId]: role },
+		}),
+	onSuccess: async (_data: unknown, { chatId }: SetChatUserRoleVariables) => {
+		await queryClient.invalidateQueries({
+			queryKey: chatACLKey(chatId),
+			exact: true,
+		});
+	},
+});
+
+export const setChatGroupRole = (queryClient: QueryClient) => ({
+	mutationFn: ({ chatId, groupId, role }: SetChatGroupRoleVariables) =>
+		API.experimental.updateChatACL(chatId, {
+			group_roles: { [groupId]: role },
+		}),
+	onSuccess: async (_data: unknown, { chatId }: SetChatGroupRoleVariables) => {
+		await queryClient.invalidateQueries({
+			queryKey: chatACLKey(chatId),
+			exact: true,
+		});
 	},
 });

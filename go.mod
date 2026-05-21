@@ -522,6 +522,7 @@ require (
 	github.com/sony/gobreaker/v2 v2.4.0
 	github.com/tidwall/sjson v1.2.5
 	gonum.org/v1/gonum v0.17.0
+	mvdan.cc/sh/v3 v3.13.1
 )
 
 require (

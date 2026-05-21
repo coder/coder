@@ -12783,6 +12783,41 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/workspaces/{workspace}/agent-connection-watch": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Workspace Agent Connection Watch",
+                "operationId": "workspace-agent-connection-watch",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace ID",
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols",
+                        "schema": {
+                            "$ref": "#/definitions/workspacesdk.ConnectionWatchEvent"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/workspaces/{workspace}/autostart": {
             "put": {
                 "consumes": [
@@ -14408,7 +14443,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "anthropic": {
-                    "description": "Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_\u003cN\u003e_* env vars instead.",
+                    "description": "Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_* env vars instead.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.AIBridgeAnthropicConfig"
@@ -14416,7 +14451,7 @@ const docTemplate = `{
                     ]
                 },
                 "bedrock": {
-                    "description": "Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_\u003cN\u003e_* env vars instead.",
+                    "description": "Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_* env vars instead.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.AIBridgeBedrockConfig"
@@ -14457,7 +14492,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "openai": {
-                    "description": "Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_\u003cN\u003e_* env vars instead.",
+                    "description": "Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_* env vars instead.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.AIBridgeOpenAIConfig"
@@ -14465,7 +14500,7 @@ const docTemplate = `{
                     ]
                 },
                 "providers": {
-                    "description": "Providers holds provider instances populated from CODER_AIBRIDGE_PROVIDER_\u003cN\u003e_\u003cKEY\u003e\nenv vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.",
+                    "description": "Providers holds provider instances populated from CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_\u003cKEY\u003e\nenv vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.AIProviderConfig"
@@ -16788,6 +16823,16 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "parsed_commands": {
+                    "description": "ParsedCommands holds parsed programs from an execute tool call's\nshell command, one entry per simple command in source order. Each\nentry is [program] or [program, arg] where arg is the first non-flag\npositional argument. Only populated when ToolName is \"execute\" and\nthe command parses successfully; nil otherwise.",
+                    "type": "array",
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
                 },
                 "provider_executed": {
                     "description": "ProviderExecuted indicates the tool call was executed by\nthe provider (e.g. Anthropic computer use).",
@@ -27963,6 +28008,93 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "workspacesdk.AgentUpdate": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "lifecycle": {
+                    "$ref": "#/definitions/codersdk.WorkspaceAgentLifecycle"
+                }
+            }
+        },
+        "workspacesdk.BuildUpdate": {
+            "type": "object",
+            "properties": {
+                "job_status": {
+                    "$ref": "#/definitions/codersdk.ProvisionerJobStatus"
+                },
+                "transition": {
+                    "$ref": "#/definitions/codersdk.WorkspaceTransition"
+                }
+            }
+        },
+        "workspacesdk.ConnectionWatchEvent": {
+            "type": "object",
+            "properties": {
+                "agent_update": {
+                    "$ref": "#/definitions/workspacesdk.AgentUpdate"
+                },
+                "build_update": {
+                    "$ref": "#/definitions/workspacesdk.BuildUpdate"
+                },
+                "error": {
+                    "$ref": "#/definitions/workspacesdk.WatchError"
+                }
+            }
+        },
+        "workspacesdk.WatchError": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "$ref": "#/definitions/workspacesdk.WatchErrorCode"
+                },
+                "details": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "retryable": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "workspacesdk.WatchErrorCode": {
+            "type": "integer",
+            "enum": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6
+            ],
+            "x-enum-comments": {
+                "_": "Ensure that zero value is not a valid code"
+            },
+            "x-enum-descriptions": [
+                "Ensure that zero value is not a valid code",
+                "",
+                "",
+                "",
+                "",
+                "",
+                ""
+            ],
+            "x-enum-varnames": [
+                "_",
+                "WatchErrorTooManyAgents",
+                "WatchErrorNameNotFound",
+                "WatchErrorNoAgents",
+                "WatchErrorServerShutdown",
+                "WatchErrorDatabase",
+                "WatchErrorInternal"
+            ]
         },
         "wsproxysdk.CryptoKeysResponse": {
             "type": "object",

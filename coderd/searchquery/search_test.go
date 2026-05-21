@@ -1462,7 +1462,7 @@ func TestSearchChats(t *testing.T) {
 		{
 			Name:                  "BareTermsRejected",
 			Query:                 "some random words",
-			ExpectedErrorContains: `Query element "some random words" is not a valid key:value pair`,
+			ExpectedErrorContains: `unsupported search term: "some random words"`,
 		},
 	}
 

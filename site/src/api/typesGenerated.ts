@@ -42,19 +42,19 @@ export interface AIBridgeBedrockConfig {
 export interface AIBridgeConfig {
 	readonly enabled: boolean;
 	/**
-	 * @deprecated Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.
+	 * @deprecated Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.
 	 */
 	readonly openai: AIBridgeOpenAIConfig;
 	/**
-	 * @deprecated Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.
+	 * @deprecated Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.
 	 */
 	readonly anthropic: AIBridgeAnthropicConfig;
 	/**
-	 * @deprecated Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.
+	 * @deprecated Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.
 	 */
 	readonly bedrock: AIBridgeBedrockConfig;
 	/**
-	 * Providers holds provider instances populated from CODER_AIBRIDGE_PROVIDER_<N>_<KEY>
+	 * Providers holds provider instances populated from CODER_AI_GATEWAY_PROVIDER_<N>_<KEY>
 	 * env vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.
 	 */
 	readonly providers?: readonly AIProviderConfig[];
@@ -366,7 +366,8 @@ export const AIProviderBedrockSettingsVersion = 1;
 // From codersdk/deployment.go
 /**
  * AIProviderConfig represents a single AI provider instance,
- * parsed from CODER_AIBRIDGE_PROVIDER_<N>_<KEY> environment variables.
+ * parsed from CODER_AI_GATEWAY_PROVIDER_<N>_<KEY> environment variables.
+ * CODER_AIBRIDGE_PROVIDER_<N>_<KEY> is also accepted as a deprecated alias.
  * This follows the same indexed pattern as ExternalAuthConfig.
  */
 export interface AIProviderConfig {
@@ -2856,6 +2857,14 @@ export interface ChatToolCallPart {
 	readonly mcp_server_config_id?: string;
 	readonly args?: Record<string, string>;
 	readonly args_delta?: string;
+	/**
+	 * ParsedCommands holds parsed programs from an execute tool call's
+	 * shell command, one entry per simple command in source order. Each
+	 * entry is [program] or [program, arg] where arg is the first non-flag
+	 * positional argument. Only populated when ToolName is "execute" and
+	 * the command parses successfully; nil otherwise.
+	 */
+	readonly parsed_commands?: readonly string[][];
 	/**
 	 * ProviderExecuted indicates the tool call was executed by
 	 * the provider (e.g. Anthropic computer use).

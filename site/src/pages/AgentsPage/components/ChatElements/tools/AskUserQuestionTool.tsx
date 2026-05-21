@@ -9,6 +9,7 @@ import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
 import { cn } from "#/utils/cn";
+import { TranscriptRow } from "../TranscriptRow";
 import type { ToolStatus } from "./utils";
 
 export type AskUserQuestion = {
@@ -536,16 +537,16 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 	if (isError) {
 		return (
 			<div className="w-full">
-				<div
+				<TranscriptRow
 					role="alert"
-					className="flex items-center gap-1.5 py-0.5 text-[13px] text-content-secondary"
+					className="gap-1.5 text-[13px] text-content-secondary"
 				>
 					<TriangleAlertIcon
 						aria-label="Error"
 						className="h-3.5 w-3.5 shrink-0 text-content-secondary"
 					/>
 					<span>{errorMessage || "Failed to ask questions"}</span>
-				</div>
+				</TranscriptRow>
 			</div>
 		);
 	}
@@ -554,11 +555,7 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 		return (
 			<div className="w-full">
 				{isRunning ? (
-					<div
-						role="status"
-						aria-live="polite"
-						className="flex items-center gap-1.5 py-0.5"
-					>
+					<TranscriptRow role="status" aria-live="polite" className="gap-1.5">
 						<span className="text-[13px] text-content-secondary">
 							Asking for clarification...
 						</span>
@@ -566,7 +563,7 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 							data-testid="ask-user-question-loading-icon"
 							className="h-3.5 w-3.5 shrink-0 animate-spin text-content-secondary motion-reduce:animate-none"
 						/>
-					</div>
+					</TranscriptRow>
 				) : (
 					<p className="text-[13px] italic text-content-secondary">
 						No questions available.
@@ -680,11 +677,7 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 	return (
 		<div className="w-full">
 			{isRunning && (
-				<div
-					role="status"
-					aria-live="polite"
-					className="flex items-center gap-1.5 py-0.5"
-				>
+				<TranscriptRow role="status" aria-live="polite" className="gap-1.5">
 					<span className="text-[13px] text-content-secondary">
 						Asking for clarification...
 					</span>
@@ -692,7 +685,7 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 						data-testid="ask-user-question-loading-icon"
 						className="h-3.5 w-3.5 shrink-0 animate-spin text-content-secondary motion-reduce:animate-none"
 					/>
-				</div>
+				</TranscriptRow>
 			)}
 
 			{isInteractive ? (
