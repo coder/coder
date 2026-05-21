@@ -83,12 +83,12 @@ func (c Config) Validate() error {
 	if c.StartChan == nil {
 		return xerrors.Errorf("validate start_chan: must not be nil")
 	}
-	if c.TurnStartDelay > 0 {
+	if c.TurnStartDelay > 0 && c.Turns > 1 {
 		if c.TurnStartReadyWaitGroup == nil {
-			return xerrors.Errorf("validate turn_start_ready_wait_group: must not be nil when turn start delay is enabled")
+			return xerrors.Errorf("validate turn_start_ready_wait_group: must not be nil when turn start delay is enabled for more than one turn")
 		}
 		if c.StartTurnsChan == nil {
-			return xerrors.Errorf("validate start_turns_chan: must not be nil when turn start delay is enabled")
+			return xerrors.Errorf("validate start_turns_chan: must not be nil when turn start delay is enabled for more than one turn")
 		}
 	}
 	if c.Metrics == nil {
