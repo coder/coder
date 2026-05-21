@@ -1,11 +1,20 @@
+import type { FC } from "react";
 import { useEffect, useState } from "react";
 import { useParams } from "react-router";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { cn } from "#/utils/cn";
 import { DesktopToolbar } from "./components/RightPanel/DesktopToolbar";
 import { CHANNEL_PREFIX, type ScaleMode } from "./desktopConstants";
 import { useDesktopConnection } from "./hooks/useDesktopConnection";
 import { useZoomShortcuts } from "./hooks/useZoomShortcuts";
+
+type DesktopConnectionStatus =
+	| "idle"
+	| "connecting"
+	| "connected"
+	| "disconnected"
+	| "error";
 
 export default function DesktopPopoutPage() {
 	const { agentId } = useParams() as { agentId: string };
@@ -44,6 +53,41 @@ export default function DesktopPopoutPage() {
 
 	useZoomShortcuts(setScaleMode);
 
+	return (
+		<DesktopPopoutPageView
+			status={status}
+			reconnect={reconnect}
+			attach={attach}
+			scaleMode={scaleMode}
+			onScaleModeChange={setScaleMode}
+			isControlling={isControlling}
+			onTakeControl={() => setIsControlling(true)}
+			onReleaseControl={() => setIsControlling(false)}
+		/>
+	);
+}
+
+export interface DesktopPopoutPageViewProps {
+	status: DesktopConnectionStatus;
+	reconnect: () => void;
+	attach: (container: HTMLElement) => void;
+	scaleMode: ScaleMode;
+	onScaleModeChange: (mode: ScaleMode) => void;
+	isControlling: boolean;
+	onTakeControl: () => void;
+	onReleaseControl: () => void;
+}
+
+export const DesktopPopoutPageView: FC<DesktopPopoutPageViewProps> = ({
+	status,
+	reconnect,
+	attach,
+	scaleMode,
+	onScaleModeChange,
+	isControlling,
+	onTakeControl,
+	onReleaseControl,
+}) => {
 	if (status === "idle" || status === "connecting") {
 		return (
 			<div className="flex h-screen w-screen items-center justify-center bg-surface-primary">
@@ -89,18 +133,21 @@ export default function DesktopPopoutPage() {
 		<div className="flex h-screen w-screen flex-col overflow-hidden bg-surface-secondary">
 			<DesktopToolbar
 				scaleMode={scaleMode}
-				onScaleModeChange={setScaleMode}
+				onScaleModeChange={onScaleModeChange}
 				isControlling={isControlling}
-				onTakeControl={() => setIsControlling(true)}
-				onReleaseControl={() => setIsControlling(false)}
+				onTakeControl={onTakeControl}
+				onReleaseControl={onReleaseControl}
 				isPoppedOut
 			/>
 			<div
 				ref={(el) => {
 					if (el) attach(el);
 				}}
-				className="min-h-0 flex-1 overflow-hidden bg-surface-secondary"
+				className={cn(
+					"min-h-0 flex-1 overflow-hidden bg-surface-secondary",
+					!isControlling && "pointer-events-none",
+				)}
 			/>
 		</div>
 	);
-}
+};
