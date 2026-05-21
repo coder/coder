@@ -18,33 +18,19 @@ const parseFrontmatterValue = (value: string): string => {
 	if (value.length < 2) {
 		return value;
 	}
+
 	const first = value[0];
 	const last = value[value.length - 1];
-	if (first === '"' && last === '"') {
-		let unquoted = "";
-		let escaping = false;
-		for (const character of value.slice(1, -1)) {
-			if (escaping) {
-				unquoted +=
-					character === '"' || character === "\\"
-						? character
-						: `\\${character}`;
-				escaping = false;
-				continue;
-			}
-			if (character === "\\") {
-				escaping = true;
-				continue;
-			}
-			unquoted += character;
-		}
-		if (escaping) {
-			unquoted += "\\";
-		}
-		return unquoted;
+	if (first !== last) {
+		return value;
 	}
-	if (first === "'" && last === "'") {
-		return value.slice(1, -1);
+
+	const inner = value.slice(1, -1);
+	if (first === '"') {
+		return inner.replaceAll('\\"', '"').replaceAll("\\\\", "\\");
+	}
+	if (first === "'") {
+		return inner;
 	}
 	return value;
 };
