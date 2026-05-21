@@ -19,7 +19,7 @@ uses to ship developer environments can ship workers.
 
 ## Architecture
 
-<img src="../../images/guides/cursor-self-hosted-workers/concepts.svg" alt="A Coder workspace contains exactly one Cursor private worker, which serves exactly one Cursor Background Agent session at a time. One to one to one. Coder manages the workspace; Cursor manages the worker and the session." />
+<img src="../../images/guides/cursor-self-hosted-workers/concepts.svg" alt="A Coder workspace is the outer container, managed by Coder. Inside the workspace runs one Cursor private worker, a long-lived cursor-agent process managed by Cursor. The worker serves one Cursor Background Agent session at a time. The workspace reaches out to Cursor (developer surfaces, control plane, cloud inference) and to your network (internal Git, package registries, internal services); nothing on the outside reaches in." />
 
 The relationship is one to one to one: **one Coder workspace contains
 exactly one `cursor-agent worker` process, which serves exactly one

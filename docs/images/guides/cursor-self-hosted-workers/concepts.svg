@@ -1,30 +1,122 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 460" width="1000" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="diag-title diag-desc">
-  <title id="diag-title">Cursor self-hosted workers: nested concepts</title>
-  <desc id="diag-desc">A Coder workspace contains exactly one Cursor private worker, which serves exactly one Cursor Background Agent session at a time. One to one to one. Coder manages the workspace; Cursor manages the worker and the session.</desc>
-  <style>
-    .layer { fill: none; stroke: #94a3b8; stroke-width: 1.5; rx: 10; }
-    .layer-title { font-family: ui-sans-serif, system-ui, sans-serif; font-size: 18px; font-weight: 600; fill: #0f172a; }
-    .layer-sub { font-family: ui-sans-serif, system-ui, sans-serif; font-size: 13px; fill: #475569; }
-    .layer-1 { fill: #eef2ff; }
-    .layer-2 { fill: #e0e7ff; }
-    .layer-3 { fill: #c7d2fe; }
-    .count-badge { fill: #1f2937; rx: 12; }
-    .count-text { font-family: ui-sans-serif, system-ui, sans-serif; font-size: 12px; font-weight: 600; fill: #ffffff; text-anchor: middle; }
-  </style>
-  <rect class="layer layer-1" x="40"  y="40"  width="920" height="380" rx="14"/>
-  <rect class="count-badge" x="846" y="56" width="104" height="22" rx="6"/>
-  <text class="count-text" x="898" y="71">workspace x1</text>
-  <text class="layer-title" x="64" y="76">Coder workspace</text>
-  <text class="layer-sub"   x="64" y="96">Managed by Coder. Image, network, lifecycle from a template.</text>
-  <rect class="layer layer-2" x="100" y="120" width="800" height="280" rx="12"/>
-  <rect class="count-badge" x="804" y="136" width="86" height="22" rx="6"/>
-  <text class="count-text" x="847" y="151">worker x1</text>
-  <text class="layer-title" x="124" y="156">Cursor private worker (cursor-agent worker)</text>
-  <text class="layer-sub"   x="124" y="176">Managed by Cursor. Bound to one repo at startup.</text>
-  <rect class="layer layer-3" x="180" y="200" width="640" height="180" rx="10"/>
-  <rect class="count-badge" x="664" y="216" width="146" height="22" rx="6"/>
-  <text class="count-text" x="737" y="231">session x1 at a time</text>
-  <text class="layer-title" x="204" y="236">One Cursor Background Agent session</text>
-  <text class="layer-sub"   x="204" y="256">Managed by Cursor. activeBcId identifies it in the fleet API.</text>
-  <text class="layer-sub"   x="204" y="276">When the session ends, the worker can serve the next one.</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 480" width="1000" height="480" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="concepts-title concepts-desc">
+  <title id="concepts-title">Workspace, worker, session, and who manages each</title>
+  <desc id="concepts-desc">A Coder workspace is the outer container or VM, built from a template; Coder manages it. Inside the workspace runs one Cursor private worker, a long-lived process that Cursor manages. The worker serves one Cursor Background Agent session at a time. The workspace reaches out to Cursor (developer surfaces, control plane, cloud inference) and to your network (internal Git, package registries, internal services); nothing on the outside reaches in.</desc>
+
+  <defs>
+    <style>
+      svg { font-family: -apple-system, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif; }
+      .bg               { fill: #ffffff; }
+
+      .cursor-zone      { fill: #fff7ed; stroke: #ea580c; stroke-width: 1.5; }
+      .network-zone     { fill: #ecfeff; stroke: #0e7490; stroke-width: 1.5; }
+      .side-card        { fill: #ffffff; stroke-width: 1.1; }
+      .side-card-c      { stroke: #fdba74; }
+      .side-card-n      { stroke: #67e8f9; }
+
+      .workspace-box    { fill: #f5f3ff; stroke: #7c3aed; stroke-width: 2; }
+      .worker-box       { fill: #fff7ed; stroke: #ea580c; stroke-width: 1.75; }
+      .session-card     { fill: #ffffff; stroke: #fdba74; stroke-width: 1.25; stroke-dasharray: 4 3; }
+
+      .badge-coder      { fill: #ede9fe; stroke: #7c3aed; stroke-width: 1; }
+      .badge-cursor     { fill: #ffedd5; stroke: #c2410c; stroke-width: 1; }
+      .badge-coder-l    { fill: #6d28d9; }
+      .badge-cursor-l   { fill: #c2410c; }
+
+      .zone-label       { font-size: 16px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+      .zone-label-c     { fill: #c2410c; }
+      .zone-label-n     { fill: #0e7490; }
+
+      .layer-title      { font-size: 26px; font-weight: 700; fill: #111827; }
+      .layer-def        { font-size: 14px; fill: #374151; }
+      .session-title    { font-size: 14px; font-weight: 700; fill: #111827; }
+      .session-mono     { font-family: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace; font-size: 11px; fill: #1f2937; }
+      .side-title       { font-size: 15px; font-weight: 700; fill: #111827; }
+      .side-line        { font-size: 13px; fill: #374151; }
+      .side-mono        { font-family: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, monospace; font-size: 11px; fill: #1f2937; }
+      .badge-label      { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+      .footnote         { font-size: 13px; fill: #4b5563; font-style: italic; }
+    </style>
+  </defs>
+
+  <rect class="bg" width="1000" height="480"/>
+
+  <!-- =========================================================== -->
+  <!-- Left column: Cursor                                          -->
+  <!-- =========================================================== -->
+  <rect class="cursor-zone" x="16" y="30" width="172" height="390" rx="14"/>
+  <text class="zone-label zone-label-c" x="32" y="58">Cursor</text>
+
+  <rect class="side-card side-card-c" x="30" y="76" width="144" height="96" rx="8"/>
+  <text class="side-title" x="44" y="100">Developer</text>
+  <text class="side-title" x="44" y="120">surfaces</text>
+  <text class="side-line"  x="44" y="144">cursor.com/agents,</text>
+  <text class="side-line"  x="44" y="162">Slack, GitHub, IDE.</text>
+
+  <rect class="side-card side-card-c" x="30" y="176" width="144" height="106" rx="8"/>
+  <text class="side-title" x="44" y="200">Control plane</text>
+  <text class="side-mono"  x="44" y="222">api.cursor.com</text>
+  <text class="side-line"  x="44" y="246">Session queue,</text>
+  <text class="side-line"  x="44" y="264">worker tokens.</text>
+
+  <rect class="side-card side-card-c" x="30" y="296" width="144" height="98" rx="8"/>
+  <text class="side-title" x="44" y="320">Cloud inference</text>
+  <text class="side-line"  x="44" y="344">Agent loop and</text>
+  <text class="side-line"  x="44" y="362">model calls.</text>
+
+  <!-- =========================================================== -->
+  <!-- Right column: Your network                                   -->
+  <!-- =========================================================== -->
+  <rect class="network-zone" x="812" y="30" width="172" height="390" rx="14"/>
+  <text class="zone-label zone-label-n" x="828" y="58">Your network</text>
+
+  <rect class="side-card side-card-n" x="826" y="76" width="144" height="86" rx="8"/>
+  <text class="side-title" x="840" y="100">Internal Git</text>
+  <text class="side-line"  x="840" y="124">github, gitlab,</text>
+  <text class="side-line"  x="840" y="142">SSH or HTTPS.</text>
+
+  <rect class="side-card side-card-n" x="826" y="176" width="144" height="106" rx="8"/>
+  <text class="side-title" x="840" y="200">Package</text>
+  <text class="side-title" x="840" y="220">registries</text>
+  <text class="side-line"  x="840" y="244">artifactory,</text>
+  <text class="side-line"  x="840" y="260">npm, pypi,</text>
+  <text class="side-line"  x="840" y="276">internal proxy.</text>
+
+  <rect class="side-card side-card-n" x="826" y="296" width="144" height="98" rx="8"/>
+  <text class="side-title" x="840" y="320">Internal services</text>
+  <text class="side-line"  x="840" y="344">Databases, build</text>
+  <text class="side-line"  x="840" y="362">systems, APIs.</text>
+
+  <!-- =========================================================== -->
+  <!-- Middle: Coder workspace                                      -->
+  <!-- =========================================================== -->
+  <rect class="workspace-box" x="204" y="30" width="592" height="390" rx="16"/>
+  <text class="layer-title" x="228" y="72">Coder workspace</text>
+  <text class="layer-def"   x="228" y="96">A container or VM built from a Coder template.</text>
+  <text class="layer-def"   x="228" y="114">Provides image, credentials, networking, lifecycle.</text>
+
+  <rect class="badge-coder" x="624" y="44" width="156" height="26" rx="6"/>
+  <text class="badge-label badge-coder-l" x="640" y="62">Managed by Coder</text>
+
+  <!-- Middle: Worker -->
+  <rect class="worker-box" x="228" y="138" width="544" height="270" rx="14"/>
+  <text class="layer-title" x="252" y="178">Worker</text>
+
+  <rect class="badge-cursor" x="618" y="160" width="142" height="24" rx="6"/>
+  <text class="badge-label badge-cursor-l" x="632" y="176">Managed by Cursor</text>
+
+  <text class="layer-def" x="252" y="204">Long-lived cursor-agent worker process. Registers</text>
+  <text class="layer-def" x="252" y="222">to your team and serves one session at a time.</text>
+
+  <!-- Middle: Session -->
+  <rect class="session-card" x="298" y="248" width="404" height="116" rx="10"/>
+  <text class="session-title" x="316" y="272">Cursor Background Agent session</text>
+  <text class="session-mono"  x="316" y="296">activeBcId: bc-...</text>
+  <text class="session-mono"  x="316" y="316">repo: coder/coder</text>
+  <text class="session-mono"  x="316" y="336">branch: cursor/&lt;feature&gt;</text>
+  <text class="layer-def"     x="316" y="358">One at a time. Next one starts after this drains.</text>
+
+  <text class="layer-def" x="252" y="390">One worker per workspace. Bound to one repo at startup (--worker-dir).</text>
+
+  <!-- Footnote -->
+  <text class="footnote" x="20" y="466">Each layer's outer box is managed by the team named in the badge. The workspace reaches out to both sides; nothing reaches in.</text>
 </svg>
