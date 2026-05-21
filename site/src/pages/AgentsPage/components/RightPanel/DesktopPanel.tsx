@@ -228,7 +228,7 @@ export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
 
 	// status === "connected"
 	return (
-		<div className="relative h-full w-full">
+		<div className="flex h-full w-full flex-col">
 			<DesktopToolbar
 				agent={agent}
 				workspace={workspace}
@@ -243,7 +243,7 @@ export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
 			<div
 				ref={scrollRef}
 				className={cn(
-					"h-full w-full",
+					"min-h-0 flex-1",
 					scaleMode === "native" ? "overflow-auto" : "overflow-hidden",
 				)}
 			>

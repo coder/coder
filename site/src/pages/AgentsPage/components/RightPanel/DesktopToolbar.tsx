@@ -82,7 +82,7 @@ export const DesktopToolbar: FC<DesktopToolbarProps> = ({
 
 	return (
 		<div
-			className="absolute top-0 right-0 left-0 z-20 flex h-8 items-center justify-between border-0 border-b border-solid border-border-default bg-surface-primary px-1.5"
+			className="flex h-8 shrink-0 items-center justify-between border-0 border-b border-solid border-border-default bg-surface-primary px-1.5"
 			role="toolbar"
 			aria-label="Desktop controls"
 		>

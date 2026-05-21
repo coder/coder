@@ -117,7 +117,7 @@ export default function DesktopPopoutPage() {
 	}
 
 	return (
-		<div className="relative h-screen w-screen overflow-hidden bg-black">
+		<div className="flex h-screen w-screen flex-col overflow-hidden bg-black">
 			<DesktopToolbar
 				agent={workspaceAgent}
 				workspace={workspace}
@@ -132,7 +132,7 @@ export default function DesktopPopoutPage() {
 				ref={(el) => {
 					if (el) attach(el);
 				}}
-				className="h-full w-full"
+				className="min-h-0 flex-1"
 			/>
 		</div>
 	);
