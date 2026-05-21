@@ -54,7 +54,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
-		require.Equal(t, "AI Bridge is a Premium feature. Contact sales!", sdkErr.Message)
+		require.Equal(t, "AI Gateway is a Premium feature. Contact sales!", sdkErr.Message)
 	})
 
 	t.Run("EmptyDB", func(t *testing.T) {
