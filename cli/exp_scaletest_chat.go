@@ -280,10 +280,16 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 				startTurnsChan = make(chan struct{})
 			}
 
-			chatHarness = harness.NewTestHarness(
-				timeoutStrategy.wrapStrategy(harness.ConcurrentExecutionStrategy{}),
-				cleanupStrategy.toStrategy(),
-			)
+			// Validate all chat configs before constructing the harness so
+			// that validation failures (for example, an empty --prompt) return
+			// cleanly instead of triggering the deferred cleanup against a
+			// harness whose Run never started.
+			type chatRunConfig struct {
+				workspaceIndex int
+				chatIndex      int64
+				cfg            chat.Config
+			}
+			chatRunConfigs := make([]chatRunConfig, 0, len(workspaceIDs)*int(chatsPerWorkspace))
 			for workspaceIndex, targetWorkspaceID := range workspaceIDs {
 				for chatIndex := int64(0); chatIndex < chatsPerWorkspace; chatIndex++ {
 					readyWaitGroup.Add(1)
@@ -309,21 +315,32 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 					if err := cfg.Validate(); err != nil {
 						return xerrors.Errorf("validate config for workspace %d chat %d: %w", workspaceIndex, chatIndex, err)
 					}
-
-					runnerClient, err := loadtestutil.DupClientCopyingHeaders(client, BypassHeader)
-					if err != nil {
-						return xerrors.Errorf("duplicate client for workspace %d chat %d: %w", workspaceIndex, chatIndex, err)
-					}
-					var runner harness.Runnable = chat.NewRunner(runnerClient, cfg)
-					if tracer != nil {
-						runner = &runnableTraceWrapper{
-							tracer:   tracer,
-							runner:   runner,
-							spanName: fmt.Sprintf("chat/workspace-%d-chat-%d", workspaceIndex, chatIndex),
-						}
-					}
-					chatHarness.AddRun("chat", fmt.Sprintf("workspace-%d-chat-%d", workspaceIndex, chatIndex), runner)
+					chatRunConfigs = append(chatRunConfigs, chatRunConfig{
+						workspaceIndex: workspaceIndex,
+						chatIndex:      chatIndex,
+						cfg:            cfg,
+					})
 				}
+			}
+
+			chatHarness = harness.NewTestHarness(
+				timeoutStrategy.wrapStrategy(harness.ConcurrentExecutionStrategy{}),
+				cleanupStrategy.toStrategy(),
+			)
+			for _, run := range chatRunConfigs {
+				runnerClient, err := loadtestutil.DupClientCopyingHeaders(client, BypassHeader)
+				if err != nil {
+					return xerrors.Errorf("duplicate client for workspace %d chat %d: %w", run.workspaceIndex, run.chatIndex, err)
+				}
+				var runner harness.Runnable = chat.NewRunner(runnerClient, run.cfg)
+				if tracer != nil {
+					runner = &runnableTraceWrapper{
+						tracer:   tracer,
+						runner:   runner,
+						spanName: fmt.Sprintf("chat/workspace-%d-chat-%d", run.workspaceIndex, run.chatIndex),
+					}
+				}
+				chatHarness.AddRun("chat", fmt.Sprintf("workspace-%d-chat-%d", run.workspaceIndex, run.chatIndex), runner)
 			}
 
 			// Run the chat harness, optionally pausing between chat creation and the turn storm.
