@@ -32,12 +32,7 @@ export const PageHeader: FC<PageHeaderProps> = ({
 	);
 };
 
-interface PageHeaderTitleProps extends React.ComponentPropsWithRef<"h1"> {
-	/** Extra Tailwind classes merged onto the h1. */
-	className?: string;
-	/** Native HTML `title` attribute, surfaced as a browser tooltip. */
-	title?: string;
-}
+type PageHeaderTitleProps = React.ComponentPropsWithRef<"h1">;
 
 export const PageHeaderTitle: FC<PageHeaderTitleProps> = ({
 	children,
@@ -51,7 +46,6 @@ export const PageHeaderTitle: FC<PageHeaderTitleProps> = ({
 				"text-3xl font-semibold m-0 flex items-center leading-snug",
 				className,
 			)}
-			title={title}
 			{...props}
 		>
 			{children}
@@ -59,9 +53,9 @@ export const PageHeaderTitle: FC<PageHeaderTitleProps> = ({
 	);
 };
 
-interface PageHeaderSubtitleProps extends React.ComponentPropsWithRef<"h2"> {
+type PageHeaderSubtitleProps = React.ComponentPropsWithRef<"h2"> & {
 	condensed?: boolean;
-}
+};
 
 export const PageHeaderSubtitle: FC<PageHeaderSubtitleProps> = ({
 	children,

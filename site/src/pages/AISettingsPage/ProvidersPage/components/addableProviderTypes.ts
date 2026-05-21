@@ -1,6 +1,6 @@
 import type { AIProviderType } from "#/api/typesGenerated";
 
-type AddableProvider = {
+export type AddableProvider = {
 	value: AIProviderType;
 	label: string;
 };
@@ -15,12 +15,3 @@ export const addableProviders: readonly AddableProvider[] = [
 	{ value: "openrouter", label: "OpenRouter" },
 	{ value: "vercel", label: "Vercel" },
 ];
-
-export const findAddableProvider = (
-	value: string | null | undefined,
-): AddableProvider | undefined =>
-	addableProviders.find((p) => p.value === value);
-
-export const isAddableProviderType = (
-	value: string | null | undefined,
-): value is AIProviderType => findAddableProvider(value) !== undefined;

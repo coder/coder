@@ -5532,8 +5532,6 @@ export const MockAIProviderOpenAI: TypesGen.AIProvider = {
 			created_at: "2026-05-14T10:00:00Z",
 		},
 	],
-	// The Go server emits JSON null for AIProviderSettings on providers with
-	// no type-specific config; mirror that shape here so mocks match the wire.
 	settings: null as unknown as TypesGen.AIProviderSettings,
 	created_at: "2026-05-14T10:00:00Z",
 	updated_at: "2026-05-14T10:00:00Z",
@@ -5559,11 +5557,7 @@ export const MockAIProviderBedrock: TypesGen.AIProvider = {
 	display_name: "Bedrock",
 	base_url: "https://bedrock-runtime.us-east-2.amazonaws.com",
 	enabled: true,
-	// Bedrock providers authenticate via Settings, not via the keys list.
 	api_keys: [],
-	// AIProviderSettings is a discriminated container that flattens to
-	// {_type, _version, ...variantFields} on the wire. The generated TS
-	// interface is empty so we cast through unknown.
 	settings: {
 		_type: "bedrock",
 		_version: 1,

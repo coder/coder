@@ -4,27 +4,26 @@ import { Link, useNavigate } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import { createAIProviderMutation } from "#/api/queries/aiProviders";
-import type { AIProviderType } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
 	PageHeader,
 	PageHeaderSubtitle,
 	PageHeaderTitle,
 } from "#/components/PageHeader/PageHeader";
-import { findAddableProvider } from "../components/addableProviderTypes";
+import type { AddableProvider } from "../components/addableProviderTypes";
 import { ProviderForm } from "../components/ProviderForm";
 import { providerFormValuesToCreate } from "../components/providerFormApiMap";
 
 interface AddProviderPageViewProps {
-	type: AIProviderType;
+	provider: AddableProvider;
 }
 
-const AddProviderPageView: React.FC<AddProviderPageViewProps> = ({ type }) => {
+const AddProviderPageView: React.FC<AddProviderPageViewProps> = ({
+	provider,
+}) => {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const createMutation = useMutation(createAIProviderMutation(queryClient));
-	const provider = findAddableProvider(type);
-	const providerLabel = provider?.label ?? type;
 
 	return (
 		<>
@@ -38,7 +37,7 @@ const AddProviderPageView: React.FC<AddProviderPageViewProps> = ({ type }) => {
 			</div>
 			<div className="mx-auto w-full max-w-screen-sm flex flex-col gap-6">
 				<PageHeader className="pt-6 pb-0">
-					<PageHeaderTitle>{`Add ${providerLabel} provider`}</PageHeaderTitle>
+					<PageHeaderTitle>{`Add ${provider.label} provider`}</PageHeaderTitle>
 					<PageHeaderSubtitle>
 						Configure connection details and credentials for this provider. The
 						provider supplies models that users can select for their
@@ -48,7 +47,7 @@ const AddProviderPageView: React.FC<AddProviderPageViewProps> = ({ type }) => {
 				<div className="border border-solid p-6 rounded-lg">
 					<ProviderForm
 						editing={false}
-						initialValues={{ type }}
+						initialValues={{ type: provider.value }}
 						isLoading={createMutation.isPending}
 						submitError={createMutation.error}
 						onSubmit={(values) => {

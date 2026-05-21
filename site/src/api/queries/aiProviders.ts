@@ -21,11 +21,6 @@ export const aiProvider = (idOrName: string) => ({
 	queryFn: (): Promise<AIProvider> => API.getAIProvider(idOrName),
 });
 
-/**
- * Create a new AI provider. For OpenAI/Anthropic, plaintext API keys travel
- * with the request body as `api_keys`. Bedrock providers carry their AWS
- * credentials inside `settings` and must leave `api_keys` empty.
- */
 export const createAIProviderMutation = (queryClient: QueryClient) => ({
 	mutationFn: (request: CreateAIProviderRequest): Promise<AIProvider> =>
 		API.createAIProvider(request),
@@ -34,13 +29,6 @@ export const createAIProviderMutation = (queryClient: QueryClient) => ({
 	},
 });
 
-/**
- * Update an AI provider. Key rotation happens atomically inside the PATCH via
- * the `api_keys` mutation list: a single `{ api_key: newPlaintext }` entry
- * implicitly deletes every existing key (none of their IDs are referenced)
- * and inserts the new plaintext. Omitting `api_keys` leaves the key set
- * untouched.
- */
 export const updateAIProviderMutation = (
 	queryClient: QueryClient,
 	idOrName: string,

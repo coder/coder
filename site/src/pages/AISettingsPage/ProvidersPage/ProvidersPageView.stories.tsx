@@ -42,8 +42,6 @@ export const EmptyProviders: Story = {
 	},
 };
 
-// Open the "Add provider" dropdown so the Storybook surface captures
-// the eight-row provider menu (matching the design) in a single shot.
 export const AddProviderDropdownOpen: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

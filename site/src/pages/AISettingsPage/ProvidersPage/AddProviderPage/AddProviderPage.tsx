@@ -1,12 +1,11 @@
-import { useSearchParams } from "react-router";
+import { ArrowLeftIcon } from "lucide-react";
+import { Link, useSearchParams } from "react-router";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
+import { Button } from "#/components/Button/Button";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
-import NotFoundPage from "#/pages/404Page/404Page";
 import { pageTitle } from "#/utils/page";
-import {
-	findAddableProvider,
-	isAddableProviderType,
-} from "../components/addableProviderTypes";
+import { addableProviders } from "../components/addableProviderTypes";
 import AddProviderPageView from "./AddProviderPageView";
 
 const AddProviderPage: React.FC = () => {
@@ -15,19 +14,34 @@ const AddProviderPage: React.FC = () => {
 	const [searchParams] = useSearchParams();
 	const typeParam = searchParams.get("type");
 
-	// Unknown `?type` has no form schema to render against.
-	if (!isAddableProviderType(typeParam)) {
-		return <NotFoundPage />;
+	const provider = addableProviders.find((p) => p.value === typeParam);
+	if (!provider) {
+		return (
+			<div className="flex flex-col items-start gap-4 pt-4 px-6">
+				<Link to="/ai/settings">
+					<Button variant="subtle">
+						<ArrowLeftIcon />
+						<span>Back to providers</span>
+					</Button>
+				</Link>
+				<Alert severity="warning">
+					<AlertTitle>Provider type not found</AlertTitle>
+					<AlertDescription>
+						The provider type you are trying to add is not valid. Please try
+						again.
+					</AlertDescription>
+				</Alert>
+			</div>
+		);
 	}
-
-	const provider = findAddableProvider(typeParam);
-	const title = provider ? `New ${provider.label} Provider` : "New AI Provider";
 
 	return (
 		<RequirePermission isFeatureVisible={hasPermission}>
-			<title>{pageTitle(title, "AI Providers")}</title>
+			<title>
+				{pageTitle(`New ${provider.label} Provider`, "AI Providers")}
+			</title>
 
-			<AddProviderPageView type={typeParam} />
+			<AddProviderPageView provider={provider} />
 		</RequirePermission>
 	);
 };

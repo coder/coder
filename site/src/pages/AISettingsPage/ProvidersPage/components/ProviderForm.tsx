@@ -1,5 +1,5 @@
 import { useFormik } from "formik";
-import { type FC, type ReactNode, useId } from "react";
+import { type FC, useId } from "react";
 import { Link } from "react-router";
 import * as Yup from "yup";
 import type { AIProviderType } from "#/api/typesGenerated";
@@ -7,12 +7,10 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { Form, FormFields } from "#/components/Form/Form";
 import { FormField } from "#/components/FormField/FormField";
-import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
-import { cn } from "#/utils/cn";
-import { type FormHelpers, getFormHelpers } from "#/utils/formUtils";
+import { getFormHelpers } from "#/utils/formUtils";
 
 export type ProviderFormValues = {
 	type: AIProviderType | "";
@@ -27,47 +25,32 @@ export type ProviderFormValues = {
 	enabled: boolean;
 };
 
-// Yup's `.url()` accepts ftp://, mailto://, etc. Anchored so substrings
-// like "my-https://..." still fail.
-const httpSchemeRegex = /^https?:\/\//i;
-const httpSchemeErrorMessage = "Endpoint must use http or https.";
-
-// Region is derived from the URL, so non-canonical Bedrock endpoints
-// (proxies, GovCloud, etc.) aren't supported and fail validation.
-const bedrockCanonicalUrlRegex =
+const HTTP_SCHEME_REGEX = /^https?:\/\//i;
+const BEDROCK_CANONICAL_URL_REGEX =
 	/^https:\/\/bedrock-runtime\.([a-z0-9-]+)\.amazonaws\.com\/?$/i;
-const bedrockCanonicalUrlErrorMessage =
-	"Endpoint must be a standard AWS Bedrock URL.";
+const PROVIDER_NAME_REGEX = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+
+export const SAVED_CREDENTIAL_MASK = "********";
 
 export const parseBedrockRegionFromBaseUrl = (
 	baseUrl: string,
 ): string | undefined => {
-	const match = bedrockCanonicalUrlRegex.exec(baseUrl.trim());
+	const match = BEDROCK_CANONICAL_URL_REGEX.exec(baseUrl.trim());
 	return match?.[1]?.toLowerCase();
 };
 
-// Provider names must match the kebab-case pattern enforced by the API.
-const providerNameRegex = /^[a-z0-9]+(-[a-z0-9]+)*$/;
-const providerNameErrorMessage =
-	"Name must be lowercase, hyphen-separated (e.g. 'my-anthropic').";
-
-// Slug is immutable; we only validate on create. On edit the field is
-// hidden and the seeded value (from the API) already satisfies the regex.
 const makeNameSchema = (editing: boolean) =>
 	editing
 		? Yup.string()
 		: Yup.string()
-				.matches(providerNameRegex, providerNameErrorMessage)
+				.matches(
+					PROVIDER_NAME_REGEX,
+					"Name must be lowercase, hyphen-separated (e.g. 'my-anthropic').",
+				)
 				.required("Name is required");
 
-// Required on edit; on create the server treats blank as "no display
-// name" and the UI falls back to the slug.
 const makeDisplayNameSchema = (editing: boolean) =>
 	editing ? Yup.string().required("Display name is required") : Yup.string();
-
-// Seeded into credential inputs when a value exists on the server.
-// Focus clears it; a re-submitted seed sanitizes to "" (= "keep existing").
-export const SAVED_CREDENTIAL_MASK = "********";
 
 const defaultInitialValues: ProviderFormValues = {
 	type: "anthropic",
@@ -82,19 +65,7 @@ const defaultInitialValues: ProviderFormValues = {
 	enabled: true,
 };
 
-// Per-type prefills shared by the create form and the input placeholders,
-// so the two can't drift apart.
-const providerDefaults: Record<
-	| "openai"
-	| "anthropic"
-	| "bedrock"
-	| "azure"
-	| "google"
-	| "openai-compat"
-	| "openrouter"
-	| "vercel",
-	Partial<ProviderFormValues>
-> = {
+const providerDefaults: Record<AIProviderType, Partial<ProviderFormValues>> = {
 	openai: { name: "openai", baseUrl: "https://api.openai.com/v1/" },
 	anthropic: { name: "anthropic", baseUrl: "https://api.anthropic.com" },
 	bedrock: {
@@ -131,7 +102,7 @@ const makeOpenAiAnthropicSchema = (editing: boolean) =>
 		displayName: makeDisplayNameSchema(editing),
 		baseUrl: Yup.string()
 			.url("Endpoint must be a valid URL")
-			.matches(httpSchemeRegex, httpSchemeErrorMessage)
+			.matches(HTTP_SCHEME_REGEX, "Endpoint must use http or https.")
 			.required("Endpoint is required"),
 		apiKey: editing
 			? Yup.string()
@@ -139,7 +110,6 @@ const makeOpenAiAnthropicSchema = (editing: boolean) =>
 		enabled: Yup.boolean(),
 	});
 
-// A value equal to the seeded mask isn't a real credential.
 const credentialFilled = (value: string | undefined): boolean => {
 	if (!value) return false;
 	const trimmed = value.trim();
@@ -153,11 +123,12 @@ const makeBedrockSchema = (editing: boolean) =>
 			.required(),
 		name: makeNameSchema(editing),
 		displayName: makeDisplayNameSchema(editing),
-		// Region is derived from the URL, so the endpoint must be canonical.
-		// The canonical regex already enforces https.
 		baseUrl: Yup.string()
 			.url("Endpoint must be a valid URL")
-			.matches(bedrockCanonicalUrlRegex, bedrockCanonicalUrlErrorMessage)
+			.matches(
+				BEDROCK_CANONICAL_URL_REGEX,
+				"Endpoint must be a standard AWS Bedrock URL.",
+			)
 			.required("Endpoint is required"),
 		apiKey: Yup.string(),
 		model: Yup.string(),
@@ -189,7 +160,7 @@ const makeBedrockSchema = (editing: boolean) =>
 	});
 
 const getProviderFormSchema = (editing: boolean) =>
-	Yup.lazy((value: { type?: string } | undefined) => {
+	Yup.lazy((value: { type?: AIProviderType } | undefined) => {
 		switch (value?.type) {
 			case "openai":
 			case "anthropic":
@@ -218,89 +189,6 @@ const getProviderFormSchema = (editing: boolean) =>
 				});
 		}
 	});
-
-type CredentialFieldProps = {
-	label: string;
-	helpers: FormHelpers;
-	autoComplete?: string;
-	placeholder?: string;
-	description?: ReactNode;
-	required?: boolean;
-	/** Clears the seeded mask on first focus. */
-	onFocus?: () => void;
-};
-
-// Like `FormField`, but with focus-to-clear mask seeding for credentials.
-const CredentialField: FC<CredentialFieldProps> = ({
-	label,
-	helpers,
-	autoComplete,
-	placeholder,
-	description,
-	required = false,
-	onFocus,
-}) => {
-	const inputId = useId();
-	const errorId = `${inputId}-error`;
-	const helperId = `${inputId}-helper`;
-	const descriptionId = `${inputId}-description`;
-	const describedBy = [
-		description ? descriptionId : null,
-		helpers.error ? errorId : helpers.helperText ? helperId : null,
-	]
-		.filter(Boolean)
-		.join(" ");
-
-	const labelNode = (
-		<Label htmlFor={inputId}>
-			{label}{" "}
-			{required && (
-				<span className="text-xs font-bold text-content-destructive">*</span>
-			)}
-		</Label>
-	);
-
-	const descriptionNode = description && (
-		<div id={descriptionId} className="text-xs text-content-secondary">
-			{description}
-		</div>
-	);
-
-	const helperNode = helpers.error ? (
-		<span id={errorId} className="text-xs text-content-destructive">
-			{helpers.helperText}
-		</span>
-	) : helpers.helperText ? (
-		<span id={helperId} className="text-xs text-content-secondary">
-			{helpers.helperText}
-		</span>
-	) : null;
-
-	const inputNode = (
-		<Input
-			id={inputId}
-			name={helpers.name}
-			value={helpers.value}
-			onChange={helpers.onChange}
-			onBlur={helpers.onBlur}
-			onFocus={onFocus}
-			autoComplete={autoComplete}
-			placeholder={placeholder}
-			aria-invalid={helpers.error}
-			aria-describedby={describedBy || undefined}
-			className={cn("w-full", helpers.error && "border-border-destructive")}
-		/>
-	);
-
-	return (
-		<div className="flex flex-col gap-2">
-			{labelNode}
-			{descriptionNode}
-			{inputNode}
-			{helperNode}
-		</div>
-	);
-};
 
 type ProviderFormProps = {
 	editing?: boolean;
