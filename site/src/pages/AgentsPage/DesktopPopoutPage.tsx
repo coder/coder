@@ -102,7 +102,7 @@ export default function DesktopPopoutPage() {
 	}
 
 	return (
-		<div className="flex h-screen w-screen flex-col overflow-hidden bg-black">
+		<div className="flex h-screen w-screen flex-col overflow-hidden bg-surface-primary">
 			<DesktopToolbar
 				scaleMode={scaleMode}
 				onScaleModeChange={setScaleMode}
@@ -115,7 +115,7 @@ export default function DesktopPopoutPage() {
 				ref={(el) => {
 					if (el) attach(el);
 				}}
-				className="min-h-0 flex-1 overflow-hidden"
+				className="min-h-0 flex-1 overflow-hidden bg-surface-primary"
 			/>
 		</div>
 	);

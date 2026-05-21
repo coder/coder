@@ -203,7 +203,7 @@ export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
 				onPopOut={onPopOut}
 			/>
 
-			<div className="min-h-0 flex-1 overflow-hidden">
+			<div className="min-h-0 flex-1 overflow-hidden bg-surface-primary">
 				<div
 					ref={(el) => {
 						if (el) attach(el);
