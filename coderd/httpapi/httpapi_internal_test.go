@@ -41,7 +41,7 @@ func (m oneWaySocketWriter) Write(b []byte) (int, error) {
 	return m.serverReadWriter.Write(b)
 }
 
-func newOneWayRequest(t *testing.T, ctx context.Context) *http.Request {
+func newOneWayRequest(ctx context.Context, t *testing.T) *http.Request {
 	t.Helper()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "ws://www.fake-website.com/logs", nil)
@@ -134,7 +134,7 @@ func TestOneWayWebSocketEventSender(t *testing.T) {
 		}
 		for _, p := range incorrectProtocols {
 			ctx := testutil.Context(t, testutil.WaitShort)
-			req := newOneWayRequest(t, ctx)
+			req := newOneWayRequest(ctx, t)
 			req.ProtoMajor = p.major
 			req.ProtoMinor = p.minor
 			req.Proto = p.proto
@@ -149,7 +149,7 @@ func TestOneWayWebSocketEventSender(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
-		req := newOneWayRequest(t, ctx)
+		req := newOneWayRequest(ctx, t)
 		writer := newOneWayWriter(t)
 		send, _, err := OneWayWebSocketEventSender(slogtest.Make(t, nil))(writer, req)
 		require.NoError(t, err)
@@ -172,7 +172,7 @@ func TestOneWayWebSocketEventSender(t *testing.T) {
 
 		timeoutCtx := testutil.Context(t, testutil.WaitShort)
 		ctx, cancel := context.WithCancel(timeoutCtx)
-		req := newOneWayRequest(t, ctx)
+		req := newOneWayRequest(ctx, t)
 		writer := newOneWayWriter(t)
 		_, done, err := OneWayWebSocketEventSender(slogtest.Make(t, nil))(writer, req)
 		require.NoError(t, err)
@@ -186,7 +186,7 @@ func TestOneWayWebSocketEventSender(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
-		req := newOneWayRequest(t, ctx)
+		req := newOneWayRequest(ctx, t)
 		writer := newOneWayWriter(t)
 		_, done, err := OneWayWebSocketEventSender(slogtest.Make(t, nil))(writer, req)
 		require.NoError(t, err)
@@ -206,7 +206,7 @@ func TestOneWayWebSocketEventSender(t *testing.T) {
 
 		timeoutCtx := testutil.Context(t, testutil.WaitShort)
 		ctx, cancel := context.WithCancel(timeoutCtx)
-		req := newOneWayRequest(t, ctx)
+		req := newOneWayRequest(ctx, t)
 		writer := newOneWayWriter(t)
 		send, done, err := OneWayWebSocketEventSender(slogtest.Make(t, nil))(writer, req)
 		require.NoError(t, err)
@@ -235,7 +235,7 @@ func TestOneWayWebSocketEventSender(t *testing.T) {
 		trap := mClock.Trap().NewTicker("HeartbeatClose")
 		defer trap.Close()
 
-		req := newOneWayRequest(t, ctx)
+		req := newOneWayRequest(ctx, t)
 		writer := newOneWayWriter(t)
 		_, _, err := oneWayWebSocketEventSenderWith(
 			slogtest.Make(t, nil),
@@ -262,7 +262,7 @@ func (m *serverSentWriter) Flush() {
 	m.Body.Reset()
 }
 
-func newServerSentRequest(t *testing.T, ctx context.Context) *http.Request {
+func newServerSentRequest(ctx context.Context, t *testing.T) *http.Request {
 	t.Helper()
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "ws://www.fake-website.com/logs", nil)
@@ -293,7 +293,7 @@ func TestServerSentEventSender(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
-		req := newServerSentRequest(t, ctx)
+		req := newServerSentRequest(ctx, t)
 		writer := newServerSentWriter()
 		_, _, err := ServerSentEventSender(writer, req)
 		require.NoError(t, err)
@@ -309,7 +309,7 @@ func TestServerSentEventSender(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
-		req := newServerSentRequest(t, ctx)
+		req := newServerSentRequest(ctx, t)
 		writer := newServerSentWriter()
 		send, _, err := ServerSentEventSender(writer, req)
 		require.NoError(t, err)
@@ -329,7 +329,7 @@ func TestServerSentEventSender(t *testing.T) {
 
 		timeoutCtx := testutil.Context(t, testutil.WaitShort)
 		ctx, cancel := context.WithCancel(timeoutCtx)
-		req := newServerSentRequest(t, ctx)
+		req := newServerSentRequest(ctx, t)
 		writer := newServerSentWriter()
 		_, done, err := ServerSentEventSender(writer, req)
 		require.NoError(t, err)
@@ -346,7 +346,7 @@ func TestServerSentEventSender(t *testing.T) {
 		trap := mClock.Trap().NewTicker("ServerSentEventSender")
 		defer trap.Close()
 
-		req := newServerSentRequest(t, ctx)
+		req := newServerSentRequest(ctx, t)
 		writer := newServerSentWriter()
 		_, _, err := serverSentEventSenderWith(writer, req, mClock, time.Second)
 		require.NoError(t, err)
