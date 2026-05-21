@@ -11,6 +11,10 @@
 	"ignore": [
 		"**/*Generated.ts",
 		"src/api/chatModelOptions.ts",
+		// TODO(ai-settings): aiProviders.ts queries are staged in PR 2 of the
+		// AI settings stack; they are consumed by the provider pages in PR 4.
+		// Remove this exclusion once those pages land.
+		"src/api/queries/aiProviders.ts",
 		// TODO(devtools): debugPanelUtils.ts is staged in PR 7; its exports are
 		// consumed by the Debug panel components in PRs 8 and 9. Remove this
 		// exclusion once the panel components land.
