@@ -43,11 +43,9 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 				</span>
 			</TableCell>
 			<TableCell>
-				<div className="flex justify-center">
-					{provider.enabled && (
-						<Badge variant="default">Enabled</Badge>
-					)}
-				</div>
+				{provider.enabled && (
+					<Badge variant="default">Enabled</Badge>
+				)}
 			</TableCell>
 			<TableCell className="w-10 text-center">
 				<div className="flex justify-end items-center gap-8 pr-4">
