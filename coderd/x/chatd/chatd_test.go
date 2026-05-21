@@ -47,6 +47,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
@@ -9842,6 +9843,269 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 		require.NotContains(t, string(msg.Content.RawMessage), "result_delta",
 			"advisor deltas are stream-only and must not be persisted")
 	}
+}
+
+func TestAdvisorDebugRun_RecordsDedicatedModelStep(t *testing.T) {
+	t.Parallel()
+	testAdvisorDebugRunRecordsNestedStep(t, advisorDebugRunTestCase{
+		dedicatedAdvisorModel: true,
+	})
+}
+
+func TestAdvisorDebugRun_RecordsFallbackModelStep(t *testing.T) {
+	t.Parallel()
+	testAdvisorDebugRunRecordsNestedStep(t, advisorDebugRunTestCase{})
+}
+
+type advisorDebugRunTestCase struct {
+	dedicatedAdvisorModel bool
+}
+
+type advisorDebugStreamRequest struct {
+	model string
+	path  string
+	tools []string
+}
+
+type advisorDebugRequestPayload struct {
+	Messages []struct {
+		Role  string `json:"role"`
+		Parts []struct {
+			Type      string `json:"type"`
+			Text      string `json:"text,omitempty"`
+			ToolName  string `json:"tool_name,omitempty"`
+			Arguments string `json:"arguments,omitempty"`
+			Result    string `json:"result,omitempty"`
+		} `json:"parts"`
+	} `json:"messages"`
+	Tools []struct {
+		Name string `json:"name"`
+	} `json:"tools,omitempty"`
+}
+
+func testAdvisorDebugRunRecordsNestedStep(t *testing.T, tc advisorDebugRunTestCase) {
+	t.Helper()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	const (
+		advisorQuestion  = "how should I approach this refactor?"
+		advisorModelName = "advisor-debug-model"
+		userPrompt       = "help me refactor this module"
+	)
+	advisorArgs := fmt.Sprintf(`{"question":%q}`, advisorQuestion)
+
+	var (
+		streamedCallCount atomic.Int32
+		requestsMu        sync.Mutex
+		streamedRequests  []advisorDebugStreamRequest
+	)
+	recordStreamedRequest := func(req *chattest.OpenAIRequest) {
+		tools := make([]string, 0, len(req.Tools))
+		for _, tool := range req.Tools {
+			tools = append(tools, openAIToolName(tool))
+		}
+		captured := advisorDebugStreamRequest{
+			model: req.Model,
+			path:  req.URL.Path,
+			tools: tools,
+		}
+		requestsMu.Lock()
+		streamedRequests = append(streamedRequests, captured)
+		requestsMu.Unlock()
+	}
+
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("debug title")
+		}
+
+		recordStreamedRequest(req)
+		switch streamedCallCount.Add(1) {
+		case 1:
+			return chattest.OpenAIStreamingResponse(chattest.OpenAIToolCallChunk(
+				chatadvisor.ToolName,
+				advisorArgs,
+			))
+		case 2:
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAITextChunks("break the problem ", "into smaller pieces")...,
+			)
+		default:
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAITextChunks("acknowledged")...,
+			)
+		}
+	})
+
+	user, org, parentModel := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	advisorCfg := codersdk.AdvisorConfig{
+		Enabled:         true,
+		MaxUsesPerRun:   3,
+		MaxOutputTokens: 16384,
+	}
+	wantAdvisorRequestModel := parentModel.Model
+	if tc.dedicatedAdvisorModel {
+		advisorModel := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			Provider:    parentModel.Provider,
+			Model:       advisorModelName,
+			DisplayName: "Advisor Debug Model",
+		})
+		advisorCfg.ModelConfigID = advisorModel.ID
+		wantAdvisorRequestModel = advisorModel.Model
+	}
+	seedAdvisorConfig(ctx, t, db, advisorCfg)
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AlwaysEnableDebugLogs = true
+	})
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "advisor-debug-run",
+		ModelConfigID:  parentModel.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText(userPrompt),
+		},
+	})
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		got, getErr := db.GetChatByID(ctx, chat.ID)
+		if getErr != nil || got.Status != database.ChatStatusWaiting {
+			return false
+		}
+		return streamedCallCount.Load() >= 3
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	requestsMu.Lock()
+	gotStreamedRequests := append([]advisorDebugStreamRequest(nil), streamedRequests...)
+	requestsMu.Unlock()
+	require.GreaterOrEqual(t, len(gotStreamedRequests), 3)
+	require.Contains(t, gotStreamedRequests[0].tools, chatadvisor.ToolName,
+		"parent step must expose the advisor tool")
+	require.Empty(t, gotStreamedRequests[1].tools,
+		"nested advisor request must not expose tools")
+	require.Equal(t, wantAdvisorRequestModel, gotStreamedRequests[1].model,
+		"nested advisor request must use the expected model")
+	require.Equal(t, "/chat/completions", gotStreamedRequests[1].path)
+
+	debugRun, advisorStep, advisorRequest := requireAdvisorDebugStep(
+		ctx, t, db, chat.ID, advisorQuestion,
+	)
+	require.Equal(t, string(codersdk.ChatDebugRunKindChatTurn), debugRun.Kind)
+	require.Equal(t, string(codersdk.ChatDebugStatusCompleted), debugRun.Status)
+	require.Equal(t, string(codersdk.ChatDebugStepOperationStream), advisorStep.Operation)
+	require.Equal(t, string(codersdk.ChatDebugStatusCompleted), advisorStep.Status)
+	require.Empty(t, advisorRequest.Tools,
+		"nested advisor debug request must not include tools")
+	require.Contains(t, advisorDebugRequestText(advisorRequest), advisorQuestion)
+	require.Contains(t, advisorDebugRequestText(advisorRequest), chatadvisor.AdvisorSystemPrompt)
+
+	steps, err := db.GetChatDebugStepsByRunID(ctx, debugRun.ID)
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(steps), 3,
+		"chat turn debug run must include parent, advisor, and parent continuation steps")
+
+	var attempts []chatdebug.Attempt
+	require.NoError(t, json.Unmarshal(advisorStep.Attempts, &attempts))
+	require.NotEmpty(t, attempts,
+		"nested advisor debug step must record raw provider attempts")
+	var foundAdvisorAttempt bool
+	for _, attempt := range attempts {
+		if attempt.Path != "/chat/completions" || len(attempt.RequestBody) == 0 {
+			continue
+		}
+		foundAdvisorAttempt = true
+		body := string(attempt.RequestBody)
+		require.Contains(t, body, wantAdvisorRequestModel)
+		require.Contains(t, body, advisorQuestion)
+	}
+	require.True(t, foundAdvisorAttempt,
+		"nested advisor debug step must include the provider request body")
+}
+
+func requireAdvisorDebugStep(
+	ctx context.Context,
+	t *testing.T,
+	db database.Store,
+	chatID uuid.UUID,
+	advisorQuestion string,
+) (database.ChatDebugRun, database.ChatDebugStep, advisorDebugRequestPayload) {
+	t.Helper()
+
+	var debugRun database.ChatDebugRun
+	var advisorStep database.ChatDebugStep
+	var advisorRequest advisorDebugRequestPayload
+	require.Eventually(t, func() bool {
+		runs, err := db.GetChatDebugRunsByChatID(ctx, database.GetChatDebugRunsByChatIDParams{
+			ChatID:   chatID,
+			LimitVal: 100,
+		})
+		if err != nil {
+			return false
+		}
+		for _, run := range runs {
+			if run.Kind != string(codersdk.ChatDebugRunKindChatTurn) ||
+				run.Status != string(codersdk.ChatDebugStatusCompleted) {
+				continue
+			}
+			steps, stepErr := db.GetChatDebugStepsByRunID(ctx, run.ID)
+			if stepErr != nil {
+				continue
+			}
+			for _, step := range steps {
+				if step.Operation != string(codersdk.ChatDebugStepOperationStream) ||
+					step.Status != string(codersdk.ChatDebugStatusCompleted) {
+					continue
+				}
+				request, ok := parseAdvisorDebugRequest(step.NormalizedRequest)
+				if !ok || len(request.Tools) != 0 ||
+					!strings.Contains(advisorDebugRequestText(request), advisorQuestion) {
+					continue
+				}
+				var attempts []chatdebug.Attempt
+				if err := json.Unmarshal(step.Attempts, &attempts); err != nil || len(attempts) == 0 {
+					continue
+				}
+				debugRun = run
+				advisorStep = step
+				advisorRequest = request
+				return true
+			}
+		}
+		return false
+	}, testutil.WaitLong, testutil.IntervalFast)
+	return debugRun, advisorStep, advisorRequest
+}
+
+func parseAdvisorDebugRequest(raw json.RawMessage) (advisorDebugRequestPayload, bool) {
+	if len(raw) == 0 {
+		return advisorDebugRequestPayload{}, false
+	}
+	var request advisorDebugRequestPayload
+	if err := json.Unmarshal(raw, &request); err != nil {
+		return advisorDebugRequestPayload{}, false
+	}
+	return request, true
+}
+
+func advisorDebugRequestText(request advisorDebugRequestPayload) string {
+	var b strings.Builder
+	for _, message := range request.Messages {
+		for _, part := range message.Parts {
+			if part.Text == "" {
+				continue
+			}
+			if b.Len() > 0 {
+				_ = b.WriteByte('\n')
+			}
+			_, _ = b.WriteString(part.Text)
+		}
+	}
+	return b.String()
 }
 
 // TestAdvisorGating_ChildChat guards the second dimension of the advisor

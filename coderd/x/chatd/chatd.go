@@ -391,13 +391,18 @@ func (p *Server) resolveAdvisorModelOverride(
 		}
 	}
 
-	overrideModel, err := chatprovider.ModelFromConfig(
+	// Use the same construction path as the parent model so a
+	// dedicated advisor model gets RecordingTransport and WrapModel when
+	// debug logging is enabled. Wrapping after ModelFromConfig would miss
+	// raw HTTP attempts.
+	overrideModel, _, err := p.newDebugAwareModelFromConfig(
+		ctx,
+		chat,
 		overrideConfig.Provider,
 		overrideConfig.Model,
 		providerKeys,
 		chatprovider.UserAgent(),
 		chatprovider.CoderHeaders(chat),
-		nil,
 	)
 	if err != nil {
 		logger.Warn(
