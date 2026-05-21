@@ -27,7 +27,8 @@ export const ChatSearchDialog: FC<ChatSearchDialogProps> = ({
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent
-				className="max-w-[560px] gap-4 border-border-default bg-surface-primary p-6 sm:p-6"
+				className="top-[calc(50%_-_218px)] w-[calc(100vw-2rem)] max-w-[560px] translate-y-0 gap-4 border-border-default bg-surface-primary p-6 sm:p-6"
+				style={{ animation: "none", transition: "none" }}
 				aria-describedby={undefined}
 				onOpenAutoFocus={(event) => {
 					event.preventDefault();
@@ -92,6 +93,11 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 		hasQuery &&
 		(searchQuery.isLoading ||
 			(searchQuery.isFetching && (searchQuery.data?.length ?? 0) === 0));
+	const showResultsLoadingIndicator =
+		hasQuery &&
+		searchQuery.isFetching &&
+		searchQuery.isPlaceholderData &&
+		!showResultsLoading;
 	const handleInputKeyDown: KeyboardEventHandler<HTMLInputElement> = (
 		event,
 	) => {
@@ -149,6 +155,7 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 				listboxId={listboxId}
 				selectedChatIndex={safeSelectedChatIndex}
 				showLoading={showResultsLoading}
+				showLoadingIndicator={showResultsLoadingIndicator}
 				onSelectChat={closeDialog}
 			/>
 		</>

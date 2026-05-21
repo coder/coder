@@ -58,6 +58,18 @@ const mockChats: Chat[] = [
 		},
 	},
 ];
+const longMockChats: Chat[] = [
+	{
+		...mockChat,
+		id: "chat-long-1",
+		title:
+			"Review this PR and respond to every inline comment with detailed notes about selected row behavior in Table.tsx",
+		last_turn_summary:
+			"Posted review on PR #25069 with 10 inline comments covering 1 P2 issue, 4 P3s, and 2 observations.",
+		updated_at: "2026-05-20T09:30:00.000Z",
+		has_unread: false,
+	},
+];
 const cappedMockChats: Chat[] = Array.from(
 	{ length: CHAT_SEARCH_LIMIT },
 	(_, index) => ({
@@ -143,6 +155,77 @@ export const Results: Story = {
 		await expect(
 			await body.findByText("Fix race condition in auth middleware"),
 		).toBeInTheDocument();
+	},
+};
+
+export const RefreshingResults: Story = {
+	beforeEach: () => {
+		let requestCount = 0;
+		spyOn(API.experimental, "getChats").mockImplementation(() => {
+			requestCount += 1;
+			if (requestCount === 1) {
+				return Promise.resolve(mockChats);
+			}
+			return new Promise<Chat[]>((_resolve) => {
+				// Keep request pending to show the refresh indicator with stale results.
+			});
+		});
+	},
+	play: async () => {
+		const body = within(document.body);
+		const searchInput = body.getByRole("combobox", { name: "Search chats" });
+
+		await userEvent.type(searchInput, "Fix");
+		await expect(
+			await body.findByText("Fix race condition in auth middleware"),
+		).toBeInTheDocument();
+
+		await userEvent.clear(searchInput);
+		await userEvent.type(searchInput, "review");
+
+		await waitFor(() => {
+			expect(API.experimental.getChats).toHaveBeenCalledTimes(2);
+		});
+		await expect(body.getByLabelText("Searching chats")).toBeInTheDocument();
+		await expect(
+			body.getByText("Fix race condition in auth middleware"),
+		).toBeInTheDocument();
+	},
+};
+
+export const LongResults: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChats").mockResolvedValue(longMockChats);
+	},
+	play: async () => {
+		const body = within(document.body);
+		await userEvent.type(
+			body.getByRole("combobox", { name: "Search chats" }),
+			"review",
+		);
+		await waitFor(() => {
+			expect(API.experimental.getChats).toHaveBeenCalledWith({
+				limit: CHAT_SEARCH_LIMIT,
+				q: 'title:"review"',
+			});
+		});
+
+		const result = await body.findByRole("option", {
+			name: /Review this PR and respond/i,
+		});
+		const summary = await body.findByText(/Posted review on PR #25069/i);
+		const dialog = result.closest('[role="dialog"]');
+		if (!dialog) {
+			throw new Error("Expected search result to render in a dialog");
+		}
+
+		const dialogRight = Math.ceil(dialog.getBoundingClientRect().right);
+		expect(Math.ceil(result.getBoundingClientRect().right)).toBeLessThanOrEqual(
+			dialogRight,
+		);
+		expect(
+			Math.ceil(summary.getBoundingClientRect().right),
+		).toBeLessThanOrEqual(dialogRight);
 	},
 };
 
