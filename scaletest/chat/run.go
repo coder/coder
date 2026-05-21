@@ -62,6 +62,7 @@ type conversationState struct {
 	currentPhase       string
 	lastStreamError    string
 	lastStatus         codersdk.ChatStatus
+	sawTurnRunning     bool
 	sawTurnFirstOutput bool
 }
 
@@ -257,10 +258,16 @@ func (r *Runner) handleStatusEvent(ctx context.Context, chatID uuid.UUID, logs i
 	if status == state.lastStatus {
 		return false, nil
 	}
+	if status == codersdk.ChatStatusWaiting &&
+		!state.sawTurnFirstOutput &&
+		(state.sawTurnRunning || state.result.turnsCompleted > 0) {
+		return false, nil
+	}
 	state.lastStatus = status
 
 	switch status {
 	case codersdk.ChatStatusRunning:
+		state.sawTurnRunning = true
 		r.cfg.Metrics.ChatTimeToRunningSeconds.WithLabelValues(r.labelValues(state.currentPhase)...).Observe(time.Since(state.turnStartTime).Seconds())
 		_, _ = fmt.Fprintf(logs, "chat %s reached running status for %s phase\n", chatID, state.currentPhase)
 		return false, nil
@@ -293,6 +300,8 @@ func (r *Runner) handleStatusEvent(ctx context.Context, chatID uuid.UUID, logs i
 		state.currentPhase = phaseFollowUp
 		state.turnStartTime = time.Now()
 		state.lastStreamError = ""
+		state.lastStatus = ""
+		state.sawTurnRunning = false
 		state.sawTurnFirstOutput = false
 		if err := sendNextTurn(ctx, nextTurn, state.currentPhase); err != nil {
 			state.result.failureStage = failureStageCreateMessage

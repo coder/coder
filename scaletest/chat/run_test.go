@@ -76,6 +76,37 @@ func TestRunnerRunConversation(t *testing.T) {
 		require.Equal(t, string(codersdk.ChatStatusWaiting), result.finalStatus)
 	})
 
+	t.Run("StaleWaitingAfterNextTurnRunningDoesNotAdvanceTurn", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := newRunConfig(t)
+		cfg.Turns = 2
+		runner := newTestRunner(t, cfg)
+
+		events := make(chan codersdk.ChatStreamEvent, 7)
+		events <- statusEvent(chatID, codersdk.ChatStatusRunning)
+		events <- messagePartEvent(chatID)
+		events <- statusEvent(chatID, codersdk.ChatStatusWaiting)
+
+		sendCount := 0
+		result, err := runner.runConversation(context.Background(), chatID, io.Discard, time.Now(), events, func(ctx context.Context, nextTurn int, phase string) error {
+			sendCount++
+			require.Equal(t, 2, nextTurn)
+			require.Equal(t, phaseFollowUp, phase)
+			events <- statusEvent(chatID, codersdk.ChatStatusRunning)
+			events <- statusEvent(chatID, codersdk.ChatStatusWaiting)
+			events <- messagePartEvent(chatID)
+			events <- statusEvent(chatID, codersdk.ChatStatusWaiting)
+			close(events)
+			return nil
+		})
+		require.NoError(t, err)
+		require.Equal(t, 1, sendCount)
+		require.Equal(t, 2, result.turnsCompleted)
+		require.Equal(t, 7, result.eventCount)
+		require.Equal(t, string(codersdk.ChatStatusWaiting), result.finalStatus)
+	})
+
 	t.Run("FirstTurnGatesFollowUpStorm", func(t *testing.T) {
 		t.Parallel()
 
@@ -111,6 +142,7 @@ func TestRunnerRunConversation(t *testing.T) {
 				require.Equal(t, 2, nextTurn)
 				require.Equal(t, phaseFollowUp, phase)
 				events <- statusEvent(chatID, codersdk.ChatStatusRunning)
+				events <- messagePartEvent(chatID)
 				events <- statusEvent(chatID, codersdk.ChatStatusWaiting)
 				close(events)
 				return nil
@@ -176,6 +208,7 @@ func TestRunnerRunConversation(t *testing.T) {
 			require.Equal(t, 2, nextTurn)
 			require.Equal(t, phaseFollowUp, phase)
 			events <- statusEvent(chatID, codersdk.ChatStatusRunning)
+			events <- messagePartEvent(chatID)
 			events <- statusEvent(chatID, codersdk.ChatStatusWaiting)
 			close(events)
 			return nil
