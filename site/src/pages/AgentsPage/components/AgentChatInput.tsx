@@ -80,6 +80,7 @@ import {
 import type { AgentContextUsage } from "./ContextUsageIndicator";
 import { ContextUsageIndicator } from "./ContextUsageIndicator";
 import { ImageLightbox } from "./ImageLightbox";
+import { PersonalInstructionsButton } from "./PersonalInstructionsButton";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 import { TextPreviewDialog } from "./TextPreviewDialog";
 import { WorkspacePill } from "./WorkspacePill";
@@ -1414,6 +1415,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 						</div>
 					</div>
 					<div className="flex items-center gap-2">
+						<PersonalInstructionsButton />
 						{speech.isSupported && !isStreaming && (
 							<>
 								<Button
