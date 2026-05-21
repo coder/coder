@@ -534,8 +534,12 @@ func (p *Server) discoverWorkspaceMCPTools(
 		logger = logger.With(slog.F("workspace_id", snapshot.WorkspaceID.UUID))
 	}
 
-	if agent, agentErr := workspaceCtx.getWorkspaceAgent(ctx); agentErr == nil {
-		if key, ok := workspaceMCPToolsCacheKey(snapshot, agent.ID); ok {
+	var resolvedAgentID uuid.UUID
+	var resolvedAgentOK bool
+	if resolvedChat, agentID, agentErr := workspaceCtx.workspaceAgentIDForConn(ctx); agentErr == nil {
+		resolvedAgentID = agentID
+		resolvedAgentOK = true
+		if key, ok := workspaceMCPToolsCacheKey(resolvedChat, agentID); ok {
 			if rawTools, cached := workspacediscovery.LoadCachedMCPTools(&p.workspaceMCPToolsCache, key); cached {
 				return p.workspaceMCPAgentTools(key, rawTools, workspaceCtx.getWorkspaceConn)
 			}
@@ -548,6 +552,9 @@ func (p *Server) discoverWorkspaceMCPTools(
 			return workspaceMCPToolsCacheKey(workspaceCtx.currentChatSnapshot(), agentID)
 		},
 		ResolveWorkspaceAgentID: func(ctx context.Context) (uuid.UUID, error) {
+			if resolvedAgentOK {
+				return resolvedAgentID, nil
+			}
 			_, agentID, err := workspaceCtx.workspaceAgentIDForConn(ctx)
 			return agentID, err
 		},
