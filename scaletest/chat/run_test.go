@@ -59,7 +59,6 @@ func TestRunnerRunConversation(t *testing.T) {
 		releaseChan := make(chan struct{})
 		cfg.TurnStartReadyWaitGroup = readyWG
 		cfg.StartTurnsChan = releaseChan
-		cfg.TurnStartDelay = time.Millisecond // any non-zero value
 		runner := newTestRunner(t, cfg)
 
 		events := make(chan codersdk.ChatStreamEvent, 4)
@@ -87,15 +86,12 @@ func TestRunnerRunConversation(t *testing.T) {
 			errCh <- runErr
 		}()
 
-		// Wait for the gate to mark itself ready (after turn 1 completes).
 		select {
 		case <-ready:
 		case <-time.After(2 * time.Second):
 			t.Fatal("runner did not mark turn-start gate ready after first turn")
 		}
 
-		// The runner must still be blocked on the release channel:
-		// sendNextTurn has not been called yet.
 		require.Equal(t, 0, sendCount, "sendNextTurn fired before turn-start release")
 
 		close(releaseChan)

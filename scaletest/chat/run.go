@@ -378,10 +378,9 @@ func (r *Runner) labelValues(extra string) []string {
 
 // waitForTurnStartRelease signals that this runner has completed its first
 // turn and then blocks until the CLI releases the follow-up turn storm.
-// When the gate is not configured (no --turn-start-delay) this is a no-op
-// beyond the idempotent ready signal. The signal goes through the same
-// sync.Once-backed markReady as the function-scope defer in Run, so
-// calling it here and again via defer on an error path is safe.
+// markReady is idempotent, so calling this on the natural path and again
+// via the deferred safety-net signal in Run is safe. When the release
+// channel is not configured this returns immediately after signaling.
 func (r *Runner) waitForTurnStartRelease(ctx context.Context, logs io.Writer, chatID uuid.UUID) error {
 	r.turnStartGate.markReady()
 	if r.turnStartGate.releaseChan == nil {

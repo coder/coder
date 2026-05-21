@@ -44,10 +44,9 @@ type Config struct {
 	StartChan chan struct{} `json:"-"`
 
 	// TurnStartReadyWaitGroup coordinates the gap between the initial turn
-	// finishing and the follow-up turn storm. Each runner signals once its
-	// first turn has reached a terminal status, or it knows it will never
-	// reach that point. Signaling happens via a sync.Once, so safety-net
-	// defers and the natural-path signal are both safe to fire.
+	// finishing and the follow-up turn storm. Each runner signals exactly
+	// once after its first turn reaches a terminal status, or when it
+	// knows it will never reach that point.
 	TurnStartReadyWaitGroup *sync.WaitGroup `json:"-"`
 
 	// StartTurnsChan blocks the turn storm until the CLI layer releases it.
