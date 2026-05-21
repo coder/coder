@@ -269,7 +269,7 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 			startChan := make(chan struct{})
 			var turnStartReadyWaitGroup *sync.WaitGroup
 			var startTurnsChan chan struct{}
-			if turnStartDelay > 0 {
+			if turnStartDelay > 0 && turns > 1 {
 				turnStartReadyWaitGroup = &sync.WaitGroup{}
 				startTurnsChan = make(chan struct{})
 			}
@@ -340,6 +340,25 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 			go func() {
 				done <- chatHarness.Run(testCtx)
 			}()
+			chatCleaned := false
+			cleanupChatHarness := func() error {
+				if chatCleaned {
+					return nil
+				}
+				chatCleaned = true
+				cleanupCtx, cleanupCancel := cleanupStrategy.toContext(context.Background())
+				defer cleanupCancel()
+				_, _ = fmt.Fprintln(inv.Stderr, "Cleaning up (archiving chats)...")
+				if err := chatHarness.Cleanup(cleanupCtx); err != nil {
+					return xerrors.Errorf("cleanup chats: %w", err)
+				}
+				return nil
+			}
+			defer func() {
+				if err := cleanupChatHarness(); err != nil {
+					runErr = errors.Join(runErr, err)
+				}
+			}()
 
 			drainChatHarnessAfterCancel := func() error {
 				if err := <-done; err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
@@ -391,11 +410,8 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 				}
 			}
 
-			cleanupCtx, cleanupCancel := cleanupStrategy.toContext(context.Background())
-			defer cleanupCancel()
-			_, _ = fmt.Fprintln(inv.Stderr, "Cleaning up (archiving chats)...")
-			if err := chatHarness.Cleanup(cleanupCtx); err != nil {
-				return xerrors.Errorf("cleanup chats: %w", err)
+			if err := cleanupChatHarness(); err != nil {
+				return err
 			}
 			if cleanupWorkspaceHarness != nil {
 				if err := cleanupWorkspaceHarness(); err != nil {
