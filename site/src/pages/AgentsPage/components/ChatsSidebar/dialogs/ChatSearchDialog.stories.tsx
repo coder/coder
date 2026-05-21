@@ -58,7 +58,7 @@ const mockChats: Chat[] = [
 		},
 	},
 ];
-const longMockChats: Chat[] = [
+const overflowMockChats: Chat[] = [
 	{
 		...mockChat,
 		id: "chat-long-1",
@@ -68,6 +68,10 @@ const longMockChats: Chat[] = [
 			"Posted review on PR #25069 with 10 inline comments covering 1 P2 issue, 4 P3s, and 2 observations.",
 		updated_at: "2026-05-20T09:30:00.000Z",
 		has_unread: false,
+		diff_status: {
+			...mockDiffStatus,
+			chat_id: "chat-long-1",
+		},
 	},
 ];
 const cappedMockChats: Chat[] = Array.from(
@@ -179,6 +183,10 @@ export const RefreshingResults: Story = {
 		await expect(
 			await body.findByText("Fix race condition in auth middleware"),
 		).toBeInTheDocument();
+		// While the first query is in its steady state the inline refresh spinner
+		// must be absent. Without this assertion, the test would still pass if the
+		// spinner were always visible.
+		expect(body.queryByLabelText("Searching chats")).not.toBeInTheDocument();
 
 		await userEvent.clear(searchInput);
 		await userEvent.type(searchInput, "review");
@@ -193,9 +201,9 @@ export const RefreshingResults: Story = {
 	},
 };
 
-export const LongResults: Story = {
+export const OverflowResults: Story = {
 	beforeEach: () => {
-		spyOn(API.experimental, "getChats").mockResolvedValue(longMockChats);
+		spyOn(API.experimental, "getChats").mockResolvedValue(overflowMockChats);
 	},
 	play: async () => {
 		const body = within(document.body);
@@ -248,8 +256,9 @@ export const CappedResults: Story = {
 		await expect(
 			await body.findByText(
 				(_content, element) =>
-					element?.textContent?.replace(/\s+/g, " ").trim() ===
-					`Showing first ${CHAT_SEARCH_LIMIT} results.`,
+					element?.tagName === "P" &&
+					element.textContent?.replace(/\s+/g, " ").trim() ===
+						`Showing first ${CHAT_SEARCH_LIMIT} results.`,
 			),
 		).toBeInTheDocument();
 	},

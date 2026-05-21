@@ -18,7 +18,7 @@ type ChatSearchResultsProps = {
 	readonly listboxId: string;
 	readonly selectedChatIndex: number | undefined;
 	readonly showLoading: boolean;
-	readonly showLoadingIndicator: boolean;
+	readonly isRefreshing: boolean;
 	readonly onSelectChat: () => void;
 };
 
@@ -30,7 +30,7 @@ export const ChatSearchResults: FC<ChatSearchResultsProps> = ({
 	listboxId,
 	selectedChatIndex,
 	showLoading,
-	showLoadingIndicator,
+	isRefreshing,
 	onSelectChat,
 }) => {
 	if (error) {
@@ -72,8 +72,8 @@ export const ChatSearchResults: FC<ChatSearchResultsProps> = ({
 		<div className="min-h-[260px]">
 			<div className="space-y-3">
 				<p className="inline-flex items-center gap-1.5 text-sm text-content-secondary">
-					{resultSummary}
-					{showLoadingIndicator && (
+					<span>{resultSummary}</span>
+					{isRefreshing && (
 						<Spinner
 							loading
 							size="sm"
@@ -83,6 +83,9 @@ export const ChatSearchResults: FC<ChatSearchResultsProps> = ({
 					)}
 				</p>
 				<ScrollArea
+					// `!block` overrides the Radix ScrollArea viewport wrapper's inline
+					// `display: table` so that descendants using `truncate` can shrink
+					// inside the scroll container instead of forcing the table to grow.
 					className="h-[300px] w-full [&_[data-radix-scroll-area-viewport]>div]:!block"
 					scrollBarClassName="w-[0.375rem]"
 					viewportClassName="pr-3"
