@@ -1,10 +1,14 @@
-import { HandIcon, MousePointer2Icon } from "lucide-react";
+import { ExternalLinkIcon } from "lucide-react";
 import type { FC } from "react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { cn } from "#/utils/cn";
 import { useDesktopConnection } from "../../hooks/useDesktopConnection";
+import { useDesktopPanel } from "../ChatElements/tools/DesktopPanelContext";
+import { DesktopToolbar } from "./DesktopToolbar";
+
+type ScaleMode = "native" | "fit";
 
 type DesktopConnectionStatus =
 	| "idle"
@@ -13,25 +17,18 @@ type DesktopConnectionStatus =
 	| "disconnected"
 	| "error";
 
+const CHANNEL_PREFIX = "coder-desktop-";
+
 interface DesktopPanelProps {
 	chatId: string;
 	/** When true the panel is the active sidebar tab. */
 	isVisible?: boolean;
 }
 
-export interface DesktopPanelViewProps {
-	status: DesktopConnectionStatus;
-	reconnect: () => void;
-	attach: (container: HTMLElement) => void;
-	isControlling: boolean;
-	onTakeControl: () => void;
-	onReleaseControl: () => void;
-}
-
 export const DesktopPanel: FC<DesktopPanelProps> = ({ chatId, isVisible }) => {
 	// Delay the VNC connection until the desktop tab is first selected.
 	// Once activated, the connection stays alive even when the tab is
-	// switched away — mirrors the terminal panel pattern from PR #23231.
+	// switched away.
 	const [activated, setActivated] = useState(false);
 	if (isVisible && !activated) {
 		setActivated(true);
@@ -42,30 +39,144 @@ export const DesktopPanel: FC<DesktopPanelProps> = ({ chatId, isVisible }) => {
 		setIsControlling(false);
 	}
 
+	const [scaleMode, setScaleMode] = useState<ScaleMode>("native");
+	const [isPoppedOut, setIsPoppedOut] = useState(false);
+
 	const { status, reconnect, attach } = useDesktopConnection({
-		chatId,
-		activated,
+		chatId: isPoppedOut ? undefined : chatId,
+		activated: activated && !isPoppedOut,
+		scaleViewport: scaleMode === "fit",
 	});
+
+	const { agent, workspace } = useDesktopPanel();
+
+	// Keyboard shortcuts for zoom toggle.
+	useEffect(() => {
+		if (!isVisible) return;
+		const handleKeyDown = (e: KeyboardEvent) => {
+			const mod = e.ctrlKey || e.metaKey;
+			if (mod && e.key === "0") {
+				e.preventDefault();
+				setScaleMode("fit");
+			} else if (mod && e.key === "1") {
+				e.preventDefault();
+				setScaleMode("native");
+			}
+		};
+		addEventListener("keydown", handleKeyDown);
+		return () => removeEventListener("keydown", handleKeyDown);
+	}, [isVisible]);
+
+	// Listen for BroadcastChannel messages from the pop-out window.
+	useEffect(() => {
+		const channel = new BroadcastChannel(`${CHANNEL_PREFIX}${chatId}`);
+
+		channel.addEventListener("message", (event) => {
+			if (event.data?.type === "popout-opened") {
+				setIsPoppedOut(true);
+				setIsControlling(false);
+			} else if (event.data?.type === "popout-closed") {
+				setIsPoppedOut(false);
+			}
+		});
+
+		return () => channel.close();
+	}, [chatId]);
+
+	const handlePopOut = () => {
+		const width = Math.round(screen.availWidth * 0.8);
+		const height = Math.round(screen.availHeight * 0.8);
+		const left = Math.round((screen.availWidth - width) / 2);
+		const top = Math.round((screen.availHeight - height) / 2);
+		open(
+			`/agents/${chatId}/desktop`,
+			`coder-desktop-${chatId}`,
+			`popup,width=${width},height=${height},left=${left},top=${top}`,
+		);
+	};
+
+	const handleBringBack = () => {
+		const channel = new BroadcastChannel(`${CHANNEL_PREFIX}${chatId}`);
+		channel.postMessage({ type: "bring-back" });
+		channel.close();
+		setIsPoppedOut(false);
+	};
+
+	if (isPoppedOut) {
+		return (
+			<div className="flex h-full flex-col items-center justify-center gap-3 text-content-secondary">
+				<ExternalLinkIcon className="h-8 w-8" />
+				<span className="text-sm">Desktop is open in a separate window.</span>
+				<Button variant="outline" size="sm" onClick={handleBringBack}>
+					Bring back
+				</Button>
+			</div>
+		);
+	}
+
 	return (
 		<DesktopPanelView
 			status={status}
 			reconnect={reconnect}
 			attach={attach}
+			scaleMode={scaleMode}
+			onScaleModeChange={setScaleMode}
 			isControlling={isControlling}
 			onTakeControl={() => setIsControlling(true)}
 			onReleaseControl={() => setIsControlling(false)}
+			onPopOut={handlePopOut}
+			agent={agent}
+			workspace={workspace}
 		/>
 	);
 };
+
+export interface DesktopPanelViewProps {
+	status: DesktopConnectionStatus;
+	reconnect: () => void;
+	attach: (container: HTMLElement) => void;
+	scaleMode: ScaleMode;
+	onScaleModeChange: (mode: ScaleMode) => void;
+	isControlling: boolean;
+	onTakeControl: () => void;
+	onReleaseControl: () => void;
+	onPopOut?: () => void;
+	agent?: import("#/api/typesGenerated").WorkspaceAgent;
+	workspace?: import("#/api/typesGenerated").Workspace;
+}
 
 export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
 	status,
 	reconnect,
 	attach,
+	scaleMode,
+	onScaleModeChange,
 	isControlling,
 	onTakeControl,
 	onReleaseControl,
+	onPopOut,
+	agent,
+	workspace,
 }) => {
+	const scrollRef = useRef<HTMLDivElement>(null);
+
+	// Scroll-wheel panning: translate wheel events into scroll offsets
+	// when the desktop is at native (100%) zoom and overflows the panel.
+	useEffect(() => {
+		const el = scrollRef.current;
+		if (!el) return;
+
+		const handleWheel = (e: WheelEvent) => {
+			if (scaleMode !== "native") return;
+			e.preventDefault();
+			el.scrollLeft += e.deltaX || e.deltaY;
+			el.scrollTop += e.deltaY;
+		};
+
+		el.addEventListener("wheel", handleWheel, { passive: false });
+		return () => el.removeEventListener("wheel", handleWheel);
+	}, [scaleMode]);
+
 	if (status === "connecting") {
 		return (
 			<div className="flex h-full flex-col items-center justify-center gap-2 text-content-secondary">
@@ -110,42 +221,34 @@ export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
 	// status === "connected"
 	return (
 		<div className="relative h-full w-full">
-			{/* "Release Control" button — top-right, only when controlling */}
-			{isControlling && (
-				<Button
-					variant="default"
-					size="sm"
-					onClick={onReleaseControl}
-					className="absolute top-2 right-2 z-20 shadow-xl drop-shadow-lg"
-				>
-					<HandIcon className="h-4 w-4" />
-					Release control
-				</Button>
-			)}
-			{/* VNC container — pointer-events toggled */}
-			<div
-				ref={(el) => {
-					if (el) attach(el);
-				}}
-				className={cn("h-full w-full", !isControlling && "pointer-events-none")}
+			<DesktopToolbar
+				agent={agent}
+				workspace={workspace}
+				scaleMode={scaleMode}
+				onScaleModeChange={onScaleModeChange}
+				isControlling={isControlling}
+				onTakeControl={onTakeControl}
+				onReleaseControl={onReleaseControl}
+				onPopOut={onPopOut}
 			/>
-			{/* "Take Control" hover overlay — only when NOT controlling */}
-			{!isControlling && (
-				<div className="group/desktop absolute inset-0 z-10 flex items-center justify-center bg-black/0 transition-all duration-200 ease-in-out group-hover/desktop:bg-black/40">
-					<span className="opacity-0 transition-opacity duration-200 ease-in-out group-hover/desktop:opacity-100">
-						<Button
-							variant="default"
-							size="sm"
-							onClick={onTakeControl}
-							aria-label="Take control of desktop"
-							className="shadow-xl drop-shadow-lg"
-						>
-							<MousePointer2Icon className="h-4 w-4" />
-							Take control
-						</Button>
-					</span>
-				</div>
-			)}
+			{/* Scrollable container for native zoom panning */}
+			<div
+				ref={scrollRef}
+				className={cn(
+					"h-full w-full",
+					scaleMode === "native" ? "overflow-auto" : "overflow-hidden",
+				)}
+			>
+				<div
+					ref={(el) => {
+						if (el) attach(el);
+					}}
+					className={cn(
+						"h-full w-full",
+						!isControlling && "pointer-events-none",
+					)}
+				/>
+			</div>
 		</div>
 	);
 };

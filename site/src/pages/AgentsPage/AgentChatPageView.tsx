@@ -312,6 +312,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const desktopPanelCtx = {
 		desktopChatId,
 		onOpenDesktop: desktopChatId ? handleOpenDesktop : undefined,
+		agent: workspaceAgent,
+		workspace,
 	};
 
 	const shouldShowSidebar = showSidebarPanel;

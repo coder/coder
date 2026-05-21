@@ -6,8 +6,12 @@ import { useClipboard } from "#/hooks/useClipboard";
 
 interface UseDesktopConnectionOptions {
 	chatId: string | undefined;
-	/** When false the hook stays dormant — no WebSocket, no RFB. */
+	/** When false the hook stays dormant, no WebSocket, no RFB. */
 	activated: boolean;
+	/** When true the viewport is scaled to fit the container. Default: false (native 100%). */
+	scaleViewport?: boolean;
+	/** When true the remote session resizes to match the container. Default: false. */
+	resizeSession?: boolean;
 }
 
 type DesktopConnectionStatus =
@@ -82,6 +86,8 @@ const isMacCutShortcut = (event: KeyboardEvent): boolean => {
 export function useDesktopConnection({
 	chatId,
 	activated,
+	scaleViewport = false,
+	resizeSession = false,
 }: UseDesktopConnectionOptions): UseDesktopConnectionResult {
 	const [status, setStatus] = useState<DesktopConnectionStatus>("idle");
 	const [hasConnected, setHasConnected] = useState(false);
@@ -236,7 +242,7 @@ export function useDesktopConnection({
 					shared: true,
 				});
 
-				rfb.scaleViewport = true;
+				rfb.scaleViewport = false;
 				rfb.resizeSession = false;
 				rfb.focusOnClick = true;
 
@@ -472,7 +478,12 @@ export function useDesktopConnection({
 					prevContainerW = width;
 					prevContainerH = height;
 					if (wasHidden && isVisible && rfbRef.current) {
-						rfbRef.current.scaleViewport = true;
+						// Re-assign the current value to force noVNC to
+						// recalculate the viewport. The setter triggers an
+						// internal rescale regardless of whether the value
+						// actually changed.
+						const current = rfbRef.current.scaleViewport;
+						rfbRef.current.scaleViewport = current;
 					}
 				});
 				visibilityObserver.observe(offscreenContainerRef.current);
@@ -499,6 +510,15 @@ export function useDesktopConnection({
 			setHasConnected(false);
 		};
 	}, [activated, chatId, syncRemoteClipboardToLocal]);
+
+	// Sync the scaleViewport and resizeSession options to the RFB
+	// instance whenever they change, without triggering a reconnect.
+	useEffect(() => {
+		if (rfbRef.current) {
+			rfbRef.current.scaleViewport = scaleViewport;
+			rfbRef.current.resizeSession = resizeSession;
+		}
+	}, [scaleViewport, resizeSession]);
 
 	return {
 		status,

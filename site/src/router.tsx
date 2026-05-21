@@ -348,6 +348,9 @@ const ProvisionerJobsPage = lazy(
 const AgentsPage = lazy(() => import("./pages/AgentsPage/AgentsPage"));
 const AgentChatPage = lazy(() => import("./pages/AgentsPage/AgentChatPage"));
 const AgentEmbedPage = lazy(() => import("./pages/AgentsPage/AgentEmbedPage"));
+const DesktopPopoutPage = lazy(
+	() => import("./pages/AgentsPage/DesktopPopoutPage"),
+);
 const AgentCreatePage = lazy(
 	() => import("./pages/AgentsPage/AgentCreatePage"),
 );
@@ -772,6 +775,19 @@ export const router = createBrowserRouter(
 					/>
 				</Route>
 			</Route>
+
+			<Route
+				path="/agents/:agentId/desktop"
+				element={
+					<Suspense
+						fallback={
+							<div className="flex h-screen w-screen items-center justify-center" />
+						}
+					>
+						<DesktopPopoutPage />
+					</Suspense>
+				}
+			/>
 
 			<Route
 				path="/agents/:agentId/embed"
