@@ -2,8 +2,8 @@ import {
 	ExternalLinkIcon,
 	HandIcon,
 	MaximizeIcon,
-	MinimizeIcon,
 	MousePointer2Icon,
+	ScalingIcon,
 } from "lucide-react";
 import type { FC } from "react";
 import { Button } from "#/components/Button/Button";
@@ -63,34 +63,31 @@ export const DesktopToolbar: FC<DesktopToolbarProps> = ({
 			{/* Right: Zoom + Pop-out */}
 			<div className="flex items-center gap-1">
 				{/* Zoom toggle */}
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<Button
-							variant="subtle"
-							size="icon"
-							onClick={() =>
-								onScaleModeChange(scaleMode === "native" ? "fit" : "native")
-							}
-							aria-label={
-								scaleMode === "native"
-									? "Switch to fit-to-window (Ctrl+0)"
-									: "Switch to 100% zoom (Ctrl+1)"
-							}
-							className="h-6 w-6 text-content-secondary hover:text-content-primary"
-						>
-							{scaleMode === "native" ? (
-								<MinimizeIcon className="size-3.5" />
-							) : (
-								<MaximizeIcon className="size-3.5" />
-							)}
-						</Button>
-					</TooltipTrigger>
-					<TooltipContent>
-						{scaleMode === "native"
-							? "Fit to window (Ctrl+0)"
-							: "100% zoom (Ctrl+1)"}
-					</TooltipContent>
-				</Tooltip>
+				<Button
+					variant="subtle"
+					size="sm"
+					onClick={() =>
+						onScaleModeChange(scaleMode === "native" ? "fit" : "native")
+					}
+					aria-label={
+						scaleMode === "native"
+							? "Zoom to fit (Ctrl+0)"
+							: "Zoom to 100% (Ctrl+1)"
+					}
+					className="h-6 gap-1.5 px-2 text-xs"
+				>
+					{scaleMode === "native" ? (
+						<>
+							<ScalingIcon className="size-3.5" />
+							Zoom to fit
+						</>
+					) : (
+						<>
+							<MaximizeIcon className="size-3.5" />
+							Zoom to 100%
+						</>
+					)}
+				</Button>
 
 				{/* Pop-out button */}
 				{onPopOut && !isPoppedOut && (
