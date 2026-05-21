@@ -296,7 +296,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 			inert={isSettingsPanel ? true : undefined}
 		>
 			<div className="hidden border-b border-border-default px-2 py-1.5 sm:block">
-				<div className="flex items-center justify-between">
+				<div className="flex items-center justify-between mb-2.5">
 					<div className="flex items-center gap-2">
 						<NavLink to="/workspaces" className="inline-flex">
 							<ProductLogo className="size-6" />
@@ -358,7 +358,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 							<h2 className="m-0 text-sm font-normal leading-6 text-content-primary">
 								Chats
 							</h2>
-							<div className="flex flex-row">
+							<div className="flex flex-row -space-x-1">
 								<Tooltip delayDuration={500}>
 									<TooltipTrigger asChild>
 										<Button

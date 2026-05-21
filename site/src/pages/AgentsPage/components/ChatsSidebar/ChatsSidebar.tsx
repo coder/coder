@@ -102,8 +102,8 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 
 	useEffect(() => {
 		const handleKeyDown = (event: KeyboardEvent) => {
-			const target = event.target as HTMLElement | null;
-			if (target) {
+			const target = event.target;
+			if (target instanceof HTMLElement) {
 				const tag = target.tagName;
 				if (tag === "INPUT" || tag === "TEXTAREA" || target.isContentEditable) {
 					return;
