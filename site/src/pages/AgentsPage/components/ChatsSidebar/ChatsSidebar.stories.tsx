@@ -136,17 +136,21 @@ const ChatsSidebarWithKeybindings = (
 	const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(
 		args.isSearchDialogOpen,
 	);
+	const handleSearchDialogOpenChange = (open: boolean) => {
+		setIsSearchDialogOpen(open);
+		args.onSearchDialogOpenChange(open);
+	};
 
 	useAgentsPageKeybindings({
 		onNewAgent: args.onBeforeNewAgent ?? (() => {}),
-		onOpenSearch: () => setIsSearchDialogOpen(true),
+		onOpenSearch: () => handleSearchDialogOpenChange(true),
 	});
 
 	return (
 		<ChatsSidebar
 			{...args}
 			isSearchDialogOpen={isSearchDialogOpen}
-			onSearchDialogOpenChange={setIsSearchDialogOpen}
+			onSearchDialogOpenChange={handleSearchDialogOpenChange}
 		/>
 	);
 };
@@ -781,9 +785,12 @@ export const SearchDialogKeyboardShortcut: Story = {
 
 		await userEvent.keyboard("{Control>}k{/Control}");
 
-		await expect(
-			await body.findByRole("combobox", { name: "Search chats" }),
-		).toHaveFocus();
+		const searchInput = await body.findByRole("combobox", {
+			name: "Search chats",
+		});
+		await waitFor(() => {
+			expect(searchInput).toHaveFocus();
+		});
 	},
 };
 

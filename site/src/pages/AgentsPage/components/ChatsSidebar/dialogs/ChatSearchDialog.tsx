@@ -1,11 +1,5 @@
 import type { FC } from "react";
-import {
-	type KeyboardEventHandler,
-	useEffect,
-	useId,
-	useRef,
-	useState,
-} from "react";
+import { type KeyboardEventHandler, useId, useRef, useState } from "react";
 import { keepPreviousData, useQuery } from "react-query";
 import { type Location, useNavigate } from "react-router";
 import { chatSearch } from "#/api/queries/chats";
@@ -64,15 +58,14 @@ export const ChatSearchDialog: FC<ChatSearchDialogProps> = ({
 		safeSelectedChatIndex !== undefined
 			? `${listboxId}-option-${safeSelectedChatIndex}`
 			: undefined;
-	const closeDialog = () => onOpenChange(false);
-
-	useEffect(() => {
-		if (open) {
-			return;
+	const handleOpenChange = (nextOpen: boolean) => {
+		if (!nextOpen) {
+			setInputValue("");
+			setSelectedChatIndex(undefined);
 		}
-		setInputValue("");
-		setSelectedChatIndex(undefined);
-	}, [open]);
+		onOpenChange(nextOpen);
+	};
+	const closeDialog = () => handleOpenChange(false);
 
 	const showResultsLoading =
 		hasQuery &&
@@ -112,7 +105,7 @@ export const ChatSearchDialog: FC<ChatSearchDialogProps> = ({
 	};
 
 	return (
-		<Dialog open={open} onOpenChange={onOpenChange}>
+		<Dialog open={open} onOpenChange={handleOpenChange}>
 			<DialogContent
 				className="max-w-[560px] gap-4 border-border-default bg-surface-primary p-6 sm:p-6"
 				aria-describedby={undefined}

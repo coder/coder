@@ -9,10 +9,6 @@ import { cn } from "#/utils/cn";
 import { shortRelativeTime } from "#/utils/time";
 import { getChatDisplayConfig } from "../tree/statusConfig";
 
-// Keeps the dialog body from collapsing between the empty / loading / results
-// branches so the search input doesn't jump as results arrive.
-const RESULTS_AREA_MIN_HEIGHT = "min-h-[260px]";
-
 type ChatSearchResultsProps = {
 	readonly chats: readonly Chat[] | undefined;
 	readonly error: unknown;
@@ -36,7 +32,7 @@ export const ChatSearchResults: FC<ChatSearchResultsProps> = ({
 }) => {
 	if (error) {
 		return (
-			<div className={RESULTS_AREA_MIN_HEIGHT}>
+			<div className="min-h-[260px]">
 				<ErrorAlert error={error} />
 			</div>
 		);
@@ -44,7 +40,7 @@ export const ChatSearchResults: FC<ChatSearchResultsProps> = ({
 
 	if (!hasQuery) {
 		return (
-			<div className={RESULTS_AREA_MIN_HEIGHT}>
+			<div className="min-h-[260px]">
 				<div className="pt-2 text-sm text-content-secondary">
 					Type to search by title, or use filters like{" "}
 					<code>has_unread:true</code>, <code>archived:true</code>,{" "}
@@ -70,7 +66,7 @@ export const ChatSearchResults: FC<ChatSearchResultsProps> = ({
 		);
 
 	return (
-		<div className={RESULTS_AREA_MIN_HEIGHT}>
+		<div className="min-h-[260px]">
 			<div className="space-y-3">
 				<p className="text-sm text-content-secondary">{resultSummary}</p>
 				<ScrollArea
