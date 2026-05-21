@@ -325,44 +325,6 @@ func TestOpenAI_CreateInterceptor(t *testing.T) {
 	}
 }
 
-func TestOpenAI_InjectAuthHeader(t *testing.T) {
-	t.Parallel()
-
-	provider := NewOpenAI(config.OpenAI{Key: "centralized-key"})
-
-	tests := []struct {
-		name              string
-		presetHeaders     map[string]string
-		wantAuthorization string
-	}{
-		{
-			name:              "when no Authorization header is provided, inject centralized key",
-			presetHeaders:     map[string]string{},
-			wantAuthorization: "Bearer centralized-key",
-		},
-		{
-			name:              "when Authorization header is provided, do not overwrite it",
-			presetHeaders:     map[string]string{"Authorization": "Bearer user-token"},
-			wantAuthorization: "Bearer user-token",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			headers := http.Header{}
-			for k, v := range tc.presetHeaders {
-				headers.Set(k, v)
-			}
-
-			provider.InjectAuthHeader(&headers)
-
-			assert.Equal(t, tc.wantAuthorization, headers.Get("Authorization"))
-		})
-	}
-}
-
 func BenchmarkOpenAI_CreateInterceptor_ChatCompletions(b *testing.B) {
 	provider := NewOpenAI(config.OpenAI{
 		BaseURL: "https://api.openai.com/v1/",

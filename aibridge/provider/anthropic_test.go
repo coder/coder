@@ -317,60 +317,6 @@ func TestAnthropic_CreateInterceptor_BYOK(t *testing.T) {
 	}
 }
 
-func TestAnthropic_InjectAuthHeader(t *testing.T) {
-	t.Parallel()
-
-	provider := NewAnthropic(config.Anthropic{Key: "centralized-key"}, nil)
-
-	tests := []struct {
-		name              string
-		presetHeaders     map[string]string
-		wantXApiKey       string
-		wantAuthorization string
-	}{
-		{
-			name:          "when no auth headers are provided, inject centralized key",
-			presetHeaders: map[string]string{},
-			wantXApiKey:   "centralized-key",
-		},
-		{
-			name:          "when X-Api-Key header is provided, use it",
-			presetHeaders: map[string]string{"X-Api-Key": "user-api-key"},
-			wantXApiKey:   "user-api-key",
-		},
-		{
-			name:              "when Authorization header is provided, use it",
-			presetHeaders:     map[string]string{"Authorization": "Bearer user-access-token"},
-			wantAuthorization: "Bearer user-access-token",
-		},
-		{
-			name: "when both headers are provided, keep both",
-			presetHeaders: map[string]string{
-				"Authorization": "Bearer user-access-token",
-				"X-Api-Key":     "user-api-key",
-			},
-			wantXApiKey:       "user-api-key",
-			wantAuthorization: "Bearer user-access-token",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			headers := http.Header{}
-			for k, v := range tc.presetHeaders {
-				headers.Set(k, v)
-			}
-
-			provider.InjectAuthHeader(&headers)
-
-			assert.Equal(t, tc.wantXApiKey, headers.Get("X-Api-Key"))
-			assert.Equal(t, tc.wantAuthorization, headers.Get("Authorization"))
-		})
-	}
-}
-
 func TestExtractAnthropicHeaders(t *testing.T) {
 	t.Parallel()
 

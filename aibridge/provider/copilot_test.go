@@ -51,39 +51,6 @@ func TestCopilot_TypeAndName(t *testing.T) {
 	}
 }
 
-func TestCopilot_InjectAuthHeader(t *testing.T) {
-	t.Parallel()
-
-	// Copilot uses per-user key passed in the Authorization header,
-	// so InjectAuthHeader should not modify any headers.
-	provider := NewCopilot(config.Copilot{})
-
-	t.Run("ExistingHeaders_Unchanged", func(t *testing.T) {
-		t.Parallel()
-
-		headers := http.Header{}
-		headers.Set("Authorization", "Bearer user-token")
-		headers.Set("X-Custom-Header", "custom-value")
-
-		provider.InjectAuthHeader(&headers)
-
-		assert.Equal(t, "Bearer user-token", headers.Get("Authorization"),
-			"Authorization header should remain unchanged")
-		assert.Equal(t, "custom-value", headers.Get("X-Custom-Header"),
-			"other headers should remain unchanged")
-	})
-
-	t.Run("EmptyHeaders_NoneAdded", func(t *testing.T) {
-		t.Parallel()
-
-		headers := http.Header{}
-
-		provider.InjectAuthHeader(&headers)
-
-		assert.Empty(t, headers, "no headers should be added")
-	})
-}
-
 func TestCopilot_CreateInterceptor(t *testing.T) {
 	t.Parallel()
 

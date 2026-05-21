@@ -321,6 +321,7 @@ func TestPassthrough_KeyFailover(t *testing.T) {
 		extractKey  func(*http.Request) string
 		setBYOK     func(*http.Request, string)
 		newProvider func(baseURL string, pool *keypool.Pool) provider.Provider
+		byokOnly    bool
 	}{
 		{
 			name: "anthropic",
@@ -352,6 +353,22 @@ func TestPassthrough_KeyFailover(t *testing.T) {
 				}
 				return provider.NewOpenAI(cfg)
 			},
+		},
+		{
+			// Copilot is always BYOK and returns an empty KeyFailoverConfig,
+			// which makes the KeyFailoverTransport short-circuit. Only the
+			// BYOK scenario applies, centralized-pool cases are skipped below.
+			name: "copilot",
+			extractKey: func(r *http.Request) string {
+				return strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+			},
+			setBYOK: func(r *http.Request, key string) {
+				r.Header.Set("Authorization", "Bearer "+key)
+			},
+			newProvider: func(baseURL string, _ *keypool.Pool) provider.Provider {
+				return provider.NewCopilot(config.Copilot{BaseURL: baseURL})
+			},
+			byokOnly: true,
 		},
 	}
 
@@ -516,6 +533,10 @@ func TestPassthrough_KeyFailover(t *testing.T) {
 
 	for _, prov := range providers {
 		for _, tc := range tests {
+			// BYOK-only providers do not exercise centralized-pool scenarios.
+			if prov.byokOnly && tc.byokKey == "" {
+				continue
+			}
 			t.Run(prov.name+"/"+tc.name, func(t *testing.T) {
 				t.Parallel()
 
