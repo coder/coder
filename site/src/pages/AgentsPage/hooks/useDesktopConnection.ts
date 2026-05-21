@@ -244,6 +244,16 @@ export function useDesktopConnection({
 				rfb.resizeSession = false;
 				rfb.focusOnClick = true;
 
+				// Override the noVNC default background (rgb(40,40,40))
+				// so the letterbox margins match the app surface color
+				// in both light and dark themes.
+				rfb.background = getComputedStyle(document.documentElement)
+					.getPropertyValue("--surface-primary")
+					.trim();
+				if (rfb.background) {
+					rfb.background = `hsl(${rfb.background})`;
+				}
+
 				// Per-session flags scoped to this RFB instance.
 				// NOT refs — each doConnect() gets fresh copies so
 				// state from a previous session cannot leak.
