@@ -111,6 +111,97 @@ func (q *sqlQuerier) ActivityBumpWorkspace(ctx context.Context, arg ActivityBump
 	return err
 }
 
+const deleteAIGatewayCoderdKey = `-- name: DeleteAIGatewayCoderdKey :exec
+DELETE FROM ai_gateway_coderd_keys WHERE id = $1
+`
+
+func (q *sqlQuerier) DeleteAIGatewayCoderdKey(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteAIGatewayCoderdKey, id)
+	return err
+}
+
+const insertAIGatewayCoderdKey = `-- name: InsertAIGatewayCoderdKey :one
+INSERT INTO ai_gateway_coderd_keys (id, created_at, name, secret_prefix, hashed_secret)
+VALUES ($1, $2, lower($5), $3, $4)
+RETURNING id, name, secret_prefix, created_at
+`
+
+type InsertAIGatewayCoderdKeyParams struct {
+	ID           uuid.UUID `db:"id" json:"id"`
+	CreatedAt    time.Time `db:"created_at" json:"created_at"`
+	SecretPrefix string    `db:"secret_prefix" json:"secret_prefix"`
+	HashedSecret []byte    `db:"hashed_secret" json:"hashed_secret"`
+	Name         string    `db:"name" json:"name"`
+}
+
+type InsertAIGatewayCoderdKeyRow struct {
+	ID           uuid.UUID `db:"id" json:"id"`
+	Name         string    `db:"name" json:"name"`
+	SecretPrefix string    `db:"secret_prefix" json:"secret_prefix"`
+	CreatedAt    time.Time `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) InsertAIGatewayCoderdKey(ctx context.Context, arg InsertAIGatewayCoderdKeyParams) (InsertAIGatewayCoderdKeyRow, error) {
+	row := q.db.QueryRowContext(ctx, insertAIGatewayCoderdKey,
+		arg.ID,
+		arg.CreatedAt,
+		arg.SecretPrefix,
+		arg.HashedSecret,
+		arg.Name,
+	)
+	var i InsertAIGatewayCoderdKeyRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.SecretPrefix,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const listAIGatewayCoderdKeys = `-- name: ListAIGatewayCoderdKeys :many
+SELECT id, name, secret_prefix, created_at, last_used_at
+FROM ai_gateway_coderd_keys
+ORDER BY created_at ASC
+`
+
+type ListAIGatewayCoderdKeysRow struct {
+	ID           uuid.UUID    `db:"id" json:"id"`
+	Name         string       `db:"name" json:"name"`
+	SecretPrefix string       `db:"secret_prefix" json:"secret_prefix"`
+	CreatedAt    time.Time    `db:"created_at" json:"created_at"`
+	LastUsedAt   sql.NullTime `db:"last_used_at" json:"last_used_at"`
+}
+
+func (q *sqlQuerier) ListAIGatewayCoderdKeys(ctx context.Context) ([]ListAIGatewayCoderdKeysRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAIGatewayCoderdKeys)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAIGatewayCoderdKeysRow
+	for rows.Next() {
+		var i ListAIGatewayCoderdKeysRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.SecretPrefix,
+			&i.CreatedAt,
+			&i.LastUsedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const deleteAIProviderKey = `-- name: DeleteAIProviderKey :exec
 DELETE FROM
     ai_provider_keys
@@ -2431,97 +2522,6 @@ func (q *sqlQuerier) UpdateAIBridgeInterceptionEnded(ctx context.Context, arg Up
 		&i.CredentialHint,
 	)
 	return i, err
-}
-
-const deleteAIBridgeCoderdKey = `-- name: DeleteAIBridgeCoderdKey :exec
-DELETE FROM aibridge_coderd_keys WHERE id = $1
-`
-
-func (q *sqlQuerier) DeleteAIBridgeCoderdKey(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteAIBridgeCoderdKey, id)
-	return err
-}
-
-const insertAIBridgeCoderdKey = `-- name: InsertAIBridgeCoderdKey :one
-INSERT INTO aibridge_coderd_keys (id, created_at, name, token_prefix, hashed_secret)
-VALUES ($1, $2, lower($5), $3, $4)
-RETURNING id, name, token_prefix, created_at
-`
-
-type InsertAIBridgeCoderdKeyParams struct {
-	ID           uuid.UUID `db:"id" json:"id"`
-	CreatedAt    time.Time `db:"created_at" json:"created_at"`
-	TokenPrefix  string    `db:"token_prefix" json:"token_prefix"`
-	HashedSecret []byte    `db:"hashed_secret" json:"hashed_secret"`
-	Name         string    `db:"name" json:"name"`
-}
-
-type InsertAIBridgeCoderdKeyRow struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	Name        string    `db:"name" json:"name"`
-	TokenPrefix string    `db:"token_prefix" json:"token_prefix"`
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
-}
-
-func (q *sqlQuerier) InsertAIBridgeCoderdKey(ctx context.Context, arg InsertAIBridgeCoderdKeyParams) (InsertAIBridgeCoderdKeyRow, error) {
-	row := q.db.QueryRowContext(ctx, insertAIBridgeCoderdKey,
-		arg.ID,
-		arg.CreatedAt,
-		arg.TokenPrefix,
-		arg.HashedSecret,
-		arg.Name,
-	)
-	var i InsertAIBridgeCoderdKeyRow
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.TokenPrefix,
-		&i.CreatedAt,
-	)
-	return i, err
-}
-
-const listAIBridgeCoderdKeys = `-- name: ListAIBridgeCoderdKeys :many
-SELECT id, name, token_prefix, created_at, last_used_at
-FROM aibridge_coderd_keys
-ORDER BY created_at ASC
-`
-
-type ListAIBridgeCoderdKeysRow struct {
-	ID          uuid.UUID    `db:"id" json:"id"`
-	Name        string       `db:"name" json:"name"`
-	TokenPrefix string       `db:"token_prefix" json:"token_prefix"`
-	CreatedAt   time.Time    `db:"created_at" json:"created_at"`
-	LastUsedAt  sql.NullTime `db:"last_used_at" json:"last_used_at"`
-}
-
-func (q *sqlQuerier) ListAIBridgeCoderdKeys(ctx context.Context) ([]ListAIBridgeCoderdKeysRow, error) {
-	rows, err := q.db.QueryContext(ctx, listAIBridgeCoderdKeys)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ListAIBridgeCoderdKeysRow
-	for rows.Next() {
-		var i ListAIBridgeCoderdKeysRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.TokenPrefix,
-			&i.CreatedAt,
-			&i.LastUsedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const deleteGroupAIBudget = `-- name: DeleteGroupAIBudget :one

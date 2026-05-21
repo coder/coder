@@ -1907,11 +1907,11 @@ func (q *querier) CustomRoles(ctx context.Context, arg database.CustomRolesParam
 	return q.db.CustomRoles(ctx, arg)
 }
 
-func (q *querier) DeleteAIBridgeCoderdKey(ctx context.Context, id uuid.UUID) error {
+func (q *querier) DeleteAIGatewayCoderdKey(ctx context.Context, id uuid.UUID) error {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAIGatewayCoderdKey); err != nil {
 		return err
 	}
-	return q.db.DeleteAIBridgeCoderdKey(ctx, id)
+	return q.db.DeleteAIGatewayCoderdKey(ctx, id)
 }
 
 func (q *querier) DeleteAIProviderByID(ctx context.Context, id uuid.UUID) error {
@@ -5435,13 +5435,6 @@ func (q *querier) GetWorkspacesForWorkspaceMetrics(ctx context.Context) ([]datab
 	return q.db.GetWorkspacesForWorkspaceMetrics(ctx)
 }
 
-func (q *querier) InsertAIBridgeCoderdKey(ctx context.Context, arg database.InsertAIBridgeCoderdKeyParams) (database.InsertAIBridgeCoderdKeyRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceAIGatewayCoderdKey); err != nil {
-		return database.InsertAIBridgeCoderdKeyRow{}, err
-	}
-	return q.db.InsertAIBridgeCoderdKey(ctx, arg)
-}
-
 func (q *querier) InsertAIBridgeInterception(ctx context.Context, arg database.InsertAIBridgeInterceptionParams) (database.AIBridgeInterception, error) {
 	return insert(q.log, q.auth, rbac.ResourceAibridgeInterception.WithOwner(arg.InitiatorID.String()), q.db.InsertAIBridgeInterception)(ctx, arg)
 }
@@ -5475,6 +5468,13 @@ func (q *querier) InsertAIBridgeUserPrompt(ctx context.Context, arg database.Ins
 		return database.AIBridgeUserPrompt{}, err
 	}
 	return q.db.InsertAIBridgeUserPrompt(ctx, arg)
+}
+
+func (q *querier) InsertAIGatewayCoderdKey(ctx context.Context, arg database.InsertAIGatewayCoderdKeyParams) (database.InsertAIGatewayCoderdKeyRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceAIGatewayCoderdKey); err != nil {
+		return database.InsertAIGatewayCoderdKeyRow{}, err
+	}
+	return q.db.InsertAIGatewayCoderdKey(ctx, arg)
 }
 
 func (q *querier) InsertAIProvider(ctx context.Context, arg database.InsertAIProviderParams) (database.AIProvider, error) {
@@ -6182,13 +6182,6 @@ func (q *querier) ListAIBridgeClients(ctx context.Context, arg database.ListAIBr
 	return q.db.ListAuthorizedAIBridgeClients(ctx, arg, prep)
 }
 
-func (q *querier) ListAIBridgeCoderdKeys(ctx context.Context) ([]database.ListAIBridgeCoderdKeysRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIGatewayCoderdKey); err != nil {
-		return nil, err
-	}
-	return q.db.ListAIBridgeCoderdKeys(ctx)
-}
-
 func (q *querier) ListAIBridgeInterceptions(ctx context.Context, arg database.ListAIBridgeInterceptionsParams) ([]database.ListAIBridgeInterceptionsRow, error) {
 	prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceAibridgeInterception.Type)
 	if err != nil {
@@ -6264,6 +6257,13 @@ func (q *querier) ListBoundaryLogsBySessionID(ctx context.Context, arg database.
 		return nil, err
 	}
 	return q.db.ListBoundaryLogsBySessionID(ctx, arg)
+}
+
+func (q *querier) ListAIGatewayCoderdKeys(ctx context.Context) ([]database.ListAIGatewayCoderdKeysRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIGatewayCoderdKey); err != nil {
+		return nil, err
+	}
+	return q.db.ListAIGatewayCoderdKeys(ctx)
 }
 
 func (q *querier) ListChatUsageLimitGroupOverrides(ctx context.Context) ([]database.ListChatUsageLimitGroupOverridesRow, error) {
