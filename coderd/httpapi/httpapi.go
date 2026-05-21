@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi/httpapiconstraints"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/quartz"
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 )
@@ -308,6 +309,14 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (
 	<-chan struct{},
 	error,
 ) {
+	return serverSentEventSenderWith(rw, r, quartz.NewReal(), HeartbeatInterval)
+}
+
+func serverSentEventSenderWith(rw http.ResponseWriter, r *http.Request, clk quartz.Clock, interval time.Duration) (
+	func(sse codersdk.ServerSentEvent) error,
+	<-chan struct{},
+	error,
+) {
 	h := rw.Header()
 	h.Set("Content-Type", "text/event-stream")
 	h.Set("Cache-Control", "no-cache")
@@ -330,7 +339,7 @@ func ServerSentEventSender(rw http.ResponseWriter, r *http.Request) (
 	// Synchronized handling of events (no guarantee of order).
 	go func() {
 		defer close(closed)
-		ticker := time.NewTicker(HeartbeatInterval)
+		ticker := clk.NewTicker(interval, "ServerSentEventSender")
 		defer ticker.Stop()
 
 		for {
@@ -424,6 +433,14 @@ func OneWayWebSocketEventSender(log slog.Logger) func(rw http.ResponseWriter, r 
 	<-chan struct{},
 	error,
 ) {
+	return oneWayWebSocketEventSenderWith(log, quartz.NewReal(), HeartbeatInterval)
+}
+
+func oneWayWebSocketEventSenderWith(log slog.Logger, clk quartz.Clock, interval time.Duration) func(rw http.ResponseWriter, r *http.Request) (
+	func(event codersdk.ServerSentEvent) error,
+	<-chan struct{},
+	error,
+) {
 	return func(rw http.ResponseWriter, r *http.Request) (
 		func(event codersdk.ServerSentEvent) error,
 		<-chan struct{},
@@ -436,7 +453,7 @@ func OneWayWebSocketEventSender(log slog.Logger) func(rw http.ResponseWriter, r 
 			cancel()
 			return nil, nil, xerrors.Errorf("cannot establish connection: %w", err)
 		}
-		go HeartbeatClose(ctx, log, cancel, socket)
+		go heartbeatCloseWith(ctx, log, cancel, socket, clk, interval)
 
 		eventC := make(chan codersdk.ServerSentEvent, 64)
 		socketErrC := make(chan websocket.CloseError, 1)
