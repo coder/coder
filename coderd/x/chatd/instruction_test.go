@@ -116,6 +116,25 @@ func TestRenderPlanPathPrompt(t *testing.T) {
 	})
 }
 
+func TestDefaultSystemPromptContainsVersionControlSafety(t *testing.T) {
+	t.Parallel()
+
+	require.Contains(t, DefaultSystemPrompt, "<version-control-safety>")
+	require.Contains(t, DefaultSystemPrompt, "</version-control-safety>")
+	require.Contains(t, DefaultSystemPrompt, "check the current branch and push target")
+	require.Contains(t, DefaultSystemPrompt, "Do not commit directly to default or protected branches")
+	require.Contains(t, DefaultSystemPrompt, "including main, master, trunk")
+	require.Contains(t, DefaultSystemPrompt, "unless the user explicitly confirms after you identify the exact branch")
+	require.Contains(t, DefaultSystemPrompt, "Do not push when the target would update a default or protected branch unless the user explicitly confirms")
+	require.Contains(t, DefaultSystemPrompt, "Before asking for confirmation, warn that the push bypasses")
+	require.Contains(t, DefaultSystemPrompt, "state the exact remote ref that would be updated")
+	require.Contains(t, DefaultSystemPrompt, "Confirmation must be separate and must name the exact protected branch")
+	require.Contains(t, DefaultSystemPrompt, "Do not run plain git push while checked out on a default or protected branch")
+	require.Contains(t, DefaultSystemPrompt, "use an explicit refspec")
+	require.Contains(t, DefaultSystemPrompt, "create and switch to a feature branch first")
+	require.Contains(t, DefaultSystemPrompt, "Never treat the original request as confirmation")
+}
+
 func TestInsertSystemInstructionAfterSystemMessages(t *testing.T) {
 	t.Parallel()
 
