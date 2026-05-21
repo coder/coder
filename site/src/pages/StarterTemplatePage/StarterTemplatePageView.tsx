@@ -61,7 +61,7 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
 					</div>
 					<div>
 						<PageHeaderTitle>{starterTemplate.name}</PageHeaderTitle>
-						<PageHeaderSubtitle condensed>
+						<PageHeaderSubtitle>
 							{starterTemplate.description}
 						</PageHeaderSubtitle>
 					</div>
