@@ -12,7 +12,6 @@ are rejected; use `title:` for title filtering.
 | `archived`   | `true`, `false`                     | Filter by archived state. Default: `false`.                         |
 | `has_unread` | `true`, `false`                     | Conversations with unread assistant messages.                       |
 | `pr_status`  | `draft`, `open`, `merged`, `closed` | Linked pull request state. Comma-separated for OR.                  |
-| `diff_url`   | URL                                 | Match by associated diff URL. Quote the value.                      |
 | `pr`         | positive integer                    | Exact PR number match.                                              |
 | `repo`       | substring                           | Substring match against git remote origin or URL.                   |
 | `pr_title`   | substring                           | Case-insensitive PR title substring match. Quote multi-word values. |
@@ -33,6 +32,9 @@ Multiple filters in one query combine with AND logic.
 
 # Conversations with open or draft PRs
 ?q=pr_status:open,draft
+
+# Filter by diff URL (quote values containing colons)
+?q=diff_url:"https://github.com/coder/coder/pull/123"
 
 # Combine filters
 ?q=title:refactor+has_unread:true+pr_status:merged
