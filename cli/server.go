@@ -1026,6 +1026,29 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("seed ai providers from env: %w", err)
 			}
 
+			// In-memory aibridge daemon. Registered on coderd so chatd can
+			// dispatch LLM requests via the in-process transport without
+			// crossing the gated /api/v2/aibridge HTTP route. The HTTP route
+			// itself is registered (and license-gated) only by enterprise/coderd;
+			// in AGPL builds it does not exist at all. The daemon starts here
+			// unconditionally when the bridge feature is enabled by config so
+			// chatd can use it regardless of license entitlement.
+			if vals.AI.BridgeConfig.Enabled.Value() {
+				providers, err := BuildProviders(vals.AI.BridgeConfig)
+				if err != nil {
+					return xerrors.Errorf("build AI providers: %w", err)
+				}
+				aibridgeDaemon, err := newAIBridgeDaemon(coderAPI, providers)
+				if err != nil {
+					return xerrors.Errorf("create aibridged: %w", err)
+				}
+				coderAPI.RegisterInMemoryAIBridgedHTTPHandler(aibridgeDaemon)
+				// The handler is bound to coderAPI's lifecycle; Close() on the
+				// daemon does not affect in-flight requests but is needed to
+				// release pool/recorder resources at shutdown.
+				defer aibridgeDaemon.Close()
+			}
+
 			if vals.Prometheus.Enable {
 				// Agent metrics require reference to the tailnet coordinator, so must be initiated after Coder API.
 				closeAgentsFunc, err := prometheusmetrics.Agents(ctx, logger, options.PrometheusRegistry, coderAPI.Database, &coderAPI.TailnetCoordinator, coderAPI.DERPMap, coderAPI.Options.AgentInactiveDisconnectTimeout, 0)
