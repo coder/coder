@@ -806,22 +806,19 @@ func (r *RootCmd) HeaderTransport(ctx context.Context, serverURL *url.URL) (*cod
 }
 
 func (r *RootCmd) createHTTPClient(ctx context.Context, serverURL *url.URL, inv *serpent.Invocation) (*http.Client, error) {
-	transport := http.DefaultTransport
-
-	// Apply custom TLS config if specified
-	if r.tlsConfig != nil {
-		// Clone the default transport and apply TLS config
-		defaultTransport, ok := http.DefaultTransport.(*http.Transport)
-		if !ok {
-			return nil, xerrors.New("cannot apply TLS config: http.DefaultTransport is not *http.Transport")
-		}
-		customTransport := defaultTransport.Clone()
-		customTransport.TLSClientConfig = r.tlsConfig
-		transport = customTransport
-	} else if defaultTransport, ok := http.DefaultTransport.(*http.Transport); ok {
-		// Clone the default transport so we don't share it with other code
-		// (including parallel tests that may call CloseIdleConnections).
+	var transport http.RoundTripper
+	if defaultTransport, ok := http.DefaultTransport.(*http.Transport); ok {
 		transport = defaultTransport.Clone()
+	} else {
+		transport = &http.Transport{Proxy: http.ProxyFromEnvironment}
+	}
+
+	if r.tlsConfig != nil {
+		t, ok := transport.(*http.Transport)
+		if !ok {
+			return nil, xerrors.New("cannot apply TLS config: transport is not *http.Transport")
+		}
+		t.TLSClientConfig = r.tlsConfig
 	}
 
 	transport = wrapTransportWithTelemetryHeader(transport, inv)
@@ -1694,8 +1691,7 @@ func (r roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 // if it is set to add headers for all outbound requests.
 func headerTransport(ctx context.Context, serverURL *url.URL, header []string, headerCommand string) (*codersdk.HeaderTransport, error) {
 	transport := &codersdk.HeaderTransport{
-		Transport: http.DefaultTransport,
-		Header:    http.Header{},
+		Header: http.Header{},
 	}
 	headers := header
 	if headerCommand != "" {
