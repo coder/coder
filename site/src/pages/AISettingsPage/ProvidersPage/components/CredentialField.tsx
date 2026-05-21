@@ -3,7 +3,7 @@ import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import type { FormHelpers } from "#/utils/formUtils";
 
-export type CredentialFieldProps = {
+type CredentialFieldProps = {
 	label: string;
 	helpers: FormHelpers;
 	autoComplete?: string;

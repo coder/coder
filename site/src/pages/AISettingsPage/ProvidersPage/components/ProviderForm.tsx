@@ -11,6 +11,7 @@ import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
 import { getFormHelpers } from "#/utils/formUtils";
+import { CredentialField } from "./CredentialField";
 
 export type ProviderFormValues = {
 	type: AIProviderType | "";
