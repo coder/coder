@@ -122,9 +122,6 @@ type Pubsub struct {
 	// touching the underlying *natsgo.Conn.
 	ctx    context.Context
 	cancel context.CancelFunc
-
-	// Test seam for readiness tests. Production code never sets this.
-	testHookBeforeFlush func(subject string)
 }
 
 // sharedSub coalesces local subscribers on the same NATS subject onto
@@ -159,10 +156,6 @@ type sharedSub struct {
 // and dispatcher goroutine so one slow listener cannot block peers on
 // the same subject.
 type subscription struct {
-	// sub aliases shared.sub for white-box tests. Do not call
-	// Unsubscribe / Drain via this field; the shared subscription's
-	// lifecycle is managed by Pubsub via shared.
-	sub        *natsgo.Subscription
 	cancelOnce sync.Once
 
 	event    string
@@ -419,7 +412,6 @@ func (p *Pubsub) SubscribeWithErr(event string, listener pubsub.ListenerWithErr)
 		return nil, err
 	}
 	s.shared = shared
-	s.sub = shared.sub
 
 	// Final guard against Close racing after attachListener returns
 	// success. The cancelOnce interlock with Close keeps this cleanup
@@ -580,10 +572,6 @@ func (p *Pubsub) attachListener(subject string, s *subscription) (*sharedSub, bo
 	shared.sub = natsSub
 	p.sharedByNATS[natsSub] = shared
 	p.mu.Unlock()
-
-	if hook := p.testHookBeforeFlush; hook != nil {
-		hook(subject)
-	}
 
 	// Flush the SUB to the server so a publish issued immediately
 	// after Subscribe returns cannot race ahead of registration. Flush
