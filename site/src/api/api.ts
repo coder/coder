@@ -3076,6 +3076,47 @@ class ApiMethods {
 		const response = await this.axios.get<string[]>(url);
 		return response.data;
 	};
+
+	getAIProviders = async (): Promise<TypesGen.AIProvider[]> => {
+		const response = await this.axios.get<TypesGen.AIProvider[]>(
+			"/api/v2/ai/providers",
+		);
+		return response.data;
+	};
+
+	getAIProvider = async (idOrName: string): Promise<TypesGen.AIProvider> => {
+		const response = await this.axios.get<TypesGen.AIProvider>(
+			`/api/v2/ai/providers/${encodeURIComponent(idOrName)}`,
+		);
+		return response.data;
+	};
+
+	createAIProvider = async (
+		req: TypesGen.CreateAIProviderRequest,
+	): Promise<TypesGen.AIProvider> => {
+		const response = await this.axios.post<TypesGen.AIProvider>(
+			"/api/v2/ai/providers",
+			req,
+		);
+		return response.data;
+	};
+
+	updateAIProvider = async (
+		idOrName: string,
+		req: TypesGen.UpdateAIProviderRequest,
+	): Promise<TypesGen.AIProvider> => {
+		const response = await this.axios.patch<TypesGen.AIProvider>(
+			`/api/v2/ai/providers/${encodeURIComponent(idOrName)}`,
+			req,
+		);
+		return response.data;
+	};
+
+	deleteAIProvider = async (idOrName: string): Promise<void> => {
+		await this.axios.delete(
+			`/api/v2/ai/providers/${encodeURIComponent(idOrName)}`,
+		);
+	};
 }
 
 export type TaskFeedbackRating = "good" | "okay" | "bad";
@@ -3165,20 +3206,6 @@ class ExperimentalApiMethods {
 		);
 		return response.data;
 	};
-	getChatACL = async (chatId: string): Promise<TypesGen.ChatACL> => {
-		const response = await this.axios.get<TypesGen.ChatACL>(
-			`/api/experimental/chats/${chatId}/acl`,
-		);
-		return response.data;
-	};
-
-	updateChatACL = async (
-		chatId: string,
-		req: TypesGen.UpdateChatACL,
-	): Promise<void> => {
-		await this.axios.patch(`/api/experimental/chats/${chatId}/acl`, req);
-	};
-
 	getChatMessages = async (
 		chatId: string,
 		opts?: { before_id?: number; after_id?: number; limit?: number },

@@ -35,15 +35,15 @@ export const AvatarData: FC<AvatarDataProps> = ({
 	}
 
 	return (
-		<div className="flex items-center gap-3">
+		<div className="flex min-w-0 items-center gap-3">
 			{avatar}
 
-			<div className="flex flex-col">
-				<span className="text-sm font-semibold text-content-primary">
+			<div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+				<span className="truncate text-sm font-semibold text-content-primary">
 					{title}
 				</span>
 				{subtitle && (
-					<span className="text-content-secondary text-xs font-medium">
+					<span className="truncate text-content-secondary text-xs font-medium">
 						{subtitle}
 					</span>
 				)}
