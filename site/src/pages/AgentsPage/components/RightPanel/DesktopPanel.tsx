@@ -19,24 +19,32 @@ const DEFAULT_DESKTOP_APPS: readonly DesktopApp[] = [
 ];
 
 /**
- * Launch a desktop app inside the VNC session by opening a throwaway
- * terminal connection that sends the command with DISPLAY set.
+ * Launch a desktop app inside the VNC session by sending the command
+ * through a short-lived reconnecting PTY websocket.
  */
-function launchDesktopApp(
-	app: DesktopApp,
-	workspaceName: string,
-	agentName: string,
-	ownerName: string,
-) {
-	// Build the terminal URL that runs the command in the background.
-	// The &command= parameter makes the terminal execute the command
-	// instead of opening an interactive shell.
-	const cmd = `DISPLAY=:1 ${app.command}`;
-	const url = `/@${ownerName}/${workspaceName}/terminal?agent=${agentName}&command=${encodeURIComponent(`nohup bash -c '${cmd}' > /dev/null 2>&1 &`)}`;
-	// Open in a tiny popup that auto-closes.
-	const popup = open(url, `_desktop_app_${Date.now()}`, "width=1,height=1");
-	if (popup) {
-		setTimeout(() => popup.close(), 3000);
+function launchDesktopApp(app: DesktopApp, agentId: string) {
+	const cmd = `DISPLAY=:1 nohup ${app.command} > /dev/null 2>&1 &\n`;
+	const reconnect = crypto.randomUUID();
+	const proto = location.protocol === "https:" ? "wss:" : "ws:";
+	const url = `${proto}//${location.host}/api/v2/workspaceagents/${agentId}/pty?reconnect=${reconnect}&height=1&width=80`;
+
+	try {
+		const ws = new WebSocket(url);
+		ws.binaryType = "arraybuffer";
+		ws.addEventListener("open", () => {
+			// The reconnecting PTY expects raw text data.
+			ws.send(new TextEncoder().encode(cmd));
+			setTimeout(() => ws.close(), 2000);
+		});
+		ws.addEventListener("error", () => {
+			try {
+				ws.close();
+			} catch {
+				// ignore
+			}
+		});
+	} catch {
+		// Silently fail; the user can retry from the menu.
 	}
 }
 
@@ -147,8 +155,8 @@ export const DesktopPanel: FC<DesktopPanelProps> = ({ chatId, isVisible }) => {
 	}
 
 	const handleLaunchDesktopApp = (app: DesktopApp) => {
-		if (agent && workspace) {
-			launchDesktopApp(app, workspace.name, agent.name, workspace.owner_name);
+		if (agent) {
+			launchDesktopApp(app, agent.id);
 		}
 	};
 
