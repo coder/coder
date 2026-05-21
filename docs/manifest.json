@@ -996,6 +996,12 @@
 							"state": ["beta"]
 						},
 						{
+							"title": "Search Syntax",
+							"description": "Filter conversations by title, status, and linked pull requests",
+							"path": "./ai-coder/agents/chat-search-syntax.md",
+							"state": ["beta"]
+						},
+						{
 							"title": "Architecture",
 							"description": "How the agent in the control plane communicates with workspaces",
 							"path": "./ai-coder/agents/architecture.md",
