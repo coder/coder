@@ -1014,12 +1014,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("create coder API: %w", err)
 			}
 
-			// Reconcile env-derived AI Bridge provider configuration
-			// with the ai_providers table. Runs unconditionally so
-			// operators can seed providers via env without enabling
-			// the bridge or proxy features. Concurrent server starts
-			// are serialized via a Postgres advisory lock; conflicts
-			// between env and DB fail startup with a clear error.
+			// Runs unconditionally so operators can seed providers via
+			// env without enabling the bridge or proxy features.
 			if err := coderd.SeedAIProvidersFromEnv(
 				ctx,
 				options.Database,
@@ -2981,7 +2977,20 @@ func ReadAIProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AI
 				i, p.Type, aibridge.ProviderOpenAI, aibridge.ProviderAnthropic, aibridge.ProviderCopilot)
 		}
 
-		if p.Type != aibridge.ProviderAnthropic && hasBedrockFields(*p) {
+		var bedrockKey, bedrockSecret string
+		if len(p.BedrockAccessKeys) > 0 {
+			bedrockKey = p.BedrockAccessKeys[0]
+		}
+		if len(p.BedrockAccessKeySecrets) > 0 {
+			bedrockSecret = p.BedrockAccessKeySecrets[0]
+		}
+		settings := codersdk.NewAIProviderBedrockSettings(
+			p.BedrockRegion, bedrockKey, bedrockSecret,
+			p.BedrockModel, p.BedrockSmallFastModel,
+		)
+		isBedrock := codersdk.IsBedrockConfigured(p.BedrockBaseURL, settings)
+
+		if p.Type != aibridge.ProviderAnthropic && isBedrock {
 			return nil, xerrors.Errorf("provider %d (%s): BEDROCK_* fields are only supported with TYPE %q",
 				i, p.Type, aibridge.ProviderAnthropic)
 		}
@@ -2989,6 +2998,15 @@ func ReadAIProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AI
 		if p.Type == aibridge.ProviderCopilot && len(p.Keys) > 0 {
 			return nil, xerrors.Errorf("provider %d (%s): KEY/KEYS are not supported for TYPE %q",
 				i, p.Type, aibridge.ProviderCopilot)
+		}
+
+		// An Anthropic provider authenticates either via a bearer
+		// token (KEYS) or via Bedrock (BEDROCK_*), not both. Surface
+		// the conflict here so misconfigured deployments fail before
+		// any DB work happens at server startup.
+		if p.Type == aibridge.ProviderAnthropic && len(p.Keys) > 0 && isBedrock {
+			return nil, xerrors.Errorf("provider %d (%s): KEY/KEYS and BEDROCK_* fields are mutually exclusive",
+				i, p.Type)
 		}
 
 		if err := validateProviderCredentialList(i, p.Type, p.Keys); err != nil {
@@ -3109,64 +3127,7 @@ func readAIProvidersForPrefix(logger slog.Logger, environ []string, prefix strin
 		providers[providerNum] = provider
 	}
 
-	// Post-parse validation.
-	names := make(map[string]int, len(providers))
-	for i := range providers {
-		p := &providers[i]
-		if p.Type == "" {
-			return nil, xerrors.Errorf("provider %d: TYPE is required", i)
-		}
-
-		switch p.Type {
-		case aibridge.ProviderOpenAI, aibridge.ProviderAnthropic, aibridge.ProviderCopilot:
-		default:
-			return nil, xerrors.Errorf("provider %d: unknown TYPE %q (must be %s, %s, or %s)",
-				i, p.Type, aibridge.ProviderOpenAI, aibridge.ProviderAnthropic, aibridge.ProviderCopilot)
-		}
-
-		if p.Type != aibridge.ProviderAnthropic && hasBedrockFields(*p) {
-			return nil, xerrors.Errorf("provider %d (%s): BEDROCK_* fields are only supported with TYPE %q",
-				i, p.Type, aibridge.ProviderAnthropic)
-		}
-
-		if p.Type == aibridge.ProviderCopilot && len(p.Keys) > 0 {
-			return nil, xerrors.Errorf("provider %d (%s): KEY/KEYS are not supported for TYPE %q",
-				i, p.Type, aibridge.ProviderCopilot)
-		}
-
-		// An Anthropic provider authenticates either via a bearer
-		// token (KEYS) or via Bedrock (BEDROCK_*), not both. Surface
-		// the conflict here so misconfigured deployments fail before
-		// any DB work happens at server startup.
-		if p.Type == aibridge.ProviderAnthropic && len(p.Keys) > 0 && hasBedrockFields(*p) {
-			return nil, xerrors.Errorf("provider %d (%s): KEY/KEYS and BEDROCK_* fields are mutually exclusive",
-				i, p.Type)
-		}
-
-		if err := validateProviderCredentialList(i, p.Type, p.Keys); err != nil {
-			return nil, err
-		}
-
-		if err := validateBedrockCredentials(i, p.Type, p.BedrockAccessKeys, p.BedrockAccessKeySecrets); err != nil {
-			return nil, err
-		}
-
-		if p.Name == "" {
-			p.Name = p.Type
-		}
-		if other, exists := names[p.Name]; exists {
-			return nil, xerrors.Errorf("providers %d and %d have duplicate NAME %q (multiple providers of the same type require unique NAME values)", other, i, p.Name)
-		}
-		names[p.Name] = i
-	}
-
 	return providers, nil
-}
-
-func hasBedrockFields(p codersdk.AIProviderConfig) bool {
-	return p.BedrockBaseURL != "" || p.BedrockRegion != "" ||
-		len(p.BedrockAccessKeys) > 0 || len(p.BedrockAccessKeySecrets) > 0 ||
-		p.BedrockModel != "" || p.BedrockSmallFastModel != ""
 }
 
 // validateLegacyAIBridgeConfig enforces invariants on the legacy
@@ -3179,10 +3140,14 @@ func validateLegacyAIBridgeConfig(cfg codersdk.AIBridgeConfig) error {
 	// defaults (region, base URL, credentials) reliably indicate
 	// operator intent; Model and SmallFastModel are excluded because
 	// they have defaults.
-	hasBedrock := cfg.LegacyBedrock.Region.String() != "" ||
-		cfg.LegacyBedrock.BaseURL.String() != "" ||
-		cfg.LegacyBedrock.AccessKey.String() != "" ||
-		cfg.LegacyBedrock.AccessKeySecret.String() != ""
+	settings := codersdk.NewAIProviderBedrockSettings(
+		cfg.LegacyBedrock.Region.String(),
+		cfg.LegacyBedrock.AccessKey.String(),
+		cfg.LegacyBedrock.AccessKeySecret.String(),
+		cfg.LegacyBedrock.Model.String(),
+		cfg.LegacyBedrock.SmallFastModel.String(),
+	)
+	hasBedrock := codersdk.IsBedrockConfigured(cfg.LegacyBedrock.BaseURL.String(), settings)
 	if cfg.LegacyAnthropic.Key.String() != "" && hasBedrock {
 		return xerrors.New("CODER_AIBRIDGE_ANTHROPIC_KEY and CODER_AIBRIDGE_BEDROCK_* are mutually exclusive")
 	}

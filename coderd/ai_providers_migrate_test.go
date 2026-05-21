@@ -57,6 +57,10 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		require.Len(t, keys, 1)
 		require.Equal(t, "sk-legacy", keys[0].APIKey)
 
+		// The first seed must have emitted audit entries for the new
+		// provider row and the key row.
+		require.GreaterOrEqual(t, len(auditor.AuditLogs()), 2)
+
 		// Re-running with the same config is a no-op (no errors, no
 		// new audit logs because the row matches).
 		auditor.ResetLogs()
@@ -98,7 +102,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		cfg.LegacyOpenAI.BaseURL = serpent.String("https://api.openai.com/v2")
 		err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, auditor, testLogger(t))
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "managed via the database")
+		require.Contains(t, err.Error(), "differs from the current environment configuration")
 	})
 
 	t.Run("BedrockCredentialRotationIsNotDrift", func(t *testing.T) {
@@ -129,7 +133,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		cfg.LegacyBedrock.Region = serpent.String("us-west-2")
 		err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, auditor, testLogger(t))
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "managed via the database")
+		require.Contains(t, err.Error(), "differs from the current environment configuration")
 	})
 
 	t.Run("LegacyBedrockOnlyKeepsBedrockSettings", func(t *testing.T) {
@@ -454,6 +458,65 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, keys, 1, "env reseed must not duplicate keys on existing rows")
 		require.Equal(t, "sk-original", keys[0].APIKey)
+	})
+
+	t.Run("IndexedDuplicateNameMatchingHashDedupes", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		auditor := audit.NewMock()
+
+		// Two entries under the same name with identical canonical
+		// fields are deduplicated silently.
+		cfg := codersdk.AIBridgeConfig{
+			Providers: []codersdk.AIProviderConfig{
+				{
+					Type:    "openai",
+					Name:    "shared",
+					BaseURL: "https://api.openai.com/v1",
+					Keys:    []string{"sk-1"},
+				},
+				{
+					Type:    "openai",
+					Name:    "shared",
+					BaseURL: "https://api.openai.com/v1",
+					Keys:    []string{"sk-1"},
+				},
+			},
+		}
+		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, auditor, testLogger(t)))
+
+		all, err := db.GetAIProviders(ctx, database.GetAIProvidersParams{})
+		require.NoError(t, err)
+		require.Len(t, all, 1, "duplicate indexed entries with matching hash must produce a single row")
+	})
+
+	t.Run("IndexedDuplicateNameMismatchingHashFails", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		auditor := audit.NewMock()
+
+		// Same name, different canonical fields: must be rejected.
+		cfg := codersdk.AIBridgeConfig{
+			Providers: []codersdk.AIProviderConfig{
+				{
+					Type:    "openai",
+					Name:    "shared",
+					BaseURL: "https://api.openai.com/v1",
+					Keys:    []string{"sk-1"},
+				},
+				{
+					Type:    "openai",
+					Name:    "shared",
+					BaseURL: "https://api.openai.com/v2",
+					Keys:    []string{"sk-2"},
+				},
+			},
+		}
+		err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, auditor, testLogger(t))
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "conflicting fields")
 	})
 }
 

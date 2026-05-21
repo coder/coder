@@ -6,8 +6,8 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
-	"sort"
-	"time"
+	"maps"
+	"slices"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -19,7 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
-	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -48,7 +48,7 @@ func SeedAIProvidersFromEnv(
 	auditor audit.Auditor,
 	logger slog.Logger,
 ) error {
-	desired, err := providersFromEnv(cfg)
+	desired, err := providersFromEnv(ctx, cfg, logger)
 	if err != nil {
 		return xerrors.Errorf("compute providers from env: %w", err)
 	}
@@ -56,15 +56,23 @@ func SeedAIProvidersFromEnv(
 		return nil
 	}
 
-	// All of the work runs as the system actor so that audit entries
-	// are attributed to the deployment rather than a user, and so
-	// that dbauthz allows the writes. There is no user-driven request
-	// here; this only runs at server startup before the API is
-	// serving traffic.
+	// Audit entries are attributed to the deployment rather than a user.
 	//nolint:gocritic // server startup, no user actor available
 	sysCtx := dbauthz.AsSystemRestricted(ctx)
 
-	return db.InTx(func(tx database.Store) error {
+	// Collect inserted rows inside the transaction and emit audit
+	// entries only after the transaction commits. The auditor writes
+	// through the outer db handle, so emitting inside InTx would leave
+	// phantom audit rows if the transaction later rolls back.
+	var (
+		insertedProviders []database.AIProvider
+		insertedKeys      []database.AIProviderKey
+	)
+
+	err = db.InTx(func(tx database.Store) error {
+		insertedProviders = insertedProviders[:0]
+		insertedKeys = insertedKeys[:0]
+
 		// Acquire the advisory lock. The lock is released when the
 		// transaction ends.
 		if err := tx.AcquireLock(sysCtx, database.LockIDAIProvidersEnvSeed); err != nil {
@@ -81,8 +89,12 @@ func SeedAIProvidersFromEnv(
 		if err != nil {
 			return xerrors.Errorf("load ai providers: %w", err)
 		}
+		// Prefer the live row when a soft-deleted row shares its name.
 		byName := make(map[string]database.AIProvider, len(all))
 		for _, row := range all {
+			if existing, ok := byName[row.Name]; ok && !existing.Deleted && row.Deleted {
+				continue
+			}
 			byName[row.Name] = row
 		}
 
@@ -115,7 +127,7 @@ func SeedAIProvidersFromEnv(
 				if existingHash == dp.Hash {
 					continue
 				}
-				return xerrors.Errorf("AI provider %q is managed via the database and no longer reads from environment variables; remove the corresponding CODER_AIBRIDGE_* env vars and manage the provider through the API", dp.Name)
+				return xerrors.Errorf("AI provider %q already exists in the database and differs from the current environment configuration; update the provider through the API or remove the CODER_AIBRIDGE_* env vars to stop seeding it", dp.Name)
 			}
 
 			row, err := tx.InsertAIProvider(sysCtx, database.InsertAIProviderParams{
@@ -131,16 +143,10 @@ func SeedAIProvidersFromEnv(
 			if err != nil {
 				return xerrors.Errorf("insert ai provider %q: %w", dp.Name, err)
 			}
-
-			audit.BackgroundAudit(sysCtx, &audit.BackgroundAuditParams[database.AIProvider]{
-				Audit:  auditor,
-				Log:    logger,
-				Action: database.AuditActionCreate,
-				New:    row,
-			})
+			insertedProviders = append(insertedProviders, row)
 
 			// Insert one ai_provider_keys row per env-supplied key.
-			now := time.Now().UTC()
+			now := dbtime.Now()
 			for _, key := range dp.Keys {
 				if key == "" {
 					continue
@@ -156,17 +162,7 @@ func SeedAIProvidersFromEnv(
 				if err != nil {
 					return xerrors.Errorf("insert ai provider key for %q: %w", dp.Name, err)
 				}
-				// Mask the plaintext key before it enters the audit
-				// pipeline; the audit policy on api_key relies on the
-				// masked rendering so plaintext never reaches a backend.
-				auditRow := keyRow
-				auditRow.APIKey = aibridgeutils.MaskSecret(auditRow.APIKey)
-				audit.BackgroundAudit(sysCtx, &audit.BackgroundAuditParams[database.AIProviderKey]{
-					Audit:  auditor,
-					Log:    logger,
-					Action: database.AuditActionCreate,
-					New:    auditRow,
-				})
+				insertedKeys = append(insertedKeys, keyRow)
 			}
 
 			logger.Info(sysCtx, "seeded ai provider from environment",
@@ -177,6 +173,32 @@ func SeedAIProvidersFromEnv(
 		}
 		return nil
 	}, nil)
+	if err != nil {
+		return err
+	}
+
+	for _, row := range insertedProviders {
+		audit.BackgroundAudit(sysCtx, &audit.BackgroundAuditParams[database.AIProvider]{
+			Audit:  auditor,
+			Log:    logger,
+			Action: database.AuditActionCreate,
+			New:    row,
+		})
+	}
+	for _, keyRow := range insertedKeys {
+		// Mask the plaintext key before it enters the audit pipeline;
+		// the audit policy on api_key relies on the masked rendering
+		// so plaintext never reaches a backend.
+		auditRow := keyRow
+		auditRow.APIKey = aibridgeutils.MaskSecret(auditRow.APIKey)
+		audit.BackgroundAudit(sysCtx, &audit.BackgroundAuditParams[database.AIProviderKey]{
+			Audit:  auditor,
+			Log:    logger,
+			Action: database.AuditActionCreate,
+			New:    auditRow,
+		})
+	}
+	return nil
 }
 
 // canonicalAIProvider is the shape we hash to detect drift between the
@@ -188,12 +210,12 @@ func SeedAIProvidersFromEnv(
 // ai_provider_keys) and to Bedrock access key/secret pairs (stored in
 // the settings blob because Bedrock authenticates via settings rather
 // than a bearer token).
+// Model and SmallFastModel are excluded: they're tunables, and their
+// serpent defaults shift across releases.
 type canonicalAIProvider struct {
-	Type                  string `json:"type"`
-	BaseURL               string `json:"base_url"`
-	BedrockRegion         string `json:"bedrock_region"`
-	BedrockModel          string `json:"bedrock_model"`
-	BedrockSmallFastModel string `json:"bedrock_small_fast_model"`
+	Type          string `json:"type"`
+	BaseURL       string `json:"base_url"`
+	BedrockRegion string `json:"bedrock_region"`
 }
 
 // desiredAIProvider is a normalized provider description sourced from
@@ -220,16 +242,13 @@ func (d desiredAIProvider) canonical() canonicalAIProvider {
 	}
 	if d.Bedrock != nil {
 		c.BedrockRegion = d.Bedrock.Region
-		c.BedrockModel = d.Bedrock.Model
-		c.BedrockSmallFastModel = d.Bedrock.SmallFastModel
 	}
 	return c
 }
 
 func computeProviderHash(c canonicalAIProvider) string {
 	// json.Marshal is deterministic for structs because field order is
-	// fixed, but we still sort the resulting JSON via canonical struct
-	// shape rather than maps to keep it deterministic and explicit.
+	// fixed by the struct definition.
 	b, _ := json.Marshal(c)
 	sum := sha256.Sum256(b)
 	return hex.EncodeToString(sum[:])
@@ -240,7 +259,7 @@ func computeProviderHash(c canonicalAIProvider) string {
 // env vars) into the deduplicated set of providers we want present in
 // the database. Conflicts between legacy and indexed providers under
 // the same canonical name are surfaced as errors.
-func providersFromEnv(cfg codersdk.AIBridgeConfig) ([]desiredAIProvider, error) {
+func providersFromEnv(ctx context.Context, cfg codersdk.AIBridgeConfig, logger slog.Logger) ([]desiredAIProvider, error) {
 	out := make(map[string]desiredAIProvider)
 	legacyNames := make(map[string]bool)
 
@@ -266,28 +285,27 @@ func providersFromEnv(cfg codersdk.AIBridgeConfig) ([]desiredAIProvider, error) 
 	// Detection goes through AIProviderBedrockSettings.IsConfigured()
 	// so the legacy and indexed paths agree on what counts as a
 	// Bedrock provider.
-	bedrock := codersdk.AIProviderBedrockSettings{
-		Region:         cfg.LegacyBedrock.Region.String(),
-		Model:          cfg.LegacyBedrock.Model.String(),
-		SmallFastModel: cfg.LegacyBedrock.SmallFastModel.String(),
-	}
-	if key := cfg.LegacyBedrock.AccessKey.String(); key != "" {
-		bedrock.AccessKey = ptr.Ref(key)
-	}
-	if secret := cfg.LegacyBedrock.AccessKeySecret.String(); secret != "" {
-		bedrock.AccessKeySecret = ptr.Ref(secret)
-	}
+	bedrock := codersdk.NewAIProviderBedrockSettings(
+		cfg.LegacyBedrock.Region.String(),
+		cfg.LegacyBedrock.AccessKey.String(),
+		cfg.LegacyBedrock.AccessKeySecret.String(),
+		cfg.LegacyBedrock.Model.String(),
+		cfg.LegacyBedrock.SmallFastModel.String(),
+	)
 	hasAnthropicKey := cfg.LegacyAnthropic.Key.String() != ""
-	hasLegacyBedrock := bedrock.IsConfigured()
+	hasLegacyBedrock := codersdk.IsBedrockConfigured(cfg.LegacyBedrock.BaseURL.String(), bedrock)
 	if hasAnthropicKey || hasLegacyBedrock {
 		dp := desiredAIProvider{
-			Name:    aibridge.ProviderAnthropic,
-			Type:    database.AiProviderTypeAnthropic,
-			BaseURL: cfg.LegacyAnthropic.BaseURL.String(),
+			Name: aibridge.ProviderAnthropic,
+			Type: database.AiProviderTypeAnthropic,
 		}
 		if hasLegacyBedrock {
+			// Bedrock-only deployments use CODER_AIBRIDGE_BEDROCK_BASE_URL
+			// for custom VPC, FIPS, or proxy endpoints.
+			dp.BaseURL = cfg.LegacyBedrock.BaseURL.String()
 			dp.Bedrock = &bedrock
 		} else {
+			dp.BaseURL = cfg.LegacyAnthropic.BaseURL.String()
 			dp.Keys = []string{cfg.LegacyAnthropic.Key.String()}
 		}
 		dp.Hash = computeProviderHash(dp.canonical())
@@ -320,6 +338,10 @@ func providersFromEnv(cfg codersdk.AIBridgeConfig) ([]desiredAIProvider, error) 
 		default:
 			// Skip other types (e.g. copilot) until they are added
 			// to the database enum.
+			logger.Warn(ctx, "skipping indexed AI provider with unsupported type",
+				slog.F("name", name),
+				slog.F("type", p.Type),
+			)
 			continue
 		}
 
@@ -330,20 +352,27 @@ func providersFromEnv(cfg codersdk.AIBridgeConfig) ([]desiredAIProvider, error) 
 		// provider.
 		isBedrock := false
 		if dp.Type == database.AiProviderTypeAnthropic {
-			bedrock := codersdk.AIProviderBedrockSettings{
-				Region:         p.BedrockRegion,
-				Model:          p.BedrockModel,
-				SmallFastModel: p.BedrockSmallFastModel,
+			var accessKey, accessKeySecret string
+			if len(p.BedrockAccessKeys) > 0 {
+				accessKey = p.BedrockAccessKeys[0]
 			}
-			if len(p.BedrockAccessKeys) > 0 && p.BedrockAccessKeys[0] != "" {
-				bedrock.AccessKey = ptr.Ref(p.BedrockAccessKeys[0])
+			if len(p.BedrockAccessKeySecrets) > 0 {
+				accessKeySecret = p.BedrockAccessKeySecrets[0]
 			}
-			if len(p.BedrockAccessKeySecrets) > 0 && p.BedrockAccessKeySecrets[0] != "" {
-				bedrock.AccessKeySecret = ptr.Ref(p.BedrockAccessKeySecrets[0])
-			}
-			isBedrock = bedrock.IsConfigured()
+			bedrock := codersdk.NewAIProviderBedrockSettings(
+				p.BedrockRegion,
+				accessKey,
+				accessKeySecret,
+				p.BedrockModel,
+				p.BedrockSmallFastModel,
+			)
+			isBedrock = codersdk.IsBedrockConfigured(p.BedrockBaseURL, bedrock)
 			if isBedrock {
 				dp.Bedrock = &bedrock
+				// Always overwrite the generic BaseURL so removing
+				// BASE_URL later doesn't trigger drift. Empty is fine:
+				// the runtime derives the endpoint from the region.
+				dp.BaseURL = p.BedrockBaseURL
 			}
 		}
 		// Non-Bedrock providers carry their bearer keys in
@@ -369,13 +398,8 @@ func providersFromEnv(cfg codersdk.AIBridgeConfig) ([]desiredAIProvider, error) 
 
 	// Stable order so audit log entries are deterministic across
 	// restarts, which makes comparison in tests trivial.
-	names := make([]string, 0, len(out))
-	for name := range out {
-		names = append(names, name)
-	}
-	sort.Strings(names)
 	res := make([]desiredAIProvider, 0, len(out))
-	for _, name := range names {
+	for _, name := range slices.Sorted(maps.Keys(out)) {
 		res = append(res, out[name])
 	}
 	return res, nil

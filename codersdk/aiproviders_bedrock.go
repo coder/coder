@@ -56,6 +56,38 @@ func (b AIProviderBedrockSettings) IsConfigured() bool {
 	return false
 }
 
+// NewAIProviderBedrockSettings builds an AIProviderBedrockSettings,
+// promoting non-empty credential strings to pointers so callers don't
+// have to repeat the "set field iff non-empty" boilerplate. Empty
+// credentials are left nil, matching the PATCH-omit semantics of the
+// pointer-typed fields.
+func NewAIProviderBedrockSettings(region, accessKey, accessKeySecret, model, smallFastModel string) AIProviderBedrockSettings {
+	s := AIProviderBedrockSettings{
+		Region:         region,
+		Model:          model,
+		SmallFastModel: smallFastModel,
+	}
+	if accessKey != "" {
+		s.AccessKey = &accessKey
+	}
+	if accessKeySecret != "" {
+		s.AccessKeySecret = &accessKeySecret
+	}
+	return s
+}
+
+// IsBedrockConfigured reports whether the combination of the parent
+// provider's BaseURL and AIProviderBedrockSettings indicates a Bedrock
+// provider. BaseURL alone (e.g. a custom VPC or FIPS endpoint with
+// credentials resolved via the AWS environment) is sufficient.
+//
+// Use this rather than AIProviderBedrockSettings.IsConfigured() when
+// BaseURL is available; the seed, the runtime config builder, and the
+// legacy validator must all agree on what counts as a Bedrock provider.
+func IsBedrockConfigured(baseURL string, b AIProviderBedrockSettings) bool {
+	return baseURL != "" || b.IsConfigured()
+}
+
 func (AIProviderBedrockSettings) settingsType() string {
 	return AIProviderSettingsTypeBedrock
 }
