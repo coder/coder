@@ -1,7 +1,8 @@
-import { CheckIcon, ChevronRightIcon } from "lucide-react";
+import { ChevronRightIcon } from "lucide-react";
 import type { AIProvider } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
+import { Badge } from "#/components/Badge/Badge";
 import { TableCell, TableRow } from "#/components/Table/Table";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import { ProviderIcon } from "./ProviderIcon";
@@ -43,12 +44,9 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 			</TableCell>
 			<TableCell>
 				<div className="flex justify-center">
-					{provider.enabled ? (
-						<CheckIcon
-							aria-label="Enabled"
-							className="inline size-icon-md text-content-success flex-shrink-0"
-						/>
-					) : null}
+					{provider.enabled && (
+						<Badge variant="default">Enabled</Badge>
+					)}
 				</div>
 			</TableCell>
 			<TableCell className="w-10 text-center">
