@@ -359,7 +359,7 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideCallFailureSkipsFallback(
 	require.False(t, ok)
 }
 
-func TestResolveManualTitleModel_TitleGenerationOverrideUnset(t *testing.T) {
+func TestResolveManualTitleCandidates_TitleGenerationOverrideUnset(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -373,26 +373,35 @@ func TestResolveManualTitleModel_TitleGenerationOverrideUnset(t *testing.T) {
 		Model:    preferredTitleModels[1].model,
 		Enabled:  true,
 	}
+	chat.LastModelConfigID = preferredConfig.ID
 
 	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", nil)
 	db.EXPECT().GetEnabledChatModelConfigs(gomock.Any()).Return([]database.ChatModelConfig{
 		{Provider: "openai", Model: "gpt-4.1", Enabled: true},
 		preferredConfig,
 	}, nil)
+	// The fallback path also runs (it resolves the chat's own model
+	// as the last-resort candidate). With LastModelConfigID set to
+	// preferredConfig.ID, the configCache hits GetChatModelConfigByID
+	// once and the resulting fallback candidate is deduplicated by
+	// the seen-by-id guard.
+	db.EXPECT().GetChatModelConfigByID(gomock.Any(), preferredConfig.ID).Return(preferredConfig, nil)
 
 	server := titleOverrideTestServer(db, logger)
-	model, gotConfig, err := server.resolveManualTitleModel(
+	candidates, configs, err := server.resolveManualTitleCandidates(
 		ctx,
 		db,
 		chat,
 		chatprovider.ProviderAPIKeys{ByProvider: map[string]string{"openai": "test-key"}},
 	)
 	require.NoError(t, err)
-	require.NotNil(t, model)
-	require.Equal(t, preferredConfig, gotConfig)
+	require.Len(t, candidates, 1, "fallback candidate must be deduped because seen[preferredConfig.ID] is true")
+	require.Equal(t, len(candidates), len(configs))
+	require.Equal(t, preferredConfig.ID, candidates[0].configID.UUID)
+	require.Equal(t, preferredConfig, configs[0])
 }
 
-func TestResolveManualTitleModel_TitleGenerationOverrideReadDBError(t *testing.T) {
+func TestResolveManualTitleCandidates_TitleGenerationOverrideReadDBError(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -406,26 +415,29 @@ func TestResolveManualTitleModel_TitleGenerationOverrideReadDBError(t *testing.T
 		Model:    preferredTitleModels[1].model,
 		Enabled:  true,
 	}
+	chat.LastModelConfigID = preferredConfig.ID
 
 	db.EXPECT().GetChatTitleGenerationModelOverride(gomock.Any()).Return("", sql.ErrConnDone)
 	db.EXPECT().GetEnabledChatModelConfigs(gomock.Any()).Return([]database.ChatModelConfig{
 		{Provider: "openai", Model: "gpt-4.1", Enabled: true},
 		preferredConfig,
 	}, nil)
+	db.EXPECT().GetChatModelConfigByID(gomock.Any(), preferredConfig.ID).Return(preferredConfig, nil)
 
 	server := titleOverrideTestServer(db, logger)
-	model, gotConfig, err := server.resolveManualTitleModel(
+	candidates, configs, err := server.resolveManualTitleCandidates(
 		ctx,
 		db,
 		chat,
 		chatprovider.ProviderAPIKeys{ByProvider: map[string]string{"openai": "test-key"}},
 	)
 	require.NoError(t, err)
-	require.NotNil(t, model)
-	require.Equal(t, preferredConfig, gotConfig)
+	require.Len(t, candidates, 1)
+	require.Equal(t, preferredConfig.ID, candidates[0].configID.UUID)
+	require.Equal(t, preferredConfig, configs[0])
 }
 
-func TestResolveManualTitleModel_TitleGenerationOverrideSetUsable(t *testing.T) {
+func TestResolveManualTitleCandidates_TitleGenerationOverrideSetUsable(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -440,18 +452,21 @@ func TestResolveManualTitleModel_TitleGenerationOverrideSetUsable(t *testing.T) 
 	db.EXPECT().GetEnabledChatProviders(gomock.Any()).Return([]database.ChatProvider{{Provider: "openai"}}, nil)
 
 	server := titleOverrideTestServer(db, logger)
-	model, gotConfig, err := server.resolveManualTitleModel(
+	candidates, configs, err := server.resolveManualTitleCandidates(
 		ctx,
 		db,
 		chat,
 		chatprovider.ProviderAPIKeys{ByProvider: map[string]string{"openai": "test-key"}},
 	)
 	require.NoError(t, err)
-	require.NotNil(t, model)
-	require.Equal(t, overrideConfig, gotConfig)
+	// Override is exclusive: a single candidate with the override
+	// config and nothing else.
+	require.Len(t, candidates, 1)
+	require.Equal(t, overrideConfig.ID, candidates[0].configID.UUID)
+	require.Equal(t, []database.ChatModelConfig{overrideConfig}, configs)
 }
 
-func TestResolveManualTitleModel_TitleGenerationOverrideMissingCredentials(t *testing.T) {
+func TestResolveManualTitleCandidates_TitleGenerationOverrideMissingCredentials(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -466,7 +481,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideMissingCredentials(t *te
 	db.EXPECT().GetEnabledChatProviders(gomock.Any()).Return([]database.ChatProvider{{Provider: "openai"}}, nil)
 
 	server := titleOverrideTestServer(db, logger)
-	model, gotConfig, err := server.resolveManualTitleModel(
+	candidates, configs, err := server.resolveManualTitleCandidates(
 		ctx,
 		db,
 		chat,
@@ -475,11 +490,11 @@ func TestResolveManualTitleModel_TitleGenerationOverrideMissingCredentials(t *te
 	require.Error(t, err)
 	require.ErrorContains(t, err, "resolve manual title generation model override")
 	require.ErrorContains(t, err, "credentials are unavailable")
-	require.Nil(t, model)
-	require.Equal(t, database.ChatModelConfig{}, gotConfig)
+	require.Nil(t, candidates)
+	require.Nil(t, configs)
 }
 
-func TestResolveManualTitleModel_TitleGenerationOverrideSetUnusable(t *testing.T) {
+func TestResolveManualTitleCandidates_TitleGenerationOverrideSetUnusable(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -493,7 +508,7 @@ func TestResolveManualTitleModel_TitleGenerationOverrideSetUnusable(t *testing.T
 	db.EXPECT().GetChatModelConfigByID(gomock.Any(), overrideConfig.ID).Return(overrideConfig, nil)
 
 	server := titleOverrideTestServer(db, logger)
-	model, gotConfig, err := server.resolveManualTitleModel(
+	candidates, configs, err := server.resolveManualTitleCandidates(
 		ctx,
 		db,
 		chat,
@@ -502,8 +517,8 @@ func TestResolveManualTitleModel_TitleGenerationOverrideSetUnusable(t *testing.T
 	require.Error(t, err)
 	require.ErrorContains(t, err, "resolve manual title generation model override")
 	require.ErrorContains(t, err, "title generation model override is unavailable")
-	require.Nil(t, model)
-	require.Equal(t, database.ChatModelConfig{}, gotConfig)
+	require.Nil(t, candidates)
+	require.Nil(t, configs)
 }
 
 func titleOverrideTestChatAndMessages(t *testing.T) (database.Chat, []database.ChatMessage) {

@@ -2802,15 +2802,12 @@ type manualTitleCandidateResult struct {
 	hasMessages bool
 }
 
-// manualTitleCandidate pairs a usable language model with the
-// database config row used for usage accounting. The candidate walk
-// in generateManualTitleCandidate iterates these in order, falling
-// through to the next one on retryable or per-attempt-timeout
-// failures.
-type manualTitleCandidate struct {
-	config database.ChatModelConfig
-	model  fantasy.LanguageModel
-}
+// The manual title candidate walk uses the shared titleCandidate
+// type from titlewalk.go. configID on a manual-title candidate is
+// always set because manual generation needs the ChatModelConfig
+// for usage accounting (recordManualTitleUsage). The caller keeps
+// an indexed []database.ChatModelConfig alongside the candidates
+// to look up the winning config after the walk returns.
 
 type manualTitleGenerationError struct {
 	cause       error
@@ -3104,124 +3101,108 @@ func (p *Server) generateManualTitleCandidate(
 		return manualTitleCandidateResult{hasMessages: true}, nil
 	}
 
-	candidates, err := p.resolveManualTitleCandidates(ctx, store, chat, keys)
+	candidates, configs, err := p.resolveManualTitleCandidates(ctx, store, chat, keys)
 	if err != nil {
 		return manualTitleCandidateResult{hasMessages: true}, err
 	}
 
-	overallCtx, overallCancel := context.WithTimeout(ctx, manualTitleTotalTimeout)
+	overallCtx, overallCancel := context.WithTimeout(ctx, titleOverallTimeout)
 	defer overallCancel()
 
 	debugSvc := p.debugService()
-	var prepDebug manualTitleDebugPrepFn
-	if debugSvc != nil && debugSvc.IsEnabled(ctx, chat.ID, chat.OwnerID) {
-		prepDebug = func(c context.Context, cand manualTitleCandidate) (context.Context, fantasy.LanguageModel, func(error)) {
-			return p.prepareManualTitleDebugRun(c, debugSvc, chat, cand.config, keys, messages, cand.model)
-		}
+	debugEnabled := debugSvc != nil && debugSvc.IsEnabled(ctx, chat.ID, chat.OwnerID)
+
+	// generateStructuredTitleWithUsage can return non-zero usage
+	// even on error (e.g. validateGeneratedTitle rejects an empty
+	// title after the model billed for tokens), and the caller
+	// needs that usage on final failure to record the spend.
+	// Closure-capture it from attempt and look up the matching
+	// config via the candidate index.
+	type manualTitleAttemptResult struct {
+		title string
+		usage fantasy.Usage
 	}
+	var lastUsage fantasy.Usage
 
-	return walkManualTitleCandidates(overallCtx, inputs, candidates, prepDebug)
-}
-
-// manualTitleDebugPrepFn wraps prepareManualTitleDebugRun for a
-// single candidate. The candidate walk uses it to opt each attempt
-// into debug instrumentation; passing nil disables debug wiring.
-type manualTitleDebugPrepFn func(
-	ctx context.Context,
-	cand manualTitleCandidate,
-) (context.Context, fantasy.LanguageModel, func(error))
-
-// walkManualTitleCandidates issues a structured-title call against
-// each candidate in order, falling through on per-attempt timeouts
-// and retryable provider errors. The first successful candidate
-// wins. On final failure it preserves the last attempt's usage so
-// callers can record the spend.
-func walkManualTitleCandidates(
-	ctx context.Context,
-	inputs manualTitlePromptInputs,
-	candidates []manualTitleCandidate,
-	prepDebug manualTitleDebugPrepFn,
-) (manualTitleCandidateResult, error) {
-	var (
-		lastErr    error
-		lastConfig database.ChatModelConfig
-		lastUsage  fantasy.Usage
-	)
-	for i, cand := range candidates {
-		// If the overall budget is exhausted or the parent context
-		// was canceled, stop walking before issuing another model
-		// call. Surface ctx.Err() so the handler can translate
-		// pre-loop cancellation/timeout into 499/504 rather than
-		// silently returning an empty title.
-		if ctxErr := ctx.Err(); ctxErr != nil {
-			if lastErr == nil {
-				lastErr = ctxErr
-			}
-			break
-		}
-
-		titleCtx := ctx
-		titleModel := cand.model
+	attempt := func(attemptCtx context.Context, cand titleCandidate) (manualTitleAttemptResult, error) {
+		// candidates and configs are parallel slices built by
+		// resolveManualTitleCandidates, so the debug-run wiring
+		// can recover the full ChatModelConfig (for ModelConfigID
+		// on the debug row) by indexing configs with the
+		// candidate's position. We look it up by configID rather
+		// than carrying the index because attempt is index-blind
+		// by design.
+		titleCtx := attemptCtx
+		titleModel := cand.lm
 		finishDebugRun := func(error) {}
-		if prepDebug != nil {
-			titleCtx, titleModel, finishDebugRun = prepDebug(ctx, cand)
+		if debugEnabled {
+			cfg := lookupManualTitleConfig(candidates, configs, cand)
+			titleCtx, titleModel, finishDebugRun = p.prepareManualTitleDebugRun(
+				attemptCtx, debugSvc, chat, cfg, keys, messages, cand.lm,
+			)
 		}
-
-		title, usage, genErr := generateManualTitleOnce(titleCtx, inputs, titleModel)
+		title, usage, genErr := generateStructuredTitleWithUsage(
+			titleCtx, titleModel, inputs.systemPrompt, inputs.userInput,
+		)
 		finishDebugRun(genErr)
-
-		if genErr == nil {
-			return manualTitleCandidateResult{
-				title:       title,
-				modelConfig: cand.config,
-				usage:       usage,
-				hasMessages: true,
-			}, nil
-		}
-
-		lastErr = xerrors.Errorf("generate manual title: %w", genErr)
-		lastConfig = cand.config
 		lastUsage = usage
-
-		// If the user canceled the parent context, or the overall
-		// budget elapsed mid-attempt, stop walking and surface the
-		// underlying error so the handler can translate it into
-		// 499/504.
-		if ctx.Err() != nil {
-			break
+		if genErr != nil {
+			return manualTitleAttemptResult{}, xerrors.Errorf("generate manual title: %w", genErr)
 		}
-		if i == len(candidates)-1 {
-			break
-		}
-		// Per-attempt timeout: try the next candidate.
-		if errors.Is(genErr, context.DeadlineExceeded) {
-			continue
-		}
-		// Anything chatretry classifies as retryable (rate limit,
-		// overloaded, transient 5xx, etc.) is worth re-trying on the
-		// next provider; non-retryable provider errors (auth/config)
-		// are not.
-		if !chatretry.IsRetryable(genErr) {
-			break
-		}
+		return manualTitleAttemptResult{title: title, usage: usage}, nil
 	}
 
+	res, idx, walkErr := walkTitleCandidates(overallCtx, candidates, titleWalkConfig{
+		perAttempt:        titleAttemptTimeout,
+		shouldFallThrough: retryableOrTimeoutFallThrough,
+	}, attempt)
+	if walkErr == nil {
+		return manualTitleCandidateResult{
+			title:       res.title,
+			modelConfig: configs[idx],
+			usage:       res.usage,
+			hasMessages: true,
+		}, nil
+	}
+
+	var lastConfig database.ChatModelConfig
+	if idx >= 0 && idx < len(configs) {
+		lastConfig = configs[idx]
+	}
 	result := manualTitleCandidateResult{
 		modelConfig: lastConfig,
 		usage:       lastUsage,
 		hasMessages: true,
 	}
-	if lastErr == nil {
-		return result, nil
-	}
 	if lastUsage == (fantasy.Usage{}) {
-		return result, lastErr
+		return result, walkErr
 	}
 	return result, &manualTitleGenerationError{
-		cause:       lastErr,
+		cause:       walkErr,
 		modelConfig: lastConfig,
 		usage:       lastUsage,
 	}
+}
+
+// lookupManualTitleConfig finds the ChatModelConfig that produced
+// the given candidate by matching configID across the parallel
+// candidates/configs slices. Used by manual title debug
+// instrumentation which needs the full config row to set
+// ModelConfigID on the debug run.
+func lookupManualTitleConfig(
+	candidates []titleCandidate,
+	configs []database.ChatModelConfig,
+	cand titleCandidate,
+) database.ChatModelConfig {
+	if !cand.configID.Valid {
+		return database.ChatModelConfig{}
+	}
+	for i, c := range candidates {
+		if c.configID == cand.configID {
+			return configs[i]
+		}
+	}
+	return database.ChatModelConfig{}
 }
 
 func (p *Server) proposeChatTitleWithStore(
@@ -3556,79 +3537,24 @@ func prepareChatTurnDebugRun(
 	return runCtx, finishDebugRun
 }
 
-func (p *Server) resolveManualTitleModel(
-	ctx context.Context,
-	store database.Store,
-	chat database.Chat,
-	keys chatprovider.ProviderAPIKeys,
-) (fantasy.LanguageModel, database.ChatModelConfig, error) {
-	overrideConfig, overrideModel, overrideSet, overrideErr := p.resolveTitleGenerationModelOverride(
-		ctx,
-		chat,
-		keys,
-	)
-	if overrideErr != nil {
-		if overrideSet {
-			return nil, database.ChatModelConfig{}, xerrors.Errorf(
-				"resolve manual title generation model override: %w",
-				overrideErr,
-			)
-		}
-		p.logger.Debug(ctx, "failed to resolve title generation model override for manual title",
-			slog.F("chat_id", chat.ID),
-			slog.Error(overrideErr),
-		)
-	} else if overrideSet {
-		return overrideModel, overrideConfig, nil
-	}
-
-	configs, err := store.GetEnabledChatModelConfigs(ctx)
-	if err != nil {
-		p.logger.Debug(ctx, "failed to list manual title model configs",
-			slog.F("chat_id", chat.ID),
-			slog.Error(err),
-		)
-		return p.resolveFallbackManualTitleModel(ctx, chat, keys)
-	}
-
-	config, ok := selectPreferredConfiguredShortTextModelConfig(configs)
-	if !ok {
-		return p.resolveFallbackManualTitleModel(ctx, chat, keys)
-	}
-
-	model, err := chatprovider.ModelFromConfig(
-		config.Provider,
-		config.Model,
-		keys,
-		chatprovider.UserAgent(),
-		chatprovider.CoderHeaders(chat),
-		nil,
-	)
-	if err != nil {
-		p.logger.Debug(ctx, "manual title preferred model unavailable",
-			slog.F("chat_id", chat.ID),
-			slog.F("provider", config.Provider),
-			slog.F("model", config.Model),
-			slog.Error(err),
-		)
-		return p.resolveFallbackManualTitleModel(ctx, chat, keys)
-	}
-
-	return model, config, nil
-}
-
 // resolveManualTitleCandidates returns the ordered list of model
 // candidates to try for manual title generation. When a deployment
 // override is set we honor it exclusively (same semantics as the
 // auto-title path). Otherwise we iterate every enabled, preferred
 // short-text model the user has credentials for, and append the
 // chat's own model as a last resort. Duplicates are dropped.
+//
+// The configs slice is a parallel-indexed companion: configs[i] is
+// the ChatModelConfig that produced candidates[i]. Manual title
+// usage accounting needs the full config row (provider, model,
+// options, cost), so it would be wasteful to look it up from
+// configID a second time after the walk picks a winner.
 func (p *Server) resolveManualTitleCandidates(
 	ctx context.Context,
 	store database.Store,
 	chat database.Chat,
 	keys chatprovider.ProviderAPIKeys,
-) ([]manualTitleCandidate, error) {
+) ([]titleCandidate, []database.ChatModelConfig, error) {
 	overrideConfig, overrideModel, overrideSet, overrideErr := p.resolveTitleGenerationModelOverride(
 		ctx,
 		chat,
@@ -3636,7 +3562,7 @@ func (p *Server) resolveManualTitleCandidates(
 	)
 	if overrideErr != nil {
 		if overrideSet {
-			return nil, xerrors.Errorf(
+			return nil, nil, xerrors.Errorf(
 				"resolve manual title generation model override: %w",
 				overrideErr,
 			)
@@ -3646,23 +3572,26 @@ func (p *Server) resolveManualTitleCandidates(
 			slog.Error(overrideErr),
 		)
 	} else if overrideSet {
-		return []manualTitleCandidate{{
-			config: overrideConfig,
-			model:  overrideModel,
-		}}, nil
+		return []titleCandidate{{
+			configID: uuid.NullUUID{UUID: overrideConfig.ID, Valid: true},
+			provider: overrideConfig.Provider,
+			model:    overrideConfig.Model,
+			lm:       overrideModel,
+		}}, []database.ChatModelConfig{overrideConfig}, nil
 	}
 
-	candidates := make([]manualTitleCandidate, 0, len(preferredTitleModels)+1)
+	candidates := make([]titleCandidate, 0, len(preferredTitleModels)+1)
+	configs := make([]database.ChatModelConfig, 0, len(preferredTitleModels)+1)
 	seen := make(map[uuid.UUID]bool, len(preferredTitleModels)+1)
 
-	configs, configsErr := store.GetEnabledChatModelConfigs(ctx)
+	dbConfigs, configsErr := store.GetEnabledChatModelConfigs(ctx)
 	if configsErr != nil {
 		p.logger.Debug(ctx, "failed to list manual title model configs",
 			slog.F("chat_id", chat.ID),
 			slog.Error(configsErr),
 		)
 	} else {
-		for _, cfg := range selectAllConfiguredShortTextModelConfigs(configs) {
+		for _, cfg := range selectAllConfiguredShortTextModelConfigs(dbConfigs) {
 			if seen[cfg.ID] {
 				continue
 			}
@@ -3684,22 +3613,28 @@ func (p *Server) resolveManualTitleCandidates(
 				continue
 			}
 			seen[cfg.ID] = true
-			candidates = append(candidates, manualTitleCandidate{
-				config: cfg,
-				model:  model,
+			candidates = append(candidates, titleCandidate{
+				configID: uuid.NullUUID{UUID: cfg.ID, Valid: true},
+				provider: cfg.Provider,
+				model:    cfg.Model,
+				lm:       model,
 			})
+			configs = append(configs, cfg)
 		}
 	}
 
 	fallbackModel, fallbackConfig, fallbackErr := p.resolveFallbackManualTitleModel(ctx, chat, keys)
 	switch {
 	case fallbackErr == nil && !seen[fallbackConfig.ID]:
-		candidates = append(candidates, manualTitleCandidate{
-			config: fallbackConfig,
-			model:  fallbackModel,
+		candidates = append(candidates, titleCandidate{
+			configID: uuid.NullUUID{UUID: fallbackConfig.ID, Valid: true},
+			provider: fallbackConfig.Provider,
+			model:    fallbackConfig.Model,
+			lm:       fallbackModel,
 		})
+		configs = append(configs, fallbackConfig)
 	case fallbackErr != nil && len(candidates) == 0:
-		return nil, fallbackErr
+		return nil, nil, fallbackErr
 	case fallbackErr != nil:
 		p.logger.Debug(ctx, "manual title fallback model unavailable; relying on preferred candidates",
 			slog.F("chat_id", chat.ID),
@@ -3708,9 +3643,9 @@ func (p *Server) resolveManualTitleCandidates(
 	}
 
 	if len(candidates) == 0 {
-		return nil, xerrors.New("no manual title model candidates available")
+		return nil, nil, xerrors.New("no manual title model candidates available")
 	}
-	return candidates, nil
+	return candidates, configs, nil
 }
 
 func (p *Server) resolveFallbackManualTitleModel(

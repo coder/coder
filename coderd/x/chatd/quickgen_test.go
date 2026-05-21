@@ -567,114 +567,75 @@ func Test_generateManualTitle_ReturnsUsageForEmptyNormalizedTitle(t *testing.T) 
 	require.Equal(t, int64(18), usage.TotalTokens)
 }
 
-func Test_selectPreferredConfiguredShortTextModelConfig(t *testing.T) {
+func Test_walkTitleCandidates(t *testing.T) {
 	t.Parallel()
 
-	t.Run("chooses the highest-priority configured lightweight model", func(t *testing.T) {
-		t.Parallel()
-
-		configs := []database.ChatModelConfig{
-			{Provider: preferredTitleModels[2].provider, Model: preferredTitleModels[2].model},
-			{Provider: preferredTitleModels[1].provider, Model: preferredTitleModels[1].model},
-			{Provider: "openai", Model: "gpt-4.1"},
-		}
-
-		got, ok := selectPreferredConfiguredShortTextModelConfig(configs)
-		require.True(t, ok)
-		require.Equal(t, preferredTitleModels[1].provider, got.Provider)
-		require.Equal(t, preferredTitleModels[1].model, got.Model)
-	})
-
-	t.Run("returns false when no preferred lightweight model is configured", func(t *testing.T) {
-		t.Parallel()
-
-		got, ok := selectPreferredConfiguredShortTextModelConfig([]database.ChatModelConfig{{
-			Provider: "openai",
-			Model:    "gpt-4.1",
-		}})
-		require.False(t, ok)
-		require.Equal(t, database.ChatModelConfig{}, got)
-	})
-}
-
-func Test_walkManualTitleCandidates(t *testing.T) {
-	t.Parallel()
-
-	inputs := manualTitlePromptInputs{
-		systemPrompt: "system",
-		userInput:    "user",
-	}
-
-	// errCandidateUnreachable lets fatal-on-call candidates return a
+	// errCandidateUnreachable lets fatal-on-call attempts return a
 	// sentinel error from the unreachable path after t.Fatalf, which
 	// makes the linter happy without changing test semantics.
 	errCandidateUnreachable := xerrors.New("test: candidate must not be invoked")
 
-	newCandidate := func(provider, model string, fn func(ctx context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error)) manualTitleCandidate {
-		return manualTitleCandidate{
-			config: database.ChatModelConfig{
-				ID:       uuid.New(),
-				Provider: provider,
-				Model:    model,
-			},
-			model: &chattest.FakeModel{GenerateObjectFn: fn},
+	newCandidate := func(provider, model string) titleCandidate {
+		return titleCandidate{
+			configID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			provider: provider,
+			model:    model,
 		}
 	}
 
 	t.Run("FirstCandidateWins", func(t *testing.T) {
 		t.Parallel()
 
-		successCalls := 0
-		skipped := newCandidate("never", "called", func(_ context.Context, _ fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
-			t.Fatalf("walkManualTitleCandidates must not advance past the first successful candidate")
-			return nil, errCandidateUnreachable
-		})
-		winner := newCandidate("openai", "gpt-4o-mini", func(_ context.Context, _ fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
-			successCalls++
-			return &fantasy.ObjectResponse{
-				Object: map[string]any{"title": "First wins"},
-				Usage:  fantasy.Usage{InputTokens: 11, OutputTokens: 7, TotalTokens: 18},
-			}, nil
-		})
+		winner := newCandidate("openai", "gpt-4o-mini")
+		skipped := newCandidate("anthropic", "claude-haiku-4-5")
 
-		result, err := walkManualTitleCandidates(
+		var winnerCalls int
+		attempt := func(_ context.Context, c titleCandidate) (string, error) {
+			if c == skipped {
+				t.Fatalf("walkTitleCandidates must not advance past the first successful candidate")
+				return "", errCandidateUnreachable
+			}
+			winnerCalls++
+			return "First wins", nil
+		}
+
+		title, idx, err := walkTitleCandidates(
 			context.Background(),
-			inputs,
-			[]manualTitleCandidate{winner, skipped},
-			nil,
+			[]titleCandidate{winner, skipped},
+			titleWalkConfig{shouldFallThrough: alwaysFallThrough},
+			attempt,
 		)
 		require.NoError(t, err)
-		require.Equal(t, "First wins", result.title)
-		require.Equal(t, winner.config, result.modelConfig)
-		require.Equal(t, int64(18), result.usage.TotalTokens)
-		require.True(t, result.hasMessages)
-		require.Equal(t, 1, successCalls)
+		require.Equal(t, "First wins", title)
+		require.Equal(t, 0, idx)
+		require.Equal(t, 1, winnerCalls)
 	})
 
 	t.Run("FallsThroughOnPerAttemptTimeout", func(t *testing.T) {
 		t.Parallel()
 
-		var firstCalls, secondCalls int
-		first := newCandidate("openai", "gpt-4o-mini", func(_ context.Context, _ fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
-			firstCalls++
-			return nil, context.DeadlineExceeded
-		})
-		second := newCandidate("anthropic", "claude-haiku-4-5", func(_ context.Context, _ fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
-			secondCalls++
-			return &fantasy.ObjectResponse{
-				Object: map[string]any{"title": "Second wins"},
-			}, nil
-		})
+		first := newCandidate("openai", "gpt-4o-mini")
+		second := newCandidate("anthropic", "claude-haiku-4-5")
 
-		result, err := walkManualTitleCandidates(
+		var firstCalls, secondCalls int
+		attempt := func(_ context.Context, c titleCandidate) (string, error) {
+			if c == first {
+				firstCalls++
+				return "", context.DeadlineExceeded
+			}
+			secondCalls++
+			return "Second wins", nil
+		}
+
+		title, idx, err := walkTitleCandidates(
 			context.Background(),
-			inputs,
-			[]manualTitleCandidate{first, second},
-			nil,
+			[]titleCandidate{first, second},
+			titleWalkConfig{shouldFallThrough: retryableOrTimeoutFallThrough},
+			attempt,
 		)
 		require.NoError(t, err)
-		require.Equal(t, "Second wins", result.title)
-		require.Equal(t, second.config, result.modelConfig)
+		require.Equal(t, "Second wins", title)
+		require.Equal(t, 1, idx)
 		require.Equal(t, 1, firstCalls, "first candidate must be tried exactly once")
 		require.Equal(t, 1, secondCalls, "second candidate must be tried after the first times out")
 	})
@@ -682,44 +643,100 @@ func Test_walkManualTitleCandidates(t *testing.T) {
 	t.Run("StopsOnNonRetryableProviderError", func(t *testing.T) {
 		t.Parallel()
 
-		// Auth failure is non-retryable: the walk must surface it
+		// Auth failure is non-retryable under
+		// retryableOrTimeoutFallThrough: the walk must surface it
 		// instead of moving on to the next candidate.
 		authErr := xerrors.New("401 invalid_api_key")
-		first := newCandidate("openai", "gpt-4o-mini", func(_ context.Context, _ fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
-			return nil, authErr
-		})
-		second := newCandidate("anthropic", "claude-haiku-4-5", func(_ context.Context, _ fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
-			t.Fatalf("walkManualTitleCandidates must not fall through after a non-retryable error")
-			return nil, errCandidateUnreachable
-		})
+		first := newCandidate("openai", "gpt-4o-mini")
+		second := newCandidate("anthropic", "claude-haiku-4-5")
 
-		_, err := walkManualTitleCandidates(
+		attempt := func(_ context.Context, c titleCandidate) (string, error) {
+			if c == first {
+				return "", authErr
+			}
+			t.Fatalf("walkTitleCandidates must not fall through after a non-retryable error")
+			return "", errCandidateUnreachable
+		}
+
+		_, _, err := walkTitleCandidates(
 			context.Background(),
-			inputs,
-			[]manualTitleCandidate{first, second},
-			nil,
+			[]titleCandidate{first, second},
+			titleWalkConfig{shouldFallThrough: retryableOrTimeoutFallThrough},
+			attempt,
 		)
-		require.Error(t, err)
 		require.ErrorIs(t, err, authErr)
+	})
+
+	t.Run("AlwaysFallThroughIgnoresNonRetryableErrors", func(t *testing.T) {
+		t.Parallel()
+
+		// The auto-title / turn-status policy falls through even
+		// auth failures, matching their previous best-effort
+		// behavior.
+		first := newCandidate("openai", "gpt-4o-mini")
+		second := newCandidate("anthropic", "claude-haiku-4-5")
+
+		attempt := func(_ context.Context, c titleCandidate) (string, error) {
+			if c == first {
+				return "", xerrors.New("401 invalid_api_key")
+			}
+			return "Recovered", nil
+		}
+
+		title, idx, err := walkTitleCandidates(
+			context.Background(),
+			[]titleCandidate{first, second},
+			titleWalkConfig{shouldFallThrough: alwaysFallThrough},
+			attempt,
+		)
+		require.NoError(t, err)
+		require.Equal(t, "Recovered", title)
+		require.Equal(t, 1, idx)
+	})
+
+	t.Run("PerAttemptDeadlineDoesNotLeakToCallerCtx", func(t *testing.T) {
+		t.Parallel()
+
+		// Without a per-attempt deadline the caller's ctx governs.
+		// With one set, each candidate gets its own bounded
+		// attemptCtx. This test verifies the walker is honoring
+		// the per-attempt config by giving each attempt a deadline
+		// when configured, and not setting one otherwise.
+		first := newCandidate("openai", "gpt-4o-mini")
+		var firstDeadline time.Time
+		var firstHasDeadline bool
+		attempt := func(ctx context.Context, _ titleCandidate) (string, error) {
+			firstDeadline, firstHasDeadline = ctx.Deadline()
+			return "ok", nil
+		}
+
+		_, _, err := walkTitleCandidates(
+			context.Background(),
+			[]titleCandidate{first},
+			titleWalkConfig{perAttempt: 250 * time.Millisecond},
+			attempt,
+		)
+		require.NoError(t, err)
+		require.True(t, firstHasDeadline, "perAttempt > 0 must give attempt a deadline")
+		require.WithinDuration(t, time.Now().Add(250*time.Millisecond), firstDeadline, 100*time.Millisecond)
 	})
 
 	t.Run("AllCandidatesTimeOutReturnsDeadlineErr", func(t *testing.T) {
 		t.Parallel()
 
-		first := newCandidate("openai", "gpt-4o-mini", func(_ context.Context, _ fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
-			return nil, context.DeadlineExceeded
-		})
-		second := newCandidate("anthropic", "claude-haiku-4-5", func(_ context.Context, _ fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
-			return nil, context.DeadlineExceeded
-		})
+		first := newCandidate("openai", "gpt-4o-mini")
+		second := newCandidate("anthropic", "claude-haiku-4-5")
 
-		_, err := walkManualTitleCandidates(
+		attempt := func(_ context.Context, _ titleCandidate) (string, error) {
+			return "", context.DeadlineExceeded
+		}
+
+		_, _, err := walkTitleCandidates(
 			context.Background(),
-			inputs,
-			[]manualTitleCandidate{first, second},
-			nil,
+			[]titleCandidate{first, second},
+			titleWalkConfig{shouldFallThrough: retryableOrTimeoutFallThrough},
+			attempt,
 		)
-		require.Error(t, err)
 		require.ErrorIs(t, err, context.DeadlineExceeded,
 			"all-deadlines path must preserve DeadlineExceeded so the handler can map it to 504")
 	})
@@ -730,22 +747,25 @@ func Test_walkManualTitleCandidates(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 
+		first := newCandidate("openai", "gpt-4o-mini")
+		second := newCandidate("anthropic", "claude-haiku-4-5")
+
 		var attempts int
-		first := newCandidate("openai", "gpt-4o-mini", func(_ context.Context, _ fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+		attempt := func(_ context.Context, c titleCandidate) (string, error) {
+			if c == second {
+				t.Fatalf("walkTitleCandidates must not start a new attempt after the parent context is canceled")
+				return "", errCandidateUnreachable
+			}
 			attempts++
 			cancel()
-			return nil, context.DeadlineExceeded
-		})
-		second := newCandidate("anthropic", "claude-haiku-4-5", func(_ context.Context, _ fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
-			t.Fatalf("walkManualTitleCandidates must not start a new attempt after the parent context is canceled")
-			return nil, errCandidateUnreachable
-		})
+			return "", context.DeadlineExceeded
+		}
 
-		_, err := walkManualTitleCandidates(
+		_, _, err := walkTitleCandidates(
 			ctx,
-			inputs,
-			[]manualTitleCandidate{first, second},
-			nil,
+			[]titleCandidate{first, second},
+			titleWalkConfig{shouldFallThrough: retryableOrTimeoutFallThrough},
+			attempt,
 		)
 		require.Error(t, err)
 		require.Equal(t, 1, attempts)
@@ -755,62 +775,27 @@ func Test_walkManualTitleCandidates(t *testing.T) {
 		t.Parallel()
 
 		// Regression: if the parent context is canceled before the
-		// loop ever issues a model call, walkManualTitleCandidates
-		// must surface ctx.Err() so the handler can translate it
-		// into 499/504. Previously it broke out with lastErr==nil
-		// and the propose handler returned 200 with an empty
-		// title.
+		// loop ever issues a model call, walkTitleCandidates must
+		// surface ctx.Err() so the handler can translate it into
+		// 499/504. Previously it broke out with lastErr==nil and
+		// the propose handler returned 200 with an empty title.
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		first := newCandidate("openai", "gpt-4o-mini", func(_ context.Context, _ fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
-			t.Fatalf("walkManualTitleCandidates must not invoke any candidate when ctx is already canceled")
-			return nil, errCandidateUnreachable
-		})
+		first := newCandidate("openai", "gpt-4o-mini")
+		attempt := func(_ context.Context, _ titleCandidate) (string, error) {
+			t.Fatalf("walkTitleCandidates must not invoke any candidate when ctx is already canceled")
+			return "", errCandidateUnreachable
+		}
 
-		result, err := walkManualTitleCandidates(
+		title, _, err := walkTitleCandidates(
 			ctx,
-			inputs,
-			[]manualTitleCandidate{first},
-			nil,
+			[]titleCandidate{first},
+			titleWalkConfig{shouldFallThrough: retryableOrTimeoutFallThrough},
+			attempt,
 		)
-		require.Error(t, err)
 		require.ErrorIs(t, err, context.Canceled)
-		require.Empty(t, result.title)
-	})
-
-	t.Run("PreservesLastUsageOnFinalFailure", func(t *testing.T) {
-		t.Parallel()
-
-		// A model that returns usage along with a non-retryable
-		// error must surface that usage so the caller can record
-		// the spend, mirroring the previous single-model path.
-		first := newCandidate("openai", "gpt-4o-mini", func(_ context.Context, _ fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
-			return &fantasy.ObjectResponse{
-				Object: map[string]any{"title": "\"\""},
-				Usage:  fantasy.Usage{InputTokens: 9, OutputTokens: 4, TotalTokens: 13},
-			}, nil
-		})
-		// The first candidate returns an empty title which the
-		// validation step rejects as non-retryable. The walk must
-		// surface its usage rather than overwriting it with the
-		// second candidate.
-		second := newCandidate("anthropic", "claude-haiku-4-5", func(_ context.Context, _ fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
-			t.Fatalf("walkManualTitleCandidates must not fall through after a non-retryable validation error")
-			return nil, errCandidateUnreachable
-		})
-
-		_, err := walkManualTitleCandidates(
-			context.Background(),
-			inputs,
-			[]manualTitleCandidate{first, second},
-			nil,
-		)
-		require.Error(t, err)
-		var genErr *manualTitleGenerationError
-		require.ErrorAs(t, err, &genErr)
-		require.Equal(t, int64(13), genErr.usage.TotalTokens)
-		require.Equal(t, first.config, genErr.modelConfig)
+		require.Empty(t, title)
 	})
 }
 
