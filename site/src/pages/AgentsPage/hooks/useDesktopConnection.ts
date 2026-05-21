@@ -234,6 +234,7 @@ export function useDesktopConnection({
 			offscreenContainerRef.current.style.width = "100%";
 			offscreenContainerRef.current.style.height = "100%";
 			offscreenContainerRef.current.style.position = "relative";
+			offscreenContainerRef.current.style.overflow = "hidden";
 
 			const socket = watchChatDesktop(chatId);
 
