@@ -26,7 +26,6 @@ export const ProviderRow: React.FC<ProviderRowProps> = ({
 			<TableCell className="min-w-0">
 				<AvatarData
 					title={displayName}
-					subtitle={provider.name}
 					avatar={
 						<Avatar className="flex shrink-0 items-center justify-center">
 							<ProviderIcon provider={getProviderDisplayType(provider)} />
