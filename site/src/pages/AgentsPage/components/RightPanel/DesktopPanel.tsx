@@ -39,7 +39,7 @@ export const DesktopPanel: FC<DesktopPanelProps> = ({ chatId, isVisible }) => {
 		setIsControlling(false);
 	}
 
-	const [scaleMode, setScaleMode] = useState<ScaleMode>("native");
+	const [scaleMode, setScaleMode] = useState<ScaleMode>("fit");
 	const [isPoppedOut, setIsPoppedOut] = useState(false);
 
 	const { status, reconnect, attach } = useDesktopConnection({
