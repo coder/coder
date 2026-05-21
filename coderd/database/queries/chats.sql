@@ -569,7 +569,91 @@ WHERE
         )
         ELSE true
     END
-    -- Paginate over root chats only. Children are fetched
+    -- Filter by PR number (exact match on root chat's diff status).
+    AND CASE
+        WHEN @pr_number::int != 0 THEN EXISTS (
+            SELECT 1
+            FROM chat_diff_statuses cds
+            WHERE cds.chat_id = chats_expanded.id
+                AND cds.pr_number = @pr_number
+        )
+        ELSE true
+    END
+    -- Filter by repository (substring match on remote origin or PR URL).
+    AND CASE
+        WHEN @repo_query::text != '' THEN EXISTS (
+            SELECT 1
+            FROM chat_diff_statuses cds
+            WHERE cds.chat_id = chats_expanded.id
+                AND (
+                    cds.git_remote_origin ILIKE '%' || @repo_query || '%'
+                    OR cds.url ILIKE '%' || @repo_query || '%'
+                )
+        )
+        ELSE true
+    END
+    -- Filter by pull request title (case-insensitive substring).
+    AND CASE
+        WHEN @pr_title_query::text != '' THEN EXISTS (
+            SELECT 1
+            FROM chat_diff_statuses cds
+            WHERE cds.chat_id = chats_expanded.id
+                AND cds.pull_request_title ILIKE '%' || @pr_title_query || '%'
+        )
+        ELSE true
+    END
+    -- Filter by predicted auto-archive date. Uses EXISTS boundary checks
+    -- instead of MAX aggregate for performance (14x faster on worst-case
+    -- 9K-chat user). Enforces same eligibility criteria as
+    -- AutoArchiveInactiveChats.
+    --
+    -- @archives_on_activity_date is pre-computed by the handler as:
+    -- archives_on_date - auto_archive_days. When NULL, the filter is
+    -- inactive. When set, it checks that the chat's last family
+    -- activity falls exactly on that date.
+    AND CASE
+        WHEN sqlc.narg('archives_on_activity_date')::date IS NOT NULL THEN EXISTS (
+            SELECT 1
+            FROM chats archive_check
+            WHERE archive_check.id = chats_expanded.id
+              AND archive_check.archived = false
+              AND archive_check.pin_order = 0
+              AND archive_check.status NOT IN (
+                  'running', 'pending', 'paused', 'requires_action'
+              )
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM chat_messages cm
+                  JOIN chats fc ON fc.id = cm.chat_id
+                  WHERE (fc.id = archive_check.id OR fc.root_chat_id = archive_check.id)
+                    AND cm.deleted = false
+                    AND cm.created_at >= (sqlc.narg('archives_on_activity_date')::date + 1)
+              )
+              AND (
+                  EXISTS (
+                      SELECT 1
+                      FROM chat_messages cm
+                      JOIN chats fc ON fc.id = cm.chat_id
+                      WHERE (fc.id = archive_check.id OR fc.root_chat_id = archive_check.id)
+                        AND cm.deleted = false
+                        AND cm.created_at >= sqlc.narg('archives_on_activity_date')::date
+                        AND cm.created_at < (sqlc.narg('archives_on_activity_date')::date + 1)
+                  )
+                  OR (
+                      NOT EXISTS (
+                          SELECT 1
+                          FROM chat_messages cm
+                          JOIN chats fc ON fc.id = cm.chat_id
+                          WHERE (fc.id = archive_check.id OR fc.root_chat_id = archive_check.id)
+                            AND cm.deleted = false
+                      )
+                      AND archive_check.created_at::date = sqlc.narg('archives_on_activity_date')::date
+                  )
+              )
+        )
+        ELSE true
+    END
+
     -- separately via GetChildChatsByParentIDs and embedded under
     -- each parent. Other callers that need the full set should
     -- use a narrower query (e.g. GetChatsByWorkspaceIDs).

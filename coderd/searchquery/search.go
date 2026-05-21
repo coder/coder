@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -553,6 +554,11 @@ func Tasks(ctx context.Context, db database.Store, query string, actorID uuid.UU
 //   - diff_url: string (matches chats whose linked diff URL equals the
 //     given value, case-insensitively; URLs typically contain ':' so
 //     they must be quoted, e.g. q=diff_url:"https://github.com/o/r/pull/1")
+//   - pr: positive integer (exact PR number match)
+//   - repo: string (substring match against git remote origin or URL)
+//   - pr_title: string (case-insensitive PR title substring match)
+//   - archives_on: date in YYYY-MM-DD format (chats that will
+//     auto-archive on the given date; cannot combine with archived:true)
 func Chats(query string) (database.GetChatsParams, []codersdk.ValidationError) {
 	filter := database.GetChatsParams{
 		// Default to hiding archived chats.
@@ -598,6 +604,43 @@ func Chats(query string) (database.GetChatsParams, []codersdk.ValidationError) {
 	}
 
 	filter.TitleQuery = parser.String(values, "", "title")
+
+	filter.PrTitleQuery = parser.String(values, "", "pr_title")
+	filter.RepoQuery = parser.String(values, "", "repo")
+
+	// pr: requires a positive integer.
+	if prStr := parser.String(values, "", "pr"); prStr != "" {
+		n, err := strconv.ParseInt(prStr, 10, 32)
+		if err != nil || n <= 0 {
+			parser.Errors = append(parser.Errors, codersdk.ValidationError{
+				Field:  "pr",
+				Detail: fmt.Sprintf("%q is not a valid positive integer", prStr),
+			})
+		} else {
+			filter.PrNumber = int32(n)
+		}
+	}
+
+	// archives_on: requires YYYY-MM-DD format.
+	if dateStr := parser.String(values, "", "archives_on"); dateStr != "" {
+		t, err := time.Parse("2006-01-02", dateStr)
+		if err != nil {
+			parser.Errors = append(parser.Errors, codersdk.ValidationError{
+				Field:  "archives_on",
+				Detail: fmt.Sprintf("%q is not a valid date (expected YYYY-MM-DD)", dateStr),
+			})
+		} else {
+			filter.ArchivesOnActivityDate = sql.NullTime{Time: t, Valid: true}
+		}
+	}
+
+	// Reject nonsensical combination: archives_on + archived:true.
+	if filter.ArchivesOnActivityDate.Valid && filter.Archived.Valid && filter.Archived.Bool {
+		parser.Errors = append(parser.Errors, codersdk.ValidationError{
+			Field:  "archives_on",
+			Detail: "cannot combine archives_on with archived:true (already-archived chats cannot be predicted for archival)",
+		})
+	}
 
 	parser.ErrorExcessParams(values)
 	return filter, parser.Errors

@@ -7853,7 +7853,91 @@ WHERE
         )
         ELSE true
     END
-    -- Paginate over root chats only. Children are fetched
+    -- Filter by PR number (exact match on root chat's diff status).
+    AND CASE
+        WHEN $11::int != 0 THEN EXISTS (
+            SELECT 1
+            FROM chat_diff_statuses cds
+            WHERE cds.chat_id = chats_expanded.id
+                AND cds.pr_number = $11
+        )
+        ELSE true
+    END
+    -- Filter by repository (substring match on remote origin or PR URL).
+    AND CASE
+        WHEN $12::text != '' THEN EXISTS (
+            SELECT 1
+            FROM chat_diff_statuses cds
+            WHERE cds.chat_id = chats_expanded.id
+                AND (
+                    cds.git_remote_origin ILIKE '%' || $12 || '%'
+                    OR cds.url ILIKE '%' || $12 || '%'
+                )
+        )
+        ELSE true
+    END
+    -- Filter by pull request title (case-insensitive substring).
+    AND CASE
+        WHEN $13::text != '' THEN EXISTS (
+            SELECT 1
+            FROM chat_diff_statuses cds
+            WHERE cds.chat_id = chats_expanded.id
+                AND cds.pull_request_title ILIKE '%' || $13 || '%'
+        )
+        ELSE true
+    END
+    -- Filter by predicted auto-archive date. Uses EXISTS boundary checks
+    -- instead of MAX aggregate for performance (14x faster on worst-case
+    -- 9K-chat user). Enforces same eligibility criteria as
+    -- AutoArchiveInactiveChats.
+    --
+    -- @archives_on_activity_date is pre-computed by the handler as:
+    -- archives_on_date - auto_archive_days. When NULL, the filter is
+    -- inactive. When set, it checks that the chat's last family
+    -- activity falls exactly on that date.
+    AND CASE
+        WHEN $14::date IS NOT NULL THEN EXISTS (
+            SELECT 1
+            FROM chats archive_check
+            WHERE archive_check.id = chats_expanded.id
+              AND archive_check.archived = false
+              AND archive_check.pin_order = 0
+              AND archive_check.status NOT IN (
+                  'running', 'pending', 'paused', 'requires_action'
+              )
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM chat_messages cm
+                  JOIN chats fc ON fc.id = cm.chat_id
+                  WHERE (fc.id = archive_check.id OR fc.root_chat_id = archive_check.id)
+                    AND cm.deleted = false
+                    AND cm.created_at >= ($14::date + 1)
+              )
+              AND (
+                  EXISTS (
+                      SELECT 1
+                      FROM chat_messages cm
+                      JOIN chats fc ON fc.id = cm.chat_id
+                      WHERE (fc.id = archive_check.id OR fc.root_chat_id = archive_check.id)
+                        AND cm.deleted = false
+                        AND cm.created_at >= $14::date
+                        AND cm.created_at < ($14::date + 1)
+                  )
+                  OR (
+                      NOT EXISTS (
+                          SELECT 1
+                          FROM chat_messages cm
+                          JOIN chats fc ON fc.id = cm.chat_id
+                          WHERE (fc.id = archive_check.id OR fc.root_chat_id = archive_check.id)
+                            AND cm.deleted = false
+                      )
+                      AND archive_check.created_at::date = $14::date
+                  )
+              )
+        )
+        ELSE true
+    END
+
     -- separately via GetChildChatsByParentIDs and embedded under
     -- each parent. Other callers that need the full set should
     -- use a narrower query (e.g. GetChatsByWorkspaceIDs).
@@ -7869,26 +7953,30 @@ ORDER BY
     -chats_expanded.pin_order DESC,
     chats_expanded.updated_at DESC,
     chats_expanded.id DESC
-OFFSET $11
+OFFSET $15
 LIMIT
     -- The chat list is unbounded and expected to grow large.
     -- Default to 50 to prevent accidental excessively large queries.
-    COALESCE(NULLIF($12 :: int, 0), 50)
+    COALESCE(NULLIF($16 :: int, 0), 50)
 `
 
 type GetChatsParams struct {
-	OwnedOnly           bool                  `db:"owned_only" json:"owned_only"`
-	ViewerID            uuid.UUID             `db:"viewer_id" json:"viewer_id"`
-	SharedOnly          bool                  `db:"shared_only" json:"shared_only"`
-	Archived            sql.NullBool          `db:"archived" json:"archived"`
-	AfterID             uuid.UUID             `db:"after_id" json:"after_id"`
-	LabelFilter         pqtype.NullRawMessage `db:"label_filter" json:"label_filter"`
-	DiffURL             sql.NullString        `db:"diff_url" json:"diff_url"`
-	TitleQuery          string                `db:"title_query" json:"title_query"`
-	HasUnread           sql.NullBool          `db:"has_unread" json:"has_unread"`
-	PullRequestStatuses []string              `db:"pull_request_statuses" json:"pull_request_statuses"`
-	OffsetOpt           int32                 `db:"offset_opt" json:"offset_opt"`
-	LimitOpt            int32                 `db:"limit_opt" json:"limit_opt"`
+	OwnedOnly              bool                  `db:"owned_only" json:"owned_only"`
+	ViewerID               uuid.UUID             `db:"viewer_id" json:"viewer_id"`
+	SharedOnly             bool                  `db:"shared_only" json:"shared_only"`
+	Archived               sql.NullBool          `db:"archived" json:"archived"`
+	AfterID                uuid.UUID             `db:"after_id" json:"after_id"`
+	LabelFilter            pqtype.NullRawMessage `db:"label_filter" json:"label_filter"`
+	DiffURL                sql.NullString        `db:"diff_url" json:"diff_url"`
+	TitleQuery             string                `db:"title_query" json:"title_query"`
+	HasUnread              sql.NullBool          `db:"has_unread" json:"has_unread"`
+	PullRequestStatuses    []string              `db:"pull_request_statuses" json:"pull_request_statuses"`
+	PrNumber               int32                 `db:"pr_number" json:"pr_number"`
+	RepoQuery              string                `db:"repo_query" json:"repo_query"`
+	PrTitleQuery           string                `db:"pr_title_query" json:"pr_title_query"`
+	ArchivesOnActivityDate sql.NullTime          `db:"archives_on_activity_date" json:"archives_on_activity_date"`
+	OffsetOpt              int32                 `db:"offset_opt" json:"offset_opt"`
+	LimitOpt               int32                 `db:"limit_opt" json:"limit_opt"`
 }
 
 type GetChatsRow struct {
@@ -7908,6 +7996,10 @@ func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]GetCha
 		arg.TitleQuery,
 		arg.HasUnread,
 		pq.Array(arg.PullRequestStatuses),
+		arg.PrNumber,
+		arg.RepoQuery,
+		arg.PrTitleQuery,
+		arg.ArchivesOnActivityDate,
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)

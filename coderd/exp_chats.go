@@ -312,7 +312,7 @@ func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
-// @Param q query string false "Search query. Supports title:<substring> (case-insensitive, quote multi-word values), archived:bool, has_unread:bool, pr_status:<draft\|open\|merged\|closed> as repeated or comma-separated values, and diff_url:<url> (quote URLs). Bare terms are not supported; use title:<value> for title filtering."
+// @Param q query string false "Search query. Supports title:<substring> (case-insensitive, quote multi-word values), archived:bool, has_unread:bool, pr_status:<draft\|open\|merged\|closed> as repeated or comma-separated values, diff_url:<url> (quote URLs), pr:<number> (exact PR number match), repo:<owner/repo> (substring match against git remote or URL), pr_title:<text> (case-insensitive PR title substring), and archives_on:<YYYY-MM-DD> (chats that will auto-archive on the given date). Bare terms are not supported; use title:<value> for title filtering."
 // @Param label query string false "Filter by label as key:value. Repeat for multiple (AND logic)."
 // @Success 200 {array} codersdk.Chat
 // @Router /api/experimental/chats [get]
@@ -334,6 +334,23 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 			Validations: errs,
 		})
 		return
+	}
+
+	// If archives_on is set, look up auto_archive_days and compute the
+	// activity-date cutoff the SQL filter needs.
+	if searchParams.ArchivesOnActivityDate.Valid {
+		autoArchiveDays, err := api.Database.GetChatAutoArchiveDays(ctx, codersdk.DefaultChatAutoArchiveDays)
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+		if autoArchiveDays == 0 {
+			// Auto-archive disabled; clear the filter so no results match.
+			searchParams.ArchivesOnActivityDate = sql.NullTime{}
+		} else {
+			activityDate := searchParams.ArchivesOnActivityDate.Time.AddDate(0, 0, -int(autoArchiveDays))
+			searchParams.ArchivesOnActivityDate = sql.NullTime{Time: activityDate, Valid: true}
+		}
 	}
 
 	var labelFilter pqtype.NullRawMessage
@@ -364,15 +381,19 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	params := database.GetChatsParams{
-		OwnedOnly:           true,
-		ViewerID:            apiKey.UserID,
-		Archived:            searchParams.Archived,
-		AfterID:             paginationParams.AfterID,
-		LabelFilter:         labelFilter,
-		DiffURL:             searchParams.DiffURL,
-		TitleQuery:          searchParams.TitleQuery,
-		HasUnread:           searchParams.HasUnread,
-		PullRequestStatuses: searchParams.PullRequestStatuses,
+		OwnedOnly:              true,
+		ViewerID:               apiKey.UserID,
+		Archived:               searchParams.Archived,
+		AfterID:                paginationParams.AfterID,
+		LabelFilter:            labelFilter,
+		DiffURL:                searchParams.DiffURL,
+		TitleQuery:             searchParams.TitleQuery,
+		HasUnread:              searchParams.HasUnread,
+		PullRequestStatuses:    searchParams.PullRequestStatuses,
+		PrNumber:               searchParams.PrNumber,
+		RepoQuery:              searchParams.RepoQuery,
+		PrTitleQuery:           searchParams.PrTitleQuery,
+		ArchivesOnActivityDate: searchParams.ArchivesOnActivityDate,
 		// #nosec G115 - Pagination offsets are small and fit in int32
 		OffsetOpt: int32(paginationParams.Offset),
 		// #nosec G115 - Pagination limits are small and fit in int32
