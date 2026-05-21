@@ -178,7 +178,7 @@ func TestAuthorization(t *testing.T) {
 				tc.mocksFn(db, apiKey, user)
 			}
 
-			srv, err := aibridgedserver.NewServer(t.Context(), db, logger, "/", codersdk.AIBridgeConfig{}, nil, requiredExperiments, agplaiseats.Noop{})
+			srv, err := aibridgedserver.NewServer(t.Context(), db, logger, "/", codersdk.AIGatewayConfig{}, nil, requiredExperiments, agplaiseats.Noop{})
 			require.NoError(t, err)
 			require.NotNil(t, srv)
 
@@ -268,7 +268,7 @@ func TestGetMCPServerConfigs(t *testing.T) {
 			logger := testutil.Logger(t)
 
 			accessURL := "https://my-cool-deployment.com"
-			srv, err := aibridgedserver.NewServer(t.Context(), db, logger, accessURL, codersdk.AIBridgeConfig{
+			srv, err := aibridgedserver.NewServer(t.Context(), db, logger, accessURL, codersdk.AIGatewayConfig{
 				InjectCoderMCPTools: serpent.Bool(!tc.disableCoderMCPInjection),
 			}, tc.externalAuthConfigs, tc.experiments, agplaiseats.Noop{})
 			require.NoError(t, err)
@@ -308,7 +308,7 @@ func TestGetMCPServerAccessTokensBatch(t *testing.T) {
 	logger := testutil.Logger(t)
 
 	// Given: 2 external auth configured with MCP and 1 without.
-	srv, err := aibridgedserver.NewServer(t.Context(), db, logger, "/", codersdk.AIBridgeConfig{}, []*externalauth.Config{
+	srv, err := aibridgedserver.NewServer(t.Context(), db, logger, "/", codersdk.AIGatewayConfig{}, []*externalauth.Config{
 		{
 			ID:     "1",
 			MCPURL: "1.com/mcp",
@@ -1216,7 +1216,7 @@ func testRecordMethod[Req any, Resp any](
 			}
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			srv, err := aibridgedserver.NewServer(ctx, db, logger, "/", codersdk.AIBridgeConfig{}, nil, requiredExperiments, agplaiseats.Noop{})
+			srv, err := aibridgedserver.NewServer(ctx, db, logger, "/", codersdk.AIGatewayConfig{}, nil, requiredExperiments, agplaiseats.Noop{})
 			require.NoError(t, err)
 
 			resp, err := callMethod(srv, ctx, tc.request)
@@ -1532,7 +1532,7 @@ func TestStructuredLogging(t *testing.T) {
 			tc.setupMocks(db, interceptionID)
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			srv, err := aibridgedserver.NewServer(ctx, db, logger, "/", codersdk.AIBridgeConfig{
+			srv, err := aibridgedserver.NewServer(ctx, db, logger, "/", codersdk.AIGatewayConfig{
 				StructuredLogging: serpent.Bool(tc.structuredLogging),
 			}, nil, requiredExperiments, agplaiseats.Noop{})
 			require.NoError(t, err)
@@ -1576,7 +1576,7 @@ func TestInferredThreadsByToolCalls(t *testing.T) {
 
 	user := dbgen.User(t, db, database.User{})
 
-	srv, err := aibridgedserver.NewServer(ctx, db, logger, "/", codersdk.AIBridgeConfig{}, nil, requiredExperiments, agplaiseats.Noop{})
+	srv, err := aibridgedserver.NewServer(ctx, db, logger, "/", codersdk.AIGatewayConfig{}, nil, requiredExperiments, agplaiseats.Noop{})
 	require.NoError(t, err)
 
 	aID := uuid.New()

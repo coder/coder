@@ -1577,7 +1577,7 @@ func TestDeleteOldAIBridgeRecords(t *testing.T) {
 			done := awaitDoTick(ctx, t, clk)
 			closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
 				AI: codersdk.AIConfig{
-					BridgeConfig: codersdk.AIBridgeConfig{
+					BridgeConfig: codersdk.AIGatewayConfig{
 						Retention: serpent.Duration(tc.retention),
 					},
 				},

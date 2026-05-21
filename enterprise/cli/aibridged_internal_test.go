@@ -19,14 +19,14 @@ func TestBuildProviders(t *testing.T) {
 
 	t.Run("EmptyConfig", func(t *testing.T) {
 		t.Parallel()
-		providers, err := buildProviders(codersdk.AIBridgeConfig{})
+		providers, err := buildProviders(codersdk.AIGatewayConfig{})
 		require.NoError(t, err)
 		assert.Empty(t, providers)
 	})
 
 	t.Run("LegacyOnly", func(t *testing.T) {
 		t.Parallel()
-		cfg := codersdk.AIBridgeConfig{}
+		cfg := codersdk.AIGatewayConfig{}
 		cfg.LegacyOpenAI.Key = serpent.String("sk-openai")
 		cfg.LegacyAnthropic.Key = serpent.String("sk-anthropic")
 
@@ -41,7 +41,7 @@ func TestBuildProviders(t *testing.T) {
 
 	t.Run("IndexedOnly", func(t *testing.T) {
 		t.Parallel()
-		cfg := codersdk.AIBridgeConfig{
+		cfg := codersdk.AIGatewayConfig{
 			Providers: []codersdk.AIProviderConfig{
 				{
 					Type:    aibridge.ProviderAnthropic,
@@ -70,7 +70,7 @@ func TestBuildProviders(t *testing.T) {
 
 	t.Run("LegacyOpenAIConflictsWithIndexed", func(t *testing.T) {
 		t.Parallel()
-		cfg := codersdk.AIBridgeConfig{
+		cfg := codersdk.AIGatewayConfig{
 			Providers: []codersdk.AIProviderConfig{
 				{Type: aibridge.ProviderOpenAI, Name: aibridge.ProviderOpenAI, Keys: []string{"sk-indexed"}},
 			},
@@ -84,7 +84,7 @@ func TestBuildProviders(t *testing.T) {
 
 	t.Run("LegacyAnthropicConflictsWithIndexed", func(t *testing.T) {
 		t.Parallel()
-		cfg := codersdk.AIBridgeConfig{
+		cfg := codersdk.AIGatewayConfig{
 			Providers: []codersdk.AIProviderConfig{
 				{Type: aibridge.ProviderAnthropic, Name: aibridge.ProviderAnthropic, Keys: []string{"sk-indexed"}},
 			},
@@ -98,7 +98,7 @@ func TestBuildProviders(t *testing.T) {
 
 	t.Run("MixedLegacyAndIndexed", func(t *testing.T) {
 		t.Parallel()
-		cfg := codersdk.AIBridgeConfig{
+		cfg := codersdk.AIGatewayConfig{
 			Providers: []codersdk.AIProviderConfig{
 				{Type: aibridge.ProviderAnthropic, Name: "anthropic-zdr", Keys: []string{"sk-zdr"}},
 			},
@@ -117,7 +117,7 @@ func TestBuildProviders(t *testing.T) {
 
 	t.Run("LegacyAnthropicWithBedrock", func(t *testing.T) {
 		t.Parallel()
-		cfg := codersdk.AIBridgeConfig{}
+		cfg := codersdk.AIGatewayConfig{}
 		cfg.LegacyAnthropic.Key = serpent.String("sk-anthropic")
 		cfg.LegacyBedrock.Region = serpent.String("us-west-2")
 		cfg.LegacyBedrock.AccessKey = serpent.String("AKID")
@@ -134,7 +134,7 @@ func TestBuildProviders(t *testing.T) {
 		t.Parallel()
 		// Bedrock credentials alone should be enough to create an
 		// Anthropic provider — no CODER_AIBRIDGE_ANTHROPIC_KEY needed.
-		cfg := codersdk.AIBridgeConfig{}
+		cfg := codersdk.AIGatewayConfig{}
 		cfg.LegacyBedrock.Region = serpent.String("us-west-2")
 		cfg.LegacyBedrock.AccessKey = serpent.String("AKID")
 		cfg.LegacyBedrock.AccessKeySecret = serpent.String("secret")
@@ -150,7 +150,7 @@ func TestBuildProviders(t *testing.T) {
 
 	t.Run("UnknownType", func(t *testing.T) {
 		t.Parallel()
-		cfg := codersdk.AIBridgeConfig{
+		cfg := codersdk.AIGatewayConfig{
 			Providers: []codersdk.AIProviderConfig{
 				{Type: "gemini", Name: "gemini-pro"},
 			},
@@ -165,7 +165,7 @@ func TestBuildProviders(t *testing.T) {
 		t.Parallel()
 		// Copilot providers can target any of the three GitHub
 		// Copilot API hosts via an explicit BASE_URL.
-		cfg := codersdk.AIBridgeConfig{
+		cfg := codersdk.AIGatewayConfig{
 			Providers: []codersdk.AIProviderConfig{
 				{Type: aibridge.ProviderCopilot, Name: aibridge.ProviderCopilot, DumpDir: "/tmp/copilot-dump"},
 				{Type: aibridge.ProviderCopilot, Name: agplaibridge.ProviderCopilotBusiness, BaseURL: "https://" + agplaibridge.HostCopilotBusiness},
@@ -189,7 +189,7 @@ func TestBuildProviders(t *testing.T) {
 		t.Parallel()
 		// ChatGPT is an OpenAI-compatible provider with a custom
 		// base URL. Admins configure it as an indexed openai provider.
-		cfg := codersdk.AIBridgeConfig{
+		cfg := codersdk.AIGatewayConfig{
 			Providers: []codersdk.AIProviderConfig{
 				{Type: aibridge.ProviderOpenAI, Name: agplaibridge.ProviderChatGPT, BaseURL: agplaibridge.BaseURLChatGPT},
 			},
@@ -218,7 +218,7 @@ func TestDomainsFromProviders(t *testing.T) {
 	t.Run("ExtractsHostnames", func(t *testing.T) {
 		t.Parallel()
 
-		providers, err := buildProviders(codersdk.AIBridgeConfig{
+		providers, err := buildProviders(codersdk.AIGatewayConfig{
 			Providers: []codersdk.AIProviderConfig{
 				{Type: aibridge.ProviderOpenAI, Name: "openai", Keys: []string{"k"}},
 				{Type: aibridge.ProviderAnthropic, Name: "anthropic", Keys: []string{"k"}},
@@ -242,7 +242,7 @@ func TestDomainsFromProviders(t *testing.T) {
 	t.Run("DeduplicatesSameHost", func(t *testing.T) {
 		t.Parallel()
 
-		providers, err := buildProviders(codersdk.AIBridgeConfig{
+		providers, err := buildProviders(codersdk.AIGatewayConfig{
 			Providers: []codersdk.AIProviderConfig{
 				{Type: aibridge.ProviderOpenAI, Name: "first", Keys: []string{"k"}, BaseURL: "https://api.example.com/v1"},
 				{Type: aibridge.ProviderOpenAI, Name: "second", Keys: []string{"k"}, BaseURL: "https://api.example.com/v2"},
@@ -267,7 +267,7 @@ func TestDomainsFromProviders(t *testing.T) {
 	t.Run("CaseInsensitive", func(t *testing.T) {
 		t.Parallel()
 
-		providers, err := buildProviders(codersdk.AIBridgeConfig{
+		providers, err := buildProviders(codersdk.AIGatewayConfig{
 			Providers: []codersdk.AIProviderConfig{
 				{Type: aibridge.ProviderOpenAI, Name: "provider", Keys: []string{"k"}, BaseURL: "https://API.Example.COM/v1"},
 			},

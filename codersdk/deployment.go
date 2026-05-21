@@ -4603,7 +4603,7 @@ Write out the current server config as YAML to stdout.`,
 	return opts
 }
 
-type AIBridgeConfig struct {
+type AIGatewayConfig struct {
 	Enabled serpent.Bool `json:"enabled" typescript:",notnull"`
 	// Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.
 	LegacyOpenAI AIBridgeOpenAIConfig `json:"openai" typescript:",notnull"`
@@ -4686,7 +4686,7 @@ type AIProviderConfig struct {
 	BedrockSmallFastModel   string   `json:"bedrock_small_fast_model,omitempty"`
 }
 
-type AIBridgeProxyConfig struct {
+type AIGatewayProxyConfig struct {
 	Enabled             serpent.Bool        `json:"enabled" typescript:",notnull"`
 	ListenAddr          serpent.String      `json:"listen_addr" typescript:",notnull"`
 	TLSCertFile         serpent.String      `json:"tls_cert_file" typescript:",notnull"`
@@ -4706,9 +4706,9 @@ type ChatConfig struct {
 }
 
 type AIConfig struct {
-	BridgeConfig      AIBridgeConfig      `json:"bridge,omitempty"`
-	BridgeProxyConfig AIBridgeProxyConfig `json:"aibridge_proxy,omitempty"`
-	Chat              ChatConfig          `json:"chat,omitempty" typescript:",notnull"`
+	BridgeConfig      AIGatewayConfig      `json:"bridge,omitempty"`
+	BridgeProxyConfig AIGatewayProxyConfig `json:"aibridge_proxy,omitempty"`
+	Chat              ChatConfig           `json:"chat,omitempty" typescript:",notnull"`
 }
 
 type TemplateBuilderConfig struct {

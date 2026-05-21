@@ -14436,90 +14436,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.AIBridgeConfig": {
-            "type": "object",
-            "properties": {
-                "allow_byok": {
-                    "type": "boolean"
-                },
-                "anthropic": {
-                    "description": "Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_* env vars instead.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.AIBridgeAnthropicConfig"
-                        }
-                    ]
-                },
-                "bedrock": {
-                    "description": "Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_* env vars instead.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.AIBridgeBedrockConfig"
-                        }
-                    ]
-                },
-                "budget_period": {
-                    "type": "string"
-                },
-                "budget_policy": {
-                    "description": "Budget settings for AI Governance cost controls.",
-                    "type": "string"
-                },
-                "circuit_breaker_enabled": {
-                    "description": "Circuit breaker protects against cascading failures from upstream AI\nprovider overload (503, 529).",
-                    "type": "boolean"
-                },
-                "circuit_breaker_failure_threshold": {
-                    "type": "integer"
-                },
-                "circuit_breaker_interval": {
-                    "type": "integer"
-                },
-                "circuit_breaker_max_requests": {
-                    "type": "integer"
-                },
-                "circuit_breaker_timeout": {
-                    "type": "integer"
-                },
-                "enabled": {
-                    "type": "boolean"
-                },
-                "inject_coder_mcp_tools": {
-                    "description": "Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.",
-                    "type": "boolean"
-                },
-                "max_concurrency": {
-                    "type": "integer"
-                },
-                "openai": {
-                    "description": "Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_* env vars instead.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.AIBridgeOpenAIConfig"
-                        }
-                    ]
-                },
-                "providers": {
-                    "description": "Providers holds provider instances populated from CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_\u003cKEY\u003e\nenv vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.AIProviderConfig"
-                    }
-                },
-                "rate_limit": {
-                    "type": "integer"
-                },
-                "retention": {
-                    "type": "integer"
-                },
-                "send_actor_headers": {
-                    "type": "boolean"
-                },
-                "structured_logging": {
-                    "type": "boolean"
-                }
-            }
-        },
         "codersdk.AIBridgeInterception": {
             "type": "object",
             "properties": {
@@ -14620,50 +14536,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "key": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.AIBridgeProxyConfig": {
-            "type": "object",
-            "properties": {
-                "allowed_private_cidrs": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "api_dump_dir": {
-                    "type": "string"
-                },
-                "cert_file": {
-                    "type": "string"
-                },
-                "domain_allowlist": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "enabled": {
-                    "type": "boolean"
-                },
-                "key_file": {
-                    "type": "string"
-                },
-                "listen_addr": {
-                    "type": "string"
-                },
-                "tls_cert_file": {
-                    "type": "string"
-                },
-                "tls_key_file": {
-                    "type": "string"
-                },
-                "upstream_proxy": {
-                    "type": "string"
-                },
-                "upstream_proxy_ca": {
                     "type": "string"
                 }
             }
@@ -14995,13 +14867,141 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "aibridge_proxy": {
-                    "$ref": "#/definitions/codersdk.AIBridgeProxyConfig"
+                    "$ref": "#/definitions/codersdk.AIGatewayProxyConfig"
                 },
                 "bridge": {
-                    "$ref": "#/definitions/codersdk.AIBridgeConfig"
+                    "$ref": "#/definitions/codersdk.AIGatewayConfig"
                 },
                 "chat": {
                     "$ref": "#/definitions/codersdk.ChatConfig"
+                }
+            }
+        },
+        "codersdk.AIGatewayConfig": {
+            "type": "object",
+            "properties": {
+                "allow_byok": {
+                    "type": "boolean"
+                },
+                "anthropic": {
+                    "description": "Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_* env vars instead.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIBridgeAnthropicConfig"
+                        }
+                    ]
+                },
+                "bedrock": {
+                    "description": "Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_* env vars instead.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIBridgeBedrockConfig"
+                        }
+                    ]
+                },
+                "budget_period": {
+                    "type": "string"
+                },
+                "budget_policy": {
+                    "description": "Budget settings for AI Governance cost controls.",
+                    "type": "string"
+                },
+                "circuit_breaker_enabled": {
+                    "description": "Circuit breaker protects against cascading failures from upstream AI\nprovider overload (503, 529).",
+                    "type": "boolean"
+                },
+                "circuit_breaker_failure_threshold": {
+                    "type": "integer"
+                },
+                "circuit_breaker_interval": {
+                    "type": "integer"
+                },
+                "circuit_breaker_max_requests": {
+                    "type": "integer"
+                },
+                "circuit_breaker_timeout": {
+                    "type": "integer"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "inject_coder_mcp_tools": {
+                    "description": "Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.",
+                    "type": "boolean"
+                },
+                "max_concurrency": {
+                    "type": "integer"
+                },
+                "openai": {
+                    "description": "Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_* env vars instead.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AIBridgeOpenAIConfig"
+                        }
+                    ]
+                },
+                "providers": {
+                    "description": "Providers holds provider instances populated from CODER_AI_GATEWAY_PROVIDER_\u003cN\u003e_\u003cKEY\u003e\nenv vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AIProviderConfig"
+                    }
+                },
+                "rate_limit": {
+                    "type": "integer"
+                },
+                "retention": {
+                    "type": "integer"
+                },
+                "send_actor_headers": {
+                    "type": "boolean"
+                },
+                "structured_logging": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "codersdk.AIGatewayProxyConfig": {
+            "type": "object",
+            "properties": {
+                "allowed_private_cidrs": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "api_dump_dir": {
+                    "type": "string"
+                },
+                "cert_file": {
+                    "type": "string"
+                },
+                "domain_allowlist": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "key_file": {
+                    "type": "string"
+                },
+                "listen_addr": {
+                    "type": "string"
+                },
+                "tls_cert_file": {
+                    "type": "string"
+                },
+                "tls_key_file": {
+                    "type": "string"
+                },
+                "upstream_proxy": {
+                    "type": "string"
+                },
+                "upstream_proxy_ca": {
+                    "type": "string"
                 }
             }
         },

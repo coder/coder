@@ -38,52 +38,6 @@ export interface AIBridgeBedrockConfig {
 	readonly small_fast_model: string;
 }
 
-// From codersdk/deployment.go
-export interface AIBridgeConfig {
-	readonly enabled: boolean;
-	/**
-	 * @deprecated Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.
-	 */
-	readonly openai: AIBridgeOpenAIConfig;
-	/**
-	 * @deprecated Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.
-	 */
-	readonly anthropic: AIBridgeAnthropicConfig;
-	/**
-	 * @deprecated Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.
-	 */
-	readonly bedrock: AIBridgeBedrockConfig;
-	/**
-	 * Providers holds provider instances populated from CODER_AI_GATEWAY_PROVIDER_<N>_<KEY>
-	 * env vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.
-	 */
-	readonly providers?: readonly AIProviderConfig[];
-	/**
-	 * @deprecated Injected MCP in AI Bridge is deprecated and will be removed in a future release.
-	 */
-	readonly inject_coder_mcp_tools: boolean;
-	readonly retention: number;
-	readonly max_concurrency: number;
-	readonly rate_limit: number;
-	readonly structured_logging: boolean;
-	readonly send_actor_headers: boolean;
-	readonly allow_byok: boolean;
-	/**
-	 * Budget settings for AI Governance cost controls.
-	 */
-	readonly budget_policy?: string;
-	readonly budget_period?: string;
-	/**
-	 * Circuit breaker protects against cascading failures from upstream AI
-	 * provider overload (503, 529).
-	 */
-	readonly circuit_breaker_enabled: boolean;
-	readonly circuit_breaker_failure_threshold: number;
-	readonly circuit_breaker_interval: number;
-	readonly circuit_breaker_timeout: number;
-	readonly circuit_breaker_max_requests: number;
-}
-
 // From codersdk/aibridge.go
 export interface AIBridgeInterception {
 	readonly id: string;
@@ -127,21 +81,6 @@ export interface AIBridgeModelThought {
 export interface AIBridgeOpenAIConfig {
 	readonly base_url: string;
 	readonly key: string;
-}
-
-// From codersdk/deployment.go
-export interface AIBridgeProxyConfig {
-	readonly enabled: boolean;
-	readonly listen_addr: string;
-	readonly tls_cert_file: string;
-	readonly tls_key_file: string;
-	readonly cert_file: string;
-	readonly key_file: string;
-	readonly domain_allowlist: string;
-	readonly upstream_proxy: string;
-	readonly upstream_proxy_ca: string;
-	readonly allowed_private_cidrs: string;
-	readonly api_dump_dir: string;
 }
 
 // From codersdk/aibridge.go
@@ -293,9 +232,70 @@ export type AIBudgetPolicy = "highest";
 
 // From codersdk/deployment.go
 export interface AIConfig {
-	readonly bridge?: AIBridgeConfig;
-	readonly aibridge_proxy?: AIBridgeProxyConfig;
+	readonly bridge?: AIGatewayConfig;
+	readonly aibridge_proxy?: AIGatewayProxyConfig;
 	readonly chat?: ChatConfig;
+}
+
+// From codersdk/deployment.go
+export interface AIGatewayConfig {
+	readonly enabled: boolean;
+	/**
+	 * @deprecated Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.
+	 */
+	readonly openai: AIBridgeOpenAIConfig;
+	/**
+	 * @deprecated Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.
+	 */
+	readonly anthropic: AIBridgeAnthropicConfig;
+	/**
+	 * @deprecated Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.
+	 */
+	readonly bedrock: AIBridgeBedrockConfig;
+	/**
+	 * Providers holds provider instances populated from CODER_AI_GATEWAY_PROVIDER_<N>_<KEY>
+	 * env vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.
+	 */
+	readonly providers?: readonly AIProviderConfig[];
+	/**
+	 * @deprecated Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+	 */
+	readonly inject_coder_mcp_tools: boolean;
+	readonly retention: number;
+	readonly max_concurrency: number;
+	readonly rate_limit: number;
+	readonly structured_logging: boolean;
+	readonly send_actor_headers: boolean;
+	readonly allow_byok: boolean;
+	/**
+	 * Budget settings for AI Governance cost controls.
+	 */
+	readonly budget_policy?: string;
+	readonly budget_period?: string;
+	/**
+	 * Circuit breaker protects against cascading failures from upstream AI
+	 * provider overload (503, 529).
+	 */
+	readonly circuit_breaker_enabled: boolean;
+	readonly circuit_breaker_failure_threshold: number;
+	readonly circuit_breaker_interval: number;
+	readonly circuit_breaker_timeout: number;
+	readonly circuit_breaker_max_requests: number;
+}
+
+// From codersdk/deployment.go
+export interface AIGatewayProxyConfig {
+	readonly enabled: boolean;
+	readonly listen_addr: string;
+	readonly tls_cert_file: string;
+	readonly tls_key_file: string;
+	readonly cert_file: string;
+	readonly key_file: string;
+	readonly domain_allowlist: string;
+	readonly upstream_proxy: string;
+	readonly upstream_proxy_ca: string;
+	readonly allowed_private_cidrs: string;
+	readonly api_dump_dir: string;
 }
 
 // From codersdk/aiproviders.go

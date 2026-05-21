@@ -50,7 +50,7 @@ func newAIBridgeDaemon(coderAPI *coderd.API, providers []aibridge.Provider) (*ai
 //     If a legacy name conflicts with an indexed provider, startup fails with
 //     a clear error asking the admin to remove one or the other.
 //  2. Indexed providers (from CODER_AI_GATEWAY_PROVIDER_<N>_*) are added next.
-func buildProviders(cfg codersdk.AIBridgeConfig) ([]aibridge.Provider, error) {
+func buildProviders(cfg codersdk.AIGatewayConfig) ([]aibridge.Provider, error) {
 	var cbConfig *config.CircuitBreaker
 	if cfg.CircuitBreakerEnabled.Value() {
 		cbConfig = &config.CircuitBreaker{
