@@ -186,6 +186,8 @@ func StoreMCPTools(
 	key MCPToolsCacheKey,
 	tools []workspacesdk.MCPToolInfo,
 ) {
+	// Empty results must not be cached. The primer retries until tools
+	// appear, and a cached empty list would short-circuit retries permanently.
 	if cache == nil || !key.Valid() || len(tools) == 0 {
 		return
 	}
@@ -233,6 +235,8 @@ func DiscoverMCPTools(
 		return MCPToolsResult{}
 	}
 	key, _ := mcpCacheKey(opts.CacheKey, agentID)
+	// Sweep old-agent entries before the cache lookup so stale metadata is
+	// evicted even when fresh discovery returns no tools or cannot dial.
 	DeleteStaleMCPToolsForWorkspace(opts.Cache, key)
 
 	if tools, cached := LoadCachedMCPTools(opts.Cache, key); cached {

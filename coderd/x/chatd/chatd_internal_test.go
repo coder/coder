@@ -6235,12 +6235,8 @@ func TestDiscoverWorkspaceMCPToolsReusesParentCacheForChild(t *testing.T) {
 	child.ParentChatID = uuid.NullUUID{UUID: parent.ID, Valid: true}
 	workspaceAgent := database.WorkspaceAgent{ID: agentID}
 
-	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
-		Return(workspaceAgent, nil).AnyTimes()
 	db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
 		Return([]database.WorkspaceAgent{workspaceAgent}, nil).AnyTimes()
-	conn := agentconnmock.NewMockAgentConn(ctrl)
-	conn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
 
 	server := &Server{
 		db:                             db,
@@ -6249,7 +6245,8 @@ func TestDiscoverWorkspaceMCPToolsReusesParentCacheForChild(t *testing.T) {
 		agentInactiveDisconnectTimeout: 30 * time.Second,
 		dialTimeout:                    time.Second,
 		agentConnFn: func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
-			return conn, func() {}, nil
+			t.Fatal("cache hit should not dial workspace connection")
+			return nil, nil, xerrors.New("unexpected workspace connection dial")
 		},
 	}
 	cacheKey := requireWorkspaceMCPToolsCacheKey(t, parent, agentID)
