@@ -44,19 +44,27 @@ func TestDecoder_CloseAfterServerClose(t *testing.T) {
 	dec := wsjson.NewDecoder[string](conn, websocket.MessageText, logger)
 	ch := dec.Chan()
 
-	// Read the message.
-	msg := <-ch
+	// Read the message with a context timeout.
+	msg := testutil.RequireReceive(ctx, t, ch)
 	require.Equal(t, "hello", msg)
 
 	// Wait for the channel to close (server closed the connection).
-	_, ok := <-ch
-	require.False(t, ok, "channel should be closed")
+	select {
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for channel close")
+	case _, ok := <-ch:
+		require.False(t, ok, "channel should be closed")
+	}
 
 	// Close returns the result of the first close (from the Chan goroutine).
-	// The Chan goroutine may have closed the websocket successfully, or the
-	// server may have already torn down the connection, making the close a
-	// no-op. Either way, calling Close() must not panic and must be safe.
-	_ = dec.Close()
+	// The Chan goroutine closed the websocket with StatusGoingAway after the
+	// server already closed the connection. That close may or may not succeed
+	// depending on whether the TCP connection is still up. Either way, the
+	// same stored result is returned and Close must not panic.
+	err = dec.Close()
+	// Calling Close again must return the same stored result.
+	err2 := dec.Close()
+	require.Equal(t, err, err2, "subsequent Close calls must return the same error")
 }
 
 func TestDecoder_CloseReturnsError(t *testing.T) {
@@ -90,6 +98,7 @@ func TestDecoder_CloseReturnsError(t *testing.T) {
 	// dec.Close() must surface the error from conn.Close(), not swallow it.
 	err = dec.Close()
 	require.Error(t, err)
+	require.ErrorContains(t, err, "use of closed network connection")
 
 	// Calling Close again must return the same stored error.
 	err2 := dec.Close()
