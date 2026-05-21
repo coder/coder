@@ -250,7 +250,7 @@ func (n FeatureName) Humanize() string {
 	case FeatureSCIM:
 		return "SCIM"
 	case FeatureAIBridge:
-		return "AI Bridge"
+		return "AI Gateway"
 	case FeatureAIGovernanceUserLimit:
 		return "AI Governance User Limit"
 	default:
@@ -1705,7 +1705,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		Flag:        "ai-gateway-enabled",
 		Env:         "CODER_AI_GATEWAY_ENABLED",
 		Value:       &c.AI.BridgeConfig.Enabled,
-		Default:     "false",
+		Default:     "true",
 		Group:       &deploymentGroupAIGateway,
 		YAML:        "enabled",
 	}
@@ -4055,7 +4055,7 @@ Write out the current server config as YAML to stdout.`,
 			Flag:        "aibridge-enabled",
 			Env:         "CODER_AIBRIDGE_ENABLED",
 			Value:       &c.AI.BridgeConfig.Enabled,
-			Default:     "false",
+			Default:     "true",
 			Group:       &deploymentGroupAIBridge,
 			YAML:        "enabled",
 			Hidden:      true,
