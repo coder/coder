@@ -19,7 +19,7 @@ func TestBuildProviders(t *testing.T) {
 
 	t.Run("EmptyConfig", func(t *testing.T) {
 		t.Parallel()
-		providers, err := buildProviders(codersdk.AIBridgeConfig{})
+		providers, err := BuildProviders(codersdk.AIBridgeConfig{})
 		require.NoError(t, err)
 		assert.Empty(t, providers)
 	})
@@ -30,7 +30,7 @@ func TestBuildProviders(t *testing.T) {
 		cfg.LegacyOpenAI.Key = serpent.String("sk-openai")
 		cfg.LegacyAnthropic.Key = serpent.String("sk-anthropic")
 
-		providers, err := buildProviders(cfg)
+		providers, err := BuildProviders(cfg)
 		require.NoError(t, err)
 
 		names := providerNames(providers)
@@ -59,7 +59,7 @@ func TestBuildProviders(t *testing.T) {
 			},
 		}
 
-		providers, err := buildProviders(cfg)
+		providers, err := BuildProviders(cfg)
 		require.NoError(t, err)
 
 		names := providerNames(providers)
@@ -77,7 +77,7 @@ func TestBuildProviders(t *testing.T) {
 		}
 		cfg.LegacyOpenAI.Key = serpent.String("sk-legacy")
 
-		_, err := buildProviders(cfg)
+		_, err := BuildProviders(cfg)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "conflicts with indexed provider")
 	})
@@ -91,7 +91,7 @@ func TestBuildProviders(t *testing.T) {
 		}
 		cfg.LegacyAnthropic.Key = serpent.String("sk-legacy")
 
-		_, err := buildProviders(cfg)
+		_, err := BuildProviders(cfg)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "conflicts with indexed provider")
 	})
@@ -106,7 +106,7 @@ func TestBuildProviders(t *testing.T) {
 		cfg.LegacyOpenAI.Key = serpent.String("sk-openai")
 		cfg.LegacyAnthropic.Key = serpent.String("sk-anthropic")
 
-		providers, err := buildProviders(cfg)
+		providers, err := BuildProviders(cfg)
 		require.NoError(t, err)
 
 		names := providerNames(providers)
@@ -123,7 +123,7 @@ func TestBuildProviders(t *testing.T) {
 		cfg.LegacyBedrock.AccessKey = serpent.String("AKID")
 		cfg.LegacyBedrock.AccessKeySecret = serpent.String("secret")
 
-		providers, err := buildProviders(cfg)
+		providers, err := BuildProviders(cfg)
 		require.NoError(t, err)
 
 		names := providerNames(providers)
@@ -139,7 +139,7 @@ func TestBuildProviders(t *testing.T) {
 		cfg.LegacyBedrock.AccessKey = serpent.String("AKID")
 		cfg.LegacyBedrock.AccessKeySecret = serpent.String("secret")
 
-		providers, err := buildProviders(cfg)
+		providers, err := BuildProviders(cfg)
 		require.NoError(t, err)
 		require.Len(t, providers, 1)
 
@@ -156,7 +156,7 @@ func TestBuildProviders(t *testing.T) {
 			},
 		}
 
-		_, err := buildProviders(cfg)
+		_, err := BuildProviders(cfg)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "unknown provider type")
 	})
@@ -173,7 +173,7 @@ func TestBuildProviders(t *testing.T) {
 			},
 		}
 
-		providers, err := buildProviders(cfg)
+		providers, err := BuildProviders(cfg)
 		require.NoError(t, err)
 		require.Len(t, providers, 3)
 
@@ -195,7 +195,7 @@ func TestBuildProviders(t *testing.T) {
 			},
 		}
 
-		providers, err := buildProviders(cfg)
+		providers, err := BuildProviders(cfg)
 		require.NoError(t, err)
 		require.Len(t, providers, 1)
 
@@ -210,74 +210,4 @@ func providerNames(providers []aibridge.Provider) []string {
 		names[i] = p.Name()
 	}
 	return names
-}
-
-func TestDomainsFromProviders(t *testing.T) {
-	t.Parallel()
-
-	t.Run("ExtractsHostnames", func(t *testing.T) {
-		t.Parallel()
-
-		providers, err := buildProviders(codersdk.AIBridgeConfig{
-			Providers: []codersdk.AIProviderConfig{
-				{Type: aibridge.ProviderOpenAI, Name: "openai", Keys: []string{"k"}},
-				{Type: aibridge.ProviderAnthropic, Name: "anthropic", Keys: []string{"k"}},
-				{Type: aibridge.ProviderOpenAI, Name: "custom", Keys: []string{"k"}, BaseURL: "https://custom-llm.example.com:8443/api"},
-			},
-		})
-		require.NoError(t, err)
-
-		domains, mapping := domainsFromProviders(providers)
-
-		assert.Contains(t, domains, "api.openai.com")
-		assert.Contains(t, domains, "api.anthropic.com")
-		assert.Contains(t, domains, "custom-llm.example.com")
-
-		assert.Equal(t, "openai", mapping("api.openai.com"))
-		assert.Equal(t, "anthropic", mapping("api.anthropic.com"))
-		assert.Equal(t, "custom", mapping("custom-llm.example.com"))
-		assert.Empty(t, mapping("unknown.com"))
-	})
-
-	t.Run("DeduplicatesSameHost", func(t *testing.T) {
-		t.Parallel()
-
-		providers, err := buildProviders(codersdk.AIBridgeConfig{
-			Providers: []codersdk.AIProviderConfig{
-				{Type: aibridge.ProviderOpenAI, Name: "first", Keys: []string{"k"}, BaseURL: "https://api.example.com/v1"},
-				{Type: aibridge.ProviderOpenAI, Name: "second", Keys: []string{"k"}, BaseURL: "https://api.example.com/v2"},
-			},
-		})
-		require.NoError(t, err)
-
-		domains, mapping := domainsFromProviders(providers)
-
-		// Count occurrences of api.example.com.
-		count := 0
-		for _, d := range domains {
-			if d == "api.example.com" {
-				count++
-			}
-		}
-		assert.Equal(t, 1, count)
-		// First provider wins.
-		assert.Equal(t, "first", mapping("api.example.com"))
-	})
-
-	t.Run("CaseInsensitive", func(t *testing.T) {
-		t.Parallel()
-
-		providers, err := buildProviders(codersdk.AIBridgeConfig{
-			Providers: []codersdk.AIProviderConfig{
-				{Type: aibridge.ProviderOpenAI, Name: "provider", Keys: []string{"k"}, BaseURL: "https://API.Example.COM/v1"},
-			},
-		})
-		require.NoError(t, err)
-
-		domains, mapping := domainsFromProviders(providers)
-
-		assert.Contains(t, domains, "api.example.com")
-		assert.Equal(t, "provider", mapping("API.Example.COM"))
-		assert.Equal(t, "provider", mapping("api.example.com"))
-	})
 }

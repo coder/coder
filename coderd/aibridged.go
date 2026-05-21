@@ -11,12 +11,21 @@ import (
 	"storj.io/drpc/drpcserver"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/aibridged"
+	aibridgedproto "github.com/coder/coder/v2/coderd/aibridged/proto"
+	"github.com/coder/coder/v2/coderd/aibridgedserver"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
-	"github.com/coder/coder/v2/enterprise/aibridged"
-	aibridgedproto "github.com/coder/coder/v2/enterprise/aibridged/proto"
-	"github.com/coder/coder/v2/enterprise/aibridgedserver"
 )
+
+// GetAIBridgedHandler returns the in-memory aibridge HTTP handler set by
+// [API.RegisterInMemoryAIBridgedHTTPHandler], or nil if the daemon has not
+// been wired in. Used by the enterprise /api/v2/aibridge route (license-gated)
+// to forward requests into the same in-memory handler that chatd dispatches
+// to in-process.
+func (api *API) GetAIBridgedHandler() http.Handler {
+	return api.aibridgedHandler
+}
 
 // RegisterInMemoryAIBridgedHTTPHandler mounts [aibridged.Server]'s HTTP router onto
 // [API]'s router, so that requests to aibridged will be relayed from Coder's API server
@@ -48,7 +57,7 @@ func (api *API) CreateInMemoryAIBridgeServer(dialCtx context.Context) (client ai
 
 	mux := drpcmux.New()
 	srv, err := aibridgedserver.NewServer(api.ctx, api.Database, api.Logger.Named("aibridgedserver"),
-		api.AccessURL.String(), api.DeploymentValues.AI.BridgeConfig, api.ExternalAuthConfigs, api.AGPL.Experiments, api.aiSeatTracker)
+		api.AccessURL.String(), api.DeploymentValues.AI.BridgeConfig, api.ExternalAuthConfigs, api.Experiments, api.AISeatTracker)
 	if err != nil {
 		return nil, err
 	}
@@ -78,11 +87,11 @@ func (api *API) CreateInMemoryAIBridgeServer(dialCtx context.Context) (client ai
 	// in-mem pipes aren't technically "websockets" but they have the same properties as far as the
 	// API is concerned: they are long-lived connections that we need to close before completing
 	// shutdown of the API.
-	api.AGPL.WebsocketWaitMutex.Lock()
-	api.AGPL.WebsocketWaitGroup.Add(1)
-	api.AGPL.WebsocketWaitMutex.Unlock()
+	api.WebsocketWaitMutex.Lock()
+	api.WebsocketWaitGroup.Add(1)
+	api.WebsocketWaitMutex.Unlock()
 	go func() {
-		defer api.AGPL.WebsocketWaitGroup.Done()
+		defer api.WebsocketWaitGroup.Done()
 		// Here we pass the background context, since we want the server to keep serving until the
 		// client hangs up. The aibridged is local, in-mem, so there isn't a danger of losing contact with it and
 		// having a dead connection we don't know the status of.

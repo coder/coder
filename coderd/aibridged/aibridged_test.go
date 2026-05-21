@@ -19,10 +19,10 @@ import (
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
+	"github.com/coder/coder/v2/coderd/aibridged"
+	mock "github.com/coder/coder/v2/coderd/aibridged/aibridgedmock"
+	"github.com/coder/coder/v2/coderd/aibridged/proto"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/enterprise/aibridged"
-	mock "github.com/coder/coder/v2/enterprise/aibridged/aibridgedmock"
-	"github.com/coder/coder/v2/enterprise/aibridged/proto"
 	"github.com/coder/coder/v2/testutil"
 )
 
