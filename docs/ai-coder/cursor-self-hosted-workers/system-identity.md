@@ -17,7 +17,8 @@ service account, fleet-wide.
 >
 > **Worker Pool runs every session under a shared bot identity.**
 > Per-user identity on a shared warm pool is not shippable today; see
-> [User Identity: status](./user-identity.md) for the live-validated
+> [User identity on a shared pool](./concepts/user-identity.md) for the
+> live-validated
 > reasons and what would unblock it. If you need per-user identity
 > right now, use [Personal Workers](./personal-workers.md): one
 > Coder workspace per user, the user's own Cursor key, full per-user
@@ -41,14 +42,13 @@ image, network, and rotate the fleet the same way they would any other
 internal service.
 
 > [!NOTE]
-> **Dynamic per-session sizing is on the roadmap.** Today, the pool
-> size is a fixed `instances = N` per preset. A future Coder release
-> will scale pool size in response to Cursor's pending-request signal,
-> so workspaces spawn on demand instead of being pre-provisioned. The
-> template you publish today is the foundation; dynamic sizing turns
-> on without re-authoring the recipe. See
-> [User Identity](./user-identity.md) for the related per-user claim
-> work.
+> **The pool size is the prebuild count today.** Set `instances = N`
+> on the preset's `prebuilds` block and Coder keeps that many warm
+> workspaces ready. For bursty load, layer an external autoscaler on
+> top: see
+> [Autoscaling the Worker Pool](./concepts/autoscaling.md) for the
+> router pattern that reads Cursor's fleet API and creates ad-hoc
+> workspaces beyond the prebuild baseline.
 
 ## Limitations
 
@@ -75,7 +75,7 @@ Read these first; the rest of this page assumes they fit your team.
   pool.
 
 If the second is a blocker for your team, wait for
-[User identity](./user-identity.md).
+[User identity](./concepts/user-identity.md).
 
 ## What you build in this guide
 
@@ -117,7 +117,7 @@ human. This is intentional:
 
 If you need per-user git attribution, audit log entries attributed to
 the human, or to lift the push block, see
-[User identity](./user-identity.md).
+[User identity](./concepts/user-identity.md).
 
 > [!NOTE]
 > Today the synthetic `prebuilds` service account owns the warm
@@ -449,7 +449,7 @@ tail -f ~/cursor-agent.log
 |------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Prebuilds never come up                              | Confirm your deployment is on **Coder Premium** (prebuilds is an enterprise feature). Check `coder server` logs for `prebuilds` errors.                                                                                                                                                                                |
 | Workers appear in Cursor but never get claimed       | The `git_repo_url` parameter doesn't match the repo a developer is asking for. Cursor's routing only matches a session to a worker whose `repo=` label is the same repo. Create a preset per repo.                                                                                                                     |
-| `git push` fails with "Permission denied"            | Expected. System identity blocks pushes on purpose. Sessions can read, search, and propose diffs; pull requests are not supported until [User identity](./user-identity.md).                                                                                                                                           |
+| `git push` fails with "Permission denied"            | Expected. System identity blocks pushes on purpose. Sessions can read, search, and propose diffs; pull requests are not supported until [User identity](./concepts/user-identity.md).                                                                                                                                           |
 | Worker process is `stopped` but workspace is healthy | `cursor-agent worker start` exited. Tail `~/cursor-agent.log` for the reason. Common causes: invalid `--worker-dir` (not a git repo), service-account key revoked, network egress to `api.cursor.com` blocked.                                                                                                         |
 | Same worker keeps getting claimed                    | Cursor's routing matches by label, not by recency. If you have one preset of `instances = 1`, every session for that repo goes to the same workspace until it's busy. Bump `instances` for parallel sessions. The ordering between multiple matching workers isn't documented; don't depend on a specific tie-breaker. |
 
@@ -459,7 +459,9 @@ tail -f ~/cursor-agent.log
   developer with per-user identity. The path for Cursor Team plans, or
   for users on Enterprise who want their own machines alongside the
   shared pool.
-- [User Identity](./user-identity.md): per-developer attribution on
+- [Autoscaling the Worker Pool](./concepts/autoscaling.md): scale the
+  pool size with a router that watches Cursor's fleet API.
+- [User Identity](./concepts/user-identity.md): per-developer attribution on
   Worker Pool. Planned; not yet available.
-- [Implementation Notes](./plan.md): the staged plan and open questions
+- [Implementation Notes](./concepts/implementation-notes.md): the staged plan and open questions
   tracked alongside this delivery.

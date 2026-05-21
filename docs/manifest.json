@@ -1096,22 +1096,36 @@
 							"state": ["early access"]
 						},
 						{
-							"title": "User Identity (planned)",
-							"description": "Per-developer attribution on Worker Pool. Not yet available.",
-							"path": "./ai-coder/cursor-self-hosted-workers/user-identity.md",
-							"state": ["early access"]
-						},
-						{
-							"title": "Implementation Notes",
-							"description": "Design history, sub-stages, and open questions tracked alongside the delivery.",
-							"path": "./ai-coder/cursor-self-hosted-workers/plan.md",
-							"state": ["early access"]
-						},
-						{
-							"title": "AI Governance Integration",
-							"description": "Notes on AI Gateway and AI Governance Add-on coverage for Cursor self-hosted workers.",
-							"path": "./ai-coder/cursor-self-hosted-workers/ai-governance.md",
-							"state": ["early access"]
+							"title": "Concepts",
+							"description": "Designs, autoscaling pattern, and open questions for advanced or experimental setups.",
+							"path": "./ai-coder/cursor-self-hosted-workers/concepts/index.md",
+							"state": ["early access"],
+							"children": [
+								{
+									"title": "Autoscaling the Worker Pool",
+									"description": "Router that watches Cursor's fleet API and scales Coder workspaces on top of the prebuild baseline.",
+									"path": "./ai-coder/cursor-self-hosted-workers/concepts/autoscaling.md",
+									"state": ["early access"]
+								},
+								{
+									"title": "User identity on a shared pool",
+									"description": "Why per-user attribution on the shared Worker Pool isn't shippable today and what would unblock it.",
+									"path": "./ai-coder/cursor-self-hosted-workers/concepts/user-identity.md",
+									"state": ["early access"]
+								},
+								{
+									"title": "AI Governance integration",
+									"description": "How the two worker-identity paths interact with Coder AI Gateway today.",
+									"path": "./ai-coder/cursor-self-hosted-workers/concepts/ai-governance.md",
+									"state": ["early access"]
+								},
+								{
+									"title": "Implementation notes",
+									"description": "Staged plan, open questions for Coder and Cursor, and design history.",
+									"path": "./ai-coder/cursor-self-hosted-workers/concepts/implementation-notes.md",
+									"state": ["early access"]
+								}
+							]
 						}
 					]
 				},

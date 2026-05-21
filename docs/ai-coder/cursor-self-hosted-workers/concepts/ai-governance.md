@@ -1,15 +1,15 @@
 # AI Governance integration (notes)
 
 This page is an addendum to the
-[Cursor self-hosted workers on Coder](./index.md) recipe. It captures
-how the worker could plug into Coder's [AI Gateway](../ai-gateway/index.md)
+[Cursor self-hosted workers on Coder](../index.md) recipe. It captures
+how the worker could plug into Coder's [AI Gateway](../../ai-gateway/index.md)
 (formerly "AI Bridge") and the
-[AI Governance Add-on](../ai-governance.md), what works today, what
+[AI Governance Add-on](../../ai-governance.md), what works today, what
 doesn't, and what would have to ship to close the gap.
 
 > [!NOTE]
 > AI Gateway is not usable today against the
-> [System identity](./system-identity.md) recipe; the structural
+> [System identity](../system-identity.md) recipe; the structural
 > reasons are in
 > [The Cursor architecture mismatch](#the-cursor-architecture-mismatch)
 > and the
@@ -37,7 +37,7 @@ LLM calls a Cursor self-hosted worker session makes. The coverage
 question moves to Cursor's session log and Coder's audit log, not AI
 Gateway. The desktop Cursor client is separately not supported by AI
 Gateway today (the OpenAI base-URL override is broken upstream); see
-[AI Gateway client compatibility](../ai-gateway/clients/index.md) for
+[AI Gateway client compatibility](../../ai-gateway/clients/index.md) for
 the canonical list.
 
 ## The Cursor architecture mismatch
@@ -79,7 +79,7 @@ The model-provider call lives one network boundary further out, inside
 Cursor's cloud. You cannot put Coder's AI Gateway between Cursor's
 backend and Anthropic from inside a Coder workspace.
 
-The optional [`aibridgeproxyd`](../ai-gateway/setup.md) MITM proxy is
+The optional [`aibridgeproxyd`](../../ai-gateway/setup.md) MITM proxy is
 also a dead end here. Its supported route set
 (`coderd/aibridge`-side) rewrites known Anthropic / OpenAI / GitHub
 Copilot hosts; it does not rewrite traffic to `api2.cursor.sh`, and
@@ -91,7 +91,7 @@ This is structurally different from the
 [Claude Code self-hosted runner recipe][claude-recipe], where the
 session's child `claude` process makes Anthropic API calls directly
 from inside the workspace. For Claude, AI Gateway's
-[Claude Code client preset](../ai-gateway/clients/claude-code.md) is a
+[Claude Code client preset](../../ai-gateway/clients/claude-code.md) is a
 one-liner away from working; for Cursor self-hosted workers, the
 client preset has nothing to point at.
 
@@ -100,7 +100,7 @@ client preset has nothing to point at.
 ## Per-human attribution gap
 
 Even setting the architecture mismatch aside, the
-[System identity](./system-identity.md) recipe hits the same
+[System identity](../system-identity.md) recipe hits the same
 identity-side blocker the Claude recipe documents.
 
 AI Gateway authenticates each request by looking up the API token in
@@ -160,7 +160,7 @@ A common follow-up question is whether AI Gateway can at least cover
 the developer's **desktop Cursor client** that triggers the Background
 Agent session in the first place.
 
-Today, no. [AI Gateway's client compatibility table](../ai-gateway/clients/index.md)
+Today, no. [AI Gateway's client compatibility table](../../ai-gateway/clients/index.md)
 lists Cursor as not supported across all three providers (Anthropic,
 OpenAI, Bedrock) and links to the upstream Cursor issue: the OpenAI
 base URL override doesn't direct requests to the configured endpoint.
@@ -228,7 +228,7 @@ billable AI Gateway events today, on either Premium or the add-on.
 ## "AI Gateway" vs. "AI Bridge" vs. `aibridge`
 
 These are all the same component. The user-facing rename is documented
-in [the AI Gateway overview](../ai-gateway/index.md):
+in [the AI Gateway overview](../../ai-gateway/index.md):
 
 > AI Gateway was previously known as "AI Bridge". Some configuration
 > options, environment variables, and API paths still use the old
@@ -241,7 +241,7 @@ is changing in the near term.
 
 ## What to do today, what to wait for
 
-For a team running [System identity](./system-identity.md) today and
+For a team running [System identity](../system-identity.md) today and
 asking about AI Governance coverage:
 
 - **Don't try to point worker traffic at AI Gateway.** There is no env
@@ -258,12 +258,12 @@ asking about AI Governance coverage:
   own model calls (a per-session wrapper hook with provider routing
   control, similar to Claude Code's `--exec-path`), there is nothing
   to point AI Gateway at from a Coder workspace. The
-  [implementation notes](./plan.md) track this as an open question
+  [implementation notes](./implementation-notes.md) track this as an open question
   for Cursor.
 - **AI Gateway coverage for desktop Cursor waits on Cursor's
   upstream OpenAI base URL fix.** Track [the Cursor forum issue][cursor-base-url-issue].
   Once it lands, the standard "Configuring External and Desktop
-  Clients" path in the [AI Gateway client docs](../ai-gateway/clients/index.md)
+  Clients" path in the [AI Gateway client docs](../../ai-gateway/clients/index.md)
   applies to Cursor.
 
 [cursor-base-url-issue]: https://forum.cursor.com/t/requests-are-sent-to-incorrect-endpoint-when-using-base-url-override/144894
@@ -273,13 +273,13 @@ of those Cursor-side changes lands.
 
 ## References
 
-- [Cursor self-hosted workers (overview)](./index.md)
-- [System identity](./system-identity.md)
+- [Cursor self-hosted workers (overview)](../index.md)
+- [System identity](../system-identity.md)
 - [User identity](./user-identity.md)
-- [Implementation notes](./plan.md)
-- [AI Gateway overview](../ai-gateway/index.md)
-- [AI Gateway client compatibility](../ai-gateway/clients/index.md)
-- [AI Gateway audit](../ai-gateway/audit.md)
-- [AI Governance](../ai-governance.md)
+- [Implementation notes](./implementation-notes.md)
+- [AI Gateway overview](../../ai-gateway/index.md)
+- [AI Gateway client compatibility](../../ai-gateway/clients/index.md)
+- [AI Gateway audit](../../ai-gateway/audit.md)
+- [AI Governance](../../ai-governance.md)
 - [Cursor Self-Hosted Pool docs](https://cursor.com/docs/cloud-agent/self-hosted-pool)
 - [Cursor Security and network docs](https://cursor.com/docs/cloud-agent/security-network)

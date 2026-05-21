@@ -1,371 +1,125 @@
 # Personal Workers
 
-Personal Workers is the per-developer path: each developer runs one
-Coder workspace with the Cursor worker started under **their own**
-personal Cursor API key. The workspace, the worker, the git push
-credential, and the worker's Cursor identity are the developer
-themselves. Per-user identity end to end.
+A Personal Worker is one Coder workspace per developer, running one
+[Cursor self-hosted](https://cursor.com/docs/cloud-agent/my-machines.md)
+worker that's registered to that developer's Cursor account. The
+worker shows up in the developer's own
+[cloud agents dashboard](https://cursor.com/agents), and only their
+sessions route to it. No service account, no shared pool.
 
-If you're on a Cursor Team plan, or want per-user identity today
-without a Cursor Enterprise contract, this is the recipe.
+If you're on Cursor Team or above and you want a per-developer
+self-hosted setup that takes ten minutes to ship, this is the page.
 
-<img src="../../images/guides/cursor-self-hosted-workers/user-identity-flow.svg" alt="Each developer creates a Coder workspace owned by themselves with their personal Cursor API key. The worker registers as their personal machine. Sessions launch from cursor.com or programmatically via POST /v1/agents with env.type=machine targeting the worker by name. Per-user attribution is end to end: workspace owner, git push via Coder external auth, audit log, and Cursor session log all the human." />
-
-For an admin-operated central pool, see [Worker Pool](./system-identity.md).
-
-> [!IMPORTANT]
-> Personal Workers register as **personal machines** in Cursor, not as
-> pool workers. Each developer triggers their sessions with `worker=`
-> or `machine=` from Slack, GitHub, Linear, or the Cloud Agents
-> dashboard. There is no shared inventory; Alice's workers don't serve
+> [!NOTE]
+> Personal Workers register as **My Machines** workers in Cursor, not
+> as pool workers. Sessions reach them via the cursor.com environment
+> picker or `worker=<name>` / `machine=<name>` from Slack, GitHub, or
+> Linear. There's no shared inventory; Alice's workers don't serve
 > Bob's sessions.
 
-## When to use this
+## What developers do
 
-- **Cursor Team plan** (or any plan; Worker Pool requires Enterprise).
-- **You want per-user identity today.** Workspace owner is the human,
-  Coder external auth wires their git push token, audit log attributes
-  to them, the worker registers in Cursor under their identity.
-- **You want each developer to manage their own capacity.** No central
-  pool sizing problem.
+1. Generate a personal Cursor API key at
+   [cursor.com/dashboard](https://cursor.com/dashboard) under
+   Integrations → API Keys.
+2. Create a new workspace from the `cursor-personal-worker` template
+   in Coder.
+3. Paste the API key into the workspace parameter.
+4. Wait for the workspace to start. The worker registers itself
+   automatically.
+5. Go to [cursor.com/agents](https://cursor.com/agents), pick the new
+   machine from the environment dropdown, submit a session.
 
-## Limitations
+That's it. The worker stays connected as long as the workspace is
+running. Cursor's idle-release timeout exits the worker process after
+8h of no work; restarting the workspace re-registers it.
 
-- **One workspace = one user = one repo.** Standard 1:1:1; same as
-  Worker Pool, with personal ownership.
-- **No shared pool, no warm-start across users.** Each developer pays
-  the workspace cold-start cost on first use of the day. Coder workspace
-  auto-start hides this for active workspaces; only the first session
-  of the day is slow.
-- **Each user owns their Cursor API key.** Generated at
-  `cursor.com/dashboard/integrations`. Rotation is the developer's
-  responsibility, not the platform team's.
-- **Up to 10 personal workers per user, 50 per team.** Cursor's
-  self-hosted ceiling. Rarely a constraint with one workspace per repo.
+## Template
 
-## Identity model
-
-| Layer              | Identity                                                |
-|--------------------|---------------------------------------------------------|
-| Coder workspace    | Owned by the developer                                  |
-| Git author         | The developer                                           |
-| Git push           | Enabled via Coder external auth                         |
-| Cursor worker      | Authenticated with the developer's personal API key     |
-| Coder audit log    | Attributes to the developer                             |
-| Per-session signal | `activeBcId` in Cursor's fleet API, same as Worker Pool |
-
-## Prerequisites
-
-- A Coder deployment, OSS or Premium.
-- Each developer:
-  - A Cursor account on Team plan or higher.
-  - A personal API key created at `cursor.com/dashboard/integrations`.
-- A workspace base image that can install `cursor-agent`. You can
-  share one base image with Worker Pool if you run both.
-- Outbound HTTPS access from the workspace to `api.cursor.com`.
-
-## Step 1: Each developer creates a Cursor personal API key
-
-Each developer follows this once:
-
-1. Sign in to `cursor.com`.
-2. Go to **Dashboard > Integrations**.
-3. Create a new API key. Copy the value; it is shown once.
-
-## Step 2: Bake the `cursor-agent` binary into a workspace image
-
-Identical to the [Worker Pool image step](./system-identity.md#step-2-bake-the-cursor-agent-binary-into-a-workspace-image).
-You can share one base image between both recipes; only the template
-configuration differs.
-
-## Step 3: Publish the Coder template
-
-The template defines:
-
-- A workspace that runs `cursor-agent worker start` from
-  `coder_agent.startup_script` with the developer's personal API key.
-- One **per-workspace parameter** (not a template variable) for the
-  Cursor API key. Each developer pastes their own when they create the
-  workspace.
-- One parameter for the git repo URL.
-- `coder_agent.metadata` blocks that surface worker process state.
-
-The key difference from Worker Pool: the Cursor API key is a
-**per-workspace parameter** so each developer's workspace runs under
-their own identity, not a single sensitive template variable shared
-fleet-wide.
+A minimal template lives at
+[`examples/cursor-personal-worker/main.tf`](./examples/cursor-personal-worker/main.tf).
+The shape is:
 
 ```hcl
-terraform {
-  required_providers {
-    coder  = { source = "coder/coder" }
-    docker = { source = "kreuzwerker/docker" }
-  }
-}
-
-data "coder_provisioner"     "me" {}
-data "coder_workspace"       "me" {}
-data "coder_workspace_owner" "me" {}
-
 data "coder_parameter" "cursor_api_key" {
-  name         = "cursor_api_key"
+  name        = "cursor_api_key"
   display_name = "Cursor personal API key"
-  description  = "Generate at cursor.com/dashboard/integrations. Stored encrypted on the workspace."
-  type         = "string"
-  mutable      = true
+  description = "Generate from cursor.com/dashboard -> Integrations -> API Keys."
+  type        = "string"
+  mutable     = true
 }
 
 data "coder_parameter" "git_repo_url" {
-  name         = "git_repo_url"
-  display_name = "Git Repository URL"
-  description  = "Repository this worker serves."
-  type         = "string"
-  default      = "https://github.com/your-org/your-repo"
-  mutable      = false
+  name        = "git_repo_url"
+  display_name = "Git repository URL"
+  default     = "https://github.com/your-org/your-repo"
+  type        = "string"
+  mutable     = false
 }
 
 resource "coder_agent" "main" {
-  arch = data.coder_provisioner.me.arch
-  os   = "linux"
-  dir  = "/home/coder"
-
   env = {
     CURSOR_API_KEY = data.coder_parameter.cursor_api_key.value
+    GIT_REPO_URL   = data.coder_parameter.git_repo_url.value
   }
 
   startup_script = <<-EOT
     set -eu
-    export PATH="/usr/local/bin:$PATH"
-
-    REPO_DIR="$HOME/workspace"
-    REPO_URL="${data.coder_parameter.git_repo_url.value}"
-    WORKER_LABEL="coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
-
-    if [ ! -d "$REPO_DIR/.git" ]; then
-      rm -rf "$REPO_DIR"
-      git clone "$REPO_URL" "$REPO_DIR"
-    else
-      cd "$REPO_DIR"
-      git remote set-url origin "$REPO_URL"
-      git fetch --prune origin
-      git reset --hard origin/HEAD
-      git clean -fd
+    export PATH="$HOME/.local/bin:$PATH"
+    if ! command -v cursor-agent >/dev/null; then
+      curl -fsSL https://cursor.com/install | bash
     fi
 
-    cd "$REPO_DIR"
+    REPO_DIR="$HOME/workspace"
+    if [ ! -d "$REPO_DIR/.git" ]; then
+      git clone "$GIT_REPO_URL" "$REPO_DIR"
+    fi
 
-    # The workspace owner is the human, so git push works via Coder
-    # external auth. No push block needed.
-
-    git config --global user.name  "${coalesce(data.coder_workspace_owner.me.full_name, data.coder_workspace_owner.me.name)}"
-    git config --global user.email "${data.coder_workspace_owner.me.email}"
-
-    cursor-agent \
-      --api-key "$CURSOR_API_KEY" \
-      worker \
-      --worker-dir         "$REPO_DIR" \
-      --management-addr    ":8080" \
-      --name               "$WORKER_LABEL" \
-      start >> "$HOME/cursor-agent.log" 2>&1
+    nohup cursor-agent --api-key "$CURSOR_API_KEY" worker \
+      --worker-dir "$REPO_DIR" \
+      --name "coder-${data.coder_workspace_owner.me.name}" \
+      start \
+      > "$HOME/cursor-agent.log" 2>&1 &
   EOT
-
-  metadata {
-    display_name = "CPU"
-    key          = "0_cpu"
-    script       = "coder stat cpu"
-    interval     = 10
-    timeout      = 1
-  }
-
-  metadata {
-    display_name = "RAM"
-    key          = "1_ram"
-    script       = "coder stat mem"
-    interval     = 10
-    timeout      = 1
-  }
-
-  metadata {
-    display_name = "Worker process"
-    key          = "2_worker_process"
-    interval     = 10
-    timeout      = 2
-    script       = <<-EOS
-      if pgrep -f "cursor-agent worker" > /dev/null 2>&1; then echo running
-      else echo stopped; fi
-    EOS
-  }
-
-  metadata {
-    display_name = "Ready (idle)"
-    key          = "3_ready"
-    interval     = 5
-    timeout      = 3
-    script       = <<-EOS
-      if curl -fsS -o /dev/null http://127.0.0.1:8080/readyz; then echo idle
-      else echo busy-or-starting; fi
-    EOS
-  }
-}
-
-resource "docker_volume" "home" {
-  name = "coder-${data.coder_workspace.me.id}-home"
-  lifecycle { ignore_changes = all }
-}
-
-resource "docker_image" "worker" {
-  name = "your-org/cursor-worker:latest"
-}
-
-resource "docker_container" "workspace" {
-  count    = data.coder_workspace.me.start_count
-  image    = docker_image.worker.name
-  name     = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
-  hostname = data.coder_workspace.me.name
-  user     = "coder"
-
-  entrypoint = ["sh", "-c", coder_agent.main.init_script]
-
-  env = ["CODER_AGENT_TOKEN=${coder_agent.main.token}"]
-
-  volumes {
-    container_path = "/home/coder"
-    volume_name    = docker_volume.home.name
-    read_only      = false
-  }
 }
 ```
 
-## Step 4: Push the template
+Notes:
 
-```bash
-coder templates push cursor-personal-worker --yes
-```
+- **No `--pool` flag.** Personal keys can't start pool workers; Cursor
+  rejects that combination. Workers started without `--pool` register
+  as My Machines workers, scoped to the key's owner.
+- **`--name` is the user's worker name.** It's what shows up in the
+  dropdown and what they reference in Slack or GitHub as
+  `worker=<name>`. Embedding the Coder workspace owner makes it
+  unique per developer.
+- **`cursor_api_key` is a mutable parameter, not a template variable.**
+  Each developer pastes their own key when they create their
+  workspace. The platform team doesn't see or store the keys.
 
-No template-level variables required; each developer provides their own
-key when they create a workspace.
+## Identity
 
-## Step 5: Each developer creates their workspace
+- **Workspace owner** = the developer (Coder).
+- **Git push identity** = the developer's git credential, wired
+  through [Coder external auth](../../admin/external-auth/index.md).
+- **Cursor worker identity** = the developer's Cursor account (via
+  their personal API key).
+- **Cursor session log** = sessions are attributed to the developer
+  who triggered them.
 
-```bash
-coder create my-cursor-worker \
-  --template cursor-personal-worker \
-  --parameter cursor_api_key=<their-personal-key> \
-  --parameter git_repo_url=https://github.com/your-org/your-repo
-```
+End to end, the human is the user of record on every surface.
 
-Or via the Coder web UI. Within a minute the workspace boots and
-registers a worker named `coder-alice-my-cursor-worker` in Alice's
-Cursor account.
+## Where it fits
 
-## Step 6: Trigger sessions
+- For an admin-operated shared pool (system identity, no per-user
+  attribution), use [Worker Pool](./system-identity.md).
+- For per-user identity on a *shared* pool, see
+  [User identity on a shared pool](./concepts/user-identity.md). This
+  is unshippable today; see that page for what would unblock it.
 
-From Slack, GitHub, or Linear, the developer includes `worker=` or
-`machine=` plus their worker name:
-
-- Slack: `@Cursor worker=coder-alice-my-cursor-worker fix the flaky test`
-- GitHub: `@cursoragent worker=coder-alice-my-cursor-worker fix the flaky test`
-- Linear: add `worker=coder-alice-my-cursor-worker` to the issue body.
-
-The trigger must come from the linked Cursor account; only the
-developer's own machines match.
-
-Or from the Cloud Agents dashboard: pick the named machine from the
-environment dropdown.
-
-### Programmatic session submission
-
-Any UI that can make an authenticated HTTP call to Cursor's API can
-launch a session on a developer's personal worker. This is what lets
-a Coder Tasks page, an internal Slack bot, or a one-click IDE button
-become the entrypoint instead of cursor.com.
-
-The call uses the developer's own personal API key (or a sub-token
-minted on their behalf), and targets their worker by name:
-
-```http
-POST https://api.cursor.com/v1/agents
-Authorization: Bearer <user's personal Cursor API key>
-Content-Type: application/json
-
-{
-  "env":    { "type": "machine", "name": "coder-alice-my-cursor-worker" },
-  "repos":  [{ "url": "github.com/your-org/your-repo", "startingRef": "main" }],
-  "prompt": { "text": "fix the flaky test" }
-}
-```
-
-The response contains the new agent's id and a `url` you can
-redirect the user to so they can monitor and reply to the session
-from cursor.com:
-
-```json
-{
-  "agent": {
-    "id":  "bc-c7166709-889a-4f4c-86a4-da5650e77d43",
-    "url": "https://cursor.com/agents/bc-c7166709-889a-4f4c-86a4-da5650e77d43",
-    "env": { "type": "machine", "name": "coder-alice-my-cursor-worker" },
-    "status": "ACTIVE",
-    "latestRunId": "run-..."
-  },
-  "run": { "id": "run-...", "status": "CREATING" }
-}
-```
-
-Caveats:
-
-- The API key in the `Authorization` header must belong to the
-  Cursor user whose personal machine you are targeting. Cursor
-  rejects cross-user targeting.
-- `env.type` accepts `cloud | pool | machine`. `machine` is what
-  targets a personal worker by name; the other two go to Cursor-
-  managed infra or a self-hosted pool, neither of which is per-
-  user.
-- The worker must be currently registered. If the Coder workspace
-  has auto-stopped, the agent run errors immediately. Start the
-  workspace first (Coder's API or `coder start`) and wait for the
-  worker to register before posting.
-
-## Operate
-
-### Logs
-
-`cursor-agent` writes to `~/cursor-agent.log` inside each workspace.
-Each developer tails their own.
-
-### Sizing
-
-There is no pool to size. Each developer adjusts their workspace
-resources via the template's resource block or per-workspace
-parameters.
-
-### Rotation
-
-Each developer rotates their own Cursor key:
-
-1. Generate a new key at `cursor.com/dashboard/integrations`.
-2. Update the workspace parameter via the Coder UI.
-3. Restart the workspace.
-
-### Upgrade `cursor-agent`
-
-Same as Worker Pool: bump the version in the image, rebuild, push the
-template. Existing workspaces upgrade on next restart.
-
-## Common pitfalls
-
-| Symptom                                                      | Cause and fix                                                                                                                                                                                                                                                       |
-|--------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `worker=<name>` request rejected with "different repository" | The developer asked Cursor to run on `worker=foo` but `foo` was started in a checkout of a different repo. Start a new workspace for the target repo.                                                                                                               |
-| Cursor UI doesn't show the worker                            | The personal API key in the workspace parameter doesn't match the Cursor account the developer triggers from. Confirm the same Cursor user owns both.                                                                                                               |
-| Request runs on Cursor-managed infra instead                 | The trigger didn't include `worker=<name>` or `machine=<name>`. These are the only triggers that target a personal machine. `self_hosted=true` and `pool=<name>` target Worker Pool, not personal machines.                                                         |
-| Multiple users want to share a workspace                     | Personal Workers is one-user-per-workspace by design. For shared inventory use [Worker Pool](./system-identity.md) (requires Cursor Enterprise).                                                                                                                    |
-| Worker stays connected after the developer logs off          | Set `coder stop` on a TTL via the template, or document the expectation that developers stop their workspaces when done. Personal Workers has no `--idle-release-timeout` analogue because there's no pool draining; the workspace lifetime is the worker lifetime. |
-
-## Where to next
+## Related
 
 - [Worker Pool](./system-identity.md): admin-operated central pool,
   requires Cursor Enterprise.
-- [AI Governance Integration](./ai-governance.md): how Personal Workers
-  affects AI Gateway coverage compared to Worker Pool.
-- [Implementation Notes](./plan.md): the staged plan and open questions.
+- Cursor [My Machines](https://cursor.com/docs/cloud-agent/my-machines.md)
+  documentation.

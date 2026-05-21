@@ -5,7 +5,7 @@ worker runs as **the developer who triggered it**, with that
 developer's git push credential, their Coder workspace owner, and
 their identity in Cursor's session log. The end goal is per-user
 attribution end to end with the warm, shared inventory shape of
-[Worker Pool](./system-identity.md).
+[Worker Pool](../system-identity.md).
 
 > [!IMPORTANT]
 > **The shared-pool variant of user identity is not shippable today
@@ -13,12 +13,12 @@ attribution end to end with the warm, shared inventory shape of
 > against the live Cursor API with a real `agent:*`-scoped service-
 > account key and a real personal API key. The recipe in this guide
 > for **per-user identity that ships today** is
-> [Personal Workers](./personal-workers.md).
+> [Personal Workers](../personal-workers.md).
 
 ## What we tried, and what blocks the pool shape
 
 The natural shape, copying the pool inventory model from
-[Worker Pool](./system-identity.md), would be:
+[Worker Pool](../system-identity.md), would be:
 
 1. A pool (`pool-user-claim`) holds warm Coder prebuilds that have
    **not** registered a Cursor worker.
@@ -77,18 +77,18 @@ coupling. The pool shape needs one of:
   workspace and register a worker on the user's behalf.
 
 Any one of these unblocks the design. None ship today. See
-[Open questions for Cursor](./plan.md#open-questions-for-cursor)
+[Open questions for Cursor](./implementation-notes.md#open-questions-for-cursor)
 for the gap detail.
 
 ## What ships today
 
 | You want                                                  | Use                                                              |
 |-----------------------------------------------------------|------------------------------------------------------------------|
-| Per-user identity, simple setup                           | [Personal Workers](./personal-workers.md)                        |
-| Fleet-wide bot identity, warm pool, autoscaled by Cursor  | [Worker Pool](./system-identity.md) (Cursor Enterprise required) |
+| Per-user identity, simple setup                           | [Personal Workers](../personal-workers.md)                        |
+| Fleet-wide bot identity, warm pool, autoscaled by Cursor  | [Worker Pool](../system-identity.md) (Cursor Enterprise required) |
 | Per-user identity **and** warm shared-pool inventory      | Not shippable yet, see above.                                    |
 
-[Personal Workers](./personal-workers.md) achieves the same per-user
+[Personal Workers](../personal-workers.md) achieves the same per-user
 attribution the pool design was aiming for:
 
 - Workspace owner: the human.
@@ -127,10 +127,10 @@ developer's personal worker without the user ever leaving Coder.
 
 ## Where to next
 
-- [Personal Workers](./personal-workers.md): the recipe that ships
+- [Personal Workers](../personal-workers.md): the recipe that ships
   today for per-user identity.
-- [Worker Pool](./system-identity.md): the recipe that ships today
+- [Worker Pool](../system-identity.md): the recipe that ships today
   for fleet-wide bot pools.
-- [Implementation notes](./plan.md): the staged plan and the open
+- [Implementation notes](./implementation-notes.md): the staged plan and the open
   questions for Cursor that gate the shared-pool user-identity
   shape.

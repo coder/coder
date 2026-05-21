@@ -142,7 +142,7 @@ you already use carry over:
 | Coder feature                                | What it does                                                              | Relationship to self-hosted workers                                                                                                                                                                                                            |
 |----------------------------------------------|---------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | [Coder Agents](../agents/index.md)           | Coder's own agent that runs in the control plane and talks to workspaces. | Independent. You can use both, or pick whichever fits per use case.                                                                                                                                                                            |
-| [AI Gateway](../ai-gateway/index.md)         | Egress proxy for LLM traffic with audit and policy.                       | **Not applicable today.** The worker doesn't make model-provider calls; the agent loop runs in Cursor's cloud, so there is no traffic for AI Gateway to intercept. See [AI Governance Integration](./ai-governance.md) for the full breakdown. |
+| [AI Gateway](../ai-gateway/index.md)         | Egress proxy for LLM traffic with audit and policy.                       | **Not applicable today.** The worker doesn't make model-provider calls; the agent loop runs in Cursor's cloud, so there is no traffic for AI Gateway to intercept. See [AI Governance Integration](./concepts/ai-governance.md) for the full breakdown. |
 | [Agent Firewall](../agent-firewall/index.md) | Process-level egress and command policy inside a workspace.               | Optional. Apply it to the worker workspace for extra guardrails on what sessions can reach or run.                                                                                                                                             |
 
 ## Two paths
@@ -166,7 +166,8 @@ network egress, centralized capacity planning.
   identity to attribute commits to. The per-human signal lives in
   Cursor's session log, keyed by the worker's `activeBcId`.
 - **Per-user identity on a shared pool is not shippable today.**
-  See [User Identity: status](./user-identity.md) for the live-
+  See [User identity on a shared pool](./concepts/user-identity.md)
+  for the live-
   validated reasons (UI visibility and pool dispatch are coupled on
   Cursor's side). The per-user path that ships is
   [Personal Workers](./personal-workers.md).
@@ -200,7 +201,7 @@ See [Personal Workers](./personal-workers.md) for the recipe.
 | Is on Cursor Enterprise and wants central admin control         | [Worker Pool](./system-identity.md)                         |
 | Is on Cursor Team plan                                          | [Personal Workers](./personal-workers.md)                   |
 | Wants per-user identity (git push, audit) today                 | [Personal Workers](./personal-workers.md)                   |
-| Wants Worker Pool with per-user identity                        | Use [Personal Workers](./personal-workers.md) today, watch [User Identity: status](./user-identity.md) for the shared-pool shape |
+| Wants Worker Pool with per-user identity                        | Use [Personal Workers](./personal-workers.md) today, watch [User identity on a shared pool](./concepts/user-identity.md) for the shared-pool shape |
 | Wants both (org-managed pool + power users on personal workers) | Both. They share the same image; only the template differs. |
 
 ## Where to next
@@ -209,9 +210,12 @@ See [Personal Workers](./personal-workers.md) for the recipe.
   requires Cursor Enterprise. Bot identity, label-routed.
 - [Personal Workers](./personal-workers.md): one workspace per
   developer, per-user identity, works on Cursor Team plan.
-- [User Identity: status](./user-identity.md): why per-user
+- [User identity on a shared pool](./concepts/user-identity.md): why per-user
   identity on a shared pool is not shippable today, and what would
   unblock it.
-- [AI Governance Integration](./ai-governance.md): how the two paths
+- [Autoscaling the Worker Pool](./concepts/autoscaling.md): a router
+  that watches Cursor's fleet API and scales workspaces on top of the
+  prebuild baseline.
+- [AI Governance Integration](./concepts/ai-governance.md): how the two paths
   affect Coder AI Gateway coverage.
-- [Implementation Notes](./plan.md): staged plan and open questions.
+- [Implementation notes](./concepts/implementation-notes.md): staged plan and open questions.

@@ -2,7 +2,7 @@
 
 This page captures the staged plan and the open questions behind the
 two customer-facing identity models. It is the place to look if you
-are evaluating the [System identity](./system-identity.md) recipe and
+are evaluating the [System identity](../system-identity.md) recipe and
 want to understand the trade-offs we accepted, or if you are tracking
 what blocks [User identity](./user-identity.md) from shipping.
 
@@ -122,7 +122,7 @@ who watches the pool.
 
 - A reader who has never seen Cursor private workers can stand up a
   working Coder template using only the
-  [System identity recipe](./system-identity.md) and a Cursor team
+  [System identity recipe](../system-identity.md) and a Cursor team
   service-account API key.
 - The reader uses only shipped Coder primitives. Where system identity
   hits a limitation in those primitives (the prebuilds service
@@ -138,7 +138,7 @@ who watches the pool.
 Two recipes that ship today, both validated end to end against the
 live Cursor API:
 
-- **[Personal Workers](./personal-workers.md)** for per-user
+- **[Personal Workers](../personal-workers.md)** for per-user
   identity. One Coder workspace per user, the user's own Cursor API
   key, no `--pool`. Per-user attribution end to end (workspace
   owner, git push via Coder external auth, Cursor session log,
@@ -146,7 +146,7 @@ live Cursor API:
   `POST /v1/agents { env: { type: machine, name } }` lets a Coder
   Tasks UI launch sessions on a developer's worker without the user
   leaving Coder.
-- **[Worker Pool](./system-identity.md)** for fleet-wide bot
+- **[Worker Pool](../system-identity.md)** for fleet-wide bot
   identity. Shared warm pool, every worker authenticates with the
   team service-account key.
 
@@ -338,7 +338,7 @@ the next incoming request to that worker immediately. There is no
 queue moment a router can observe.
 
 That is correct behavior for the fleet-bot pool case
-([Worker Pool](./system-identity.md)), where any free worker is fine
+([Worker Pool](../system-identity.md)), where any free worker is fine
 because they all share one identity. It breaks the shared-pool
 user-identity case, where the worker needs to be registered **for
 the requesting user** before the dispatch happens.
@@ -366,14 +366,14 @@ The unblock options Cursor could ship:
   to today's `env.type: machine` shape but driven from cursor.com.
 
 Any one of these is sufficient. Until one ships, per-user identity
-ships as [Personal Workers](./personal-workers.md) with a one-time
+ships as [Personal Workers](../personal-workers.md) with a one-time
 workspace setup per developer.
 
 ### `agent:*` scope (confirmed shipped, not used in the shipping recipes)
 
 The shipping recipes do not need `agent:*`-scoped service-account
-keys. [Worker Pool](./system-identity.md) uses the un-scoped team
-service-account key directly. [Personal Workers](./personal-workers.md)
+keys. [Worker Pool](../system-identity.md) uses the un-scoped team
+service-account key directly. [Personal Workers](../personal-workers.md)
 uses each developer's own personal API key.
 
 `agent:*` scope is what lets a key call `POST /v1/sub-tokens` to
@@ -391,8 +391,8 @@ and
 `You must use a team API key or service account to start a pool worker (--pool).`
 
 This is not a limitation the shipping recipes try to remove. Pool
-workers ([Worker Pool](./system-identity.md)) use the team SA key;
-personal workers ([Personal Workers](./personal-workers.md)) do not
+workers ([Worker Pool](../system-identity.md)) use the team SA key;
+personal workers ([Personal Workers](../personal-workers.md)) do not
 use `--pool` at all.
 
 If Cursor later supports per-user pool workers (e.g., a `--pool`
@@ -498,7 +498,7 @@ A worker-side hook that lets the operator mediate model calls (route
 them through an internal proxy, swap providers, redact prompts before
 they leave the workspace, etc.) would close this gap. Claude Code
 exposes the equivalent via `--exec-path` on the `claude` CLI, which is
-what the [Claude Code AI Gateway client preset](../ai-gateway/clients/claude-code.md)
+what the [Claude Code AI Gateway client preset](../../ai-gateway/clients/claude-code.md)
 relies on.
 
 Full treatment of why AI Gateway is structurally unreachable today is
