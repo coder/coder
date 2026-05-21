@@ -195,17 +195,35 @@ func (ru *ResourceUser) Get(r *http.Request, idStr string) (scim.Resource, error
 func (ru *ResourceUser) GetAll(r *http.Request, params scim.ListRequestParams) (scim.Page, error) {
 	ctx := r.Context()
 
-	users, err := ru.store.GetUsers(ctx, database.GetUsersParams{
-		OffsetOpt: int32(params.StartIndex - 1), //nolint:gosec
-		LimitOpt:  int32(params.Count),          //nolint:gosec
-	})
+	var qry database.GetUsersParams
+	if params.FilterValidator != nil {
+		var err error
+		qry, err = userQuery(params.FilterValidator.GetFilter())
+		if err != nil {
+			return scim.Page{}, scimErrors.ScimErrorBadRequest(fmt.Sprintf("invalid filter: %v", err))
+		}
+	}
+
+	qry.LimitOpt = int32(params.Count)           //nolint:gosec
+	qry.OffsetOpt = int32(params.StartIndex - 1) //nolint:gosec
+
+	if qry.LimitOpt <= 0 {
+		qry.LimitOpt = 100
+	}
+
+	users, err := ru.store.GetUsers(ctx, qry)
 	if err != nil {
 		return scim.Page{}, err
 	}
 
-	totalCount, err := ru.store.GetUserCount(ctx, false)
-	if err != nil {
-		return scim.Page{}, err
+	totalCount := int64(len(users))
+	if len(users) == int(qry.LimitOpt) {
+		// If the limit is not reached, that is the count
+		// TODO: If there is a query and the limit is reached, this is inaccurate.
+		totalCount, err = ru.store.GetUserCount(ctx, false)
+		if err != nil {
+			return scim.Page{}, err
+		}
 	}
 
 	resources := make([]scim.Resource, 0, len(users))
@@ -333,8 +351,16 @@ func (ru *ResourceUser) Patch(r *http.Request, idStr string, operations []scim.P
 				activeSet = ptr.Ref(false)
 			}
 		case "replace":
-			if m, ok := op.Value.(map[string]interface{}); ok {
-				// TODO: Should we log other unsupported operations or silently ignore them? For now, we ignore them.
+			// SCIM PATCH replace can come in two forms:
+			// 1. Path set: {"op":"replace","path":"active","value":false}
+			// 2. No path, value is a map: {"op":"replace","value":{"active":false}}
+			if op.Path != nil && op.Path.String() == "active" {
+				v, err := BooleanValue(op.Value)
+				if err != nil {
+					return scim.Resource{}, scimErrors.ScimErrorBadRequest(fmt.Sprintf("invalid boolean value for 'active' field: %v", op.Value))
+				}
+				activeSet = &v
+			} else if m, ok := op.Value.(map[string]interface{}); ok {
 				if actV, ok := m["active"]; ok {
 					v, err := BooleanValue(actV)
 					if err != nil {
