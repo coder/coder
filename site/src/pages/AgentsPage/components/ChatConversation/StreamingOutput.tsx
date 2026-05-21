@@ -1,15 +1,12 @@
 import type { FC } from "react";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
-import {
-	ConversationItem,
-	Message,
-	MessageContent,
-	Shimmer,
-} from "../ChatElements";
-import { TranscriptRow } from "../ChatElements/TranscriptRow";
+import { ConversationItem, Message, MessageContent } from "../ChatElements";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
-import { ChatStatusCallout } from "./ChatStatusCallout";
+import {
+	ChatStatusCallout,
+	ThinkingStatusPlaceholder,
+} from "./ChatStatusCallout";
 import { BlockList } from "./ConversationTimeline";
 import type { LiveStatusModel } from "./liveStatusModel";
 import type { MergedTool, RenderBlock, StreamState } from "./types";
@@ -27,21 +24,6 @@ const hasTransientLiveStatus = (liveStatus: LiveStatusModel): boolean =>
  */
 const hasTextOrReasoningBlock = (blocks: readonly RenderBlock[]): boolean =>
 	blocks.some((b) => b.type === "response" || b.type === "thinking");
-
-/**
- * Placeholder shown during streaming before text or reasoning
- * blocks arrive. Uses the same shimmer animation and typography
- * as the ChatStatusCallout status placeholder.
- */
-const StreamingThinkingPlaceholder: FC = () => (
-	<div data-transcript-row="" className="text-content-secondary">
-		<TranscriptRow className="w-full gap-2">
-			<Shimmer as="span" className="text-[13px] leading-relaxed">
-				Thinking
-			</Shimmer>
-		</TranscriptRow>
-	</div>
-);
 
 export const StreamingOutput: FC<{
 	streamState: StreamState | null;
@@ -109,7 +91,11 @@ export const StreamingOutput: FC<{
 								mcpServers={mcpServers}
 							/>
 						)}
-						{needsStreamingThinking && <StreamingThinkingPlaceholder />}
+						{needsStreamingThinking && (
+							<div data-transcript-row="">
+								<ThinkingStatusPlaceholder />
+							</div>
+						)}
 						{!needsStreamingThinking && hasTransientLiveStatus(liveStatus) && (
 							<ChatStatusCallout
 								status={liveStatus}

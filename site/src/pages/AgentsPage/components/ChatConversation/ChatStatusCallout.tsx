@@ -40,6 +40,10 @@ const StatusPlaceholder: FC<{
 	);
 };
 
+export const ThinkingStatusPlaceholder: FC = () => (
+	<StatusPlaceholder text={THINKING_TEXT} shimmer />
+);
+
 const StartingPlaceholder: FC = () => {
 	const [isDelayed, setIsDelayed] = useState(false);
 
@@ -50,11 +54,10 @@ const StartingPlaceholder: FC = () => {
 		return () => window.clearTimeout(timeout);
 	}, []);
 
-	return (
-		<StatusPlaceholder
-			text={isDelayed ? DELAYED_STARTUP_TEXT : THINKING_TEXT}
-			shimmer={!isDelayed}
-		/>
+	return isDelayed ? (
+		<StatusPlaceholder text={DELAYED_STARTUP_TEXT} />
+	) : (
+		<ThinkingStatusPlaceholder />
 	);
 };
 
@@ -202,14 +205,14 @@ export const ChatStatusCallout: FC<{
 			return (
 				<>
 					<StatusAlert status={status} />
-					<StatusPlaceholder text={THINKING_TEXT} shimmer />
+					<ThinkingStatusPlaceholder />
 				</>
 			);
 		case "reconnecting":
 			return (
 				<>
 					<ReconnectingAlert status={status} />
-					<StatusPlaceholder text={THINKING_TEXT} shimmer />
+					<ThinkingStatusPlaceholder />
 				</>
 			);
 		case "failed":
