@@ -16824,6 +16824,16 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
+                "parsed_commands": {
+                    "description": "ParsedCommands holds parsed programs from an execute tool call's\nshell command, one entry per simple command in source order. Each\nentry is [program] or [program, arg] where arg is the first non-flag\npositional argument. Only populated when ToolName is \"execute\" and\nthe command parses successfully; nil otherwise.",
+                    "type": "array",
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
                 "provider_executed": {
                     "description": "ProviderExecuted indicates the tool call was executed by\nthe provider (e.g. Anthropic computer use).",
                     "type": "boolean"

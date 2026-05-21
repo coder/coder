@@ -30,6 +30,7 @@ import {
 	formatShellDurationMs,
 	sanitizeExecuteModelIntent,
 	signalTooltipLabel,
+	summarizeParsedCommands,
 	type ToolStatus,
 } from "./utils";
 
@@ -42,6 +43,7 @@ type ExecuteToolProps = {
 	isBackgrounded?: boolean;
 	killedBySignal?: "kill" | "terminate";
 	modelIntent?: string;
+	parsedCommands?: readonly string[][];
 	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
 };
 
@@ -79,6 +81,7 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 	isBackgrounded = false,
 	killedBySignal,
 	modelIntent,
+	parsedCommands,
 	outputInitiallyOpen,
 }) => {
 	const hasCommand = command.trim().length > 0;
@@ -107,6 +110,7 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 					<ShellCommandLine
 						command={command}
 						modelIntent={modelIntent}
+						parsedCommands={parsedCommands}
 						durationLabel={durationLabel}
 						expanded={outputOpen}
 					/>
@@ -177,20 +181,25 @@ const ExecuteToolInner: React.FC<ExecuteToolInnerProps> = ({
 const ShellCommandLine: React.FC<{
 	command: string;
 	modelIntent?: string;
+	parsedCommands?: readonly string[][];
 	durationLabel: string;
 	expanded?: boolean;
-}> = ({ command, modelIntent, durationLabel, expanded }) => {
+}> = ({ command, modelIntent, parsedCommands, durationLabel, expanded }) => {
 	const intentLabel = sanitizeExecuteModelIntent(modelIntent, command);
+	const summary =
+		parsedCommands && parsedCommands.length > 0
+			? summarizeParsedCommands(parsedCommands)
+			: "";
+	const commandDisplay = summary || command;
 	return (
 		<>
 			<span className="block min-w-0 truncate text-[13px] font-normal text-current">
 				{intentLabel ? (
 					<>
-						{intentLabel} using{" "}
-						<code className="font-mono text-xs">{command}</code>
+						{intentLabel} using {commandDisplay}
 					</>
 				) : (
-					<>Ran {command}</>
+					<>Ran {commandDisplay}</>
 				)}
 			</span>
 			{durationLabel && (
