@@ -26,11 +26,11 @@ const statusConfig = {
 	completed: { icon: CheckIcon, className: "text-content-secondary" },
 } as const;
 
-export const getStatusConfig = (status: ChatStatus): ChatIconConfig => {
+const getStatusConfig = (status: ChatStatus): ChatIconConfig => {
 	return statusConfig[status] ?? statusConfig.completed;
 };
 
-export const getPRIconConfig = (
+const getPRIconConfig = (
 	diffStatus: ChatDiffStatus | undefined,
 ): ChatIconConfig | undefined => {
 	const state = diffStatus?.pull_request_state;
@@ -55,6 +55,35 @@ export const getPRIconConfig = (
 	return { icon: GitPullRequestArrowIcon, className: "text-git-added-bright" };
 };
 
-export const getChatDiffStatus = (chat: Chat): ChatDiffStatus | undefined => {
+const getChatDiffStatus = (chat: Chat): ChatDiffStatus | undefined => {
 	return chat.diff_status;
+};
+
+/**
+ * Returns the icon and styling that represents a chat's current state.
+ *
+ * Combines `getStatusConfig` and `getPRIconConfig`: when the chat is in a
+ * settled state (`waiting` or `completed`) and has a linked PR, the PR icon
+ * takes precedence so list rows surface the merge / closed / draft state
+ * instead of the generic status icon.
+ */
+export const getChatDisplayConfig = (
+	chat: Chat,
+): {
+	icon: LucideIcon;
+	className: string;
+	diffStatus: ChatDiffStatus | undefined;
+} => {
+	const diffStatus = getChatDiffStatus(chat);
+	const baseConfig = getStatusConfig(chat.status);
+	const prConfig =
+		chat.status === "waiting" || chat.status === "completed"
+			? getPRIconConfig(diffStatus)
+			: undefined;
+	const config = prConfig ?? baseConfig;
+	return {
+		icon: config.icon,
+		className: config.className,
+		diffStatus,
+	};
 };
