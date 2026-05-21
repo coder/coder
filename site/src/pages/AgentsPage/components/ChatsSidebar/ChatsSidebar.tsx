@@ -1,9 +1,8 @@
-import { type FC, useEffect, useState } from "react";
+import { type FC, useState } from "react";
 import { useQuery } from "react-query";
 import { useLocation, useParams } from "react-router";
 import { userChatProviderConfigs } from "#/api/queries/chats";
 import type { Chat, ChatModelConfig } from "#/api/typesGenerated";
-import { isMac } from "#/utils/platform";
 import type { ModelSelectorOption } from "../ChatElements";
 import { ChatsPanel } from "./chats/ChatsPanel";
 import { ChatSearchDialog, RenameChatDialog } from "./dialogs";
@@ -26,6 +25,8 @@ interface ChatsSidebarProps {
 	onRenameTitle?: (chatId: string, title: string) => Promise<void>;
 	onProposeTitle?: (chatId: string) => Promise<string>;
 	onBeforeNewAgent?: () => void;
+	isSearchDialogOpen: boolean;
+	onSearchDialogOpenChange: (open: boolean) => void;
 	isCreating: boolean;
 	isArchiving?: boolean;
 	archivingChatId?: string | null;
@@ -58,6 +59,8 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 		onRenameTitle,
 		onProposeTitle,
 		onBeforeNewAgent,
+		isSearchDialogOpen,
+		onSearchDialogOpenChange,
 		isCreating,
 		isArchiving = false,
 		archivingChatId = null,
@@ -98,36 +101,6 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 	const showApiKeysItem =
 		isAdmin || isApiKeysSection || Boolean(providerConfigsQuery.data?.length);
 	const [chatPendingRename, setChatPendingRename] = useState<Chat | null>(null);
-	const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(false);
-
-	useEffect(() => {
-		const handleKeyDown = (event: KeyboardEvent) => {
-			const target = event.target;
-			if (target instanceof HTMLElement) {
-				const tag = target.tagName;
-				if (tag === "INPUT" || tag === "TEXTAREA" || target.isContentEditable) {
-					return;
-				}
-			}
-
-			const isModifierPressed = isMac() ? event.metaKey : event.ctrlKey;
-
-			if (
-				!isModifierPressed ||
-				event.altKey ||
-				event.shiftKey ||
-				event.key.toLowerCase() !== "k"
-			) {
-				return;
-			}
-
-			event.preventDefault();
-			setIsSearchDialogOpen(true);
-		};
-
-		document.addEventListener("keydown", handleKeyDown);
-		return () => document.removeEventListener("keydown", handleKeyDown);
-	}, []);
 
 	return (
 		<div className="relative flex h-full w-full min-h-0 border-0 border-r border-solid overflow-hidden">
@@ -143,7 +116,7 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 				onUnpinAgent={onUnpinAgent}
 				onReorderPinnedAgent={onReorderPinnedAgent}
 				onBeforeNewAgent={onBeforeNewAgent}
-				onOpenSearchDialog={() => setIsSearchDialogOpen(true)}
+				onOpenSearchDialog={() => onSearchDialogOpenChange(true)}
 				onOpenRenameDialog={onRenameTitle ? setChatPendingRename : undefined}
 				isCreating={isCreating}
 				isArchiving={isArchiving}
@@ -175,7 +148,7 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 			/>
 			<ChatSearchDialog
 				open={isSearchDialogOpen}
-				onOpenChange={setIsSearchDialogOpen}
+				onOpenChange={onSearchDialogOpenChange}
 				location={location}
 			/>
 			{onRenameTitle && (

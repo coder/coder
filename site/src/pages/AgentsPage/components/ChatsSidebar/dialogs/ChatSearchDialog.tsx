@@ -21,6 +21,8 @@ type ChatSearchDialogProps = {
 	readonly location: Location;
 };
 
+const SEARCH_DEBOUNCE_MS = 500;
+
 export const ChatSearchDialog: FC<ChatSearchDialogProps> = ({
 	open,
 	onOpenChange,
@@ -33,9 +35,9 @@ export const ChatSearchDialog: FC<ChatSearchDialogProps> = ({
 	>(undefined);
 	const inputRef = useRef<HTMLInputElement | null>(null);
 	const listboxId = useId();
-	const debouncedInput = useDebouncedValue(inputValue, 500);
+	const debouncedInput = useDebouncedValue(inputValue, SEARCH_DEBOUNCE_MS);
 	const normalizedQuery = normalizeChatSearchInput(debouncedInput);
-	const hasQuery = normalizedQuery !== undefined;
+	const hasQuery = inputValue.trim() !== "" && normalizedQuery !== undefined;
 
 	const searchQuery = useQuery({
 		...chatSearch(normalizedQuery ?? ""),
@@ -80,7 +82,7 @@ export const ChatSearchDialog: FC<ChatSearchDialogProps> = ({
 			event.preventDefault();
 			setHighlightedChatIndex((previousIndex) => {
 				if (previousIndex === undefined || previousIndex >= resultCount) {
-					return 0;
+					return event.key === "ArrowUp" ? resultCount - 1 : 0;
 				}
 
 				if (event.key === "ArrowDown") {

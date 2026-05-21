@@ -45,6 +45,15 @@ describe("normalizeChatSearchInput", () => {
 		).toBe('archived:true title:"chat title fix"');
 	});
 
+	it("combines duplicate title filters into one title filter", () => {
+		expect(normalizeChatSearchInput("title:Fix title:Race")).toBe(
+			'title:"Fix Race"',
+		);
+		expect(
+			normalizeChatSearchInput('has_unread:true title:"chat title" title:Race'),
+		).toBe('has_unread:true title:"chat title Race"');
+	});
+
 	it("escapes quotes when converting bare text", () => {
 		expect(normalizeChatSearchInput('Fix "auth" middleware')).toBe(
 			'title:"Fix \\"auth\\" middleware"',

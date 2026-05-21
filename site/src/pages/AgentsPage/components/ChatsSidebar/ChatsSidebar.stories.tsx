@@ -107,6 +107,8 @@ const meta: Meta<typeof ChatsSidebar> = {
 		onUnpinAgent: fn(),
 		onRenameTitle: fn(() => Promise.resolve()),
 		onBeforeNewAgent: fn(),
+		isSearchDialogOpen: false,
+		onSearchDialogOpenChange: fn(),
 		isCreating: false,
 		regeneratingTitleChatIds: [],
 		archivedFilter: "active" as const,

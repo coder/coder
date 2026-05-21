@@ -479,7 +479,7 @@ export const cancelChatListRefetches = (queryClient: QueryClient) => {
 };
 
 const DEFAULT_CHAT_PAGE_LIMIT = 50;
-const CHAT_SEARCH_LIMIT = 50;
+export const CHAT_SEARCH_LIMIT = 50;
 
 type UpdateChatWorkspaceVariables = {
 	chatId: string;

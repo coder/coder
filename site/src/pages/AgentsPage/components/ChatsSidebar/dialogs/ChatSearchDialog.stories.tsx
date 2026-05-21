@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
+import { CHAT_SEARCH_LIMIT } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
 import { ChatSearchDialog } from "./ChatSearchDialog";
 
@@ -57,6 +58,16 @@ const mockChats: Chat[] = [
 		},
 	},
 ];
+const cappedMockChats: Chat[] = Array.from(
+	{ length: CHAT_SEARCH_LIMIT },
+	(_, index) => ({
+		...mockChat,
+		id: `chat-${index + 1}`,
+		title: `Fix capped search result ${index + 1}`,
+		has_unread: false,
+		diff_status: undefined,
+	}),
+);
 
 const meta: Meta<typeof ChatSearchDialog> = {
 	title: "pages/AgentsPage/ChatSearchDialog",
@@ -125,12 +136,28 @@ export const Results: Story = {
 		);
 		await waitFor(() => {
 			expect(API.experimental.getChats).toHaveBeenCalledWith({
-				limit: 50,
+				limit: CHAT_SEARCH_LIMIT,
 				q: 'title:"Fix"',
 			});
 		});
 		await expect(
 			await body.findByText("Fix race condition in auth middleware"),
+		).toBeInTheDocument();
+	},
+};
+
+export const CappedResults: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChats").mockResolvedValue(cappedMockChats);
+	},
+	play: async () => {
+		const body = within(document.body);
+		await userEvent.type(
+			body.getByRole("combobox", { name: "Search chats" }),
+			"Fix",
+		);
+		await expect(
+			await body.findByText(`Showing first ${CHAT_SEARCH_LIMIT} results.`),
 		).toBeInTheDocument();
 	},
 };
@@ -159,7 +186,10 @@ export const KeyboardNavigation: Story = {
 		await expect(firstResult).toHaveAttribute("tabindex", "-1");
 		await expect(secondResult).toHaveAttribute("tabindex", "-1");
 
-		await userEvent.keyboard("{ArrowDown}");
+		await userEvent.keyboard("{ArrowUp}");
+		await expect(secondResult).toHaveAttribute("aria-selected", "true");
+
+		await userEvent.keyboard("{ArrowUp}");
 		await expect(firstResult).toHaveAttribute("aria-selected", "true");
 
 		await userEvent.keyboard("{ArrowDown}");

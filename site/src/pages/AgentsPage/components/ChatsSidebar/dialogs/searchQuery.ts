@@ -106,6 +106,10 @@ export const normalizeChatSearchInput = (
 		keyValuePairs.push(token);
 	}
 
+	if (titleTerms.length > 1) {
+		hasFallbackTitle = true;
+	}
+
 	if (!hasFallbackTitle) {
 		return trimmedInput;
 	}

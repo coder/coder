@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import { type FC, useEffect, useRef } from "react";
 import { Link, type Location } from "react-router";
+import { CHAT_SEARCH_LIMIT } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
@@ -46,21 +47,32 @@ export const ChatSearchResults: FC<ChatSearchResultsProps> = ({
 		return (
 			<div className="min-h-[260px]">
 				<div className="pt-2 text-sm text-content-secondary">
-					Type to search by title, or use filters like `has_unread:true`,
-					`archived:true`, `pr_status:open`, or `diff_url:"..."`.
+					Type to search by title, or use filters like{" "}
+					<code>has_unread:true</code>, <code>archived:true</code>,{" "}
+					<code>pr_status:open</code>, or <code>diff_url:"..."</code>.
 				</div>
 			</div>
 		);
 	}
 
 	const resultCount = chats?.length ?? 0;
+	const resultSummary =
+		resultCount === CHAT_SEARCH_LIMIT ? (
+			<>
+				Showing first{" "}
+				<span className="text-content-primary">{CHAT_SEARCH_LIMIT}</span>{" "}
+				results.
+			</>
+		) : (
+			<>
+				<span className="text-content-primary">{resultCount}</span> results
+			</>
+		);
 
 	return (
 		<div className="min-h-[260px]">
 			<div className="space-y-3">
-				<p className="text-sm text-content-secondary">
-					<span className="text-content-primary">{resultCount}</span> results
-				</p>
+				<p className="text-sm text-content-secondary">{resultSummary}</p>
 				<ScrollArea
 					className="h-[300px]"
 					scrollBarClassName="w-[0.375rem]"
