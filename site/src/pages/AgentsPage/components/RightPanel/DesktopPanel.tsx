@@ -213,21 +213,21 @@ export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
 }) => {
 	const scrollRef = useRef<HTMLDivElement>(null);
 
-	// Scroll-wheel panning: translate wheel events into scroll offsets
-	// when the desktop is at native (100%) zoom and overflows the panel.
-	// Uses capture phase so the handler fires before noVNC can forward
-	// the event to the remote desktop (which otherwise triggers XFCE
-	// workspace switching).
+	// Intercept wheel events in the capture phase before noVNC can
+	// forward them to the remote desktop (which triggers XFCE
+	// workspace switching). In native mode, translate the delta
+	// into scroll offsets for panning. In fit mode, just block.
 	useEffect(() => {
 		const el = scrollRef.current;
 		if (!el) return;
 
 		const handleWheel = (e: WheelEvent) => {
-			if (scaleMode !== "native") return;
 			e.preventDefault();
 			e.stopPropagation();
-			el.scrollLeft += e.deltaX || e.deltaY;
-			el.scrollTop += e.deltaY;
+			if (scaleMode === "native") {
+				el.scrollLeft += e.deltaX || e.deltaY;
+				el.scrollTop += e.deltaY;
+			}
 		};
 
 		el.addEventListener("wheel", handleWheel, {

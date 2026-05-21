@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { type FC, useEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { useParams } from "react-router";
 import { chat } from "#/api/queries/chats";
@@ -18,7 +18,6 @@ export default function DesktopPopoutPage() {
 	const [scaleMode, setScaleMode] = useState<ScaleMode>("native");
 	const [isControlling, setIsControlling] = useState(false);
 
-	// Fetch chat to get workspace_id, then workspace to get agent apps.
 	const chatQuery = useQuery(chat(agentId));
 	const workspaceId = chatQuery.data?.workspace_id;
 	const workspaceQuery = useQuery({
@@ -128,12 +127,46 @@ export default function DesktopPopoutPage() {
 				onReleaseControl={() => setIsControlling(false)}
 				isPoppedOut
 			/>
-			<div
-				ref={(el) => {
-					if (el) attach(el);
-				}}
-				className="min-h-0 flex-1 overflow-hidden"
-			/>
+			<VncContainer attach={attach} />
 		</div>
 	);
 }
+
+/**
+ * VNC container that blocks wheel events from reaching noVNC
+ * (prevents XFCE workspace switching on scroll).
+ */
+const VncContainer: FC<{
+	attach: (el: HTMLElement) => void;
+}> = ({ attach }) => {
+	const containerRef = useRef<HTMLDivElement>(null);
+
+	useEffect(() => {
+		const el = containerRef.current;
+		if (!el) return;
+
+		const handleWheel = (e: WheelEvent) => {
+			e.preventDefault();
+			e.stopPropagation();
+		};
+
+		el.addEventListener("wheel", handleWheel, {
+			passive: false,
+			capture: true,
+		});
+		return () =>
+			el.removeEventListener("wheel", handleWheel, { capture: true });
+	}, []);
+
+	return (
+		<div
+			ref={(el) => {
+				(
+					containerRef as React.MutableRefObject<HTMLDivElement | null>
+				).current = el;
+				if (el) attach(el);
+			}}
+			className="min-h-0 flex-1 overflow-hidden"
+		/>
+	);
+};
