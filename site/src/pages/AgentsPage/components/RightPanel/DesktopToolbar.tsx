@@ -31,11 +31,11 @@ export const DesktopToolbar: FC<DesktopToolbarProps> = ({
 }) => {
 	return (
 		<div
-			className="flex h-8 shrink-0 items-center justify-between border-0 border-b border-solid border-border-default bg-surface-primary px-1.5"
+			className="flex h-8 shrink-0 items-center justify-end gap-1 border-0 border-b border-solid border-border-default bg-surface-primary px-1.5"
 			role="toolbar"
 			aria-label="Desktop controls"
 		>
-			{/* Left: Take/Release control */}
+			{/* Take/Release control */}
 			<Button
 				variant="subtle"
 				size="sm"
@@ -55,49 +55,46 @@ export const DesktopToolbar: FC<DesktopToolbarProps> = ({
 				)}
 			</Button>
 
-			{/* Right: Zoom + Pop-out */}
-			<div className="flex items-center gap-1">
-				{/* Zoom toggle */}
+			{/* Zoom toggle */}
+			<Button
+				variant="subtle"
+				size="sm"
+				onClick={() =>
+					onScaleModeChange(scaleMode === "native" ? "fit" : "native")
+				}
+				aria-label={
+					scaleMode === "native"
+						? "Zoom to fit (Ctrl+0)"
+						: "Zoom to 100% (Ctrl+1)"
+				}
+				className="h-6 gap-1.5 px-2 text-xs"
+			>
+				{scaleMode === "native" ? (
+					<>
+						<ScalingIcon className="size-3.5" />
+						Zoom to fit
+					</>
+				) : (
+					<>
+						<MaximizeIcon className="size-3.5" />
+						Zoom to 100%
+					</>
+				)}
+			</Button>
+
+			{/* Detach button */}
+			{onPopOut && !isPoppedOut && (
 				<Button
 					variant="subtle"
 					size="sm"
-					onClick={() =>
-						onScaleModeChange(scaleMode === "native" ? "fit" : "native")
-					}
-					aria-label={
-						scaleMode === "native"
-							? "Zoom to fit (Ctrl+0)"
-							: "Zoom to 100% (Ctrl+1)"
-					}
+					onClick={onPopOut}
+					aria-label="Detach desktop to new window"
 					className="h-6 gap-1.5 px-2 text-xs"
 				>
-					{scaleMode === "native" ? (
-						<>
-							<ScalingIcon className="size-3.5" />
-							Zoom to fit
-						</>
-					) : (
-						<>
-							<MaximizeIcon className="size-3.5" />
-							Zoom to 100%
-						</>
-					)}
+					<ExternalLinkIcon className="size-3.5" />
+					Detach
 				</Button>
-
-				{/* Pop-out button */}
-				{onPopOut && !isPoppedOut && (
-					<Button
-						variant="subtle"
-						size="sm"
-						onClick={onPopOut}
-						aria-label="Detach desktop to new window"
-						className="h-6 gap-1.5 px-2 text-xs"
-					>
-						<ExternalLinkIcon className="size-3.5" />
-						Detach
-					</Button>
-				)}
-			</div>
+			)}
 		</div>
 	);
 };
