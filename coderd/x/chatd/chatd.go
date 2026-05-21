@@ -4915,6 +4915,7 @@ func (p *Server) SubscribeAuthorized(
 	// is already active so no notifications can be lost during this
 	// window.
 	initialSnapshot := make([]codersdk.ChatStreamEvent, 0)
+	delivered := map[int64]struct{}{}
 	// Add local same-replica message_parts to the snapshot. Retry comes
 	// from state.currentRetry, not the event buffer, so late joiners see
 	// only the latest phase rather than a stale buffered retry event.
@@ -4959,6 +4960,7 @@ func (p *Server) SubscribeAuthorized(
 				ChatID:  chatID,
 				Message: &sdkMsg,
 			})
+			delivered[msg.ID] = struct{}{}
 		}
 	}
 
@@ -5077,35 +5079,59 @@ func (p *Server) SubscribeAuthorized(
 				if notify.AfterMessageID > 0 || notify.FullRefresh {
 					if notify.FullRefresh {
 						lastMessageID = 0
+						clear(delivered)
 					}
 					var (
 						deliveredCount int
 						source         string
 					)
-					cached := p.getCachedDurableMessages(chatID, lastMessageID)
+					// Notifies can arrive out of order. Rescan from
+					// min(AfterMessageID, lastMessageID) to cover the gap,
+					// floored at afterMessageID to respect the subscription
+					// boundary. The delivered set deduplicates.
+					lookupAfter := lastMessageID
+					if !notify.FullRefresh {
+						lookupAfter = max(afterMessageID, min(notify.AfterMessageID, lastMessageID))
+					}
+					cached := p.getCachedDurableMessages(chatID, lookupAfter)
 					if !notify.FullRefresh && len(cached) > 0 {
-						source = "cache"
 						for _, event := range cached {
+							if event.Message == nil {
+								continue
+							}
+							if _, ok := delivered[event.Message.ID]; ok {
+								continue
+							}
 							select {
 							case <-mergedCtx.Done():
 								return
 							case mergedEvents <- event:
 							}
-							lastMessageID = event.Message.ID
+							delivered[event.Message.ID] = struct{}{}
+							if event.Message.ID > lastMessageID {
+								lastMessageID = event.Message.ID
+							}
+							deliveredCount++
+							source = "cache"
 						}
-						deliveredCount = len(cached)
-					} else if newMessages, msgErr := p.db.GetChatMessagesByChatID(mergedCtx, database.GetChatMessagesByChatIDParams{
+					}
+					// DB pass picks up cross-replica messages the local cache
+					// cannot have. Delivered set dedupes against the cache pass.
+					newMessages, msgErr := p.db.GetChatMessagesByChatID(mergedCtx, database.GetChatMessagesByChatIDParams{
 						ChatID:  chatID,
-						AfterID: lastMessageID,
-					}); msgErr != nil {
+						AfterID: lookupAfter,
+					})
+					if msgErr != nil {
 						p.logger.Warn(mergedCtx, "failed to get chat messages after pubsub notification",
 							slog.F("chat_id", chatID),
 							slog.Error(msgErr),
 						)
 					} else {
-						source = "db"
 						for _, msg := range newMessages {
-							if msg.ID <= lastMessageID {
+							if msg.ID <= lookupAfter {
+								continue
+							}
+							if _, ok := delivered[msg.ID]; ok {
 								continue
 							}
 							sdkMsg := db2sdk.ChatMessage(msg)
@@ -5118,14 +5144,24 @@ func (p *Server) SubscribeAuthorized(
 								Message: &sdkMsg,
 							}:
 							}
-							lastMessageID = msg.ID
+							delivered[msg.ID] = struct{}{}
+							if msg.ID > lastMessageID {
+								lastMessageID = msg.ID
+							}
 							deliveredCount++
+							switch source {
+							case "":
+								source = "db"
+							case "cache":
+								source = "cache+db"
+							}
 						}
 					}
 					// Marker for ENG-2645: subscriber delivered durable messages.
 					p.logger.Debug(mergedCtx, "stream subscriber delivered messages",
 						slog.F("chat_id", chatID),
 						slog.F("after_message_id", notify.AfterMessageID),
+						slog.F("lookup_after", lookupAfter),
 						slog.F("source", source),
 						slog.F("delivered_count", deliveredCount),
 						slog.F("last_message_id", lastMessageID),

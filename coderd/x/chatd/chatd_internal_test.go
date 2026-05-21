@@ -1999,7 +1999,7 @@ func TestTurnWorkspaceContext_EnsureWorkspaceAgentIgnoresCachedAgentForDifferent
 	require.Equal(t, updatedChat, currentChat)
 }
 
-func TestSubscribeSkipsDatabaseCatchupForLocallyDeliveredMessage(t *testing.T) {
+func TestSubscribeDedupesLocallyDeliveredMessageOnNotifyCatchup(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancelCtx := context.WithCancel(context.Background())
@@ -2028,6 +2028,12 @@ func TestSubscribeSkipsDatabaseCatchupForLocallyDeliveredMessage(t *testing.T) {
 			AfterID: 0,
 		}).Return([]database.ChatMessage{initialMessage}, nil),
 		db.EXPECT().GetChatQueuedMessages(gomock.Any(), chatID).Return(nil, nil),
+		// DB catchup runs unconditionally on every notify; the delivered
+		// set dedupes against locally-delivered messages.
+		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
+			ChatID:  chatID,
+			AfterID: 1,
+		}).Return(nil, nil),
 	)
 
 	server := newSubscribeTestServer(t, db)
@@ -2071,6 +2077,12 @@ func TestSubscribeUsesDurableCacheWhenLocalMessageWasNotDelivered(t *testing.T) 
 			AfterID: 0,
 		}).Return([]database.ChatMessage{initialMessage}, nil),
 		db.EXPECT().GetChatQueuedMessages(gomock.Any(), chatID).Return(nil, nil),
+		// DB catchup runs unconditionally; cached id=2 is deduped via
+		// the delivered set so this query returning nil is sufficient.
+		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
+			ChatID:  chatID,
+			AfterID: 1,
+		}).Return(nil, nil),
 	)
 
 	server := newSubscribeTestServer(t, db)
