@@ -64,7 +64,11 @@ type sqlcQuerier interface {
 	ArchiveUnusedTemplateVersions(ctx context.Context, arg ArchiveUnusedTemplateVersionsParams) ([]uuid.UUID, error)
 	// Archives inactive root chats (pinned and already-archived chats skipped),
 	// cascading to children via root_chat_id. Limits apply to roots, not total
-	// rows. Used by dbpurge.
+	// rows. Eligibility uses UTC day boundaries: a chat is archived on the start
+	// of the UTC day after its inactivity period has elapsed. The caller passes
+	// @archive_cutoff as UTC midnight (start-of-day minus auto_archive_days);
+	// SQL compares dates so all chats sharing the same last-activity date are
+	// treated identically regardless of time-of-day. Used by dbpurge.
 	// created_at ASC flows through to dbpurge's digest truncation; see
 	// buildDigestData in dbpurge.go for the tradeoff rationale.
 	AutoArchiveInactiveChats(ctx context.Context, arg AutoArchiveInactiveChatsParams) ([]AutoArchiveInactiveChatsRow, error)

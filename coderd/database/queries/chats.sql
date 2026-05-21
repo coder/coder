@@ -2280,7 +2280,11 @@ WHERE chat_id = @chat_id::uuid
 -- name: AutoArchiveInactiveChats :many
 -- Archives inactive root chats (pinned and already-archived chats skipped),
 -- cascading to children via root_chat_id. Limits apply to roots, not total
--- rows. Used by dbpurge.
+-- rows. Eligibility uses UTC day boundaries: a chat is archived on the start
+-- of the UTC day after its inactivity period has elapsed. The caller passes
+-- @archive_cutoff as UTC midnight (start-of-day minus auto_archive_days);
+-- SQL compares dates so all chats sharing the same last-activity date are
+-- treated identically regardless of time-of-day. Used by dbpurge.
 WITH to_archive AS (
     SELECT
         c.id,
@@ -2298,10 +2302,16 @@ WITH to_archive AS (
     WHERE c.archived = false
       AND c.pin_order = 0
       AND c.parent_chat_id IS NULL -- roots only
+      -- Redundant timestamp filter helps the planner use the partial index
+      -- on created_at without evaluating every LATERAL subquery first.
       AND c.created_at < @archive_cutoff::timestamptz
       -- New active statuses must be added here to prevent archiving.
       AND c.status NOT IN ('running', 'pending', 'paused', 'requires_action')
-      AND COALESCE(activity.last_activity_at, c.created_at) < @archive_cutoff::timestamptz
+      -- Date-based eligibility: AT TIME ZONE 'UTC' ensures consistent
+      -- behavior regardless of the session timezone (tests use
+      -- America/St_Johns to catch exactly this class of bug).
+      AND (COALESCE(activity.last_activity_at, c.created_at) AT TIME ZONE 'UTC')::date
+          < ((@archive_cutoff::timestamptz) AT TIME ZONE 'UTC')::date
     -- Sorting by created_at lets Postgres drive the scan from the
     -- partial index instead of evaluating every LATERAL subquery
     -- before sorting. All candidates are past the cutoff, so the
