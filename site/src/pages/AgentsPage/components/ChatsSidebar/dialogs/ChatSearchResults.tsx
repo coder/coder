@@ -1,4 +1,3 @@
-import type { LucideIcon } from "lucide-react";
 import { type FC, useEffect, useRef } from "react";
 import { Link, type Location } from "react-router";
 import { CHAT_SEARCH_LIMIT } from "#/api/queries/chats";
@@ -8,11 +7,11 @@ import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { cn } from "#/utils/cn";
 import { shortRelativeTime } from "#/utils/time";
-import {
-	getChatDiffStatus,
-	getPRIconConfig,
-	getStatusConfig,
-} from "../tree/statusConfig";
+import { getChatDisplayConfig } from "../tree/statusConfig";
+
+// Keeps the dialog body from collapsing between the empty / loading / results
+// branches so the search input doesn't jump as results arrive.
+const RESULTS_AREA_MIN_HEIGHT = "min-h-[260px]";
 
 type ChatSearchResultsProps = {
 	readonly chats: readonly Chat[] | undefined;
@@ -37,7 +36,7 @@ export const ChatSearchResults: FC<ChatSearchResultsProps> = ({
 }) => {
 	if (error) {
 		return (
-			<div className="min-h-[260px]">
+			<div className={RESULTS_AREA_MIN_HEIGHT}>
 				<ErrorAlert error={error} />
 			</div>
 		);
@@ -45,7 +44,7 @@ export const ChatSearchResults: FC<ChatSearchResultsProps> = ({
 
 	if (!hasQuery) {
 		return (
-			<div className="min-h-[260px]">
+			<div className={RESULTS_AREA_MIN_HEIGHT}>
 				<div className="pt-2 text-sm text-content-secondary">
 					Type to search by title, or use filters like{" "}
 					<code>has_unread:true</code>, <code>archived:true</code>,{" "}
@@ -65,12 +64,13 @@ export const ChatSearchResults: FC<ChatSearchResultsProps> = ({
 			</>
 		) : (
 			<>
-				<span className="text-content-primary">{resultCount}</span> results
+				<span className="text-content-primary">{resultCount}</span>{" "}
+				{resultCount === 1 ? "result" : "results"}
 			</>
 		);
 
 	return (
-		<div className="min-h-[260px]">
+		<div className={RESULTS_AREA_MIN_HEIGHT}>
 			<div className="space-y-3">
 				<p className="text-sm text-content-secondary">{resultSummary}</p>
 				<ScrollArea
@@ -159,14 +159,11 @@ const ChatSearchResultRow: FC<ChatSearchResultRowProps> = ({
 	onSelect,
 }) => {
 	const rowRef = useRef<HTMLAnchorElement | null>(null);
-	const diffStatus = getChatDiffStatus(chat);
-	const baseConfig = getStatusConfig(chat.status);
-	const prConfig =
-		chat.status === "waiting" || chat.status === "completed"
-			? getPRIconConfig(diffStatus)
-			: undefined;
-	const config = prConfig ?? baseConfig;
-	const StatusIcon = config.icon as LucideIcon;
+	const {
+		icon: StatusIcon,
+		className: statusClassName,
+		diffStatus,
+	} = getChatDisplayConfig(chat);
 	const additions = diffStatus?.additions ?? 0;
 	const deletions = diffStatus?.deletions ?? 0;
 	const changedFiles = diffStatus?.changed_files ?? 0;
@@ -196,7 +193,7 @@ const ChatSearchResultRow: FC<ChatSearchResultRowProps> = ({
 			)}
 		>
 			<StatusIcon
-				className={cn("mt-1 h-3.5 w-3.5 shrink-0", config.className)}
+				className={cn("mt-1 h-3.5 w-3.5 shrink-0", statusClassName)}
 			/>
 			<div className="min-w-0 flex-1">
 				<div className="flex items-center gap-1.5">

@@ -6,7 +6,7 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { useQuery } from "react-query";
+import { keepPreviousData, useQuery } from "react-query";
 import { type Location, useNavigate } from "react-router";
 import { chatSearch } from "#/api/queries/chats";
 import { Dialog, DialogContent, DialogTitle } from "#/components/Dialog/Dialog";
@@ -30,7 +30,7 @@ export const ChatSearchDialog: FC<ChatSearchDialogProps> = ({
 }) => {
 	const navigate = useNavigate();
 	const [inputValue, setInputValue] = useState("");
-	const [highlightedChatIndex, setHighlightedChatIndex] = useState<
+	const [selectedChatIndex, setSelectedChatIndex] = useState<
 		number | undefined
 	>(undefined);
 	const inputRef = useRef<HTMLInputElement | null>(null);
@@ -42,20 +42,27 @@ export const ChatSearchDialog: FC<ChatSearchDialogProps> = ({
 	const searchQuery = useQuery({
 		...chatSearch(normalizedQuery ?? ""),
 		enabled: open && hasQuery,
+		// Keep the previous results visible while debouncing the next query.
+		// Without this, every debounced keystroke would briefly flash the loading
+		// skeleton between results sets.
+		placeholderData: keepPreviousData,
 	});
 
 	const resultCount = searchQuery.data?.length ?? 0;
-	const selectedChatIndex =
-		highlightedChatIndex !== undefined && highlightedChatIndex < resultCount
-			? highlightedChatIndex
+	// `selectedChatIndex` may reference an option that no longer exists if the
+	// result set has shrunk since the user pressed an arrow key. Clamp to the
+	// current results so stale state does not appear selected in the UI.
+	const safeSelectedChatIndex =
+		selectedChatIndex !== undefined && selectedChatIndex < resultCount
+			? selectedChatIndex
 			: undefined;
 	const selectedChat =
-		selectedChatIndex !== undefined
-			? searchQuery.data?.[selectedChatIndex]
+		safeSelectedChatIndex !== undefined
+			? searchQuery.data?.[safeSelectedChatIndex]
 			: undefined;
 	const activeResultId =
-		selectedChatIndex !== undefined
-			? `${listboxId}-option-${selectedChatIndex}`
+		safeSelectedChatIndex !== undefined
+			? `${listboxId}-option-${safeSelectedChatIndex}`
 			: undefined;
 	const closeDialog = () => onOpenChange(false);
 
@@ -64,7 +71,7 @@ export const ChatSearchDialog: FC<ChatSearchDialogProps> = ({
 			return;
 		}
 		setInputValue("");
-		setHighlightedChatIndex(undefined);
+		setSelectedChatIndex(undefined);
 	}, [open]);
 
 	const showResultsLoading =
@@ -80,7 +87,7 @@ export const ChatSearchDialog: FC<ChatSearchDialogProps> = ({
 			}
 
 			event.preventDefault();
-			setHighlightedChatIndex((previousIndex) => {
+			setSelectedChatIndex((previousIndex) => {
 				if (previousIndex === undefined || previousIndex >= resultCount) {
 					return event.key === "ArrowUp" ? resultCount - 1 : 0;
 				}
@@ -125,7 +132,7 @@ export const ChatSearchDialog: FC<ChatSearchDialogProps> = ({
 					value={inputValue}
 					onChange={(event) => {
 						setInputValue(event.target.value);
-						setHighlightedChatIndex(undefined);
+						setSelectedChatIndex(undefined);
 					}}
 					onKeyDown={handleInputKeyDown}
 				/>
@@ -136,7 +143,7 @@ export const ChatSearchDialog: FC<ChatSearchDialogProps> = ({
 					hasQuery={hasQuery}
 					location={location}
 					listboxId={listboxId}
-					selectedChatIndex={selectedChatIndex}
+					selectedChatIndex={safeSelectedChatIndex}
 					showLoading={showResultsLoading}
 					onSelectChat={closeDialog}
 				/>

@@ -27,24 +27,22 @@ export const ChatSearchInput: FC<ChatSearchInputProps> = ({
 	onKeyDown,
 }) => {
 	return (
-		<div className="space-y-1">
-			<div className="relative">
-				<SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-secondary" />
-				<Input
-					ref={inputRef}
-					value={value}
-					onChange={onChange}
-					onKeyDown={onKeyDown}
-					placeholder="Search chats..."
-					className="h-10 border-border-default bg-surface-primary pl-9 pr-3 placeholder:text-content-disabled"
-					aria-label="Search chats"
-					role="combobox"
-					aria-controls={hasResults ? listboxId : undefined}
-					aria-expanded={hasResults}
-					aria-haspopup="listbox"
-					aria-activedescendant={activeResultId}
-				/>
-			</div>
+		<div className="relative">
+			<SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-secondary" />
+			<Input
+				ref={inputRef}
+				value={value}
+				onChange={onChange}
+				onKeyDown={onKeyDown}
+				placeholder="Search chats..."
+				className="h-10 border-border-default bg-surface-primary pl-9 pr-3 placeholder:text-content-disabled"
+				aria-label="Search chats"
+				role="combobox"
+				aria-controls={hasResults ? listboxId : undefined}
+				aria-expanded={hasResults}
+				aria-haspopup="listbox"
+				aria-activedescendant={activeResultId}
+			/>
 		</div>
 	);
 };

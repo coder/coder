@@ -54,9 +54,15 @@ describe("normalizeChatSearchInput", () => {
 		).toBe('has_unread:true title:"chat title Race"');
 	});
 
-	it("escapes quotes when converting bare text", () => {
+	it("strips quotes from bare text", () => {
 		expect(normalizeChatSearchInput('Fix "auth" middleware')).toBe(
-			'title:"Fix \\"auth\\" middleware"',
+			'title:"Fix auth middleware"',
 		);
+	});
+
+	it("treats a trailing-colon filter as bare title text", () => {
+		// `title:` is not a well-formed key:value pair, so it should be searched
+		// for as a literal title substring.
+		expect(normalizeChatSearchInput("title:")).toBe('title:"title:"');
 	});
 });

@@ -1,8 +1,15 @@
-const escapeChatSearchValue = (value: string): string => {
-	return value.replaceAll('"', '\\"');
+// The backend's search-query parser toggles its quoted-state on every `"` and
+// has no backslash-escape handling, so escaping quotes here would produce a
+// query the backend cannot parse. Stripping quotes from bare text keeps the
+// resulting `title:"..."` filter well-formed for the backend.
+const sanitizeChatSearchValue = (value: string): string => {
+	return value.replaceAll('"', "");
 };
 
-const supportedChatSearchFilterKeys = new Set([
+// Filter keys that may pass through to the backend unchanged. `title` is not
+// listed here because bare text and `title:` filters are merged into a single
+// title filter; see the title-handling branch in normalizeChatSearchInput.
+const passthroughChatSearchFilterKeys = new Set([
 	"archived",
 	"diff_url",
 	"has_unread",
@@ -71,6 +78,13 @@ const getKeyValuePair = (
 	};
 };
 
+/**
+ * Normalizes raw search input into a query string the chat search API accepts.
+ *
+ * Bare text and `title:` filters are merged into a single `title:"..."`
+ * filter (the backend rejects a parameter that appears more than once).
+ * Recognized `key:value` filters pass through unchanged.
+ */
 export const normalizeChatSearchInput = (
 	rawInput: string,
 ): string | undefined => {
@@ -82,13 +96,13 @@ export const normalizeChatSearchInput = (
 	const tokens = splitSearchInput(trimmedInput);
 	const keyValuePairs: string[] = [];
 	const titleTerms: string[] = [];
-	let hasFallbackTitle = false;
+	let hasBareTitleText = false;
 
 	for (const token of tokens) {
 		const keyValuePair = getKeyValuePair(token);
 		if (!keyValuePair) {
 			titleTerms.push(token);
-			hasFallbackTitle = true;
+			hasBareTitleText = true;
 			continue;
 		}
 
@@ -97,25 +111,27 @@ export const normalizeChatSearchInput = (
 			continue;
 		}
 
-		if (!supportedChatSearchFilterKeys.has(keyValuePair.key)) {
+		if (!passthroughChatSearchFilterKeys.has(keyValuePair.key)) {
 			titleTerms.push(token);
-			hasFallbackTitle = true;
+			hasBareTitleText = true;
 			continue;
 		}
 
 		keyValuePairs.push(token);
 	}
 
+	// Multiple title values must be merged into a single title filter because
+	// the backend's query parser rejects the same key appearing more than once.
 	if (titleTerms.length > 1) {
-		hasFallbackTitle = true;
+		hasBareTitleText = true;
 	}
 
-	if (!hasFallbackTitle) {
+	if (!hasBareTitleText) {
 		return trimmedInput;
 	}
 
 	return [
 		...keyValuePairs,
-		`title:"${escapeChatSearchValue(titleTerms.join(" "))}"`,
+		`title:"${sanitizeChatSearchValue(titleTerms.join(" "))}"`,
 	].join(" ");
 };

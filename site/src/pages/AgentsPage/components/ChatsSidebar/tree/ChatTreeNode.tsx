@@ -34,11 +34,7 @@ import { asNonEmptyString } from "../../ChatConversation/blockUtils";
 import { useChatTree } from "./ChatTreeContext";
 import { getParentChatID } from "./chatTree";
 import { getModelDisplayName } from "./modelDisplayName";
-import {
-	getChatDiffStatus,
-	getPRIconConfig,
-	getStatusConfig,
-} from "./statusConfig";
+import { getChatDisplayConfig } from "./statusConfig";
 
 interface ChatTreeNodeProps {
 	readonly chat: Chat;
@@ -127,14 +123,11 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 	const displayedTurnSummary = isStaleTurnSummary ? undefined : lastTurnSummary;
 	const subtitle =
 		errorReason || streamingSubtitle || displayedTurnSummary || modelName;
-	const diffStatus = getChatDiffStatus(chat);
-	const baseConfig = getStatusConfig(chat.status);
-	const prConfig =
-		chat.status === "waiting" || chat.status === "completed"
-			? getPRIconConfig(diffStatus)
-			: undefined;
-	const config = prConfig ?? baseConfig;
-	const StatusIcon = config.icon;
+	const {
+		icon: StatusIcon,
+		className: statusClassName,
+		diffStatus,
+	} = getChatDisplayConfig(chat);
 	const hasLinkedDiffStatus = Boolean(diffStatus?.url);
 	const changedFiles = diffStatus?.changed_files ?? 0;
 	const additions = diffStatus?.additions ?? 0;
@@ -245,7 +238,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 											? `agents-tree-executing-${chat.id}`
 											: undefined
 									}
-									className={cn("h-3.5 w-3.5 shrink-0", config.className)}
+									className={cn("h-3.5 w-3.5 shrink-0", statusClassName)}
 								/>
 							</div>
 							{hasChildren && (
