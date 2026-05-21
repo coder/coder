@@ -106,3 +106,10 @@ license.txt
 
 # Agent planning documents (local working files).
 docs/plans/
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg
+*.egg-info/
