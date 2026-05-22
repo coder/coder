@@ -164,7 +164,7 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 								field={getFieldHelpers("value", {
 									helperText: "Leave blank to keep the existing value.",
 								})}
-								placeholder="Leave blank to keep existing"
+								placeholder="Leave blank to keep existing value"
 								showSavedValue={open}
 							/>
 							<SecretDescriptionField field={getFieldHelpers("description")} />
@@ -254,7 +254,7 @@ const SecretFields: FC<SecretFieldsProps> = ({
 						"Optional. Exposes the secret as a file at this path in your workspace. Path must start with ~/ or /.",
 				})}
 				label="File path"
-				placeholder="~/usr/var"
+				placeholder="~/api-key.txt"
 				autoComplete="off"
 				className="placeholder:text-content-disabled"
 				data-lpignore="true"
