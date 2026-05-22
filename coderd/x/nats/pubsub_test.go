@@ -22,12 +22,12 @@ import (
 func newTestPubsub(t *testing.T, opts xnats.Options) *xnats.Pubsub {
 	t.Helper()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-	defer cancel()
+	ctx, cancel := context.WithCancel(context.Background())
 	ps, err := xnats.New(ctx, logger, opts)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = ps.Close()
+		cancel()
 	})
 	return ps
 }
@@ -231,12 +231,14 @@ func TestPubsub(t *testing.T) {
 func newSlowConsumerPubsub(t *testing.T) *xnats.Pubsub {
 	t.Helper()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-	defer cancel()
+	ctx, cancel := context.WithCancel(context.Background())
 	ps, err := xnats.New(ctx, logger, xnats.Options{
 		PendingLimits: xnats.PendingLimits{Msgs: 8, Bytes: 1024 * 1024},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = ps.Close() })
+	t.Cleanup(func() {
+		_ = ps.Close()
+		cancel()
+	})
 	return ps
 }

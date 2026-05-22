@@ -104,18 +104,13 @@ type Pubsub struct {
 	subscribePool []*natsgo.Conn
 
 	mu sync.Mutex
-	// subs is the set of all local listener handles across all subjects.
-	subs map[*subscription]struct{}
-	// sharedBySubject coalesces concurrent local subscribers on the
+	// subscriptions coalesces concurrent local subscribers on the
 	// same subject onto a single underlying *natsgo.Subscription.
-	sharedBySubject map[string]*sharedSub
+	subscriptions map[string]*natsSub
 	// sharedByNATS routes async subscription-level errors (notably
-	// ErrSlowConsumer) back to the owning sharedSub.
-	sharedByNATS map[*natsgo.Subscription]*sharedSub
-	// eventCounts tracks local listeners per event name. Retained for
-	// backward compatibility; unused by the wrapper itself.
-	eventCounts map[string]int
-	closeOnce   sync.Once
+	// ErrSlowConsumer) back to the owning natsSub.
+	sharedByNATS map[*natsgo.Subscription]*natsSub
+	closeOnce    sync.Once
 
 	// ctx is canceled by Close before it acquires p.mu so racing hot
 	// path callers (Publish, Flush, SubscribeWithErr) bail before
@@ -124,25 +119,24 @@ type Pubsub struct {
 	cancel context.CancelFunc
 }
 
-// sharedSub coalesces local subscribers on the same NATS subject onto
-// a single *natsgo.Subscription. The first subscriber creates the
-// underlying subscription; later subscribers attach to it. When the
-// last subscriber detaches, the underlying subscription is drained.
+// natsSub maps to one underlying *natsgo.Subscription. The first
+// local subscriber creates it; later local subscribers attach to it.
+// When the last local subscriber detaches, the NATS subscription is drained.
 //
-// Readiness: the creator inserts a sharedSub in an "initializing"
+// Readiness: the creator inserts a natsSub in an "initializing"
 // state under p.mu, performs NATS Subscribe / Flush / SetPendingLimits
 // outside p.mu, then publishes the result by closing ready. Joiners
 // wait on ready (with a p.ctx.Done() escape) so they never observe a
-// half-initialized shared subscription. readyErr is written before
+// half-initialized NATS subscription. readyErr is written before
 // close(ready); the channel close is the happens-before barrier.
 //
 // listeners and sub are guarded by the parent Pubsub.mu. dropMu /
 // lastDropped use their own mutex so the async error callback can
 // update drop accounting without taking p.mu.
-type sharedSub struct {
+type natsSub struct {
 	subject   string
 	sub       *natsgo.Subscription
-	listeners map[*subscription]struct{}
+	listeners map[*localSub]struct{}
 
 	ready    chan struct{}
 	readyErr error
@@ -151,19 +145,21 @@ type sharedSub struct {
 	lastDropped uint64
 }
 
-// subscription is the local handle returned by Subscribe /
+// localSub is the local handle returned by Subscribe /
 // SubscribeWithErr. Each local subscriber gets its own bounded inbox
 // and dispatcher goroutine so one slow listener cannot block peers on
 // the same subject.
-type subscription struct {
+type localSub struct {
 	cancelOnce sync.Once
+
+	pubsub *Pubsub
 
 	event    string
 	listener pubsub.ListenerWithErr
 
 	// shared is the per-subject coalescing entry. Never nil after a
 	// successful Subscribe.
-	shared *sharedSub
+	shared *natsSub
 
 	// queue is the per-listener data fan-out inbox. The shared NATS
 	// callback enqueues non-blockingly; on overflow the message is
@@ -186,17 +182,15 @@ type subscription struct {
 var _ pubsub.Pubsub = (*Pubsub)(nil)
 
 // newPubsub allocates a *Pubsub with initialized maps and cancel ctx.
-func newPubsub(logger slog.Logger, opts Options) *Pubsub {
-	ctx, cancel := context.WithCancel(context.Background())
+func newPubsub(ctx context.Context, logger slog.Logger, opts Options) *Pubsub {
+	ctx, cancel := context.WithCancel(ctx)
 	return &Pubsub{
-		logger:          logger,
-		opts:            opts,
-		subs:            make(map[*subscription]struct{}),
-		sharedBySubject: make(map[string]*sharedSub),
-		sharedByNATS:    make(map[*natsgo.Subscription]*sharedSub),
-		eventCounts:     make(map[string]int),
-		ctx:             ctx,
-		cancel:          cancel,
+		logger:        logger,
+		opts:          opts,
+		subscriptions: make(map[string]*natsSub),
+		sharedByNATS:  make(map[*natsgo.Subscription]*natsSub),
+		ctx:           ctx,
+		cancel:        cancel,
 	}
 }
 
@@ -217,14 +211,14 @@ func (p *Pubsub) buildConnHandlers() connHandlers {
 	return connHandlers{
 		disconnectErr: func(_ *natsgo.Conn, err error) {
 			if err != nil {
-				p.logger.Warn(context.Background(), "nats client disconnected", slog.Error(err))
+				p.logger.Warn(p.ctx, "nats client disconnected", slog.Error(err))
 			}
 		},
 		reconnect: func(_ *natsgo.Conn) {
-			p.logger.Info(context.Background(), "nats client reconnected")
+			p.logger.Info(p.ctx, "nats client reconnected")
 		},
 		closed: func(_ *natsgo.Conn) {
-			p.logger.Debug(context.Background(), "nats client closed")
+			p.logger.Debug(p.ctx, "nats client closed")
 		},
 		errH: func(_ *natsgo.Conn, sub *natsgo.Subscription, err error) {
 			if err != nil && errors.Is(err, natsgo.ErrSlowConsumer) {
@@ -232,7 +226,7 @@ func (p *Pubsub) buildConnHandlers() connHandlers {
 				return
 			}
 			if err != nil {
-				p.logger.Warn(context.Background(), "nats async error", slog.Error(err))
+				p.logger.Warn(p.ctx, "nats async error", slog.Error(err))
 			}
 		},
 	}
@@ -259,13 +253,13 @@ func subscribeConnCount(opts Options) int {
 // New creates an embedded NATS Pubsub. The returned *Pubsub owns the
 // embedded server and the publisher and subscriber connection pools.
 // Close shuts down all owned resources.
-func New(_ context.Context, logger slog.Logger, opts Options) (*Pubsub, error) {
+func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error) {
 	ns, err := startEmbeddedServer(logger, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	p := newPubsub(logger, opts)
+	p := newPubsub(ctx, logger, opts)
 	p.ns = ns
 
 	npub := publishConnCount(opts)
@@ -279,6 +273,7 @@ func New(_ context.Context, logger slog.Logger, opts Options) (*Pubsub, error) {
 		}
 		nc, err := connectClient(ns, opts, p.buildConnHandlers(), name)
 		if err != nil {
+			p.cancel()
 			for _, c := range publishPool {
 				c.Close()
 			}
@@ -297,6 +292,7 @@ func New(_ context.Context, logger slog.Logger, opts Options) (*Pubsub, error) {
 		}
 		nc, err := connectClient(ns, opts, p.buildConnHandlers(), name)
 		if err != nil {
+			p.cancel()
 			for _, c := range publishPool {
 				c.Close()
 			}
@@ -382,7 +378,8 @@ func (p *Pubsub) SubscribeWithErr(event string, listener pubsub.ListenerWithErr)
 		return nil, xerrors.New("nats pubsub: closed")
 	}
 
-	s := &subscription{
+	s := &localSub{
+		pubsub:         p,
 		event:          event,
 		listener:       listener,
 		queue:          make(chan []byte, listenerQueueSize(p.opts.PendingLimits)),
@@ -457,8 +454,8 @@ func listenerQueueSize(in PendingLimits) int {
 
 const defaultListenerQueueSize = 1024
 
-// attachListener attaches s to the sharedSub for subject and blocks
-// until the shared subscription is ready or has deterministically
+// attachListener attaches s to the natsSub for subject and blocks
+// until the shared NATS subscription is ready or has deterministically
 // failed. The first attacher becomes the creator and drives NATS
 // Subscribe / Flush / SetPendingLimits outside p.mu, then publishes
 // the result by closing shared.ready. Joiners wait on shared.ready
@@ -468,24 +465,21 @@ const defaultListenerQueueSize = 1024
 // On any error path attachListener has already detached s and (for
 // the creator) cleaned up registry / NATS state.
 //
-// The returned bool reports whether this call created the shared
-// subscription; it is informational only.
-func (p *Pubsub) attachListener(subject string, s *subscription) (*sharedSub, bool, error) {
+// The returned bool reports whether this call created the natsSub;
+// it is informational only.
+func (p *Pubsub) attachListener(subject string, s *localSub) (*natsSub, bool, error) {
 	p.mu.Lock()
 	// Close sets p.ctx.Err() before acquiring p.mu, so any registration
-	// past this point is guaranteed to be visible to Close's snapshot
-	// of p.subs.
+	// past this point is guaranteed to be visible to Close's snapshot.
 	if p.ctx.Err() != nil {
 		p.mu.Unlock()
 		return nil, false, xerrors.New("nats pubsub: closed")
 	}
-	if shared, ok := p.sharedBySubject[subject]; ok {
+	if shared, ok := p.subscriptions[subject]; ok {
 		// Joiner: register before unlocking so the creator's fan-out
 		// and Close both see this listener.
 		shared.listeners[s] = struct{}{}
 		s.shared = shared
-		p.subs[s] = struct{}{}
-		p.eventCounts[s.event]++
 		p.mu.Unlock()
 
 		select {
@@ -504,21 +498,19 @@ func (p *Pubsub) attachListener(subject string, s *subscription) (*sharedSub, bo
 
 	// Creator: insert a placeholder so joiners find it and wait.
 	// Network I/O below runs lock-free.
-	shared := &sharedSub{
+	shared := &natsSub{
 		subject:   subject,
-		listeners: map[*subscription]struct{}{s: {}},
+		listeners: map[*localSub]struct{}{s: {}},
 		ready:     make(chan struct{}),
 	}
 	s.shared = shared
-	p.sharedBySubject[subject] = shared
-	p.subs[s] = struct{}{}
-	p.eventCounts[s.event]++
+	p.subscriptions[subject] = shared
 	p.mu.Unlock()
 
 	// finishCreator publishes the init result to joiners and tears
 	// down inserted state on failure. Invoked exactly once per
 	// creator-path return.
-	finishCreator := func(initErr error) (*sharedSub, bool, error) {
+	finishCreator := func(initErr error) (*natsSub, bool, error) {
 		if initErr == nil {
 			close(shared.ready)
 			return shared, true, nil
@@ -527,8 +519,8 @@ func (p *Pubsub) attachListener(subject string, s *subscription) (*sharedSub, bo
 		// Force-remove the shared entry so future Subscribes start
 		// fresh and Close's snapshot does not see a phantom.
 		p.mu.Lock()
-		if cur, ok := p.sharedBySubject[subject]; ok && cur == shared {
-			delete(p.sharedBySubject, subject)
+		if cur, ok := p.subscriptions[subject]; ok && cur == shared {
+			delete(p.subscriptions, subject)
 		}
 		if shared.sub != nil {
 			if cur, ok := p.sharedByNATS[shared.sub]; ok && cur == shared {
@@ -536,14 +528,6 @@ func (p *Pubsub) attachListener(subject string, s *subscription) (*sharedSub, bo
 			}
 		}
 		delete(shared.listeners, s)
-		delete(p.subs, s)
-		if c, ok := p.eventCounts[s.event]; ok {
-			if c <= 1 {
-				delete(p.eventCounts, s.event)
-			} else {
-				p.eventCounts[s.event] = c - 1
-			}
-		}
 		natsSub := shared.sub
 		p.mu.Unlock()
 
@@ -586,26 +570,17 @@ func (p *Pubsub) attachListener(subject string, s *subscription) (*sharedSub, bo
 	return finishCreator(nil)
 }
 
-// detachListener removes s from its shared subscription and from the
-// Pubsub-wide tracking maps. When s was the last listener, the shared
-// entry is removed and returned so the caller can drain outside p.mu;
-// otherwise returns nil. Safe to call multiple times.
-func (p *Pubsub) detachListener(s *subscription) *sharedSub {
+// detachListener removes s from its natsSub. When s was the last
+// listener, the natsSub is removed and returned so the caller can drain
+// outside p.mu. Otherwise returns nil. Safe to call multiple times.
+func (p *Pubsub) detachListener(s *localSub) *natsSub {
 	p.mu.Lock()
-	if _, tracked := p.subs[s]; !tracked {
+	shared := s.shared
+	if shared == nil {
 		p.mu.Unlock()
 		return nil
 	}
-	delete(p.subs, s)
-	if c, ok := p.eventCounts[s.event]; ok {
-		if c <= 1 {
-			delete(p.eventCounts, s.event)
-		} else {
-			p.eventCounts[s.event] = c - 1
-		}
-	}
-	shared := s.shared
-	if shared == nil {
+	if _, tracked := shared.listeners[s]; !tracked {
 		p.mu.Unlock()
 		return nil
 	}
@@ -618,8 +593,8 @@ func (p *Pubsub) detachListener(s *subscription) *sharedSub {
 	// this subject creates a fresh underlying subscription. Identity-
 	// check deletes because a parallel creator-failure path may have
 	// already replaced this entry.
-	if cur, ok := p.sharedBySubject[shared.subject]; ok && cur == shared {
-		delete(p.sharedBySubject, shared.subject)
+	if cur, ok := p.subscriptions[shared.subject]; ok && cur == shared {
+		delete(p.subscriptions, shared.subject)
 	}
 	if shared.sub != nil {
 		if cur, ok := p.sharedByNATS[shared.sub]; ok && cur == shared {
@@ -636,7 +611,7 @@ func (p *Pubsub) detachListener(s *subscription) *sharedSub {
 
 // drainShared drains and unsubscribes the underlying NATS subscription
 // for shared. Called when the last local listener detaches.
-func (p *Pubsub) drainShared(shared *sharedSub) {
+func (p *Pubsub) drainShared(shared *natsSub) {
 	drainTimeout := p.opts.DrainTimeout
 	if drainTimeout <= 0 {
 		drainTimeout = 5 * time.Second
@@ -659,10 +634,10 @@ func (p *Pubsub) drainShared(shared *sharedSub) {
 // without cloning. Listeners on a coalesced subject MUST treat the
 // delivered bytes as immutable; the slice is owned by nats.go's
 // per-conn read buffer and is reused for the next message.
-func (ss *sharedSub) makeCallback(p *Pubsub) natsgo.MsgHandler {
+func (ss *natsSub) makeCallback(p *Pubsub) natsgo.MsgHandler {
 	return func(msg *natsgo.Msg) {
 		p.mu.Lock()
-		listeners := make([]*subscription, 0, len(ss.listeners))
+		listeners := make([]*localSub, 0, len(ss.listeners))
 		for s := range ss.listeners {
 			listeners = append(listeners, s)
 		}
@@ -677,7 +652,7 @@ func (ss *sharedSub) makeCallback(p *Pubsub) natsgo.MsgHandler {
 // drops the message and raises a drop signal so the emitter surfaces
 // pubsub.ErrDroppedMessages independent of dispatcher progress. If s
 // is canceled the message is silently dropped.
-func (s *subscription) offerData(data []byte) {
+func (s *localSub) offerData(data []byte) {
 	select {
 	case s.queue <- data:
 	case <-s.stop:
@@ -689,7 +664,7 @@ func (s *subscription) offerData(data []byte) {
 // signalDrop pushes onto dropSignal without blocking. Multiple drops
 // between emitter dequeues coalesce into a single pending signal, so
 // the listener observes one ErrDroppedMessages per drop wave.
-func (s *subscription) signalDrop() {
+func (s *localSub) signalDrop() {
 	select {
 	case s.dropSignal <- struct{}{}:
 	default:
@@ -699,14 +674,14 @@ func (s *subscription) signalDrop() {
 // dispatch is the per-listener data delivery goroutine. It serializes
 // data callbacks while the emitter goroutine delivers drops, so a slow
 // data callback cannot block drop notifications.
-func (s *subscription) dispatch() {
+func (s *localSub) dispatch() {
 	defer close(s.dispatcherDone)
 	for {
 		select {
 		case <-s.stop:
 			return
 		case data := <-s.queue:
-			s.listener(context.Background(), data, nil)
+			s.listener(s.pubsub.ctx, data, nil)
 		}
 	}
 }
@@ -714,14 +689,14 @@ func (s *subscription) dispatch() {
 // emitDrops is the per-listener drop-notification goroutine. It runs
 // concurrently with dispatch so a blocked data callback cannot
 // suppress drop signaling.
-func (s *subscription) emitDrops() {
+func (s *localSub) emitDrops() {
 	defer close(s.emitterDone)
 	for {
 		select {
 		case <-s.stop:
 			return
 		case <-s.dropSignal:
-			s.listener(context.Background(), nil, pubsub.ErrDroppedMessages)
+			s.listener(s.pubsub.ctx, nil, pubsub.ErrDroppedMessages)
 		}
 	}
 }
@@ -745,17 +720,17 @@ func (p *Pubsub) handleAsyncError(sub *natsgo.Subscription, err error) {
 // every local listener on shared when NATS reports a new drop delta.
 // The slow-consumer signal is per-subscription and cannot be narrowed
 // to a single local listener.
-func (p *Pubsub) handleSharedSlowConsumer(shared *sharedSub) {
+func (p *Pubsub) handleSharedSlowConsumer(shared *natsSub) {
 	shared.dropMu.Lock()
 	dropped, err := shared.sub.Dropped()
 	if err != nil {
 		shared.dropMu.Unlock()
-		p.logger.Warn(context.Background(), "nats: query dropped count", slog.Error(err))
+		p.logger.Warn(p.ctx, "nats: query dropped count", slog.Error(err))
 		return
 	}
 	if dropped < 0 {
 		shared.dropMu.Unlock()
-		p.logger.Warn(context.Background(), "nats: negative dropped count")
+		p.logger.Warn(p.ctx, "nats: negative dropped count")
 		return
 	}
 	cur := uint64(dropped)
@@ -775,7 +750,7 @@ func (p *Pubsub) handleSharedSlowConsumer(shared *sharedSub) {
 	// Snapshot the listener set under p.mu so we don't hold the lock
 	// while invoking user callbacks via the dispatcher.
 	p.mu.Lock()
-	listeners := make([]*subscription, 0, len(shared.listeners))
+	listeners := make([]*localSub, 0, len(shared.listeners))
 	for s := range shared.listeners {
 		listeners = append(listeners, s)
 	}
@@ -793,13 +768,13 @@ func (p *Pubsub) Close() error {
 		// Flush / Subscribe calls bail before touching the pools.
 		p.cancel()
 		p.mu.Lock()
-		subs := make([]*subscription, 0, len(p.subs))
-		for s := range p.subs {
-			subs = append(subs, s)
-		}
-		shareds := make([]*sharedSub, 0, len(p.sharedBySubject))
-		for _, ss := range p.sharedBySubject {
+		var subs []*localSub
+		shareds := make([]*natsSub, 0, len(p.subscriptions))
+		for _, ss := range p.subscriptions {
 			shareds = append(shareds, ss)
+			for s := range ss.listeners {
+				subs = append(subs, s)
+			}
 		}
 		p.mu.Unlock()
 
@@ -826,17 +801,16 @@ func (p *Pubsub) Close() error {
 		// Clear tracking maps so post-Close inspection sees no
 		// dangling state.
 		p.mu.Lock()
-		for s := range p.subs {
-			delete(p.subs, s)
+		for _, ss := range shareds {
+			for s := range ss.listeners {
+				delete(ss.listeners, s)
+			}
 		}
-		for k := range p.sharedBySubject {
-			delete(p.sharedBySubject, k)
+		for k := range p.subscriptions {
+			delete(p.subscriptions, k)
 		}
 		for k := range p.sharedByNATS {
 			delete(p.sharedByNATS, k)
-		}
-		for k := range p.eventCounts {
-			delete(p.eventCounts, k)
 		}
 		p.mu.Unlock()
 

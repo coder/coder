@@ -83,11 +83,11 @@ func Test_SubscribeWithErr(t *testing.T) {
 
 		ps.mu.Lock()
 		defer ps.mu.Unlock()
-		require.Len(t, ps.sharedBySubject, 1)
+		require.Len(t, ps.subscriptions, 1)
 	})
 }
 
-func Test_subscription_dispatch(t *testing.T) {
+func Test_localSub_dispatch(t *testing.T) {
 	t.Parallel()
 
 	t.Run("SlowListenerIsolation", func(t *testing.T) {
