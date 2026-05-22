@@ -31,6 +31,27 @@ func SourceFromContext(ctx context.Context) Source {
 	return src
 }
 
+type delegatedAPIKeyIDCtxKey struct{}
+
+// WithDelegatedAPIKeyID returns a copy of ctx carrying an API key ID on whose
+// behalf the request is being made. The in-process aibridge transport requires
+// this on every RoundTrip and rejects calls whose context lacks it.
+//
+// The caller is responsible for having established that the user owning this
+// key authorized the request: aibridged validates only that the key exists,
+// has not expired, and has not been revoked. It does not verify the key
+// secret, because the caller never has it.
+func WithDelegatedAPIKeyID(ctx context.Context, id string) context.Context {
+	return context.WithValue(ctx, delegatedAPIKeyIDCtxKey{}, id)
+}
+
+// DelegatedAPIKeyIDFromContext returns the API key ID attached by
+// [WithDelegatedAPIKeyID] and whether one was set.
+func DelegatedAPIKeyIDFromContext(ctx context.Context) (string, bool) {
+	id, ok := ctx.Value(delegatedAPIKeyIDCtxKey{}).(string)
+	return id, ok && id != ""
+}
+
 // TransportFactory returns an [http.RoundTripper] that dispatches an aibridge
 // request in-process for a given ai_providers row.
 //

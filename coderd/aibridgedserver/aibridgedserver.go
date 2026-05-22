@@ -565,10 +565,26 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 	//nolint:gocritic // AIBridged has specific authz rules.
 	ctx = dbauthz.AsAIBridged(ctx)
 
-	// Key matches expected format.
-	keyID, keySecret, err := httpmw.SplitAPIToken(in.GetKey())
-	if err != nil {
+	var (
+		keyID     string
+		keySecret string
+		// delegated requests skip the secret check: the caller never
+		// has the secret. Trust is established at the in-process
+		// transport boundary, not in this RPC.
+		delegated bool
+	)
+	switch {
+	case in.GetKey() != "" && in.GetKeyId() != "":
 		return nil, ErrInvalidKey
+	case in.GetKeyId() != "":
+		keyID = in.GetKeyId()
+		delegated = true
+	default:
+		var err error
+		keyID, keySecret, err = httpmw.SplitAPIToken(in.GetKey())
+		if err != nil {
+			return nil, ErrInvalidKey
+		}
 	}
 
 	// Key exists.
@@ -584,8 +600,8 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 		return nil, ErrExpired
 	}
 
-	// Key secret matches.
-	if !apikey.ValidateHash(key.HashedSecret, keySecret) {
+	// Key secret matches (skipped for delegated callers).
+	if !delegated && !apikey.ValidateHash(key.HashedSecret, keySecret) {
 		return nil, ErrInvalidKey
 	}
 

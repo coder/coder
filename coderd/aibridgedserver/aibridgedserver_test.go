@@ -199,6 +199,127 @@ func TestAuthorization(t *testing.T) {
 	}
 }
 
+// When IsAuthorizedRequest carries KeyId instead of Key, the server skips
+// the secret check and validates only that the key exists, is unexpired, and
+// belongs to a non-deleted non-system user. This is the path used by
+// in-process delegated callers (e.g., chatd) that hold only the key ID.
+func TestAuthorization_Delegated(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name        string
+		mocksFn     func(db *dbmock.MockStore, apiKey database.APIKey, user database.User)
+		bothFields  bool
+		expectedErr error
+	}{
+		{
+			name: "valid",
+			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
+				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
+				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
+			},
+		},
+		{
+			name:        "unknown key",
+			expectedErr: aibridgedserver.ErrUnknownKey,
+			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, _ database.User) {
+				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(database.APIKey{}, sql.ErrNoRows)
+			},
+		},
+		{
+			name:        "expired",
+			expectedErr: aibridgedserver.ErrExpired,
+			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, _ database.User) {
+				apiKey.ExpiresAt = dbtime.Now().Add(-time.Hour)
+				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
+			},
+		},
+		{
+			// Sending both Key and KeyId is an API misuse and must be
+			// rejected to avoid ambiguity about which path was taken.
+			name:        "both fields set",
+			bothFields:  true,
+			expectedErr: aibridgedserver.ErrInvalidKey,
+		},
+		{
+			// A bogus secret has no effect on the delegated path because
+			// the secret is never checked. This is the load-bearing
+			// security property: trust is established out-of-band, not in
+			// this RPC.
+			name: "secret hash mismatch is ignored",
+			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
+				apiKey.HashedSecret = []byte("not-the-real-hash")
+				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
+				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			db := dbmock.NewMockStore(ctrl)
+			logger := testutil.Logger(t)
+
+			now := dbtime.Now()
+			user := database.User{
+				ID:         uuid.New(),
+				Email:      "test@coder.com",
+				Username:   "test",
+				Name:       "Test User",
+				CreatedAt:  now,
+				UpdatedAt:  now,
+				RBACRoles:  []string{},
+				LoginType:  database.LoginTypePassword,
+				Status:     database.UserStatusActive,
+				LastSeenAt: now,
+			}
+			keyID, _ := cryptorand.String(10)
+			_, keySecretHashed, _ := apikey.GenerateSecret(22)
+			apiKey := database.APIKey{
+				ID:              keyID,
+				LifetimeSeconds: 86400,
+				HashedSecret:    keySecretHashed,
+				UserID:          user.ID,
+				LastUsed:        now,
+				ExpiresAt:       now.Add(time.Hour),
+				CreatedAt:       now,
+				UpdatedAt:       now,
+				LoginType:       database.LoginTypePassword,
+				Scopes:          []database.APIKeyScope{database.ApiKeyScopeCoderAll},
+			}
+
+			if tc.mocksFn != nil {
+				tc.mocksFn(db, apiKey, user)
+			}
+
+			srv, err := aibridgedserver.NewServer(t.Context(), db, logger, "/", codersdk.AIBridgeConfig{}, nil, requiredExperiments, agplaiseats.Noop{})
+			require.NoError(t, err)
+			require.NotNil(t, srv)
+
+			req := &proto.IsAuthorizedRequest{KeyId: keyID}
+			if tc.bothFields {
+				req.Key = "anything-anything"
+			}
+
+			resp, err := srv.IsAuthorized(t.Context(), req)
+			if tc.expectedErr != nil {
+				require.Error(t, err)
+				require.ErrorIs(t, err, tc.expectedErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, &proto.IsAuthorizedResponse{
+				OwnerId:  user.ID.String(),
+				ApiKeyId: keyID,
+				Username: user.Username,
+			}, resp)
+		})
+	}
+}
+
 func TestGetMCPServerConfigs(t *testing.T) {
 	t.Parallel()
 
