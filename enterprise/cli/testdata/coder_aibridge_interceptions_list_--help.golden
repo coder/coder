@@ -23,10 +23,8 @@ OPTIONS:
       --model string
           Only return interceptions from this model.
 
-      --provider string
-          Only return interceptions from this provider type (openai, anthropic,
-          copilot). Retained for backward compatibility; prefer --provider-name
-          to scope by configured provider row.
+      --provider-id string
+          Only return interceptions from the AI provider with this UUID.
 
       --provider-name string
           Only return interceptions from the named provider (matches

@@ -366,6 +366,9 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			ResourceDeploymentConfig.Type: {policy.ActionRead},
 			// Allow auditors to query AI Bridge interceptions.
 			ResourceAibridgeInterception.Type: {policy.ActionRead},
+			// Allow auditors to resolve provider_id filters against the
+			// ai_providers table when listing interceptions/sessions.
+			ResourceAIProvider.Type: {policy.ActionRead},
 		}),
 		User:    []Permission{},
 		ByOrgID: map[string]OrgPermissions{},

@@ -35,14 +35,6 @@ Only return interceptions started before this time. Must be after 'started-after
 
 Only return interceptions started after this time. Must be before 'started-before' if set. Accepts a time in the RFC 3339 format, e.g. "2006-01-02T15:04:05Z07:00".
 
-### --provider
-
-|      |                     |
-|------|---------------------|
-| Type | <code>string</code> |
-
-Only return interceptions from this provider type (openai, anthropic, copilot). Retained for backward compatibility; prefer --provider-name to scope by configured provider row.
-
 ### --provider-name
 
 |      |                     |
@@ -50,6 +42,14 @@ Only return interceptions from this provider type (openai, anthropic, copilot). 
 | Type | <code>string</code> |
 
 Only return interceptions from the named provider (matches ai_providers.name).
+
+### --provider-id
+
+|      |                     |
+|------|---------------------|
+| Type | <code>string</code> |
+
+Only return interceptions from the AI provider with this UUID.
 
 ### --model
 

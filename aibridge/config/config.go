@@ -3,6 +3,8 @@ package config
 import (
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/coder/coder/v2/aibridge/keypool"
 )
 
@@ -25,6 +27,9 @@ const (
 // fields into a single abstraction per
 // https://github.com/coder/aibridge/issues/266.
 type Anthropic struct {
+	// ID is the ai_providers row this provider was constructed from.
+	// uuid.Nil for legacy env-driven constructors and tests.
+	ID uuid.UUID
 	// Name is the provider instance name. If empty, defaults to "anthropic".
 	Name             string
 	BaseURL          string
@@ -61,6 +66,9 @@ type AWSBedrock struct {
 // TODO(ssncferreira): consolidate the authentication fields per
 // https://github.com/coder/aibridge/issues/266.
 type OpenAI struct {
+	// ID is the ai_providers row this provider was constructed from.
+	// uuid.Nil for legacy env-driven constructors and tests.
+	ID uuid.UUID
 	// Name is the provider instance name. If empty, defaults to "openai".
 	Name             string
 	BaseURL          string
@@ -73,6 +81,9 @@ type OpenAI struct {
 }
 
 type Copilot struct {
+	// ID is the ai_providers row this provider was constructed from.
+	// uuid.Nil for legacy env-driven constructors and tests.
+	ID uuid.UUID
 	// Name is the provider instance name. If empty, defaults to "copilot".
 	Name           string
 	BaseURL        string

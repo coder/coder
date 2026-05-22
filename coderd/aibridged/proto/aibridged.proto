@@ -51,6 +51,12 @@ message RecordInterceptionRequest {
   string provider_name = 12;
   string credential_kind = 13;
   string credential_hint = 14;
+  // UUID of the ai_providers row this provider was constructed from. Empty
+  // when the provider was constructed from a non-DB source (legacy
+  // env-driven, tests). The provider/provider_name strings remain so that
+  // aibridgedserver can populate the legacy snapshot columns during the
+  // deprecation window.
+  string provider_id = 15;
 }
 
 message RecordInterceptionResponse {}

@@ -3,6 +3,7 @@ package provider
 import (
 	"net/http"
 
+	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
@@ -47,6 +48,10 @@ var ErrUnknownRoute = xerrors.New("unknown route")
 // OpenAI includes the version '/v1' in the base url while Anthropic does not.
 // More details/examples: https://github.com/coder/aibridge/pull/174#discussion_r2782320152
 type Provider interface {
+	// ID returns the provider instance ID, sourced from the ai_providers
+	// row this provider was constructed from. uuid.Nil for providers built
+	// from non-DB sources (legacy env-driven constructors, tests).
+	ID() uuid.UUID
 	// Type returns the provider type: "copilot", "openai", or "anthropic".
 	// Multiple provider instances can share the same type.
 	Type() string

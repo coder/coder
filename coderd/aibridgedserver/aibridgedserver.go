@@ -179,6 +179,15 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		providerName = in.Provider
 	}
 
+	var providerID uuid.NullUUID
+	if rawID := strings.TrimSpace(in.GetProviderId()); rawID != "" {
+		parsed, parseErr := uuid.Parse(rawID)
+		if parseErr != nil {
+			return nil, xerrors.Errorf("invalid provider ID %q: %w", rawID, parseErr)
+		}
+		providerID = uuid.NullUUID{UUID: parsed, Valid: parsed != uuid.Nil}
+	}
+
 	_, err = s.store.InsertAIBridgeInterception(ctx, database.InsertAIBridgeInterceptionParams{
 		ID:                         intcID,
 		APIKeyID:                   sql.NullString{String: in.ApiKeyId, Valid: true},
@@ -187,6 +196,7 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		InitiatorID:                initID,
 		Provider:                   in.Provider,
 		ProviderName:               providerName,
+		ProviderID:                 providerID,
 		Model:                      in.Model,
 		Metadata:                   out,
 		StartedAt:                  in.StartedAt.AsTime(),

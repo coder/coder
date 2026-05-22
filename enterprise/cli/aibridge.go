@@ -47,8 +47,8 @@ func (r *RootCmd) aibridgeInterceptionsList() *serpent.Command {
 		initiator        string
 		startedBeforeRaw string
 		startedAfterRaw  string
-		provider         string
 		providerName     string
+		providerIDRaw    string
 		model            string
 		client           string
 		afterIDRaw       string
@@ -78,16 +78,16 @@ func (r *RootCmd) aibridgeInterceptionsList() *serpent.Command {
 				Value:       serpent.StringOf(&startedAfterRaw),
 			},
 			{
-				Flag:        "provider",
-				Description: `Only return interceptions from this provider type (openai, anthropic, copilot). Retained for backward compatibility; prefer --provider-name to scope by configured provider row.`,
-				Default:     "",
-				Value:       serpent.StringOf(&provider),
-			},
-			{
 				Flag:        "provider-name",
 				Description: `Only return interceptions from the named provider (matches ai_providers.name).`,
 				Default:     "",
 				Value:       serpent.StringOf(&providerName),
+			},
+			{
+				Flag:        "provider-id",
+				Description: `Only return interceptions from the AI provider with this UUID.`,
+				Default:     "",
+				Value:       serpent.StringOf(&providerIDRaw),
 			},
 			{
 				Flag:        "model",
@@ -144,6 +144,14 @@ func (r *RootCmd) aibridgeInterceptionsList() *serpent.Command {
 				}
 			}
 
+			providerID := uuid.Nil
+			if providerIDRaw != "" {
+				providerID, err = uuid.Parse(providerIDRaw)
+				if err != nil {
+					return xerrors.Errorf("parse provider-id filter value %q: %w", providerIDRaw, err)
+				}
+			}
+
 			if limit < 1 || limit > maxInterceptionsLimit {
 				return xerrors.Errorf("limit value must be between 1 and %d", maxInterceptionsLimit)
 			}
@@ -158,7 +166,7 @@ func (r *RootCmd) aibridgeInterceptionsList() *serpent.Command {
 				Initiator:     initiator,
 				StartedBefore: startedBefore,
 				StartedAfter:  startedAfter,
-				Provider:      provider,
+				ProviderID:    providerID,
 				ProviderName:  providerName,
 				Model:         model,
 			})

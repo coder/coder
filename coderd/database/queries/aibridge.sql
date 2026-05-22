@@ -1,8 +1,8 @@
 -- name: InsertAIBridgeInterception :one
 INSERT INTO aibridge_interceptions (
-	id, api_key_id, initiator_id, provider, provider_name, model, metadata, started_at, client, client_session_id, thread_parent_id, thread_root_id, credential_kind, credential_hint
+	id, api_key_id, initiator_id, provider, provider_name, provider_id, model, metadata, started_at, client, client_session_id, thread_parent_id, thread_root_id, credential_kind, credential_hint
 ) VALUES (
-	@id, @api_key_id, @initiator_id, @provider, @provider_name, @model, COALESCE(@metadata::jsonb, '{}'::jsonb), @started_at, @client, sqlc.narg('client_session_id'), sqlc.narg('thread_parent_interception_id')::uuid, sqlc.narg('thread_root_interception_id')::uuid, @credential_kind, @credential_hint
+	@id, @api_key_id, @initiator_id, @provider, @provider_name, sqlc.narg('provider_id')::uuid, @model, COALESCE(@metadata::jsonb, '{}'::jsonb), @started_at, @client, sqlc.narg('client_session_id'), sqlc.narg('thread_parent_interception_id')::uuid, sqlc.narg('thread_root_interception_id')::uuid, @credential_kind, @credential_hint
 )
 RETURNING *;
 
@@ -128,10 +128,21 @@ WHERE
 		WHEN @initiator_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN aibridge_interceptions.initiator_id = @initiator_id::uuid
 		ELSE true
 	END
-	-- Filter provider type (openai/anthropic/copilot). Retained for
-	-- backward compatibility with existing callers.
+	-- Filter provider via provider_id; for rows predating the
+	-- provider_id column or whose provider could not be resolved at
+	-- backfill time, fall back to the legacy snapshot columns
+	-- (provider_name, then provider type).
 	AND CASE
-		WHEN @provider::text != '' THEN aibridge_interceptions.provider = @provider::text
+		WHEN @provider_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+			aibridge_interceptions.provider_id = @provider_id::uuid
+			OR (
+				aibridge_interceptions.provider_id IS NULL
+				AND (
+					(@provider_name::text != '' AND aibridge_interceptions.provider_name = @provider_name::text)
+					OR (aibridge_interceptions.provider_name = '' AND @provider_type::text != '' AND aibridge_interceptions.provider = @provider_type::text)
+				)
+			)
+		)
 		ELSE true
 	END
 	-- Filter provider_name. Names are immutable on ai_providers, so the
@@ -180,10 +191,21 @@ WHERE
 		WHEN @initiator_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN aibridge_interceptions.initiator_id = @initiator_id::uuid
 		ELSE true
 	END
-	-- Filter provider type (openai/anthropic/copilot). Retained for
-	-- backward compatibility with existing callers.
+	-- Filter provider via provider_id; for rows predating the
+	-- provider_id column or whose provider could not be resolved at
+	-- backfill time, fall back to the legacy snapshot columns
+	-- (provider_name, then provider type).
 	AND CASE
-		WHEN @provider::text != '' THEN aibridge_interceptions.provider = @provider::text
+		WHEN @provider_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+			aibridge_interceptions.provider_id = @provider_id::uuid
+			OR (
+				aibridge_interceptions.provider_id IS NULL
+				AND (
+					(@provider_name::text != '' AND aibridge_interceptions.provider_name = @provider_name::text)
+					OR (aibridge_interceptions.provider_name = '' AND @provider_type::text != '' AND aibridge_interceptions.provider = @provider_type::text)
+				)
+			)
+		)
 		ELSE true
 	END
 	-- Filter provider_name. Names are immutable on ai_providers, so the
@@ -429,10 +451,21 @@ WHERE
 		WHEN @initiator_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN aibridge_interceptions.initiator_id = @initiator_id::uuid
 		ELSE true
 	END
-	-- Filter provider type (openai/anthropic/copilot). Retained for
-	-- backward compatibility with existing callers.
+	-- Filter provider via provider_id; for rows predating the
+	-- provider_id column or whose provider could not be resolved at
+	-- backfill time, fall back to the legacy snapshot columns
+	-- (provider_name, then provider type).
 	AND CASE
-		WHEN @provider::text != '' THEN aibridge_interceptions.provider = @provider::text
+		WHEN @provider_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+			aibridge_interceptions.provider_id = @provider_id::uuid
+			OR (
+				aibridge_interceptions.provider_id IS NULL
+				AND (
+					(@provider_name::text != '' AND aibridge_interceptions.provider_name = @provider_name::text)
+					OR (aibridge_interceptions.provider_name = '' AND @provider_type::text != '' AND aibridge_interceptions.provider = @provider_type::text)
+				)
+			)
+		)
 		ELSE true
 	END
 	-- Filter provider_name. Names are immutable on ai_providers, so the
@@ -524,10 +557,21 @@ session_page AS (
 			WHEN @initiator_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN ai.initiator_id = @initiator_id::uuid
 			ELSE true
 		END
-		-- Filter provider type (openai/anthropic/copilot). Retained for
-		-- backward compatibility with existing callers.
+		-- Filter provider via provider_id; for rows predating the
+		-- provider_id column or whose provider could not be resolved at
+		-- backfill time, fall back to the legacy snapshot columns
+		-- (provider_name, then provider type).
 		AND CASE
-			WHEN @provider::text != '' THEN ai.provider = @provider::text
+			WHEN @provider_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+				ai.provider_id = @provider_id::uuid
+				OR (
+					ai.provider_id IS NULL
+					AND (
+						(@provider_name::text != '' AND ai.provider_name = @provider_name::text)
+						OR (ai.provider_name = '' AND @provider_type::text != '' AND ai.provider = @provider_type::text)
+					)
+				)
+			)
 			ELSE true
 		END
 		-- Filter provider_name. Names are immutable on ai_providers, so the

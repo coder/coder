@@ -34,6 +34,7 @@ type InterceptionRecord struct {
 	Model                 string
 	Provider              string
 	ProviderName          string
+	ProviderID            string
 	StartedAt             time.Time
 	ClientSessionID       *string
 	Client                string

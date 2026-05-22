@@ -78,6 +78,10 @@ func (p *Copilot) Name() string {
 	return p.cfg.Name
 }
 
+func (p *Copilot) ID() uuid.UUID {
+	return p.cfg.ID
+}
+
 func (p *Copilot) BaseURL() string {
 	return p.cfg.BaseURL
 }

@@ -227,6 +227,7 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 			Model:                 interceptor.Model(),
 			Provider:              p.Type(),
 			ProviderName:          p.Name(),
+			ProviderID:            p.ID().String(),
 			UserAgent:             r.UserAgent(),
 			Client:                string(client),
 			ClientSessionID:       sessionID,

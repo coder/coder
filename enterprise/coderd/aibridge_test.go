@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -361,30 +362,43 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 		}
 
 		// Insert a bunch of test data with varying filterable fields.
+		// Each interception is linked to a real ai_providers row so the
+		// provider_id filter resolves cleanly. The provider rows use the
+		// "openai" type because the ai_provider_type enum is constrained;
+		// only the names differ per interception.
 		now := dbtime.Now()
+		p1 := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AiProviderTypeOpenai, Name: "one"})
+		p2 := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AiProviderTypeOpenai, Name: "two"})
+		p3 := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AiProviderTypeOpenai, Name: "three"})
 		i1EndedAt := now.Add(time.Minute)
 		i1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			ID:          uuid.MustParse("00000000-0000-0000-0000-000000000001"),
-			InitiatorID: user1.ID,
-			Provider:    "one",
-			Model:       "one",
-			StartedAt:   now,
+			ID:           uuid.MustParse("00000000-0000-0000-0000-000000000001"),
+			InitiatorID:  user1.ID,
+			Provider:     "openai",
+			ProviderName: p1.Name,
+			ProviderID:   uuid.NullUUID{UUID: p1.ID, Valid: true},
+			Model:        "one",
+			StartedAt:    now,
 		}, &i1EndedAt)
 		i2 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			ID:          uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-			InitiatorID: user1.ID,
-			Provider:    "two",
-			Model:       "two",
-			StartedAt:   now.Add(-time.Hour),
-			Client:      sql.NullString{String: string(aiblib.ClientCursor), Valid: true},
+			ID:           uuid.MustParse("00000000-0000-0000-0000-000000000002"),
+			InitiatorID:  user1.ID,
+			Provider:     "openai",
+			ProviderName: p2.Name,
+			ProviderID:   uuid.NullUUID{UUID: p2.ID, Valid: true},
+			Model:        "two",
+			StartedAt:    now.Add(-time.Hour),
+			Client:       sql.NullString{String: string(aiblib.ClientCursor), Valid: true},
 		}, &now)
 		i3 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			ID:          uuid.MustParse("00000000-0000-0000-0000-000000000003"),
-			InitiatorID: user2.ID,
-			Provider:    "three",
-			Model:       "three",
-			StartedAt:   now.Add(-2 * time.Hour),
-			Client:      sql.NullString{String: string(aiblib.ClientClaudeCode), Valid: true},
+			ID:           uuid.MustParse("00000000-0000-0000-0000-000000000003"),
+			InitiatorID:  user2.ID,
+			Provider:     "openai",
+			ProviderName: p3.Name,
+			ProviderID:   uuid.NullUUID{UUID: p3.ID, Valid: true},
+			Model:        "three",
+			StartedAt:    now.Add(-2 * time.Hour),
+			Client:       sql.NullString{String: string(aiblib.ClientClaudeCode), Valid: true},
 		}, &now)
 
 		// Convert to SDK types for response comparison. We don't care about the
@@ -424,13 +438,8 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 				want:   []codersdk.AIBridgeInterception{i3SDK},
 			},
 			{
-				name:   "Provider/NoMatch",
-				filter: codersdk.AIBridgeListInterceptionsFilter{Provider: "nonsense"},
-				want:   []codersdk.AIBridgeInterception{},
-			},
-			{
-				name:   "Provider/OK",
-				filter: codersdk.AIBridgeListInterceptionsFilter{Provider: "two"},
+				name:   "ProviderID/OK",
+				filter: codersdk.AIBridgeListInterceptionsFilter{ProviderID: p2.ID},
 				want:   []codersdk.AIBridgeInterception{i2SDK},
 			},
 			{
@@ -523,6 +532,99 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 				require.Equal(t, wantIDs, gotIDs)
 			})
 		}
+
+		// ProviderID/NoMatch: a non-existent provider_id returns a 400
+		// validation error because parseAIProvider rejects unknown UUIDs.
+		t.Run("ProviderID/NoMatch", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			_, err := client.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{
+				ProviderID: uuid.New(),
+			})
+			var sdkErr *codersdk.Error
+			require.ErrorAs(t, err, &sdkErr)
+			require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+			require.Len(t, sdkErr.Validations, 1)
+			require.Equal(t, "provider_id", sdkErr.Validations[0].Field)
+		})
+
+		// ProviderID/LegacyFallbackByName: an interception predating the
+		// provider_id column (provider_id IS NULL) but with a matching
+		// provider_name is still returned when filtering by that provider's
+		// UUID.
+		t.Run("ProviderID/LegacyFallbackByName", func(t *testing.T) {
+			t.Parallel()
+			client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			now := dbtime.Now()
+			endedAt := now.Add(time.Minute)
+			fbProvider := dbgen.AIProvider(t, db, database.AIProvider{
+				Type: database.AiProviderTypeOpenai,
+				Name: "fallback-by-name",
+			})
+			legacyByName := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+				InitiatorID:  firstUser.UserID,
+				Provider:     "openai",
+				ProviderName: fbProvider.Name,
+				// Explicitly NULL: this row predates the provider_id column.
+				ProviderID: uuid.NullUUID{},
+				Model:      "fallback",
+				StartedAt:  now,
+			}, &endedAt)
+
+			//nolint:gocritic // Owner reads all interceptions to exercise the filter.
+			res, err := client.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{
+				ProviderID: fbProvider.ID,
+			})
+			require.NoError(t, err)
+			require.EqualValues(t, 1, res.Count)
+			require.Equal(t, legacyByName.ID.String(), res.Results[0].ID.String())
+		})
+
+		// ProviderID/LegacyFallbackByType: an interception predating both
+		// the provider_id column and the provider_name column (both NULL/
+		// empty) is matched on its raw provider type column when filtering
+		// by an ai_providers row whose type matches. Bypass dbgen for this
+		// row so provider_name remains the literal empty string that
+		// pre-000458 rows carry; dbgen's takeFirst would substitute a
+		// default.
+		t.Run("ProviderID/LegacyFallbackByType", func(t *testing.T) {
+			t.Parallel()
+			client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			now := dbtime.Now()
+			fbProvider := dbgen.AIProvider(t, db, database.AIProvider{
+				Type: database.AiProviderTypeAnthropic,
+				Name: "fallback-by-type",
+			})
+			legacyByType, err := db.InsertAIBridgeInterception(dbauthz.AsAIBridged(ctx), database.InsertAIBridgeInterceptionParams{
+				ID:             uuid.New(),
+				InitiatorID:    firstUser.UserID,
+				Provider:       "anthropic",
+				ProviderName:   "",
+				ProviderID:     uuid.NullUUID{},
+				Model:          "fallback",
+				Metadata:       json.RawMessage("{}"),
+				StartedAt:      now,
+				CredentialKind: database.CredentialKindCentralized,
+			})
+			require.NoError(t, err)
+			_, err = db.UpdateAIBridgeInterceptionEnded(dbauthz.AsAIBridged(ctx), database.UpdateAIBridgeInterceptionEndedParams{
+				ID:      legacyByType.ID,
+				EndedAt: now.Add(time.Minute),
+			})
+			require.NoError(t, err)
+
+			//nolint:gocritic // Owner reads all interceptions to exercise the filter.
+			res, err := client.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{
+				ProviderID: fbProvider.ID,
+			})
+			require.NoError(t, err)
+			require.EqualValues(t, 1, res.Count)
+			require.Equal(t, legacyByType.ID.String(), res.Results[0].ID.String())
+		})
 	})
 
 	t.Run("FilterByMe/MemberCannotReadOwn", func(t *testing.T) {
@@ -926,14 +1028,18 @@ func TestAIBridgeListSessions(t *testing.T) {
 
 		now := dbtime.Now()
 
+		anthropicProvider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AiProviderTypeAnthropic, Name: "anthropic"})
+
 		// Session from user1 with provider "anthropic" and client "claude-code".
 		s1EndedAt := now.Add(time.Minute)
 		s1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID: firstUser.UserID,
-			Provider:    "anthropic",
-			Model:       "claude-4",
-			StartedAt:   now,
-			Client:      sql.NullString{String: "claude-code", Valid: true},
+			InitiatorID:  firstUser.UserID,
+			Provider:     "anthropic",
+			ProviderName: anthropicProvider.Name,
+			ProviderID:   uuid.NullUUID{UUID: anthropicProvider.ID, Valid: true},
+			Model:        "claude-4",
+			StartedAt:    now,
+			Client:       sql.NullString{String: "claude-code", Valid: true},
 		}, &s1EndedAt)
 
 		// Session from user2 with provider "openai".
@@ -956,7 +1062,7 @@ func TestAIBridgeListSessions(t *testing.T) {
 
 		// Filter by provider.
 		res, err = client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
-			Provider: "anthropic",
+			ProviderID: anthropicProvider.ID,
 		})
 		require.NoError(t, err)
 		require.EqualValues(t, 1, res.Count)
@@ -1437,38 +1543,46 @@ func TestAIBridgeListSessions(t *testing.T) {
 
 		now := dbtime.Now()
 
+		anthropicProvider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AiProviderTypeAnthropic, Name: "anthropic"})
+
 		// Session A: user1, anthropic, claude-4, started now.
 		aEndedAt := now.Add(time.Minute)
 		a := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID: firstUser.UserID,
-			Provider:    "anthropic",
-			Model:       "claude-4",
-			StartedAt:   now,
+			InitiatorID:  firstUser.UserID,
+			Provider:     "anthropic",
+			ProviderName: anthropicProvider.Name,
+			ProviderID:   uuid.NullUUID{UUID: anthropicProvider.ID, Valid: true},
+			Model:        "claude-4",
+			StartedAt:    now,
 		}, &aEndedAt)
 
 		// Session B: user1, anthropic, gpt-4, started 2h ago.
 		bEndedAt := now.Add(-2*time.Hour + time.Minute)
 		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID: firstUser.UserID,
-			Provider:    "anthropic",
-			Model:       "gpt-4",
-			StartedAt:   now.Add(-2 * time.Hour),
+			InitiatorID:  firstUser.UserID,
+			Provider:     "anthropic",
+			ProviderName: anthropicProvider.Name,
+			ProviderID:   uuid.NullUUID{UUID: anthropicProvider.ID, Valid: true},
+			Model:        "gpt-4",
+			StartedAt:    now.Add(-2 * time.Hour),
 		}, &bEndedAt)
 
 		// Session C: user2, anthropic, claude-4, started 1h ago.
 		cEndedAt := now.Add(-time.Hour + time.Minute)
 		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID: user2.ID,
-			Provider:    "anthropic",
-			Model:       "claude-4",
-			StartedAt:   now.Add(-time.Hour),
+			InitiatorID:  user2.ID,
+			Provider:     "anthropic",
+			ProviderName: anthropicProvider.Name,
+			ProviderID:   uuid.NullUUID{UUID: anthropicProvider.ID, Valid: true},
+			Model:        "claude-4",
+			StartedAt:    now.Add(-time.Hour),
 		}, &cEndedAt)
 
 		// Combining provider + model + started_after should return
 		// only session A (user1, anthropic, claude-4, recent).
 		//nolint:gocritic // Owner role is irrelevant; testing combined filters.
 		res, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
-			Provider:     "anthropic",
+			ProviderID:   anthropicProvider.ID,
 			Model:        "claude-4",
 			StartedAfter: now.Add(-30 * time.Minute),
 		})

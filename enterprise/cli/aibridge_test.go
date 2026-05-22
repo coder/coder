@@ -94,13 +94,22 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 
 		now := dbtime.Now()
 
+		// The CLI's --provider flag resolves the bare name to a UUID via the
+		// API, so the filter target must exist in ai_providers.
+		realProvider := dbgen.AIProvider(t, db, database.AIProvider{
+			Type: database.AiProviderTypeOpenai,
+			Name: "real-provider",
+		})
+
 		// This interception should be returned since it matches all filters.
 		goodInterceptionEndedAt := now.Add(time.Minute)
 		goodInterception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID: member.ID,
-			Provider:    "real-provider",
-			Model:       "real-model",
-			StartedAt:   now,
+			InitiatorID:  member.ID,
+			Provider:     "openai",
+			ProviderName: realProvider.Name,
+			ProviderID:   uuid.NullUUID{UUID: realProvider.ID, Valid: true},
+			Model:        "real-model",
+			StartedAt:    now,
 		}, &goodInterceptionEndedAt)
 
 		// These interceptions should not be returned since they don't match the
@@ -145,7 +154,7 @@ func TestAIBridgeListInterceptions(t *testing.T) {
 			"--started-after", now.Add(-time.Hour).Format(time.RFC3339),
 			"--started-before", now.Add(time.Hour).Format(time.RFC3339),
 			"--initiator", member.Username,
-			"--provider", goodInterception.Provider,
+			"--provider", realProvider.Name,
 			"--model", goodInterception.Model,
 		}
 		inv, root := newCLI(t, args...)

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
 
 	"cdr.dev/slog/v3"
@@ -13,6 +14,7 @@ import (
 )
 
 type MockProvider struct {
+	IDValue              uuid.UUID
 	NameStr              string
 	URL                  string
 	Bridged              []string
@@ -23,6 +25,7 @@ type MockProvider struct {
 
 func (m *MockProvider) Type() string                { return m.NameStr }
 func (m *MockProvider) Name() string                { return m.NameStr }
+func (m *MockProvider) ID() uuid.UUID               { return m.IDValue }
 func (m *MockProvider) BaseURL() string             { return m.URL }
 func (m *MockProvider) RoutePrefix() string         { return fmt.Sprintf("/%s", m.NameStr) }
 func (m *MockProvider) BridgedRoutes() []string     { return m.Bridged }

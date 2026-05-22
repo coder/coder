@@ -4369,6 +4369,8 @@ type AIBridgeInterception struct {
 	CredentialKind CredentialKind `db:"credential_kind" json:"credential_kind"`
 	// Masked credential identifier for audit (e.g. sk-a***efgh).
 	CredentialHint string `db:"credential_hint" json:"credential_hint"`
+	// The ai_providers row this interception was routed through. NULL for legacy rows that pre-date this column or whose provider could not be unambiguously resolved at backfill time. The provider/provider_name text columns remain a point-in-time snapshot regardless of later renames or deletions of the referenced provider.
+	ProviderID uuid.NullUUID `db:"provider_id" json:"provider_id"`
 }
 
 // Audit log of model thinking in intercepted requests in AI Bridge

@@ -96,6 +96,10 @@ func (p *Anthropic) Name() string {
 	return p.cfg.Name
 }
 
+func (p *Anthropic) ID() uuid.UUID {
+	return p.cfg.ID
+}
+
 func (p *Anthropic) RoutePrefix() string {
 	return fmt.Sprintf("/%s", p.Name())
 }

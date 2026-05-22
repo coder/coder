@@ -1257,7 +1257,8 @@ CREATE TABLE aibridge_interceptions (
     session_id text GENERATED ALWAYS AS (COALESCE(client_session_id, ((thread_root_id)::text)::character varying, ((id)::text)::character varying)) STORED NOT NULL,
     provider_name text DEFAULT ''::text NOT NULL,
     credential_kind credential_kind DEFAULT 'centralized'::credential_kind NOT NULL,
-    credential_hint character varying(15) DEFAULT ''::character varying NOT NULL
+    credential_hint character varying(15) DEFAULT ''::character varying NOT NULL,
+    provider_id uuid
 );
 
 COMMENT ON TABLE aibridge_interceptions IS 'Audit log of requests intercepted by AI Bridge';
@@ -1277,6 +1278,8 @@ COMMENT ON COLUMN aibridge_interceptions.provider_name IS 'The provider instance
 COMMENT ON COLUMN aibridge_interceptions.credential_kind IS 'How the request was authenticated: centralized or byok.';
 
 COMMENT ON COLUMN aibridge_interceptions.credential_hint IS 'Masked credential identifier for audit (e.g. sk-a***efgh).';
+
+COMMENT ON COLUMN aibridge_interceptions.provider_id IS 'The ai_providers row this interception was routed through. NULL for legacy rows that pre-date this column or whose provider could not be unambiguously resolved at backfill time. The provider/provider_name text columns remain a point-in-time snapshot regardless of later renames or deletions of the referenced provider.';
 
 CREATE TABLE aibridge_model_thoughts (
     interception_id uuid NOT NULL,
@@ -3983,6 +3986,8 @@ CREATE INDEX idx_aibridge_interceptions_model ON aibridge_interceptions USING bt
 
 CREATE INDEX idx_aibridge_interceptions_provider ON aibridge_interceptions USING btree (provider);
 
+CREATE INDEX idx_aibridge_interceptions_provider_id ON aibridge_interceptions USING btree (provider_id);
+
 CREATE INDEX idx_aibridge_interceptions_session_id ON aibridge_interceptions USING btree (session_id) WHERE (ended_at IS NOT NULL);
 
 CREATE INDEX idx_aibridge_interceptions_sessions_filter ON aibridge_interceptions USING btree (initiator_id, started_at DESC, id DESC) WHERE (ended_at IS NOT NULL);
@@ -4361,6 +4366,9 @@ ALTER TABLE ONLY ai_seat_state
 
 ALTER TABLE ONLY aibridge_interceptions
     ADD CONSTRAINT aibridge_interceptions_initiator_id_fkey FOREIGN KEY (initiator_id) REFERENCES users(id);
+
+ALTER TABLE ONLY aibridge_interceptions
+    ADD CONSTRAINT aibridge_interceptions_provider_id_fkey FOREIGN KEY (provider_id) REFERENCES ai_providers(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;

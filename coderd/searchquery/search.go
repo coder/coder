@@ -386,8 +386,12 @@ func AIBridgeInterceptions(ctx context.Context, db database.Store, query string,
 
 	parser := httpapi.NewQueryParamParser()
 	filter.InitiatorID = parseUser(ctx, db, parser, values, "initiator", actorID)
-	filter.Provider = parser.String(values, "", "provider")
 	filter.ProviderName = parseAIProviderName(ctx, db, parser, values)
+	if id, name, ptype := parseAIProvider(ctx, db, parser, values); id != uuid.Nil {
+		filter.ProviderID = id
+		filter.ProviderName = name
+		filter.ProviderType = ptype
+	}
 	filter.Model = parser.String(values, "", "model")
 	filter.Client = parser.String(values, "", "client")
 
@@ -429,8 +433,12 @@ func AIBridgeSessions(ctx context.Context, db database.Store, query string, page
 
 	parser := httpapi.NewQueryParamParser()
 	filter.InitiatorID = parseUser(ctx, db, parser, values, "initiator", actorID)
-	filter.Provider = parser.String(values, "", "provider")
 	filter.ProviderName = parseAIProviderName(ctx, db, parser, values)
+	if id, name, ptype := parseAIProvider(ctx, db, parser, values); id != uuid.Nil {
+		filter.ProviderID = id
+		filter.ProviderName = name
+		filter.ProviderType = ptype
+	}
 	filter.Model = parser.String(values, "", "model")
 	filter.Client = parser.String(values, "", "client")
 	filter.SessionID = parser.String(values, "", "session_id")
@@ -718,6 +726,28 @@ func parseAIProviderName(ctx context.Context, db database.Store, parser *httpapi
 		return ""
 	}
 	return name
+}
+
+// parseAIProvider resolves a "provider_id" query param (UUID) into the triple
+// (providerID, providerName, providerType) used by the aibridge interception
+// filter's coalesce fallback (see queries/aibridge.sql). When the param is
+// absent it returns zero values, leaving the filter inactive. When the param
+// is present but does not resolve to a live ai_providers row, a validation
+// error is recorded on the parser.
+func parseAIProvider(ctx context.Context, db database.Store, parser *httpapi.QueryParamParser, vals url.Values) (id uuid.UUID, name string, providerType string) {
+	id = parser.UUID(vals, uuid.Nil, "provider_id")
+	if id == uuid.Nil {
+		return uuid.Nil, "", ""
+	}
+	p, err := db.GetAIProviderByID(ctx, id)
+	if err != nil {
+		parser.Errors = append(parser.Errors, codersdk.ValidationError{
+			Field:  "provider_id",
+			Detail: `Query param "provider_id" has invalid value: provider not found or unauthorized`,
+		})
+		return uuid.Nil, "", ""
+	}
+	return p.ID, p.Name, string(p.Type)
 }
 
 func parseUser(ctx context.Context, db database.Store, parser *httpapi.QueryParamParser, vals url.Values, queryParam string, actorID uuid.UUID) uuid.UUID {

@@ -887,10 +887,21 @@ WHERE
 		WHEN $3::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN aibridge_interceptions.initiator_id = $3::uuid
 		ELSE true
 	END
-	-- Filter provider type (openai/anthropic/copilot). Retained for
-	-- backward compatibility with existing callers.
+	-- Filter provider via provider_id; for rows predating the
+	-- provider_id column or whose provider could not be resolved at
+	-- backfill time, fall back to the legacy snapshot columns
+	-- (provider_name, then provider type).
 	AND CASE
-		WHEN $4::text != '' THEN aibridge_interceptions.provider = $4::text
+		WHEN $4::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+			aibridge_interceptions.provider_id = $4::uuid
+			OR (
+				aibridge_interceptions.provider_id IS NULL
+				AND (
+					($5::text != '' AND aibridge_interceptions.provider_name = $5::text)
+					OR (aibridge_interceptions.provider_name = '' AND $6::text != '' AND aibridge_interceptions.provider = $6::text)
+				)
+			)
+		)
 		ELSE true
 	END
 	-- Filter provider_name. Names are immutable on ai_providers, so the
@@ -902,12 +913,12 @@ WHERE
 	END
 	-- Filter model
 	AND CASE
-		WHEN $6::text != '' THEN aibridge_interceptions.model = $6::text
+		WHEN $7::text != '' THEN aibridge_interceptions.model = $7::text
 		ELSE true
 	END
 	-- Filter client
 	AND CASE
-		WHEN $7::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = $7::text
+		WHEN $8::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = $8::text
 		ELSE true
 	END
 	-- Authorize Filter clause will be injected below in ListAuthorizedAIBridgeInterceptions
@@ -918,8 +929,9 @@ type CountAIBridgeInterceptionsParams struct {
 	StartedAfter  time.Time `db:"started_after" json:"started_after"`
 	StartedBefore time.Time `db:"started_before" json:"started_before"`
 	InitiatorID   uuid.UUID `db:"initiator_id" json:"initiator_id"`
-	Provider      string    `db:"provider" json:"provider"`
+	ProviderID    uuid.UUID `db:"provider_id" json:"provider_id"`
 	ProviderName  string    `db:"provider_name" json:"provider_name"`
+	ProviderType  string    `db:"provider_type" json:"provider_type"`
 	Model         string    `db:"model" json:"model"`
 	Client        string    `db:"client" json:"client"`
 }
@@ -929,8 +941,9 @@ func (q *sqlQuerier) CountAIBridgeInterceptions(ctx context.Context, arg CountAI
 		arg.StartedAfter,
 		arg.StartedBefore,
 		arg.InitiatorID,
-		arg.Provider,
+		arg.ProviderID,
 		arg.ProviderName,
+		arg.ProviderType,
 		arg.Model,
 		arg.Client,
 	)
@@ -961,10 +974,21 @@ WHERE
 		WHEN $3::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN aibridge_interceptions.initiator_id = $3::uuid
 		ELSE true
 	END
-	-- Filter provider type (openai/anthropic/copilot). Retained for
-	-- backward compatibility with existing callers.
+	-- Filter provider via provider_id; for rows predating the
+	-- provider_id column or whose provider could not be resolved at
+	-- backfill time, fall back to the legacy snapshot columns
+	-- (provider_name, then provider type).
 	AND CASE
-		WHEN $4::text != '' THEN aibridge_interceptions.provider = $4::text
+		WHEN $4::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+			aibridge_interceptions.provider_id = $4::uuid
+			OR (
+				aibridge_interceptions.provider_id IS NULL
+				AND (
+					($5::text != '' AND aibridge_interceptions.provider_name = $5::text)
+					OR (aibridge_interceptions.provider_name = '' AND $6::text != '' AND aibridge_interceptions.provider = $6::text)
+				)
+			)
+		)
 		ELSE true
 	END
 	-- Filter provider_name. Names are immutable on ai_providers, so the
@@ -976,17 +1000,17 @@ WHERE
 	END
 	-- Filter model
 	AND CASE
-		WHEN $6::text != '' THEN aibridge_interceptions.model = $6::text
+		WHEN $7::text != '' THEN aibridge_interceptions.model = $7::text
 		ELSE true
 	END
 	-- Filter client
 	AND CASE
-		WHEN $7::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = $7::text
+		WHEN $8::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = $8::text
 		ELSE true
 	END
 	-- Filter session_id
 	AND CASE
-		WHEN $8::text != '' THEN aibridge_interceptions.session_id = $8::text
+		WHEN $9::text != '' THEN aibridge_interceptions.session_id = $9::text
 		ELSE true
 	END
 	-- Authorize Filter clause will be injected below in CountAuthorizedAIBridgeSessions
@@ -997,8 +1021,9 @@ type CountAIBridgeSessionsParams struct {
 	StartedAfter  time.Time `db:"started_after" json:"started_after"`
 	StartedBefore time.Time `db:"started_before" json:"started_before"`
 	InitiatorID   uuid.UUID `db:"initiator_id" json:"initiator_id"`
-	Provider      string    `db:"provider" json:"provider"`
+	ProviderID    uuid.UUID `db:"provider_id" json:"provider_id"`
 	ProviderName  string    `db:"provider_name" json:"provider_name"`
+	ProviderType  string    `db:"provider_type" json:"provider_type"`
 	Model         string    `db:"model" json:"model"`
 	Client        string    `db:"client" json:"client"`
 	SessionID     string    `db:"session_id" json:"session_id"`
@@ -1009,8 +1034,9 @@ func (q *sqlQuerier) CountAIBridgeSessions(ctx context.Context, arg CountAIBridg
 		arg.StartedAfter,
 		arg.StartedBefore,
 		arg.InitiatorID,
-		arg.Provider,
+		arg.ProviderID,
 		arg.ProviderName,
+		arg.ProviderType,
 		arg.Model,
 		arg.Client,
 		arg.SessionID,
@@ -1072,7 +1098,7 @@ func (q *sqlQuerier) DeleteOldAIBridgeRecords(ctx context.Context, beforeTime ti
 
 const getAIBridgeInterceptionByID = `-- name: GetAIBridgeInterceptionByID :one
 SELECT
-	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint
+	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, provider_id
 FROM
 	aibridge_interceptions
 WHERE
@@ -1099,6 +1125,7 @@ func (q *sqlQuerier) GetAIBridgeInterceptionByID(ctx context.Context, id uuid.UU
 		&i.ProviderName,
 		&i.CredentialKind,
 		&i.CredentialHint,
+		&i.ProviderID,
 	)
 	return i, err
 }
@@ -1133,7 +1160,7 @@ func (q *sqlQuerier) GetAIBridgeInterceptionLineageByToolCallID(ctx context.Cont
 
 const getAIBridgeInterceptions = `-- name: GetAIBridgeInterceptions :many
 SELECT
-	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint
+	id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, provider_id
 FROM
 	aibridge_interceptions
 `
@@ -1164,6 +1191,7 @@ func (q *sqlQuerier) GetAIBridgeInterceptions(ctx context.Context) ([]AIBridgeIn
 			&i.ProviderName,
 			&i.CredentialKind,
 			&i.CredentialHint,
+			&i.ProviderID,
 		); err != nil {
 			return nil, err
 		}
@@ -1312,11 +1340,11 @@ func (q *sqlQuerier) GetAIBridgeUserPromptsByInterceptionID(ctx context.Context,
 
 const insertAIBridgeInterception = `-- name: InsertAIBridgeInterception :one
 INSERT INTO aibridge_interceptions (
-	id, api_key_id, initiator_id, provider, provider_name, model, metadata, started_at, client, client_session_id, thread_parent_id, thread_root_id, credential_kind, credential_hint
+	id, api_key_id, initiator_id, provider, provider_name, provider_id, model, metadata, started_at, client, client_session_id, thread_parent_id, thread_root_id, credential_kind, credential_hint
 ) VALUES (
-	$1, $2, $3, $4, $5, $6, COALESCE($7::jsonb, '{}'::jsonb), $8, $9, $10, $11::uuid, $12::uuid, $13, $14
+	$1, $2, $3, $4, $5, $6::uuid, $7, COALESCE($8::jsonb, '{}'::jsonb), $9, $10, $11, $12::uuid, $13::uuid, $14, $15
 )
-RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint
+RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, provider_id
 `
 
 type InsertAIBridgeInterceptionParams struct {
@@ -1325,6 +1353,7 @@ type InsertAIBridgeInterceptionParams struct {
 	InitiatorID                uuid.UUID       `db:"initiator_id" json:"initiator_id"`
 	Provider                   string          `db:"provider" json:"provider"`
 	ProviderName               string          `db:"provider_name" json:"provider_name"`
+	ProviderID                 uuid.NullUUID   `db:"provider_id" json:"provider_id"`
 	Model                      string          `db:"model" json:"model"`
 	Metadata                   json.RawMessage `db:"metadata" json:"metadata"`
 	StartedAt                  time.Time       `db:"started_at" json:"started_at"`
@@ -1343,6 +1372,7 @@ func (q *sqlQuerier) InsertAIBridgeInterception(ctx context.Context, arg InsertA
 		arg.InitiatorID,
 		arg.Provider,
 		arg.ProviderName,
+		arg.ProviderID,
 		arg.Model,
 		arg.Metadata,
 		arg.StartedAt,
@@ -1371,6 +1401,7 @@ func (q *sqlQuerier) InsertAIBridgeInterception(ctx context.Context, arg InsertA
 		&i.ProviderName,
 		&i.CredentialKind,
 		&i.CredentialHint,
+		&i.ProviderID,
 	)
 	return i, err
 }
@@ -1603,7 +1634,7 @@ func (q *sqlQuerier) ListAIBridgeClients(ctx context.Context, arg ListAIBridgeCl
 
 const listAIBridgeInterceptions = `-- name: ListAIBridgeInterceptions :many
 SELECT
-	aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id, aibridge_interceptions.client, aibridge_interceptions.thread_parent_id, aibridge_interceptions.thread_root_id, aibridge_interceptions.client_session_id, aibridge_interceptions.session_id, aibridge_interceptions.provider_name, aibridge_interceptions.credential_kind, aibridge_interceptions.credential_hint,
+	aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id, aibridge_interceptions.client, aibridge_interceptions.thread_parent_id, aibridge_interceptions.thread_root_id, aibridge_interceptions.client_session_id, aibridge_interceptions.session_id, aibridge_interceptions.provider_name, aibridge_interceptions.credential_kind, aibridge_interceptions.credential_hint, aibridge_interceptions.provider_id,
 	visible_users.id, visible_users.username, visible_users.name, visible_users.avatar_url
 FROM
 	aibridge_interceptions
@@ -1626,10 +1657,21 @@ WHERE
 		WHEN $3::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN aibridge_interceptions.initiator_id = $3::uuid
 		ELSE true
 	END
-	-- Filter provider type (openai/anthropic/copilot). Retained for
-	-- backward compatibility with existing callers.
+	-- Filter provider via provider_id; for rows predating the
+	-- provider_id column or whose provider could not be resolved at
+	-- backfill time, fall back to the legacy snapshot columns
+	-- (provider_name, then provider type).
 	AND CASE
-		WHEN $4::text != '' THEN aibridge_interceptions.provider = $4::text
+		WHEN $4::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+			aibridge_interceptions.provider_id = $4::uuid
+			OR (
+				aibridge_interceptions.provider_id IS NULL
+				AND (
+					($5::text != '' AND aibridge_interceptions.provider_name = $5::text)
+					OR (aibridge_interceptions.provider_name = '' AND $6::text != '' AND aibridge_interceptions.provider = $6::text)
+				)
+			)
+		)
 		ELSE true
 	END
 	-- Filter provider_name. Names are immutable on ai_providers, so the
@@ -1641,17 +1683,17 @@ WHERE
 	END
 	-- Filter model
 	AND CASE
-		WHEN $6::text != '' THEN aibridge_interceptions.model = $6::text
+		WHEN $7::text != '' THEN aibridge_interceptions.model = $7::text
 		ELSE true
 	END
 	-- Filter client
 	AND CASE
-		WHEN $7::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = $7::text
+		WHEN $8::text != '' THEN COALESCE(aibridge_interceptions.client, 'Unknown') = $8::text
 		ELSE true
 	END
 	-- Cursor pagination
 	AND CASE
-		WHEN $8::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+		WHEN $9::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
 			-- The pagination cursor is the last ID of the previous page.
 			-- The query is ordered by the started_at field, so select all
 			-- rows before the cursor and before the after_id UUID.
@@ -1659,8 +1701,8 @@ WHERE
 			-- "after_id" terminology comes from our pagination parser in
 			-- coderd.
 			(aibridge_interceptions.started_at, aibridge_interceptions.id) < (
-				(SELECT started_at FROM aibridge_interceptions WHERE id = $8),
-				$8::uuid
+				(SELECT started_at FROM aibridge_interceptions WHERE id = $9),
+				$9::uuid
 			)
 		)
 		ELSE true
@@ -1670,16 +1712,17 @@ WHERE
 ORDER BY
 	aibridge_interceptions.started_at DESC,
 	aibridge_interceptions.id DESC
-LIMIT COALESCE(NULLIF($10::integer, 0), 100)
-OFFSET $9
+LIMIT COALESCE(NULLIF($11::integer, 0), 100)
+OFFSET $10
 `
 
 type ListAIBridgeInterceptionsParams struct {
 	StartedAfter  time.Time `db:"started_after" json:"started_after"`
 	StartedBefore time.Time `db:"started_before" json:"started_before"`
 	InitiatorID   uuid.UUID `db:"initiator_id" json:"initiator_id"`
-	Provider      string    `db:"provider" json:"provider"`
+	ProviderID    uuid.UUID `db:"provider_id" json:"provider_id"`
 	ProviderName  string    `db:"provider_name" json:"provider_name"`
+	ProviderType  string    `db:"provider_type" json:"provider_type"`
 	Model         string    `db:"model" json:"model"`
 	Client        string    `db:"client" json:"client"`
 	AfterID       uuid.UUID `db:"after_id" json:"after_id"`
@@ -1697,8 +1740,9 @@ func (q *sqlQuerier) ListAIBridgeInterceptions(ctx context.Context, arg ListAIBr
 		arg.StartedAfter,
 		arg.StartedBefore,
 		arg.InitiatorID,
-		arg.Provider,
+		arg.ProviderID,
 		arg.ProviderName,
+		arg.ProviderType,
 		arg.Model,
 		arg.Client,
 		arg.AfterID,
@@ -1729,6 +1773,7 @@ func (q *sqlQuerier) ListAIBridgeInterceptions(ctx context.Context, arg ListAIBr
 			&i.AIBridgeInterception.ProviderName,
 			&i.AIBridgeInterception.CredentialKind,
 			&i.AIBridgeInterception.CredentialHint,
+			&i.AIBridgeInterception.ProviderID,
 			&i.VisibleUser.ID,
 			&i.VisibleUser.Username,
 			&i.VisibleUser.Name,
@@ -1924,7 +1969,7 @@ WITH paginated_threads AS (
 )
 SELECT
 	COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id) AS thread_id,
-	aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id, aibridge_interceptions.client, aibridge_interceptions.thread_parent_id, aibridge_interceptions.thread_root_id, aibridge_interceptions.client_session_id, aibridge_interceptions.session_id, aibridge_interceptions.provider_name, aibridge_interceptions.credential_kind, aibridge_interceptions.credential_hint
+	aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id, aibridge_interceptions.client, aibridge_interceptions.thread_parent_id, aibridge_interceptions.thread_root_id, aibridge_interceptions.client_session_id, aibridge_interceptions.session_id, aibridge_interceptions.provider_name, aibridge_interceptions.credential_kind, aibridge_interceptions.credential_hint, aibridge_interceptions.provider_id
 FROM
 	aibridge_interceptions
 JOIN
@@ -1988,6 +2033,7 @@ func (q *sqlQuerier) ListAIBridgeSessionThreads(ctx context.Context, arg ListAIB
 			&i.AIBridgeInterception.ProviderName,
 			&i.AIBridgeInterception.CredentialKind,
 			&i.AIBridgeInterception.CredentialHint,
+			&i.AIBridgeInterception.ProviderID,
 		); err != nil {
 			return nil, err
 		}
@@ -2058,10 +2104,21 @@ session_page AS (
 			WHEN $4::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN ai.initiator_id = $4::uuid
 			ELSE true
 		END
-		-- Filter provider type (openai/anthropic/copilot). Retained for
-		-- backward compatibility with existing callers.
+		-- Filter provider via provider_id; for rows predating the
+		-- provider_id column or whose provider could not be resolved at
+		-- backfill time, fall back to the legacy snapshot columns
+		-- (provider_name, then provider type).
 		AND CASE
-			WHEN $5::text != '' THEN ai.provider = $5::text
+			WHEN $5::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+				ai.provider_id = $5::uuid
+				OR (
+					ai.provider_id IS NULL
+					AND (
+						($6::text != '' AND ai.provider_name = $6::text)
+						OR (ai.provider_name = '' AND $7::text != '' AND ai.provider = $7::text)
+					)
+				)
+			)
 			ELSE true
 		END
 		-- Filter provider_name. Names are immutable on ai_providers, so the
@@ -2073,17 +2130,17 @@ session_page AS (
 		END
 		-- Filter model
 		AND CASE
-			WHEN $7::text != '' THEN ai.model = $7::text
+			WHEN $8::text != '' THEN ai.model = $8::text
 			ELSE true
 		END
 		-- Filter client
 		AND CASE
-			WHEN $8::text != '' THEN COALESCE(ai.client, 'Unknown') = $8::text
+			WHEN $9::text != '' THEN COALESCE(ai.client, 'Unknown') = $9::text
 			ELSE true
 		END
 		-- Filter session_id
 		AND CASE
-			WHEN $9::text != '' THEN ai.session_id = $9::text
+			WHEN $10::text != '' THEN ai.session_id = $10::text
 			ELSE true
 		END
 		-- Authorize Filter clause will be injected below in ListAuthorizedAIBridgeSessions
@@ -2107,8 +2164,8 @@ session_page AS (
 	ORDER BY
 		last_active_at DESC,
 		ai.session_id DESC
-	LIMIT COALESCE(NULLIF($11::integer, 0), 100)
-	OFFSET $10
+	LIMIT COALESCE(NULLIF($12::integer, 0), 100)
+	OFFSET $11
 )
 SELECT
 	sp.session_id,
@@ -2174,8 +2231,9 @@ type ListAIBridgeSessionsParams struct {
 	StartedAfter   time.Time `db:"started_after" json:"started_after"`
 	StartedBefore  time.Time `db:"started_before" json:"started_before"`
 	InitiatorID    uuid.UUID `db:"initiator_id" json:"initiator_id"`
-	Provider       string    `db:"provider" json:"provider"`
+	ProviderID     uuid.UUID `db:"provider_id" json:"provider_id"`
 	ProviderName   string    `db:"provider_name" json:"provider_name"`
+	ProviderType   string    `db:"provider_type" json:"provider_type"`
 	Model          string    `db:"model" json:"model"`
 	Client         string    `db:"client" json:"client"`
 	SessionID      string    `db:"session_id" json:"session_id"`
@@ -2217,8 +2275,9 @@ func (q *sqlQuerier) ListAIBridgeSessions(ctx context.Context, arg ListAIBridgeS
 		arg.StartedAfter,
 		arg.StartedBefore,
 		arg.InitiatorID,
-		arg.Provider,
+		arg.ProviderID,
 		arg.ProviderName,
+		arg.ProviderType,
 		arg.Model,
 		arg.Client,
 		arg.SessionID,
@@ -2405,7 +2464,7 @@ UPDATE aibridge_interceptions
 WHERE
 	id = $2::uuid
 	AND ended_at IS NULL
-RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint
+RETURNING id, initiator_id, provider, model, started_at, metadata, ended_at, api_key_id, client, thread_parent_id, thread_root_id, client_session_id, session_id, provider_name, credential_kind, credential_hint, provider_id
 `
 
 type UpdateAIBridgeInterceptionEndedParams struct {
@@ -2433,6 +2492,7 @@ func (q *sqlQuerier) UpdateAIBridgeInterceptionEnded(ctx context.Context, arg Up
 		&i.ProviderName,
 		&i.CredentialKind,
 		&i.CredentialHint,
+		&i.ProviderID,
 	)
 	return i, err
 }
