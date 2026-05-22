@@ -309,6 +309,9 @@ export const EditDialogOpened: Story = {
 		);
 		const valueField = dialogView.getByLabelText("Value");
 		await expect(valueField).toHaveValue(savedSecretValueDisplay);
+		await expect(
+			dialogView.getByRole("button", { name: "Clear" }),
+		).toBeVisible();
 		await user.click(valueField);
 		await expect(valueField).toHaveValue("");
 		await user.tab();
@@ -352,6 +355,57 @@ export const EditSecretSubmit: Story = {
 		expect(onUpdateSecret).toHaveBeenCalledWith(secret.name, {
 			description: "Updated example description",
 		});
+		await waitForDialogToClose(body);
+		expectNoValueField(body);
+	},
+};
+
+export const EditSecretClearValue: Story = {
+	args: {
+		onUpdateSecret: fn<
+			(name: string, request: UpdateUserSecretRequest) => Promise<UserSecret>
+		>(async (name) => findVisibleSecretByName(name)),
+	},
+	play: async ({ canvasElement, args }) => {
+		const onUpdateSecret = args.onUpdateSecret as UpdateSecretMock;
+		onUpdateSecret.mockClear();
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		const secret = visibleSecrets[0] as UserSecret;
+
+		await user.click(
+			canvas.getByRole("button", {
+				name: `Open secret actions for ${secret.name}`,
+			}),
+		);
+		await user.click(
+			await body.findByRole("menuitem", { name: "Edit secret..." }),
+		);
+
+		const dialog = within(await body.findByRole("dialog"));
+		const valueField = dialog.getByLabelText("Value");
+		const updateButton = dialog.getByRole("button", { name: "Update" });
+		await expect(updateButton).toBeDisabled();
+
+		await user.click(dialog.getByRole("button", { name: "Clear" }));
+		await expect(valueField).toHaveValue("");
+		await expect(valueField).toBeDisabled();
+		await expect(
+			dialog.getByText("Saved value will be cleared when you update."),
+		).toBeVisible();
+		await expect(updateButton).toBeEnabled();
+
+		await user.click(dialog.getByRole("button", { name: "Undo" }));
+		await expect(valueField).toHaveValue(savedSecretValueDisplay);
+		await expect(valueField).toBeEnabled();
+		await expect(updateButton).toBeDisabled();
+
+		await user.click(dialog.getByRole("button", { name: "Clear" }));
+		await user.click(updateButton);
+
+		await waitFor(() => expect(onUpdateSecret).toHaveBeenCalledTimes(1));
+		expect(onUpdateSecret).toHaveBeenCalledWith(secret.name, { value: "" });
 		await waitForDialogToClose(body);
 		expectNoValueField(body);
 	},
@@ -422,9 +476,12 @@ export const KebabActionsAndDeleteConfirmation: Story = {
 		await user.click(body.getByRole("menuitem", { name: "Delete..." }));
 
 		const dialog = await body.findByRole("dialog");
+		const dialogView = within(dialog);
 		await expect(
-			within(dialog).getByRole("heading", { name: "Delete secret" }),
+			dialogView.getByRole("heading", { name: "Delete secret" }),
 		).toBeInTheDocument();
+		await user.click(dialogView.getByRole("button", { name: "Cancel" }));
+		await waitForDialogToClose(body);
 	},
 };
 

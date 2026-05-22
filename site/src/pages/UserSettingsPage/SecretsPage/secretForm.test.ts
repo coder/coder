@@ -99,6 +99,24 @@ describe("payload builders", () => {
 			value: "replacement-value",
 		});
 	});
+
+	it("sends an empty value when clearing an update", () => {
+		expect(
+			buildUpdateUserSecretRequest(
+				existingSecrets[0],
+				{
+					name: "service-token",
+					value: "",
+					description: "Service token",
+					env_name: "SERVICE_TOKEN",
+					file_path: "",
+				},
+				{ clearValue: true },
+			),
+		).toEqual({
+			value: "",
+		});
+	});
 });
 
 describe("mapSecretApiErrorToFormErrors", () => {

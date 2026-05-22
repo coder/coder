@@ -15,6 +15,7 @@ import {
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
 import { FormField } from "#/components/FormField/FormField";
+import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
@@ -74,6 +75,7 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 				file_path: secret.file_path,
 			}
 		: emptyValues;
+	const [clearValueRequested, setClearValueRequested] = useState(false);
 
 	const form = useFormik<SecretFormValues>({
 		initialValues,
@@ -85,11 +87,14 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 			helpers.setStatus(undefined);
 			try {
 				if (secret) {
-					const request = buildUpdateUserSecretRequest(secret, values);
+					const request = buildUpdateUserSecretRequest(secret, values, {
+						clearValue: clearValueRequested,
+					});
 					await onUpdateSecret(secret.name, request);
 				} else {
 					await onCreateSecret(buildCreateUserSecretRequest(values));
 				}
+				setClearValueRequested(false);
 				helpers.resetForm();
 				onClose();
 			} catch (error) {
@@ -104,8 +109,22 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 		},
 	});
 
+	useEffect(() => {
+		if (open) {
+			setClearValueRequested(false);
+		}
+	}, [open]);
+
+	const closeDialog = () => {
+		setClearValueRequested(false);
+		form.resetForm();
+		onClose();
+	};
+
 	const request = secret
-		? buildUpdateUserSecretRequest(secret, form.values)
+		? buildUpdateUserSecretRequest(secret, form.values, {
+				clearValue: clearValueRequested,
+			})
 		: undefined;
 	const hasUpdate = request ? Object.keys(request).length > 0 : false;
 	const isBusy = isSubmitting || form.isSubmitting;
@@ -119,8 +138,7 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 			open={open}
 			onOpenChange={(nextOpen) => {
 				if (!nextOpen && !isBusy) {
-					form.resetForm();
-					onClose();
+					closeDialog();
 				}
 			}}
 		>
@@ -166,6 +184,15 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 								})}
 								placeholder="Leave blank to keep existing value"
 								showSavedValue={open}
+								clearValueRequested={clearValueRequested}
+								onClearValue={() => {
+									setClearValueRequested(true);
+									void form.setFieldValue("value", "", false);
+								}}
+								onUndoClearValue={() => {
+									setClearValueRequested(false);
+									void form.setFieldValue("value", "", false);
+								}}
 							/>
 							<SecretDescriptionField field={getFieldHelpers("description")} />
 						</>
@@ -181,14 +208,7 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 					)}
 
 					<DialogFooter>
-						<Button
-							variant="outline"
-							disabled={isBusy}
-							onClick={() => {
-								form.resetForm();
-								onClose();
-							}}
-						>
+						<Button variant="outline" disabled={isBusy} onClick={closeDialog}>
 							Cancel
 						</Button>
 						<Button type="submit" disabled={confirmDisabled}>
@@ -289,6 +309,9 @@ type SecretValueFieldProps = {
 	placeholder: string;
 	required?: boolean;
 	showSavedValue?: boolean;
+	clearValueRequested?: boolean;
+	onClearValue?: () => void;
+	onUndoClearValue?: () => void;
 };
 
 const SecretValueField: FC<SecretValueFieldProps> = ({
@@ -296,57 +319,117 @@ const SecretValueField: FC<SecretValueFieldProps> = ({
 	placeholder,
 	required,
 	showSavedValue = false,
+	clearValueRequested = false,
+	onClearValue,
+	onUndoClearValue,
 }) => {
-	const [isShowingSavedValue, setIsShowingSavedValue] =
-		useState(showSavedValue);
+	const [isShowingSavedValue, setIsShowingSavedValue] = useState(
+		showSavedValue && !clearValueRequested,
+	);
 
 	useEffect(() => {
-		setIsShowingSavedValue(showSavedValue);
-	}, [showSavedValue]);
+		setIsShowingSavedValue(showSavedValue && !clearValueRequested);
+	}, [clearValueRequested, showSavedValue]);
 
-	const value = isShowingSavedValue ? savedSecretValueDisplay : field.value;
+	const value = clearValueRequested
+		? ""
+		: isShowingSavedValue
+			? savedSecretValueDisplay
+			: field.value;
 	const maskTypedValue =
+		!clearValueRequested &&
 		!isShowingSavedValue &&
 		typeof field.value === "string" &&
 		field.value !== "";
+	const displayField = clearValueRequested
+		? {
+				...field,
+				helperText: field.error
+					? field.helperText
+					: "Saved value will be cleared when you update.",
+			}
+		: field;
+	const errorId = `${field.id}-error`;
+	const helperId = `${field.id}-helper`;
 
 	return (
-		<FormField
-			field={field}
-			label={
-				required ? <RequiredFieldLabel>Value</RequiredFieldLabel> : "Value"
-			}
-			type="text"
-			value={value}
-			placeholder={placeholder}
-			autoComplete="off"
-			aria-required={required}
-			className={cn(
-				"placeholder:text-content-disabled",
-				maskTypedValue && "[-webkit-text-security:disc]",
+		<div className="flex flex-col gap-2">
+			<Label htmlFor={field.id}>
+				{required ? <RequiredFieldLabel>Value</RequiredFieldLabel> : "Value"}
+			</Label>
+			<div className="flex flex-col gap-2 sm:flex-row sm:items-start">
+				<Input
+					id={field.id}
+					name={field.name}
+					type="text"
+					value={value}
+					placeholder={placeholder}
+					autoComplete="off"
+					aria-required={required}
+					aria-invalid={displayField.error}
+					aria-describedby={
+						displayField.error
+							? errorId
+							: displayField.helperText
+								? helperId
+								: undefined
+					}
+					disabled={clearValueRequested}
+					className={cn(
+						"placeholder:text-content-disabled sm:flex-1",
+						displayField.error && "border-border-destructive",
+						maskTypedValue && "[-webkit-text-security:disc]",
+					)}
+					data-lpignore="true"
+					data-1p-ignore="true"
+					data-form-type="other"
+					onFocus={(event) => {
+						if (isShowingSavedValue) {
+							event.currentTarget.value = "";
+							setIsShowingSavedValue(false);
+						}
+					}}
+					onChange={(event) => {
+						if (isShowingSavedValue) {
+							setIsShowingSavedValue(false);
+						}
+						field.onChange(event);
+					}}
+					onBlur={(event) => {
+						field.onBlur(event);
+						if (showSavedValue && event.currentTarget.value === "") {
+							setIsShowingSavedValue(true);
+						}
+					}}
+				/>
+				{onClearValue && onUndoClearValue && (
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						className={cn(
+							"h-10 w-16 shrink-0",
+							!clearValueRequested &&
+								"text-content-secondary hover:border-border-destructive hover:text-content-destructive",
+						)}
+						onClick={clearValueRequested ? onUndoClearValue : onClearValue}
+					>
+						{clearValueRequested ? "Undo" : "Clear"}
+					</Button>
+				)}
+			</div>
+			{displayField.error ? (
+				<span id={errorId} className="text-xs text-content-destructive">
+					{displayField.helperText}
+				</span>
+			) : (
+				displayField.helperText && (
+					<span id={helperId} className="text-xs text-content-secondary">
+						{displayField.helperText}
+					</span>
+				)
 			)}
-			data-lpignore="true"
-			data-1p-ignore="true"
-			data-form-type="other"
-			onFocus={(event) => {
-				if (isShowingSavedValue) {
-					event.currentTarget.value = "";
-					setIsShowingSavedValue(false);
-				}
-			}}
-			onChange={(event) => {
-				if (isShowingSavedValue) {
-					setIsShowingSavedValue(false);
-				}
-				field.onChange(event);
-			}}
-			onBlur={(event) => {
-				field.onBlur(event);
-				if (showSavedValue && event.currentTarget.value === "") {
-					setIsShowingSavedValue(true);
-				}
-			}}
-		/>
+		</div>
 	);
 };
 

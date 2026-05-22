@@ -52,12 +52,21 @@ export const buildCreateUserSecretRequest = (
 	});
 };
 
+type BuildUpdateUserSecretRequestOptions = {
+	clearValue?: boolean;
+};
+
 export const buildUpdateUserSecretRequest = (
 	secret: UserSecret,
 	values: SecretFormValues,
+	options: BuildUpdateUserSecretRequestOptions = {},
 ): UpdateUserSecretRequest => {
 	return {
-		...(values.value !== "" ? { value: values.value } : {}),
+		...(options.clearValue
+			? { value: "" }
+			: values.value !== ""
+				? { value: values.value }
+				: {}),
 		...(values.description !== secret.description
 			? { description: values.description }
 			: {}),
