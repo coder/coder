@@ -12,7 +12,6 @@ import (
 	"time"
 
 	natsgo "github.com/nats-io/nats.go"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
@@ -439,31 +438,52 @@ func TestPubsubCluster(t *testing.T) {
 		waitForRoutes(t, a, 1)
 		waitForRoutes(t, b, 1)
 
-		eventC := uniqueSubject("add-c")
-		gotC := make(chan []byte, 8)
-		cancelC, err := c.Subscribe(eventC, func(_ context.Context, msg []byte) {
-			gotC <- msg
+		sharedEvent := uniqueSubject("shared")
+		gotBShared := make(chan []byte, 8)
+		cancelBShared, err := b.Subscribe(sharedEvent, func(_ context.Context, msg []byte) {
+			gotBShared <- msg
 		})
 		require.NoError(t, err)
-		defer cancelC()
+		defer cancelBShared()
+
+		publishAndFlush(t, a, sharedEvent, "from-a-to-b")
+		require.Equal(t, "from-a-to-b", string(receiveMessage(t, gotBShared)))
+
+		gotCShared := make(chan []byte, 8)
+		cancelCShared, err := c.Subscribe(sharedEvent, func(_ context.Context, msg []byte) {
+			gotCShared <- msg
+		})
+		require.NoError(t, err)
+		defer cancelCShared()
+
+		eventC := uniqueSubject("add-c")
+		gotCUnique := make(chan []byte, 8)
+		cancelCUnique, err := c.Subscribe(eventC, func(_ context.Context, msg []byte) {
+			gotCUnique <- msg
+		})
+		require.NoError(t, err)
+		defer cancelCUnique()
 
 		require.NoError(t, a.SetPeerAddresses([]string{addrC, addrB}))
-		require.Equal(t, sortedRouteStrings(t, addrB, addrC), routeStrings(a.currentRoutes))
+		requireRoutesEqual(t, a.currentRoutes, addrB, addrC)
 		waitForRoutes(t, a, 2)
 		waitForRoutes(t, c, 1)
-		publishUntilReceived(t, a, eventC, "from-a-to-c", gotC)
 
-		eventAC := uniqueSubject("remove-b")
-		gotA := make(chan []byte, 8)
-		cancelA, err := a.Subscribe(eventAC, func(_ context.Context, msg []byte) {
-			gotA <- msg
-		})
-		require.NoError(t, err)
-		defer cancelA()
+		publishAndFlush(t, a, sharedEvent, "from-a-to-b-and-c")
+		require.Equal(t, "from-a-to-b-and-c", string(receiveMessage(t, gotBShared)))
+		require.Equal(t, "from-a-to-b-and-c", string(receiveMessage(t, gotCShared)))
+
+		publishAndFlush(t, a, eventC, "from-a-to-c")
+		require.Equal(t, "from-a-to-c", string(receiveMessage(t, gotCUnique)))
 
 		require.NoError(t, a.SetPeerAddresses([]string{addrC}))
-		require.Equal(t, sortedRouteStrings(t, addrC), routeStrings(a.currentRoutes))
-		publishUntilReceived(t, c, eventAC, "from-c-to-a", gotA)
+		requireRoutesEqual(t, a.currentRoutes, addrC)
+
+		publishAndFlush(t, a, sharedEvent, "after-remove-b-shared")
+		require.Equal(t, "after-remove-b-shared", string(receiveMessage(t, gotCShared)))
+
+		publishAndFlush(t, a, eventC, "after-remove-b-unique")
+		require.Equal(t, "after-remove-b-unique", string(receiveMessage(t, gotCUnique)))
 	})
 
 	t.Run("SetPeerAddressesStandaloneConfigError", func(t *testing.T) {
@@ -528,23 +548,10 @@ func waitForRoutes(t *testing.T, ps *Pubsub, minRoutes int) {
 	}, testutil.WaitLong, testutil.IntervalFast)
 }
 
-func publishUntilReceived(t *testing.T, ps *Pubsub, event, want string, got <-chan []byte) {
+func publishAndFlush(t *testing.T, ps *Pubsub, event, message string) {
 	t.Helper()
-	ticker := time.NewTicker(testutil.IntervalFast)
-	defer ticker.Stop()
-	ctx := testutil.Context(t, testutil.WaitLong)
-	for {
-		require.NoError(t, ps.Publish(event, []byte(want)))
-		require.NoError(t, ps.Flush())
-		select {
-		case msg := <-got:
-			assert.Equal(t, want, string(msg))
-			return
-		case <-ticker.C:
-		case <-ctx.Done():
-			t.Fatalf("timed out waiting for %q: %v", want, ctx.Err())
-		}
-	}
+	require.NoError(t, ps.Publish(event, []byte(message)))
+	require.NoError(t, ps.Flush())
 }
 
 func receiveMessage(t *testing.T, got <-chan []byte) []byte {
@@ -558,11 +565,11 @@ func receiveMessage(t *testing.T, got <-chan []byte) []byte {
 	}
 }
 
-func mustParseRoutes(t *testing.T, addresses ...string) []*url.URL {
+func requireRoutesEqual(t *testing.T, routes []*url.URL, addresses ...string) {
 	t.Helper()
-	routes, err := parsePeerAddresses(addresses)
+	want, err := parsePeerAddresses(addresses)
 	require.NoError(t, err)
-	return routes
+	require.True(t, routeURLsEqual(want, routes), "want %v, got %v", routeStrings(want), routeStrings(routes))
 }
 
 func routeStrings(routes []*url.URL) []string {
@@ -571,11 +578,6 @@ func routeStrings(routes []*url.URL) []string {
 		strings = append(strings, route.String())
 	}
 	return strings
-}
-
-func sortedRouteStrings(t *testing.T, addresses ...string) []string {
-	t.Helper()
-	return routeStrings(mustParseRoutes(t, addresses...))
 }
 
 func uniqueSubject(prefix string) string {
