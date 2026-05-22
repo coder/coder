@@ -306,7 +306,7 @@ export interface AIConfig {
 
 // From codersdk/aigatewaycoderdkeys.go
 /**
- * AIGatewayCoderdKey is a shared secret used by an standalone AI Gateway
+ * AIGatewayCoderdKey is a shared secret used by a standalone AI Gateway
  * to authenticate into coderd.
  */
 export interface AIGatewayCoderdKey {

@@ -49,88 +49,6 @@
 				}
 			}
 		},
-		"/aibridge/coderd-keys": {
-			"get": {
-				"produces": ["application/json"],
-				"tags": ["Enterprise"],
-				"summary": "List AI Gateway coderd keys",
-				"operationId": "list-ai-gateway-coderd-keys",
-				"responses": {
-					"200": {
-						"description": "OK",
-						"schema": {
-							"type": "array",
-							"items": {
-								"$ref": "#/definitions/codersdk.AIGatewayCoderdKey"
-							}
-						}
-					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
-			},
-			"post": {
-				"consumes": ["application/json"],
-				"produces": ["application/json"],
-				"tags": ["Enterprise"],
-				"summary": "Create AI Gateway coderd key",
-				"operationId": "create-ai-gateway-coderd-key",
-				"parameters": [
-					{
-						"description": "Create AI Gateway coderd key request",
-						"name": "request",
-						"in": "body",
-						"required": true,
-						"schema": {
-							"$ref": "#/definitions/codersdk.CreateAIGatewayCoderdKeyRequest"
-						}
-					}
-				],
-				"responses": {
-					"201": {
-						"description": "Created",
-						"schema": {
-							"$ref": "#/definitions/codersdk.CreateAIGatewayCoderdKeyResponse"
-						}
-					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
-			}
-		},
-		"/aibridge/coderd-keys/{key}": {
-			"delete": {
-				"tags": ["Enterprise"],
-				"summary": "Delete AI Gateway coderd key",
-				"operationId": "delete-ai-gateway-coderd-key",
-				"parameters": [
-					{
-						"type": "string",
-						"format": "uuid",
-						"description": "Key ID",
-						"name": "key",
-						"in": "path",
-						"required": true
-					}
-				],
-				"responses": {
-					"204": {
-						"description": "No Content"
-					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				]
-			}
-		},
 		"/api/experimental/chats": {
 			"get": {
 				"description": "Experimental: this endpoint is subject to change.",
@@ -1328,6 +1246,88 @@
 								"type": "string"
 							}
 						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
+		"/api/v2/aibridge/coderd-keys": {
+			"get": {
+				"produces": ["application/json"],
+				"tags": ["Enterprise"],
+				"summary": "List AI Gateway coderd keys",
+				"operationId": "list-ai-gateway-coderd-keys",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"type": "array",
+							"items": {
+								"$ref": "#/definitions/codersdk.AIGatewayCoderdKey"
+							}
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			},
+			"post": {
+				"consumes": ["application/json"],
+				"produces": ["application/json"],
+				"tags": ["Enterprise"],
+				"summary": "Create AI Gateway coderd key",
+				"operationId": "create-ai-gateway-coderd-key",
+				"parameters": [
+					{
+						"description": "Create AI Gateway coderd key request",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/codersdk.CreateAIGatewayCoderdKeyRequest"
+						}
+					}
+				],
+				"responses": {
+					"201": {
+						"description": "Created",
+						"schema": {
+							"$ref": "#/definitions/codersdk.CreateAIGatewayCoderdKeyResponse"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
+		"/api/v2/aibridge/coderd-keys/{key}": {
+			"delete": {
+				"tags": ["Enterprise"],
+				"summary": "Delete AI Gateway coderd key",
+				"operationId": "delete-ai-gateway-coderd-key",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Key ID",
+						"name": "key",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "No Content"
 					}
 				},
 				"security": [

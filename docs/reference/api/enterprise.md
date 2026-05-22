@@ -90,12 +90,12 @@ curl -X GET http://coder-server:8080/.well-known/oauth-protected-resource \
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/aibridge/coderd-keys \
+curl -X GET http://coder-server:8080/api/v2/aibridge/coderd-keys \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /aibridge/coderd-keys`
+`GET /api/v2/aibridge/coderd-keys`
 
 ### Example responses
 
@@ -140,13 +140,13 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/aibridge/coderd-keys \
+curl -X POST http://coder-server:8080/api/v2/aibridge/coderd-keys \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /aibridge/coderd-keys`
+`POST /api/v2/aibridge/coderd-keys`
 
 > Body parameter
 
@@ -190,11 +190,11 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X DELETE http://coder-server:8080/aibridge/coderd-keys/{key} \
+curl -X DELETE http://coder-server:8080/api/v2/aibridge/coderd-keys/{key} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`DELETE /aibridge/coderd-keys/{key}`
+`DELETE /api/v2/aibridge/coderd-keys/{key}`
 
 ### Parameters
 

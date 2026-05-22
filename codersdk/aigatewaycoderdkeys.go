@@ -11,7 +11,7 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// AIGatewayCoderdKey is a shared secret used by an standalone AI Gateway
+// AIGatewayCoderdKey is a shared secret used by a standalone AI Gateway
 // to authenticate into coderd.
 type AIGatewayCoderdKey struct {
 	ID         uuid.UUID  `json:"id" format:"uuid"`

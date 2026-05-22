@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/aigatewaycoderdkey"
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
@@ -21,7 +22,7 @@ import (
 const maxKeyInsertAttempts = 7
 
 // nameFormatDetail is the human-readable description of valid key names.
-const nameFormatDetail = "Must be 64 characters or fewer,  lowercase letters, numbers, and non-consecutive hyphens, cannot start or end with a hyphen."
+const nameFormatDetail = "Must be 64 characters or fewer, lowercase letters, numbers, and non-consecutive hyphens, cannot start or end with a hyphen."
 
 // @Summary Create AI Gateway coderd key
 // @ID create-ai-gateway-coderd-key
@@ -31,9 +32,19 @@ const nameFormatDetail = "Must be 64 characters or fewer,  lowercase letters, nu
 // @Tags Enterprise
 // @Param request body codersdk.CreateAIGatewayCoderdKeyRequest true "Create AI Gateway coderd key request"
 // @Success 201 {object} codersdk.CreateAIGatewayCoderdKeyResponse
-// @Router /aibridge/coderd-keys [post]
+// @Router /api/v2/aibridge/coderd-keys [post]
 func (api *API) postAIGatewayCoderdKey(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	var (
+		ctx               = r.Context()
+		auditor           = api.AGPL.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.AiGatewayCoderdKey](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionCreate,
+		})
+	)
+	defer commitAudit()
 
 	var req codersdk.CreateAIGatewayCoderdKeyRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
@@ -47,6 +58,13 @@ func (api *API) postAIGatewayCoderdKey(rw http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		writeKeyInsertError(ctx, rw, err)
 		return
+	}
+
+	aReq.New = database.AiGatewayCoderdKey{
+		ID:           row.ID,
+		Name:         row.Name,
+		SecretPrefix: row.SecretPrefix,
+		CreatedAt:    row.CreatedAt,
 	}
 
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.CreateAIGatewayCoderdKeyResponse{
@@ -109,7 +127,7 @@ func writeKeyInsertError(ctx context.Context, rw http.ResponseWriter, err error)
 // @Produce json
 // @Tags Enterprise
 // @Success 200 {array} codersdk.AIGatewayCoderdKey
-// @Router /aibridge/coderd-keys [get]
+// @Router /api/v2/aibridge/coderd-keys [get]
 func (api *API) aiGatewayCoderdKeys(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -137,9 +155,19 @@ func (api *API) aiGatewayCoderdKeys(rw http.ResponseWriter, r *http.Request) {
 // @Tags Enterprise
 // @Param key path string true "Key ID" format(uuid)
 // @Success 204
-// @Router /aibridge/coderd-keys/{key} [delete]
+// @Router /api/v2/aibridge/coderd-keys/{key} [delete]
 func (api *API) deleteAIGatewayCoderdKey(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	var (
+		ctx               = r.Context()
+		auditor           = api.AGPL.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.AiGatewayCoderdKey](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionDelete,
+		})
+	)
+	defer commitAudit()
 
 	id, err := uuid.Parse(chi.URLParam(r, "key"))
 	if err != nil {
@@ -150,7 +178,8 @@ func (api *API) deleteAIGatewayCoderdKey(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if _, err := api.Database.DeleteAIGatewayCoderdKey(ctx, id); err != nil {
+	deleted, err := api.Database.DeleteAIGatewayCoderdKey(ctx, id)
+	if err != nil {
 		if httpapi.IsUnauthorizedError(err) {
 			httpapi.Forbidden(rw)
 			return
@@ -161,6 +190,15 @@ func (api *API) deleteAIGatewayCoderdKey(rw http.ResponseWriter, r *http.Request
 		}
 		httpapi.InternalServerError(rw, err)
 		return
+	}
+
+	aReq.Old = database.AiGatewayCoderdKey{
+		ID:           deleted.ID,
+		Name:         deleted.Name,
+		SecretPrefix: deleted.SecretPrefix,
+		HashedSecret: deleted.HashedSecret,
+		CreatedAt:    deleted.CreatedAt,
+		LastUsedAt:   deleted.LastUsedAt,
 	}
 
 	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
