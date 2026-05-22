@@ -217,14 +217,14 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error)
 	p.ns = ns
 	handlers := p.buildConnHandlers()
 
-	publishPool, err := newConnPool(ns, opts, handlers, opts.PublishConns, "coder-pubsub-pub", "pub")
+	publishPool, err := newConnPool(ns, opts, handlers, opts.PublishConns, "coder-pubsub-pub")
 	if err != nil {
 		p.cancel()
 		ns.Shutdown()
 		ns.WaitForShutdown()
 		return nil, err
 	}
-	subscribePool, err := newConnPool(ns, opts, handlers, opts.SubscribeConns, "coder-pubsub-sub", "sub")
+	subscribePool, err := newConnPool(ns, opts, handlers, opts.SubscribeConns, "coder-pubsub-sub")
 	if err != nil {
 		p.cancel()
 		for _, c := range publishPool {
@@ -239,7 +239,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error)
 	return p, nil
 }
 
-func newConnPool(ns *natsserver.Server, opts Options, handlers connHandlers, count int, clientName string, errorName string) ([]*natsgo.Conn, error) {
+func newConnPool(ns *natsserver.Server, opts Options, handlers connHandlers, count int, clientName string) ([]*natsgo.Conn, error) {
 	if count <= 0 {
 		count = 1
 	}
@@ -256,7 +256,7 @@ func newConnPool(ns *natsserver.Server, opts Options, handlers connHandlers, cou
 			for _, c := range pool {
 				c.Close()
 			}
-			return nil, xerrors.Errorf("dial %s conn %d: %w", errorName, i, err)
+			return nil, xerrors.Errorf("dial conn: %w", err)
 		}
 		pool = append(pool, nc)
 	}
@@ -350,9 +350,7 @@ func listenerQueueSize(in PendingLimits) int {
 const defaultListenerQueueSize = 1024
 
 // addSubscriber creates a local subscriber and attaches it to the natsSub
-// for event. The first local subscriber initializes the underlying NATS
-// subscription while holding p.mu, so later subscribers only observe ready
-// natsSub entries.
+// for event. New natsSub entries are published only after NATS setup succeeds.
 func (p *Pubsub) addSubscriber(event string, listener pubsub.ListenerWithErr) (*localSub, error) {
 	s := &localSub{
 		ctx:            p.ctx,
@@ -363,6 +361,7 @@ func (p *Pubsub) addSubscriber(event string, listener pubsub.ListenerWithErr) (*
 		stop:           make(chan struct{}),
 		dispatcherDone: make(chan struct{}),
 	}
+	s.init()
 
 	var createdSub *natsgo.Subscription
 	err := func() error {
@@ -378,21 +377,18 @@ func (p *Pubsub) addSubscriber(event string, listener pubsub.ListenerWithErr) (*
 			nsub.mu.Lock()
 			nsub.listeners[s] = struct{}{}
 			nsub.mu.Unlock()
-			s.init()
 			return nil
 		}
 
 		nsub = &natsSub{
-			listeners: make(map[*localSub]struct{}),
+			listeners: map[*localSub]struct{}{
+				s: {},
+			},
 		}
-		nsub.mu.Lock()
-		nsub.listeners[s] = struct{}{}
 
 		subConn := pickConn(p.subscribePool, event)
 		natsSub, err := subConn.Subscribe(event, nsub.makeCallback())
 		if err != nil {
-			delete(nsub.listeners, s)
-			nsub.mu.Unlock()
 			return xerrors.Errorf("subscribe: %w", err)
 		}
 		createdSub = natsSub
@@ -401,25 +397,22 @@ func (p *Pubsub) addSubscriber(event string, listener pubsub.ListenerWithErr) (*
 		// Flush the SUB to the server so a publish issued immediately
 		// after Subscribe returns cannot race ahead of registration.
 		if err := subConn.Flush(); err != nil {
-			delete(nsub.listeners, s)
-			nsub.mu.Unlock()
 			return xerrors.Errorf("flush subscribe: %w", err)
 		}
 		limits := defaultPendingLimits(p.opts.PendingLimits)
 		if err := natsSub.SetPendingLimits(limits.Msgs, limits.Bytes); err != nil {
-			delete(nsub.listeners, s)
-			nsub.mu.Unlock()
 			return xerrors.Errorf("set pending limits: %w", err)
 		}
 
 		p.subscriptions[event] = nsub
-		s.init()
-		nsub.mu.Unlock()
 		return nil
 	}()
 	if err != nil {
+		s.close()
 		if createdSub != nil {
-			_ = createdSub.Unsubscribe()
+			if unsubscribeErr := createdSub.Unsubscribe(); unsubscribeErr != nil {
+				err = errors.Join(err, xerrors.Errorf("unsubscribe: %w", unsubscribeErr))
+			}
 		}
 		return nil, err
 	}
