@@ -23,7 +23,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
-import { isMobileViewport } from "#/utils/mobile";
+import { isMobileViewport, mobileViewportMediaQuery } from "#/utils/mobile";
 
 import {
 	ConversationItem,
@@ -71,8 +71,6 @@ const getChatMessageTextContent = (
 
 	return textContent.length > 0 ? textContent : undefined;
 };
-
-const mobileViewportMediaQuery = "(max-width: 639px)";
 
 const useIsMobileViewport = (): boolean => {
 	const [isMobile, setIsMobile] = useState(() => isMobileViewport());
@@ -1127,33 +1125,35 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			}
 		}
 
-		// Ordered list of visible user message IDs, used to drive the
-		// per-bubble prev/next arrow buttons that jump the transcript
-		// to the neighbouring user prompt.
-		const visibleUserMessageIds: number[] = [];
-		for (const { message, parsed } of parsedMessages) {
-			if (message.role !== "user") continue;
-			const { shouldHide } = deriveMessageDisplayState({
-				message,
-				parsed,
-				hideActions: false,
-				hasActiveStream: false,
-				isAwaitingFirstStreamChunk: false,
-			});
-			if (!shouldHide) visibleUserMessageIds.push(message.id);
-		}
 		const userNeighborsById = new Map<
 			number,
 			{ prevId?: number; nextId?: number }
 		>();
-		for (let i = 0; i < visibleUserMessageIds.length; i++) {
-			userNeighborsById.set(visibleUserMessageIds[i], {
-				prevId: i > 0 ? visibleUserMessageIds[i - 1] : undefined,
-				nextId:
-					i < visibleUserMessageIds.length - 1
-						? visibleUserMessageIds[i + 1]
-						: undefined,
-			});
+		if (!isMobile) {
+			// Ordered list of visible user message IDs, used to drive the
+			// per-bubble prev/next arrow buttons that jump the transcript
+			// to the neighbouring user prompt.
+			const visibleUserMessageIds: number[] = [];
+			for (const { message, parsed } of parsedMessages) {
+				if (message.role !== "user") continue;
+				const { shouldHide } = deriveMessageDisplayState({
+					message,
+					parsed,
+					hideActions: false,
+					hasActiveStream: false,
+					isAwaitingFirstStreamChunk: false,
+				});
+				if (!shouldHide) visibleUserMessageIds.push(message.id);
+			}
+			for (let i = 0; i < visibleUserMessageIds.length; i++) {
+				userNeighborsById.set(visibleUserMessageIds[i], {
+					prevId: i > 0 ? visibleUserMessageIds[i - 1] : undefined,
+					nextId:
+						i < visibleUserMessageIds.length - 1
+							? visibleUserMessageIds[i + 1]
+							: undefined,
+				});
+			}
 		}
 		let latestAskUserQuestionToolId: string | undefined;
 		let hasUserResponseAfterAskQuestion = false;

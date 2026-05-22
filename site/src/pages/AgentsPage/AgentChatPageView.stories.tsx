@@ -20,6 +20,7 @@ import {
 	withProxyProvider,
 	withWebSocket,
 } from "#/testHelpers/storybook";
+import { mobileViewportMediaQuery } from "#/utils/mobile";
 import {
 	AgentChatPageLoadingView,
 	AgentChatPageNotFoundView,
@@ -859,8 +860,6 @@ const scrollStoryDecorators: Decorator[] = [
 		</div>
 	),
 ];
-
-const mobileViewportMediaQuery = "(max-width: 639px)";
 
 const mobileScrollStoryDecorators: Decorator[] = [
 	(Story) => (
