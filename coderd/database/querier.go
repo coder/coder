@@ -253,8 +253,14 @@ type sqlcQuerier interface {
 	GetAIBridgeUserPromptsByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]AIBridgeUserPrompt, error)
 	GetAIModelPriceByProviderModel(ctx context.Context, arg GetAIModelPriceByProviderModelParams) (AiModelPrice, error)
 	GetAIProviderByID(ctx context.Context, id uuid.UUID) (AIProvider, error)
+	// Lock the provider row until the model-config write completes. The
+	// transaction alone does not stop a concurrent soft-delete or disable
+	// between validation and writing the model config reference.
+	GetAIProviderByIDForReferenceLock(ctx context.Context, id uuid.UUID) (AIProvider, error)
 	GetAIProviderByName(ctx context.Context, name string) (AIProvider, error)
 	GetAIProviderKeyByID(ctx context.Context, id uuid.UUID) (AIProviderKey, error)
+	// Returns the provider IDs that have at least one provider-scoped key.
+	GetAIProviderKeyPresence(ctx context.Context, providerIds []uuid.UUID) ([]uuid.UUID, error)
 	// Returns AI provider key rows. By default, only rows whose parent
 	// provider is live (deleted = FALSE) are returned, so the API list
 	// handler can fetch every visible provider's keys in a single query.
