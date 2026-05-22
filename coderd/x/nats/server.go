@@ -2,8 +2,6 @@ package nats
 
 import (
 	"context"
-	"fmt"
-	"os"
 	"time"
 
 	natsserver "github.com/nats-io/nats-server/v2/server"
@@ -13,13 +11,11 @@ import (
 	"cdr.dev/slog/v3"
 )
 
+const readyTimeout = 10 * time.Second
+
 // buildServerOptions constructs the embedded NATS server options. The
 // server runs standalone with a loopback random client listener.
 func buildServerOptions(opts Options) (*natsserver.Options, error) {
-	serverName := opts.ServerName
-	if serverName == "" {
-		serverName = fmt.Sprintf("coder-nats-%d-%d", os.Getpid(), time.Now().UnixNano())
-	}
 	maxPayload := opts.MaxPayload
 	if maxPayload == 0 {
 		maxPayload = natsserver.MAX_PAYLOAD_SIZE
@@ -36,7 +32,6 @@ func buildServerOptions(opts Options) (*natsserver.Options, error) {
 
 	sopts := &natsserver.Options{
 		JetStream:  false,
-		ServerName: serverName,
 		MaxPayload: maxPayload,
 		MaxPending: maxPending,
 		NoLog:      true,
@@ -61,10 +56,6 @@ func startEmbeddedServer(logger slog.Logger, opts Options) (*natsserver.Server, 
 		return nil, xerrors.Errorf("new embedded nats server: %w", err)
 	}
 	go ns.Start()
-	readyTimeout := opts.ReadyTimeout
-	if readyTimeout == 0 {
-		readyTimeout = DefaultReadyTimeout
-	}
 	if !ns.ReadyForConnections(readyTimeout) {
 		ns.Shutdown()
 		ns.WaitForShutdown()
@@ -86,14 +77,10 @@ type connHandlers struct {
 // connectClient dials the embedded server's client listener over TCP
 // loopback (or net.Pipe when opts.InProcess is true) and returns the
 // resulting *natsgo.Conn. connName identifies the connection in server
-// logs; opts.ClientName overrides it when set.
+// logs.
 func connectClient(ns *natsserver.Server, opts Options, handlers connHandlers, connName string) (*natsgo.Conn, error) {
-	name := opts.ClientName
-	if name == "" {
-		name = connName
-	}
 	connOpts := []natsgo.Option{
-		natsgo.Name(name),
+		natsgo.Name(connName),
 	}
 	if opts.DrainTimeout > 0 {
 		connOpts = append(connOpts, natsgo.DrainTimeout(opts.DrainTimeout))

@@ -16,14 +16,10 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 )
 
-// Default values for Options.
-const (
-	DefaultReadyTimeout = 10 * time.Second
-	// DefaultMaxPending is the per-client outbound pending byte budget
-	// (1 GiB), raised from the nats-server default of 64 MiB so wide
-	// local fan-out does not trip the slow-consumer threshold.
-	DefaultMaxPending int64 = 1 << 30
-)
+// DefaultMaxPending is the per-client outbound pending byte budget
+// (1 GiB), raised from the nats-server default of 64 MiB so wide
+// local fan-out does not trip the slow-consumer threshold.
+const DefaultMaxPending int64 = 1 << 30
 
 // PendingLimits configures per-subscription NATS pending limits set
 // via SetPendingLimits on each *natsgo.Subscription.
@@ -39,12 +35,6 @@ type PendingLimits struct {
 
 // Options configures the embedded NATS Pubsub.
 type Options struct {
-	// ServerName is the NATS server name. If empty, New derives one.
-	ServerName string
-
-	// ClientName is the NATS client name. If empty, New derives one.
-	ClientName string
-
 	// MaxPayload is the NATS max payload. Zero means server default.
 	MaxPayload int32
 
@@ -60,10 +50,6 @@ type Options struct {
 	// PendingLimits configures per-subscription NATS pending limits.
 	// If both fields are zero, New defaults to {Msgs: -1, Bytes: 512 MiB}.
 	PendingLimits PendingLimits
-
-	// ReadyTimeout bounds embedded server startup. Zero means
-	// DefaultReadyTimeout.
-	ReadyTimeout time.Duration
 
 	// ReconnectWait controls client reconnect delay. Zero keeps the
 	// NATS default.
@@ -121,13 +107,6 @@ type Pubsub struct {
 // When the last local subscriber detaches, the NATS subscription is
 // unsubscribed.
 //
-// Readiness: the creator inserts a natsSub in an "initializing"
-// state under p.mu, performs NATS Subscribe / Flush / SetPendingLimits
-// outside p.mu, then publishes the result by closing ready. Joiners
-// wait on ready (with a p.ctx.Done() escape) so they never observe a
-// half-initialized NATS subscription. readyErr is written before
-// close(ready); the channel close is the happens-before barrier.
-//
 // listeners and sub are guarded by the parent Pubsub.mu. dropMu /
 // lastDropped use their own mutex so the async error callback can
 // update drop accounting without taking p.mu.
@@ -135,9 +114,6 @@ type natsSub struct {
 	subject   string
 	sub       *natsgo.Subscription
 	listeners map[*localSub]struct{}
-
-	ready    chan struct{}
-	readyErr error
 
 	dropMu      sync.Mutex
 	lastDropped uint64
@@ -379,7 +355,7 @@ func (p *Pubsub) SubscribeWithErr(event string, listener pubsub.ListenerWithErr)
 	// ready to observe close(s.stop) and exit.
 	s.init()
 
-	nsub, _, err := p.addSubscriber(event, s)
+	nsub, err := p.addSubscriber(event, s)
 	if err != nil {
 		s.close()
 		return nil, err
@@ -389,11 +365,8 @@ func (p *Pubsub) SubscribeWithErr(event string, listener pubsub.ListenerWithErr)
 	// Final guard against Close racing after addSubscriber returns
 	// success. Cleanup remains safe if Close already stopped s.
 	if p.ctx.Err() != nil {
-		toUnsubscribe := p.unsubscribeLocal(s)
+		p.unsubscribeLocal(s)
 		s.close()
-		if toUnsubscribe != nil {
-			toUnsubscribe.unsubscribeNATS()
-		}
 		return nil, xerrors.New("nats pubsub: closed")
 	}
 
@@ -401,11 +374,8 @@ func (p *Pubsub) SubscribeWithErr(event string, listener pubsub.ListenerWithErr)
 		// The shared NATS callback may still try a non-blocking send to
 		// s.queue concurrently; offerData's select on s.stop drops in
 		// that case.
-		toUnsubscribe := p.unsubscribeLocal(s)
+		p.unsubscribeLocal(s)
 		s.close()
-		if toUnsubscribe != nil {
-			toUnsubscribe.unsubscribeNATS()
-		}
 	}
 	return cancelFn, nil
 }
@@ -423,138 +393,99 @@ func listenerQueueSize(in PendingLimits) int {
 
 const defaultListenerQueueSize = 1024
 
-// addSubscriber attaches s to the natsSub for subject and blocks until
-// the shared NATS subscription is ready or has deterministically failed.
-// The returned bool reports whether this call created the natsSub.
-func (p *Pubsub) addSubscriber(subject string, s *localSub) (*natsSub, bool, error) {
-	if p.ctx.Err() != nil {
-		return nil, false, xerrors.New("nats pubsub: closed")
-	}
-
+// addSubscriber attaches s to the natsSub for subject. The first
+// local subscriber initializes the underlying NATS subscription while
+// holding p.mu, so later subscribers only observe ready natsSub entries.
+func (p *Pubsub) addSubscriber(subject string, s *localSub) (*natsSub, error) {
 	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	// Close sets p.ctx.Err() before acquiring p.mu, so any registration
 	// past this point is guaranteed to be visible to Close's snapshot.
 	if p.ctx.Err() != nil {
-		p.mu.Unlock()
-		return nil, false, xerrors.New("nats pubsub: closed")
+		return nil, xerrors.New("nats pubsub: closed")
 	}
 	nsub, ok := p.subscriptions[subject]
-	if !ok {
-		// Creator: insert a placeholder so joiners find it and wait.
-		// Network I/O below runs lock-free.
-		nsub = &natsSub{
-			subject:   subject,
-			listeners: map[*localSub]struct{}{s: {}},
-			ready:     make(chan struct{}),
-		}
+	if ok {
+		nsub.listeners[s] = struct{}{}
 		s.shared = nsub
-		p.subscriptions[subject] = nsub
-		p.mu.Unlock()
-		return p.initSubscriber(subject, nsub, s)
+		return nsub, nil
 	}
 
-	// Joiner: register before unlocking so the creator's fan-out and
-	// Close both see this listener.
-	nsub.listeners[s] = struct{}{}
+	nsub = &natsSub{
+		subject:   subject,
+		listeners: map[*localSub]struct{}{s: {}},
+	}
 	s.shared = nsub
-	p.mu.Unlock()
+	p.subscriptions[subject] = nsub
 
-	select {
-	case <-nsub.ready:
-	case <-p.ctx.Done():
-		p.unsubscribeLocal(s)
-		return nil, false, xerrors.New("nats pubsub: closed")
-	}
-	if nsub.readyErr != nil {
-		// Creator already cleaned up registry / NATS state.
-		p.unsubscribeLocal(s)
-		return nil, false, xerrors.Errorf("shared subscription init: %w", nsub.readyErr)
-	}
-	return nsub, false, nil
-}
-
-func (p *Pubsub) initSubscriber(subject string, nsub *natsSub, s *localSub) (*natsSub, bool, error) {
-	finishCreator := func(initErr error) (*natsSub, bool, error) {
-		if initErr == nil {
-			close(nsub.ready)
-			return nsub, true, nil
+	initErr := func() error {
+		subConn := pickConn(p.subscribePool, subject)
+		natsSub, err := subConn.Subscribe(subject, nsub.makeCallback(p))
+		if err != nil {
+			return xerrors.Errorf("subscribe: %w", err)
 		}
+		nsub.sub = natsSub
 
-		// Force-remove the nsub entry so future Subscribes start fresh
-		// and Close's snapshot does not see a phantom.
-		p.mu.Lock()
-		if cur, ok := p.subscriptions[subject]; ok && cur == nsub {
-			delete(p.subscriptions, subject)
+		// Flush the SUB to the server so a publish issued immediately
+		// after Subscribe returns cannot race ahead of registration.
+		if err := subConn.Flush(); err != nil {
+			return xerrors.Errorf("flush subscribe: %w", err)
 		}
+		limits := defaultPendingLimits(p.opts.PendingLimits)
+		if err := natsSub.SetPendingLimits(limits.Msgs, limits.Bytes); err != nil {
+			return xerrors.Errorf("set pending limits: %w", err)
+		}
+		return nil
+	}()
+	if initErr != nil {
+		delete(p.subscriptions, subject)
 		delete(nsub.listeners, s)
-		natsSub := nsub.sub
-		p.mu.Unlock()
-
-		nsub.readyErr = initErr
-		if natsSub != nil {
-			_ = natsSub.Unsubscribe()
+		if nsub.sub != nil {
+			_ = nsub.sub.Unsubscribe()
 		}
-		// Close ready last so joiners observe a consistent state.
-		close(nsub.ready)
-		return nil, false, initErr
+		return nil, initErr
 	}
-
-	subConn := pickConn(p.subscribePool, subject)
-	natsSub, err := subConn.Subscribe(subject, nsub.makeCallback(p))
-	if err != nil {
-		return finishCreator(xerrors.Errorf("subscribe: %w", err))
+	if p.ctx.Err() != nil {
+		delete(p.subscriptions, subject)
+		delete(nsub.listeners, s)
+		if nsub.sub != nil {
+			_ = nsub.sub.Unsubscribe()
+		}
+		return nil, xerrors.New("nats pubsub: closed")
 	}
-
-	// Publish nsub.sub so the natsSub is observable from Close and
-	// async error routing. nsub.sub remains set after init failure for
-	// debug paths and tests.
-	p.mu.Lock()
-	nsub.sub = natsSub
-	p.mu.Unlock()
-
-	// Flush the SUB to the server so a publish issued immediately
-	// after Subscribe returns cannot race ahead of registration. Flush
-	// the conn that owns natsSub, not an arbitrary pool entry.
-	if err := subConn.Flush(); err != nil {
-		return finishCreator(xerrors.Errorf("flush subscribe: %w", err))
-	}
-	limits := defaultPendingLimits(p.opts.PendingLimits)
-	if err := natsSub.SetPendingLimits(limits.Msgs, limits.Bytes); err != nil {
-		return finishCreator(xerrors.Errorf("set pending limits: %w", err))
-	}
-	return finishCreator(nil)
+	return nsub, nil
 }
 
-// unsubscribeLocal removes s from its natsSub. When s was the last
-// listener, the natsSub is removed and returned so the caller can
-// unsubscribe it outside p.mu. Otherwise returns nil.
-func (p *Pubsub) unsubscribeLocal(s *localSub) *natsSub {
+// unsubscribeLocal removes s from its natsSub. If s was the last
+// listener, it also removes and unsubscribes the underlying NATS
+// subscription.
+func (p *Pubsub) unsubscribeLocal(s *localSub) {
 	p.mu.Lock()
 	nsub := s.shared
+	if nsub == nil {
+		p.mu.Unlock()
+		return
+	}
 	if _, tracked := nsub.listeners[s]; !tracked {
 		p.mu.Unlock()
-		return nil
+		return
 	}
 	delete(nsub.listeners, s)
 	if len(nsub.listeners) > 0 {
 		p.mu.Unlock()
-		return nil
+		return
 	}
 	// Last listener: remove the nsub entry so a new Subscribe to this
 	// subject creates a fresh underlying subscription.
 	if cur, ok := p.subscriptions[nsub.subject]; ok && cur == nsub {
 		delete(p.subscriptions, nsub.subject)
 	}
+	natsSub := nsub.sub
 	p.mu.Unlock()
-	if nsub.sub == nil {
-		return nil
+	if natsSub != nil {
+		_ = natsSub.Unsubscribe()
 	}
-	return nsub
-}
-
-// unsubscribeNATS unsubscribes the underlying NATS subscription.
-func (nsub *natsSub) unsubscribeNATS() {
-	_ = nsub.sub.Unsubscribe()
 }
 
 // makeCallback returns the NATS message handler for the shared
