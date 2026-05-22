@@ -2280,11 +2280,10 @@ WHERE chat_id = @chat_id::uuid
 -- name: AutoArchiveInactiveChats :many
 -- Archives inactive root chats (pinned and already-archived chats skipped),
 -- cascading to children via root_chat_id. Limits apply to roots, not total
--- rows. Eligibility uses UTC day boundaries: a chat is archived on the start
--- of the UTC day after its inactivity period has elapsed. The caller passes
--- @archive_cutoff as UTC midnight (start-of-day minus auto_archive_days);
--- SQL compares dates so all chats sharing the same last-activity date are
--- treated identically regardless of time-of-day. Used by dbpurge.
+-- rows. Eligibility uses UTC day boundaries: the Go caller passes
+-- @archive_cutoff as UTC midnight (dbtime.StartOfDay minus auto_archive_days);
+-- since timestamptz comparison is timezone-independent, a plain < against
+-- midnight naturally groups all same-day activity together. Used by dbpurge.
 WITH to_archive AS (
     SELECT
         c.id,
@@ -2307,11 +2306,11 @@ WITH to_archive AS (
       AND c.created_at < @archive_cutoff::timestamptz
       -- New active statuses must be added here to prevent archiving.
       AND c.status NOT IN ('running', 'pending', 'paused', 'requires_action')
-      -- Date-based eligibility: AT TIME ZONE 'UTC' ensures consistent
-      -- behavior regardless of the session timezone (tests use
-      -- America/St_Johns to catch exactly this class of bug).
-      AND (COALESCE(activity.last_activity_at, c.created_at) AT TIME ZONE 'UTC')::date
-          < ((@archive_cutoff::timestamptz) AT TIME ZONE 'UTC')::date
+      -- Day-boundary eligibility: the Go caller passes UTC midnight
+      -- (dbtime.StartOfDay minus auto_archive_days), so a plain
+      -- timestamptz < comparison naturally groups by UTC day.
+      -- timestamptz comparison is timezone-independent.
+      AND COALESCE(activity.last_activity_at, c.created_at) < @archive_cutoff::timestamptz
     -- Sorting by created_at lets Postgres drive the scan from the
     -- partial index instead of evaluating every LATERAL subquery
     -- before sorting. All candidates are past the cutoff, so the
