@@ -2,7 +2,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { act } from "react";
 import { API } from "#/api/api";
-import type { DynamicParametersResponse } from "#/api/typesGenerated";
+import type { DynamicParametersResponse, Preset } from "#/api/typesGenerated";
 import {
 	MockDropdownParameter,
 	MockDynamicParametersResponse,
@@ -11,6 +11,7 @@ import {
 	MockPreviewParameter,
 	MockSliderParameter,
 	MockTemplate,
+	MockTemplateVersion,
 	MockTemplateVersionExternalAuthGithub,
 	MockTemplateVersionExternalAuthGithubAuthenticated,
 	MockUserOwner,
@@ -40,10 +41,24 @@ describe("CreateWorkspacePage", () => {
 		});
 	};
 
+	const mockGpuPreset: Preset = {
+		ID: "preset-gpu",
+		Name: "gpu-large",
+		Parameters: [
+			{ Name: "instance_type", Value: "t3.medium" },
+			{ Name: "cpu_count", Value: "4" },
+		],
+		Default: false,
+		DesiredPrebuildInstances: null,
+		Description: "GPU Large preset",
+		Icon: "",
+	};
+
 	beforeEach(() => {
 		vi.clearAllMocks();
 
 		vi.spyOn(API, "getTemplate").mockResolvedValue(MockTemplate);
+		vi.spyOn(API, "getTemplateVersion").mockResolvedValue(MockTemplateVersion);
 		vi.spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([]);
 		vi.spyOn(API, "getTemplateVersionPresets").mockResolvedValue([]);
 		vi.spyOn(API, "createWorkspace").mockResolvedValue(MockWorkspace);
@@ -446,7 +461,7 @@ describe("CreateWorkspacePage", () => {
 				`/templates/${MockTemplate.name}/workspace?mode=auto`,
 			);
 
-			// Consent dialog appears for mode=auto — confirm to proceed.
+			// Consent dialog appears for mode=auto. Confirm to proceed.
 			const confirmButton = await screen.findByRole("button", {
 				name: /confirm and create/i,
 			});
@@ -546,6 +561,117 @@ describe("CreateWorkspacePage", () => {
 					name: /workspace name/i,
 				});
 				expect(nameInput).toHaveValue(workspaceName);
+			});
+		});
+	});
+
+	describe("URL Presets", () => {
+		it("resolves a preset from the URL and selects it in the form", async () => {
+			vi.spyOn(API, "getTemplateVersionPresets").mockResolvedValue([
+				mockGpuPreset,
+			]);
+
+			renderCreateWorkspacePage(
+				`/templates/${MockTemplate.name}/workspace?preset=gpu-large`,
+			);
+			await waitForLoaderToBeRemoved();
+
+			expect(
+				screen.getByRole("button", { name: /gpu-large/i }),
+			).toBeInTheDocument();
+		});
+
+		it("falls back to form mode when auto-create cannot resolve the preset", async () => {
+			vi.spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([
+				MockTemplateVersionExternalAuthGithubAuthenticated,
+			]);
+			vi.spyOn(API, "getTemplateVersionPresets").mockResolvedValue([
+				mockGpuPreset,
+			]);
+
+			renderCreateWorkspacePage(
+				`/templates/${MockTemplate.name}/workspace?mode=auto&preset=missing`,
+			);
+			await waitForLoaderToBeRemoved();
+
+			expect(
+				screen.queryByRole("button", { name: /confirm and create/i }),
+			).not.toBeInTheDocument();
+			expect(
+				screen.getByText(/auto-creation has been disabled/i),
+			).toBeInTheDocument();
+			expect(
+				screen.getAllByText(
+					/preset "missing" not found on template version "test-version"/i,
+				).length,
+			).toBeGreaterThan(0);
+			expect(API.createWorkspace).not.toHaveBeenCalled();
+		});
+
+		it("uses preset parameters instead of param values", async () => {
+			vi.spyOn(API, "getTemplateVersionPresets").mockResolvedValue([
+				mockGpuPreset,
+			]);
+
+			renderCreateWorkspacePage(
+				`/templates/${MockTemplate.name}/workspace?preset=gpu-large&param.instance_type=t3.small&param.cpu_count=99`,
+			);
+			await waitForLoaderToBeRemoved();
+
+			expect(screen.getAllByText(/param\.\*/i).length).toBeGreaterThan(0);
+
+			const nameInput = screen.getByRole("textbox", {
+				name: /workspace name/i,
+			});
+			await userEvent.type(nameInput, "preset-workspace");
+
+			await userEvent.click(
+				screen.getByRole("button", { name: /create workspace/i }),
+			);
+
+			await waitFor(() => {
+				expect(API.createWorkspace).toHaveBeenCalledWith(
+					"test-user",
+					expect.objectContaining({
+						template_version_preset_id: mockGpuPreset.ID,
+						rich_parameter_values: expect.arrayContaining([
+							expect.objectContaining({
+								name: "instance_type",
+								value: "t3.medium",
+							}),
+							expect.objectContaining({ name: "cpu_count", value: "4" }),
+						]),
+					}),
+				);
+			});
+		});
+
+		it("auto-creates with the preset ID after the preset resolves", async () => {
+			vi.spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([
+				MockTemplateVersionExternalAuthGithubAuthenticated,
+			]);
+			vi.spyOn(API, "getTemplateVersionPresets").mockResolvedValue([
+				mockGpuPreset,
+			]);
+
+			renderCreateWorkspacePage(
+				`/templates/${MockTemplate.name}/workspace?mode=auto&preset=gpu-large&name=preset-workspace`,
+			);
+
+			const confirmButton = await screen.findByRole("button", {
+				name: /confirm and create/i,
+			});
+			await userEvent.click(confirmButton);
+
+			await waitFor(() => {
+				expect(API.createWorkspace).toHaveBeenCalledWith(
+					"me",
+					expect.objectContaining({
+						name: "preset-workspace",
+						template_version_preset_id: mockGpuPreset.ID,
+						rich_parameter_values: [],
+					}),
+				);
 			});
 		});
 	});

@@ -197,7 +197,6 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	]);
 	const [selectedPresetIndex, setSelectedPresetIndex] = useState(0);
 	// Build options and keep default label/value in sync
-	// URL preset takes precedence over default preset.
 	useEffect(() => {
 		const options = [
 			{ label: "None", value: "undefined", icon: "", description: "" },
@@ -475,7 +474,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 
 					{hasIgnoredUrlParams && urlPreset && (
 						<Alert severity="info" dismissible>
-							Preset selected — <code>param.*</code> URL parameters have been
+							Preset selected. <code>param.*</code> URL parameters have been
 							ignored. Use either <code>preset</code> or <code>param.*</code>,
 							not both.
 						</Alert>
@@ -743,7 +742,10 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 											}
 											disabled={isDisabled}
 											isPreset={isPresetParameter}
-											autofill={autofillByName[parameter.name] !== undefined}
+											autofill={
+												!isPresetParameter &&
+												autofillByName[parameter.name] !== undefined
+											}
 											value={formValue}
 										/>
 									);

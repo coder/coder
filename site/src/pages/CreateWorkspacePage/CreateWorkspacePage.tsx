@@ -99,7 +99,6 @@ const CreateWorkspacePage: FC = () => {
 		enabled: realizedVersionId !== undefined,
 	});
 
-	// Preset is ignored in duplicate mode
 	const effectivePresetName = mode === "duplicate" ? undefined : presetName;
 
 	const presets = templateVersionPresetsQuery.data ?? [];
@@ -110,7 +109,7 @@ const CreateWorkspacePage: FC = () => {
 		if (templateVersionPresetsQuery.isError) {
 			return {
 				preset: undefined,
-				error: "Failed to load presets. Please try refreshing the page.",
+				error: `Failed to load presets: ${templateVersionPresetsQuery.error?.message ?? "unknown error"}. Please try refreshing the page.`,
 			};
 		}
 
@@ -120,9 +119,10 @@ const CreateWorkspacePage: FC = () => {
 
 		const found = presets.find((p) => p.Name === effectivePresetName);
 		if (!found) {
+			const versionLabel = templateVersionQuery.data?.name ?? realizedVersionId;
 			return {
 				preset: undefined,
-				error: `Preset "${effectivePresetName}" not found on template version ${realizedVersionId}. Check that the preset name matches exactly (names are case-sensitive).`,
+				error: `Preset "${effectivePresetName}" not found on template version "${versionLabel}". Check that the preset name matches exactly (names are case-sensitive).`,
 			};
 		}
 		return { preset: found, error: undefined };
@@ -131,11 +131,15 @@ const CreateWorkspacePage: FC = () => {
 		presets,
 		templateVersionPresetsQuery.isSuccess,
 		templateVersionPresetsQuery.isError,
+		templateVersionPresetsQuery.error,
 		realizedVersionId,
+		templateVersionQuery.data?.name,
 	]);
 
-	// When preset is specified, use only preset params (param.* ignored).
-	const urlAutofillParameters = getAutofillParameters(searchParams);
+	const urlAutofillParameters = useMemo(
+		() => getAutofillParameters(searchParams),
+		[searchParams],
+	);
 	const autofillParameters = useMemo(() => {
 		if (!urlPresetResult.preset) return urlAutofillParameters;
 
@@ -150,7 +154,7 @@ const CreateWorkspacePage: FC = () => {
 	}, [urlPresetResult.preset, urlAutofillParameters]);
 
 	const hasIgnoredUrlParams =
-		urlAutofillParameters.length > 0 && !!effectivePresetName;
+		urlAutofillParameters.length > 0 && urlPresetResult.preset !== undefined;
 
 	const sendMessage = (
 		formValues: Record<string, string>,
@@ -280,13 +284,11 @@ const CreateWorkspacePage: FC = () => {
 			const newWorkspace = await autoCreateWorkspaceMutation.mutateAsync({
 				organizationId,
 				templateName,
-				buildParameters: autofillParameters,
+				buildParameters: urlPresetResult.preset ? [] : autofillParameters,
 				workspaceName: defaultName ?? generateWorkspaceName(),
 				templateVersionId: realizedVersionId,
 				match: searchParams.get("match"),
-				templateVersionPresetId: effectivePresetName
-					? urlPresetResult.preset?.ID
-					: undefined,
+				templateVersionPresetId: urlPresetResult.preset?.ID,
 			});
 
 			onCreateWorkspace(newWorkspace);
@@ -312,7 +314,10 @@ const CreateWorkspacePage: FC = () => {
 		presetResolved;
 
 	const showAutoCreateConsent =
-		mode === "auto" && !autoCreateConsented && !autoCreateError;
+		mode === "auto" &&
+		!autoCreateConsented &&
+		!autoCreateError &&
+		presetResolved;
 
 	// `mode=auto` was set, but a prerequisite has failed, and so auto-mode should be abandoned.
 	if (
@@ -339,15 +344,20 @@ const CreateWorkspacePage: FC = () => {
 		});
 	}
 
-	// Fallback: if preset not found, abandon auto-create mode
 	if (
 		mode === "auto" &&
 		effectivePresetName &&
-		templateVersionPresetsQuery.isSuccess &&
-		!urlPresetResult.preset
+		((templateVersionPresetsQuery.isSuccess && !urlPresetResult.preset) ||
+			templateVersionPresetsQuery.isError)
 	) {
 		setMode("form");
 		autoCreateReady = false;
+		setAutoCreateError({
+			message: "Auto-creation has been disabled.",
+			detail:
+				urlPresetResult.error ??
+				"The requested preset could not be resolved. Please check the preset value before continuing.",
+		});
 	}
 
 	useEffect(() => {
