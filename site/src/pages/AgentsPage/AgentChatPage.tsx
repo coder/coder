@@ -20,6 +20,7 @@ import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import {
 	chat,
 	chatDesktopEnabled,
+	chatGoal,
 	chatKey,
 	chatMessagesForInfiniteScroll,
 	chatModelConfigs,
@@ -31,6 +32,8 @@ import {
 	interruptChat,
 	mcpServerConfigs,
 	promoteChatQueuedMessage,
+	setCachedChatGoal,
+	updateChatGoal,
 	updateChatPlanMode,
 	updateChatWorkspace,
 	updateInfiniteChatsCache,
@@ -87,6 +90,7 @@ import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useGitWatcher } from "./hooks/useGitWatcher";
 import { getAgentChatSendShortcut } from "./utils/agentChatSendShortcut";
 import { type ParsedDraft, parseStoredDraft } from "./utils/draftStorage";
+import { parseGoalCommand } from "./utils/goalCommand";
 import {
 	countConfiguredProviderConfigs,
 	getModelOptionsFromConfigs,
@@ -978,6 +982,17 @@ const AgentChatPage: FC = () => {
 		},
 	});
 
+	const updateChatGoalBase = updateChatGoal(queryClient);
+	const {
+		isPending: isUpdateChatGoalPending,
+		mutateAsync: updateChatGoalAsync,
+	} = useMutation({
+		...updateChatGoalBase,
+		onError: (error) => {
+			toast.error(getErrorMessage(error, "Failed to update goal."));
+		},
+	});
+
 	const updateChatPlanModeBase = updateChatPlanMode(queryClient);
 	const {
 		isPending: isUpdateChatPlanModePending,
@@ -1123,7 +1138,9 @@ const AgentChatPage: FC = () => {
 	const isSubmissionPending =
 		isSendPending || isEditPending || isInterruptPending;
 	const isChatSettingsPending =
-		isUpdateChatPlanModePending || isUpdateChatWorkspacePending;
+		isUpdateChatPlanModePending ||
+		isUpdateChatWorkspacePending ||
+		isUpdateChatGoalPending;
 	const isInputDisabled =
 		!hasModelOptions ||
 		isArchived ||
@@ -1145,6 +1162,60 @@ const AgentChatPage: FC = () => {
 			}),
 			pendingPlanModeSyncRef,
 		);
+	};
+
+	const handleGoalAction = async (
+		action: Exclude<TypesGen.ChatGoalMutationAction, "set">,
+		completionSummary?: string,
+	) => {
+		if (!agentId) {
+			return;
+		}
+		const mutation: TypesGen.ChatGoalMutation = {
+			action,
+			goal_id: chatQuery.data?.goal?.id,
+			completion_summary: completionSummary,
+		};
+		await updateChatGoalAsync({ chatId: agentId, mutation });
+		if (action === "pause" && liveChatStatus === "running") {
+			toast.info(
+				"Goal paused. The current turn may continue. Use Stop for immediate interruption.",
+			);
+		}
+	};
+
+	const handleGoalCommand = async (
+		command: NonNullable<ReturnType<typeof parseGoalCommand>>,
+	): Promise<{
+		message: string;
+		mutation?: TypesGen.ChatGoalMutation;
+	} | null> => {
+		if (!agentId) {
+			return null;
+		}
+		switch (command.kind) {
+			case "set":
+				return { message: command.objective, mutation: command.mutation };
+			case "show": {
+				const response = await queryClient.fetchQuery(chatGoal(agentId));
+				setCachedChatGoal(queryClient, agentId, response.goal);
+				toast.info(
+					response.goal
+						? `Current goal: ${response.goal.objective}`
+						: "No current goal.",
+				);
+				return null;
+			}
+			case "lifecycle":
+				await handleGoalAction(
+					command.action,
+					command.mutation.completion_summary,
+				);
+				return null;
+			case "unsupported":
+				toast.warning(command.reason);
+				throw new Error(command.reason);
+		}
 	};
 
 	const handleUsageLimitError = (error: unknown): void => {
@@ -1353,12 +1424,14 @@ const AgentChatPage: FC = () => {
 		editedMessageID,
 		useComposerContent = true,
 		planModeSwitch,
+		goalMutation,
 	}: {
 		message: string;
 		attachments?: readonly PendingAttachment[];
 		editedMessageID?: number;
 		useComposerContent?: boolean;
 		planModeSwitch?: PlanModeSwitch;
+		goalMutation?: TypesGen.ChatGoalMutation;
 	}) {
 		const { content, hasContent } = buildChatInputContent({
 			message,
@@ -1439,6 +1512,7 @@ const AgentChatPage: FC = () => {
 		const request: CreateChatMessageRequestWithClearablePlanMode = {
 			content,
 			model_config_id: selectedModelConfigID,
+			goal_mutation: goalMutation,
 			mcp_server_ids:
 				effectiveMCPServerIds.length > 0
 					? [...effectiveMCPServerIds]
@@ -1485,6 +1559,9 @@ const AgentChatPage: FC = () => {
 				upsertCacheMessages([response.message]);
 			}
 		}
+		if ("goal" in response) {
+			setCachedChatGoal(queryClient, agentId, response.goal);
+		}
 		if (selectedModelConfigID) {
 			localStorage.setItem(lastModelConfigIDStorageKey, selectedModelConfigID);
 		} else {
@@ -1503,6 +1580,23 @@ const AgentChatPage: FC = () => {
 		attachments?: readonly PendingAttachment[],
 		editedMessageID?: number,
 	) {
+		if (editedMessageID === undefined) {
+			const goalCommand = parseGoalCommand(message);
+			if (goalCommand) {
+				const goalSend = await handleGoalCommand(goalCommand);
+				if (!goalSend) {
+					return;
+				}
+				await submitChatTurn({
+					message: goalSend.message,
+					attachments,
+					goalMutation: goalSend.mutation,
+					useComposerContent: false,
+				});
+				return;
+			}
+		}
+
 		await submitChatTurn({
 			message,
 			attachments,
@@ -1615,6 +1709,9 @@ const AgentChatPage: FC = () => {
 			gitWatcher={gitWatcher}
 			sshCommand={sshCommand}
 			handleCommit={handleCommit}
+			goal={chatQuery.data?.goal}
+			isGoalActionPending={isUpdateChatGoalPending}
+			onGoalAction={handleGoalAction}
 			handleInterrupt={handleInterrupt}
 			handleDeleteQueuedMessage={handleDeleteQueuedMessage}
 			handlePromoteQueuedMessage={handlePromoteQueuedMessage}

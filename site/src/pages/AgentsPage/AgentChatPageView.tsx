@@ -29,6 +29,10 @@ import {
 import type { useChatStore } from "./components/ChatConversation/chatStore";
 import type { ModelSelectorOption } from "./components/ChatElements";
 import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPanelContext";
+import {
+	type ChatGoalAction,
+	ChatGoalBanner,
+} from "./components/ChatGoalBanner";
 import type { PendingAttachment } from "./components/ChatPageContent";
 import { ChatPageInput, ChatPageTimeline } from "./components/ChatPageContent";
 import { ChatScrollContainer } from "./components/ChatScrollContainer";
@@ -152,6 +156,11 @@ interface AgentChatPageViewProps {
 	sshCommand: string | undefined;
 	handleCommit: (repoRoot: string) => void;
 
+	// Goal state and handlers.
+	goal?: TypesGen.ChatGoal;
+	isGoalActionPending?: boolean;
+	onGoalAction?: (action: ChatGoalAction) => Promise<void> | void;
+
 	// Chat action handlers.
 	handleInterrupt: () => void;
 	handleDeleteQueuedMessage: (id: number) => Promise<void>;
@@ -237,6 +246,9 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	gitWatcher,
 	sshCommand,
 	handleCommit,
+	goal,
+	isGoalActionPending = false,
+	onGoalAction = () => {},
 	handleInterrupt,
 	handleDeleteQueuedMessage,
 	handlePromoteQueuedMessage,
@@ -545,6 +557,12 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							</div>
 						</ChatScrollContainer>
 						<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 [scrollbar-gutter:stable] [scrollbar-width:thin]">
+							<ChatGoalBanner
+								goal={goal}
+								isActionPending={isGoalActionPending}
+								isActionDisabled={isInputDisabled}
+								onAction={onGoalAction}
+							/>
 							<ChatPageInput
 								organizationId={organizationId}
 								sendShortcut={sendShortcut}

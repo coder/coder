@@ -160,7 +160,30 @@ const getCreateOptions = (onCreateChat: unknown): CreateChatSubmission => {
 };
 
 type CreateChatSubmission = {
+	message: string;
 	model?: string;
+	goalMutation?: TypesGen.ChatGoalMutation;
+};
+
+export const GoalCommandCreatesGoal: Story = {
+	args: {
+		...defaultArgs,
+		onCreateChat: fn().mockResolvedValue(undefined),
+		modelConfigs: defaultModelConfigs,
+	},
+	play: async ({ canvasElement, args }) => {
+		await submitMessage(canvasElement, "/goal fix the flaky tests");
+		await waitFor(() => {
+			expect(args.onCreateChat).toHaveBeenCalled();
+		});
+		expect(getCreateOptions(args.onCreateChat)).toMatchObject({
+			message: "fix the flaky tests",
+			goalMutation: {
+				action: "set",
+				objective: "fix the flaky tests",
+			},
+		});
+	},
 };
 
 export const RootPersonalModelOverrideModelSelected: Story = {

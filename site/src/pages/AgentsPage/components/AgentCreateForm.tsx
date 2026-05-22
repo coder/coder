@@ -21,6 +21,7 @@ import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { docs } from "#/utils/docs";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import { parseStoredDraft } from "../utils/draftStorage";
+import { parseGoalCommand } from "../utils/goalCommand";
 import {
 	getModelSelectorPlaceholder,
 	getProviderForModelOption,
@@ -56,6 +57,7 @@ export type CreateChatOptions = {
 	model?: string;
 	mcpServerIds?: string[];
 	organizationId: string;
+	goalMutation?: TypesGen.ChatGoalMutation;
 	planMode?: TypesGen.ChatPlanMode;
 };
 
@@ -360,13 +362,30 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			: null;
 
 	const handleSend = async (message: string, fileIDs?: string[]) => {
+		let submittedMessage = message;
+		let goalMutation: TypesGen.ChatGoalMutation | undefined;
+		const goalCommand = parseGoalCommand(message);
+		if (goalCommand) {
+			if (goalCommand.kind === "set") {
+				submittedMessage = goalCommand.objective;
+				goalMutation = goalCommand.mutation;
+			} else if (goalCommand.kind === "unsupported") {
+				toast.warning(goalCommand.reason);
+				throw new Error(goalCommand.reason);
+			} else {
+				toast.info("Start a chat before using goal lifecycle commands.");
+				throw new Error("Start a chat before using goal lifecycle commands.");
+			}
+		}
+
 		submitDraft();
 		await onCreateChat({
-			message,
+			message: submittedMessage,
 			fileIDs,
 			workspaceId: effectiveWorkspaceId ?? undefined,
 			model: submittedModel,
 			organizationId,
+			goalMutation,
 			mcpServerIds:
 				effectiveMCPServerIds.length > 0
 					? [...effectiveMCPServerIds]

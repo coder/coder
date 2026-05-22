@@ -19,6 +19,8 @@ import {
 	chatCostSummaryKey,
 	chatDebugRunsKey,
 	chatDiffContentsKey,
+	chatGoal,
+	chatGoalKey,
 	chatKey,
 	chatMessagesKey,
 	chatSearch,
@@ -39,12 +41,14 @@ import {
 	regenerateChatTitle,
 	removeChildFromParentInCache,
 	reorderPinnedChat,
+	setCachedChatGoal,
 	setChatGroupRole,
 	setChatUserRole,
 	TERMINAL_RUN_STATUSES,
 	unarchiveChat,
 	unpinChat,
 	updateChatAdvisorConfig,
+	updateChatGoal,
 	updateChatPlanMode,
 	updateChildInParentCache,
 	updateInfiniteChatsCache,
@@ -67,6 +71,8 @@ vi.mock("#/api/api", () => ({
 			regenerateChatTitle: vi.fn(),
 			getChatAdvisorConfig: vi.fn(),
 			updateChatAdvisorConfig: vi.fn(),
+			getChatGoal: vi.fn(),
+			updateChatGoal: vi.fn(),
 			getChatACL: vi.fn(),
 			updateChatACL: vi.fn(),
 		},
@@ -122,6 +128,20 @@ const makeChat = (
 	client_type: "ui",
 	last_turn_summary: null,
 	children: [],
+	...overrides,
+});
+
+const makeGoal = (
+	overrides?: Partial<TypesGen.ChatGoal>,
+): TypesGen.ChatGoal => ({
+	id: "goal-1",
+	root_chat_id: "chat-1",
+	objective: "Fix the flaky tests",
+	status: "active",
+	created_by_user_id: "owner-1",
+	completed_by_agent: false,
+	created_at: "2025-01-01T00:00:00.000Z",
+	updated_at: "2025-01-01T00:00:00.000Z",
 	...overrides,
 });
 
@@ -2099,6 +2119,25 @@ describe("mergeWatchedChatSummary", () => {
 		).toBeNull();
 	});
 
+	it("applies goal_change even when event updated_at is older", () => {
+		const cachedGoal = makeGoal({ objective: "Old goal" });
+		const watchedGoal = makeGoal({ objective: "New goal" });
+		const cachedChat = makeChat("chat-1", {
+			goal: cachedGoal,
+			updated_at: "2025-01-01T00:05:00.000Z",
+		});
+		const watchedChat = makeChat("chat-1", {
+			goal: watchedGoal,
+			updated_at: "2025-01-01T00:00:00.000Z",
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "goal_change",
+			}).goal,
+		).toBe(watchedGoal);
+	});
+
 	it("compares updated_at values as instants instead of strings", () => {
 		const cachedChat = makeChat("chat-1", {
 			status: "pending",
@@ -2523,6 +2562,66 @@ describe("TERMINAL_RUN_STATUSES", () => {
 				SUCCESS_STATUSES.has(status) || ERROR_STATUSES.has(status);
 			expect(classified).toBe(true);
 		}
+	});
+});
+
+describe("chat goal query factories", () => {
+	it("builds the goal query under the chat key hierarchy", async () => {
+		const chatId = "chat-1";
+		const response: TypesGen.ChatGoalResponse = { goal: makeGoal() };
+		vi.mocked(API.experimental.getChatGoal).mockResolvedValue(response);
+
+		const query = chatGoal(chatId);
+
+		expect(chatGoalKey(chatId)).toEqual(["chats", chatId, "goal"]);
+		expect(query.queryKey).toEqual(chatGoalKey(chatId));
+		await expect(query.queryFn()).resolves.toEqual(response);
+		expect(API.experimental.getChatGoal).toHaveBeenCalledWith(chatId);
+	});
+
+	it("updates cached chat goal from lifecycle mutation response", async () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const goal = makeGoal({ status: "paused" });
+		queryClient.setQueryData(chatKey(chatId), makeChat(chatId));
+		seedInfiniteChats(queryClient, [makeChat(chatId)]);
+		vi.mocked(API.experimental.updateChatGoal).mockResolvedValue({ goal });
+
+		const mutation = updateChatGoal(queryClient);
+		const variables = {
+			chatId,
+			mutation: { action: "pause" as const, goal_id: goal.id },
+		};
+		const response = await mutation.mutationFn(variables);
+		await mutation.onSuccess?.(response, variables);
+
+		expect(API.experimental.updateChatGoal).toHaveBeenCalledWith(
+			chatId,
+			variables.mutation,
+		);
+		expect(queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId))?.goal).toBe(
+			goal,
+		);
+		expect(readInfiniteChats(queryClient)?.[0]?.goal).toBe(goal);
+		expect(queryClient.getQueryData(chatGoalKey(chatId))).toEqual({ goal });
+	});
+
+	it("can clear cached chat goal", () => {
+		const queryClient = createTestQueryClient();
+		const chatId = "chat-1";
+		const goal = makeGoal();
+		queryClient.setQueryData(chatKey(chatId), makeChat(chatId, { goal }));
+		seedInfiniteChats(queryClient, [makeChat(chatId, { goal })]);
+
+		setCachedChatGoal(queryClient, chatId, undefined);
+
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatKey(chatId))?.goal,
+		).toBeUndefined();
+		expect(readInfiniteChats(queryClient)?.[0]?.goal).toBeUndefined();
+		expect(queryClient.getQueryData(chatGoalKey(chatId))).toEqual({
+			goal: undefined,
+		});
 	});
 });
 

@@ -23,6 +23,9 @@ export const chatMessagesKey = (chatId: string) =>
 export const chatPromptsKey = (chatId: string) =>
 	["chats", chatId, "prompts"] as const;
 
+export const chatGoalKey = (chatId: string) =>
+	["chats", chatId, "goal"] as const;
+
 export const chatACLKey = (chatId: string) => ["chats", chatId, "acl"] as const;
 
 export const chatsByWorkspaceKeyPrefix = [...chatsKey, "by-workspace"] as const;
@@ -266,6 +269,7 @@ export const mergeWatchedChatSummary = (
 	const isStatusEvent = eventKind === "status_change";
 	const isSummaryEvent = eventKind === "summary_change";
 	const isDiffStatusEvent = eventKind === "diff_status_change";
+	const isGoalEvent = eventKind === "goal_change";
 	const updatedAtComparison = compareUpdatedAtInstants(
 		cachedChat.updated_at,
 		watchedChat.updated_at,
@@ -295,6 +299,8 @@ export const mergeWatchedChatSummary = (
 		isFreshEnough || isSummaryEvent
 			? watchedChat.last_turn_summary
 			: cachedChat.last_turn_summary;
+	const nextGoal =
+		isFreshEnough || isGoalEvent ? watchedChat.goal : cachedChat.goal;
 	const nextHasUnread =
 		isFreshEnough && isStatusEvent && watchedChat.id !== activeChatId
 			? true
@@ -313,6 +319,7 @@ export const mergeWatchedChatSummary = (
 		nextBuildId === cachedChat.build_id &&
 		nextLastModelConfigId === cachedChat.last_model_config_id &&
 		nextLastTurnSummary === cachedChat.last_turn_summary &&
+		nextGoal === cachedChat.goal &&
 		nextHasUnread === cachedChat.has_unread &&
 		nextUpdatedAt === cachedChat.updated_at
 	) {
@@ -327,6 +334,7 @@ export const mergeWatchedChatSummary = (
 		workspace_id: nextWorkspaceId,
 		build_id: nextBuildId,
 		last_model_config_id: nextLastModelConfigId,
+		goal: nextGoal,
 		last_turn_summary: nextLastTurnSummary,
 		has_unread: nextHasUnread,
 		updated_at: nextUpdatedAt,
@@ -554,6 +562,11 @@ export const chat = (chatId: string) => ({
 	queryFn: () => API.experimental.getChat(chatId),
 });
 
+export const chatGoal = (chatId: string) => ({
+	queryKey: chatGoalKey(chatId),
+	queryFn: () => API.experimental.getChatGoal(chatId),
+});
+
 export const chatACL = (chatId: string) => ({
 	queryKey: chatACLKey(chatId),
 	queryFn: () => API.experimental.getChatACL(chatId),
@@ -768,6 +781,38 @@ export const updateChatPlanMode = (queryClient: QueryClient) => ({
 			),
 		);
 		queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), previousChat);
+	},
+});
+
+type UpdateChatGoalVariables = {
+	chatId: string;
+	mutation: TypesGen.ChatGoalMutation;
+};
+
+export const setCachedChatGoal = (
+	queryClient: QueryClient,
+	chatId: string,
+	goal: TypesGen.ChatGoal | undefined,
+) => {
+	updateInfiniteChatsCache(queryClient, (chats) =>
+		chats.map((chat) => (chat.id === chatId ? { ...chat, goal } : chat)),
+	);
+	queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), (previousChat) =>
+		previousChat ? { ...previousChat, goal } : previousChat,
+	);
+	queryClient.setQueryData<TypesGen.ChatGoalResponse>(chatGoalKey(chatId), {
+		goal,
+	});
+};
+
+export const updateChatGoal = (queryClient: QueryClient) => ({
+	mutationFn: ({ chatId, mutation }: UpdateChatGoalVariables) =>
+		API.experimental.updateChatGoal(chatId, mutation),
+	onSuccess: (
+		response: TypesGen.ChatGoalResponse,
+		{ chatId }: UpdateChatGoalVariables,
+	) => {
+		setCachedChatGoal(queryClient, chatId, response.goal);
 	},
 });
 
