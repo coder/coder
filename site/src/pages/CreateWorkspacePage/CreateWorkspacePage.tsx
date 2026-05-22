@@ -346,6 +346,7 @@ const CreateWorkspacePage: FC = () => {
 
 	if (
 		mode === "auto" &&
+		hasAllRequiredExternalAuth &&
 		effectivePresetName &&
 		((templateVersionPresetsQuery.isSuccess && !urlPresetResult.preset) ||
 			templateVersionPresetsQuery.isError)
@@ -427,7 +428,11 @@ const CreateWorkspacePage: FC = () => {
 					parameters={sortedParams}
 					presets={presets}
 					urlPreset={urlPresetResult.preset}
-					urlPresetError={urlPresetResult.error}
+					urlPresetError={
+						autoCreateError?.detail === urlPresetResult.error
+							? undefined
+							: urlPresetResult.error
+					}
 					hasIgnoredUrlParams={hasIgnoredUrlParams}
 					creatingWorkspace={createWorkspaceMutation.isPending}
 					sendMessage={sendMessage}

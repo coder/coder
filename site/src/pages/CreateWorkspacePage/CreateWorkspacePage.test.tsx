@@ -581,6 +581,22 @@ describe("CreateWorkspacePage", () => {
 			).toBeInTheDocument();
 		});
 
+		it("resolves a preset against the pinned template version", async () => {
+			const getTemplateVersionPresetsSpy = vi
+				.spyOn(API, "getTemplateVersionPresets")
+				.mockResolvedValue([mockGpuPreset]);
+
+			renderCreateWorkspacePage(
+				`/templates/${MockTemplate.name}/workspace?version=custom-version&preset=gpu-large`,
+			);
+
+			await waitFor(() => {
+				expect(getTemplateVersionPresetsSpy).toHaveBeenCalledWith(
+					"custom-version",
+				);
+			});
+		});
+
 		it("falls back to form mode when auto-create cannot resolve the preset", async () => {
 			vi.spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([
 				MockTemplateVersionExternalAuthGithubAuthenticated,
@@ -601,10 +617,35 @@ describe("CreateWorkspacePage", () => {
 				screen.getByText(/auto-creation has been disabled/i),
 			).toBeInTheDocument();
 			expect(
-				screen.getAllByText(
+				screen.getByText(
 					/preset "missing" not found on template version "test-version"/i,
-				).length,
-			).toBeGreaterThan(0);
+				),
+			).toBeInTheDocument();
+			expect(API.createWorkspace).not.toHaveBeenCalled();
+		});
+
+		it("falls back to form mode when presets fail to load", async () => {
+			vi.spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([
+				MockTemplateVersionExternalAuthGithubAuthenticated,
+			]);
+			vi.spyOn(API, "getTemplateVersionPresets").mockRejectedValue(
+				new Error("presets unavailable"),
+			);
+
+			renderCreateWorkspacePage(
+				`/templates/${MockTemplate.name}/workspace?mode=auto&preset=gpu-large`,
+			);
+			await waitForLoaderToBeRemoved();
+
+			expect(
+				screen.queryByRole("button", { name: /confirm and create/i }),
+			).not.toBeInTheDocument();
+			expect(
+				screen.getByText(/auto-creation has been disabled/i),
+			).toBeInTheDocument();
+			expect(
+				screen.getByText(/failed to load presets: presets unavailable/i),
+			).toBeInTheDocument();
 			expect(API.createWorkspace).not.toHaveBeenCalled();
 		});
 
