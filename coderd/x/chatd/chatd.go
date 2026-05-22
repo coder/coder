@@ -1418,7 +1418,7 @@ type ChatGoalMutationError struct {
 }
 
 func (e *ChatGoalMutationError) Error() string {
-	if e == nil || e.Message == "" {
+	if e.Message == "" {
 		return ErrChatGoalInvalidMutation.Error()
 	}
 	return e.Message
