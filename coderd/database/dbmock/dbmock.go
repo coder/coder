@@ -604,11 +604,12 @@ func (mr *MockStoreMockRecorder) CustomRoles(ctx, arg any) *gomock.Call {
 }
 
 // DeleteAIGatewayCoderdKey mocks base method.
-func (m *MockStore) DeleteAIGatewayCoderdKey(ctx context.Context, id uuid.UUID) error {
+func (m *MockStore) DeleteAIGatewayCoderdKey(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteAIGatewayCoderdKey", ctx, id)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // DeleteAIGatewayCoderdKey indicates an expected call of DeleteAIGatewayCoderdKey.

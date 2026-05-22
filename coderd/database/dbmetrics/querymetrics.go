@@ -377,12 +377,12 @@ func (m queryMetricsStore) CustomRoles(ctx context.Context, arg database.CustomR
 	return r0, r1
 }
 
-func (m queryMetricsStore) DeleteAIGatewayCoderdKey(ctx context.Context, id uuid.UUID) error {
+func (m queryMetricsStore) DeleteAIGatewayCoderdKey(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
 	start := time.Now()
-	r0 := m.s.DeleteAIGatewayCoderdKey(ctx, id)
+	r0, r1 := m.s.DeleteAIGatewayCoderdKey(ctx, id)
 	m.queryLatencies.WithLabelValues("DeleteAIGatewayCoderdKey").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteAIGatewayCoderdKey").Inc()
-	return r0
+	return r0, r1
 }
 
 func (m queryMetricsStore) DeleteAIProviderByID(ctx context.Context, id uuid.UUID) error {

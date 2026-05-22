@@ -1907,9 +1907,9 @@ func (q *querier) CustomRoles(ctx context.Context, arg database.CustomRolesParam
 	return q.db.CustomRoles(ctx, arg)
 }
 
-func (q *querier) DeleteAIGatewayCoderdKey(ctx context.Context, id uuid.UUID) error {
+func (q *querier) DeleteAIGatewayCoderdKey(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceAIGatewayCoderdKey); err != nil {
-		return err
+		return uuid.Nil, err
 	}
 	return q.db.DeleteAIGatewayCoderdKey(ctx, id)
 }

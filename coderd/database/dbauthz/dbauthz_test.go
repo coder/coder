@@ -6652,8 +6652,8 @@ func (s *MethodTestSuite) TestAIBridge() {
 	}))
 	s.Run("DeleteAIGatewayCoderdKey", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		id := uuid.New()
-		dbm.EXPECT().DeleteAIGatewayCoderdKey(gomock.Any(), id).Return(nil).AnyTimes()
-		check.Args(id).Asserts(rbac.ResourceAIGatewayCoderdKey, policy.ActionDelete).Returns()
+		dbm.EXPECT().DeleteAIGatewayCoderdKey(gomock.Any(), id).Return(uuid.UUID{}, nil).AnyTimes()
+		check.Args(id).Asserts(rbac.ResourceAIGatewayCoderdKey, policy.ActionDelete).Returns(uuid.UUID{})
 	}))
 }
 

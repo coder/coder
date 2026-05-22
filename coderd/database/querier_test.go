@@ -14737,6 +14737,18 @@ func TestSoftDeleteWorkspaceAgentsByWorkspaceID(t *testing.T) {
 func TestAIGatewayCoderdKeysTableConstraints(t *testing.T) {
 	t.Parallel()
 
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	preExsiting := database.InsertAIGatewayCoderdKeyParams{
+		ID:           uuid.New(),
+		Name:         "name",
+		SecretPrefix: "cgw_test__1",
+		HashedSecret: []byte("first-secret"),
+	}
+	_, err := db.InsertAIGatewayCoderdKey(ctx, preExsiting)
+	require.NoError(t, err)
+
 	tests := []struct {
 		name            string
 		params          database.InsertAIGatewayCoderdKeyParams
@@ -14745,55 +14757,70 @@ func TestAIGatewayCoderdKeysTableConstraints(t *testing.T) {
 	}{
 		{
 			name:            "duplicate name",
-			params:          aiGatewayCoderdKeyParams("TEST-KEY", "cgw_test002", []byte("hashed-secret-002")),
+			params:          aiGatewayCoderdKeyParams(preExsiting.Name, "cgw_test002"),
 			expectUniqueErr: database.UniqueAiGatewayCoderdKeysNameIndex,
 		},
 		{
 			name:            "duplicate secret prefix",
-			params:          aiGatewayCoderdKeyParams("different-key", "cgw_test001", []byte("hashed-secret-002")),
+			params:          aiGatewayCoderdKeyParams("different-key", preExsiting.SecretPrefix),
 			expectUniqueErr: database.UniqueAiGatewayCoderdKeysSecretPrefixIndex,
 		},
 		{
 			name:            "duplicate hashed secret",
-			params:          aiGatewayCoderdKeyParams("different-key", "cgw_test002", []byte("hashed-secret-001")),
+			params:          database.InsertAIGatewayCoderdKeyParams{ID: uuid.New(), Name: "other-name", SecretPrefix: "cgw_1234567", HashedSecret: preExsiting.HashedSecret},
 			expectUniqueErr: database.UniqueAiGatewayCoderdKeysHashedSecretIndex,
 		},
 		{
 			name:           "empty name",
-			params:         aiGatewayCoderdKeyParams("", "cgw_empty01", []byte("hashed-secret-empty-name")),
+			params:         aiGatewayCoderdKeyParams("", "cgw_1234567"),
+			expectCheckErr: database.CheckAiGatewayCoderdKeysNameCheck,
+		},
+		{
+			name:           "name with trailing dash",
+			params:         aiGatewayCoderdKeyParams("other-name-", "cgw_1234567"),
+			expectCheckErr: database.CheckAiGatewayCoderdKeysNameCheck,
+		},
+		{
+			name:           "name with consecutive dashes",
+			params:         aiGatewayCoderdKeyParams("other--name", "cgw_1234567"),
+			expectCheckErr: database.CheckAiGatewayCoderdKeysNameCheck,
+		},
+		{
+			name:           "name with underscore",
+			params:         aiGatewayCoderdKeyParams("other_name", "cgw_1234567"),
+			expectCheckErr: database.CheckAiGatewayCoderdKeysNameCheck,
+		},
+		{
+			name:           "name with space",
+			params:         aiGatewayCoderdKeyParams("other name", "cgw_1234567"),
 			expectCheckErr: database.CheckAiGatewayCoderdKeysNameCheck,
 		},
 		{
 			name:           "empty secret prefix",
-			params:         aiGatewayCoderdKeyParams("empty-prefix", "", []byte("hashed-secret-empty-prefix")),
+			params:         aiGatewayCoderdKeyParams("other-name", ""),
 			expectCheckErr: database.CheckAiGatewayCoderdKeysSecretPrefixCheck,
 		},
 		{
 			name:           "invalid secret prefix length",
-			params:         aiGatewayCoderdKeyParams("different-key", "cgw_short", []byte("hashed-secret-002")),
+			params:         aiGatewayCoderdKeyParams("other-name", "cgw_short"),
 			expectCheckErr: database.CheckAiGatewayCoderdKeysSecretPrefixCheck,
 		},
 		{
 			name:           "empty hashed secret",
-			params:         aiGatewayCoderdKeyParams("empty-key", "cgw_empty02", []byte{}),
+			params:         database.InsertAIGatewayCoderdKeyParams{ID: uuid.New(), Name: "other-name", SecretPrefix: "cgw_1234567"},
 			expectCheckErr: database.CheckAiGatewayCoderdKeysHashedSecretCheck,
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			db, _ := dbtestutil.NewDB(t)
-			ctx := testutil.Context(t, testutil.WaitLong)
+			ctx := testutil.Context(t, testutil.WaitShort)
 
-			base := aiGatewayCoderdKeyParams("test-key", "cgw_test001", []byte("hashed-secret-001"))
-			_, err := db.InsertAIGatewayCoderdKey(ctx, base)
-			require.NoError(t, err)
-
-			_, err = db.InsertAIGatewayCoderdKey(ctx, tt.params)
+			_, err = db.InsertAIGatewayCoderdKey(ctx, tc.params)
 			require.Error(t, err)
-			requireAIGatewayCoderdKeyViolation(t, err, tt.expectUniqueErr, tt.expectCheckErr)
+			requireAIGatewayCoderdKeyViolation(t, err, tc.expectUniqueErr, tc.expectCheckErr)
 		})
 	}
 }
@@ -14804,60 +14831,62 @@ func TestAIGatewayCoderdKeysQueries(t *testing.T) {
 	db, _ := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	firstCreated := dbtime.Now().Add(-time.Minute)
-	secondCreated := dbtime.Now()
-	first := aiGatewayCoderdKeyParams("First-Key", "cgw_first01", []byte("hashed-secret-first"))
-	first.CreatedAt = firstCreated
-	second := aiGatewayCoderdKeyParams("Second-Key", "cgw_second1", []byte("hashed-secret-second"))
-	second.CreatedAt = secondCreated
+	first := aiGatewayCoderdKeyParams("first-key", "cgw_first__")
+	second := aiGatewayCoderdKeyParams("second-key", "cgw_second_")
+	second.HashedSecret = []byte("second-secret")
 
 	firstRow, err := db.InsertAIGatewayCoderdKey(ctx, first)
 	require.NoError(t, err)
 	require.Equal(t, first.ID, firstRow.ID)
+
 	require.Equal(t, "first-key", firstRow.Name)
 	require.Equal(t, first.SecretPrefix, firstRow.SecretPrefix)
-	require.WithinDuration(t, firstCreated, firstRow.CreatedAt, time.Second)
 
 	secondRow, err := db.InsertAIGatewayCoderdKey(ctx, second)
 	require.NoError(t, err)
 	require.Equal(t, second.ID, secondRow.ID)
+
 	require.Equal(t, "second-key", secondRow.Name)
 	require.Equal(t, second.SecretPrefix, secondRow.SecretPrefix)
-	require.WithinDuration(t, secondCreated, secondRow.CreatedAt, time.Second)
 
 	keys, err := db.ListAIGatewayCoderdKeys(ctx)
 	require.NoError(t, err)
 	require.Len(t, keys, 2)
-	requireAIGatewayCoderdKeyRow(t, keys[0], first.ID, "first-key", first.SecretPrefix)
+
+	requireAIGatewayCoderdKeyRow(t, keys[0], first, firstRow.CreatedAt)
 	require.False(t, keys[0].LastUsedAt.Valid)
-	requireAIGatewayCoderdKeyRow(t, keys[1], second.ID, "second-key", second.SecretPrefix)
+	requireAIGatewayCoderdKeyRow(t, keys[1], second, secondRow.CreatedAt)
 	require.False(t, keys[1].LastUsedAt.Valid)
 
-	err = db.DeleteAIGatewayCoderdKey(ctx, first.ID)
+	rid, err := db.DeleteAIGatewayCoderdKey(ctx, first.ID)
 	require.NoError(t, err)
+	require.Equal(t, first.ID, rid)
+
+	_, err = db.DeleteAIGatewayCoderdKey(ctx, first.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
 
 	keys, err = db.ListAIGatewayCoderdKeys(ctx)
 	require.NoError(t, err)
 	require.Len(t, keys, 1)
-	requireAIGatewayCoderdKeyRow(t, keys[0], second.ID, "second-key", second.SecretPrefix)
+	requireAIGatewayCoderdKeyRow(t, keys[0], second, secondRow.CreatedAt)
 }
 
-func aiGatewayCoderdKeyParams(name string, secretPrefix string, hashedSecret []byte) database.InsertAIGatewayCoderdKeyParams {
+func aiGatewayCoderdKeyParams(name string, secretPrefix string) database.InsertAIGatewayCoderdKeyParams {
 	return database.InsertAIGatewayCoderdKeyParams{
 		ID:           uuid.New(),
-		CreatedAt:    dbtime.Now(),
 		Name:         name,
 		SecretPrefix: secretPrefix,
-		HashedSecret: hashedSecret,
+		HashedSecret: []byte("secret"),
 	}
 }
 
-func requireAIGatewayCoderdKeyRow(t *testing.T, row database.ListAIGatewayCoderdKeysRow, id uuid.UUID, name string, secretPrefix string) {
+func requireAIGatewayCoderdKeyRow(t *testing.T, listRow database.ListAIGatewayCoderdKeysRow, insertParams database.InsertAIGatewayCoderdKeyParams, insertCreatedAt time.Time) {
 	t.Helper()
 
-	require.Equal(t, id, row.ID)
-	require.Equal(t, name, row.Name)
-	require.Equal(t, secretPrefix, row.SecretPrefix)
+	require.Equal(t, insertParams.ID, listRow.ID)
+	require.Equal(t, insertParams.Name, listRow.Name)
+	require.Equal(t, insertParams.SecretPrefix, listRow.SecretPrefix)
+	require.Equal(t, insertCreatedAt, listRow.CreatedAt)
 }
 
 func requireAIGatewayCoderdKeyViolation(

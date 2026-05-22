@@ -111,24 +111,25 @@ func (q *sqlQuerier) ActivityBumpWorkspace(ctx context.Context, arg ActivityBump
 	return err
 }
 
-const deleteAIGatewayCoderdKey = `-- name: DeleteAIGatewayCoderdKey :exec
-DELETE FROM ai_gateway_coderd_keys WHERE id = $1
+const deleteAIGatewayCoderdKey = `-- name: DeleteAIGatewayCoderdKey :one
+DELETE FROM ai_gateway_coderd_keys WHERE id = $1 RETURNING id
 `
 
-func (q *sqlQuerier) DeleteAIGatewayCoderdKey(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteAIGatewayCoderdKey, id)
-	return err
+func (q *sqlQuerier) DeleteAIGatewayCoderdKey(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, deleteAIGatewayCoderdKey, id)
+	var id_2 uuid.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
 }
 
 const insertAIGatewayCoderdKey = `-- name: InsertAIGatewayCoderdKey :one
-INSERT INTO ai_gateway_coderd_keys (id, created_at, name, secret_prefix, hashed_secret)
-VALUES ($1, $2, lower($5), $3, $4)
+INSERT INTO ai_gateway_coderd_keys (id, name, secret_prefix, hashed_secret, created_at)
+VALUES ($1, $4, $2, $3, NOW())
 RETURNING id, name, secret_prefix, created_at
 `
 
 type InsertAIGatewayCoderdKeyParams struct {
 	ID           uuid.UUID `db:"id" json:"id"`
-	CreatedAt    time.Time `db:"created_at" json:"created_at"`
 	SecretPrefix string    `db:"secret_prefix" json:"secret_prefix"`
 	HashedSecret []byte    `db:"hashed_secret" json:"hashed_secret"`
 	Name         string    `db:"name" json:"name"`
@@ -144,7 +145,6 @@ type InsertAIGatewayCoderdKeyRow struct {
 func (q *sqlQuerier) InsertAIGatewayCoderdKey(ctx context.Context, arg InsertAIGatewayCoderdKeyParams) (InsertAIGatewayCoderdKeyRow, error) {
 	row := q.db.QueryRowContext(ctx, insertAIGatewayCoderdKey,
 		arg.ID,
-		arg.CreatedAt,
 		arg.SecretPrefix,
 		arg.HashedSecret,
 		arg.Name,
