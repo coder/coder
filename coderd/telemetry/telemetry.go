@@ -1610,6 +1610,7 @@ type Snapshot struct {
 	ChatModelConfigs                     []ChatModelConfig                     `json:"chat_model_configs"`
 	ChatDiffStatusSummary                *ChatDiffStatusSummary                `json:"chat_diff_status_summary"`
 	UserSecretsSummary                   *UserSecretsSummary                   `json:"user_secrets_summary"`
+	TemplateBuilderSessions              []TemplateBuilderSession              `json:"template_builder_sessions"`
 }
 
 // Deployment contains information about the host running Coder.
@@ -2495,6 +2496,21 @@ type UserSecretsSummary struct {
 	SecretsPerUserP50 int64 `json:"secrets_per_user_p50"`
 	SecretsPerUserP75 int64 `json:"secrets_per_user_p75"`
 	SecretsPerUserP90 int64 `json:"secrets_per_user_p90"`
+}
+
+// TemplateBuilderSession tracks a single event in the template builder
+// wizard. Two events are emitted per session: one on wizard entry and
+// one on compose completion. User-supplied variable values are never
+// included.
+type TemplateBuilderSession struct {
+	ID              uuid.UUID `json:"id"`
+	EventType       string    `json:"event_type"`
+	UserID          uuid.UUID `json:"user_id"`
+	BaseTemplateID  string    `json:"base_template_id,omitempty"`
+	ModuleIDs       []string  `json:"module_ids,omitempty"`
+	DurationSeconds float64   `json:"duration_seconds,omitempty"`
+	Success         bool      `json:"success,omitempty"`
+	CreatedAt       time.Time `json:"created_at"`
 }
 
 func ConvertAIBridgeInterceptionsSummary(endTime time.Time, provider, model, client string, summary database.CalculateAIBridgeInterceptionsTelemetrySummaryRow) AIBridgeInterceptionsSummary {

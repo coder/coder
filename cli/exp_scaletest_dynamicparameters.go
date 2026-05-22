@@ -65,7 +65,7 @@ func (r *RootCmd) scaletestDynamicParameters() *serpent.Command {
 				return err
 			}
 
-			_, err = requireAdmin(ctx, client)
+			_, err = RequireAdmin(ctx, client)
 			if err != nil {
 				return err
 			}

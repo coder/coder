@@ -26,6 +26,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
@@ -155,6 +156,7 @@ type testProxyConfig struct {
 	upstreamProxy            string
 	upstreamProxyCA          string
 	allowedPrivateCIDRs      []string
+	newDumper                func(string, string) aibridgeproxyd.RoundTripDumper
 	metrics                  *aibridgeproxyd.Metrics
 }
 
@@ -229,6 +231,12 @@ func withAllowedPrivateCIDRs(cidrs ...string) testProxyOption {
 	}
 }
 
+func withNewDumper(fn func(string, string) aibridgeproxyd.RoundTripDumper) testProxyOption {
+	return func(cfg *testProxyConfig) {
+		cfg.newDumper = fn
+	}
+}
+
 func withMetrics(metrics *aibridgeproxyd.Metrics) testProxyOption {
 	return func(cfg *testProxyConfig) {
 		cfg.metrics = metrics
@@ -279,6 +287,7 @@ func newTestProxy(t *testing.T, opts ...testProxyOption) *aibridgeproxyd.Server 
 		UpstreamProxy:            cfg.upstreamProxy,
 		UpstreamProxyCA:          cfg.upstreamProxyCA,
 		AllowedPrivateCIDRs:      cfg.allowedPrivateCIDRs,
+		NewDumper:                cfg.newDumper,
 		Metrics:                  cfg.metrics,
 	}
 	if cfg.certStore != nil {
@@ -669,14 +678,15 @@ func TestNew(t *testing.T) {
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
 		logger := slogtest.Make(t, nil)
 
-		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:     ":0",
-			CoderAccessURL: "http://localhost:3000",
-			MITMCertFile:   mitmCertFile,
-			MITMKeyFile:    mitmKeyFile,
+		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:               ":0",
+			CoderAccessURL:           "http://localhost:3000",
+			MITMCertFile:             mitmCertFile,
+			MITMKeyFile:              mitmKeyFile,
+			AIBridgeProviderFromHost: testProviderFromHost,
 		})
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "domain allow list is required")
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = srv.Close() })
 	})
 
 	t.Run("EmptyDomainAllowlist", func(t *testing.T) {
@@ -685,15 +695,16 @@ func TestNew(t *testing.T) {
 		mitmCertFile, mitmKeyFile := getSharedTestMITMCert(t)
 		logger := slogtest.Make(t, nil)
 
-		_, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
-			ListenAddr:      ":0",
-			CoderAccessURL:  "http://localhost:3000",
-			MITMCertFile:    mitmCertFile,
-			MITMKeyFile:     mitmKeyFile,
-			DomainAllowlist: []string{""},
+		srv, err := aibridgeproxyd.New(t.Context(), logger, aibridgeproxyd.Options{
+			ListenAddr:               ":0",
+			CoderAccessURL:           "http://localhost:3000",
+			MITMCertFile:             mitmCertFile,
+			MITMKeyFile:              mitmKeyFile,
+			DomainAllowlist:          []string{""},
+			AIBridgeProviderFromHost: testProviderFromHost,
 		})
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "domain allowlist is empty, at least one domain is required")
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = srv.Close() })
 	})
 
 	t.Run("InvalidDomainAllowlist", func(t *testing.T) {
@@ -2353,3 +2364,133 @@ func TestProxy_PrivateIPBlocking(t *testing.T) {
 		})
 	}
 }
+
+// TestProxy_APIDump verifies that when NewDumper is configured, the proxy
+// calls DumpRequest and DumpResponse for MITM'd requests.
+func TestProxy_APIDump(t *testing.T) {
+	t.Parallel()
+
+	aibridgedServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	t.Cleanup(aibridgedServer.Close)
+
+	var (
+		dumpedProvider  string
+		dumpedRequestID string
+		reqDumped       bool
+		respDumped      bool
+	)
+
+	srv := newTestProxy(t,
+		withCoderAccessURL(aibridgedServer.URL),
+		withAllowedPorts("443"),
+		withDomainAllowlist(aibridgeproxyd.HostAnthropic),
+		withAIBridgeProviderFromHost(testProviderFromHost),
+		withNewDumper(func(provider, requestID string) aibridgeproxyd.RoundTripDumper {
+			dumpedProvider = provider
+			dumpedRequestID = requestID
+			return &mockDumper{
+				onRequest:  func() { reqDumped = true },
+				onResponse: func() { respDumped = true },
+			}
+		}),
+	)
+
+	certPool := getProxyCertPool(t)
+	client := newProxyClient(t, srv, makeProxyAuthHeader("coder-token"), certPool, false)
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://api.anthropic.com/v1/messages", strings.NewReader(`{}`))
+	require.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer user-llm-token")
+
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	_, err = io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+
+	assert.Equal(t, "anthropic", dumpedProvider)
+	assert.NotEmpty(t, dumpedRequestID)
+	_, err = uuid.Parse(dumpedRequestID)
+	require.NoError(t, err, "request ID passed to NewDumper must be a valid UUID")
+	assert.True(t, reqDumped, "DumpRequest should have been called")
+	assert.True(t, respDumped, "DumpResponse should have been called")
+}
+
+// TestProxy_APIDump_ErrorsDoNotAffectProxy verifies that dump failures
+// do not break the proxied request/response flow.
+func TestProxy_APIDump_ErrorsDoNotAffectProxy(t *testing.T) {
+	t.Parallel()
+
+	aibridgedServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	t.Cleanup(aibridgedServer.Close)
+
+	srv := newTestProxy(t,
+		withCoderAccessURL(aibridgedServer.URL),
+		withAllowedPorts("443"),
+		withDomainAllowlist(aibridgeproxyd.HostAnthropic),
+		withAIBridgeProviderFromHost(testProviderFromHost),
+		withNewDumper(func(_, _ string) aibridgeproxyd.RoundTripDumper {
+			return &failingDumper{}
+		}),
+	)
+
+	certPool := getProxyCertPool(t)
+	client := newProxyClient(t, srv, makeProxyAuthHeader("coder-token"), certPool, false)
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "https://api.anthropic.com/v1/messages", strings.NewReader(`{}`))
+	require.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer user-token")
+
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	// The proxy must return the upstream response despite dump errors.
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.JSONEq(t, `{"ok":true}`, string(body))
+}
+
+type mockDumper struct {
+	onRequest  func()
+	onResponse func()
+	onError    func()
+}
+
+func (m *mockDumper) DumpRequest(_ *http.Request) error {
+	if m.onRequest != nil {
+		m.onRequest()
+	}
+	return nil
+}
+
+func (m *mockDumper) DumpResponse(_ *http.Response) error {
+	if m.onResponse != nil {
+		m.onResponse()
+	}
+	return nil
+}
+
+func (m *mockDumper) DumpError(_ error) error {
+	if m.onError != nil {
+		m.onError()
+	}
+	return nil
+}
+
+// failingDumper always returns errors, used to verify dump failures
+// do not affect proxy behavior.
+type failingDumper struct{}
+
+func (*failingDumper) DumpRequest(*http.Request) error   { return xerrors.New("dump request failed") }
+func (*failingDumper) DumpResponse(*http.Response) error { return xerrors.New("dump response failed") }
+func (*failingDumper) DumpError(error) error             { return xerrors.New("dump error failed") }

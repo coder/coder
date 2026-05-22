@@ -81,6 +81,72 @@ func TestInjection(t *testing.T) {
 	require.Equal(t, db2sdk.User(user, []uuid.UUID{}), got)
 }
 
+func TestInjectionUserAppearance(t *testing.T) {
+	t.Parallel()
+
+	siteFS := fstest.MapFS{
+		"index.html": &fstest.MapFile{
+			Data: []byte("{{ .UserAppearance }}"),
+		},
+	}
+	db, _ := dbtestutil.NewDB(t)
+	handler, err := site.New(&site.Options{
+		Telemetry: telemetry.NewNoop(),
+		Database:  db,
+		SiteFS:    siteFS,
+	})
+	require.NoError(t, err)
+
+	user := dbgen.User(t, db, database.User{})
+	ctx := context.Background()
+	_, err = db.UpdateUserThemePreference(ctx, database.UpdateUserThemePreferenceParams{
+		UserID:          user.ID,
+		ThemePreference: "dark-tritan",
+	})
+	require.NoError(t, err)
+	_, err = db.UpdateUserThemeMode(ctx, database.UpdateUserThemeModeParams{
+		UserID:    user.ID,
+		ThemeMode: string(codersdk.ThemeModeSync),
+	})
+	require.NoError(t, err)
+	_, err = db.UpdateUserThemeLight(ctx, database.UpdateUserThemeLightParams{
+		UserID:     user.ID,
+		ThemeLight: "light-tritan",
+	})
+	require.NoError(t, err)
+	_, err = db.UpdateUserThemeDark(ctx, database.UpdateUserThemeDarkParams{
+		UserID:    user.ID,
+		ThemeDark: "dark-tritan",
+	})
+	require.NoError(t, err)
+	_, err = db.UpdateUserTerminalFont(ctx, database.UpdateUserTerminalFontParams{
+		UserID:       user.ID,
+		TerminalFont: string(codersdk.TerminalFontFiraCode),
+	})
+	require.NoError(t, err)
+	_, token := dbgen.APIKey(t, db, database.APIKey{
+		UserID:    user.ID,
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+
+	r := httptest.NewRequest("GET", "/", nil)
+	r.Header.Set(codersdk.SessionTokenHeader, token)
+	rw := httptest.NewRecorder()
+
+	handler.ServeHTTP(rw, r)
+	require.Equal(t, http.StatusOK, rw.Code)
+	var got codersdk.UserAppearanceSettings
+	err = json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &got)
+	require.NoError(t, err)
+	require.Equal(t, codersdk.UserAppearanceSettings{
+		ThemePreference: "dark-tritan",
+		ThemeMode:       codersdk.ThemeModeSync,
+		ThemeLight:      "light-tritan",
+		ThemeDark:       "dark-tritan",
+		TerminalFont:    codersdk.TerminalFontFiraCode,
+	}, got)
+}
+
 func TestRenderPermissionsResolvesMe(t *testing.T) {
 	t.Parallel()
 

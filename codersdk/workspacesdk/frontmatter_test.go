@@ -32,6 +32,24 @@ func TestParseSkillFrontmatter(t *testing.T) {
 		require.Equal(t, "single-quoted", desc)
 	})
 
+	t.Run("EscapedDoubleQuotedValue", func(t *testing.T) {
+		t.Parallel()
+		_, desc, _, err := workspacesdk.ParseSkillFrontmatter(
+			"---\nname: escaped\ndescription: \"Review \\\"critical\\\" C:\\\\paths.\"\n---\nBody\n",
+		)
+		require.NoError(t, err)
+		require.Equal(t, "Review \"critical\" C:\\paths.", desc)
+	})
+
+	t.Run("PlainHashValue", func(t *testing.T) {
+		t.Parallel()
+		_, desc, _, err := workspacesdk.ParseSkillFrontmatter(
+			"---\nname: plain-hash\ndescription: Build # test\n---\nBody\n",
+		)
+		require.NoError(t, err)
+		require.Equal(t, "Build # test", desc)
+	})
+
 	t.Run("NoDescription", func(t *testing.T) {
 		t.Parallel()
 		name, desc, body, err := workspacesdk.ParseSkillFrontmatter(
@@ -117,6 +135,7 @@ func TestParseSkillFrontmatter(t *testing.T) {
 		_, _, _, err := workspacesdk.ParseSkillFrontmatter(
 			"---\ndescription: no name\n---\n",
 		)
+		require.ErrorIs(t, err, workspacesdk.ErrFrontmatterNameRequired)
 		require.ErrorContains(t, err, "frontmatter missing required 'name' field")
 	})
 

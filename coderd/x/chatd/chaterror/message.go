@@ -63,6 +63,10 @@ func terminalMessage(classified ClassifiedError) string {
 // codes (surfaced separately in the payload) and remediation
 // guidance (not actionable while auto-retrying).
 func retryMessage(classified ClassifiedError) string {
+	if classified.Retryable && classified.Message != "" {
+		return classified.Message
+	}
+
 	subject := providerSubject(classified.Provider)
 	switch classified.Kind {
 	case codersdk.ChatErrorKindOverloaded:

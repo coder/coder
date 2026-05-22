@@ -14,13 +14,13 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestReadAIBridgeProvidersFromEnv(t *testing.T) {
+func TestReadAIProvidersFromEnv(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name        string
 		env         []string
-		expected    []codersdk.AIBridgeProviderConfig
+		expected    []codersdk.AIProviderConfig
 		errContains string
 	}{
 		{
@@ -36,13 +36,30 @@ func TestReadAIBridgeProvidersFromEnv(t *testing.T) {
 				"CODER_AIBRIDGE_PROVIDER_0_BASE_URL=https://api.anthropic.com/",
 				"CODER_AIBRIDGE_PROVIDER_0_DUMP_DIR=/tmp/aibridge-dump",
 			},
-			expected: []codersdk.AIBridgeProviderConfig{
+			expected: []codersdk.AIProviderConfig{
 				{
 					Type:    aibridge.ProviderAnthropic,
 					Name:    "anthropic-zdr",
 					Keys:    []string{"sk-ant-xxx"},
 					BaseURL: "https://api.anthropic.com/",
 					DumpDir: "/tmp/aibridge-dump",
+				},
+			},
+		},
+		{
+			name: "SingleProviderAIGatewayPrefix",
+			env: []string{
+				"CODER_AI_GATEWAY_PROVIDER_0_TYPE=anthropic",
+				"CODER_AI_GATEWAY_PROVIDER_0_NAME=anthropic-zdr",
+				"CODER_AI_GATEWAY_PROVIDER_0_KEY=sk-ant-xxx",
+				"CODER_AI_GATEWAY_PROVIDER_0_BASE_URL=https://api.anthropic.com/",
+			},
+			expected: []codersdk.AIProviderConfig{
+				{
+					Type:    aibridge.ProviderAnthropic,
+					Name:    "anthropic-zdr",
+					Keys:    []string{"sk-ant-xxx"},
+					BaseURL: "https://api.anthropic.com/",
 				},
 			},
 		},
@@ -55,7 +72,7 @@ func TestReadAIBridgeProvidersFromEnv(t *testing.T) {
 				"CODER_AIBRIDGE_PROVIDER_1_NAME=anthropic-eu",
 				"CODER_AIBRIDGE_PROVIDER_1_BASE_URL=https://eu.api.anthropic.com/",
 			},
-			expected: []codersdk.AIBridgeProviderConfig{
+			expected: []codersdk.AIProviderConfig{
 				{Type: aibridge.ProviderAnthropic, Name: "anthropic-us"},
 				{Type: aibridge.ProviderAnthropic, Name: "anthropic-eu", BaseURL: "https://eu.api.anthropic.com/"},
 			},
@@ -65,7 +82,7 @@ func TestReadAIBridgeProvidersFromEnv(t *testing.T) {
 			env: []string{
 				"CODER_AIBRIDGE_PROVIDER_0_TYPE=openai",
 			},
-			expected: []codersdk.AIBridgeProviderConfig{
+			expected: []codersdk.AIProviderConfig{
 				{Type: aibridge.ProviderOpenAI, Name: aibridge.ProviderOpenAI},
 			},
 		},
@@ -79,7 +96,7 @@ func TestReadAIBridgeProvidersFromEnv(t *testing.T) {
 				"CODER_AIBRIDGE_PROVIDER_2_NAME=copilot-custom",
 				"CODER_AIBRIDGE_PROVIDER_2_BASE_URL=https://custom.copilot.com",
 			},
-			expected: []codersdk.AIBridgeProviderConfig{
+			expected: []codersdk.AIProviderConfig{
 				{Type: aibridge.ProviderAnthropic, Name: "anthropic-main"},
 				{Type: aibridge.ProviderOpenAI, Name: aibridge.ProviderOpenAI},
 				{Type: aibridge.ProviderCopilot, Name: "copilot-custom", BaseURL: "https://custom.copilot.com"},
@@ -97,7 +114,7 @@ func TestReadAIBridgeProvidersFromEnv(t *testing.T) {
 				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_SMALL_FAST_MODEL=anthropic.claude-3-haiku",
 				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_BASE_URL=https://bedrock.us-west-2.amazonaws.com",
 			},
-			expected: []codersdk.AIBridgeProviderConfig{
+			expected: []codersdk.AIProviderConfig{
 				{
 					Type:                    aibridge.ProviderAnthropic,
 					Name:                    "anthropic-bedrock",
@@ -118,7 +135,7 @@ func TestReadAIBridgeProvidersFromEnv(t *testing.T) {
 				"CODER_AIBRIDGE_PROVIDER_0_TYPE=openai",
 				"CODER_AIBRIDGE_PROVIDER_0_NAME=first",
 			},
-			expected: []codersdk.AIBridgeProviderConfig{
+			expected: []codersdk.AIProviderConfig{
 				{Type: aibridge.ProviderOpenAI, Name: "first"},
 				{Type: aibridge.ProviderAnthropic, Name: "second"},
 			},
@@ -172,29 +189,54 @@ func TestReadAIBridgeProvidersFromEnv(t *testing.T) {
 				"CODER_AIBRIDGE_PROVIDER_0_KEY=sk-xxx",
 				"SOME_OTHER_VAR=hello",
 			},
-			expected: []codersdk.AIBridgeProviderConfig{
+			expected: []codersdk.AIProviderConfig{
 				{Type: aibridge.ProviderOpenAI, Name: aibridge.ProviderOpenAI, Keys: []string{"sk-xxx"}},
 			},
 		},
 		{
-			// KEYS, BEDROCK_ACCESS_KEYS, and BEDROCK_ACCESS_KEY_SECRETS
-			// are plural aliases for their singular counterparts.
-			name: "PluralKeyAliases",
+			// KEYS is a plural alias for KEY.
+			name: "PluralKeysAlias",
 			env: []string{
 				"CODER_AIBRIDGE_PROVIDER_0_TYPE=anthropic",
 				"CODER_AIBRIDGE_PROVIDER_0_KEYS=sk-ant-xxx",
+			},
+			expected: []codersdk.AIProviderConfig{
+				{
+					Type: aibridge.ProviderAnthropic,
+					Name: aibridge.ProviderAnthropic,
+					Keys: []string{"sk-ant-xxx"},
+				},
+			},
+		},
+		{
+			// BEDROCK_ACCESS_KEYS and BEDROCK_ACCESS_KEY_SECRETS are
+			// plural aliases for their singular counterparts.
+			name: "PluralBedrockAliases",
+			env: []string{
+				"CODER_AIBRIDGE_PROVIDER_0_TYPE=anthropic",
 				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_ACCESS_KEYS=AKID",
 				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_ACCESS_KEY_SECRETS=secret",
 			},
-			expected: []codersdk.AIBridgeProviderConfig{
+			expected: []codersdk.AIProviderConfig{
 				{
 					Type:                    aibridge.ProviderAnthropic,
 					Name:                    aibridge.ProviderAnthropic,
-					Keys:                    []string{"sk-ant-xxx"},
 					BedrockAccessKeys:       []string{"AKID"},
 					BedrockAccessKeySecrets: []string{"secret"},
 				},
 			},
+		},
+		{
+			// An Anthropic provider can't use both a bearer token
+			// (KEYS) and Bedrock (BEDROCK_*); they're mutually
+			// exclusive authentication modes.
+			name: "AnthropicKeysAndBedrockConflict",
+			env: []string{
+				"CODER_AIBRIDGE_PROVIDER_0_TYPE=anthropic",
+				"CODER_AIBRIDGE_PROVIDER_0_KEYS=sk-ant-xxx",
+				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_REGION=us-east-1",
+			},
+			errContains: "KEY/KEYS and BEDROCK_* fields are mutually exclusive",
 		},
 		{
 			name: "ConflictKeyAndKeys",
@@ -245,7 +287,7 @@ func TestReadAIBridgeProvidersFromEnv(t *testing.T) {
 				"CODER_AIBRIDGE_PROVIDER_0_TYPE=openai",
 				"CODER_AIBRIDGE_PROVIDER_0_KEYS=sk-a,sk-b,sk-c",
 			},
-			expected: []codersdk.AIBridgeProviderConfig{
+			expected: []codersdk.AIProviderConfig{
 				{Type: aibridge.ProviderOpenAI, Name: aibridge.ProviderOpenAI, Keys: []string{"sk-a", "sk-b", "sk-c"}},
 			},
 		},
@@ -255,7 +297,7 @@ func TestReadAIBridgeProvidersFromEnv(t *testing.T) {
 				"CODER_AIBRIDGE_PROVIDER_0_TYPE=openai",
 				"CODER_AIBRIDGE_PROVIDER_0_KEYS= sk-a , sk-b ",
 			},
-			expected: []codersdk.AIBridgeProviderConfig{
+			expected: []codersdk.AIProviderConfig{
 				{Type: aibridge.ProviderOpenAI, Name: aibridge.ProviderOpenAI, Keys: []string{"sk-a", "sk-b"}},
 			},
 		},
@@ -291,7 +333,7 @@ func TestReadAIBridgeProvidersFromEnv(t *testing.T) {
 				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_ACCESS_KEYS=AKID1,AKID2",
 				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_ACCESS_KEY_SECRETS=secret1,secret2",
 			},
-			expected: []codersdk.AIBridgeProviderConfig{
+			expected: []codersdk.AIProviderConfig{
 				{
 					Type:                    aibridge.ProviderAnthropic,
 					Name:                    aibridge.ProviderAnthropic,
@@ -311,6 +353,16 @@ func TestReadAIBridgeProvidersFromEnv(t *testing.T) {
 			errContains: "BEDROCK_ACCESS_KEYS count (2) must match BEDROCK_ACCESS_KEY_SECRETS count (1)",
 		},
 		{
+			name: "MixedPrefixesAreNotAllowed",
+			env: []string{
+				"CODER_AIBRIDGE_PROVIDER_0_TYPE=anthropic",
+				"CODER_AIBRIDGE_PROVIDER_0_NAME=anthropic-1",
+				"CODER_AI_GATEWAY_PROVIDER_0_TYPE=anthropic",
+				"CODER_AI_GATEWAY_PROVIDER_0_NAME=anthropic-2",
+			},
+			errContains: "cannot mix CODER_AIBRIDGE_PROVIDER_* and CODER_AI_GATEWAY_PROVIDER_* environment variables",
+		},
+		{
 			name: "BedrockKeysTooMany",
 			env: []string{
 				"CODER_AIBRIDGE_PROVIDER_0_TYPE=anthropic",
@@ -324,7 +376,7 @@ func TestReadAIBridgeProvidersFromEnv(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			providers, err := ReadAIBridgeProvidersFromEnv(slogtest.Make(t, nil), tt.env)
+			providers, err := ReadAIProvidersFromEnv(slogtest.Make(t, nil), tt.env)
 			if tt.errContains != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errContains)
@@ -339,46 +391,149 @@ func TestReadAIBridgeProvidersFromEnv(t *testing.T) {
 
 	t.Run("MultiDigitIndices", func(t *testing.T) {
 		t.Parallel()
-		// Indices 0, 1, 2, ..., 10 — verifies that 10 sorts after 2,
+		// Indices 0, 1, 2, ..., 10, verifies that 10 sorts after 2,
 		// not between 1 and 2 as a lexicographic sort would do.
 		var env []string
-		var expected []codersdk.AIBridgeProviderConfig
+		var expected []codersdk.AIProviderConfig
 		for i := range 11 {
 			env = append(env,
 				fmt.Sprintf("CODER_AIBRIDGE_PROVIDER_%d_TYPE=openai", i),
 				fmt.Sprintf("CODER_AIBRIDGE_PROVIDER_%d_KEY=sk-%d", i, i),
 				fmt.Sprintf("CODER_AIBRIDGE_PROVIDER_%d_NAME=p%d", i, i),
 			)
-			expected = append(expected, codersdk.AIBridgeProviderConfig{
+			expected = append(expected, codersdk.AIProviderConfig{
 				Type: aibridge.ProviderOpenAI,
 				Name: fmt.Sprintf("p%d", i),
 				Keys: []string{fmt.Sprintf("sk-%d", i)},
 			})
 		}
-		providers, err := ReadAIBridgeProvidersFromEnv(slogtest.Make(t, nil), env)
+		providers, err := ReadAIProvidersFromEnv(slogtest.Make(t, nil), env)
 		require.NoError(t, err)
 		require.Equal(t, expected, providers)
 	})
 
 	t.Run("UnknownFieldWarnsButSucceeds", func(t *testing.T) {
 		t.Parallel()
-		// A typo like TPYE instead of TYPE should not prevent startup;
+		// A typo like TYYYPPOO instead of TYPE should not prevent startup;
 		// the function logs a warning and continues.
-		sink := testutil.NewFakeSink(t)
-		providers, err := ReadAIBridgeProvidersFromEnv(sink.Logger(), []string{
-			"CODER_AIBRIDGE_PROVIDER_0_TYPE=openai",
-			"CODER_AIBRIDGE_PROVIDER_0_TPYE=openai",
-		})
-		require.NoError(t, err)
-		require.Equal(t, []codersdk.AIBridgeProviderConfig{
-			{Type: aibridge.ProviderOpenAI, Name: aibridge.ProviderOpenAI},
-		}, providers)
+		tests := []struct {
+			name             string
+			env              []string
+			expected         []codersdk.AIProviderConfig
+			expectedWarnings []string
+		}{
+			{
+				name: "AIGatewayPrefix",
+				env: []string{
+					"CODER_AI_GATEWAY_PROVIDER_0_TYPE=openai",
+					"CODER_AI_GATEWAY_PROVIDER_0_Name=test",
+					"CODER_AI_GATEWAY_PROVIDER_0_TYYYPPOO=openai",
+				},
+				expected: []codersdk.AIProviderConfig{
+					{Type: "openai", Name: "test"},
+				},
+				expectedWarnings: []string{"CODER_AI_GATEWAY_PROVIDER_0_TYYYPPOO"},
+			},
+			{
+				name: "AIBridgePrefix",
+				env: []string{
+					"CODER_AIBRIDGE_PROVIDER_0_TYPE=openai",
+					"CODER_AIBRIDGE_PROVIDER_0_Name=test",
+					"CODER_AIBRIDGE_PROVIDER_0_TYYYPPOO=openai",
+				},
+				expected: []codersdk.AIProviderConfig{
+					{Type: "openai", Name: "test"},
+				},
+				expectedWarnings: []string{"CODER_AIBRIDGE_PROVIDER_0_TYYYPPOO"},
+			},
+		}
 
-		warnings := sink.Entries(func(e slog.SinkEntry) bool {
-			return e.Message == "ignoring unknown aibridge provider field (check for typos)"
-		})
-		require.Len(t, warnings, 1)
-		require.Len(t, warnings[0].Fields, 1)
-		assert.Equal(t, "CODER_AIBRIDGE_PROVIDER_0_TPYE", warnings[0].Fields[0].Value)
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				sink := testutil.NewFakeSink(t)
+				providers, err := ReadAIProvidersFromEnv(sink.Logger(), tt.env)
+				require.NoError(t, err)
+				require.Equal(t, tt.expected, providers)
+
+				warnings := sink.Entries(func(e slog.SinkEntry) bool {
+					return e.Message == "ignoring unknown AI provider field (check for typos)"
+				})
+				require.Len(t, warnings, len(tt.expectedWarnings))
+				for i, want := range tt.expectedWarnings {
+					require.Len(t, warnings[i].Fields, 1)
+					assert.Equal(t, want, warnings[i].Fields[0].Value)
+				}
+			})
+		}
 	})
+}
+
+func TestValidateLegacyAIBridgeConfig(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		cfg         codersdk.AIBridgeConfig
+		errContains string
+	}{
+		{
+			name: "BareAnthropicKey",
+			cfg: codersdk.AIBridgeConfig{
+				LegacyAnthropic: codersdk.AIBridgeAnthropicConfig{Key: "sk-ant"},
+			},
+		},
+		{
+			name: "BareBedrockRegion",
+			cfg: codersdk.AIBridgeConfig{
+				LegacyBedrock: codersdk.AIBridgeBedrockConfig{Region: "us-east-1"},
+			},
+		},
+		{
+			name: "BedrockCredentialsOnly",
+			cfg: codersdk.AIBridgeConfig{
+				LegacyBedrock: codersdk.AIBridgeBedrockConfig{
+					AccessKey:       "AKIA",
+					AccessKeySecret: "secret",
+				},
+			},
+		},
+		{
+			name: "AnthropicKeyAndBedrockConflict",
+			cfg: codersdk.AIBridgeConfig{
+				LegacyAnthropic: codersdk.AIBridgeAnthropicConfig{Key: "sk-ant"},
+				LegacyBedrock: codersdk.AIBridgeBedrockConfig{
+					Region:          "us-east-1",
+					AccessKey:       "AKIA",
+					AccessKeySecret: "secret",
+				},
+			},
+			errContains: "CODER_AIBRIDGE_ANTHROPIC_KEY and CODER_AIBRIDGE_BEDROCK_* are mutually exclusive",
+		},
+		{
+			name: "AnthropicKeyWithBedrockModelDefaultsIsFine",
+			cfg: codersdk.AIBridgeConfig{
+				LegacyAnthropic: codersdk.AIBridgeAnthropicConfig{Key: "sk-ant"},
+				// Model defaults shouldn't trip the conflict; they're
+				// always populated in a real deployment.
+				LegacyBedrock: codersdk.AIBridgeBedrockConfig{
+					Model:          "anthropic.claude-3-5-sonnet",
+					SmallFastModel: "anthropic.claude-3-5-haiku",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := validateLegacyAIBridgeConfig(tt.cfg)
+			if tt.errContains == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			require.Contains(t, err.Error(), tt.errContains)
+		})
+	}
 }

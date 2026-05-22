@@ -12,6 +12,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
+	"github.com/coder/coder/v2/codersdk/wsjson"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -28,7 +29,7 @@ func TestHandleBuildUpdate_Coverage(t *testing.T) {
 						t.Run(fmt.Sprintf("%d_%s_%s_%t_%t", s, trans, jobStatus, noAutostart, noWaitForScripts), func(t *testing.T) {
 							t.Parallel()
 							coverUpdate(t, workspaceID, noAutostart, noWaitForScripts, s, func(uut *Tunneler) {
-								uut.handleBuildUpdate(&buildUpdate{transition: trans, jobStatus: jobStatus})
+								uut.handleBuildUpdate(&workspacesdk.BuildUpdate{Transition: trans, JobStatus: jobStatus})
 							})
 						})
 					}
@@ -105,31 +106,31 @@ func TestBuildUpdatesStoppedWorkspace(t *testing.T) {
 		state:  stateInit,
 	}
 
-	uut.handleBuildUpdate(&buildUpdate{transition: codersdk.WorkspaceTransitionStop, jobStatus: codersdk.ProvisionerJobPending})
+	uut.handleBuildUpdate(&workspacesdk.BuildUpdate{Transition: codersdk.WorkspaceTransitionStop, JobStatus: codersdk.ProvisionerJobPending})
 	require.Equal(t, waitToStart, uut.state)
 	waitForGoroutines(testCtx, t, uut)
 	require.False(t, fWorkspaceStarter.started)
 
-	uut.handleBuildUpdate(&buildUpdate{transition: codersdk.WorkspaceTransitionStop, jobStatus: codersdk.ProvisionerJobRunning})
+	uut.handleBuildUpdate(&workspacesdk.BuildUpdate{Transition: codersdk.WorkspaceTransitionStop, JobStatus: codersdk.ProvisionerJobRunning})
 	require.Equal(t, waitToStart, uut.state)
 	waitForGoroutines(testCtx, t, uut)
 	require.False(t, fWorkspaceStarter.started)
 
 	// when stop job succeeds, we start the workspace
-	uut.handleBuildUpdate(&buildUpdate{transition: codersdk.WorkspaceTransitionStop, jobStatus: codersdk.ProvisionerJobSucceeded})
+	uut.handleBuildUpdate(&workspacesdk.BuildUpdate{Transition: codersdk.WorkspaceTransitionStop, JobStatus: codersdk.ProvisionerJobSucceeded})
 	require.Equal(t, waitForWorkspaceStarted, uut.state)
 	waitForGoroutines(testCtx, t, uut)
 	require.True(t, fWorkspaceStarter.started)
 
-	uut.handleBuildUpdate(&buildUpdate{transition: codersdk.WorkspaceTransitionStart, jobStatus: codersdk.ProvisionerJobPending})
+	uut.handleBuildUpdate(&workspacesdk.BuildUpdate{Transition: codersdk.WorkspaceTransitionStart, JobStatus: codersdk.ProvisionerJobPending})
 	require.Equal(t, waitForWorkspaceStarted, uut.state)
 	waitForGoroutines(testCtx, t, uut)
 
-	uut.handleBuildUpdate(&buildUpdate{transition: codersdk.WorkspaceTransitionStart, jobStatus: codersdk.ProvisionerJobRunning})
+	uut.handleBuildUpdate(&workspacesdk.BuildUpdate{Transition: codersdk.WorkspaceTransitionStart, JobStatus: codersdk.ProvisionerJobRunning})
 	require.Equal(t, waitForWorkspaceStarted, uut.state)
 	waitForGoroutines(testCtx, t, uut)
 
-	uut.handleBuildUpdate(&buildUpdate{transition: codersdk.WorkspaceTransitionStart, jobStatus: codersdk.ProvisionerJobSucceeded})
+	uut.handleBuildUpdate(&workspacesdk.BuildUpdate{Transition: codersdk.WorkspaceTransitionStart, JobStatus: codersdk.ProvisionerJobSucceeded})
 	require.Equal(t, waitForAgent, uut.state)
 	waitForGoroutines(testCtx, t, uut)
 }
@@ -157,7 +158,7 @@ func TestBuildUpdatesNewBuildWhileWaiting(t *testing.T) {
 	}
 
 	// New build comes in while we are waiting for the agent to start. We roll back to waiting for the workspace to start.
-	uut.handleBuildUpdate(&buildUpdate{transition: codersdk.WorkspaceTransitionStart, jobStatus: codersdk.ProvisionerJobRunning})
+	uut.handleBuildUpdate(&workspacesdk.BuildUpdate{Transition: codersdk.WorkspaceTransitionStart, JobStatus: codersdk.ProvisionerJobRunning})
 	require.Equal(t, waitForWorkspaceStarted, uut.state)
 	waitForGoroutines(testCtx, t, uut)
 	require.False(t, fWorkspaceStarter.started)
@@ -193,12 +194,12 @@ func TestBuildUpdatesBadJobs(t *testing.T) {
 				state:  stateInit,
 			}
 
-			uut.handleBuildUpdate(&buildUpdate{transition: codersdk.WorkspaceTransitionStart, jobStatus: codersdk.ProvisionerJobRunning})
+			uut.handleBuildUpdate(&workspacesdk.BuildUpdate{Transition: codersdk.WorkspaceTransitionStart, JobStatus: codersdk.ProvisionerJobRunning})
 			require.Equal(t, waitForWorkspaceStarted, uut.state)
 			waitForGoroutines(testCtx, t, uut)
 			require.False(t, fWorkspaceStarter.started)
 
-			uut.handleBuildUpdate(&buildUpdate{transition: codersdk.WorkspaceTransitionStop, jobStatus: jobStatus})
+			uut.handleBuildUpdate(&workspacesdk.BuildUpdate{Transition: codersdk.WorkspaceTransitionStop, JobStatus: jobStatus})
 			require.Equal(t, exit, uut.state)
 			waitForGoroutines(testCtx, t, uut)
 			require.False(t, fWorkspaceStarter.started)
@@ -233,7 +234,7 @@ func TestBuildUpdatesNoAutostart(t *testing.T) {
 	}
 
 	// when stop job succeeds, we exit because autostart is disabled
-	uut.handleBuildUpdate(&buildUpdate{transition: codersdk.WorkspaceTransitionStop, jobStatus: codersdk.ProvisionerJobSucceeded})
+	uut.handleBuildUpdate(&workspacesdk.BuildUpdate{Transition: codersdk.WorkspaceTransitionStop, JobStatus: codersdk.ProvisionerJobSucceeded})
 	require.Equal(t, exit, uut.state)
 	waitForGoroutines(testCtx, t, uut)
 	require.False(t, fWorkspaceStarter.started)
@@ -254,7 +255,7 @@ func TestAgentUpdate_Coverage(t *testing.T) {
 					t.Run(fmt.Sprintf("%d_%s_%t_%t", s, lifecycle, noAutostart, noWaitForScripts), func(t *testing.T) {
 						t.Parallel()
 						coverUpdate(t, workspaceID, noAutostart, noWaitForScripts, s, func(uut *Tunneler) {
-							uut.handleAgentUpdate(&agentUpdate{lifecycle: lifecycle, id: agentID})
+							uut.handleAgentUpdate(&workspacesdk.AgentUpdate{Lifecycle: lifecycle, ID: agentID})
 						})
 					})
 				}
@@ -288,7 +289,7 @@ func TestAgentUpdateReady(t *testing.T) {
 		client: fClient,
 	}
 
-	uut.handleAgentUpdate(&agentUpdate{lifecycle: codersdk.WorkspaceAgentLifecycleReady, id: agentID})
+	uut.handleAgentUpdate(&workspacesdk.AgentUpdate{Lifecycle: codersdk.WorkspaceAgentLifecycleReady, ID: agentID})
 	require.Equal(t, establishTailnet, uut.state)
 	event := testutil.RequireReceive(testCtx, t, uut.events)
 	require.NotNil(t, event.tailnetUpdate)
@@ -323,7 +324,7 @@ func TestAgentUpdateNoWait(t *testing.T) {
 		client: fClient,
 	}
 
-	uut.handleAgentUpdate(&agentUpdate{lifecycle: codersdk.WorkspaceAgentLifecycleStarting, id: agentID})
+	uut.handleAgentUpdate(&workspacesdk.AgentUpdate{Lifecycle: codersdk.WorkspaceAgentLifecycleStarting, ID: agentID})
 	require.Equal(t, establishTailnet, uut.state)
 	event := testutil.RequireReceive(testCtx, t, uut.events)
 	require.NotNil(t, event.tailnetUpdate)
@@ -526,27 +527,27 @@ func TestTunneler_EventLoop_Signal(t *testing.T) {
 	go uut.eventLoop()
 
 	testutil.RequireSend(testCtx, t, uut.events, tunnelerEvent{
-		buildUpdate: &buildUpdate{
-			transition: codersdk.WorkspaceTransitionStart,
-			jobStatus:  codersdk.ProvisionerJobPending,
+		buildUpdate: &workspacesdk.BuildUpdate{
+			Transition: codersdk.WorkspaceTransitionStart,
+			JobStatus:  codersdk.ProvisionerJobPending,
 		},
 	})
 	testutil.RequireSend(testCtx, t, uut.events, tunnelerEvent{
-		buildUpdate: &buildUpdate{
-			transition: codersdk.WorkspaceTransitionStart,
-			jobStatus:  codersdk.ProvisionerJobRunning,
+		buildUpdate: &workspacesdk.BuildUpdate{
+			Transition: codersdk.WorkspaceTransitionStart,
+			JobStatus:  codersdk.ProvisionerJobRunning,
 		},
 	})
 	testutil.RequireSend(testCtx, t, uut.events, tunnelerEvent{
-		buildUpdate: &buildUpdate{
-			transition: codersdk.WorkspaceTransitionStart,
-			jobStatus:  codersdk.ProvisionerJobSucceeded,
+		buildUpdate: &workspacesdk.BuildUpdate{
+			Transition: codersdk.WorkspaceTransitionStart,
+			JobStatus:  codersdk.ProvisionerJobSucceeded,
 		},
 	})
 	testutil.RequireSend(testCtx, t, uut.events, tunnelerEvent{
-		agentUpdate: &agentUpdate{
-			lifecycle: codersdk.WorkspaceAgentLifecycleReady,
-			id:        agentID,
+		agentUpdate: &workspacesdk.AgentUpdate{
+			Lifecycle: codersdk.WorkspaceAgentLifecycleReady,
+			ID:        agentID,
 		},
 	})
 
@@ -656,6 +657,11 @@ type fakeClient struct {
 	// sync:
 	conn   workspacesdk.AgentConn
 	dialed bool
+}
+
+func (*fakeClient) WorkspaceAgentConnectionWatch(context.Context, uuid.UUID, string) (dec *wsjson.Decoder[workspacesdk.ConnectionWatchEvent], err error) {
+	// TODO implement me
+	panic("implement me")
 }
 
 func (f *fakeClient) DialAgent(

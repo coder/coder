@@ -1,4 +1,4 @@
-import { ChevronDownIcon, PencilIcon } from "lucide-react";
+import { ChevronLeftIcon, ChevronRightIcon, PencilIcon } from "lucide-react";
 import {
 	type FC,
 	Fragment,
@@ -15,11 +15,6 @@ import type * as TypesGen from "#/api/typesGenerated";
 import type { ThinkingDisplayMode } from "#/api/typesGenerated";
 
 import { Button } from "#/components/Button/Button";
-import {
-	Collapsible,
-	CollapsibleContent,
-	CollapsibleTrigger,
-} from "#/components/Collapsible/Collapsible";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
 import {
 	Tooltip,
@@ -38,6 +33,7 @@ import {
 } from "../ChatElements";
 import { WebSearchSources } from "../ChatElements/tools";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
+import { ToolCollapsible } from "../ChatElements/tools/ToolCollapsible";
 import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
 import {
@@ -48,6 +44,7 @@ import { FileProbeProvider } from "./FileProbeContext";
 import { deriveMessageDisplayState } from "./messageHelpers";
 import { getEditableUserMessagePayload } from "./messageParsing";
 import { useSmoothStreamingText } from "./SmoothText";
+import { getThinkingDisclosureDisplay } from "./thinkingTitle";
 import type {
 	MergedTool,
 	ParsedMessageContent,
@@ -129,12 +126,13 @@ const ReasoningDisclosure = memo<{
 			streamKey: id,
 		});
 		const displayText = isStreaming ? visibleText : text;
-		const hasText = displayText.trim().length > 0;
+		const { title, body } = getThinkingDisclosureDisplay(displayText);
+		const hasText = body.trim().length > 0;
 
 		// Auto-scroll the preview container to the bottom as new
 		// thinking content streams in. useLayoutEffect avoids a
 		// visible frame where content has grown but not scrolled.
-		const displayTextLength = displayText.length;
+		const displayTextLength = body.length;
 		useLayoutEffect(() => {
 			if (
 				displayTextLength &&
@@ -147,61 +145,39 @@ const ReasoningDisclosure = memo<{
 		}, [displayTextLength, isPreviewConstrained]);
 
 		return (
-			<div
-				data-tool-call=""
-				className={cn(
-					"py-0.5",
-					// Collapse padding between adjacent tool/thinking blocks.
-					"[&:has(+[data-tool-call])]:pb-0",
-					"[[data-tool-call]+&]:pt-0",
-				)}
-			>
-				<Collapsible
-					open={expanded}
-					onOpenChange={(open) => setManualToggle(open)}
+			<div data-transcript-row="">
+				<ToolCollapsible
 					className="w-full"
-				>
-					<CollapsibleTrigger
-						className={cn(
-							"border-0 bg-transparent p-0 m-0 font-[inherit] text-[inherit] text-left",
-							"flex w-full items-center gap-2 cursor-pointer",
-							"text-content-secondary transition-colors hover:text-content-primary",
-						)}
-					>
-						{isStreaming ? (
+					expanded={expanded}
+					onExpandedChange={(open) => setManualToggle(open)}
+					header={
+						isStreaming ? (
 							<Shimmer as="span" className="text-[13px]">
-								Thinking
+								{title}
 							</Shimmer>
 						) : (
-							<span className="text-[13px]">Thinking</span>
-						)}
-						<ChevronDownIcon
-							className={cn(
-								"h-3 w-3 shrink-0 text-current transition-transform",
-								expanded ? "rotate-0" : "-rotate-90",
-							)}
-						/>
-					</CollapsibleTrigger>
+							<span className="text-[13px]">{title}</span>
+						)
+					}
+				>
 					{hasText && (
-						<CollapsibleContent>
-							<div
-								ref={previewScrollRef}
-								className={cn(
-									"mt-1.5",
-									isPreviewConstrained && "max-h-24 overflow-y-auto",
-								)}
+						<div
+							ref={previewScrollRef}
+							className={cn(
+								"mt-1.5",
+								isPreviewConstrained && "max-h-24 overflow-y-auto",
+							)}
+						>
+							<Response
+								className="text-[11px] text-content-secondary"
+								urlTransform={urlTransform}
+								streaming={isStreaming}
 							>
-								<Response
-									className="text-[11px] text-content-secondary"
-									urlTransform={urlTransform}
-									streaming={isStreaming}
-								>
-									{displayText}
-								</Response>
-							</div>
-						</CollapsibleContent>
+								{body}
+							</Response>
+						</div>
 					)}
-				</Collapsible>
+				</ToolCollapsible>
 			</div>
 		);
 	},
@@ -275,6 +251,10 @@ export const BlockList: FC<{
 	const prefQuery = useQuery(preferenceSettings());
 	const thinkingDisplayMode: ThinkingDisplayMode =
 		prefQuery.data?.thinking_display_mode || "auto";
+	const shellToolDisplayMode: TypesGen.AgentDisplayMode =
+		prefQuery.data?.shell_tool_display_mode || "auto";
+	const codeDiffDisplayMode: TypesGen.AgentDisplayMode =
+		prefQuery.data?.code_diff_display_mode || "auto";
 
 	const toolByID = new Map(tools.map((tool) => [tool.id, tool]));
 
@@ -365,6 +345,8 @@ export const BlockList: FC<{
 									name="Tool"
 									status="running"
 									isError={false}
+									shellToolDisplayMode={shellToolDisplayMode}
+									codeDiffDisplayMode={codeDiffDisplayMode}
 									subagentTitles={subagentTitles}
 									subagentVariants={subagentVariants}
 									subagentStatusOverrides={subagentStatusOverrides}
@@ -381,6 +363,8 @@ export const BlockList: FC<{
 								status={tool.status}
 								isError={tool.isError}
 								killedBySignal={tool.killedBySignal}
+								shellToolDisplayMode={shellToolDisplayMode}
+								codeDiffDisplayMode={codeDiffDisplayMode}
 								subagentTitles={subagentTitles}
 								subagentVariants={subagentVariants}
 								showDesktopPreviews={showDesktopPreviews}
@@ -402,6 +386,7 @@ export const BlockList: FC<{
 										: undefined
 								}
 								modelIntent={tool.modelIntent}
+								parsedCommands={tool.parsedCommands}
 							/>
 						);
 					}
@@ -436,6 +421,8 @@ export const BlockList: FC<{
 					status={tool.status}
 					isError={tool.isError}
 					killedBySignal={tool.killedBySignal}
+					shellToolDisplayMode={shellToolDisplayMode}
+					codeDiffDisplayMode={codeDiffDisplayMode}
 					subagentTitles={subagentTitles}
 					subagentVariants={subagentVariants}
 					showDesktopPreviews={showDesktopPreviews}
@@ -457,6 +444,7 @@ export const BlockList: FC<{
 							: undefined
 					}
 					modelIntent={tool.modelIntent}
+					parsedCommands={tool.parsedCommands}
 				/>
 			))}
 		</>
@@ -474,6 +462,8 @@ const ChatMessageItem = memo<{
 	editingMessageId?: number | null;
 	isAfterEditingMessage?: boolean;
 	hideActions?: boolean;
+	hasActiveStream?: boolean;
+	isAwaitingFirstStreamChunk?: boolean;
 
 	// When true, renders a gradient overlay inside the bubble
 	// that fades text out toward the bottom. Used by the sticky
@@ -490,6 +480,9 @@ const ChatMessageItem = memo<{
 	latestAskUserQuestionToolId?: string;
 	askUserQuestionResponseTextByToolId?: ReadonlyMap<string, string>;
 	hasUserResponseAfterAskQuestion?: boolean;
+	prevUserMessageId?: number;
+	nextUserMessageId?: number;
+	onJumpToUserMessage?: (messageId: number) => void;
 }>(
 	({
 		message,
@@ -498,6 +491,8 @@ const ChatMessageItem = memo<{
 		editingMessageId,
 		isAfterEditingMessage = false,
 		hideActions = false,
+		hasActiveStream = false,
+		isAwaitingFirstStreamChunk = false,
 		fadeFromBottom = false,
 		onImplementPlan,
 		onSendAskUserQuestionResponse,
@@ -505,6 +500,9 @@ const ChatMessageItem = memo<{
 		latestAskUserQuestionToolId,
 		askUserQuestionResponseTextByToolId,
 		hasUserResponseAfterAskQuestion = false,
+		prevUserMessageId,
+		nextUserMessageId,
+		onJumpToUserMessage,
 
 		urlTransform,
 		mcpServers,
@@ -520,15 +518,13 @@ const ChatMessageItem = memo<{
 			message,
 			parsed,
 			hideActions,
+			hasActiveStream,
+			isAwaitingFirstStreamChunk,
 		});
 		if (displayState.shouldHide) {
 			return null;
 		}
 
-		const hasRenderableContent =
-			parsed.blocks.length > 0 ||
-			parsed.tools.length > 0 ||
-			parsed.sources.length > 0;
 		const conversationItemProps: { role: "user" | "assistant" } = {
 			role: isUser ? "user" : "assistant",
 		};
@@ -553,7 +549,8 @@ const ChatMessageItem = memo<{
 					) : (
 						<Message className="w-full">
 							<MessageContent className="whitespace-normal">
-								<div className="relative space-y-3 overflow-visible">
+								{/* Keep assistant content spacing consistent by letting the parent stack own every top-level gap. */}
+								<div className="relative flex flex-col gap-2 overflow-visible">
 									<BlockList
 										blocks={parsed.blocks}
 										tools={parsed.tools}
@@ -578,11 +575,6 @@ const ChatMessageItem = memo<{
 										urlTransform={urlTransform}
 										mcpServers={mcpServers}
 									/>
-									{!hasRenderableContent && (
-										<div className="text-xs text-content-secondary">
-											Message has no renderable content.
-										</div>
-									)}
 								</div>
 							</MessageContent>
 						</Message>
@@ -627,6 +619,61 @@ const ChatMessageItem = memo<{
 									<TooltipContent side="bottom">Edit message</TooltipContent>
 								</Tooltip>
 							)}
+							{isUser &&
+								onJumpToUserMessage &&
+								(prevUserMessageId !== undefined ||
+									nextUserMessageId !== undefined) && (
+									<>
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<Button
+													size="icon"
+													variant="subtle"
+													className="size-6"
+													aria-label="Jump to previous user message"
+													disabled={prevUserMessageId === undefined}
+													onClick={() => {
+														if (prevUserMessageId !== undefined) {
+															onJumpToUserMessage(prevUserMessageId);
+														}
+													}}
+												>
+													<ChevronLeftIcon />
+													<span className="sr-only">
+														Jump to previous user message
+													</span>
+												</Button>
+											</TooltipTrigger>
+											<TooltipContent side="bottom">
+												Jump to previous user message
+											</TooltipContent>
+										</Tooltip>
+										<Tooltip>
+											<TooltipTrigger asChild>
+												<Button
+													size="icon"
+													variant="subtle"
+													className="size-6"
+													aria-label="Jump to next user message"
+													disabled={nextUserMessageId === undefined}
+													onClick={() => {
+														if (nextUserMessageId !== undefined) {
+															onJumpToUserMessage(nextUserMessageId);
+														}
+													}}
+												>
+													<ChevronRightIcon />
+													<span className="sr-only">
+														Jump to next user message
+													</span>
+												</Button>
+											</TooltipTrigger>
+											<TooltipContent side="bottom">
+												Jump to next user message
+											</TooltipContent>
+										</Tooltip>
+									</>
+								)}
 						</div>
 					)}
 				{displayState.needsAssistantBottomSpacer && (
@@ -661,6 +708,10 @@ const StickyUserMessage = memo<{
 	) => void;
 	editingMessageId?: number | null;
 	isAfterEditingMessage?: boolean;
+	prevUserMessageId?: number;
+	nextUserMessageId?: number;
+	onJumpToUserMessage?: (messageId: number) => void;
+	registerSentinel?: (messageId: number, el: HTMLDivElement | null) => void;
 }>(
 	({
 		message,
@@ -668,11 +719,20 @@ const StickyUserMessage = memo<{
 		onEditUserMessage,
 		editingMessageId,
 		isAfterEditingMessage = false,
+		prevUserMessageId,
+		nextUserMessageId,
+		onJumpToUserMessage,
+		registerSentinel,
 	}) => {
 		const [isStuck, setIsStuck] = useState(false);
 		const [isReady, setIsReady] = useState(false);
 		const [isTooTall, setIsTooTall] = useState(false);
 		const sentinelRef = useRef<HTMLDivElement>(null);
+		const messageId = message.id;
+		const setSentinelRef = (el: HTMLDivElement | null) => {
+			sentinelRef.current = el;
+			registerSentinel?.(messageId, el);
+		};
 		const containerRef = useRef<HTMLDivElement>(null);
 		const updateFnRef = useRef<(() => void) | null>(null);
 
@@ -863,7 +923,7 @@ const StickyUserMessage = memo<{
 
 		return (
 			<>
-				<div ref={sentinelRef} className="h-0" data-user-sentinel />
+				<div ref={setSentinelRef} className="h-0" data-user-sentinel />
 				<div
 					ref={containerRef}
 					className={cn(
@@ -892,6 +952,9 @@ const StickyUserMessage = memo<{
 							onEditUserMessage={handleEditUserMessage}
 							editingMessageId={editingMessageId}
 							isAfterEditingMessage={isAfterEditingMessage}
+							prevUserMessageId={prevUserMessageId}
+							nextUserMessageId={nextUserMessageId}
+							onJumpToUserMessage={onJumpToUserMessage}
 						/>
 					</div>
 
@@ -934,6 +997,9 @@ const StickyUserMessage = memo<{
 									onEditUserMessage={handleEditUserMessage}
 									editingMessageId={editingMessageId}
 									isAfterEditingMessage={isAfterEditingMessage}
+									prevUserMessageId={prevUserMessageId}
+									nextUserMessageId={nextUserMessageId}
+									onJumpToUserMessage={onJumpToUserMessage}
 									fadeFromBottom
 								/>
 							</div>
@@ -956,6 +1022,8 @@ function computeLastInChainFlags(
 			message: entry.message,
 			parsed: entry.parsed,
 			hideActions: false,
+			hasActiveStream: false,
+			isAwaitingFirstStreamChunk: false,
 		});
 		if (entry.message.role !== "user") {
 			flags[i] = nextVisibleIsUser;
@@ -983,7 +1051,8 @@ interface ConversationTimelineProps {
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	showDesktopPreviews?: boolean;
-	isTurnActive?: boolean;
+	hasActiveStream?: boolean;
+	isAwaitingFirstStreamChunk?: boolean;
 }
 
 export const ConversationTimeline = memo<ConversationTimelineProps>(
@@ -999,7 +1068,24 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 		urlTransform,
 		mcpServers,
 		showDesktopPreviews,
+		hasActiveStream,
+		isAwaitingFirstStreamChunk,
 	}) => {
+		const sentinelsRef = useRef<Map<number, HTMLDivElement>>(new Map());
+		const registerSentinel = (messageId: number, el: HTMLDivElement | null) => {
+			if (el) {
+				sentinelsRef.current.set(messageId, el);
+			} else {
+				sentinelsRef.current.delete(messageId);
+			}
+		};
+		const jumpToUserMessage = (messageId: number) => {
+			sentinelsRef.current.get(messageId)?.scrollIntoView({
+				behavior: "smooth",
+				block: "start",
+			});
+		};
+
 		const lastInChainFlags = computeLastInChainFlags(parsedMessages);
 
 		if (parsedMessages.length === 0) {
@@ -1022,6 +1108,34 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			}
 		}
 
+		// Ordered list of visible user message IDs, used to drive the
+		// per-bubble prev/next arrow buttons that jump the transcript
+		// to the neighbouring user prompt.
+		const visibleUserMessageIds: number[] = [];
+		for (const { message, parsed } of parsedMessages) {
+			if (message.role !== "user") continue;
+			const { shouldHide } = deriveMessageDisplayState({
+				message,
+				parsed,
+				hideActions: false,
+				hasActiveStream: false,
+				isAwaitingFirstStreamChunk: false,
+			});
+			if (!shouldHide) visibleUserMessageIds.push(message.id);
+		}
+		const userNeighborsById = new Map<
+			number,
+			{ prevId?: number; nextId?: number }
+		>();
+		for (let i = 0; i < visibleUserMessageIds.length; i++) {
+			userNeighborsById.set(visibleUserMessageIds[i], {
+				prevId: i > 0 ? visibleUserMessageIds[i - 1] : undefined,
+				nextId:
+					i < visibleUserMessageIds.length - 1
+						? visibleUserMessageIds[i + 1]
+						: undefined,
+			});
+		}
 		let latestAskUserQuestionToolId: string | undefined;
 		let hasUserResponseAfterAskQuestion = false;
 		const askUserQuestionResponseTextByToolId = new Map<string, string>();
@@ -1066,6 +1180,16 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				>
 					{parsedMessages.map(({ message, parsed }, msgIdx) => {
 						if (message.role === "user") {
+							const { shouldHide } = deriveMessageDisplayState({
+								message,
+								parsed,
+								hideActions: false,
+								hasActiveStream: false,
+								isAwaitingFirstStreamChunk: false,
+							});
+							if (shouldHide) {
+								return null;
+							}
 							return (
 								<StickyUserMessage
 									key={message.id}
@@ -1074,6 +1198,10 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 									onEditUserMessage={onEditUserMessage}
 									editingMessageId={editingMessageId}
 									isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
+									prevUserMessageId={userNeighborsById.get(message.id)?.prevId}
+									nextUserMessageId={userNeighborsById.get(message.id)?.nextId}
+									onJumpToUserMessage={jumpToUserMessage}
+									registerSentinel={registerSentinel}
 								/>
 							);
 						}
@@ -1099,6 +1227,8 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								urlTransform={urlTransform}
 								isAfterEditingMessage={afterEditingMessageIds.has(message.id)}
 								hideActions={!isLastInChain}
+								hasActiveStream={Boolean(hasActiveStream)}
+								isAwaitingFirstStreamChunk={Boolean(isAwaitingFirstStreamChunk)}
 								mcpServers={mcpServers}
 								subagentTitles={subagentTitles}
 								subagentVariants={subagentVariants}

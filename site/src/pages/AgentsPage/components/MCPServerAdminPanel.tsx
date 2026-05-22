@@ -129,7 +129,7 @@ const MCPServerIcon: FC<{
 				<ExternalImage
 					src={iconUrl}
 					alt={`${name} icon`}
-					className="h-3/5 w-3/5"
+					className="size-3/5"
 				/>
 			</div>
 		);
@@ -141,7 +141,7 @@ const MCPServerIcon: FC<{
 				className,
 			)}
 		>
-			<ServerIcon className="h-3/5 w-3/5 text-content-secondary" />
+			<ServerIcon className="size-3/5 text-content-secondary" />
 		</div>
 	);
 };
@@ -183,7 +183,7 @@ const IconPickerField: FC<IconPickerFieldProps> = ({
 			/>
 			<InputGroupAddon align="inline-end" className="gap-1.5">
 				{hasIcon && (
-					<span className="flex h-5 w-5 items-center justify-center [&_img]:max-w-full [&_img]:object-contain">
+					<span className="flex size-5 items-center justify-center [&_img]:max-w-full [&_img]:object-contain">
 						<ExternalImage
 							alt=""
 							src={value}
@@ -255,7 +255,7 @@ const ServerList: FC<ServerListProps> = ({
 				}
 				action={
 					<Button size="sm" onClick={onAdd}>
-						<PlusIcon className="h-4 w-4" />
+						<PlusIcon className="size-4" />
 						Add server
 					</Button>
 				}
@@ -267,7 +267,7 @@ const ServerList: FC<ServerListProps> = ({
 						No MCP servers configured yet.
 					</p>
 					<Button size="sm" onClick={onAdd} aria-label="Add your first server">
-						<PlusIcon className="h-4 w-4" />
+						<PlusIcon className="size-4" />
 						Add your first server
 					</Button>
 				</div>
@@ -287,7 +287,7 @@ const ServerList: FC<ServerListProps> = ({
 							<MCPServerIcon
 								iconUrl={server.icon_url}
 								name={server.display_name}
-								className="h-8 w-8 shrink-0"
+								className="size-8 shrink-0"
 							/>
 							<div className="min-w-0 flex-1">
 								<span
@@ -310,11 +310,11 @@ const ServerList: FC<ServerListProps> = ({
 								</Badge>
 							)}
 							{server.enabled ? (
-								<CheckCircleIcon className="h-4 w-4 shrink-0 text-content-success" />
+								<CheckCircleIcon className="size-4 shrink-0 text-content-success" />
 							) : (
-								<CircleIcon className="h-4 w-4 shrink-0 text-content-secondary opacity-40" />
+								<CircleIcon className="size-4 shrink-0 text-content-secondary opacity-40" />
 							)}
-							<ChevronRightIcon className="h-5 w-5 shrink-0 text-content-secondary" />
+							<ChevronRightIcon className="size-5 shrink-0 text-content-secondary" />
 						</button>
 					))}
 				</div>
@@ -347,6 +347,7 @@ interface MCPServerFormValues {
 	enabled: boolean;
 	modelIntent: boolean;
 	allowInPlanMode: boolean;
+	forwardCoderHeaders: boolean;
 	toolAllowList: string;
 	toolDenyList: string;
 	customHeaders: Array<{ key: string; value: string }>;
@@ -377,6 +378,7 @@ const buildInitialValues = (
 	enabled: server?.enabled ?? true,
 	modelIntent: server?.model_intent ?? false,
 	allowInPlanMode: server?.allow_in_plan_mode ?? false,
+	forwardCoderHeaders: server?.forward_coder_headers ?? false,
 	toolAllowList: joinList(server?.tool_allow_list),
 	toolDenyList: joinList(server?.tool_deny_list),
 	customHeaders: [],
@@ -435,6 +437,7 @@ const ServerForm: FC<ServerFormProps> = ({
 				enabled: values.enabled,
 				model_intent: values.modelIntent,
 				allow_in_plan_mode: values.allowInPlanMode,
+				forward_coder_headers: values.forwardCoderHeaders,
 				...(values.authType === "oauth2" && {
 					oauth2_client_id: values.oauth2ClientID.trim(),
 					oauth2_client_secret: effectiveOAuth2Secret,
@@ -599,9 +602,9 @@ const ServerForm: FC<ServerFormProps> = ({
 										</p>
 									</div>
 									{showDetails ? (
-										<ChevronDownIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
+										<ChevronDownIcon className="mt-0.5 size-4 shrink-0 text-content-secondary" />
 									) : (
-										<ChevronRightIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
+										<ChevronRightIcon className="mt-0.5 size-4 shrink-0 text-content-secondary" />
 									)}
 								</button>
 							</CollapsibleTrigger>
@@ -648,9 +651,9 @@ const ServerForm: FC<ServerFormProps> = ({
 										</p>
 									</div>
 									{showAuth ? (
-										<ChevronDownIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
+										<ChevronDownIcon className="mt-0.5 size-4 shrink-0 text-content-secondary" />
 									) : (
-										<ChevronRightIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
+										<ChevronRightIcon className="mt-0.5 size-4 shrink-0 text-content-secondary" />
 									)}
 								</button>
 							</CollapsibleTrigger>
@@ -866,7 +869,7 @@ const ServerForm: FC<ServerFormProps> = ({
 													variant="outline"
 													size="icon"
 													type="button"
-													className="mt-0 h-9 w-9 shrink-0"
+													className="mt-0 size-9 shrink-0"
 													onClick={() => {
 														form.setFieldValue("customHeadersTouched", true);
 														form.setFieldValue(
@@ -879,7 +882,7 @@ const ServerForm: FC<ServerFormProps> = ({
 													disabled={isDisabled}
 													aria-label={`Remove header ${index + 1}`}
 												>
-													<XIcon className="h-4 w-4" />
+													<XIcon className="size-4" />
 												</Button>
 											</div>
 										))}
@@ -896,7 +899,7 @@ const ServerForm: FC<ServerFormProps> = ({
 											}}
 											disabled={isDisabled}
 										>
-											<PlusIcon className="h-4 w-4" />
+											<PlusIcon className="size-4" />
 											Add header
 										</Button>
 									</div>
@@ -933,13 +936,14 @@ const ServerForm: FC<ServerFormProps> = ({
 											Behavior
 										</h3>
 										<p className="m-0 text-xs text-content-secondary">
-											Availability, model intent, and tool governance.
+											Availability, model intent, identity headers, and tool
+											governance.
 										</p>
 									</div>
 									{showBehavior ? (
-										<ChevronDownIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
+										<ChevronDownIcon className="mt-0.5 size-4 shrink-0 text-content-secondary" />
 									) : (
-										<ChevronRightIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
+										<ChevronRightIcon className="mt-0.5 size-4 shrink-0 text-content-secondary" />
 									)}
 								</button>
 							</CollapsibleTrigger>
@@ -1012,6 +1016,31 @@ const ServerForm: FC<ServerFormProps> = ({
 										checked={form.values.allowInPlanMode}
 										onCheckedChange={(v) => {
 											form.setFieldValue("allowInPlanMode", v);
+										}}
+										disabled={isDisabled}
+									/>
+								</div>
+
+								<div className="flex items-start justify-between gap-4">
+									<div className="min-w-0 space-y-1">
+										<Label
+											htmlFor={`${formId}-forward-coder-headers`}
+											className="text-sm font-medium text-content-primary"
+										>
+											Forward Coder identity headers
+										</Label>
+										<p className="m-0 text-xs text-content-secondary">
+											When enabled, every outgoing MCP request includes the
+											Coder owner, chat, subchat, and workspace IDs as
+											<code>X-Coder-*</code> headers. Off by default. Only
+											enable for first-party or trusted MCP servers.
+										</p>
+									</div>
+									<Switch
+										id={`${formId}-forward-coder-headers`}
+										checked={form.values.forwardCoderHeaders}
+										onCheckedChange={(v) => {
+											form.setFieldValue("forwardCoderHeaders", v);
 										}}
 										disabled={isDisabled}
 									/>

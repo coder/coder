@@ -24,6 +24,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/agent/agentchat"
 	"github.com/coder/coder/v2/agent/agentfiles"
 	"github.com/coder/coder/v2/agent/agentgit"
 	"github.com/coder/coder/v2/codersdk"
@@ -1157,7 +1158,7 @@ func TestHandleWriteFile_ChatHeaders_UpdatesPathStore(t *testing.T) {
 	rr := httptest.NewRecorder()
 	r := chi.NewRouter()
 	r.Post("/write-file", api.HandleWriteFile)
-	r.ServeHTTP(rr, req)
+	agentchat.Middleware(r).ServeHTTP(rr, req)
 
 	require.Equal(t, http.StatusOK, rr.Code)
 
@@ -1185,7 +1186,7 @@ func TestHandleWriteFile_NoChatHeaders_NoPathStoreUpdate(t *testing.T) {
 	rr := httptest.NewRecorder()
 	r := chi.NewRouter()
 	r.Post("/write-file", api.HandleWriteFile)
-	r.ServeHTTP(rr, req)
+	agentchat.Middleware(r).ServeHTTP(rr, req)
 
 	require.Equal(t, http.StatusOK, rr.Code)
 
@@ -1211,7 +1212,7 @@ func TestHandleWriteFile_Failure_NoPathStoreUpdate(t *testing.T) {
 	rr := httptest.NewRecorder()
 	r := chi.NewRouter()
 	r.Post("/write-file", api.HandleWriteFile)
-	r.ServeHTTP(rr, req)
+	agentchat.Middleware(r).ServeHTTP(rr, req)
 
 	require.Equal(t, http.StatusBadRequest, rr.Code)
 
@@ -1252,7 +1253,7 @@ func TestHandleEditFiles_ChatHeaders_UpdatesPathStore(t *testing.T) {
 	rr := httptest.NewRecorder()
 	r := chi.NewRouter()
 	r.Post("/edit-files", api.HandleEditFiles)
-	r.ServeHTTP(rr, req)
+	agentchat.Middleware(r).ServeHTTP(rr, req)
 
 	require.Equal(t, http.StatusOK, rr.Code)
 
@@ -1289,7 +1290,7 @@ func TestHandleEditFiles_Failure_NoPathStoreUpdate(t *testing.T) {
 	rr := httptest.NewRecorder()
 	r := chi.NewRouter()
 	r.Post("/edit-files", api.HandleEditFiles)
-	r.ServeHTTP(rr, req)
+	agentchat.Middleware(r).ServeHTTP(rr, req)
 
 	require.NotEqual(t, http.StatusOK, rr.Code)
 
@@ -3181,4 +3182,390 @@ func TestFuzzyReplace_Expansion_PreservesFileIndent(t *testing.T) {
 	data, err := afero.ReadFile(fs, path)
 	require.NoError(t, err)
 	require.Equal(t, expected, string(data))
+}
+
+// baseFuzzyNotFoundMessage is the leading sentence the matcher
+// returns when all three passes miss. It must remain the leading
+// sentence even when diagnostic hints are appended, so existing log
+// scrapers continue to match.
+const baseFuzzyNotFoundMessage = "search string not found in file. " +
+	"Verify the search string matches the file content exactly, " +
+	"including whitespace and indentation"
+
+// TestFuzzyReplace_Hints exercises the post-fail diagnostic hints:
+// inversion (search and replace swapped) and miscount (one repeated
+// rune at the wrong count). Each detector lists every match it finds
+// and truncates the output to five entries with " and N more".
+func TestFuzzyReplace_Hints(t *testing.T) {
+	t.Parallel()
+
+	tmpdir := os.TempDir()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+
+	type edit struct {
+		search, replace string
+	}
+	tests := []struct {
+		name        string
+		content     string
+		edit        edit
+		wantSubs    []string
+		notWantSubs []string
+	}{
+		{
+			name: "Inversion_HintIncludesSwapAndLine",
+			content: "package main\n" +
+				"\n" +
+				"func adder(a int, b int) int { return a + b }\n" +
+				"\n" +
+				"// trailing comment\n",
+			edit: edit{
+				search:  "func adder(a, b int) int {\n\treturn a + b\n}\n",
+				replace: "func adder(a int, b int) int { return a + b }\n",
+			},
+			wantSubs: []string{
+				baseFuzzyNotFoundMessage,
+				`Did you swap "search" and "replace"? Your replace string appears at line 3`,
+			},
+		},
+		{
+			name: "Inversion_ThreeAnchors_AllListed",
+			content: "a\n" +
+				"matching block body of substantial length\n" +
+				"b\n" +
+				"matching block body of substantial length\n" +
+				"c\n" +
+				"matching block body of substantial length\n" +
+				"d\n",
+			edit: edit{
+				search:  "this search text is absent from the file\n",
+				replace: "matching block body of substantial length\n",
+			},
+			wantSubs: []string{
+				baseFuzzyNotFoundMessage,
+				`Did you swap "search" and "replace"? Your replace string appears at line 2, 4, 6`,
+			},
+			notWantSubs: []string{"more"},
+		},
+		{
+			name: "Inversion_SevenAnchors_TruncatedWithAndMore",
+			content: "matching block body of substantial length\n" +
+				"matching block body of substantial length\n" +
+				"matching block body of substantial length\n" +
+				"matching block body of substantial length\n" +
+				"matching block body of substantial length\n" +
+				"matching block body of substantial length\n" +
+				"matching block body of substantial length\n",
+			edit: edit{
+				search:  "this search text is absent from the file\n",
+				replace: "matching block body of substantial length\n",
+			},
+			wantSubs: []string{
+				baseFuzzyNotFoundMessage,
+				`Did you swap "search" and "replace"? Your replace string appears at line 1, 2, 3, 4, 5 and 2 more`,
+			},
+		},
+		{
+			name: "Inversion_ShortReplace_TruncatedWithAndMore",
+			// Short replace strings used to be silently suppressed by
+			// a length floor. Now the line-list cap signals "your
+			// replace is too generic" by showing five matches plus
+			// " and N more", which is more informative than no hint.
+			content: "alpha\nbeta\nbeta\nbeta\nbeta\nbeta\nbeta\nbeta\ngamma\n",
+			edit: edit{
+				search:  "missing line that does not occur anywhere\n",
+				replace: "beta\n",
+			},
+			wantSubs: []string{
+				baseFuzzyNotFoundMessage,
+				`Did you swap "search" and "replace"? Your replace string appears at line 2, 3, 4, 5, 6 and 2 more`,
+			},
+		},
+		{
+			name: "Miscount_BoxDrawingDashes_HintNamesCodepoint",
+			content: "<header>\n" +
+				"{/* SECTION HEADING " + strings.Repeat("\u2500", 37) + " */}\n" +
+				"<body/>\n",
+			edit: edit{
+				search:  "{/* SECTION HEADING " + strings.Repeat("\u2500", 32) + " */}\n",
+				replace: "{/* REPLACED */}\n",
+			},
+			wantSubs: []string{
+				baseFuzzyNotFoundMessage,
+				"Your search has 32 \"\u2500\" (U+2500); the file has 37 at line 2",
+			},
+		},
+		{
+			name: "Miscount_ASCIIEquals_HintWorks",
+			content: "title\n" +
+				"section =======\n" +
+				"body\n",
+			edit: edit{
+				search:  "section =====\n",
+				replace: "section *****\n",
+			},
+			wantSubs: []string{
+				baseFuzzyNotFoundMessage,
+				`Your search has 5 "=" (U+003D); the file has 7 at line 2`,
+			},
+		},
+		{
+			name: "Miscount_TwoCandidates_BothListed",
+			content: "section =======\n" +
+				"section ===\n",
+			edit: edit{
+				search:  "section =====\n",
+				replace: "section *****\n",
+			},
+			wantSubs: []string{
+				baseFuzzyNotFoundMessage,
+				`Your search has 5 "=" (U+003D); the file has 7 at line 1, 3 at line 2`,
+			},
+			notWantSubs: []string{"more"},
+		},
+		{
+			name: "Miscount_SixCandidates_TruncatedWithAndMore",
+			content: "section ==\n" +
+				"section ===\n" +
+				"section ======\n" +
+				"section =======\n" +
+				"section ========\n" +
+				"section =========\n",
+			edit: edit{
+				search:  "section =====\n",
+				replace: "section *****\n",
+			},
+			wantSubs: []string{
+				baseFuzzyNotFoundMessage,
+				`Your search has 5 "=" (U+003D); the file has 2 at line 1, 3 at line 2, 6 at line 3, 7 at line 4, 8 at line 5 and 1 more`,
+			},
+		},
+		{
+			name: "Miscount_TwoDistinctChanges_NoHint",
+			content: "first\n" +
+				"a===b\n" +
+				"last\n",
+			edit: edit{
+				search:  "a=====b!\n",
+				replace: "unused\n",
+			},
+			wantSubs:    []string{baseFuzzyNotFoundMessage},
+			notWantSubs: []string{"Your search has", "the file has"},
+		},
+		{
+			name:    "Miscount_Unrelated_NoHint",
+			content: "package foo\n\nfunc bar() {}\n",
+			edit: edit{
+				search:  "this content is wholly different from the file\n",
+				replace: "unused\n",
+			},
+			wantSubs:    []string{baseFuzzyNotFoundMessage},
+			notWantSubs: []string{"Your search has", "the file has"},
+		},
+		{
+			name: "Miscount_SuppressesInversion_WhenBothCouldFire",
+			content: "<header>\n" +
+				"{/* SECTION HEADING " + strings.Repeat("\u2500", 8) + " */}\n" +
+				"<body>\n" +
+				"doSomethingWithLongName(ctx)\n" +
+				"</body>\n",
+			edit: edit{
+				// Search has 6 dashes (miscount target on line 2).
+				search: "{/* SECTION HEADING " + strings.Repeat("\u2500", 6) + " */}\n",
+				// Replace is unrelated text that happens to appear at
+				// line 4. Without miscount-takes-precedence, the
+				// inversion hint would direct an agent to swap and
+				// corrupt line 4.
+				replace: "doSomethingWithLongName(ctx)\n",
+			},
+			wantSubs: []string{
+				baseFuzzyNotFoundMessage,
+				"Your search has 6 \"\u2500\" (U+2500); the file has 8 at line 2",
+			},
+			notWantSubs: []string{"swap", "appears at line"},
+		},
+		{
+			name: "Inversion_DedupRepeatsOnOneLine",
+			content: "prefix\n" +
+				"AAAAAAAAAAAAAAAAAAAA AAAAAAAAAAAAAAAAAAAA AAAAAAAAAAAAAAAAAAAA\n" +
+				"suffix\n",
+			edit: edit{
+				search:  "absent search line not in file at all\n",
+				replace: "AAAAAAAAAAAAAAAAAAAA\n",
+			},
+			wantSubs: []string{
+				baseFuzzyNotFoundMessage,
+				`Did you swap "search" and "replace"? Your replace string appears at line 2`,
+			},
+			// Line 2 must appear once, not 2, 2, 2.
+			notWantSubs: []string{"line 2, 2", "more"},
+		},
+		{
+			name: "Inversion_TrimRightFallback_TrailingSpaces",
+			// Content line has trailing spaces; replace omits them.
+			// Byte-substring misses; trimRight line-equivalent
+			// matches.
+			content: "preamble\n" +
+				"matching block body of substantial length   \n" +
+				"trailer\n",
+			edit: edit{
+				search:  "absent search line not in file at all\n",
+				replace: "matching block body of substantial length\n",
+			},
+			wantSubs: []string{
+				baseFuzzyNotFoundMessage,
+				`Did you swap "search" and "replace"? Your replace string appears at line 2`,
+			},
+		},
+		{
+			name: "Inversion_TrimAllFallback_LeadingIndent",
+			// Content line has leading indentation that replace
+			// omits. Byte-substring misses; trim-right also misses
+			// (the leading whitespace is on a different side);
+			// trim-all matches.
+			content: "preamble\n" +
+				"\t\tmatching block body of substantial length\n" +
+				"trailer\n",
+			edit: edit{
+				search:  "absent search line not in file at all\n",
+				replace: "matching block body of substantial length\n",
+			},
+			wantSubs: []string{
+				baseFuzzyNotFoundMessage,
+				`Did you swap "search" and "replace"? Your replace string appears at line 2`,
+			},
+		},
+		{
+			name: "Miscount_SingleRuneDiff_Suppressed",
+			// Rune `b` differs (sc=1, cc=0). Both counts < 2, the
+			// suppression guard fires, no hint.
+			content: "first\nxa\nlast\n",
+			edit: edit{
+				search:  "xab\n",
+				replace: "unused\n",
+			},
+			wantSubs:    []string{baseFuzzyNotFoundMessage},
+			notWantSubs: []string{"Your search has", "the file has"},
+		},
+		{
+			name: "Miscount_TotalHintsCapped",
+			// Four search lines, each matching a distinct file line
+			// via a distinct miscount rune. With maxMiscountHints=3,
+			// only 3 hint sentences appear plus " and 1 more".
+			content: "section ==\n" +
+				"divider ++\n" +
+				"line ##\n" +
+				"header @@\n",
+			edit: edit{
+				search: "section ====\n" +
+					"divider ++++\n" +
+					"line ####\n" +
+					"header @@@@\n",
+				replace: "unused\n",
+			},
+			wantSubs: []string{
+				baseFuzzyNotFoundMessage,
+				`Your search has 4 "=" (U+003D)`,
+				`Your search has 4 "+" (U+002B)`,
+				`Your search has 4 "#" (U+0023)`,
+				"and 1 more",
+			},
+			// The fourth hint (`@`) is suppressed by the cap.
+			notWantSubs: []string{`"@"`},
+		},
+		{
+			name: "Inversion_OverlappingMultilineMatch",
+			// Self-overlapping multi-line replace: "A\nB\nA\n"
+			// starts at line 1 and line 3 of the file. The old
+			// non-overlapping advancement missed line 3.
+			content: "AAAAAAAAAAAAAAAAAAAA\n" +
+				"BBBBBBBBBBBBBBBBBBBB\n" +
+				"AAAAAAAAAAAAAAAAAAAA\n" +
+				"BBBBBBBBBBBBBBBBBBBB\n" +
+				"AAAAAAAAAAAAAAAAAAAA\n",
+			edit: edit{
+				search: "absent search line not in file at all\n",
+				replace: "AAAAAAAAAAAAAAAAAAAA\n" +
+					"BBBBBBBBBBBBBBBBBBBB\n" +
+					"AAAAAAAAAAAAAAAAAAAA\n",
+			},
+			wantSubs: []string{
+				baseFuzzyNotFoundMessage,
+				`Did you swap "search" and "replace"? Your replace string appears at line 1, 3`,
+			},
+			notWantSubs: []string{"more"},
+		},
+		{
+			name: "Miscount_RuneOnlyInFile",
+			// Disagreeing rune `b` appears only in the file line.
+			// Exercises the second loop of singleRuneCountMismatch
+			// (runes in c but absent from s).
+			content: "section ==bb\n",
+			edit: edit{
+				search:  "section ==\n",
+				replace: "section --\n",
+			},
+			wantSubs: []string{
+				baseFuzzyNotFoundMessage,
+				`Your search has 0 "b" (U+0062); the file has 2 at line 1`,
+			},
+		},
+		{
+			name: "NoHints_BaseErrorOnly",
+			content: "package foo\n" +
+				"\n" +
+				"func bar() {}\n",
+			edit: edit{
+				search:  "func zzzz() {}\n",
+				replace: "new\n",
+			},
+			wantSubs:    []string{baseFuzzyNotFoundMessage},
+			notWantSubs: []string{"swap", "Your search has", "appears at line"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fs := afero.NewMemMapFs()
+			api := agentfiles.NewAPI(logger, fs, nil)
+			path := filepath.Join(tmpdir, "hint-"+tt.name)
+			require.NoError(t, afero.WriteFile(fs, path, []byte(tt.content), 0o644))
+
+			req := workspacesdk.FileEditRequest{
+				Files: []workspacesdk.FileEdits{{
+					Path: path,
+					Edits: []workspacesdk.FileEdit{{
+						Search:  tt.edit.search,
+						Replace: tt.edit.replace,
+					}},
+				}},
+			}
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			buf := bytes.NewBuffer(nil)
+			enc := json.NewEncoder(buf)
+			enc.SetEscapeHTML(false)
+			require.NoError(t, enc.Encode(req))
+			w := httptest.NewRecorder()
+			r := httptest.NewRequestWithContext(ctx, http.MethodPost, "/edit-files", buf)
+			api.Routes().ServeHTTP(w, r)
+
+			require.Equal(t, http.StatusBadRequest, w.Code, "body: %s", w.Body.String())
+			got := &codersdk.Error{}
+			require.NoError(t, json.NewDecoder(w.Body).Decode(got))
+			msg := got.Message
+			for _, sub := range tt.wantSubs {
+				require.Contains(t, msg, sub, "want substring missing")
+			}
+			for _, sub := range tt.notWantSubs {
+				require.NotContains(t, msg, sub, "unwanted substring present")
+			}
+
+			data, err := afero.ReadFile(fs, path)
+			require.NoError(t, err)
+			require.Equal(t, tt.content, string(data))
+		})
+	}
 }

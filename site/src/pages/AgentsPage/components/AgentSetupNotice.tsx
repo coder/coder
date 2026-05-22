@@ -9,9 +9,6 @@ import {
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
 
-const agentSetupLinkClassName =
-	"text-content-link transition-colors hover:text-content-link/80";
-
 interface AgentSetupNoticeProps {
 	providerCount: number;
 	modelCount: number;
@@ -88,14 +85,17 @@ const AgentSetupStep: FC<AgentSetupStepProps> = ({
 				{isComplete ? (
 					<CheckIcon
 						aria-label="Complete"
-						className="h-5 w-5 text-content-success"
+						className="size-5 text-content-success"
 					/>
 				) : (
 					`${stepNumber}.`
 				)}
 			</span>
 			<span className="text-content-secondary">{label}</span>
-			<Link to={linkTo} className={agentSetupLinkClassName}>
+			<Link
+				to={linkTo}
+				className="text-content-link transition-colors hover:text-content-link/80"
+			>
 				{linkText}
 			</Link>
 		</div>

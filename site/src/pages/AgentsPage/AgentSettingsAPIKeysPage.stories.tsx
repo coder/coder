@@ -18,6 +18,7 @@ const createProvider = (
 	display_name: overrides.display_name ?? overrides.provider,
 	has_user_api_key: overrides.has_user_api_key ?? false,
 	has_central_api_key_fallback: overrides.has_central_api_key_fallback ?? false,
+	byok_enabled: overrides.byok_enabled ?? true,
 });
 
 const createModel = (

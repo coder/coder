@@ -33,16 +33,15 @@ func TestUpdateLastTurnSummaryRejectsStaleWrites(t *testing.T) {
 		OrganizationID: org.ID,
 	})
 
-	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:             "openai",
-		DisplayName:          "OpenAI",
-		APIKey:               "test-key",
-		Enabled:              true,
-		CentralApiKeyEnabled: true,
+	provider := dbgen.ChatProvider(t, db, database.ChatProvider{
+		Provider:    "openai",
+		DisplayName: "OpenAI",
+		APIKey:      "test-key",
+		Enabled:     true,
 	})
-	require.NoError(t, err)
 
 	modelCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		AIProviderID:         uuid.NullUUID{UUID: provider.ID, Valid: true},
 		Provider:             "openai",
 		Model:                "test-model",
 		DisplayName:          "Test Model",
@@ -102,16 +101,15 @@ func TestPendingChatPersistsSummaryButSkipsWebPush(t *testing.T) {
 		OrganizationID: org.ID,
 	})
 
-	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:             "openai",
-		DisplayName:          "OpenAI",
-		APIKey:               "test-key",
-		Enabled:              true,
-		CentralApiKeyEnabled: true,
+	provider := dbgen.ChatProvider(t, db, database.ChatProvider{
+		Provider:    "openai",
+		DisplayName: "OpenAI",
+		APIKey:      "test-key",
+		Enabled:     true,
 	})
-	require.NoError(t, err)
 
 	modelCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		AIProviderID:         uuid.NullUUID{UUID: provider.ID, Valid: true},
 		Provider:             "openai",
 		Model:                "test-model",
 		DisplayName:          "Test Model",
@@ -135,14 +133,16 @@ func TestPendingChatPersistsSummaryButSkipsWebPush(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	const summary = "Finished the queued turn."
+	const summary = "Still working on request"
+	var generateCalls atomic.Int32
 	model := &chattest.FakeModel{
 		ProviderName: "openai",
 		ModelName:    "test-model",
 		GenerateFn: func(_ context.Context, _ fantasy.Call) (*fantasy.Response, error) {
+			generateCalls.Add(1)
 			return &fantasy.Response{
 				Content: fantasy.ResponseContent{
-					fantasy.TextContent{Text: summary},
+					fantasy.TextContent{Text: "Unexpected label"},
 				},
 			}, nil
 		},
@@ -151,14 +151,14 @@ func TestPendingChatPersistsSummaryButSkipsWebPush(t *testing.T) {
 	dispatcher := &recordingWebpushDispatcher{}
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	server := &Server{db: db, webpushDispatcher: dispatcher}
-	server.maybeFinalizeTurnSummaryAndPush(
+	server.maybeFinalizeTurnStatusLabelAndPush(
 		context.WithoutCancel(ctx),
 		chat,
 		database.ChatStatusPending,
 		"",
 		runChatResult{
 			FinalAssistantText: "I finished the queued turn.",
-			PushSummaryModel:   model,
+			StatusLabelModel:   model,
 			FallbackProvider:   model.Provider(),
 			FallbackModel:      model.Model(),
 		},
@@ -169,6 +169,7 @@ func TestPendingChatPersistsSummaryButSkipsWebPush(t *testing.T) {
 	fetched, err := db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
 	require.Equal(t, sql.NullString{String: summary, Valid: true}, fetched.LastTurnSummary)
+	require.Equal(t, int32(0), generateCalls.Load())
 	require.Equal(t, int32(0), dispatcher.dispatchCount.Load())
 }
 

@@ -15,6 +15,24 @@ var (
 		Type: "*",
 	}
 
+	// ResourceAiModelPrice
+	// Valid Actions
+	//  - "ActionRead" :: read AI model prices
+	//  - "ActionUpdate" :: update AI model prices
+	ResourceAiModelPrice = Object{
+		Type: "ai_model_price",
+	}
+
+	// ResourceAIProvider
+	// Valid Actions
+	//  - "ActionCreate" :: create an AI provider
+	//  - "ActionDelete" :: delete an AI provider
+	//  - "ActionRead" :: read AI provider configuration
+	//  - "ActionUpdate" :: update an AI provider
+	ResourceAIProvider = Object{
+		Type: "ai_provider",
+	}
+
 	// ResourceAiSeat
 	// Valid Actions
 	//  - "ActionCreate" :: record AI seat usage
@@ -85,6 +103,7 @@ var (
 	//  - "ActionCreate" :: create a new chat
 	//  - "ActionDelete" :: delete a chat
 	//  - "ActionRead" :: read chat messages and metadata
+	//  - "ActionShare" :: share a chat with other users or groups
 	//  - "ActionUpdate" :: update chat title or settings
 	ResourceChat = Object{
 		Type: "chat",
@@ -366,6 +385,16 @@ var (
 		Type: "user_secret",
 	}
 
+	// ResourceUserSkill
+	// Valid Actions
+	//  - "ActionCreate" :: create a user skill
+	//  - "ActionDelete" :: delete a user skill
+	//  - "ActionRead" :: read user skill metadata and content
+	//  - "ActionUpdate" :: update user skill metadata and content
+	ResourceUserSkill = Object{
+		Type: "user_skill",
+	}
+
 	// ResourceWebpushSubscription
 	// Valid Actions
 	//  - "ActionCreate" :: create webpush subscriptions
@@ -441,6 +470,8 @@ var (
 func AllResources() []Objecter {
 	return []Objecter{
 		ResourceWildcard,
+		ResourceAiModelPrice,
+		ResourceAIProvider,
 		ResourceAiSeat,
 		ResourceAibridgeInterception,
 		ResourceApiKey,
@@ -479,6 +510,7 @@ func AllResources() []Objecter {
 		ResourceUsageEvent,
 		ResourceUser,
 		ResourceUserSecret,
+		ResourceUserSkill,
 		ResourceWebpushSubscription,
 		ResourceWorkspace,
 		ResourceWorkspaceAgentDevcontainers,

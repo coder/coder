@@ -83,12 +83,33 @@ func ProviderAllowsAmbientCredentials(provider string) bool {
 	return NormalizeProvider(provider) == fantasybedrock.Name
 }
 
+// InlineImageCapBytes returns the per-image byte cap for inline
+// image parts, or (0, false) when no documented cap applies.
+// Bedrock shares Anthropic's cap because fantasy's bedrock provider
+// wraps the anthropic client.
+func InlineImageCapBytes(provider string) (int, bool) {
+	switch NormalizeProvider(provider) {
+	case fantasyanthropic.Name, fantasybedrock.Name:
+		return codersdk.AnthropicInlineImageCapBytes, true
+	default:
+		return 0, false
+	}
+}
+
 // ProviderAPIKeys contains API keys for provider calls.
 type ProviderAPIKeys struct {
 	OpenAI            string
 	Anthropic         string
 	ByProvider        map[string]string
 	BaseURLByProvider map[string]string
+}
+
+// Empty reports whether no provider keys or base URL overrides are set.
+func (k ProviderAPIKeys) Empty() bool {
+	return k.OpenAI == "" &&
+		k.Anthropic == "" &&
+		len(k.ByProvider) == 0 &&
+		len(k.BaseURLByProvider) == 0
 }
 
 // UserProviderKey is a user-supplied API key for a specific provider.

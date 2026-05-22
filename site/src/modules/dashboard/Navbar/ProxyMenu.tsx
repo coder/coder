@@ -14,6 +14,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { Latency } from "#/components/Latency/Latency";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import type { ProxyContextValue } from "#/contexts/ProxyContext";
@@ -79,7 +80,7 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 
 					{selectedProxy ? (
 						<>
-							<img
+							<ExternalImage
 								// Empty alt text used because we don't want to double up on
 								// screen reader announcements from visually-hidden span
 								alt=""
@@ -150,7 +151,7 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 									>
 										<div className="flex gap-3 items-center w-full">
 											<div className="leading-none size-4">
-												<img
+												<ExternalImage
 													src={proxy.icon_url}
 													alt=""
 													className="object-contain size-full"
