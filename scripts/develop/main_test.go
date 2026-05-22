@@ -909,7 +909,7 @@ func TestLoadEnvFile(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	t.Run("EmptyPathNoAction", func(t *testing.T) {
+	t.Run("ErrorsOnEmptyPath", func(t *testing.T) {
 		// This tests the caller logic (main), but we verify loadEnvFile
 		// would error on empty path since godotenv.Read("") fails.
 		_, err := loadEnvFile("")
@@ -969,5 +969,20 @@ func TestParseEnvFileFlag(t *testing.T) {
 
 		result := parseEnvFileFlag()
 		assert.Equal(t, "", result)
+	})
+
+	t.Run("ErrorsWhenValueMissing", func(t *testing.T) {
+		if os.Getenv("TEST_SUBPROCESS") == "1" {
+			os.Args = []string{"develop", "--env-file"}
+			parseEnvFileFlag()
+			return
+		}
+		//nolint:gosec // This is a test subprocess.
+		cmd := exec.Command(os.Args[0], "-test.run=TestParseEnvFileFlag/ErrorsWhenValueMissing")
+		cmd.Env = append(os.Environ(), "TEST_SUBPROCESS=1")
+		err := cmd.Run()
+		var exitErr *exec.ExitError
+		require.ErrorAs(t, err, &exitErr)
+		assert.Equal(t, 1, exitErr.ExitCode())
 	})
 }

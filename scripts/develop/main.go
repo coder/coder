@@ -77,7 +77,7 @@ func main() {
 	if envFile := parseEnvFileFlag(); envFile != "" {
 		n, err := loadEnvFile(envFile)
 		if err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "develop: error loading env file %q: %v\n", envFile, err)
+			_, _ = fmt.Fprintf(os.Stderr, "develop: error loading env file %s: %v\n", envFile, err)
 			os.Exit(1)
 		}
 		_, _ = fmt.Fprintf(os.Stderr, "develop: loaded %d variable(s) from %s\n", n, envFile)
@@ -199,7 +199,7 @@ func main() {
 			{
 				Flag:        "env-file",
 				Env:         "CODER_DEV_ENV_FILE",
-				Description: "Path to a .env file to load before starting. Variables in the file do not override existing environment variables.",
+				Description: "Path to a .env file to load before starting. Variables in the file do not override existing environment variables. Note: unquoted and double-quoted values undergo $VAR expansion; use single quotes for literal dollar signs.",
 				Value:       serpent.StringOf(&cfg.envFile),
 			},
 		},
@@ -243,6 +243,8 @@ type devConfig struct {
 	dbRollback        bool
 	dbReset           bool
 	dbContinue        bool
+	// envFile is populated by serpent for --help output; actual loading
+	// uses parseEnvFileFlag() before serpent runs.
 	envFile           string
 	projectRoot       string
 	binaryPath        string
@@ -461,7 +463,11 @@ func (c *devConfig) cmd(ctx context.Context, bin string, args ...string) *exec.C
 // are visible to serpent's Env-tag resolution for other options.
 func parseEnvFileFlag() string {
 	for i, arg := range os.Args[1:] {
-		if arg == "--env-file" && i+2 < len(os.Args) {
+		if arg == "--env-file" {
+			if i+2 >= len(os.Args) {
+				_, _ = fmt.Fprintf(os.Stderr, "develop: --env-file requires a value\n")
+				os.Exit(1)
+			}
 			return os.Args[i+2]
 		}
 		if v, ok := strings.CutPrefix(arg, "--env-file="); ok {
