@@ -814,7 +814,7 @@ func New(options *Options) *API {
 		chatAIGatewayRoutingEnabled := options.DeploymentValues.AI.BridgeConfig.Enabled.Value() &&
 			options.DeploymentValues.AI.Chat.AIGatewayRoutingEnabled.Value()
 
-		api.chatDaemon = chatd.New(chatd.Config{
+		api.chatDaemon = chatd.New(options.Pubsub, chatd.Config{
 			Logger:                         options.Logger.Named("chatd"),
 			Database:                       options.Database,
 			ReplicaID:                      api.ID,
@@ -832,11 +832,12 @@ func New(options *Options) *API {
 			CreateWorkspace:                api.chatCreateWorkspace,
 			StartWorkspace:                 api.chatStartWorkspace,
 			StopWorkspace:                  api.chatStopWorkspace,
-			Pubsub:                         options.Pubsub,
 			WebpushDispatcher:              options.WebPushDispatcher,
 			UsageTracker:                   options.WorkspaceUsageTracker,
 			PrometheusRegistry:             options.PrometheusRegistry,
 			OIDCTokenSource:                oidcMCPSrc,
+			NotificationsEnqueuer:          options.NotificationsEnqueuer,
+			Auditor:                        &api.Auditor,
 		}).Start()
 		gitSyncLogger := options.Logger.Named("gitsync")
 		refresher := gitsync.NewRefresher(

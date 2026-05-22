@@ -10,11 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/coder/quartz"
 )
 
 // TestStreamStateCollector exercises the four gauges emitted by
@@ -167,50 +164,4 @@ func newSubscribers(t *testing.T, n int) map[uuid.UUID]chan codersdk.ChatStreamE
 		subs[uuid.New()] = make(chan codersdk.ChatStreamEvent, 1)
 	}
 	return subs
-}
-
-// TestStreamStateCollector_BufferDroppedIncrementsOnCapacity pre-fills
-// a buffer to capacity and asserts stream_buffer_dropped_total
-// increments on each subsequent publishToStream drop.
-func TestStreamStateCollector_BufferDroppedIncrementsOnCapacity(t *testing.T) {
-	t.Parallel()
-
-	reg := prometheus.NewRegistry()
-	server := &Server{
-		logger:  slog.Make(),
-		clock:   quartz.NewMock(t),
-		metrics: chatloop.NewMetrics(reg),
-	}
-
-	chatID := uuid.New()
-	server.chatStreams.Store(chatID, &chatStreamState{
-		buffering: true,
-		buffer:    make([]bufferedStreamPart, maxStreamBufferSize),
-	})
-
-	partEvent := codersdk.ChatStreamEvent{
-		Type:        codersdk.ChatStreamEventTypeMessagePart,
-		MessagePart: &codersdk.ChatStreamMessagePart{},
-	}
-
-	server.publishToStream(chatID, partEvent)
-	assert.Equal(t, float64(1), counterValue(t, reg, "coderd_chatd_stream_buffer_dropped_total"))
-
-	server.publishToStream(chatID, partEvent)
-	assert.Equal(t, float64(2), counterValue(t, reg, "coderd_chatd_stream_buffer_dropped_total"))
-}
-
-func counterValue(t *testing.T, reg *prometheus.Registry, name string) float64 {
-	t.Helper()
-	families, err := reg.Gather()
-	require.NoError(t, err)
-	for _, f := range families {
-		if f.GetName() != name {
-			continue
-		}
-		require.Len(t, f.GetMetric(), 1, "counter %q should have exactly one sample", name)
-		return f.GetMetric()[0].GetCounter().GetValue()
-	}
-	t.Fatalf("counter %q not registered", name)
-	return 0
 }

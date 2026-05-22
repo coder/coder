@@ -27,6 +27,7 @@ func TestSpawnComputerUseAgent_CreatesChildWithChatMode(t *testing.T) {
 	parent, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID:     org.ID,
 		OwnerID:            user.ID,
+		APIKeyID:           testAPIKeyID(t, db, user.ID),
 		Title:              "parent",
 		ModelConfigID:      model.ID,
 		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
@@ -40,6 +41,7 @@ func TestSpawnComputerUseAgent_CreatesChildWithChatMode(t *testing.T) {
 	child, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
 		OwnerID:        parent.OwnerID,
+		APIKeyID:       testAPIKeyID(t, db, parent.OwnerID),
 		ParentChatID: uuid.NullUUID{
 			UUID:  parent.ID,
 			Valid: true,
@@ -82,6 +84,7 @@ func TestSpawnComputerUseAgent_SystemPromptFormat(t *testing.T) {
 	parent, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID:     org.ID,
 		OwnerID:            user.ID,
+		APIKeyID:           testAPIKeyID(t, db, user.ID),
 		Title:              "parent",
 		ModelConfigID:      model.ID,
 		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
@@ -94,6 +97,7 @@ func TestSpawnComputerUseAgent_SystemPromptFormat(t *testing.T) {
 	child, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
 		OwnerID:        parent.OwnerID,
+		APIKeyID:       testAPIKeyID(t, db, parent.OwnerID),
 		ParentChatID: uuid.NullUUID{
 			UUID:  parent.ID,
 			Valid: true,
@@ -141,6 +145,7 @@ func TestSpawnComputerUseAgent_ChildIsListedUnderParent(t *testing.T) {
 	parent, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID:     org.ID,
 		OwnerID:            user.ID,
+		APIKeyID:           testAPIKeyID(t, db, user.ID),
 		Title:              "parent",
 		ModelConfigID:      model.ID,
 		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
@@ -152,6 +157,7 @@ func TestSpawnComputerUseAgent_ChildIsListedUnderParent(t *testing.T) {
 	child, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
 		OwnerID:        parent.OwnerID,
+		APIKeyID:       testAPIKeyID(t, db, parent.OwnerID),
 		ParentChatID: uuid.NullUUID{
 			UUID:  parent.ID,
 			Valid: true,
@@ -187,6 +193,7 @@ func TestSpawnComputerUseAgent_RootChatIDPropagation(t *testing.T) {
 	parent, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID:     org.ID,
 		OwnerID:            user.ID,
+		APIKeyID:           testAPIKeyID(t, db, user.ID),
 		Title:              "root-parent",
 		ModelConfigID:      model.ID,
 		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
@@ -198,6 +205,7 @@ func TestSpawnComputerUseAgent_RootChatIDPropagation(t *testing.T) {
 	child, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
 		OwnerID:        parent.OwnerID,
+		APIKeyID:       testAPIKeyID(t, db, parent.OwnerID),
 		ParentChatID: uuid.NullUUID{
 			UUID:  parent.ID,
 			Valid: true,
