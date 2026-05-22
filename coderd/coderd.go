@@ -2198,6 +2198,10 @@ type API struct {
 	// UsageInserter is a pointer to an atomic pointer because it is passed to
 	// multiple components.
 	UsageInserter *atomic.Pointer[usage.Inserter]
+	// aibridgedHandler is the in-memory aibridge HTTP handler. Set by
+	// RegisterInMemoryAIBridgedHTTPHandler; read by the enterprise
+	// /api/v2/aibridge route (license-gated).
+	aibridgedHandler http.Handler
 
 	UpdatesProvider tailnet.WorkspaceUpdatesProvider
 

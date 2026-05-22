@@ -11,7 +11,7 @@ import (
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
-	"github.com/coder/coder/v2/enterprise/aibridged/proto"
+	"github.com/coder/coder/v2/coderd/aibridged/proto"
 )
 
 var _ http.Handler = &Server{}

@@ -11,10 +11,10 @@ import (
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/keypool"
+	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/enterprise/aibridged"
-	"github.com/coder/coder/v2/enterprise/coderd"
 	"github.com/coder/quartz"
 )
 
@@ -44,13 +44,13 @@ func newAIBridgeDaemon(coderAPI *coderd.API, providers []aibridge.Provider) (*ai
 	return srv, nil
 }
 
-// buildProviders constructs the list of AI providers from config.
+// BuildProviders constructs the list of AI providers from config.
 // It merges legacy single-provider env vars and indexed provider configs:
 //  1. Legacy providers (from CODER_AI_GATEWAY_OPENAI_KEY, etc.) are added first.
 //     If a legacy name conflicts with an indexed provider, startup fails with
 //     a clear error asking the admin to remove one or the other.
 //  2. Indexed providers (from CODER_AI_GATEWAY_PROVIDER_<N>_*) are added next.
-func buildProviders(cfg codersdk.AIBridgeConfig) ([]aibridge.Provider, error) {
+func BuildProviders(cfg codersdk.AIBridgeConfig) ([]aibridge.Provider, error) {
 	var cbConfig *config.CircuitBreaker
 	if cfg.CircuitBreakerEnabled.Value() {
 		cbConfig = &config.CircuitBreaker{

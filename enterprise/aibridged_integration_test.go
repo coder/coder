@@ -1,4 +1,4 @@
-package aibridged_test
+package enterprise_test
 
 import (
 	"bytes"
@@ -22,6 +22,8 @@ import (
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/config"
 	aibtracing "github.com/coder/coder/v2/aibridge/tracing"
+	"github.com/coder/coder/v2/coderd/aibridged"
+	"github.com/coder/coder/v2/coderd/aibridgedserver"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -29,13 +31,11 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/enterprise/aibridged"
-	"github.com/coder/coder/v2/enterprise/aibridgedserver"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/testutil"
 )
 
-var testTracer = otel.Tracer("aibridged_test")
+var testTracer = otel.Tracer("aibridged_inttest")
 
 // TestIntegration is not an exhaustive test against the upstream AI providers' SDKs (see coder/aibridge for those).
 // This test validates that:
@@ -179,7 +179,7 @@ func TestIntegration(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create aibridge server & client.
-	aiBridgeClient, err := api.CreateInMemoryAIBridgeServer(ctx)
+	aiBridgeClient, err := api.AGPL.CreateInMemoryAIBridgeServer(ctx)
 	require.NoError(t, err)
 
 	logger := testutil.Logger(t)
@@ -379,7 +379,7 @@ func TestIntegrationWithMetrics(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create aibridge client.
-	aiBridgeClient, err := api.CreateInMemoryAIBridgeServer(ctx)
+	aiBridgeClient, err := api.AGPL.CreateInMemoryAIBridgeServer(ctx)
 	require.NoError(t, err)
 
 	logger := testutil.Logger(t)
@@ -476,7 +476,7 @@ func TestIntegrationCircuitBreaker(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create aibridge client.
-	aiBridgeClient, err := api.CreateInMemoryAIBridgeServer(ctx)
+	aiBridgeClient, err := api.AGPL.CreateInMemoryAIBridgeServer(ctx)
 	require.NoError(t, err)
 
 	logger := testutil.Logger(t)

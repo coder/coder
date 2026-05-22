@@ -3,7 +3,11 @@ package aibridged_test
 import (
 	"net/http"
 	"sync/atomic"
+
+	"go.opentelemetry.io/otel"
 )
+
+var testTracer = otel.Tracer("aibridged_test")
 
 var _ http.Handler = &mockAIUpstreamServer{}
 

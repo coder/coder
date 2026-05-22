@@ -1,5 +1,5 @@
 syntax = "proto3";
-option go_package = "github.com/coder/coder/v2/aibridged/proto";
+option go_package = "github.com/coder/coder/v2/coderd/aibridged/proto";
 
 package proto;
 

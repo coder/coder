@@ -11,7 +11,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/mcp"
-	"github.com/coder/coder/v2/enterprise/aibridged/proto"
+	"github.com/coder/coder/v2/coderd/aibridged/proto"
 )
 
 var (
