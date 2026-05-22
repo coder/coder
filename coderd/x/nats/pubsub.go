@@ -21,7 +21,7 @@ import (
 // local fan-out does not trip the slow-consumer threshold.
 const DefaultMaxPending int64 = 1 << 30
 
-const errClosed = "nats pubsub" + ": closed"
+var errClosed = xerrors.New("nats pubsub: closed")
 
 // PendingLimits configures per-subscription NATS pending limits set
 // via SetPendingLimits on each *natsgo.Subscription.
@@ -82,6 +82,8 @@ type Options struct {
 // every local subscriber for a subject coalesces onto one underlying
 // *natsgo.Subscription.
 type Pubsub struct {
+	mu sync.Mutex
+
 	logger slog.Logger
 	opts   Options
 
@@ -91,7 +93,6 @@ type Pubsub struct {
 	publishPool   []*natsgo.Conn
 	subscribePool []*natsgo.Conn
 
-	mu sync.Mutex
 	// subscriptions coalesces concurrent local subscribers on the
 	// same subject onto a single underlying *natsgo.Subscription.
 	subscriptions map[string]*natsSub
@@ -271,26 +272,12 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error)
 	return p, nil
 }
 
-// pickConn returns the connection assigned to subject. Selection uses
-// a stable FNV-1a hash so same-subject traffic always targets the same
-// connection within a process; pools are immutable after construction
-// so the lookup is lock-free.
-func pickConn(pool []*natsgo.Conn, subject string) *natsgo.Conn {
-	if len(pool) == 1 {
-		return pool[0]
-	}
-	h := fnv.New32a()
-	_, _ = h.Write([]byte(subject))
-	n := uint32(len(pool)) //nolint:gosec // pool size bounded by Options.{Publish,Subscribe}Conns
-	return pool[h.Sum32()%n]
-}
-
 // Publish publishes a message under the given event name. The
 // publisher connection is selected by a stable hash of the subject so
 // same-subject publishes preserve per-subject ordering.
 func (p *Pubsub) Publish(event string, message []byte) error {
 	if p.ctx.Err() != nil {
-		return xerrors.New(errClosed)
+		return errClosed
 	}
 
 	if err := pickConn(p.publishPool, event).Publish(event, message); err != nil {
@@ -304,7 +291,7 @@ func (p *Pubsub) Publish(event string, message []byte) error {
 // encountered; remaining connections are still flushed.
 func (p *Pubsub) Flush() error {
 	if p.ctx.Err() != nil {
-		return xerrors.New(errClosed)
+		return errClosed
 	}
 
 	var firstErr error
@@ -345,7 +332,7 @@ func (p *Pubsub) SubscribeWithErr(event string, listener pubsub.ListenerWithErr)
 	if p.ctx.Err() != nil {
 		p.unsubscribeLocal(s)
 		s.close()
-		return nil, xerrors.New(errClosed)
+		return nil, errClosed
 	}
 
 	cancelFn := func() {
@@ -386,23 +373,20 @@ func (p *Pubsub) addSubscriber(event string, listener pubsub.ListenerWithErr) (*
 		dispatcherDone: make(chan struct{}),
 	}
 
-	// Start the per-listener goroutine before registering s so Close that
-	// snapshots s finds a live goroutine ready to observe close(s.stop).
-	s.init()
-
 	var createdSub *natsgo.Subscription
 	err := func() error {
 		p.mu.Lock()
 		defer p.mu.Unlock()
 
 		if p.ctx.Err() != nil {
-			return xerrors.New(errClosed)
+			return errClosed
 		}
 
 		nsub, ok := p.subscriptions[event]
 		if ok {
 			nsub.listeners[s] = struct{}{}
 			s.shared = nsub
+			s.init()
 			return nil
 		}
 
@@ -432,13 +416,13 @@ func (p *Pubsub) addSubscriber(event string, listener pubsub.ListenerWithErr) (*
 		nsub.listeners[s] = struct{}{}
 		s.shared = nsub
 		p.subscriptions[event] = nsub
+		s.init()
 		return nil
 	}()
 	if err != nil {
 		if createdSub != nil {
 			_ = createdSub.Unsubscribe()
 		}
-		s.close()
 		return nil, err
 	}
 	return s, nil
@@ -579,18 +563,18 @@ func (p *Pubsub) handleSlowSubscriber(nsub *natsSub) {
 		p.logger.Warn(p.ctx, "nats: negative dropped count")
 		return
 	}
-	cur := uint64(dropped)
-	if cur < nsub.lastDropped {
-		nsub.lastDropped = cur
+	// Dropped is cumulative per subscription; signal only new drops.
+	droppedCount := uint64(dropped)
+	if droppedCount < nsub.lastDropped {
+		nsub.lastDropped = droppedCount
 		nsub.dropMu.Unlock()
 		return
 	}
-	delta := cur - nsub.lastDropped
-	if delta == 0 {
+	if droppedCount == nsub.lastDropped {
 		nsub.dropMu.Unlock()
 		return
 	}
-	nsub.lastDropped = cur
+	nsub.lastDropped = droppedCount
 	nsub.dropMu.Unlock()
 
 	p.mu.Lock()
@@ -615,13 +599,14 @@ func (p *Pubsub) Close() error {
 			shareds = append(shareds, ss)
 			for s := range ss.listeners {
 				subs = append(subs, s)
+				delete(ss.listeners, s)
 			}
 		}
+		clear(p.subscriptions)
 		p.mu.Unlock()
 
 		// Unsubscribe shared subscriptions; subConn drains below
-		// handle the rest. ss.sub may be nil if a creator is still
-		// mid-init.
+		// handle the rest.
 		for _, ss := range shareds {
 			if ss.sub != nil {
 				_ = ss.sub.Unsubscribe()
@@ -633,19 +618,6 @@ func (p *Pubsub) Close() error {
 		for _, s := range subs {
 			s.close()
 		}
-
-		// Clear tracking maps so post-Close inspection sees no
-		// dangling state.
-		p.mu.Lock()
-		for _, ss := range shareds {
-			for s := range ss.listeners {
-				delete(ss.listeners, s)
-			}
-		}
-		for k := range p.subscriptions {
-			delete(p.subscriptions, k)
-		}
-		p.mu.Unlock()
 
 		drainTimeout := p.opts.DrainTimeout
 		if drainTimeout <= 0 {
@@ -698,4 +670,18 @@ func drainConn(nc *natsgo.Conn, timeout time.Duration) error {
 		time.Sleep(10 * time.Millisecond)
 	}
 	return nil
+}
+
+// pickConn returns the connection assigned to subject. Selection uses
+// a stable FNV-1a hash so same-subject traffic always targets the same
+// connection within a process; pools are immutable after construction
+// so the lookup is lock-free.
+func pickConn(pool []*natsgo.Conn, subject string) *natsgo.Conn {
+	if len(pool) == 1 {
+		return pool[0]
+	}
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(subject))
+	n := uint32(len(pool)) //nolint:gosec // pool size bounded by Options.{Publish,Subscribe}Conns
+	return pool[h.Sum32()%n]
 }
