@@ -437,9 +437,9 @@ func TestOpenVSCodeDevContainer(t *testing.T) {
 	parentAgent := coderdtest.RequireWorkspaceAgentByName(t, resources, parentAgentName)
 	parentAgentID := parentAgent.ID
 
-	// WorkspaceAgentWaiter only observes coderd state. The CLI exercises
-	// the parent agent container API through tailnet, so wait for that path
-	// before starting parallel open commands.
+	// Agent connection does not guarantee the parent agent's container API
+	// has completed its first devcontainer update. Wait for that endpoint so
+	// parallel open commands do not race the initial cache population.
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 		resp, err := client.WorkspaceAgentListContainers(ctx, parentAgentID, nil)
