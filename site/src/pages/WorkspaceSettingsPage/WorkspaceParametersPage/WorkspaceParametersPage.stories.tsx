@@ -219,14 +219,13 @@ export const RequireActiveVersionEditable: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await waitFor(() =>
-			expect(
-				canvas.queryByText(/requires automatic updates/),
-			).not.toBeInTheDocument(),
-		);
-		const submitButton = canvas.getByRole("button", {
+		// Wait for the form to render before asserting absence of warning.
+		const submitButton = await canvas.findByRole("button", {
 			name: "Update and start",
 		});
+		expect(
+			canvas.queryByText(/requires automatic updates/),
+		).not.toBeInTheDocument();
 		expect(submitButton).not.toBeDisabled();
 	},
 };
