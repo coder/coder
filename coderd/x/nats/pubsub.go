@@ -19,7 +19,7 @@ import (
 // DefaultMaxPending is the per-client outbound pending byte budget
 // (1 GiB), raised from the nats-server default of 64 MiB so wide
 // local fan-out does not trip the slow-consumer threshold.
-const DefaultMaxPending int64 = 1 << 30
+const DefaultMaxPending int64 = 128 << 20
 
 var errClosed = xerrors.New("nats pubsub: closed")
 
@@ -376,7 +376,7 @@ func (p *Pubsub) addSubscriber(event string, listener pubsub.ListenerWithErr) (*
 		}
 
 		subConn := pickConn(p.subscribePool, event)
-		natsSub, err := subConn.Subscribe(event, nsub.makeCallback())
+		natsSub, err := subConn.Subscribe(event, nsub.handleMessage())
 		if err != nil {
 			return xerrors.Errorf("subscribe: %w", err)
 		}
@@ -440,7 +440,7 @@ func (p *Pubsub) unsubscribeLocal(s *localSub) {
 	}
 }
 
-// makeCallback returns the NATS message handler for the shared
+// handleMessage returns the NATS message handler for the shared
 // subscription. Each enqueue is non-blocking and does not call user
 // code, so one slow listener cannot stall the NATS delivery goroutine.
 //
@@ -448,7 +448,7 @@ func (p *Pubsub) unsubscribeLocal(s *localSub) {
 // without cloning. Listeners on a coalesced subject MUST treat the
 // delivered bytes as immutable; the slice is owned by nats.go's
 // per-conn read buffer and is reused for the next message.
-func (nsub *natsSub) makeCallback() natsgo.MsgHandler {
+func (nsub *natsSub) handleMessage() natsgo.MsgHandler {
 	return func(msg *natsgo.Msg) {
 		nsub.mu.Lock()
 		defer nsub.mu.Unlock()
@@ -467,13 +467,9 @@ func (s *localSub) init() {
 			case <-s.ctx.Done():
 				return
 			case data := <-s.queue:
-				if s.ctx.Err() == nil {
-					s.listener(s.ctx, data, nil)
-				}
+				s.listener(s.ctx, data, nil)
 			case <-s.dropSignal:
-				if s.ctx.Err() == nil {
-					s.listener(s.ctx, nil, pubsub.ErrDroppedMessages)
-				}
+				s.listener(s.ctx, nil, pubsub.ErrDroppedMessages)
 			}
 		}
 	}()
@@ -493,8 +489,6 @@ func (s *localSub) close() {
 // If s is canceled the message is silently dropped.
 func (s *localSub) enqueue(data []byte) {
 	select {
-	case <-s.ctx.Done():
-		return
 	case s.queue <- data:
 	default:
 		s.signalDrop()
@@ -506,8 +500,6 @@ func (s *localSub) enqueue(data []byte) {
 // the listener observes one ErrDroppedMessages per drop wave.
 func (s *localSub) signalDrop() {
 	select {
-	case <-s.ctx.Done():
-		return
 	case s.dropSignal <- struct{}{}:
 	default:
 	}
