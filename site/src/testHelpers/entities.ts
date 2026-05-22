@@ -1723,7 +1723,7 @@ export const MockDormantOutdatedWorkspace: TypesGen.Workspace = {
 	dormant_at: new Date().toISOString(),
 };
 
-const MockOutdatedRunningWorkspaceRequireActiveVersion: TypesGen.Workspace = {
+const _MockOutdatedRunningWorkspaceRequireActiveVersion: TypesGen.Workspace = {
 	...MockWorkspace,
 	id: "test-outdated-workspace-require-active-version",
 	outdated: true,
@@ -1740,15 +1740,6 @@ const MockOutdatedRunningWorkspaceAlwaysUpdate: TypesGen.Workspace = {
 		status: "running",
 	},
 };
-
-export const MockOutdatedStoppedWorkspaceRequireActiveVersion: TypesGen.Workspace =
-	{
-		...MockOutdatedRunningWorkspaceRequireActiveVersion,
-		latest_build: {
-			...MockWorkspaceBuild,
-			status: "stopped",
-		},
-	};
 
 const _MockOutdatedStoppedWorkspaceAlwaysUpdate: TypesGen.Workspace = {
 	...MockOutdatedRunningWorkspaceAlwaysUpdate,
