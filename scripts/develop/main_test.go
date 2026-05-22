@@ -855,3 +855,57 @@ func TestPrometheusBannerEntry(t *testing.T) {
 		})
 	}
 }
+
+//nolint:paralleltest // loadDotEnv mutates process-global environment.
+func TestLoadDotEnv(t *testing.T) {
+	t.Run("LoadsVariables", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		envFile := filepath.Join(tmpDir, ".env")
+		err := os.WriteFile(envFile, []byte(strings.Join([]string{
+			"# Comment line",
+			"",
+			"FOO_TEST_VAR=bar",
+			"export BAZ_TEST_VAR=qux",
+			`QUOTED_TEST_VAR="hello world"`,
+		}, "\n")), 0o600)
+		require.NoError(t, err)
+
+		// Ensure none are set beforehand.
+		t.Setenv("FOO_TEST_VAR", "")
+		os.Unsetenv("FOO_TEST_VAR")
+		os.Unsetenv("BAZ_TEST_VAR")
+		os.Unsetenv("QUOTED_TEST_VAR")
+
+		n, err := loadDotEnv(envFile)
+		require.NoError(t, err)
+		assert.Equal(t, 3, n)
+		assert.Equal(t, "bar", os.Getenv("FOO_TEST_VAR"))
+		assert.Equal(t, "qux", os.Getenv("BAZ_TEST_VAR"))
+		assert.Equal(t, "hello world", os.Getenv("QUOTED_TEST_VAR"))
+
+		// Cleanup
+		os.Unsetenv("FOO_TEST_VAR")
+		os.Unsetenv("BAZ_TEST_VAR")
+		os.Unsetenv("QUOTED_TEST_VAR")
+	})
+
+	t.Run("DoesNotOverrideExisting", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		envFile := filepath.Join(tmpDir, ".env")
+		err := os.WriteFile(envFile, []byte("EXISTING_TEST_VAR=new\n"), 0o600)
+		require.NoError(t, err)
+
+		t.Setenv("EXISTING_TEST_VAR", "original")
+
+		n, err := loadDotEnv(envFile)
+		require.NoError(t, err)
+		assert.Equal(t, 0, n)
+		assert.Equal(t, "original", os.Getenv("EXISTING_TEST_VAR"))
+	})
+
+	t.Run("MissingFileReturnsZero", func(t *testing.T) {
+		n, err := loadDotEnv("/nonexistent/path/.env")
+		require.NoError(t, err)
+		assert.Equal(t, 0, n)
+	})
+}

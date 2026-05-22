@@ -6,6 +6,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -401,6 +402,14 @@ func (c *devConfig) validate() error {
 // resolveEnv sets defaults, unsets leaked credentials, resolves
 // filesystem paths, and computes the child process environment.
 func (c *devConfig) resolveEnv() error {
+	// Load .env from the repo root if it exists. Variables defined
+	// in .env do not override existing environment variables.
+	if n, err := loadDotEnv(".env"); err != nil {
+		return xerrors.Errorf("loading .env: %w", err)
+	} else if n > 0 {
+		_, _ = fmt.Fprintf(os.Stderr, "develop: loaded %d variable(s) from .env\n", n)
+	}
+
 	// Prevent inherited credentials from leaking into child
 	// processes or being picked up by config reads.
 	_ = os.Unsetenv("CODER_SESSION_TOKEN")
@@ -435,7 +444,50 @@ func (c *devConfig) cmd(ctx context.Context, bin string, args ...string) *exec.C
 	return cmd
 }
 
+// loadDotEnv reads a .env file and sets any variables not already
+// present in the process environment. It returns the number of
+// variables loaded. If the file does not exist, it returns (0, nil).
+func loadDotEnv(path string) (int, error) {
+	f, err := os.Open(path)
+	if os.IsNotExist(err) {
+		return 0, nil
+	}
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+
+	var n int
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		// Strip optional "export " prefix.
+		line = strings.TrimPrefix(line, "export ")
+		key, val, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		key = strings.TrimSpace(key)
+		val = strings.TrimSpace(val)
+		// Remove surrounding quotes if present.
+		val = strings.Trim(val, "\"'")
+		// Do not override existing environment variables.
+		if _, exists := os.LookupEnv(key); exists {
+			continue
+		}
+		if err := os.Setenv(key, val); err != nil {
+			return n, err
+		}
+		n++
+	}
+	return n, scanner.Err()
+}
+
 // filterEnv returns env with any variables whose key matches
+
 // exclude removed.
 func filterEnv(env []string, exclude ...string) []string {
 	out := make([]string, 0, len(env))
