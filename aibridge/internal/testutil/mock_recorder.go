@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
@@ -53,9 +54,18 @@ func (m *MockRecorder) RecordPromptUsage(_ context.Context, req *recorder.Prompt
 	return nil
 }
 
+var first = true
+
 func (m *MockRecorder) RecordTokenUsage(_ context.Context, req *recorder.TokenUsageRecord) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	if first {
+		first = false
+		m.mu.Unlock()
+		time.Sleep(100 * time.Millisecond)
+		m.mu.Lock()
+	}
 	m.tokenUsages = append(m.tokenUsages, req)
 	return nil
 }
