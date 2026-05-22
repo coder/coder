@@ -44,7 +44,6 @@ import {
 } from "../../utils/agentChatSendShortcut";
 import { isChatAttachmentFile } from "../../utils/chatAttachments";
 import {
-	filterPersonalSkills,
 	filterSkillsByQuery,
 	isPersonalSkillTriggerToken,
 } from "../../utils/personalSkills";
@@ -513,7 +512,8 @@ interface ChatMessageInputProps
 	 */
 	personalSkillsOverride?: readonly TypesGen.UserSkillMetadata[];
 	/**
-	 * Story and test seam for deterministic workspace skill menu data.
+	 * Authoritative workspace skill menu data. Existing chats pass persisted
+	 * context skills so the menu matches read_skill resolution.
 	 */
 	workspaceSkillsOverride?: readonly TypesGen.WorkspaceSkillMetadata[];
 	"aria-label"?: string;
@@ -627,20 +627,16 @@ const ChatMessageInput = ({
 	const personalSkills = personalSkillsOverride ?? skillsQuery.data ?? [];
 	const loadedWorkspaceSkills =
 		workspaceSkillsOverride ?? workspaceSkillsQuery.data ?? [];
-	const shouldQualifyPersonalSkills = Boolean(
-		workspaceId &&
-			workspaceSkillsOverride === undefined &&
-			workspaceSkillsQuery.isLoading,
+	const personalSkillsAuthoritative = Boolean(
+		personalSkillsOverride !== undefined ||
+			(skillsQuery.isSuccess && !skillsQuery.isFetching),
+	);
+	const workspaceSkillsAuthoritative = Boolean(
+		!workspaceId ||
+			workspaceSkillsOverride !== undefined ||
+			(workspaceSkillsQuery.isSuccess && !workspaceSkillsQuery.isFetching),
 	);
 	const skillsSearchQuery = skillsTrigger?.query ?? "";
-	const filteredPersonalSkills = filterPersonalSkills(
-		personalSkills,
-		skillsSearchQuery,
-	);
-	const filteredWorkspaceSkills = filterSkillsByQuery(
-		loadedWorkspaceSkills,
-		skillsSearchQuery,
-	);
 	const workspaceSkillNames = new Set(
 		loadedWorkspaceSkills.map((skill) => skill.name),
 	);
@@ -649,22 +645,26 @@ const ChatMessageInput = ({
 			.filter((skill) => workspaceSkillNames.has(skill.name))
 			.map((skill) => skill.name),
 	);
-	const personalSkillItems: readonly SkillMenuItem[] =
-		filteredPersonalSkills.map((skill) =>
+	const personalSkillItems: readonly SkillMenuItem[] = filterSkillsByQuery(
+		personalSkills.map((skill) =>
 			createSkillMenuItem(
 				"personal",
 				skill,
-				shouldQualifyPersonalSkills || collidingSkillNames.has(skill.name),
+				!workspaceSkillsAuthoritative || collidingSkillNames.has(skill.name),
 			),
-		);
-	const workspaceSkillItems: readonly SkillMenuItem[] =
-		filteredWorkspaceSkills.map((skill) =>
+		),
+		skillsSearchQuery,
+	);
+	const workspaceSkillItems: readonly SkillMenuItem[] = filterSkillsByQuery(
+		loadedWorkspaceSkills.map((skill) =>
 			createSkillMenuItem(
 				"workspace",
 				skill,
-				collidingSkillNames.has(skill.name),
+				!personalSkillsAuthoritative || collidingSkillNames.has(skill.name),
 			),
-		);
+		),
+		skillsSearchQuery,
+	);
 	const allFilteredSkills: readonly SkillMenuItem[] = [
 		...personalSkillItems,
 		...workspaceSkillItems,

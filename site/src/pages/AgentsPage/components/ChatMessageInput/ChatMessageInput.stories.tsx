@@ -242,6 +242,48 @@ export const CollidingSkillsInsertQualifiedAlias: Story = {
 	},
 };
 
+export const QualifiedWorkspacePrefixSelectsWorkspaceSkill: Story = {
+	args: {
+		workspaceId: "workspace-1",
+		workspaceSkillsOverride: [
+			{
+				name: "reviewer",
+				description: "Workspace-specific review process.",
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const editor = await typeInEditor(canvasElement, "/workspace/r");
+		expect(await findVisibleText("/workspace/reviewer")).toBeDefined();
+		await expectNoVisibleText("/personal/docs");
+		await userEvent.keyboard("{Enter}");
+		await waitFor(() => {
+			expect(editor.textContent).toBe("/workspace/reviewer");
+		});
+	},
+};
+
+export const QualifiedPersonalPrefixSelectsPersonalSkill: Story = {
+	args: {
+		workspaceId: "workspace-1",
+		workspaceSkillsOverride: [
+			{
+				name: "reviewer",
+				description: "Workspace-specific review process.",
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const editor = await typeInEditor(canvasElement, "/personal/r");
+		expect(await findVisibleText("/personal/reviewer")).toBeDefined();
+		await expectNoVisibleText("/workspace/reviewer");
+		await userEvent.keyboard("{Enter}");
+		await waitFor(() => {
+			expect(editor.textContent).toBe("/personal/reviewer");
+		});
+	},
+};
+
 export const EmptyDescriptionInsertsNameOnly: Story = {
 	play: async ({ canvasElement }) => {
 		const editor = await typeInEditor(canvasElement, "/pla");

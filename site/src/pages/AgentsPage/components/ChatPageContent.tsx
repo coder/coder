@@ -45,6 +45,18 @@ const isChatMessage = (
 	message: TypesGen.ChatMessage | undefined,
 ): message is TypesGen.ChatMessage => Boolean(message);
 
+const isChatSkillPart = (
+	part: TypesGen.ChatMessagePart,
+): part is TypesGen.ChatSkillPart => part.type === "skill";
+
+const workspaceSkillsFromContext = (
+	parts: readonly TypesGen.ChatMessagePart[],
+): TypesGen.WorkspaceSkillMetadata[] =>
+	parts.filter(isChatSkillPart).map((part) => ({
+		name: part.skill_name,
+		description: part.skill_description ?? "",
+	}));
+
 interface ChatPageTimelineProps {
 	chatID?: string;
 	store: ChatStoreHandle;
@@ -298,6 +310,10 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	const latestContextUsage = rawUsage
 		? { ...rawUsage, compressionThreshold, lastInjectedContext }
 		: rawUsage;
+	const workspaceSkillsOverride =
+		chatId === undefined
+			? undefined
+			: workspaceSkillsFromContext(lastInjectedContext ?? []);
 	const composeAttachments = useChatDraftAttachments(organizationId, chatId, {
 		provider: getProviderForModelOption(modelOptions, selectedModel),
 	});
@@ -489,6 +505,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			selectedMCPServerIds={selectedMCPServerIds}
 			onMCPSelectionChange={onMCPSelectionChange}
 			onMCPAuthComplete={onMCPAuthComplete}
+			workspaceSkillsOverride={workspaceSkillsOverride}
 			workspace={workspace}
 			workspaceAgent={workspaceAgent}
 			chatId={chatId}

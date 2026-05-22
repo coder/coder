@@ -14,6 +14,9 @@ import (
 	"github.com/coder/coder/v2/agent/agentcontextconfig"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/testutil"
@@ -35,7 +38,7 @@ func TestGetWorkspaceSkills(t *testing.T) {
 	t.Setenv(agentcontextconfig.EnvMCPConfigFiles, filepath.Join(fakeHome, "missing-mcp.json"))
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
-	client := coderdtest.New(t, &coderdtest.Options{
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 		DeploymentValues:         coderdtest.DeploymentValues(t),
 		IncludeProvisionerDaemon: true,
 	})
@@ -56,6 +59,14 @@ func TestGetWorkspaceSkills(t *testing.T) {
 
 	_ = agenttest.New(t, client.URL, agentToken, agenttest.WithContextConfigFromEnv())
 	coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+
+	readOnlyClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.ScopedRoleOrgTemplateAdmin(user.OrganizationID))
+	readOnlyExpClient := codersdk.NewExperimentalClient(readOnlyClient)
+	_, err := readOnlyExpClient.WorkspaceSkills(ctx, workspace.ID)
+	require.Error(t, err)
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
 
 	writeWorkspaceSkill(t, skillsDir, "review-code", "Review code", "Read the diff.")
 	expectedSkills := []codersdk.WorkspaceSkillMetadata{{
@@ -102,6 +113,15 @@ func TestGetWorkspaceSkills(t *testing.T) {
 	}}, skills)
 
 	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
+	skills, err = expClient.WorkspaceSkills(ctx, workspace.ID)
+	require.NoError(t, err)
+	require.Empty(t, skills)
+	require.NotNil(t, skills)
+
+	require.NoError(t, db.UpdateWorkspaceDeletedByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceDeletedByIDParams{
+		ID:      workspace.ID,
+		Deleted: true,
+	}))
 	skills, err = expClient.WorkspaceSkills(ctx, workspace.ID)
 	require.NoError(t, err)
 	require.Empty(t, skills)

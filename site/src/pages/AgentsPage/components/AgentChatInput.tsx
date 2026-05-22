@@ -177,6 +177,7 @@ interface AgentChatInputProps {
 	selectedMCPServerIds?: readonly string[];
 	onMCPSelectionChange?: (ids: string[]) => void;
 	onMCPAuthComplete?: (serverId: string) => void;
+	workspaceSkillsOverride?: readonly TypesGen.WorkspaceSkillMetadata[];
 	workspace?: TypesGen.Workspace;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 	chatId?: string;
@@ -336,6 +337,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	selectedMCPServerIds,
 	onMCPSelectionChange,
 	onMCPAuthComplete,
+	workspaceSkillsOverride,
 	workspace,
 	workspaceAgent,
 	chatId,
@@ -1076,6 +1078,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					sendShortcut={sendShortcut}
 					disabled={isDisabled || isLoading}
 					workspaceId={skillsWorkspaceId}
+					workspaceSkillsOverride={workspaceSkillsOverride}
 					autoFocus
 				/>
 				{/* Warn about invisible Unicode in the message text.

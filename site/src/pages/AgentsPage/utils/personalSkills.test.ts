@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	buildPersonalSkillMarkdown,
-	filterPersonalSkills,
+	filterSkillsByQuery,
 	getPersonalSkillContentSizeBytes,
 	isPersonalSkillTriggerToken,
 	isValidPersonalSkillDescription,
@@ -28,7 +28,7 @@ const skill = (
 	updated_at: now,
 });
 
-describe("filterPersonalSkills", () => {
+describe("filterSkillsByQuery", () => {
 	const skills = [
 		skill("deploy", "Ship reviewed production changes", 0),
 		skill("reviewer", "Review changed files", 1),
@@ -37,7 +37,7 @@ describe("filterPersonalSkills", () => {
 	];
 
 	it("sorts unfiltered skills by name", () => {
-		expect(filterPersonalSkills(skills, "").map(({ name }) => name)).toEqual([
+		expect(filterSkillsByQuery(skills, "").map(({ name }) => name)).toEqual([
 			"api-review",
 			"deploy",
 			"docs",
@@ -46,9 +46,11 @@ describe("filterPersonalSkills", () => {
 	});
 
 	it("ranks prefix, name substring, then description matches", () => {
-		expect(filterPersonalSkills(skills, "rev").map(({ name }) => name)).toEqual(
-			["reviewer", "api-review", "deploy"],
-		);
+		expect(filterSkillsByQuery(skills, "rev").map(({ name }) => name)).toEqual([
+			"reviewer",
+			"api-review",
+			"deploy",
+		]);
 	});
 
 	it("matches names and descriptions case-insensitively", () => {
@@ -58,11 +60,37 @@ describe("filterPersonalSkills", () => {
 		];
 
 		expect(
-			filterPersonalSkills(mixedCaseSkills, "DEP").map(({ name }) => name),
+			filterSkillsByQuery(mixedCaseSkills, "DEP").map(({ name }) => name),
 		).toEqual(["deploy-bot"]);
 		expect(
-			filterPersonalSkills(mixedCaseSkills, "changes").map(({ name }) => name),
+			filterSkillsByQuery(mixedCaseSkills, "changes").map(({ name }) => name),
 		).toEqual(["deploy-bot"]);
+	});
+
+	it("matches qualified trigger text", () => {
+		const skillsWithAliases = [
+			{
+				name: "reviewer",
+				description: "Review changed files",
+				triggerText: "/personal/reviewer",
+			},
+			{
+				name: "reviewer",
+				description: "Workspace review process",
+				triggerText: "/workspace/reviewer",
+			},
+		];
+
+		expect(
+			filterSkillsByQuery(skillsWithAliases, "workspace/r").map(
+				({ triggerText }) => triggerText,
+			),
+		).toEqual(["/workspace/reviewer"]);
+		expect(
+			filterSkillsByQuery(skillsWithAliases, "personal/r").map(
+				({ triggerText }) => triggerText,
+			),
+		).toEqual(["/personal/reviewer"]);
 	});
 });
 

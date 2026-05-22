@@ -10,6 +10,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
@@ -31,13 +32,13 @@ func (api *API) getWorkspaceSkills(rw http.ResponseWriter, r *http.Request) { //
 	workspace := httpmw.WorkspaceParam(r)
 	logger := api.Logger.With(slog.F("workspace_id", workspace.ID))
 
-	data, err := api.workspaceData(ctx, []database.Workspace{workspace})
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
+	if !api.Authorize(r, policy.ActionApplicationConnect, workspace) &&
+		!api.Authorize(r, policy.ActionSSH, workspace) {
+		httpapi.Forbidden(rw)
 		return
 	}
-	if len(data.templates) == 0 {
-		httpapi.Forbidden(rw)
+	if workspace.Deleted {
+		writeWorkspaceSkills(ctx, rw, nil)
 		return
 	}
 
@@ -46,7 +47,8 @@ func (api *API) getWorkspaceSkills(rw http.ResponseWriter, r *http.Request) { //
 		httpapi.InternalServerError(rw, err)
 		return
 	}
-	if build.Transition == database.WorkspaceTransitionStop {
+	if build.Transition == database.WorkspaceTransitionStop ||
+		build.Transition == database.WorkspaceTransitionDelete {
 		writeWorkspaceSkills(ctx, rw, nil)
 		return
 	}
@@ -93,7 +95,10 @@ func (api *API) getWorkspaceSkills(rw http.ResponseWriter, r *http.Request) { //
 	conn, release, err := api.agentProvider.AgentConn(dialCtx, agent.ID)
 	if err != nil {
 		logger.Debug(ctx, "failed to dial workspace skills agent", slog.F("agent_id", agent.ID), slog.Error(err))
-		writeWorkspaceSkills(ctx, rw, nil)
+		httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
+			Message: "Failed to connect to workspace agent.",
+			Detail:  err.Error(),
+		})
 		return
 	}
 	defer release()
@@ -101,7 +106,10 @@ func (api *API) getWorkspaceSkills(rw http.ResponseWriter, r *http.Request) { //
 	cfg, err := conn.ContextConfig(dialCtx)
 	if err != nil {
 		logger.Debug(ctx, "failed to fetch workspace skills context config", slog.F("agent_id", agent.ID), slog.Error(err))
-		writeWorkspaceSkills(ctx, rw, nil)
+		httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
+			Message: "Failed to fetch workspace skills from agent.",
+			Detail:  err.Error(),
+		})
 		return
 	}
 
