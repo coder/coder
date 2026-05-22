@@ -193,12 +193,6 @@ func (m mockOneWaySocketWriter) WriteHeader(code int) {
 	m.serverRecorder.WriteHeader(code)
 }
 
-type mockEventSenderWrite func(b []byte) (int, error)
-
-func (w mockEventSenderWrite) Write(b []byte) (int, error) {
-	return w(b)
-}
-
 func TestOneWayWebSocketEventSender(t *testing.T) {
 	t.Parallel()
 
@@ -220,18 +214,6 @@ func TestOneWayWebSocketEventSender(t *testing.T) {
 		mockServer, mockClient := net.Pipe()
 		recorder := httptest.NewRecorder()
 
-		var write mockEventSenderWrite = func(b []byte) (int, error) {
-			serverCount, err := mockServer.Write(b)
-			if err != nil {
-				return 0, err
-			}
-			recorderCount, err := recorder.Write(b)
-			if err != nil {
-				return 0, err
-			}
-			return min(serverCount, recorderCount), nil
-		}
-
 		return mockOneWaySocketWriter{
 			testContext:    t,
 			serverConn:     mockServer,
@@ -239,7 +221,7 @@ func TestOneWayWebSocketEventSender(t *testing.T) {
 			serverRecorder: recorder,
 			serverReadWriter: bufio.NewReadWriter(
 				bufio.NewReader(mockServer),
-				bufio.NewWriter(write),
+				bufio.NewWriter(mockServer),
 			),
 		}
 	}

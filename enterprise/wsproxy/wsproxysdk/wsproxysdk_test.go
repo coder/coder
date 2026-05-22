@@ -39,9 +39,9 @@ func Test_IssueSignedAppTokenHTML(t *testing.T) {
 			expectedSessionToken   = "user-session-token"
 			expectedSignedTokenStr = "signed-app-token"
 		)
-		var called int64
+		var called atomic.Int64
 		srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			atomic.AddInt64(&called, 1)
+			called.Add(1)
 
 			assert.Equal(t, r.Method, http.MethodPost)
 			assert.Equal(t, r.URL.Path, "/api/v2/workspaceproxies/me/issue-signed-app-token")
@@ -87,7 +87,7 @@ func Test_IssueSignedAppTokenHTML(t *testing.T) {
 		require.Equal(t, expectedSignedTokenStr, tokenRes.SignedTokenStr)
 		require.False(t, rw.WasWritten())
 
-		require.EqualValues(t, called, 1)
+		require.EqualValues(t, called.Load(), 1)
 	})
 
 	t.Run("Error", func(t *testing.T) {
@@ -98,9 +98,9 @@ func Test_IssueSignedAppTokenHTML(t *testing.T) {
 			expectedResponseStatus = http.StatusBadRequest
 			expectedResponseBody   = "bad request"
 		)
-		var called int64
+		var called atomic.Int64
 		srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			atomic.AddInt64(&called, 1)
+			called.Add(1)
 
 			assert.Equal(t, r.Method, http.MethodPost)
 			assert.Equal(t, r.URL.Path, "/api/v2/workspaceproxies/me/issue-signed-app-token")
@@ -132,7 +132,7 @@ func Test_IssueSignedAppTokenHTML(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, expectedResponseBody, string(body))
 
-		require.EqualValues(t, called, 1)
+		require.EqualValues(t, called.Load(), 1)
 	})
 }
 

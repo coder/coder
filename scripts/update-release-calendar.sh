@@ -3,13 +3,33 @@
 set -euo pipefail
 
 # This script automatically updates the release calendar in docs/install/releases/index.md
-# It updates the status of each release (Not Supported, Security Support, Stable, Mainline, Not Released)
-# and gets the release dates from the first published tag for each minor release.
+# It updates the status of each release (Not Supported, Security Support, Stable, Mainline,
+# Extended Support Release, Not Released) and gets the release dates from the first published
+# tag for each minor release.
+#
+# ESR (Extended Support Release) versions are biannually released and receive extended
+# maintenance. Update the ESR_VERSIONS array below when new ESR versions are designated
+# or old ones reach end of life.
 
 DOCS_FILE="docs/install/releases/index.md"
 
 CALENDAR_START_MARKER="<!-- RELEASE_CALENDAR_START -->"
 CALENDAR_END_MARKER="<!-- RELEASE_CALENDAR_END -->"
+
+# Known active ESR (Extended Support Release) minor versions.
+# Update this list when new ESR versions are designated or old ones reach end of life.
+ESR_VERSIONS=(24 29)
+
+# Check if a minor version is a known active ESR version.
+is_esr_version() {
+	local minor=$1
+	for esr in "${ESR_VERSIONS[@]}"; do
+		if [[ "$minor" -eq "$esr" ]]; then
+			return 0
+		fi
+	done
+	return 1
+}
 
 # Format date as "Month DD, YYYY"
 format_date() {
@@ -78,12 +98,59 @@ get_release_date() {
 	fi
 }
 
+# Generate a single release row for the calendar table.
+# Arguments: version_major, rel_minor, status
+generate_release_row() {
+	local version_major=$1
+	local rel_minor=$2
+	local status=$3
+	local version_name="$version_major.$rel_minor"
+	local actual_release_date
+	local formatted_date
+	local latest_patch
+	local patch_link
+	local formatted_version_name
+
+	# Get the actual release date from the first published tag
+	if [[ "$status" != "Not Released" ]]; then
+		actual_release_date=$(get_release_date "$version_major" "$rel_minor")
+
+		if [ -n "$actual_release_date" ]; then
+			formatted_date=$(format_date "$actual_release_date")
+		else
+			formatted_date="TBD"
+		fi
+	fi
+
+	# Get latest patch version
+	latest_patch=$(get_latest_patch "$version_major" "$rel_minor")
+	if [ -n "$latest_patch" ]; then
+		patch_link="[v${latest_patch}](https://github.com/coder/coder/releases/tag/v${latest_patch})"
+	else
+		patch_link="N/A"
+	fi
+
+	# Format version name and patch link based on release status
+	if [[ "$status" == "Not Released" ]]; then
+		formatted_version_name="$version_name"
+		patch_link="N/A"
+		echo "| $formatted_version_name | | $status | $patch_link |"
+	else
+		formatted_version_name="[$version_name](https://coder.com/changelog/coder-$version_major-$rel_minor)"
+		echo "| $formatted_version_name | $formatted_date | $status | $patch_link |"
+	fi
+}
+
 # Generate releases table showing:
+# - Active ESR releases (older than the standard window)
 # - 3 previous unsupported releases
 # - 1 security support release (n-2)
 # - 1 stable release (n-1)
 # - 1 mainline release (n)
 # - 1 next release (n+1)
+#
+# ESR versions within the standard window that would otherwise show as
+# "Not Supported" are marked as "Extended Support Release" instead.
 generate_release_calendar() {
 	local result=""
 	local version_major=2
@@ -101,17 +168,18 @@ generate_release_calendar() {
 	result="| Release name | Release Date | Status | Latest Release |\n"
 	result+="|--------------|--------------|--------|----------------|\n"
 
+	# Add active ESR versions that fall before the standard window
+	for esr_minor in "${ESR_VERSIONS[@]}"; do
+		if [[ "$esr_minor" -lt "$start_minor" ]]; then
+			result+="$(generate_release_row "$version_major" "$esr_minor" "Extended Support Release")\n"
+		fi
+	done
+
 	# Generate rows for each release (7 total: 3 unsupported, 1 security, 1 stable, 1 mainline, 1 next)
 	for i in {0..6}; do
 		# Calculate release minor version
 		local rel_minor=$((start_minor + i))
-		local version_name="$version_major.$rel_minor"
-		local actual_release_date
-		local formatted_date
-		local latest_patch
-		local patch_link
 		local status
-		local formatted_version_name
 
 		# Determine status based on position
 		if [[ $i -eq 6 ]]; then
@@ -126,38 +194,12 @@ generate_release_calendar() {
 			status="Not Supported"
 		fi
 
-		# Get the actual release date from the first published tag
-		if [[ "$status" != "Not Released" ]]; then
-			actual_release_date=$(get_release_date "$version_major" "$rel_minor")
-
-			# Format the release date if we have one
-			if [ -n "$actual_release_date" ]; then
-				formatted_date=$(format_date "$actual_release_date")
-			else
-				# If no release date found, just display TBD
-				formatted_date="TBD"
-			fi
+		# Override status for active ESR versions that would otherwise be "Not Supported"
+		if [[ "$status" == "Not Supported" ]] && is_esr_version "$rel_minor"; then
+			status="Extended Support Release"
 		fi
 
-		# Get latest patch version
-		latest_patch=$(get_latest_patch "$version_major" "$rel_minor")
-		if [ -n "$latest_patch" ]; then
-			patch_link="[v${latest_patch}](https://github.com/coder/coder/releases/tag/v${latest_patch})"
-		else
-			patch_link="N/A"
-		fi
-
-		# Format version name and patch link based on release status
-		if [[ "$status" == "Not Released" ]]; then
-			formatted_version_name="$version_name"
-			patch_link="N/A"
-			# Add row to table without a date for "Not Released"
-			result+="| $formatted_version_name | | $status | $patch_link |\n"
-		else
-			formatted_version_name="[$version_name](https://coder.com/changelog/coder-$version_major-$rel_minor)"
-			# Add row to table with date for released versions
-			result+="| $formatted_version_name | $formatted_date | $status | $patch_link |\n"
-		fi
+		result+="$(generate_release_row "$version_major" "$rel_minor" "$status")\n"
 	done
 
 	echo -e "$result"

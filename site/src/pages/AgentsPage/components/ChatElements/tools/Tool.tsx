@@ -42,12 +42,14 @@ import {
 import { ToolCollapsible } from "./ToolCollapsible";
 import { ToolIcon } from "./ToolIcon";
 import { ToolLabel } from "./ToolLabel";
+import { getExecuteRenderData, shouldRenderTool } from "./toolVisibility";
 import {
 	asNumber,
 	asRecord,
 	asString,
 	buildEditDiff,
 	DIFFS_FONT_STYLE,
+	formatModelIntentLabel,
 	formatResultOutput,
 	getFileContentForViewer,
 	getFileViewerOptions,
@@ -92,6 +94,9 @@ interface ToolProps extends Omit<ComponentPropsWithRef<"div">, "children"> {
 	previousResponseText?: string;
 	/** Human-readable intent extracted from the model's tool-call args. */
 	modelIntent?: string;
+	/** Parsed command tuples ([program] or [program, arg]) for execute tool calls. */
+	parsedCommands?: readonly string[][];
+	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
 	codeDiffDisplayMode?: TypesGen.AgentDisplayMode;
 }
 
@@ -116,6 +121,8 @@ type ToolRendererProps = {
 	mcpServerConfigId?: string;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	modelIntent?: string;
+	parsedCommands?: readonly string[][];
+	shellToolDisplayMode?: TypesGen.AgentDisplayMode;
 	codeDiffDisplayMode?: TypesGen.AgentDisplayMode;
 };
 
@@ -218,36 +225,34 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 	result,
 	isError,
 	killedBySignal,
+	modelIntent,
+	parsedCommands,
+	shellToolDisplayMode,
 }) => {
-	const parsedArgs = parseArgs(args);
-	const command = parsedArgs ? asString(parsedArgs.command) : "";
-	const rec = asRecord(result);
-	const output = rec ? asString(rec.output).trim() : "";
-	const authRequired = rec ? Boolean(rec.auth_required) : false;
-	const authenticateURL = rec ? asString(rec.authenticate_url).trim() : "";
-	const providerLabel = toProviderLabel(
-		rec ? asString(rec.provider_display_name).trim() : "",
-		rec ? asString(rec.provider_id).trim() : "",
-		rec ? asString(rec.provider_type).trim() : "",
-	);
+	const data = getExecuteRenderData(args, result);
 
-	if (authRequired && authenticateURL) {
+	if (data.authenticateURL) {
 		return (
 			<ExecuteAuthRequiredTool
-				command={command}
-				output={output}
-				authenticateURL={authenticateURL}
-				providerLabel={providerLabel}
+				command={data.command}
+				output={data.output}
+				authenticateURL={data.authenticateURL}
+				providerLabel={data.providerLabel}
 			/>
 		);
 	}
 	return (
 		<ExecuteToolComponent
-			command={command}
-			output={output}
+			command={data.command}
+			output={data.output}
 			status={status}
 			isError={isError}
+			durationMs={data.durationMs}
+			isBackgrounded={data.isBackgrounded}
 			killedBySignal={killedBySignal}
+			modelIntent={modelIntent}
+			parsedCommands={parsedCommands}
+			shellToolDisplayMode={shellToolDisplayMode}
 		/>
 	);
 };
@@ -257,13 +262,12 @@ const ProcessOutputRenderer: FC<ToolRendererProps> = ({
 	result,
 	isError,
 	killedBySignal,
+	shellToolDisplayMode,
 }) => {
 	const rec = asRecord(result);
 	const output = rec ? asString(rec.output).trim() : "";
 	const exitCode = rec
-		? rec.exit_code !== undefined && rec.exit_code !== null
-			? Number(rec.exit_code)
-			: null
+		? (asNumber(rec.exit_code, { parseString: true }) ?? null)
 		: null;
 
 	return (
@@ -273,6 +277,7 @@ const ProcessOutputRenderer: FC<ToolRendererProps> = ({
 			exitCode={exitCode}
 			isError={isError}
 			killedBySignal={killedBySignal}
+			shellToolDisplayMode={shellToolDisplayMode}
 		/>
 	);
 };
@@ -545,20 +550,6 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 		const timedOutInError = errorStr.toLowerCase().includes("timed out");
 		if (timedOutInResult || timedOutInError) {
 			isTimeout = true;
-		}
-	}
-
-	// Postpone rendering wait_agent, message_agent, and close_agent
-	// until the chat_id has been parsed from the streaming args.
-	// Without it we cannot determine variant or title, which causes
-	// a brief flash of the generic lifecycle copy.
-	if (!chatId && status === "running") {
-		if (
-			descriptor.action === "wait" ||
-			descriptor.action === "message" ||
-			descriptor.action === "close"
-		) {
-			return null;
 		}
 	}
 
@@ -875,7 +866,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 			/>
 			{modelIntent ? (
 				<span className="truncate text-[13px]">
-					{modelIntent.charAt(0).toUpperCase() + modelIntent.slice(1)}
+					{formatModelIntentLabel(modelIntent)}
 				</span>
 			) : (
 				<ToolLabel
@@ -945,7 +936,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 };
 
 // ---------------------------------------------------------------------------
-// process_signal — thin wrapper that promotes soft failures (success=false
+// process_signal promotes soft failures (success=false
 // in the result body, isError=false at protocol level) so the generic
 // renderer shows the error indicator and tooltip.
 // ---------------------------------------------------------------------------
@@ -988,7 +979,7 @@ const StartWorkspaceRenderer: FC<ToolRendererProps> = ({
 };
 
 // ---------------------------------------------------------------------------
-// Renderer lookup map — maps tool names to their specialized renderers.
+// Renderer lookup map for tool names and specialized renderers.
 // ---------------------------------------------------------------------------
 
 const toolRenderers: Record<string, FC<ToolRendererProps>> = {
@@ -1013,7 +1004,7 @@ const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 };
 
 // ---------------------------------------------------------------------------
-// Public Tool component — single wrapper div + map dispatch.
+// Public Tool component with a single wrapper div and map dispatch.
 // ---------------------------------------------------------------------------
 
 export const Tool = memo(
@@ -1037,6 +1028,8 @@ export const Tool = memo(
 		isLatestAskUserQuestion,
 		previousResponseText,
 		modelIntent,
+		parsedCommands,
+		shellToolDisplayMode,
 		codeDiffDisplayMode,
 		ref,
 		...props
@@ -1044,23 +1037,19 @@ export const Tool = memo(
 		const Renderer = isSubagentToolName(name)
 			? SubagentRenderer
 			: (toolRenderers[name] ?? GenericToolRenderer);
+		const isShellTool = name === "execute" || name === "process_output";
+		if (!shouldRenderTool({ name, status, args, result })) {
+			return null;
+		}
 
 		return (
 			<div
 				ref={ref}
-				data-tool-call=""
+				data-transcript-row=""
 				className={cn(
-					name === "execute" ||
-						name === "process_output" ||
-						name === "propose_plan" ||
-						name === "advisor"
-						? "w-full py-0.5"
-						: "py-0.5",
-					// Collapse padding between adjacent tool calls so they hug.
-					// Bottom padding is removed on a tool followed by a tool, and
-					// top padding is removed on a tool preceded by a tool.
-					"[&:has(+[data-tool-call])]:pb-0",
-					"[[data-tool-call]+&]:pt-0",
+					isShellTool || name === "propose_plan" || name === "advisor"
+						? "w-full"
+						: undefined,
 					className,
 				)}
 				{...props}
@@ -1084,6 +1073,8 @@ export const Tool = memo(
 					isLatestAskUserQuestion={isLatestAskUserQuestion}
 					previousResponseText={previousResponseText}
 					modelIntent={modelIntent}
+					parsedCommands={parsedCommands}
+					shellToolDisplayMode={shellToolDisplayMode}
 					codeDiffDisplayMode={codeDiffDisplayMode}
 				/>
 			</div>

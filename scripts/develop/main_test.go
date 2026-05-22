@@ -146,6 +146,127 @@ func TestShellBool(t *testing.T) {
 	assert.Equal(t, "0", shellBool(false))
 }
 
+func TestPortOffset(t *testing.T) {
+	t.Parallel()
+
+	root := "/tmp/coder/worktree-a"
+	offset := portOffset(root)
+	assert.Equal(t, offset, portOffset(root))
+	assert.GreaterOrEqual(t, offset, 0)
+	assert.Less(t, offset, 1000)
+	assert.Equal(t, 0, offset%10)
+
+	var foundDifferent bool
+	for _, otherRoot := range []string{
+		"/tmp/coder/worktree-b",
+		"/tmp/coder/worktree-c",
+		"/tmp/coder/worktree-d",
+	} {
+		if portOffset(otherRoot) != offset {
+			foundDifferent = true
+			break
+		}
+	}
+	assert.True(t, foundDifferent, "expected typical worktree paths to use different offsets")
+}
+
+func TestApplyPortOffsetSkipsExplicitPorts(t *testing.T) {
+	t.Parallel()
+
+	projectRoot := "/tmp/coder/worktree-offset"
+	for i := range 100 {
+		candidate := fmt.Sprintf("/tmp/coder/worktree-offset-%d", i)
+		if portOffset(candidate) != 0 {
+			projectRoot = candidate
+			break
+		}
+	}
+	offset := portOffset(projectRoot)
+	require.NotZero(t, offset)
+
+	cfg := &devConfig{
+		apiPort:           3000,
+		webPort:           8080,
+		proxyPort:         3010,
+		coderMetricsPort:  2114,
+		portOffsetEnabled: true,
+		projectRoot:       projectRoot,
+		portExplicit: portExplicit{
+			web:     true,
+			metrics: true,
+		},
+	}
+	cfg.applyPortOffset()
+
+	assert.Equal(t, int64(3000+offset), cfg.apiPort)
+	assert.Equal(t, int64(8080), cfg.webPort)
+	assert.Equal(t, int64(3010+offset), cfg.proxyPort)
+	assert.Equal(t, int64(2114), cfg.coderMetricsPort)
+	assert.Equal(t, portSourceOffset, cfg.apiPortSource)
+	assert.Equal(t, portSourceExplicit, cfg.webPortSource)
+	assert.Equal(t, portSourceOffset, cfg.proxyPortSource)
+	assert.Equal(t, portSourceExplicit, cfg.metricsPortSource)
+}
+
+func TestApplyPortOffsetDisabledUsesDefaultPorts(t *testing.T) {
+	t.Parallel()
+
+	projectRoot := "/tmp/coder/worktree-offset"
+	for i := range 100 {
+		candidate := fmt.Sprintf("/tmp/coder/worktree-offset-disabled-%d", i)
+		if portOffset(candidate) != 0 {
+			projectRoot = candidate
+			break
+		}
+	}
+	require.NotZero(t, portOffset(projectRoot))
+
+	cfg := &devConfig{
+		apiPort:          3000,
+		webPort:          8080,
+		proxyPort:        3010,
+		coderMetricsPort: 2114,
+		projectRoot:      projectRoot,
+	}
+	cfg.applyPortOffset()
+
+	assert.Equal(t, int64(3000), cfg.apiPort)
+	assert.Equal(t, int64(8080), cfg.webPort)
+	assert.Equal(t, int64(3010), cfg.proxyPort)
+	assert.Equal(t, int64(2114), cfg.coderMetricsPort)
+	assert.Zero(t, cfg.portOffset)
+	assert.Empty(t, cfg.apiPortSource)
+	assert.Empty(t, cfg.webPortSource)
+	assert.Empty(t, cfg.proxyPortSource)
+	assert.Empty(t, cfg.metricsPortSource)
+	assert.Equal(t, "API: 3000", portBannerLine("API", cfg.apiPort, cfg.apiPortSource, cfg.portOffset))
+}
+
+func TestPortOffsetDefaultPortsDoNotOverlap(t *testing.T) {
+	t.Parallel()
+
+	ports := []struct {
+		name string
+		base int
+	}{
+		{name: "API", base: 3000},
+		{name: "Web UI", base: 8080},
+		{name: "Proxy", base: 3010},
+		{name: "Coder metrics", base: 2114},
+	}
+	seen := make(map[int]string)
+	for bucket := range portOffsetBuckets {
+		offset := bucket * portOffsetStep
+		for _, port := range ports {
+			effective := port.base + offset
+			if other, ok := seen[effective]; ok {
+				t.Fatalf("%s collides with %s on port %d", port.name, other, effective)
+			}
+			seen[effective] = fmt.Sprintf("%s with offset %d", port.name, offset)
+		}
+	}
+}
+
 func TestDevelopInCoder(t *testing.T) {
 	t.Run("DEVELOP_IN_CODER", func(t *testing.T) {
 		t.Setenv("DEVELOP_IN_CODER", "1")
@@ -431,15 +552,17 @@ func TestDevConfigResolveEnv(t *testing.T) {
 	t.Setenv("CODER_SESSION_TOKEN", "leaked")
 	t.Setenv("CODER_URL", "https://leaked.example.com")
 
+	wd, _ := os.Getwd()
 	cfg := &devConfig{apiPort: 3000, accessURL: defaultAccessURL}
 	require.NoError(t, cfg.resolveEnv())
 
-	wd, _ := os.Getwd()
 	assert.Equal(t, wd, cfg.projectRoot)
 	assert.Equal(t, filepath.Join(wd, "build",
 		fmt.Sprintf("coder_%s_%s", runtime.GOOS, runtime.GOARCH)), cfg.binaryPath)
 	assert.Equal(t, filepath.Join(wd, ".coderv2"), cfg.configDir)
 	assert.Equal(t, "http://127.0.0.1:3000", cfg.accessURL)
+	assert.Equal(t, int64(3000), cfg.apiPort)
+	assert.Zero(t, cfg.portOffset)
 
 	// Should have unset leaked env vars.
 	assert.Empty(t, os.Getenv("CODER_SESSION_TOKEN"))
@@ -454,11 +577,92 @@ func TestDevConfigResolveEnv(t *testing.T) {
 	}
 }
 
+func TestDevConfigResolveEnvUsesDefaultPortsWithoutPortOffset(t *testing.T) {
+	t.Setenv("CODER_SESSION_TOKEN", "")
+	t.Setenv("CODER_URL", "")
+
+	baseRoot := t.TempDir()
+	projectRoot := filepath.Join(baseRoot, "worktree")
+	for i := range 100 {
+		candidate := filepath.Join(baseRoot, fmt.Sprintf("worktree-default-%d", i))
+		if portOffset(candidate) != 0 {
+			projectRoot = candidate
+			break
+		}
+	}
+	require.NotZero(t, portOffset(projectRoot))
+	require.NoError(t, os.MkdirAll(projectRoot, 0o755))
+	t.Chdir(projectRoot)
+
+	cfg := &devConfig{
+		apiPort:          3000,
+		webPort:          8080,
+		proxyPort:        3010,
+		coderMetricsPort: 2114,
+		accessURL:        defaultAccessURL,
+	}
+	require.NoError(t, cfg.resolveEnv())
+
+	assert.Equal(t, projectRoot, cfg.projectRoot)
+	assert.Equal(t, int64(3000), cfg.apiPort)
+	assert.Equal(t, int64(8080), cfg.webPort)
+	assert.Equal(t, int64(3010), cfg.proxyPort)
+	assert.Equal(t, int64(2114), cfg.coderMetricsPort)
+	assert.Zero(t, cfg.portOffset)
+	assert.Empty(t, cfg.apiPortSource)
+	assert.Empty(t, cfg.webPortSource)
+	assert.Empty(t, cfg.proxyPortSource)
+	assert.Empty(t, cfg.metricsPortSource)
+	assert.Equal(t, "http://127.0.0.1:3000", cfg.accessURL)
+}
+
+func TestDevConfigResolveEnvAppliesPortOffsetWhenEnabled(t *testing.T) {
+	t.Setenv("CODER_SESSION_TOKEN", "")
+	t.Setenv("CODER_URL", "")
+
+	baseRoot := t.TempDir()
+	projectRoot := filepath.Join(baseRoot, "worktree")
+	for i := range 100 {
+		candidate := filepath.Join(baseRoot, fmt.Sprintf("worktree-%d", i))
+		if portOffset(candidate) != 0 {
+			projectRoot = candidate
+			break
+		}
+	}
+	require.NotZero(t, portOffset(projectRoot))
+	require.NoError(t, os.MkdirAll(projectRoot, 0o755))
+	t.Chdir(projectRoot)
+
+	cfg := &devConfig{
+		apiPort:           3000,
+		webPort:           8080,
+		proxyPort:         3010,
+		coderMetricsPort:  2114,
+		portOffsetEnabled: true,
+		accessURL:         defaultAccessURL,
+	}
+	require.NoError(t, cfg.resolveEnv())
+
+	offset := portOffset(projectRoot)
+	assert.Equal(t, projectRoot, cfg.projectRoot)
+	assert.Equal(t, int64(3000+offset), cfg.apiPort)
+	assert.Equal(t, int64(8080+offset), cfg.webPort)
+	assert.Equal(t, int64(3010+offset), cfg.proxyPort)
+	assert.Equal(t, int64(2114+offset), cfg.coderMetricsPort)
+	assert.Equal(t, offset, cfg.portOffset)
+	assert.Equal(t, portSourceOffset, cfg.apiPortSource)
+	assert.Equal(t, fmt.Sprintf("http://127.0.0.1:%d", 3000+offset), cfg.accessURL)
+}
+
 func TestDevConfigResolveEnvExplicitAccessURL(t *testing.T) {
 	t.Setenv("CODER_SESSION_TOKEN", "")
 	t.Setenv("CODER_URL", "")
 
-	cfg := &devConfig{apiPort: 5000, accessURL: "http://myhost:5000"}
+	cfg := &devConfig{
+		apiPort:      5000,
+		accessURL:    "http://myhost:5000",
+		portExplicit: portExplicit{api: true},
+	}
 	require.NoError(t, cfg.resolveEnv())
 	assert.Equal(t, "http://myhost:5000", cfg.accessURL)
 }

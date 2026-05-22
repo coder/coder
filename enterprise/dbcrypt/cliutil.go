@@ -163,6 +163,75 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 		log.Debug(ctx, "encrypted chat provider key", slog.F("provider", provider.Provider), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
 	}
 
+	aiProviders, err := cryptDB.GetAIProviders(ctx, database.GetAIProvidersParams{IncludeDeleted: true, IncludeDisabled: true})
+	if err != nil {
+		return xerrors.Errorf("get ai providers: %w", err)
+	}
+	log.Info(ctx, "encrypting ai provider settings", slog.F("provider_count", len(aiProviders)))
+	for idx, ap := range aiProviders {
+		if !ap.Settings.Valid || strings.TrimSpace(ap.Settings.String) == "" {
+			continue
+		}
+		if ap.SettingsKeyID.Valid && ap.SettingsKeyID.String == ciphers[0].HexDigest() {
+			log.Debug(ctx, "skipping ai provider", slog.F("ai_provider_id", ap.ID), slog.F("name", ap.Name), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
+			continue
+		}
+		if _, err := cryptDB.UpdateEncryptedAIProviderSettings(ctx, database.UpdateEncryptedAIProviderSettingsParams{
+			ID:            ap.ID,
+			Settings:      ap.Settings,
+			SettingsKeyID: sql.NullString{}, // dbcrypt will update as required
+		}); err != nil {
+			return xerrors.Errorf("update ai provider id=%s name=%s: %w", ap.ID, ap.Name, err)
+		}
+		log.Debug(ctx, "encrypted ai provider settings", slog.F("ai_provider_id", ap.ID), slog.F("name", ap.Name), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
+	}
+
+	aiProviderKeys, err := cryptDB.GetAIProviderKeys(ctx, true)
+	if err != nil {
+		return xerrors.Errorf("get ai provider keys: %w", err)
+	}
+	log.Info(ctx, "encrypting ai provider keys", slog.F("key_count", len(aiProviderKeys)))
+	for idx, apk := range aiProviderKeys {
+		if strings.TrimSpace(apk.APIKey) == "" {
+			continue
+		}
+		if apk.ApiKeyKeyID.Valid && apk.ApiKeyKeyID.String == ciphers[0].HexDigest() {
+			log.Debug(ctx, "skipping ai provider key", slog.F("ai_provider_key_id", apk.ID), slog.F("provider_id", apk.ProviderID), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
+			continue
+		}
+		if _, err := cryptDB.UpdateEncryptedAIProviderKey(ctx, database.UpdateEncryptedAIProviderKeyParams{
+			ID:          apk.ID,
+			APIKey:      apk.APIKey,
+			ApiKeyKeyID: sql.NullString{}, // dbcrypt will update as required
+		}); err != nil {
+			return xerrors.Errorf("update ai provider key id=%s provider_id=%s: %w", apk.ID, apk.ProviderID, err)
+		}
+		log.Debug(ctx, "encrypted ai provider key", slog.F("ai_provider_key_id", apk.ID), slog.F("provider_id", apk.ProviderID), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
+	}
+
+	userAIProviderKeys, err := cryptDB.GetUserAIProviderKeys(ctx)
+	if err != nil {
+		return xerrors.Errorf("get user ai provider keys: %w", err)
+	}
+	log.Info(ctx, "encrypting user ai provider keys", slog.F("key_count", len(userAIProviderKeys)))
+	for idx, key := range userAIProviderKeys {
+		if strings.TrimSpace(key.APIKey) == "" {
+			continue
+		}
+		if key.ApiKeyKeyID.Valid && key.ApiKeyKeyID.String == ciphers[0].HexDigest() {
+			log.Debug(ctx, "skipping user ai provider key", slog.F("user_ai_provider_key_id", key.ID), slog.F("ai_provider_id", key.AIProviderID), slog.F("user_id", key.UserID), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
+			continue
+		}
+		if _, err := cryptDB.UpdateEncryptedUserAIProviderKey(ctx, database.UpdateEncryptedUserAIProviderKeyParams{
+			ID:          key.ID,
+			APIKey:      key.APIKey,
+			ApiKeyKeyID: sql.NullString{}, // dbcrypt will update as required
+		}); err != nil {
+			return xerrors.Errorf("update user ai provider key id=%s ai_provider_id=%s user_id=%s: %w", key.ID, key.AIProviderID, key.UserID, err)
+		}
+		log.Debug(ctx, "encrypted user ai provider key", slog.F("user_ai_provider_key_id", key.ID), slog.F("ai_provider_id", key.AIProviderID), slog.F("user_id", key.UserID), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
+	}
+
 	// Revoke old keys
 	for _, c := range ciphers[1:] {
 		if err := db.RevokeDBCryptKey(ctx, c.HexDigest()); err != nil {
@@ -326,6 +395,66 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 		log.Debug(ctx, "decrypted chat provider key", slog.F("provider", provider.Provider), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
 	}
 
+	aiProviders, err := cryptDB.GetAIProviders(ctx, database.GetAIProvidersParams{IncludeDeleted: true, IncludeDisabled: true})
+	if err != nil {
+		return xerrors.Errorf("get ai providers: %w", err)
+	}
+	log.Info(ctx, "decrypting ai provider settings", slog.F("provider_count", len(aiProviders)))
+	for idx, ap := range aiProviders {
+		if !ap.SettingsKeyID.Valid {
+			log.Debug(ctx, "skipping ai provider", slog.F("ai_provider_id", ap.ID), slog.F("name", ap.Name), slog.F("current", idx+1))
+			continue
+		}
+		if _, err := cryptDB.UpdateEncryptedAIProviderSettings(ctx, database.UpdateEncryptedAIProviderSettingsParams{
+			ID:            ap.ID,
+			Settings:      ap.Settings,
+			SettingsKeyID: sql.NullString{}, // explicitly clear the key id
+		}); err != nil {
+			return xerrors.Errorf("decrypt ai provider id=%s name=%s: %w", ap.ID, ap.Name, err)
+		}
+		log.Debug(ctx, "decrypted ai provider", slog.F("ai_provider_id", ap.ID), slog.F("name", ap.Name), slog.F("current", idx+1))
+	}
+
+	aiProviderKeys, err := cryptDB.GetAIProviderKeys(ctx, true)
+	if err != nil {
+		return xerrors.Errorf("get ai provider keys: %w", err)
+	}
+	log.Info(ctx, "decrypting ai provider keys", slog.F("key_count", len(aiProviderKeys)))
+	for idx, apk := range aiProviderKeys {
+		if !apk.ApiKeyKeyID.Valid {
+			log.Debug(ctx, "skipping ai provider key", slog.F("ai_provider_key_id", apk.ID), slog.F("provider_id", apk.ProviderID), slog.F("current", idx+1))
+			continue
+		}
+		if _, err := cryptDB.UpdateEncryptedAIProviderKey(ctx, database.UpdateEncryptedAIProviderKeyParams{
+			ID:          apk.ID,
+			APIKey:      apk.APIKey,
+			ApiKeyKeyID: sql.NullString{}, // explicitly clear the key id
+		}); err != nil {
+			return xerrors.Errorf("decrypt ai provider key id=%s provider_id=%s: %w", apk.ID, apk.ProviderID, err)
+		}
+		log.Debug(ctx, "decrypted ai provider key", slog.F("ai_provider_key_id", apk.ID), slog.F("provider_id", apk.ProviderID), slog.F("current", idx+1))
+	}
+
+	userAIProviderKeys, err := cryptDB.GetUserAIProviderKeys(ctx)
+	if err != nil {
+		return xerrors.Errorf("get user ai provider keys: %w", err)
+	}
+	log.Info(ctx, "decrypting user ai provider keys", slog.F("key_count", len(userAIProviderKeys)))
+	for idx, key := range userAIProviderKeys {
+		if !key.ApiKeyKeyID.Valid {
+			log.Debug(ctx, "skipping user ai provider key", slog.F("user_ai_provider_key_id", key.ID), slog.F("ai_provider_id", key.AIProviderID), slog.F("user_id", key.UserID), slog.F("current", idx+1))
+			continue
+		}
+		if _, err := cryptDB.UpdateEncryptedUserAIProviderKey(ctx, database.UpdateEncryptedUserAIProviderKeyParams{
+			ID:          key.ID,
+			APIKey:      key.APIKey,
+			ApiKeyKeyID: sql.NullString{}, // explicitly clear the key id
+		}); err != nil {
+			return xerrors.Errorf("decrypt user ai provider key id=%s ai_provider_id=%s user_id=%s: %w", key.ID, key.AIProviderID, key.UserID, err)
+		}
+		log.Debug(ctx, "decrypted user ai provider key", slog.F("user_ai_provider_key_id", key.ID), slog.F("ai_provider_id", key.AIProviderID), slog.F("user_id", key.UserID), slog.F("current", idx+1))
+	}
+
 	// Revoke _all_ keys
 	for _, c := range ciphers {
 		if err := db.RevokeDBCryptKey(ctx, c.HexDigest()); err != nil {
@@ -348,11 +477,19 @@ DELETE FROM external_auth_links
 	OR oauth_refresh_token_key_id IS NOT NULL;
 DELETE FROM user_chat_provider_keys
 	WHERE api_key_key_id IS NOT NULL;
+DELETE FROM user_ai_provider_keys
+	WHERE api_key_key_id IS NOT NULL;
 DELETE FROM user_secrets
 	WHERE value_key_id IS NOT NULL;
 UPDATE chat_providers
 	SET api_key = '',
 		api_key_key_id = NULL
+	WHERE api_key_key_id IS NOT NULL;
+UPDATE ai_providers
+	SET settings = NULL,
+		settings_key_id = NULL
+	WHERE settings_key_id IS NOT NULL;
+DELETE FROM ai_provider_keys
 	WHERE api_key_key_id IS NOT NULL;
 COMMIT;
 `

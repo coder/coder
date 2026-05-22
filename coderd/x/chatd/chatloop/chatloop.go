@@ -97,6 +97,15 @@ type PersistedStep struct {
 	// Applied by the persistence layer to set CreatedAt
 	// on persisted tool-result ChatMessageParts.
 	ToolResultCreatedAt map[string]time.Time
+	// ReasoningStartedAt and ReasoningCompletedAt are parallel
+	// slices indexed by the occurrence order of reasoning
+	// content in Content. The persistence layer walks reasoning
+	// parts in order and applies these timestamps to the
+	// corresponding ChatMessageParts so the frontend can render
+	// reasoning duration. Reasoning parts have no provider-side
+	// stable ID, so order is the only correlation we have.
+	ReasoningStartedAt   []time.Time
+	ReasoningCompletedAt []time.Time
 }
 
 // RunOptions configures a single streaming chat loop run.
@@ -161,12 +170,29 @@ type RunOptions struct {
 	Compaction       *CompactionOptions
 	ReloadMessages   func(context.Context) ([]fantasy.Message, error)
 	DisableChainMode func()
-	// PrepareMessages is called before each LLM step with the
-	// current message history. If it returns non-nil, the returned
-	// slice replaces messages for this and all subsequent steps.
+	// PrepareMessages is called at least once before each LLM step
+	// with the current message history. If it returns non-nil, the
+	// returned slice replaces messages for this and all subsequent
+	// steps.
 	// Used to inject system context that becomes available mid-loop
 	// (e.g. AGENTS.md after create_workspace).
+	// NOTE: It may be called more than once per step in case of a
+	// retry, so callbacks should avoid duplicating messages.
 	PrepareMessages func([]fantasy.Message) []fantasy.Message
+
+	// PrepareTools is called once before each LLM step with the
+	// current tool list. If it returns non-nil, the returned slice
+	// replaces opts.Tools for this and all subsequent steps, and any
+	// new tool names are appended to opts.ActiveTools so they become
+	// callable immediately. Used to inject tools that become available
+	// mid-turn (e.g. workspace MCP tools discovered after
+	// create_workspace).
+	//
+	// The chatloop tracks whether tools have already been replaced so
+	// PrepareTools is not retried on subsequent steps once it has
+	// returned a non-nil slice. Callbacks may still be invoked on later
+	// steps when they previously returned nil.
+	PrepareTools func([]fantasy.AgentTool) []fantasy.AgentTool
 
 	// OnRetry is called before each retry attempt when the LLM
 	// stream fails with a retryable error. It provides the attempt
@@ -206,14 +232,16 @@ type ProviderTool struct {
 // step. Since we own the stream consumer, all content is tracked
 // directly here, no shadow draft state needed.
 type stepResult struct {
-	content             []fantasy.Content
-	usage               fantasy.Usage
-	providerMetadata    fantasy.ProviderMetadata
-	finishReason        fantasy.FinishReason
-	toolCalls           []fantasy.ToolCallContent
-	shouldContinue      bool
-	toolCallCreatedAt   map[string]time.Time
-	toolResultCreatedAt map[string]time.Time
+	content              []fantasy.Content
+	usage                fantasy.Usage
+	providerMetadata     fantasy.ProviderMetadata
+	finishReason         fantasy.FinishReason
+	toolCalls            []fantasy.ToolCallContent
+	shouldContinue       bool
+	toolCallCreatedAt    map[string]time.Time
+	toolResultCreatedAt  map[string]time.Time
+	reasoningStartedAt   []time.Time
+	reasoningCompletedAt []time.Time
 }
 
 // toResponseMessages converts step content into messages suitable
@@ -236,12 +264,16 @@ func (r stepResult) toResponseMessages() []fantasy.Message {
 			})
 		case fantasy.ContentTypeReasoning:
 			reasoning, ok := fantasy.AsContentType[fantasy.ReasoningContent](c)
-			if !ok || strings.TrimSpace(reasoning.Text) == "" {
+			if !ok {
+				continue
+			}
+			opts := fantasy.ProviderOptions(reasoning.ProviderMetadata)
+			if strings.TrimSpace(reasoning.Text) == "" && !chatsanitize.HasAnthropicSignedReasoningOptions(opts) {
 				continue
 			}
 			assistantParts = append(assistantParts, fantasy.ReasoningPart{
 				Text:            reasoning.Text,
-				ProviderOptions: fantasy.ProviderOptions(reasoning.ProviderMetadata),
+				ProviderOptions: opts,
 			})
 		case fantasy.ContentTypeToolCall:
 			toolCall, ok := fantasy.AsContentType[fantasy.ToolCallContent](c)
@@ -315,8 +347,9 @@ func (r stepResult) toResponseMessages() []fantasy.Message {
 // reasoningState accumulates reasoning content and provider
 // metadata while the stream is in flight.
 type reasoningState struct {
-	text    string
-	options fantasy.ProviderMetadata
+	text      string
+	options   fantasy.ProviderMetadata
+	startedAt time.Time
 }
 
 // Run executes the chat step-stream loop and delegates
@@ -349,7 +382,6 @@ func Run(ctx context.Context, opts RunOptions) error {
 	}
 
 	tools := buildToolDefinitions(opts.Tools, opts.ActiveTools, opts.ProviderTools)
-	applyAnthropicCaching := shouldApplyAnthropicPromptCaching(opts.Model)
 
 	messages := opts.Messages
 	var lastUsage fantasy.Usage
@@ -390,29 +422,24 @@ func Run(ctx context.Context, opts RunOptions) error {
 			modelName := opts.Model.Model()
 			opts.Metrics.StepsTotal.WithLabelValues(provider, modelName).Inc()
 			stepStart := time.Now()
-			// Copy messages so that provider-specific caching
-			// mutations don't leak back to the caller's slice.
-			// copy copies Message structs by value, so field
-			// reassignments in addAnthropicPromptCaching only
-			// affect the prepared slice.
-			if opts.PrepareMessages != nil {
-				if updated := opts.PrepareMessages(messages); updated != nil {
-					messages = updated
+			if opts.PrepareTools != nil {
+				if updated := opts.PrepareTools(opts.Tools); updated != nil {
+					opts.ActiveTools = mergeNewToolNames(
+						opts.ActiveTools, opts.Tools, updated,
+					)
+					opts.Tools = updated
+					tools = buildToolDefinitions(
+						opts.Tools, opts.ActiveTools, opts.ProviderTools,
+					)
 				}
 			}
-			prepared := make([]fantasy.Message, len(messages))
-			copy(prepared, messages)
-			prepared, sanitizeStats := chatsanitize.SanitizeAnthropicProviderToolHistory(provider, prepared)
-			chatsanitize.LogAnthropicProviderToolSanitization(
-				ctx, opts.Logger, "pre_request", provider, modelName, sanitizeStats,
-				slog.F("step_index", step),
-				slog.F("total_steps", totalSteps),
+			var prepared []fantasy.Message
+			var prepareErr error
+			messages, prepared, prepareErr = prepareMessagesForRequest(
+				ctx, opts, messages, provider, modelName, step, totalSteps,
 			)
-			prepared = chatsanitize.ApplyAnthropicProviderToolGuard(
-				ctx, opts.Logger, provider, modelName, prepared,
-			)
-			if applyAnthropicCaching {
-				addAnthropicPromptCaching(prepared)
+			if prepareErr != nil {
+				return xerrors.Errorf("prepare prompt: %w", prepareErr)
 			}
 			opts.Metrics.MessageCount.WithLabelValues(provider, modelName).Observe(float64(len(prepared)))
 			opts.Metrics.PromptSizeBytes.WithLabelValues(provider, modelName).Observe(float64(EstimatePromptSize(prepared)))
@@ -430,8 +457,12 @@ func Run(ctx context.Context, opts RunOptions) error {
 			}
 
 			var result stepResult
+			var retryPrepareErr error
 			stepCtx := chatdebug.ReuseStep(ctx)
 			err := chatretry.Retry(stepCtx, func(retryCtx context.Context) error {
+				if retryPrepareErr != nil {
+					return retryPrepareErr
+				}
 				attempt, streamErr := guardedStream(
 					retryCtx,
 					provider,
@@ -469,6 +500,45 @@ func Run(ctx context.Context, opts RunOptions) error {
 				// classified payload handed to OnRetry.
 				classified = classified.WithProvider(provider)
 				opts.Metrics.RecordStreamRetry(provider, modelName, classified)
+				if classified.ChainBroken {
+					if chatopenai.HasPreviousResponseID(opts.ProviderOptions) {
+						opts.ProviderOptions = chatopenai.ClearPreviousResponseID(opts.ProviderOptions)
+					}
+					if chatopenai.HasPreviousResponseID(call.ProviderOptions) {
+						call.ProviderOptions = chatopenai.ClearPreviousResponseID(call.ProviderOptions)
+					}
+					if opts.DisableChainMode != nil {
+						opts.DisableChainMode()
+					}
+					if opts.ReloadMessages != nil {
+						reloaded, err := opts.ReloadMessages(ctx)
+						if err != nil {
+							opts.Logger.Warn(ctx,
+								"chain-broken recovery: reload messages failed",
+								slog.Error(err),
+							)
+						} else {
+							// Reloaded history replaces the prompt prepared before
+							// the failed attempt, so run the same preparation
+							// pipeline used by normal provider requests.
+							var (
+								reloadedCanonical []fantasy.Message
+								retryPrompt       []fantasy.Message
+								prepareErr        error
+							)
+							call.Prompt = nil
+							reloadedCanonical, retryPrompt, prepareErr = prepareMessagesForRequest(
+								ctx, opts, reloaded, provider, modelName, step, totalSteps,
+							)
+							if prepareErr != nil {
+								retryPrepareErr = prepareErr
+							} else {
+								messages = reloadedCanonical
+								call.Prompt = retryPrompt
+							}
+						}
+					}
+				}
 				if opts.OnRetry != nil {
 					opts.OnRetry(attempt, retryErr, classified, delay)
 				}
@@ -477,6 +547,9 @@ func Run(ctx context.Context, opts RunOptions) error {
 				if errors.Is(err, ErrInterrupted) {
 					persistInterruptedStep(ctx, opts, &result)
 					return ErrInterrupted
+				}
+				if retryPrepareErr != nil && errors.Is(err, retryPrepareErr) {
+					return xerrors.Errorf("prepare prompt: %w", err)
 				}
 				return xerrors.Errorf("stream response: %w", err)
 			}
@@ -514,13 +587,15 @@ func Run(ctx context.Context, opts RunOptions) error {
 			// check and here, fall back to the interrupt-safe
 			// path so partial content is not lost.
 			if err := opts.PersistStep(ctx, PersistedStep{
-				Content:             result.content,
-				Usage:               result.usage,
-				ContextLimit:        contextLimit,
-				ProviderResponseID:  chatopenai.ExtractResponseIDIfStored(opts.ProviderOptions, result.providerMetadata),
-				Runtime:             time.Since(stepStart),
-				ToolCallCreatedAt:   result.toolCallCreatedAt,
-				ToolResultCreatedAt: result.toolResultCreatedAt,
+				Content:              result.content,
+				Usage:                result.usage,
+				ContextLimit:         contextLimit,
+				ProviderResponseID:   chatopenai.ExtractResponseIDIfStored(opts.ProviderOptions, result.providerMetadata),
+				Runtime:              time.Since(stepStart),
+				ToolCallCreatedAt:    result.toolCallCreatedAt,
+				ToolResultCreatedAt:  result.toolResultCreatedAt,
+				ReasoningStartedAt:   result.reasoningStartedAt,
+				ReasoningCompletedAt: result.reasoningCompletedAt,
 			}); err != nil {
 				if errors.Is(err, ErrInterrupted) {
 					persistInterruptedStep(ctx, opts, &result)
@@ -654,6 +729,57 @@ func Run(ctx context.Context, opts RunOptions) error {
 	}
 
 	return nil
+}
+
+// prepareMessagesForRequest applies the prompt preparation pipeline used
+// immediately before sending messages to a provider. It returns the
+// possibly updated canonical messages and an independent provider-ready
+// prompt. When preparation fails, the prompt result is nil and err is the
+// terminal prompt-preparation failure.
+func prepareMessagesForRequest(
+	ctx context.Context,
+	opts RunOptions,
+	messages []fantasy.Message,
+	provider string,
+	modelName string,
+	step int,
+	totalSteps int,
+) (canonical []fantasy.Message, prompt []fantasy.Message, err error) {
+	canonical = messages
+	if opts.PrepareMessages != nil {
+		if updated := opts.PrepareMessages(canonical); updated != nil {
+			canonical = updated
+		}
+	}
+	// Copy messages so provider-specific caching mutations don't leak
+	// back to the canonical message slice.
+	prompt = slices.Clone(canonical)
+	prompt, sanitizeStats := chatsanitize.SanitizeAnthropicProviderToolHistory(provider, prompt)
+	chatsanitize.LogAnthropicProviderToolSanitization(
+		ctx, opts.Logger, "pre_request", provider, modelName, sanitizeStats,
+		slog.F("step_index", step),
+		slog.F("total_steps", totalSteps),
+	)
+	prompt, err = chatsanitize.ApplyAnthropicProviderToolGuard(
+		ctx, opts.Logger, provider, modelName, prompt,
+	)
+	if err != nil {
+		err = chaterror.WithClassification(
+			xerrors.Errorf("apply anthropic provider tool guard: %w", err),
+			chaterror.ClassifiedError{
+				Message:   "The chat continuation failed due to an internal state mismatch. This is not a configuration or billing issue. Start a new chat to continue.",
+				Detail:    "Anthropic replay diagnostic: match=provider_tool_guard_postcondition_failed.",
+				Kind:      codersdk.ChatErrorKindGeneric,
+				Provider:  provider,
+				Retryable: false,
+			},
+		)
+		return canonical, nil, err
+	}
+	if shouldApplyAnthropicPromptCaching(opts.Model) {
+		addAnthropicPromptCaching(prompt)
+	}
+	return canonical, prompt, nil
 }
 
 // guardedAttempt owns an attempt-scoped context and startup guard
@@ -803,21 +929,24 @@ func processStepStream(
 
 		case fantasy.StreamPartTypeReasoningStart:
 			activeReasoningContent[part.ID] = reasoningState{
-				text:    part.Delta,
-				options: part.ProviderMetadata,
+				text:      part.Delta,
+				options:   part.ProviderMetadata,
+				startedAt: dbtime.Now(),
 			}
 
 		case fantasy.StreamPartTypeReasoningDelta:
 			if active, exists := activeReasoningContent[part.ID]; exists {
 				active.text += part.Delta
-				active.options = part.ProviderMetadata
+				if len(part.ProviderMetadata) > 0 {
+					active.options = part.ProviderMetadata
+				}
 				activeReasoningContent[part.ID] = active
 			}
 			publishMessagePart(codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageReasoning(part.Delta))
 
 		case fantasy.StreamPartTypeReasoningEnd:
 			if active, exists := activeReasoningContent[part.ID]; exists {
-				if part.ProviderMetadata != nil {
+				if len(part.ProviderMetadata) > 0 {
 					active.options = part.ProviderMetadata
 				}
 				content := fantasy.ReasoningContent{
@@ -825,6 +954,8 @@ func processStepStream(
 					ProviderMetadata: active.options,
 				}
 				result.content = append(result.content, content)
+				result.reasoningStartedAt = append(result.reasoningStartedAt, active.startedAt)
+				result.reasoningCompletedAt = append(result.reasoningCompletedAt, dbtime.Now())
 				delete(activeReasoningContent, part.ID)
 			}
 		case fantasy.StreamPartTypeToolInputStart:
@@ -1262,6 +1393,8 @@ func persistPendingDynamicStep(
 		ProviderResponseID:      chatopenai.ExtractResponseIDIfStored(opts.ProviderOptions, result.providerMetadata),
 		Runtime:                 time.Since(stepStart),
 		PendingDynamicToolCalls: pending,
+		ReasoningStartedAt:      result.reasoningStartedAt,
+		ReasoningCompletedAt:    result.reasoningCompletedAt,
 	}); err != nil {
 		if errors.Is(err, ErrInterrupted) {
 			persistInterruptedStep(ctx, opts, result)
@@ -1491,14 +1624,21 @@ func flushActiveState(
 		}
 	}
 
-	// Flush partial reasoning content.
+	// Flush partial reasoning content. The matching
+	// completedAt is filled in here with the interruption
+	// time so partial reasoning shows the time spent before
+	// the interruption.
+	flushedAt := dbtime.Now()
 	for _, rs := range activeReasoning {
-		if rs.text != "" {
-			result.content = append(result.content, fantasy.ReasoningContent{
-				Text:             rs.text,
-				ProviderMetadata: rs.options,
-			})
+		if rs.text == "" && !chatsanitize.HasAnthropicSignedReasoningOptions(fantasy.ProviderOptions(rs.options)) {
+			continue
 		}
+		result.content = append(result.content, fantasy.ReasoningContent{
+			Text:             rs.text,
+			ProviderMetadata: rs.options,
+		})
+		result.reasoningStartedAt = append(result.reasoningStartedAt, rs.startedAt)
+		result.reasoningCompletedAt = append(result.reasoningCompletedAt, flushedAt)
 	}
 
 	// Flush in-progress tool calls. These haven't received a
@@ -1528,8 +1668,9 @@ func flushActiveState(
 }
 
 // persistInterruptedStep saves durable content from a partial stream.
-// Provider-executed calls without results are removed because their
-// result metadata cannot be synthesized safely.
+// Provider-executed calls without results are removed because their result
+// metadata cannot be synthesized safely, except when removal would mutate
+// signed Anthropic replay state.
 func persistInterruptedStep(
 	ctx context.Context,
 	opts RunOptions,
@@ -1611,9 +1752,11 @@ func persistInterruptedStep(
 
 	persistCtx := context.WithoutCancel(ctx)
 	if err := opts.PersistStep(persistCtx, PersistedStep{
-		Content:             content,
-		ToolCallCreatedAt:   toolCallCreatedAt,
-		ToolResultCreatedAt: toolResultCreatedAt,
+		Content:              content,
+		ToolCallCreatedAt:    toolCallCreatedAt,
+		ToolResultCreatedAt:  toolResultCreatedAt,
+		ReasoningStartedAt:   result.reasoningStartedAt,
+		ReasoningCompletedAt: result.reasoningCompletedAt,
 	}); err != nil {
 		if opts.OnInterruptedPersistError != nil {
 			opts.OnInterruptedPersistError(err)
@@ -1656,6 +1799,39 @@ func tryCompactOnExit(
 
 func isToolActive(name string, activeTools []string) bool {
 	return len(activeTools) == 0 || slices.Contains(activeTools, name)
+}
+
+// mergeNewToolNames returns activeTools augmented with any tool names
+// from newTools that are not present in oldTools and not already in
+// activeTools. This keeps newly injected tools (e.g. via PrepareTools)
+// callable even when activeTools is non-empty.
+//
+// When activeTools is empty, all tools are already active and the slice
+// is returned unchanged.
+func mergeNewToolNames(activeTools []string, oldTools, newTools []fantasy.AgentTool) []string {
+	if len(activeTools) == 0 {
+		return activeTools
+	}
+	old := make(map[string]struct{}, len(oldTools))
+	for _, t := range oldTools {
+		old[t.Info().Name] = struct{}{}
+	}
+	active := make(map[string]struct{}, len(activeTools))
+	for _, name := range activeTools {
+		active[name] = struct{}{}
+	}
+	for _, t := range newTools {
+		name := t.Info().Name
+		if _, alreadyActive := active[name]; alreadyActive {
+			continue
+		}
+		if _, existedBefore := old[name]; existedBefore {
+			continue
+		}
+		activeTools = append(activeTools, name)
+		active[name] = struct{}{}
+	}
+	return activeTools
 }
 
 // buildToolDefinitions converts AgentTool definitions into the

@@ -164,14 +164,14 @@ func TestDERPForceWebSockets(t *testing.T) {
 
 	// Set the HTTP handler to a custom one that ensures all /derp calls are
 	// WebSockets and not `Upgrade: derp`.
-	var upgradeCount int64
+	var upgradeCount atomic.Int64
 	setHandler(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/derp") {
 			up := r.Header.Get("Upgrade")
 			if up != "" && up != "websocket" {
 				t.Errorf("expected Upgrade: websocket, got %q", up)
 			} else {
-				atomic.AddInt64(&upgradeCount, 1)
+				upgradeCount.Add(1)
 			}
 		}
 
@@ -184,7 +184,7 @@ func TestDERPForceWebSockets(t *testing.T) {
 		_ = provisionerCloser.Close()
 	})
 
-	client := codersdk.New(serverURL)
+	client := codersdk.New(serverURL, codersdk.WithHTTPClient(coderdtest.NewIsolatedHTTPClient(serverURL)))
 	t.Cleanup(func() {
 		client.HTTPClient.CloseIdleConnections()
 	})
@@ -224,7 +224,7 @@ func TestDERPForceWebSockets(t *testing.T) {
 	}()
 	conn.AwaitReachable(ctx)
 
-	require.GreaterOrEqual(t, atomic.LoadInt64(&upgradeCount), int64(1), "expected at least one /derp call")
+	require.GreaterOrEqual(t, upgradeCount.Load(), int64(1), "expected at least one /derp call")
 }
 
 func TestDERPLatencyCheck(t *testing.T) {

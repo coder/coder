@@ -16,6 +16,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -696,4 +697,125 @@ func populatedAndConvertAIBridgeInterceptions(ctx context.Context, db database.S
 	}
 
 	return items, nil
+}
+
+// @Summary Get group AI budget
+// @ID get-group-ai-budget
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param group path string true "Group ID" format(uuid)
+// @Success 200 {object} codersdk.GroupAIBudget
+// @Router /api/v2/groups/{group}/ai/budget [get]
+func (api *API) groupAIBudget(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	group := httpmw.GroupParam(r)
+
+	budget, err := api.Database.GetGroupAIBudget(ctx, group.ID)
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		api.Logger.Error(ctx, "get group AI budget", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.GroupAIBudget(budget))
+}
+
+// @Summary Upsert group AI budget
+// @ID upsert-group-ai-budget
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Enterprise
+// @Param group path string true "Group ID" format(uuid)
+// @Param request body codersdk.UpsertGroupAIBudgetRequest true "Upsert group AI budget request"
+// @Success 200 {object} codersdk.GroupAIBudget
+// @Router /api/v2/groups/{group}/ai/budget [put]
+func (api *API) upsertGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx               = r.Context()
+		group             = httpmw.GroupParam(r)
+		auditor           = api.AGPL.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.AuditableGroupAiBudget](rw, &audit.RequestParams{
+			Audit:          *auditor,
+			Log:            api.Logger,
+			Request:        r,
+			Action:         database.AuditActionWrite,
+			OrganizationID: group.OrganizationID,
+		})
+	)
+	defer commitAudit()
+
+	var req codersdk.UpsertGroupAIBudgetRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	// Capture the existing budget (if any) so the audit log records the
+	// before-state. An absent row leaves aReq.Old as the zero value.
+	oldBudget, err := api.Database.GetGroupAIBudget(ctx, group.ID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		api.Logger.Error(ctx, "fetch existing group AI budget for audit", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	aReq.Old = oldBudget.Auditable(group.Name)
+
+	newBudget, err := api.Database.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{
+		GroupID:          group.ID,
+		SpendLimitMicros: req.SpendLimitMicros,
+	})
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		api.Logger.Error(ctx, "upsert group AI budget", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	aReq.New = newBudget.Auditable(group.Name)
+
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.GroupAIBudget(newBudget))
+}
+
+// @Summary Delete group AI budget
+// @ID delete-group-ai-budget
+// @Security CoderSessionToken
+// @Tags Enterprise
+// @Param group path string true "Group ID" format(uuid)
+// @Success 204
+// @Router /api/v2/groups/{group}/ai/budget [delete]
+func (api *API) deleteGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx               = r.Context()
+		group             = httpmw.GroupParam(r)
+		auditor           = api.AGPL.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.AuditableGroupAiBudget](rw, &audit.RequestParams{
+			Audit:          *auditor,
+			Log:            api.Logger,
+			Request:        r,
+			Action:         database.AuditActionDelete,
+			OrganizationID: group.OrganizationID,
+		})
+	)
+	defer commitAudit()
+
+	deleted, err := api.Database.DeleteGroupAIBudget(ctx, group.ID)
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		api.Logger.Error(ctx, "delete group AI budget", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	aReq.Old = deleted.Auditable(group.Name)
+
+	rw.WriteHeader(http.StatusNoContent)
 }

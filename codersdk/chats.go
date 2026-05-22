@@ -31,7 +31,7 @@ const ChatCompactionThresholdKeyPrefix = "chat_compaction_threshold_pct:"
 // associated with a single chat. This limit prevents unbounded
 // growth in the chat_file_links table. It is easier to raise
 // this limit than to lower it.
-const MaxChatFileIDs = 20
+const MaxChatFileIDs = 50
 
 // MaxChatFileSizeBytes is the upload-endpoint cap for chat
 // attachments.
@@ -109,6 +109,8 @@ type Chat struct {
 	ID                uuid.UUID          `json:"id" format:"uuid"`
 	OrganizationID    uuid.UUID          `json:"organization_id" format:"uuid"`
 	OwnerID           uuid.UUID          `json:"owner_id" format:"uuid"`
+	OwnerUsername     string             `json:"owner_username,omitempty"`
+	OwnerName         string             `json:"owner_name,omitempty"`
 	WorkspaceID       *uuid.UUID         `json:"workspace_id,omitempty" format:"uuid"`
 	BuildID           *uuid.UUID         `json:"build_id,omitempty" format:"uuid"`
 	AgentID           *uuid.UUID         `json:"agent_id,omitempty" format:"uuid"`
@@ -254,20 +256,27 @@ type ChatMessagePart struct {
 	MCPServerConfigID uuid.NullUUID       `json:"mcp_server_config_id,omitempty" format:"uuid" variants:"tool-call?,tool-result?"`
 	Args              json.RawMessage     `json:"args,omitempty" variants:"tool-call?"`
 	ArgsDelta         string              `json:"args_delta,omitempty" variants:"tool-call?"`
-	Result            json.RawMessage     `json:"result,omitempty" variants:"tool-result?"`
-	ResultDelta       string              `json:"result_delta,omitempty"`
-	IsError           bool                `json:"is_error,omitempty" variants:"tool-result?"`
-	IsMedia           bool                `json:"is_media,omitempty" variants:"tool-result?"`
-	SourceID          string              `json:"source_id,omitempty" variants:"source?"`
-	URL               string              `json:"url" variants:"source"`
-	Title             string              `json:"title,omitempty" variants:"source?"`
-	MediaType         string              `json:"media_type" variants:"file"`
-	Name              string              `json:"name,omitempty" variants:"file?"`
-	Data              []byte              `json:"data,omitempty" variants:"file?"`
-	FileID            uuid.NullUUID       `json:"file_id,omitempty" format:"uuid" variants:"file?"`
-	FileName          string              `json:"file_name" variants:"file-reference"`
-	StartLine         int                 `json:"start_line" variants:"file-reference"`
-	EndLine           int                 `json:"end_line" variants:"file-reference"`
+	// ParsedCommands holds parsed programs from an execute tool call's
+	// shell command, one entry per simple command in source order. Each
+	// entry is [program] or [program, arg] where arg is the first non-flag
+	// positional argument. Only populated when ToolName is "execute" and
+	// the command parses successfully; nil otherwise.
+	ParsedCommands [][]string      `json:"parsed_commands,omitempty" variants:"tool-call?"`
+	Result         json.RawMessage `json:"result,omitempty" variants:"tool-result?"`
+	ResultDelta    string          `json:"result_delta,omitempty" variants:"tool-result?"`
+	ResultReset    bool            `json:"result_reset,omitempty" variants:"tool-result?"`
+	IsError        bool            `json:"is_error,omitempty" variants:"tool-result?"`
+	IsMedia        bool            `json:"is_media,omitempty" variants:"tool-result?"`
+	SourceID       string          `json:"source_id,omitempty" variants:"source?"`
+	URL            string          `json:"url" variants:"source"`
+	Title          string          `json:"title,omitempty" variants:"source?"`
+	MediaType      string          `json:"media_type" variants:"file"`
+	Name           string          `json:"name,omitempty" variants:"file?"`
+	Data           []byte          `json:"data,omitempty" variants:"file?"`
+	FileID         uuid.NullUUID   `json:"file_id,omitempty" format:"uuid" variants:"file?"`
+	FileName       string          `json:"file_name" variants:"file-reference"`
+	StartLine      int             `json:"start_line" variants:"file-reference"`
+	EndLine        int             `json:"end_line" variants:"file-reference"`
 	// The code content from the diff that was commented on.
 	Content string `json:"content" variants:"file-reference"`
 	// ProviderMetadata holds provider-specific response metadata
@@ -277,10 +286,20 @@ type ChatMessagePart struct {
 	// ProviderExecuted indicates the tool call was executed by
 	// the provider (e.g. Anthropic computer use).
 	ProviderExecuted bool `json:"provider_executed,omitempty" variants:"tool-call?,tool-result?"`
-	// CreatedAt records when this part was produced. Present on
-	// tool-call and tool-result parts so the frontend can compute
-	// tool execution duration.
-	CreatedAt *time.Time `json:"created_at,omitempty" format:"date-time" variants:"tool-call?,tool-result?"`
+	// CreatedAt is the timestamp this part carries. The semantics
+	// depend on the part type: for tool-call and tool-result parts
+	// it is the time the call was emitted or the result was
+	// produced (tool duration is the result's created_at minus the
+	// call's created_at); for reasoning parts it is the time
+	// reasoning started streaming.
+	CreatedAt *time.Time `json:"created_at,omitempty" format:"date-time" variants:"tool-call?,tool-result?,reasoning?"`
+	// CompletedAt is the time a reasoning part finished streaming,
+	// so reasoning duration can be computed as completed_at minus
+	// created_at. For interrupted reasoning, this is the
+	// interruption time. Absent when reasoning timestamp data was
+	// not recorded (e.g. messages persisted before this feature
+	// was added).
+	CompletedAt *time.Time `json:"completed_at,omitempty" format:"date-time" variants:"reasoning?"`
 	// ContextFilePath is the absolute path of a file loaded into
 	// the LLM context (e.g. an AGENTS.md instruction file).
 	ContextFilePath string `json:"context_file_path" variants:"context-file"`
@@ -327,9 +346,11 @@ type ChatMessagePart struct {
 // StripInternal removes internal-only fields that must not be
 // sent to API clients. Call before publishing via REST or SSE.
 //
-// Note: ArgsDelta and ResultDelta are intentionally preserved.
-// They are streaming-only fields consumed by the frontend via
-// SSE message_part events (see processStepStream in chatloop).
+// Note: ArgsDelta, ResultDelta, and ResultReset are intentionally preserved.
+// They are streaming-only fields consumed by the frontend via SSE
+// message_part events. ArgsDelta is produced by processStepStream in
+// chatloop; ResultDelta and ResultReset are produced by the advisor
+// streaming callbacks in chatd.
 func (p *ChatMessagePart) StripInternal() {
 	p.ProviderMetadata = nil
 	if p.FileID.Valid {
@@ -518,6 +539,10 @@ type CreateChatMessageRequest struct {
 // EditChatMessageRequest is the request to edit a user message in a chat.
 type EditChatMessageRequest struct {
 	Content []ChatInputPart `json:"content"`
+	// ModelConfigID, when set, overrides the model used for the
+	// replacement user message and the assistant turn that follows.
+	// When nil the original message's model is preserved.
+	ModelConfigID *uuid.UUID `json:"model_config_id,omitempty" format:"uuid"`
 }
 
 // CreateChatMessageResponse is the response from adding a message to a chat.
@@ -546,6 +571,23 @@ type ChatMessagesResponse struct {
 	Messages       []ChatMessage       `json:"messages"`
 	QueuedMessages []ChatQueuedMessage `json:"queued_messages"`
 	HasMore        bool                `json:"has_more"`
+}
+
+// ChatPrompt is a single user-authored prompt in a chat, returned by
+// GET /api/experimental/chats/{chat}/prompts. The text field contains
+// the concatenated text payload of the underlying chat message; non-text
+// parts (tool calls, files, attachments) are omitted by the server.
+type ChatPrompt struct {
+	ID   int64  `json:"id"`
+	Text string `json:"text"`
+}
+
+// ChatPromptsResponse is the payload of
+// GET /api/experimental/chats/{chat}/prompts. Prompts are returned
+// newest first so the client can index directly into the slice for
+// up/down arrow history cycling.
+type ChatPromptsResponse struct {
+	Prompts []ChatPrompt `json:"prompts"`
 }
 
 // ChatModelProviderUnavailableReason explains why a provider cannot be used.
@@ -1078,6 +1120,31 @@ type UpdateChatProviderConfigRequest struct {
 	AllowCentralAPIKeyFallback *bool   `json:"allow_central_api_key_fallback,omitempty"`
 }
 
+// AIProviderSummary is provider metadata embedded in other API responses.
+type AIProviderSummary struct {
+	ID          uuid.UUID      `json:"id" format:"uuid"`
+	Type        AIProviderType `json:"type"`
+	Name        string         `json:"name"`
+	DisplayName string         `json:"display_name"`
+	Enabled     bool           `json:"enabled"`
+	Deleted     bool           `json:"deleted"`
+}
+
+// UserAIProviderKeyConfig is a provider summary from the current user's
+// perspective. It reports key presence but never returns key material.
+type UserAIProviderKeyConfig struct {
+	Provider          AIProviderSummary `json:"provider"`
+	HasUserAPIKey     bool              `json:"has_user_api_key"`
+	HasProviderAPIKey bool              `json:"has_provider_api_key"`
+	BYOKEnabled       bool              `json:"byok_enabled"`
+}
+
+// CreateUserAIProviderKeyRequest creates or replaces a user's API key
+// for an AI provider.
+type CreateUserAIProviderKeyRequest struct {
+	APIKey string `json:"api_key"`
+}
+
 // UserChatProviderConfig is a summary of a provider that allows
 // user-supplied keys, as seen from the current user's perspective.
 type UserChatProviderConfig struct {
@@ -1086,6 +1153,7 @@ type UserChatProviderConfig struct {
 	DisplayName              string    `json:"display_name"`
 	HasUserAPIKey            bool      `json:"has_user_api_key"`
 	HasCentralAPIKeyFallback bool      `json:"has_central_api_key_fallback"`
+	BYOKEnabled              bool      `json:"byok_enabled"`
 }
 
 // CreateUserChatProviderKeyRequest creates or replaces a user's API key
@@ -1098,6 +1166,7 @@ type CreateUserChatProviderKeyRequest struct {
 type ChatModelConfig struct {
 	ID                   uuid.UUID            `json:"id" format:"uuid"`
 	Provider             string               `json:"provider"`
+	AIProviderID         *uuid.UUID           `json:"ai_provider_id,omitempty" format:"uuid"`
 	Model                string               `json:"model"`
 	DisplayName          string               `json:"display_name"`
 	Enabled              bool                 `json:"enabled"`
@@ -1307,7 +1376,8 @@ func (c *ChatModelCallConfig) UnmarshalJSON(data []byte) error {
 
 // CreateChatModelConfigRequest creates a chat model config.
 type CreateChatModelConfigRequest struct {
-	Provider             string               `json:"provider"`
+	Provider             string               `json:"provider,omitempty"`
+	AIProviderID         *uuid.UUID           `json:"ai_provider_id,omitempty" format:"uuid"`
 	Model                string               `json:"model"`
 	DisplayName          string               `json:"display_name,omitempty"`
 	Enabled              *bool                `json:"enabled,omitempty"`
@@ -1320,6 +1390,7 @@ type CreateChatModelConfigRequest struct {
 // UpdateChatModelConfigRequest updates a chat model config.
 type UpdateChatModelConfigRequest struct {
 	Provider             string               `json:"provider,omitempty"`
+	AIProviderID         *uuid.UUID           `json:"ai_provider_id,omitempty" format:"uuid"`
 	Model                string               `json:"model,omitempty"`
 	DisplayName          string               `json:"display_name,omitempty"`
 	Enabled              *bool                `json:"enabled,omitempty"`
@@ -1933,6 +2004,33 @@ type ChatUsageLimitConfigResponse struct {
 	GroupOverrides     []ChatUsageLimitGroupOverride `json:"group_overrides"`
 }
 
+type ChatRole string
+
+const (
+	ChatRoleRead    ChatRole = "read"
+	ChatRoleDeleted ChatRole = ""
+)
+
+type ChatUser struct {
+	MinimalUser
+	Role ChatRole `json:"role" enums:"read"`
+}
+
+type ChatGroup struct {
+	Group
+	Role ChatRole `json:"role" enums:"read"`
+}
+
+type ChatACL struct {
+	Users  []ChatUser  `json:"users"`
+	Groups []ChatGroup `json:"groups"`
+}
+
+type UpdateChatACL struct {
+	UserRoles  map[string]ChatRole `json:"user_roles,omitempty"`
+	GroupRoles map[string]ChatRole `json:"group_roles,omitempty"`
+}
+
 // ListChatsOptions are optional parameters for ListChats.
 type ListChatsOptions struct {
 	Query  string
@@ -2045,6 +2143,51 @@ func (c *ExperimentalClient) DeleteChatProvider(ctx context.Context, providerID 
 		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+// ListUserAIProviderKeyConfigs returns user-scoped AI provider key configs.
+func (c *ExperimentalClient) ListUserAIProviderKeyConfigs(ctx context.Context, user string) ([]UserAIProviderKeyConfig, error) {
+	res, err := c.Request(ctx, http.MethodGet, userAIProviderKeysPath(user), nil)
+	if err != nil {
+		return nil, xerrors.Errorf("list user AI provider key configs: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var configs []UserAIProviderKeyConfig
+	return configs, json.NewDecoder(res.Body).Decode(&configs)
+}
+
+// UpsertUserAIProviderKey creates or replaces a user API key for an AI provider.
+func (c *ExperimentalClient) UpsertUserAIProviderKey(ctx context.Context, user string, providerID uuid.UUID, req CreateUserAIProviderKeyRequest) (UserAIProviderKeyConfig, error) {
+	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("%s/%s", userAIProviderKeysPath(user), providerID), req)
+	if err != nil {
+		return UserAIProviderKeyConfig{}, xerrors.Errorf("upsert user AI provider key: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return UserAIProviderKeyConfig{}, ReadBodyAsError(res)
+	}
+	var config UserAIProviderKeyConfig
+	return config, json.NewDecoder(res.Body).Decode(&config)
+}
+
+// DeleteUserAIProviderKey deletes a user API key for an AI provider.
+func (c *ExperimentalClient) DeleteUserAIProviderKey(ctx context.Context, user string, providerID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("%s/%s", userAIProviderKeysPath(user), providerID), nil)
+	if err != nil {
+		return xerrors.Errorf("delete user AI provider key: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+func userAIProviderKeysPath(user string) string {
+	return fmt.Sprintf("/api/experimental/users/%s/ai-provider-keys", url.PathEscape(user))
 }
 
 // ListUserChatProviderConfigs returns user-scoped chat provider configs.
@@ -2908,6 +3051,31 @@ func (c *ExperimentalClient) GetChat(ctx context.Context, chatID uuid.UUID) (Cha
 	return chat, json.NewDecoder(res.Body).Decode(&chat)
 }
 
+func (c *ExperimentalClient) GetChatACL(ctx context.Context, chatID uuid.UUID) (ChatACL, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/acl", chatID), nil)
+	if err != nil {
+		return ChatACL{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatACL{}, ReadBodyAsError(res)
+	}
+	var acl ChatACL
+	return acl, json.NewDecoder(res.Body).Decode(&acl)
+}
+
+func (c *ExperimentalClient) UpdateChatACL(ctx context.Context, chatID uuid.UUID, req UpdateChatACL) error {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/chats/%s/acl", chatID), req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
 // GetChatMessages returns the messages and queued messages for a chat.
 // ChatMessagesPaginationOptions are optional pagination params for
 // GetChatMessages.
@@ -2950,6 +3118,41 @@ func (c *ExperimentalClient) GetChatMessages(ctx context.Context, chatID uuid.UU
 		return ChatMessagesResponse{}, ReadBodyAsError(res)
 	}
 	var resp ChatMessagesResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// ChatPromptsOptions are optional query parameters for GetChatPrompts.
+type ChatPromptsOptions struct {
+	// Limit caps the number of prompts returned. The server enforces a
+	// minimum of 1 and a maximum of 2000; passing 0 (or negative)
+	// applies the server-side default of 500.
+	Limit int
+}
+
+// GetChatPrompts returns the user prompts for a chat in newest-first
+// order. It is a thin endpoint dedicated to the composer's prompt
+// history cycle: only user-visible user messages are included, and
+// only their text parts (concatenated in the original order) are
+// returned. Whitespace-only prompts are filtered server-side so the
+// caller never has to skip blank entries while cycling.
+func (c *ExperimentalClient) GetChatPrompts(ctx context.Context, chatID uuid.UUID, opts *ChatPromptsOptions) (ChatPromptsResponse, error) {
+	reqOpts := []RequestOption{}
+	if opts != nil && opts.Limit > 0 {
+		reqOpts = append(reqOpts, func(r *http.Request) {
+			q := r.URL.Query()
+			q.Set("limit", strconv.Itoa(opts.Limit))
+			r.URL.RawQuery = q.Encode()
+		})
+	}
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/prompts", chatID), nil, reqOpts...)
+	if err != nil {
+		return ChatPromptsResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatPromptsResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatPromptsResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 

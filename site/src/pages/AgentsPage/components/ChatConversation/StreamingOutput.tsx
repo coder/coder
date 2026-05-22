@@ -7,6 +7,7 @@ import {
 	MessageContent,
 	Shimmer,
 } from "../ChatElements";
+import { TranscriptRow } from "../ChatElements/TranscriptRow";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
 import { ChatStatusCallout } from "./ChatStatusCallout";
 import { BlockList } from "./ConversationTimeline";
@@ -29,14 +30,16 @@ const hasTextOrReasoningBlock = (blocks: readonly RenderBlock[]): boolean =>
 
 /**
  * Placeholder shown during streaming before text or reasoning
- * blocks arrive. Uses the same shimmer animation as the
- * collapsible thinking disclosure label.
+ * blocks arrive. Uses the same shimmer animation and typography
+ * as the ChatStatusCallout status placeholder.
  */
 const StreamingThinkingPlaceholder: FC = () => (
-	<div className="flex w-full items-center gap-2 py-0.5 text-content-secondary">
-		<Shimmer as="span" className="text-sm">
-			Thinking
-		</Shimmer>
+	<div data-transcript-row="" className="text-content-secondary">
+		<TranscriptRow className="w-full gap-2">
+			<Shimmer as="span" className="text-[13px] leading-relaxed">
+				Thinking
+			</Shimmer>
+		</TranscriptRow>
 	</div>
 );
 
@@ -92,7 +95,7 @@ export const StreamingOutput: FC<{
 		<ConversationItem {...conversationItemProps}>
 			<Message className="w-full">
 				<MessageContent className="whitespace-normal">
-					<div className="space-y-3">
+					<div className="relative flex flex-col gap-2 overflow-visible">
 						{shouldShowBlocks && (
 							<BlockList
 								blocks={blocks}

@@ -312,7 +312,7 @@ func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
-// @Param q query string false "Search query"
+// @Param q query string false "Search query. Supports title:<substring> (case-insensitive, quote multi-word values), archived:bool, has_unread:bool, pr_status:<draft\|open\|merged\|closed> as repeated or comma-separated values, and diff_url:<url> (quote URLs). Bare terms are not supported; use title:<value> for title filtering."
 // @Param label query string false "Filter by label as key:value. Repeat for multiple (AND logic)."
 // @Success 200 {array} codersdk.Chat
 // @Router /api/experimental/chats [get]
@@ -364,10 +364,15 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	params := database.GetChatsParams{
-		OwnerID:     apiKey.UserID,
-		Archived:    searchParams.Archived,
-		AfterID:     paginationParams.AfterID,
-		LabelFilter: labelFilter,
+		OwnedOnly:           true,
+		ViewerID:            apiKey.UserID,
+		Archived:            searchParams.Archived,
+		AfterID:             paginationParams.AfterID,
+		LabelFilter:         labelFilter,
+		DiffURL:             searchParams.DiffURL,
+		TitleQuery:          searchParams.TitleQuery,
+		HasUnread:           searchParams.HasUnread,
+		PullRequestStatuses: searchParams.PullRequestStatuses,
 		// #nosec G115 - Pagination offsets are small and fit in int32
 		OffsetOpt: int32(paginationParams.Offset),
 		// #nosec G115 - Pagination limits are small and fit in int32
@@ -2090,6 +2095,78 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// @Summary List chat user prompts
+// @ID list-chat-user-prompts
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Param chat path string true "Chat ID" format(uuid)
+// @Param limit query int false "Page size, 0 to 2000. 0 (the default) means the server-side default of 500."
+// @Success 200 {object} codersdk.ChatPromptsResponse
+// @Router /api/experimental/chats/{chat}/prompts [get]
+// @Description Experimental: this endpoint is subject to change.
+// @Description
+// @Description Returns the user-authored prompts in a chat, newest first,
+// @Description with each prompt's text parts concatenated in the order they
+// @Description were authored. Used by the composer to power the up/down
+// @Description arrow prompt-history cycle without paging through every
+// @Description message in the chat.
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
+func (api *API) getChatUserPrompts(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat := httpmw.ChatParam(r)
+	chatID := chat.ID
+
+	queryParams := r.URL.Query()
+	parser := httpapi.NewQueryParamParser()
+	// Default 0 sentinel; the SQL query treats 0 as "use the built-in
+	// default of 500" via COALESCE(NULLIF(@limit_val, 0), 500). The
+	// SDK guards opts.Limit > 0 so callers using the typed client only
+	// reach here with an explicit value; raw HTTP callers can omit the
+	// parameter (or pass 0) to opt into the default.
+	limit := parser.PositiveInt32(queryParams, 0, "limit")
+	if len(parser.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Query parameters have invalid values.",
+			Validations: parser.Errors,
+		})
+		return
+	}
+	// PositiveInt32 already rejects negatives via parser.Errors above,
+	// so we only need to cap the upper bound here.
+	if limit > 2000 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid limit parameter (0-2000).",
+		})
+		return
+	}
+
+	rows, err := api.Database.GetChatUserPromptsByChatID(ctx, database.GetChatUserPromptsByChatIDParams{
+		ChatID:   chatID,
+		LimitVal: limit,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get chat user prompts.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	prompts := make([]codersdk.ChatPrompt, 0, len(rows))
+	for _, row := range rows {
+		prompts = append(prompts, codersdk.ChatPrompt{
+			ID:   row.ID,
+			Text: row.Text,
+		})
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatPromptsResponse{
+		Prompts: prompts,
+	})
+}
+
 // authorizeChatWorkspaceExec enforces the workspace-level permissions
 // shared by the chat stream endpoints that proxy a live websocket into
 // the workspace agent (currently /stream/git and /stream/desktop).
@@ -2503,6 +2580,11 @@ func (api *API) patchChat(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
 
+	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
 	aReq, commitAudit := audit.InitRequest[database.Chat](rw, &audit.RequestParams{
 		Audit:   *api.Auditor.Load(),
 		Log:     api.Logger,
@@ -2818,7 +2900,7 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	// Sending a message triggers LLM inference, requiring update
 	// permission on the org-scoped chat resource.
 	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
-		httpapi.Forbidden(rw)
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -3012,6 +3094,11 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 	apiKey := httpmw.APIKey(r)
 	chat := httpmw.ChatParam(r)
 
+	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
 	// Only the chat owner may edit messages. See postChatMessages
 	// for the security rationale.
 	if apiKey.UserID != chat.OwnerID {
@@ -3060,11 +3147,17 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	editModelConfigID := uuid.Nil
+	if req.ModelConfigID != nil {
+		editModelConfigID = *req.ModelConfigID
+	}
+
 	editResult, editErr := api.chatDaemon.EditMessage(ctx, chatd.EditMessageOptions{
 		ChatID:          chat.ID,
 		CreatedBy:       apiKey.UserID,
 		EditedMessageID: messageID,
 		Content:         contentBlocks,
+		ModelConfigID:   editModelConfigID,
 	})
 	if editErr != nil {
 		if maybeWriteLimitErr(ctx, rw, editErr) {
@@ -3084,6 +3177,10 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		case xerrors.Is(editErr, chatd.ErrEditedMessageNotUser):
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Only user messages can be edited.",
+			})
+		case xerrors.Is(editErr, chatd.ErrInvalidModelConfigID):
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid model config ID.",
 			})
 		default:
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -3115,6 +3212,11 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 	ctx := r.Context()
 	chat := httpmw.ChatParam(r)
 	chatID := chat.ID
+
+	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
 
 	queuedMessageIDStr := chi.URLParam(r, "queuedMessage")
 	queuedMessageID, err := strconv.ParseInt(queuedMessageIDStr, 10, 64)
@@ -3155,7 +3257,7 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 	// Promoting a queued message triggers LLM inference,
 	// requiring update permission on the org-scoped chat resource.
 	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
-		httpapi.Forbidden(rw)
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 
@@ -3326,11 +3428,13 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 
 	go httpapi.HeartbeatClose(ctx, logger, cancel, conn)
 
-	// Mark the chat as read when the stream connects and again
-	// when it disconnects so we avoid per-message API calls while
-	// messages are actively streaming.
-	api.markChatAsRead(ctx, chatID)
-	defer api.markChatAsRead(context.WithoutCancel(ctx), chatID)
+	// The last_read_message_id field is owner-scoped. Shared readers
+	// intentionally lack chat update permission, so their streams must not
+	// update it.
+	if chat.OwnerID == httpmw.APIKey(r).UserID {
+		api.markChatAsRead(ctx, chatID)
+		defer api.markChatAsRead(context.WithoutCancel(ctx), chatID)
+	}
 
 	encoder := json.NewEncoder(wsNetConn)
 
@@ -3415,6 +3519,11 @@ func (api *API) interruptChat(rw http.ResponseWriter, r *http.Request) {
 	chat := httpmw.ChatParam(r)
 	chatID := chat.ID
 	logger := api.Logger.Named("chat_interrupt").With(slog.F("chat_id", chatID))
+
+	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
 
 	if api.chatDaemon != nil {
 		chat = api.chatDaemon.InterruptChat(ctx, chat)
@@ -3734,6 +3843,53 @@ func (api *API) chatStartWorkspace(
 				Detail:  err.Error(),
 			})
 		}
+		return codersdk.WorkspaceBuild{}, xerrors.Errorf("create workspace build: %w", err)
+	}
+
+	return apiBuild, nil
+}
+
+// chatStopWorkspace stops a workspace by creating a new build with the
+// "stop" transition. It mirrors chatStartWorkspace, without start-only
+// active-version behavior.
+func (api *API) chatStopWorkspace(
+	ctx context.Context,
+	ownerID uuid.UUID,
+	workspaceID uuid.UUID,
+	req codersdk.CreateWorkspaceBuildRequest,
+) (codersdk.WorkspaceBuild, error) {
+	actor, _, err := httpmw.UserRBACSubject(ctx, api.Database, ownerID, rbac.ScopeAll)
+	if err != nil {
+		return codersdk.WorkspaceBuild{}, xerrors.Errorf("load user authorization: %w", err)
+	}
+	ctx = dbauthz.As(ctx, actor)
+
+	workspace, err := api.Database.GetWorkspaceByID(ctx, workspaceID)
+	if err != nil {
+		return codersdk.WorkspaceBuild{}, xerrors.Errorf("get workspace: %w", err)
+	}
+
+	req.Transition = codersdk.WorkspaceTransitionStop
+
+	// Build a synthetic API key so postWorkspaceBuildsInternal can
+	// record the correct initiator.
+	syntheticKey := database.APIKey{
+		UserID: ownerID,
+	}
+
+	apiBuild, err := api.postWorkspaceBuildsInternal(
+		ctx,
+		syntheticKey,
+		workspace,
+		req,
+		func(action policy.Action, object rbac.Objecter) bool {
+			// Authorization is handled by dbauthz on the context.
+			authErr := api.HTTPAuth.Authorizer.Authorize(ctx, actor, action, object.RBACObject())
+			return authErr == nil
+		},
+		audit.WorkspaceBuildBaggage{},
+	)
+	if err != nil {
 		return codersdk.WorkspaceBuild{}, xerrors.Errorf("create workspace build: %w", err)
 	}
 
@@ -6240,6 +6396,179 @@ func convertChatMessages(messages []database.ChatMessage) []codersdk.ChatMessage
 	return result
 }
 
+func parseUserAIProviderID(r *http.Request) (uuid.UUID, error) {
+	return uuid.Parse(chi.URLParam(r, "aiProvider"))
+}
+
+func convertAIProviderSummary(provider database.AIProvider) codersdk.AIProviderSummary {
+	displayName := provider.Name
+	if provider.DisplayName.Valid && provider.DisplayName.String != "" {
+		displayName = provider.DisplayName.String
+	}
+	return codersdk.AIProviderSummary{
+		ID:          provider.ID,
+		Type:        codersdk.AIProviderType(provider.Type),
+		Name:        provider.Name,
+		DisplayName: displayName,
+		Enabled:     provider.Enabled,
+		Deleted:     provider.Deleted,
+	}
+}
+
+func (api *API) listUserAIProviderKeyConfigs(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	targetUser := httpmw.UserParam(r)
+	//nolint:gocritic // Users can list limited provider metadata to manage their own AI provider keys.
+	metadataCtx := dbauthz.AsAIProviderMetadataReader(ctx)
+	providers, err := api.Database.GetAIProviders(metadataCtx, database.GetAIProvidersParams{IncludeDisabled: true})
+	if err != nil {
+		api.Logger.Error(ctx, "failed to list user AI provider configs", slog.Error(err), slog.F("user_id", targetUser.ID))
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{Message: "Failed to list AI providers."})
+		return
+	}
+	keys, err := api.Database.GetUserAIProviderKeysByUserID(ctx, targetUser.ID)
+	if err != nil {
+		api.Logger.Error(ctx, "failed to list user AI provider keys", slog.Error(err), slog.F("user_id", targetUser.ID))
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{Message: "Failed to list user AI provider keys."})
+		return
+	}
+
+	keysByProviderID := make(map[uuid.UUID]struct{}, len(keys))
+	for _, key := range keys {
+		keysByProviderID[key.AIProviderID] = struct{}{}
+	}
+
+	visibleProviders := make([]database.AIProvider, 0, len(providers))
+	visibleProviderIDs := make([]uuid.UUID, 0, len(providers))
+	for _, provider := range providers {
+		_, hasUserKey := keysByProviderID[provider.ID]
+		if !provider.Enabled && !hasUserKey {
+			continue
+		}
+		visibleProviders = append(visibleProviders, provider)
+		visibleProviderIDs = append(visibleProviderIDs, provider.ID)
+	}
+
+	providerKeysByProviderID := make(map[uuid.UUID]struct{}, len(visibleProviderIDs))
+	if len(visibleProviderIDs) > 0 {
+		providerKeyIDs, err := api.Database.GetAIProviderKeyPresence(metadataCtx, visibleProviderIDs)
+		if err != nil {
+			api.Logger.Error(ctx, "failed to list AI provider key presence", slog.Error(err), slog.F("user_id", targetUser.ID))
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{Message: "Failed to list AI provider keys."})
+			return
+		}
+		for _, providerID := range providerKeyIDs {
+			providerKeysByProviderID[providerID] = struct{}{}
+		}
+	}
+
+	byokEnabled := api.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value()
+	configs := make([]codersdk.UserAIProviderKeyConfig, 0, len(visibleProviders))
+	for _, provider := range visibleProviders {
+		_, hasUserKey := keysByProviderID[provider.ID]
+		_, hasProviderKey := providerKeysByProviderID[provider.ID]
+		configs = append(configs, codersdk.UserAIProviderKeyConfig{
+			Provider:          convertAIProviderSummary(provider),
+			HasUserAPIKey:     hasUserKey,
+			HasProviderAPIKey: hasProviderKey,
+			BYOKEnabled:       byokEnabled,
+		})
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, configs)
+}
+
+func (api *API) upsertUserAIProviderKey(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value() {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{Message: "BYOK is disabled."})
+		return
+	}
+	targetUser := httpmw.UserParam(r)
+	providerID, err := parseUserAIProviderID(r)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Invalid AI provider ID."})
+		return
+	}
+	//nolint:gocritic // Users can attach their own key to an enabled provider without AI provider admin permissions.
+	metadataCtx := dbauthz.AsAIProviderMetadataReader(ctx)
+	provider, err := api.Database.GetAIProviderByID(metadataCtx, providerID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{Message: "AI provider not found."})
+			return
+		}
+		api.Logger.Error(ctx, "failed to get AI provider", slog.Error(err), slog.F("ai_provider_id", providerID))
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{Message: "Failed to get AI provider."})
+		return
+	}
+	if !provider.Enabled {
+		httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{Message: "AI provider is disabled."})
+		return
+	}
+	var req codersdk.CreateUserAIProviderKeyRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	if err := validateChatProviderAPIKeySize(req.APIKey); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "API key too large.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if req.APIKey == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "API key is required."})
+		return
+	}
+	if strings.TrimSpace(req.APIKey) != req.APIKey {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "API key must not contain leading or trailing whitespace."})
+		return
+	}
+	providerKeys, err := api.Database.GetAIProviderKeyPresence(metadataCtx, []uuid.UUID{providerID})
+	if err != nil {
+		api.Logger.Error(ctx, "failed to list AI provider key presence", slog.Error(err), slog.F("ai_provider_id", providerID))
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{Message: "Failed to list AI provider keys."})
+		return
+	}
+	now := api.Clock.Now()
+	_, err = api.Database.UpsertUserAIProviderKey(ctx, database.UpsertUserAIProviderKeyParams{
+		ID:           uuid.New(),
+		UserID:       targetUser.ID,
+		AIProviderID: providerID,
+		APIKey:       req.APIKey,
+		ApiKeyKeyID:  sql.NullString{},
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	})
+	if err != nil {
+		api.Logger.Error(ctx, "failed to update user AI provider key", slog.Error(err), slog.F("user_id", targetUser.ID), slog.F("ai_provider_id", providerID))
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{Message: "Failed to update user AI provider key."})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserAIProviderKeyConfig{
+		Provider:          convertAIProviderSummary(provider),
+		HasUserAPIKey:     true,
+		HasProviderAPIKey: len(providerKeys) > 0,
+		BYOKEnabled:       true,
+	})
+}
+
+func (api *API) deleteUserAIProviderKey(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	targetUser := httpmw.UserParam(r)
+	providerID, err := parseUserAIProviderID(r)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Invalid AI provider ID."})
+		return
+	}
+	if err := api.Database.DeleteUserAIProviderKey(ctx, database.DeleteUserAIProviderKeyParams{UserID: targetUser.ID, AIProviderID: providerID}); err != nil {
+		api.Logger.Error(ctx, "failed to delete user AI provider key", slog.Error(err), slog.F("user_id", targetUser.ID), slog.F("ai_provider_id", providerID))
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{Message: "Failed to delete user AI provider key."})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
+}
+
 func (api *API) listChatProviders(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	//nolint:gocritic // System context required to read enabled chat providers.
@@ -6734,6 +7063,7 @@ func (api *API) listUserChatProviderConfigs(rw http.ResponseWriter, r *http.Requ
 				provider,
 				hasUserAPIKey,
 				hasCentralAPIKeyFallback,
+				api.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value(),
 			),
 		)
 	}
@@ -6822,6 +7152,7 @@ func (api *API) upsertUserChatProviderKey(rw http.ResponseWriter, r *http.Reques
 			provider,
 			true,
 			hasCentralAPIKeyFallback,
+			api.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value(),
 		),
 	)
 }
@@ -6896,14 +7227,29 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	provider := normalizeChatProvider(req.Provider)
-	if provider == "" {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid provider.",
-			Detail:  chatProviderValidationDetail(),
+	if req.AIProviderID == nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "AI provider ID is required."})
+		return
+	}
+	//nolint:gocritic // The route already authorized chat model config updates.
+	aiProvider, err := api.Database.GetAIProviderByID(dbauthz.AsChatd(ctx), *req.AIProviderID)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{Message: "AI provider is not configured."})
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get AI provider.",
+			Detail:  err.Error(),
 		})
 		return
 	}
+	if !aiProvider.Enabled {
+		httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{Message: "AI provider is disabled."})
+		return
+	}
+	provider := string(aiProvider.Type)
+	aiProviderID := uuid.NullUUID{UUID: aiProvider.ID, Valid: true}
 
 	model := strings.TrimSpace(req.Model)
 	if model == "" {
@@ -6961,15 +7307,25 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		ContextLimit:         contextLimit,
 		CompressionThreshold: compressionThreshold,
 		Options:              modelConfigRaw,
+		AIProviderID:         aiProviderID,
 		CreatedBy:            uuid.NullUUID{UUID: apiKey.UserID, Valid: apiKey.UserID != uuid.Nil},
 		UpdatedBy:            uuid.NullUUID{UUID: apiKey.UserID, Valid: apiKey.UserID != uuid.Nil},
 	}
 
 	var inserted database.ChatModelConfig
-	err := api.Database.InTx(func(tx database.Store) error {
-		if err := requireChatProviderForModelConfig(ctx, tx, insertParams.Provider); err != nil {
-			return err
+	err = api.Database.InTx(func(tx database.Store) error {
+		//nolint:gocritic // The route already authorized chat model config updates.
+		lockedAIProvider, err := tx.GetAIProviderByIDForReferenceLock(dbauthz.AsChatd(ctx), insertParams.AIProviderID.UUID)
+		if err != nil {
+			if xerrors.Is(err, sql.ErrNoRows) {
+				return errChatProviderNotConfigured
+			}
+			return xerrors.Errorf("get AI provider for update: %w", err)
 		}
+		if !lockedAIProvider.Enabled {
+			return errChatProviderNotConfigured
+		}
+		insertParams.Provider = string(lockedAIProvider.Type)
 
 		insertAsDefault := isDefault
 		if !insertAsDefault {
@@ -7017,7 +7373,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		case xerrors.Is(err, errChatProviderNotConfigured):
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
 				Message: "Chat provider is not configured.",
 				Detail:  err.Error(),
 			})
@@ -7068,14 +7424,39 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	provider := existing.Provider
-	if strings.TrimSpace(req.Provider) != "" {
-		provider = normalizeChatProvider(req.Provider)
-		if provider == "" {
+	aiProviderID := existing.AIProviderID
+	if req.AIProviderID != nil {
+		//nolint:gocritic // The route already authorized chat model config updates.
+		aiProvider, err := api.Database.GetAIProviderByID(dbauthz.AsChatd(ctx), *req.AIProviderID)
+		if err != nil {
+			if httpapi.Is404Error(err) {
+				httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{Message: "AI provider is not configured."})
+				return
+			}
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to get AI provider.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		if !aiProvider.Enabled {
+			httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{Message: "AI provider is disabled."})
+			return
+		}
+		provider = string(aiProvider.Type)
+		aiProviderID = uuid.NullUUID{UUID: aiProvider.ID, Valid: true}
+	} else if strings.TrimSpace(req.Provider) != "" {
+		requestedProvider := normalizeChatProvider(req.Provider)
+		if requestedProvider == "" {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Invalid provider.",
 				Detail:  chatProviderValidationDetail(),
 			})
 			return
+		}
+		provider = requestedProvider
+		if requestedProvider != existing.Provider {
+			aiProviderID = uuid.NullUUID{}
 		}
 	}
 
@@ -7143,14 +7524,30 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		ContextLimit:         contextLimit,
 		CompressionThreshold: compressionThreshold,
 		Options:              modelConfigRaw,
+		AIProviderID:         aiProviderID,
 		UpdatedBy:            uuid.NullUUID{UUID: apiKey.UserID, Valid: apiKey.UserID != uuid.Nil},
 		ID:                   existing.ID,
 	}
 
 	var updated database.ChatModelConfig
 	err = api.Database.InTx(func(tx database.Store) error {
-		if err := requireChatProviderForModelConfig(ctx, tx, updateParams.Provider); err != nil {
-			return err
+		if updateParams.AIProviderID.Valid && req.AIProviderID != nil {
+			//nolint:gocritic // The route already authorized chat model config updates.
+			aiProvider, err := tx.GetAIProviderByIDForReferenceLock(dbauthz.AsChatd(ctx), updateParams.AIProviderID.UUID)
+			if err != nil {
+				if xerrors.Is(err, sql.ErrNoRows) {
+					return errChatProviderNotConfigured
+				}
+				return xerrors.Errorf("get AI provider for update: %w", err)
+			}
+			if !aiProvider.Enabled {
+				return errChatProviderNotConfigured
+			}
+			updateParams.Provider = string(aiProvider.Type)
+		} else if !updateParams.AIProviderID.Valid {
+			if err := requireChatProviderForModelConfig(ctx, tx, updateParams.Provider); err != nil {
+				return err
+			}
 		}
 
 		setAsDefault := updateParams.IsDefault && !existing.IsDefault
@@ -7201,7 +7598,7 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		case xerrors.Is(err, errChatProviderNotConfigured):
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
 				Message: "Chat provider is not configured.",
 				Detail:  err.Error(),
 			})
@@ -7331,6 +7728,7 @@ func chatModelConfigToUpdateParams(
 		ContextLimit:         config.ContextLimit,
 		CompressionThreshold: config.CompressionThreshold,
 		Options:              config.Options,
+		AIProviderID:         config.AIProviderID,
 		UpdatedBy:            uuid.NullUUID{},
 		ID:                   config.ID,
 	}
@@ -7433,6 +7831,7 @@ func convertUserChatProviderConfig(
 	provider database.ChatProvider,
 	hasUserAPIKey bool,
 	hasCentralAPIKeyFallback bool,
+	byokEnabled bool,
 ) codersdk.UserChatProviderConfig {
 	displayName := strings.TrimSpace(provider.DisplayName)
 	if displayName == "" {
@@ -7445,13 +7844,19 @@ func convertUserChatProviderConfig(
 		DisplayName:              displayName,
 		HasUserAPIKey:            hasUserAPIKey,
 		HasCentralAPIKeyFallback: hasCentralAPIKeyFallback,
+		BYOKEnabled:              byokEnabled,
 	}
 }
 
 func convertChatModelConfig(config database.ChatModelConfig) codersdk.ChatModelConfig {
+	var aiProviderID *uuid.UUID
+	if config.AIProviderID.Valid {
+		aiProviderID = &config.AIProviderID.UUID
+	}
 	return codersdk.ChatModelConfig{
 		ID:                   config.ID,
 		Provider:             config.Provider,
+		AIProviderID:         aiProviderID,
 		Model:                config.Model,
 		DisplayName:          config.DisplayName,
 		Enabled:              config.Enabled,
@@ -7631,7 +8036,7 @@ const maxChatProviderAPIKeySize = 10240 // 10 KB
 
 func validateChatProviderAPIKeySize(apiKey string) error {
 	if len(apiKey) > maxChatProviderAPIKeySize {
-		return xerrors.Errorf("API key exceeds maximum size of %d bytes", maxChatProviderAPIKeySize)
+		return xerrors.Errorf("API key exceeds maximum size of 10 KB (%d bytes)", maxChatProviderAPIKeySize)
 	}
 	return nil
 }
@@ -7983,7 +8388,7 @@ func (api *API) postChatToolResults(rw http.ResponseWriter, r *http.Request) {
 	// Submitting tool results resumes LLM inference,
 	// requiring update permission on the org-scoped chat resource.
 	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
-		httpapi.Forbidden(rw)
+		httpapi.ResourceNotFound(rw)
 		return
 	}
 

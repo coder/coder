@@ -4,16 +4,20 @@ on:
   push:
     branches:
       - main
+    # Self-reference removed from both push and pull_request: the `lint`
+    # and `fmt` steps gate on `tj-actions/changed-files` matching
+    # `docs/**` or `**.md`, so a workflow-only edit produced an empty
+    # run. `actionlint` and `make lint/actions` catch YAML problems
+    # before merge regardless. See DOCS-129.
     paths:
       - "docs/**"
       - "**.md"
-      - ".github/workflows/docs-ci.yaml"
 
   pull_request:
+    # Self-reference removed; see comment under `push:` above.
     paths:
       - "docs/**"
       - "**.md"
-      - ".github/workflows/docs-ci.yaml"
 
 permissions:
   contents: read
@@ -30,27 +34,38 @@ jobs:
       - name: Setup Node
         uses: ./.github/actions/setup-node
 
+      # Per-tool changed-files filters. Each tool gets its own `changed-*`
+      # step scoped to the files it processes, keeping workflow-level `paths:`
+      # broad. Adding a tool (e.g. image linter) only needs a new step pair.
       - uses: tj-actions/changed-files@22103cc46bda19c2b464ffe86db46df6922fd323 # v45.0.7
-        id: changed-files
+        id: changed-md
         with:
           files: |
-            docs/**
             **.md
           separator: ","
 
+      # Both downstream tools take file paths as argv. `tj-actions/changed-files`
+      # joins paths with `separator: ","`, which the shell does not split on, so
+      # run the output through `tr ',' '\n' | xargs -d '\n'` to hand each path to
+      # the tool as a distinct argument. This tolerates filenames containing
+      # spaces and prevents silent fallbacks: `markdownlint-cli2` would treat a
+      # comma-joined string as a single non-matching glob, and
+      # `markdown-table-formatter` would fall back to scanning every `.md` in
+      # the working tree when invoked with no positional args.
+      #
+      # `printf '%s\n'` is used instead of `echo` so a hypothetical leading
+      # `-e` or `-n` in a path is treated as data, not a bash builtin flag.
+
       - name: lint
-        if: steps.changed-files.outputs.any_changed == 'true'
+        if: steps.changed-md.outputs.any_changed == 'true'
         run: |
-          # shellcheck disable=SC2086
-          pnpm exec markdownlint-cli2 $ALL_CHANGED_FILES
+          printf '%s\n' "$ALL_CHANGED_FILES" | tr ',' '\n' | xargs -d '\n' pnpm exec markdownlint-cli2
         env:
-          ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
+          ALL_CHANGED_FILES: ${{ steps.changed-md.outputs.all_changed_files }}
 
       - name: fmt
-        if: steps.changed-files.outputs.any_changed == 'true'
+        if: steps.changed-md.outputs.any_changed == 'true'
         run: |
-          # markdown-table-formatter requires a space separated list of files
-          # shellcheck disable=SC2086
-          echo $ALL_CHANGED_FILES | tr ',' '\n' | pnpm exec markdown-table-formatter --check
+          printf '%s\n' "$ALL_CHANGED_FILES" | tr ',' '\n' | xargs -d '\n' pnpm exec markdown-table-formatter --check
         env:
-          ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
+          ALL_CHANGED_FILES: ${{ steps.changed-md.outputs.all_changed_files }}

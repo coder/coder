@@ -289,11 +289,8 @@ const ProvisionersPage = lazy(
 			"./pages/OrganizationSettingsPage/OrganizationProvisionersPage/OrganizationProvisionersPage"
 		),
 );
-const TemplateEmbedExperimentRouter = lazy(
-	() =>
-		import(
-			"./pages/TemplatePage/TemplateEmbedPage/TemplateEmbedExperimentRouter"
-		),
+const TemplateEmbedPage = lazy(
+	() => import("./pages/TemplatePage/TemplateEmbedPage/TemplateEmbedPage"),
 );
 const TemplateInsightsPage = lazy(
 	() =>
@@ -378,6 +375,9 @@ const AgentSettingsAgentsPage = lazy(
 const AgentSettingsUserAgentsPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsUserAgentsPage"),
 );
+const AgentSettingsPersonalSkillsPage = lazy(
+	() => import("./pages/AgentsPage/AgentSettingsPersonalSkillsPage"),
+);
 const AgentSettingsProvidersPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsProvidersPage"),
 );
@@ -448,7 +448,7 @@ const templateRouter = () => {
 					<Route path="files" element={<TemplateFilesPage />} />
 					<Route path="resources" element={<TemplateResourcesPage />} />
 					<Route path="versions" element={<TemplateVersionsPage />} />
-					<Route path="embed" element={<TemplateEmbedExperimentRouter />} />
+					<Route path="embed" element={<TemplateEmbedPage />} />
 					<Route path="insights" element={<TemplateInsightsPage />} />
 					<Route path="prebuilds" element={<TemplatePrebuildsPage />} />
 				</Route>
@@ -745,6 +745,10 @@ export const router = createBrowserRouter(
 						<Route
 							path="user-agents"
 							element={<AgentSettingsUserAgentsPage />}
+						/>
+						<Route
+							path="personal-skills"
+							element={<AgentSettingsPersonalSkillsPage />}
 						/>
 						<Route path="admin" element={<AgentSettingsAgentsPage />} />
 						<Route path="agents" element={<AgentSettingsAgentsPage />} />

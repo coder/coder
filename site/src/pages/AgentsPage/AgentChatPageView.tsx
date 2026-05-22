@@ -11,13 +11,13 @@ import { useQueryClient } from "react-query";
 import type { UrlTransform } from "streamdown";
 import { chatDiffContentsKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
-import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
+import type {
+	AgentChatSendShortcut,
+	ChatDiffStatus,
+	ChatMessagePart,
+} from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
-import {
-	getPersistedSidebarTabId,
-	savePersistedSidebarTabId,
-} from "./AgentChatPage";
 import {
 	AgentChatInput,
 	type ChatMessageInputRef,
@@ -32,16 +32,21 @@ import { DesktopPanelContext } from "./components/ChatElements/tools/DesktopPane
 import type { PendingAttachment } from "./components/ChatPageContent";
 import { ChatPageInput, ChatPageTimeline } from "./components/ChatPageContent";
 import { ChatScrollContainer } from "./components/ChatScrollContainer";
+import { ChatSharingPopoverContent } from "./components/ChatSharingPopover";
+import { getEffectiveTabId } from "./components/ChatsSidebar/tabs/getEffectiveTabId";
+import { SidebarTabView } from "./components/ChatsSidebar/tabs/SidebarTabView";
 import { ChatTopBar } from "./components/ChatTopBar";
 import { GitPanel } from "./components/GitPanel/GitPanel";
 import { DebugPanel } from "./components/RightPanel/DebugPanel/DebugPanel";
 import { RightPanel } from "./components/RightPanel/RightPanel";
-import { getEffectiveTabId } from "./components/Sidebar/getEffectiveTabId";
-import { SidebarTabView } from "./components/Sidebar/SidebarTabView";
 import { getWorkspaceStatus, StatusIcon } from "./components/StatusIcon";
 import { TerminalPanel } from "./components/TerminalPanel";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
 import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
+import {
+	getPersistedSidebarTabId,
+	savePersistedSidebarTabId,
+} from "./utils/sidebarTabStorage";
 import type { ChatDetailError } from "./utils/usageLimitMessage";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
@@ -82,12 +87,16 @@ interface EditingState {
 interface AgentChatPageViewProps {
 	// Chat data.
 	agentId: string;
+	sendShortcut: AgentChatSendShortcut;
 	organizationId: string | undefined;
 	chatTitle: string | undefined;
 	parentChat: TypesGen.Chat | undefined;
 	persistedError: ChatDetailError | undefined;
 	isArchived: boolean;
-	chatOwner: { id: string; username?: string } | undefined;
+	chatOwner: Pick<TypesGen.MinimalUser, "name" | "username"> | undefined;
+	canUpdateOtherUserChat: boolean;
+	canUpdateOtherUserChatLoading: boolean;
+	canShareChat: boolean;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 	workspace?: TypesGen.Workspace;
 	chatBuildId?: string;
@@ -185,12 +194,16 @@ interface AgentChatPageViewProps {
 
 export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	agentId,
+	sendShortcut,
 	organizationId,
 	chatTitle,
 	parentChat,
 	persistedError,
 	isArchived,
 	chatOwner,
+	canUpdateOtherUserChat,
+	canUpdateOtherUserChatLoading,
+	canShareChat,
 	workspaceAgent,
 	workspace,
 	chatBuildId,
@@ -250,6 +263,8 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	lastInjectedContext,
 }) => {
 	const queryClient = useQueryClient();
+
+	const canOpenChatSharing = canShareChat && organizationId !== undefined;
 
 	// Wrap the git watcher refresh to also invalidate the cached
 	// remote/PR diff contents so the panel re-fetches from GitHub.
@@ -407,16 +422,16 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		editing.editingMessageId !== null ||
 		editing.editingQueuedMessageID !== null;
 
+	const chatOwnerUsername = chatOwner?.username.trim();
 	const chatOwnerLabel =
-		chatOwner === undefined
-			? undefined
-			: chatOwner.username
-				? `@${chatOwner.username}`
-				: `owner ${chatOwner.id}`;
+		chatOwner?.name?.trim() ||
+		(chatOwnerUsername ? `@${chatOwnerUsername}` : undefined);
 	const chatOwnerWarning =
-		chatOwnerLabel === undefined
+		isArchived || canUpdateOtherUserChatLoading || chatOwnerLabel === undefined
 			? undefined
-			: `This is not your chat. Prompting here will use ${chatOwnerLabel}'s identity.`;
+			: canUpdateOtherUserChat
+				? `This is not your chat. Prompting here will use ${chatOwnerLabel}'s identity.`
+				: `This chat is owned by ${chatOwnerLabel}. You have read-only access.`;
 
 	const titleElement = (
 		<title>
@@ -467,8 +482,19 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								diffStatusData={diffStatusData}
 								isSidebarCollapsed={isSidebarCollapsed}
 								onToggleSidebarCollapsed={onToggleSidebarCollapsed}
+								renderChatSharingContent={
+									canOpenChatSharing
+										? (open) => (
+												<ChatSharingPopoverContent
+													chatId={agentId}
+													organizationId={organizationId}
+													open={open}
+												/>
+											)
+										: undefined
+								}
 							/>
-							{chatOwnerWarning && !isArchived && (
+							{chatOwnerWarning && (
 								<div
 									role="status"
 									aria-live="polite"
@@ -521,6 +547,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 [scrollbar-gutter:stable] [scrollbar-width:thin]">
 							<ChatPageInput
 								organizationId={organizationId}
+								sendShortcut={sendShortcut}
 								store={store}
 								compressionThreshold={compressionThreshold}
 								onSend={editing.handleSendFromInput}
@@ -600,6 +627,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 };
 
 interface AgentChatPageLoadingViewProps {
+	sendShortcut: AgentChatSendShortcut;
 	titleElement: React.ReactNode;
 	isInputDisabled: boolean;
 	effectiveSelectedModel: string;
@@ -616,6 +644,7 @@ interface AgentChatPageLoadingViewProps {
 }
 
 export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
+	sendShortcut,
 	titleElement,
 	isInputDisabled,
 	effectiveSelectedModel,
@@ -668,6 +697,7 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 				<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 [scrollbar-gutter:stable] [scrollbar-width:thin]">
 					<AgentChatInput
 						onSend={() => {}}
+						sendShortcut={sendShortcut}
 						initialValue=""
 						isDisabled={isInputDisabled}
 						isLoading={false}

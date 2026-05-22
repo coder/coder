@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -22,12 +24,15 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	openaicomputeruse "github.com/coder/coder/v2/coderd/x/chatd/chatopenai/computeruse"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	skillspkg "github.com/coder/coder/v2/coderd/x/skills"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
@@ -295,6 +300,26 @@ func TestFilterExternalMCPConfigsForTurn(t *testing.T) {
 	})
 }
 
+func TestChatWorkspaceRecoveryErrorsDifferentiateSignalStrength(t *testing.T) {
+	t.Parallel()
+
+	// Disconnected recovery is gated by a DB-confirmed duration
+	// threshold, so the message can give direct stop/start guidance
+	// without asking the user.
+	disconnected := errChatAgentDisconnected.Error()
+	require.Contains(t, disconnected, "90 seconds")
+	require.Contains(t, disconnected, "stop_workspace")
+	require.Contains(t, disconnected, "start_workspace")
+	require.NotContains(t, disconnected, "ask_user_question")
+
+	// Dial timeout alone is a weak signal. The model should not
+	// escalate to lifecycle tools without DB-confirmed disconnect.
+	dialTimeout := errChatDialTimeout.Error()
+	require.NotContains(t, dialTimeout, "ask_user_question")
+	require.NotContains(t, dialTimeout, "stop_workspace")
+	require.NotContains(t, dialTimeout, "start_workspace")
+}
+
 func TestActiveToolNamesForTurn(t *testing.T) {
 	t.Parallel()
 
@@ -344,6 +369,7 @@ func TestActiveToolNamesForTurn(t *testing.T) {
 			"read_template",
 			"create_workspace",
 			"start_workspace",
+			"stop_workspace",
 			"propose_plan",
 			"spawn_agent",
 			"wait_agent",
@@ -364,6 +390,7 @@ func TestActiveToolNamesForTurn(t *testing.T) {
 			"read_template",
 			"create_workspace",
 			"start_workspace",
+			"stop_workspace",
 			"propose_plan",
 			"spawn_agent",
 			"wait_agent",
@@ -386,6 +413,7 @@ func TestActiveToolNamesForTurn(t *testing.T) {
 			"read_template",
 			"create_workspace",
 			"start_workspace",
+			"stop_workspace",
 			"propose_plan",
 			"spawn_agent",
 			"wait_agent",
@@ -405,6 +433,8 @@ func TestActiveToolNamesForTurn(t *testing.T) {
 		require.NotContains(t, got, "edit_files")
 		require.NotContains(t, got, "ask_user_question")
 		require.NotContains(t, got, "propose_plan")
+		require.NotContains(t, got, "start_workspace")
+		require.NotContains(t, got, "stop_workspace")
 		require.NotContains(t, got, "spawn_explore_agent")
 	})
 
@@ -474,6 +504,8 @@ func TestAllowedExploreToolNames(t *testing.T) {
 		newTestAgentTool("write_file"),
 		newTestMCPAgentTool("external-mcp__echo", externalConfigID),
 		newTestAgentTool("workspace-mcp__echo"),
+		newTestAgentTool("start_workspace"),
+		newTestAgentTool("stop_workspace"),
 		newTestAgentTool("execute"),
 		newTestAgentTool("process_output"),
 		newTestAgentTool("process_list"),
@@ -494,6 +526,9 @@ func TestAllowedExploreToolNames(t *testing.T) {
 		"read_skill_file",
 	}, got)
 	require.NotContains(t, got, "workspace-mcp__echo")
+	require.NotContains(t, got, "start_workspace")
+	require.NotContains(t, got, "stop_workspace")
+	require.NotContains(t, got, "ask_user_question")
 }
 
 func TestAllowedBehaviorToolNames(t *testing.T) {
@@ -580,19 +615,13 @@ func TestStopAfterBehaviorTools(t *testing.T) {
 		))
 	})
 
-	t.Run("RootPlanModeIncludesClarificationTool", func(t *testing.T) {
+	t.Run("PlanModeDelegatesToPlanTools", func(t *testing.T) {
 		t.Parallel()
-		require.Equal(t, map[string]struct{}{
-			"propose_plan":      {},
-			"ask_user_question": {},
-		}, stopAfterBehaviorTools(planMode, database.NullChatMode{}, uuid.NullUUID{}))
-	})
-
-	t.Run("ChildPlanModeSkipsClarificationTool", func(t *testing.T) {
-		t.Parallel()
-		require.Equal(t, map[string]struct{}{
-			"propose_plan": {},
-		}, stopAfterBehaviorTools(planMode, database.NullChatMode{}, uuid.NullUUID{UUID: uuid.New(), Valid: true}))
+		require.Equal(t, stopAfterPlanTools(planMode, uuid.NullUUID{}), stopAfterBehaviorTools(
+			planMode,
+			database.NullChatMode{},
+			uuid.NullUUID{},
+		))
 	})
 
 	t.Run("ExploreModeReturnsNil", func(t *testing.T) {
@@ -1087,7 +1116,7 @@ func TestResolveUserProviderAPIKeys_StripsDisabledFallbackKeys(t *testing.T) {
 		AllowCentralApiKeyFallback: true,
 	}}, nil)
 
-	keys, err := server.resolveUserProviderAPIKeys(ctx, ownerID)
+	keys, err := server.resolveUserProviderAPIKeys(ctx, ownerID, uuid.Nil)
 	require.NoError(t, err)
 	require.Empty(t, keys.OpenAI)
 	require.Empty(t, keys.APIKey("openai"))
@@ -1097,6 +1126,40 @@ func TestResolveUserProviderAPIKeys_StripsDisabledFallbackKeys(t *testing.T) {
 	require.Equal(t, "https://anthropic.example.com", keys.BaseURL("anthropic"))
 	require.Equal(t, map[string]string{"anthropic": "anthropic-deployment-key"}, keys.ByProvider)
 	require.Equal(t, map[string]string{"anthropic": "https://anthropic.example.com"}, keys.BaseURLByProvider)
+}
+
+func TestResolveUserProviderAPIKeys_SelectedAIProviderDoesNotUseDeploymentFallback(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	ownerID := uuid.New()
+	providerID := uuid.New()
+
+	server := &Server{
+		db: db,
+		providerAPIKeys: chatprovider.ProviderAPIKeys{
+			OpenAI: "openai-deployment-key",
+			ByProvider: map[string]string{
+				"openai": "openai-deployment-key",
+			},
+		},
+	}
+
+	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(database.AIProvider{
+		ID:      providerID,
+		Type:    database.AiProviderTypeOpenai,
+		Name:    "agents-openai",
+		Enabled: true,
+	}, nil)
+	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return(nil, nil)
+
+	keys, err := server.resolveUserProviderAPIKeys(ctx, ownerID, providerID)
+	require.NoError(t, err)
+	require.Empty(t, keys.OpenAI)
+	require.Empty(t, keys.APIKey("openai"))
+	require.False(t, keys.HasProvider("openai"))
 }
 
 func TestResolveUserProviderAPIKeys_SkipsUserKeyLookupWhenNoProviderAllowsUserKeys(t *testing.T) {
@@ -1127,7 +1190,7 @@ func TestResolveUserProviderAPIKeys_SkipsUserKeyLookupWhenNoProviderAllowsUserKe
 		CentralApiKeyEnabled: true,
 	}}, nil)
 
-	keys, err := server.resolveUserProviderAPIKeys(ctx, ownerID)
+	keys, err := server.resolveUserProviderAPIKeys(ctx, ownerID, uuid.Nil)
 	require.NoError(t, err)
 	require.Equal(t, "openai-deployment-key", keys.OpenAI)
 	require.Equal(t, "openai-deployment-key", keys.APIKey("openai"))
@@ -1970,7 +2033,7 @@ func TestTurnWorkspaceContext_EnsureWorkspaceAgentIgnoresCachedAgentForDifferent
 	require.Equal(t, updatedChat, currentChat)
 }
 
-func TestSubscribeSkipsDatabaseCatchupForLocallyDeliveredMessage(t *testing.T) {
+func TestSubscribeDedupesLocallyDeliveredMessageOnNotifyCatchup(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancelCtx := context.WithCancel(context.Background())
@@ -1999,6 +2062,12 @@ func TestSubscribeSkipsDatabaseCatchupForLocallyDeliveredMessage(t *testing.T) {
 			AfterID: 0,
 		}).Return([]database.ChatMessage{initialMessage}, nil),
 		db.EXPECT().GetChatQueuedMessages(gomock.Any(), chatID).Return(nil, nil),
+		// DB catchup runs unconditionally on every notify; the delivered
+		// set dedupes against locally-delivered messages.
+		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
+			ChatID:  chatID,
+			AfterID: 1,
+		}).Return(nil, nil),
 	)
 
 	server := newSubscribeTestServer(t, db)
@@ -2042,6 +2111,12 @@ func TestSubscribeUsesDurableCacheWhenLocalMessageWasNotDelivered(t *testing.T) 
 			AfterID: 0,
 		}).Return([]database.ChatMessage{initialMessage}, nil),
 		db.EXPECT().GetChatQueuedMessages(gomock.Any(), chatID).Return(nil, nil),
+		// DB catchup runs unconditionally; cached id=2 is deduped via
+		// the delivered set so this query returning nil is sufficient.
+		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
+			ChatID:  chatID,
+			AfterID: 1,
+		}).Return(nil, nil),
 	)
 
 	server := newSubscribeTestServer(t, db)
@@ -2308,6 +2383,51 @@ func TestSubscribeDoesNotReplayRetryAfterStreamResumes(t *testing.T) {
 	requireNoStreamEvent(t, events, 200*time.Millisecond)
 }
 
+func TestSubscribeDoesNotReplayFailedAttemptPartsAfterRetry(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancelCtx := context.WithCancel(context.Background())
+	defer cancelCtx()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	chatID := uuid.New()
+	chat := database.Chat{ID: chatID, Status: database.ChatStatusRunning}
+
+	gomock.InOrder(
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
+		db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(chat, nil),
+		db.EXPECT().GetChatMessagesByChatID(gomock.Any(), database.GetChatMessagesByChatIDParams{
+			ChatID:  chatID,
+			AfterID: 0,
+		}).Return(nil, nil),
+		db.EXPECT().GetChatQueuedMessages(gomock.Any(), chatID).Return(nil, nil),
+	)
+
+	server := newBufferedSubscribeTestServer(t, db, chatID)
+
+	server.publishMessagePart(chatID, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("failed partial"))
+	server.clearProvisionalStreamParts(chatID)
+	server.publishRetry(chatID, newTestRetryPayload())
+	server.publishMessagePart(chatID, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("retry recovered"))
+
+	snapshot, events, cancel, ok := server.Subscribe(ctx, chatID, nil, 0)
+	require.True(t, ok)
+	defer cancel()
+
+	requireNoSnapshotRetryEvent(t, snapshot)
+	partEvent := requireSnapshotMessagePartEvent(t, snapshot)
+	require.Equal(t, "retry recovered", partEvent.MessagePart.Part.Text)
+	for _, event := range snapshot {
+		if event.Type != codersdk.ChatStreamEventTypeMessagePart {
+			continue
+		}
+		require.NotEqual(t, "failed partial", event.MessagePart.Part.Text)
+	}
+	requireNoStreamEvent(t, events, 200*time.Millisecond)
+}
+
 func TestSubscribeDoesNotReplayRetryAfterTerminalError(t *testing.T) {
 	t.Parallel()
 
@@ -2487,12 +2607,14 @@ func TestSubscribeAuthorizedFallsBackToStaleRowWhenRefreshFails(t *testing.T) {
 
 	state := server.getOrCreateStreamState(chatID)
 	state.mu.Lock()
-	state.buffer = []codersdk.ChatStreamEvent{{
-		Type:   codersdk.ChatStreamEventTypeMessagePart,
-		ChatID: chatID,
-		MessagePart: &codersdk.ChatStreamMessagePart{
-			Role: "assistant",
-			Part: codersdk.ChatMessageText("thinking"),
+	state.buffer = []bufferedStreamPart{{
+		event: codersdk.ChatStreamEvent{
+			Type:   codersdk.ChatStreamEventTypeMessagePart,
+			ChatID: chatID,
+			MessagePart: &codersdk.ChatStreamMessagePart{
+				Role: "assistant",
+				Part: codersdk.ChatMessageText("thinking"),
+			},
 		},
 	}}
 	state.mu.Unlock()
@@ -2710,7 +2832,7 @@ func TestPublishToStream_DropWarnRateLimiting(t *testing.T) {
 	// buffering enabled, one saturated subscriber.
 	state := &chatStreamState{
 		buffering: true,
-		buffer:    make([]codersdk.ChatStreamEvent, maxStreamBufferSize),
+		buffer:    make([]bufferedStreamPart, maxStreamBufferSize),
 		subscribers: map[uuid.UUID]chan codersdk.ChatStreamEvent{
 			uuid.New(): subCh,
 		},
@@ -2761,7 +2883,7 @@ func TestPublishToStream_DropWarnRateLimiting(t *testing.T) {
 
 	// --- Phase 3: counter reset (simulates step persist) ---
 	state.mu.Lock()
-	state.buffer = make([]codersdk.ChatStreamEvent, maxStreamBufferSize)
+	state.buffer = make([]bufferedStreamPart, maxStreamBufferSize)
 	state.resetDropCounters()
 	state.mu.Unlock()
 
@@ -3018,6 +3140,336 @@ func TestSkillsFromParts(t *testing.T) {
 			require.Equal(t, w.Dir, got[i].Dir)
 		}
 	})
+}
+
+func TestPersonalSkillsInSystemPrompt(t *testing.T) {
+	t.Parallel()
+
+	prompt := buildSystemPrompt(
+		nil,
+		"",
+		"",
+		mergeTurnSkills(
+			[]skillspkg.Skill{{
+				Name:        "personal-review",
+				Description: "Personal review process",
+				Source:      skillspkg.SourcePersonal,
+			}},
+			nil,
+		),
+		"",
+		systemPromptBehaviorContext{},
+	)
+
+	text := systemPromptText(t, prompt)
+	require.Contains(t, text, "<available-skills>")
+	require.Contains(t, text, "- personal-review: Personal review process")
+	require.NotContains(t, text, `"skill"`)
+}
+
+func TestPersonalAndWorkspaceSkillCollisionInSystemPrompt(t *testing.T) {
+	t.Parallel()
+
+	resolved := mergeTurnSkills(
+		[]skillspkg.Skill{{
+			Name:        "deploy",
+			Description: "Personal deployment process",
+			Source:      skillspkg.SourcePersonal,
+		}},
+		[]chattool.SkillMeta{{
+			Name:        "deploy",
+			Description: "Workspace deployment process",
+			Dir:         "/skills/deploy",
+		}},
+	)
+	prompt := buildSystemPrompt(
+		nil,
+		"",
+		"",
+		resolved,
+		"",
+		systemPromptBehaviorContext{},
+	)
+
+	text := systemPromptText(t, prompt)
+	require.Contains(t, text, "<available-skills>")
+	require.Contains(t, text, "- personal/deploy: Personal deployment process")
+	require.Contains(t, text, "- workspace/deploy: Workspace deployment process")
+	require.NotContains(t, text, "\n- deploy: ")
+	require.NotContains(t, text, "\n- deploy\n")
+
+	personal, err := skillspkg.Lookup(resolved, "personal/deploy")
+	require.NoError(t, err)
+	require.Equal(t, "deploy", personal.Name)
+	require.Equal(t, skillspkg.SourcePersonal, personal.Source)
+
+	workspace, err := skillspkg.Lookup(resolved, "workspace/deploy")
+	require.NoError(t, err)
+	require.Equal(t, "deploy", workspace.Name)
+	require.Equal(t, skillspkg.SourceWorkspace, workspace.Source)
+
+	_, err = skillspkg.Lookup(resolved, "deploy")
+	require.ErrorIs(t, err, skillspkg.ErrSkillAmbiguous)
+	require.ErrorContains(t, err, "personal/deploy")
+	require.ErrorContains(t, err, "workspace/deploy")
+}
+
+func TestSkillIndexRefreshReplacesStaleAliases(t *testing.T) {
+	t.Parallel()
+
+	initialResolved := mergeTurnSkills(
+		[]skillspkg.Skill{{
+			Name:        "deploy",
+			Description: "Personal deployment process",
+			Source:      skillspkg.SourcePersonal,
+		}},
+		nil,
+	)
+	prompt := buildSystemPrompt(
+		[]fantasy.Message{{
+			Role: fantasy.MessageRoleUser,
+			Content: []fantasy.MessagePart{
+				fantasy.TextPart{Text: "Create a workspace."},
+			},
+		}},
+		"",
+		"",
+		initialResolved,
+		"",
+		systemPromptBehaviorContext{},
+	)
+
+	mergedIndex := chattool.FormatResolvedSkillIndex(mergeTurnSkills(
+		[]skillspkg.Skill{{
+			Name:        "deploy",
+			Description: "Personal deployment process",
+			Source:      skillspkg.SourcePersonal,
+		}},
+		[]chattool.SkillMeta{{
+			Name:        "deploy",
+			Description: "Workspace deployment process",
+			Dir:         "/skills/deploy",
+		}},
+	))
+	prompt = removeSkillIndexMessages(prompt)
+	prompt = chatprompt.InsertSystem(prompt, mergedIndex)
+
+	text := systemPromptText(t, prompt)
+	require.Equal(t, 1, strings.Count(text, "<available-skills>"))
+	require.NotContains(t, text, "\n- deploy: Personal deployment process")
+	require.Contains(t, text, "- personal/deploy: Personal deployment process")
+	require.Contains(t, text, "- workspace/deploy: Workspace deployment process")
+}
+
+func requireUserSkillContextActor(ctx context.Context, t *testing.T, userID uuid.UUID) {
+	t.Helper()
+	actor, ok := dbauthz.ActorFromContext(ctx)
+	require.True(t, ok)
+	require.Equal(t, rbac.SubjectTypeUser, actor.Type)
+	require.Equal(t, userID.String(), actor.ID)
+	require.Equal(t, rbac.RoleIdentifiers{rbac.RoleMember()}, actor.Roles)
+}
+
+func TestFetchPersonalSkillMetadata(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Success", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		server := &Server{db: db}
+		userID := uuid.New()
+
+		db.EXPECT().ListUserSkillMetadataByUserID(gomock.Any(), userID).DoAndReturn(
+			func(ctx context.Context, gotUserID uuid.UUID) ([]database.ListUserSkillMetadataByUserIDRow, error) {
+				requireUserSkillContextActor(ctx, t, userID)
+				require.Equal(t, userID, gotUserID)
+				return []database.ListUserSkillMetadataByUserIDRow{{
+					UserID:      userID,
+					Name:        "personal-review",
+					Description: "Personal review process",
+				}}, nil
+			},
+		)
+
+		got := server.fetchPersonalSkillMetadata(context.Background(), userID, logger)
+		require.Equal(t, []skillspkg.Skill{{
+			Name:        "personal-review",
+			Description: "Personal review process",
+			Source:      skillspkg.SourcePersonal,
+		}}, got)
+	})
+
+	t.Run("ListFailure", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		sink := testutil.NewFakeSink(t)
+		logger := sink.Logger().Leveled(slog.LevelDebug)
+		server := &Server{db: db}
+		userID := uuid.New()
+
+		db.EXPECT().ListUserSkillMetadataByUserID(gomock.Any(), userID).Return(nil, xerrors.New("boom"))
+
+		got := server.fetchPersonalSkillMetadata(context.Background(), userID, logger)
+		require.Empty(t, got)
+		warns := sink.Entries(func(e slog.SinkEntry) bool {
+			return e.Level == slog.LevelWarn && strings.Contains(e.Message, "personal skill metadata")
+		})
+		require.NotEmpty(t, warns)
+	})
+}
+
+func TestLoadPersonalSkillBody(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ParsesCurrentContent", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		server := &Server{db: db}
+		userID := uuid.New()
+		params := database.GetUserSkillByUserIDAndNameParams{
+			UserID: userID,
+			Name:   "personal-review",
+		}
+
+		db.EXPECT().GetUserSkillByUserIDAndName(gomock.Any(), params).DoAndReturn(
+			func(ctx context.Context, gotParams database.GetUserSkillByUserIDAndNameParams) (database.UserSkill, error) {
+				requireUserSkillContextActor(ctx, t, userID)
+				require.Equal(t, params, gotParams)
+				return database.UserSkill{
+					UserID:  userID,
+					Name:    "personal-review",
+					Content: "---\nname: personal-review\ndescription: Personal review process\n---\n\nUpdated instructions.\n",
+				}, nil
+			},
+		)
+
+		got, err := server.loadPersonalSkillBody(context.Background(), userID, "personal-review")
+		require.NoError(t, err)
+		require.Equal(t, "personal-review", got.Name)
+		require.Equal(t, "Personal review process", got.Description)
+		require.Equal(t, skillspkg.SourcePersonal, got.Source)
+		require.Contains(t, got.Body, "Updated instructions.")
+	})
+
+	t.Run("DeletedSkill", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		server := &Server{db: db}
+		userID := uuid.New()
+		params := database.GetUserSkillByUserIDAndNameParams{
+			UserID: userID,
+			Name:   "missing-skill",
+		}
+
+		db.EXPECT().GetUserSkillByUserIDAndName(gomock.Any(), params).DoAndReturn(
+			func(ctx context.Context, gotParams database.GetUserSkillByUserIDAndNameParams) (database.UserSkill, error) {
+				requireUserSkillContextActor(ctx, t, userID)
+				require.Equal(t, params, gotParams)
+				return database.UserSkill{}, sql.ErrNoRows
+			},
+		)
+
+		_, err := server.loadPersonalSkillBody(context.Background(), userID, "missing-skill")
+		require.ErrorIs(t, err, skillspkg.ErrSkillNotFound)
+	})
+
+	t.Run("DatabaseError", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		sink := testutil.NewFakeSink(t)
+		server := &Server{db: db, logger: sink.Logger()}
+		userID := uuid.New()
+		params := database.GetUserSkillByUserIDAndNameParams{
+			UserID: userID,
+			Name:   "error-skill",
+		}
+		dbErr := xerrors.New("database unavailable")
+
+		db.EXPECT().GetUserSkillByUserIDAndName(gomock.Any(), params).DoAndReturn(
+			func(ctx context.Context, gotParams database.GetUserSkillByUserIDAndNameParams) (database.UserSkill, error) {
+				requireUserSkillContextActor(ctx, t, userID)
+				require.Equal(t, params, gotParams)
+				return database.UserSkill{}, dbErr
+			},
+		)
+
+		_, err := server.loadPersonalSkillBody(context.Background(), userID, "error-skill")
+
+		require.ErrorContains(t, err, "load personal skill body")
+		require.ErrorIs(t, err, dbErr)
+		entries := sink.Entries(func(e slog.SinkEntry) bool {
+			return e.Level == slog.LevelError && e.Message == "load personal skill body failed"
+		})
+		require.Len(t, entries, 1)
+		requireFieldValue(t, entries[0], "error", dbErr)
+	})
+
+	t.Run("ParseError", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		sink := testutil.NewFakeSink(t)
+		server := &Server{db: db, logger: sink.Logger()}
+		userID := uuid.New()
+		params := database.GetUserSkillByUserIDAndNameParams{
+			UserID: userID,
+			Name:   "broken-skill",
+		}
+
+		db.EXPECT().GetUserSkillByUserIDAndName(gomock.Any(), params).DoAndReturn(
+			func(ctx context.Context, gotParams database.GetUserSkillByUserIDAndNameParams) (database.UserSkill, error) {
+				requireUserSkillContextActor(ctx, t, userID)
+				require.Equal(t, params, gotParams)
+				return database.UserSkill{
+					UserID:  userID,
+					Name:    "broken-skill",
+					Content: "---\nname: broken-skill\ndescription: Broken\n---\n\n   \n",
+				}, nil
+			},
+		)
+
+		_, err := server.loadPersonalSkillBody(context.Background(), userID, "broken-skill")
+
+		require.ErrorContains(t, err, "parse personal skill body")
+		require.ErrorIs(t, err, skillspkg.ErrSkillBodyRequired)
+		entries := sink.Entries(func(e slog.SinkEntry) bool {
+			return e.Level == slog.LevelError && e.Message == "parse personal skill body failed"
+		})
+		require.Len(t, entries, 1)
+		requireFieldValue(t, entries[0], "user_id", userID)
+		requireFieldValue(t, entries[0], "name", "broken-skill")
+	})
+}
+
+func systemPromptText(t *testing.T, prompt []fantasy.Message) string {
+	t.Helper()
+
+	var b strings.Builder
+	for _, msg := range prompt {
+		if msg.Role != fantasy.MessageRoleSystem {
+			continue
+		}
+		for _, part := range msg.Content {
+			textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](part)
+			if ok {
+				_, _ = b.WriteString(textPart.Text)
+				_, _ = b.WriteString("\n")
+			}
+		}
+	}
+	return b.String()
 }
 
 func TestContextFileAgentID(t *testing.T) {
@@ -3715,10 +4167,12 @@ func TestSubscribeCancelDuringGrace_ReapedBySweep(t *testing.T) {
 		buffering:        false,
 		bufferRetainedAt: start,
 		subscribers:      map[uuid.UUID]chan codersdk.ChatStreamEvent{},
-		buffer: []codersdk.ChatStreamEvent{{
-			Type: codersdk.ChatStreamEventTypeMessagePart,
-			MessagePart: &codersdk.ChatStreamMessagePart{
-				Role: codersdk.ChatMessageRoleAssistant,
+		buffer: []bufferedStreamPart{{
+			event: codersdk.ChatStreamEvent{
+				Type: codersdk.ChatStreamEventTypeMessagePart,
+				MessagePart: &codersdk.ChatStreamMessagePart{
+					Role: codersdk.ChatMessageRoleAssistant,
+				},
 			},
 		}},
 	}
@@ -3762,9 +4216,11 @@ func TestSweepIdleStreams_ReapsStaleRetainedBuffer(t *testing.T) {
 		buffering:        false,
 		bufferRetainedAt: mClock.Now(),
 		subscribers:      map[uuid.UUID]chan codersdk.ChatStreamEvent{},
-		buffer: []codersdk.ChatStreamEvent{{
-			Type:        codersdk.ChatStreamEventTypeMessagePart,
-			MessagePart: &codersdk.ChatStreamMessagePart{},
+		buffer: []bufferedStreamPart{{
+			event: codersdk.ChatStreamEvent{
+				Type:        codersdk.ChatStreamEventTypeMessagePart,
+				MessagePart: &codersdk.ChatStreamMessagePart{},
+			},
 		}},
 	}
 	server.chatStreams.Store(chatID, state)
@@ -3791,9 +4247,11 @@ func TestSweepIdleStreams_DoesNotReapActiveBuffering(t *testing.T) {
 	state := &chatStreamState{
 		buffering:   true,
 		subscribers: map[uuid.UUID]chan codersdk.ChatStreamEvent{},
-		buffer: []codersdk.ChatStreamEvent{{
-			Type:        codersdk.ChatStreamEventTypeMessagePart,
-			MessagePart: &codersdk.ChatStreamMessagePart{},
+		buffer: []bufferedStreamPart{{
+			event: codersdk.ChatStreamEvent{
+				Type:        codersdk.ChatStreamEventTypeMessagePart,
+				MessagePart: &codersdk.ChatStreamMessagePart{},
+			},
 		}},
 	}
 	server.chatStreams.Store(chatID, state)
@@ -3823,9 +4281,11 @@ func TestSweepIdleStreams_DoesNotReapWithSubscribers(t *testing.T) {
 		subscribers: map[uuid.UUID]chan codersdk.ChatStreamEvent{
 			uuid.New(): make(chan codersdk.ChatStreamEvent, 1),
 		},
-		buffer: []codersdk.ChatStreamEvent{{
-			Type:        codersdk.ChatStreamEventTypeMessagePart,
-			MessagePart: &codersdk.ChatStreamMessagePart{},
+		buffer: []bufferedStreamPart{{
+			event: codersdk.ChatStreamEvent{
+				Type:        codersdk.ChatStreamEventTypeMessagePart,
+				MessagePart: &codersdk.ChatStreamMessagePart{},
+			},
 		}},
 	}
 	server.chatStreams.Store(chatID, state)
@@ -3854,9 +4314,11 @@ func TestSweepIdleStreams_DefersDuringGracePeriod(t *testing.T) {
 		buffering:        false,
 		bufferRetainedAt: start,
 		subscribers:      map[uuid.UUID]chan codersdk.ChatStreamEvent{},
-		buffer: []codersdk.ChatStreamEvent{{
-			Type:        codersdk.ChatStreamEventTypeMessagePart,
-			MessagePart: &codersdk.ChatStreamMessagePart{},
+		buffer: []bufferedStreamPart{{
+			event: codersdk.ChatStreamEvent{
+				Type:        codersdk.ChatStreamEventTypeMessagePart,
+				MessagePart: &codersdk.ChatStreamMessagePart{},
+			},
 		}},
 	}
 	server.chatStreams.Store(chatID, state)
@@ -3890,11 +4352,13 @@ func TestPublishToStream_DropZeroesBackingSlot(t *testing.T) {
 
 	// Over-allocate by one so the post-drop append fits in place and
 	// exercises the backing-array reuse this test is checking.
-	buf := make([]codersdk.ChatStreamEvent, maxStreamBufferSize, maxStreamBufferSize+1)
+	buf := make([]bufferedStreamPart, maxStreamBufferSize, maxStreamBufferSize+1)
 	for i := range buf {
-		buf[i] = codersdk.ChatStreamEvent{
-			Type:        codersdk.ChatStreamEventTypeMessagePart,
-			MessagePart: &codersdk.ChatStreamMessagePart{},
+		buf[i] = bufferedStreamPart{
+			event: codersdk.ChatStreamEvent{
+				Type:        codersdk.ChatStreamEventTypeMessagePart,
+				MessagePart: &codersdk.ChatStreamMessagePart{},
+			},
 		}
 	}
 	// Sentinel in slot 0 distinguishes "slot was zeroed" from "slot
@@ -3902,9 +4366,11 @@ func TestPublishToStream_DropZeroesBackingSlot(t *testing.T) {
 	sentinel := &codersdk.ChatStreamMessagePart{
 		Role: codersdk.ChatMessageRoleAssistant,
 	}
-	buf[0] = codersdk.ChatStreamEvent{
-		Type:        codersdk.ChatStreamEventTypeMessagePart,
-		MessagePart: sentinel,
+	buf[0] = bufferedStreamPart{
+		event: codersdk.ChatStreamEvent{
+			Type:        codersdk.ChatStreamEventTypeMessagePart,
+			MessagePart: sentinel,
+		},
 	}
 	// Alias over the full backing array so we can still observe slot
 	// 0 after publishToStream reslices state.buffer forward.
@@ -3925,14 +4391,14 @@ func TestPublishToStream_DropZeroesBackingSlot(t *testing.T) {
 		MessagePart: newPart,
 	})
 
-	require.Equal(t, codersdk.ChatStreamEvent{}, origBacking[0],
+	require.Equal(t, bufferedStreamPart{}, origBacking[0],
 		"dropped slot must be zero-valued so its *ChatStreamMessagePart "+
 			"is eligible for GC; got %+v", origBacking[0])
 
 	// Sanity-check the in-place append path the fix targets: if Go's
 	// growth policy ever makes this append reallocate, this fails
 	// loudly so the test author revisits the setup.
-	require.Same(t, newPart, origBacking[len(origBacking)-1].MessagePart,
+	require.Same(t, newPart, origBacking[len(origBacking)-1].event.MessagePart,
 		"append must have landed in the original backing array; the "+
 			"zero-out invariant only matters when cap > len")
 }
@@ -4229,73 +4695,61 @@ func TestGetWorkspaceConn_SameBuildAgentCrash(t *testing.T) {
 
 func TestGetWorkspaceConn_StatusCheck(t *testing.T) {
 	// The cache-hit status check re-fetches the agent row for a fresh
-	// heartbeat timestamp. These tests verify that path detects
-	// disconnected or timed-out agents and that healthy or DB-error
-	// paths return the cached connection.
+	// heartbeat timestamp. Healthy, timed-out, and DB-error paths return
+	// the cached connection. Disconnected agents are covered separately
+	// because they now trigger a fresh dial before recovery.
 	t.Parallel()
 
 	type testCase struct {
-		name              string
-		agent             database.WorkspaceAgent
-		dbError           bool
-		wantErr           error
-		wantReleaseCalled bool
+		name       string
+		buildAgent func(now time.Time) database.WorkspaceAgent
+		dbError    bool
 	}
 
 	tests := []testCase{
 		{
-			name: "DisconnectedAgentCacheHit",
-			agent: database.WorkspaceAgent{
-				FirstConnectedAt: sql.NullTime{
-					Time:  time.Now().Add(-10 * time.Minute),
-					Valid: true,
-				},
-				LastConnectedAt: sql.NullTime{
-					Time:  time.Now().Add(-10 * time.Minute),
-					Valid: true,
-				},
-			},
-			wantErr:           errChatAgentDisconnected,
-			wantReleaseCalled: true,
-		},
-		{
 			// Agent never connected and the connection timeout
-			// has elapsed. This is the cache-hit timeout branch
-			// of isAgentUnreachable.
+			// has elapsed. This should not trigger lifecycle
+			// recovery because the agent did not connect and
+			// then disconnect.
 			name: "TimedOutAgentCacheHit",
-			agent: database.WorkspaceAgent{
-				CreatedAt:                time.Now().Add(-10 * time.Minute),
-				ConnectionTimeoutSeconds: 60,
+			buildAgent: func(now time.Time) database.WorkspaceAgent {
+				return database.WorkspaceAgent{
+					CreatedAt:                now.Add(-10 * time.Minute),
+					ConnectionTimeoutSeconds: 60,
+				}
 			},
-			wantErr:           errChatAgentDisconnected,
-			wantReleaseCalled: true,
 		},
 		{
 			name: "CacheHitHealthyAgent",
-			agent: database.WorkspaceAgent{
-				FirstConnectedAt: sql.NullTime{
-					Time:  time.Now().Add(-5 * time.Minute),
-					Valid: true,
-				},
-				LastConnectedAt: sql.NullTime{
-					Time:  time.Now(),
-					Valid: true,
-				},
+			buildAgent: func(now time.Time) database.WorkspaceAgent {
+				return database.WorkspaceAgent{
+					FirstConnectedAt: sql.NullTime{
+						Time:  now.Add(-5 * time.Minute),
+						Valid: true,
+					},
+					LastConnectedAt: sql.NullTime{
+						Time:  now,
+						Valid: true,
+					},
+				}
 			},
 		},
 		{
 			// When GetWorkspaceAgentByID returns an error on
 			// cache hit, the cached connection should be returned.
 			name: "CacheHitDBError",
-			agent: database.WorkspaceAgent{
-				FirstConnectedAt: sql.NullTime{
-					Time:  time.Now().Add(-5 * time.Minute),
-					Valid: true,
-				},
-				LastConnectedAt: sql.NullTime{
-					Time:  time.Now(),
-					Valid: true,
-				},
+			buildAgent: func(now time.Time) database.WorkspaceAgent {
+				return database.WorkspaceAgent{
+					FirstConnectedAt: sql.NullTime{
+						Time:  now.Add(-5 * time.Minute),
+						Valid: true,
+					},
+					LastConnectedAt: sql.NullTime{
+						Time:  now,
+						Valid: true,
+					},
+				}
 			},
 			dbError: true,
 		},
@@ -4323,8 +4777,17 @@ func TestGetWorkspaceConn_StatusCheck(t *testing.T) {
 				},
 			}
 
-			// Stamp the agent with the generated ID.
-			agent := tc.agent
+			// Stamp the agent with the generated ID. Use the
+			// subtest's mock clock so the agent's timestamps are
+			// anchored to the same `now` the server uses. Using
+			// time.Now() at slice-literal construction time
+			// produced a Windows-CI flake because a slow scheduler
+			// could insert more than agentInactiveDisconnectTimeout
+			// of wall-clock delay between the literal and the
+			// subtest body.
+			clock := quartz.NewMock(t)
+			now := clock.Now()
+			agent := tc.buildAgent(now)
 			agent.ID = agentID
 
 			// Set up the DB mock for GetWorkspaceAgentByID.
@@ -4343,7 +4806,7 @@ func TestGetWorkspaceConn_StatusCheck(t *testing.T) {
 			server := &Server{
 				db:                             db,
 				logger:                         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
-				clock:                          quartz.NewReal(),
+				clock:                          clock,
 				agentInactiveDisconnectTimeout: 30 * time.Second,
 				dialTimeout:                    defaultDialTimeout,
 			}
@@ -4371,26 +4834,272 @@ func TestGetWorkspaceConn_StatusCheck(t *testing.T) {
 
 			ctx := testutil.Context(t, testutil.WaitShort)
 			gotConn, err := workspaceCtx.getWorkspaceConn(ctx)
-
-			if tc.wantErr != nil {
-				require.Nil(t, gotConn)
-				require.ErrorIs(t, err, tc.wantErr)
-			} else {
-				require.NoError(t, err)
-				require.Same(t, cachedConn, gotConn)
-			}
-
-			require.Equal(t, tc.wantReleaseCalled, releaseCalled, "release called")
-
-			// For cache-hit disconnect, the cache should be cleared.
-			if tc.wantErr != nil {
-				workspaceCtx.mu.Lock()
-				defer workspaceCtx.mu.Unlock()
-				require.False(t, workspaceCtx.agentLoaded)
-				require.Nil(t, workspaceCtx.conn)
-			}
+			require.NoError(t, err)
+			require.Same(t, cachedConn, gotConn)
+			require.False(t, releaseCalled, "release called")
 		})
 	}
+}
+
+func TestGetWorkspaceConn_DialTimeoutDisconnectedRecoveryThreshold(t *testing.T) {
+	// The recovery sentinel requires a failed dial and a fresh
+	// disconnected status check past the recovery threshold. A
+	// disconnected DB row alone is not enough to trigger stop/start
+	// recovery.
+	t.Parallel()
+
+	testCases := []struct {
+		name            string
+		disconnectedFor time.Duration
+		wantErr         error
+		wantRecovery    bool
+	}{
+		{
+			name:            "RecentDisconnectReturnsDialTimeout",
+			disconnectedFor: agentDisconnectedRecoveryThreshold / 2,
+			wantErr:         errChatDialTimeout,
+			wantRecovery:    false,
+		},
+		{
+			name:            "PastThresholdEscalates",
+			disconnectedFor: agentDisconnectedRecoveryThreshold,
+			wantErr:         errChatAgentDisconnected,
+			wantRecovery:    true,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctrl := gomock.NewController(t)
+			db := dbmock.NewMockStore(ctrl)
+
+			workspaceID := uuid.New()
+			agentID := uuid.New()
+			chat := database.Chat{
+				ID: uuid.New(),
+				WorkspaceID: uuid.NullUUID{
+					UUID:  workspaceID,
+					Valid: true,
+				},
+				AgentID: uuid.NullUUID{
+					UUID:  agentID,
+					Valid: true,
+				},
+			}
+
+			clock := quartz.NewMock(t)
+			now := clock.Now()
+			disconnectedAgent := database.WorkspaceAgent{
+				ID: agentID,
+				FirstConnectedAt: sql.NullTime{
+					Time:  now.Add(-10 * time.Minute),
+					Valid: true,
+				},
+				LastConnectedAt: sql.NullTime{
+					Time:  now.Add(-10 * time.Minute),
+					Valid: true,
+				},
+				DisconnectedAt: sql.NullTime{
+					Time:  now.Add(-tc.disconnectedFor),
+					Valid: true,
+				},
+			}
+
+			db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
+				Return(disconnectedAgent, nil).
+				Times(2)
+			db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
+				Return([]database.WorkspaceAgent{disconnectedAgent}, nil).
+				Times(1)
+
+			server := &Server{
+				db:                             db,
+				logger:                         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+				clock:                          clock,
+				agentInactiveDisconnectTimeout: 30 * time.Second,
+				dialTimeout:                    10 * time.Millisecond,
+			}
+			server.agentConnFn = func(ctx context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				<-ctx.Done()
+				return nil, nil, ctx.Err()
+			}
+
+			chatStateMu := &sync.Mutex{}
+			currentChat := chat
+			workspaceCtx := turnWorkspaceContext{
+				server:           server,
+				chatStateMu:      chatStateMu,
+				currentChat:      &currentChat,
+				loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
+			}
+			defer workspaceCtx.close()
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			gotConn, err := workspaceCtx.getWorkspaceConn(ctx)
+			require.Nil(t, gotConn)
+			require.ErrorIs(t, err, tc.wantErr)
+			if tc.wantRecovery {
+				require.ErrorIs(t, err, errChatAgentDisconnected)
+			} else {
+				require.NotErrorIs(t, err, errChatAgentDisconnected)
+			}
+
+			workspaceCtx.mu.Lock()
+			defer workspaceCtx.mu.Unlock()
+			require.False(t, workspaceCtx.agentLoaded)
+			require.Nil(t, workspaceCtx.conn)
+		})
+	}
+}
+
+func TestGetWorkspaceConn_DisconnectedStatusDialSuccessDoesNotEscalate(t *testing.T) {
+	// A stale disconnected row must not prompt stop/start if the
+	// agent can still be dialed successfully.
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	workspaceID := uuid.New()
+	agentID := uuid.New()
+	chat := database.Chat{
+		ID: uuid.New(),
+		WorkspaceID: uuid.NullUUID{
+			UUID:  workspaceID,
+			Valid: true,
+		},
+		AgentID: uuid.NullUUID{
+			UUID:  agentID,
+			Valid: true,
+		},
+	}
+
+	disconnectedAgent := database.WorkspaceAgent{
+		ID: agentID,
+		FirstConnectedAt: sql.NullTime{
+			Time:  time.Now().Add(-10 * time.Minute),
+			Valid: true,
+		},
+		LastConnectedAt: sql.NullTime{
+			Time:  time.Now().Add(-10 * time.Minute),
+			Valid: true,
+		},
+	}
+
+	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
+		Return(disconnectedAgent, nil).
+		Times(1)
+
+	server := &Server{
+		db:                             db,
+		logger:                         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		clock:                          quartz.NewReal(),
+		agentInactiveDisconnectTimeout: 30 * time.Second,
+		dialTimeout:                    10 * time.Millisecond,
+	}
+	conn := agentconnmock.NewMockAgentConn(ctrl)
+	conn.EXPECT().SetExtraHeaders(gomock.Any()).Times(1)
+	var dialCalled bool
+	server.agentConnFn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+		dialCalled = true
+		return conn, nil, nil
+	}
+
+	chatStateMu := &sync.Mutex{}
+	currentChat := chat
+	workspaceCtx := turnWorkspaceContext{
+		server:           server,
+		chatStateMu:      chatStateMu,
+		currentChat:      &currentChat,
+		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
+	}
+	defer workspaceCtx.close()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	gotConn, err := workspaceCtx.getWorkspaceConn(ctx)
+	require.NoError(t, err)
+	require.Same(t, conn, gotConn)
+	require.True(t, dialCalled, "dial called")
+}
+
+func TestGetWorkspaceConn_CacheHitDisconnectedRetriesDialBeforeEscalating(t *testing.T) {
+	// A disconnected cached connection is discarded first. Recovery is
+	// only surfaced if the replacement dial also times out.
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	workspaceID := uuid.New()
+	agentID := uuid.New()
+	chat := database.Chat{
+		ID: uuid.New(),
+		WorkspaceID: uuid.NullUUID{
+			UUID:  workspaceID,
+			Valid: true,
+		},
+		AgentID: uuid.NullUUID{
+			UUID:  agentID,
+			Valid: true,
+		},
+	}
+	disconnectedAgent := database.WorkspaceAgent{
+		ID: agentID,
+		FirstConnectedAt: sql.NullTime{
+			Time:  time.Now().Add(-10 * time.Minute),
+			Valid: true,
+		},
+		LastConnectedAt: sql.NullTime{
+			Time:  time.Now().Add(-10 * time.Minute),
+			Valid: true,
+		},
+	}
+
+	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
+		Return(disconnectedAgent, nil).
+		Times(2)
+
+	server := &Server{
+		db:                             db,
+		logger:                         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		clock:                          quartz.NewReal(),
+		agentInactiveDisconnectTimeout: 30 * time.Second,
+		dialTimeout:                    10 * time.Millisecond,
+	}
+	newConn := agentconnmock.NewMockAgentConn(ctrl)
+	newConn.EXPECT().SetExtraHeaders(gomock.Any()).Times(1)
+	var dialCalled bool
+	server.agentConnFn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+		dialCalled = true
+		return newConn, nil, nil
+	}
+
+	var releaseCalled bool
+	chatStateMu := &sync.Mutex{}
+	currentChat := chat
+	oldConn := agentconnmock.NewMockAgentConn(ctrl)
+	workspaceCtx := turnWorkspaceContext{
+		server:            server,
+		chatStateMu:       chatStateMu,
+		currentChat:       &currentChat,
+		loadChatSnapshot:  func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
+		agent:             disconnectedAgent,
+		agentLoaded:       true,
+		conn:              oldConn,
+		releaseConn:       func() { releaseCalled = true },
+		cachedWorkspaceID: chat.WorkspaceID,
+	}
+	defer workspaceCtx.close()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	gotConn, err := workspaceCtx.getWorkspaceConn(ctx)
+	require.NoError(t, err)
+	require.Same(t, newConn, gotConn)
+	require.True(t, releaseCalled, "release called")
+	require.True(t, dialCalled, "dial called")
 }
 
 func TestGetWorkspaceConn_DialTimeout(t *testing.T) {
@@ -4431,6 +5140,9 @@ func TestGetWorkspaceConn_DialTimeout(t *testing.T) {
 
 	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
 		Return(connectedAgent, nil).
+		Times(2)
+	db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
+		Return([]database.WorkspaceAgent{connectedAgent}, nil).
 		Times(1)
 
 	server := &Server{
@@ -4459,6 +5171,70 @@ func TestGetWorkspaceConn_DialTimeout(t *testing.T) {
 	gotConn, err := workspaceCtx.getWorkspaceConn(ctx)
 	require.Nil(t, gotConn)
 	require.ErrorIs(t, err, errChatDialTimeout)
+}
+
+func TestGetWorkspaceConn_DialTimeoutStatusTimeoutDoesNotEscalate(t *testing.T) {
+	// Agents that never connected are startup failures, not
+	// disconnected recovery cases. A dial timeout should stay a
+	// retry/escalation error rather than stop/start guidance.
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	workspaceID := uuid.New()
+	agentID := uuid.New()
+	chat := database.Chat{
+		ID: uuid.New(),
+		WorkspaceID: uuid.NullUUID{
+			UUID:  workspaceID,
+			Valid: true,
+		},
+		AgentID: uuid.NullUUID{
+			UUID:  agentID,
+			Valid: true,
+		},
+	}
+
+	timedOutAgent := database.WorkspaceAgent{
+		ID:                       agentID,
+		CreatedAt:                time.Now().Add(-10 * time.Minute),
+		ConnectionTimeoutSeconds: 60,
+	}
+
+	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
+		Return(timedOutAgent, nil).
+		Times(2)
+	db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
+		Return([]database.WorkspaceAgent{timedOutAgent}, nil).
+		Times(1)
+
+	server := &Server{
+		db:                             db,
+		clock:                          quartz.NewReal(),
+		agentInactiveDisconnectTimeout: 30 * time.Second,
+		dialTimeout:                    10 * time.Millisecond,
+	}
+	server.agentConnFn = func(ctx context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+		<-ctx.Done()
+		return nil, nil, ctx.Err()
+	}
+
+	chatStateMu := &sync.Mutex{}
+	currentChat := chat
+	workspaceCtx := turnWorkspaceContext{
+		server:           server,
+		chatStateMu:      chatStateMu,
+		currentChat:      &currentChat,
+		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return database.Chat{}, nil },
+	}
+	defer workspaceCtx.close()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	gotConn, err := workspaceCtx.getWorkspaceConn(ctx)
+	require.Nil(t, gotConn)
+	require.ErrorIs(t, err, errChatDialTimeout)
+	require.NotErrorIs(t, err, errChatAgentDisconnected)
 }
 
 func TestGetWorkspaceConn_DialTimeoutParentCanceled(t *testing.T) {
@@ -5008,4 +5784,770 @@ func TestAutoPromote_InsertFailureSkipsStatusUpdate(t *testing.T) {
 	default:
 		// No signal, as expected.
 	}
+}
+
+// makeInProgressPart is a small constructor for buffered message_part
+// fixtures used by snapshotBufferLocked / subscribeToStream tests. It
+// builds an in-progress part (committedMessageID == 0) with a
+// recognizable text body so failing assertions can identify which
+// part survived the filter.
+func makeInProgressPart(text string) bufferedStreamPart {
+	return bufferedStreamPart{
+		event: codersdk.ChatStreamEvent{
+			Type: codersdk.ChatStreamEventTypeMessagePart,
+			MessagePart: &codersdk.ChatStreamMessagePart{
+				Role: codersdk.ChatMessageRoleAssistant,
+				Part: codersdk.ChatMessageText(text),
+			},
+		},
+	}
+}
+
+// makeCommittedPart builds a part already claimed by the given
+// durable assistant message ID.
+func makeCommittedPart(committedID int64, text string) bufferedStreamPart {
+	p := makeInProgressPart(text)
+	p.committedMessageID = committedID
+	return p
+}
+
+func partText(event codersdk.ChatStreamEvent) string {
+	if event.MessagePart == nil {
+		return ""
+	}
+	return event.MessagePart.Part.Text
+}
+
+// TestSnapshotBufferLocked_DropsCommittedParts asserts the core
+// dedup contract: parts that were claimed by a durable assistant
+// message (committedMessageID != 0) are dropped from the snapshot
+// because the subscriber will receive that durable message through
+// the REST snapshot, the initial DB query, or pubsub.
+func TestSnapshotBufferLocked_DropsCommittedParts(t *testing.T) {
+	t.Parallel()
+
+	buffer := []bufferedStreamPart{
+		makeCommittedPart(100, "turnA-1"),
+		makeCommittedPart(100, "turnA-2"),
+		makeCommittedPart(200, "turnB-1"),
+		makeInProgressPart("in-progress-1"),
+		makeInProgressPart("in-progress-2"),
+	}
+
+	snapshot := snapshotBufferLocked(buffer)
+
+	require.Len(t, snapshot, 2,
+		"only in-progress (committedMessageID == 0) parts should be kept")
+	require.Equal(t, "in-progress-1", partText(snapshot[0]))
+	require.Equal(t, "in-progress-2", partText(snapshot[1]))
+}
+
+// TestSnapshotBufferLocked_AllInProgressReturnsAll covers the
+// fresh-load convention: when no assistant message has committed
+// yet, every buffered part is in-progress and must be delivered.
+func TestSnapshotBufferLocked_AllInProgressReturnsAll(t *testing.T) {
+	t.Parallel()
+
+	buffer := []bufferedStreamPart{
+		makeInProgressPart("a"),
+		makeInProgressPart("b"),
+		makeInProgressPart("c"),
+	}
+
+	snapshot := snapshotBufferLocked(buffer)
+
+	require.Len(t, snapshot, 3,
+		"all in-progress parts must be delivered to the subscriber")
+	require.Equal(t, "a", partText(snapshot[0]))
+	require.Equal(t, "b", partText(snapshot[1]))
+	require.Equal(t, "c", partText(snapshot[2]))
+}
+
+// TestSnapshotBufferLocked_EmptyBufferReturnsNil documents that
+// snapshotBufferLocked returns nil (not an empty slice) for an
+// empty buffer, matching the prior append-from-nil behavior.
+func TestSnapshotBufferLocked_EmptyBufferReturnsNil(t *testing.T) {
+	t.Parallel()
+
+	require.Nil(t, snapshotBufferLocked(nil))
+	require.Nil(t, snapshotBufferLocked([]bufferedStreamPart{}))
+}
+
+// TestSnapshotBufferLocked_AllCommittedReturnsEmpty covers the
+// natural resting point after an assistant turn commits and before
+// the next turn starts streaming: every buffered part has been
+// claimed and must be filtered out. The snapshot must be empty so
+// reconnecting subscribers do not re-render content that is already
+// available as a durable message.
+func TestSnapshotBufferLocked_AllCommittedReturnsEmpty(t *testing.T) {
+	t.Parallel()
+
+	buffer := []bufferedStreamPart{
+		makeCommittedPart(100, "a"),
+		makeCommittedPart(100, "b"),
+		makeCommittedPart(200, "c"),
+	}
+
+	require.Empty(t, snapshotBufferLocked(buffer))
+}
+
+// TestPublishToStream_AppendsAsInProgress verifies that parts
+// buffered while the chat is streaming are tagged as in-progress
+// (committedMessageID == 0) until publishMessage claims them via a
+// committed assistant message.
+func TestPublishToStream_AppendsAsInProgress(t *testing.T) {
+	t.Parallel()
+
+	mClock := quartz.NewMock(t)
+	server := &Server{
+		logger: slogtest.Make(t, nil),
+		clock:  mClock,
+	}
+
+	chatID := uuid.New()
+	state := &chatStreamState{
+		buffering:   true,
+		subscribers: map[uuid.UUID]chan codersdk.ChatStreamEvent{},
+	}
+	server.chatStreams.Store(chatID, state)
+
+	server.publishToStream(chatID, codersdk.ChatStreamEvent{
+		Type: codersdk.ChatStreamEventTypeMessagePart,
+		MessagePart: &codersdk.ChatStreamMessagePart{
+			Role: codersdk.ChatMessageRoleAssistant,
+			Part: codersdk.ChatMessageText("hello"),
+		},
+	})
+
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	require.Len(t, state.buffer, 1)
+	require.Equal(t, int64(0), state.buffer[0].committedMessageID,
+		"newly buffered parts must be in-progress until publishMessage claims them")
+	require.Equal(t, "hello", partText(state.buffer[0].event))
+}
+
+// TestClaimCommittedParts covers the per-role behavior of
+// claimCommittedParts:
+//   - assistant messages claim every in-progress part with the
+//     committed message ID.
+//   - tool / user messages do not claim parts.
+//   - parts already claimed by an earlier assistant message are not
+//     re-claimed.
+//   - a chat with no live state is a no-op (does not panic).
+func TestClaimCommittedParts(t *testing.T) {
+	t.Parallel()
+
+	t.Run("AssistantClaimsAllInProgressParts", func(t *testing.T) {
+		t.Parallel()
+
+		server := &Server{
+			logger: slogtest.Make(t, nil),
+			clock:  quartz.NewMock(t),
+		}
+		chatID := uuid.New()
+		state := server.getOrCreateStreamState(chatID)
+		state.mu.Lock()
+		state.buffer = []bufferedStreamPart{
+			makeCommittedPart(100, "old-1"),
+			makeInProgressPart("new-1"),
+			makeInProgressPart("new-2"),
+		}
+		state.mu.Unlock()
+
+		server.claimCommittedParts(chatID, database.ChatMessage{
+			ID:   200,
+			Role: database.ChatMessageRoleAssistant,
+		})
+
+		state.mu.Lock()
+		defer state.mu.Unlock()
+		require.Equal(t, int64(100), state.buffer[0].committedMessageID,
+			"already-claimed parts must keep their original message ID")
+		require.Equal(t, int64(200), state.buffer[1].committedMessageID,
+			"in-progress parts must be claimed by the new message ID")
+		require.Equal(t, int64(200), state.buffer[2].committedMessageID,
+			"in-progress parts must be claimed by the new message ID")
+	})
+
+	t.Run("ToolMessageIsNoOp", func(t *testing.T) {
+		t.Parallel()
+
+		server := &Server{
+			logger: slogtest.Make(t, nil),
+			clock:  quartz.NewMock(t),
+		}
+		chatID := uuid.New()
+		state := server.getOrCreateStreamState(chatID)
+		state.mu.Lock()
+		state.buffer = []bufferedStreamPart{
+			makeInProgressPart("a"),
+			makeInProgressPart("b"),
+		}
+		state.mu.Unlock()
+
+		server.claimCommittedParts(chatID, database.ChatMessage{
+			ID:   300,
+			Role: database.ChatMessageRoleTool,
+		})
+
+		state.mu.Lock()
+		defer state.mu.Unlock()
+		require.Equal(t, int64(0), state.buffer[0].committedMessageID,
+			"tool messages must not claim buffered parts")
+		require.Equal(t, int64(0), state.buffer[1].committedMessageID,
+			"tool messages must not claim buffered parts")
+	})
+
+	t.Run("UserMessageIsNoOp", func(t *testing.T) {
+		t.Parallel()
+
+		server := &Server{
+			logger: slogtest.Make(t, nil),
+			clock:  quartz.NewMock(t),
+		}
+		chatID := uuid.New()
+		state := server.getOrCreateStreamState(chatID)
+		state.mu.Lock()
+		state.buffer = []bufferedStreamPart{
+			makeInProgressPart("a"),
+		}
+		state.mu.Unlock()
+
+		server.claimCommittedParts(chatID, database.ChatMessage{
+			ID:   400,
+			Role: database.ChatMessageRoleUser,
+		})
+
+		state.mu.Lock()
+		defer state.mu.Unlock()
+		require.Equal(t, int64(0), state.buffer[0].committedMessageID,
+			"user messages must not claim buffered parts")
+	})
+
+	t.Run("NoLiveStateIsNoOp", func(t *testing.T) {
+		t.Parallel()
+
+		server := &Server{
+			logger: slogtest.Make(t, nil),
+			clock:  quartz.NewMock(t),
+		}
+		chatID := uuid.New()
+
+		// No state stored: claimCommittedParts must not panic and
+		// must not allocate a new state for an unknown chat.
+		require.NotPanics(t, func() {
+			server.claimCommittedParts(chatID, database.ChatMessage{
+				ID:   500,
+				Role: database.ChatMessageRoleAssistant,
+			})
+		})
+		_, ok := server.chatStreams.Load(chatID)
+		require.False(t, ok,
+			"claimCommittedParts must not create stream state for a chat that has none")
+	})
+}
+
+// TestSubscribeToStream_FiltersBufferedParts_Integration wires
+// publishToStream, claimCommittedParts (via publishMessage), and
+// subscribeToStream together to confirm the end-to-end contract: a
+// reconnecting subscriber only receives parts that belong to the
+// current in-progress turn, not parts that were already committed
+// to durable assistant messages.
+func TestSubscribeToStream_FiltersBufferedParts_Integration(t *testing.T) {
+	t.Parallel()
+
+	mClock := quartz.NewMock(t)
+	server := &Server{
+		logger: slogtest.Make(t, nil),
+		clock:  mClock,
+	}
+	chatID := uuid.New()
+
+	// Simulate the lifecycle:
+	//   1. Stream parts of turn A (still in-progress, no commit yet).
+	//   2. Commit turn A; its parts are claimed by message 100.
+	//   3. Stream parts of turn B (in-progress).
+	//   4. Commit turn B; its parts are claimed by message 200.
+	//   5. Stream parts of turn C (in-progress, never committed).
+	state := server.getOrCreateStreamState(chatID)
+	state.mu.Lock()
+	state.buffering = true
+	state.mu.Unlock()
+
+	publishPart := func(text string) {
+		server.publishToStream(chatID, codersdk.ChatStreamEvent{
+			Type: codersdk.ChatStreamEventTypeMessagePart,
+			MessagePart: &codersdk.ChatStreamMessagePart{
+				Role: codersdk.ChatMessageRoleAssistant,
+				Part: codersdk.ChatMessageText(text),
+			},
+		})
+	}
+
+	publishPart("A-1")
+	publishPart("A-2")
+	server.claimCommittedParts(chatID, database.ChatMessage{
+		ID:   100,
+		Role: database.ChatMessageRoleAssistant,
+	})
+	publishPart("B-1")
+	publishPart("B-2")
+	server.claimCommittedParts(chatID, database.ChatMessage{
+		ID:   200,
+		Role: database.ChatMessageRoleAssistant,
+	})
+	publishPart("C-1")
+
+	// Reconnecting subscriber: only the currently in-progress turn
+	// (turn C) survives the filter, no matter what cursor the
+	// client passes through SubscribeAuthorized (the filter no
+	// longer depends on the cursor).
+	snapshot, _, _, cancel := server.subscribeToStream(chatID)
+	defer cancel()
+
+	texts := make([]string, 0, len(snapshot))
+	for _, ev := range snapshot {
+		texts = append(texts, partText(ev))
+	}
+	require.Equal(t, []string{"C-1"}, texts,
+		"only in-progress (un-claimed) buffered parts must survive the filter")
+}
+
+// TestPrimeWorkspaceMCPCache_SuccessOnFirstAttempt verifies the
+// onChatUpdated cache primer path: when create_workspace /
+// start_workspace finish waitForAgentReady and the agent's MCP
+// server is already advertising tools, a single ListMCPTools call
+// populates the cache so the next PrepareTools step is a cache hit
+// and does not need to dial.
+func TestPrimeWorkspaceMCPCache_SuccessOnFirstAttempt(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	workspaceID := uuid.New()
+	agentID := uuid.New()
+	chat := database.Chat{
+		ID: uuid.New(),
+		WorkspaceID: uuid.NullUUID{
+			UUID:  workspaceID,
+			Valid: true,
+		},
+		AgentID: uuid.NullUUID{
+			UUID:  agentID,
+			Valid: true,
+		},
+	}
+	now := time.Now()
+	workspaceAgent := database.WorkspaceAgent{
+		ID: agentID,
+		FirstConnectedAt: sql.NullTime{
+			Time:  now.Add(-time.Minute),
+			Valid: true,
+		},
+		LastConnectedAt: sql.NullTime{
+			Time:  now,
+			Valid: true,
+		},
+	}
+
+	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
+		Return(workspaceAgent, nil).AnyTimes()
+	db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
+		Return([]database.WorkspaceAgent{workspaceAgent}, nil).AnyTimes()
+
+	toolName := "workspace-mcp__echo"
+	conn := agentconnmock.NewMockAgentConn(ctrl)
+	conn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
+	conn.EXPECT().ListMCPTools(gomock.Any()).Return(workspacesdk.ListMCPToolsResponse{
+		Tools: []workspacesdk.MCPToolInfo{{
+			ServerName: "workspace-mcp",
+			Name:       toolName,
+			Schema:     map[string]any{},
+		}},
+	}, nil).Times(1)
+
+	server := &Server{
+		db:                             db,
+		logger:                         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		clock:                          quartz.NewMock(t),
+		agentInactiveDisconnectTimeout: 30 * time.Second,
+		dialTimeout:                    time.Second,
+		agentConnFn: func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			return conn, func() {}, nil
+		},
+	}
+
+	chatStateMu := &sync.Mutex{}
+	currentChat := chat
+	workspaceCtx := turnWorkspaceContext{
+		server:           server,
+		chatStateMu:      chatStateMu,
+		currentChat:      &currentChat,
+		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return chat, nil },
+	}
+	t.Cleanup(workspaceCtx.close)
+
+	server.primeWorkspaceMCPCache(ctx, server.logger, chat.ID, &workspaceCtx)
+
+	cached, ok := server.workspaceMCPToolsCache.Load(chat.ID)
+	require.True(t, ok, "primer must populate the cache on success")
+	entry, ok := cached.(*cachedWorkspaceMCPTools)
+	require.True(t, ok)
+	require.Equal(t, agentID, entry.agentID)
+	require.Len(t, entry.tools, 1)
+	require.Equal(t, toolName, entry.tools[0].Name)
+}
+
+// TestPrimeWorkspaceMCPCache_RetriesUntilToolsAppear simulates the
+// race between agent reachability and the agent's MCP Connect: the
+// first ListMCPTools call returns an empty list (no error), the
+// second returns the workspace tools. The primer must retry after
+// workspaceMCPPrimeRetryInterval and write the cache on the second
+// attempt.
+func TestPrimeWorkspaceMCPCache_RetriesUntilToolsAppear(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	workspaceID := uuid.New()
+	agentID := uuid.New()
+	chat := database.Chat{
+		ID: uuid.New(),
+		WorkspaceID: uuid.NullUUID{
+			UUID:  workspaceID,
+			Valid: true,
+		},
+		AgentID: uuid.NullUUID{
+			UUID:  agentID,
+			Valid: true,
+		},
+	}
+	now := time.Now()
+	workspaceAgent := database.WorkspaceAgent{
+		ID: agentID,
+		FirstConnectedAt: sql.NullTime{
+			Time:  now.Add(-time.Minute),
+			Valid: true,
+		},
+		LastConnectedAt: sql.NullTime{
+			Time:  now,
+			Valid: true,
+		},
+	}
+
+	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
+		Return(workspaceAgent, nil).AnyTimes()
+	db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
+		Return([]database.WorkspaceAgent{workspaceAgent}, nil).AnyTimes()
+
+	toolName := "workspace-mcp__echo"
+	var listCalls atomic.Int32
+	emptyOnce := make(chan struct{}, 1)
+	emptyOnce <- struct{}{}
+	conn := agentconnmock.NewMockAgentConn(ctrl)
+	conn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
+	conn.EXPECT().ListMCPTools(gomock.Any()).DoAndReturn(
+		func(context.Context) (workspacesdk.ListMCPToolsResponse, error) {
+			listCalls.Add(1)
+			select {
+			case <-emptyOnce:
+				return workspacesdk.ListMCPToolsResponse{}, nil
+			default:
+				return workspacesdk.ListMCPToolsResponse{
+					Tools: []workspacesdk.MCPToolInfo{{
+						ServerName: "workspace-mcp",
+						Name:       toolName,
+						Schema:     map[string]any{},
+					}},
+				}, nil
+			}
+		},
+	).AnyTimes()
+
+	mockClock := quartz.NewMock(t)
+	timerTrap := mockClock.Trap().NewTimer("chatd", "workspace-mcp-prime")
+	t.Cleanup(timerTrap.Close)
+
+	server := &Server{
+		db:                             db,
+		logger:                         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		clock:                          mockClock,
+		agentInactiveDisconnectTimeout: 30 * time.Second,
+		dialTimeout:                    time.Second,
+		agentConnFn: func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			return conn, func() {}, nil
+		},
+	}
+
+	chatStateMu := &sync.Mutex{}
+	currentChat := chat
+	workspaceCtx := turnWorkspaceContext{
+		server:           server,
+		chatStateMu:      chatStateMu,
+		currentChat:      &currentChat,
+		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return chat, nil },
+	}
+	t.Cleanup(workspaceCtx.close)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		server.primeWorkspaceMCPCache(ctx, server.logger, chat.ID, &workspaceCtx)
+	}()
+
+	// First attempt returns empty. The primer arms a timer; release
+	// it and advance the clock so the second attempt fires.
+	call := timerTrap.MustWait(ctx)
+	call.MustRelease(ctx)
+	mockClock.Advance(workspaceMCPPrimeRetryInterval).MustWait(ctx)
+
+	select {
+	case <-done:
+	case <-ctx.Done():
+		t.Fatal("primer did not finish after second attempt")
+	}
+
+	require.GreaterOrEqual(t, listCalls.Load(), int32(2),
+		"primer must retry after empty result")
+	cached, ok := server.workspaceMCPToolsCache.Load(chat.ID)
+	require.True(t, ok, "primer must populate the cache on retry success")
+	entry, ok := cached.(*cachedWorkspaceMCPTools)
+	require.True(t, ok)
+	require.Equal(t, agentID, entry.agentID)
+	require.Len(t, entry.tools, 1)
+	require.Equal(t, toolName, entry.tools[0].Name)
+}
+
+// TestPrimeWorkspaceMCPCache_GivesUpAfterDeadline verifies the
+// bounded-wait guarantee: when ListMCPTools always returns an empty
+// list (e.g. the agent's MCP server never advertises tools), the
+// primer stops trying at workspaceMCPPrimeMaxWait and does not cache
+// the empty result. PrepareTools is then free to retry on the next
+// chat step.
+func TestPrimeWorkspaceMCPCache_GivesUpAfterDeadline(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	workspaceID := uuid.New()
+	agentID := uuid.New()
+	chat := database.Chat{
+		ID: uuid.New(),
+		WorkspaceID: uuid.NullUUID{
+			UUID:  workspaceID,
+			Valid: true,
+		},
+		AgentID: uuid.NullUUID{
+			UUID:  agentID,
+			Valid: true,
+		},
+	}
+	now := time.Now()
+	workspaceAgent := database.WorkspaceAgent{
+		ID: agentID,
+		FirstConnectedAt: sql.NullTime{
+			Time:  now.Add(-time.Minute),
+			Valid: true,
+		},
+		LastConnectedAt: sql.NullTime{
+			Time:  now,
+			Valid: true,
+		},
+	}
+
+	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
+		Return(workspaceAgent, nil).AnyTimes()
+	db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
+		Return([]database.WorkspaceAgent{workspaceAgent}, nil).AnyTimes()
+
+	var listCalls atomic.Int32
+	conn := agentconnmock.NewMockAgentConn(ctrl)
+	conn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
+	conn.EXPECT().ListMCPTools(gomock.Any()).DoAndReturn(
+		func(context.Context) (workspacesdk.ListMCPToolsResponse, error) {
+			listCalls.Add(1)
+			return workspacesdk.ListMCPToolsResponse{}, nil
+		},
+	).AnyTimes()
+
+	mockClock := quartz.NewMock(t)
+	timerTrap := mockClock.Trap().NewTimer("chatd", "workspace-mcp-prime")
+	t.Cleanup(timerTrap.Close)
+
+	server := &Server{
+		db:                             db,
+		logger:                         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		clock:                          mockClock,
+		agentInactiveDisconnectTimeout: 30 * time.Second,
+		dialTimeout:                    time.Second,
+		agentConnFn: func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			return conn, func() {}, nil
+		},
+	}
+
+	chatStateMu := &sync.Mutex{}
+	currentChat := chat
+	workspaceCtx := turnWorkspaceContext{
+		server:           server,
+		chatStateMu:      chatStateMu,
+		currentChat:      &currentChat,
+		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return chat, nil },
+	}
+	t.Cleanup(workspaceCtx.close)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		server.primeWorkspaceMCPCache(ctx, server.logger, chat.ID, &workspaceCtx)
+	}()
+
+	// Drive the retry loop forward until the primer gives up. Each
+	// iteration: release the trapped NewTimer call, then advance the
+	// clock past the retry interval. The primer exits when
+	// p.clock.Now() is no longer before deadline. The loop bounds
+	// itself on maxIterations and uses a done-aware wait context so
+	// the test fails cleanly instead of hanging when the primer
+	// shuts down between iterations.
+	maxIterations := int(workspaceMCPPrimeMaxWait/workspaceMCPPrimeRetryInterval) + 2
+Loop:
+	for i := 0; i < maxIterations; i++ {
+		waitCtx, cancel := context.WithCancel(ctx)
+		go func() {
+			select {
+			case <-done:
+				cancel()
+			case <-waitCtx.Done():
+			}
+		}()
+		call, err := timerTrap.Wait(waitCtx)
+		cancel()
+		if err != nil {
+			break Loop
+		}
+		call.MustRelease(ctx)
+		mockClock.Advance(workspaceMCPPrimeRetryInterval).MustWait(ctx)
+	}
+
+	// expectedAttempts is the floor on how many times the primer
+	// should call discoverWorkspaceMCPTools before the deadline
+	// expires. The primer makes one attempt before sleeping, then
+	// one per workspaceMCPPrimeRetryInterval until the deadline.
+	// We assert a high-water mark (rather than exact equality) so
+	// the test is robust to off-by-one boundaries while still
+	// catching deadline miscomputations: a primer that exits after a
+	// handful of attempts would suggest the deadline was set with a
+	// shorter window than workspaceMCPPrimeMaxWait.
+	expectedAttempts := int32(workspaceMCPPrimeMaxWait/workspaceMCPPrimeRetryInterval) / 2
+	require.GreaterOrEqual(t, listCalls.Load(), expectedAttempts,
+		"primer must retry enough times to consume the full budget")
+	_, ok := server.workspaceMCPToolsCache.Load(chat.ID)
+	require.False(t, ok,
+		"primer must not cache an empty result; PrepareTools needs to retry on the next step")
+}
+
+// TestPrimeWorkspaceMCPCache_ExitsOnContextCancel verifies the
+// primer's context.Done() branch: the retry loop must exit promptly
+// when the chat ctx is canceled (runChat cancels its primerCtx
+// before workspaceCtx.close runs to prevent a primer from re-dialing
+// the freed conn).
+func TestPrimeWorkspaceMCPCache_ExitsOnContextCancel(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	workspaceID := uuid.New()
+	agentID := uuid.New()
+	chat := database.Chat{
+		ID: uuid.New(),
+		WorkspaceID: uuid.NullUUID{
+			UUID:  workspaceID,
+			Valid: true,
+		},
+		AgentID: uuid.NullUUID{
+			UUID:  agentID,
+			Valid: true,
+		},
+	}
+	now := time.Now()
+	workspaceAgent := database.WorkspaceAgent{
+		ID: agentID,
+		FirstConnectedAt: sql.NullTime{
+			Time:  now.Add(-time.Minute),
+			Valid: true,
+		},
+		LastConnectedAt: sql.NullTime{
+			Time:  now,
+			Valid: true,
+		},
+	}
+
+	db.EXPECT().GetWorkspaceAgentByID(gomock.Any(), agentID).
+		Return(workspaceAgent, nil).AnyTimes()
+	db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
+		Return([]database.WorkspaceAgent{workspaceAgent}, nil).AnyTimes()
+
+	conn := agentconnmock.NewMockAgentConn(ctrl)
+	conn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
+	conn.EXPECT().ListMCPTools(gomock.Any()).
+		Return(workspacesdk.ListMCPToolsResponse{}, nil).AnyTimes()
+
+	mockClock := quartz.NewMock(t)
+	timerTrap := mockClock.Trap().NewTimer("chatd", "workspace-mcp-prime")
+	t.Cleanup(timerTrap.Close)
+
+	server := &Server{
+		db:                             db,
+		logger:                         slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		clock:                          mockClock,
+		agentInactiveDisconnectTimeout: 30 * time.Second,
+		dialTimeout:                    time.Second,
+		agentConnFn: func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			return conn, func() {}, nil
+		},
+	}
+
+	chatStateMu := &sync.Mutex{}
+	currentChat := chat
+	workspaceCtx := turnWorkspaceContext{
+		server:           server,
+		chatStateMu:      chatStateMu,
+		currentChat:      &currentChat,
+		loadChatSnapshot: func(context.Context, uuid.UUID) (database.Chat, error) { return chat, nil },
+	}
+	t.Cleanup(workspaceCtx.close)
+
+	primerCtx, primerCancel := context.WithCancel(ctx)
+	t.Cleanup(primerCancel)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		server.primeWorkspaceMCPCache(primerCtx, server.logger, chat.ID, &workspaceCtx)
+	}()
+
+	// Let the primer arm at least one retry timer so we know it is
+	// blocked in the select. Canceling before this would race with
+	// the loop entering the retry path.
+	call := timerTrap.MustWait(ctx)
+	call.MustRelease(ctx)
+
+	primerCancel()
+
+	select {
+	case <-done:
+	case <-ctx.Done():
+		t.Fatal("primer did not exit after context cancellation")
+	}
+
+	_, ok := server.workspaceMCPToolsCache.Load(chat.ID)
+	require.False(t, ok, "primer must not cache anything when canceled")
 }

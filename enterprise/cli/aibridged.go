@@ -44,12 +44,12 @@ func newAIBridgeDaemon(coderAPI *coderd.API, providers []aibridge.Provider) (*ai
 	return srv, nil
 }
 
-// buildProviders constructs the list of aibridge providers from config.
+// buildProviders constructs the list of AI providers from config.
 // It merges legacy single-provider env vars and indexed provider configs:
-//  1. Legacy providers (from CODER_AIBRIDGE_OPENAI_KEY, etc.) are added first.
+//  1. Legacy providers (from CODER_AI_GATEWAY_OPENAI_KEY, etc.) are added first.
 //     If a legacy name conflicts with an indexed provider, startup fails with
 //     a clear error asking the admin to remove one or the other.
-//  2. Indexed providers (from CODER_AIBRIDGE_PROVIDER_<N>_*) are added next.
+//  2. Indexed providers (from CODER_AI_GATEWAY_PROVIDER_<N>_*) are added next.
 func buildProviders(cfg codersdk.AIBridgeConfig) ([]aibridge.Provider, error) {
 	var cbConfig *config.CircuitBreaker
 	if cfg.CircuitBreakerEnabled.Value() {
@@ -77,7 +77,7 @@ func buildProviders(cfg codersdk.AIBridgeConfig) ([]aibridge.Provider, error) {
 	// Add legacy OpenAI provider if configured.
 	if cfg.LegacyOpenAI.Key.String() != "" {
 		if _, conflict := usedNames[aibridge.ProviderOpenAI]; conflict {
-			return nil, xerrors.Errorf("legacy CODER_AIBRIDGE_OPENAI_KEY conflicts with indexed provider named %q; remove one or the other", aibridge.ProviderOpenAI)
+			return nil, xerrors.Errorf("legacy CODER_AI_GATEWAY_OPENAI_KEY (or CODER_AIBRIDGE_OPENAI_KEY) conflicts with indexed provider named %q; remove one or the other", aibridge.ProviderOpenAI)
 		}
 		providers = append(providers, aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{
 			Name:             aibridge.ProviderOpenAI,
@@ -94,7 +94,7 @@ func buildProviders(cfg codersdk.AIBridgeConfig) ([]aibridge.Provider, error) {
 	// using AWS Bedrock.
 	if cfg.LegacyAnthropic.Key.String() != "" || getBedrockConfig(cfg.LegacyBedrock) != nil {
 		if _, conflict := usedNames[aibridge.ProviderAnthropic]; conflict {
-			return nil, xerrors.Errorf("legacy CODER_AIBRIDGE_ANTHROPIC_KEY conflicts with indexed provider named %q; remove one or the other", aibridge.ProviderAnthropic)
+			return nil, xerrors.Errorf("legacy CODER_AI_GATEWAY_ANTHROPIC_KEY (or CODER_AIBRIDGE_ANTHROPIC_KEY) conflicts with indexed provider named %q; remove one or the other", aibridge.ProviderAnthropic)
 		}
 		var pool *keypool.Pool
 		if key := cfg.LegacyAnthropic.Key.String(); key != "" {
@@ -171,9 +171,9 @@ func buildProviders(cfg codersdk.AIBridgeConfig) ([]aibridge.Provider, error) {
 }
 
 // bedrockConfigFromProvider converts Bedrock fields from an indexed
-// AIBridgeProviderConfig into an aibridge AWSBedrockConfig.
+// AIProviderConfig into an aibridge AWSBedrockConfig.
 // Returns nil if no Bedrock fields are set.
-func bedrockConfigFromProvider(p codersdk.AIBridgeProviderConfig) *aibridge.AWSBedrockConfig {
+func bedrockConfigFromProvider(p codersdk.AIProviderConfig) *aibridge.AWSBedrockConfig {
 	if p.BedrockRegion == "" && p.BedrockBaseURL == "" && len(p.BedrockAccessKeys) == 0 && len(p.BedrockAccessKeySecrets) == 0 {
 		return nil
 	}

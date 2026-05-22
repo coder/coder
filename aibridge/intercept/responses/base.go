@@ -387,7 +387,6 @@ func (i *responsesInterceptionBase) recordTokenUsage(ctx context.Context, respon
 		Output:               usage.OutputTokens,
 		CacheReadInputTokens: usage.InputTokensDetails.CachedTokens,
 		ExtraTokenTypes: map[string]int64{
-			"input_cached":     usage.InputTokensDetails.CachedTokens, // TODO: remove from ExtraTokenTypes (https://github.com/coder/aibridge/issues/243)
 			"output_reasoning": usage.OutputTokensDetails.ReasoningTokens,
 			"total_tokens":     usage.TotalTokens,
 		},
