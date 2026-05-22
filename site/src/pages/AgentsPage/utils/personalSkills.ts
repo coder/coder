@@ -174,6 +174,14 @@ const frontmatterLineValue = (value: string): string =>
 const frontmatterStringValue = (value: string): string =>
 	`"${frontmatterLineValue(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
 
+const frontmatterNameValue = (value: string): string => {
+	const lineValue = frontmatterLineValue(value);
+	if (/^(?:true|false|null)$/.test(lineValue) || /^[0-9]/.test(lineValue)) {
+		return frontmatterStringValue(lineValue);
+	}
+	return lineValue;
+};
+
 export const isValidPersonalSkillDescription = (description: string): boolean =>
 	getPersonalSkillContentSizeBytes(description) <=
 	PERSONAL_SKILL_MAX_DESCRIPTION_BYTES;
@@ -181,10 +189,10 @@ export const isValidPersonalSkillDescription = (description: string): boolean =>
 export const buildPersonalSkillMarkdown = (
 	values: PersonalSkillFormValues,
 ): string => {
-	const name = frontmatterLineValue(values.name);
+	const name = frontmatterNameValue(values.name);
 	const description = frontmatterLineValue(values.description);
 	const body = values.body.trim();
-	const frontmatter = ["---", `name: ${frontmatterStringValue(name)}`];
+	const frontmatter = ["---", `name: ${name}`];
 	if (description) {
 		frontmatter.push(`description: ${frontmatterStringValue(description)}`);
 	}

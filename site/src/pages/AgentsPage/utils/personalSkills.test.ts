@@ -236,7 +236,7 @@ describe("buildPersonalSkillMarkdown", () => {
 		});
 
 		expect(content).toBe(
-			'---\nname: "test-skill"\ndescription: "Does a thing"\n---\nUse this skill.\n',
+			'---\nname: test-skill\ndescription: "Does a thing"\n---\nUse this skill.\n',
 		);
 		expect(parsePersonalSkillMarkdown(content)).toEqual({
 			name: "test-skill",
@@ -252,7 +252,7 @@ describe("buildPersonalSkillMarkdown", () => {
 				description: "",
 				body: "Use this skill.",
 			}),
-		).toBe('---\nname: "test-skill"\n---\nUse this skill.\n');
+		).toBe("---\nname: test-skill\n---\nUse this skill.\n");
 	});
 
 	it("quotes skill names that YAML would otherwise coerce", () => {
@@ -265,6 +265,16 @@ describe("buildPersonalSkillMarkdown", () => {
 		expect(content).toContain('name: "true"');
 		expect(parsePersonalSkillMarkdown(content)).toMatchObject({
 			name: "true",
+		});
+
+		const numericNameContent = buildPersonalSkillMarkdown({
+			name: "123",
+			description: "",
+			body: "Use this skill.",
+		});
+		expect(numericNameContent).toContain('name: "123"');
+		expect(parsePersonalSkillMarkdown(numericNameContent)).toMatchObject({
+			name: "123",
 		});
 	});
 
