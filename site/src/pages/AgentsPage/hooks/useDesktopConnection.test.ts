@@ -928,12 +928,12 @@ describe("useDesktopConnection", () => {
 		act(() => observer.simulateResize(0, 0));
 
 		// Reset so we can detect re-assignment.
-		rfb.scaleViewport = false;
+		const spy = vi.spyOn(rfb, "scaleViewport", "set");
 
 		// Container visible again — should force rescale.
 		act(() => observer.simulateResize(800, 600));
 
-		expect(rfb.scaleViewport).toBe(true);
+		expect(spy).toHaveBeenCalled();
 	});
 
 	it("does not force scaleViewport on normal nonzero→nonzero resize", () => {
