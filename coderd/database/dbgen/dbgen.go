@@ -455,11 +455,11 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 
 func BoundarySession(t testing.TB, db database.Store, seed database.BoundarySession) database.BoundarySession {
 	session, err := db.InsertBoundarySession(genCtx, database.InsertBoundarySessionParams{
-		ID:               takeFirst(seed.ID, uuid.New()),
-		WorkspaceAgentID: takeFirst(seed.WorkspaceAgentID, uuid.New()),
-		ConfinedProcess:  takeFirst(seed.ConfinedProcess, "claude-code"),
-		StartedAt:        takeFirst(seed.StartedAt, dbtime.Now()),
-		UpdatedAt:        takeFirst(seed.UpdatedAt, dbtime.Now()),
+		ID:                  takeFirst(seed.ID, uuid.New()),
+		WorkspaceAgentID:    takeFirst(seed.WorkspaceAgentID, uuid.New()),
+		ConfinedProcessName: takeFirst(seed.ConfinedProcessName, "claude-code"),
+		StartedAt:           takeFirst(seed.StartedAt, dbtime.Now()),
+		UpdatedAt:           takeFirst(seed.UpdatedAt, dbtime.Now()),
 	})
 	require.NoError(t, err, "insert boundary session")
 	return session
@@ -470,7 +470,6 @@ func BoundaryLog(t testing.TB, db database.Store, seed database.BoundaryLog) dat
 		ID:             takeFirst(seed.ID, uuid.New()),
 		SessionID:      seed.SessionID,
 		SequenceNumber: takeFirst(seed.SequenceNumber, 0),
-		Allowed:        takeFirst(seed.Allowed, true),
 		CapturedAt:     takeFirst(seed.CapturedAt, dbtime.Now()),
 		CreatedAt:      takeFirst(seed.CreatedAt, dbtime.Now()),
 		Proto:          takeFirst(seed.Proto, "http"),

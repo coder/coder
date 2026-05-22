@@ -440,6 +440,8 @@ func (s *MethodTestSuite) TestAuditLogs() {
 	}))
 }
 
+// TODO (PR #24810): These RBAC assertions use placeholder resource types.
+// They will be updated when the dedicated boundary_log resource type is added.
 func (s *MethodTestSuite) TestBoundaryLogs() {
 	s.Run("InsertBoundarySession", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.InsertBoundarySessionParams{}

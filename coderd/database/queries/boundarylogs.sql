@@ -2,13 +2,13 @@
 INSERT INTO boundary_sessions (
     id,
     workspace_agent_id,
-    confined_process,
+    confined_process_name,
     started_at,
     updated_at
 ) VALUES (
     @id,
     @workspace_agent_id,
-    @confined_process,
+    @confined_process_name,
     @started_at,
     @updated_at
 ) RETURNING *;
@@ -21,7 +21,6 @@ INSERT INTO boundary_logs (
     id,
     session_id,
     sequence_number,
-    allowed,
     captured_at,
     created_at,
     proto,
@@ -32,7 +31,6 @@ INSERT INTO boundary_logs (
     @id,
     @session_id,
     @sequence_number,
-    @allowed,
     @captured_at,
     @created_at,
     @proto,
@@ -53,11 +51,11 @@ FROM boundary_logs
 WHERE
     session_id = @session_id
     AND CASE
-        WHEN @seq_after::bigint != -1 THEN sequence_number > @seq_after
+        WHEN sqlc.narg('seq_after')::int IS NOT NULL THEN sequence_number > sqlc.narg('seq_after')
         ELSE true
     END
     AND CASE
-        WHEN @seq_before::bigint != -1 THEN sequence_number < @seq_before
+        WHEN sqlc.narg('seq_before')::int IS NOT NULL THEN sequence_number < sqlc.narg('seq_before')
         ELSE true
     END
 ORDER BY sequence_number ASC

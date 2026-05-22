@@ -3578,7 +3578,7 @@ func (q *sqlQuerier) DeleteOldBoundaryLogs(ctx context.Context, arg DeleteOldBou
 }
 
 const getBoundaryLogByID = `-- name: GetBoundaryLogByID :one
-SELECT id, session_id, sequence_number, allowed, captured_at, created_at, proto, method, detail, matched_rule FROM boundary_logs WHERE id = $1
+SELECT id, session_id, sequence_number, captured_at, created_at, proto, method, detail, matched_rule FROM boundary_logs WHERE id = $1
 `
 
 func (q *sqlQuerier) GetBoundaryLogByID(ctx context.Context, id uuid.UUID) (BoundaryLog, error) {
@@ -3588,7 +3588,6 @@ func (q *sqlQuerier) GetBoundaryLogByID(ctx context.Context, id uuid.UUID) (Boun
 		&i.ID,
 		&i.SessionID,
 		&i.SequenceNumber,
-		&i.Allowed,
 		&i.CapturedAt,
 		&i.CreatedAt,
 		&i.Proto,
@@ -3600,7 +3599,7 @@ func (q *sqlQuerier) GetBoundaryLogByID(ctx context.Context, id uuid.UUID) (Boun
 }
 
 const getBoundarySessionByID = `-- name: GetBoundarySessionByID :one
-SELECT id, workspace_agent_id, confined_process, started_at, updated_at FROM boundary_sessions WHERE id = $1
+SELECT id, workspace_agent_id, confined_process_name, started_at, updated_at FROM boundary_sessions WHERE id = $1
 `
 
 func (q *sqlQuerier) GetBoundarySessionByID(ctx context.Context, id uuid.UUID) (BoundarySession, error) {
@@ -3609,7 +3608,7 @@ func (q *sqlQuerier) GetBoundarySessionByID(ctx context.Context, id uuid.UUID) (
 	err := row.Scan(
 		&i.ID,
 		&i.WorkspaceAgentID,
-		&i.ConfinedProcess,
+		&i.ConfinedProcessName,
 		&i.StartedAt,
 		&i.UpdatedAt,
 	)
@@ -3621,7 +3620,6 @@ INSERT INTO boundary_logs (
     id,
     session_id,
     sequence_number,
-    allowed,
     captured_at,
     created_at,
     proto,
@@ -3637,16 +3635,14 @@ INSERT INTO boundary_logs (
     $6,
     $7,
     $8,
-    $9,
-    $10
-) RETURNING id, session_id, sequence_number, allowed, captured_at, created_at, proto, method, detail, matched_rule
+    $9
+) RETURNING id, session_id, sequence_number, captured_at, created_at, proto, method, detail, matched_rule
 `
 
 type InsertBoundaryLogParams struct {
 	ID             uuid.UUID      `db:"id" json:"id"`
 	SessionID      uuid.UUID      `db:"session_id" json:"session_id"`
-	SequenceNumber int64          `db:"sequence_number" json:"sequence_number"`
-	Allowed        bool           `db:"allowed" json:"allowed"`
+	SequenceNumber int32          `db:"sequence_number" json:"sequence_number"`
 	CapturedAt     time.Time      `db:"captured_at" json:"captured_at"`
 	CreatedAt      time.Time      `db:"created_at" json:"created_at"`
 	Proto          string         `db:"proto" json:"proto"`
@@ -3660,7 +3656,6 @@ func (q *sqlQuerier) InsertBoundaryLog(ctx context.Context, arg InsertBoundaryLo
 		arg.ID,
 		arg.SessionID,
 		arg.SequenceNumber,
-		arg.Allowed,
 		arg.CapturedAt,
 		arg.CreatedAt,
 		arg.Proto,
@@ -3673,7 +3668,6 @@ func (q *sqlQuerier) InsertBoundaryLog(ctx context.Context, arg InsertBoundaryLo
 		&i.ID,
 		&i.SessionID,
 		&i.SequenceNumber,
-		&i.Allowed,
 		&i.CapturedAt,
 		&i.CreatedAt,
 		&i.Proto,
@@ -3688,7 +3682,7 @@ const insertBoundarySession = `-- name: InsertBoundarySession :one
 INSERT INTO boundary_sessions (
     id,
     workspace_agent_id,
-    confined_process,
+    confined_process_name,
     started_at,
     updated_at
 ) VALUES (
@@ -3697,22 +3691,22 @@ INSERT INTO boundary_sessions (
     $3,
     $4,
     $5
-) RETURNING id, workspace_agent_id, confined_process, started_at, updated_at
+) RETURNING id, workspace_agent_id, confined_process_name, started_at, updated_at
 `
 
 type InsertBoundarySessionParams struct {
-	ID               uuid.UUID `db:"id" json:"id"`
-	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
-	ConfinedProcess  string    `db:"confined_process" json:"confined_process"`
-	StartedAt        time.Time `db:"started_at" json:"started_at"`
-	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
+	ID                  uuid.UUID `db:"id" json:"id"`
+	WorkspaceAgentID    uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	ConfinedProcessName string    `db:"confined_process_name" json:"confined_process_name"`
+	StartedAt           time.Time `db:"started_at" json:"started_at"`
+	UpdatedAt           time.Time `db:"updated_at" json:"updated_at"`
 }
 
 func (q *sqlQuerier) InsertBoundarySession(ctx context.Context, arg InsertBoundarySessionParams) (BoundarySession, error) {
 	row := q.db.QueryRowContext(ctx, insertBoundarySession,
 		arg.ID,
 		arg.WorkspaceAgentID,
-		arg.ConfinedProcess,
+		arg.ConfinedProcessName,
 		arg.StartedAt,
 		arg.UpdatedAt,
 	)
@@ -3720,7 +3714,7 @@ func (q *sqlQuerier) InsertBoundarySession(ctx context.Context, arg InsertBounda
 	err := row.Scan(
 		&i.ID,
 		&i.WorkspaceAgentID,
-		&i.ConfinedProcess,
+		&i.ConfinedProcessName,
 		&i.StartedAt,
 		&i.UpdatedAt,
 	)
@@ -3728,16 +3722,16 @@ func (q *sqlQuerier) InsertBoundarySession(ctx context.Context, arg InsertBounda
 }
 
 const listBoundaryLogsBySessionID = `-- name: ListBoundaryLogsBySessionID :many
-SELECT id, session_id, sequence_number, allowed, captured_at, created_at, proto, method, detail, matched_rule
+SELECT id, session_id, sequence_number, captured_at, created_at, proto, method, detail, matched_rule
 FROM boundary_logs
 WHERE
     session_id = $1
     AND CASE
-        WHEN $2::bigint != -1 THEN sequence_number > $2
+        WHEN $2::int IS NOT NULL THEN sequence_number > $2
         ELSE true
     END
     AND CASE
-        WHEN $3::bigint != -1 THEN sequence_number < $3
+        WHEN $3::int IS NOT NULL THEN sequence_number < $3
         ELSE true
     END
 ORDER BY sequence_number ASC
@@ -3745,10 +3739,10 @@ LIMIT COALESCE(NULLIF($4::int, 0), 100)
 `
 
 type ListBoundaryLogsBySessionIDParams struct {
-	SessionID uuid.UUID `db:"session_id" json:"session_id"`
-	SeqAfter  int64     `db:"seq_after" json:"seq_after"`
-	SeqBefore int64     `db:"seq_before" json:"seq_before"`
-	LimitOpt  int32     `db:"limit_opt" json:"limit_opt"`
+	SessionID uuid.UUID     `db:"session_id" json:"session_id"`
+	SeqAfter  sql.NullInt32 `db:"seq_after" json:"seq_after"`
+	SeqBefore sql.NullInt32 `db:"seq_before" json:"seq_before"`
+	LimitOpt  int32         `db:"limit_opt" json:"limit_opt"`
 }
 
 // Lists boundary logs for a session, sorted by sequence number ascending.
@@ -3772,7 +3766,6 @@ func (q *sqlQuerier) ListBoundaryLogsBySessionID(ctx context.Context, arg ListBo
 			&i.ID,
 			&i.SessionID,
 			&i.SequenceNumber,
-			&i.Allowed,
 			&i.CapturedAt,
 			&i.CreatedAt,
 			&i.Proto,
