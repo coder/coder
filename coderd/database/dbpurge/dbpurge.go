@@ -509,7 +509,7 @@ func (i *instance) purgeChatsInTx(ctx context.Context, tx database.Store, start 
 	// Eligibility uses UTC day boundaries: a chat is archived on the
 	// start of the UTC day after its inactivity period has elapsed.
 	if chatAutoArchiveDays > 0 {
-		today := start.Truncate(24 * time.Hour)
+		today := dbtime.StartOfDay(start)
 		archiveCutoff := today.Add(-time.Duration(chatAutoArchiveDays) * 24 * time.Hour)
 		archivedChats, err = tx.AutoArchiveInactiveChats(ctx, database.AutoArchiveInactiveChatsParams{
 			ArchiveCutoff: archiveCutoff,

@@ -2911,6 +2911,73 @@ func TestAutoArchiveInactiveChats(t *testing.T) {
 				require.Len(t, auditor.AuditLogs(), 3, "all three chats should produce audit entries")
 			},
 		},
+		{
+			// CutoffStableAcrossSameDayTicks verifies that the archive
+			// cutoff is derived from the UTC day, not from the wall-clock
+			// time. Advancing the clock within the same UTC day must not
+			// change the archival decision ("no trickle" property). The
+			// chat is only archived once the clock crosses into the next
+			// UTC day and the cutoff date advances.
+			name: "CutoffStableAcrossSameDayTicks",
+			run: func(t *testing.T) {
+				// Start close to midnight so exactly two awaitNext calls
+				// cross the UTC day boundary: tick 1 at 23:49, tick 2 at
+				// 23:59 (still June 15, cutoff unchanged), tick 3 at
+				// 00:09 June 16 (new day, cutoff advances).
+				nearMidnight := time.Date(2025, 6, 15, 23, 49, 0, 0, time.UTC)
+				h := newArchiveHarness(t, nearMidnight)
+				ctx, clk, db, rawDB, logger, deps := h.ctx, h.clk, h.db, h.rawDB, h.logger, h.deps
+
+				require.NoError(t, db.UpsertChatAutoArchiveDays(ctx, int32(90)))
+
+				// Chat last active on 2025-03-17, which equals the cutoff
+				// for any tick on 2025-06-15: truncate(today) - 90d =
+				// 2025-03-17. The query requires last-activity < cutoff
+				// (strict), so the chat must survive all June-15 ticks.
+				chat := createArchiveChat(ctx, t, db, rawDB, deps, "boundary-chat", nearMidnight.Add(-120*24*time.Hour))
+				insertTextMessage(ctx, t, db, rawDB, chat.ID, deps.user.ID, deps.modelConfig.ID,
+					time.Date(2025, 3, 17, 12, 0, 0, 0, time.UTC))
+
+				auditor := audit.NewMock()
+				auditorPtr := mockAuditorPtr(auditor)
+				driver := newTickDriver(t, clk)
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), auditorPtr, dbpurge.WithClock(clk))
+				defer closer.Close()
+				defer driver.close()
+
+				// Tick 1 (23:49 UTC June 15): cutoff = 2025-03-17.
+				// Activity on the cutoff date is not strictly less than
+				// the cutoff, so the chat must not be archived.
+				driver.awaitInitial(ctx, t)
+
+				refreshed, err := db.GetChatByID(ctx, chat.ID)
+				require.NoError(t, err)
+				require.False(t, refreshed.Archived, "tick 1: chat on cutoff date must not be archived")
+				require.Empty(t, auditor.AuditLogs(), "tick 1: no audit entries expected")
+
+				// Tick 2 (23:59 UTC June 15): still the same UTC day.
+				// The cutoff is unchanged (still 2025-03-17), so advancing
+				// the wall clock within the same day must not archive the
+				// chat.
+				driver.awaitNext(ctx, t)
+
+				refreshed, err = db.GetChatByID(ctx, chat.ID)
+				require.NoError(t, err)
+				require.False(t, refreshed.Archived, "tick 2: same UTC day, cutoff unchanged, chat must still survive")
+				require.Empty(t, auditor.AuditLogs(), "tick 2: no audit entries expected")
+
+				// Tick 3 (00:09 UTC June 16): new UTC day. The cutoff
+				// advances to 2025-03-18, so activity on 2025-03-17 is
+				// now strictly less than the cutoff and the chat must be
+				// archived.
+				driver.awaitNext(ctx, t)
+
+				refreshed, err = db.GetChatByID(ctx, chat.ID)
+				require.NoError(t, err)
+				require.True(t, refreshed.Archived, "tick 3: cutoff advanced to 2025-03-18, chat must now be archived")
+				require.Len(t, auditor.AuditLogs(), 1, "tick 3: exactly one audit entry expected")
+			},
+		},
 
 		{
 			name: "DeletedMessagesIgnored",
