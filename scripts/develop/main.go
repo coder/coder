@@ -70,6 +70,15 @@ const (
 )
 
 func main() {
+	// Load .env before option parsing so that serpent sees the
+	// variables when resolving Env-tagged options.
+	if n, err := loadDotEnv(".env"); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "develop: error loading .env: %v\n", err)
+		os.Exit(1)
+	} else if n > 0 {
+		_, _ = fmt.Fprintf(os.Stderr, "develop: loaded %d variable(s) from .env\n", n)
+	}
+
 	var cfg devConfig
 
 	cmd := &serpent.Command{
@@ -402,14 +411,6 @@ func (c *devConfig) validate() error {
 // resolveEnv sets defaults, unsets leaked credentials, resolves
 // filesystem paths, and computes the child process environment.
 func (c *devConfig) resolveEnv() error {
-	// Load .env from the repo root if it exists. Variables defined
-	// in .env do not override existing environment variables.
-	if n, err := loadDotEnv(".env"); err != nil {
-		return xerrors.Errorf("loading .env: %w", err)
-	} else if n > 0 {
-		_, _ = fmt.Fprintf(os.Stderr, "develop: loaded %d variable(s) from .env\n", n)
-	}
-
 	// Prevent inherited credentials from leaking into child
 	// processes or being picked up by config reads.
 	_ = os.Unsetenv("CODER_SESSION_TOKEN")
