@@ -41,6 +41,10 @@ const (
 	// using the Bedrock discriminator in Settings; native support is
 	// future work.
 	AIProviderTypeBedrock AIProviderType = "bedrock"
+	// AIProviderTypeCopilot routes through aibridge's Copilot client,
+	// which uses request-time GitHub OAuth tokens rather than pre-shared
+	// API keys.
+	AIProviderTypeCopilot AIProviderType = "copilot"
 )
 
 // AIProviderSettings is the discriminated container for type-specific
