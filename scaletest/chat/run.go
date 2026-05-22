@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"io"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -37,14 +38,14 @@ type runnerResult struct {
 }
 
 type conversationState struct {
-	result                   runnerResult
-	turnStartTime            time.Time
-	currentPhase             string
-	lastStreamError          string
-	lastStatus               codersdk.ChatStatus
-	sawTurnRunning           bool
-	sawTurnFirstOutput       bool
-	shouldMarkTurnStartReady bool
+	result             runnerResult
+	turnStartTime      time.Time
+	currentPhase       string
+	lastStreamError    string
+	lastStatus         codersdk.ChatStatus
+	sawTurnRunning     bool
+	sawTurnFirstOutput bool
+	markTurnStartReady func()
 }
 
 var (
@@ -77,12 +78,11 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	)
 	span.SetAttributes(attribute.String("chat.model_config_id", r.cfg.ModelConfigID.String()))
 
-	shouldMarkTurnStartReady := r.cfg.TurnStartReadyWaitGroup != nil
-	defer func() {
-		if shouldMarkTurnStartReady {
-			r.cfg.TurnStartReadyWaitGroup.Done()
-		}
-	}()
+	markTurnStartReady := func() {}
+	if r.cfg.TurnStartReadyWaitGroup != nil {
+		markTurnStartReady = sync.OnceFunc(r.cfg.TurnStartReadyWaitGroup.Done)
+	}
+	defer markTurnStartReady()
 
 	result := runnerResult{}
 	conversationStart := time.Time{}
@@ -154,22 +154,16 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 
 	logger.Info(ctx, "streaming chat events")
 
-	shouldMarkTurnStartReady = false // we are passing this responsibility to runConversation.
-	result, err = r.runConversation(ctx, chat.ID, logger, conversationStart, events)
+	result, err = r.runConversation(ctx, chat.ID, logger, conversationStart, events, markTurnStartReady)
 	return err
 }
 
-func (r *Runner) runConversation(ctx context.Context, chatID uuid.UUID, logger slog.Logger, conversationStart time.Time, events <-chan codersdk.ChatStreamEvent) (runnerResult, error) {
+func (r *Runner) runConversation(ctx context.Context, chatID uuid.UUID, logger slog.Logger, conversationStart time.Time, events <-chan codersdk.ChatStreamEvent, markTurnStartReady func()) (runnerResult, error) {
 	state := conversationState{
-		turnStartTime:            conversationStart,
-		currentPhase:             phaseInitial,
-		shouldMarkTurnStartReady: r.cfg.TurnStartReadyWaitGroup != nil,
+		turnStartTime:      conversationStart,
+		currentPhase:       phaseInitial,
+		markTurnStartReady: markTurnStartReady,
 	}
-	defer func() {
-		if state.shouldMarkTurnStartReady {
-			r.cfg.TurnStartReadyWaitGroup.Done()
-		}
-	}()
 
 	for event := range events {
 		state.result.eventCount++
@@ -258,16 +252,13 @@ func (r *Runner) handleStatusEvent(ctx context.Context, chatID uuid.UUID, logger
 			return true, nil
 		}
 
-		// After the very first turn completes, hand off to the CLI-
-		// coordinated turn-start gate so that the inter-phase delay
-		// measures the gap between every chat actually finishing its
+		// After the very first turn completes, mark this runner ready
+		// for the CLI-coordinated turn-start gate. The inter-phase
+		// delay measures the gap between every chat actually finishing its
 		// initial turn and the start of the follow-up turns, not the gap
 		// between CreateChat returning and the next turn.
 		if state.result.turnsCompleted == 1 {
-			if state.shouldMarkTurnStartReady {
-				state.shouldMarkTurnStartReady = false
-				r.cfg.TurnStartReadyWaitGroup.Done()
-			}
+			state.markTurnStartReady()
 			if r.cfg.StartTurnsChan != nil {
 				logger.Info(ctx, "chat waiting for turn start release",
 					slog.F("turn_start_delay", r.cfg.TurnStartDelay),

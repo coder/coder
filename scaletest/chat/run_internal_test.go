@@ -26,6 +26,7 @@ func TestRunnerRunConversation(t *testing.T) {
 	t.Parallel()
 
 	chatID := uuid.MustParse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
+	noopMarkTurnStartReady := func() {}
 
 	t.Run("OneTurnHappyPath", func(t *testing.T) {
 		t.Parallel()
@@ -37,7 +38,7 @@ func TestRunnerRunConversation(t *testing.T) {
 		events <- statusEvent(chatID, codersdk.ChatStatusWaiting)
 		close(events)
 
-		result, err := runner.runConversation(context.Background(), chatID, testLogger(), time.Now(), events)
+		result, err := runner.runConversation(context.Background(), chatID, testLogger(), time.Now(), events, noopMarkTurnStartReady)
 		require.NoError(t, err)
 		require.Equal(t, string(codersdk.ChatStatusWaiting), result.finalStatus)
 		require.Empty(t, result.failureStage)
@@ -67,7 +68,7 @@ func TestRunnerRunConversation(t *testing.T) {
 			close(events)
 		})
 
-		result, err := runner.runConversation(context.Background(), chatID, testLogger(), time.Now(), events)
+		result, err := runner.runConversation(context.Background(), chatID, testLogger(), time.Now(), events, noopMarkTurnStartReady)
 		require.NoError(t, err)
 		require.Equal(t, int64(1), sendCount.Load())
 		require.Equal(t, 2, result.turnsCompleted)
@@ -96,7 +97,7 @@ func TestRunnerRunConversation(t *testing.T) {
 			close(events)
 		})
 
-		result, err := runner.runConversation(context.Background(), chatID, testLogger(), time.Now(), events)
+		result, err := runner.runConversation(context.Background(), chatID, testLogger(), time.Now(), events, noopMarkTurnStartReady)
 		require.NoError(t, err)
 		require.Equal(t, int64(1), sendCount.Load())
 		require.Equal(t, 2, result.turnsCompleted)
@@ -141,7 +142,7 @@ func TestRunnerRunConversation(t *testing.T) {
 		})
 
 		go func() {
-			_, runErr := runner.runConversation(context.Background(), chatID, testLogger(), time.Now(), events)
+			_, runErr := runner.runConversation(context.Background(), chatID, testLogger(), time.Now(), events, sync.OnceFunc(readyWG.Done))
 			errCh <- runErr
 		}()
 
@@ -177,7 +178,7 @@ func TestRunnerRunConversation(t *testing.T) {
 		events <- statusEvent(chatID, codersdk.ChatStatusWaiting)
 		close(events)
 
-		result, err := runner.runConversation(context.Background(), chatID, testLogger(), time.Now(), events)
+		result, err := runner.runConversation(context.Background(), chatID, testLogger(), time.Now(), events, noopMarkTurnStartReady)
 		require.NoError(t, err)
 		require.True(t, result.sawFirstOutput, "first output not recorded from assistant message event")
 		require.Equal(t, 1, result.turnsCompleted)
@@ -202,7 +203,7 @@ func TestRunnerRunConversation(t *testing.T) {
 			close(events)
 		})
 
-		result, err := runner.runConversation(context.Background(), chatID, testLogger(), time.Now(), events)
+		result, err := runner.runConversation(context.Background(), chatID, testLogger(), time.Now(), events, noopMarkTurnStartReady)
 		require.NoError(t, err)
 		require.Equal(t, int64(1), sendCount.Load())
 		require.Equal(t, 2, result.turnsCompleted)
