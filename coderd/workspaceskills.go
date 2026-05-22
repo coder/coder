@@ -32,8 +32,7 @@ func (api *API) getWorkspaceSkills(rw http.ResponseWriter, r *http.Request) { //
 	workspace := httpmw.WorkspaceParam(r)
 	logger := api.Logger.With(slog.F("workspace_id", workspace.ID))
 
-	if !api.Authorize(r, policy.ActionApplicationConnect, workspace) &&
-		!api.Authorize(r, policy.ActionSSH, workspace) {
+	if !api.Authorize(r, policy.ActionSSH, workspace) {
 		httpapi.Forbidden(rw)
 		return
 	}

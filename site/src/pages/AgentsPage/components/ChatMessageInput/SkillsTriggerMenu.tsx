@@ -32,6 +32,7 @@ type SkillMetadata = {
 export type SkillMenuItem = SkillMetadata & {
 	source: SkillSource;
 	triggerText: string;
+	qualifiedTriggerText: string;
 };
 
 export const skillTriggerText = (skill: SkillMenuItem): string =>
@@ -46,6 +47,7 @@ export const createSkillMenuItem = (
 	description: skill.description,
 	source,
 	triggerText: `/${useQualifiedAlias ? `${source}/` : ""}${skill.name}`,
+	qualifiedTriggerText: `/${source}/${skill.name}`,
 });
 
 type SkillsTriggerMenuProps = {
@@ -59,6 +61,7 @@ type SkillsTriggerMenuProps = {
 	isPersonalError?: boolean;
 	isWorkspaceLoading?: boolean;
 	isWorkspaceError?: boolean;
+	workspaceErrorMessage?: string;
 	selectedIndex: number;
 	onSelectedIndexChange: (index: number) => void;
 	onSelect: (skill: SkillMenuItem) => void;
@@ -137,6 +140,7 @@ export const SkillsTriggerMenu = ({
 	isPersonalError,
 	isWorkspaceLoading,
 	isWorkspaceError,
+	workspaceErrorMessage,
 	selectedIndex,
 	onSelectedIndexChange,
 	onSelect,
@@ -293,8 +297,8 @@ export const SkillsTriggerMenu = ({
 						)}
 						{showWorkspaceError && (
 							<CommandItem value="workspace-error" disabled>
-								Could not load workspace skills. Close and type / again to
-								retry.
+								{workspaceErrorMessage ??
+									"Could not load workspace skills. Close and type / again to retry."}
 							</CommandItem>
 						)}
 						{shouldShowEmpty && <CommandEmpty>{emptyMessage}</CommandEmpty>}

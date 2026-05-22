@@ -49,6 +49,28 @@ const isChatSkillPart = (
 	part: TypesGen.ChatMessagePart,
 ): part is TypesGen.ChatSkillPart => part.type === "skill";
 
+const contextBelongsToAgent = (
+	parts: readonly TypesGen.ChatMessagePart[],
+	workspaceAgentId: string | undefined,
+): boolean => {
+	if (!workspaceAgentId) {
+		return false;
+	}
+	const contextAgentIds = parts.flatMap((part) => {
+		if (
+			(part.type === "context-file" || part.type === "skill") &&
+			part.context_file_agent_id
+		) {
+			return [part.context_file_agent_id];
+		}
+		return [];
+	});
+	return (
+		contextAgentIds.length > 0 &&
+		contextAgentIds.every((agentId) => agentId === workspaceAgentId)
+	);
+};
+
 const workspaceSkillsFromContext = (
 	parts: readonly TypesGen.ChatMessagePart[],
 ): TypesGen.WorkspaceSkillMetadata[] =>
@@ -310,10 +332,13 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	const latestContextUsage = rawUsage
 		? { ...rawUsage, compressionThreshold, lastInjectedContext }
 		: rawUsage;
-	const workspaceSkillsOverride =
-		chatId === undefined
-			? undefined
-			: workspaceSkillsFromContext(lastInjectedContext ?? []);
+	const shouldUsePersistedWorkspaceSkills =
+		chatId !== undefined &&
+		lastInjectedContext !== undefined &&
+		contextBelongsToAgent(lastInjectedContext, workspaceAgent?.id);
+	const workspaceSkillsOverride = shouldUsePersistedWorkspaceSkills
+		? workspaceSkillsFromContext(lastInjectedContext ?? [])
+		: undefined;
 	const composeAttachments = useChatDraftAttachments(organizationId, chatId, {
 		provider: getProviderForModelOption(modelOptions, selectedModel),
 	});

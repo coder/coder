@@ -195,6 +195,39 @@ export const Loading: Story = {
 	},
 };
 
+export const WorkspaceForbidden: Story = {
+	args: {
+		personalSkills: [],
+		workspaceSkills: [],
+		workspaceSkillsEnabled: true,
+		isWorkspaceError: true,
+		workspaceErrorMessage:
+			"You do not have permission to load workspace skills.",
+	},
+	play: async () => {
+		expect(
+			await findVisibleText(
+				"You do not have permission to load workspace skills.",
+			),
+		).toBeDefined();
+	},
+};
+
+export const WorkspaceAgentError: Story = {
+	args: {
+		personalSkills: [],
+		workspaceSkills: [],
+		workspaceSkillsEnabled: true,
+		isWorkspaceError: true,
+		workspaceErrorMessage: "Failed to connect to workspace agent.",
+	},
+	play: async () => {
+		expect(
+			await findVisibleText("Failed to connect to workspace agent."),
+		).toBeDefined();
+	},
+};
+
 export const Empty: Story = {
 	args: {
 		personalSkills: [],

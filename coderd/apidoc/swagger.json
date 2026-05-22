@@ -15130,7 +15130,7 @@
 					"type": "string"
 				},
 				"context_file_agent_id": {
-					"description": "ContextFileAgentID is the workspace agent that provided\nthis context file. Used to detect when the agent changes\n(e.g. workspace rebuilt) so instruction files can be\nre-persisted with fresh content.",
+					"description": "ContextFileAgentID is the workspace agent that provided\nthis context part. Used to detect when the agent changes\n(e.g. workspace rebuilt) so instruction files can be\nre-persisted with fresh content.",
 					"format": "uuid",
 					"allOf": [
 						{

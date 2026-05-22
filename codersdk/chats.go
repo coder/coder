@@ -313,10 +313,10 @@ type ChatMessagePart struct {
 	// instruction file limit and was truncated.
 	ContextFileTruncated bool `json:"context_file_truncated,omitempty" variants:"context-file?"`
 	// ContextFileAgentID is the workspace agent that provided
-	// this context file. Used to detect when the agent changes
+	// this context part. Used to detect when the agent changes
 	// (e.g. workspace rebuilt) so instruction files can be
 	// re-persisted with fresh content.
-	ContextFileAgentID uuid.NullUUID `json:"context_file_agent_id,omitempty" format:"uuid" variants:"context-file?"`
+	ContextFileAgentID uuid.NullUUID `json:"context_file_agent_id,omitempty" format:"uuid" variants:"context-file?,skill?"`
 	// ContextFileOS is the operating system of the workspace
 	// agent. Internal only: used during prompt expansion so
 	// the LLM knows the OS even on turns where InsertSystem

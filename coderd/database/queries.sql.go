@@ -10690,6 +10690,7 @@ UPDATE chats SET
     workspace_id = $1::uuid,
     build_id = $2::uuid,
     agent_id = $3::uuid,
+    last_injected_context = NULL,
     updated_at = NOW()
 WHERE id = $4::uuid
 RETURNING id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, last_injected_context, dynamic_tools, organization_id, plan_mode, client_type, last_turn_summary, user_acl, group_acl

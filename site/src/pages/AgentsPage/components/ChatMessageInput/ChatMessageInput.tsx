@@ -33,6 +33,7 @@ import {
 	useState,
 } from "react";
 import { useQuery } from "react-query";
+import { getErrorMessage, getErrorStatus } from "#/api/errors";
 import { userSkills } from "#/api/queries/userSkills";
 import { workspaceSkills } from "#/api/queries/workspaceSkills";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -613,20 +614,30 @@ const ChatMessageInput = ({
 	const suppressedSkillsTriggerRef = useRef<SkillsTriggerLocation | null>(null);
 	const [skillsMenuSelectedIndex, setSkillsMenuSelectedIndex] = useState(0);
 	const skillsMenuOpen = Boolean(skillsTrigger);
+	const personalSkillsQueryEnabled =
+		skillsMenuOpen && personalSkillsOverride === undefined;
+	const workspaceSkillsQueryEnabled =
+		skillsMenuOpen &&
+		Boolean(workspaceId) &&
+		workspaceSkillsOverride === undefined;
 	const skillsQuery = useQuery({
 		...userSkills(),
-		enabled: skillsMenuOpen && personalSkillsOverride === undefined,
+		enabled: personalSkillsQueryEnabled,
 	});
 	const workspaceSkillsQuery = useQuery({
 		...workspaceSkills(workspaceId ?? ""),
-		enabled:
-			skillsMenuOpen &&
-			Boolean(workspaceId) &&
-			workspaceSkillsOverride === undefined,
+		enabled: workspaceSkillsQueryEnabled,
 	});
-	const personalSkills = personalSkillsOverride ?? skillsQuery.data ?? [];
-	const loadedWorkspaceSkills =
-		workspaceSkillsOverride ?? workspaceSkillsQuery.data ?? [];
+	const livePersonalSkills =
+		skillsQuery.isSuccess && !skillsQuery.isFetching
+			? (skillsQuery.data ?? [])
+			: [];
+	const liveWorkspaceSkills =
+		workspaceSkillsQuery.isSuccess && !workspaceSkillsQuery.isFetching
+			? (workspaceSkillsQuery.data ?? [])
+			: [];
+	const personalSkills = personalSkillsOverride ?? livePersonalSkills;
+	const loadedWorkspaceSkills = workspaceSkillsOverride ?? liveWorkspaceSkills;
 	const personalSkillsAuthoritative = Boolean(
 		personalSkillsOverride !== undefined ||
 			(skillsQuery.isSuccess && !skillsQuery.isFetching),
@@ -636,6 +647,18 @@ const ChatMessageInput = ({
 			workspaceSkillsOverride !== undefined ||
 			(workspaceSkillsQuery.isSuccess && !workspaceSkillsQuery.isFetching),
 	);
+	const workspaceSkillsErrorMessage = (() => {
+		if (!workspaceSkillsQueryEnabled || !workspaceSkillsQuery.error) {
+			return undefined;
+		}
+		if (getErrorStatus(workspaceSkillsQuery.error) === 403) {
+			return "You do not have permission to load workspace skills.";
+		}
+		return getErrorMessage(
+			workspaceSkillsQuery.error,
+			"Could not load workspace skills. Close and type / again to retry.",
+		);
+	})();
 	const skillsSearchQuery = skillsTrigger?.query ?? "";
 	const workspaceSkillNames = new Set(
 		loadedWorkspaceSkills.map((skill) => skill.name),
@@ -957,10 +980,17 @@ const ChatMessageInput = ({
 					personalSkills={personalSkillItems}
 					workspaceSkills={workspaceSkillItems}
 					workspaceSkillsEnabled={Boolean(workspaceId)}
-					isPersonalLoading={skillsMenuOpen && skillsQuery.isLoading}
-					isPersonalError={skillsMenuOpen && skillsQuery.isError}
-					isWorkspaceLoading={skillsMenuOpen && workspaceSkillsQuery.isLoading}
-					isWorkspaceError={skillsMenuOpen && workspaceSkillsQuery.isError}
+					isPersonalLoading={
+						personalSkillsQueryEnabled && skillsQuery.isFetching
+					}
+					isPersonalError={personalSkillsQueryEnabled && skillsQuery.isError}
+					isWorkspaceLoading={
+						workspaceSkillsQueryEnabled && workspaceSkillsQuery.isFetching
+					}
+					isWorkspaceError={
+						workspaceSkillsQueryEnabled && workspaceSkillsQuery.isError
+					}
+					workspaceErrorMessage={workspaceSkillsErrorMessage}
 					selectedIndex={selectedSkillIndex}
 					onSelectedIndexChange={setSkillsMenuSelectedIndex}
 					onSelect={replaceActiveSkillsTrigger}

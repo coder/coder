@@ -72,23 +72,25 @@ describe("filterSkillsByQuery", () => {
 			{
 				name: "reviewer",
 				description: "Review changed files",
-				triggerText: "/personal/reviewer",
+				triggerText: "/reviewer",
+				qualifiedTriggerText: "/personal/reviewer",
 			},
 			{
 				name: "reviewer",
 				description: "Workspace review process",
-				triggerText: "/workspace/reviewer",
+				triggerText: "/reviewer",
+				qualifiedTriggerText: "/workspace/reviewer",
 			},
 		];
 
 		expect(
 			filterSkillsByQuery(skillsWithAliases, "workspace/r").map(
-				({ triggerText }) => triggerText,
+				({ qualifiedTriggerText }) => qualifiedTriggerText,
 			),
 		).toEqual(["/workspace/reviewer"]);
 		expect(
 			filterSkillsByQuery(skillsWithAliases, "personal/r").map(
-				({ triggerText }) => triggerText,
+				({ qualifiedTriggerText }) => qualifiedTriggerText,
 			),
 		).toEqual(["/personal/reviewer"]);
 	});

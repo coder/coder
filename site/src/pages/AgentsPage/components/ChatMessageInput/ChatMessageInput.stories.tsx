@@ -242,6 +242,21 @@ export const CollidingSkillsInsertQualifiedAlias: Story = {
 	},
 };
 
+export const UniqueWorkspaceQualifiedPrefixStaysSearchable: Story = {
+	args: {
+		workspaceId: "workspace-1",
+		workspaceSkillsOverride: mockWorkspaceSkills,
+	},
+	play: async ({ canvasElement }) => {
+		const editor = await typeInEditor(canvasElement, "/workspace/t");
+		expect(await findVisibleText("/test-runner")).toBeDefined();
+		await userEvent.keyboard("{Enter}");
+		await waitFor(() => {
+			expect(editor.textContent).toBe("/test-runner");
+		});
+	},
+};
+
 export const QualifiedWorkspacePrefixSelectsWorkspaceSkill: Story = {
 	args: {
 		workspaceId: "workspace-1",

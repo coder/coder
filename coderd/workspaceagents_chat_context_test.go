@@ -905,6 +905,37 @@ func TestAgentChatContext(t *testing.T) {
 	})
 }
 
+func TestUpdateChatWorkspaceBindingClearsLastInjectedContext(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	setup := newAgentChatContextTestSetup(t)
+	model := coderd.InsertAgentChatTestModelConfig(t, setup.db, setup.user.UserID)
+	agentID := setup.workspace.Agents[0].ID
+	cachedContext := json.RawMessage(`[{"type":"skill","skill_name":"old-skill"}]`)
+	chat := dbgen.Chat(t, setup.db, database.Chat{
+		OrganizationID:      setup.user.OrganizationID,
+		OwnerID:             setup.user.UserID,
+		LastModelConfigID:   model.ID,
+		Title:               t.Name(),
+		AgentID:             uuid.NullUUID{UUID: agentID, Valid: true},
+		LastInjectedContext: pqtype.NullRawMessage{RawMessage: cachedContext, Valid: true},
+	})
+
+	updated, err := setup.db.UpdateChatWorkspaceBinding(dbauthz.AsSystemRestricted(ctx), database.UpdateChatWorkspaceBindingParams{
+		WorkspaceID: uuid.NullUUID{UUID: setup.workspace.Workspace.ID, Valid: true},
+		BuildID:     uuid.NullUUID{UUID: setup.workspace.Build.ID, Valid: true},
+		AgentID:     uuid.NullUUID{UUID: agentID, Valid: true},
+		ID:          chat.ID,
+	})
+	require.NoError(t, err)
+	require.False(t, updated.LastInjectedContext.Valid)
+
+	persisted, err := setup.db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+	require.NoError(t, err)
+	require.False(t, persisted.LastInjectedContext.Valid)
+}
+
 func requireAgentChatContextMessages(ctx context.Context, t testing.TB, db database.Store, chatID uuid.UUID) []database.ChatMessage {
 	t.Helper()
 

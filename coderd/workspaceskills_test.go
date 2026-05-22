@@ -1,6 +1,7 @@
 package coderd_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"os"
@@ -10,14 +11,20 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/agent/agentcontextconfig"
 	"github.com/coder/coder/v2/agent/agenttest"
+	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -38,10 +45,11 @@ func TestGetWorkspaceSkills(t *testing.T) {
 	t.Setenv(agentcontextconfig.EnvMCPConfigFiles, filepath.Join(fakeHome, "missing-mcp.json"))
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
-	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 		DeploymentValues:         coderdtest.DeploymentValues(t),
 		IncludeProvisionerDaemon: true,
 	})
+	db := api.Database
 	user := coderdtest.CreateFirstUser(t, client)
 	expClient := codersdk.NewExperimentalClient(client)
 
@@ -67,6 +75,26 @@ func TestGetWorkspaceSkills(t *testing.T) {
 	var sdkErr *codersdk.Error
 	require.ErrorAs(t, err, &sdkErr)
 	require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+
+	restore := coderd.SetAgentProviderForTest(api, workspaceSkillsAgentProvider{
+		agentConn: func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			return nil, nil, xerrors.New("dial failure")
+		},
+	})
+	_, err = expClient.WorkspaceSkills(ctx, workspace.ID)
+	restore()
+	requireWorkspaceSkillsSDKError(t, err, http.StatusBadGateway, "Failed to connect to workspace agent.", "dial failure")
+
+	conn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
+	conn.EXPECT().ContextConfig(gomock.Any()).Return(workspacesdk.ContextConfigResponse{}, xerrors.New("context config failure"))
+	restore = coderd.SetAgentProviderForTest(api, workspaceSkillsAgentProvider{
+		agentConn: func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			return conn, func() {}, nil
+		},
+	})
+	_, err = expClient.WorkspaceSkills(ctx, workspace.ID)
+	restore()
+	requireWorkspaceSkillsSDKError(t, err, http.StatusBadGateway, "Failed to fetch workspace skills from agent.", "context config failure")
 
 	writeWorkspaceSkill(t, skillsDir, "review-code", "Review code", "Read the diff.")
 	expectedSkills := []codersdk.WorkspaceSkillMetadata{{
@@ -126,6 +154,25 @@ func TestGetWorkspaceSkills(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, skills)
 	require.NotNil(t, skills)
+}
+
+type workspaceSkillsAgentProvider struct {
+	workspaceapps.AgentProvider
+	agentConn func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error)
+}
+
+func (p workspaceSkillsAgentProvider) AgentConn(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+	return p.agentConn(ctx, agentID)
+}
+
+func requireWorkspaceSkillsSDKError(t testing.TB, err error, statusCode int, message string, detail string) {
+	t.Helper()
+	require.Error(t, err)
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, statusCode, sdkErr.StatusCode())
+	require.Equal(t, message, sdkErr.Message)
+	require.Equal(t, detail, sdkErr.Detail)
 }
 
 func writeWorkspaceSkill(t testing.TB, skillsDir string, dirName string, description string, body string, frontmatterName ...string) {

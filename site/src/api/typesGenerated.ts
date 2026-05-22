@@ -1628,7 +1628,7 @@ export interface ChatContextFilePart {
 	readonly context_file_truncated?: boolean;
 	/**
 	 * ContextFileAgentID is the workspace agent that provided
-	 * this context file. Used to detect when the agent changes
+	 * this context part. Used to detect when the agent changes
 	 * (e.g. workspace rebuilt) so instruction files can be
 	 * re-persisted with fresh content.
 	 */
@@ -2695,6 +2695,13 @@ export interface ChatSkillPart {
 	 * from the workspace's .agents/skills/ directory.
 	 */
 	readonly skill_name: string;
+	/**
+	 * ContextFileAgentID is the workspace agent that provided
+	 * this context part. Used to detect when the agent changes
+	 * (e.g. workspace rebuilt) so instruction files can be
+	 * re-persisted with fresh content.
+	 */
+	readonly context_file_agent_id?: string;
 	/**
 	 * SkillDescription is the short description from the skill's
 	 * SKILL.md frontmatter.

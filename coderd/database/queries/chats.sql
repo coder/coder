@@ -1086,6 +1086,7 @@ UPDATE chats SET
     workspace_id = sqlc.narg('workspace_id')::uuid,
     build_id = sqlc.narg('build_id')::uuid,
     agent_id = sqlc.narg('agent_id')::uuid,
+    last_injected_context = NULL,
     updated_at = NOW()
 WHERE id = @id::uuid
 RETURNING *
