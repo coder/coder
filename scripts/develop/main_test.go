@@ -924,7 +924,8 @@ func TestParseEnvFileFlag(t *testing.T) {
 		t.Cleanup(func() { os.Args = orig })
 		os.Args = []string{"develop", "--env-file", "/tmp/test.env", "--port", "3000"}
 
-		result := parseEnvFileFlag()
+		result, err := parseEnvFileFlag()
+		require.NoError(t, err)
 		assert.Equal(t, "/tmp/test.env", result)
 	})
 
@@ -933,7 +934,8 @@ func TestParseEnvFileFlag(t *testing.T) {
 		t.Cleanup(func() { os.Args = orig })
 		os.Args = []string{"develop", "--env-file=/tmp/test.env", "--port", "3000"}
 
-		result := parseEnvFileFlag()
+		result, err := parseEnvFileFlag()
+		require.NoError(t, err)
 		assert.Equal(t, "/tmp/test.env", result)
 	})
 
@@ -944,7 +946,8 @@ func TestParseEnvFileFlag(t *testing.T) {
 
 		t.Setenv("CODER_DEV_ENV_FILE", "/tmp/from-env.env")
 
-		result := parseEnvFileFlag()
+		result, err := parseEnvFileFlag()
+		require.NoError(t, err)
 		assert.Equal(t, "/tmp/from-env.env", result)
 	})
 
@@ -955,7 +958,8 @@ func TestParseEnvFileFlag(t *testing.T) {
 
 		t.Setenv("CODER_DEV_ENV_FILE", "/tmp/from-env.env")
 
-		result := parseEnvFileFlag()
+		result, err := parseEnvFileFlag()
+		require.NoError(t, err)
 		assert.Equal(t, "/tmp/from-flag.env", result)
 	})
 
@@ -967,22 +971,18 @@ func TestParseEnvFileFlag(t *testing.T) {
 		t.Setenv("CODER_DEV_ENV_FILE", "")
 		os.Unsetenv("CODER_DEV_ENV_FILE")
 
-		result := parseEnvFileFlag()
+		result, err := parseEnvFileFlag()
+		require.NoError(t, err)
 		assert.Equal(t, "", result)
 	})
 
 	t.Run("ErrorsWhenValueMissing", func(t *testing.T) {
-		if os.Getenv("TEST_SUBPROCESS") == "1" {
-			os.Args = []string{"develop", "--env-file"}
-			parseEnvFileFlag()
-			return
-		}
-		//nolint:gosec // This is a test subprocess.
-		cmd := exec.Command(os.Args[0], "-test.run=TestParseEnvFileFlag/ErrorsWhenValueMissing")
-		cmd.Env = append(os.Environ(), "TEST_SUBPROCESS=1")
-		err := cmd.Run()
-		var exitErr *exec.ExitError
-		require.ErrorAs(t, err, &exitErr)
-		assert.Equal(t, 1, exitErr.ExitCode())
+		orig := os.Args
+		t.Cleanup(func() { os.Args = orig })
+		os.Args = []string{"develop", "--env-file"}
+
+		_, err := parseEnvFileFlag()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "--env-file requires a value")
 	})
 }

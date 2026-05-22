@@ -74,7 +74,12 @@ func main() {
 	// the file are visible to serpent's Env-tag resolution for other
 	// options. The flag is also registered in the serpent OptionSet
 	// below for --help discoverability.
-	if envFile := parseEnvFileFlag(); envFile != "" {
+	envFile, err := parseEnvFileFlag()
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "develop: %v\n", err)
+		os.Exit(1)
+	}
+	if envFile != "" {
 		n, err := loadEnvFile(envFile)
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "develop: error loading env file %s: %v\n", envFile, err)
@@ -218,7 +223,7 @@ func main() {
 		},
 	}
 
-	err := cmd.Invoke(os.Args[1:]...).WithOS().Run()
+	err = cmd.Invoke(os.Args[1:]...).WithOS().Run()
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
@@ -461,20 +466,19 @@ func (c *devConfig) cmd(ctx context.Context, bin string, args ...string) *exec.C
 // parseEnvFileFlag extracts the --env-file value from os.Args and
 // CODER_DEV_ENV_FILE before serpent runs, so that loaded variables
 // are visible to serpent's Env-tag resolution for other options.
-func parseEnvFileFlag() string {
+func parseEnvFileFlag() (string, error) {
 	for i, arg := range os.Args[1:] {
 		if arg == "--env-file" {
 			if i+2 >= len(os.Args) {
-				_, _ = fmt.Fprintf(os.Stderr, "develop: --env-file requires a value\n")
-				os.Exit(1)
+				return "", xerrors.New("--env-file requires a value")
 			}
-			return os.Args[i+2]
+			return os.Args[i+2], nil
 		}
 		if v, ok := strings.CutPrefix(arg, "--env-file="); ok {
-			return v
+			return v, nil
 		}
 	}
-	return os.Getenv("CODER_DEV_ENV_FILE")
+	return os.Getenv("CODER_DEV_ENV_FILE"), nil
 }
 
 // loadEnvFile reads the file at path using godotenv and sets any variables
