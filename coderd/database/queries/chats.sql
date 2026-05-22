@@ -2280,10 +2280,9 @@ WHERE chat_id = @chat_id::uuid
 -- name: AutoArchiveInactiveChats :many
 -- Archives inactive root chats (pinned and already-archived chats skipped),
 -- cascading to children via root_chat_id. Limits apply to roots, not total
--- rows. Eligibility uses UTC day boundaries: the Go caller passes
--- @archive_cutoff as UTC midnight (dbtime.StartOfDay minus auto_archive_days);
--- since timestamptz comparison is timezone-independent, a plain < against
--- midnight naturally groups all same-day activity together. Used by dbpurge.
+-- rows. The Go caller passes @archive_cutoff as UTC midnight so that all
+-- chats sharing the same last-activity date are archived together.
+-- Used by dbpurge.
 WITH to_archive AS (
     SELECT
         c.id,
@@ -2301,15 +2300,10 @@ WITH to_archive AS (
     WHERE c.archived = false
       AND c.pin_order = 0
       AND c.parent_chat_id IS NULL -- roots only
-      -- Redundant timestamp filter helps the planner use the partial index
-      -- on created_at without evaluating every LATERAL subquery first.
+      -- Redundant filter helps the planner use the partial index on created_at.
       AND c.created_at < @archive_cutoff::timestamptz
       -- New active statuses must be added here to prevent archiving.
       AND c.status NOT IN ('running', 'pending', 'paused', 'requires_action')
-      -- Day-boundary eligibility: the Go caller passes UTC midnight
-      -- (dbtime.StartOfDay minus auto_archive_days), so a plain
-      -- timestamptz < comparison naturally groups by UTC day.
-      -- timestamptz comparison is timezone-independent.
       AND COALESCE(activity.last_activity_at, c.created_at) < @archive_cutoff::timestamptz
     -- Sorting by created_at lets Postgres drive the scan from the
     -- partial index instead of evaluating every LATERAL subquery
