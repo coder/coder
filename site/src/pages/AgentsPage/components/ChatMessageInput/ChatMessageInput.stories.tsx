@@ -484,6 +484,17 @@ export const MobileLongListScrolls: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const restoreMatchMedia = mockMobileMatchMedia();
+		setMobileDropdownGeometry({
+			visualViewportOffsetTop: Math.max(
+				0,
+				innerHeight -
+					MOBILE_COMPOSER_HEIGHT -
+					MOBILE_COMPOSER_GAP -
+					MOBILE_VIEWPORT_PADDING -
+					MOBILE_MINIMUM_MENU_HEIGHT,
+			),
+		});
+
 		try {
 			await typeInEditor(canvasElement, "/");
 			const skillItem = await findVisibleText("/skill-0");
@@ -497,17 +508,29 @@ export const MobileLongListScrolls: Story = {
 			expect(rect.top).toBeGreaterThanOrEqual(0);
 			expect(rect.bottom).toBeLessThanOrEqual(window.innerHeight);
 
-			// At least one of the popup's scroll containers (wrapper or
-			// inner list) must be scrollable, so the user can reach items
-			// that overflow the available space.
-			const scrollables: HTMLElement[] = [
+			const commandList = skillItem.closest(
+				"[cmdk-list]",
+			) as HTMLElement | null;
+			expect(commandList).not.toBeNull();
+			if (!commandList) return;
+
+			const hasVisibleVerticalScrollbar = (node: HTMLElement) => {
+				const overflowY = getComputedStyle(node).overflowY;
+				return (
+					(overflowY === "auto" || overflowY === "scroll") &&
+					node.scrollHeight > node.clientHeight
+				);
+			};
+			const scrollableNodes = [
 				wrapper,
 				...Array.from(wrapper.querySelectorAll<HTMLElement>("*")),
-			];
-			const hasScroll = scrollables.some(
-				(node) => node.scrollHeight > node.clientHeight,
+			].filter(hasVisibleVerticalScrollbar);
+
+			expect(commandList.scrollHeight).toBeGreaterThan(
+				commandList.clientHeight,
 			);
-			expect(hasScroll).toBe(true);
+			expect(scrollableNodes).toHaveLength(1);
+			expect(scrollableNodes[0]).toBe(commandList);
 		} finally {
 			restoreMatchMedia();
 		}
