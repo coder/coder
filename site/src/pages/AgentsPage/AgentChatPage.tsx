@@ -1585,6 +1585,7 @@ const AgentChatPage: FC = () => {
 			canShareChat={canShareChat}
 			workspace={workspace}
 			workspaceAgent={workspaceAgent}
+			workspaceAgentId={workspaceAgentId}
 			chatBuildId={chatQuery.data?.build_id}
 			store={store}
 			editing={editing}

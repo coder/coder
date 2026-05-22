@@ -98,6 +98,7 @@ interface AgentChatPageViewProps {
 	canUpdateOtherUserChatLoading: boolean;
 	canShareChat: boolean;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
+	workspaceAgentId?: string;
 	workspace?: TypesGen.Workspace;
 	chatBuildId?: string;
 
@@ -205,6 +206,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	canUpdateOtherUserChatLoading,
 	canShareChat,
 	workspaceAgent,
+	workspaceAgentId,
 	workspace,
 	chatBuildId,
 	store,
@@ -591,6 +593,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								lastInjectedContext={lastInjectedContext}
 								workspace={workspace}
 								workspaceAgent={workspaceAgent}
+								workspaceAgentId={workspaceAgentId}
 								chatId={agentId}
 								sshCommand={sshCommand}
 								attachedWorkspace={attachedWorkspace}

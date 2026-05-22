@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
@@ -20,6 +22,8 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
@@ -147,15 +151,60 @@ func TestGetWorkspaceSkills(t *testing.T) {
 	require.Empty(t, skills)
 	require.NotNil(t, skills)
 
-	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStop, codersdk.WorkspaceTransitionDelete)
-	require.NoError(t, db.UpdateWorkspaceDeletedByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceDeletedByIDParams{
-		ID:      workspace.ID,
-		Deleted: false,
-	}))
+	deleteJobID := uuid.New()
+	now := dbtime.Now()
+	_, err = db.InsertProvisionerJob(dbauthz.AsSystemRestricted(ctx), database.InsertProvisionerJobParams{
+		ID:             deleteJobID,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+		OrganizationID: user.OrganizationID,
+		InitiatorID:    user.UserID,
+		Provisioner:    database.ProvisionerTypeEcho,
+		StorageMethod:  database.ProvisionerStorageMethodFile,
+		FileID:         uuid.New(),
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		Input:          json.RawMessage("{}"),
+		Tags:           database.StringMap{},
+		TraceMetadata:  pqtype.NullRawMessage{},
+	})
+	require.NoError(t, err)
+	deleteBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		WorkspaceID:       workspace.ID,
+		TemplateVersionID: workspace.LatestBuild.TemplateVersionID,
+		BuildNumber:       workspace.LatestBuild.BuildNumber + 1,
+		Transition:        database.WorkspaceTransitionDelete,
+		InitiatorID:       user.UserID,
+		JobID:             deleteJobID,
+	})
+	deleteResource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+		JobID:      deleteBuild.JobID,
+		Transition: database.WorkspaceTransitionDelete,
+	})
+	connectedAt := dbtime.Now()
+	dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+		ResourceID: deleteResource.ID,
+		FirstConnectedAt: sql.NullTime{
+			Time:  connectedAt,
+			Valid: true,
+		},
+		LastConnectedAt: sql.NullTime{
+			Time:  connectedAt,
+			Valid: true,
+		},
+	})
+	agentProviderCalled := false
+	restore = coderd.SetAgentProviderForTest(api, workspaceSkillsAgentProvider{
+		agentConn: func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			agentProviderCalled = true
+			return nil, nil, xerrors.New("unexpected agent dial")
+		},
+	})
 	skills, err = expClient.WorkspaceSkills(ctx, workspace.ID)
+	restore()
 	require.NoError(t, err)
 	require.Empty(t, skills)
 	require.NotNil(t, skills)
+	require.False(t, agentProviderCalled)
 
 	require.NoError(t, db.UpdateWorkspaceDeletedByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceDeletedByIDParams{
 		ID:      workspace.ID,

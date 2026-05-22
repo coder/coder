@@ -247,6 +247,7 @@ interface ChatPageInputProps {
 	isWorkspaceLoading: boolean;
 	workspace?: TypesGen.Workspace;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
+	workspaceAgentId?: string;
 	chatId?: string;
 	sshCommand?: string;
 	attachedWorkspace?: AttachedWorkspaceInfo;
@@ -299,6 +300,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	isWorkspaceLoading,
 	workspace,
 	workspaceAgent,
+	workspaceAgentId,
 	chatId,
 	sshCommand,
 	attachedWorkspace,
@@ -335,7 +337,10 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	const shouldUsePersistedWorkspaceSkills =
 		chatId !== undefined &&
 		lastInjectedContext !== undefined &&
-		contextBelongsToAgent(lastInjectedContext, workspaceAgent?.id);
+		contextBelongsToAgent(
+			lastInjectedContext,
+			workspaceAgentId ?? workspaceAgent?.id,
+		);
 	const workspaceSkillsOverride = shouldUsePersistedWorkspaceSkills
 		? workspaceSkillsFromContext(lastInjectedContext ?? [])
 		: undefined;
