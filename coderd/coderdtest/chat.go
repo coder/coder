@@ -65,11 +65,24 @@ func CreateOpenAICompatChatModelConfig(
 		BaseURL:  baseURL,
 	})
 	require.NoError(t, err)
+	aiProviderBaseURL := baseURL
+	if aiProviderBaseURL == "" {
+		aiProviderBaseURL = "https://api.example.com/v1"
+	}
+	provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+		Type:    codersdk.AIProviderType(TestChatProviderOpenAICompat),
+		Name:    "test-" + uuid.NewString(),
+		BaseURL: aiProviderBaseURL,
+		Enabled: true,
+		APIKeys: []string{TestChatProviderAPIKey},
+	})
+	require.NoError(t, err)
 
 	contextLimit := int64(4096)
 	isDefault := true
 	modelConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
 		Provider:     TestChatProviderOpenAICompat,
+		AIProviderID: &provider.ID,
 		Model:        TestChatModelOpenAICompat,
 		ContextLimit: &contextLimit,
 		IsDefault:    &isDefault,

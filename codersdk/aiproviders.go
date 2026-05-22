@@ -218,9 +218,7 @@ func (req CreateAIProviderRequest) Validate() []ValidationError {
 		})
 	}
 	validations = append(validations, validateAIProviderName(req.Name)...)
-	if req.BaseURL != "" {
-		validations = append(validations, validateAIProviderBaseURL(req.BaseURL)...)
-	}
+	validations = append(validations, validateRequiredAIProviderBaseURL(req.BaseURL)...)
 	validations = append(validations, validateAIProviderAPIKeys(req.APIKeys)...)
 	if req.Settings.Bedrock != nil && req.Type != AIProviderTypeAnthropic {
 		validations = append(validations, ValidationError{
@@ -264,12 +262,8 @@ type AIProviderKeyMutation struct {
 // should reject empty patches with IsEmpty before invoking Validate.
 func (req UpdateAIProviderRequest) Validate() []ValidationError {
 	var validations []ValidationError
-	switch {
-	case req.BaseURL == nil:
-	case *req.BaseURL == "":
-		validations = append(validations, ValidationError{Field: "base_url", Detail: "base_url cannot be empty"})
-	default:
-		validations = append(validations, validateAIProviderBaseURL(*req.BaseURL)...)
+	if req.BaseURL != nil {
+		validations = append(validations, validateRequiredAIProviderBaseURL(*req.BaseURL)...)
 	}
 	if req.APIKeys != nil {
 		validations = append(validations, validateAIProviderKeyMutations(*req.APIKeys)...)
@@ -294,6 +288,13 @@ func validateAIProviderName(name string) []ValidationError {
 		})
 	}
 	return validations
+}
+
+func validateRequiredAIProviderBaseURL(raw string) []ValidationError {
+	if raw == "" {
+		return []ValidationError{{Field: "base_url", Detail: "base_url is required"}}
+	}
+	return validateAIProviderBaseURL(raw)
 }
 
 func validateAIProviderBaseURL(raw string) []ValidationError {
