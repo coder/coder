@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	natsgo "github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/require"
@@ -90,6 +90,81 @@ func Test_SubscribeWithErr(t *testing.T) {
 func Test_localSub_dispatch(t *testing.T) {
 	t.Parallel()
 
+	t.Run("SerializesCallbacks", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		dataStarted := make(chan struct{})
+		dropDelivered := make(chan struct{})
+		release := make(chan struct{})
+		var dataOnce sync.Once
+		var dropOnce sync.Once
+		var releaseOnce sync.Once
+		var active atomic.Int64
+		var concurrent atomic.Bool
+
+		s := &localSub{
+			pubsub: &Pubsub{ctx: ctx},
+			listener: func(_ context.Context, _ []byte, ferr error) {
+				if active.Add(1) != 1 {
+					concurrent.Store(true)
+				}
+				defer active.Add(-1)
+
+				if errors.Is(ferr, pubsub.ErrDroppedMessages) {
+					dropOnce.Do(func() { close(dropDelivered) })
+					return
+				}
+
+				dataOnce.Do(func() { close(dataStarted) })
+				<-release
+			},
+			queue:          make(chan []byte, 1),
+			dropSignal:     make(chan struct{}, 1),
+			stop:           make(chan struct{}),
+			dispatcherDone: make(chan struct{}),
+		}
+		s.init()
+		t.Cleanup(func() {
+			releaseOnce.Do(func() { close(release) })
+			s.close()
+		})
+
+		s.offerData([]byte("data"))
+		require.Eventually(t, func() bool {
+			select {
+			case <-dataStarted:
+				return true
+			default:
+				return false
+			}
+		}, testutil.WaitShort, testutil.IntervalFast)
+
+		s.signalDrop()
+		require.Never(t, func() bool {
+			select {
+			case <-dropDelivered:
+				return true
+			default:
+				return false
+			}
+		}, testutil.IntervalMedium, testutil.IntervalFast,
+			"drop callback must wait for the blocked data callback")
+		require.False(t, concurrent.Load(), "listener callback ran concurrently")
+
+		releaseOnce.Do(func() { close(release) })
+		require.Eventually(t, func() bool {
+			select {
+			case <-dropDelivered:
+				return true
+			default:
+				return false
+			}
+		}, testutil.WaitShort, testutil.IntervalFast)
+		require.False(t, concurrent.Load(), "listener callback ran concurrently")
+	})
+
 	t.Run("SlowListenerIsolation", func(t *testing.T) {
 		t.Parallel()
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
@@ -100,6 +175,7 @@ func Test_localSub_dispatch(t *testing.T) {
 		t.Cleanup(func() { _ = ps.Close() })
 
 		release := make(chan struct{})
+		var releaseOnce sync.Once
 		var slowDrops atomic.Int64
 		var slowBlocked atomic.Bool
 		slowCancel, err := ps.SubscribeWithErr("iso_slow", func(_ context.Context, _ []byte, ferr error) {
@@ -120,6 +196,7 @@ func Test_localSub_dispatch(t *testing.T) {
 		})
 		require.NoError(t, err)
 		defer fastCancel()
+		defer releaseOnce.Do(func() { close(release) })
 
 		total := defaultListenerQueueSize + 256
 		payload := make([]byte, 4*1024)
@@ -129,17 +206,17 @@ func Test_localSub_dispatch(t *testing.T) {
 		}
 		require.NoError(t, ps.Flush())
 
-		deadline := time.Now().Add(testutil.WaitLong)
-		for time.Now().Before(deadline) {
-			if fastCount.Load() >= int64(total) && slowDrops.Load() >= 1 {
-				break
-			}
-			time.Sleep(20 * time.Millisecond)
-		}
-		close(release)
+		require.Eventually(t, func() bool {
+			return fastCount.Load() >= int64(total)
+		}, testutil.WaitLong, testutil.IntervalFast)
+		require.Zero(t, slowDrops.Load(),
+			"drop callback must wait for the blocked data callback")
+		releaseOnce.Do(func() { close(release) })
+		require.Eventually(t, func() bool {
+			return slowDrops.Load() >= 1
+		}, testutil.WaitLong, testutil.IntervalFast,
+			"slow subscriber must receive at least one ErrDroppedMessages signal")
 
-		require.GreaterOrEqual(t, slowDrops.Load(), int64(1),
-			"slow subscriber must receive at least one ErrDroppedMessages async signal")
 		require.GreaterOrEqual(t, fastCount.Load(), int64(total),
 			"fast subscriber must keep receiving despite slow peer on shared subConn")
 		require.Len(t, ps.subscribePool, 1)

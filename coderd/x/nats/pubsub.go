@@ -142,13 +142,12 @@ type localSub struct {
 	// notifications from local overflow and NATS slow-consumer
 	// broadcasts onto a single pending wake.
 	dropSignal chan struct{}
-	// stop is closed by close to signal both goroutines to exit.
+	// stop is closed by close to signal the dispatcher goroutine to exit.
 	stop chan struct{}
-	// dispatcherDone / emitterDone are closed by the respective
-	// goroutines on exit; close waits on both so any in-flight user
-	// callback completes before teardown.
+	// dispatcherDone is closed by the dispatcher goroutine on exit;
+	// close waits on it so any in-flight user callback completes
+	// before teardown.
 	dispatcherDone chan struct{}
-	emitterDone    chan struct{}
 }
 
 // Compile-time assertion that *Pubsub satisfies the pubsub.Pubsub interface.
@@ -346,11 +345,10 @@ func (p *Pubsub) SubscribeWithErr(event string, listener pubsub.ListenerWithErr)
 		dropSignal:     make(chan struct{}, 1),
 		stop:           make(chan struct{}),
 		dispatcherDone: make(chan struct{}),
-		emitterDone:    make(chan struct{}),
 	}
 
-	// Start per-listener goroutines before addSubscriber registers s
-	// so a concurrent Close that snapshots s will find live goroutines
+	// Start the per-listener goroutine before addSubscriber registers s
+	// so a concurrent Close that snapshots s will find a live goroutine
 	// ready to observe close(s.stop) and exit.
 	s.init()
 
@@ -497,24 +495,22 @@ func (nsub *natsSub) makeCallback(p *Pubsub) natsgo.MsgHandler {
 	}
 }
 
-// init starts the per-listener delivery goroutines.
+// init starts the per-listener delivery goroutine.
 func (s *localSub) init() {
 	go s.dispatch()
-	go s.emitDrops()
 }
 
-// close stops the per-listener goroutines and waits for callbacks to finish.
+// close stops the per-listener goroutine and waits for callbacks to finish.
 func (s *localSub) close() {
 	s.cancelOnce.Do(func() {
 		close(s.stop)
 		<-s.dispatcherDone
-		<-s.emitterDone
 	})
 }
 
 // offerData non-blockingly enqueues data onto s.queue. On overflow it
-// drops the message and raises a drop signal so the emitter surfaces
-// pubsub.ErrDroppedMessages independent of dispatcher progress. If s
+// drops the message and raises a drop signal so the dispatcher surfaces
+// pubsub.ErrDroppedMessages when the current callback completes. If s
 // is canceled the message is silently dropped.
 func (s *localSub) offerData(data []byte) {
 	select {
@@ -526,7 +522,7 @@ func (s *localSub) offerData(data []byte) {
 }
 
 // signalDrop pushes onto dropSignal without blocking. Multiple drops
-// between emitter dequeues coalesce into a single pending signal, so
+// between dispatcher dequeues coalesce into a single pending signal, so
 // the listener observes one ErrDroppedMessages per drop wave.
 func (s *localSub) signalDrop() {
 	select {
@@ -535,9 +531,9 @@ func (s *localSub) signalDrop() {
 	}
 }
 
-// dispatch is the per-listener data delivery goroutine. It serializes
-// data callbacks while the emitter goroutine delivers drops, so a slow
-// data callback cannot block drop notifications.
+// dispatch is the per-listener delivery goroutine. It serializes data
+// and drop callbacks for the listener so callers do not need to be safe
+// for concurrent invocation.
 func (s *localSub) dispatch() {
 	defer close(s.dispatcherDone)
 	for {
@@ -546,19 +542,6 @@ func (s *localSub) dispatch() {
 			return
 		case data := <-s.queue:
 			s.listener(s.pubsub.ctx, data, nil)
-		}
-	}
-}
-
-// emitDrops is the per-listener drop-notification goroutine. It runs
-// concurrently with dispatch so a blocked data callback cannot
-// suppress drop signaling.
-func (s *localSub) emitDrops() {
-	defer close(s.emitterDone)
-	for {
-		select {
-		case <-s.stop:
-			return
 		case <-s.dropSignal:
 			s.listener(s.pubsub.ctx, nil, pubsub.ErrDroppedMessages)
 		}
