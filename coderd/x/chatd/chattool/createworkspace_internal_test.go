@@ -34,6 +34,19 @@ func newCreateWorkspaceMockStore(ctrl *gomock.Controller) *dbmock.MockStore {
 	return db
 }
 
+func TestCreateWorkspaceDescriptionDelaysWorkspaceCreation(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := newCreateWorkspaceMockStore(ctrl)
+	tool := CreateWorkspace(db, uuid.New(), uuid.New(), CreateWorkspaceOptions{})
+	info := tool.Info()
+
+	require.Contains(t, info.Description, "Create a new workspace from a template only when workspace-backed")
+	require.Contains(t, info.Description, "user explicitly asks")
+	require.Contains(t, info.Description, "Do not use this as a default first step")
+}
+
 func TestWaitForAgentReady(t *testing.T) {
 	t.Parallel()
 

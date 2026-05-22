@@ -10546,7 +10546,10 @@ func TestChatSystemPrompt(t *testing.T) {
 	memberClientRaw, _ := coderdtest.CreateAnotherUser(t, adminClient.Client, firstUser.OrganizationID)
 	memberClient := codersdk.NewExperimentalClient(memberClientRaw)
 
-	const workspaceAwareness = "There is no workspace associated with this chat yet. Create one using the create_workspace tool before using workspace tools like execute, read_file, write_file, etc."
+	const workspaceAwareness = `No workspace is attached to this chat yet.
+Do not create or start a workspace by default. Many requests can be completed using the conversation, provider tools such as web_search when available, or configured external MCP tools.
+Workspace tools such as execute, read_file, write_file, and edit_files require an attached workspace. Only call create_workspace or start_workspace when the user explicitly asks for a workspace-backed task, or when the task cannot be completed without inspecting, editing, or running files in a workspace.
+If a workspace is needed, use list_templates and read_template as needed before create_workspace.`
 
 	updateChatSystemPrompt := func(t *testing.T, ctx context.Context, req codersdk.UpdateChatSystemPromptRequest) {
 		t.Helper()
