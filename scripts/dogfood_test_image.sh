@@ -11,10 +11,12 @@
 #           ghcr.io/coder/dogfood:latest
 #
 # Environment:
-#   GITHUB_TOKEN   Passed into the container for authenticated API calls
-#                  (optional for local runs).
-#   STEPS          Space-separated list of steps to run. Defaults to all.
-#                  Valid values: gen fmt lint build check-unstaged
+#   GITHUB_TOKEN      Passed into the container for authenticated API calls
+#                     (optional for local runs).
+#   GITHUB_BASE_REF   Base branch for diff-only lint checks (e.g. emdash).
+#                     Set automatically by GitHub Actions for PRs.
+#   STEPS             Space-separated list of steps to run. Defaults to all.
+#                     Valid values: gen fmt lint build check-unstaged
 #
 # Example:
 #   ./scripts/dogfood_test_image.sh dogfood-test:22.04
@@ -57,6 +59,7 @@ run_make() {
 		--workdir /home/coder/coder \
 		--network=host \
 		--env GITHUB_TOKEN \
+		--env GITHUB_BASE_REF \
 		"$IMAGE" \
 		make "$@"
 }
