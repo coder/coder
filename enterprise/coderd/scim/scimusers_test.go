@@ -192,6 +192,33 @@ func TestPrimaryEmail(t *testing.T) {
 			attrs:    scim.ResourceAttributes{"emails": "not-a-list"},
 			expected: "",
 		},
+		{
+			name: "case-insensitive top-level key",
+			attrs: scim.ResourceAttributes{
+				"Emails": []interface{}{
+					map[string]interface{}{"value": "a@b.com", "primary": true},
+				},
+			},
+			expected: "a@b.com",
+		},
+		{
+			name: "case-insensitive inner keys",
+			attrs: scim.ResourceAttributes{
+				"emails": []interface{}{
+					map[string]interface{}{"Value": "a@b.com", "Primary": true},
+				},
+			},
+			expected: "a@b.com",
+		},
+		{
+			name: "all caps keys",
+			attrs: scim.ResourceAttributes{
+				"EMAILS": []interface{}{
+					map[string]interface{}{"VALUE": "a@b.com", "PRIMARY": true},
+				},
+			},
+			expected: "a@b.com",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -233,7 +260,164 @@ func TestBooleanValue(t *testing.T) {
 	}
 }
 
+func TestAttribute(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		attrs   scim.ResourceAttributes
+		key     string
+		wantVal interface{}
+		wantOK  bool
+	}{
+		{"exact match", scim.ResourceAttributes{"active": true}, "active", true, true},
+		{"capital first", scim.ResourceAttributes{"active": true}, "Active", true, true},
+		{"all caps", scim.ResourceAttributes{"active": true}, "ACTIVE", true, true},
+		{"camelCase key", scim.ResourceAttributes{"userName": "alice"}, "username", "alice", true},
+		{"camelCase swapped", scim.ResourceAttributes{"username": "alice"}, "userName", "alice", true},
+		{"missing key", scim.ResourceAttributes{"active": true}, "missing", nil, false},
+		{"empty map", scim.ResourceAttributes{}, "active", nil, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			val, ok := Attribute(tt.attrs, tt.key)
+			assert.Equal(t, tt.wantOK, ok)
+			assert.Equal(t, tt.wantVal, val)
+		})
+	}
+}
+
+func TestAttributeAsBool(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		attrs  scim.ResourceAttributes
+		key    string
+		want   bool
+		wantOK bool
+	}{
+		{"exact key bool", scim.ResourceAttributes{"active": true}, "active", true, true},
+		{"mixed case bool", scim.ResourceAttributes{"active": false}, "Active", false, true},
+		{"all caps bool", scim.ResourceAttributes{"active": true}, "ACTIVE", true, true},
+		{"mixed case string true", scim.ResourceAttributes{"active": "true"}, "Active", true, true},
+		{"mixed case string false", scim.ResourceAttributes{"active": "false"}, "ACTIVE", false, true},
+		{"missing key", scim.ResourceAttributes{}, "active", false, false},
+		{"non-convertible", scim.ResourceAttributes{"active": 42}, "active", false, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, ok := AttributeAsBool(tt.attrs, tt.key)
+			assert.Equal(t, tt.wantOK, ok)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestAttributeAsString(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		attrs  scim.ResourceAttributes
+		key    string
+		want   string
+		wantOK bool
+	}{
+		{"exact key string", scim.ResourceAttributes{"userName": "alice"}, "userName", "alice", true},
+		{"mixed case string", scim.ResourceAttributes{"userName": "alice"}, "UserName", "alice", true},
+		{"lower case lookup", scim.ResourceAttributes{"userName": "alice"}, "username", "alice", true},
+		{"bool to string", scim.ResourceAttributes{"active": true}, "active", "true", true},
+		{"mixed case bool to string", scim.ResourceAttributes{"active": false}, "Active", "false", true},
+		{"missing key", scim.ResourceAttributes{}, "userName", "", false},
+		{"non-convertible", scim.ResourceAttributes{"count": 42}, "count", "", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, ok := AttributeAsString(tt.attrs, tt.key)
+			assert.Equal(t, tt.wantOK, ok)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestAttributeEqual(t *testing.T) {
+	t.Parallel()
+
+	t.Run("exact match same value", func(t *testing.T) {
+		t.Parallel()
+		attrs := scim.ResourceAttributes{"userName": "alice"}
+		assert.True(t, AttributeEqual("alice", attrs, "userName"))
+	})
+
+	t.Run("mixed case same value", func(t *testing.T) {
+		t.Parallel()
+		attrs := scim.ResourceAttributes{"userName": "alice"}
+		assert.True(t, AttributeEqual("alice", attrs, "UserName"))
+	})
+
+	t.Run("mixed case different value", func(t *testing.T) {
+		t.Parallel()
+		attrs := scim.ResourceAttributes{"userName": "bob"}
+		assert.False(t, AttributeEqual("alice", attrs, "USERNAME"))
+	})
+
+	t.Run("missing key means no change", func(t *testing.T) {
+		t.Parallel()
+		attrs := scim.ResourceAttributes{}
+		assert.True(t, AttributeEqual("alice", attrs, "userName"))
+	})
+
+	t.Run("type mismatch", func(t *testing.T) {
+		t.Parallel()
+		attrs := scim.ResourceAttributes{"userName": 42}
+		assert.False(t, AttributeEqual("alice", attrs, "userName"))
+	})
+}
+
 // --- Handler tests (with DB) ---
+
+func TestResourceUser_CaseInsensitive(t *testing.T) {
+	t.Parallel()
+
+	ru, db, _ := setupSCIM(t)
+
+	// Seed an active user.
+	user := seedUser(t, db, database.User{
+		Status:    database.UserStatusActive,
+		LoginType: database.LoginTypeOIDC,
+	})
+
+	r := scimRequest(t)
+
+	// Replace with "Active" (capital A) instead of "active".
+	res, err := ru.Replace(r, user.ID.String(), scim.ResourceAttributes{
+		"userName": user.Username,
+		"Active":   false,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, false, res.Attributes["active"])
+
+	// Confirm suspended via Get.
+	res, err = ru.Get(r, user.ID.String())
+	require.NoError(t, err)
+	assert.Equal(t, false, res.Attributes["active"])
+
+	// Patch back with map-style replace using "Active" key.
+	res, err = ru.Patch(r, user.ID.String(), []scim.PatchOperation{
+		{Op: "replace", Value: map[string]interface{}{"Active": true}},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, true, res.Attributes["active"])
+
+	// Confirm reactivated via Get.
+	res, err = ru.Get(r, user.ID.String())
+	require.NoError(t, err)
+	assert.Equal(t, true, res.Attributes["active"])
+}
 
 func TestResourceUser_Lifecycle(t *testing.T) {
 	t.Parallel()

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/elimity-com/scim"
 	scimErrors "github.com/elimity-com/scim/errors"
@@ -65,7 +66,7 @@ func (ru *ResourceUser) Create(r *http.Request, attributes scim.ResourceAttribut
 
 	// Extract fields from the SCIM attributes.
 	// Do our best to match what the OIDC signup flow also does.
-	username, _ := attributes["userName"].(string)
+	username, _ := AttributeAsString(attributes, "userName")
 	email := primaryEmail(attributes)
 	if email == "" {
 		// email is required
@@ -86,7 +87,7 @@ func (ru *ResourceUser) Create(r *http.Request, attributes scim.ResourceAttribut
 	//   We should consider whether we want to support that for SCIM as well, and if so, apply that validation here.
 
 	active := true
-	if a, ok := attributes["active"]; ok {
+	if a, ok := Attribute(attributes, "active"); ok {
 		v, err := BooleanValue(a)
 		if err != nil {
 			return scim.Resource{}, scimErrors.ScimErrorBadRequest(
@@ -260,14 +261,14 @@ func (ru *ResourceUser) Replace(r *http.Request, idStr string, attributes scim.R
 	}
 
 	// TODO: Check primary email
-	activeStr, ok := attributes["active"]
+	activeInterface, ok := Attribute(attributes, "active")
 	if !ok {
 		return scim.Resource{}, scimErrors.ScimErrorBadRequest("missing required 'active' field")
 	}
 
-	active, err := BooleanValue(activeStr)
+	active, err := BooleanValue(activeInterface)
 	if err != nil {
-		return scim.Resource{}, scimErrors.ScimErrorBadRequest(fmt.Sprintf("invalid boolean value for 'active' field: %v", activeStr))
+		return scim.Resource{}, scimErrors.ScimErrorBadRequest(fmt.Sprintf("invalid boolean value for 'active' field: %v", activeInterface))
 	}
 
 	newStatus := scimUserStatus(dbUser, &active)
@@ -360,7 +361,7 @@ func (ru *ResourceUser) Patch(r *http.Request, idStr string, operations []scim.P
 				}
 				activeSet = &v
 			} else if m, ok := op.Value.(map[string]interface{}); ok {
-				if actV, ok := m["active"]; ok {
+				if actV, ok := Attribute(m, "active"); ok {
 					v, err := BooleanValue(actV)
 					if err != nil {
 						return scim.Resource{}, scimErrors.ScimErrorBadRequest(fmt.Sprintf("invalid boolean value for 'active' field: %v", actV))
@@ -471,6 +472,60 @@ func userResourceFromGetUsersRow(u database.GetUsersRow) scim.Resource {
 	}
 }
 
+func AttributeAsBool(attrs scim.ResourceAttributes, key string) (bool, bool) {
+	val, ok := Attribute(attrs, key)
+	if !ok {
+		return false, false
+	}
+
+	switch v := val.(type) {
+	case string:
+		pv, err := strconv.ParseBool(v)
+		return pv, err == nil
+	case bool:
+		return v, true
+	default:
+		return false, false
+	}
+}
+
+func AttributeAsString(attrs scim.ResourceAttributes, key string) (string, bool) {
+	val, ok := Attribute(attrs, key)
+	if !ok {
+		return "", false
+	}
+
+	switch v := val.(type) {
+	case string:
+		return v, true
+	case bool:
+		return strconv.FormatBool(v), true
+	default:
+		return "", false
+	}
+}
+
+func Attribute(attrs scim.ResourceAttributes, key string) (interface{}, bool) {
+	// attribute names are case-insensitive per SCIM spec
+	val, ok := attrs[key]
+	if ok {
+		return val, true
+	}
+
+	// This is terrible, but we need to iterate the map to find the key in a case-insensitive way.
+	// The scim Spec says attribute names are case-insensitive.
+	for k, v := range attrs {
+		if k == key {
+			return v, true
+		}
+		if len(k) == len(key) && strings.EqualFold(k, key) {
+			return v, true
+		}
+	}
+
+	return nil, false
+}
+
 // BadUUID returns a 404 not-found error for non-UUID identifiers.
 // SCIM clients may send arbitrary strings as IDs; returning 404
 // (rather than 400) signals that no resource matches.
@@ -490,7 +545,7 @@ func BooleanValue(v interface{}) (bool, error) {
 }
 
 func AttributeEqual[T comparable](existing T, attrs scim.ResourceAttributes, key string) bool {
-	found, ok := attrs[key]
+	found, ok := Attribute(attrs, key)
 	if !ok {
 		return true // No change if the attribute is not present in the request
 	}
@@ -505,7 +560,7 @@ func AttributeEqual[T comparable](existing T, attrs scim.ResourceAttributes, key
 
 // primaryEmail extracts the primary email from SCIM resource attributes.
 func primaryEmail(attributes scim.ResourceAttributes) string {
-	emailsRaw, ok := attributes["emails"]
+	emailsRaw, ok := Attribute(attributes, "emails")
 	if !ok {
 		return ""
 	}
@@ -520,8 +575,8 @@ func primaryEmail(attributes scim.ResourceAttributes) string {
 		if !ok {
 			continue
 		}
-		if primary, _ := emailMap["primary"].(bool); primary {
-			if val, ok := emailMap["value"].(string); ok {
+		if primary, _ := AttributeAsBool(emailMap, "primary"); primary {
+			if val, ok := AttributeAsString(emailMap, "value"); ok {
 				return val
 			}
 		}
@@ -530,7 +585,7 @@ func primaryEmail(attributes scim.ResourceAttributes) string {
 	// Fallback: if no email is marked primary, use the first one.
 	if len(emails) > 0 {
 		if emailMap, ok := emails[0].(map[string]interface{}); ok {
-			if val, ok := emailMap["value"].(string); ok {
+			if val, ok := AttributeAsString(emailMap, "value"); ok {
 				return val
 			}
 		}
