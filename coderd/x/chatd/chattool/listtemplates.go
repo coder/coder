@@ -129,8 +129,6 @@ func ListTemplates(db database.Store, organizationID uuid.UUID, options ListTemp
 					item["description"] = truncateRunes(desc, 200)
 				}
 				if abstract := strings.TrimSpace(t.Abstract); abstract != "" {
-					// Truncate in the list view to keep responses small. The full abstract
-					// is available through read_template for the selected candidate.
 					item["abstract"] = truncateRunes(abstract, 500)
 				}
 				if count, ok := ownerCounts[t.ID]; ok && count > 0 {

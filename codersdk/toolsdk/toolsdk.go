@@ -635,15 +635,7 @@ var ListTemplates = Tool[NoArgs, []MinimalTemplate]{
 		}
 		minimalTemplates := make([]MinimalTemplate, len(templates))
 		for i, template := range templates {
-			minimalTemplates[i] = MinimalTemplate{
-				DisplayName:     template.DisplayName,
-				ID:              template.ID.String(),
-				Name:            template.Name,
-				Description:     template.Description,
-				Abstract:        template.Abstract,
-				ActiveVersionID: template.ActiveVersionID,
-				ActiveUserCount: template.ActiveUserCount,
-			}
+			minimalTemplates[i] = toMinimalTemplate(template)
 		}
 		return minimalTemplates, nil
 	},
@@ -773,16 +765,8 @@ When selecting a preset: if a preset is marked default and the user has not spec
 			return TemplateDetail{}, xerrors.Errorf("get template presets: %w", err)
 		}
 		detail := TemplateDetail{
-			MinimalTemplate: MinimalTemplate{
-				DisplayName:     template.DisplayName,
-				ID:              template.ID.String(),
-				Name:            template.Name,
-				Description:     template.Description,
-				Abstract:        template.Abstract,
-				ActiveVersionID: template.ActiveVersionID,
-				ActiveUserCount: template.ActiveUserCount,
-			},
-			Parameters: parameters,
+			MinimalTemplate: toMinimalTemplate(template),
+			Parameters:      parameters,
 		}
 		for _, p := range presets {
 			detail.Presets = append(detail.Presets, toPresetView(p))
@@ -1724,6 +1708,18 @@ type MinimalTemplate struct {
 	Abstract        string    `json:"abstract,omitempty"`
 	ActiveVersionID uuid.UUID `json:"active_version_id"`
 	ActiveUserCount int       `json:"active_user_count"`
+}
+
+func toMinimalTemplate(t codersdk.Template) MinimalTemplate {
+	return MinimalTemplate{
+		DisplayName:     t.DisplayName,
+		ID:              t.ID.String(),
+		Name:            t.Name,
+		Description:     t.Description,
+		Abstract:        t.Abstract,
+		ActiveVersionID: t.ActiveVersionID,
+		ActiveUserCount: t.ActiveUserCount,
+	}
 }
 
 type WorkspaceLSArgs struct {

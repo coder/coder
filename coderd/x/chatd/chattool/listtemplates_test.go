@@ -160,8 +160,6 @@ func TestListTemplates_Abstract(t *testing.T) {
 		m := templates[0].(map[string]any)
 		require.Equal(t, tpl.ID.String(), m["id"].(string))
 		require.Equal(t, "short description", m["description"].(string))
-		// List view truncates abstracts to keep responses small; the full text
-		// remains accessible via read_template.
 		require.Equal(t, strings.Repeat("a", 500), m["abstract"].(string))
 	})
 
@@ -247,8 +245,6 @@ func TestListTemplates_Abstract(t *testing.T) {
 			OrganizationID: org.ID,
 		})
 
-		// Proves the TrimSpace guard is load-bearing; a non-empty but
-		// whitespace-only abstract must still omit the key.
 		dbgen.Template(t, db, database.Template{
 			OrganizationID: org.ID,
 			CreatedBy:      user.ID,

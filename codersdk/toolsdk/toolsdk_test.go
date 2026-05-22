@@ -315,7 +315,6 @@ func TestTools(t *testing.T) {
 
 	t.Run("ListTemplatesPropagatesAbstract", func(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
-		// Set Abstract on the existing fixture so the list response surfaces it.
 		abstract := "Agent-targeted summary for the shared fixture template."
 		_, err := client.UpdateTemplateMeta(ctx, r.Template.ID, codersdk.UpdateTemplateMeta{
 			Abstract: &abstract,

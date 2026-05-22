@@ -282,8 +282,6 @@ func TestReadTemplate_Abstract(t *testing.T) {
 			OrganizationID: org.ID,
 			CreatedBy:      user.ID,
 		})
-		// Proves the TrimSpace guard is load-bearing; a non-empty but
-		// whitespace-only abstract must still omit the key.
 		tmpl := dbgen.Template(t, db, database.Template{
 			OrganizationID:  org.ID,
 			CreatedBy:       user.ID,
