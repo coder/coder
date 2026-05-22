@@ -3474,13 +3474,6 @@ func (q *querier) GetGroupByOrgAndName(ctx context.Context, arg database.GetGrou
 	return fetch(q.log, q.auth, q.db.GetGroupByOrgAndName)(ctx, arg)
 }
 
-func (q *querier) GetGroupMember(ctx context.Context, arg database.GetGroupMemberParams) (database.GroupMemberTable, error) {
-	if _, err := q.GetGroupByID(ctx, arg.GroupID); err != nil { // AuthZ check
-		return database.GroupMemberTable{}, err
-	}
-	return q.db.GetGroupMember(ctx, arg)
-}
-
 func (q *querier) GetGroupMembers(ctx context.Context, includeSystem bool) ([]database.GroupMember, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err

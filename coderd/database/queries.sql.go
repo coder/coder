@@ -2438,7 +2438,9 @@ func (q *sqlQuerier) UpsertGroupAIBudget(ctx context.Context, arg UpsertGroupAIB
 
 const upsertUserAIBudgetOverride = `-- name: UpsertUserAIBudgetOverride :one
 INSERT INTO user_ai_budget_overrides (user_id, group_id, spend_limit_micros)
-VALUES ($1, $2, $3)
+SELECT $1, $2, $3
+FROM group_members_expanded
+WHERE user_id = $1 AND group_id = $2
 ON CONFLICT (user_id) DO UPDATE SET
 	group_id           = EXCLUDED.group_id,
 	spend_limit_micros = EXCLUDED.spend_limit_micros,
@@ -2452,6 +2454,11 @@ type UpsertUserAIBudgetOverrideParams struct {
 	SpendLimitMicros int64     `db:"spend_limit_micros" json:"spend_limit_micros"`
 }
 
+// The SELECT gates the write on the user being a member of the attributed
+// group, checked via group_members_expanded so the "Everyone" group (whose
+// membership lives in organization_members) is correctly handled. If the
+// user isn't a member, no row is written and RETURNING yields nothing,
+// which the caller maps to a 400.
 func (q *sqlQuerier) UpsertUserAIBudgetOverride(ctx context.Context, arg UpsertUserAIBudgetOverrideParams) (UserAiBudgetOverride, error) {
 	row := q.db.QueryRowContext(ctx, upsertUserAIBudgetOverride, arg.UserID, arg.GroupID, arg.SpendLimitMicros)
 	var i UserAiBudgetOverride
@@ -12438,24 +12445,6 @@ type DeleteGroupMemberFromGroupParams struct {
 func (q *sqlQuerier) DeleteGroupMemberFromGroup(ctx context.Context, arg DeleteGroupMemberFromGroupParams) error {
 	_, err := q.db.ExecContext(ctx, deleteGroupMemberFromGroup, arg.UserID, arg.GroupID)
 	return err
-}
-
-const getGroupMember = `-- name: GetGroupMember :one
-SELECT user_id, group_id
-FROM group_members
-WHERE user_id = $1 AND group_id = $2
-`
-
-type GetGroupMemberParams struct {
-	UserID  uuid.UUID `db:"user_id" json:"user_id"`
-	GroupID uuid.UUID `db:"group_id" json:"group_id"`
-}
-
-func (q *sqlQuerier) GetGroupMember(ctx context.Context, arg GetGroupMemberParams) (GroupMemberTable, error) {
-	row := q.db.QueryRowContext(ctx, getGroupMember, arg.UserID, arg.GroupID)
-	var i GroupMemberTable
-	err := row.Scan(&i.UserID, &i.GroupID)
-	return i, err
 }
 
 const getGroupMembers = `-- name: GetGroupMembers :many

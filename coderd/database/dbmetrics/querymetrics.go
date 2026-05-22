@@ -1921,14 +1921,6 @@ func (m queryMetricsStore) GetGroupByOrgAndName(ctx context.Context, arg databas
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetGroupMember(ctx context.Context, arg database.GetGroupMemberParams) (database.GroupMemberTable, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetGroupMember(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetGroupMember").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetGroupMember").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetGroupMembers(ctx context.Context, includeSystem bool) ([]database.GroupMember, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetGroupMembers(ctx, includeSystem)

@@ -1,8 +1,3 @@
--- name: GetGroupMember :one
-SELECT *
-FROM group_members
-WHERE user_id = @user_id AND group_id = @group_id;
-
 -- name: GetGroupMembers :many
 SELECT * FROM group_members_expanded
 WHERE CASE

@@ -467,7 +467,6 @@ type sqlcQuerier interface {
 	GetGroupAIBudget(ctx context.Context, groupID uuid.UUID) (GroupAiBudget, error)
 	GetGroupByID(ctx context.Context, id uuid.UUID) (Group, error)
 	GetGroupByOrgAndName(ctx context.Context, arg GetGroupByOrgAndNameParams) (Group, error)
-	GetGroupMember(ctx context.Context, arg GetGroupMemberParams) (GroupMemberTable, error)
 	GetGroupMembers(ctx context.Context, includeSystem bool) ([]GroupMember, error)
 	GetGroupMembersByGroupID(ctx context.Context, arg GetGroupMembersByGroupIDParams) ([]GroupMember, error)
 	GetGroupMembersByGroupIDPaginated(ctx context.Context, arg GetGroupMembersByGroupIDPaginatedParams) ([]GetGroupMembersByGroupIDPaginatedRow, error)
@@ -1390,6 +1389,11 @@ type sqlcQuerier interface {
 	// used to store the data, and the minutes are summed for each user and template
 	// combination. The result is stored in the template_usage_stats table.
 	UpsertTemplateUsageStats(ctx context.Context) error
+	// The SELECT gates the write on the user being a member of the attributed
+	// group, checked via group_members_expanded so the "Everyone" group (whose
+	// membership lives in organization_members) is correctly handled. If the
+	// user isn't a member, no row is written and RETURNING yields nothing,
+	// which the caller maps to a 400.
 	UpsertUserAIBudgetOverride(ctx context.Context, arg UpsertUserAIBudgetOverrideParams) (UserAiBudgetOverride, error)
 	UpsertUserChatDebugLoggingEnabled(ctx context.Context, arg UpsertUserChatDebugLoggingEnabledParams) error
 	UpsertUserChatPersonalModelOverride(ctx context.Context, arg UpsertUserChatPersonalModelOverrideParams) error

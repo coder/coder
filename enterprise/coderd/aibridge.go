@@ -877,37 +877,24 @@ func (api *API) upsertUserAIBudgetOverride(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Verify the user is a member of the referenced group up-front so the
-	// caller gets a structured 400 instead of a raw FK violation. The DB
-	// also enforces this via a composite FK to group_members.
-	if _, err := api.Database.GetGroupMember(ctx, database.GetGroupMemberParams{
-		UserID:  user.ID,
-		GroupID: req.GroupID,
-	}); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "User is not a member of the referenced group.",
-				Validations: []codersdk.ValidationError{{
-					Field:  "group_id",
-					Detail: "user must be a member of this group",
-				}},
-			})
-			return
-		}
-		if httpapi.Is404Error(err) {
-			httpapi.ResourceNotFound(rw)
-			return
-		}
-		api.Logger.Error(ctx, "check group membership for user AI budget override", slog.Error(err))
-		httpapi.InternalServerError(rw, err)
-		return
-	}
-
 	override, err := api.Database.UpsertUserAIBudgetOverride(ctx, database.UpsertUserAIBudgetOverrideParams{
 		UserID:           user.ID,
 		GroupID:          req.GroupID,
 		SpendLimitMicros: req.SpendLimitMicros,
 	})
+	// The query gates the write on the user being a member of the
+	// attributed group. When membership is absent, no row is written and
+	// the query returns sql.ErrNoRows.
+	if errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "User is not a member of the referenced group.",
+			Validations: []codersdk.ValidationError{{
+				Field:  "group_id",
+				Detail: "user must be a member of this group",
+			}},
+		})
+		return
+	}
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
 		return

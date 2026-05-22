@@ -47,8 +47,13 @@ FROM user_ai_budget_overrides
 WHERE user_id = @user_id;
 
 -- name: UpsertUserAIBudgetOverride :one
+-- The SELECT gates the write on the user being a member of the attributed
+-- group, checked against group_members_expanded so the "Everyone" group
+-- (whose membership lives in organization_members) is correctly handled.
 INSERT INTO user_ai_budget_overrides (user_id, group_id, spend_limit_micros)
-VALUES (@user_id, @group_id, @spend_limit_micros)
+SELECT @user_id, @group_id, @spend_limit_micros
+FROM group_members_expanded
+WHERE user_id = @user_id AND group_id = @group_id
 ON CONFLICT (user_id) DO UPDATE SET
 	group_id           = EXCLUDED.group_id,
 	spend_limit_micros = EXCLUDED.spend_limit_micros,
