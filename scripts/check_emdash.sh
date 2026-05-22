@@ -60,8 +60,13 @@ else
 			echo "Base ref $base not found locally, fetching $ref..."
 			git fetch origin "$ref" --depth=1 2>/dev/null || true
 			if ! git rev-parse --verify "$base" >/dev/null 2>&1; then
-				echo "ERROR: could not fetch base ref $base."
-				exit 1
+				if git rev-parse --verify origin/main >/dev/null 2>&1; then
+					echo "WARNING: could not fetch base ref $base, falling back to origin/main merge base."
+					base=$(git merge-base HEAD origin/main 2>/dev/null || echo "origin/main")
+				else
+					echo "ERROR: could not fetch base ref $base."
+					exit 1
+				fi
 			fi
 		fi
 

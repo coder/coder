@@ -42,12 +42,12 @@ export const StartWorkspaceTool: FC<StartWorkspaceToolProps> = ({
 
 	const header = (
 		<>
-			<MonitorPlayIcon className="h-4 w-4 shrink-0 text-current" />
+			<MonitorPlayIcon className="size-4 shrink-0 text-current" />
 			<span className="text-[13px]">{label}</span>
 			{isError && (
 				<Tooltip>
 					<TooltipTrigger asChild>
-						<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-current" />
+						<TriangleAlertIcon className="size-3.5 shrink-0 text-current" />
 					</TooltipTrigger>
 					<TooltipContent>
 						{errorMessage || "Failed to start workspace"}
@@ -55,7 +55,7 @@ export const StartWorkspaceTool: FC<StartWorkspaceToolProps> = ({
 				</Tooltip>
 			)}
 			{isRunning && (
-				<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current" />
+				<LoaderIcon className="size-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current" />
 			)}
 		</>
 	);

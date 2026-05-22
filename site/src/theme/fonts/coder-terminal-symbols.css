@@ -1,0 +1,12 @@
+/*
+ * Powerline fallback glyphs subset from Symbols Nerd Font Mono v3.4.0.
+ * Source: https://github.com/ryanoasis/nerd-fonts/releases/tag/v3.4.0
+ */
+@font-face {
+	font-family: "Coder Terminal Symbols";
+	font-style: normal;
+	font-display: swap;
+	font-weight: 400 700;
+	src: url("./coder-terminal-symbols-powerline.woff2?no-inline") format("woff2");
+	unicode-range: U+E0A0, U+E0B0-E0BF;
+}

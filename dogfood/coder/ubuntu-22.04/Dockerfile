@@ -169,8 +169,8 @@ RUN useradd coder \
 # volume mount; data dir under ~/.local/share/mise so installs ride
 # along on the per-workspace home volume, matching Homebrew's pattern
 # (see /home/linuxbrew volume in main.tf).
-ARG MISE_VERSION=v2026.4.19 \
-	MISE_SHA256=6b58ff5f1e1ce98ed2b7e5372c344ea48182c460e5b6df12d9e0def35aad4438 \
+ARG MISE_VERSION=v2026.5.12 \
+	MISE_SHA256=a238972a3162d710b85b28c324372e96ca4e4b486c81fe78695000d9fbc77c48 \
 	MISE_INSTALL_DIR=/opt/mise/bin
 RUN install --directory --owner=coder --group=coder --mode=0755 "${MISE_INSTALL_DIR}" && \
 	curl --silent --show-error --location --fail \
@@ -200,10 +200,12 @@ ENV MISE_DATA_DIR=/home/coder/.local/share/mise \
 #
 # We pre-create /etc/mise as 0755 because COPY's implicitly-created
 # parent dirs inherit the --chmod, which would leave /etc/mise
-# without the `x` bit and unreachable to the coder user.
-RUN install --directory --mode=0755 /etc/mise
-COPY --chmod=0644 mise.toml /etc/mise/config.toml
-COPY --chmod=0644 mise.lock /etc/mise/mise.lock
+# without the `x` bit and unreachable to the coder user. We also
+# chown to coder so mise can write the temp lockfile it uses for
+# atomic rename when updating /etc/mise/mise.lock during installs.
+RUN install --directory --owner=coder --group=coder --mode=0755 /etc/mise
+COPY --chown=coder:coder --chmod=0644 mise.toml /etc/mise/config.toml
+COPY --chown=coder:coder --chmod=0644 mise.lock /etc/mise/mise.lock
 
 # Pre-install tools into /opt/mise/data so they survive the home
 # volume's copy-on-first-mount. MISE_SHARED_INSTALL_DIRS (set below)

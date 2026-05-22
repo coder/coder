@@ -7,6 +7,7 @@ import {
 	DIFFS_FONT_STYLE,
 	diffViewerCSS,
 	fileViewerCSS,
+	formatModelIntentLabel,
 	formatResultOutput,
 	formatShellDurationMs,
 	getDiffViewerOptions,
@@ -24,10 +25,64 @@ import {
 	parseEditFilesArgs,
 	parseServerEditDiffText,
 	parseServerEditResults,
+	sanitizeExecuteModelIntent,
 	shortDurationMs,
 	stripSvnIndexHeaders,
+	summarizeParsedCommands,
 	toProviderLabel,
 } from "./utils";
+
+describe("formatModelIntentLabel", () => {
+	it("returns empty string for empty values", () => {
+		expect(formatModelIntentLabel(undefined)).toBe("");
+		expect(formatModelIntentLabel("")).toBe("");
+		expect(formatModelIntentLabel("   ")).toBe("");
+	});
+
+	it("trims and capitalizes labels", () => {
+		expect(formatModelIntentLabel("checking repository state")).toBe(
+			"Checking repository state",
+		);
+		expect(formatModelIntentLabel(" a")).toBe("A");
+		expect(formatModelIntentLabel("Running tests")).toBe("Running tests");
+	});
+});
+
+describe("sanitizeExecuteModelIntent", () => {
+	it("strips redundant command and duration suffixes", () => {
+		expect(
+			sanitizeExecuteModelIntent("Running tests using npm for 5s", "npm test"),
+		).toBe("Running tests");
+		expect(
+			sanitizeExecuteModelIntent(
+				"checking status using git fetch origin",
+				"git fetch origin",
+			),
+		).toBe("Checking status");
+	});
+
+	it("strips trailing durations without command suffixes", () => {
+		expect(
+			sanitizeExecuteModelIntent("Running tests for 2.5s", "npm test"),
+		).toBe("Running tests");
+		expect(sanitizeExecuteModelIntent("for 5s", "npm test")).toBe("");
+	});
+
+	it("strips leading using only when it references the command", () => {
+		expect(
+			sanitizeExecuteModelIntent("using git fetch origin", "git fetch origin"),
+		).toBe("");
+		expect(
+			sanitizeExecuteModelIntent("Using environment variables", "npm test"),
+		).toBe("Using environment variables");
+	});
+
+	it("preserves using when it is not followed by a command reference", () => {
+		expect(
+			sanitizeExecuteModelIntent("Testing using mock data", "npm test"),
+		).toBe("Testing using mock data");
+	});
+});
 
 describe("toProviderLabel", () => {
 	it("returns displayName when provided", () => {
@@ -693,7 +748,7 @@ describe("buildEditDiff", () => {
 		const spy = vi.spyOn(console, "error").mockImplementation(() => {});
 		try {
 			const diff = buildEditDiff(
-				"/home/coder/coder/site/src/pages/AgentsPage/AgentsSidebar.tsx",
+				"/home/coder/coder/site/src/pages/AgentsPage/components/ChatSidebar/ChatsSidebar.tsx",
 				[
 					{ search: "const a = 1;", replace: "const a = 2;" },
 					{ search: "const b = 3;", replace: "const b = 4;" },
@@ -948,5 +1003,53 @@ describe("parseServerEditDiffText", () => {
 		);
 		expect(diff).not.toBeNull();
 		expect(diff?.name).toBe("/abs/a.txt");
+	});
+});
+
+describe("summarizeParsedCommands", () => {
+	it("renders <prog> <verb> for multi-verb tools", () => {
+		expect(
+			summarizeParsedCommands([
+				["git", "pull"],
+				["git", "add"],
+				["git", "commit"],
+			]),
+		).toBe("git pull, git add, git commit");
+	});
+
+	it("renders just <prog> for non-multi-verb tools", () => {
+		expect(
+			summarizeParsedCommands([
+				["cd", "/repo"],
+				["ls", "/tmp"],
+			]),
+		).toBe("cd, ls");
+	});
+
+	it("renders single-arg entries as just the program", () => {
+		expect(summarizeParsedCommands([["pwd"]])).toBe("pwd");
+	});
+
+	it("dedupes consecutive duplicates", () => {
+		expect(
+			summarizeParsedCommands([
+				["git", "pull"],
+				["git", "pull"],
+			]),
+		).toBe("git pull");
+	});
+
+	it("keeps non-consecutive duplicates", () => {
+		expect(
+			summarizeParsedCommands([["git", "pull"], ["ls"], ["git", "pull"]]),
+		).toBe("git pull, ls, git pull");
+	});
+
+	it("returns empty string for empty input", () => {
+		expect(summarizeParsedCommands([])).toBe("");
+	});
+
+	it("skips entries with no program", () => {
+		expect(summarizeParsedCommands([[""], ["git", "pull"]])).toBe("git pull");
 	});
 });

@@ -35,7 +35,7 @@ export const ToolIcon: React.FC<{
 }> = ({ name, iconUrl, isRunning, serverName, subagentIconKind }) => {
 	const [imgError, setImgError] = useState(false);
 	const color = "text-current";
-	const base = cn("h-4 w-4 shrink-0", color, isRunning && "grayscale");
+	const base = cn("size-4 shrink-0", color, isRunning && "grayscale");
 
 	// If an MCP icon URL is provided and hasn't failed, render it.
 	// Strip colour so external icons match the monochrome lucide
@@ -44,12 +44,12 @@ export const ToolIcon: React.FC<{
 	// content-secondary (light ≈ 34% lightness, dark ≈ 65%).
 	if (iconUrl && !imgError) {
 		const img = (
-			<div className="h-4 w-4 shrink-0 overflow-hidden">
+			<div className="size-4 shrink-0 overflow-hidden">
 				<ExternalImage
 					src={iconUrl}
 					alt={`${name} icon`}
 					className={cn(
-						"block h-4 w-4",
+						"block size-4",
 						// Monochrome: brightness-0 strips colour to black,
 						// dark:invert flips to white for dark backgrounds,
 						// opacity tuned per-theme to match content-secondary

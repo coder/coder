@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, screen, userEvent, within } from "storybook/test";
+import { userEvent, within } from "storybook/test";
 import { ExecuteTool } from "./ExecuteTool";
 
 const longCommand =
@@ -30,6 +30,13 @@ export const ShortCommand: Story = {
 		command: "git status",
 		output: "",
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const summaryButton = await canvas.findByRole("button", {
+			name: "Expand command",
+		});
+		await userEvent.click(summaryButton);
+	},
 };
 
 export const RunningWithoutCommand: Story = {
@@ -38,31 +45,26 @@ export const RunningWithoutCommand: Story = {
 		status: "running",
 		output: "",
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.queryByText("$")).not.toBeInTheDocument();
-		expect(
-			canvas.queryByRole("button", { name: "Copy command" }),
-		).not.toBeInTheDocument();
-	},
 };
 
 export const LongCommand: Story = {
+	decorators: [
+		(Story) => (
+			<div className="w-72">
+				<Story />
+			</div>
+		),
+	],
 	args: {
 		command: longCommand,
 		output: "",
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const command = canvas.getByText(longCommand);
-		expect(command).toBeVisible();
-		expect(
-			canvas.queryByRole("button", { name: longCommand }),
-		).not.toBeInTheDocument();
-		await userEvent.hover(command);
-		expect(
-			await screen.findByRole("tooltip", undefined, { timeout: 2000 }),
-		).toHaveTextContent(longCommand);
+		const summaryButton = await canvas.findByRole("button", {
+			name: "Expand command",
+		});
+		await userEvent.click(summaryButton);
 	},
 };
 
@@ -122,5 +124,33 @@ export const ErrorOutput: Story = {
 			"coderd/workspaces.go:155:19: ws.OwnerID undefined (type *database.Workspace has no field or method OwnerID)",
 			"make: *** [build] Error 1",
 		].join("\n"),
+	},
+};
+
+/** parsedCommands replaces the raw command in the summary line. */
+export const ParsedCommands: Story = {
+	args: {
+		command: `cd /repo && git pull && git add . && git commit -m "fix bug"`,
+		status: "completed",
+		durationMs: 3200,
+		parsedCommands: [
+			["cd", "/repo"],
+			["git", "pull"],
+			["git", "add"],
+			["git", "commit"],
+		],
+	},
+};
+
+/** parsedCommands paired with modelIntent. */
+export const ParsedCommandsWithIntent: Story = {
+	args: {
+		command: "cd /repo && go test -race ./coderd/...",
+		status: "running",
+		modelIntent: "Running the unit tests",
+		parsedCommands: [
+			["cd", "/repo"],
+			["go", "test"],
+		],
 	},
 };

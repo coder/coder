@@ -17,6 +17,8 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/util/shellparse"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -778,20 +780,24 @@ func sdkPartFromContent(
 			ProviderMetadata: marshalProviderMetadata(value.ProviderMetadata),
 		}
 	case fantasy.ToolCallContent:
+		args := safeToolCallArgs(value.Input)
 		return codersdk.ChatMessagePart{
 			Type:             codersdk.ChatMessagePartTypeToolCall,
 			ToolCallID:       value.ToolCallID,
 			ToolName:         value.ToolName,
-			Args:             safeToolCallArgs(value.Input),
+			Args:             args,
+			ParsedCommands:   executeToolParsedCommands(value.ToolName, args),
 			ProviderExecuted: value.ProviderExecuted,
 			ProviderMetadata: marshalProviderMetadata(value.ProviderMetadata),
 		}
 	case *fantasy.ToolCallContent:
+		args := safeToolCallArgs(value.Input)
 		return codersdk.ChatMessagePart{
 			Type:             codersdk.ChatMessagePartTypeToolCall,
 			ToolCallID:       value.ToolCallID,
 			ToolName:         value.ToolName,
-			Args:             safeToolCallArgs(value.Input),
+			Args:             args,
+			ParsedCommands:   executeToolParsedCommands(value.ToolName, args),
 			ProviderExecuted: value.ProviderExecuted,
 			ProviderMetadata: marshalProviderMetadata(value.ProviderMetadata),
 		}
@@ -1269,6 +1275,23 @@ func safeToolCallArgs(input string) json.RawMessage {
 	return raw
 }
 
+func executeToolParsedCommands(toolName string, args json.RawMessage) [][]string {
+	if toolName != chattool.ExecuteToolName || len(args) == 0 {
+		return nil
+	}
+	var parsed struct {
+		Command string `json:"command"`
+	}
+	if err := json.Unmarshal(args, &parsed); err != nil || parsed.Command == "" {
+		return nil
+	}
+	steps, err := shellparse.Parse(parsed.Command)
+	if err != nil {
+		return nil
+	}
+	return steps
+}
+
 // TODO: Replace filename-based detection with explicit origin metadata.
 func isSyntheticPaste(name string, mediaType string) bool {
 	if !syntheticPasteFileNamePattern.MatchString(name) {
@@ -1497,13 +1520,13 @@ func partsToMessageParts(
 				ProviderOptions: providerMetadataToOptions(logger, part.ProviderMetadata),
 			})
 		case codersdk.ChatMessagePartTypeReasoning:
-			// Same guard as text parts above.
-			if strings.TrimSpace(part.Text) == "" {
+			opts := providerMetadataToOptions(logger, part.ProviderMetadata)
+			if strings.TrimSpace(part.Text) == "" && !chatsanitize.HasAnthropicSignedReasoningOptions(opts) {
 				continue
 			}
 			result = append(result, fantasy.ReasoningPart{
 				Text:            part.Text,
-				ProviderOptions: providerMetadataToOptions(logger, part.ProviderMetadata),
+				ProviderOptions: opts,
 			})
 		case codersdk.ChatMessagePartTypeToolCall:
 			result = append(result, fantasy.ToolCallPart{

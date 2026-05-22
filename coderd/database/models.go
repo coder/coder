@@ -19,8 +19,14 @@ import (
 type AIProviderType string
 
 const (
-	AiProviderTypeOpenai    AIProviderType = "openai"
-	AiProviderTypeAnthropic AIProviderType = "anthropic"
+	AiProviderTypeOpenai       AIProviderType = "openai"
+	AiProviderTypeAnthropic    AIProviderType = "anthropic"
+	AiProviderTypeAzure        AIProviderType = "azure"
+	AiProviderTypeBedrock      AIProviderType = "bedrock"
+	AiProviderTypeGoogle       AIProviderType = "google"
+	AiProviderTypeOpenaiCompat AIProviderType = "openai-compat"
+	AiProviderTypeOpenrouter   AIProviderType = "openrouter"
+	AiProviderTypeVercel       AIProviderType = "vercel"
 )
 
 func (e *AIProviderType) Scan(src interface{}) error {
@@ -61,7 +67,13 @@ func (ns NullAIProviderType) Value() (driver.Value, error) {
 func (e AIProviderType) Valid() bool {
 	switch e {
 	case AiProviderTypeOpenai,
-		AiProviderTypeAnthropic:
+		AiProviderTypeAnthropic,
+		AiProviderTypeAzure,
+		AiProviderTypeBedrock,
+		AiProviderTypeGoogle,
+		AiProviderTypeOpenaiCompat,
+		AiProviderTypeOpenrouter,
+		AiProviderTypeVercel:
 		return true
 	}
 	return false
@@ -71,6 +83,12 @@ func AllAIProviderTypeValues() []AIProviderType {
 	return []AIProviderType{
 		AiProviderTypeOpenai,
 		AiProviderTypeAnthropic,
+		AiProviderTypeAzure,
+		AiProviderTypeBedrock,
+		AiProviderTypeGoogle,
+		AiProviderTypeOpenaiCompat,
+		AiProviderTypeOpenrouter,
+		AiProviderTypeVercel,
 	}
 }
 
@@ -293,6 +311,12 @@ const (
 	ApiKeyScopeAiProviderDelete                    APIKeyScope = "ai_provider:delete"
 	ApiKeyScopeAiProviderRead                      APIKeyScope = "ai_provider:read"
 	ApiKeyScopeAiProviderUpdate                    APIKeyScope = "ai_provider:update"
+	ApiKeyScopeChatShare                           APIKeyScope = "chat:share"
+	ApiKeyScopeUserSkillCreate                     APIKeyScope = "user_skill:create"
+	ApiKeyScopeUserSkillRead                       APIKeyScope = "user_skill:read"
+	ApiKeyScopeUserSkillUpdate                     APIKeyScope = "user_skill:update"
+	ApiKeyScopeUserSkillDelete                     APIKeyScope = "user_skill:delete"
+	ApiKeyScopeUserSkill                           APIKeyScope = "user_skill:*"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -547,7 +571,13 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeAiProviderCreate,
 		ApiKeyScopeAiProviderDelete,
 		ApiKeyScopeAiProviderRead,
-		ApiKeyScopeAiProviderUpdate:
+		ApiKeyScopeAiProviderUpdate,
+		ApiKeyScopeChatShare,
+		ApiKeyScopeUserSkillCreate,
+		ApiKeyScopeUserSkillRead,
+		ApiKeyScopeUserSkillUpdate,
+		ApiKeyScopeUserSkillDelete,
+		ApiKeyScopeUserSkill:
 		return true
 	}
 	return false
@@ -771,6 +801,12 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeAiProviderDelete,
 		ApiKeyScopeAiProviderRead,
 		ApiKeyScopeAiProviderUpdate,
+		ApiKeyScopeChatShare,
+		ApiKeyScopeUserSkillCreate,
+		ApiKeyScopeUserSkillRead,
+		ApiKeyScopeUserSkillUpdate,
+		ApiKeyScopeUserSkillDelete,
+		ApiKeyScopeUserSkill,
 	}
 }
 
@@ -3298,8 +3334,10 @@ const (
 	ResourceTypeAiSeat                      ResourceType = "ai_seat"
 	ResourceTypeChat                        ResourceType = "chat"
 	ResourceTypeUserSecret                  ResourceType = "user_secret"
-	ResourceTypeAiProvider                  ResourceType = "ai_provider"
-	ResourceTypeAiProviderKey               ResourceType = "ai_provider_key"
+	ResourceTypeAIProvider                  ResourceType = "ai_provider"
+	ResourceTypeAIProviderKey               ResourceType = "ai_provider_key"
+	ResourceTypeGroupAiBudget               ResourceType = "group_ai_budget"
+	ResourceTypeUserSkill                   ResourceType = "user_skill"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3368,8 +3406,10 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeAiSeat,
 		ResourceTypeChat,
 		ResourceTypeUserSecret,
-		ResourceTypeAiProvider,
-		ResourceTypeAiProviderKey:
+		ResourceTypeAIProvider,
+		ResourceTypeAIProviderKey,
+		ResourceTypeGroupAiBudget,
+		ResourceTypeUserSkill:
 		return true
 	}
 	return false
@@ -3406,8 +3446,10 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeAiSeat,
 		ResourceTypeChat,
 		ResourceTypeUserSecret,
-		ResourceTypeAiProvider,
-		ResourceTypeAiProviderKey,
+		ResourceTypeAIProvider,
+		ResourceTypeAIProviderKey,
+		ResourceTypeGroupAiBudget,
+		ResourceTypeUserSkill,
 	}
 }
 
@@ -4512,6 +4554,8 @@ type Chat struct {
 	PlanMode            NullChatPlanMode      `db:"plan_mode" json:"plan_mode"`
 	ClientType          ChatClientType        `db:"client_type" json:"client_type"`
 	LastTurnSummary     sql.NullString        `db:"last_turn_summary" json:"last_turn_summary"`
+	UserACL             ChatACL               `db:"user_acl" json:"user_acl"`
+	GroupACL            ChatACL               `db:"group_acl" json:"group_acl"`
 	OwnerUsername       string                `db:"owner_username" json:"owner_username"`
 	OwnerName           string                `db:"owner_name" json:"owner_name"`
 }
@@ -4635,23 +4679,7 @@ type ChatModelConfig struct {
 	ContextLimit         int64           `db:"context_limit" json:"context_limit"`
 	CompressionThreshold int32           `db:"compression_threshold" json:"compression_threshold"`
 	Options              json.RawMessage `db:"options" json:"options"`
-}
-
-type ChatProvider struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	Provider    string    `db:"provider" json:"provider"`
-	DisplayName string    `db:"display_name" json:"display_name"`
-	APIKey      string    `db:"api_key" json:"api_key"`
-	// The ID of the key used to encrypt the provider API key. If this is NULL, the API key is not encrypted
-	ApiKeyKeyID                sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
-	CreatedBy                  uuid.NullUUID  `db:"created_by" json:"created_by"`
-	Enabled                    bool           `db:"enabled" json:"enabled"`
-	CreatedAt                  time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt                  time.Time      `db:"updated_at" json:"updated_at"`
-	BaseUrl                    string         `db:"base_url" json:"base_url"`
-	CentralApiKeyEnabled       bool           `db:"central_api_key_enabled" json:"central_api_key_enabled"`
-	AllowUserApiKey            bool           `db:"allow_user_api_key" json:"allow_user_api_key"`
-	AllowCentralApiKeyFallback bool           `db:"allow_central_api_key_fallback" json:"allow_central_api_key_fallback"`
+	AIProviderID         uuid.NullUUID   `db:"ai_provider_id" json:"ai_provider_id"`
 }
 
 type ChatQueuedMessage struct {
@@ -4691,6 +4719,8 @@ type ChatTable struct {
 	PlanMode            NullChatPlanMode      `db:"plan_mode" json:"plan_mode"`
 	ClientType          ChatClientType        `db:"client_type" json:"client_type"`
 	LastTurnSummary     sql.NullString        `db:"last_turn_summary" json:"last_turn_summary"`
+	UserACL             ChatACL               `db:"user_acl" json:"user_acl"`
+	GroupACL            ChatACL               `db:"group_acl" json:"group_acl"`
 }
 
 type ChatUsageLimitConfig struct {
@@ -5646,14 +5676,17 @@ type User struct {
 	ChatSpendLimitMicros sql.NullInt64 `db:"chat_spend_limit_micros" json:"chat_spend_limit_micros"`
 }
 
-type UserChatProviderKey struct {
-	ID             uuid.UUID      `db:"id" json:"id"`
-	UserID         uuid.UUID      `db:"user_id" json:"user_id"`
-	ChatProviderID uuid.UUID      `db:"chat_provider_id" json:"chat_provider_id"`
-	APIKey         string         `db:"api_key" json:"api_key"`
-	ApiKeyKeyID    sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
-	CreatedAt      time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt      time.Time      `db:"updated_at" json:"updated_at"`
+// User-owned API keys associated with AI providers. These keys are used only when BYOK is enabled.
+type UserAiProviderKey struct {
+	ID           uuid.UUID `db:"id" json:"id"`
+	UserID       uuid.UUID `db:"user_id" json:"user_id"`
+	AIProviderID uuid.UUID `db:"ai_provider_id" json:"ai_provider_id"`
+	// User-owned API key used to authenticate with the upstream AI provider. Encrypted at rest via dbcrypt when api_key_key_id is set.
+	APIKey string `db:"api_key" json:"api_key"`
+	// The ID of the key used to encrypt the user-owned provider API key. If this is NULL, the API key is not encrypted.
+	ApiKeyKeyID sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
+	CreatedAt   time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
 }
 
 type UserConfig struct {
@@ -5695,6 +5728,16 @@ type UserSecret struct {
 	CreatedAt   time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
 	ValueKeyID  sql.NullString `db:"value_key_id" json:"value_key_id"`
+}
+
+type UserSkill struct {
+	ID          uuid.UUID `db:"id" json:"id"`
+	UserID      uuid.UUID `db:"user_id" json:"user_id"`
+	Name        string    `db:"name" json:"name"`
+	Description string    `db:"description" json:"description"`
+	Content     string    `db:"content" json:"content"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
 }
 
 // Tracks the history of user status changes

@@ -1,4 +1,5 @@
 import type * as TypesGen from "#/api/typesGenerated";
+import { shouldRenderTool } from "../ChatElements/tools/toolVisibility";
 import type { ParsedMessageContent, RenderBlock } from "./types";
 
 export type UserInlineRenderBlock =
@@ -37,6 +38,33 @@ const isMetadataOnlyMessage = (
 	parts.length > 0 &&
 	parts.every((part) => part.type === "context-file" || part.type === "skill");
 
+const getRenderableContentState = (parsed: ParsedMessageContent) => {
+	const visibleTools = parsed.tools.filter((tool) =>
+		shouldRenderTool({
+			name: tool.name,
+			status: tool.status,
+			args: tool.args,
+			result: tool.result,
+		}),
+	);
+	const visibleToolIds = new Set(visibleTools.map((tool) => tool.id));
+	const visibleBlocks = parsed.blocks.filter(
+		(block) => block.type !== "tool" || visibleToolIds.has(block.id),
+	);
+	const hasRenderableContent =
+		visibleBlocks.length > 0 ||
+		visibleTools.length > 0 ||
+		parsed.sources.length > 0;
+	const hasThinkingOnlyContent =
+		visibleBlocks.length > 0 &&
+		visibleBlocks.every((block) => block.type === "thinking");
+
+	return {
+		hasRenderableContent,
+		hasThinkingOnlyContent,
+	};
+};
+
 export const deriveMessageDisplayState = ({
 	message,
 	parsed,
@@ -61,19 +89,15 @@ export const deriveMessageDisplayState = ({
 	const hasFileBlocks = userFileBlocks.length > 0;
 	const hasCopyableContent =
 		Boolean(parsed.markdown.trim()) && !hasFileAttachments;
-	const hasRenderableContent =
-		parsed.blocks.length > 0 ||
-		parsed.tools.length > 0 ||
-		parsed.sources.length > 0;
+	const { hasRenderableContent, hasThinkingOnlyContent } =
+		getRenderableContentState(parsed);
 	const needsAssistantBottomSpacer =
 		!hideActions &&
 		!hasActiveStream &&
 		!isAwaitingFirstStreamChunk &&
 		!isUser &&
 		!hasCopyableContent &&
-		(Boolean(parsed.reasoning) ||
-			parsed.sources.length > 0 ||
-			!hasRenderableContent);
+		(hasThinkingOnlyContent || parsed.sources.length > 0);
 	const hasToolResultsOnly =
 		parsed.toolResults.length > 0 &&
 		parsed.toolCalls.length === 0 &&
@@ -85,7 +109,8 @@ export const deriveMessageDisplayState = ({
 		shouldHide:
 			hasToolResultsOnly ||
 			isProviderToolResultOnlyMessage(parts) ||
-			isMetadataOnlyMessage(parts),
+			isMetadataOnlyMessage(parts) ||
+			(!isUser && !hasRenderableContent),
 		userInlineContent,
 		userFileBlocks,
 		hasUserMessageBody,

@@ -146,8 +146,6 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 			CacheWriteInputTokens: resp.Usage.CacheCreationInputTokens,
 			ExtraTokenTypes: map[string]int64{
 				"web_search_requests":      resp.Usage.ServerToolUse.WebSearchRequests,
-				"cache_creation_input":     resp.Usage.CacheCreationInputTokens, // TODO: remove from ExtraTokenTypes (https://github.com/coder/aibridge/issues/243)
-				"cache_read_input":         resp.Usage.CacheReadInputTokens,     // TODO: remove from ExtraTokenTypes (https://github.com/coder/aibridge/issues/243)
 				"cache_ephemeral_1h_input": resp.Usage.CacheCreation.Ephemeral1hInputTokens,
 				"cache_ephemeral_5m_input": resp.Usage.CacheCreation.Ephemeral5mInputTokens,
 			},

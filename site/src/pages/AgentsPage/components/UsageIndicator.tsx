@@ -20,7 +20,10 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
+import {
+	getDefaultOrganizationName,
+	useDashboard,
+} from "#/modules/dashboard/useDashboard";
 import { cn } from "#/utils/cn";
 import { formatCostMicros } from "#/utils/currency";
 import { getUsageLimitPeriodLabel } from "./ChatCostSummaryView";
@@ -46,11 +49,11 @@ export const UsageIndicator: FC = () => {
 	);
 	const { user } = useAuthenticated();
 	const { organizations } = useDashboard();
-	const organizationName =
-		organizations.find((org) => org.is_default)?.name ?? "";
+	const organizationName = getDefaultOrganizationName(organizations);
 	const username = user.username;
 	const { data: quota, isError: isQuotaError } = useQuery({
 		...workspaceQuota(organizationName, username),
+		refetchInterval: 60_000,
 		enabled: organizationName !== "" && username !== "",
 	});
 	const hasWorkspaceQuotaUsage =

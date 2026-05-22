@@ -80,7 +80,7 @@ export const DefaultLimitSection: FC<DefaultLimitSectionProps> = ({
 								<TooltipProvider delayDuration={0}>
 									<Tooltip>
 										<TooltipTrigger asChild>
-											<InfoIcon className="h-3.5 w-3.5 shrink-0 cursor-help text-content-secondary" />
+											<InfoIcon className="size-3.5 shrink-0 cursor-help text-content-secondary" />
 										</TooltipTrigger>
 										<TooltipContent>
 											Only one period can be active at a time. Spend is
@@ -127,7 +127,7 @@ export const DefaultLimitSection: FC<DefaultLimitSectionProps> = ({
 
 			{enabled && unpricedModelCount > 0 && (
 				<div className="flex items-start gap-3 rounded-lg border border-border-warning bg-surface-warning p-4 text-sm text-content-primary">
-					<TriangleAlertIcon className="h-5 w-5 shrink-0 text-content-warning" />
+					<TriangleAlertIcon className="size-5 shrink-0 text-content-warning" />
 					<div>
 						{unpricedModelCount === 1
 							? "1 enabled model does not have pricing configured."

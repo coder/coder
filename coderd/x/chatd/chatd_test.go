@@ -13,6 +13,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -287,22 +288,7 @@ func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 		)
 	})
 
-	_, err := expClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
-		Provider: "openai-compat",
-		APIKey:   "test-api-key",
-		BaseURL:  openAIURL,
-	})
-	require.NoError(t, err)
-
-	contextLimit := int64(4096)
-	isDefault := true
-	_, err = expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-		Provider:     "openai-compat",
-		Model:        "gpt-4o-mini",
-		ContextLimit: &contextLimit,
-		IsDefault:    &isDefault,
-	})
-	require.NoError(t, err)
+	coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, openAIURL)
 
 	// Create a root chat whose first model call will spawn a subagent.
 	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -482,22 +468,7 @@ func TestPlanModeSubagentChatExcludesAskUserQuestion(t *testing.T) {
 		)
 	})
 
-	_, err = expClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
-		Provider: "openai-compat",
-		APIKey:   "test-api-key",
-		BaseURL:  openAIURL,
-	})
-	require.NoError(t, err)
-
-	contextLimit := int64(4096)
-	isDefault := true
-	_, err = expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-		Provider:     "openai-compat",
-		Model:        "gpt-4o-mini",
-		ContextLimit: &contextLimit,
-		IsDefault:    &isDefault,
-	})
-	require.NoError(t, err)
+	coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, openAIURL)
 
 	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: user.OrganizationID,
@@ -637,24 +608,9 @@ func TestExploreSubagentIsReadOnly(t *testing.T) {
 		)
 	})
 
-	_, err := expClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
-		Provider: "openai-compat",
-		APIKey:   "test-api-key",
-		BaseURL:  openAIURL,
-	})
-	require.NoError(t, err)
+	coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, openAIURL)
 
-	contextLimit := int64(4096)
-	isDefault := true
-	_, err = expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-		Provider:     "openai-compat",
-		Model:        "gpt-4o-mini",
-		ContextLimit: &contextLimit,
-		IsDefault:    &isDefault,
-	})
-	require.NoError(t, err)
-
-	_, err = expClient.CreateChat(ctx, codersdk.CreateChatRequest{
+	_, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: user.OrganizationID,
 		WorkspaceID:    &workspace.ID,
 		Content: []codersdk.ChatInputPart{
@@ -720,7 +676,10 @@ func TestExploreSubagentIsReadOnly(t *testing.T) {
 	require.True(t, requestHasSystemSubstring(childRequests[0], "You are in Explore Mode as a delegated sub-agent."))
 	require.False(t, requestHasSystemSubstring(rootRequests[0], "You are in Explore Mode as a delegated sub-agent."))
 
-	rootChats, err := db.GetChats(dbauthz.AsChatd(ctx), database.GetChatsParams{OwnerID: user.UserID})
+	rootChats, err := db.GetChats(dbauthz.AsChatd(ctx), database.GetChatsParams{
+		OwnedOnly: true,
+		ViewerID:  user.UserID,
+	})
 	require.NoError(t, err)
 	rootIDs := make([]uuid.UUID, 0, len(rootChats))
 	for _, root := range rootChats {
@@ -2361,7 +2320,8 @@ func TestCreateChatRejectsWhenUsageLimitReached(t *testing.T) {
 	})
 
 	beforeChats, err := db.GetChats(ctx, database.GetChatsParams{
-		OwnerID:   user.ID,
+		OwnedOnly: true,
+		ViewerID:  user.ID,
 		AfterID:   uuid.Nil,
 		OffsetOpt: 0,
 		LimitOpt:  100,
@@ -2384,7 +2344,8 @@ func TestCreateChatRejectsWhenUsageLimitReached(t *testing.T) {
 	require.Equal(t, int64(100), limitErr.ConsumedMicros)
 
 	afterChats, err := db.GetChats(ctx, database.GetChatsParams{
-		OwnerID:   user.ID,
+		OwnedOnly: true,
+		ViewerID:  user.ID,
 		AfterID:   uuid.Nil,
 		OffsetOpt: 0,
 		LimitOpt:  100,
@@ -4947,22 +4908,7 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 		)
 	})
 
-	_, err := expClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
-		Provider: "openai-compat",
-		APIKey:   "test-api-key",
-		BaseURL:  openAIURL,
-	})
-	require.NoError(t, err)
-
-	contextLimit := int64(4096)
-	isDefault := true
-	_, err = expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-		Provider:     "openai-compat",
-		Model:        "gpt-4o-mini",
-		ContextLimit: &contextLimit,
-		IsDefault:    &isDefault,
-	})
-	require.NoError(t, err)
+	coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, openAIURL)
 
 	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: user.OrganizationID,
@@ -5117,22 +5063,7 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 		)
 	})
 
-	_, err := expClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
-		Provider: "openai-compat",
-		APIKey:   "test-api-key",
-		BaseURL:  openAIURL,
-	})
-	require.NoError(t, err)
-
-	contextLimit := int64(4096)
-	isDefault := true
-	_, err = expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-		Provider:     "openai-compat",
-		Model:        "gpt-4o-mini",
-		ContextLimit: &contextLimit,
-		IsDefault:    &isDefault,
-	})
-	require.NoError(t, err)
+	coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, openAIURL)
 
 	// Create a chat with the stopped workspace pre-associated.
 	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -6189,21 +6120,24 @@ func setOpenAIProviderBaseURL(
 ) {
 	t.Helper()
 
-	provider, err := db.GetChatProviderByProvider(ctx, "openai")
+	providers, err := db.GetAIProviders(ctx, database.GetAIProvidersParams{IncludeDisabled: true})
 	require.NoError(t, err)
-
-	_, err = db.UpdateChatProvider(ctx, database.UpdateChatProviderParams{
-		ID:                         provider.ID,
-		DisplayName:                provider.DisplayName,
-		APIKey:                     provider.APIKey,
-		BaseUrl:                    baseURL,
-		ApiKeyKeyID:                provider.ApiKeyKeyID,
-		Enabled:                    provider.Enabled,
-		CentralApiKeyEnabled:       provider.CentralApiKeyEnabled,
-		AllowUserApiKey:            provider.AllowUserApiKey,
-		AllowCentralApiKeyFallback: provider.AllowCentralApiKeyFallback,
-	})
-	require.NoError(t, err)
+	for _, provider := range providers {
+		if provider.Type != database.AiProviderTypeOpenai {
+			continue
+		}
+		_, err = db.UpdateAIProvider(ctx, database.UpdateAIProviderParams{
+			ID:            provider.ID,
+			DisplayName:   provider.DisplayName,
+			Enabled:       provider.Enabled,
+			BaseUrl:       baseURL,
+			Settings:      provider.Settings,
+			SettingsKeyID: provider.SettingsKeyID,
+		})
+		require.NoError(t, err)
+		return
+	}
+	require.Fail(t, "openai provider not found")
 }
 
 func TestInterruptChatDoesNotSendWebPushNotification(t *testing.T) {
@@ -7262,10 +7196,11 @@ func TestProcessChat_UserProviderKey_Success(t *testing.T) {
 		true,
 		false,
 	)
-	_, err := db.UpsertUserChatProviderKey(ctx, database.UpsertUserChatProviderKeyParams{
-		UserID:         user.ID,
-		ChatProviderID: provider.ID,
-		APIKey:         userAPIKey,
+	_, err := db.UpsertUserAIProviderKey(ctx, database.UpsertUserAIProviderKeyParams{
+		ID:           uuid.New(),
+		UserID:       user.ID,
+		AIProviderID: provider.ID,
+		APIKey:       userAPIKey,
 	})
 	require.NoError(t, err)
 
@@ -8580,22 +8515,7 @@ func TestAgentContextFilesAndSkillsLoadedIntoChat(t *testing.T) {
 		)
 	})
 
-	_, err := expClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
-		Provider: "openai-compat",
-		APIKey:   "test-api-key",
-		BaseURL:  openAIURL,
-	})
-	require.NoError(t, err)
-
-	contextLimit := int64(4096)
-	isDefault := true
-	_, err = expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-		Provider:     "openai-compat",
-		Model:        "gpt-4o-mini",
-		ContextLimit: &contextLimit,
-		IsDefault:    &isDefault,
-	})
-	require.NoError(t, err)
+	coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, openAIURL)
 
 	workspaceID := workspace.ID
 	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -11663,4 +11583,215 @@ func TestRunChat_WorkspaceMCPDiscoveryAfterMidTurnCreateWorkspace(t *testing.T) 
 	require.Contains(t, recorded[1].Tools, workspaceToolName,
 		"second call (after create_workspace) must advertise the workspace MCP tool: "+
 			"this is the fix for mid-turn workspace MCP discovery")
+}
+
+// TestRunChat_PrepareToolsRetriesAfterEmptyDiscovery guards the
+// regression on the workspaceMCPDiscovered flag flip: the prior
+// implementation set the flag to true before calling
+// discoverWorkspaceMCPTools, so a single empty result permanently
+// blocked retries within the turn. The fix sets the flag to true
+// only after a non-empty discovery, so subsequent PrepareTools
+// invocations keep retrying until tools appear.
+//
+// Scenario: create_workspace binds a workspace mid-turn. The first
+// few ListMCPTools calls return empty (simulating the agent's MCP
+// Connect still racing with agent startup); a later call returns
+// the workspace MCP tool. The chat takes multiple steps before
+// finishing, and we assert that one of the post-create_workspace
+// streamed model calls advertises the workspace tool.
+func TestRunChat_PrepareToolsRetriesAfterEmptyDiscovery(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	var (
+		requestsMu sync.Mutex
+		requests   []recordedOpenAIRequest
+	)
+
+	workspaceToolName := "workspace-empty-retry-mcp__echo"
+	workspaceCreateToolArgsJSON := ""
+
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+
+		requestsMu.Lock()
+		requests = append(requests, recordOpenAIRequest(req))
+		callIdx := len(requests)
+		requestsMu.Unlock()
+
+		// Step 1: trigger create_workspace.
+		if callIdx == 1 {
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk("create_workspace", workspaceCreateToolArgsJSON),
+			)
+		}
+		// Step 2..N-1: emit empty text to keep the chatloop running so
+		// PrepareTools fires on each step. The chatloop ends a turn
+		// when the model returns a non-empty assistant message with no
+		// tool calls; an empty text chunk would terminate the turn, so
+		// we attach a dummy tool call to force another step. Use the
+		// LS tool because it exists for all workspaces and is cheap.
+		if callIdx < 6 {
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk("ls", `{"path":"/tmp"}`),
+			)
+		}
+		// Final step: finish the chat.
+		return chattest.OpenAIStreamingResponse(
+			chattest.OpenAITextChunks("done")...,
+		)
+	})
+
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+
+	// Seed a workspace+agent for create_workspace to bind to.
+	tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	tpl := dbgen.Template(t, db, database.Template{
+		CreatedBy:       user.ID,
+		OrganizationID:  org.ID,
+		ActiveVersionID: tv.ID,
+	})
+	workspaceCreateToolArgsJSON = fmt.Sprintf(`{"template_id":%q}`, tpl.ID.String())
+
+	ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+		TemplateID:     tpl.ID,
+		OwnerID:        user.ID,
+		OrganizationID: org.ID,
+	})
+	pj := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		InitiatorID:    user.ID,
+		OrganizationID: org.ID,
+		CompletedAt:    sql.NullTime{Valid: true, Time: dbtime.Now()},
+	})
+	build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		TemplateVersionID: tv.ID,
+		WorkspaceID:       ws.ID,
+		JobID:             pj.ID,
+	})
+	res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+		Transition: database.WorkspaceTransitionStart,
+		JobID:      pj.ID,
+	})
+	now := dbtime.Now()
+	dbAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+		ResourceID:       res.ID,
+		LifecycleState:   database.WorkspaceAgentLifecycleStateReady,
+		StartedAt:        sql.NullTime{Time: now, Valid: true},
+		ReadyAt:          sql.NullTime{Time: now, Valid: true},
+		FirstConnectedAt: sql.NullTime{Time: now, Valid: true},
+		LastConnectedAt:  sql.NullTime{Time: now, Valid: true},
+	})
+
+	workspaceToolsResp := workspacesdk.ListMCPToolsResponse{
+		Tools: []workspacesdk.MCPToolInfo{{
+			ServerName:  "workspace-empty-retry-mcp",
+			Name:        workspaceToolName,
+			Description: "workspace echo tool",
+			Schema: map[string]any{
+				"input": map[string]any{"type": "string"},
+			},
+			Required: []string{"input"},
+		}},
+	}
+
+	// First two ListMCPTools calls return empty (no error). One is the
+	// primer goroutine's only attempt before its retry timer fires;
+	// the other is PrepareTools on the first post-create_workspace
+	// step. The third and later calls return the workspace tool. The
+	// assertion below requires that a post-create_workspace step
+	// eventually advertises the tool, which can only happen if the
+	// PrepareTools callback retries discovery on subsequent steps.
+	var listCalls atomic.Int32
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	mockConn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
+	mockConn.EXPECT().ContextConfig(gomock.Any()).
+		Return(workspacesdk.ContextConfigResponse{}, xerrors.New("not supported")).AnyTimes()
+	mockConn.EXPECT().ListMCPTools(gomock.Any()).DoAndReturn(
+		func(context.Context) (workspacesdk.ListMCPToolsResponse, error) {
+			n := listCalls.Add(1)
+			if n <= 2 {
+				return workspacesdk.ListMCPToolsResponse{}, nil
+			}
+			return workspaceToolsResp, nil
+		},
+	).AnyTimes()
+	mockConn.EXPECT().LS(gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(workspacesdk.LSResponse{}, nil).AnyTimes()
+	mockConn.EXPECT().ReadFile(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return(io.NopCloser(strings.NewReader("")), "", nil).AnyTimes()
+	mockConn.EXPECT().AwaitReachable(gomock.Any()).Return(true).AnyTimes()
+
+	createFn := func(_ context.Context, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+		return codersdk.Workspace{
+			ID:             ws.ID,
+			Name:           req.Name,
+			OwnerName:      user.Username,
+			OrganizationID: org.ID,
+			TemplateID:     tpl.ID,
+			LatestBuild: codersdk.WorkspaceBuild{
+				ID:     build.ID,
+				Status: codersdk.WorkspaceStatusRunning,
+			},
+		}, nil
+	}
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+			require.Equal(t, dbAgent.ID, agentID)
+			return mockConn, func() {}, nil
+		}
+		cfg.CreateWorkspace = createFn
+	})
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "workspace-mcp-empty-retry",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("Create a workspace and call the workspace MCP tool."),
+		},
+	})
+	require.NoError(t, err)
+
+	chatResult := waitForTerminalChat(ctx, t, db, chat.ID)
+	if chatResult.Status == database.ChatStatusError {
+		require.FailNowf(t, "chat failed", "last_error=%q",
+			chatLastErrorMessage(chatResult.LastError))
+	}
+	require.Equal(t, database.ChatStatusWaiting, chatResult.Status)
+
+	requestsMu.Lock()
+	recorded := append([]recordedOpenAIRequest(nil), requests...)
+	requestsMu.Unlock()
+	require.GreaterOrEqual(t, len(recorded), 3,
+		"expected at least three streamed model calls; chat must run past the empty discovery")
+
+	// The first call has no workspace yet; the second call is the
+	// first post-create_workspace step which sees an empty
+	// ListMCPTools result. By the third (or later) call PrepareTools
+	// must have retried discovery, so at least one post-step request
+	// must advertise the workspace tool. Without the
+	// workspaceMCPDiscovered flag-flip fix the flag would have been
+	// set true on the failed first attempt and no subsequent step
+	// would have re-attempted discovery.
+	sawWorkspaceTool := false
+	for i := 2; i < len(recorded); i++ {
+		if slices.Contains(recorded[i].Tools, workspaceToolName) {
+			sawWorkspaceTool = true
+			break
+		}
+	}
+	require.True(t, sawWorkspaceTool,
+		"PrepareTools must retry workspace MCP discovery on subsequent "+
+			"steps; without the fix the first empty result would "+
+			"permanently block retries within the turn")
 }

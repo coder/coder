@@ -1,0 +1,3 @@
+-- No-op: Postgres does not allow removing enum values safely.
+-- Matches the precedent in 000495_ai_providers.down.sql for ALTER
+-- TYPE resource_type / api_key_scope ADD VALUE.

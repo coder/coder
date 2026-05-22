@@ -16,6 +16,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -68,7 +69,7 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 			// This is a bit funky but since aibridge only exposes a HTTP
 			// handler, this is how it has to be.
 			r.HandleFunc("/*", func(rw http.ResponseWriter, r *http.Request) {
-				if api.aibridgedHandler == nil {
+				if api.AGPL.GetAIBridgedHandler() == nil {
 					httpapi.Write(r.Context(), rw, http.StatusNotFound, codersdk.Response{
 						Message: "aibridged handler not mounted",
 					})
@@ -85,7 +86,7 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 					return
 				}
 
-				http.StripPrefix("/api/v2/aibridge", api.aibridgedHandler).ServeHTTP(rw, r)
+				http.StripPrefix("/api/v2/aibridge", api.AGPL.GetAIBridgedHandler()).ServeHTTP(rw, r)
 			})
 		})
 	}
@@ -735,15 +736,36 @@ func (api *API) groupAIBudget(rw http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} codersdk.GroupAIBudget
 // @Router /api/v2/groups/{group}/ai/budget [put]
 func (api *API) upsertGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	group := httpmw.GroupParam(r)
+	var (
+		ctx               = r.Context()
+		group             = httpmw.GroupParam(r)
+		auditor           = api.AGPL.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.AuditableGroupAiBudget](rw, &audit.RequestParams{
+			Audit:          *auditor,
+			Log:            api.Logger,
+			Request:        r,
+			Action:         database.AuditActionWrite,
+			OrganizationID: group.OrganizationID,
+		})
+	)
+	defer commitAudit()
 
 	var req codersdk.UpsertGroupAIBudgetRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
 
-	budget, err := api.Database.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{
+	// Capture the existing budget (if any) so the audit log records the
+	// before-state. An absent row leaves aReq.Old as the zero value.
+	oldBudget, err := api.Database.GetGroupAIBudget(ctx, group.ID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		api.Logger.Error(ctx, "fetch existing group AI budget for audit", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	aReq.Old = oldBudget.Auditable(group.Name)
+
+	newBudget, err := api.Database.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{
 		GroupID:          group.ID,
 		SpendLimitMicros: req.SpendLimitMicros,
 	})
@@ -756,8 +778,9 @@ func (api *API) upsertGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
+	aReq.New = newBudget.Auditable(group.Name)
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.GroupAIBudget(budget))
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.GroupAIBudget(newBudget))
 }
 
 // @Summary Delete group AI budget
@@ -768,10 +791,21 @@ func (api *API) upsertGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
 // @Success 204
 // @Router /api/v2/groups/{group}/ai/budget [delete]
 func (api *API) deleteGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	group := httpmw.GroupParam(r)
+	var (
+		ctx               = r.Context()
+		group             = httpmw.GroupParam(r)
+		auditor           = api.AGPL.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.AuditableGroupAiBudget](rw, &audit.RequestParams{
+			Audit:          *auditor,
+			Log:            api.Logger,
+			Request:        r,
+			Action:         database.AuditActionDelete,
+			OrganizationID: group.OrganizationID,
+		})
+	)
+	defer commitAudit()
 
-	_, err := api.Database.DeleteGroupAIBudget(ctx, group.ID)
+	deleted, err := api.Database.DeleteGroupAIBudget(ctx, group.ID)
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -781,6 +815,7 @@ func (api *API) deleteGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
+	aReq.Old = deleted.Auditable(group.Name)
 
 	rw.WriteHeader(http.StatusNoContent)
 }
