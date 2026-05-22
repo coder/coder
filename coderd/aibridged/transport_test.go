@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
@@ -83,6 +84,7 @@ func TestInMemoryRoundTripper_PassesHeadersAndStatus(t *testing.T) {
 	defer resp.Body.Close()
 
 	require.Equal(t, http.StatusTeapot, resp.StatusCode)
+	require.Equal(t, "418 I'm a teapot", resp.Status)
 	require.Equal(t, "yes", resp.Header.Get("X-Custom"))
 	require.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 
@@ -107,11 +109,15 @@ func TestInMemoryRoundTripper_Streams(t *testing.T) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.WriteHeader(http.StatusOK)
 		flusher, ok := w.(http.Flusher)
-		require.True(t, ok, "ResponseWriter must implement http.Flusher")
-		for i := 0; i < chunks; i++ {
+		if !assert.True(t, ok, "ResponseWriter must implement http.Flusher") {
+			return
+		}
+		for i := range chunks {
 			<-released[i]
 			_, err := fmt.Fprintf(w, "data: chunk-%d\n\n", i)
-			require.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return
+			}
 			flusher.Flush()
 		}
 	})
@@ -128,7 +134,7 @@ func TestInMemoryRoundTripper_Streams(t *testing.T) {
 	defer resp.Body.Close()
 
 	br := bufio.NewReader(resp.Body)
-	for i := 0; i < chunks; i++ {
+	for i := range chunks {
 		close(released[i])
 		dataLine, err := br.ReadString('\n')
 		require.NoError(t, err)
@@ -184,7 +190,10 @@ func TestInMemoryRoundTripper_ConcurrentRequests(t *testing.T) {
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
-		require.NoError(t, err)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write(body)
 	})
@@ -195,10 +204,8 @@ func TestInMemoryRoundTripper_ConcurrentRequests(t *testing.T) {
 	const n = 16
 	errs := make(chan error, n)
 	var wg sync.WaitGroup
-	wg.Add(n)
-	for i := 0; i < n; i++ {
-		go func(i int) {
-			defer wg.Done()
+	for i := range n {
+		wg.Go(func() {
 			payload := fmt.Sprintf("payload-%d", i)
 			ctx := testutil.Context(t, testutil.WaitShort)
 			req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://aibridge/echo", strings.NewReader(payload))
@@ -222,13 +229,39 @@ func TestInMemoryRoundTripper_ConcurrentRequests(t *testing.T) {
 				return
 			}
 			errs <- nil
-		}(i)
+		})
 	}
 	wg.Wait()
 	close(errs)
 	for err := range errs {
 		require.NoError(t, err)
 	}
+}
+
+// A panicking handler must not crash the process; it should produce a 500
+// response with an error on the body read, mirroring net/http.Server behavior.
+func TestInMemoryRoundTripper_HandlerPanic(t *testing.T) {
+	t.Parallel()
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		panic("unexpected nil pointer")
+	})
+
+	rt, err := aibridged.NewTransportFactory(handler).TransportFor(uuid.New(), aibridge.SourceAgents)
+	require.NoError(t, err)
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://aibridge/panic", nil)
+	require.NoError(t, err)
+
+	resp, err := rt.RoundTrip(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+	_, err = io.ReadAll(resp.Body)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "handler panicked")
 }
 
 // A handler that returns without writing must not block RoundTrip; the caller

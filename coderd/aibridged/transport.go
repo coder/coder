@@ -12,7 +12,7 @@ import (
 	"github.com/coder/coder/v2/coderd/aibridge"
 )
 
-// NewTransportFactory returns a [aibridge.TransportFactory] whose RoundTripper
+// NewTransportFactory returns an [aibridge.TransportFactory] whose RoundTripper
 // dispatches requests to handler in-process, streaming the response body
 // through an [io.Pipe] so SSE/NDJSON/chunked responses propagate token-by-token
 // just as they would over the wire.
@@ -62,9 +62,15 @@ func (t *inMemoryRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 	handlerDone := make(chan struct{})
 	go func() {
 		defer func() {
+			if r := recover(); r != nil {
+				// Mirror net/http.Server behavior: a panicking handler
+				// produces a 500 instead of crashing the process.
+				rw.WriteHeader(http.StatusInternalServerError)
+				_ = pw.CloseWithError(xerrors.Errorf("handler panicked: %v", r))
+			}
 			// Make sure we always unblock RoundTrip even if the handler
-			// returns before writing headers (e.g. it panicked and the
-			// outer http server would have written a 500).
+			// returns before writing headers (e.g. handler returns early
+			// without writing).
 			rw.ensureHeaders()
 			// If the request context was canceled, surface that as a
 			// body-read error so the caller sees a network-style failure
@@ -106,7 +112,7 @@ func (t *inMemoryRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 		Proto:         "HTTP/1.1",
 		ProtoMajor:    1,
 		ProtoMinor:    1,
-		Header:        rw.header.Clone(),
+		Header:        rw.frozenHeader,
 		Body:          pr,
 		Request:       req,
 		ContentLength: -1, // streaming; unknown length
@@ -118,8 +124,9 @@ func (t *inMemoryRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 // explicit) closes gotHeaders so the RoundTrip caller can return an
 // *http.Response while the handler keeps writing.
 type pipeResponseWriter struct {
-	header http.Header
-	body   *io.PipeWriter
+	header       http.Header
+	frozenHeader http.Header
+	body         *io.PipeWriter
 
 	once       sync.Once
 	gotHeaders chan struct{}
@@ -133,6 +140,7 @@ func (w *pipeResponseWriter) Header() http.Header {
 func (w *pipeResponseWriter) WriteHeader(status int) {
 	w.once.Do(func() {
 		w.status = status
+		w.frozenHeader = w.header.Clone()
 		close(w.gotHeaders)
 	})
 }

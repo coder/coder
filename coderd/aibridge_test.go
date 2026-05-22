@@ -3,6 +3,7 @@ package coderd_test
 import (
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/google/uuid"
@@ -37,32 +38,11 @@ func (f *stubTransportFactory) TransportFor(providerID uuid.UUID, source aibridg
 type handlerRoundTripper struct{ handler http.Handler }
 
 func (h *handlerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	rec := &captureWriter{header: http.Header{}, status: http.StatusOK}
+	rec := httptest.NewRecorder()
 	h.handler.ServeHTTP(rec, req)
-	pr, pw := io.Pipe()
-	go func() {
-		defer pw.Close()
-		_, _ = pw.Write(rec.body)
-	}()
-	return &http.Response{
-		StatusCode: rec.status,
-		Header:     rec.header,
-		Body:       pr,
-		Request:    req,
-	}, nil
-}
-
-type captureWriter struct {
-	header http.Header
-	status int
-	body   []byte
-}
-
-func (c *captureWriter) Header() http.Header    { return c.header }
-func (c *captureWriter) WriteHeader(status int) { c.status = status }
-func (c *captureWriter) Write(p []byte) (int, error) {
-	c.body = append(c.body, p...)
-	return len(p), nil
+	resp := rec.Result()
+	resp.Request = req
+	return resp, nil
 }
 
 // Verify that a factory stored on coderd.API.AIBridgeTransportFactory is
