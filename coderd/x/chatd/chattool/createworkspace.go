@@ -89,7 +89,11 @@ type createWorkspaceArgs struct {
 func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, options CreateWorkspaceOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"create_workspace",
-		"Create a new workspace from a template. Requires a "+
+		"Create a new workspace from a template only when workspace-backed "+
+			"file inspection, command execution, or file editing is required, "+
+			"or when the user explicitly asks for one. Do not use this as a "+
+			"default first step for requests answerable from conversation "+
+			"context, provider tools, or external MCP tools. Requires a "+
 			"template_id (from list_templates). Optionally provide "+
 			"a name and parameter values (from read_template). "+
 			"If no name is given, one will be generated. "+
