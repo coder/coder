@@ -214,8 +214,8 @@ func TestUserSecretValueValid(t *testing.T) {
 		{name: "WithNewlines", input: "line1\nline2\nline3"},
 		{name: "WithTabs", input: "key\tvalue"},
 		{name: "NullByte", input: "before\x00after", wantErr: true},
-		{name: "ExactlyAtLimit", input: strings.Repeat("a", codersdk.MaxSecretValueSize)},
-		{name: "OverLimit", input: strings.Repeat("a", codersdk.MaxSecretValueSize+1), wantErr: true},
+		{name: "ExactlyAtLimit", input: strings.Repeat("a", codersdk.MaxUserSecretValueBytes)},
+		{name: "OverLimit", input: strings.Repeat("a", codersdk.MaxUserSecretValueBytes+1), wantErr: true},
 	}
 
 	for _, tt := range tests {

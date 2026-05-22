@@ -8,17 +8,6 @@ import (
 )
 
 const (
-	// MaxSecretValueSize is the maximum size of a user secret value
-	// in bytes. This limit applies uniformly to both env var and
-	// file-destined secrets because the value field is shared and
-	// the destination can change after creation. 32KB is generous
-	// for env vars (most are under 1KB) but necessary for file
-	// content like SSH keys, TLS certificate chains, and JSON
-	// configs. We are not trying to be overly restrictive here;
-	// users can use the full 32KB for env var values even though
-	// it would be unusual.
-	MaxSecretValueSize = 32 * 1024 // 32KB
-
 	// maxFilePathLength is the maximum length of a file path for
 	// a user secret. Matches Linux PATH_MAX, which is the common
 	// case since workspace agents almost always run on Linux.
@@ -27,6 +16,79 @@ const (
 	// runtime error if the write fails.
 	maxFilePathLength = 4096
 )
+
+// MaxUserSecretsPerUser caps the number of secrets a single user
+// may own.
+//
+// Why a cap exists at all: user_secrets is user-scoped, so every
+// workspace the user owns loads the same set into its agent
+// manifest, and env-injected ones land in the workspace agent's
+// process env. Without a cap, a user can overflow one of three
+// external limits by accumulating enough secrets, or by making
+// them large enough. The failure surfaces at workspace start (or
+// as a truncated env), not at create-time.
+//
+// What drives each cap, and the rough math:
+//
+//   - Count (50): backstops abuse, well under the ~170-secret
+//     ceiling where the manifest itself would overflow at the
+//     24 KiB per-value cap (MaxUserSecretValueBytes).
+//
+//   - Total bytes (1 MiB): ~25 % of the 4 MiB DRPC agent manifest
+//     budget (codersdk/drpcsdk.MaxMessageSize); the rest covers
+//     apps, scripts, metadata, devcontainers, etc.
+//
+//   - Env bytes (24 KiB): under the ~32 KiB Windows process env
+//     block with headroom for the agent's own env (CODER_*, PATH,
+//     HOME, ...). file_path secrets bypass the env block on every
+//     OS and aren't counted. Linux/macOS ARG_MAX (~2 MiB) is far
+//     above this, so one Windows-safe cap works everywhere.
+//
+// Byte caps measure stored bytes (octet_length of encrypted+base64).
+// Plaintext is slightly tighter in encrypted deployments. That is
+// fine: the limits we defend all measure transmitted bytes, and
+// stored bytes upper-bound those.
+//
+// The Postgres trigger enforce_user_secrets_per_user_limits is the
+// source of truth; the HTTP handler maps its check_violation to a
+// 400. TestUserSecretLimits in coderd/usersecrets_test.go exercises
+// off-by-one at each cap across POST and PATCH, so any drift
+// between these constants and the trigger's literals fails an
+// assertion.
+const MaxUserSecretsPerUser = 50
+
+// MaxUserSecretsTotalValueBytes caps the sum of stored value bytes
+// per user. Defends the DRPC manifest. See MaxUserSecretsPerUser
+// for the full rationale and math behind all three caps.
+const MaxUserSecretsTotalValueBytes = 1 << 20 // 1 MiB
+
+// MaxUserSecretValueBytes is the maximum number of bytes for a
+// single secret value. It is enforced in two places:
+//
+//   - The HTTP handler validates the raw (plaintext) value with
+//     UserSecretValueValid before the row is written.
+//   - The Postgres trigger enforce_user_secrets_per_user_limits
+//     enforces the same number as an aggregate on stored bytes
+//     across a user's env-injected secrets. This defends the
+//     ~32 KiB Windows process env block.
+//
+// On deployments with secret encryption enabled, stored bytes
+// exceed plaintext by ~1.33x (AES-GCM + base64), so the trigger's
+// env-aggregate budget can be reached at less plaintext than the
+// handler's per-value check would suggest. The trigger is
+// authoritative; the handler's check is a fast pre-flight that
+// catches the common "one value is too big" case before the row
+// is encrypted and sent to the DB.
+//
+// One number serves both roles because the per-value cap can't
+// usefully exceed the smallest aggregate cap any single row could
+// trip: a value bigger than the env aggregate would be rejected
+// the moment its env_name was set, so allowing it at the per-value
+// layer would just move the failure later.
+//
+// See MaxUserSecretsPerUser for the rationale behind the other
+// two caps (count, total bytes).
+const MaxUserSecretValueBytes = 24 * 1024 // 24 KiB
 
 var (
 	// posixEnvNameRegex matches valid POSIX environment variable names:
@@ -204,15 +266,20 @@ func UserSecretFilePathValid(s string) error {
 	return nil
 }
 
-// UserSecretValueValid validates a user secret value. The value must
-// not contain null bytes and must not exceed MaxSecretValueSize.
+// UserSecretValueValid validates a user secret value as bytes
+// submitted by the user (plaintext). The value must not contain
+// null bytes and must not exceed MaxUserSecretValueBytes. The DB
+// trigger separately enforces a stored-bytes env aggregate at the
+// same numeric cap; under encryption the trigger may reject values
+// that pass this check. See MaxUserSecretValueBytes for the
+// dual-enforcement explanation.
 func UserSecretValueValid(value string) error {
 	if strings.Contains(value, "\x00") {
 		return xerrors.New("secret value must not contain null bytes")
 	}
 
-	if len(value) > MaxSecretValueSize {
-		return xerrors.Errorf("secret value must not exceed %d bytes", MaxSecretValueSize)
+	if len(value) > MaxUserSecretValueBytes {
+		return xerrors.Errorf("secret value must not exceed %d bytes", MaxUserSecretValueBytes)
 	}
 
 	return nil

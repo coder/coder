@@ -77,6 +77,34 @@ example `~/config` and `/home/coder/config`), only one of them ends up on
 disk; the workspace agent logs a warning to help spot this. Use
 distinct paths to avoid the collision.
 
+## Limits
+
+User secrets are subject to four per-user caps. Coder enforces these when you
+create or update a secret and rejects the request with an explanatory 400 when
+you exceed one. Delete or shrink an existing secret to make room.
+
+| Cap                                      | Value  |
+|------------------------------------------|--------|
+| Total secrets per user                   | 50     |
+| Combined stored value bytes per user     | 1 MiB  |
+| Combined stored env-injected value bytes | 24 KiB |
+| Per-secret value bytes                   | 24 KiB |
+
+Only secrets created with `--env` count against the env-injected budget. Coder
+injects these into the workspace agent's process environment, which on Windows
+has a ~32 KiB total budget. The 24 KiB ceiling leaves room for Coder's own
+variables (`CODER_*`, `PATH`, `HOME`, ...) plus any template-defined env. To
+inject a value larger than this budget, use `--file` instead; file secrets do
+not count against the env budget.
+
+The per-secret cap matches the env aggregate cap because a value larger than
+the env aggregate could never be injected successfully as an environment
+variable.
+
+These caps measure stored bytes, which is what Coder writes to the database.
+In deployments with secret encryption enabled, stored bytes exceed the raw
+value.
+
 ## Create a secret
 
 Use `coder secret create <name>` to create a user secret. For sensitive values,
