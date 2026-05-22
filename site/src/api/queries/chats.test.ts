@@ -2627,8 +2627,16 @@ describe("chat goal query factories", () => {
 	it("updates cached goal on parent-embedded child chats", () => {
 		const queryClient = createTestQueryClient();
 		const childId = "child-1";
-		const oldGoal = makeGoal({ id: "goal-old", objective: "Old goal" });
-		const newGoal = makeGoal({ id: "goal-new", objective: "New goal" });
+		const oldGoal = makeGoal({
+			id: "goal-old",
+			root_chat_id: "parent-1",
+			objective: "Old goal",
+		});
+		const newGoal = makeGoal({
+			id: "goal-new",
+			root_chat_id: "parent-1",
+			objective: "New goal",
+		});
 		const child = makeChat(childId, {
 			parent_chat_id: "parent-1",
 			root_chat_id: "parent-1",
@@ -2646,6 +2654,72 @@ describe("chat goal query factories", () => {
 		expect(
 			queryClient.getQueryData<TypesGen.Chat>(chatKey(childId))?.goal,
 		).toEqual(newGoal);
+	});
+
+	it("updates cached goals across root family detail and list entries", () => {
+		const queryClient = createTestQueryClient();
+		const rootId = "root-1";
+		const childId = "child-1";
+		const siblingId = "child-2";
+		const oldGoal = makeGoal({ id: "goal-old", root_chat_id: rootId });
+		const newGoal = makeGoal({ id: "goal-new", root_chat_id: rootId });
+		const child = makeChat(childId, {
+			parent_chat_id: rootId,
+			root_chat_id: rootId,
+			goal: oldGoal,
+		});
+		const sibling = makeChat(siblingId, {
+			parent_chat_id: rootId,
+			root_chat_id: rootId,
+			goal: oldGoal,
+		});
+		const root = makeChat(rootId, {
+			goal: oldGoal,
+			children: [child, sibling],
+		});
+		const otherGoal = makeGoal({ id: "other-goal", root_chat_id: "other" });
+		const other = makeChat("other", { goal: otherGoal });
+		seedInfiniteChats(queryClient, [root, other]);
+		queryClient.setQueryData(chatKey(rootId), root);
+		queryClient.setQueryData(chatKey(childId), child);
+		queryClient.setQueryData(chatKey(siblingId), sibling);
+		queryClient.setQueryData(chatKey("other"), other);
+		queryClient.setQueryData(chatGoalKey(rootId), { goal: oldGoal });
+		queryClient.setQueryData(chatGoalKey(childId), { goal: oldGoal });
+		queryClient.setQueryData(chatGoalKey(siblingId), { goal: oldGoal });
+
+		setCachedChatGoal(queryClient, childId, newGoal);
+
+		const [cachedRoot, cachedOther] = readInfiniteChats(queryClient) ?? [];
+		expect(cachedRoot?.goal).toEqual(newGoal);
+		expect(cachedRoot?.children?.[0]?.goal).toEqual(newGoal);
+		expect(cachedRoot?.children?.[1]?.goal).toEqual(newGoal);
+		expect(cachedOther?.goal).toEqual(otherGoal);
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatKey(rootId))?.goal,
+		).toEqual(newGoal);
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatKey(rootId))?.children?.[0]
+				?.goal,
+		).toEqual(newGoal);
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatKey(childId))?.goal,
+		).toEqual(newGoal);
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatKey(siblingId))?.goal,
+		).toEqual(newGoal);
+		expect(
+			queryClient.getQueryData<TypesGen.Chat>(chatKey("other"))?.goal,
+		).toEqual(otherGoal);
+		expect(queryClient.getQueryData(chatGoalKey(rootId))).toEqual({
+			goal: newGoal,
+		});
+		expect(queryClient.getQueryData(chatGoalKey(childId))).toEqual({
+			goal: newGoal,
+		});
+		expect(queryClient.getQueryData(chatGoalKey(siblingId))).toEqual({
+			goal: newGoal,
+		});
 	});
 
 	it("preserves infinite chat cache references when no chat goal changes", () => {

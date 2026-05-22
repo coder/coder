@@ -5877,6 +5877,67 @@ func TestChatGoalLifecycleMutations(t *testing.T) {
 	require.ErrorIs(t, err, chatd.ErrChatGoalNotRoot)
 }
 
+func TestChatGoalLifecycleCompleteDefaultSummary(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+	user, org, model := seedChatDependencies(t, db)
+	server := newTestServer(t, db, ps, uuid.New())
+
+	completeGoal := func(t *testing.T, summary *string) database.ChatGoal {
+		t.Helper()
+
+		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+			OrganizationID:     org.ID,
+			OwnerID:            user.ID,
+			Title:              "goal-default-summary-" + t.Name(),
+			InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("start")},
+			ModelConfigID:      model.ID,
+			GoalMutation: &codersdk.ChatGoalMutation{
+				Action:    codersdk.ChatGoalMutationActionSet,
+				Objective: "ship default summary",
+			},
+		})
+		require.NoError(t, err)
+
+		goal, err := db.GetCurrentChatGoalByRootChatID(ctx, chat.ID)
+		require.NoError(t, err)
+
+		completed, err := server.ApplyGoalMutation(ctx, chatd.ApplyGoalMutationOptions{
+			ChatID:    chat.ID,
+			CreatedBy: user.ID,
+			Mutation: codersdk.ChatGoalMutation{
+				Action:            codersdk.ChatGoalMutationActionComplete,
+				GoalID:            &goal.ID,
+				CompletionSummary: summary,
+			},
+		})
+		require.NoError(t, err)
+		require.NotNil(t, completed.Goal)
+		return *completed.Goal
+	}
+
+	t.Run("omitted summary", func(t *testing.T) {
+		t.Parallel()
+
+		completed := completeGoal(t, nil)
+		require.Equal(t, database.ChatGoalStatusComplete, completed.Status)
+		require.True(t, completed.CompletionSummary.Valid)
+		require.Equal(t, "Marked complete by user.", completed.CompletionSummary.String)
+	})
+
+	t.Run("blank summary", func(t *testing.T) {
+		t.Parallel()
+
+		summary := "  \t\n  "
+		completed := completeGoal(t, &summary)
+		require.Equal(t, database.ChatGoalStatusComplete, completed.Status)
+		require.True(t, completed.CompletionSummary.Valid)
+		require.Equal(t, "Marked complete by user.", completed.CompletionSummary.String)
+	})
+}
+
 // newStartedTestServer creates a server with Start() called.
 // Uses a long acquire interval so processing is triggered by
 // wake signals, not polling.

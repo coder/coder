@@ -428,6 +428,27 @@ const isChatListQuery = (query: { queryKey: readonly unknown[] }): boolean => {
 	return segment === undefined || typeof segment === "object";
 };
 
+const isChat = (data: unknown): data is TypesGen.Chat =>
+	typeof data === "object" && data !== null && "id" in data && "title" in data;
+
+const isChatDetailQuery = (query: {
+	queryKey: readonly unknown[];
+	state?: { data: unknown };
+}): boolean => {
+	const key = query.queryKey;
+	return (
+		key.length === 2 && typeof key[1] === "string" && isChat(query.state?.data)
+	);
+};
+
+const isChatGoalQuery = (query: { queryKey: readonly unknown[] }): boolean => {
+	const key = query.queryKey;
+	return key.length === 3 && typeof key[1] === "string" && key[2] === "goal";
+};
+
+const chatGoalFamilyID = (chat: TypesGen.Chat): string =>
+	chat.root_chat_id ?? chat.parent_chat_id ?? chat.id;
+
 export const invalidateChatListQueries = (queryClient: QueryClient) => {
 	return queryClient.invalidateQueries({
 		queryKey: chatsKey,
@@ -794,16 +815,68 @@ export const setCachedChatGoal = (
 	chatId: string,
 	goal: TypesGen.ChatGoal | undefined,
 ) => {
+	const findCachedChatFamilyID = (targetChatId: string): string | undefined => {
+		const detailChat = queryClient.getQueryData<TypesGen.Chat>(
+			chatKey(targetChatId),
+		);
+		if (detailChat) {
+			return chatGoalFamilyID(detailChat);
+		}
+
+		const listQueries = queryClient.getQueriesData<
+			TypesGen.Chat[] | { pages: TypesGen.Chat[][]; pageParams: unknown[] }
+		>({ queryKey: chatsKey, predicate: isChatListQuery });
+		for (const [, data] of listQueries) {
+			if (!data) {
+				continue;
+			}
+			const pages = Array.isArray(data) ? [data] : data.pages;
+			for (const page of pages) {
+				for (const chat of page) {
+					if (chat.id === targetChatId) {
+						return chatGoalFamilyID(chat);
+					}
+					const child = chat.children?.find(
+						(child) => child.id === targetChatId,
+					);
+					if (child) {
+						return chatGoalFamilyID(child);
+					}
+				}
+			}
+		}
+		return undefined;
+	};
+
+	const familyId =
+		goal?.root_chat_id ?? findCachedChatFamilyID(chatId) ?? chatId;
+	const isFamilyChat = (chat: TypesGen.Chat) =>
+		chatGoalFamilyID(chat) === familyId;
 	const applyGoal = (chat: TypesGen.Chat) =>
 		chat.goal === goal ? chat : { ...chat, goal };
+	const applyGoalToFamily = (chat: TypesGen.Chat) =>
+		isFamilyChat(chat) ? applyGoal(chat) : chat;
+	const applyGoalToTree = (chat: TypesGen.Chat) => {
+		const nextChat = applyGoalToFamily(chat);
+		if (!chat.children?.length) {
+			return nextChat;
+		}
+
+		let didUpdateChild = false;
+		const nextChildren = chat.children.map((child) => {
+			const nextChild = applyGoalToFamily(child);
+			if (nextChild !== child) {
+				didUpdateChild = true;
+			}
+			return nextChild;
+		});
+		return didUpdateChild ? { ...nextChat, children: nextChildren } : nextChat;
+	};
 
 	updateInfiniteChatsCache(queryClient, (chats) => {
 		let didUpdate = false;
 		const nextChats = chats.map((chat) => {
-			if (chat.id !== chatId) {
-				return chat;
-			}
-			const nextChat = applyGoal(chat);
+			const nextChat = applyGoalToTree(chat);
 			if (nextChat !== chat) {
 				didUpdate = true;
 			}
@@ -811,9 +884,27 @@ export const setCachedChatGoal = (
 		});
 		return didUpdate ? nextChats : chats;
 	});
-	updateChildInParentCache(queryClient, applyGoal, chatId);
-	queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), (previousChat) =>
-		previousChat ? applyGoal(previousChat) : previousChat,
+	queryClient.setQueriesData<TypesGen.Chat>(
+		{ queryKey: chatsKey, predicate: isChatDetailQuery },
+		(previousChat) =>
+			previousChat ? applyGoalToTree(previousChat) : previousChat,
+	);
+	queryClient.setQueriesData<TypesGen.ChatGoalResponse>(
+		{
+			queryKey: chatsKey,
+			predicate: (query) => {
+				if (!isChatGoalQuery(query)) {
+					return false;
+				}
+				const keyChatId = query.queryKey[1];
+				return (
+					keyChatId === familyId ||
+					(typeof keyChatId === "string" &&
+						findCachedChatFamilyID(keyChatId) === familyId)
+				);
+			},
+		},
+		() => ({ goal }),
 	);
 	queryClient.setQueryData<TypesGen.ChatGoalResponse>(chatGoalKey(chatId), {
 		goal,

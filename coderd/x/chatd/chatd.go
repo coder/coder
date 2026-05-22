@@ -1538,6 +1538,8 @@ type PromoteQueuedResult struct {
 	PromotedMessage database.ChatMessage
 }
 
+const defaultUserCompletionSummary = "Marked complete by user."
+
 // ApplyGoalMutationOptions controls a metadata-only goal mutation.
 type ApplyGoalMutationOptions struct {
 	ChatID    uuid.UUID
@@ -1667,7 +1669,8 @@ func normalizeMetadataGoalMutation(mutation codersdk.ChatGoalMutation) (codersdk
 			return codersdk.ChatGoalMutation{}, &ChatGoalMutationError{Message: "objective is only allowed when setting a goal"}
 		}
 		if normalized.CompletionSummary == nil || *normalized.CompletionSummary == "" {
-			return codersdk.ChatGoalMutation{}, &ChatGoalMutationError{Message: "completion_summary is required"}
+			summary := defaultUserCompletionSummary
+			normalized.CompletionSummary = &summary
 		}
 	case codersdk.ChatGoalMutationActionSet:
 		return codersdk.ChatGoalMutation{}, &ChatGoalMutationError{Message: "set goal mutations must be sent with a chat message"}

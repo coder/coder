@@ -319,15 +319,15 @@ func TestChatGoalAPI(t *testing.T) {
 	require.NotNil(t, resumed.Goal)
 	require.Equal(t, codersdk.ChatGoalStatusActive, resumed.Goal.Status)
 
-	summary := "API shipped"
 	completed, err := client.UpdateChatGoal(ctx, chat.ID, codersdk.ChatGoalMutation{
-		Action:            codersdk.ChatGoalMutationActionComplete,
-		GoalID:            &chat.Goal.ID,
-		CompletionSummary: &summary,
+		Action: codersdk.ChatGoalMutationActionComplete,
+		GoalID: &chat.Goal.ID,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, completed.Goal)
 	require.Equal(t, codersdk.ChatGoalStatusComplete, completed.Goal.Status)
+	require.NotNil(t, completed.Goal.CompletionSummary)
+	require.Equal(t, "Marked complete by user.", *completed.Goal.CompletionSummary)
 
 	current, err := client.GetChatGoal(ctx, chat.ID)
 	require.NoError(t, err)
