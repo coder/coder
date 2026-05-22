@@ -3125,6 +3125,45 @@ func TestUserAIBudgetOverrideRoleAccess(t *testing.T) {
 	}
 }
 
+// TestUserAIBudgetOverrideEveryoneGroup verifies that an admin can attribute a
+// per-user budget override to the auto-created "Everyone" group.
+//
+// The Everyone group is created per organization with id == organization_id.
+// Its membership is not stored in group_members; every org member is
+// implicitly a member via organization_members.
+func TestUserAIBudgetOverrideEveryoneGroup(t *testing.T) {
+	t.Parallel()
+
+	dv := coderdtest.DeploymentValues(t)
+	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{DeploymentValues: dv},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+				codersdk.FeatureAIBridge:     1,
+			},
+		},
+	})
+	adminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
+	_, targetUser := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// The Everyone group has id == organization_id. The target user is
+	// implicitly a member via organization_members.
+	everyoneGroupID := owner.OrganizationID
+
+	override, err := adminClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, codersdk.UpsertUserAIBudgetOverrideRequest{
+		GroupID:          everyoneGroupID,
+		SpendLimitMicros: 500_000_000,
+	})
+	require.NoError(t, err, "should be able to attribute override to Everyone group")
+	require.Equal(t, targetUser.ID, override.UserID)
+	require.Equal(t, everyoneGroupID, override.GroupID)
+	require.EqualValues(t, 500_000_000, override.SpendLimitMicros)
+}
+
 // setupUserAIBudgetOverrideTest returns an Admin client, a target user, and a
 // group the target user is a member of.
 func setupUserAIBudgetOverrideTest(t *testing.T) (adminClient *codersdk.Client, targetUser codersdk.User, group codersdk.Group) {
