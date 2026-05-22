@@ -113,7 +113,6 @@ type Pubsub struct {
 // lastDropped use their own mutex so the async error callback can
 // update drop accounting without taking p.mu.
 type natsSub struct {
-	subject   string
 	sub       *natsgo.Subscription
 	listeners map[*localSub]struct{}
 
@@ -132,10 +131,6 @@ type localSub struct {
 
 	event    string
 	listener pubsub.ListenerWithErr
-
-	// shared is the per-subject coalescing entry. Never nil after a
-	// successful Subscribe.
-	shared *natsSub
 
 	// queue is the per-listener data fan-out inbox. The shared NATS
 	// callback enqueues non-blockingly; on overflow the message is
@@ -385,13 +380,11 @@ func (p *Pubsub) addSubscriber(event string, listener pubsub.ListenerWithErr) (*
 		nsub, ok := p.subscriptions[event]
 		if ok {
 			nsub.listeners[s] = struct{}{}
-			s.shared = nsub
 			s.init()
 			return nil
 		}
 
 		nsub = &natsSub{
-			subject:   event,
 			listeners: make(map[*localSub]struct{}),
 		}
 
@@ -414,7 +407,6 @@ func (p *Pubsub) addSubscriber(event string, listener pubsub.ListenerWithErr) (*
 		}
 
 		nsub.listeners[s] = struct{}{}
-		s.shared = nsub
 		p.subscriptions[event] = nsub
 		s.init()
 		return nil
@@ -436,22 +428,26 @@ func (p *Pubsub) unsubscribeLocal(s *localSub) {
 		p.mu.Lock()
 		defer p.mu.Unlock()
 
-		nsub := s.shared
+		var subject string
+		var nsub *natsSub
+		for candidateSubject, candidate := range p.subscriptions {
+			if _, tracked := candidate.listeners[s]; tracked {
+				subject = candidateSubject
+				nsub = candidate
+				break
+			}
+		}
 		if nsub == nil {
 			return nil
 		}
-		if _, tracked := nsub.listeners[s]; !tracked {
-			return nil
-		}
+
 		delete(nsub.listeners, s)
 		if len(nsub.listeners) > 0 {
 			return nil
 		}
 		// Last listener: remove the nsub entry so a new Subscribe to this
 		// subject creates a fresh underlying subscription.
-		if cur, ok := p.subscriptions[nsub.subject]; ok && cur == nsub {
-			delete(p.subscriptions, nsub.subject)
-		}
+		delete(p.subscriptions, subject)
 		return nsub.sub
 	}()
 	if natsSub != nil {
