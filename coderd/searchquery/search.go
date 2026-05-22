@@ -602,7 +602,6 @@ func Chats(query string) (database.GetChatsParams, []codersdk.ValidationError) {
 	}
 
 	filter.TitleQuery = parser.String(values, "", "title")
-
 	filter.PrTitleQuery = parser.String(values, "", "pr_title")
 	filter.RepoQuery = parser.String(values, "", "repo")
 
