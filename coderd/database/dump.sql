@@ -1295,12 +1295,12 @@ $$;
 CREATE TABLE ai_gateway_coderd_keys (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
-    name character varying(64) NOT NULL,
+    name text NOT NULL,
     secret_prefix character varying(11) NOT NULL,
     hashed_secret bytea NOT NULL,
     last_used_at timestamp with time zone,
     CONSTRAINT ai_gateway_coderd_keys_hashed_secret_check CHECK ((length(hashed_secret) > 0)),
-    CONSTRAINT ai_gateway_coderd_keys_name_check CHECK (((name)::text ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text)),
+    CONSTRAINT ai_gateway_coderd_keys_name_check CHECK (((length(name) <= 64) AND (name ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text))),
     CONSTRAINT ai_gateway_coderd_keys_secret_prefix_check CHECK ((length((secret_prefix)::text) = 11))
 );
 
@@ -4173,7 +4173,7 @@ ALTER TABLE ONLY workspaces
 
 CREATE UNIQUE INDEX ai_gateway_coderd_keys_hashed_secret_idx ON ai_gateway_coderd_keys USING btree (hashed_secret);
 
-CREATE UNIQUE INDEX ai_gateway_coderd_keys_name_idx ON ai_gateway_coderd_keys USING btree (lower((name)::text));
+CREATE UNIQUE INDEX ai_gateway_coderd_keys_name_idx ON ai_gateway_coderd_keys USING btree (lower(name));
 
 CREATE UNIQUE INDEX ai_gateway_coderd_keys_secret_prefix_idx ON ai_gateway_coderd_keys USING btree (secret_prefix);
 
