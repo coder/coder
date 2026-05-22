@@ -1,6 +1,7 @@
 package aibridged
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"sync"
@@ -58,6 +59,7 @@ func (t *inMemoryRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 	// the served context so downstream handlers can log the call site.
 	served := req.Clone(aibridge.WithSource(req.Context(), t.source))
 
+	handlerDone := make(chan struct{})
 	go func() {
 		defer func() {
 			// Make sure we always unblock RoundTrip even if the handler
@@ -69,9 +71,10 @@ func (t *inMemoryRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 			// rather than EOF. Otherwise close cleanly.
 			if cerr := served.Context().Err(); cerr != nil {
 				_ = pw.CloseWithError(cerr)
-				return
+			} else {
+				_ = pw.Close()
 			}
-			_ = pw.Close()
+			close(handlerDone)
 		}()
 		t.handler.ServeHTTP(rw, served)
 	}()
@@ -79,10 +82,16 @@ func (t *inMemoryRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 	// Close the pipe eagerly when the caller cancels, so an unresponsive
 	// handler does not strand the consumer's body read. The handler's own
 	// context derives from req.Context(), so it observes the same
-	// cancellation independently.
+	// cancellation independently. The goroutine also exits when the handler
+	// completes normally (handlerDone closes) to avoid leaking a parked
+	// goroutine per successful request.
 	go func() {
-		<-served.Context().Done()
-		_ = pw.CloseWithError(served.Context().Err())
+		select {
+		case <-served.Context().Done():
+			_ = pw.CloseWithError(served.Context().Err())
+		case <-handlerDone:
+			// Handler finished; nothing to cancel.
+		}
 	}()
 
 	select {
@@ -92,7 +101,7 @@ func (t *inMemoryRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 	}
 
 	return &http.Response{
-		Status:        http.StatusText(rw.status),
+		Status:        fmt.Sprintf("%d %s", rw.status, http.StatusText(rw.status)),
 		StatusCode:    rw.status,
 		Proto:         "HTTP/1.1",
 		ProtoMajor:    1,
