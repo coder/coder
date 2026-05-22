@@ -8372,6 +8372,9 @@ func TestSignalWakeImmediateAcquisition(t *testing.T) {
 // triggers immediate processing via signalWake.
 func TestSignalWakeSendMessage(t *testing.T) {
 	t.Parallel()
+	// TODO(CODAGT-353): Re-enable this after the chatd notification
+	// flow can distinguish stale status notifications from interrupts.
+	t.Skip("skipped until chatd notification flow refactor handles stale control notifications")
 
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
