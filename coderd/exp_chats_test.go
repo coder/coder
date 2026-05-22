@@ -270,6 +270,70 @@ func insertAssistantCostMessage(
 	})
 }
 
+func TestChatGoalAPI(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client := newChatClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	createChatModelConfig(t, client)
+
+	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: firstUser.OrganizationID,
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: "start with a goal",
+		}},
+		GoalMutation: &codersdk.ChatGoalMutation{
+			Action:    codersdk.ChatGoalMutationActionSet,
+			Objective: "  ship the API  ",
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, chat.Goal)
+	require.Equal(t, "ship the API", chat.Goal.Objective)
+	require.Equal(t, codersdk.ChatGoalStatusActive, chat.Goal.Status)
+
+	goalResp, err := client.GetChatGoal(ctx, chat.ID)
+	require.NoError(t, err)
+	require.NotNil(t, goalResp.Goal)
+	require.Equal(t, chat.Goal.ID, goalResp.Goal.ID)
+
+	paused, err := client.UpdateChatGoal(ctx, chat.ID, codersdk.ChatGoalMutation{
+		Action: codersdk.ChatGoalMutationActionPause,
+		GoalID: &chat.Goal.ID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, paused.Goal)
+	require.Equal(t, codersdk.ChatGoalStatusPaused, paused.Goal.Status)
+	gotChat, err := client.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	require.NotNil(t, gotChat.Goal)
+	require.Equal(t, codersdk.ChatGoalStatusPaused, gotChat.Goal.Status)
+
+	resumed, err := client.UpdateChatGoal(ctx, chat.ID, codersdk.ChatGoalMutation{
+		Action: codersdk.ChatGoalMutationActionResume,
+		GoalID: &chat.Goal.ID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resumed.Goal)
+	require.Equal(t, codersdk.ChatGoalStatusActive, resumed.Goal.Status)
+
+	summary := "API shipped"
+	completed, err := client.UpdateChatGoal(ctx, chat.ID, codersdk.ChatGoalMutation{
+		Action:            codersdk.ChatGoalMutationActionComplete,
+		GoalID:            &chat.Goal.ID,
+		CompletionSummary: &summary,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, completed.Goal)
+	require.Equal(t, codersdk.ChatGoalStatusComplete, completed.Goal.Status)
+
+	current, err := client.GetChatGoal(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Nil(t, current.Goal)
+}
+
 func TestPostChats(t *testing.T) {
 	t.Parallel()
 

@@ -2874,6 +2874,35 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |-----------------------------------------------|
 | `clear`, `complete`, `pause`, `resume`, `set` |
 
+## codersdk.ChatGoalResponse
+
+```json
+{
+  "goal": {
+    "cleared_at": "2019-08-24T14:15:22Z",
+    "completed_at": "2019-08-24T14:15:22Z",
+    "completed_by_agent": true,
+    "completed_by_user_id": "46d01d21-f637-42aa-839a-6d4daf42c3a4",
+    "completion_summary": "string",
+    "created_at": "2019-08-24T14:15:22Z",
+    "created_by_user_id": "209f54c4-4c33-43bc-9c6a-ef4c65ad7473",
+    "created_from_chat_id": "2ef814a8-f0ae-48bb-ba3f-d85d007ba956",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "objective": "string",
+    "replaced_at": "2019-08-24T14:15:22Z",
+    "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+    "status": "active",
+    "updated_at": "2019-08-24T14:15:22Z"
+  }
+}
+```
+
+### Properties
+
+| Name   | Type                                   | Required | Restrictions | Description |
+|--------|----------------------------------------|----------|--------------|-------------|
+| `goal` | [codersdk.ChatGoal](#codersdkchatgoal) | false    |              |             |
+
 ## codersdk.ChatGoalStatus
 
 ```json
@@ -4340,9 +4369,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                         |
-|------------------------------------------------------------------------------------------------------------------|
-| `action_required`, `created`, `deleted`, `diff_status_change`, `status_change`, `summary_change`, `title_change` |
+| Value(s)                                                                                                                        |
+|---------------------------------------------------------------------------------------------------------------------------------|
+| `action_required`, `created`, `deleted`, `diff_status_change`, `goal_change`, `status_change`, `summary_change`, `title_change` |
 
 ## codersdk.ConnectionLatency
 
@@ -4680,6 +4709,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "goal": {
+    "cleared_at": "2019-08-24T14:15:22Z",
+    "completed_at": "2019-08-24T14:15:22Z",
+    "completed_by_agent": true,
+    "completed_by_user_id": "46d01d21-f637-42aa-839a-6d4daf42c3a4",
+    "completion_summary": "string",
+    "created_at": "2019-08-24T14:15:22Z",
+    "created_by_user_id": "209f54c4-4c33-43bc-9c6a-ef4c65ad7473",
+    "created_from_chat_id": "2ef814a8-f0ae-48bb-ba3f-d85d007ba956",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "objective": "string",
+    "replaced_at": "2019-08-24T14:15:22Z",
+    "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+    "status": "active",
+    "updated_at": "2019-08-24T14:15:22Z"
+  },
   "message": {
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
@@ -4842,6 +4887,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name             | Type                                                     | Required | Restrictions | Description |
 |------------------|----------------------------------------------------------|----------|--------------|-------------|
+| `goal`           | [codersdk.ChatGoal](#codersdkchatgoal)                   | false    |              |             |
 | `message`        | [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |             |
 | `queued`         | boolean                                                  | false    |              |             |
 | `queued_message` | [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |             |

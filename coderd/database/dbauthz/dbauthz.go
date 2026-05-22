@@ -1544,6 +1544,14 @@ func (q *querier) authorizeProvisionerJob(ctx context.Context, job database.Prov
 	return nil
 }
 
+func (q *querier) authorizeChatGoalRoot(ctx context.Context, action policy.Action, rootChatID uuid.UUID) error {
+	chat, err := q.db.GetChatByID(ctx, rootChatID)
+	if err != nil {
+		return err
+	}
+	return q.authorizeContext(ctx, action, chat)
+}
+
 func (q *querier) AcquireChats(ctx context.Context, arg database.AcquireChatsParams) ([]database.Chat, error) {
 	// AcquireChats is a system-level operation used by the chat processor.
 	// Authorization is done at the system level, not per-user.
@@ -1744,14 +1752,6 @@ func (q *querier) CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error
 		return err
 	}
 	return q.db.CleanupDeletedMCPServerIDsFromChats(ctx)
-}
-
-func (q *querier) authorizeChatGoalRoot(ctx context.Context, action policy.Action, rootChatID uuid.UUID) error {
-	chat, err := q.db.GetChatByID(ctx, rootChatID)
-	if err != nil {
-		return err
-	}
-	return q.authorizeContext(ctx, action, chat)
 }
 
 func (q *querier) ClearChatGoalByID(ctx context.Context, arg database.ClearChatGoalByIDParams) (database.ChatGoal, error) {

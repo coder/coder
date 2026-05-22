@@ -429,7 +429,15 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.ChatRowsWithChildren(chatRows, childRows, diffStatusesByChatID))
+	response := db2sdk.ChatRowsWithChildren(chatRows, childRows, diffStatusesByChatID)
+	if err := api.hydrateChatGoals(ctx, response); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to load chat goals.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
 func (api *API) getChatDiffStatusesByChatID(
@@ -455,6 +463,99 @@ func (api *API) getChatDiffStatusesByChatID(
 		statusesByChatID[status.ChatID] = status
 	}
 	return statusesByChatID, nil
+}
+
+func chatRootID(chat database.Chat) uuid.UUID {
+	if chat.RootChatID.Valid {
+		return chat.RootChatID.UUID
+	}
+	if chat.ParentChatID.Valid {
+		return chat.ParentChatID.UUID
+	}
+	return chat.ID
+}
+
+func sdkChatRootID(chat codersdk.Chat) uuid.UUID {
+	if chat.RootChatID != nil {
+		return *chat.RootChatID
+	}
+	if chat.ParentChatID != nil {
+		return *chat.ParentChatID
+	}
+	return chat.ID
+}
+
+func currentChatGoalSDK(ctx context.Context, db database.Store, rootChatID uuid.UUID) (*codersdk.ChatGoal, error) {
+	goal, err := db.GetCurrentChatGoalByRootChatID(ctx, rootChatID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			//nolint:nilnil // A missing current goal is represented as nil.
+			return nil, nil
+		}
+		return nil, err
+	}
+	sdkGoal := db2sdk.ChatGoal(goal)
+	return &sdkGoal, nil
+}
+
+func (api *API) hydrateChatGoals(ctx context.Context, chats []codersdk.Chat) error {
+	goalsByRootID := map[uuid.UUID]*codersdk.ChatGoal{}
+	var loadGoal func(uuid.UUID) (*codersdk.ChatGoal, error) = func(rootID uuid.UUID) (*codersdk.ChatGoal, error) {
+		if goal, ok := goalsByRootID[rootID]; ok {
+			return goal, nil
+		}
+		goal, err := currentChatGoalSDK(ctx, api.Database, rootID)
+		if err != nil {
+			return nil, err
+		}
+		goalsByRootID[rootID] = goal
+		return goal, nil
+	}
+	var hydrate func([]codersdk.Chat) error
+	hydrate = func(values []codersdk.Chat) error {
+		for i := range values {
+			goal, err := loadGoal(sdkChatRootID(values[i]))
+			if err != nil {
+				return err
+			}
+			values[i].Goal = goal
+			if len(values[i].Children) > 0 {
+				if err := hydrate(values[i].Children); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}
+	return hydrate(chats)
+}
+
+func chatGoalResponse(goal *database.ChatGoal) codersdk.ChatGoalResponse {
+	if goal == nil {
+		return codersdk.ChatGoalResponse{}
+	}
+	sdkGoal := db2sdk.ChatGoal(*goal)
+	return codersdk.ChatGoalResponse{Goal: &sdkGoal}
+}
+
+func writeChatGoalMutationError(ctx context.Context, rw http.ResponseWriter, err error) bool {
+	var mutationErr *chatd.ChatGoalMutationError
+	switch {
+	case errors.As(err, &mutationErr):
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: mutationErr.Error() + "."})
+		return true
+	case errors.Is(err, chatd.ErrChatGoalNotRoot):
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Goal mutations are only supported on root chats."})
+		return true
+	case errors.Is(err, chatd.ErrChatGoalNotFound):
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{Message: "Current goal does not match the request."})
+		return true
+	case errors.Is(err, chatd.ErrChatGoalBusy):
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{Message: "Cannot set a goal while the chat is busy."})
+		return true
+	default:
+		return false
+	}
 }
 
 func planModeToNullChatPlanMode(mode codersdk.ChatPlanMode) database.NullChatPlanMode {
@@ -1150,12 +1251,16 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		InitialUserContent: contentBlocks,
 		MCPServerIDs:       mcpServerIDs,
 		Labels:             labels,
+		GoalMutation:       req.GoalMutation,
 		DynamicTools:       dynamicToolsJSON,
 		// IMPORTANT: users can only create root chats at the time of writing.
 		ParentChatID: uuid.NullUUID{},
 	})
 	if err != nil {
 		if maybeWriteLimitErr(ctx, rw, err) {
+			return
+		}
+		if writeChatGoalMutationError(ctx, rw, err) {
 			return
 		}
 		if database.IsForeignKeyViolation(
@@ -1209,6 +1314,15 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 
 	chatFiles := api.fetchChatFileMetadata(ctx, chat.ID)
 	response := db2sdk.Chat(chat, nil, chatFiles)
+	createdResponse := []codersdk.Chat{response}
+	if err := api.hydrateChatGoals(ctx, createdResponse); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to load chat goals.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	response = createdResponse[0]
 	if len(unlinked) > 0 {
 		if capExceeded {
 			response.Warnings = append(response.Warnings, fileLinkCapWarning(len(unlinked)))
@@ -1987,7 +2101,106 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 		sdkChat.Children = db2sdk.ChildChatRows(childRows, childDiffStatuses)
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, sdkChat)
+	hydrated := []codersdk.Chat{sdkChat}
+	if err := api.hydrateChatGoals(ctx, hydrated); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to load chat goals.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, hydrated[0])
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Get current chat goal
+// @ID get-current-chat-goal
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Param chat path string true "Chat ID" format(uuid)
+// @Success 200 {object} codersdk.ChatGoalResponse
+// @Router /api/experimental/chats/{chat}/goal [get]
+// @x-apidocgen {"skip": true}
+// @Description Experimental: this endpoint is subject to change.
+func (api *API) chatGoal(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat := httpmw.ChatParam(r)
+
+	goal, err := api.Database.GetCurrentChatGoalByRootChatID(ctx, chatRootID(chat))
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatGoalResponse{})
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to load chat goal.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, chatGoalResponse(&goal))
+}
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Update chat goal
+// @ID update-chat-goal
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Produce json
+// @Param chat path string true "Chat ID" format(uuid)
+// @Param request body codersdk.ChatGoalMutation true "Chat goal mutation"
+// @Success 200 {object} codersdk.ChatGoalResponse
+// @Router /api/experimental/chats/{chat}/goal [patch]
+// @x-apidocgen {"skip": true}
+// @Description Experimental: this endpoint is subject to change.
+func (api *API) patchChatGoal(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	apiKey := httpmw.APIKey(r)
+	chat := httpmw.ChatParam(r)
+
+	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	if api.chatDaemon == nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Chat processor is unavailable.",
+			Detail:  "Chat processor is not configured.",
+		})
+		return
+	}
+
+	var req codersdk.ChatGoalMutation
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	result, err := api.chatDaemon.ApplyGoalMutation(ctx, chatd.ApplyGoalMutationOptions{
+		ChatID:    chat.ID,
+		CreatedBy: apiKey.UserID,
+		Mutation:  req,
+	})
+	if err != nil {
+		if writeChatGoalMutationError(ctx, rw, err) {
+			return
+		}
+		if errors.Is(err, chatd.ErrChatArchived) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "Cannot mutate a goal on an archived chat."})
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to update chat goal.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, chatGoalResponse(result.Goal))
 }
 
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
@@ -3019,11 +3232,15 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 			ModelConfigID: modelConfigID,
 			BusyBehavior:  busyBehavior,
 			PlanMode:      sendPlanMode,
+			GoalMutation:  req.GoalMutation,
 			MCPServerIDs:  req.MCPServerIDs,
 		},
 	)
 	if sendErr != nil {
 		if maybeWriteLimitErr(ctx, rw, sendErr) {
+			return
+		}
+		if writeChatGoalMutationError(ctx, rw, sendErr) {
 			return
 		}
 		if xerrors.Is(sendErr, chatd.ErrChatArchived) {
@@ -3063,6 +3280,10 @@ func (api *API) postChatMessages(rw http.ResponseWriter, r *http.Request) {
 	} else {
 		message := convertChatMessage(sendResult.Message)
 		response.Message = &message
+	}
+	if sendResult.Goal != nil {
+		sdkGoal := db2sdk.ChatGoal(*sendResult.Goal)
+		response.Goal = &sdkGoal
 	}
 	if len(unlinked) > 0 {
 		if capExceeded {

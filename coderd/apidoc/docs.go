@@ -585,6 +585,94 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/experimental/chats/{chat}/goal": {
+            "get": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get current chat goal",
+                "operationId": "get-current-chat-goal",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatGoalResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "patch": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Update chat goal",
+                "operationId": "update-chat-goal",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Chat goal mutation",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatGoalMutation"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatGoalResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/chats/{chat}/interrupt": {
             "post": {
                 "description": "Experimental: this endpoint is subject to change.",
@@ -16698,6 +16786,14 @@ const docTemplate = `{
                 "ChatGoalMutationActionComplete"
             ]
         },
+        "codersdk.ChatGoalResponse": {
+            "type": "object",
+            "properties": {
+                "goal": {
+                    "$ref": "#/definitions/codersdk.ChatGoal"
+                }
+            }
+        },
         "codersdk.ChatGoalStatus": {
             "type": "string",
             "enum": [
@@ -17462,6 +17558,7 @@ const docTemplate = `{
                 "title_change",
                 "created",
                 "deleted",
+                "goal_change",
                 "diff_status_change",
                 "action_required"
             ],
@@ -17471,6 +17568,7 @@ const docTemplate = `{
                 "ChatWatchEventKindTitleChange",
                 "ChatWatchEventKindCreated",
                 "ChatWatchEventKindDeleted",
+                "ChatWatchEventKindGoalChange",
                 "ChatWatchEventKindDiffStatusChange",
                 "ChatWatchEventKindActionRequired"
             ]
@@ -17720,6 +17818,9 @@ const docTemplate = `{
         "codersdk.CreateChatMessageResponse": {
             "type": "object",
             "properties": {
+                "goal": {
+                    "$ref": "#/definitions/codersdk.ChatGoal"
+                },
                 "message": {
                     "$ref": "#/definitions/codersdk.ChatMessage"
                 },

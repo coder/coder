@@ -1396,12 +1396,37 @@ var (
 	// tool-result submissions).
 	ErrChatArchived = xerrors.New("chat is archived")
 
+	// ErrChatGoalInvalidMutation indicates a malformed goal mutation request.
+	ErrChatGoalInvalidMutation = xerrors.New("invalid chat goal mutation")
+	// ErrChatGoalNotFound indicates the expected current goal was not active.
+	ErrChatGoalNotFound = xerrors.New("chat goal not found")
+	// ErrChatGoalNotRoot indicates goal mutation was attempted on a child chat.
+	ErrChatGoalNotRoot = xerrors.New("chat goal mutations require a root chat")
+	// ErrChatGoalBusy indicates a message-bound goal mutation cannot be queued.
+	ErrChatGoalBusy = xerrors.New("chat is busy")
+
 	// errChatTakenByOtherWorker is a sentinel used inside the
 	// processChat cleanup transaction to signal that another
 	// worker acquired the chat, so all post-TX side effects
 	// (status publish, pubsub, web push) must be skipped.
 	errChatTakenByOtherWorker = xerrors.New("chat acquired by another worker")
 )
+
+// ChatGoalMutationError describes a user-correctable goal mutation failure.
+type ChatGoalMutationError struct {
+	Message string
+}
+
+func (e *ChatGoalMutationError) Error() string {
+	if e == nil || e.Message == "" {
+		return ErrChatGoalInvalidMutation.Error()
+	}
+	return e.Message
+}
+
+func (*ChatGoalMutationError) Is(target error) bool {
+	return target == ErrChatGoalInvalidMutation
+}
 
 // UsageLimitExceededError indicates the user has exceeded their chat spend
 // limit.
@@ -1443,6 +1468,7 @@ type CreateOptions struct {
 	MCPServerIDs       []uuid.UUID
 	Labels             database.StringMap
 	DynamicTools       json.RawMessage
+	GoalMutation       *codersdk.ChatGoalMutation
 }
 
 // SendMessageBusyBehavior controls what happens when a chat is already active.
@@ -1467,6 +1493,7 @@ type SendMessageOptions struct {
 	BusyBehavior  SendMessageBusyBehavior
 	PlanMode      *database.NullChatPlanMode
 	MCPServerIDs  *[]uuid.UUID
+	GoalMutation  *codersdk.ChatGoalMutation
 }
 
 // SendMessageResult contains the outcome of user message processing.
@@ -1475,6 +1502,7 @@ type SendMessageResult struct {
 	QueuedMessage *database.ChatQueuedMessage
 	Message       database.ChatMessage
 	Chat          database.Chat
+	Goal          *database.ChatGoal
 }
 
 // EditMessageOptions controls user message edits via soft-delete and re-insert.
@@ -1510,6 +1538,238 @@ type PromoteQueuedResult struct {
 	PromotedMessage database.ChatMessage
 }
 
+// ApplyGoalMutationOptions controls a metadata-only goal mutation.
+type ApplyGoalMutationOptions struct {
+	ChatID    uuid.UUID
+	CreatedBy uuid.UUID
+	Mutation  codersdk.ChatGoalMutation
+}
+
+// ApplyGoalMutationResult contains the updated chat and current goal state.
+type ApplyGoalMutationResult struct {
+	Chat database.Chat
+	Goal *database.ChatGoal
+}
+
+// ApplyGoalMutation applies a goal lifecycle mutation without sending a
+// chat message or starting an agent turn.
+func (p *Server) ApplyGoalMutation(ctx context.Context, opts ApplyGoalMutationOptions) (ApplyGoalMutationResult, error) {
+	if opts.ChatID == uuid.Nil {
+		return ApplyGoalMutationResult{}, xerrors.New("chat_id is required")
+	}
+	mutation, err := normalizeMetadataGoalMutation(opts.Mutation)
+	if err != nil {
+		return ApplyGoalMutationResult{}, err
+	}
+
+	var result ApplyGoalMutationResult
+	txErr := p.db.InTx(func(tx database.Store) error {
+		lockedChat, err := tx.GetChatByIDForUpdate(ctx, opts.ChatID)
+		if err != nil {
+			return xerrors.Errorf("lock chat: %w", err)
+		}
+		if lockedChat.Archived {
+			return ErrChatArchived
+		}
+		if !isRootChat(lockedChat) {
+			return ErrChatGoalNotRoot
+		}
+		goal, err := applyGoalMutation(ctx, tx, lockedChat.ID, lockedChat.ID, opts.CreatedBy, mutation)
+		if err != nil {
+			return err
+		}
+		result.Chat = lockedChat
+		result.Goal = goal
+		return nil
+	}, nil)
+	if txErr != nil {
+		return ApplyGoalMutationResult{}, txErr
+	}
+	p.publishChatGoalChange(result.Chat, result.Goal)
+	return result, nil
+}
+
+func isRootChat(chat database.Chat) bool {
+	return !chat.ParentChatID.Valid
+}
+
+func chatRootID(chat database.Chat) uuid.UUID {
+	if chat.RootChatID.Valid {
+		return chat.RootChatID.UUID
+	}
+	if chat.ParentChatID.Valid {
+		return chat.ParentChatID.UUID
+	}
+	return chat.ID
+}
+
+func currentChatGoal(ctx context.Context, db database.Store, rootChatID uuid.UUID) (*database.ChatGoal, error) {
+	goal, err := db.GetCurrentChatGoalByRootChatID(ctx, rootChatID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			//nolint:nilnil // A missing current goal is represented as nil.
+			return nil, nil
+		}
+		return nil, xerrors.Errorf("get current chat goal: %w", err)
+	}
+	return &goal, nil
+}
+
+func normalizeMessageGoalMutation(mutation *codersdk.ChatGoalMutation) (*codersdk.ChatGoalMutation, error) {
+	if mutation == nil {
+		//nolint:nilnil // No requested mutation is represented as nil.
+		return nil, nil
+	}
+	normalized := *mutation
+	if normalized.Action != codersdk.ChatGoalMutationActionSet {
+		return nil, &ChatGoalMutationError{Message: "goal_mutation action must be set when sending a message"}
+	}
+	objective := strings.TrimSpace(normalized.Objective)
+	if objective == "" {
+		return nil, &ChatGoalMutationError{Message: "goal objective is required"}
+	}
+	if normalized.GoalID != nil {
+		return nil, &ChatGoalMutationError{Message: "goal_id is not allowed when setting a goal"}
+	}
+	if normalized.CompletionSummary != nil {
+		return nil, &ChatGoalMutationError{Message: "completion_summary is not allowed when setting a goal"}
+	}
+	normalized.Objective = objective
+	return &normalized, nil
+}
+
+func normalizeMetadataGoalMutation(mutation codersdk.ChatGoalMutation) (codersdk.ChatGoalMutation, error) {
+	normalized := mutation
+	normalized.Objective = strings.TrimSpace(normalized.Objective)
+	if normalized.CompletionSummary != nil {
+		summary := strings.TrimSpace(*normalized.CompletionSummary)
+		normalized.CompletionSummary = &summary
+	}
+
+	switch normalized.Action {
+	case codersdk.ChatGoalMutationActionClear,
+		codersdk.ChatGoalMutationActionPause,
+		codersdk.ChatGoalMutationActionResume:
+		if normalized.GoalID == nil || *normalized.GoalID == uuid.Nil {
+			return codersdk.ChatGoalMutation{}, &ChatGoalMutationError{Message: "goal_id is required"}
+		}
+		if normalized.Objective != "" {
+			return codersdk.ChatGoalMutation{}, &ChatGoalMutationError{Message: "objective is only allowed when setting a goal"}
+		}
+		if normalized.CompletionSummary != nil {
+			return codersdk.ChatGoalMutation{}, &ChatGoalMutationError{Message: "completion_summary is only allowed when completing a goal"}
+		}
+	case codersdk.ChatGoalMutationActionComplete:
+		if normalized.GoalID == nil || *normalized.GoalID == uuid.Nil {
+			return codersdk.ChatGoalMutation{}, &ChatGoalMutationError{Message: "goal_id is required"}
+		}
+		if normalized.Objective != "" {
+			return codersdk.ChatGoalMutation{}, &ChatGoalMutationError{Message: "objective is only allowed when setting a goal"}
+		}
+		if normalized.CompletionSummary == nil || *normalized.CompletionSummary == "" {
+			return codersdk.ChatGoalMutation{}, &ChatGoalMutationError{Message: "completion_summary is required"}
+		}
+	case codersdk.ChatGoalMutationActionSet:
+		return codersdk.ChatGoalMutation{}, &ChatGoalMutationError{Message: "set goal mutations must be sent with a chat message"}
+	default:
+		return codersdk.ChatGoalMutation{}, &ChatGoalMutationError{Message: "unsupported goal_mutation action"}
+	}
+	return normalized, nil
+}
+
+func applyGoalMutation(
+	ctx context.Context,
+	tx database.Store,
+	rootChatID uuid.UUID,
+	createdFromChatID uuid.UUID,
+	createdBy uuid.UUID,
+	mutation codersdk.ChatGoalMutation,
+) (*database.ChatGoal, error) {
+	switch mutation.Action {
+	case codersdk.ChatGoalMutationActionSet:
+		if _, err := tx.MarkCurrentChatGoalReplacedByRootChatID(ctx, rootChatID); err != nil {
+			return nil, xerrors.Errorf("replace current chat goal: %w", err)
+		}
+		goal, err := tx.InsertActiveChatGoal(ctx, database.InsertActiveChatGoalParams{
+			RootChatID: rootChatID,
+			CreatedFromChatID: uuid.NullUUID{
+				UUID:  createdFromChatID,
+				Valid: createdFromChatID != uuid.Nil,
+			},
+			Objective:       mutation.Objective,
+			CreatedByUserID: createdBy,
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("insert active chat goal: %w", err)
+		}
+		return &goal, nil
+	case codersdk.ChatGoalMutationActionClear:
+		goal, err := tx.ClearChatGoalByID(ctx, database.ClearChatGoalByIDParams{
+			RootChatID: rootChatID,
+			ID:         *mutation.GoalID,
+		})
+		if err != nil {
+			return nil, goalMutationUpdateError("clear chat goal", err)
+		}
+		return &goal, nil
+	case codersdk.ChatGoalMutationActionPause:
+		goal, err := tx.PauseChatGoalByID(ctx, database.PauseChatGoalByIDParams{
+			RootChatID: rootChatID,
+			ID:         *mutation.GoalID,
+		})
+		if err != nil {
+			return nil, goalMutationUpdateError("pause chat goal", err)
+		}
+		return &goal, nil
+	case codersdk.ChatGoalMutationActionResume:
+		goal, err := tx.ResumeChatGoalByID(ctx, database.ResumeChatGoalByIDParams{
+			RootChatID: rootChatID,
+			ID:         *mutation.GoalID,
+		})
+		if err != nil {
+			return nil, goalMutationUpdateError("resume chat goal", err)
+		}
+		return &goal, nil
+	case codersdk.ChatGoalMutationActionComplete:
+		current, err := currentChatGoal(ctx, tx, rootChatID)
+		if err != nil {
+			return nil, err
+		}
+		if current == nil || current.ID != *mutation.GoalID {
+			return nil, ErrChatGoalNotFound
+		}
+		if current.Status != database.ChatGoalStatusActive {
+			return nil, &ChatGoalMutationError{Message: "current goal is not active"}
+		}
+		goal, err := tx.CompleteChatGoalByID(ctx, database.CompleteChatGoalByIDParams{
+			RootChatID: rootChatID,
+			ID:         *mutation.GoalID,
+			CompletionSummary: sql.NullString{
+				String: *mutation.CompletionSummary,
+				Valid:  true,
+			},
+			CompletedByUserID: uuid.NullUUID{
+				UUID:  createdBy,
+				Valid: createdBy != uuid.Nil,
+			},
+			CompletedByAgent: createdBy == uuid.Nil,
+		})
+		if err != nil {
+			return nil, goalMutationUpdateError("complete chat goal", err)
+		}
+		return &goal, nil
+	default:
+		return nil, &ChatGoalMutationError{Message: "unsupported goal_mutation action"}
+	}
+}
+
+func goalMutationUpdateError(action string, err error) error {
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrChatGoalNotFound
+	}
+	return xerrors.Errorf("%s: %w", action, err)
+}
+
 // CreateChat creates a chat, inserts optional system prompt and initial user
 // message, and moves the chat into pending status.
 func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.Chat, error) {
@@ -1533,6 +1793,10 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	}
 	if opts.Labels == nil {
 		opts.Labels = database.StringMap{}
+	}
+	goalMutation, err := normalizeMessageGoalMutation(opts.GoalMutation)
+	if err != nil {
+		return database.Chat{}, err
 	}
 	// Resolve the deployment prompt before opening the transaction so
 	// chat creation does not hold one DB connection while waiting for
@@ -1583,6 +1847,12 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		})
 		if err != nil {
 			return xerrors.Errorf("insert chat: %w", err)
+		}
+
+		if goalMutation != nil {
+			if _, err := applyGoalMutation(ctx, tx, insertedChat.ID, insertedChat.ID, opts.OwnerID, *goalMutation); err != nil {
+				return err
+			}
 		}
 
 		userPrompt := SanitizePromptText(opts.SystemPrompt)
@@ -1704,6 +1974,11 @@ func (p *Server) SendMessage(
 		return SendMessageResult{}, xerrors.Errorf("marshal message content: %w", err)
 	}
 
+	goalMutation, err := normalizeMessageGoalMutation(opts.GoalMutation)
+	if err != nil {
+		return SendMessageResult{}, err
+	}
+
 	requestedPlanMode := opts.PlanMode
 
 	var (
@@ -1770,6 +2045,15 @@ func (p *Server) SendMessage(
 			return xerrors.Errorf("get queued messages: %w", err)
 		}
 
+		if goalMutation != nil {
+			if !isRootChat(lockedChat) {
+				return ErrChatGoalNotRoot
+			}
+			if shouldQueueUserMessage(lockedChat.Status) || len(existingQueued) > 0 {
+				return ErrChatGoalBusy
+			}
+		}
+
 		// Both queue and interrupt behaviors queue messages
 		// when the chat is busy. We also keep queueing while a
 		// backlog exists so waiting chats blocked by spend limits
@@ -1820,6 +2104,13 @@ func (p *Server) SendMessage(
 		if err != nil {
 			return err
 		}
+		if goalMutation != nil {
+			goal, err := applyGoalMutation(ctx, tx, lockedChat.ID, lockedChat.ID, opts.CreatedBy, *goalMutation)
+			if err != nil {
+				return err
+			}
+			result.Goal = goal
+		}
 		result.Message = message
 		result.Chat = updatedChat
 
@@ -1867,6 +2158,9 @@ func (p *Server) SendMessage(
 	p.publishMessage(opts.ChatID, result.Message)
 	p.publishStatus(opts.ChatID, result.Chat.Status, result.Chat.WorkerID)
 	p.publishChatPubsubEvent(result.Chat, codersdk.ChatWatchEventKindStatusChange, nil)
+	if result.Goal != nil {
+		p.publishChatGoalChange(result.Chat, result.Goal)
+	}
 	p.signalWake()
 	return result, nil
 }
@@ -5360,6 +5654,36 @@ func (p *Server) publishChatPubsubEvents(chats []database.Chat, kind codersdk.Ch
 	}
 }
 
+func (p *Server) publishChatGoalChange(chat database.Chat, goal *database.ChatGoal) {
+	if p.pubsub == nil {
+		return
+	}
+	sdkChat := db2sdk.Chat(chat, nil, nil)
+	if goal != nil {
+		sdkGoal := db2sdk.ChatGoal(*goal)
+		sdkChat.Goal = &sdkGoal
+	}
+	p.publishChatWatchEvent(chat.OwnerID, codersdk.ChatWatchEvent{
+		Kind: codersdk.ChatWatchEventKindGoalChange,
+		Chat: sdkChat,
+	})
+}
+
+func (p *Server) attachCurrentGoal(ctx context.Context, chat database.Chat, sdkChat *codersdk.Chat) {
+	goal, err := currentChatGoal(ctx, p.db, chatRootID(chat))
+	if err != nil {
+		p.logger.Warn(ctx, "failed to load current chat goal for event",
+			slog.F("chat_id", chat.ID),
+			slog.Error(err),
+		)
+		return
+	}
+	if goal != nil {
+		sdkGoal := db2sdk.ChatGoal(*goal)
+		sdkChat.Goal = &sdkGoal
+	}
+}
+
 // publishChatPubsubEvent broadcasts a chat lifecycle event via PostgreSQL
 // pubsub so that all replicas can push updates to watching clients.
 func (p *Server) publishChatPubsubEvent(chat database.Chat, kind codersdk.ChatWatchEventKind, diffStatus *codersdk.ChatDiffStatus) {
@@ -5374,22 +5698,29 @@ func (p *Server) publishChatPubsubEvent(chat database.Chat, kind codersdk.ChatWa
 	if diffStatus != nil {
 		sdkChat.DiffStatus = diffStatus
 	}
-	event := codersdk.ChatWatchEvent{
+	//nolint:gocritic // Event hydration runs outside a request actor and needs chatd-scoped read access.
+	goalCtx, cancel := context.WithTimeout(dbauthz.AsChatd(context.Background()), chatStreamControlFetchTimeout)
+	p.attachCurrentGoal(goalCtx, chat, &sdkChat)
+	cancel()
+	p.publishChatWatchEvent(chat.OwnerID, codersdk.ChatWatchEvent{
 		Kind: kind,
 		Chat: sdkChat,
-	}
+	})
+}
+
+func (p *Server) publishChatWatchEvent(ownerID uuid.UUID, event codersdk.ChatWatchEvent) {
 	payload, err := json.Marshal(event)
 	if err != nil {
 		p.logger.Error(context.Background(), "failed to marshal chat pubsub event",
-			slog.F("chat_id", chat.ID),
+			slog.F("chat_id", event.Chat.ID),
 			slog.Error(err),
 		)
 		return
 	}
-	if err := p.pubsub.Publish(coderdpubsub.ChatWatchEventChannel(chat.OwnerID), payload); err != nil {
+	if err := p.pubsub.Publish(coderdpubsub.ChatWatchEventChannel(ownerID), payload); err != nil {
 		p.logger.Error(context.Background(), "failed to publish chat pubsub event",
-			slog.F("chat_id", chat.ID),
-			slog.F("kind", kind),
+			slog.F("chat_id", event.Chat.ID),
+			slog.F("kind", event.Kind),
 			slog.Error(err),
 		)
 	}
@@ -6354,11 +6685,11 @@ func filterExternalMCPConfigsForTurn(
 
 func builtinPlanToolAllowed(name string, isRootChat bool) bool {
 	switch name {
-	case "read_file", "execute", "process_output", "read_skill", "read_skill_file":
+	case "read_file", "execute", "process_output", "read_skill", "read_skill_file", "get_goal":
 		return true
 	case "write_file", "edit_files", "list_templates", "read_template",
 		"create_workspace", "start_workspace", "stop_workspace", "propose_plan", "spawn_agent",
-		"spawn_explore_agent", "wait_agent", "ask_user_question", "attach_file":
+		"spawn_explore_agent", "wait_agent", "ask_user_question", "attach_file", "complete_goal":
 		return isRootChat
 	case "process_list", "process_signal", "message_agent", "close_agent",
 		"spawn_computer_use_agent":
@@ -6430,6 +6761,8 @@ func allowedExploreToolNames(allTools []fantasy.AgentTool) []string {
 		"write_file":        false,
 		"edit_files":        false,
 		"execute":           true,
+		"get_goal":          true,
+		"complete_goal":     false,
 		"process_output":    true,
 		"process_list":      false,
 		"process_signal":    false,
@@ -6504,13 +6837,30 @@ func stopAfterBehaviorTools(
 	if isExploreSubagentMode(chatMode) {
 		return nil
 	}
-	return stopAfterPlanTools(planMode, parentChatID)
+	stopTools := stopAfterPlanTools(planMode, parentChatID)
+	if parentChatID.Valid {
+		return stopTools
+	}
+	if stopTools == nil {
+		stopTools = map[string]struct{}{}
+	}
+	stopTools[chattool.CompleteGoalToolName] = struct{}{}
+	return stopTools
+}
+
+func activeGoalSystemPrompt(goal database.ChatGoal) string {
+	return fmt.Sprintf(
+		"<active-goal>\nID: %s\nObjective: %s\n</active-goal>\nYou have an active chat goal. Treat this as the durable objective for the root chat. Keep working toward it unless the user changes or pauses the goal. Use get_goal to inspect the current goal and complete_goal when the objective is done.",
+		goal.ID,
+		goal.Objective,
+	)
 }
 
 type systemPromptBehaviorContext struct {
 	planMode             database.NullChatPlanMode
 	chatMode             database.NullChatMode
 	planModeInstructions string
+	activeGoal           *database.ChatGoal
 	isRootChat           bool
 }
 
@@ -6558,6 +6908,9 @@ func buildSystemPrompt(
 	}
 	if skillIndex := chattool.FormatResolvedSkillIndex(resolvedSkills); skillIndex != "" {
 		prompt = chatprompt.InsertSystem(prompt, skillIndex)
+	}
+	if behaviorContext.activeGoal != nil {
+		prompt = chatprompt.InsertSystem(prompt, activeGoalSystemPrompt(*behaviorContext.activeGoal))
 	}
 	if userPrompt != "" {
 		prompt = chatprompt.InsertSystem(prompt, userPrompt)
@@ -6964,6 +7317,17 @@ func (p *Server) runChat(
 		}
 		return nil
 	})
+	var currentGoal *database.ChatGoal
+	g.Go(func() error {
+		goal, err := currentChatGoal(ctx, p.db, chatRootID(chat))
+		if err != nil {
+			return err
+		}
+		if goal != nil && goal.Status == database.ChatGoalStatusActive {
+			currentGoal = goal
+		}
+		return nil
+	})
 	if len(chat.MCPServerIDs) > 0 {
 		g.Go(func() error {
 			var err error
@@ -7349,6 +7713,7 @@ func (p *Server) runChat(
 			planMode:             currentPlanMode,
 			chatMode:             chat.Mode,
 			planModeInstructions: planModeInstructions,
+			activeGoal:           currentGoal,
 			isRootChat:           isRootChat,
 		},
 	)
@@ -7731,6 +8096,21 @@ func (p *Server) runChat(
 			GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
 		}),
 	}
+	tools = append(tools, chattool.GetGoal(p.db, chattool.GoalToolOptions{
+		ChatID:     chat.ID,
+		RootChatID: chatRootID(chat),
+		IsRootChat: isRootChat,
+	}))
+	if isRootChat {
+		tools = append(tools, chattool.CompleteGoal(p.db, chattool.GoalToolOptions{
+			ChatID:     chat.ID,
+			RootChatID: chatRootID(chat),
+			IsRootChat: true,
+			OnGoalUpdated: func(_ context.Context, updatedChat database.Chat, goal database.ChatGoal) {
+				p.publishChatGoalChange(updatedChat, &goal)
+			},
+		}))
+	}
 	if allowAskUserQuestion {
 		tools = append(tools, chattool.NewAskUserQuestionTool())
 	}
@@ -8068,6 +8448,13 @@ func (p *Server) runChat(
 			reloadedResolvedSkills := resolvedSkillsFor(reloadedSkills)
 			injectedSkillIndex = chattool.FormatResolvedSkillIndex(reloadedResolvedSkills)
 			reloadUserPrompt := p.resolveUserPrompt(reloadCtx, chat.OwnerID)
+			reloadActiveGoal, err := currentChatGoal(reloadCtx, p.db, chatRootID(chat))
+			if err != nil {
+				return nil, err
+			}
+			if reloadActiveGoal != nil && reloadActiveGoal.Status != database.ChatGoalStatusActive {
+				reloadActiveGoal = nil
+			}
 			reloadedPrompt = buildSystemPrompt(
 				reloadedPrompt,
 				subagentInstruction,
@@ -8078,6 +8465,7 @@ func (p *Server) runChat(
 					planMode:             currentPlanMode,
 					chatMode:             chat.Mode,
 					planModeInstructions: planModeInstructions,
+					activeGoal:           reloadActiveGoal,
 					isRootChat:           isRootChat,
 				},
 			)

@@ -5729,6 +5729,154 @@ func TestPassiveServerDoesNotProcess(t *testing.T) {
 	require.Equal(t, database.ChatStatusPending, stored.Status)
 }
 
+func TestChatGoalLifecycleMutations(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+	user, org, model := seedChatDependencies(t, db)
+	server := newTestServer(t, db, ps, uuid.New())
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		Title:              "goal-root",
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("start")},
+		ModelConfigID:      model.ID,
+		GoalMutation: &codersdk.ChatGoalMutation{
+			Action:    codersdk.ChatGoalMutationActionSet,
+			Objective: "  build the feature  ",
+		},
+	})
+	require.NoError(t, err)
+
+	goal, err := db.GetCurrentChatGoalByRootChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatGoalStatusActive, goal.Status)
+	require.Equal(t, "build the feature", goal.Objective)
+	require.Equal(t, chat.ID, goal.CreatedFromChatID.UUID)
+
+	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:     chat.ID,
+		Status: database.ChatStatusWaiting,
+	})
+	require.NoError(t, err)
+
+	sendResult, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:        chat.ID,
+		CreatedBy:     user.ID,
+		Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("set a new goal")},
+		ModelConfigID: model.ID,
+		GoalMutation: &codersdk.ChatGoalMutation{
+			Action:    codersdk.ChatGoalMutationActionSet,
+			Objective: "ship the feature",
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, sendResult.Goal)
+	require.Equal(t, "ship the feature", sendResult.Goal.Objective)
+
+	goal, err = db.GetCurrentChatGoalByRootChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, sendResult.Goal.ID, goal.ID)
+
+	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
+		ID:     chat.ID,
+		Status: database.ChatStatusRunning,
+		WorkerID: uuid.NullUUID{
+			UUID:  uuid.New(),
+			Valid: true,
+		},
+		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
+		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
+	})
+	require.NoError(t, err)
+	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:        chat.ID,
+		CreatedBy:     user.ID,
+		Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("busy set")},
+		ModelConfigID: model.ID,
+		GoalMutation: &codersdk.ChatGoalMutation{
+			Action:    codersdk.ChatGoalMutationActionSet,
+			Objective: "should fail",
+		},
+	})
+	require.ErrorIs(t, err, chatd.ErrChatGoalBusy)
+
+	messagesBefore, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+	require.NoError(t, err)
+	statusBefore, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+
+	paused, err := server.ApplyGoalMutation(ctx, chatd.ApplyGoalMutationOptions{
+		ChatID:    chat.ID,
+		CreatedBy: user.ID,
+		Mutation: codersdk.ChatGoalMutation{
+			Action: codersdk.ChatGoalMutationActionPause,
+			GoalID: &goal.ID,
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, paused.Goal)
+	require.Equal(t, database.ChatGoalStatusPaused, paused.Goal.Status)
+
+	messagesAfter, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chat.ID})
+	require.NoError(t, err)
+	require.Len(t, messagesAfter, len(messagesBefore))
+	statusAfter, err := db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, statusBefore.Status, statusAfter.Status)
+
+	resumed, err := server.ApplyGoalMutation(ctx, chatd.ApplyGoalMutationOptions{
+		ChatID:    chat.ID,
+		CreatedBy: user.ID,
+		Mutation: codersdk.ChatGoalMutation{
+			Action: codersdk.ChatGoalMutationActionResume,
+			GoalID: &goal.ID,
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resumed.Goal)
+	require.Equal(t, database.ChatGoalStatusActive, resumed.Goal.Status)
+
+	summary := "completed cleanly"
+	completed, err := server.ApplyGoalMutation(ctx, chatd.ApplyGoalMutationOptions{
+		ChatID:    chat.ID,
+		CreatedBy: user.ID,
+		Mutation: codersdk.ChatGoalMutation{
+			Action:            codersdk.ChatGoalMutationActionComplete,
+			GoalID:            &goal.ID,
+			CompletionSummary: &summary,
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, completed.Goal)
+	require.Equal(t, database.ChatGoalStatusComplete, completed.Goal.Status)
+	require.False(t, completed.Goal.CompletedByAgent)
+	_, err = db.GetCurrentChatGoalByRootChatID(ctx, chat.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	child, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		Title:              "goal-child",
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("child")},
+		ModelConfigID:      model.ID,
+		ParentChatID:       uuid.NullUUID{UUID: chat.ID, Valid: true},
+		RootChatID:         uuid.NullUUID{UUID: chat.ID, Valid: true},
+	})
+	require.NoError(t, err)
+	_, err = server.ApplyGoalMutation(ctx, chatd.ApplyGoalMutationOptions{
+		ChatID:    child.ID,
+		CreatedBy: user.ID,
+		Mutation: codersdk.ChatGoalMutation{
+			Action: codersdk.ChatGoalMutationActionPause,
+			GoalID: &goal.ID,
+		},
+	})
+	require.ErrorIs(t, err, chatd.ErrChatGoalNotRoot)
+}
+
 // newStartedTestServer creates a server with Start() called.
 // Uses a long acquire interval so processing is triggered by
 // wake signals, not polling.

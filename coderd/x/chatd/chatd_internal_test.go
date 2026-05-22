@@ -3108,6 +3108,48 @@ func TestSkillsFromParts(t *testing.T) {
 	})
 }
 
+func TestActiveGoalSystemPrompt(t *testing.T) {
+	t.Parallel()
+
+	goalID := uuid.New()
+	prompt := buildSystemPrompt(
+		nil,
+		"",
+		"",
+		nil,
+		"",
+		systemPromptBehaviorContext{
+			activeGoal: &database.ChatGoal{
+				ID:        goalID,
+				Objective: "ship the backend",
+				Status:    database.ChatGoalStatusActive,
+			},
+		},
+	)
+
+	text := systemPromptText(t, prompt)
+	require.Contains(t, text, "<active-goal>")
+	require.Contains(t, text, goalID.String())
+	require.Contains(t, text, "ship the backend")
+	require.Contains(t, text, "complete_goal")
+}
+
+func TestPausedGoalNotInSystemPrompt(t *testing.T) {
+	t.Parallel()
+
+	prompt := buildSystemPrompt(
+		nil,
+		"",
+		"",
+		nil,
+		"",
+		systemPromptBehaviorContext{},
+	)
+
+	text := systemPromptText(t, prompt)
+	require.NotContains(t, text, "<active-goal>")
+}
+
 func TestPersonalSkillsInSystemPrompt(t *testing.T) {
 	t.Parallel()
 

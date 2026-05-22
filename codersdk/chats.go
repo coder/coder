@@ -513,6 +513,11 @@ type ToolResult struct {
 	IsError    bool            `json:"is_error"`
 }
 
+// ChatGoalResponse is returned by chat goal lifecycle endpoints.
+type ChatGoalResponse struct {
+	Goal *ChatGoal `json:"goal,omitempty"`
+}
+
 // CreateChatRequest is the request to create a new chat.
 type CreateChatRequest struct {
 	OrganizationID uuid.UUID         `json:"organization_id" format:"uuid"`
@@ -601,6 +606,7 @@ type CreateChatMessageResponse struct {
 	Message       *ChatMessage       `json:"message,omitempty"`
 	QueuedMessage *ChatQueuedMessage `json:"queued_message,omitempty"`
 	Queued        bool               `json:"queued"`
+	Goal          *ChatGoal          `json:"goal,omitempty"`
 	Warnings      []string           `json:"warnings,omitempty"`
 }
 
@@ -1698,6 +1704,7 @@ const (
 	ChatWatchEventKindTitleChange      ChatWatchEventKind = "title_change"
 	ChatWatchEventKindCreated          ChatWatchEventKind = "created"
 	ChatWatchEventKindDeleted          ChatWatchEventKind = "deleted"
+	ChatWatchEventKindGoalChange       ChatWatchEventKind = "goal_change"
 	ChatWatchEventKindDiffStatusChange ChatWatchEventKind = "diff_status_change"
 	ChatWatchEventKindActionRequired   ChatWatchEventKind = "action_required"
 )
@@ -3026,6 +3033,34 @@ func (c *ExperimentalClient) GetChat(ctx context.Context, chatID uuid.UUID) (Cha
 	}
 	var chat Chat
 	return chat, json.NewDecoder(res.Body).Decode(&chat)
+}
+
+// GetChatGoal returns the current active or paused goal for a chat's root.
+func (c *ExperimentalClient) GetChatGoal(ctx context.Context, chatID uuid.UUID) (ChatGoalResponse, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/goal", chatID), nil)
+	if err != nil {
+		return ChatGoalResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatGoalResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatGoalResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpdateChatGoal applies a metadata-only chat goal mutation.
+func (c *ExperimentalClient) UpdateChatGoal(ctx context.Context, chatID uuid.UUID, req ChatGoalMutation) (ChatGoalResponse, error) {
+	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/experimental/chats/%s/goal", chatID), req)
+	if err != nil {
+		return ChatGoalResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ChatGoalResponse{}, ReadBodyAsError(res)
+	}
+	var resp ChatGoalResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 func (c *ExperimentalClient) GetChatACL(ctx context.Context, chatID uuid.UUID) (ChatACL, error) {
