@@ -794,11 +794,26 @@ export const setCachedChatGoal = (
 	chatId: string,
 	goal: TypesGen.ChatGoal | undefined,
 ) => {
-	updateInfiniteChatsCache(queryClient, (chats) =>
-		chats.map((chat) => (chat.id === chatId ? { ...chat, goal } : chat)),
-	);
+	const applyGoal = (chat: TypesGen.Chat) =>
+		chat.goal === goal ? chat : { ...chat, goal };
+
+	updateInfiniteChatsCache(queryClient, (chats) => {
+		let didUpdate = false;
+		const nextChats = chats.map((chat) => {
+			if (chat.id !== chatId) {
+				return chat;
+			}
+			const nextChat = applyGoal(chat);
+			if (nextChat !== chat) {
+				didUpdate = true;
+			}
+			return nextChat;
+		});
+		return didUpdate ? nextChats : chats;
+	});
+	updateChildInParentCache(queryClient, applyGoal, chatId);
 	queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), (previousChat) =>
-		previousChat ? { ...previousChat, goal } : previousChat,
+		previousChat ? applyGoal(previousChat) : previousChat,
 	);
 	queryClient.setQueryData<TypesGen.ChatGoalResponse>(chatGoalKey(chatId), {
 		goal,
