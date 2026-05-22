@@ -102,9 +102,8 @@ type Pubsub struct {
 
 	// ctx is canceled by Close while holding p.mu so subscriber state
 	// cleanup observes the canceled context.
-	ctx       context.Context
-	cancel    context.CancelFunc
-	closeDone chan struct{}
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 // natsSub maps to one underlying *natsgo.Subscription. The first
@@ -162,7 +161,6 @@ func newPubsub(ctx context.Context, logger slog.Logger, opts Options) *Pubsub {
 		subscriptions: make(map[string]*natsSub),
 		ctx:           ctx,
 		cancel:        cancel,
-		closeDone:     make(chan struct{}),
 	}
 }
 
@@ -237,11 +235,8 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error)
 	p.publishPool = publishPool
 	p.subscribePool = subscribePool
 	go func() {
-		select {
-		case <-ctx.Done():
-			_ = p.Close()
-		case <-p.closeDone:
-		}
+		<-p.ctx.Done()
+		_ = p.Close()
 	}()
 	return p, nil
 }
@@ -323,14 +318,6 @@ func (p *Pubsub) SubscribeWithErr(event string, listener pubsub.ListenerWithErr)
 	s, err := p.addSubscriber(event, listener)
 	if err != nil {
 		return nil, err
-	}
-
-	// Final guard against Close racing after addSubscriber returns
-	// success. Cleanup remains safe if Close already stopped s.
-	if p.ctx.Err() != nil {
-		p.unsubscribeLocal(s)
-		s.close()
-		return nil, errClosed
 	}
 
 	cancelFn := func() {
@@ -483,25 +470,9 @@ func (s *localSub) init() {
 			select {
 			case <-s.stop:
 				return
-			default:
-			}
-
-			select {
-			case <-s.stop:
-				return
 			case data := <-s.queue:
-				select {
-				case <-s.stop:
-					return
-				default:
-				}
 				s.listener(s.ctx, data, nil)
 			case <-s.dropSignal:
-				select {
-				case <-s.stop:
-					return
-				default:
-				}
 				s.listener(s.ctx, nil, pubsub.ErrDroppedMessages)
 			}
 		}
@@ -601,7 +572,6 @@ func (p *Pubsub) handleSlowSubscriber(nsub *natsSub) {
 // Close does not drain queued listener messages.
 func (p *Pubsub) Close() error {
 	p.closeOnce.Do(func() {
-		defer close(p.closeDone)
 		p.mu.Lock()
 		// Cancel while holding p.mu so subscriber state cleanup below
 		// observes the canceled context.
