@@ -109,11 +109,14 @@ type Pubsub struct {
 // When the last local subscriber detaches, the NATS subscription is
 // unsubscribed.
 //
-// listeners and sub are guarded by the parent Pubsub.mu. dropMu /
-// lastDropped use their own mutex so the async error callback can
-// update drop accounting without taking p.mu.
+// sub is set before the natsSub is published in Pubsub.subscriptions
+// and is immutable after that. mu guards listeners. dropMu and
+// lastDropped keep async error accounting independent from listener
+// fan-out.
 type natsSub struct {
-	sub       *natsgo.Subscription
+	sub *natsgo.Subscription
+
+	mu        sync.Mutex
 	listeners map[*localSub]struct{}
 
 	dropMu      sync.Mutex
@@ -212,59 +215,52 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error)
 
 	p := newPubsub(ctx, logger, opts)
 	p.ns = ns
+	handlers := p.buildConnHandlers()
 
-	npub := opts.PublishConns
-	if npub <= 0 {
-		npub = 1
+	publishPool, err := newConnPool(ns, opts, handlers, opts.PublishConns, "coder-pubsub-pub", "pub")
+	if err != nil {
+		p.cancel()
+		ns.Shutdown()
+		ns.WaitForShutdown()
+		return nil, err
 	}
-	publishPool := make([]*natsgo.Conn, 0, npub)
-	for i := 0; i < npub; i++ {
-		// Suffix names when the pool has more than one entry so server
-		// logs can distinguish connections.
-		name := "coder-pubsub-pub"
-		if npub > 1 {
-			name = fmt.Sprintf("coder-pubsub-pub-%d", i)
+	subscribePool, err := newConnPool(ns, opts, handlers, opts.SubscribeConns, "coder-pubsub-sub", "sub")
+	if err != nil {
+		p.cancel()
+		for _, c := range publishPool {
+			c.Close()
 		}
-		nc, err := connectClient(ns, opts, p.buildConnHandlers(), name)
-		if err != nil {
-			p.cancel()
-			for _, c := range publishPool {
-				c.Close()
-			}
-			ns.Shutdown()
-			ns.WaitForShutdown()
-			return nil, xerrors.Errorf("dial pub conn %d: %w", i, err)
-		}
-		publishPool = append(publishPool, nc)
-	}
-	nsub := opts.SubscribeConns
-	if nsub <= 0 {
-		nsub = 1
-	}
-	subscribePool := make([]*natsgo.Conn, 0, nsub)
-	for i := 0; i < nsub; i++ {
-		name := "coder-pubsub-sub"
-		if nsub > 1 {
-			name = fmt.Sprintf("coder-pubsub-sub-%d", i)
-		}
-		nc, err := connectClient(ns, opts, p.buildConnHandlers(), name)
-		if err != nil {
-			p.cancel()
-			for _, c := range publishPool {
-				c.Close()
-			}
-			for _, c := range subscribePool {
-				c.Close()
-			}
-			ns.Shutdown()
-			ns.WaitForShutdown()
-			return nil, xerrors.Errorf("dial sub conn %d: %w", i, err)
-		}
-		subscribePool = append(subscribePool, nc)
+		ns.Shutdown()
+		ns.WaitForShutdown()
+		return nil, err
 	}
 	p.publishPool = publishPool
 	p.subscribePool = subscribePool
 	return p, nil
+}
+
+func newConnPool(ns *natsserver.Server, opts Options, handlers connHandlers, count int, clientName string, errorName string) ([]*natsgo.Conn, error) {
+	if count <= 0 {
+		count = 1
+	}
+	pool := make([]*natsgo.Conn, 0, count)
+	for i := 0; i < count; i++ {
+		// Suffix names when the pool has more than one entry so server
+		// logs can distinguish connections.
+		name := clientName
+		if count > 1 {
+			name = fmt.Sprintf("%s-%d", clientName, i)
+		}
+		nc, err := connectClient(ns, opts, handlers, name)
+		if err != nil {
+			for _, c := range pool {
+				c.Close()
+			}
+			return nil, xerrors.Errorf("dial %s conn %d: %w", errorName, i, err)
+		}
+		pool = append(pool, nc)
+	}
+	return pool, nil
 }
 
 // Publish publishes a message under the given event name. The
@@ -379,7 +375,9 @@ func (p *Pubsub) addSubscriber(event string, listener pubsub.ListenerWithErr) (*
 
 		nsub, ok := p.subscriptions[event]
 		if ok {
+			nsub.mu.Lock()
 			nsub.listeners[s] = struct{}{}
+			nsub.mu.Unlock()
 			s.init()
 			return nil
 		}
@@ -387,10 +385,14 @@ func (p *Pubsub) addSubscriber(event string, listener pubsub.ListenerWithErr) (*
 		nsub = &natsSub{
 			listeners: make(map[*localSub]struct{}),
 		}
+		nsub.mu.Lock()
+		nsub.listeners[s] = struct{}{}
 
 		subConn := pickConn(p.subscribePool, event)
-		natsSub, err := subConn.Subscribe(event, nsub.makeCallback(p))
+		natsSub, err := subConn.Subscribe(event, nsub.makeCallback())
 		if err != nil {
+			delete(nsub.listeners, s)
+			nsub.mu.Unlock()
 			return xerrors.Errorf("subscribe: %w", err)
 		}
 		createdSub = natsSub
@@ -399,16 +401,20 @@ func (p *Pubsub) addSubscriber(event string, listener pubsub.ListenerWithErr) (*
 		// Flush the SUB to the server so a publish issued immediately
 		// after Subscribe returns cannot race ahead of registration.
 		if err := subConn.Flush(); err != nil {
+			delete(nsub.listeners, s)
+			nsub.mu.Unlock()
 			return xerrors.Errorf("flush subscribe: %w", err)
 		}
 		limits := defaultPendingLimits(p.opts.PendingLimits)
 		if err := natsSub.SetPendingLimits(limits.Msgs, limits.Bytes); err != nil {
+			delete(nsub.listeners, s)
+			nsub.mu.Unlock()
 			return xerrors.Errorf("set pending limits: %w", err)
 		}
 
-		nsub.listeners[s] = struct{}{}
 		p.subscriptions[event] = nsub
 		s.init()
+		nsub.mu.Unlock()
 		return nil
 	}()
 	if err != nil {
@@ -428,26 +434,23 @@ func (p *Pubsub) unsubscribeLocal(s *localSub) {
 		p.mu.Lock()
 		defer p.mu.Unlock()
 
-		var subject string
-		var nsub *natsSub
-		for candidateSubject, candidate := range p.subscriptions {
-			if _, tracked := candidate.listeners[s]; tracked {
-				subject = candidateSubject
-				nsub = candidate
-				break
-			}
-		}
+		nsub := p.subscriptions[s.event]
 		if nsub == nil {
 			return nil
 		}
 
+		nsub.mu.Lock()
+		defer nsub.mu.Unlock()
+		if _, tracked := nsub.listeners[s]; !tracked {
+			return nil
+		}
 		delete(nsub.listeners, s)
 		if len(nsub.listeners) > 0 {
 			return nil
 		}
 		// Last listener: remove the nsub entry so a new Subscribe to this
 		// subject creates a fresh underlying subscription.
-		delete(p.subscriptions, subject)
+		delete(p.subscriptions, s.event)
 		return nsub.sub
 	}()
 	if natsSub != nil {
@@ -463,10 +466,10 @@ func (p *Pubsub) unsubscribeLocal(s *localSub) {
 // without cloning. Listeners on a coalesced subject MUST treat the
 // delivered bytes as immutable; the slice is owned by nats.go's
 // per-conn read buffer and is reused for the next message.
-func (nsub *natsSub) makeCallback(p *Pubsub) natsgo.MsgHandler {
+func (nsub *natsSub) makeCallback() natsgo.MsgHandler {
 	return func(msg *natsgo.Msg) {
-		p.mu.Lock()
-		defer p.mu.Unlock()
+		nsub.mu.Lock()
+		defer nsub.mu.Unlock()
 
 		for s := range nsub.listeners {
 			s.enqueue(msg.Data)
@@ -573,8 +576,8 @@ func (p *Pubsub) handleSlowSubscriber(nsub *natsSub) {
 	nsub.lastDropped = droppedCount
 	nsub.dropMu.Unlock()
 
-	p.mu.Lock()
-	defer p.mu.Unlock()
+	nsub.mu.Lock()
+	defer nsub.mu.Unlock()
 
 	for s := range nsub.listeners {
 		s.signalDrop()
@@ -593,10 +596,12 @@ func (p *Pubsub) Close() error {
 		shareds := make([]*natsSub, 0, len(p.subscriptions))
 		for _, ss := range p.subscriptions {
 			shareds = append(shareds, ss)
+			ss.mu.Lock()
 			for s := range ss.listeners {
 				subs = append(subs, s)
 				delete(ss.listeners, s)
 			}
+			ss.mu.Unlock()
 		}
 		clear(p.subscriptions)
 		p.mu.Unlock()
