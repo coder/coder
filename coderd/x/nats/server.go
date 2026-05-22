@@ -2,6 +2,8 @@ package nats
 
 import (
 	"context"
+	"net"
+	"strconv"
 	"time"
 
 	natsserver "github.com/nats-io/nats-server/v2/server"
@@ -14,7 +16,8 @@ import (
 const readyTimeout = 10 * time.Second
 
 // buildServerOptions constructs the embedded NATS server options. The
-// server runs standalone with a loopback random client listener.
+// server runs with a loopback random client listener and an optional
+// cluster route listener.
 func buildServerOptions(opts Options) (*natsserver.Options, error) {
 	maxPayload := opts.MaxPayload
 	if maxPayload == 0 {
@@ -37,29 +40,69 @@ func buildServerOptions(opts Options) (*natsserver.Options, error) {
 	sopts.Host = "127.0.0.1"
 	sopts.Port = natsserver.RANDOM_PORT
 
+	if clusterEnabled(opts) {
+		clusterName := opts.ClusterName
+		if clusterName == "" {
+			clusterName = DefaultClusterName
+		}
+		clusterHost := opts.ClusterHost
+		if clusterHost == "" {
+			clusterHost = "127.0.0.1"
+		}
+		clusterPort := opts.ClusterPort
+		if clusterPort == 0 {
+			clusterPort = natsserver.RANDOM_PORT
+		}
+		routePoolSize := opts.RoutePoolSize
+		if routePoolSize == 0 {
+			routePoolSize = DefaultRoutePoolSize
+		}
+
+		routes, err := parsePeerAddresses(opts.PeerAddresses)
+		if err != nil {
+			return nil, err
+		}
+		selfAddresses := []string{opts.ClusterAdvertise}
+		if clusterPort > 0 {
+			selfAddresses = append(selfAddresses, net.JoinHostPort(clusterHost, strconv.Itoa(clusterPort)))
+		}
+		routes = filterSelfRoutes(routes, selfAddresses...)
+		sortRouteURLs(routes)
+		routes = dedupeRouteURLs(routes)
+
+		sopts.Cluster = natsserver.ClusterOpts{
+			Name:      clusterName,
+			Host:      clusterHost,
+			Port:      clusterPort,
+			Advertise: opts.ClusterAdvertise,
+			PoolSize:  routePoolSize,
+		}
+		sopts.Routes = routes
+	}
+
 	return sopts, nil
 }
 
-// startEmbeddedServer starts an in-process standalone NATS server.
-func startEmbeddedServer(logger slog.Logger, opts Options) (*natsserver.Server, error) {
+// startEmbeddedServer starts an in-process NATS server.
+func startEmbeddedServer(logger slog.Logger, opts Options) (*natsserver.Server, *natsserver.Options, error) {
 	sopts, err := buildServerOptions(opts)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	ns, err := natsserver.NewServer(sopts)
 	if err != nil {
-		return nil, xerrors.Errorf("new embedded nats server: %w", err)
+		return nil, nil, xerrors.Errorf("new embedded nats server: %w", err)
 	}
 	go ns.Start()
 	if !ns.ReadyForConnections(readyTimeout) {
 		ns.Shutdown()
 		ns.WaitForShutdown()
-		return nil, xerrors.Errorf("embedded nats server not ready within %s", readyTimeout)
+		return nil, nil, xerrors.Errorf("embedded nats server not ready within %s", readyTimeout)
 	}
 	logger.Info(context.Background(), "embedded nats server started",
 		slog.F("client_url", ns.ClientURL()),
 	)
-	return ns, nil
+	return ns, sopts, nil
 }
 
 type connHandlers struct {

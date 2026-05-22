@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"net/url"
 	"sync"
 	"time"
 
@@ -18,6 +19,14 @@ import (
 
 // DefaultMaxPending is the per-client outbound pending byte budget.
 const DefaultMaxPending int64 = 128 << 20
+
+// DefaultClusterName is the embedded NATS cluster name used when cluster
+// mode is enabled and Options.ClusterName is empty.
+const DefaultClusterName = "coder"
+
+// DefaultRoutePoolSize is the NATS route pool size used when cluster mode
+// is enabled and Options.RoutePoolSize is zero.
+const DefaultRoutePoolSize = 3
 
 var errClosed = xerrors.New("nats pubsub closed")
 
@@ -65,6 +74,28 @@ type Options struct {
 	// shared subscription is pinned to one connection by a stable hash
 	// of its subject. Zero or negative means 1.
 	SubscribeConns int
+
+	// ClusterName is the embedded NATS cluster name. Empty means
+	// DefaultClusterName when cluster mode is enabled.
+	ClusterName string
+
+	// ClusterHost is the embedded NATS route listener host. Empty means
+	// 127.0.0.1 when cluster mode is enabled.
+	ClusterHost string
+
+	// ClusterPort is the embedded NATS route listener port. Zero means a
+	// random port when cluster mode is enabled.
+	ClusterPort int
+
+	// ClusterAdvertise is the host:port advertised to cluster peers.
+	ClusterAdvertise string
+
+	// RoutePoolSize is the NATS route pool size. Zero means
+	// DefaultRoutePoolSize when cluster mode is enabled.
+	RoutePoolSize int
+
+	// PeerAddresses are the initial nats://host:port cluster routes.
+	PeerAddresses []string
 }
 
 // Pubsub is an embedded NATS-backed implementation of pubsub.Pubsub.
@@ -97,6 +128,11 @@ type Pubsub struct {
 	// cleanup observes the canceled context.
 	ctx    context.Context
 	cancel context.CancelFunc
+
+	clusterMu     sync.Mutex
+	clustered     bool
+	serverOpts    *natsserver.Options
+	currentRoutes []*url.URL
 }
 
 // natsSub maps to one underlying *natsgo.Subscription. The first
@@ -203,13 +239,16 @@ func (p *Pubsub) buildConnHandlers() connHandlers {
 // embedded server and the publisher and subscriber connection pools.
 // Close shuts down all owned resources.
 func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error) {
-	ns, err := startEmbeddedServer(logger, opts)
+	ns, sopts, err := startEmbeddedServer(logger, opts)
 	if err != nil {
 		return nil, err
 	}
 
 	p := newPubsub(ctx, logger, opts)
 	p.ns = ns
+	p.clustered = clusterEnabled(opts)
+	p.serverOpts = sopts.Clone()
+	p.currentRoutes = cloneRouteURLs(sopts.Routes)
 	handlers := p.buildConnHandlers()
 
 	publishPool, err := newConnPool(ns, opts, handlers, opts.PublishConns, "coder-pubsub-pub")
