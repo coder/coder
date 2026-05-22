@@ -178,6 +178,7 @@ sql:
               type: "NullDecimal"
               package: "decimal"
         rename:
+          ai_provider_id: AIProviderID
           chat: ChatTable
           chats_expanded: Chat
           group_member: GroupMemberTable

@@ -58,7 +58,7 @@ export const WebPushButton: FC<WebPushButtonProps> = ({
 							? "Disable notifications"
 							: "Enable notifications"
 					}
-					className="h-7 w-7 text-content-secondary hover:text-content-primary"
+					className="size-7 text-content-secondary hover:text-content-primary"
 				>
 					{webPushState.loading ? (
 						<Spinner size="sm" loading />

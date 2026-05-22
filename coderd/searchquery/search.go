@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -553,6 +554,9 @@ func Tasks(ctx context.Context, db database.Store, query string, actorID uuid.UU
 //   - diff_url: string (matches chats whose linked diff URL equals the
 //     given value, case-insensitively; URLs typically contain ':' so
 //     they must be quoted, e.g. q=diff_url:"https://github.com/o/r/pull/1")
+//   - pr: positive integer (exact PR number match)
+//   - repo: string (case-insensitive substring match against git remote origin or URL)
+//   - pr_title: string (case-insensitive PR title substring match)
 func Chats(query string) (database.GetChatsParams, []codersdk.ValidationError) {
 	filter := database.GetChatsParams{
 		// Default to hiding archived chats.
@@ -598,6 +602,21 @@ func Chats(query string) (database.GetChatsParams, []codersdk.ValidationError) {
 	}
 
 	filter.TitleQuery = parser.String(values, "", "title")
+	filter.PrTitleQuery = parser.String(values, "", "pr_title")
+	filter.RepoQuery = parser.String(values, "", "repo")
+
+	// pr: requires a positive integer.
+	if prStr := parser.String(values, "", "pr"); prStr != "" {
+		n, err := strconv.ParseInt(prStr, 10, 32)
+		if err != nil || n <= 0 {
+			parser.Errors = append(parser.Errors, codersdk.ValidationError{
+				Field:  "pr",
+				Detail: fmt.Sprintf("%q is not a valid positive integer", prStr),
+			})
+		} else {
+			filter.PrNumber = int32(n)
+		}
+	}
 
 	parser.ErrorExcessParams(values)
 	return filter, parser.Errors

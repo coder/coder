@@ -259,8 +259,9 @@ type ChatMessagePart struct {
 	// ParsedCommands holds parsed programs from an execute tool call's
 	// shell command, one entry per simple command in source order. Each
 	// entry is [program] or [program, arg] where arg is the first non-flag
-	// positional argument. Only populated when ToolName is "execute" and
-	// the command parses successfully; nil otherwise.
+	// positional argument. Program names are normalized to their base
+	// name (e.g. /usr/bin/go becomes go). Only populated when ToolName
+	// is "execute" and the command parses successfully; nil otherwise.
 	ParsedCommands [][]string      `json:"parsed_commands,omitempty" variants:"tool-call?"`
 	Result         json.RawMessage `json:"result,omitempty" variants:"tool-result?"`
 	ResultDelta    string          `json:"result_delta,omitempty" variants:"tool-result?"`
@@ -1120,6 +1121,31 @@ type UpdateChatProviderConfigRequest struct {
 	AllowCentralAPIKeyFallback *bool   `json:"allow_central_api_key_fallback,omitempty"`
 }
 
+// AIProviderSummary is provider metadata embedded in other API responses.
+type AIProviderSummary struct {
+	ID          uuid.UUID      `json:"id" format:"uuid"`
+	Type        AIProviderType `json:"type"`
+	Name        string         `json:"name"`
+	DisplayName string         `json:"display_name"`
+	Enabled     bool           `json:"enabled"`
+	Deleted     bool           `json:"deleted"`
+}
+
+// UserAIProviderKeyConfig is a provider summary from the current user's
+// perspective. It reports key presence but never returns key material.
+type UserAIProviderKeyConfig struct {
+	Provider          AIProviderSummary `json:"provider"`
+	HasUserAPIKey     bool              `json:"has_user_api_key"`
+	HasProviderAPIKey bool              `json:"has_provider_api_key"`
+	BYOKEnabled       bool              `json:"byok_enabled"`
+}
+
+// CreateUserAIProviderKeyRequest creates or replaces a user's API key
+// for an AI provider.
+type CreateUserAIProviderKeyRequest struct {
+	APIKey string `json:"api_key"`
+}
+
 // UserChatProviderConfig is a summary of a provider that allows
 // user-supplied keys, as seen from the current user's perspective.
 type UserChatProviderConfig struct {
@@ -1128,6 +1154,7 @@ type UserChatProviderConfig struct {
 	DisplayName              string    `json:"display_name"`
 	HasUserAPIKey            bool      `json:"has_user_api_key"`
 	HasCentralAPIKeyFallback bool      `json:"has_central_api_key_fallback"`
+	BYOKEnabled              bool      `json:"byok_enabled"`
 }
 
 // CreateUserChatProviderKeyRequest creates or replaces a user's API key
@@ -1140,6 +1167,7 @@ type CreateUserChatProviderKeyRequest struct {
 type ChatModelConfig struct {
 	ID                   uuid.UUID            `json:"id" format:"uuid"`
 	Provider             string               `json:"provider"`
+	AIProviderID         *uuid.UUID           `json:"ai_provider_id,omitempty" format:"uuid"`
 	Model                string               `json:"model"`
 	DisplayName          string               `json:"display_name"`
 	Enabled              bool                 `json:"enabled"`
@@ -1349,7 +1377,8 @@ func (c *ChatModelCallConfig) UnmarshalJSON(data []byte) error {
 
 // CreateChatModelConfigRequest creates a chat model config.
 type CreateChatModelConfigRequest struct {
-	Provider             string               `json:"provider"`
+	Provider             string               `json:"provider,omitempty"`
+	AIProviderID         *uuid.UUID           `json:"ai_provider_id,omitempty" format:"uuid"`
 	Model                string               `json:"model"`
 	DisplayName          string               `json:"display_name,omitempty"`
 	Enabled              *bool                `json:"enabled,omitempty"`
@@ -1362,6 +1391,7 @@ type CreateChatModelConfigRequest struct {
 // UpdateChatModelConfigRequest updates a chat model config.
 type UpdateChatModelConfigRequest struct {
 	Provider             string               `json:"provider,omitempty"`
+	AIProviderID         *uuid.UUID           `json:"ai_provider_id,omitempty" format:"uuid"`
 	Model                string               `json:"model,omitempty"`
 	DisplayName          string               `json:"display_name,omitempty"`
 	Enabled              *bool                `json:"enabled,omitempty"`
@@ -2114,6 +2144,51 @@ func (c *ExperimentalClient) DeleteChatProvider(ctx context.Context, providerID 
 		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+// ListUserAIProviderKeyConfigs returns user-scoped AI provider key configs.
+func (c *ExperimentalClient) ListUserAIProviderKeyConfigs(ctx context.Context, user string) ([]UserAIProviderKeyConfig, error) {
+	res, err := c.Request(ctx, http.MethodGet, userAIProviderKeysPath(user), nil)
+	if err != nil {
+		return nil, xerrors.Errorf("list user AI provider key configs: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var configs []UserAIProviderKeyConfig
+	return configs, json.NewDecoder(res.Body).Decode(&configs)
+}
+
+// UpsertUserAIProviderKey creates or replaces a user API key for an AI provider.
+func (c *ExperimentalClient) UpsertUserAIProviderKey(ctx context.Context, user string, providerID uuid.UUID, req CreateUserAIProviderKeyRequest) (UserAIProviderKeyConfig, error) {
+	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("%s/%s", userAIProviderKeysPath(user), providerID), req)
+	if err != nil {
+		return UserAIProviderKeyConfig{}, xerrors.Errorf("upsert user AI provider key: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return UserAIProviderKeyConfig{}, ReadBodyAsError(res)
+	}
+	var config UserAIProviderKeyConfig
+	return config, json.NewDecoder(res.Body).Decode(&config)
+}
+
+// DeleteUserAIProviderKey deletes a user API key for an AI provider.
+func (c *ExperimentalClient) DeleteUserAIProviderKey(ctx context.Context, user string, providerID uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("%s/%s", userAIProviderKeysPath(user), providerID), nil)
+	if err != nil {
+		return xerrors.Errorf("delete user AI provider key: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+func userAIProviderKeysPath(user string) string {
+	return fmt.Sprintf("/api/experimental/users/%s/ai-provider-keys", url.PathEscape(user))
 }
 
 // ListUserChatProviderConfigs returns user-scoped chat provider configs.

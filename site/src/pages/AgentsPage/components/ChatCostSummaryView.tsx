@@ -255,7 +255,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 
 			{summary.unpriced_message_count > 0 && (
 				<div className="flex items-start gap-3 rounded-lg border border-border-warning bg-surface-warning p-4 text-sm text-content-primary">
-					<TriangleAlertIcon className="h-5 w-5 shrink-0 text-content-warning" />
+					<TriangleAlertIcon className="size-5 shrink-0 text-content-warning" />
 					<span>
 						{summary.unpriced_message_count} message
 						{summary.unpriced_message_count === 1 ? "" : "s"} could not be
@@ -265,7 +265,7 @@ export const ChatCostSummaryView: FC<ChatCostSummaryViewProps> = ({
 			)}
 
 			<div className="flex items-start gap-3 p-4 text-sm text-content-secondary">
-				<InfoIcon className="h-5 w-5 shrink-0" />
+				<InfoIcon className="size-5 shrink-0" />
 				<span>
 					Automatic title generation uses lightweight models and is not counted
 					towards usage limits.

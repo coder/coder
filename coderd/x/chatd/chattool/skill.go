@@ -266,9 +266,8 @@ const DefaultSkillMetaFile = "SKILL.md"
 // ReadSkillOptions configures the read_skill and read_skill_file
 // tools.
 type ReadSkillOptions struct {
-	GetWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error)
-	GetSkills        func() []SkillMeta
-
+	GetWorkspaceConn      func(context.Context) (workspacesdk.AgentConn, error)
+	GetSkills             func() []SkillMeta
 	ResolveAlias          func(string) (skillspkg.ResolvedSkill, error)
 	LoadPersonalSkillBody func(context.Context, string) (skillspkg.ParsedSkill, error)
 }

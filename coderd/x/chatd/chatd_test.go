@@ -288,22 +288,7 @@ func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 		)
 	})
 
-	_, err := expClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
-		Provider: "openai-compat",
-		APIKey:   "test-api-key",
-		BaseURL:  openAIURL,
-	})
-	require.NoError(t, err)
-
-	contextLimit := int64(4096)
-	isDefault := true
-	_, err = expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-		Provider:     "openai-compat",
-		Model:        "gpt-4o-mini",
-		ContextLimit: &contextLimit,
-		IsDefault:    &isDefault,
-	})
-	require.NoError(t, err)
+	coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, openAIURL)
 
 	// Create a root chat whose first model call will spawn a subagent.
 	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -483,22 +468,7 @@ func TestPlanModeSubagentChatExcludesAskUserQuestion(t *testing.T) {
 		)
 	})
 
-	_, err = expClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
-		Provider: "openai-compat",
-		APIKey:   "test-api-key",
-		BaseURL:  openAIURL,
-	})
-	require.NoError(t, err)
-
-	contextLimit := int64(4096)
-	isDefault := true
-	_, err = expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-		Provider:     "openai-compat",
-		Model:        "gpt-4o-mini",
-		ContextLimit: &contextLimit,
-		IsDefault:    &isDefault,
-	})
-	require.NoError(t, err)
+	coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, openAIURL)
 
 	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: user.OrganizationID,
@@ -638,24 +608,9 @@ func TestExploreSubagentIsReadOnly(t *testing.T) {
 		)
 	})
 
-	_, err := expClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
-		Provider: "openai-compat",
-		APIKey:   "test-api-key",
-		BaseURL:  openAIURL,
-	})
-	require.NoError(t, err)
+	coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, openAIURL)
 
-	contextLimit := int64(4096)
-	isDefault := true
-	_, err = expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-		Provider:     "openai-compat",
-		Model:        "gpt-4o-mini",
-		ContextLimit: &contextLimit,
-		IsDefault:    &isDefault,
-	})
-	require.NoError(t, err)
-
-	_, err = expClient.CreateChat(ctx, codersdk.CreateChatRequest{
+	_, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: user.OrganizationID,
 		WorkspaceID:    &workspace.ID,
 		Content: []codersdk.ChatInputPart{
@@ -2315,7 +2270,7 @@ func TestCreateChatInsertsWorkspaceAwarenessMessage(t *testing.T) {
 		for _, msg := range messages {
 			if msg.Role == database.ChatMessageRoleSystem {
 				content := string(msg.Content.RawMessage)
-				if strings.Contains(content, "no workspace associated") {
+				if strings.Contains(content, "No workspace is attached to this chat yet") {
 					workspaceMsg = &msg
 					break
 				}
@@ -2324,6 +2279,10 @@ func TestCreateChatInsertsWorkspaceAwarenessMessage(t *testing.T) {
 		require.NotNil(t, workspaceMsg, "workspace awareness system message should exist")
 		require.Equal(t, database.ChatMessageRoleSystem, workspaceMsg.Role)
 		require.Equal(t, database.ChatMessageVisibilityModel, workspaceMsg.Visibility)
+		workspaceContent := string(workspaceMsg.Content.RawMessage)
+		require.Contains(t, workspaceContent, "Do not create or start a workspace by default")
+		require.Contains(t, workspaceContent, "Only call create_workspace or start_workspace")
+		require.NotContains(t, workspaceContent, "Create one using the create_workspace tool before using workspace tools")
 	})
 }
 
@@ -4953,22 +4912,7 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 		)
 	})
 
-	_, err := expClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
-		Provider: "openai-compat",
-		APIKey:   "test-api-key",
-		BaseURL:  openAIURL,
-	})
-	require.NoError(t, err)
-
-	contextLimit := int64(4096)
-	isDefault := true
-	_, err = expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-		Provider:     "openai-compat",
-		Model:        "gpt-4o-mini",
-		ContextLimit: &contextLimit,
-		IsDefault:    &isDefault,
-	})
-	require.NoError(t, err)
+	coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, openAIURL)
 
 	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: user.OrganizationID,
@@ -5123,22 +5067,7 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 		)
 	})
 
-	_, err := expClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
-		Provider: "openai-compat",
-		APIKey:   "test-api-key",
-		BaseURL:  openAIURL,
-	})
-	require.NoError(t, err)
-
-	contextLimit := int64(4096)
-	isDefault := true
-	_, err = expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-		Provider:     "openai-compat",
-		Model:        "gpt-4o-mini",
-		ContextLimit: &contextLimit,
-		IsDefault:    &isDefault,
-	})
-	require.NoError(t, err)
+	coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, openAIURL)
 
 	// Create a chat with the stopped workspace pre-associated.
 	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
@@ -6195,21 +6124,24 @@ func setOpenAIProviderBaseURL(
 ) {
 	t.Helper()
 
-	provider, err := db.GetChatProviderByProvider(ctx, "openai")
+	providers, err := db.GetAIProviders(ctx, database.GetAIProvidersParams{IncludeDisabled: true})
 	require.NoError(t, err)
-
-	_, err = db.UpdateChatProvider(ctx, database.UpdateChatProviderParams{
-		ID:                         provider.ID,
-		DisplayName:                provider.DisplayName,
-		APIKey:                     provider.APIKey,
-		BaseUrl:                    baseURL,
-		ApiKeyKeyID:                provider.ApiKeyKeyID,
-		Enabled:                    provider.Enabled,
-		CentralApiKeyEnabled:       provider.CentralApiKeyEnabled,
-		AllowUserApiKey:            provider.AllowUserApiKey,
-		AllowCentralApiKeyFallback: provider.AllowCentralApiKeyFallback,
-	})
-	require.NoError(t, err)
+	for _, provider := range providers {
+		if provider.Type != database.AiProviderTypeOpenai {
+			continue
+		}
+		_, err = db.UpdateAIProvider(ctx, database.UpdateAIProviderParams{
+			ID:            provider.ID,
+			DisplayName:   provider.DisplayName,
+			Enabled:       provider.Enabled,
+			BaseUrl:       baseURL,
+			Settings:      provider.Settings,
+			SettingsKeyID: provider.SettingsKeyID,
+		})
+		require.NoError(t, err)
+		return
+	}
+	require.Fail(t, "openai provider not found")
 }
 
 func TestInterruptChatDoesNotSendWebPushNotification(t *testing.T) {
@@ -7268,10 +7200,11 @@ func TestProcessChat_UserProviderKey_Success(t *testing.T) {
 		true,
 		false,
 	)
-	_, err := db.UpsertUserChatProviderKey(ctx, database.UpsertUserChatProviderKeyParams{
-		UserID:         user.ID,
-		ChatProviderID: provider.ID,
-		APIKey:         userAPIKey,
+	_, err := db.UpsertUserAIProviderKey(ctx, database.UpsertUserAIProviderKeyParams{
+		ID:           uuid.New(),
+		UserID:       user.ID,
+		AIProviderID: provider.ID,
+		APIKey:       userAPIKey,
 	})
 	require.NoError(t, err)
 
@@ -8586,22 +8519,7 @@ func TestAgentContextFilesAndSkillsLoadedIntoChat(t *testing.T) {
 		)
 	})
 
-	_, err := expClient.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
-		Provider: "openai-compat",
-		APIKey:   "test-api-key",
-		BaseURL:  openAIURL,
-	})
-	require.NoError(t, err)
-
-	contextLimit := int64(4096)
-	isDefault := true
-	_, err = expClient.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-		Provider:     "openai-compat",
-		Model:        "gpt-4o-mini",
-		ContextLimit: &contextLimit,
-		IsDefault:    &isDefault,
-	})
-	require.NoError(t, err)
+	coderdtest.CreateOpenAICompatChatModelConfig(t, expClient, openAIURL)
 
 	workspaceID := workspace.ID
 	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{

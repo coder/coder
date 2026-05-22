@@ -310,7 +310,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 							size="icon"
 							aria-label="Settings"
 							className={cn(
-								"h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary",
+								"size-7 min-w-0 text-content-secondary hover:text-content-primary",
 								isSettingsPanel && "text-content-primary",
 							)}
 						>
@@ -327,7 +327,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 								size="icon"
 								onClick={onCollapse}
 								aria-label="Collapse sidebar"
-								className="h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary"
+								className="size-7 min-w-0 text-content-secondary hover:text-content-primary"
 							>
 								<PanelLeftCloseIcon />
 							</Button>
@@ -366,7 +366,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 											size="icon"
 											aria-label="Search chats"
 											onClick={onOpenSearchDialog}
-											className="h-7 w-7 justify-end px-0"
+											className="size-7 justify-end px-0"
 										>
 											<SearchIcon />
 										</Button>
@@ -405,7 +405,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 											key={i}
 											className="flex items-start gap-2 rounded-md px-2 py-1"
 										>
-											<Skeleton className="mt-0.5 h-5 w-5 shrink-0 rounded-md" />
+											<Skeleton className="mt-0.5 size-5 shrink-0 rounded-md" />
 											<div className="min-w-0 flex-1 space-y-1.5">
 												<Skeleton
 													className="h-3.5"

@@ -26,6 +26,33 @@ func TestParsePersonalSkillMarkdown(t *testing.T) {
 		require.Equal(t, "Use this skill.", content.Body)
 	})
 
+	t.Run("ValidWithFoldedDescription", func(t *testing.T) {
+		t.Parallel()
+
+		content, err := skills.ParsePersonalSkillMarkdown([]byte(strings.Join([]string{
+			"---",
+			"name: brainstorming",
+			"description: >",
+			"  Use before any creative work: features, components, functionality changes,",
+			"  or behavior modifications. Turns ideas into approved designs through",
+			"  collaborative dialog. Hard gate: no implementation action until the",
+			"  design is presented and approved.",
+			"---",
+			"Use this skill.",
+		}, "\n")))
+
+		require.NoError(t, err)
+		require.Equal(t, "brainstorming", content.Name)
+		require.Equal(t, strings.Join([]string{
+			"Use before any creative work: features, components, functionality changes,",
+			"or behavior modifications. Turns ideas into approved designs through",
+			"collaborative dialog. Hard gate: no implementation action until the",
+			"design is presented and approved.",
+		}, " "), content.Description)
+		require.Equal(t, skills.SourcePersonal, content.Source)
+		require.Equal(t, "Use this skill.", content.Body)
+	})
+
 	t.Run("ValidWithoutDescription", func(t *testing.T) {
 		t.Parallel()
 
@@ -65,6 +92,16 @@ func TestParsePersonalSkillMarkdown(t *testing.T) {
 
 		require.ErrorIs(t, err, skills.ErrInvalidSkillName)
 		require.ErrorContains(t, err, "frontmatter must contain a 'name' field")
+	})
+
+	t.Run("NonStringName", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := skills.ParsePersonalSkillMarkdown([]byte(
+			"---\nname: null\n---\nBody.\n",
+		))
+
+		require.ErrorIs(t, err, skills.ErrInvalidSkillName)
 	})
 
 	t.Run("NonKebabCaseName", func(t *testing.T) {

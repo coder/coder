@@ -27,7 +27,7 @@ export const FilterDropdown: FC<FilterDropdownProps> = ({
 				size="icon"
 				aria-label="Filter agents"
 				className={cn(
-					"h-7 w-7 min-w-0 justify-end rounded-none px-0 text-content-secondary hover:text-content-primary",
+					"size-7 min-w-0 justify-end rounded-none px-0 text-content-secondary hover:text-content-primary",
 					archivedFilter === "archived" && "text-content-primary",
 				)}
 			>
@@ -41,13 +41,13 @@ export const FilterDropdown: FC<FilterDropdownProps> = ({
 			<DropdownMenuItem onSelect={() => onArchivedFilterChange?.("active")}>
 				Active
 				{archivedFilter === "active" && (
-					<CheckIcon className="ml-auto h-3.5 w-3.5" />
+					<CheckIcon className="ml-auto size-3.5" />
 				)}
 			</DropdownMenuItem>
 			<DropdownMenuItem onSelect={() => onArchivedFilterChange?.("archived")}>
 				Archived
 				{archivedFilter === "archived" && (
-					<CheckIcon className="ml-auto h-3.5 w-3.5" />
+					<CheckIcon className="ml-auto size-3.5" />
 				)}
 			</DropdownMenuItem>
 		</DropdownMenuContent>

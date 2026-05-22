@@ -69,7 +69,7 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 			// This is a bit funky but since aibridge only exposes a HTTP
 			// handler, this is how it has to be.
 			r.HandleFunc("/*", func(rw http.ResponseWriter, r *http.Request) {
-				if api.aibridgedHandler == nil {
+				if api.AGPL.GetAIBridgedHandler() == nil {
 					httpapi.Write(r.Context(), rw, http.StatusNotFound, codersdk.Response{
 						Message: "aibridged handler not mounted",
 					})
@@ -86,7 +86,7 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 					return
 				}
 
-				http.StripPrefix("/api/v2/aibridge", api.aibridgedHandler).ServeHTTP(rw, r)
+				http.StripPrefix("/api/v2/aibridge", api.AGPL.GetAIBridgedHandler()).ServeHTTP(rw, r)
 			})
 		})
 	}

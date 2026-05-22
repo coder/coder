@@ -27,6 +27,7 @@ const (
 	AiProviderTypeOpenaiCompat AIProviderType = "openai-compat"
 	AiProviderTypeOpenrouter   AIProviderType = "openrouter"
 	AiProviderTypeVercel       AIProviderType = "vercel"
+	AiProviderTypeCopilot      AIProviderType = "copilot"
 )
 
 func (e *AIProviderType) Scan(src interface{}) error {
@@ -73,7 +74,8 @@ func (e AIProviderType) Valid() bool {
 		AiProviderTypeGoogle,
 		AiProviderTypeOpenaiCompat,
 		AiProviderTypeOpenrouter,
-		AiProviderTypeVercel:
+		AiProviderTypeVercel,
+		AiProviderTypeCopilot:
 		return true
 	}
 	return false
@@ -89,6 +91,7 @@ func AllAIProviderTypeValues() []AIProviderType {
 		AiProviderTypeOpenaiCompat,
 		AiProviderTypeOpenrouter,
 		AiProviderTypeVercel,
+		AiProviderTypeCopilot,
 	}
 }
 
@@ -4679,23 +4682,7 @@ type ChatModelConfig struct {
 	ContextLimit         int64           `db:"context_limit" json:"context_limit"`
 	CompressionThreshold int32           `db:"compression_threshold" json:"compression_threshold"`
 	Options              json.RawMessage `db:"options" json:"options"`
-}
-
-type ChatProvider struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	Provider    string    `db:"provider" json:"provider"`
-	DisplayName string    `db:"display_name" json:"display_name"`
-	APIKey      string    `db:"api_key" json:"api_key"`
-	// The ID of the key used to encrypt the provider API key. If this is NULL, the API key is not encrypted
-	ApiKeyKeyID                sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
-	CreatedBy                  uuid.NullUUID  `db:"created_by" json:"created_by"`
-	Enabled                    bool           `db:"enabled" json:"enabled"`
-	CreatedAt                  time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt                  time.Time      `db:"updated_at" json:"updated_at"`
-	BaseUrl                    string         `db:"base_url" json:"base_url"`
-	CentralApiKeyEnabled       bool           `db:"central_api_key_enabled" json:"central_api_key_enabled"`
-	AllowUserApiKey            bool           `db:"allow_user_api_key" json:"allow_user_api_key"`
-	AllowCentralApiKeyFallback bool           `db:"allow_central_api_key_fallback" json:"allow_central_api_key_fallback"`
+	AIProviderID         uuid.NullUUID   `db:"ai_provider_id" json:"ai_provider_id"`
 }
 
 type ChatQueuedMessage struct {
@@ -5692,14 +5679,17 @@ type User struct {
 	ChatSpendLimitMicros sql.NullInt64 `db:"chat_spend_limit_micros" json:"chat_spend_limit_micros"`
 }
 
-type UserChatProviderKey struct {
-	ID             uuid.UUID      `db:"id" json:"id"`
-	UserID         uuid.UUID      `db:"user_id" json:"user_id"`
-	ChatProviderID uuid.UUID      `db:"chat_provider_id" json:"chat_provider_id"`
-	APIKey         string         `db:"api_key" json:"api_key"`
-	ApiKeyKeyID    sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
-	CreatedAt      time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt      time.Time      `db:"updated_at" json:"updated_at"`
+// User-owned API keys associated with AI providers. These keys are used only when BYOK is enabled.
+type UserAiProviderKey struct {
+	ID           uuid.UUID `db:"id" json:"id"`
+	UserID       uuid.UUID `db:"user_id" json:"user_id"`
+	AIProviderID uuid.UUID `db:"ai_provider_id" json:"ai_provider_id"`
+	// User-owned API key used to authenticate with the upstream AI provider. Encrypted at rest via dbcrypt when api_key_key_id is set.
+	APIKey string `db:"api_key" json:"api_key"`
+	// The ID of the key used to encrypt the user-owned provider API key. If this is NULL, the API key is not encrypted.
+	ApiKeyKeyID sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
+	CreatedAt   time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
 }
 
 type UserConfig struct {
