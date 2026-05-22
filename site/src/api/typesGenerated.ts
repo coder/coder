@@ -2875,8 +2875,9 @@ export interface ChatToolCallPart {
 	 * ParsedCommands holds parsed programs from an execute tool call's
 	 * shell command, one entry per simple command in source order. Each
 	 * entry is [program] or [program, arg] where arg is the first non-flag
-	 * positional argument. Only populated when ToolName is "execute" and
-	 * the command parses successfully; nil otherwise.
+	 * positional argument. Program names are normalized to their base
+	 * name (e.g. /usr/bin/go becomes go). Only populated when ToolName
+	 * is "execute" and the command parses successfully; nil otherwise.
 	 */
 	readonly parsed_commands?: readonly string[][];
 	/**
