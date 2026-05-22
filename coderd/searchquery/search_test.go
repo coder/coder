@@ -1499,7 +1499,7 @@ func TestSearchChats(t *testing.T) {
 			},
 		},
 		{
-			Name:  "CombinedNewFilters",
+			Name:  "CombinedPRRepoTitle",
 			Query: "pr:99 repo:coder/coder pr_title:deploy",
 			Expected: database.GetChatsParams{
 				Archived:     sql.NullBool{Bool: false, Valid: true},

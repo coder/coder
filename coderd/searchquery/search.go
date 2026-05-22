@@ -555,7 +555,7 @@ func Tasks(ctx context.Context, db database.Store, query string, actorID uuid.UU
 //     given value, case-insensitively; URLs typically contain ':' so
 //     they must be quoted, e.g. q=diff_url:"https://github.com/o/r/pull/1")
 //   - pr: positive integer (exact PR number match)
-//   - repo: string (substring match against git remote origin or URL)
+//   - repo: string (case-insensitive substring match against git remote origin or URL)
 //   - pr_title: string (case-insensitive PR title substring match)
 func Chats(query string) (database.GetChatsParams, []codersdk.ValidationError) {
 	filter := database.GetChatsParams{

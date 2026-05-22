@@ -14,7 +14,7 @@ are rejected; use `title:` for title filtering.
 | `pr_status`  | `draft`, `open`, `merged`, `closed` | Linked pull request state. Comma-separated for OR.                  |
 | `diff_url`   | URL                                 | Match by associated diff URL. Quote values containing colons.       |
 | `pr`         | positive integer                    | Exact PR number match.                                              |
-| `repo`       | substring                           | Substring match against git remote origin or URL.                   |
+| `repo`       | substring                           | Case-insensitive substring match against git remote origin or URL. Quote values containing colons. |
 | `pr_title`   | substring                           | Case-insensitive PR title substring match. Quote multi-word values. |
 
 Multiple filters in one query combine with AND logic.
@@ -55,5 +55,5 @@ Multiple filters in one query combine with AND logic.
 - `title:`, `repo:`, and `pr_title:` use ILIKE matching. `%` and `_` act as wildcards.
 - `pr_status:draft` means the PR is open **and** marked as a draft.
   `pr_status:open` means the PR is open and not a draft.
-- Conversations without a linked PR are excluded when `pr_status`, `pr`, `repo`, or `pr_title` is set.
+- Conversations without a linked diff status are excluded when `pr_status`, `pr`, `repo`, or `pr_title` is set. The `repo:` filter also matches chats tracking a branch with no PR.
 - Unrecognized keys or bare terms return HTTP 400 with a validation error.

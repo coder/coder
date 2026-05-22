@@ -569,7 +569,7 @@ WHERE
         )
         ELSE true
     END
-    -- Filter by PR number (exact match on root chat's diff status).
+    -- Filter by PR number (exact match on chat's diff status).
     AND CASE
         WHEN @pr_number::int != 0 THEN EXISTS (
             SELECT 1
