@@ -60,22 +60,24 @@ export const filterPersonalSkills = (
 		return skills.toSorted((a, b) => a.name.localeCompare(b.name, "en-US"));
 	}
 
-	return skills
-		.map((skill, index): RankedPersonalSkill => {
-			const name = skill.name.toLocaleLowerCase("en-US");
-			const description = skill.description.toLocaleLowerCase("en-US");
-			let rank = Number.POSITIVE_INFINITY;
-			if (name.startsWith(normalizedQuery)) {
-				rank = 0;
-			} else if (name.includes(normalizedQuery)) {
-				rank = 1;
-			} else if (description.includes(normalizedQuery)) {
-				rank = 2;
-			}
+	const rankedSkills: RankedPersonalSkill[] = [];
+	for (const [index, skill] of skills.entries()) {
+		const name = skill.name.toLocaleLowerCase("en-US");
+		const description = skill.description.toLocaleLowerCase("en-US");
+		let rank: number | undefined;
+		if (name.startsWith(normalizedQuery)) {
+			rank = 0;
+		} else if (name.includes(normalizedQuery)) {
+			rank = 1;
+		} else if (description.includes(normalizedQuery)) {
+			rank = 2;
+		}
+		if (rank !== undefined) {
+			rankedSkills.push({ skill, rank, index });
+		}
+	}
 
-			return { skill, rank, index };
-		})
-		.filter(({ rank }) => Number.isFinite(rank))
+	return rankedSkills
 		.toSorted((a, b) => {
 			if (a.rank !== b.rank) {
 				return a.rank - b.rank;
