@@ -462,30 +462,18 @@ func (nsub *natsSub) makeCallback() natsgo.MsgHandler {
 // init starts the per-listener delivery goroutine.
 func (s *localSub) init() {
 	go func() {
-		for {
-			select {
-			case <-s.ctx.Done():
-				return
-			default:
-			}
-
+		for s.ctx.Err() == nil {
 			select {
 			case <-s.ctx.Done():
 				return
 			case data := <-s.queue:
-				select {
-				case <-s.ctx.Done():
-					return
-				default:
+				if s.ctx.Err() == nil {
+					s.listener(s.ctx, data, nil)
 				}
-				s.listener(s.ctx, data, nil)
 			case <-s.dropSignal:
-				select {
-				case <-s.ctx.Done():
-					return
-				default:
+				if s.ctx.Err() == nil {
+					s.listener(s.ctx, nil, pubsub.ErrDroppedMessages)
 				}
-				s.listener(s.ctx, nil, pubsub.ErrDroppedMessages)
 			}
 		}
 	}()
@@ -507,12 +495,7 @@ func (s *localSub) enqueue(data []byte) {
 	select {
 	case <-s.ctx.Done():
 		return
-	default:
-	}
-
-	select {
 	case s.queue <- data:
-	case <-s.ctx.Done():
 	default:
 		s.signalDrop()
 	}
@@ -525,12 +508,7 @@ func (s *localSub) signalDrop() {
 	select {
 	case <-s.ctx.Done():
 		return
-	default:
-	}
-
-	select {
 	case s.dropSignal <- struct{}{}:
-	case <-s.ctx.Done():
 	default:
 	}
 }
