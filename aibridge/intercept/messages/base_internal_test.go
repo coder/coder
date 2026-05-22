@@ -1061,52 +1061,41 @@ func TestFilterBedrockBetaFlags(t *testing.T) {
 	}
 }
 
-func TestProcessKeyPoolError(t *testing.T) {
+func TestResponseErrorFromKeyPool(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name               string
-		err                error
-		expectedNil        bool
+		keyPoolErr         *keypool.Error
 		expectedStatus     int
 		expectedRetryAfter time.Duration
 	}{
 		{
-			// Transient with valid keys present: 429, no Retry-After.
-			name:               "transient_zero_retry_after",
-			err:                &keypool.TransientKeyPoolError{},
+			// Permanent: 502 api_error.
+			name:           "permanent_returns_502",
+			keyPoolErr:     &keypool.Error{Kind: keypool.ErrorKindPermanent},
+			expectedStatus: http.StatusBadGateway,
+		},
+		{
+			// Rate-limited with no cooldown: 429, no Retry-After.
+			name:               "rate_limited_zero_retry_after",
+			keyPoolErr:         &keypool.Error{Kind: keypool.ErrorKindRateLimited},
 			expectedStatus:     http.StatusTooManyRequests,
 			expectedRetryAfter: 0,
 		},
 		{
-			// Transient with cooldown: 429, Retry-After set.
-			name:               "transient_with_retry_after",
-			err:                &keypool.TransientKeyPoolError{RetryAfter: 5 * time.Second},
+			// Rate-limited with cooldown: 429, Retry-After set.
+			name:               "rate_limited_with_retry_after",
+			keyPoolErr:         &keypool.Error{Kind: keypool.ErrorKindRateLimited, RetryAfter: 5 * time.Second},
 			expectedStatus:     http.StatusTooManyRequests,
 			expectedRetryAfter: 5 * time.Second,
-		},
-		{
-			// Permanent: 502 api_error.
-			name:           "permanent_returns_502",
-			err:            keypool.ErrPermanentKeyPool,
-			expectedStatus: http.StatusBadGateway,
-		},
-		{
-			// Anything else: not a pool-exhaustion error.
-			name:        "non_pool_exhaustion_error_returns_nil",
-			err:         xerrors.New("some other error"),
-			expectedNil: true,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := ProcessKeyPoolError(tc.err)
-			if tc.expectedNil {
-				require.Nil(t, got)
-				return
-			}
+			got := ResponseErrorFromKeyPool(tc.keyPoolErr)
 			require.NotNil(t, got)
 			assert.Equal(t, tc.expectedStatus, got.StatusCode)
 			assert.Equal(t, tc.expectedRetryAfter, got.RetryAfter)
@@ -1165,8 +1154,8 @@ func TestMarkKeyOnError(t *testing.T) {
 			t.Parallel()
 			pool, err := keypool.New([]string{"key-0"}, quartz.NewMock(t))
 			require.NoError(t, err)
-			key, err := pool.Walker().Next()
-			require.NoError(t, err)
+			key, keyPoolErr := pool.Walker().Next()
+			require.Nil(t, keyPoolErr)
 
 			base := &interceptionBase{cfg: config.Anthropic{KeyPool: pool}, logger: slog.Make()}
 
@@ -1192,35 +1181,35 @@ func TestWriteUpstreamError(t *testing.T) {
 		{
 			// Standard error: status and JSON body written.
 			name:               "writes_status_and_body",
-			respErr:            newErrorResponse("upstream failed", "api_error", http.StatusBadGateway, 0),
+			respErr:            newResponseError("upstream failed", "api_error", http.StatusBadGateway, 0),
 			expectStatus:       http.StatusBadGateway,
 			expectBodyContains: `"upstream failed"`,
 		},
 		{
 			// Whole-second retryAfter: emitted as integer seconds.
 			name:             "retry_after_in_seconds",
-			respErr:          newErrorResponse("rate limited", "rate_limit_error", http.StatusTooManyRequests, 60*time.Second),
+			respErr:          newResponseError("rate limited", "rate_limit_error", http.StatusTooManyRequests, 60*time.Second),
 			expectStatus:     http.StatusTooManyRequests,
 			expectRetryAfter: "60",
 		},
 		{
 			// 500ms rounds up to Retry-After: 1.
 			name:             "retry_after_500ms_rounds_up_to_one",
-			respErr:          newErrorResponse("rate limited", "rate_limit_error", http.StatusTooManyRequests, 500*time.Millisecond),
+			respErr:          newResponseError("rate limited", "rate_limit_error", http.StatusTooManyRequests, 500*time.Millisecond),
 			expectStatus:     http.StatusTooManyRequests,
 			expectRetryAfter: "1",
 		},
 		{
 			// 200ms rounds up to Retry-After: 1.
 			name:             "retry_after_200ms_rounds_up_to_one",
-			respErr:          newErrorResponse("rate limited", "rate_limit_error", http.StatusTooManyRequests, 200*time.Millisecond),
+			respErr:          newResponseError("rate limited", "rate_limit_error", http.StatusTooManyRequests, 200*time.Millisecond),
 			expectStatus:     http.StatusTooManyRequests,
 			expectRetryAfter: "1",
 		},
 		{
 			// Negative retryAfter: header omitted.
 			name:             "negative_retry_after_omits_header",
-			respErr:          newErrorResponse("rate limited", "rate_limit_error", http.StatusTooManyRequests, -1*time.Second),
+			respErr:          newResponseError("rate limited", "rate_limit_error", http.StatusTooManyRequests, -1*time.Second),
 			expectStatus:     http.StatusTooManyRequests,
 			expectRetryAfter: "",
 		},

@@ -1,7 +1,6 @@
 package provider
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -221,20 +220,18 @@ func (p *OpenAI) InjectAuthHeader(headers *http.Header) {
 }
 
 func (p *OpenAI) KeyFailoverConfig(logger slog.Logger) keypool.KeyFailoverConfig {
-	name := p.Name()
 	return keypool.KeyFailoverConfig{
-		Pool: p.cfg.KeyPool,
+		Pool:         p.cfg.KeyPool,
+		ProviderName: p.Name(),
+		Logger:       logger,
 		IsBYOK: func(r *http.Request) bool {
 			return r.Header.Get("Authorization") != ""
 		},
 		InjectAuthKey: func(h *http.Header, key string) {
 			h.Set("Authorization", "Bearer "+key)
 		},
-		MarkKey: func(ctx context.Context, key *keypool.Key, resp *http.Response) bool {
-			return keypool.MarkKeyOnStatus(ctx, key, resp, logger, name)
-		},
-		BuildExhaustedResponse: func(err error) *http.Response {
-			return chatcompletions.ProcessKeyPoolError(err).ToResponse()
+		BuildKeyPoolResponse: func(keyPoolErr *keypool.Error) *http.Response {
+			return intercept.ResponseErrorFromKeyPool(keyPoolErr).ToResponse()
 		},
 	}
 }
