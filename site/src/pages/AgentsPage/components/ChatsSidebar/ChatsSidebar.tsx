@@ -103,7 +103,7 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 	const [chatPendingRename, setChatPendingRename] = useState<Chat | null>(null);
 
 	return (
-		<div className="relative flex h-full w-full min-h-0 border-0 border-r border-solid overflow-hidden">
+		<div className="relative flex size-full min-h-0 border-0 border-r border-solid overflow-hidden">
 			<ChatsPanel
 				chats={chats}
 				chatErrorReasons={chatErrorReasons}

@@ -54,9 +54,9 @@ const MCPIcon: FC<{ iconUrl: string; name: string; className?: string }> = ({
 	className,
 }) => {
 	const icon = iconUrl ? (
-		<ExternalImage src={iconUrl} alt={`${name} icon`} className="h-3/5 w-3/5" />
+		<ExternalImage src={iconUrl} alt={`${name} icon`} className="size-3/5" />
 	) : (
-		<ServerIcon className="h-3/5 w-3/5 text-content-secondary" />
+		<ServerIcon className="size-3/5 text-content-secondary" />
 	);
 
 	return (
@@ -162,12 +162,12 @@ const TriggerIconStack: FC<{
 					<MCPIcon
 						iconUrl={s.icon_url}
 						name={s.display_name}
-						className="h-4 w-4"
+						className="size-4"
 					/>
 				</span>
 			))}
 			{servers.length > ICON_STACK_MAX && (
-				<span className="-ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-surface-secondary text-[9px] font-medium text-content-secondary ring-1 ring-surface-primary">
+				<span className="-ml-1 inline-flex size-4 items-center justify-center rounded-full bg-surface-secondary text-[9px] font-medium text-content-secondary ring-1 ring-surface-primary">
 					+{servers.length - ICON_STACK_MAX}
 				</span>
 			)}
@@ -273,7 +273,7 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 					{activeServers.length > 0 && (
 						<TriggerIconStack servers={activeServers} />
 					)}
-					<ChevronDownIcon className="ml-auto h-3.5 w-3.5 text-content-secondary transition-colors group-hover:text-content-primary" />
+					<ChevronDownIcon className="ml-auto size-3.5 text-content-secondary transition-colors group-hover:text-content-primary" />
 				</button>
 			</PopoverTrigger>
 			<PopoverContent align="start" className="w-52 p-0">
@@ -294,13 +294,13 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 											<MCPIcon
 												iconUrl={server.icon_url}
 												name={server.display_name}
-												className="h-5 w-5"
+												className="size-5"
 											/>
 											<span className="min-w-0 flex-1 truncate text-xs text-content-primary">
 												{server.display_name}
 											</span>
 											{isForceOn && (
-												<LockIcon className="h-3 w-3 shrink-0 text-content-secondary" />
+												<LockIcon className="size-3 shrink-0 text-content-secondary" />
 											)}
 											{needsAuth ? (
 												<Button

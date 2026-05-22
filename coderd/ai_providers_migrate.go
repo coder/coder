@@ -15,7 +15,6 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge"
 	aibridgeutils "github.com/coder/coder/v2/aibridge/utils"
-	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -45,7 +44,6 @@ func SeedAIProvidersFromEnv(
 	ctx context.Context,
 	db database.Store,
 	cfg codersdk.AIBridgeConfig,
-	auditor audit.Auditor,
 	logger slog.Logger,
 ) error {
 	desired, err := providersFromEnv(ctx, cfg, logger)
@@ -178,25 +176,19 @@ func SeedAIProvidersFromEnv(
 	}
 
 	for _, row := range insertedProviders {
-		audit.BackgroundAudit(sysCtx, &audit.BackgroundAuditParams[database.AIProvider]{
-			Audit:  auditor,
-			Log:    logger,
-			Action: database.AuditActionCreate,
-			New:    row,
-		})
+		logger.Info(sysCtx, "env-seeded ai provider",
+			slog.F("provider_id", row.ID),
+			slog.F("name", row.Name),
+			slog.F("type", row.Type),
+			slog.F("base_url", row.BaseUrl),
+		)
 	}
 	for _, keyRow := range insertedKeys {
-		// Mask the plaintext key before it enters the audit pipeline;
-		// the audit policy on api_key relies on the masked rendering
-		// so plaintext never reaches a backend.
-		auditRow := keyRow
-		auditRow.APIKey = aibridgeutils.MaskSecret(auditRow.APIKey)
-		audit.BackgroundAudit(sysCtx, &audit.BackgroundAuditParams[database.AIProviderKey]{
-			Audit:  auditor,
-			Log:    logger,
-			Action: database.AuditActionCreate,
-			New:    auditRow,
-		})
+		logger.Info(sysCtx, "env-seeded ai provider key",
+			slog.F("key_id", keyRow.ID),
+			slog.F("provider_id", keyRow.ProviderID),
+			slog.F("api_key", aibridgeutils.MaskSecret(keyRow.APIKey)),
+		)
 	}
 	return nil
 }

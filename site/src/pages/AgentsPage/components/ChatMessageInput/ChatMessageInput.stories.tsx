@@ -220,6 +220,21 @@ export const OutsideClickClosesWithoutReplacing: Story = {
 	},
 };
 
+export const OutsideClickDismissesTriggerOnRefocus: Story = {
+	play: async ({ canvasElement }) => {
+		const editor = await typeInEditor(canvasElement, "/");
+		await findVisibleText("/reviewer");
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Outside target" }),
+		);
+		await expectNoVisibleText("/reviewer");
+		await userEvent.click(editor);
+		await expectNoVisibleText("/reviewer");
+		expect(editor.textContent).toBe("/");
+	},
+};
+
 // Stories below verify that on mobile viewports, the personal skills
 // popup sits directly above the chat input rather than being clipped
 // above the visible viewport.

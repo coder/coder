@@ -959,7 +959,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 				{isEditingHistoryMessage && editingQueuedMessageID === null && (
 					<div className="flex items-center justify-between border-b border-border-warning/50 px-3 py-1.5">
 						<span className="flex items-center gap-1.5 text-xs font-medium text-content-warning">
-							<PencilIcon className="h-3.5 w-3.5" />
+							<PencilIcon className="size-3.5" />
 							Editing will delete all subsequent messages and restart the
 							conversation here.
 						</span>
@@ -972,7 +972,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 							disabled={isLoading}
 							className="size-6 rounded text-content-warning hover:text-content-primary"
 						>
-							<XIcon className="h-3.5 w-3.5" />
+							<XIcon className="size-3.5" />
 						</Button>
 					</div>
 				)}
@@ -1212,7 +1212,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 																	}
 																>
 																	{isConnecting ? (
-																		<Spinner loading className="size-2.5" />
+																		<Spinner loading className="h-2.5 w-2.5" />
 																	) : null}
 																	Auth
 																</Button>

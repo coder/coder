@@ -500,13 +500,13 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 									aria-live="polite"
 									className="flex shrink-0 items-center gap-2 border-b border-border-warning bg-surface-orange px-4 py-2 text-xs text-content-primary"
 								>
-									<TriangleAlertIcon className="h-4 w-4 shrink-0 text-content-warning" />
+									<TriangleAlertIcon className="size-4 shrink-0 text-content-warning" />
 									{chatOwnerWarning}
 								</div>
 							)}
 							{isArchived && (
 								<div className="flex shrink-0 items-center gap-2 border-b border-border-default bg-surface-secondary px-4 py-2 text-xs text-content-secondary">
-									<ArchiveIcon className="h-4 w-4 shrink-0" />
+									<ArchiveIcon className="size-4 shrink-0" />
 									This agent has been archived and is read-only.
 								</div>
 							)}

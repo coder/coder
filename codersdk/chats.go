@@ -259,8 +259,9 @@ type ChatMessagePart struct {
 	// ParsedCommands holds parsed programs from an execute tool call's
 	// shell command, one entry per simple command in source order. Each
 	// entry is [program] or [program, arg] where arg is the first non-flag
-	// positional argument. Only populated when ToolName is "execute" and
-	// the command parses successfully; nil otherwise.
+	// positional argument. Program names are normalized to their base
+	// name (e.g. /usr/bin/go becomes go). Only populated when ToolName
+	// is "execute" and the command parses successfully; nil otherwise.
 	ParsedCommands [][]string      `json:"parsed_commands,omitempty" variants:"tool-call?"`
 	Result         json.RawMessage `json:"result,omitempty" variants:"tool-result?"`
 	ResultDelta    string          `json:"result_delta,omitempty" variants:"tool-result?"`

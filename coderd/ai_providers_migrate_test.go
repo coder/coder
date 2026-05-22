@@ -1,14 +1,15 @@
 package coderd_test
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd"
-	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/codersdk"
@@ -23,17 +24,14 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
-		auditor := audit.NewMock()
-		err := coderd.SeedAIProvidersFromEnv(ctx, db, codersdk.AIBridgeConfig{}, auditor, testLogger(t))
+		err := coderd.SeedAIProvidersFromEnv(ctx, db, codersdk.AIBridgeConfig{}, testLogger(t))
 		require.NoError(t, err)
-		require.Empty(t, auditor.AuditLogs())
 	})
 
 	t.Run("LegacyOpenAI", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
-		auditor := audit.NewMock()
 
 		cfg := codersdk.AIBridgeConfig{
 			LegacyOpenAI: codersdk.AIBridgeOpenAIConfig{
@@ -41,7 +39,8 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 				Key:     serpent.String("sk-legacy"),
 			},
 		}
-		err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, auditor, testLogger(t))
+		var firstSeedLogs bytes.Buffer
+		err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, capturedLogger(&firstSeedLogs))
 		require.NoError(t, err)
 
 		// One row exists for "openai".
@@ -57,16 +56,18 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		require.Len(t, keys, 1)
 		require.Equal(t, "sk-legacy", keys[0].APIKey)
 
-		// The first seed must have emitted audit entries for the new
-		// provider row and the key row.
-		require.GreaterOrEqual(t, len(auditor.AuditLogs()), 2)
+		// The seed emits one info line per inserted provider and one per
+		// inserted key, replacing the audit entries that used to record
+		// the same events.
+		require.Contains(t, firstSeedLogs.String(), "env-seeded ai provider")
+		require.Contains(t, firstSeedLogs.String(), "env-seeded ai provider key")
 
-		// Re-running with the same config is a no-op (no errors, no
-		// new audit logs because the row matches).
-		auditor.ResetLogs()
-		err = coderd.SeedAIProvidersFromEnv(ctx, db, cfg, auditor, testLogger(t))
+		// Re-running with the same config is a no-op and emits no new
+		// env-seed log lines.
+		var rerunLogs bytes.Buffer
+		err = coderd.SeedAIProvidersFromEnv(ctx, db, cfg, capturedLogger(&rerunLogs))
 		require.NoError(t, err)
-		require.Empty(t, auditor.AuditLogs())
+		require.NotContains(t, rerunLogs.String(), "env-seeded ai provider")
 
 		// Verify there's still only one row and one key.
 		all, err := db.GetAIProviders(ctx, database.GetAIProvidersParams{})
@@ -81,7 +82,6 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
-		auditor := audit.NewMock()
 
 		cfg := codersdk.AIBridgeConfig{
 			LegacyOpenAI: codersdk.AIBridgeOpenAIConfig{
@@ -89,18 +89,18 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 				Key:     serpent.String("sk-original"),
 			},
 		}
-		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, auditor, testLogger(t)))
+		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
 
 		// Changing the API key alone does NOT count as drift: keys
 		// live in a separate table and operators rotate them via the
 		// API. Only changes to non-credential provider-level fields
 		// (base_url, type, Bedrock region/model) trip the drift check.
 		cfg.LegacyOpenAI.Key = serpent.String("sk-rotated")
-		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, auditor, testLogger(t)))
+		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
 
 		// Changing the base URL is real drift.
 		cfg.LegacyOpenAI.BaseURL = serpent.String("https://api.openai.com/v2")
-		err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, auditor, testLogger(t))
+		err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "differs from the current environment configuration")
 	})
@@ -109,7 +109,6 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
-		auditor := audit.NewMock()
 
 		cfg := codersdk.AIBridgeConfig{
 			LegacyBedrock: codersdk.AIBridgeBedrockConfig{
@@ -119,19 +118,19 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 				Model:           serpent.String("anthropic.claude-3-5-sonnet"),
 			},
 		}
-		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, auditor, testLogger(t)))
+		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
 
 		// Rotating the Bedrock access key and secret in env must NOT
 		// trip the drift check: they're credentials, equivalent to
 		// bearer API keys, and operators rotate them via the API.
 		cfg.LegacyBedrock.AccessKey = serpent.String("AKIA-rotated")
 		cfg.LegacyBedrock.AccessKeySecret = serpent.String("secret-rotated")
-		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, auditor, testLogger(t)))
+		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
 
 		// Changing the Bedrock region (a non-credential field) is
 		// real drift.
 		cfg.LegacyBedrock.Region = serpent.String("us-west-2")
-		err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, auditor, testLogger(t))
+		err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "differs from the current environment configuration")
 	})
@@ -140,7 +139,6 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
-		auditor := audit.NewMock()
 
 		// Bedrock fields without an Anthropic key produce a Bedrock-
 		// authenticated Anthropic provider with no bearer keys.
@@ -153,7 +151,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 				SmallFastModel:  serpent.String("anthropic.claude-3-5-haiku"),
 			},
 		}
-		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, auditor, testLogger(t)))
+		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
 
 		row, err := db.GetAIProviderByName(ctx, "anthropic")
 		require.NoError(t, err)
@@ -172,7 +170,6 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
-		auditor := audit.NewMock()
 
 		// LegacyBedrock.Model and LegacyBedrock.SmallFastModel both
 		// have serpent-level defaults that are always populated in a
@@ -189,7 +186,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 
 		cfg := dv.AI.BridgeConfig
 		cfg.LegacyAnthropic.Key = serpent.String("sk-ant-only")
-		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, auditor, testLogger(t)))
+		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
 
 		row, err := db.GetAIProviderByName(ctx, "anthropic")
 		require.NoError(t, err)
@@ -204,7 +201,6 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
-		auditor := audit.NewMock()
 
 		// Any non-empty Bedrock field signals Bedrock auth. AWS
 		// credentials are optional because Bedrock can authenticate
@@ -215,7 +211,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 				Model:  serpent.String("anthropic.claude-3-5-sonnet"),
 			},
 		}
-		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, auditor, testLogger(t)))
+		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
 
 		row, err := db.GetAIProviderByName(ctx, "anthropic")
 		require.NoError(t, err)
@@ -231,7 +227,6 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
-		auditor := audit.NewMock()
 
 		cfg := codersdk.AIBridgeConfig{
 			LegacyBedrock: codersdk.AIBridgeBedrockConfig{
@@ -241,7 +236,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 				Model:           serpent.String("anthropic.claude-3-5-sonnet"),
 			},
 		}
-		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, auditor, testLogger(t)))
+		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
 		row, err := db.GetAIProviderByName(ctx, "anthropic")
 		require.NoError(t, err)
 		require.Contains(t, row.Settings.String, "us-east-1")
@@ -258,7 +253,6 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
-		auditor := audit.NewMock()
 
 		cfg := codersdk.AIBridgeConfig{
 			Providers: []codersdk.AIProviderConfig{
@@ -276,7 +270,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 				},
 			},
 		}
-		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, auditor, testLogger(t)))
+		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
 
 		oa, err := db.GetAIProviderByName(ctx, "primary-openai")
 		require.NoError(t, err)
@@ -303,7 +297,6 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
-		auditor := audit.NewMock()
 
 		cfg := codersdk.AIBridgeConfig{
 			Providers: []codersdk.AIProviderConfig{
@@ -318,7 +311,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 				},
 			},
 		}
-		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, auditor, testLogger(t)))
+		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
 
 		row, err := db.GetAIProviderByName(ctx, "bedrock-anthropic")
 		require.NoError(t, err)
@@ -334,7 +327,6 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
-		auditor := audit.NewMock()
 
 		cfg := codersdk.AIBridgeConfig{
 			LegacyOpenAI: codersdk.AIBridgeOpenAIConfig{
@@ -350,7 +342,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 				},
 			},
 		}
-		err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, auditor, testLogger(t))
+		err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "conflicts")
 	})
@@ -359,7 +351,6 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
-		auditor := audit.NewMock()
 
 		cfg := codersdk.AIBridgeConfig{
 			Providers: []codersdk.AIProviderConfig{
@@ -370,7 +361,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 				},
 			},
 		}
-		err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, auditor, testLogger(t))
+		err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "invalid AI provider name")
 	})
@@ -379,7 +370,6 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
-		auditor := audit.NewMock()
 
 		cfg := codersdk.AIBridgeConfig{
 			Providers: []codersdk.AIProviderConfig{
@@ -396,7 +386,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 				},
 			},
 		}
-		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, auditor, testLogger(t)))
+		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
 
 		all, err := db.GetAIProviders(ctx, database.GetAIProvidersParams{})
 		require.NoError(t, err)
@@ -408,7 +398,6 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
-		auditor := audit.NewMock()
 
 		cfg := codersdk.AIBridgeConfig{
 			LegacyOpenAI: codersdk.AIBridgeOpenAIConfig{
@@ -416,7 +405,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 				Key:     serpent.String("sk-original"),
 			},
 		}
-		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, auditor, testLogger(t)))
+		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
 
 		row, err := db.GetAIProviderByName(ctx, "openai")
 		require.NoError(t, err)
@@ -424,7 +413,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 
 		// Re-run seed; the soft-deleted row should remain soft-deleted
 		// and no new row should be created.
-		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, auditor, testLogger(t)))
+		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
 
 		all, err := db.GetAIProviders(ctx, database.GetAIProvidersParams{})
 		require.NoError(t, err)
@@ -435,7 +424,6 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
-		auditor := audit.NewMock()
 
 		cfg := codersdk.AIBridgeConfig{
 			LegacyOpenAI: codersdk.AIBridgeOpenAIConfig{
@@ -443,7 +431,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 				Key:     serpent.String("sk-original"),
 			},
 		}
-		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, auditor, testLogger(t)))
+		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
 
 		row, err := db.GetAIProviderByName(ctx, "openai")
 		require.NoError(t, err)
@@ -452,7 +440,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		// keys on a row that already exists; the new key is only
 		// installed via the API/CRUD layer in this flow.
 		cfg.LegacyOpenAI.Key = serpent.String("sk-rotated")
-		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, auditor, testLogger(t)))
+		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
 
 		keys, err := db.GetAIProviderKeysByProviderID(ctx, row.ID)
 		require.NoError(t, err)
@@ -464,7 +452,6 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
-		auditor := audit.NewMock()
 
 		// Two entries under the same name with identical canonical
 		// fields are deduplicated silently.
@@ -484,7 +471,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 				},
 			},
 		}
-		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, auditor, testLogger(t)))
+		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
 
 		all, err := db.GetAIProviders(ctx, database.GetAIProvidersParams{})
 		require.NoError(t, err)
@@ -495,7 +482,6 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
-		auditor := audit.NewMock()
 
 		// Same name, different canonical fields: must be rejected.
 		cfg := codersdk.AIBridgeConfig{
@@ -514,7 +500,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 				},
 			},
 		}
-		err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, auditor, testLogger(t))
+		err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "conflicting fields")
 	})
@@ -523,4 +509,10 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 func testLogger(t *testing.T) slog.Logger {
 	t.Helper()
 	return slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+}
+
+// capturedLogger returns a logger that writes structured records to buf,
+// for tests that assert on log output instead of audit-table emissions.
+func capturedLogger(buf *bytes.Buffer) slog.Logger {
+	return slog.Make(sloghuman.Sink(buf)).Leveled(slog.LevelDebug)
 }

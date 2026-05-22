@@ -28,7 +28,7 @@ export const ChatSearchInput: FC<ChatSearchInputProps> = ({
 }) => {
 	return (
 		<div className="relative min-w-0">
-			<SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-content-secondary" />
+			<SearchIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-content-secondary" />
 			<Input
 				ref={inputRef}
 				value={value}

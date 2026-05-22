@@ -11,6 +11,7 @@ import (
 	"storj.io/drpc/drpcserver"
 
 	"cdr.dev/slog/v3"
+	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	aibridgedproto "github.com/coder/coder/v2/coderd/aibridged/proto"
 	"github.com/coder/coder/v2/coderd/aibridgedserver"
@@ -30,12 +31,22 @@ func (api *API) GetAIBridgedHandler() http.Handler {
 // RegisterInMemoryAIBridgedHTTPHandler mounts [aibridged.Server]'s HTTP router onto
 // [API]'s router, so that requests to aibridged will be relayed from Coder's API server
 // to the in-memory aibridged.
+//
+// This also registers an in-process [agplaibridge.TransportFactory] so that
+// chatd can route coder-agent LLM traffic through aibridge without crossing
+// the HTTP route. No license entitlement gate is applied at the factory layer:
+// the entitlement check stays on the HTTP route for external callers, while
+// in-process coder-agent traffic is the explicit carve-out.
 func (api *API) RegisterInMemoryAIBridgedHTTPHandler(srv http.Handler) {
 	if srv == nil {
 		panic("aibridged cannot be nil")
 	}
 
 	api.aibridgedHandler = srv
+
+	factory := aibridged.NewTransportFactory(srv)
+	var asInterface agplaibridge.TransportFactory = factory
+	api.AIBridgeTransportFactory.Store(&asInterface)
 }
 
 // CreateInMemoryAIBridgeServer creates a [aibridged.DRPCServer] and returns a
