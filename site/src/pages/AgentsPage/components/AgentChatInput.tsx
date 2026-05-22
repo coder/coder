@@ -543,19 +543,47 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	);
 	useEffect(() => {
 		if (!composerElement) return;
+		// Read geometry from the visual viewport when available so
+		// popup positions track the actual visible area on mobile.
+		// `window.innerHeight` reports the layout viewport, which
+		// does not shrink when the soft keyboard opens on iOS Safari
+		// and some webviews. `getBoundingClientRect()` returns
+		// coordinates in the visual viewport, so mixing the two
+		// would overestimate the bottom offset and push popups
+		// off-screen above the keyboard.
+		const viewport = window.visualViewport;
 		const update = () => {
 			const rect = composerElement.getBoundingClientRect();
-			const bottom = Math.max(0, window.innerHeight - rect.bottom);
+			const viewportHeight = viewport?.height ?? window.innerHeight;
+			const bottom = Math.max(0, viewportHeight - rect.bottom);
+			// Distance from the viewport bottom to a point just above
+			// the composer's top edge, with a small gap so dropdowns
+			// anchored "above the composer" sit slightly above the
+			// composer rather than touching it.
+			const aboveComposerBottom = Math.max(0, viewportHeight - rect.top + 8);
+			// Maximum height the above-composer popup can grow to
+			// without extending past the top of the visible viewport.
+			// Computed from the composer's top edge in visual-viewport
+			// coordinates so it stays consistent with
+			// `aboveComposerBottom` regardless of the keyboard state.
+			const aboveComposerMaxHeight = Math.max(0, rect.top - 16);
 			document.documentElement.style.setProperty(
 				"--mobile-dropdown-bottom",
 				`${bottom}px`,
+			);
+			document.documentElement.style.setProperty(
+				"--mobile-dropdown-above-composer-bottom",
+				`${aboveComposerBottom}px`,
+			);
+			document.documentElement.style.setProperty(
+				"--mobile-dropdown-above-composer-max-height",
+				`${aboveComposerMaxHeight}px`,
 			);
 		};
 		update();
 		const ro = new ResizeObserver(update);
 		ro.observe(composerElement);
 		window.addEventListener("resize", update);
-		const viewport = window.visualViewport;
 		viewport?.addEventListener("resize", update);
 		viewport?.addEventListener("scroll", update);
 		return () => {
@@ -564,6 +592,12 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			viewport?.removeEventListener("resize", update);
 			viewport?.removeEventListener("scroll", update);
 			document.documentElement.style.removeProperty("--mobile-dropdown-bottom");
+			document.documentElement.style.removeProperty(
+				"--mobile-dropdown-above-composer-bottom",
+			);
+			document.documentElement.style.removeProperty(
+				"--mobile-dropdown-above-composer-max-height",
+			);
 		};
 	}, [composerElement]);
 

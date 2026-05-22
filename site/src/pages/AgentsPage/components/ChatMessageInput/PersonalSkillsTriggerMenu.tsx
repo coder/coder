@@ -83,7 +83,7 @@ export const PersonalSkillsTriggerMenu = ({
 			<PopoverContent
 				align="start"
 				side="bottom"
-				className="w-80 p-1"
+				className="w-80 p-1 mobile-full-width-dropdown mobile-full-width-dropdown-above-composer"
 				onMouseDown={(event) => event.preventDefault()}
 				onOpenAutoFocus={(event) => event.preventDefault()}
 				onCloseAutoFocus={(event) => event.preventDefault()}

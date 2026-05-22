@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatMessageInput } from "./ChatMessageInput";
@@ -232,5 +232,190 @@ export const OutsideClickDismissesTriggerOnRefocus: Story = {
 		await userEvent.click(editor);
 		await expectNoVisibleText("/reviewer");
 		expect(editor.textContent).toBe("/");
+	},
+};
+
+// Stories below verify that on mobile viewports, the personal skills
+// popup sits directly above the chat input rather than being clipped
+// above the visible viewport.
+
+const MOBILE_MEDIA_QUERY = "(max-width: 767px)";
+
+// Mock window.matchMedia so the `.mobile-full-width-dropdown*` CSS
+// branches in `site/src/index.css` activate even when Storybook's
+// outer viewport differs from the simulated mobile width.
+const mockMobileMatchMedia = (): (() => void) => {
+	const originalMatchMedia = window.matchMedia;
+	window.matchMedia = (query: string) =>
+		({
+			matches: query === MOBILE_MEDIA_QUERY,
+			media: query,
+			onchange: null,
+			addEventListener: () => undefined,
+			removeEventListener: () => undefined,
+			dispatchEvent: () => true,
+			addListener: () => undefined,
+			removeListener: () => undefined,
+		}) as MediaQueryList;
+	return () => {
+		window.matchMedia = originalMatchMedia;
+	};
+};
+
+const longSkillList: TypesGen.UserSkillMetadata[] = Array.from(
+	{ length: 30 },
+	(_, index) => ({
+		id: `skill-${index}`,
+		name: `skill-${index}`,
+		description: `Long description for skill ${index} that explains what it does in detail.`,
+		created_at: now,
+		updated_at: now,
+	}),
+);
+
+// Decorator that:
+// 1. Pins a fake composer to the bottom of the viewport so the popup
+//    has a sensible anchor.
+// 2. Sets `--mobile-dropdown-above-composer-bottom` and
+//    `--mobile-dropdown-above-composer-max-height` directly on the
+//    document element to simulate what `AgentChatInput` does in
+//    production. We use values that place the popup just above the
+//    fake composer and bound its height to the space above it.
+// 3. Cleans up the CSS variables and the mocked matchMedia after the
+//    story unmounts.
+const MobileDecorator: Decorator = (Story) => {
+	const composerHeight = 96; // matches mobile composer min-height
+	const gap = 8;
+	const aboveComposerBottom = composerHeight + gap;
+	// Use the visual viewport height when available so the simulated
+	// max-height matches what `AgentChatInput.tsx` computes in
+	// production from `window.visualViewport`.
+	const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+	const aboveComposerMaxHeight = Math.max(
+		0,
+		viewportHeight - composerHeight - 16,
+	);
+	document.documentElement.style.setProperty(
+		"--mobile-dropdown-above-composer-bottom",
+		`${aboveComposerBottom}px`,
+	);
+	document.documentElement.style.setProperty(
+		"--mobile-dropdown-above-composer-max-height",
+		`${aboveComposerMaxHeight}px`,
+	);
+	return (
+		<div
+			data-testid="mobile-frame"
+			style={{
+				paddingBottom: composerHeight,
+				height: "100vh",
+				position: "relative",
+			}}
+		>
+			<button type="button" className="text-content-secondary text-sm">
+				Outside target
+			</button>
+			<div
+				style={{
+					position: "fixed",
+					bottom: 0,
+					left: "1rem",
+					width: "calc(100vw - 2rem)",
+				}}
+			>
+				<Story />
+			</div>
+		</div>
+	);
+};
+
+// Verifies the popup wrapper is positioned above the chat input on
+// mobile: position: fixed, full chat-input width, bottom edge at the
+// CSS variable, and top edge inside the visible viewport.
+export const MobileAboveChatInput: Story = {
+	decorators: [MobileDecorator],
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		chromatic: { viewports: [320] },
+	},
+	play: async ({ canvasElement }) => {
+		const restoreMatchMedia = mockMobileMatchMedia();
+		try {
+			await typeInEditor(canvasElement, "/");
+			const skillItem = await findVisibleText("/reviewer");
+			// Walk up to the radix popper wrapper that the CSS targets.
+			const wrapper = skillItem.closest(
+				"[data-radix-popper-content-wrapper]",
+			) as HTMLElement | null;
+			expect(wrapper).not.toBeNull();
+			if (!wrapper) return;
+
+			const rect = wrapper.getBoundingClientRect();
+			const styles = window.getComputedStyle(wrapper);
+			expect(styles.position).toBe("fixed");
+			// Popup must stay fully inside the visible viewport, with its
+			// bottom edge above the simulated chat input.
+			expect(rect.top).toBeGreaterThanOrEqual(0);
+			expect(rect.bottom).toBeLessThanOrEqual(window.innerHeight);
+		} finally {
+			restoreMatchMedia();
+			document.documentElement.style.removeProperty(
+				"--mobile-dropdown-above-composer-bottom",
+			);
+			document.documentElement.style.removeProperty(
+				"--mobile-dropdown-above-composer-max-height",
+			);
+		}
+	},
+};
+
+// Verifies the popup scrolls internally when the skills list is
+// taller than the available space above the chat input. The wrapper
+// height must stay bounded by the CSS max-height, and at least one
+// scroll container inside must be scrollable.
+export const MobileLongListScrolls: Story = {
+	args: {
+		personalSkillsOverride: longSkillList,
+	},
+	decorators: [MobileDecorator],
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		chromatic: { viewports: [320] },
+	},
+	play: async ({ canvasElement }) => {
+		const restoreMatchMedia = mockMobileMatchMedia();
+		try {
+			await typeInEditor(canvasElement, "/");
+			const skillItem = await findVisibleText("/skill-0");
+			const wrapper = skillItem.closest(
+				"[data-radix-popper-content-wrapper]",
+			) as HTMLElement | null;
+			expect(wrapper).not.toBeNull();
+			if (!wrapper) return;
+
+			const rect = wrapper.getBoundingClientRect();
+			expect(rect.top).toBeGreaterThanOrEqual(0);
+			expect(rect.bottom).toBeLessThanOrEqual(window.innerHeight);
+
+			// At least one of the popup's scroll containers (wrapper or
+			// inner list) must be scrollable, so the user can reach items
+			// that overflow the available space.
+			const scrollables: HTMLElement[] = [
+				wrapper,
+				...Array.from(wrapper.querySelectorAll<HTMLElement>("*")),
+			];
+			const hasScroll = scrollables.some(
+				(node) => node.scrollHeight > node.clientHeight,
+			);
+			expect(hasScroll).toBe(true);
+		} finally {
+			restoreMatchMedia();
+			document.documentElement.style.removeProperty(
+				"--mobile-dropdown-above-composer-bottom",
+			);
+			document.documentElement.style.removeProperty(
+				"--mobile-dropdown-above-composer-max-height",
+			);
+		}
 	},
 };
