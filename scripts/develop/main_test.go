@@ -917,6 +917,7 @@ func TestLoadEnvFile(t *testing.T) {
 	})
 }
 
+//nolint:paralleltest // parseEnvFileFlag mutates process-global os.Args.
 func TestParseEnvFileFlag(t *testing.T) {
 	t.Run("FlagWithSpace", func(t *testing.T) {
 		orig := os.Args
