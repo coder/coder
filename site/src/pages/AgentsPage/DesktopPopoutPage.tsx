@@ -4,16 +4,13 @@ import { useParams } from "react-router";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { DesktopToolbar } from "./components/RightPanel/DesktopToolbar";
-import { CHANNEL_PREFIX, type ScaleMode } from "./desktopConstants";
+import {
+	CHANNEL_PREFIX,
+	type DesktopConnectionStatus,
+	type ScaleMode,
+} from "./desktopConstants";
 import { useDesktopConnection } from "./hooks/useDesktopConnection";
 import { useZoomShortcuts } from "./hooks/useZoomShortcuts";
-
-type DesktopConnectionStatus =
-	| "idle"
-	| "connecting"
-	| "connected"
-	| "disconnected"
-	| "error";
 
 export default function DesktopPopoutPage() {
 	const { agentId } = useParams() as { agentId: string };

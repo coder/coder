@@ -12,12 +12,7 @@ interface UseDesktopConnectionOptions {
 	scaleViewport?: boolean;
 }
 
-type DesktopConnectionStatus =
-	| "idle"
-	| "connecting"
-	| "connected"
-	| "disconnected"
-	| "error";
+import type { DesktopConnectionStatus } from "../desktopConstants";
 
 export interface UseDesktopConnectionResult {
 	/** Current connection status. */

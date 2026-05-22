@@ -4,17 +4,14 @@ import { useEffect, useState } from "react";
 
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { CHANNEL_PREFIX, type ScaleMode } from "../../desktopConstants";
+import {
+	CHANNEL_PREFIX,
+	type DesktopConnectionStatus,
+	type ScaleMode,
+} from "../../desktopConstants";
 import { useDesktopConnection } from "../../hooks/useDesktopConnection";
 import { useZoomShortcuts } from "../../hooks/useZoomShortcuts";
 import { DesktopToolbar } from "./DesktopToolbar";
-
-type DesktopConnectionStatus =
-	| "idle"
-	| "connecting"
-	| "connected"
-	| "disconnected"
-	| "error";
 
 interface DesktopPanelProps {
 	chatId: string;
