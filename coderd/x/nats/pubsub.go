@@ -28,11 +28,11 @@ var errClosed = xerrors.New("nats pubsub: closed")
 type PendingLimits struct {
 	// Msgs is the per-subscription pending message limit. Positive
 	// values also set each local listener queue capacity.
-	// Zero keeps the NATS client default. Negative disables this limit.
+	// Zero uses the package default. Negative disables this limit.
 	Msgs int
 
 	// Bytes is the per-subscription pending byte limit.
-	// Zero keeps the NATS client default. Negative disables this limit.
+	// Zero uses the package default. Negative disables this limit.
 	Bytes int
 }
 
@@ -46,13 +46,9 @@ type Options struct {
 	// the nats-server default (64 MiB).
 	MaxPending int64
 
-	// DrainTimeout configures the NATS client drain timeout. Close does
-	// not drain connections.
-	DrainTimeout time.Duration
-
 	// PendingLimits configures per-subscription NATS pending limits.
 	// Positive Msgs also sets local listener queue capacity.
-	// If both fields are zero, New defaults to {Msgs: -1, Bytes: 512 MiB}.
+	// Zero fields use package defaults: Msgs -1 and Bytes 512 MiB.
 	PendingLimits PendingLimits
 
 	// ReconnectWait controls client reconnect delay. Zero keeps the
@@ -145,8 +141,7 @@ type localSub struct {
 	// notifications from local overflow and NATS slow-consumer
 	// broadcasts onto a single pending wake.
 	dropSignal chan struct{}
-	// stop is closed by close to signal the dispatcher goroutine to exit.
-	stop chan struct{}
+	cancel     context.CancelFunc
 }
 
 // Compile-time assertion that *Pubsub satisfies the pubsub.Pubsub interface.
@@ -165,13 +160,16 @@ func newPubsub(ctx context.Context, logger slog.Logger, opts Options) *Pubsub {
 }
 
 // defaultPendingLimits returns the effective per-subscription pending
-// limits applied at Subscribe time. When the caller leaves
-// PendingLimits fully zero, we default to {Msgs: -1, Bytes: 512 MiB}.
+// limits applied at Subscribe time.
 func defaultPendingLimits(in PendingLimits) PendingLimits {
-	if in.Msgs == 0 && in.Bytes == 0 {
-		return PendingLimits{Msgs: -1, Bytes: 512 * 1024 * 1024}
+	out := in
+	if out.Msgs == 0 {
+		out.Msgs = -1
 	}
-	return in
+	if out.Bytes == 0 {
+		out.Bytes = 512 * 1024 * 1024
+	}
+	return out
 }
 
 // buildConnHandlers returns the connHandlers stack installed on every
@@ -321,11 +319,8 @@ func (p *Pubsub) SubscribeWithErr(event string, listener pubsub.ListenerWithErr)
 	}
 
 	cancelFn := func() {
-		// The shared NATS callback may still try a non-blocking send to
-		// s.queue concurrently; enqueue's select on s.stop drops in
-		// that case.
-		p.unsubscribeLocal(s)
 		s.close()
+		p.unsubscribeLocal(s)
 	}
 	return cancelFn, nil
 }
@@ -346,13 +341,14 @@ const defaultListenerQueueSize = 1024
 // addSubscriber creates a local subscriber and attaches it to the natsSub
 // for event. New natsSub entries are published only after NATS setup succeeds.
 func (p *Pubsub) addSubscriber(event string, listener pubsub.ListenerWithErr) (*localSub, error) {
+	ctx, cancel := context.WithCancel(p.ctx)
 	s := &localSub{
-		ctx:        p.ctx,
+		ctx:        ctx,
+		cancel:     cancel,
 		event:      event,
 		listener:   listener,
 		queue:      make(chan []byte, listenerQueueSize(p.opts.PendingLimits)),
 		dropSignal: make(chan struct{}, 1),
-		stop:       make(chan struct{}),
 	}
 	s.init()
 
@@ -468,21 +464,39 @@ func (s *localSub) init() {
 	go func() {
 		for {
 			select {
-			case <-s.stop:
+			case <-s.ctx.Done():
+				return
+			default:
+			}
+
+			select {
+			case <-s.ctx.Done():
 				return
 			case data := <-s.queue:
+				select {
+				case <-s.ctx.Done():
+					return
+				default:
+				}
 				s.listener(s.ctx, data, nil)
 			case <-s.dropSignal:
+				select {
+				case <-s.ctx.Done():
+					return
+				default:
+				}
 				s.listener(s.ctx, nil, pubsub.ErrDroppedMessages)
 			}
 		}
 	}()
 }
 
-// close signals the per-listener goroutine to stop without waiting.
+// close cancels local delivery without waiting for callbacks.
 func (s *localSub) close() {
 	s.cancelOnce.Do(func() {
-		close(s.stop)
+		if s.cancel != nil {
+			s.cancel()
+		}
 	})
 }
 
@@ -491,8 +505,14 @@ func (s *localSub) close() {
 // If s is canceled the message is silently dropped.
 func (s *localSub) enqueue(data []byte) {
 	select {
+	case <-s.ctx.Done():
+		return
+	default:
+	}
+
+	select {
 	case s.queue <- data:
-	case <-s.stop:
+	case <-s.ctx.Done():
 	default:
 		s.signalDrop()
 	}
@@ -503,7 +523,14 @@ func (s *localSub) enqueue(data []byte) {
 // the listener observes one ErrDroppedMessages per drop wave.
 func (s *localSub) signalDrop() {
 	select {
+	case <-s.ctx.Done():
+		return
+	default:
+	}
+
+	select {
 	case s.dropSignal <- struct{}{}:
+	case <-s.ctx.Done():
 	default:
 	}
 }

@@ -17,6 +17,55 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+func Test_defaultPendingLimits(t *testing.T) {
+	t.Parallel()
+
+	const defaultBytes = 512 * 1024 * 1024
+	testCases := []struct {
+		name string
+		in   PendingLimits
+		want PendingLimits
+	}{
+		{
+			name: "AllZero",
+			in:   PendingLimits{},
+			want: PendingLimits{Msgs: -1, Bytes: defaultBytes},
+		},
+		{
+			name: "MsgsOnly",
+			in:   PendingLimits{Msgs: 8},
+			want: PendingLimits{Msgs: 8, Bytes: defaultBytes},
+		},
+		{
+			name: "BytesOnly",
+			in:   PendingLimits{Bytes: 1024},
+			want: PendingLimits{Msgs: -1, Bytes: 1024},
+		},
+		{
+			name: "NegativeMsgs",
+			in:   PendingLimits{Msgs: -2},
+			want: PendingLimits{Msgs: -2, Bytes: defaultBytes},
+		},
+		{
+			name: "NegativeBytes",
+			in:   PendingLimits{Bytes: -2},
+			want: PendingLimits{Msgs: -1, Bytes: -2},
+		},
+		{
+			name: "NegativeBoth",
+			in:   PendingLimits{Msgs: -2, Bytes: -3},
+			want: PendingLimits{Msgs: -2, Bytes: -3},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.want, defaultPendingLimits(tc.in))
+		})
+	}
+}
+
 func Test_pickConn(t *testing.T) {
 	t.Parallel()
 
@@ -105,7 +154,8 @@ func Test_localSub_init(t *testing.T) {
 		var concurrent atomic.Bool
 
 		s := &localSub{
-			ctx: ctx,
+			ctx:    ctx,
+			cancel: cancel,
 			listener: func(_ context.Context, _ []byte, ferr error) {
 				if active.Add(1) != 1 {
 					concurrent.Store(true)
@@ -122,7 +172,6 @@ func Test_localSub_init(t *testing.T) {
 			},
 			queue:      make(chan []byte, 1),
 			dropSignal: make(chan struct{}, 1),
-			stop:       make(chan struct{}),
 		}
 		s.init()
 		t.Cleanup(func() {
@@ -162,6 +211,57 @@ func Test_localSub_init(t *testing.T) {
 			}
 		}, testutil.WaitShort, testutil.IntervalFast)
 		require.False(t, concurrent.Load(), "listener callback ran concurrently")
+	})
+
+	t.Run("CloseStopsBeforeQueuedMessages", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		started := make(chan struct{})
+		release := make(chan struct{})
+		var startedOnce sync.Once
+		var releaseOnce sync.Once
+		var delivered atomic.Int64
+
+		s := &localSub{
+			ctx:    ctx,
+			cancel: cancel,
+			listener: func(_ context.Context, _ []byte, ferr error) {
+				if ferr != nil {
+					return
+				}
+				if delivered.Add(1) == 1 {
+					startedOnce.Do(func() { close(started) })
+					<-release
+				}
+			},
+			queue:      make(chan []byte, 2),
+			dropSignal: make(chan struct{}, 1),
+		}
+		s.init()
+		t.Cleanup(func() {
+			releaseOnce.Do(func() { close(release) })
+			s.close()
+		})
+
+		s.enqueue([]byte("first"))
+		require.Eventually(t, func() bool {
+			select {
+			case <-started:
+				return true
+			default:
+				return false
+			}
+		}, testutil.WaitShort, testutil.IntervalFast)
+
+		s.enqueue([]byte("queued"))
+		s.close()
+		releaseOnce.Do(func() { close(release) })
+		require.Never(t, func() bool {
+			return delivered.Load() > 1
+		}, testutil.IntervalMedium, testutil.IntervalFast,
+			"closed subscriber must not drain queued messages")
 	})
 
 	t.Run("CrossSubjectListenerIsolation", func(t *testing.T) {

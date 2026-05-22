@@ -82,9 +82,6 @@ func connectClient(ns *natsserver.Server, opts Options, handlers connHandlers, c
 	connOpts := []natsgo.Option{
 		natsgo.Name(connName),
 	}
-	if opts.DrainTimeout > 0 {
-		connOpts = append(connOpts, natsgo.DrainTimeout(opts.DrainTimeout))
-	}
 	if opts.ReconnectWait > 0 {
 		connOpts = append(connOpts, natsgo.ReconnectWait(opts.ReconnectWait))
 	}
