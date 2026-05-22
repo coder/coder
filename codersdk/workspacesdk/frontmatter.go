@@ -34,7 +34,7 @@ func frontmatterStringField(frontmatter map[string]any, key string) (string, boo
 	if !ok {
 		return "", true, xerrors.Errorf("frontmatter field %q must be a string", key)
 	}
-	return stringValue, true, nil
+	return strings.TrimRight(stringValue, "\r\n"), true, nil
 }
 
 // ParseSkillFrontmatter extracts name, description, and the

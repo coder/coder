@@ -53,6 +53,7 @@ func TestParseSkillFrontmatter(t *testing.T) {
 				"  or behavior modifications. Turns ideas into approved designs through",
 				"  collaborative dialog. Hard gate: no implementation action until the",
 				"  design is presented and approved.",
+				"",
 				"---",
 				"Use this skill.",
 			}, "\n"),

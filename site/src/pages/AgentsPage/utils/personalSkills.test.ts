@@ -116,7 +116,7 @@ describe("parsePersonalSkillMarkdown", () => {
 					"description: >",
 					"  Use before any creative work: features, components, functionality changes,",
 					"  or behavior modifications. Turns ideas into approved designs through",
-					"  collaborative dialogue. Hard gate: no implementation action until the",
+					"  collaborative dialog. Hard gate: no implementation action until the",
 					"  design is presented and approved.",
 					"---",
 					"Use this skill.",
@@ -127,7 +127,7 @@ describe("parsePersonalSkillMarkdown", () => {
 			description: [
 				"Use before any creative work: features, components, functionality changes,",
 				"or behavior modifications. Turns ideas into approved designs through",
-				"collaborative dialogue. Hard gate: no implementation action until the",
+				"collaborative dialog. Hard gate: no implementation action until the",
 				"design is presented and approved.",
 			].join(" "),
 			body: "Use this skill.",

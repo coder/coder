@@ -99,7 +99,7 @@ const frontmatterStringField = (
 	if (typeof value !== "string") {
 		throw new PersonalSkillMarkdownError(`Skill ${key} must be a string.`);
 	}
-	return value;
+	return value.replace(/[\r\n]+$/, "");
 };
 
 // This parser is only for projecting SKILL.md content into form fields.
