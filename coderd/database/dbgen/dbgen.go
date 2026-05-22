@@ -225,6 +225,26 @@ func AIProviderKey(t testing.TB, db database.Store, seed database.AIProviderKey,
 	return key
 }
 
+// AIProviderWithOptionalKey inserts an AI provider and, when apiKey is not
+// empty, inserts a provider-scoped key for it.
+func AIProviderWithOptionalKey(
+	t testing.TB,
+	db database.Store,
+	seed database.AIProvider,
+	apiKey string,
+	munge ...func(*database.InsertAIProviderParams),
+) database.AIProvider {
+	t.Helper()
+	provider := AIProvider(t, db, seed, munge...)
+	if apiKey != "" {
+		AIProviderKey(t, db, database.AIProviderKey{
+			ProviderID: provider.ID,
+			APIKey:     apiKey,
+		})
+	}
+	return provider
+}
+
 func ChatProvider(t testing.TB, db database.Store, seed database.ChatProvider, munge ...func(*database.InsertChatProviderParams)) database.ChatProvider {
 	t.Helper()
 	params := database.InsertChatProviderParams{
