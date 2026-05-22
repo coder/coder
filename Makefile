@@ -993,8 +993,7 @@ GEN_FILES := \
 
 # all gen targets should be added here and to gen/mark-fresh
 # Set GEN_SKIP_GOLDEN=1 to skip gen/golden-files (which needs Docker to
-# start PostgreSQL via testcontainers). Useful in environments such as
-# the dogfood image CI check where Docker-in-Docker is not available.
+# start PostgreSQL via testcontainers).
 GEN_SKIP_GOLDEN ?=
 gen: gen/db $(if $(GEN_SKIP_GOLDEN),,gen/golden-files) $(GEN_FILES)
 .PHONY: gen

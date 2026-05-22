@@ -201,17 +201,14 @@ jobs:
         env:
           DOCKER_TAG: ${{ steps.docker-tag-name.outputs.tag }}
 
-  # Validate that the Ubuntu dogfood images contain working tooling by
-  # rebuilding from Depot cache (fast) and running the core CI make
-  # targets inside the image.  Failures here block deployment so
-  # broken images never reach developer workspaces.
+  # Validate that the Ubuntu dogfood images contain working tooling.
+  # Failures here block template deployment (deploy_template).
   test_image:
     needs: build_image
-    if: github.actor != 'dependabot[bot]'
     strategy:
       fail-fast: false
       matrix:
-        variant: ["22.04", "26.04"]
+        image-version: ["22.04", "26.04"]
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
       - name: Harden Runner
@@ -231,9 +228,8 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
 
-      # Rebuild the image from Depot cache and load it into the local
-      # Docker daemon.  Because build_image already ran the full build,
-      # this should be a near-instant cache hit.
+      # Near-instant cache hit from build_image; loads into local daemon
+      # without pushing to a registry.
       - name: Load dogfood image from Depot cache
         uses: depot/build-push-action@5f3b3c2e5a00f0093de47f657aeaefcedff27d18 # v1.17.0
         with:
@@ -241,18 +237,16 @@ jobs:
           token: ${{ secrets.DEPOT_TOKEN }}
           buildx-fallback: true
           context: "{{defaultContext}}"
-          file: dogfood/coder/ubuntu-${{ matrix.variant }}/Dockerfile
+          file: dogfood/coder/ubuntu-${{ matrix.image-version }}/Dockerfile
           secrets: |
             github_token=${{ secrets.GITHUB_TOKEN }}
           pull: true
           load: true
           push: false
-          tags: "dogfood-test:${{ matrix.variant }}"
+          tags: "dogfood-test:${{ matrix.image-version }}"
 
-      # Run the CI make targets inside the just-built dogfood image via the
-      # shared script, which can also be run locally for manual validation.
-      - name: Test image toolchain
-        run: ./scripts/dogfood_test_image.sh "dogfood-test:${{ matrix.variant }}"
+      - name: Test image tooling
+        run: ./scripts/dogfood_test_image.sh "dogfood-test:${{ matrix.image-version }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

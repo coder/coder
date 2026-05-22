@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 
-# Runs the CI toolchain checks (gen, fmt, lint, build) inside a dogfood image.
-# Mirrors the test_image job in .github/workflows/dogfood.yaml so it can be
-# run locally to validate a freshly built dogfood image before deployment.
+# Validates dogfood image tooling by running gen, fmt, lint, and build inside
+# the image. Can be run locally or in CI (mirrors the test_image workflow job).
 #
 # Usage: ./scripts/dogfood_test_image.sh <image>
 #
@@ -15,6 +14,8 @@
 #                     (optional for local runs).
 #   GITHUB_BASE_REF   Base branch for diff-only lint checks (e.g. emdash).
 #                     Set automatically by GitHub Actions for PRs.
+#   CI                When set, fmt targets run in check-mode and actionlint
+#                     is excluded from make lint (it runs separately in CI).
 #   STEPS             Space-separated list of steps to run. Defaults to all.
 #                     Valid values: gen fmt lint build check-unstaged
 #
@@ -46,20 +47,26 @@ log() {
 log "Preparing checkout for container user (UID 1000)"
 chmod -R a+rwX .
 
-# Create a minimal gitconfig so the container's coder user (UID 1000)
-# recognises the runner-owned checkout as a safe directory. Without this,
-# git rev-parse fails inside scripts/lib.sh when resolving PROJECT_ROOT.
+# Without this, git rev-parse fails inside scripts/lib.sh when resolving
+# PROJECT_ROOT (the volume-mounted checkout is owned by the runner UID).
 printf '[safe]\n\tdirectory = /home/coder/coder\n' >"$GITCONFIG"
 
 # Helper: run a make target inside the image.
+# Caches are persisted in named Docker volumes so that subsequent steps (and
+# repeated local runs) reuse downloaded modules and compiled artifacts.
 run_make() {
 	docker run --rm \
 		--volume "$(pwd)":/home/coder/coder \
-		--volume "${GITCONFIG}":/home/coder/.gitconfig:ro \
+		--volume "${GITCONFIG}":/tmp/coder-gitconfig:ro \
+		--env GIT_CONFIG_GLOBAL=/tmp/coder-gitconfig \
+		--volume coder-dogfood-gomod:/home/coder/go/pkg/mod \
+		--volume coder-dogfood-gobuild:/home/coder/.cache/go-build \
+		--volume coder-dogfood-pnpm:/home/coder/.local/share/pnpm/store \
 		--workdir /home/coder/coder \
 		--network=host \
 		--env GITHUB_TOKEN \
 		--env GITHUB_BASE_REF \
+		--env CI \
 		"$IMAGE" \
 		make "$@"
 }
@@ -81,11 +88,12 @@ for step in $STEPS; do
 		run_make --output-sync=line -j lint
 		;;
 	build)
-		# Fat build validates the full toolchain: Go, Node, pnpm, TypeScript/React.
 		log "make build (fat binary)"
 		run_make -j build/coder_linux_amd64
 		;;
 	check-unstaged)
+		# Runs on the host: inspects git state after container steps wrote
+		# generated/formatted files back via the volume mount.
 		log "Checking for unstaged files"
 		./scripts/check_unstaged.sh
 		;;
