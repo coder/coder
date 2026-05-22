@@ -160,6 +160,7 @@ func ChatModelConfig(t testing.TB, db database.Store, seed database.ChatModelCon
 		ContextLimit:         takeFirst(seed.ContextLimit, defaultChatModelContextLimit),
 		CompressionThreshold: takeFirst(seed.CompressionThreshold, defaultChatModelCompressionThreshold),
 		Options:              takeFirstSlice(seed.Options, json.RawMessage(`{}`)),
+		AIProviderID:         seed.AIProviderID,
 	}
 	for _, fn := range munge {
 		fn(&params)

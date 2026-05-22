@@ -10567,6 +10567,77 @@ func TestInsertWorkspaceAgentDevcontainers(t *testing.T) {
 	}
 }
 
+func TestGetEnabledChatModelConfigsUsesAIProviders(t *testing.T) {
+	t.Parallel()
+
+	store, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	enabledProvider := dbgen.AIProvider(t, store, database.AIProvider{
+		Type: database.AiProviderTypeOpenrouter,
+		Name: "openrouter-" + uuid.NewString(),
+	})
+	disabledProvider := dbgen.AIProvider(t, store, database.AIProvider{
+		Type: database.AiProviderTypeVercel,
+		Name: "vercel-" + uuid.NewString(),
+	}, func(params *database.InsertAIProviderParams) {
+		params.Enabled = false
+	})
+	enabledConfig := dbgen.ChatModelConfig(t, store, database.ChatModelConfig{
+		Provider: string(enabledProvider.Type),
+		Model:    "openrouter-model-" + uuid.NewString(),
+		AIProviderID: uuid.NullUUID{
+			UUID:  enabledProvider.ID,
+			Valid: true,
+		},
+	})
+	disabledProviderConfig := dbgen.ChatModelConfig(t, store, database.ChatModelConfig{
+		Provider: string(disabledProvider.Type),
+		Model:    "vercel-model-" + uuid.NewString(),
+		AIProviderID: uuid.NullUUID{
+			UUID:  disabledProvider.ID,
+			Valid: true,
+		},
+	})
+	disabledModelConfig := dbgen.ChatModelConfig(t, store, database.ChatModelConfig{
+		Provider: string(enabledProvider.Type),
+		Model:    "disabled-model-" + uuid.NewString(),
+		AIProviderID: uuid.NullUUID{
+			UUID:  enabledProvider.ID,
+			Valid: true,
+		},
+	}, func(params *database.InsertChatModelConfigParams) {
+		params.Enabled = false
+	})
+	legacyProvider := dbgen.ChatProvider(t, store, database.ChatProvider{Provider: "google"})
+	legacyConfig := dbgen.ChatModelConfig(t, store, database.ChatModelConfig{
+		Provider: legacyProvider.Provider,
+		Model:    "google-model-" + uuid.NewString(),
+	})
+
+	configs, err := store.GetEnabledChatModelConfigs(ctx)
+	require.NoError(t, err)
+	require.True(t, slices.ContainsFunc(configs, func(config database.ChatModelConfig) bool {
+		return config.ID == enabledConfig.ID
+	}))
+	require.True(t, slices.ContainsFunc(configs, func(config database.ChatModelConfig) bool {
+		return config.ID == legacyConfig.ID
+	}))
+	require.False(t, slices.ContainsFunc(configs, func(config database.ChatModelConfig) bool {
+		return config.ID == disabledProviderConfig.ID
+	}))
+	require.False(t, slices.ContainsFunc(configs, func(config database.ChatModelConfig) bool {
+		return config.ID == disabledModelConfig.ID
+	}))
+
+	config, err := store.GetEnabledChatModelConfigByID(ctx, enabledConfig.ID)
+	require.NoError(t, err)
+	require.Equal(t, enabledConfig.ID, config.ID)
+
+	_, err = store.GetEnabledChatModelConfigByID(ctx, disabledProviderConfig.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+}
+
 func TestInsertChatMessages(t *testing.T) {
 	t.Parallel()
 

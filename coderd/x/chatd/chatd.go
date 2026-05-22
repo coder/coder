@@ -350,13 +350,13 @@ func (p *Server) resolveAdvisorModelOverride(
 		return fallbackModel, fallbackCallConfig
 	}
 
-	// GetEnabledChatModelConfigByID joins on chat_providers.enabled = TRUE
-	// and chat_model_configs.enabled = TRUE, so it returns sql.ErrNoRows
-	// the moment an admin disables either the model config or its provider.
-	// Using the cached ModelConfigByID here would keep resolving an override
-	// whose provider was just disabled, and an env or central fallback key
-	// would let ModelFromConfig succeed, silently routing advisor prompts
-	// to a provider the admin expects to be off.
+	// GetEnabledChatModelConfigByID checks the model config and referenced
+	// provider enabled state, so it returns sql.ErrNoRows the moment an
+	// admin disables either one. Using the cached ModelConfigByID here
+	// would keep resolving an override whose provider was just disabled,
+	// and an available fallback key would let ModelFromConfig succeed,
+	// silently routing advisor prompts to a provider the admin expects to
+	// be off.
 	overrideConfig, err := p.db.GetEnabledChatModelConfigByID(
 		ctx,
 		advisorCfg.ModelConfigID,
