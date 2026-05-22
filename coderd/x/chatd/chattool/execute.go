@@ -27,8 +27,7 @@ const (
 	// output snapshot after a blocking wait times out.
 	snapshotTimeout = 30 * time.Second
 
-	// defaultProcessOutputPollInterval balances responsiveness with
-	// the cost of fetching whole retained snapshots from the agent.
+	// defaultProcessOutputPollInterval is moderate because each poll re-fetches the retained output buffer from the agent.
 	defaultProcessOutputPollInterval = 250 * time.Millisecond
 )
 
@@ -86,7 +85,7 @@ type executeToolOptions struct {
 	processOutputPollInterval time.Duration
 }
 
-func (o executeToolOptions) streamResults() bool {
+func (o executeToolOptions) canStreamResults() bool {
 	return o.toolCallID != "" && o.publishResultDelta != nil && o.publishResultReset != nil
 }
 
@@ -260,7 +259,7 @@ func executeForeground(
 	}
 
 	var result ExecuteResult
-	if options.streamResults() {
+	if options.canStreamResults() {
 		result = streamProcessOutput(cmdCtx, ctx, conn, resp.ID, timeout, options)
 	} else {
 		result = waitForProcess(cmdCtx, ctx, conn, resp.ID, timeout)
@@ -289,19 +288,13 @@ func truncateOutput(output string) string {
 	return output
 }
 
-type streamProcessOutputRecoveryReason int
-
-const (
-	streamProcessOutputRecoveryError streamProcessOutputRecoveryReason = iota
-	streamProcessOutputRecoveryTimeout
-)
-
 type executeOutputStreamer struct {
 	toolCallID         string
 	publishResultDelta func(toolCallID string, delta string)
 	publishResultReset func(toolCallID string)
 	started            bool
 	output             string
+	suppressedRetained bool
 }
 
 func newExecuteOutputStreamer(options executeToolOptions) executeOutputStreamer {
@@ -312,11 +305,13 @@ func newExecuteOutputStreamer(options executeToolOptions) executeOutputStreamer 
 	}
 }
 
-func (s *executeOutputStreamer) publish(output string) {
+// publish keeps deltas as partial JSON so the chat stream can merge
+// progressive output without replacing the final tool result.
+func (s *executeOutputStreamer) publish(resp workspacesdk.ProcessOutputResponse) {
 	if s.publishResultDelta == nil || s.toolCallID == "" {
 		return
 	}
-	output = truncateOutput(output)
+	output := truncateOutput(resp.Output)
 	if output == s.output {
 		return
 	}
@@ -324,9 +319,20 @@ func (s *executeOutputStreamer) publish(output string) {
 		if !s.started || s.publishResultReset == nil {
 			return
 		}
+		if resp.Running && resp.Truncated != nil && s.suppressedRetained {
+			// Head-tail snapshots can rewrite the omission marker and moving tail while the process is still append-only.
+			return
+		}
+		if resp.Running && resp.Truncated != nil {
+			s.suppressedRetained = true
+		} else {
+			s.suppressedRetained = false
+		}
 		s.publishResultReset(s.toolCallID)
 		s.started = false
 		s.output = ""
+	} else {
+		s.suppressedRetained = false
 	}
 	delta := strings.TrimPrefix(output, s.output)
 	if delta == "" {
@@ -341,11 +347,14 @@ func (s *executeOutputStreamer) publish(output string) {
 	s.output = output
 }
 
+// jsonStringFragment leaves the JSON string open because chat message deltas are merged before the final quote and object brace are appended.
 func jsonStringFragment(value string) string {
 	data, _ := json.Marshal(value)
 	return string(data[1 : len(data)-1])
 }
 
+// streamProcessOutput polls because foreground commands need live deltas
+// while the agent API still returns retained output snapshots.
 func streamProcessOutput(
 	ctx context.Context,
 	parentCtx context.Context,
@@ -360,13 +369,9 @@ func streamProcessOutput(
 	for {
 		resp, err := conn.ProcessOutput(ctx, processID, nil)
 		if err != nil {
-			reason := streamProcessOutputRecoveryError
-			if ctx.Err() != nil {
-				reason = streamProcessOutputRecoveryTimeout
-			}
-			return recoverStreamProcessOutput(parentCtx, conn, processID, timeout, err, reason, &streamer)
+			return recoverProcessOutputSnapshot(parentCtx, conn, processID, timeout, err, processOutputRecoveryReasonFromContextErr(ctx.Err()), streamer.publish)
 		}
-		streamer.publish(resp.Output)
+		streamer.publish(resp)
 		if !resp.Running {
 			return processOutputResult(resp)
 		}
@@ -378,28 +383,45 @@ func streamProcessOutput(
 		select {
 		case <-ctx.Done():
 			timer.Stop()
-			return recoverStreamProcessOutput(parentCtx, conn, processID, timeout, ctx.Err(), streamProcessOutputRecoveryTimeout, &streamer)
+			return recoverProcessOutputSnapshot(parentCtx, conn, processID, timeout, ctx.Err(), processOutputRecoveryTimeout, streamer.publish)
 		case <-timer.C:
 			timer.Stop()
 		}
 	}
 }
 
-func recoverStreamProcessOutput(
+type processOutputRecoveryReason int
+
+const (
+	processOutputRecoveryError processOutputRecoveryReason = iota
+	processOutputRecoveryTimeout
+)
+
+func processOutputRecoveryReasonFromContextErr(err error) processOutputRecoveryReason {
+	if err != nil {
+		return processOutputRecoveryTimeout
+	}
+	return processOutputRecoveryError
+}
+
+// recoverProcessOutputSnapshot is shared so streaming and blocking waits
+// surface identical timeout and transport-error results.
+func recoverProcessOutputSnapshot(
 	parentCtx context.Context,
 	conn workspacesdk.AgentConn,
 	processID string,
 	timeout time.Duration,
 	origErr error,
-	reason streamProcessOutputRecoveryReason,
-	streamer *executeOutputStreamer,
+	reason processOutputRecoveryReason,
+	publish func(workspacesdk.ProcessOutputResponse),
 ) ExecuteResult {
+	// Use the parent context so timeout recovery can still retrieve a final snapshot after the command wait context expires.
 	bgCtx, bgCancel := context.WithTimeout(parentCtx, snapshotTimeout)
 	defer bgCancel()
 	resp, err := conn.ProcessOutput(bgCtx, processID, nil)
 	if err != nil {
 		errMsg := fmt.Sprintf("get process output: %v; use process_output with ID %s to retry", origErr, processID)
-		if reason == streamProcessOutputRecoveryTimeout {
+		if reason == processOutputRecoveryTimeout {
 			errMsg = fmt.Sprintf("command timed out after %s; failed to get output: %v", timeout, err)
 		}
 		return ExecuteResult{
@@ -410,13 +432,15 @@ func recoverStreamProcessOutput(
 		}
 	}
 
-	streamer.publish(resp.Output)
+	if publish != nil {
+		publish(resp)
+	}
 	if !resp.Running {
 		return processOutputResult(resp)
 	}
 
 	errMsg := fmt.Sprintf("command timed out after %s", timeout)
-	if reason != streamProcessOutputRecoveryTimeout {
+	if reason != processOutputRecoveryTimeout {
 		errMsg = fmt.Sprintf("get process output: %v (process still running, use process_output to check later)", origErr)
 	}
 	return runningProcessResult(resp, processID, errMsg)
@@ -467,42 +491,7 @@ func waitForProcess(
 		Wait: true,
 	})
 	if err != nil {
-		origErr := err
-		timedOut := ctx.Err() != nil
-
-		// Fetch a snapshot with a fresh context. The blocking
-		// request may have failed due to a context timeout or
-		// a transport error (e.g. the server's WriteTimeout
-		// killed the connection). Either way, the process may
-		// still have output available.
-		bgCtx, bgCancel := context.WithTimeout(
-			parentCtx,
-			snapshotTimeout,
-		)
-		defer bgCancel()
-		resp, err = conn.ProcessOutput(bgCtx, processID, nil)
-		if err != nil {
-			errMsg := fmt.Sprintf("get process output: %v; use process_output with ID %s to retry", origErr, processID)
-			if timedOut {
-				errMsg = fmt.Sprintf("command timed out after %s; failed to get output: %v", timeout, err)
-			}
-			return ExecuteResult{
-				Success:             false,
-				ExitCode:            -1,
-				Error:               errMsg,
-				BackgroundProcessID: processID,
-			}
-		}
-
-		if !resp.Running {
-			return processOutputResult(resp)
-		}
-
-		errMsg := fmt.Sprintf("command timed out after %s", timeout)
-		if !timedOut {
-			errMsg = fmt.Sprintf("get process output: %v (process still running, use process_output to check later)", origErr)
-		}
-		return runningProcessResult(resp, processID, errMsg)
+		return recoverProcessOutputSnapshot(parentCtx, conn, processID, timeout, err, processOutputRecoveryReasonFromContextErr(ctx.Err()), nil)
 	}
 
 	// The server-side wait may return before the

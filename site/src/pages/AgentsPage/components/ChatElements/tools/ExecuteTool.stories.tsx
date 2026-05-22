@@ -144,19 +144,35 @@ export const RunningOutputFollowsLatestText: Story = {
 	},
 	render: (args) => <StreamingOutputHarness {...args} />,
 	play: async ({ canvasElement }) => {
-		const viewport = canvasElement.querySelector(
-			"[data-radix-scroll-area-viewport]",
-		);
-		if (!(viewport instanceof HTMLElement)) {
-			throw new Error("Expected shell output scroll viewport.");
-		}
-		viewport.scrollTop = 0;
+		const viewport = getShellOutputViewport(canvasElement);
+		viewport.scrollTop = viewport.scrollHeight;
+		viewport.dispatchEvent(new Event("scroll"));
+
 		await waitFor(() => {
 			expect(canvasElement).toHaveTextContent("stream line 80");
 		});
 		await waitFor(() => {
 			expect(viewport.scrollTop).toBeGreaterThan(0);
 		});
+	},
+};
+
+export const RunningOutputPreservesManualScrollback: Story = {
+	args: {
+		command: "for i in $(seq 1 80); do echo stream line $i; done",
+		status: "running",
+		output: initialStreamingOutput,
+	},
+	render: (args) => <StreamingOutputHarness {...args} />,
+	play: async ({ canvasElement }) => {
+		const viewport = getShellOutputViewport(canvasElement);
+		viewport.scrollTop = 0;
+		viewport.dispatchEvent(new Event("scroll"));
+
+		await waitFor(() => {
+			expect(canvasElement).toHaveTextContent("stream line 80");
+		});
+		expect(viewport.scrollTop).toBeLessThanOrEqual(24);
 	},
 };
 
@@ -200,4 +216,14 @@ export const ParsedCommandsWithIntent: Story = {
 			["go", "test"],
 		],
 	},
+};
+
+const getShellOutputViewport = (canvasElement: HTMLElement) => {
+	const viewport = canvasElement.querySelector(
+		"[data-radix-scroll-area-viewport]",
+	);
+	if (!(viewport instanceof HTMLElement)) {
+		throw new Error("Expected shell output scroll viewport.");
+	}
+	return viewport;
 };

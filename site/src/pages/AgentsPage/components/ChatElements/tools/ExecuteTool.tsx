@@ -9,7 +9,7 @@ import {
 	TriangleAlertIcon,
 } from "lucide-react";
 import type React from "react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { CopyButton } from "#/components/CopyButton/CopyButton";
@@ -225,9 +225,28 @@ const ShellTranscriptBody: React.FC<{
 	isError: boolean;
 }> = ({ command, output, isError }) => {
 	const rootRef = useRef<HTMLDivElement | null>(null);
+	const wasPinnedToBottomRef = useRef(true);
+	const hadOutputRef = useRef(false);
 
 	useEffect(() => {
+		const viewport = rootRef.current?.querySelector(
+			"[data-radix-scroll-area-viewport]",
+		);
+		if (!(viewport instanceof HTMLElement)) {
+			return;
+		}
+
+		const updatePinnedState = () => {
+			wasPinnedToBottomRef.current = isNearScrollBottom(viewport);
+		};
+		updatePinnedState();
+		viewport.addEventListener("scroll", updatePinnedState);
+		return () => viewport.removeEventListener("scroll", updatePinnedState);
+	}, []);
+
+	useLayoutEffect(() => {
 		if (output.length === 0) {
+			hadOutputRef.current = false;
 			return;
 		}
 
@@ -238,7 +257,11 @@ const ShellTranscriptBody: React.FC<{
 			return;
 		}
 
-		viewport.scrollTop = viewport.scrollHeight;
+		if (!hadOutputRef.current || wasPinnedToBottomRef.current) {
+			viewport.scrollTop = viewport.scrollHeight;
+		}
+		hadOutputRef.current = true;
+		wasPinnedToBottomRef.current = isNearScrollBottom(viewport);
 	}, [output]);
 
 	return (
@@ -269,6 +292,9 @@ const ShellTranscriptBody: React.FC<{
 		</ScrollArea>
 	);
 };
+
+const isNearScrollBottom = (element: HTMLElement) =>
+	element.scrollHeight - element.scrollTop - element.clientHeight <= 24;
 
 export const ExecuteAuthRequiredTool: React.FC<{
 	command: string;

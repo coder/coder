@@ -13,6 +13,7 @@ import (
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/agent/agentproc"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk/agentconnmock"
@@ -301,30 +302,13 @@ func TestExecuteTool(t *testing.T) {
 		})
 		trap := clock.Trap().NewTimer("execute", "process-output-poll")
 
-		type runResult struct {
-			resp fantasy.ToolResponse
-			err  error
-		}
-		done := make(chan runResult, 1)
-		go func() {
-			resp, err := tool.Run(ctx, fantasy.ToolCall{
-				ID:    "call-stream",
-				Name:  "execute",
-				Input: `{"command":"printf hello"}`,
-			})
-			done <- runResult{resp: resp, err: err}
-		}()
+		done := runExecuteToolAsync(ctx, tool, `{"command":"printf hello"}`)
 
 		trap.MustWait(ctx).MustRelease(ctx)
 		trap.Close()
 		clock.Advance(time.Second).MustWait(ctx)
 
-		var got runResult
-		select {
-		case got = <-done:
-		case <-ctx.Done():
-			t.Fatal("timed out waiting for execute tool")
-		}
+		got := waitExecuteToolRunResult(ctx, t, done)
 		require.NoError(t, got.err)
 		assert.False(t, got.resp.IsError)
 
@@ -374,30 +358,13 @@ func TestExecuteTool(t *testing.T) {
 		})
 		trap := clock.Trap().NewTimer("execute", "process-output-poll")
 
-		type runResult struct {
-			resp fantasy.ToolResponse
-			err  error
-		}
-		done := make(chan runResult, 1)
-		go func() {
-			resp, err := tool.Run(ctx, fantasy.ToolCall{
-				ID:    "call-stream",
-				Name:  "execute",
-				Input: `{"command":"printf hello"}`,
-			})
-			done <- runResult{resp: resp, err: err}
-		}()
+		done := runExecuteToolAsync(ctx, tool, `{"command":"printf hello"}`)
 
 		trap.MustWait(ctx).MustRelease(ctx)
 		trap.Close()
 		clock.Advance(time.Second).MustWait(ctx)
 
-		var got runResult
-		select {
-		case got = <-done:
-		case <-ctx.Done():
-			t.Fatal("timed out waiting for execute tool")
-		}
+		got := waitExecuteToolRunResult(ctx, t, done)
 		require.NoError(t, got.err)
 		assert.False(t, got.resp.IsError)
 
@@ -407,6 +374,66 @@ func TestExecuteTool(t *testing.T) {
 		assert.Equal(t, "after", result.Output)
 		assert.Equal(t, 1, resets)
 		assert.Equal(t, []string{`{"output":"before`, `{"output":"after`}, deltas)
+	})
+
+	t.Run("ForegroundStreamingSuppressesRepeatedRunningHeadTailSnapshots", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		mockConn := agentconnmock.NewMockAgentConn(ctrl)
+		clock := quartz.NewMock(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		buf := agentproc.NewHeadTailBufferSized(4, 4)
+		_, _ = buf.Write([]byte("12345678"))
+		initialOutput, _ := buf.Output()
+		_, _ = buf.Write([]byte("9"))
+		firstRetainedOutput, firstTruncated := buf.Output()
+		_, _ = buf.Write([]byte("0"))
+		secondRetainedOutput, secondTruncated := buf.Output()
+		_, _ = buf.Write([]byte("1"))
+		finalRetainedOutput, finalTruncated := buf.Output()
+
+		mockConn.EXPECT().
+			StartProcess(gomock.Any(), gomock.Any()).
+			Return(workspacesdk.StartProcessResponse{ID: "proc-1"}, nil)
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Nil()).
+			Return(workspacesdk.ProcessOutputResponse{Running: true, Output: initialOutput}, nil)
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Nil()).
+			Return(workspacesdk.ProcessOutputResponse{Running: true, Output: firstRetainedOutput, Truncated: firstTruncated}, nil)
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Nil()).
+			Return(workspacesdk.ProcessOutputResponse{Running: true, Output: secondRetainedOutput, Truncated: secondTruncated}, nil)
+		mockConn.EXPECT().
+			ProcessOutput(gomock.Any(), "proc-1", gomock.Nil()).
+			Return(workspacesdk.ProcessOutputResponse{Running: false, ExitCode: ptr(0), Output: finalRetainedOutput, Truncated: finalTruncated}, nil)
+
+		recorder, publishDelta, publishReset := newStreamPublishRecorder(t)
+		tool := newStreamingExecuteTool(t, mockConn, clock, publishDelta, publishReset)
+		trap := clock.Trap().NewTimer("execute", "process-output-poll")
+		done := runExecuteToolAsync(ctx, tool, `{"command":"printf hello"}`)
+
+		for range 3 {
+			trap.MustWait(ctx).MustRelease(ctx)
+			clock.Advance(time.Second).MustWait(ctx)
+		}
+		trap.Close()
+
+		got := waitExecuteToolRunResult(ctx, t, done)
+		require.NoError(t, got.err)
+		assert.False(t, got.resp.IsError)
+
+		result := decodeExecuteResult(t, got.resp)
+		assert.True(t, result.Success)
+		assert.Equal(t, finalRetainedOutput, result.Output)
+		assert.Equal(t, 2, recorder.resets)
+		require.Len(t, recorder.deltas, 3)
+		for i, expected := range []string{initialOutput, firstRetainedOutput, finalRetainedOutput} {
+			var streamed map[string]string
+			require.NoError(t, json.Unmarshal([]byte(recorder.deltas[i]+`"}`), &streamed))
+			assert.Equal(t, expected, streamed["output"])
+		}
 	})
 
 	t.Run("ForegroundStreamingRecoveryProcessOutputErrorSnapshotFails", func(t *testing.T) {

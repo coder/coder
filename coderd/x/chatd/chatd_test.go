@@ -4095,7 +4095,7 @@ func TestExecuteToolStreamsResultDeltas(t *testing.T) {
 			)
 		}
 		streamedCallsMu.Lock()
-		finalCallMessages = append([]chattest.OpenAIMessage(nil), req.Messages...)
+		finalCallMessages = slices.Clone(req.Messages)
 		streamedCallsMu.Unlock()
 		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
 	})
@@ -4133,12 +4133,9 @@ func TestExecuteToolStreamsResultDeltas(t *testing.T) {
 		Times(1)
 
 	releaseOutput := make(chan struct{})
-	var releaseOutputOnce sync.Once
-	release := func() {
-		releaseOutputOnce.Do(func() {
-			close(releaseOutput)
-		})
-	}
+	release := sync.OnceFunc(func() {
+		close(releaseOutput)
+	})
 	t.Cleanup(release)
 	mockConn.EXPECT().
 		ProcessOutput(gomock.Any(), "proc-stream", gomock.Nil()).
@@ -4240,7 +4237,7 @@ func TestExecuteToolStreamsResultDeltas(t *testing.T) {
 	cancelLive()
 	<-liveCollectorDone
 	livePartsMu.Lock()
-	collectedExecuteDeltas := append([]string(nil), liveExecuteDeltas...)
+	collectedExecuteDeltas := slices.Clone(liveExecuteDeltas)
 	collectedExecuteResets := liveExecuteResets
 	livePartsMu.Unlock()
 
@@ -4250,7 +4247,7 @@ func TestExecuteToolStreamsResultDeltas(t *testing.T) {
 	require.Equal(t, output, streamed["output"])
 
 	streamedCallsMu.Lock()
-	gotFinalMessages := append([]chattest.OpenAIMessage(nil), finalCallMessages...)
+	gotFinalMessages := slices.Clone(finalCallMessages)
 	streamedCallsMu.Unlock()
 	require.NotEmpty(t, gotFinalMessages, "parent must make a follow-up call after the execute result")
 

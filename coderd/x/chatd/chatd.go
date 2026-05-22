@@ -7727,7 +7727,7 @@ func (p *Server) runChat(
 				p.publishMessagePart(chat.ID, codersdk.ChatMessageRoleTool, codersdk.ChatMessagePart{
 					Type:        codersdk.ChatMessagePartTypeToolResult,
 					ToolCallID:  toolCallID,
-					ToolName:    "execute",
+					ToolName:    chattool.ExecuteToolName,
 					ResultDelta: delta,
 				})
 			},
@@ -7738,7 +7738,7 @@ func (p *Server) runChat(
 				p.publishMessagePart(chat.ID, codersdk.ChatMessageRoleTool, codersdk.ChatMessagePart{
 					Type:        codersdk.ChatMessagePartTypeToolResult,
 					ToolCallID:  toolCallID,
-					ToolName:    "execute",
+					ToolName:    chattool.ExecuteToolName,
 					ResultReset: true,
 				})
 			},
