@@ -95,9 +95,8 @@ type Pubsub struct {
 	subscriptions map[string]*natsSub
 	closeOnce     sync.Once
 
-	// ctx is canceled by Close before it acquires p.mu so racing hot
-	// path callers (Publish, Flush, SubscribeWithErr) bail before
-	// touching the underlying *natsgo.Conn.
+	// ctx is canceled by Close while holding p.mu so subscriber state
+	// cleanup observes the canceled context.
 	ctx    context.Context
 	cancel context.CancelFunc
 }
@@ -400,11 +399,6 @@ func (p *Pubsub) addSubscriber(subject string, s *localSub) (*natsSub, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	// Close sets p.ctx.Err() before acquiring p.mu, so any registration
-	// past this point is guaranteed to be visible to Close's snapshot.
-	if p.ctx.Err() != nil {
-		return nil, xerrors.New("nats pubsub: closed")
-	}
 	nsub, ok := p.subscriptions[subject]
 	if ok {
 		nsub.listeners[s] = struct{}{}
@@ -445,14 +439,6 @@ func (p *Pubsub) addSubscriber(subject string, s *localSub) (*natsSub, error) {
 			_ = nsub.sub.Unsubscribe()
 		}
 		return nil, initErr
-	}
-	if p.ctx.Err() != nil {
-		delete(p.subscriptions, subject)
-		delete(nsub.listeners, s)
-		if nsub.sub != nil {
-			_ = nsub.sub.Unsubscribe()
-		}
-		return nil, xerrors.New("nats pubsub: closed")
 	}
 	return nsub, nil
 }
@@ -648,10 +634,10 @@ func (p *Pubsub) handleSlowSubscriber(nsub *natsSub) {
 func (p *Pubsub) Close() error {
 	var errs []error
 	p.closeOnce.Do(func() {
-		// Signal the hot path before taking p.mu so racing Publish /
-		// Flush / Subscribe calls bail before touching the pools.
-		p.cancel()
 		p.mu.Lock()
+		// Cancel while holding p.mu so subscriber state cleanup below
+		// observes the canceled context.
+		p.cancel()
 		var subs []*localSub
 		shareds := make([]*natsSub, 0, len(p.subscriptions))
 		for _, ss := range p.subscriptions {
