@@ -14031,6 +14031,37 @@ func TestGetChatsFilter(t *testing.T) {
 		require.NoError(t, err)
 	}
 
+	linkPRFull := func(chatID uuid.UUID, url, state string, draft bool, prNumber int32, gitRemoteOrigin string, prTitle string) {
+		t.Helper()
+		now := time.Now()
+		// First set the git remote origin via the reference upsert.
+		if gitRemoteOrigin != "" {
+			_, err := store.UpsertChatDiffStatusReference(ctx, database.UpsertChatDiffStatusReferenceParams{
+				ChatID:          chatID,
+				Url:             sql.NullString{String: url, Valid: url != ""},
+				GitBranch:       "main",
+				GitRemoteOrigin: gitRemoteOrigin,
+				StaleAt:         now.Add(time.Hour),
+			})
+			require.NoError(t, err)
+		}
+		// Then set PR metadata via the status upsert.
+		_, err := store.UpsertChatDiffStatus(ctx, database.UpsertChatDiffStatusParams{
+			ChatID:           chatID,
+			Url:              sql.NullString{String: url, Valid: url != ""},
+			PullRequestState: sql.NullString{String: state, Valid: state != ""},
+			PullRequestTitle: prTitle,
+			PullRequestDraft: draft,
+			PrNumber:         sql.NullInt32{Int32: prNumber, Valid: prNumber > 0},
+			Additions:        1,
+			Deletions:        1,
+			ChangedFiles:     1,
+			RefreshedAt:      now,
+			StaleAt:          now.Add(time.Hour),
+		})
+		require.NoError(t, err)
+	}
+
 	makeUnread := func(chatID uuid.UUID) {
 		t.Helper()
 		_, err := store.InsertChatMessages(ctx, database.InsertChatMessagesParams{
@@ -14112,12 +14143,25 @@ func TestGetChatsFilter(t *testing.T) {
 	linkPR(childWithDraftPR.ID, "https://github.com/coder/coder/pull/1005", "open", true)
 	makeUnread(childWithDraftPR.ID)
 
+	// Chats with specific PR numbers and repos for new filter tests.
+	// Use "acme/widget" and "acme/other-repo" origins to avoid overlapping
+	// with the "coder/coder" URLs in the earlier PR fixtures.
+	prNumberChat := createRoot("pr number 42 chat")
+	linkPRFull(prNumberChat.ID, "https://github.com/acme/widget/pull/42", "open", false, 42, "https://github.com/acme/widget.git", "Fix authentication bug")
+
+	repoChat := createRoot("repo filter chat")
+	linkPRFull(repoChat.ID, "https://github.com/acme/other-repo/pull/7", "merged", false, 7, "https://github.com/acme/other-repo.git", "Add feature X")
+
+	prTitleChat := createRoot("pr title filter chat")
+	linkPRFull(prTitleChat.ID, "https://github.com/acme/widget/pull/99", "open", false, 99, "https://github.com/acme/widget.git", "Deploy new dashboard")
+
 	// All root chat IDs (for "returns everything" baseline).
 	allRootIDs := []uuid.UUID{
 		alphaProject.ID, betaProject.ID, gammaUnrelated.ID,
 		percentComplete.ID, thousandOne.ID, underscoreConfig.ID, hyphenConfig.ID,
 		draftPR.ID, openPR.ID, mergedPR.ID, closedPR.ID,
 		unreadNoPR.ID, readChat.ID, childParent.ID,
+		prNumberChat.ID, repoChat.ID, prTitleChat.ID,
 	}
 
 	// --- test cases ---
@@ -14141,15 +14185,31 @@ func TestGetChatsFilter(t *testing.T) {
 
 		// PR status filter.
 		{"PRStatus/Draft", database.GetChatsParams{PullRequestStatuses: []string{"draft"}}, []uuid.UUID{draftPR.ID}},
-		{"PRStatus/Open", database.GetChatsParams{PullRequestStatuses: []string{"open"}}, []uuid.UUID{openPR.ID}},
-		{"PRStatus/Merged", database.GetChatsParams{PullRequestStatuses: []string{"merged"}}, []uuid.UUID{mergedPR.ID}},
+		{"PRStatus/Open", database.GetChatsParams{PullRequestStatuses: []string{"open"}}, []uuid.UUID{openPR.ID, prNumberChat.ID, prTitleChat.ID}},
+		{"PRStatus/Merged", database.GetChatsParams{PullRequestStatuses: []string{"merged"}}, []uuid.UUID{mergedPR.ID, repoChat.ID}},
 		{"PRStatus/Closed", database.GetChatsParams{PullRequestStatuses: []string{"closed"}}, []uuid.UUID{closedPR.ID}},
 		{"PRStatus/MultiStatus", database.GetChatsParams{PullRequestStatuses: []string{"draft", "closed"}}, []uuid.UUID{draftPR.ID, closedPR.ID}},
 
 		// Unread filter.
 		{"Unread/MatchesUnread", database.GetChatsParams{HasUnread: sql.NullBool{Bool: true, Valid: true}}, []uuid.UUID{draftPR.ID, unreadNoPR.ID}},
 		// HasUnread=false returns chats without unread messages.
-		{"Unread/ExcludesRead", database.GetChatsParams{HasUnread: sql.NullBool{Bool: false, Valid: true}}, []uuid.UUID{alphaProject.ID, betaProject.ID, gammaUnrelated.ID, percentComplete.ID, thousandOne.ID, underscoreConfig.ID, hyphenConfig.ID, openPR.ID, mergedPR.ID, closedPR.ID, readChat.ID, childParent.ID}},
+		{"Unread/ExcludesRead", database.GetChatsParams{HasUnread: sql.NullBool{Bool: false, Valid: true}}, []uuid.UUID{alphaProject.ID, betaProject.ID, gammaUnrelated.ID, percentComplete.ID, thousandOne.ID, underscoreConfig.ID, hyphenConfig.ID, openPR.ID, mergedPR.ID, closedPR.ID, readChat.ID, childParent.ID, prNumberChat.ID, repoChat.ID, prTitleChat.ID}},
+
+		// PR number filter.
+		{"PrNumber/ExactMatch", database.GetChatsParams{PrNumber: 42}, []uuid.UUID{prNumberChat.ID}},
+		{"PrNumber/NoMatch", database.GetChatsParams{PrNumber: 999}, nil},
+		{"PrNumber/ZeroIsNoOp", database.GetChatsParams{PrNumber: 0}, allRootIDs},
+
+		// Repo filter.
+		{"Repo/SubstringMatch", database.GetChatsParams{RepoQuery: "acme/widget"}, []uuid.UUID{prNumberChat.ID, prTitleChat.ID}},
+		{"Repo/DifferentRepo", database.GetChatsParams{RepoQuery: "acme/other-repo"}, []uuid.UUID{repoChat.ID}},
+		{"Repo/NoMatch", database.GetChatsParams{RepoQuery: "nonexistent/repo"}, nil},
+		{"Repo/CaseInsensitive", database.GetChatsParams{RepoQuery: "ACME/WIDGET"}, []uuid.UUID{prNumberChat.ID, prTitleChat.ID}},
+
+		// PR title filter.
+		{"PrTitle/SubstringMatch", database.GetChatsParams{PrTitleQuery: "auth"}, []uuid.UUID{prNumberChat.ID}},
+		{"PrTitle/CaseInsensitive", database.GetChatsParams{PrTitleQuery: "DEPLOY"}, []uuid.UUID{prTitleChat.ID}},
+		{"PrTitle/NoMatch", database.GetChatsParams{PrTitleQuery: "nonexistent title"}, nil},
 
 		// Composed filters.
 		{"Composed/TitleAndPRStatus", database.GetChatsParams{TitleQuery: "draft", PullRequestStatuses: []string{"draft"}}, []uuid.UUID{draftPR.ID}},
