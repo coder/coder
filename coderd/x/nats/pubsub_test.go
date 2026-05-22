@@ -147,7 +147,7 @@ func TestPubsub(t *testing.T) {
 		assert.NoError(t, second)
 	})
 
-	t.Run("SlowConsumerDropSignal", func(t *testing.T) {
+	t.Run("LocalQueueOverflowSignalsDrop", func(t *testing.T) {
 		t.Parallel()
 		ps := newSlowConsumerPubsub(t)
 

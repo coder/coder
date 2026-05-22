@@ -120,10 +120,9 @@ func Test_localSub_init(t *testing.T) {
 				dataOnce.Do(func() { close(dataStarted) })
 				<-release
 			},
-			queue:          make(chan []byte, 1),
-			dropSignal:     make(chan struct{}, 1),
-			stop:           make(chan struct{}),
-			dispatcherDone: make(chan struct{}),
+			queue:      make(chan []byte, 1),
+			dropSignal: make(chan struct{}, 1),
+			stop:       make(chan struct{}),
 		}
 		s.init()
 		t.Cleanup(func() {
@@ -165,7 +164,7 @@ func Test_localSub_init(t *testing.T) {
 		require.False(t, concurrent.Load(), "listener callback ran concurrently")
 	})
 
-	t.Run("SlowListenerIsolation", func(t *testing.T) {
+	t.Run("CrossSubjectListenerIsolation", func(t *testing.T) {
 		t.Parallel()
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)

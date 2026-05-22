@@ -26,7 +26,8 @@ var errClosed = xerrors.New("nats pubsub: closed")
 // PendingLimits configures per-subscription NATS pending limits set
 // via SetPendingLimits on each *natsgo.Subscription.
 type PendingLimits struct {
-	// Msgs is the per-subscription pending message limit.
+	// Msgs is the per-subscription pending message limit. Positive
+	// values also set each local listener queue capacity.
 	// Zero keeps the NATS client default. Negative disables this limit.
 	Msgs int
 
@@ -45,11 +46,12 @@ type Options struct {
 	// the nats-server default (64 MiB).
 	MaxPending int64
 
-	// DrainTimeout bounds connection drains in Close. Zero means 30
-	// seconds, matching the NATS Go client default.
+	// DrainTimeout configures the NATS client drain timeout. Close does
+	// not drain connections.
 	DrainTimeout time.Duration
 
 	// PendingLimits configures per-subscription NATS pending limits.
+	// Positive Msgs also sets local listener queue capacity.
 	// If both fields are zero, New defaults to {Msgs: -1, Bytes: 512 MiB}.
 	PendingLimits PendingLimits
 
@@ -100,8 +102,9 @@ type Pubsub struct {
 
 	// ctx is canceled by Close while holding p.mu so subscriber state
 	// cleanup observes the canceled context.
-	ctx    context.Context
-	cancel context.CancelFunc
+	ctx       context.Context
+	cancel    context.CancelFunc
+	closeDone chan struct{}
 }
 
 // natsSub maps to one underlying *natsgo.Subscription. The first
@@ -145,10 +148,6 @@ type localSub struct {
 	dropSignal chan struct{}
 	// stop is closed by close to signal the dispatcher goroutine to exit.
 	stop chan struct{}
-	// dispatcherDone is closed by the dispatcher goroutine on exit;
-	// close waits on it so any in-flight user callback completes
-	// before teardown.
-	dispatcherDone chan struct{}
 }
 
 // Compile-time assertion that *Pubsub satisfies the pubsub.Pubsub interface.
@@ -163,6 +162,7 @@ func newPubsub(ctx context.Context, logger slog.Logger, opts Options) *Pubsub {
 		subscriptions: make(map[string]*natsSub),
 		ctx:           ctx,
 		cancel:        cancel,
+		closeDone:     make(chan struct{}),
 	}
 }
 
@@ -236,6 +236,13 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error)
 	}
 	p.publishPool = publishPool
 	p.subscribePool = subscribePool
+	go func() {
+		select {
+		case <-ctx.Done():
+			_ = p.Close()
+		case <-p.closeDone:
+		}
+	}()
 	return p, nil
 }
 
@@ -353,13 +360,12 @@ const defaultListenerQueueSize = 1024
 // for event. New natsSub entries are published only after NATS setup succeeds.
 func (p *Pubsub) addSubscriber(event string, listener pubsub.ListenerWithErr) (*localSub, error) {
 	s := &localSub{
-		ctx:            p.ctx,
-		event:          event,
-		listener:       listener,
-		queue:          make(chan []byte, listenerQueueSize(p.opts.PendingLimits)),
-		dropSignal:     make(chan struct{}, 1),
-		stop:           make(chan struct{}),
-		dispatcherDone: make(chan struct{}),
+		ctx:        p.ctx,
+		event:      event,
+		listener:   listener,
+		queue:      make(chan []byte, listenerQueueSize(p.opts.PendingLimits)),
+		dropSignal: make(chan struct{}, 1),
+		stop:       make(chan struct{}),
 	}
 	s.init()
 
@@ -473,25 +479,39 @@ func (nsub *natsSub) makeCallback() natsgo.MsgHandler {
 // init starts the per-listener delivery goroutine.
 func (s *localSub) init() {
 	go func() {
-		defer close(s.dispatcherDone)
 		for {
 			select {
 			case <-s.stop:
 				return
+			default:
+			}
+
+			select {
+			case <-s.stop:
+				return
 			case data := <-s.queue:
+				select {
+				case <-s.stop:
+					return
+				default:
+				}
 				s.listener(s.ctx, data, nil)
 			case <-s.dropSignal:
+				select {
+				case <-s.stop:
+					return
+				default:
+				}
 				s.listener(s.ctx, nil, pubsub.ErrDroppedMessages)
 			}
 		}
 	}()
 }
 
-// close stops the per-listener goroutine and waits for callbacks to finish.
+// close signals the per-listener goroutine to stop without waiting.
 func (s *localSub) close() {
 	s.cancelOnce.Do(func() {
 		close(s.stop)
-		<-s.dispatcherDone
 	})
 }
 
@@ -577,10 +597,11 @@ func (p *Pubsub) handleSlowSubscriber(nsub *natsSub) {
 	}
 }
 
-// Close drains and shuts down the Pubsub. It is idempotent.
+// Close stops local delivery and shuts down the Pubsub. It is idempotent.
+// Close does not drain queued listener messages.
 func (p *Pubsub) Close() error {
-	var errs []error
 	p.closeOnce.Do(func() {
+		defer close(p.closeDone)
 		p.mu.Lock()
 		// Cancel while holding p.mu so subscriber state cleanup below
 		// observes the canceled context.
@@ -599,41 +620,26 @@ func (p *Pubsub) Close() error {
 		clear(p.subscriptions)
 		p.mu.Unlock()
 
-		// Unsubscribe shared subscriptions; subConn drains below
-		// handle the rest.
+		// Unsubscribe shared subscriptions before closing connections.
 		for _, ss := range shareds {
 			if ss.sub != nil {
 				_ = ss.sub.Unsubscribe()
 			}
 		}
 
-		// Stop per-listener goroutines and wait for in-flight user
-		// callbacks. Done directly on the handles, not via cancelFn.
+		// Signal per-listener goroutines without waiting for callbacks.
 		for _, s := range subs {
 			s.close()
 		}
 
-		drainTimeout := p.opts.DrainTimeout
-		if drainTimeout <= 0 {
-			drainTimeout = 30 * time.Second
+		for _, nc := range p.subscribePool {
+			if nc != nil {
+				nc.Close()
+			}
 		}
-
-		// Drain subscriber connections first so in-flight deliveries
-		// reach listeners, then publisher connections.
-		connections := append([]*natsgo.Conn{}, p.subscribePool...)
-		connections = append(connections, p.publishPool...)
-		for i, nc := range connections {
-			if nc == nil {
-				continue
-			}
-			kind := "sub"
-			connIndex := i
-			if i >= len(p.subscribePool) {
-				kind = "pub"
-				connIndex = i - len(p.subscribePool)
-			}
-			if err := drainConn(nc, drainTimeout); err != nil {
-				errs = append(errs, xerrors.Errorf("drain %s conn %d: %w", kind, connIndex, err))
+		for _, nc := range p.publishPool {
+			if nc != nil {
+				nc.Close()
 			}
 		}
 
@@ -642,27 +648,6 @@ func (p *Pubsub) Close() error {
 			p.ns.WaitForShutdown()
 		}
 	})
-	return errors.Join(errs...)
-}
-
-// drainConn issues Drain on nc and waits for it to reach the closed
-// state, falling back to Close after the timeout.
-func drainConn(nc *natsgo.Conn, timeout time.Duration) error {
-	if nc.IsClosed() {
-		return nil
-	}
-	if err := nc.Drain(); err != nil {
-		nc.Close()
-		return err
-	}
-	deadline := time.Now().Add(timeout)
-	for !nc.IsClosed() {
-		if time.Now().After(deadline) {
-			nc.Close()
-			return xerrors.Errorf("drain timeout after %s", timeout)
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
 	return nil
 }
 
