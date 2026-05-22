@@ -448,7 +448,7 @@ func userResourceFromGetUsersRow(u database.GetUsersRow) scim.Resource {
 	}
 }
 
-func AttributeAsBool(attrs scim.ResourceAttributes, key string) (bool, bool) {
+func AttributeAsBool(attrs scim.ResourceAttributes, key string) (value bool, exists bool) {
 	val, ok := Attribute(attrs, key)
 	if !ok {
 		return false, false

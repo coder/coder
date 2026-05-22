@@ -58,14 +58,6 @@ func setScimAuth(key []byte) func(*http.Request) {
 	}
 }
 
-func setScimAuthBearer(key []byte) func(*http.Request) {
-	return func(r *http.Request) {
-		// Do strange casing to ensure it's case-insensitive
-		r.Header.Set("Authorization", "beAreR "+string(key))
-	}
-}
-
-
 // TestLegacyScim tests the legacy SCIM handler (imulab/go-scim based).
 // This is a reduced set of integration tests verifying HTTP routing, auth,
 // and core CRUD. Detailed handler logic is covered by the unit tests in
@@ -134,8 +126,8 @@ func TestLegacyScim(t *testing.T) {
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				AccountID: "coolin",
 				Features: license.Features{
-					codersdk.FeatureSCIM:         1,
-					codersdk.FeatureAuditLog:     1,
+					codersdk.FeatureSCIM:                  1,
+					codersdk.FeatureAuditLog:              1,
 					codersdk.FeatureMultipleOrganizations: 1,
 				},
 			},
@@ -178,7 +170,7 @@ func TestLegacyScim(t *testing.T) {
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				AccountID: "coolin",
 				Features: license.Features{
-					codersdk.FeatureSCIM:         1,
+					codersdk.FeatureSCIM:                  1,
 					codersdk.FeatureMultipleOrganizations: 1,
 				},
 			},
@@ -215,8 +207,8 @@ func TestLegacyScim(t *testing.T) {
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				AccountID: "coolin",
 				Features: license.Features{
-					codersdk.FeatureSCIM:         1,
-					codersdk.FeatureAuditLog:     1,
+					codersdk.FeatureSCIM:                  1,
+					codersdk.FeatureAuditLog:              1,
 					codersdk.FeatureMultipleOrganizations: 1,
 				},
 			},
@@ -262,8 +254,8 @@ func TestLegacyScim(t *testing.T) {
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				AccountID: "coolin",
 				Features: license.Features{
-					codersdk.FeatureSCIM:         1,
-					codersdk.FeatureAuditLog:     1,
+					codersdk.FeatureSCIM:                  1,
+					codersdk.FeatureAuditLog:              1,
 					codersdk.FeatureMultipleOrganizations: 1,
 				},
 			},
