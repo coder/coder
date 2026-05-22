@@ -516,7 +516,7 @@ func BooleanValue(v interface{}) (bool, error) {
 	case string:
 		return strconv.ParseBool(b)
 	default:
-		return false, fmt.Errorf("expected boolean or string value, got %T", v)
+		return false, xerrors.Errorf("expected boolean or string value, got %T", v)
 	}
 }
 
