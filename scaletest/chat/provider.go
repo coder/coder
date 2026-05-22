@@ -2,13 +2,12 @@ package chat
 
 import (
 	"context"
-	"fmt"
-	"io"
 	"net/http"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -29,26 +28,36 @@ const (
 
 // EnsureScaletestModelConfig bootstraps the shared chat provider and model
 // config used by chat scaletests.
-func EnsureScaletestModelConfig(ctx context.Context, client *codersdk.ExperimentalClient, stderr io.Writer, llmMockURL string) (*uuid.UUID, error) {
-	_, _ = fmt.Fprintf(stderr, "Bootstrapping mock LLM provider at %s...\n", llmMockURL)
+func EnsureScaletestModelConfig(ctx context.Context, client *codersdk.ExperimentalClient, logger slog.Logger, llmMockURL string) (uuid.UUID, error) {
+	logger.Info(ctx, "bootstrapping mock LLM provider", slog.F("llm_mock_url", llmMockURL))
 
 	provider, providerAction, err := ensureScaletestProvider(ctx, client, llmMockURL)
 	if err != nil {
-		return nil, err
+		return uuid.Nil, err
 	}
 
 	switch providerAction {
 	case scaletestProviderActionCreated:
-		_, _ = fmt.Fprintf(stderr, "Created %s provider pointing at %s\n", scaletestProviderType, llmMockURL)
+		logger.Info(ctx, "created mock LLM provider",
+			slog.F("provider_type", scaletestProviderType),
+			slog.F("llm_mock_url", llmMockURL),
+		)
 	case scaletestProviderActionUpdated:
-		_, _ = fmt.Fprintf(stderr, "Updated %s provider %s to point at %s\n", scaletestProviderType, provider.ID, llmMockURL)
+		logger.Info(ctx, "updated mock LLM provider",
+			slog.F("provider_type", scaletestProviderType),
+			slog.F("provider_id", provider.ID),
+			slog.F("llm_mock_url", llmMockURL),
+		)
 	case scaletestProviderActionReused:
-		_, _ = fmt.Fprintf(stderr, "Reusing existing %s provider %s\n", scaletestProviderType, provider.ID)
+		logger.Info(ctx, "reusing mock LLM provider",
+			slog.F("provider_type", scaletestProviderType),
+			slog.F("provider_id", provider.ID),
+		)
 	}
 
 	modelConfigs, err := client.ListChatModelConfigs(ctx)
 	if err != nil {
-		return nil, xerrors.Errorf("list chat model configs: %w", err)
+		return uuid.Nil, xerrors.Errorf("list chat model configs: %w", err)
 	}
 
 	for i := range modelConfigs {
@@ -56,11 +65,11 @@ func EnsureScaletestModelConfig(ctx context.Context, client *codersdk.Experiment
 			continue
 		}
 		if !modelConfigs[i].Enabled {
-			return nil, xerrors.Errorf("existing scaletest chat model config %s is disabled; re-enable or delete it before running scaletests", modelConfigs[i].ID)
+			return uuid.Nil, xerrors.Errorf("existing scaletest chat model config %s is disabled; re-enable or delete it before running scaletests", modelConfigs[i].ID)
 		}
 		modelConfigID := modelConfigs[i].ID
-		_, _ = fmt.Fprintf(stderr, "Reusing existing scaletest model config %s\n", modelConfigID)
-		return &modelConfigID, nil
+		logger.Info(ctx, "reusing scaletest model config", slog.F("model_config_id", modelConfigID))
+		return modelConfigID, nil
 	}
 
 	enabled := true
@@ -75,10 +84,10 @@ func EnsureScaletestModelConfig(ctx context.Context, client *codersdk.Experiment
 		ContextLimit: &contextLimit,
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("create scaletest chat model config: %w", err)
+		return uuid.Nil, xerrors.Errorf("create scaletest chat model config: %w", err)
 	}
-	_, _ = fmt.Fprintf(stderr, "Created scaletest model config %s\n", created.ID)
-	return &created.ID, nil
+	logger.Info(ctx, "created scaletest model config", slog.F("model_config_id", created.ID))
+	return created.ID, nil
 }
 
 func ensureScaletestProvider(ctx context.Context, client *codersdk.ExperimentalClient, llmMockURL string) (codersdk.ChatProviderConfig, scaletestProviderAction, error) {

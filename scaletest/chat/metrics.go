@@ -1,14 +1,8 @@
 package chat
 
-import (
-	"slices"
-
-	"github.com/prometheus/client_golang/prometheus"
-)
+import "github.com/prometheus/client_golang/prometheus"
 
 const (
-	MetricLabelRunID = "run_id"
-
 	metricLabelPhase  = "phase"
 	metricLabelStatus = "status"
 	metricLabelStage  = "stage"
@@ -28,111 +22,103 @@ var (
 	chatProcessingLatencyBuckets = prometheus.ExponentialBucketsRange(0.1, 300, 18)
 )
 
-func MetricLabelNames() []string {
-	return []string{MetricLabelRunID}
-}
-
-func MetricLabelValues(runID string) []string {
-	return []string{runID}
-}
-
 // Metrics holds the Prometheus metrics emitted by the chat scaletest.
 type Metrics struct {
-	ChatCreateLatencySeconds        prometheus.HistogramVec
-	ChatMessageLatencySeconds       prometheus.HistogramVec
-	ChatConversationDurationSeconds prometheus.HistogramVec
-	ChatTimeToRunningSeconds        prometheus.HistogramVec
-	ChatTimeToFirstOutputSeconds    prometheus.HistogramVec
-	ChatTimeToTerminalStatusSeconds prometheus.HistogramVec
-	ChatStageFailuresTotal          prometheus.CounterVec
-	ChatTerminalStatusTotal         prometheus.CounterVec
-	ChatTurnsCompletedTotal         prometheus.CounterVec
-	ChatRetryEventsTotal            prometheus.CounterVec
-	ActiveChatStreams               prometheus.GaugeVec
+	ChatCreateLatencySeconds        prometheus.Histogram
+	ChatMessageLatencySeconds       *prometheus.HistogramVec
+	ChatConversationDurationSeconds prometheus.Histogram
+	ChatTimeToRunningSeconds        *prometheus.HistogramVec
+	ChatTimeToFirstOutputSeconds    *prometheus.HistogramVec
+	ChatTimeToTerminalStatusSeconds *prometheus.HistogramVec
+	ChatStageFailuresTotal          *prometheus.CounterVec
+	ChatTerminalStatusTotal         *prometheus.CounterVec
+	ChatTurnsCompletedTotal         prometheus.Counter
+	ChatRetryEventsTotal            prometheus.Counter
+	ActiveChatStreams               prometheus.Gauge
 }
 
-func NewMetrics(reg prometheus.Registerer, labelNames ...string) *Metrics {
+func NewMetrics(reg prometheus.Registerer) *Metrics {
 	if reg == nil {
 		reg = prometheus.DefaultRegisterer
 	}
 
-	phaseLabelNames := append(slices.Clone(labelNames), metricLabelPhase)
-	terminalStatusLabelNames := append(slices.Clone(labelNames), metricLabelStatus)
-	failureStageLabelNames := append(slices.Clone(labelNames), metricLabelStage)
+	phaseLabelNames := []string{metricLabelPhase}
+	terminalStatusLabelNames := []string{metricLabelStatus}
+	failureStageLabelNames := []string{metricLabelStage}
 
 	m := &Metrics{
-		ChatCreateLatencySeconds: *prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		ChatCreateLatencySeconds: prometheus.NewHistogram(prometheus.HistogramOpts{
 			Namespace: "coderd",
 			Subsystem: "scaletest",
 			Name:      "chat_create_latency_seconds",
 			Help:      "Time in seconds to create a chat and enqueue the initial turn.",
 			Buckets:   chatRequestLatencyBuckets,
-		}, labelNames),
-		ChatMessageLatencySeconds: *prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		}),
+		ChatMessageLatencySeconds: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: "coderd",
 			Subsystem: "scaletest",
 			Name:      "chat_message_latency_seconds",
 			Help:      "Time in seconds to add a follow-up message to an existing chat.",
 			Buckets:   chatRequestLatencyBuckets,
 		}, phaseLabelNames),
-		ChatConversationDurationSeconds: *prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		ChatConversationDurationSeconds: prometheus.NewHistogram(prometheus.HistogramOpts{
 			Namespace: "coderd",
 			Subsystem: "scaletest",
 			Name:      "chat_conversation_duration_seconds",
 			Help:      "Time in seconds from chat creation start until the conversation finishes or errors.",
 			Buckets:   chatProcessingLatencyBuckets,
-		}, labelNames),
-		ChatTimeToRunningSeconds: *prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		}),
+		ChatTimeToRunningSeconds: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: "coderd",
 			Subsystem: "scaletest",
 			Name:      "chat_time_to_running_seconds",
 			Help:      "Time in seconds from the start of a chat turn until the chat enters running status.",
 			Buckets:   chatProcessingLatencyBuckets,
 		}, phaseLabelNames),
-		ChatTimeToFirstOutputSeconds: *prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		ChatTimeToFirstOutputSeconds: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: "coderd",
 			Subsystem: "scaletest",
 			Name:      "chat_time_to_first_output_seconds",
 			Help:      "Time in seconds from the start of a chat turn until the first output is received.",
 			Buckets:   chatProcessingLatencyBuckets,
 		}, phaseLabelNames),
-		ChatTimeToTerminalStatusSeconds: *prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		ChatTimeToTerminalStatusSeconds: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: "coderd",
 			Subsystem: "scaletest",
 			Name:      "chat_time_to_terminal_status_seconds",
 			Help:      "Time in seconds from the start of a chat turn until a terminal status is received.",
 			Buckets:   chatProcessingLatencyBuckets,
 		}, phaseLabelNames),
-		ChatStageFailuresTotal: *prometheus.NewCounterVec(prometheus.CounterOpts{
+		ChatStageFailuresTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "coderd",
 			Subsystem: "scaletest",
 			Name:      "chat_stage_failures_total",
 			Help:      "Total number of terminal stage-specific chat runner failures.",
 		}, failureStageLabelNames),
-		ChatTerminalStatusTotal: *prometheus.NewCounterVec(prometheus.CounterOpts{
+		ChatTerminalStatusTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
 			Namespace: "coderd",
 			Subsystem: "scaletest",
 			Name:      "chat_terminal_status_total",
 			Help:      "Total number of terminal chat statuses observed.",
 		}, terminalStatusLabelNames),
-		ChatTurnsCompletedTotal: *prometheus.NewCounterVec(prometheus.CounterOpts{
+		ChatTurnsCompletedTotal: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "coderd",
 			Subsystem: "scaletest",
 			Name:      "chat_turns_completed_total",
-			Help:      "Total number of chat turns (user→assistant exchanges) completed successfully.",
-		}, labelNames),
-		ChatRetryEventsTotal: *prometheus.NewCounterVec(prometheus.CounterOpts{
+			Help:      "Total number of chat turns completed successfully.",
+		}),
+		ChatRetryEventsTotal: prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "coderd",
 			Subsystem: "scaletest",
 			Name:      "chat_retry_events_total",
 			Help:      "Total number of chat retry events observed.",
-		}, labelNames),
-		ActiveChatStreams: *prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		}),
+		ActiveChatStreams: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: "coderd",
 			Subsystem: "scaletest",
 			Name:      "active_chat_streams",
 			Help:      "Current number of active chat streams.",
-		}, labelNames),
+		}),
 	}
 
 	reg.MustRegister(m.ChatCreateLatencySeconds)

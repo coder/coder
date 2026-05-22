@@ -2,16 +2,15 @@ package chat
 
 import (
 	"context"
-	"fmt"
 	"io"
-	"slices"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/scaletest/harness"
@@ -20,30 +19,11 @@ import (
 
 // Runner executes a single chat conversation as part of a scaletest run.
 type Runner struct {
-	client *codersdk.Client
+	client *codersdk.ExperimentalClient
 	cfg    Config
-
-	archiveChat func(ctx context.Context, chatID uuid.UUID) error
-
-	turnStartGate turnStartGate
 
 	chatID uuid.UUID
 	result runnerResult
-}
-
-type turnStartGate struct {
-	readyWaitGroup *sync.WaitGroup
-	releaseChan    <-chan struct{}
-	ready          sync.Once
-}
-
-func (g *turnStartGate) markReady() {
-	if g.readyWaitGroup == nil {
-		return
-	}
-	g.ready.Do(func() {
-		g.readyWaitGroup.Done()
-	})
 }
 
 type runnerResult struct {
@@ -57,13 +37,14 @@ type runnerResult struct {
 }
 
 type conversationState struct {
-	result             runnerResult
-	turnStartTime      time.Time
-	currentPhase       string
-	lastStreamError    string
-	lastStatus         codersdk.ChatStatus
-	sawTurnRunning     bool
-	sawTurnFirstOutput bool
+	result                   runnerResult
+	turnStartTime            time.Time
+	currentPhase             string
+	lastStreamError          string
+	lastStatus               codersdk.ChatStatus
+	sawTurnRunning           bool
+	sawTurnFirstOutput       bool
+	shouldMarkTurnStartReady bool
 }
 
 var (
@@ -74,16 +55,8 @@ var (
 
 func NewRunner(client *codersdk.Client, cfg Config) *Runner {
 	return &Runner{
-		client: client,
+		client: codersdk.NewExperimentalClient(client),
 		cfg:    cfg,
-		turnStartGate: turnStartGate{
-			readyWaitGroup: cfg.TurnStartReadyWaitGroup,
-			releaseChan:    cfg.StartTurnsChan,
-		},
-		archiveChat: func(ctx context.Context, chatID uuid.UUID) error {
-			archived := true
-			return codersdk.NewExperimentalClient(client).UpdateChat(ctx, chatID, codersdk.UpdateChatRequest{Archived: &archived})
-		},
 	}
 }
 
@@ -92,25 +65,31 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	defer span.End()
 
 	logs = loadtestutil.NewSyncWriter(logs)
+	logger := slog.Make(sloghuman.Sink(logs)).Leveled(slog.LevelDebug).Named(id)
+	r.client.SetLogger(logger)
+	r.client.SetLogBodies(true)
+
 	span.SetAttributes(
 		attribute.String("chat.runner_id", id),
-		attribute.String("chat.run_id", r.cfg.RunID),
 		attribute.String("chat.workspace_id", r.cfg.WorkspaceID.String()),
 		attribute.Int("chat.turns_requested", r.cfg.Turns),
 		attribute.Int64("chat.turn_start_delay_ms", r.cfg.TurnStartDelay.Milliseconds()),
 	)
-	if r.cfg.ModelConfigID != nil {
-		span.SetAttributes(attribute.String("chat.model_config_id", r.cfg.ModelConfigID.String()))
-	}
+	span.SetAttributes(attribute.String("chat.model_config_id", r.cfg.ModelConfigID.String()))
 
-	defer r.turnStartGate.markReady()
+	shouldMarkTurnStartReady := r.cfg.TurnStartReadyWaitGroup != nil
+	defer func() {
+		if shouldMarkTurnStartReady {
+			r.cfg.TurnStartReadyWaitGroup.Done()
+		}
+	}()
 
 	result := runnerResult{}
 	conversationStart := time.Time{}
 	defer func() {
 		if !conversationStart.IsZero() {
 			result.totalDuration = time.Since(conversationStart)
-			r.cfg.Metrics.ChatConversationDurationSeconds.WithLabelValues(r.cfg.MetricLabelValues...).Observe(result.totalDuration.Seconds())
+			r.cfg.Metrics.ChatConversationDurationSeconds.Observe(result.totalDuration.Seconds())
 		}
 		r.result = result
 		span.SetAttributes(
@@ -125,24 +104,18 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 		}
 	}()
 
-	r.cfg.ReadyWaitGroup.Done()
-
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-r.cfg.StartChan:
-	}
-
 	workspaceID := r.cfg.WorkspaceID
-	_, _ = fmt.Fprintf(logs, "starting chat runner %s for workspace %s\n", id, workspaceID)
+	modelConfigID := r.cfg.ModelConfigID
+	logger = logger.With(slog.F("workspace_id", workspaceID))
+	logger.Info(ctx, "starting chat runner")
 
 	conversationStart = time.Now()
 
 	createStartedAt := time.Now()
-	chat, err := codersdk.NewExperimentalClient(r.client).CreateChat(ctx, codersdk.CreateChatRequest{
+	chat, err := r.client.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: r.cfg.OrganizationID,
 		WorkspaceID:    &workspaceID,
-		ModelConfigID:  r.cfg.ModelConfigID,
+		ModelConfigID:  &modelConfigID,
 		Content: []codersdk.ChatInputPart{{
 			Type: codersdk.ChatInputPartTypeText,
 			Text: r.cfg.Prompt,
@@ -150,14 +123,15 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	})
 	if err != nil {
 		result.failureStage = failureStageCreateChat
-		r.recordStageFailure(result.failureStage)
+		r.cfg.Metrics.ChatStageFailuresTotal.WithLabelValues(result.failureStage).Inc()
 		return xerrors.Errorf("create chat: %w", err)
 	}
-	r.cfg.Metrics.ChatCreateLatencySeconds.WithLabelValues(r.cfg.MetricLabelValues...).Observe(time.Since(createStartedAt).Seconds())
+	r.cfg.Metrics.ChatCreateLatencySeconds.Observe(time.Since(createStartedAt).Seconds())
 
 	r.chatID = chat.ID
 	span.SetAttributes(attribute.String("chat.chat_id", chat.ID.String()))
-	_, _ = fmt.Fprintf(logs, "created chat %s in %s\n", chat.ID, time.Since(createStartedAt))
+	logger = logger.With(slog.F("chat_id", chat.ID))
+	logger.Info(ctx, "created chat session", slog.F("duration", time.Since(createStartedAt)))
 
 	// CreateChat already queues the first prompt for processing on the
 	// server, so the initial turn is in flight as soon as CreateChat
@@ -165,48 +139,37 @@ func (r *Runner) Run(ctx context.Context, id string, logs io.Writer) error {
 	// drive the gate at the natural phase boundary (after the first turn
 	// reaches a terminal Waiting status), rather than fencing here on a
 	// turn that has already started running.
-	events, closer, err := codersdk.NewExperimentalClient(r.client).StreamChat(ctx, chat.ID, nil)
+	events, closer, err := r.client.StreamChat(ctx, chat.ID, nil)
 	if err != nil {
 		result.failureStage = failureStageStreamOpen
-		r.recordStageFailure(result.failureStage)
+		r.cfg.Metrics.ChatStageFailuresTotal.WithLabelValues(result.failureStage).Inc()
 		return xerrors.Errorf("stream chat: %w", err)
 	}
 
-	r.cfg.Metrics.ActiveChatStreams.WithLabelValues(r.cfg.MetricLabelValues...).Inc()
+	r.cfg.Metrics.ActiveChatStreams.Inc()
 	defer func() {
-		r.cfg.Metrics.ActiveChatStreams.WithLabelValues(r.cfg.MetricLabelValues...).Dec()
+		r.cfg.Metrics.ActiveChatStreams.Dec()
 		_ = closer.Close()
 	}()
 
-	_, _ = fmt.Fprintf(logs, "streaming chat %s\n", chat.ID)
+	logger.Info(ctx, "streaming chat events")
 
-	sendNextTurn := func(ctx context.Context, nextTurn int, phase string) error {
-		messageStartedAt := time.Now()
-		_, err := codersdk.NewExperimentalClient(r.client).CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
-			Content: []codersdk.ChatInputPart{{
-				Type: codersdk.ChatInputPartTypeText,
-				Text: r.cfg.Prompt,
-			}},
-			ModelConfigID: r.cfg.ModelConfigID,
-		})
-		if err != nil {
-			return xerrors.Errorf("create chat message for turn %d: %w", nextTurn, err)
-		}
-
-		r.cfg.Metrics.ChatMessageLatencySeconds.WithLabelValues(r.labelValues(phase)...).Observe(time.Since(messageStartedAt).Seconds())
-		_, _ = fmt.Fprintf(logs, "chat %s sent message for turn %d/%d\n", chat.ID, nextTurn, r.cfg.Turns)
-		return nil
-	}
-
-	result, err = r.runConversation(ctx, chat.ID, logs, conversationStart, events, sendNextTurn)
+	shouldMarkTurnStartReady = false // we are passing this responsibility to runConversation.
+	result, err = r.runConversation(ctx, chat.ID, logger, conversationStart, events)
 	return err
 }
 
-func (r *Runner) runConversation(ctx context.Context, chatID uuid.UUID, logs io.Writer, conversationStart time.Time, events <-chan codersdk.ChatStreamEvent, sendNextTurn func(ctx context.Context, nextTurn int, phase string) error) (runnerResult, error) {
+func (r *Runner) runConversation(ctx context.Context, chatID uuid.UUID, logger slog.Logger, conversationStart time.Time, events <-chan codersdk.ChatStreamEvent) (runnerResult, error) {
 	state := conversationState{
-		turnStartTime: conversationStart,
-		currentPhase:  phaseInitial,
+		turnStartTime:            conversationStart,
+		currentPhase:             phaseInitial,
+		shouldMarkTurnStartReady: r.cfg.TurnStartReadyWaitGroup != nil,
 	}
+	defer func() {
+		if state.shouldMarkTurnStartReady {
+			r.cfg.TurnStartReadyWaitGroup.Done()
+		}
+	}()
 
 	for event := range events {
 		state.result.eventCount++
@@ -216,7 +179,7 @@ func (r *Runner) runConversation(ctx context.Context, chatID uuid.UUID, logs io.
 			if event.Status == nil {
 				continue
 			}
-			done, err := r.handleStatusEvent(ctx, chatID, logs, conversationStart, &state, event.Status.Status, sendNextTurn)
+			done, err := r.handleStatusEvent(ctx, chatID, logger, conversationStart, &state, event.Status.Status)
 			if err != nil {
 				return state.result, err
 			}
@@ -224,7 +187,7 @@ func (r *Runner) runConversation(ctx context.Context, chatID uuid.UUID, logs io.
 				return state.result, nil
 			}
 		case codersdk.ChatStreamEventTypeMessagePart:
-			r.handleMessagePartEvent(chatID, logs, &state)
+			r.handleMessagePartEvent(ctx, logger, &state)
 		case codersdk.ChatStreamEventTypeMessage:
 			// StreamChat replays persisted rows as message events, not
 			// message_part deltas, when a turn finished server-side before
@@ -234,11 +197,11 @@ func (r *Runner) runConversation(ctx context.Context, chatID uuid.UUID, logs io.
 			if event.Message == nil || event.Message.Role != codersdk.ChatMessageRoleAssistant {
 				continue
 			}
-			r.handleMessagePartEvent(chatID, logs, &state)
+			r.handleMessagePartEvent(ctx, logger, &state)
 		case codersdk.ChatStreamEventTypeRetry:
-			r.handleRetryEvent(chatID, logs, &state, event.Retry)
+			r.handleRetryEvent(ctx, logger, &state, event.Retry)
 		case codersdk.ChatStreamEventTypeError:
-			handleErrorEvent(chatID, logs, &state, event.Error)
+			handleErrorEvent(ctx, logger, &state, event.Error)
 		}
 	}
 
@@ -247,14 +210,14 @@ func (r *Runner) runConversation(ctx context.Context, chatID uuid.UUID, logs io.
 	}
 
 	state.result.failureStage = failureStageStreamEndedEarly
-	r.recordStageFailure(state.result.failureStage)
+	r.cfg.Metrics.ChatStageFailuresTotal.WithLabelValues(state.result.failureStage).Inc()
 	if state.lastStreamError != "" {
 		return state.result, xerrors.Errorf("chat %s stream ended before completing %d of %d turns: %s", chatID, state.result.turnsCompleted, r.cfg.Turns, state.lastStreamError)
 	}
 	return state.result, xerrors.Errorf("chat %s stream ended before completing %d of %d turns", chatID, state.result.turnsCompleted, r.cfg.Turns)
 }
 
-func (r *Runner) handleStatusEvent(ctx context.Context, chatID uuid.UUID, logs io.Writer, conversationStart time.Time, state *conversationState, status codersdk.ChatStatus, sendNextTurn func(ctx context.Context, nextTurn int, phase string) error) (bool, error) {
+func (r *Runner) handleStatusEvent(ctx context.Context, chatID uuid.UUID, logger slog.Logger, conversationStart time.Time, state *conversationState, status codersdk.ChatStatus) (bool, error) {
 	if status == state.lastStatus {
 		return false, nil
 	}
@@ -268,31 +231,52 @@ func (r *Runner) handleStatusEvent(ctx context.Context, chatID uuid.UUID, logs i
 	switch status {
 	case codersdk.ChatStatusRunning:
 		state.sawTurnRunning = true
-		r.cfg.Metrics.ChatTimeToRunningSeconds.WithLabelValues(r.labelValues(state.currentPhase)...).Observe(time.Since(state.turnStartTime).Seconds())
-		_, _ = fmt.Fprintf(logs, "chat %s reached running status for %s phase\n", chatID, state.currentPhase)
+		r.cfg.Metrics.ChatTimeToRunningSeconds.WithLabelValues(state.currentPhase).Observe(time.Since(state.turnStartTime).Seconds())
+		logger.Info(ctx, "chat reached running status",
+			slog.F("phase", state.currentPhase),
+		)
 		return false, nil
 	case codersdk.ChatStatusWaiting:
 		state.result.turnsCompleted++
 		turnDuration := time.Since(state.turnStartTime)
-		r.cfg.Metrics.ChatTimeToTerminalStatusSeconds.WithLabelValues(r.labelValues(state.currentPhase)...).Observe(turnDuration.Seconds())
-		r.cfg.Metrics.ChatTerminalStatusTotal.WithLabelValues(r.labelValues(string(codersdk.ChatStatusWaiting))...).Inc()
-		r.cfg.Metrics.ChatTurnsCompletedTotal.WithLabelValues(r.cfg.MetricLabelValues...).Inc()
-		_, _ = fmt.Fprintf(logs, "chat %s completed turn %d/%d in %s\n", chatID, state.result.turnsCompleted, r.cfg.Turns, turnDuration)
+		r.cfg.Metrics.ChatTimeToTerminalStatusSeconds.WithLabelValues(state.currentPhase).Observe(turnDuration.Seconds())
+		r.cfg.Metrics.ChatTerminalStatusTotal.WithLabelValues(string(codersdk.ChatStatusWaiting)).Inc()
+		r.cfg.Metrics.ChatTurnsCompletedTotal.Inc()
+		logger.Info(ctx, "chat completed turn",
+			slog.F("turn", state.result.turnsCompleted),
+			slog.F("turns", r.cfg.Turns),
+			slog.F("duration", turnDuration),
+		)
 		if state.result.turnsCompleted >= r.cfg.Turns {
 			state.result.finalStatus = string(codersdk.ChatStatusWaiting)
 			conversationDuration := time.Since(conversationStart)
-			_, _ = fmt.Fprintf(logs, "chat %s reached terminal status %q in %s after %d turns\n", chatID, codersdk.ChatStatusWaiting, conversationDuration, state.result.turnsCompleted)
+			logger.Info(ctx, "chat reached terminal status",
+				slog.F("status", codersdk.ChatStatusWaiting),
+				slog.F("duration", conversationDuration),
+				slog.F("turns_completed", state.result.turnsCompleted),
+			)
 			return true, nil
 		}
 
 		// After the very first turn completes, hand off to the CLI-
 		// coordinated turn-start gate so that the inter-phase delay
 		// measures the gap between every chat actually finishing its
-		// initial turn and the start of the follow-up storm, not the gap
-		// between CreateChat returning and the storm.
+		// initial turn and the start of the follow-up turns, not the gap
+		// between CreateChat returning and the next turn.
 		if state.result.turnsCompleted == 1 {
-			if err := r.waitForTurnStartRelease(ctx, logs, chatID); err != nil {
-				return false, err
+			if state.shouldMarkTurnStartReady {
+				state.shouldMarkTurnStartReady = false
+				r.cfg.TurnStartReadyWaitGroup.Done()
+			}
+			if r.cfg.StartTurnsChan != nil {
+				logger.Info(ctx, "chat waiting for turn start release",
+					slog.F("turn_start_delay", r.cfg.TurnStartDelay),
+				)
+				select {
+				case <-ctx.Done():
+					return false, ctx.Err()
+				case <-r.cfg.StartTurnsChan:
+				}
 			}
 		}
 
@@ -303,9 +287,9 @@ func (r *Runner) handleStatusEvent(ctx context.Context, chatID uuid.UUID, logs i
 		state.lastStatus = ""
 		state.sawTurnRunning = false
 		state.sawTurnFirstOutput = false
-		if err := sendNextTurn(ctx, nextTurn, state.currentPhase); err != nil {
+		if err := r.sendNextTurn(ctx, chatID, logger, nextTurn, state.currentPhase); err != nil {
 			state.result.failureStage = failureStageCreateMessage
-			r.recordStageFailure(state.result.failureStage)
+			r.cfg.Metrics.ChatStageFailuresTotal.WithLabelValues(state.result.failureStage).Inc()
 			return false, err
 		}
 		return false, nil
@@ -313,70 +297,109 @@ func (r *Runner) handleStatusEvent(ctx context.Context, chatID uuid.UUID, logs i
 		state.result.finalStatus = string(codersdk.ChatStatusError)
 		state.result.failureStage = failureStageStatusError
 		turnDuration := time.Since(state.turnStartTime)
-		r.cfg.Metrics.ChatTimeToTerminalStatusSeconds.WithLabelValues(r.labelValues(state.currentPhase)...).Observe(turnDuration.Seconds())
-		r.cfg.Metrics.ChatTerminalStatusTotal.WithLabelValues(r.labelValues(string(codersdk.ChatStatusError))...).Inc()
-		r.recordStageFailure(state.result.failureStage)
+		r.cfg.Metrics.ChatTimeToTerminalStatusSeconds.WithLabelValues(state.currentPhase).Observe(turnDuration.Seconds())
+		r.cfg.Metrics.ChatTerminalStatusTotal.WithLabelValues(string(codersdk.ChatStatusError)).Inc()
+		r.cfg.Metrics.ChatStageFailuresTotal.WithLabelValues(state.result.failureStage).Inc()
 
 		errMessage := state.lastStreamError
 		if errMessage == "" {
 			errMessage = "chat reached error status"
 		}
-		_, _ = fmt.Fprintf(logs, "chat %s reached terminal status %q after %d/%d turns: %s\n", chatID, codersdk.ChatStatusError, state.result.turnsCompleted, r.cfg.Turns, errMessage)
+		logger.Error(ctx, "chat reached terminal status",
+			slog.F("status", codersdk.ChatStatusError),
+			slog.F("turns_completed", state.result.turnsCompleted),
+			slog.F("turns", r.cfg.Turns),
+			slog.F("error", errMessage),
+		)
 		return false, xerrors.Errorf("chat %s reached error status: %s", chatID, errMessage)
 	default:
 		return false, nil
 	}
 }
 
-func (r *Runner) handleMessagePartEvent(chatID uuid.UUID, logs io.Writer, state *conversationState) {
+func (r *Runner) sendNextTurn(ctx context.Context, chatID uuid.UUID, logger slog.Logger, nextTurn int, phase string) error {
+	messageStartedAt := time.Now()
+	modelConfigID := r.cfg.ModelConfigID
+	_, err := r.client.CreateChatMessage(ctx, chatID, codersdk.CreateChatMessageRequest{
+		Content: []codersdk.ChatInputPart{{
+			Type: codersdk.ChatInputPartTypeText,
+			Text: r.cfg.Prompt,
+		}},
+		ModelConfigID: &modelConfigID,
+	})
+	if err != nil {
+		return xerrors.Errorf("create chat message for turn %d: %w", nextTurn, err)
+	}
+
+	r.cfg.Metrics.ChatMessageLatencySeconds.WithLabelValues(phase).Observe(time.Since(messageStartedAt).Seconds())
+	logger.Info(ctx, "chat sent message",
+		slog.F("turn", nextTurn),
+		slog.F("turns", r.cfg.Turns),
+	)
+	return nil
+}
+
+func (r *Runner) handleMessagePartEvent(ctx context.Context, logger slog.Logger, state *conversationState) {
 	if state.sawTurnFirstOutput {
 		return
 	}
 	state.sawTurnFirstOutput = true
 	state.result.sawFirstOutput = true
 	firstOutputDuration := time.Since(state.turnStartTime)
-	r.cfg.Metrics.ChatTimeToFirstOutputSeconds.WithLabelValues(r.labelValues(state.currentPhase)...).Observe(firstOutputDuration.Seconds())
-	_, _ = fmt.Fprintf(logs, "chat %s received first output for %s phase in %s\n", chatID, state.currentPhase, firstOutputDuration)
+	r.cfg.Metrics.ChatTimeToFirstOutputSeconds.WithLabelValues(state.currentPhase).Observe(firstOutputDuration.Seconds())
+	logger.Info(ctx, "chat received first output",
+		slog.F("phase", state.currentPhase),
+		slog.F("duration", firstOutputDuration),
+	)
 }
 
-func (r *Runner) handleRetryEvent(chatID uuid.UUID, logs io.Writer, state *conversationState, retry *codersdk.ChatStreamRetry) {
+func (r *Runner) handleRetryEvent(ctx context.Context, logger slog.Logger, state *conversationState, retry *codersdk.ChatStreamRetry) {
 	state.result.retryCount++
-	r.cfg.Metrics.ChatRetryEventsTotal.WithLabelValues(r.cfg.MetricLabelValues...).Inc()
+	r.cfg.Metrics.ChatRetryEventsTotal.Inc()
 	if retry != nil {
-		_, _ = fmt.Fprintf(logs, "chat %s retry attempt %d in %dms: %s\n", chatID, retry.Attempt, retry.DelayMs, retry.Error)
+		logger.Warn(ctx, "chat retry event",
+			slog.F("attempt", retry.Attempt),
+			slog.F("delay_ms", retry.DelayMs),
+			slog.F("error", retry.Error),
+		)
 		return
 	}
-	_, _ = fmt.Fprintf(logs, "chat %s received retry event\n", chatID)
+	logger.Warn(ctx, "chat retry event")
 }
 
-func handleErrorEvent(chatID uuid.UUID, logs io.Writer, state *conversationState, eventErr *codersdk.ChatError) {
+func handleErrorEvent(ctx context.Context, logger slog.Logger, state *conversationState, eventErr *codersdk.ChatError) {
 	if eventErr != nil && eventErr.Message != "" {
 		state.lastStreamError = eventErr.Message
-		_, _ = fmt.Fprintf(logs, "chat %s stream error: %s\n", chatID, state.lastStreamError)
+		logger.Warn(ctx, "chat stream error",
+			slog.F("error", state.lastStreamError),
+		)
 		return
 	}
-	_, _ = fmt.Fprintf(logs, "chat %s received stream error event\n", chatID)
+	logger.Warn(ctx, "chat stream error event")
 }
 
 func (r *Runner) Cleanup(ctx context.Context, id string, logs io.Writer) error {
-	logs = loadtestutil.NewSyncWriter(logs)
-
 	if r.chatID == uuid.Nil {
 		return nil
 	}
 
-	_, _ = fmt.Fprintf(logs, "archiving chat %s for runner %s\n", r.chatID, id)
-	if err := r.archiveChat(ctx, r.chatID); err != nil {
-		_, _ = fmt.Fprintf(logs, "failed to archive chat %s: %v\n", r.chatID, err)
+	logs = loadtestutil.NewSyncWriter(logs)
+	logger := slog.Make(sloghuman.Sink(logs)).Leveled(slog.LevelDebug).Named(id).With(slog.F("chat_id", r.chatID))
+	r.client.SetLogger(logger)
+	r.client.SetLogBodies(true)
+
+	archived := true
+	logger.Info(ctx, "archiving chat session")
+	if err := r.client.UpdateChat(ctx, r.chatID, codersdk.UpdateChatRequest{Archived: &archived}); err != nil {
+		logger.Error(ctx, "failed to archive chat", slog.Error(err))
 		return xerrors.Errorf("archive chat: %w", err)
 	}
-	_, _ = fmt.Fprintf(logs, "archived chat %s\n", r.chatID)
+	logger.Info(ctx, "archived chat session")
 	return nil
 }
 
 func (r *Runner) GetMetrics() map[string]any {
 	return map[string]any{
-		"run_id":                 r.cfg.RunID,
 		"workspace_id":           r.cfg.WorkspaceID.String(),
 		"turn_start_delay_ms":    r.cfg.TurnStartDelay.Milliseconds(),
 		"chat_id":                r.chatID.String(),
@@ -389,34 +412,4 @@ func (r *Runner) GetMetrics() map[string]any {
 		"turns_requested":        r.cfg.Turns,
 		"turns_completed":        r.result.turnsCompleted,
 	}
-}
-
-func (r *Runner) labelValues(extra string) []string {
-	return append(slices.Clone(r.cfg.MetricLabelValues), extra)
-}
-
-// waitForTurnStartRelease signals that this runner has completed its first
-// turn and then blocks until the CLI releases the follow-up turn storm.
-// markReady is idempotent, so calling this on the natural path and again
-// via the deferred safety-net signal in Run is safe. When the release
-// channel is not configured this returns immediately after signaling.
-func (r *Runner) waitForTurnStartRelease(ctx context.Context, logs io.Writer, chatID uuid.UUID) error {
-	r.turnStartGate.markReady()
-	if r.turnStartGate.releaseChan == nil {
-		return nil
-	}
-	_, _ = fmt.Fprintf(logs, "chat %s waiting for turn start release (%s)\n", chatID, r.cfg.TurnStartDelay)
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-r.turnStartGate.releaseChan:
-		return nil
-	}
-}
-
-func (r *Runner) recordStageFailure(stage string) {
-	if stage == "" {
-		return
-	}
-	r.cfg.Metrics.ChatStageFailuresTotal.WithLabelValues(r.labelValues(stage)...).Inc()
 }
