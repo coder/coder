@@ -21,19 +21,27 @@
 			Full-width mobile dropdowns. We set custom properties on
 			`document.documentElement` from the chat input container so
 			dropdown positions track the actual input box, not hardcoded
-			offsets:
+			offsets. The values are derived from
+			`window.visualViewport.height` (with `window.innerHeight` as a
+			fallback) so the dropdowns stay on-screen when the soft
+			keyboard shrinks the visual viewport on mobile:
 
-			- `--mobile-dropdown-bottom`: distance from the viewport
-			  bottom to the composer's bottom edge. Used by the `-bottom`
-			  variant; the dropdown's bottom edge sits at the composer's
-			  bottom edge (so the dropdown overlaps the composer going
-			  upward, anchored to the composer's bottom).
+			- `--mobile-dropdown-bottom`: distance from the visual
+			  viewport bottom to the composer's bottom edge. Used by the
+			  `-bottom` variant; the dropdown's bottom edge sits at the
+			  composer's bottom edge (so the dropdown overlaps the
+			  composer going upward, anchored to the composer's bottom).
 			- `--mobile-dropdown-above-composer-bottom`: distance from
-			  the viewport bottom to a point just above the composer's
-			  top edge. Used by the `-above-composer` variant; the
-			  dropdown's bottom edge sits a small gap above the
+			  the visual viewport bottom to a point just above the
+			  composer's top edge. Used by the `-above-composer` variant;
+			  the dropdown's bottom edge sits a small gap above the
 			  composer's top edge, so the dropdown does not overlap the
 			  composer.
+			- `--mobile-dropdown-above-composer-max-height`: maximum
+			  height the `-above-composer` variant can grow to without
+			  extending past the visible viewport top. Stored in
+			  visual-viewport coordinates to stay consistent with
+			  `--mobile-dropdown-above-composer-bottom`.
 		*/
 		[data-radix-popper-content-wrapper]:has(> .mobile-full-width-dropdown) {
 			position: fixed !important;
@@ -59,10 +67,9 @@
 			) {
 			bottom: var(--mobile-dropdown-above-composer-bottom, 9rem) !important;
 			top: auto !important;
-			max-height: calc(
-				100vh -
-				var(--mobile-dropdown-above-composer-bottom, 9rem) -
-				1rem
+			max-height: var(
+				--mobile-dropdown-above-composer-max-height,
+				calc(100vh - var(--mobile-dropdown-above-composer-bottom, 9rem) - 1rem)
 			) !important;
 		}
 		.mobile-full-width-dropdown {

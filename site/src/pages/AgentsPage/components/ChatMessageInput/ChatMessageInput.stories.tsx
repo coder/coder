@@ -261,19 +261,32 @@ const longSkillList: TypesGen.UserSkillMetadata[] = Array.from(
 // Decorator that:
 // 1. Pins a fake composer to the bottom of the viewport so the popup
 //    has a sensible anchor.
-// 2. Sets `--mobile-dropdown-above-composer-bottom` directly on the
+// 2. Sets `--mobile-dropdown-above-composer-bottom` and
+//    `--mobile-dropdown-above-composer-max-height` directly on the
 //    document element to simulate what `AgentChatInput` does in
-//    production. We use a value that places the popup just above the
-//    fake composer.
-// 3. Cleans up both the CSS variable and the mocked matchMedia after
-//    the story unmounts.
+//    production. We use values that place the popup just above the
+//    fake composer and bound its height to the space above it.
+// 3. Cleans up the CSS variables and the mocked matchMedia after the
+//    story unmounts.
 const MobileDecorator: Decorator = (Story) => {
 	const composerHeight = 96; // matches mobile composer min-height
 	const gap = 8;
 	const aboveComposerBottom = composerHeight + gap;
+	// Use the visual viewport height when available so the simulated
+	// max-height matches what `AgentChatInput.tsx` computes in
+	// production from `window.visualViewport`.
+	const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+	const aboveComposerMaxHeight = Math.max(
+		0,
+		viewportHeight - composerHeight - 16,
+	);
 	document.documentElement.style.setProperty(
 		"--mobile-dropdown-above-composer-bottom",
 		`${aboveComposerBottom}px`,
+	);
+	document.documentElement.style.setProperty(
+		"--mobile-dropdown-above-composer-max-height",
+		`${aboveComposerMaxHeight}px`,
 	);
 	return (
 		<div
@@ -334,6 +347,9 @@ export const MobileAboveChatInput: Story = {
 			document.documentElement.style.removeProperty(
 				"--mobile-dropdown-above-composer-bottom",
 			);
+			document.documentElement.style.removeProperty(
+				"--mobile-dropdown-above-composer-max-height",
+			);
 		}
 	},
 };
@@ -381,6 +397,9 @@ export const MobileLongListScrolls: Story = {
 			restoreMatchMedia();
 			document.documentElement.style.removeProperty(
 				"--mobile-dropdown-above-composer-bottom",
+			);
+			document.documentElement.style.removeProperty(
+				"--mobile-dropdown-above-composer-max-height",
 			);
 		}
 	},
