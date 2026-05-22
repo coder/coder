@@ -897,6 +897,9 @@ export const setCachedChatGoal = (
 					return false;
 				}
 				const keyChatId = query.queryKey[1];
+				if (keyChatId === chatId) {
+					return false;
+				}
 				return (
 					keyChatId === familyId ||
 					(typeof keyChatId === "string" &&
