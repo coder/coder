@@ -285,11 +285,6 @@ describe("api.ts", () => {
 				},
 			],
 			[
-				"/api/experimental/chats/providers",
-				() => API.experimental.getChatProviderConfigs(),
-				[],
-			],
-			[
 				"/api/experimental/chats/model-configs",
 				() => API.experimental.getChatModelConfigs(),
 				[],
@@ -309,10 +304,6 @@ describe("api.ts", () => {
 			[
 				"/api/experimental/chats/models",
 				() => API.experimental.getChatModels(),
-			],
-			[
-				"/api/experimental/chats/providers",
-				() => API.experimental.getChatProviderConfigs(),
 			],
 			[
 				"/api/experimental/chats/model-configs",

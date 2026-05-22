@@ -4682,23 +4682,6 @@ type ChatModelConfig struct {
 	AIProviderID         uuid.NullUUID   `db:"ai_provider_id" json:"ai_provider_id"`
 }
 
-type ChatProvider struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	Provider    string    `db:"provider" json:"provider"`
-	DisplayName string    `db:"display_name" json:"display_name"`
-	APIKey      string    `db:"api_key" json:"api_key"`
-	// The ID of the key used to encrypt the provider API key. If this is NULL, the API key is not encrypted
-	ApiKeyKeyID                sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
-	CreatedBy                  uuid.NullUUID  `db:"created_by" json:"created_by"`
-	Enabled                    bool           `db:"enabled" json:"enabled"`
-	CreatedAt                  time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt                  time.Time      `db:"updated_at" json:"updated_at"`
-	BaseUrl                    string         `db:"base_url" json:"base_url"`
-	CentralApiKeyEnabled       bool           `db:"central_api_key_enabled" json:"central_api_key_enabled"`
-	AllowUserApiKey            bool           `db:"allow_user_api_key" json:"allow_user_api_key"`
-	AllowCentralApiKeyFallback bool           `db:"allow_central_api_key_fallback" json:"allow_central_api_key_fallback"`
-}
-
 type ChatQueuedMessage struct {
 	ID            int64           `db:"id" json:"id"`
 	ChatID        uuid.UUID       `db:"chat_id" json:"chat_id"`
@@ -5704,16 +5687,6 @@ type UserAiProviderKey struct {
 	ApiKeyKeyID sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
 	CreatedAt   time.Time      `db:"created_at" json:"created_at"`
 	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
-}
-
-type UserChatProviderKey struct {
-	ID             uuid.UUID      `db:"id" json:"id"`
-	UserID         uuid.UUID      `db:"user_id" json:"user_id"`
-	ChatProviderID uuid.UUID      `db:"chat_provider_id" json:"chat_provider_id"`
-	APIKey         string         `db:"api_key" json:"api_key"`
-	ApiKeyKeyID    sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
-	CreatedAt      time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt      time.Time      `db:"updated_at" json:"updated_at"`
 }
 
 type UserConfig struct {

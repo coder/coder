@@ -24,8 +24,8 @@ import (
 
 // advisorOverrideStubStore stubs only the database methods that
 // resolveAdvisorModelOverride exercises. The prod code calls
-// GetEnabledChatModelConfigByID so the query joins chat_providers and
-// filters both enabled flags atomically; tests simulate that by returning
+// GetEnabledChatModelConfigByID so the query joins ai_providers and
+// filters both enabled flags atomically. Tests simulate that by returning
 // configs the stub treats as enabled.
 type advisorOverrideStubStore struct {
 	database.Store

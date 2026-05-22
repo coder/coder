@@ -47,10 +47,9 @@ func FakeOpenAICompatProviderAPIKeys(t testing.TB) chatprovider.ProviderAPIKeys 
 }
 
 // CreateOpenAICompatChatModelConfig creates the default provider and model
-// config used by chat runtime tests. Tests that create chats should also set
-// Options.ChatProviderAPIKeys, usually via FakeOpenAICompatProviderAPIKeys, so
-// background chat work routes to a local provider until coderd closes. baseURL,
-// when non-empty, is stored on the provider config.
+// config used by chat runtime tests. Tests can pass a baseURL to route chat work
+// to a specific local provider. If baseURL is empty, this helper starts a fake
+// OpenAI-compatible provider.
 func CreateOpenAICompatChatModelConfig(
 	t testing.TB,
 	client *codersdk.ExperimentalClient,
@@ -58,26 +57,19 @@ func CreateOpenAICompatChatModelConfig(
 ) codersdk.ChatModelConfig {
 	t.Helper()
 
-	ctx := testutil.Context(t, testutil.WaitLong)
-	_, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
-		Provider: TestChatProviderOpenAICompat,
-		APIKey:   TestChatProviderAPIKey,
-		BaseURL:  baseURL,
-	})
-	require.NoError(t, err)
-	aiProviderBaseURL := baseURL
-	if aiProviderBaseURL == "" {
-		aiProviderBaseURL = "https://api.example.com/v1"
+	if baseURL == "" {
+		baseURL = chattest.OpenAI(t)
 	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
 	provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
 		Type:    codersdk.AIProviderType(TestChatProviderOpenAICompat),
 		Name:    "test-" + uuid.NewString(),
-		BaseURL: aiProviderBaseURL,
+		BaseURL: baseURL,
 		Enabled: true,
 		APIKeys: []string{TestChatProviderAPIKey},
 	})
 	require.NoError(t, err)
-
 	contextLimit := int64(4096)
 	isDefault := true
 	modelConfig, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{

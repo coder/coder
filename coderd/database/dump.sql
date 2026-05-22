@@ -1531,29 +1531,10 @@ CREATE TABLE chat_model_configs (
     compression_threshold integer NOT NULL,
     options jsonb DEFAULT '{}'::jsonb NOT NULL,
     ai_provider_id uuid,
+    CONSTRAINT chat_model_configs_ai_provider_required_when_active CHECK (((deleted = true) OR (ai_provider_id IS NOT NULL))),
     CONSTRAINT chat_model_configs_compression_threshold_check CHECK (((compression_threshold >= 0) AND (compression_threshold <= 100))),
     CONSTRAINT chat_model_configs_context_limit_check CHECK ((context_limit > 0))
 );
-
-CREATE TABLE chat_providers (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    provider text NOT NULL,
-    display_name text DEFAULT ''::text NOT NULL,
-    api_key text DEFAULT ''::text NOT NULL,
-    api_key_key_id text,
-    created_by uuid,
-    enabled boolean DEFAULT true NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    base_url text DEFAULT ''::text NOT NULL,
-    central_api_key_enabled boolean DEFAULT true NOT NULL,
-    allow_user_api_key boolean DEFAULT false NOT NULL,
-    allow_central_api_key_fallback boolean DEFAULT false NOT NULL,
-    CONSTRAINT chat_providers_provider_check CHECK ((provider = ANY (ARRAY['anthropic'::text, 'azure'::text, 'bedrock'::text, 'google'::text, 'openai'::text, 'openai-compat'::text, 'openrouter'::text, 'vercel'::text]))),
-    CONSTRAINT valid_credential_policy CHECK (((central_api_key_enabled OR allow_user_api_key) AND ((NOT allow_central_api_key_fallback) OR (central_api_key_enabled AND allow_user_api_key))))
-);
-
-COMMENT ON COLUMN chat_providers.api_key_key_id IS 'The ID of the key used to encrypt the provider API key. If this is NULL, the API key is not encrypted';
 
 CREATE TABLE chat_queued_messages (
     id bigint NOT NULL,
@@ -3040,17 +3021,6 @@ COMMENT ON COLUMN user_ai_provider_keys.api_key IS 'User-owned API key used to a
 
 COMMENT ON COLUMN user_ai_provider_keys.api_key_key_id IS 'The ID of the key used to encrypt the user-owned provider API key. If this is NULL, the API key is not encrypted.';
 
-CREATE TABLE user_chat_provider_keys (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
-    user_id uuid NOT NULL,
-    chat_provider_id uuid NOT NULL,
-    api_key text NOT NULL,
-    api_key_key_id text,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT user_chat_provider_keys_api_key_check CHECK ((api_key <> ''::text))
-);
-
 CREATE TABLE user_configs (
     user_id uuid NOT NULL,
     key character varying(256) NOT NULL,
@@ -3667,12 +3637,6 @@ ALTER TABLE ONLY chat_messages
 ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY chat_providers
-    ADD CONSTRAINT chat_providers_pkey PRIMARY KEY (id);
-
-ALTER TABLE ONLY chat_providers
-    ADD CONSTRAINT chat_providers_provider_key UNIQUE (provider);
-
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_pkey PRIMARY KEY (id);
 
@@ -3888,12 +3852,6 @@ ALTER TABLE ONLY user_ai_provider_keys
 
 ALTER TABLE ONLY user_ai_provider_keys
     ADD CONSTRAINT user_ai_provider_keys_user_id_ai_provider_id_key UNIQUE (user_id, ai_provider_id);
-
-ALTER TABLE ONLY user_chat_provider_keys
-    ADD CONSTRAINT user_chat_provider_keys_pkey PRIMARY KEY (id);
-
-ALTER TABLE ONLY user_chat_provider_keys
-    ADD CONSTRAINT user_chat_provider_keys_user_id_chat_provider_id_key UNIQUE (user_id, chat_provider_id);
 
 ALTER TABLE ONLY user_configs
     ADD CONSTRAINT user_configs_pkey PRIMARY KEY (user_id, key);
@@ -4111,8 +4069,6 @@ CREATE INDEX idx_chat_model_configs_provider ON chat_model_configs USING btree (
 CREATE INDEX idx_chat_model_configs_provider_model ON chat_model_configs USING btree (provider, model);
 
 CREATE UNIQUE INDEX idx_chat_model_configs_single_default ON chat_model_configs USING btree ((1)) WHERE ((is_default = true) AND (deleted = false));
-
-CREATE INDEX idx_chat_providers_enabled ON chat_providers USING btree (enabled);
 
 CREATE INDEX idx_chat_queued_messages_chat_id ON chat_queued_messages USING btree (chat_id);
 
@@ -4444,12 +4400,6 @@ ALTER TABLE ONLY chat_model_configs
 ALTER TABLE ONLY chat_model_configs
     ADD CONSTRAINT chat_model_configs_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES users(id);
 
-ALTER TABLE ONLY chat_providers
-    ADD CONSTRAINT chat_providers_api_key_key_id_fkey FOREIGN KEY (api_key_key_id) REFERENCES dbcrypt_keys(active_key_digest);
-
-ALTER TABLE ONLY chat_providers
-    ADD CONSTRAINT chat_providers_created_by_fkey FOREIGN KEY (created_by) REFERENCES users(id);
-
 ALTER TABLE ONLY chat_queued_messages
     ADD CONSTRAINT chat_queued_messages_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
@@ -4686,15 +4636,6 @@ ALTER TABLE ONLY user_ai_provider_keys
 
 ALTER TABLE ONLY user_ai_provider_keys
     ADD CONSTRAINT user_ai_provider_keys_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY user_chat_provider_keys
-    ADD CONSTRAINT user_chat_provider_keys_api_key_key_id_fkey FOREIGN KEY (api_key_key_id) REFERENCES dbcrypt_keys(active_key_digest);
-
-ALTER TABLE ONLY user_chat_provider_keys
-    ADD CONSTRAINT user_chat_provider_keys_chat_provider_id_fkey FOREIGN KEY (chat_provider_id) REFERENCES chat_providers(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY user_chat_provider_keys
-    ADD CONSTRAINT user_chat_provider_keys_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY user_configs
     ADD CONSTRAINT user_configs_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;

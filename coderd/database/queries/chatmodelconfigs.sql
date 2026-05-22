@@ -34,17 +34,13 @@ SELECT
     cmc.*
 FROM
     chat_model_configs cmc
-LEFT JOIN
+JOIN
     ai_providers ap ON ap.id = cmc.ai_provider_id
-LEFT JOIN
-    chat_providers cp ON cp.provider = cmc.provider AND cmc.ai_provider_id IS NULL
 WHERE
     cmc.enabled = TRUE
     AND cmc.deleted = FALSE
-    AND (
-        (cmc.ai_provider_id IS NOT NULL AND ap.enabled = TRUE AND ap.deleted = FALSE)
-        OR (cmc.ai_provider_id IS NULL AND cp.enabled = TRUE)
-    )
+    AND ap.enabled = TRUE
+    AND ap.deleted = FALSE
 ORDER BY
     cmc.provider ASC,
     cmc.model ASC,
@@ -58,18 +54,14 @@ FROM
     chat_model_configs cmc
 -- Providers can be disabled independently of their model configs.
 -- Check both to ensure the selected config is actually usable.
-LEFT JOIN
+JOIN
     ai_providers ap ON ap.id = cmc.ai_provider_id
-LEFT JOIN
-    chat_providers cp ON cp.provider = cmc.provider AND cmc.ai_provider_id IS NULL
 WHERE
     cmc.id = @id::uuid
     AND cmc.deleted = FALSE
     AND cmc.enabled = TRUE
-    AND (
-        (cmc.ai_provider_id IS NOT NULL AND ap.enabled = TRUE AND ap.deleted = FALSE)
-        OR (cmc.ai_provider_id IS NULL AND cp.enabled = TRUE)
-    );
+    AND ap.enabled = TRUE
+    AND ap.deleted = FALSE;
 
 -- name: InsertChatModelConfig :one
 INSERT INTO chat_model_configs (
@@ -150,4 +142,15 @@ SET
     updated_at = NOW()
 WHERE
     provider = @provider::text
+    AND deleted = FALSE;
+
+-- name: DeleteChatModelConfigsByAIProviderID :exec
+UPDATE
+    chat_model_configs
+SET
+    deleted = TRUE,
+    deleted_at = NOW(),
+    updated_at = NOW()
+WHERE
+    ai_provider_id = @ai_provider_id::uuid
     AND deleted = FALSE;
