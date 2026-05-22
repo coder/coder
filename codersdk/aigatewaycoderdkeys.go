@@ -21,6 +21,7 @@ type AIGatewayCoderdKey struct {
 	LastUsedAt *time.Time `json:"last_used_at,omitempty" format:"date-time"`
 }
 
+// CreateAIGatewayCoderdKeyRequest requests a new AI Gateway coderd key.
 type CreateAIGatewayCoderdKeyRequest struct {
 	Name string `json:"name" validate:"required"`
 }

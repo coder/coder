@@ -3258,6 +3258,9 @@ export interface ConvertLoginRequest {
 }
 
 // From codersdk/aigatewaycoderdkeys.go
+/**
+ * CreateAIGatewayCoderdKeyRequest requests a new AI Gateway coderd key.
+ */
 export interface CreateAIGatewayCoderdKeyRequest {
 	readonly name: string;
 }

@@ -14743,7 +14743,7 @@ func TestAIGatewayKeysTableConstraints(t *testing.T) {
 	preExsiting := database.InsertAIGatewayKeyParams{
 		ID:           uuid.New(),
 		Name:         "name",
-		SecretPrefix: "cgw_test__1",
+		SecretPrefix: "key_test__1",
 		HashedSecret: []byte("first-secret"),
 	}
 	_, err := db.InsertAIGatewayKey(ctx, preExsiting)
@@ -14757,7 +14757,7 @@ func TestAIGatewayKeysTableConstraints(t *testing.T) {
 	}{
 		{
 			name:            "duplicate name",
-			params:          aiGatewayKeyParams(preExsiting.Name, "cgw_test002"),
+			params:          aiGatewayKeyParams(preExsiting.Name, "key_test002"),
 			expectUniqueErr: database.UniqueAiGatewayKeysNameIndex,
 		},
 		{
@@ -14767,32 +14767,32 @@ func TestAIGatewayKeysTableConstraints(t *testing.T) {
 		},
 		{
 			name:            "duplicate hashed secret",
-			params:          database.InsertAIGatewayKeyParams{ID: uuid.New(), Name: "other-name", SecretPrefix: "cgw_1234567", HashedSecret: preExsiting.HashedSecret},
+			params:          database.InsertAIGatewayKeyParams{ID: uuid.New(), Name: "other-name", SecretPrefix: "key_1234567", HashedSecret: preExsiting.HashedSecret},
 			expectUniqueErr: database.UniqueAiGatewayKeysHashedSecretIndex,
 		},
 		{
 			name:           "empty name",
-			params:         aiGatewayKeyParams("", "cgw_1234567"),
+			params:         aiGatewayKeyParams("", "key_1234567"),
 			expectCheckErr: database.CheckAiGatewayKeysNameCheck,
 		},
 		{
 			name:           "name with trailing dash",
-			params:         aiGatewayKeyParams("other-name-", "cgw_1234567"),
+			params:         aiGatewayKeyParams("other-name-", "key_1234567"),
 			expectCheckErr: database.CheckAiGatewayKeysNameCheck,
 		},
 		{
 			name:           "name with consecutive dashes",
-			params:         aiGatewayKeyParams("other--name", "cgw_1234567"),
+			params:         aiGatewayKeyParams("other--name", "key_1234567"),
 			expectCheckErr: database.CheckAiGatewayKeysNameCheck,
 		},
 		{
 			name:           "name with underscore",
-			params:         aiGatewayKeyParams("other_name", "cgw_1234567"),
+			params:         aiGatewayKeyParams("other_name", "key_1234567"),
 			expectCheckErr: database.CheckAiGatewayKeysNameCheck,
 		},
 		{
 			name:           "name with space",
-			params:         aiGatewayKeyParams("other name", "cgw_1234567"),
+			params:         aiGatewayKeyParams("other name", "key_1234567"),
 			expectCheckErr: database.CheckAiGatewayKeysNameCheck,
 		},
 		{
@@ -14812,12 +14812,12 @@ func TestAIGatewayKeysTableConstraints(t *testing.T) {
 		},
 		{
 			name:           "invalid secret prefix length",
-			params:         aiGatewayKeyParams("other-name", "cgw_short"),
+			params:         aiGatewayKeyParams("other-name", "key_short"),
 			expectCheckErr: database.CheckAiGatewayKeysSecretPrefixCheck,
 		},
 		{
 			name:           "empty hashed secret",
-			params:         database.InsertAIGatewayKeyParams{ID: uuid.New(), Name: "other-name", SecretPrefix: "cgw_1234567"},
+			params:         database.InsertAIGatewayKeyParams{ID: uuid.New(), Name: "other-name", SecretPrefix: "key_1234567"},
 			expectCheckErr: database.CheckAiGatewayKeysHashedSecretCheck,
 		},
 	}
@@ -14841,8 +14841,8 @@ func TestAIGatewayKeysQueries(t *testing.T) {
 	db, _ := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	first := aiGatewayKeyParams("first-key", "cgw_first__")
-	second := aiGatewayKeyParams("second-key", "cgw_second_")
+	first := aiGatewayKeyParams("first-key", "key_first__")
+	second := aiGatewayKeyParams("second-key", "key_second_")
 	second.HashedSecret = []byte("second-secret")
 
 	firstRow, err := db.InsertAIGatewayKey(ctx, first)

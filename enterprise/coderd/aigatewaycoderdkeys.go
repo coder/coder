@@ -172,7 +172,7 @@ func (api *API) deleteAIGatewayCoderdKey(rw http.ResponseWriter, r *http.Request
 	id, err := uuid.Parse(chi.URLParam(r, "key"))
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid key ID",
+			Message: "Invalid key ID.",
 			Detail:  err.Error(),
 		})
 		return
@@ -196,12 +196,11 @@ func (api *API) deleteAIGatewayCoderdKey(rw http.ResponseWriter, r *http.Request
 		ID:           deleted.ID,
 		Name:         deleted.Name,
 		SecretPrefix: deleted.SecretPrefix,
-		HashedSecret: deleted.HashedSecret,
 		CreatedAt:    deleted.CreatedAt,
 		LastUsedAt:   deleted.LastUsedAt,
 	}
 
-	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
+	rw.WriteHeader(http.StatusNoContent)
 }
 
 func convertAIGatewayCoderdKey(row database.ListAIGatewayCoderdKeysRow) codersdk.AIGatewayCoderdKey {
