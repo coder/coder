@@ -10609,19 +10609,11 @@ func TestGetEnabledChatModelConfigsUsesAIProviders(t *testing.T) {
 	}, func(params *database.InsertChatModelConfigParams) {
 		params.Enabled = false
 	})
-	legacyProvider := dbgen.ChatProvider(t, store, database.ChatProvider{Provider: "google"})
-	legacyConfig := dbgen.ChatModelConfig(t, store, database.ChatModelConfig{
-		Provider: legacyProvider.Provider,
-		Model:    "google-model-" + uuid.NewString(),
-	})
 
 	configs, err := store.GetEnabledChatModelConfigs(ctx)
 	require.NoError(t, err)
 	require.True(t, slices.ContainsFunc(configs, func(config database.ChatModelConfig) bool {
 		return config.ID == enabledConfig.ID
-	}))
-	require.True(t, slices.ContainsFunc(configs, func(config database.ChatModelConfig) bool {
-		return config.ID == legacyConfig.ID
 	}))
 	require.False(t, slices.ContainsFunc(configs, func(config database.ChatModelConfig) bool {
 		return config.ID == disabledProviderConfig.ID
@@ -10636,6 +10628,46 @@ func TestGetEnabledChatModelConfigsUsesAIProviders(t *testing.T) {
 
 	_, err = store.GetEnabledChatModelConfigByID(ctx, disabledProviderConfig.ID)
 	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	_, err = store.GetEnabledChatModelConfigByID(ctx, disabledModelConfig.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+}
+
+func insertChatModelConfigForTest(
+	ctx context.Context,
+	t testing.TB,
+	store database.Store,
+	params database.InsertChatModelConfigParams,
+) (database.ChatModelConfig, error) {
+	t.Helper()
+	if params.AIProviderID.Valid {
+		return store.InsertChatModelConfig(ctx, params)
+	}
+	providerName := params.Provider
+	if providerName == "" {
+		providerName = "openai"
+		params.Provider = providerName
+	}
+	providers, err := store.GetAIProviders(ctx, database.GetAIProvidersParams{IncludeDisabled: true})
+	if err != nil {
+		return database.ChatModelConfig{}, err
+	}
+	var provider database.AIProvider
+	for _, candidate := range providers {
+		if candidate.Type != database.AIProviderType(providerName) {
+			continue
+		}
+		if provider.ID == uuid.Nil || candidate.CreatedAt.After(provider.CreatedAt) {
+			provider = candidate
+		}
+	}
+	if provider.ID == uuid.Nil {
+		provider = dbgen.AIProvider(t, store, database.AIProvider{
+			Type: database.AIProviderType(providerName),
+		})
+	}
+	params.AIProviderID = uuid.NullUUID{UUID: provider.ID, Valid: true}
+	return store.InsertChatModelConfig(ctx, params)
 }
 
 func TestInsertChatMessages(t *testing.T) {
@@ -10653,7 +10685,7 @@ func TestInsertChatMessages(t *testing.T) {
 	) database.ChatModelConfig {
 		t.Helper()
 
-		modelConfig, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		modelConfig, err := insertChatModelConfigForTest(ctx, t, store, database.InsertChatModelConfigParams{
 			Provider:             provider,
 			Model:                model,
 			DisplayName:          displayName,
@@ -10681,14 +10713,13 @@ func TestInsertChatMessages(t *testing.T) {
 		dbgen.OrganizationMember(t, store, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
 		provider := "openai"
 
-		_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		dbgen.ChatProvider(t, store, database.ChatProvider{
 			Provider:             provider,
 			DisplayName:          "OpenAI",
 			APIKey:               "test-key",
 			Enabled:              true,
 			CentralApiKeyEnabled: true,
 		})
-		require.NoError(t, err)
 
 		modelConfigA := insertModelConfig(
 			t,
@@ -10850,18 +10881,21 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 	org := dbgen.Organization(t, db, database.Organization{})
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
 
-	// A chat_providers row is required as a FK for model configs.
-	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:             "openai",
-		DisplayName:          "OpenAI",
-		APIKey:               "test-key",
-		Enabled:              true,
-		CentralApiKeyEnabled: true,
+	// An AI provider row is required as a FK for model configs.
+	provider := dbgen.AIProvider(t, db, database.AIProvider{
+		Type:        database.AiProviderTypeOpenai,
+		Name:        "test-" + uuid.NewString(),
+		DisplayName: sql.NullString{String: "OpenAI", Valid: true},
+		Enabled:     true,
 	})
-	require.NoError(t, err)
+	dbgen.AIProviderKey(t, db, database.AIProviderKey{
+		ProviderID: provider.ID,
+		APIKey:     "test-key",
+	})
 
-	modelCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+	modelCfg, err := insertChatModelConfigForTest(ctx, t, db, database.InsertChatModelConfigParams{
 		Provider:             "openai",
+		AIProviderID:         uuid.NullUUID{UUID: provider.ID, Valid: true},
 		Model:                "test-model",
 		DisplayName:          "Test Model",
 		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
@@ -11227,16 +11261,15 @@ func TestGetPRInsights(t *testing.T) {
 		user := dbgen.User(t, store, database.User{})
 		dbgen.OrganizationMember(t, store, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
 
-		_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
+		dbgen.ChatProvider(t, store, database.ChatProvider{
 			Provider:             "anthropic",
 			DisplayName:          "Anthropic",
 			APIKey:               "test-key",
 			Enabled:              true,
 			CentralApiKeyEnabled: true,
 		})
-		require.NoError(t, err)
 
-		mc, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		mc, err := insertChatModelConfigForTest(ctx, t, store, database.InsertChatModelConfigParams{
 			Provider:             "anthropic",
 			Model:                "claude-4",
 			DisplayName:          "Claude 4",
@@ -11683,7 +11716,7 @@ func TestGetPRInsights(t *testing.T) {
 		store, userID, _, orgID := setupChatInfra(t)
 
 		const modelName = "claude-4.1"
-		emptyDisplayModel, err := store.InsertChatModelConfig(context.Background(), database.InsertChatModelConfigParams{
+		emptyDisplayModel, err := insertChatModelConfigForTest(context.Background(), t, store, database.InsertChatModelConfigParams{
 			Provider:             "anthropic",
 			Model:                modelName,
 			DisplayName:          "",
@@ -11791,16 +11824,15 @@ func TestChatPinOrderQueries(t *testing.T) {
 		// Use background context for fixture setup so the
 		// timed test context doesn't tick during DB init.
 		bg := context.Background()
-		_, err := db.InsertChatProvider(bg, database.InsertChatProviderParams{
+		dbgen.ChatProvider(t, db, database.ChatProvider{
 			Provider:             "openai",
 			DisplayName:          "OpenAI",
 			APIKey:               "test-key",
 			Enabled:              true,
 			CentralApiKeyEnabled: true,
 		})
-		require.NoError(t, err)
 
-		modelCfg, err := db.InsertChatModelConfig(bg, database.InsertChatModelConfigParams{
+		modelCfg, err := insertChatModelConfigForTest(bg, t, db, database.InsertChatModelConfigParams{
 			Provider:             "openai",
 			Model:                "test-model",
 			DisplayName:          "Test Model",
@@ -11972,16 +12004,15 @@ func TestChatPinOrderConstraints(t *testing.T) {
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: owner.ID, OrganizationID: org.ID})
 
 	bg := context.Background()
-	_, err := db.InsertChatProvider(bg, database.InsertChatProviderParams{
+	dbgen.ChatProvider(t, db, database.ChatProvider{
 		Provider:             "openai",
 		DisplayName:          "OpenAI",
 		APIKey:               "test-key",
 		Enabled:              true,
 		CentralApiKeyEnabled: true,
 	})
-	require.NoError(t, err)
 
-	modelCfg, err := db.InsertChatModelConfig(bg, database.InsertChatModelConfigParams{
+	modelCfg, err := insertChatModelConfigForTest(bg, t, db, database.InsertChatModelConfigParams{
 		Provider:             "openai",
 		Model:                "test-model",
 		DisplayName:          "Test Model",
@@ -12065,16 +12096,15 @@ func TestChatLabels(t *testing.T) {
 	org := dbgen.Organization(t, db, database.Organization{})
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: owner.ID, OrganizationID: org.ID})
 
-	_, err = db.InsertChatProvider(ctx, database.InsertChatProviderParams{
+	dbgen.ChatProvider(t, db, database.ChatProvider{
 		Provider:             "openai",
 		DisplayName:          "OpenAI",
 		APIKey:               "test-key",
 		Enabled:              true,
 		CentralApiKeyEnabled: true,
 	})
-	require.NoError(t, err)
 
-	modelCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+	modelCfg, err := insertChatModelConfigForTest(ctx, t, db, database.InsertChatModelConfigParams{
 		Provider:             "openai",
 		Model:                "test-model",
 		DisplayName:          "Test Model",
@@ -12365,16 +12395,15 @@ func TestUpdateChatLastTurnSummary(t *testing.T) {
 	org := dbgen.Organization(t, db, database.Organization{})
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: owner.ID, OrganizationID: org.ID})
 
-	_, err = db.InsertChatProvider(ctx, database.InsertChatProviderParams{
+	dbgen.ChatProvider(t, db, database.ChatProvider{
 		Provider:             "openai",
 		DisplayName:          "OpenAI",
 		APIKey:               "test-key",
 		Enabled:              true,
 		CentralApiKeyEnabled: true,
 	})
-	require.NoError(t, err)
 
-	modelCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+	modelCfg, err := insertChatModelConfigForTest(ctx, t, db, database.InsertChatModelConfigParams{
 		Provider:             "openai",
 		Model:                "test-model",
 		DisplayName:          "Test Model",
@@ -12466,16 +12495,15 @@ func TestDeleteChatDebugDataAfterMessageIDIncludesTriggeredRuns(t *testing.T) {
 	providerName := "openai"
 	modelName := "debug-model-" + uuid.NewString()
 
-	_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
+	dbgen.ChatProvider(t, store, database.ChatProvider{
 		Provider:             providerName,
 		DisplayName:          "Debug Provider",
 		APIKey:               "test-key",
 		Enabled:              true,
 		CentralApiKeyEnabled: true,
 	})
-	require.NoError(t, err)
 
-	modelCfg, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, database.InsertChatModelConfigParams{
 		Provider:             providerName,
 		Model:                modelName,
 		DisplayName:          "Debug Model",
@@ -12659,16 +12687,15 @@ func TestDeleteChatDebugDataAfterMessageIDStepLevelFieldBoundariesAndNulls(t *te
 	providerName := "openai"
 	modelName := "debug-model-step-boundaries-" + uuid.NewString()
 
-	_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
+	dbgen.ChatProvider(t, store, database.ChatProvider{
 		Provider:             providerName,
 		DisplayName:          "Debug Provider",
 		APIKey:               "test-key",
 		Enabled:              true,
 		CentralApiKeyEnabled: true,
 	})
-	require.NoError(t, err)
 
-	modelCfg, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, database.InsertChatModelConfigParams{
 		Provider:             providerName,
 		Model:                modelName,
 		DisplayName:          "Debug Model",
@@ -12917,16 +12944,15 @@ func TestFinalizeStaleChatDebugRows(t *testing.T) {
 	providerName := "openai"
 	modelName := "debug-model-finalize-" + uuid.NewString()
 
-	_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
+	dbgen.ChatProvider(t, store, database.ChatProvider{
 		Provider:             providerName,
 		DisplayName:          "Debug Provider",
 		APIKey:               "test-key",
 		Enabled:              true,
 		CentralApiKeyEnabled: true,
 	})
-	require.NoError(t, err)
 
-	modelCfg, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, database.InsertChatModelConfigParams{
 		Provider:             providerName,
 		Model:                modelName,
 		DisplayName:          "Debug Model",
@@ -13356,16 +13382,15 @@ func TestChatDebugSQLGuards(t *testing.T) {
 	providerName := "openai"
 	modelName := "debug-model-guards-" + uuid.NewString()
 
-	_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
+	dbgen.ChatProvider(t, store, database.ChatProvider{
 		Provider:             providerName,
 		DisplayName:          "Debug Provider",
 		APIKey:               "test-key",
 		Enabled:              true,
 		CentralApiKeyEnabled: true,
 	})
-	require.NoError(t, err)
 
-	modelCfg, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, database.InsertChatModelConfigParams{
 		Provider:             providerName,
 		Model:                modelName,
 		DisplayName:          "Debug Model",
@@ -13490,16 +13515,15 @@ func TestChatDebugRunCOALESCEPreservation(t *testing.T) {
 	providerName := "openai"
 	modelName := "debug-model-coalesce-" + uuid.NewString()
 
-	_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
+	dbgen.ChatProvider(t, store, database.ChatProvider{
 		Provider:             providerName,
 		DisplayName:          "Debug Provider",
 		APIKey:               "test-key",
 		Enabled:              true,
 		CentralApiKeyEnabled: true,
 	})
-	require.NoError(t, err)
 
-	modelCfg, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, database.InsertChatModelConfigParams{
 		Provider:             providerName,
 		Model:                modelName,
 		DisplayName:          "Debug Model",
@@ -13605,16 +13629,15 @@ func TestChatDebugStepCOALESCEPreservation(t *testing.T) {
 	providerName := "openai"
 	modelName := "debug-step-coalesce-" + uuid.NewString()
 
-	_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
+	dbgen.ChatProvider(t, store, database.ChatProvider{
 		Provider:             providerName,
 		DisplayName:          "Debug Provider",
 		APIKey:               "test-key",
 		Enabled:              true,
 		CentralApiKeyEnabled: true,
 	})
-	require.NoError(t, err)
 
-	modelCfg, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, database.InsertChatModelConfigParams{
 		Provider:             providerName,
 		Model:                modelName,
 		DisplayName:          "Debug Model",
@@ -13730,16 +13753,15 @@ func TestDeleteChatDebugDataAfterMessageIDNullMessagesSurvive(t *testing.T) {
 	providerName := "openai"
 	modelName := "debug-model-null-msg-" + uuid.NewString()
 
-	_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
+	dbgen.ChatProvider(t, store, database.ChatProvider{
 		Provider:             providerName,
 		DisplayName:          "Debug Provider",
 		APIKey:               "test-key",
 		Enabled:              true,
 		CentralApiKeyEnabled: true,
 	})
-	require.NoError(t, err)
 
-	modelCfg, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, database.InsertChatModelConfigParams{
 		Provider:             providerName,
 		Model:                modelName,
 		DisplayName:          "Debug Model",
@@ -13828,16 +13850,15 @@ func TestDeleteChatDebugDataAfterMessageIDStartedBeforeFiltersNewerRuns(t *testi
 	providerName := "openai"
 	modelName := "debug-model-started-before-" + uuid.NewString()
 
-	_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
+	dbgen.ChatProvider(t, store, database.ChatProvider{
 		Provider:             providerName,
 		DisplayName:          "Debug Provider",
 		APIKey:               "test-key",
 		Enabled:              true,
 		CentralApiKeyEnabled: true,
 	})
-	require.NoError(t, err)
 
-	modelCfg, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, database.InsertChatModelConfigParams{
 		Provider:             providerName,
 		Model:                modelName,
 		DisplayName:          "Debug Model",
@@ -13940,16 +13961,15 @@ func TestDeleteChatDebugDataByChatIDStartedBeforeFiltersNewerRuns(t *testing.T) 
 	providerName := "openai"
 	modelName := "debug-model-by-chat-started-before-" + uuid.NewString()
 
-	_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
+	dbgen.ChatProvider(t, store, database.ChatProvider{
 		Provider:             providerName,
 		DisplayName:          "Debug Provider",
 		APIKey:               "test-key",
 		Enabled:              true,
 		CentralApiKeyEnabled: true,
 	})
-	require.NoError(t, err)
 
-	modelCfg, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, database.InsertChatModelConfigParams{
 		Provider:             providerName,
 		Model:                modelName,
 		DisplayName:          "Debug Model",
@@ -14029,17 +14049,13 @@ func TestGetChatsFilter(t *testing.T) {
 	user := dbgen.User(t, store, database.User{})
 	dbgen.OrganizationMember(t, store, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
 
-	_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:             "openai",
-		DisplayName:          "OpenAI",
-		APIKey:               "test-key",
-		Enabled:              true,
-		CentralApiKeyEnabled: true,
-	})
-	require.NoError(t, err)
+	provider := dbgen.AIProviderWithOptionalKey(t, store, database.AIProvider{
+		Type: database.AiProviderTypeOpenai,
+	}, "test-key")
 
 	modelCfg, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
 		Provider:             "openai",
+		AIProviderID:         uuid.NullUUID{UUID: provider.ID, Valid: true},
 		Model:                "test-model-" + uuid.NewString(),
 		DisplayName:          "Test Model",
 		CreatedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
@@ -14265,16 +14281,15 @@ func TestChatHasUnread(t *testing.T) {
 	user := dbgen.User(t, store, database.User{})
 	dbgen.OrganizationMember(t, store, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
 
-	_, err := store.InsertChatProvider(ctx, database.InsertChatProviderParams{
+	dbgen.ChatProvider(t, store, database.ChatProvider{
 		Provider:             "openai",
 		DisplayName:          "OpenAI",
 		APIKey:               "test-key",
 		Enabled:              true,
 		CentralApiKeyEnabled: true,
 	})
-	require.NoError(t, err)
 
-	modelCfg, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+	modelCfg, err := insertChatModelConfigForTest(ctx, t, store, database.InsertChatModelConfigParams{
 		Provider:             "openai",
 		Model:                "test-model-" + uuid.NewString(),
 		DisplayName:          "Test Model",

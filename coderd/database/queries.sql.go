@@ -276,6 +276,51 @@ func (q *sqlQuerier) GetAIProviderKeysByProviderID(ctx context.Context, provider
 	return items, nil
 }
 
+const getAIProviderKeysByProviderIDs = `-- name: GetAIProviderKeysByProviderIDs :many
+SELECT
+    id, provider_id, api_key, api_key_key_id, created_at, updated_at
+FROM
+    ai_provider_keys
+WHERE
+    provider_id = ANY($1::uuid[])
+ORDER BY
+    provider_id ASC,
+    created_at ASC,
+    id ASC
+`
+
+// Returns all keys for the requested providers, ordered by provider then created_at ASC
+// so callers can select the oldest non-empty key per provider without issuing N queries.
+func (q *sqlQuerier) GetAIProviderKeysByProviderIDs(ctx context.Context, providerIds []uuid.UUID) ([]AIProviderKey, error) {
+	rows, err := q.db.QueryContext(ctx, getAIProviderKeysByProviderIDs, pq.Array(providerIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AIProviderKey
+	for rows.Next() {
+		var i AIProviderKey
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProviderID,
+			&i.APIKey,
+			&i.ApiKeyKeyID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertAIProviderKey = `-- name: InsertAIProviderKey :one
 INSERT INTO ai_provider_keys (
     id,
@@ -5020,6 +5065,23 @@ func (q *sqlQuerier) DeleteChatModelConfigByID(ctx context.Context, id uuid.UUID
 	return err
 }
 
+const deleteChatModelConfigsByAIProviderID = `-- name: DeleteChatModelConfigsByAIProviderID :exec
+UPDATE
+    chat_model_configs
+SET
+    deleted = TRUE,
+    deleted_at = NOW(),
+    updated_at = NOW()
+WHERE
+    ai_provider_id = $1::uuid
+    AND deleted = FALSE
+`
+
+func (q *sqlQuerier) DeleteChatModelConfigsByAIProviderID(ctx context.Context, aiProviderID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteChatModelConfigsByAIProviderID, aiProviderID)
+	return err
+}
+
 const deleteChatModelConfigsByProvider = `-- name: DeleteChatModelConfigsByProvider :exec
 UPDATE
     chat_model_configs
@@ -5164,18 +5226,14 @@ SELECT
     cmc.id, cmc.provider, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options, cmc.ai_provider_id
 FROM
     chat_model_configs cmc
-LEFT JOIN
+JOIN
     ai_providers ap ON ap.id = cmc.ai_provider_id
-LEFT JOIN
-    chat_providers cp ON cp.provider = cmc.provider AND cmc.ai_provider_id IS NULL
 WHERE
     cmc.id = $1::uuid
     AND cmc.deleted = FALSE
     AND cmc.enabled = TRUE
-    AND (
-        (cmc.ai_provider_id IS NOT NULL AND ap.enabled = TRUE AND ap.deleted = FALSE)
-        OR (cmc.ai_provider_id IS NULL AND cp.enabled = TRUE)
-    )
+    AND ap.enabled = TRUE
+    AND ap.deleted = FALSE
 `
 
 // Providers can be disabled independently of their model configs.
@@ -5209,17 +5267,13 @@ SELECT
     cmc.id, cmc.provider, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options, cmc.ai_provider_id
 FROM
     chat_model_configs cmc
-LEFT JOIN
+JOIN
     ai_providers ap ON ap.id = cmc.ai_provider_id
-LEFT JOIN
-    chat_providers cp ON cp.provider = cmc.provider AND cmc.ai_provider_id IS NULL
 WHERE
     cmc.enabled = TRUE
     AND cmc.deleted = FALSE
-    AND (
-        (cmc.ai_provider_id IS NOT NULL AND ap.enabled = TRUE AND ap.deleted = FALSE)
-        OR (cmc.ai_provider_id IS NULL AND cp.enabled = TRUE)
-    )
+    AND ap.enabled = TRUE
+    AND ap.deleted = FALSE
 ORDER BY
     cmc.provider ASC,
     cmc.model ASC,
@@ -5431,369 +5485,6 @@ func (q *sqlQuerier) UpdateChatModelConfig(ctx context.Context, arg UpdateChatMo
 		&i.CompressionThreshold,
 		&i.Options,
 		&i.AIProviderID,
-	)
-	return i, err
-}
-
-const deleteChatProviderByID = `-- name: DeleteChatProviderByID :exec
-DELETE FROM
-    chat_providers
-WHERE
-    id = $1::uuid
-`
-
-func (q *sqlQuerier) DeleteChatProviderByID(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteChatProviderByID, id)
-	return err
-}
-
-const getChatProviderByID = `-- name: GetChatProviderByID :one
-SELECT
-    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url, central_api_key_enabled, allow_user_api_key, allow_central_api_key_fallback
-FROM
-    chat_providers
-WHERE
-    id = $1::uuid
-`
-
-func (q *sqlQuerier) GetChatProviderByID(ctx context.Context, id uuid.UUID) (ChatProvider, error) {
-	row := q.db.QueryRowContext(ctx, getChatProviderByID, id)
-	var i ChatProvider
-	err := row.Scan(
-		&i.ID,
-		&i.Provider,
-		&i.DisplayName,
-		&i.APIKey,
-		&i.ApiKeyKeyID,
-		&i.CreatedBy,
-		&i.Enabled,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.BaseUrl,
-		&i.CentralApiKeyEnabled,
-		&i.AllowUserApiKey,
-		&i.AllowCentralApiKeyFallback,
-	)
-	return i, err
-}
-
-const getChatProviderByIDForUpdate = `-- name: GetChatProviderByIDForUpdate :one
-SELECT
-    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url, central_api_key_enabled, allow_user_api_key, allow_central_api_key_fallback
-FROM
-    chat_providers
-WHERE
-    id = $1::uuid
-FOR UPDATE
-`
-
-func (q *sqlQuerier) GetChatProviderByIDForUpdate(ctx context.Context, id uuid.UUID) (ChatProvider, error) {
-	row := q.db.QueryRowContext(ctx, getChatProviderByIDForUpdate, id)
-	var i ChatProvider
-	err := row.Scan(
-		&i.ID,
-		&i.Provider,
-		&i.DisplayName,
-		&i.APIKey,
-		&i.ApiKeyKeyID,
-		&i.CreatedBy,
-		&i.Enabled,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.BaseUrl,
-		&i.CentralApiKeyEnabled,
-		&i.AllowUserApiKey,
-		&i.AllowCentralApiKeyFallback,
-	)
-	return i, err
-}
-
-const getChatProviderByProvider = `-- name: GetChatProviderByProvider :one
-SELECT
-    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url, central_api_key_enabled, allow_user_api_key, allow_central_api_key_fallback
-FROM
-    chat_providers
-WHERE
-    provider = $1::text
-`
-
-func (q *sqlQuerier) GetChatProviderByProvider(ctx context.Context, provider string) (ChatProvider, error) {
-	row := q.db.QueryRowContext(ctx, getChatProviderByProvider, provider)
-	var i ChatProvider
-	err := row.Scan(
-		&i.ID,
-		&i.Provider,
-		&i.DisplayName,
-		&i.APIKey,
-		&i.ApiKeyKeyID,
-		&i.CreatedBy,
-		&i.Enabled,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.BaseUrl,
-		&i.CentralApiKeyEnabled,
-		&i.AllowUserApiKey,
-		&i.AllowCentralApiKeyFallback,
-	)
-	return i, err
-}
-
-const getChatProviderByProviderForUpdate = `-- name: GetChatProviderByProviderForUpdate :one
-SELECT
-    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url, central_api_key_enabled, allow_user_api_key, allow_central_api_key_fallback
-FROM
-    chat_providers
-WHERE
-    provider = $1::text
-FOR UPDATE
-`
-
-func (q *sqlQuerier) GetChatProviderByProviderForUpdate(ctx context.Context, provider string) (ChatProvider, error) {
-	row := q.db.QueryRowContext(ctx, getChatProviderByProviderForUpdate, provider)
-	var i ChatProvider
-	err := row.Scan(
-		&i.ID,
-		&i.Provider,
-		&i.DisplayName,
-		&i.APIKey,
-		&i.ApiKeyKeyID,
-		&i.CreatedBy,
-		&i.Enabled,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.BaseUrl,
-		&i.CentralApiKeyEnabled,
-		&i.AllowUserApiKey,
-		&i.AllowCentralApiKeyFallback,
-	)
-	return i, err
-}
-
-const getChatProviders = `-- name: GetChatProviders :many
-SELECT
-    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url, central_api_key_enabled, allow_user_api_key, allow_central_api_key_fallback
-FROM
-    chat_providers
-ORDER BY
-    provider ASC
-`
-
-func (q *sqlQuerier) GetChatProviders(ctx context.Context) ([]ChatProvider, error) {
-	rows, err := q.db.QueryContext(ctx, getChatProviders)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ChatProvider
-	for rows.Next() {
-		var i ChatProvider
-		if err := rows.Scan(
-			&i.ID,
-			&i.Provider,
-			&i.DisplayName,
-			&i.APIKey,
-			&i.ApiKeyKeyID,
-			&i.CreatedBy,
-			&i.Enabled,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.BaseUrl,
-			&i.CentralApiKeyEnabled,
-			&i.AllowUserApiKey,
-			&i.AllowCentralApiKeyFallback,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getEnabledChatProviders = `-- name: GetEnabledChatProviders :many
-SELECT
-    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url, central_api_key_enabled, allow_user_api_key, allow_central_api_key_fallback
-FROM
-    chat_providers
-WHERE
-    enabled = TRUE
-ORDER BY
-    provider ASC
-`
-
-func (q *sqlQuerier) GetEnabledChatProviders(ctx context.Context) ([]ChatProvider, error) {
-	rows, err := q.db.QueryContext(ctx, getEnabledChatProviders)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ChatProvider
-	for rows.Next() {
-		var i ChatProvider
-		if err := rows.Scan(
-			&i.ID,
-			&i.Provider,
-			&i.DisplayName,
-			&i.APIKey,
-			&i.ApiKeyKeyID,
-			&i.CreatedBy,
-			&i.Enabled,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.BaseUrl,
-			&i.CentralApiKeyEnabled,
-			&i.AllowUserApiKey,
-			&i.AllowCentralApiKeyFallback,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const insertChatProvider = `-- name: InsertChatProvider :one
-INSERT INTO chat_providers (
-    provider,
-    display_name,
-    api_key,
-    base_url,
-    api_key_key_id,
-    created_by,
-    enabled,
-    central_api_key_enabled,
-    allow_user_api_key,
-    allow_central_api_key_fallback
-) VALUES (
-    $1::text,
-    $2::text,
-    $3::text,
-    $4::text,
-    $5::text,
-    $6::uuid,
-    $7::boolean,
-    $8::boolean,
-    $9::boolean,
-    $10::boolean
-)
-RETURNING
-    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url, central_api_key_enabled, allow_user_api_key, allow_central_api_key_fallback
-`
-
-type InsertChatProviderParams struct {
-	Provider                   string         `db:"provider" json:"provider"`
-	DisplayName                string         `db:"display_name" json:"display_name"`
-	APIKey                     string         `db:"api_key" json:"api_key"`
-	BaseUrl                    string         `db:"base_url" json:"base_url"`
-	ApiKeyKeyID                sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
-	CreatedBy                  uuid.NullUUID  `db:"created_by" json:"created_by"`
-	Enabled                    bool           `db:"enabled" json:"enabled"`
-	CentralApiKeyEnabled       bool           `db:"central_api_key_enabled" json:"central_api_key_enabled"`
-	AllowUserApiKey            bool           `db:"allow_user_api_key" json:"allow_user_api_key"`
-	AllowCentralApiKeyFallback bool           `db:"allow_central_api_key_fallback" json:"allow_central_api_key_fallback"`
-}
-
-func (q *sqlQuerier) InsertChatProvider(ctx context.Context, arg InsertChatProviderParams) (ChatProvider, error) {
-	row := q.db.QueryRowContext(ctx, insertChatProvider,
-		arg.Provider,
-		arg.DisplayName,
-		arg.APIKey,
-		arg.BaseUrl,
-		arg.ApiKeyKeyID,
-		arg.CreatedBy,
-		arg.Enabled,
-		arg.CentralApiKeyEnabled,
-		arg.AllowUserApiKey,
-		arg.AllowCentralApiKeyFallback,
-	)
-	var i ChatProvider
-	err := row.Scan(
-		&i.ID,
-		&i.Provider,
-		&i.DisplayName,
-		&i.APIKey,
-		&i.ApiKeyKeyID,
-		&i.CreatedBy,
-		&i.Enabled,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.BaseUrl,
-		&i.CentralApiKeyEnabled,
-		&i.AllowUserApiKey,
-		&i.AllowCentralApiKeyFallback,
-	)
-	return i, err
-}
-
-const updateChatProvider = `-- name: UpdateChatProvider :one
-UPDATE
-    chat_providers
-SET
-    display_name = $1::text,
-    api_key = $2::text,
-    base_url = $3::text,
-    api_key_key_id = $4::text,
-    enabled = $5::boolean,
-    central_api_key_enabled = $6::boolean,
-    allow_user_api_key = $7::boolean,
-    allow_central_api_key_fallback = $8::boolean,
-    updated_at = NOW()
-WHERE
-    id = $9::uuid
-RETURNING
-    id, provider, display_name, api_key, api_key_key_id, created_by, enabled, created_at, updated_at, base_url, central_api_key_enabled, allow_user_api_key, allow_central_api_key_fallback
-`
-
-type UpdateChatProviderParams struct {
-	DisplayName                string         `db:"display_name" json:"display_name"`
-	APIKey                     string         `db:"api_key" json:"api_key"`
-	BaseUrl                    string         `db:"base_url" json:"base_url"`
-	ApiKeyKeyID                sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
-	Enabled                    bool           `db:"enabled" json:"enabled"`
-	CentralApiKeyEnabled       bool           `db:"central_api_key_enabled" json:"central_api_key_enabled"`
-	AllowUserApiKey            bool           `db:"allow_user_api_key" json:"allow_user_api_key"`
-	AllowCentralApiKeyFallback bool           `db:"allow_central_api_key_fallback" json:"allow_central_api_key_fallback"`
-	ID                         uuid.UUID      `db:"id" json:"id"`
-}
-
-func (q *sqlQuerier) UpdateChatProvider(ctx context.Context, arg UpdateChatProviderParams) (ChatProvider, error) {
-	row := q.db.QueryRowContext(ctx, updateChatProvider,
-		arg.DisplayName,
-		arg.APIKey,
-		arg.BaseUrl,
-		arg.ApiKeyKeyID,
-		arg.Enabled,
-		arg.CentralApiKeyEnabled,
-		arg.AllowUserApiKey,
-		arg.AllowCentralApiKeyFallback,
-		arg.ID,
-	)
-	var i ChatProvider
-	err := row.Scan(
-		&i.ID,
-		&i.Provider,
-		&i.DisplayName,
-		&i.APIKey,
-		&i.ApiKeyKeyID,
-		&i.CreatedBy,
-		&i.Enabled,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.BaseUrl,
-		&i.CentralApiKeyEnabled,
-		&i.AllowUserApiKey,
-		&i.AllowCentralApiKeyFallback,
 	)
 	return i, err
 }
@@ -27549,126 +27240,6 @@ func (q *sqlQuerier) UpdateUserSkillByUserIDAndName(ctx context.Context, arg Upd
 		&i.Name,
 		&i.Description,
 		&i.Content,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const deleteUserChatProviderKey = `-- name: DeleteUserChatProviderKey :exec
-DELETE FROM user_chat_provider_keys WHERE user_id = $1 AND chat_provider_id = $2
-`
-
-type DeleteUserChatProviderKeyParams struct {
-	UserID         uuid.UUID `db:"user_id" json:"user_id"`
-	ChatProviderID uuid.UUID `db:"chat_provider_id" json:"chat_provider_id"`
-}
-
-func (q *sqlQuerier) DeleteUserChatProviderKey(ctx context.Context, arg DeleteUserChatProviderKeyParams) error {
-	_, err := q.db.ExecContext(ctx, deleteUserChatProviderKey, arg.UserID, arg.ChatProviderID)
-	return err
-}
-
-const getUserChatProviderKeys = `-- name: GetUserChatProviderKeys :many
-SELECT id, user_id, chat_provider_id, api_key, api_key_key_id, created_at, updated_at FROM user_chat_provider_keys WHERE user_id = $1 ORDER BY created_at ASC, id ASC
-`
-
-func (q *sqlQuerier) GetUserChatProviderKeys(ctx context.Context, userID uuid.UUID) ([]UserChatProviderKey, error) {
-	rows, err := q.db.QueryContext(ctx, getUserChatProviderKeys, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []UserChatProviderKey
-	for rows.Next() {
-		var i UserChatProviderKey
-		if err := rows.Scan(
-			&i.ID,
-			&i.UserID,
-			&i.ChatProviderID,
-			&i.APIKey,
-			&i.ApiKeyKeyID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const updateUserChatProviderKey = `-- name: UpdateUserChatProviderKey :one
-UPDATE user_chat_provider_keys
-SET api_key = $1, api_key_key_id = $2::text, updated_at = NOW()
-WHERE user_id = $3 AND chat_provider_id = $4
-RETURNING id, user_id, chat_provider_id, api_key, api_key_key_id, created_at, updated_at
-`
-
-type UpdateUserChatProviderKeyParams struct {
-	APIKey         string         `db:"api_key" json:"api_key"`
-	ApiKeyKeyID    sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
-	UserID         uuid.UUID      `db:"user_id" json:"user_id"`
-	ChatProviderID uuid.UUID      `db:"chat_provider_id" json:"chat_provider_id"`
-}
-
-func (q *sqlQuerier) UpdateUserChatProviderKey(ctx context.Context, arg UpdateUserChatProviderKeyParams) (UserChatProviderKey, error) {
-	row := q.db.QueryRowContext(ctx, updateUserChatProviderKey,
-		arg.APIKey,
-		arg.ApiKeyKeyID,
-		arg.UserID,
-		arg.ChatProviderID,
-	)
-	var i UserChatProviderKey
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.ChatProviderID,
-		&i.APIKey,
-		&i.ApiKeyKeyID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const upsertUserChatProviderKey = `-- name: UpsertUserChatProviderKey :one
-INSERT INTO user_chat_provider_keys (user_id, chat_provider_id, api_key, api_key_key_id)
-VALUES ($1, $2, $3, $4::text)
-ON CONFLICT (user_id, chat_provider_id) DO UPDATE SET
-    api_key = $3,
-    api_key_key_id = $4::text,
-    updated_at = NOW()
-RETURNING id, user_id, chat_provider_id, api_key, api_key_key_id, created_at, updated_at
-`
-
-type UpsertUserChatProviderKeyParams struct {
-	UserID         uuid.UUID      `db:"user_id" json:"user_id"`
-	ChatProviderID uuid.UUID      `db:"chat_provider_id" json:"chat_provider_id"`
-	APIKey         string         `db:"api_key" json:"api_key"`
-	ApiKeyKeyID    sql.NullString `db:"api_key_key_id" json:"api_key_key_id"`
-}
-
-func (q *sqlQuerier) UpsertUserChatProviderKey(ctx context.Context, arg UpsertUserChatProviderKeyParams) (UserChatProviderKey, error) {
-	row := q.db.QueryRowContext(ctx, upsertUserChatProviderKey,
-		arg.UserID,
-		arg.ChatProviderID,
-		arg.APIKey,
-		arg.ApiKeyKeyID,
-	)
-	var i UserChatProviderKey
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.ChatProviderID,
-		&i.APIKey,
-		&i.ApiKeyKeyID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

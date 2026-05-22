@@ -22,7 +22,7 @@ import (
 type stubChatConfigStore struct {
 	database.Store
 
-	getEnabledChatProviders   func(context.Context) ([]database.ChatProvider, error)
+	getAIProviders            func(context.Context) ([]database.AIProvider, error)
 	getChatModelConfigByID    func(context.Context, uuid.UUID) (database.ChatModelConfig, error)
 	getDefaultChatModelConfig func(context.Context) (database.ChatModelConfig, error)
 	getUserChatCustomPrompt   func(context.Context, uuid.UUID) (string, error)
@@ -35,12 +35,12 @@ type stubChatConfigStore struct {
 	advisorConfigCalls     atomic.Int32
 }
 
-func (s *stubChatConfigStore) GetEnabledChatProviders(ctx context.Context) ([]database.ChatProvider, error) {
+func (s *stubChatConfigStore) GetAIProviders(ctx context.Context, _ database.GetAIProvidersParams) ([]database.AIProvider, error) {
 	s.enabledProvidersCalls.Add(1)
-	if s.getEnabledChatProviders == nil {
-		panic("unexpected GetEnabledChatProviders call")
+	if s.getAIProviders == nil {
+		panic("unexpected GetAIProviders call")
 	}
-	return s.getEnabledChatProviders(ctx)
+	return s.getAIProviders(ctx)
 }
 
 func (s *stubChatConfigStore) GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (database.ChatModelConfig, error) {
@@ -80,9 +80,9 @@ func TestConfigCache_EnabledProviders_CacheHit(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 	clock := quartz.NewMock(t)
-	providers := []database.ChatProvider{testChatProvider("provider-a")}
+	providers := []database.AIProvider{testAIProvider("provider-a")}
 	store := &stubChatConfigStore{
-		getEnabledChatProviders: func(context.Context) ([]database.ChatProvider, error) {
+		getAIProviders: func(context.Context) ([]database.AIProvider, error) {
 			return providers, nil
 		},
 	}
@@ -104,9 +104,9 @@ func TestConfigCache_EnabledProviders_TTLExpiry(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	clock := quartz.NewMock(t)
 	store := &stubChatConfigStore{}
-	store.getEnabledChatProviders = func(context.Context) ([]database.ChatProvider, error) {
+	store.getAIProviders = func(context.Context) ([]database.AIProvider, error) {
 		call := store.enabledProvidersCalls.Load()
-		return []database.ChatProvider{testChatProvider(fmt.Sprintf("provider-%d", call))}, nil
+		return []database.AIProvider{testAIProvider(fmt.Sprintf("provider-%d", call))}, nil
 	}
 	cache := newChatConfigCache(ctx, store, clock)
 
@@ -126,9 +126,9 @@ func TestConfigCache_EnabledProviders_Invalidation(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	clock := quartz.NewMock(t)
 	store := &stubChatConfigStore{}
-	store.getEnabledChatProviders = func(context.Context) ([]database.ChatProvider, error) {
+	store.getAIProviders = func(context.Context) ([]database.AIProvider, error) {
 		call := store.enabledProvidersCalls.Load()
-		return []database.ChatProvider{testChatProvider(fmt.Sprintf("provider-%d", call))}, nil
+		return []database.AIProvider{testAIProvider(fmt.Sprintf("provider-%d", call))}, nil
 	}
 	cache := newChatConfigCache(ctx, store, clock)
 
@@ -398,12 +398,12 @@ func TestConfigCache_Singleflight(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	clock := quartz.NewMock(t)
-	providers := []database.ChatProvider{testChatProvider("provider-a")}
+	providers := []database.AIProvider{testAIProvider("provider-a")}
 	fetchStarted := make(chan struct{})
 	releaseFetch := make(chan struct{})
 	var startedOnce sync.Once
 	store := &stubChatConfigStore{}
-	store.getEnabledChatProviders = func(context.Context) ([]database.ChatProvider, error) {
+	store.getAIProviders = func(context.Context) ([]database.AIProvider, error) {
 		startedOnce.Do(func() { close(fetchStarted) })
 		<-releaseFetch
 		return providers, nil
@@ -411,7 +411,7 @@ func TestConfigCache_Singleflight(t *testing.T) {
 	cache := newChatConfigCache(ctx, store, clock)
 
 	const callers = 8
-	results := make([][]database.ChatProvider, callers)
+	results := make([][]database.AIProvider, callers)
 	errs := make([]error, callers)
 	var wg sync.WaitGroup
 	start := make(chan struct{})
@@ -441,13 +441,13 @@ func TestConfigCache_GenerationPreventsStaleWrite(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	clock := quartz.NewMock(t)
-	firstProviders := []database.ChatProvider{testChatProvider("provider-a")}
-	secondProviders := []database.ChatProvider{testChatProvider("provider-b")}
+	firstProviders := []database.AIProvider{testAIProvider("provider-a")}
+	secondProviders := []database.AIProvider{testAIProvider("provider-b")}
 	fetchStarted := make(chan struct{})
 	releaseFetch := make(chan struct{})
 	var startedOnce sync.Once
 	store := &stubChatConfigStore{}
-	store.getEnabledChatProviders = func(context.Context) ([]database.ChatProvider, error) {
+	store.getAIProviders = func(context.Context) ([]database.AIProvider, error) {
 		call := store.enabledProvidersCalls.Load()
 		if call == 1 {
 			startedOnce.Do(func() { close(fetchStarted) })
@@ -458,7 +458,7 @@ func TestConfigCache_GenerationPreventsStaleWrite(t *testing.T) {
 	}
 	cache := newChatConfigCache(ctx, store, clock)
 
-	resultCh := make(chan []database.ChatProvider, 1)
+	resultCh := make(chan []database.AIProvider, 1)
 	errCh := make(chan error, 1)
 	go func() {
 		providers, err := cache.EnabledProviders(ctx)
@@ -494,14 +494,14 @@ func TestConfigCache_InvalidateProviders_BlocksStaleInFlightProviders(t *testing
 
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	clock := quartz.NewMock(t)
-	staleProviders := []database.ChatProvider{testChatProvider("provider-stale")}
-	freshProviders := []database.ChatProvider{testChatProvider("provider-fresh")}
+	staleProviders := []database.AIProvider{testAIProvider("provider-stale")}
+	freshProviders := []database.AIProvider{testAIProvider("provider-fresh")}
 	firstStarted := make(chan struct{})
 	secondStarted := make(chan struct{})
 	releaseFirst := make(chan struct{})
 	releaseSecond := make(chan struct{})
 	store := &stubChatConfigStore{}
-	store.getEnabledChatProviders = func(context.Context) ([]database.ChatProvider, error) {
+	store.getAIProviders = func(context.Context) ([]database.AIProvider, error) {
 		switch call := store.enabledProvidersCalls.Load(); call {
 		case 1:
 			close(firstStarted)
@@ -518,7 +518,7 @@ func TestConfigCache_InvalidateProviders_BlocksStaleInFlightProviders(t *testing
 	cache := newChatConfigCache(ctx, store, clock)
 
 	type result struct {
-		providers []database.ChatProvider
+		providers []database.AIProvider
 		err       error
 	}
 
@@ -670,11 +670,12 @@ func TestConfigCache_InvalidateProviders_BlocksStaleInFlightModelConfig(t *testi
 	require.Equal(t, int32(2), store.modelConfigByIDCalls.Load())
 }
 
-func testChatProvider(name string) database.ChatProvider {
-	return database.ChatProvider{
+func testAIProvider(name string) database.AIProvider {
+	return database.AIProvider{
 		ID:          uuid.New(),
-		Provider:    name,
-		DisplayName: name,
+		Type:        database.AIProviderType(name),
+		Name:        name,
+		DisplayName: sql.NullString{String: name, Valid: true},
 		Enabled:     true,
 		CreatedAt:   time.Unix(0, 0).UTC(),
 		UpdatedAt:   time.Unix(0, 0).UTC(),
@@ -737,19 +738,19 @@ func TestConfigCache_CallerCancellation(t *testing.T) {
 			name: "EnabledProviders",
 			setupBlocked: func(store *stubChatConfigStore, started, release chan struct{}) {
 				var once sync.Once
-				store.getEnabledChatProviders = func(ctx context.Context) ([]database.ChatProvider, error) {
+				store.getAIProviders = func(ctx context.Context) ([]database.AIProvider, error) {
 					once.Do(func() { close(started) })
 					select {
 					case <-ctx.Done():
 						return nil, ctx.Err()
 					case <-release:
-						return []database.ChatProvider{testChatProvider("p")}, nil
+						return []database.AIProvider{testAIProvider("p")}, nil
 					}
 				}
 			},
 			setupCtxSensitive: func(store *stubChatConfigStore, started chan struct{}) {
 				var once sync.Once
-				store.getEnabledChatProviders = func(ctx context.Context) ([]database.ChatProvider, error) {
+				store.getAIProviders = func(ctx context.Context) ([]database.AIProvider, error) {
 					once.Do(func() { close(started) })
 					<-ctx.Done()
 					return nil, ctx.Err()

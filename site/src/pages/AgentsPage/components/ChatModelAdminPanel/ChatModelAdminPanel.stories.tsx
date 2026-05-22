@@ -39,12 +39,36 @@ const createProviderConfig = (
 	updated_at: overrides.updated_at ?? now,
 });
 
+const createProviderKey = (providerId: string): TypesGen.AIProviderKey => ({
+	id: `key-${providerId}`,
+	masked: "sk-...test",
+	created_at: now,
+});
+
+const toAIProvider = (
+	providerConfig: TypesGen.ChatProviderConfig,
+): TypesGen.AIProvider => ({
+	id: providerConfig.id,
+	type: providerConfig.provider as TypesGen.AIProviderType,
+	name: providerConfig.provider,
+	display_name: providerConfig.display_name,
+	enabled: providerConfig.enabled,
+	base_url: providerConfig.base_url ?? "",
+	api_keys: providerConfig.has_api_key
+		? [createProviderKey(providerConfig.id)]
+		: [],
+	settings: {},
+	created_at: providerConfig.created_at ?? now,
+	updated_at: providerConfig.updated_at ?? now,
+});
+
 const createModelConfig = (
 	overrides: Partial<TypesGen.ChatModelConfig> &
 		Pick<TypesGen.ChatModelConfig, "id" | "provider" | "model">,
 ): TypesGen.ChatModelConfig => ({
 	id: overrides.id,
 	provider: overrides.provider,
+	ai_provider_id: overrides.ai_provider_id,
 	model: overrides.model,
 	display_name: overrides.display_name ?? overrides.model,
 	enabled: overrides.enabled ?? true,
@@ -68,11 +92,9 @@ const setupChatSpies = (state: {
 	modelConfigs: TypesGen.ChatModelConfig[];
 	modelCatalog: TypesGen.ChatModelsResponse;
 }) => {
-	spyOn(API.experimental, "getChatProviderConfigs").mockImplementation(
-		async () => {
-			return state.providerConfigs;
-		},
-	);
+	spyOn(API.experimental, "listAIProviders").mockImplementation(async () => {
+		return state.providerConfigs.map(toAIProvider);
+	});
 	spyOn(API.experimental, "getChatModelConfigs").mockImplementation(
 		async () => {
 			return state.modelConfigs;
@@ -82,31 +104,26 @@ const setupChatSpies = (state: {
 		return state.modelCatalog;
 	});
 
-	spyOn(API.experimental, "createChatProviderConfig").mockImplementation(
+	spyOn(API.experimental, "createAIProvider").mockImplementation(
 		async (req) => {
 			const created = createProviderConfig({
 				id: `provider-${Date.now()}`,
-				provider: req.provider ?? "",
+				provider: req.type ?? "openai",
 				display_name: req.display_name ?? "",
-				has_api_key: (req.api_key ?? "").trim().length > 0,
-				central_api_key_enabled: req.central_api_key_enabled ?? true,
-				allow_user_api_key: req.allow_user_api_key ?? false,
-				allow_central_api_key_fallback:
-					req.allow_central_api_key_fallback ?? false,
+				has_api_key:
+					req.api_keys?.some((apiKey) => apiKey.trim().length > 0) ?? false,
 				base_url: req.base_url ?? "",
+				enabled: req.enabled ?? true,
 				source: "database",
 			});
 			state.providerConfigs = [
-				...state.providerConfigs.filter(
-					(p) => !(p.id === nilProviderConfigID && p.provider === req.provider),
-				),
+				...state.providerConfigs.filter((p) => p.id !== created.id),
 				created,
 			];
-			return created;
+			return toAIProvider(created);
 		},
 	);
-
-	spyOn(API.experimental, "updateChatProviderConfig").mockImplementation(
+	spyOn(API.experimental, "updateAIProvider").mockImplementation(
 		async (providerConfigId, req) => {
 			const idx = state.providerConfigs.findIndex(
 				(p) => p.id === providerConfigId,
@@ -122,29 +139,30 @@ const setupChatSpies = (state: {
 						? req.display_name
 						: current.display_name,
 				has_api_key:
-					typeof req.api_key === "string"
-						? req.api_key.trim().length > 0
-						: current.has_api_key,
-				central_api_key_enabled:
-					typeof req.central_api_key_enabled === "boolean"
-						? req.central_api_key_enabled
-						: current.central_api_key_enabled,
-				allow_user_api_key:
-					typeof req.allow_user_api_key === "boolean"
-						? req.allow_user_api_key
-						: current.allow_user_api_key,
-				allow_central_api_key_fallback:
-					typeof req.allow_central_api_key_fallback === "boolean"
-						? req.allow_central_api_key_fallback
-						: current.allow_central_api_key_fallback,
+					req.api_keys === undefined
+						? current.has_api_key
+						: req.api_keys.some((apiKey) =>
+								apiKey.api_key !== undefined
+									? apiKey.api_key.trim().length > 0
+									: apiKey.id !== undefined,
+							),
 				base_url:
 					typeof req.base_url === "string" ? req.base_url : current.base_url,
+				enabled:
+					typeof req.enabled === "boolean" ? req.enabled : current.enabled,
 				updated_at: now,
 			};
 			state.providerConfigs = state.providerConfigs.map((p, i) =>
 				i === idx ? updated : p,
 			);
-			return updated;
+			return toAIProvider(updated);
+		},
+	);
+	spyOn(API.experimental, "deleteAIProvider").mockImplementation(
+		async (providerConfigId) => {
+			state.providerConfigs = state.providerConfigs.filter(
+				(p) => p.id !== providerConfigId,
+			);
 		},
 	);
 
@@ -154,6 +172,7 @@ const setupChatSpies = (state: {
 				id: `model-${state.modelConfigs.length + 1}`,
 				provider: req.provider ?? "",
 				model: req.model,
+				ai_provider_id: req.ai_provider_id,
 				display_name: req.display_name || req.model,
 				enabled: req.enabled ?? true,
 				context_limit:
@@ -181,10 +200,6 @@ const setupChatSpies = (state: {
 		},
 	);
 
-	// Unused but mock to avoid errors.
-	spyOn(API.experimental, "deleteChatProviderConfig").mockResolvedValue(
-		undefined,
-	);
 	spyOn(API.experimental, "updateChatModelConfig").mockImplementation(
 		async (modelConfigId, req) => {
 			const idx = state.modelConfigs.findIndex((m) => m.id === modelConfigId);
