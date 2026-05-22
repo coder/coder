@@ -55,7 +55,7 @@ export const parseGoalCommand = (message: string): ParsedGoalCommand | null => {
 		return {
 			kind: "unsupported",
 			reason:
-				"Goal budget and turn limit commands are not supported yet. Set only the objective for now.",
+				"Goal budget and turn limit commands are not supported. Set only the objective.",
 		};
 	}
 
