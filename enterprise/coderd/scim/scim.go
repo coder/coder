@@ -101,7 +101,7 @@ func (s *Server) AuthMiddleware(next http.Handler) http.Handler {
 		}
 
 		// All authenticated requests are treated as coming from the SCIM provisioner
-		//nolint: gocritic // auth header authenticates as this identity
+		//nolint:gocritic // auth header authenticates as this identity
 		ctx := dbauthz.AsSCIMProvisioner(r.Context())
 		r = r.WithContext(ctx)
 

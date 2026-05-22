@@ -250,8 +250,8 @@ var SCIMAuditAdditionalFields = map[string]string{
 // @Security Authorization
 // @Produce json
 // @Tags Enterprise
-// @Param request body coderd.SCIMUser true "New user"
-// @Success 200 {object} coderd.SCIMUser
+// @Param request body legacyscim.SCIMUser true "New user"
+// @Success 200 {object} legacyscim.SCIMUser
 // @Router /scim/v2/Users [post]
 func (s *LegacyServer) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -399,7 +399,7 @@ func (s *LegacyServer) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 // @Produce application/scim+json
 // @Tags Enterprise
 // @Param id path string true "User ID" format(uuid)
-// @Param request body coderd.SCIMUser true "Update user request"
+// @Param request body legacyscim.SCIMUser true "Update user request"
 // @Success 200 {object} codersdk.User
 // @Router /scim/v2/Users/{id} [patch]
 func (s *LegacyServer) scimPatchUser(rw http.ResponseWriter, r *http.Request) {
@@ -483,7 +483,7 @@ func (s *LegacyServer) scimPatchUser(rw http.ResponseWriter, r *http.Request) {
 // @Produce application/scim+json
 // @Tags Enterprise
 // @Param id path string true "User ID" format(uuid)
-// @Param request body coderd.SCIMUser true "Replace user request"
+// @Param request body legacyscim.SCIMUser true "Replace user request"
 // @Success 200 {object} codersdk.User
 // @Router /scim/v2/Users/{id} [put]
 func (s *LegacyServer) scimPutUser(rw http.ResponseWriter, r *http.Request) {

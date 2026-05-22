@@ -220,57 +220,6 @@
 |--------------------|
 | `prebuild_claimed` |
 
-## coderd.SCIMUser
-
-```json
-{
-  "active": true,
-  "emails": [
-    {
-      "display": "string",
-      "primary": true,
-      "type": "string",
-      "value": "user@example.com"
-    }
-  ],
-  "groups": [
-    null
-  ],
-  "id": "string",
-  "meta": {
-    "resourceType": "string"
-  },
-  "name": {
-    "familyName": "string",
-    "givenName": "string"
-  },
-  "schemas": [
-    "string"
-  ],
-  "userName": "string"
-}
-```
-
-### Properties
-
-| Name             | Type               | Required | Restrictions | Description                                                                 |
-|------------------|--------------------|----------|--------------|-----------------------------------------------------------------------------|
-| `active`         | boolean            | false    |              | Active is a ptr to prevent the empty value from being interpreted as false. |
-| `emails`         | array of object    | false    |              |                                                                             |
-| `» display`      | string             | false    |              |                                                                             |
-| `» primary`      | boolean            | false    |              |                                                                             |
-| `» type`         | string             | false    |              |                                                                             |
-| `» value`        | string             | false    |              |                                                                             |
-| `groups`         | array of undefined | false    |              |                                                                             |
-| `id`             | string             | false    |              |                                                                             |
-| `meta`           | object             | false    |              |                                                                             |
-| `» resourceType` | string             | false    |              |                                                                             |
-| `name`           | object             | false    |              |                                                                             |
-| `» familyName`   | string             | false    |              |                                                                             |
-| `» givenName`    | string             | false    |              |                                                                             |
-| `schemas`        | array of string    | false    |              |                                                                             |
-| `userName`       | string             | false    |              |                                                                             |
-
 ## coderd.cspViolation
 
 ```json
@@ -6059,6 +6008,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "workspace_agent_logs": 0
     },
     "scim_api_key": "string",
+    "scim_use_legacy": true,
     "session_lifetime": {
       "default_duration": 0,
       "default_token_lifetime": 0,
@@ -6658,6 +6608,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "workspace_agent_logs": 0
   },
   "scim_api_key": "string",
+  "scim_use_legacy": true,
   "session_lifetime": {
     "default_duration": 0,
     "default_token_lifetime": 0,
@@ -6818,6 +6769,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `redirect_to_access_url`                       | boolean                                                                                              | false    |              |                                                                    |
 | `retention`                                    | [codersdk.RetentionConfig](#codersdkretentionconfig)                                                 | false    |              |                                                                    |
 | `scim_api_key`                                 | string                                                                                               | false    |              |                                                                    |
+| `scim_use_legacy`                              | boolean                                                                                              | false    |              |                                                                    |
 | `session_lifetime`                             | [codersdk.SessionLifetime](#codersdksessionlifetime)                                                 | false    |              |                                                                    |
 | `ssh_keygen_algorithm`                         | string                                                                                               | false    |              |                                                                    |
 | `stats_collection`                             | [codersdk.StatsCollectionConfig](#codersdkstatscollectionconfig)                                     | false    |              |                                                                    |
@@ -17915,6 +17867,57 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 ### Properties
 
 None
+
+## legacyscim.SCIMUser
+
+```json
+{
+  "active": true,
+  "emails": [
+    {
+      "display": "string",
+      "primary": true,
+      "type": "string",
+      "value": "user@example.com"
+    }
+  ],
+  "groups": [
+    null
+  ],
+  "id": "string",
+  "meta": {
+    "resourceType": "string"
+  },
+  "name": {
+    "familyName": "string",
+    "givenName": "string"
+  },
+  "schemas": [
+    "string"
+  ],
+  "userName": "string"
+}
+```
+
+### Properties
+
+| Name             | Type               | Required | Restrictions | Description                                                                 |
+|------------------|--------------------|----------|--------------|-----------------------------------------------------------------------------|
+| `active`         | boolean            | false    |              | Active is a ptr to prevent the empty value from being interpreted as false. |
+| `emails`         | array of object    | false    |              |                                                                             |
+| `» display`      | string             | false    |              |                                                                             |
+| `» primary`      | boolean            | false    |              |                                                                             |
+| `» type`         | string             | false    |              |                                                                             |
+| `» value`        | string             | false    |              |                                                                             |
+| `groups`         | array of undefined | false    |              |                                                                             |
+| `id`             | string             | false    |              |                                                                             |
+| `meta`           | object             | false    |              |                                                                             |
+| `» resourceType` | string             | false    |              |                                                                             |
+| `name`           | object             | false    |              |                                                                             |
+| `» familyName`   | string             | false    |              |                                                                             |
+| `» givenName`    | string             | false    |              |                                                                             |
+| `schemas`        | array of string    | false    |              |                                                                             |
+| `userName`       | string             | false    |              |                                                                             |
 
 ## netcheck.Report
 
