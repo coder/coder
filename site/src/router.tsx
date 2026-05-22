@@ -781,20 +781,19 @@ export const router = createBrowserRouter(
 						}
 					/>
 				</Route>
+				<Route
+					path="/agents/:agentId/desktop"
+					element={
+						<Suspense
+							fallback={
+								<div className="flex h-screen w-screen items-center justify-center" />
+							}
+						>
+							<DesktopPopoutPage />
+						</Suspense>
+					}
+				/>
 			</Route>
-
-			<Route
-				path="/agents/:agentId/desktop"
-				element={
-					<Suspense
-						fallback={
-							<div className="flex h-screen w-screen items-center justify-center" />
-						}
-					>
-						<DesktopPopoutPage />
-					</Suspense>
-				}
-			/>
 
 			<Route
 				path="/agents/:agentId/embed"

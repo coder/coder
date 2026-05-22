@@ -29,6 +29,11 @@ export default function DesktopPopoutPage() {
 
 		channel.postMessage({ type: "popout-opened" });
 
+		// Retry in case the parent's listener registered after this message.
+		const retryTimer = setTimeout(() => {
+			channel.postMessage({ type: "popout-opened" });
+		}, 300);
+
 		channel.addEventListener("message", (event) => {
 			if (event.data?.type === "bring-back") {
 				close();
@@ -41,6 +46,7 @@ export default function DesktopPopoutPage() {
 		addEventListener("beforeunload", handleBeforeUnload);
 
 		return () => {
+			clearTimeout(retryTimer);
 			handleBeforeUnload();
 			removeEventListener("beforeunload", handleBeforeUnload);
 			channel.close();
@@ -104,7 +110,8 @@ export const DesktopPopoutPageView: FC<DesktopPopoutPageViewProps> = ({
 			<div className="flex h-screen w-screen items-center justify-center bg-surface-primary">
 				<div className="flex flex-col items-center gap-3 text-content-secondary">
 					<span className="text-center text-sm">
-						Failed to connect to the desktop session.
+						Failed to connect to the desktop session. The agent may not be
+						connected or the desktop environment may not be available.
 					</span>
 					<Button variant="outline" size="sm" onClick={reconnect}>
 						Reconnect

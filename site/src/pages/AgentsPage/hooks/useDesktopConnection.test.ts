@@ -198,6 +198,26 @@ describe("useDesktopConnection", () => {
 		expect(rfb.resizeSession).toBe(false);
 	});
 
+	it("syncs scaleViewport changes to the RFB instance", () => {
+		const { rerender } = renderHook(
+			({ scaleViewport }) =>
+				useDesktopConnection({
+					chatId: "chat-1",
+					activated: true,
+					scaleViewport,
+				}),
+			{ initialProps: { scaleViewport: true } },
+		);
+		const rfb = getLastRFBInstance();
+		expect(rfb.scaleViewport).toBe(true);
+
+		rerender({ scaleViewport: false });
+		expect(rfb.scaleViewport).toBe(false);
+
+		rerender({ scaleViewport: true });
+		expect(rfb.scaleViewport).toBe(true);
+	});
+
 	it("transitions to error on securityfailure", () => {
 		const { result } = renderHook(() =>
 			useDesktopConnection({ chatId: "chat-1", activated: true }),

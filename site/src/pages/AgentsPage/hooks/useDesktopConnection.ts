@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { watchChatDesktop } from "#/api/api";
 import { useClipboard } from "#/hooks/useClipboard";
+import type { DesktopConnectionStatus } from "../desktopConstants";
 
 interface UseDesktopConnectionOptions {
 	chatId: string | undefined;
@@ -11,8 +12,6 @@ interface UseDesktopConnectionOptions {
 	/** When true the viewport is scaled to fit the container. Default: false (native 100%). */
 	scaleViewport?: boolean;
 }
-
-import type { DesktopConnectionStatus } from "../desktopConstants";
 
 export interface UseDesktopConnectionResult {
 	/** Current connection status. */
@@ -515,7 +514,6 @@ export function useDesktopConnection({
 		};
 	}, [activated, chatId, syncRemoteClipboardToLocal]);
 
-	// Sync scaleViewport to the RFB instance whenever it changes.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: rfbInstance triggers re-run on connect/disconnect
 	useEffect(() => {
 		if (rfbRef.current) {
