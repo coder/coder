@@ -1,4 +1,4 @@
-package chatd //nolint:testpackage // Accesses unexported advisor helpers.
+package chatd
 
 import (
 	"context"
