@@ -2121,7 +2121,7 @@ export const ThinkingBlockAlwaysExpanded: Story = {
 				content: [
 					{
 						type: "reasoning",
-						text: "Let me think about this step by step.",
+						text: "**Configuring model settings**\n\nLet me think about this step by step.",
 					},
 					{
 						type: "text",
@@ -2133,12 +2133,23 @@ export const ThinkingBlockAlwaysExpanded: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByText("Thinking")).toBeInTheDocument();
+		expect(
+			canvas.getByText("Thinking about configuring model settings"),
+		).toBeInTheDocument();
 		await waitFor(() => {
 			expect(
 				canvas.getByText(/Let me think about this step by step/),
 			).toBeVisible();
 		});
+		const thinkingRow = canvas
+			.getByText(/Let me think about this step by step/)
+			.closest("[data-transcript-row]");
+		expect(thinkingRow).toBeInstanceOf(HTMLElement);
+		expect(
+			within(thinkingRow as HTMLElement).queryByText(
+				"Configuring model settings",
+			),
+		).not.toBeInTheDocument();
 	},
 };
 

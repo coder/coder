@@ -2386,8 +2386,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/resolve-autos
 
 ```json
 {
-  "parameter_mismatch": true,
-  "secret_mismatch": true
+  "parameter_mismatch": true
 }
 ```
 

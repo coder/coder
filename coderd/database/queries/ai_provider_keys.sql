@@ -21,6 +21,31 @@ ORDER BY
     created_at ASC,
     id ASC;
 
+-- name: GetAIProviderKeyPresence :many
+-- Returns the provider IDs that have at least one provider-scoped key.
+SELECT DISTINCT
+    provider_id
+FROM
+    ai_provider_keys
+WHERE
+    provider_id = ANY(@provider_ids::uuid[])
+ORDER BY
+    provider_id ASC;
+
+-- name: GetAIProviderKeysByProviderIDs :many
+-- Returns all keys for the requested providers, ordered by provider then created_at ASC
+-- so callers can select the oldest non-empty key per provider without issuing N queries.
+SELECT
+    *
+FROM
+    ai_provider_keys
+WHERE
+    provider_id = ANY(@provider_ids::uuid[])
+ORDER BY
+    provider_id ASC,
+    created_at ASC,
+    id ASC;
+
 -- name: GetAIProviderKeys :many
 -- Returns AI provider key rows. By default, only rows whose parent
 -- provider is live (deleted = FALSE) are returned, so the API list

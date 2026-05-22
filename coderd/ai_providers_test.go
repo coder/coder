@@ -157,6 +157,46 @@ func TestAIProvidersCRUD(t *testing.T) {
 		require.Equal(t, "no-display", created.DisplayName)
 	})
 
+	t.Run("RequiredBaseURL", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "missing-base-url",
+			Enabled: true,
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid AI provider request.", sdkErr.Message)
+		require.Contains(t, sdkErr.Validations, codersdk.ValidationError{Field: "base_url", Detail: "base_url is required"})
+
+		created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "required-base-url",
+			Enabled: true,
+			BaseURL: "https://api.openai.com/v1",
+		})
+		require.NoError(t, err)
+
+		baseURL := "https://proxy.example.com/v1"
+		updated, err := client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
+			BaseURL: &baseURL,
+		})
+		require.NoError(t, err)
+		require.Equal(t, baseURL, updated.BaseURL)
+
+		baseURL = ""
+		_, err = client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
+			BaseURL: &baseURL,
+		})
+		sdkErr = requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid AI provider request.", sdkErr.Message)
+		require.Contains(t, sdkErr.Validations, codersdk.ValidationError{Field: "base_url", Detail: "base_url is required"})
+	})
+
 	t.Run("DuplicateNameConflict", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)

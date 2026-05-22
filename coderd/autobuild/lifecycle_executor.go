@@ -343,7 +343,6 @@ func (e *Executor) runOnce(t time.Time) Stats {
 							SetLastWorkspaceBuildJobInTx(&latestJob).
 							Experiments(e.experiments).
 							Reason(reason).
-							Logger(log.Named("wsbuilder")).
 							BuildMetrics(e.workspaceBuilderMetrics)
 						log.Debug(e.ctx, "auto building workspace", slog.F("transition", nextTransition))
 						if nextTransition == database.WorkspaceTransitionStart &&

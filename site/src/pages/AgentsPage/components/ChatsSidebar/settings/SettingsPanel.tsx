@@ -120,6 +120,13 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 						/>
 					)}
 					<SettingsNavItem
+						icon={ReceiptTextIcon}
+						label="Personal Skills"
+						active={settingsSection === "personal-skills"}
+						to="/agents/settings/personal-skills"
+						state={location.state}
+					/>
+					<SettingsNavItem
 						icon={ShrinkIcon}
 						label="Compaction"
 						active={settingsSection === "compaction"}

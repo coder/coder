@@ -862,6 +862,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 			vals.AI.BridgeConfig.Providers = append(vals.AI.BridgeConfig.Providers, aiProviders...)
 
+			if err := validateLegacyAIBridgeConfig(vals.AI.BridgeConfig); err != nil {
+				return xerrors.Errorf("validate legacy AI bridge config: %w", err)
+			}
+
 			// Manage push notifications.
 			webpusher, err := webpush.New(ctx, ptr.Ref(options.Logger.Named("webpush")), options.Database, options.AccessURL.String())
 			if err != nil {
@@ -1008,6 +1012,41 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			coderAPI, coderAPICloser, err := newAPI(ctx, options)
 			if err != nil {
 				return xerrors.Errorf("create coder API: %w", err)
+			}
+
+			// Runs unconditionally so operators can seed providers via
+			// env without enabling the bridge or proxy features.
+			if err := coderd.SeedAIProvidersFromEnv(
+				ctx,
+				options.Database,
+				vals.AI.BridgeConfig,
+				options.Auditor,
+				logger.Named("aibridge.envseed"),
+			); err != nil {
+				return xerrors.Errorf("seed ai providers from env: %w", err)
+			}
+
+			// In-memory aibridge daemon. Registered on coderd so chatd can
+			// dispatch LLM requests via the in-process transport without
+			// crossing the gated /api/v2/aibridge HTTP route. The HTTP route
+			// itself is registered (and license-gated) only by enterprise/coderd;
+			// in AGPL builds it does not exist at all. The daemon starts here
+			// unconditionally when the bridge feature is enabled by config so
+			// chatd can use it regardless of license entitlement.
+			if vals.AI.BridgeConfig.Enabled.Value() {
+				providers, err := BuildProviders(vals.AI.BridgeConfig)
+				if err != nil {
+					return xerrors.Errorf("build AI providers: %w", err)
+				}
+				aibridgeDaemon, err := newAIBridgeDaemon(coderAPI, providers)
+				if err != nil {
+					return xerrors.Errorf("create aibridged: %w", err)
+				}
+				coderAPI.RegisterInMemoryAIBridgedHTTPHandler(aibridgeDaemon)
+				// The handler is bound to coderAPI's lifecycle; Close() on the
+				// daemon does not affect in-flight requests but is needed to
+				// release pool/recorder resources at shutdown.
+				defer aibridgeDaemon.Close()
 			}
 
 			if vals.Prometheus.Enable {
@@ -2961,7 +3000,20 @@ func ReadAIProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AI
 				i, p.Type, aibridge.ProviderOpenAI, aibridge.ProviderAnthropic, aibridge.ProviderCopilot)
 		}
 
-		if p.Type != aibridge.ProviderAnthropic && hasBedrockFields(*p) {
+		var bedrockKey, bedrockSecret string
+		if len(p.BedrockAccessKeys) > 0 {
+			bedrockKey = p.BedrockAccessKeys[0]
+		}
+		if len(p.BedrockAccessKeySecrets) > 0 {
+			bedrockSecret = p.BedrockAccessKeySecrets[0]
+		}
+		settings := codersdk.NewAIProviderBedrockSettings(
+			p.BedrockRegion, bedrockKey, bedrockSecret,
+			p.BedrockModel, p.BedrockSmallFastModel,
+		)
+		isBedrock := codersdk.IsBedrockConfigured(p.BedrockBaseURL, settings)
+
+		if p.Type != aibridge.ProviderAnthropic && isBedrock {
 			return nil, xerrors.Errorf("provider %d (%s): BEDROCK_* fields are only supported with TYPE %q",
 				i, p.Type, aibridge.ProviderAnthropic)
 		}
@@ -2969,6 +3021,15 @@ func ReadAIProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AI
 		if p.Type == aibridge.ProviderCopilot && len(p.Keys) > 0 {
 			return nil, xerrors.Errorf("provider %d (%s): KEY/KEYS are not supported for TYPE %q",
 				i, p.Type, aibridge.ProviderCopilot)
+		}
+
+		// An Anthropic provider authenticates either via a bearer
+		// token (KEYS) or via Bedrock (BEDROCK_*), not both. Surface
+		// the conflict here so misconfigured deployments fail before
+		// any DB work happens at server startup.
+		if p.Type == aibridge.ProviderAnthropic && len(p.Keys) > 0 && isBedrock {
+			return nil, xerrors.Errorf("provider %d (%s): KEY/KEYS and BEDROCK_* fields are mutually exclusive",
+				i, p.Type)
 		}
 
 		if err := validateProviderCredentialList(i, p.Type, p.Keys); err != nil {
@@ -3092,10 +3153,28 @@ func readAIProvidersForPrefix(logger slog.Logger, environ []string, prefix strin
 	return providers, nil
 }
 
-func hasBedrockFields(p codersdk.AIProviderConfig) bool {
-	return p.BedrockBaseURL != "" || p.BedrockRegion != "" ||
-		len(p.BedrockAccessKeys) > 0 || len(p.BedrockAccessKeySecrets) > 0 ||
-		p.BedrockModel != "" || p.BedrockSmallFastModel != ""
+// validateLegacyAIBridgeConfig enforces invariants on the legacy
+// single-provider env vars (CODER_AIBRIDGE_ANTHROPIC_KEY,
+// CODER_AIBRIDGE_BEDROCK_*) that the indexed validator above can't
+// catch because legacy fields live outside cfg.Providers.
+func validateLegacyAIBridgeConfig(cfg codersdk.AIBridgeConfig) error {
+	// An Anthropic provider authenticates either via a bearer token
+	// or via Bedrock, not both. Fields without serpent-level
+	// defaults (region, base URL, credentials) reliably indicate
+	// operator intent; Model and SmallFastModel are excluded because
+	// they have defaults.
+	settings := codersdk.NewAIProviderBedrockSettings(
+		cfg.LegacyBedrock.Region.String(),
+		cfg.LegacyBedrock.AccessKey.String(),
+		cfg.LegacyBedrock.AccessKeySecret.String(),
+		cfg.LegacyBedrock.Model.String(),
+		cfg.LegacyBedrock.SmallFastModel.String(),
+	)
+	hasBedrock := codersdk.IsBedrockConfigured(cfg.LegacyBedrock.BaseURL.String(), settings)
+	if cfg.LegacyAnthropic.Key.String() != "" && hasBedrock {
+		return xerrors.New("CODER_AIBRIDGE_ANTHROPIC_KEY and CODER_AIBRIDGE_BEDROCK_* are mutually exclusive")
+	}
+	return nil
 }
 
 // maxKeysPerProvider is the maximum number of keys allowed per

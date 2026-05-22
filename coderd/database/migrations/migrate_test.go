@@ -1186,6 +1186,322 @@ func TestMigration000475AgentsAccessOrgRole(t *testing.T) {
 	)
 }
 
+func TestMigration000504AIProvidersBackfill(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion = 504
+
+	sqlDB := testSQLDB(t)
+
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == migrationVersion-1 {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	userID := uuid.New()
+	openAIProviderID := uuid.New()
+	anthropicProviderID := uuid.New()
+	openAIUserKeyID := uuid.New()
+	anthropicUserKeyID := uuid.New()
+	openAIModelConfigID := uuid.New()
+	anthropicModelConfigID := uuid.New()
+
+	tx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer tx.Rollback()
+
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO users (id, username, email, hashed_password, created_at, updated_at, status, rbac_roles, login_type)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		userID, "ai-provider-backfill", "ai-provider-backfill@test.com", []byte{}, now, now, "active", pq.StringArray{}, "password",
+	)
+	require.NoError(t, err)
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO chat_providers (id, provider, display_name, api_key, enabled, base_url, created_at, updated_at)
+		VALUES
+			($1, 'openai', 'OpenAI', 'sk-provider-openai', TRUE, 'https://api.openai.example.com/v1', $3, $3),
+			($2, 'anthropic', '', '', FALSE, '', $3, $3)
+	`, openAIProviderID, anthropicProviderID, now)
+	require.NoError(t, err)
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO user_chat_provider_keys (id, user_id, chat_provider_id, api_key, created_at, updated_at)
+		VALUES
+			($1, $3, $4, 'sk-user-openai', $6, $6),
+			($2, $3, $5, 'sk-user-anthropic', $6, $6)
+	`, openAIUserKeyID, anthropicUserKeyID, userID, openAIProviderID, anthropicProviderID, now)
+	require.NoError(t, err)
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO chat_model_configs (id, provider, model, display_name, enabled, context_limit, compression_threshold, created_at, updated_at)
+		VALUES
+			($1, 'openai', 'gpt-4', 'GPT 4', TRUE, 100000, 70, $3, $3),
+			($2, 'anthropic', 'claude-3-5-sonnet-latest', 'Claude 3.5 Sonnet', TRUE, 200000, 70, $3, $3)
+	`, openAIModelConfigID, anthropicModelConfigID, now)
+	require.NoError(t, err)
+	require.NoError(t, tx.Commit())
+
+	var preBackfillCount int
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM ai_providers
+		WHERE id IN ($1, $2)
+	`, openAIProviderID, anthropicProviderID).Scan(&preBackfillCount)
+	require.NoError(t, err)
+	require.Zero(t, preBackfillCount, "test setup should start before the legacy chat providers are backfilled")
+
+	var preBackfillModelConfigCount int
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM chat_model_configs
+		WHERE id IN ($1, $2)
+			AND ai_provider_id IS NOT NULL
+	`, openAIModelConfigID, anthropicModelConfigID).Scan(&preBackfillModelConfigCount)
+	require.NoError(t, err)
+	require.Zero(t, preBackfillModelConfigCount, "test setup should start before model configs point at AI providers")
+
+	version, more, err := next()
+	require.NoError(t, err)
+	require.True(t, more)
+	require.EqualValues(t, migrationVersion, version)
+
+	assertBackfilledProvider := func(providerID uuid.UUID, providerType, name string, displayName sql.NullString, enabled bool, baseURL string) {
+		t.Helper()
+		var provider struct {
+			Typ         string
+			Name        string
+			DisplayName sql.NullString
+			Enabled     bool
+			BaseURL     string
+		}
+		err = sqlDB.QueryRowContext(ctx, `
+			SELECT type, name, display_name, enabled, base_url
+			FROM ai_providers
+			WHERE id = $1
+		`, providerID).Scan(&provider.Typ, &provider.Name, &provider.DisplayName, &provider.Enabled, &provider.BaseURL)
+		require.NoError(t, err)
+		require.Equal(t, providerType, provider.Typ)
+		require.Equal(t, name, provider.Name)
+		require.Equal(t, displayName, provider.DisplayName)
+		require.Equal(t, enabled, provider.Enabled)
+		require.Equal(t, baseURL, provider.BaseURL)
+	}
+	assertBackfilledProvider(
+		openAIProviderID,
+		"openai",
+		"agents-openai",
+		sql.NullString{String: "OpenAI", Valid: true},
+		true,
+		"https://api.openai.example.com/v1",
+	)
+	assertBackfilledProvider(
+		anthropicProviderID,
+		"anthropic",
+		"agents-anthropic",
+		sql.NullString{},
+		false,
+		"",
+	)
+
+	var providerKeyCount int
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM ai_provider_keys
+		WHERE provider_id = $1 AND api_key = 'sk-provider-openai'
+	`, openAIProviderID).Scan(&providerKeyCount)
+	require.NoError(t, err)
+	require.Equal(t, 1, providerKeyCount, "non-empty legacy provider API key should be copied")
+
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM ai_provider_keys
+		WHERE provider_id = $1
+	`, anthropicProviderID).Scan(&providerKeyCount)
+	require.NoError(t, err)
+	require.Zero(t, providerKeyCount, "empty legacy provider API key should not create an AI provider key")
+
+	assertBackfilledUserKey := func(userKeyID, providerID uuid.UUID, apiKey string) {
+		t.Helper()
+		var userKeyCount int
+		err = sqlDB.QueryRowContext(ctx, `
+			SELECT COUNT(*)
+			FROM user_ai_provider_keys
+			WHERE id = $1 AND user_id = $2 AND ai_provider_id = $3 AND api_key = $4
+		`, userKeyID, userID, providerID, apiKey).Scan(&userKeyCount)
+		require.NoError(t, err)
+		require.Equal(t, 1, userKeyCount)
+	}
+	assertBackfilledUserKey(openAIUserKeyID, openAIProviderID, "sk-user-openai")
+	assertBackfilledUserKey(anthropicUserKeyID, anthropicProviderID, "sk-user-anthropic")
+
+	assertModelConfigProviderID := func(modelConfigID, providerID uuid.UUID) {
+		t.Helper()
+		var aiProviderID sql.NullString
+		err = sqlDB.QueryRowContext(ctx,
+			`SELECT ai_provider_id::text FROM chat_model_configs WHERE id = $1`,
+			modelConfigID,
+		).Scan(&aiProviderID)
+		require.NoError(t, err)
+		require.Equal(t, sql.NullString{String: providerID.String(), Valid: true}, aiProviderID)
+	}
+	assertModelConfigProviderID(openAIModelConfigID, openAIProviderID)
+	assertModelConfigProviderID(anthropicModelConfigID, anthropicProviderID)
+
+	var legacyProviderCount int
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM chat_providers
+		WHERE id IN ($1, $2)
+	`, openAIProviderID, anthropicProviderID).Scan(&legacyProviderCount)
+	require.NoError(t, err)
+	require.Equal(t, 2, legacyProviderCount, "backfill should leave legacy rows for the rest of the stack")
+
+	downSQL, err := os.ReadFile("000504_ai_providers_backfill.down.sql")
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, string(downSQL))
+	require.NoError(t, err)
+
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM ai_providers
+		WHERE id IN ($1, $2)
+	`, openAIProviderID, anthropicProviderID).Scan(&providerKeyCount)
+	require.NoError(t, err)
+	require.Zero(t, providerKeyCount, "down migration should remove backfilled AI providers")
+
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM ai_provider_keys
+		WHERE provider_id IN ($1, $2)
+	`, openAIProviderID, anthropicProviderID).Scan(&providerKeyCount)
+	require.NoError(t, err)
+	require.Zero(t, providerKeyCount, "down migration should remove backfilled provider keys")
+
+	var userKeyCount int
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM user_ai_provider_keys
+		WHERE id IN ($1, $2)
+	`, openAIUserKeyID, anthropicUserKeyID).Scan(&userKeyCount)
+	require.NoError(t, err)
+	require.Zero(t, userKeyCount, "down migration should remove backfilled user keys")
+
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM chat_model_configs
+		WHERE id IN ($1, $2)
+			AND ai_provider_id IS NOT NULL
+	`, openAIModelConfigID, anthropicModelConfigID).Scan(&preBackfillModelConfigCount)
+	require.NoError(t, err)
+	require.Zero(t, preBackfillModelConfigCount, "down migration should clear model config AI provider references")
+
+	err = sqlDB.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM chat_providers
+		WHERE id IN ($1, $2)
+	`, openAIProviderID, anthropicProviderID).Scan(&legacyProviderCount)
+	require.NoError(t, err)
+	require.Equal(t, 2, legacyProviderCount, "down migration should leave the legacy source rows intact")
+}
+
+// TestMigration000504AIProvidersBackfillOverridesNameConflict verifies that a
+// pre-existing live ai_providers row whose name collides with the backfill
+// (for example, agents-openai) is soft-deleted so the chat_providers-derived
+// row inserted by the migration becomes authoritative. This scenario should
+// not occur in practice since no other process writes to ai_providers before
+// this migration runs, but the migration tolerates it rather than failing.
+func TestMigration000504AIProvidersBackfillOverridesNameConflict(t *testing.T) {
+	t.Parallel()
+
+	const migrationVersion = 504
+
+	sqlDB := testSQLDB(t)
+
+	next, err := migrations.Stepper(sqlDB)
+	require.NoError(t, err)
+	for {
+		version, more, err := next()
+		require.NoError(t, err)
+		if !more {
+			t.Fatalf("migration %d not found", migrationVersion)
+		}
+		if version == migrationVersion-1 {
+			break
+		}
+	}
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	chatProviderID := uuid.New()
+	staleProviderID := uuid.New()
+
+	tx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer tx.Rollback()
+
+	// Pre-existing live ai_providers row that collides on name.
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO ai_providers (id, type, name, display_name, enabled, base_url, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		staleProviderID, "openai", "agents-openai", "Stale OpenAI", true, "https://stale.example.com/v1", now, now,
+	)
+	require.NoError(t, err)
+
+	// chat_providers row whose backfill will collide with the stale row above.
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO chat_providers (id, provider, display_name, api_key, enabled, base_url, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		chatProviderID, "openai", "OpenAI", "sk-provider", true, "https://api.openai.example.com/v1", now, now,
+	)
+	require.NoError(t, err)
+	require.NoError(t, tx.Commit())
+
+	version, more, err := next()
+	require.NoError(t, err)
+	require.True(t, more)
+	require.EqualValues(t, migrationVersion, version)
+
+	// The stale row must be soft-deleted and disabled so the unique name index
+	// (which is partial WHERE deleted = FALSE) no longer covers it.
+	var stale struct {
+		Deleted bool
+		Enabled bool
+	}
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT deleted, enabled FROM ai_providers WHERE id = $1`,
+		staleProviderID,
+	).Scan(&stale.Deleted, &stale.Enabled)
+	require.NoError(t, err)
+	require.True(t, stale.Deleted, "pre-existing conflicting ai_providers row should be soft-deleted")
+	require.False(t, stale.Enabled, "pre-existing conflicting ai_providers row should be disabled")
+
+	// The new authoritative row must exist with the chat_providers id, the
+	// agents-openai name, and the chat_providers base_url.
+	var fresh struct {
+		Name    string
+		BaseURL string
+		Deleted bool
+		Enabled bool
+	}
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT name, base_url, deleted, enabled FROM ai_providers WHERE id = $1`,
+		chatProviderID,
+	).Scan(&fresh.Name, &fresh.BaseURL, &fresh.Deleted, &fresh.Enabled)
+	require.NoError(t, err)
+	require.Equal(t, "agents-openai", fresh.Name)
+	require.Equal(t, "https://api.openai.example.com/v1", fresh.BaseURL)
+	require.False(t, fresh.Deleted)
+	require.True(t, fresh.Enabled)
+}
+
 func TestMigration000498SoftDeleteStaleWorkspaceAgents(t *testing.T) {
 	t.Parallel()
 

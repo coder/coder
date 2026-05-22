@@ -1730,7 +1730,7 @@ Force chat debug logging on for every chat, bypassing the runtime admin and user
 | Type        | <code>bool</code>                      |
 | Environment | <code>$CODER_AI_GATEWAY_ENABLED</code> |
 | YAML        | <code>ai_gateway.enabled</code>        |
-| Default     | <code>false</code>                     |
+| Default     | <code>true</code>                      |
 
 Whether to start an in-memory AI Gateway instance.
 
