@@ -30,7 +30,7 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 		targetFlags       = &workspaceTargetFlags{}
 		tracingFlags      = &scaletestTracingFlags{}
 		prometheusFlags   = &scaletestPrometheusFlags{}
-		strategy          = &scaletestStrategyFlags{}
+		timeoutStrategy   = &timeoutFlags{}
 		cleanupStrategy   = newScaletestCleanupStrategy()
 		output            = &scaletestOutputFlags{}
 	)
@@ -67,16 +67,13 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 				Header:    BypassHeader,
 			}
 
-			testCtx, testCancel := strategy.toContext(ctx)
-			defer testCancel()
-
-			workspaces, err := targetFlags.getTargetedWorkspaces(testCtx, client, me.OrganizationIDs, inv.Stdout)
+			workspaces, err := targetFlags.getTargetedWorkspaces(ctx, client, me.OrganizationIDs, inv.Stdout)
 			if err != nil {
 				return err
 			}
 
 			logger := slog.Make(sloghuman.Sink(inv.Stderr)).Leveled(slog.LevelDebug)
-			modelConfigID, err := chat.EnsureScaletestModelConfig(testCtx, codersdk.NewExperimentalClient(client), logger, llmMockURL)
+			modelConfigID, err := chat.EnsureScaletestModelConfig(ctx, codersdk.NewExperimentalClient(client), logger, llmMockURL)
 			if err != nil {
 				return err
 			}
@@ -114,7 +111,7 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 			}
 
 			chatHarness := harness.NewTestHarness(
-				strategy.toStrategy(),
+				timeoutStrategy.wrapStrategy(harness.ConcurrentExecutionStrategy{}),
 				cleanupStrategy.toStrategy(),
 			)
 			for workspaceIndex, targetWorkspace := range workspaces {
@@ -158,6 +155,8 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 			// follow-up turns after every runner finishes its initial turn.
 			totalChats := int64(len(workspaces)) * chatsPerWorkspace
 			_, _ = fmt.Fprintf(inv.Stderr, "Starting chat scale test with %d chats across %d workspaces...\n", totalChats, len(workspaces))
+			testCtx, testCancel := timeoutStrategy.toContext(ctx)
+			defer testCancel()
 			testDone := make(chan error, 1)
 			go func() {
 				testDone <- chatHarness.Run(testCtx)
@@ -249,7 +248,7 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 	output.attach(&cmd.Options)
 	tracingFlags.attach(&cmd.Options)
 	prometheusFlags.attach(&cmd.Options)
-	strategy.attach(&cmd.Options)
+	timeoutStrategy.attach(&cmd.Options)
 	cleanupStrategy.attach(&cmd.Options)
 	return cmd
 }
