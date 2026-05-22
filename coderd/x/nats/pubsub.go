@@ -390,34 +390,33 @@ func (p *Pubsub) addSubscriber(event string, listener pubsub.ListenerWithErr) (*
 	// snapshots s finds a live goroutine ready to observe close(s.stop).
 	s.init()
 
-	p.mu.Lock()
-	if p.ctx.Err() != nil {
-		p.mu.Unlock()
-		s.close()
-		return nil, xerrors.New(errClosed)
-	}
+	var createdSub *natsgo.Subscription
+	err := func() error {
+		p.mu.Lock()
+		defer p.mu.Unlock()
 
-	nsub, ok := p.subscriptions[event]
-	if ok {
-		nsub.listeners[s] = struct{}{}
-		s.shared = nsub
-		p.mu.Unlock()
-		return s, nil
-	}
+		if p.ctx.Err() != nil {
+			return xerrors.New(errClosed)
+		}
 
-	nsub = &natsSub{
-		subject:   event,
-		listeners: map[*localSub]struct{}{s: {}},
-	}
-	s.shared = nsub
-	p.subscriptions[event] = nsub
+		nsub, ok := p.subscriptions[event]
+		if ok {
+			nsub.listeners[s] = struct{}{}
+			s.shared = nsub
+			return nil
+		}
 
-	initErr := func() error {
+		nsub = &natsSub{
+			subject:   event,
+			listeners: make(map[*localSub]struct{}),
+		}
+
 		subConn := pickConn(p.subscribePool, event)
 		natsSub, err := subConn.Subscribe(event, nsub.makeCallback(p))
 		if err != nil {
 			return xerrors.Errorf("subscribe: %w", err)
 		}
+		createdSub = natsSub
 		nsub.sub = natsSub
 
 		// Flush the SUB to the server so a publish issued immediately
@@ -429,20 +428,19 @@ func (p *Pubsub) addSubscriber(event string, listener pubsub.ListenerWithErr) (*
 		if err := natsSub.SetPendingLimits(limits.Msgs, limits.Bytes); err != nil {
 			return xerrors.Errorf("set pending limits: %w", err)
 		}
+
+		nsub.listeners[s] = struct{}{}
+		s.shared = nsub
+		p.subscriptions[event] = nsub
 		return nil
 	}()
-	if initErr != nil {
-		delete(p.subscriptions, event)
-		delete(nsub.listeners, s)
-		natsSub := nsub.sub
-		p.mu.Unlock()
-		if natsSub != nil {
-			_ = natsSub.Unsubscribe()
+	if err != nil {
+		if createdSub != nil {
+			_ = createdSub.Unsubscribe()
 		}
 		s.close()
-		return nil, initErr
+		return nil, err
 	}
-	p.mu.Unlock()
 	return s, nil
 }
 
@@ -450,37 +448,36 @@ func (p *Pubsub) addSubscriber(event string, listener pubsub.ListenerWithErr) (*
 // listener, it also removes and unsubscribes the underlying NATS
 // subscription.
 func (p *Pubsub) unsubscribeLocal(s *localSub) {
-	p.mu.Lock()
-	nsub := s.shared
-	if nsub == nil {
-		p.mu.Unlock()
-		return
-	}
-	if _, tracked := nsub.listeners[s]; !tracked {
-		p.mu.Unlock()
-		return
-	}
-	delete(nsub.listeners, s)
-	if len(nsub.listeners) > 0 {
-		p.mu.Unlock()
-		return
-	}
-	// Last listener: remove the nsub entry so a new Subscribe to this
-	// subject creates a fresh underlying subscription.
-	if cur, ok := p.subscriptions[nsub.subject]; ok && cur == nsub {
-		delete(p.subscriptions, nsub.subject)
-	}
-	natsSub := nsub.sub
-	p.mu.Unlock()
+	natsSub := func() *natsgo.Subscription {
+		p.mu.Lock()
+		defer p.mu.Unlock()
+
+		nsub := s.shared
+		if nsub == nil {
+			return nil
+		}
+		if _, tracked := nsub.listeners[s]; !tracked {
+			return nil
+		}
+		delete(nsub.listeners, s)
+		if len(nsub.listeners) > 0 {
+			return nil
+		}
+		// Last listener: remove the nsub entry so a new Subscribe to this
+		// subject creates a fresh underlying subscription.
+		if cur, ok := p.subscriptions[nsub.subject]; ok && cur == nsub {
+			delete(p.subscriptions, nsub.subject)
+		}
+		return nsub.sub
+	}()
 	if natsSub != nil {
 		_ = natsSub.Unsubscribe()
 	}
 }
 
 // makeCallback returns the NATS message handler for the shared
-// subscription. It snapshots the listener set under p.mu, then
-// non-blocking-enqueues to each listener so one slow listener cannot
-// stall the NATS delivery goroutine.
+// subscription. Each enqueue is non-blocking and does not call user
+// code, so one slow listener cannot stall the NATS delivery goroutine.
 //
 // Zero-copy fan-out: msg.Data is delivered to every local listener
 // without cloning. Listeners on a coalesced subject MUST treat the
@@ -489,12 +486,9 @@ func (p *Pubsub) unsubscribeLocal(s *localSub) {
 func (nsub *natsSub) makeCallback(p *Pubsub) natsgo.MsgHandler {
 	return func(msg *natsgo.Msg) {
 		p.mu.Lock()
-		listeners := make([]*localSub, 0, len(nsub.listeners))
+		defer p.mu.Unlock()
+
 		for s := range nsub.listeners {
-			listeners = append(listeners, s)
-		}
-		p.mu.Unlock()
-		for _, s := range listeners {
 			s.enqueue(msg.Data)
 		}
 	}
@@ -599,15 +593,10 @@ func (p *Pubsub) handleSlowSubscriber(nsub *natsSub) {
 	nsub.lastDropped = cur
 	nsub.dropMu.Unlock()
 
-	// Snapshot the listener set under p.mu so we don't hold the lock
-	// while invoking user callbacks via the dispatcher.
 	p.mu.Lock()
-	listeners := make([]*localSub, 0, len(nsub.listeners))
+	defer p.mu.Unlock()
+
 	for s := range nsub.listeners {
-		listeners = append(listeners, s)
-	}
-	p.mu.Unlock()
-	for _, s := range listeners {
 		s.signalDrop()
 	}
 }
