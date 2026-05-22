@@ -112,14 +112,29 @@ func (q *sqlQuerier) ActivityBumpWorkspace(ctx context.Context, arg ActivityBump
 }
 
 const deleteAIGatewayCoderdKey = `-- name: DeleteAIGatewayCoderdKey :one
-DELETE FROM ai_gateway_coderd_keys WHERE id = $1 RETURNING id
+DELETE FROM ai_gateway_coderd_keys WHERE id = $1
+RETURNING id, name, secret_prefix, created_at, last_used_at
 `
 
-func (q *sqlQuerier) DeleteAIGatewayCoderdKey(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+type DeleteAIGatewayCoderdKeyRow struct {
+	ID           uuid.UUID    `db:"id" json:"id"`
+	Name         string       `db:"name" json:"name"`
+	SecretPrefix string       `db:"secret_prefix" json:"secret_prefix"`
+	CreatedAt    time.Time    `db:"created_at" json:"created_at"`
+	LastUsedAt   sql.NullTime `db:"last_used_at" json:"last_used_at"`
+}
+
+func (q *sqlQuerier) DeleteAIGatewayCoderdKey(ctx context.Context, id uuid.UUID) (DeleteAIGatewayCoderdKeyRow, error) {
 	row := q.db.QueryRowContext(ctx, deleteAIGatewayCoderdKey, id)
-	var id_2 uuid.UUID
-	err := row.Scan(&id_2)
-	return id_2, err
+	var i DeleteAIGatewayCoderdKeyRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.SecretPrefix,
+		&i.CreatedAt,
+		&i.LastUsedAt,
+	)
+	return i, err
 }
 
 const insertAIGatewayCoderdKey = `-- name: InsertAIGatewayCoderdKey :one

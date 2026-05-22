@@ -14858,9 +14858,12 @@ func TestAIGatewayCoderdKeysQueries(t *testing.T) {
 	requireAIGatewayCoderdKeyRow(t, keys[1], second, secondRow.CreatedAt)
 	require.False(t, keys[1].LastUsedAt.Valid)
 
-	rid, err := db.DeleteAIGatewayCoderdKey(ctx, first.ID)
+	deleted, err := db.DeleteAIGatewayCoderdKey(ctx, first.ID)
 	require.NoError(t, err)
-	require.Equal(t, first.ID, rid)
+	require.Equal(t, first.ID, deleted.ID)
+	require.Equal(t, first.Name, deleted.Name)
+	require.Equal(t, first.SecretPrefix, deleted.SecretPrefix)
+	require.Equal(t, firstRow.CreatedAt, deleted.CreatedAt)
 
 	_, err = db.DeleteAIGatewayCoderdKey(ctx, first.ID)
 	require.ErrorIs(t, err, sql.ErrNoRows)

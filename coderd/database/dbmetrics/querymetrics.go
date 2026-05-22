@@ -377,7 +377,7 @@ func (m queryMetricsStore) CustomRoles(ctx context.Context, arg database.CustomR
 	return r0, r1
 }
 
-func (m queryMetricsStore) DeleteAIGatewayCoderdKey(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+func (m queryMetricsStore) DeleteAIGatewayCoderdKey(ctx context.Context, id uuid.UUID) (database.DeleteAIGatewayCoderdKeyRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteAIGatewayCoderdKey(ctx, id)
 	m.queryLatencies.WithLabelValues("DeleteAIGatewayCoderdKey").Observe(time.Since(start).Seconds())

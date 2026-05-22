@@ -9,4 +9,5 @@ FROM ai_gateway_coderd_keys
 ORDER BY created_at ASC;
 
 -- name: DeleteAIGatewayCoderdKey :one
-DELETE FROM ai_gateway_coderd_keys WHERE id = $1 RETURNING id;
+DELETE FROM ai_gateway_coderd_keys WHERE id = $1
+RETURNING id, name, secret_prefix, created_at, last_used_at;
