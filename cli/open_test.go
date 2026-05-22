@@ -434,16 +434,8 @@ func TestOpenVSCodeDevContainer(t *testing.T) {
 		)
 	})
 	resources := coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).AgentNames([]string{parentAgentName}).Wait()
-
-	var parentAgentID uuid.UUID
-	for _, resource := range resources {
-		for _, workspaceAgent := range resource.Agents {
-			if workspaceAgent.Name == parentAgentName {
-				parentAgentID = workspaceAgent.ID
-			}
-		}
-	}
-	require.NotEqual(t, uuid.Nil, parentAgentID)
+	parentAgent := coderdtest.RequireWorkspaceAgentByName(t, resources, parentAgentName)
+	parentAgentID := parentAgent.ID
 
 	// WorkspaceAgentWaiter only observes coderd state. The CLI exercises
 	// the parent agent container API through tailnet, so wait for that path
@@ -461,17 +453,29 @@ func TestOpenVSCodeDevContainer(t *testing.T) {
 				continue
 			}
 			if dc.Status != codersdk.WorkspaceAgentDevcontainerStatusRunning {
+				t.Logf("devcontainer %s status %q", devcontainerName, dc.Status)
 				return false
 			}
-			if dc.Container == nil || dc.Container.ID != containerID {
+			if dc.Container == nil {
+				t.Logf("devcontainer %s missing container", devcontainerName)
 				return false
 			}
-			if dc.Agent == nil || dc.Agent.Name != devcontainerName {
+			if dc.Container.ID != containerID {
+				t.Logf("devcontainer %s has container %s, want %s", devcontainerName, dc.Container.ID, containerID)
+				return false
+			}
+			if dc.Agent == nil {
+				t.Logf("devcontainer %s missing subagent", devcontainerName)
+				return false
+			}
+			if dc.Agent.Name != devcontainerName {
+				t.Logf("devcontainer %s has subagent %s, want %s", devcontainerName, dc.Agent.Name, devcontainerName)
 				return false
 			}
 			devcontainerAgentID = dc.Agent.ID
 		}
 		if devcontainerAgentID == uuid.Nil {
+			t.Logf("devcontainer %s not found", devcontainerName)
 			return false
 		}
 
@@ -482,11 +486,17 @@ func TestOpenVSCodeDevContainer(t *testing.T) {
 		}
 		for _, resource := range workspace.LatestBuild.Resources {
 			for _, workspaceAgent := range resource.Agents {
-				if workspaceAgent.ID == devcontainerAgentID && workspaceAgent.Status == codersdk.WorkspaceAgentConnected {
-					return true
+				if workspaceAgent.ID != devcontainerAgentID {
+					continue
 				}
+				if workspaceAgent.Status != codersdk.WorkspaceAgentConnected {
+					t.Logf("devcontainer subagent %s status %q", devcontainerAgentID, workspaceAgent.Status)
+					return false
+				}
+				return true
 			}
 		}
+		t.Logf("devcontainer subagent %s not found in workspace", devcontainerAgentID)
 		return false
 	}, testutil.IntervalMedium, "devcontainer did not become ready")
 
