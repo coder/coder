@@ -258,15 +258,14 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		allowedPorts = []string{"80", "443"}
 	}
 
-	if len(opts.DomainAllowlist) == 0 {
-		return nil, xerrors.New("domain allow list is required")
-	}
+	// An empty allowlist is permitted so the server can boot before any
+	// ai_providers row exists; every intercept attempt is then rejected
+	// until providers are configured.
+	// TODO: refresh the allowlist when ai_providers changes so a restart
+	// is not required after the first provider is configured.
 	mitmHosts, err := convertDomainsToHosts(opts.DomainAllowlist, allowedPorts)
 	if err != nil {
 		return nil, xerrors.Errorf("invalid domain allowlist: %w", err)
-	}
-	if len(mitmHosts) == 0 {
-		return nil, xerrors.New("domain allowlist is empty, at least one domain is required")
 	}
 
 	if opts.AIBridgeProviderFromHost == nil {
@@ -274,8 +273,11 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 	}
 	aibridgeProviderFromHost := opts.AIBridgeProviderFromHost
 
-	// Validate that all allowlisted domains have correct aibridge provider mappings.
 	for _, domain := range opts.DomainAllowlist {
+		domain = strings.TrimSpace(strings.ToLower(domain))
+		if domain == "" {
+			continue
+		}
 		if aibridgeProviderFromHost(domain) == "" {
 			return nil, xerrors.Errorf("domain %q is in allowlist but has no provider mapping", domain)
 		}
