@@ -1,4 +1,3 @@
-//nolint:testpackage // Runner loop tests need access to unexported helpers.
 package chat
 
 import (
