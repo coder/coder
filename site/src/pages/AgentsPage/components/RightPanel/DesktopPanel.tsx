@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { cn } from "#/utils/cn";
 import { CHANNEL_PREFIX, type ScaleMode } from "../../desktopConstants";
 import { useDesktopConnection } from "../../hooks/useDesktopConnection";
 import { useZoomShortcuts } from "../../hooks/useZoomShortcuts";
@@ -85,7 +84,10 @@ export const DesktopPanel: FC<DesktopPanelProps> = ({ chatId, isVisible }) => {
 
 	if (isPoppedOut) {
 		return (
-			<div className="flex h-full flex-col items-center justify-center gap-3 text-content-secondary">
+			<div
+				className="flex h-full flex-col items-center justify-center gap-3 text-content-secondary"
+				role="status"
+			>
 				<ExternalLinkIcon className="h-8 w-8" />
 				<span className="text-sm">Desktop is open in a separate window.</span>
 				<Button variant="outline" size="sm" onClick={handleBringBack}>
@@ -191,10 +193,14 @@ export const DesktopPanelView: FC<DesktopPanelViewProps> = ({
 					ref={(el) => {
 						if (el) attach(el);
 					}}
-					className={cn(
-						"h-full w-full",
-						!isControlling && "pointer-events-none",
-					)}
+					className="h-full w-full"
+					inert={!isControlling ? true : undefined}
+					role="application"
+					aria-label={
+						isControlling
+							? "Remote desktop (interactive)"
+							: "Remote desktop (view only, take control to interact)"
+					}
 				/>
 			</div>
 		</div>

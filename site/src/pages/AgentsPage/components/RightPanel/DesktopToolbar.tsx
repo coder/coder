@@ -31,7 +31,7 @@ export const DesktopToolbar: FC<DesktopToolbarProps> = ({
 	return (
 		<div
 			className="flex h-8 shrink-0 items-center justify-end gap-1 border-0 border-b border-solid border-border-default bg-surface-primary px-1.5"
-			role="toolbar"
+			role="group"
 			aria-label="Desktop controls"
 		>
 			{/* Take/Release control */}
@@ -39,6 +39,7 @@ export const DesktopToolbar: FC<DesktopToolbarProps> = ({
 				variant="subtle"
 				size="sm"
 				onClick={isControlling ? onReleaseControl : onTakeControl}
+				aria-pressed={isControlling}
 				className="h-6 gap-1.5 px-2 text-xs"
 			>
 				{isControlling ? (

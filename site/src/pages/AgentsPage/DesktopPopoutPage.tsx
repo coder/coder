@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { cn } from "#/utils/cn";
 import { DesktopToolbar } from "./components/RightPanel/DesktopToolbar";
 import { CHANNEL_PREFIX, type ScaleMode } from "./desktopConstants";
 import { useDesktopConnection } from "./hooks/useDesktopConnection";
@@ -143,10 +142,14 @@ export const DesktopPopoutPageView: FC<DesktopPopoutPageViewProps> = ({
 				ref={(el) => {
 					if (el) attach(el);
 				}}
-				className={cn(
-					"min-h-0 flex-1 overflow-hidden bg-surface-secondary",
-					!isControlling && "pointer-events-none",
-				)}
+				className="min-h-0 flex-1 overflow-hidden bg-surface-secondary"
+				inert={!isControlling ? true : undefined}
+				role="application"
+				aria-label={
+					isControlling
+						? "Remote desktop (interactive)"
+						: "Remote desktop (view only, take control to interact)"
+				}
 			/>
 		</div>
 	);
