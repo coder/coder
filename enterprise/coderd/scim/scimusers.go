@@ -104,17 +104,11 @@ func (ru *ResourceUser) Create(r *http.Request, attributes scim.ResourceAttribut
 	if err == nil {
 		// User already exists. Update their status if needed.
 		status := scimUserStatus(dbUser, &active)
-		if active && dbUser.Status != status {
-			newUser, err := ru.store.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
-				ID:         dbUser.ID,
-				Status:     status,
-				UpdatedAt:  dbtime.Now(),
-				UserIsSeen: false,
-			})
+		if active {
+			_, err := ru.updateUserStatus(ctx, r, dbUser, status)
 			if err != nil {
 				return scim.Resource{}, err
 			}
-			ru.scimAudit(ctx, r, database.AuditActionWrite, dbUser, newUser)
 		}
 
 		return userResource(dbUser), nil
@@ -272,18 +266,9 @@ func (ru *ResourceUser) Replace(r *http.Request, idStr string, attributes scim.R
 	}
 
 	newStatus := scimUserStatus(dbUser, &active)
-	if dbUser.Status != newStatus {
-		oldUser := dbUser
-		dbUser, err = ru.store.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
-			ID:         dbUser.ID,
-			Status:     newStatus,
-			UpdatedAt:  dbtime.Now(),
-			UserIsSeen: false,
-		})
-		if err != nil {
-			return scim.Resource{}, err
-		}
-		ru.scimAudit(ctx, r, database.AuditActionWrite, oldUser, dbUser)
+	_, err = ru.updateUserStatus(ctx, r, dbUser, newStatus)
+	if err != nil {
+		return scim.Resource{}, err
 	}
 
 	return userResource(dbUser), nil
@@ -307,17 +292,9 @@ func (ru *ResourceUser) Delete(r *http.Request, idStr string) error {
 		return err
 	}
 
-	if dbUser.Status != database.UserStatusSuspended {
-		newUser, err := ru.store.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
-			ID:         dbUser.ID,
-			Status:     database.UserStatusSuspended,
-			UpdatedAt:  dbtime.Now(),
-			UserIsSeen: false,
-		})
-		if err != nil {
-			return err
-		}
-		ru.scimAudit(ctx, r, database.AuditActionWrite, dbUser, newUser)
+	_, err = ru.updateUserStatus(ctx, r, dbUser, database.UserStatusSuspended)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -374,21 +351,27 @@ func (ru *ResourceUser) Patch(r *http.Request, idStr string, operations []scim.P
 	}
 
 	newStatus := scimUserStatus(dbUser, activeSet)
-	if dbUser.Status != newStatus {
-		oldUser := dbUser
-		dbUser, err = ru.store.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
-			ID:         dbUser.ID,
-			Status:     newStatus,
-			UpdatedAt:  dbtime.Now(),
-			UserIsSeen: false,
-		})
-		if err != nil {
-			return scim.Resource{}, err
-		}
-		ru.scimAudit(ctx, r, database.AuditActionWrite, oldUser, dbUser)
+	dbUser, err = ru.updateUserStatus(ctx, r, dbUser, newStatus)
+	if err != nil {
+		return scim.Resource{}, err
 	}
 
 	return userResource(dbUser), nil
+}
+
+// updateUserStatus is a no-op if the status did not change.
+func (ru *ResourceUser) updateUserStatus(ctx context.Context, r *http.Request, u database.User, status database.UserStatus) (database.User, error) {
+	if u.Status == status {
+		return u, nil
+	}
+	newUser, err := ru.store.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
+		ID: u.ID, Status: status, UpdatedAt: dbtime.Now(), UserIsSeen: false,
+	})
+	if err != nil {
+		return database.User{}, err
+	}
+	ru.scimAudit(ctx, r, database.AuditActionWrite, u, newUser)
+	return newUser, nil
 }
 
 // scimUserStatus maps the SCIM "active" boolean to Coder's internal user status.
