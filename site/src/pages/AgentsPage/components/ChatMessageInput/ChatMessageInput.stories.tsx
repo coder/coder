@@ -1,4 +1,5 @@
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
+import { type PropsWithChildren, useEffect } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatMessageInput } from "./ChatMessageInput";
@@ -273,41 +274,62 @@ const longSkillList: TypesGen.UserSkillMetadata[] = Array.from(
 	}),
 );
 
-// Decorator that:
-// 1. Pins a fake composer to the bottom of the viewport so the popup
-//    has a sensible anchor.
-// 2. Sets `--mobile-dropdown-above-composer-bottom` and
-//    `--mobile-dropdown-above-composer-max-height` directly on the
-//    document element to simulate what `AgentChatInput` does in
-//    production. We use values that place the popup just above the
-//    fake composer and bound its height to the space above it.
-// 3. Cleans up the CSS variables and the mocked matchMedia after the
-//    story unmounts.
-const MobileDecorator: Decorator = (Story) => {
-	const composerHeight = 96; // matches mobile composer min-height
-	const gap = 8;
-	const aboveComposerBottom = composerHeight + gap;
-	// Use the visual viewport height when available so the simulated
-	// max-height matches what `AgentChatInput.tsx` computes in
-	// production from `window.visualViewport`.
-	const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
-	const aboveComposerMaxHeight = Math.max(
-		0,
-		viewportHeight - composerHeight - 16,
+const mobileDropdownProperties = [
+	"--mobile-dropdown-left",
+	"--mobile-dropdown-width",
+	"--mobile-dropdown-above-composer-bottom",
+	"--mobile-dropdown-above-composer-max-height",
+] as const;
+
+const MOBILE_COMPOSER_HEIGHT = 96; // matches mobile composer min-height
+const MOBILE_COMPOSER_GAP = 8;
+const MOBILE_VIEWPORT_PADDING = 16;
+
+const setMobileDropdownGeometry = (options?: {
+	visualViewportOffsetTop?: number;
+}) => {
+	const composerTop = innerHeight - MOBILE_COMPOSER_HEIGHT;
+	const visualViewportOffsetTop = options?.visualViewportOffsetTop ?? 0;
+	document.documentElement.style.setProperty("--mobile-dropdown-left", "1rem");
+	document.documentElement.style.setProperty(
+		"--mobile-dropdown-width",
+		"calc(100vw - 2rem)",
 	);
 	document.documentElement.style.setProperty(
 		"--mobile-dropdown-above-composer-bottom",
-		`${aboveComposerBottom}px`,
+		`${innerHeight - composerTop + MOBILE_COMPOSER_GAP}px`,
 	);
 	document.documentElement.style.setProperty(
 		"--mobile-dropdown-above-composer-max-height",
-		`${aboveComposerMaxHeight}px`,
+		`${Math.max(
+			0,
+			composerTop -
+				visualViewportOffsetTop -
+				MOBILE_COMPOSER_GAP -
+				MOBILE_VIEWPORT_PADDING,
+		)}px`,
 	);
+
+	return { composerTop, visualViewportOffsetTop };
+};
+
+const clearMobileDropdownGeometry = () => {
+	for (const property of mobileDropdownProperties) {
+		document.documentElement.style.removeProperty(property);
+	}
+};
+
+const MobileFrame = ({ children }: PropsWithChildren) => {
+	useEffect(() => {
+		setMobileDropdownGeometry();
+		return clearMobileDropdownGeometry;
+	}, []);
+
 	return (
 		<div
 			data-testid="mobile-frame"
 			style={{
-				paddingBottom: composerHeight,
+				paddingBottom: MOBILE_COMPOSER_HEIGHT,
 				height: "100vh",
 				position: "relative",
 			}}
@@ -323,11 +345,19 @@ const MobileDecorator: Decorator = (Story) => {
 					width: "calc(100vw - 2rem)",
 				}}
 			>
-				<Story />
+				{children}
 			</div>
 		</div>
 	);
 };
+
+// Decorator that pins a fake composer to the bottom of the viewport and sets
+// mobile dropdown geometry custom properties to simulate `AgentChatInput`.
+const MobileDecorator: Decorator = (Story) => (
+	<MobileFrame>
+		<Story />
+	</MobileFrame>
+);
 
 // Verifies the popup wrapper is positioned above the chat input on
 // mobile: position: fixed, full chat-input width, bottom edge at the
@@ -359,12 +389,43 @@ export const MobileAboveChatInput: Story = {
 			expect(rect.bottom).toBeLessThanOrEqual(window.innerHeight);
 		} finally {
 			restoreMatchMedia();
-			document.documentElement.style.removeProperty(
-				"--mobile-dropdown-above-composer-bottom",
+		}
+	},
+};
+
+// Verifies that the popup remains inside a panned visual viewport,
+// which is what iOS WebKit browsers do when the soft keyboard opens.
+export const MobileShiftedVisualViewport: Story = {
+	decorators: [MobileDecorator],
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		chromatic: { disableSnapshot: true },
+	},
+	play: async ({ canvasElement }) => {
+		const restoreMatchMedia = mockMobileMatchMedia();
+		const { composerTop, visualViewportOffsetTop } = setMobileDropdownGeometry({
+			visualViewportOffsetTop: Math.min(
+				160,
+				Math.max(0, innerHeight - MOBILE_COMPOSER_HEIGHT - 80),
+			),
+		});
+
+		try {
+			await typeInEditor(canvasElement, "/");
+			const skillItem = await findVisibleText("/reviewer");
+			const wrapper = skillItem.closest(
+				"[data-radix-popper-content-wrapper]",
+			) as HTMLElement | null;
+			expect(wrapper).not.toBeNull();
+			if (!wrapper) return;
+
+			const rect = wrapper.getBoundingClientRect();
+			expect(rect.top).toBeGreaterThanOrEqual(visualViewportOffsetTop);
+			expect(rect.bottom).toBeLessThanOrEqual(
+				composerTop - MOBILE_COMPOSER_GAP,
 			);
-			document.documentElement.style.removeProperty(
-				"--mobile-dropdown-above-composer-max-height",
-			);
+		} finally {
+			restoreMatchMedia();
 		}
 	},
 };
@@ -410,12 +471,6 @@ export const MobileLongListScrolls: Story = {
 			expect(hasScroll).toBe(true);
 		} finally {
 			restoreMatchMedia();
-			document.documentElement.style.removeProperty(
-				"--mobile-dropdown-above-composer-bottom",
-			);
-			document.documentElement.style.removeProperty(
-				"--mobile-dropdown-above-composer-max-height",
-			);
 		}
 	},
 };

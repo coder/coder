@@ -21,32 +21,30 @@
 			Full-width mobile dropdowns. We set custom properties on
 			`document.documentElement` from the chat input container so
 			dropdown positions track the actual input box, not hardcoded
-			offsets. The values are derived from
-			`window.visualViewport.height` (with `window.innerHeight` as a
-			fallback) so the dropdowns stay on-screen when the soft
-			keyboard shrinks the visual viewport on mobile:
+			offsets. Radix popover wrappers are fixed-positioned, so
+			bottom offsets are measured from the layout viewport. The
+			above-composer max-height also accounts for the visual
+			viewport offset so soft-keyboard viewport panning on mobile
+			keeps dropdowns inside the visible area:
 
-			- `--mobile-dropdown-bottom`: distance from the visual
+			- `--mobile-dropdown-bottom`: distance from the layout
 			  viewport bottom to the composer's bottom edge. Used by the
 			  `-bottom` variant; the dropdown's bottom edge sits at the
-			  composer's bottom edge (so the dropdown overlaps the
-			  composer going upward, anchored to the composer's bottom).
+			  composer's bottom edge.
+			- `--mobile-dropdown-left` and `--mobile-dropdown-width`:
+			  composer-aligned horizontal geometry for full-width mobile
+			  dropdowns.
 			- `--mobile-dropdown-above-composer-bottom`: distance from
-			  the visual viewport bottom to a point just above the
-			  composer's top edge. Used by the `-above-composer` variant;
-			  the dropdown's bottom edge sits a small gap above the
-			  composer's top edge, so the dropdown does not overlap the
-			  composer.
+			  the layout viewport bottom to a point just above the
+			  composer's top edge.
 			- `--mobile-dropdown-above-composer-max-height`: maximum
 			  height the `-above-composer` variant can grow to without
-			  extending past the visible viewport top. Stored in
-			  visual-viewport coordinates to stay consistent with
-			  `--mobile-dropdown-above-composer-bottom`.
+			  extending past the visible viewport top.
 		*/
 		[data-radix-popper-content-wrapper]:has(> .mobile-full-width-dropdown) {
 			position: fixed !important;
-			left: 1rem !important;
-			width: calc(100vw - 2rem) !important;
+			left: var(--mobile-dropdown-left, 1rem) !important;
+			width: var(--mobile-dropdown-width, calc(100vw - 2rem)) !important;
 			min-width: 0 !important;
 			transform: none !important;
 			bottom: var(--mobile-dropdown-bottom, 5rem) !important;
@@ -76,6 +74,12 @@
 			width: 100% !important;
 			min-width: 0 !important;
 			max-width: none !important;
+		}
+		.mobile-full-width-dropdown-above-composer {
+			max-height: var(
+				--mobile-dropdown-above-composer-max-height,
+				calc(100vh - var(--mobile-dropdown-above-composer-bottom, 9rem) - 1rem)
+			) !important;
 		}
 	}
 }

@@ -543,39 +543,38 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	);
 	useEffect(() => {
 		if (!composerElement) return;
-		// Read geometry from the visual viewport when available so
-		// popup positions track the actual visible area on mobile.
-		// `window.innerHeight` reports the layout viewport, which
-		// does not shrink when the soft keyboard opens on iOS Safari
-		// and some webviews. `getBoundingClientRect()` returns
-		// coordinates in the visual viewport, so mixing the two
-		// would overestimate the bottom offset and push popups
-		// off-screen above the keyboard.
-		const viewport = window.visualViewport;
+		// Radix popover wrappers are fixed-positioned, so their
+		// inset values need to be in layout-viewport coordinates.
+		// The visual viewport can be offset inside the layout
+		// viewport when the mobile keyboard is open, so only use
+		// `visualViewport.offsetTop` to clamp the available height
+		// to the visible area.
+		const viewport = globalThis.visualViewport;
+		const root = document.documentElement;
+		const composerGap = 8;
+		const viewportPadding = 16;
 		const update = () => {
 			const rect = composerElement.getBoundingClientRect();
-			const viewportHeight = viewport?.height ?? window.innerHeight;
-			const bottom = Math.max(0, viewportHeight - rect.bottom);
-			// Distance from the viewport bottom to a point just above
-			// the composer's top edge, with a small gap so dropdowns
-			// anchored "above the composer" sit slightly above the
-			// composer rather than touching it.
-			const aboveComposerBottom = Math.max(0, viewportHeight - rect.top + 8);
-			// Maximum height the above-composer popup can grow to
-			// without extending past the top of the visible viewport.
-			// Computed from the composer's top edge in visual-viewport
-			// coordinates so it stays consistent with
-			// `aboveComposerBottom` regardless of the keyboard state.
-			const aboveComposerMaxHeight = Math.max(0, rect.top - 16);
-			document.documentElement.style.setProperty(
-				"--mobile-dropdown-bottom",
-				`${bottom}px`,
+			const visibleViewportTop = viewport?.offsetTop ?? 0;
+			const bottom = Math.max(0, innerHeight - rect.bottom);
+			// Distance from the fixed-position layout viewport bottom
+			// to a point just above the composer's top edge.
+			const aboveComposerBottom = Math.max(
+				0,
+				innerHeight - rect.top + composerGap,
 			);
-			document.documentElement.style.setProperty(
+			const aboveComposerMaxHeight = Math.max(
+				0,
+				rect.top - visibleViewportTop - composerGap - viewportPadding,
+			);
+			root.style.setProperty("--mobile-dropdown-bottom", `${bottom}px`);
+			root.style.setProperty("--mobile-dropdown-left", `${rect.left}px`);
+			root.style.setProperty("--mobile-dropdown-width", `${rect.width}px`);
+			root.style.setProperty(
 				"--mobile-dropdown-above-composer-bottom",
 				`${aboveComposerBottom}px`,
 			);
-			document.documentElement.style.setProperty(
+			root.style.setProperty(
 				"--mobile-dropdown-above-composer-max-height",
 				`${aboveComposerMaxHeight}px`,
 			);
@@ -583,21 +582,21 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		update();
 		const ro = new ResizeObserver(update);
 		ro.observe(composerElement);
-		window.addEventListener("resize", update);
+		addEventListener("resize", update);
+		addEventListener("scroll", update, { passive: true });
 		viewport?.addEventListener("resize", update);
 		viewport?.addEventListener("scroll", update);
 		return () => {
 			ro.disconnect();
-			window.removeEventListener("resize", update);
+			removeEventListener("resize", update);
+			removeEventListener("scroll", update);
 			viewport?.removeEventListener("resize", update);
 			viewport?.removeEventListener("scroll", update);
-			document.documentElement.style.removeProperty("--mobile-dropdown-bottom");
-			document.documentElement.style.removeProperty(
-				"--mobile-dropdown-above-composer-bottom",
-			);
-			document.documentElement.style.removeProperty(
-				"--mobile-dropdown-above-composer-max-height",
-			);
+			root.style.removeProperty("--mobile-dropdown-bottom");
+			root.style.removeProperty("--mobile-dropdown-left");
+			root.style.removeProperty("--mobile-dropdown-width");
+			root.style.removeProperty("--mobile-dropdown-above-composer-bottom");
+			root.style.removeProperty("--mobile-dropdown-above-composer-max-height");
 		};
 	}, [composerElement]);
 
