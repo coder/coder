@@ -309,9 +309,8 @@ export const EditDialogOpened: Story = {
 		);
 		const valueField = dialogView.getByLabelText("Value");
 		await expect(valueField).toHaveValue(savedSecretValueDisplay);
-		await expect(
-			dialogView.getByRole("button", { name: "Clear" }),
-		).toBeVisible();
+		const clearButton = dialogView.getByRole("button", { name: "Clear" });
+		await waitFor(() => expect(clearButton).toBeVisible());
 		await user.click(valueField);
 		await expect(valueField).toHaveValue("");
 		await user.tab();
