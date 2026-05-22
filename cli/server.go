@@ -1035,18 +1035,25 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// chatd can use it regardless of license entitlement.
 			if vals.AI.BridgeConfig.Enabled.Value() {
 				providers, err := BuildProvidersFromDB(ctx, logger.Named("aibridge.dbload"), options.Database, vals.AI.BridgeConfig)
-				if err != nil {
+				switch {
+				case errors.Is(err, context.Canceled):
+					// Server context canceled mid-startup; skip daemon
+					// setup and let the rest of the boot path observe
+					// the same cancellation through its own selects.
+					logger.Debug(ctx, "skipping aibridge daemon registration: server shutting down")
+				case err != nil:
 					return xerrors.Errorf("build AI providers from DB: %w", err)
+				default:
+					aibridgeDaemon, err := newAIBridgeDaemon(coderAPI, providers)
+					if err != nil {
+						return xerrors.Errorf("create aibridged: %w", err)
+					}
+					coderAPI.RegisterInMemoryAIBridgedHTTPHandler(aibridgeDaemon)
+					// The handler is bound to coderAPI's lifecycle; Close() on
+					// the daemon does not affect in-flight requests but is
+					// needed to release pool/recorder resources at shutdown.
+					defer aibridgeDaemon.Close()
 				}
-				aibridgeDaemon, err := newAIBridgeDaemon(coderAPI, providers)
-				if err != nil {
-					return xerrors.Errorf("create aibridged: %w", err)
-				}
-				coderAPI.RegisterInMemoryAIBridgedHTTPHandler(aibridgeDaemon)
-				// The handler is bound to coderAPI's lifecycle; Close() on the
-				// daemon does not affect in-flight requests but is needed to
-				// release pool/recorder resources at shutdown.
-				defer aibridgeDaemon.Close()
 			}
 
 			if vals.Prometheus.Enable {

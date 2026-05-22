@@ -74,6 +74,13 @@ func BuildProvidersFromDB(ctx context.Context, logger slog.Logger, db database.S
 		IncludeDisabled: false,
 	})
 	if err != nil {
+		// dbauthz wraps a canceled rego eval as an authorization error,
+		// hiding the underlying context.Canceled. Surface the real cause
+		// so the server's shutdown path can treat it as a clean exit
+		// instead of an unexpected startup failure.
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, ctxErr
+		}
 		return nil, xerrors.Errorf("list ai_providers: %w", err)
 	}
 
@@ -96,6 +103,9 @@ func BuildProvidersFromDB(ctx context.Context, logger slog.Logger, db database.S
 	if len(providerIDs) > 0 {
 		keyRows, err := db.GetAIProviderKeysByProviderIDs(ctx, providerIDs)
 		if err != nil {
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return nil, ctxErr
+			}
 			return nil, xerrors.Errorf("load ai_provider keys: %w", err)
 		}
 		for _, k := range keyRows {
