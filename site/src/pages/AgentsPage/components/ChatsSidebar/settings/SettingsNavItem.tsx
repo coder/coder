@@ -36,7 +36,7 @@ const NavItemContent: FC<{
 	trailingIcon?: FC<{ className?: string }>;
 }> = ({ icon: Icon, label, adminOnly, trailingIcon: TrailingIcon }) => (
 	<>
-		<Icon className="h-4 w-4 shrink-0" />
+		<Icon className="size-4 shrink-0" />
 		<span className="min-w-0 flex-1">{label}</span>
 		{(adminOnly || TrailingIcon) && (
 			<span className="ml-auto flex items-center gap-2">
@@ -44,13 +44,13 @@ const NavItemContent: FC<{
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<span className="inline-flex">
-								<ShieldIcon className="h-3 w-3 shrink-0 opacity-50" />
+								<ShieldIcon className="size-3 shrink-0 opacity-50" />
 							</span>
 						</TooltipTrigger>
 						<TooltipContent side="right">Admin only</TooltipContent>
 					</Tooltip>
 				)}
-				{TrailingIcon && <TrailingIcon className="h-4 w-4 shrink-0" />}
+				{TrailingIcon && <TrailingIcon className="size-4 shrink-0" />}
 			</span>
 		)}
 	</>
