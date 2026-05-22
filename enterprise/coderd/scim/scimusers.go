@@ -250,7 +250,7 @@ func (ru *ResourceUser) Replace(r *http.Request, idStr string, attributes scim.R
 	}
 
 	newStatus := scimUserStatus(dbUser, &active)
-	_, err = ru.updateUserStatus(ctx, r, dbUser, newStatus)
+	dbUser, err = ru.updateUserStatus(ctx, r, dbUser, newStatus)
 	if err != nil {
 		return scim.Resource{}, err
 	}
