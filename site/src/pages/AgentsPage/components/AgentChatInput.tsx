@@ -545,10 +545,20 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 		if (!composerElement) return;
 		const update = () => {
 			const rect = composerElement.getBoundingClientRect();
-			const bottom = Math.max(0, window.innerHeight - rect.bottom);
+			const viewportHeight = window.innerHeight;
+			const bottom = Math.max(0, viewportHeight - rect.bottom);
+			// Distance from the viewport bottom to a point just above
+			// the composer's top edge, with a small gap so dropdowns
+			// anchored "above the composer" sit slightly above the
+			// composer rather than touching it.
+			const aboveComposerBottom = Math.max(0, viewportHeight - rect.top + 8);
 			document.documentElement.style.setProperty(
 				"--mobile-dropdown-bottom",
 				`${bottom}px`,
+			);
+			document.documentElement.style.setProperty(
+				"--mobile-dropdown-above-composer-bottom",
+				`${aboveComposerBottom}px`,
 			);
 		};
 		update();
@@ -564,6 +574,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 			viewport?.removeEventListener("resize", update);
 			viewport?.removeEventListener("scroll", update);
 			document.documentElement.style.removeProperty("--mobile-dropdown-bottom");
+			document.documentElement.style.removeProperty(
+				"--mobile-dropdown-above-composer-bottom",
+			);
 		};
 	}, [composerElement]);
 
