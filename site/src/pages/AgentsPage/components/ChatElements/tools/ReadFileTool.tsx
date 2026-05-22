@@ -17,7 +17,7 @@ import {
 	type ToolStatus,
 } from "./utils";
 
-export const ReadFileContent: React.FC<{
+const ReadFileContent: React.FC<{
 	path: string;
 	content: string;
 }> = ({ path, content }) => {
@@ -83,7 +83,7 @@ export const ReadFileTool: React.FC<{
 	expanded,
 	onExpandedChange,
 }) => {
-	const hasContent = content.length > 0;
+	const hasContent = content.length > 0 || isError;
 	const isRunning = status === "running";
 	const filename = path.split("/").pop() || path;
 	const label = isRunning ? `Reading ${filename}…` : `Read ${filename}`;
@@ -113,7 +113,12 @@ export const ReadFileTool: React.FC<{
 				</>
 			}
 		>
-			<ReadFileContent path={path} content={content} />
+			{isError && (
+				<div className="mt-1 text-xs text-content-destructive">
+					{errorMessage || "Failed to read file"}
+				</div>
+			)}
+			{content.length > 0 && <ReadFileContent path={path} content={content} />}
 		</ToolCollapsible>
 	);
 };

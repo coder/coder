@@ -1,32 +1,37 @@
 import { LoaderIcon, TriangleAlertIcon } from "lucide-react";
-import type React from "react";
+import { type FC, useState } from "react";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import type { MergedTool } from "../../ChatConversation/types";
-import { getReadFileToolData, ReadFileContent } from "./ReadFileTool";
+import { getReadFileToolData, ReadFileTool } from "./ReadFileTool";
 import { ToolCollapsible } from "./ToolCollapsible";
 
 type ReadFileItem = {
 	id: string;
 	path: string;
 	content: string;
+	status: MergedTool["status"];
 	isError: boolean;
 	errorMessage?: string;
 };
 
 const getReadFileItem = (tool: MergedTool): ReadFileItem => ({
 	id: tool.id,
+	status: tool.status,
 	...getReadFileToolData(tool),
 });
 
-export const ReadFilesTool: React.FC<{
+export const ReadFilesTool: FC<{
 	tools: readonly MergedTool[];
 	expanded?: boolean;
 	onExpandedChange?: (expanded: boolean) => void;
 }> = ({ tools, expanded, onExpandedChange }) => {
+	const [expandedFileIDs, setExpandedFileIDs] = useState<ReadonlySet<string>>(
+		new Set(),
+	);
 	const items = tools.map(getReadFileItem);
 	const isRunning = tools.some((tool) => tool.status === "running");
 	const isError = tools.some((tool) => tool.isError);
@@ -65,21 +70,28 @@ export const ReadFilesTool: React.FC<{
 					</>
 				}
 			>
-				<div className="space-y-3">
+				<div className="mt-2 space-y-1 pl-3">
 					{items.map((item) => (
-						<section key={item.id} className="min-w-0">
-							<div className="mt-2 truncate text-xs text-content-secondary">
-								{item.path}
-							</div>
-							{item.isError && (
-								<div className="mt-1 text-xs text-content-destructive">
-									{item.errorMessage || "Failed to read file"}
-								</div>
-							)}
-							{item.content.length > 0 && (
-								<ReadFileContent path={item.path} content={item.content} />
-							)}
-						</section>
+						<ReadFileTool
+							key={item.id}
+							path={item.path}
+							content={item.content}
+							status={item.status}
+							isError={item.isError}
+							errorMessage={item.errorMessage}
+							expanded={expandedFileIDs.has(item.id)}
+							onExpandedChange={(nextExpanded) => {
+								setExpandedFileIDs((previous) => {
+									const next = new Set(previous);
+									if (nextExpanded) {
+										next.add(item.id);
+									} else {
+										next.delete(item.id);
+									}
+									return next;
+								});
+							}}
+						/>
 					))}
 				</div>
 			</ToolCollapsible>

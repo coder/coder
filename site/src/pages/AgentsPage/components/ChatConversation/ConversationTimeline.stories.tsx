@@ -2344,9 +2344,16 @@ export const SequentialReadFilesCollapsed: Story = {
 		).not.toBeInTheDocument();
 		await userEvent.click(groupButton);
 		await waitFor(() => {
-			expect(canvas.getByText("site/src/a.ts")).toBeVisible();
-			expect(canvas.getByText("site/src/b.ts")).toBeVisible();
-			expect(canvas.getByText("site/src/c.ts")).toBeVisible();
+			expect(canvas.getByRole("button", { name: /read a\.ts/i })).toBeVisible();
+			expect(canvas.getByRole("button", { name: /read b\.ts/i })).toBeVisible();
+			expect(canvas.getByRole("button", { name: /read c\.ts/i })).toBeVisible();
+		});
+		const firstFileButton = canvas.getByRole("button", { name: /read a\.ts/i });
+		expect(firstFileButton).toHaveAttribute("aria-expanded", "false");
+
+		await userEvent.click(firstFileButton);
+		await waitFor(() => {
+			expect(firstFileButton).toHaveAttribute("aria-expanded", "true");
 		});
 	},
 };
@@ -2398,18 +2405,27 @@ export const SequentialReadFilesEmptyAndErrorStates: Story = {
 
 		await userEvent.click(buttons[0]);
 		await waitFor(() => {
-			expect(canvas.getByText("site/src/empty-a.ts")).toBeVisible();
-			expect(canvas.getByText("site/src/empty-b.ts")).toBeVisible();
+			expect(canvas.getByText("Read empty-a.ts")).toBeVisible();
+			expect(canvas.getByText("Read empty-b.ts")).toBeVisible();
 		});
 
 		await userEvent.click(buttons[1]);
 		await waitFor(() => {
-			expect(canvas.getByText("site/src/missing-a.ts")).toBeVisible();
+			expect(
+				canvas.getByRole("button", { name: /read missing-a\.ts/i }),
+			).toBeVisible();
+			expect(
+				canvas.getByRole("button", { name: /read missing-b\.ts/i }),
+			).toBeVisible();
+		});
+
+		await userEvent.click(
+			canvas.getByRole("button", { name: /read missing-a\.ts/i }),
+		);
+		await waitFor(() => {
 			expect(
 				canvas.getByText("ENOENT: no such file or directory"),
 			).toBeVisible();
-			expect(canvas.getByText("site/src/missing-b.ts")).toBeVisible();
-			expect(canvas.getByText("permission denied")).toBeVisible();
 		});
 	},
 };
