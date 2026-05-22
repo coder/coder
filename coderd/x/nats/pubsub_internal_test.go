@@ -87,7 +87,7 @@ func Test_SubscribeWithErr(t *testing.T) {
 	})
 }
 
-func Test_localSub_dispatch(t *testing.T) {
+func Test_localSub_init(t *testing.T) {
 	t.Parallel()
 
 	t.Run("SerializesCallbacks", func(t *testing.T) {
@@ -105,7 +105,7 @@ func Test_localSub_dispatch(t *testing.T) {
 		var concurrent atomic.Bool
 
 		s := &localSub{
-			pubsub: &Pubsub{ctx: ctx},
+			ctx: ctx,
 			listener: func(_ context.Context, _ []byte, ferr error) {
 				if active.Add(1) != 1 {
 					concurrent.Store(true)
@@ -131,7 +131,7 @@ func Test_localSub_dispatch(t *testing.T) {
 			s.close()
 		})
 
-		s.offerData([]byte("data"))
+		s.enqueue([]byte("data"))
 		require.Eventually(t, func() bool {
 			select {
 			case <-dataStarted:

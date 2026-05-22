@@ -21,6 +21,8 @@ import (
 // local fan-out does not trip the slow-consumer threshold.
 const DefaultMaxPending int64 = 1 << 30
 
+const errClosed = "nats pubsub" + ": closed"
+
 // PendingLimits configures per-subscription NATS pending limits set
 // via SetPendingLimits on each *natsgo.Subscription.
 type PendingLimits struct {
@@ -125,7 +127,7 @@ type natsSub struct {
 type localSub struct {
 	cancelOnce sync.Once
 
-	pubsub *Pubsub
+	ctx context.Context
 
 	event    string
 	listener pubsub.ListenerWithErr
@@ -288,7 +290,7 @@ func pickConn(pool []*natsgo.Conn, subject string) *natsgo.Conn {
 // same-subject publishes preserve per-subject ordering.
 func (p *Pubsub) Publish(event string, message []byte) error {
 	if p.ctx.Err() != nil {
-		return xerrors.New("nats pubsub: closed")
+		return xerrors.New(errClosed)
 	}
 
 	if err := pickConn(p.publishPool, event).Publish(event, message); err != nil {
@@ -302,7 +304,7 @@ func (p *Pubsub) Publish(event string, message []byte) error {
 // encountered; remaining connections are still flushed.
 func (p *Pubsub) Flush() error {
 	if p.ctx.Err() != nil {
-		return xerrors.New("nats pubsub: closed")
+		return xerrors.New(errClosed)
 	}
 
 	var firstErr error
@@ -333,43 +335,22 @@ func (p *Pubsub) Subscribe(event string, listener pubsub.Listener) (cancel func(
 // per-listener bounded inboxes so a slow listener cannot block its
 // peers.
 func (p *Pubsub) SubscribeWithErr(event string, listener pubsub.ListenerWithErr) (cancel func(), err error) {
-	if p.ctx.Err() != nil {
-		return nil, xerrors.New("nats pubsub: closed")
-	}
-
-	s := &localSub{
-		pubsub:         p,
-		event:          event,
-		listener:       listener,
-		queue:          make(chan []byte, listenerQueueSize(p.opts.PendingLimits)),
-		dropSignal:     make(chan struct{}, 1),
-		stop:           make(chan struct{}),
-		dispatcherDone: make(chan struct{}),
-	}
-
-	// Start the per-listener goroutine before addSubscriber registers s
-	// so a concurrent Close that snapshots s will find a live goroutine
-	// ready to observe close(s.stop) and exit.
-	s.init()
-
-	nsub, err := p.addSubscriber(event, s)
+	s, err := p.addSubscriber(event, listener)
 	if err != nil {
-		s.close()
 		return nil, err
 	}
-	s.shared = nsub
 
 	// Final guard against Close racing after addSubscriber returns
 	// success. Cleanup remains safe if Close already stopped s.
 	if p.ctx.Err() != nil {
 		p.unsubscribeLocal(s)
 		s.close()
-		return nil, xerrors.New("nats pubsub: closed")
+		return nil, xerrors.New(errClosed)
 	}
 
 	cancelFn := func() {
 		// The shared NATS callback may still try a non-blocking send to
-		// s.queue concurrently; offerData's select on s.stop drops in
+		// s.queue concurrently; enqueue's select on s.stop drops in
 		// that case.
 		p.unsubscribeLocal(s)
 		s.close()
@@ -390,30 +371,50 @@ func listenerQueueSize(in PendingLimits) int {
 
 const defaultListenerQueueSize = 1024
 
-// addSubscriber attaches s to the natsSub for subject. The first
-// local subscriber initializes the underlying NATS subscription while
-// holding p.mu, so later subscribers only observe ready natsSub entries.
-func (p *Pubsub) addSubscriber(subject string, s *localSub) (*natsSub, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
+// addSubscriber creates a local subscriber and attaches it to the natsSub
+// for event. The first local subscriber initializes the underlying NATS
+// subscription while holding p.mu, so later subscribers only observe ready
+// natsSub entries.
+func (p *Pubsub) addSubscriber(event string, listener pubsub.ListenerWithErr) (*localSub, error) {
+	s := &localSub{
+		ctx:            p.ctx,
+		event:          event,
+		listener:       listener,
+		queue:          make(chan []byte, listenerQueueSize(p.opts.PendingLimits)),
+		dropSignal:     make(chan struct{}, 1),
+		stop:           make(chan struct{}),
+		dispatcherDone: make(chan struct{}),
+	}
 
-	nsub, ok := p.subscriptions[subject]
+	// Start the per-listener goroutine before registering s so Close that
+	// snapshots s finds a live goroutine ready to observe close(s.stop).
+	s.init()
+
+	p.mu.Lock()
+	if p.ctx.Err() != nil {
+		p.mu.Unlock()
+		s.close()
+		return nil, xerrors.New(errClosed)
+	}
+
+	nsub, ok := p.subscriptions[event]
 	if ok {
 		nsub.listeners[s] = struct{}{}
 		s.shared = nsub
-		return nsub, nil
+		p.mu.Unlock()
+		return s, nil
 	}
 
 	nsub = &natsSub{
-		subject:   subject,
+		subject:   event,
 		listeners: map[*localSub]struct{}{s: {}},
 	}
 	s.shared = nsub
-	p.subscriptions[subject] = nsub
+	p.subscriptions[event] = nsub
 
 	initErr := func() error {
-		subConn := pickConn(p.subscribePool, subject)
-		natsSub, err := subConn.Subscribe(subject, nsub.makeCallback(p))
+		subConn := pickConn(p.subscribePool, event)
+		natsSub, err := subConn.Subscribe(event, nsub.makeCallback(p))
 		if err != nil {
 			return xerrors.Errorf("subscribe: %w", err)
 		}
@@ -431,14 +432,18 @@ func (p *Pubsub) addSubscriber(subject string, s *localSub) (*natsSub, error) {
 		return nil
 	}()
 	if initErr != nil {
-		delete(p.subscriptions, subject)
+		delete(p.subscriptions, event)
 		delete(nsub.listeners, s)
-		if nsub.sub != nil {
-			_ = nsub.sub.Unsubscribe()
+		natsSub := nsub.sub
+		p.mu.Unlock()
+		if natsSub != nil {
+			_ = natsSub.Unsubscribe()
 		}
+		s.close()
 		return nil, initErr
 	}
-	return nsub, nil
+	p.mu.Unlock()
+	return s, nil
 }
 
 // unsubscribeLocal removes s from its natsSub. If s was the last
@@ -490,14 +495,26 @@ func (nsub *natsSub) makeCallback(p *Pubsub) natsgo.MsgHandler {
 		}
 		p.mu.Unlock()
 		for _, s := range listeners {
-			s.offerData(msg.Data)
+			s.enqueue(msg.Data)
 		}
 	}
 }
 
 // init starts the per-listener delivery goroutine.
 func (s *localSub) init() {
-	go s.dispatch()
+	go func() {
+		defer close(s.dispatcherDone)
+		for {
+			select {
+			case <-s.stop:
+				return
+			case data := <-s.queue:
+				s.listener(s.ctx, data, nil)
+			case <-s.dropSignal:
+				s.listener(s.ctx, nil, pubsub.ErrDroppedMessages)
+			}
+		}
+	}()
 }
 
 // close stops the per-listener goroutine and waits for callbacks to finish.
@@ -508,11 +525,10 @@ func (s *localSub) close() {
 	})
 }
 
-// offerData non-blockingly enqueues data onto s.queue. On overflow it
-// drops the message and raises a drop signal so the dispatcher surfaces
-// pubsub.ErrDroppedMessages when the current callback completes. If s
-// is canceled the message is silently dropped.
-func (s *localSub) offerData(data []byte) {
+// enqueue non-blockingly sends data onto s.queue. On overflow it drops the
+// message and raises a drop signal so pubsub.ErrDroppedMessages is surfaced.
+// If s is canceled the message is silently dropped.
+func (s *localSub) enqueue(data []byte) {
 	select {
 	case s.queue <- data:
 	case <-s.stop:
@@ -528,23 +544,6 @@ func (s *localSub) signalDrop() {
 	select {
 	case s.dropSignal <- struct{}{}:
 	default:
-	}
-}
-
-// dispatch is the per-listener delivery goroutine. It serializes data
-// and drop callbacks for the listener so callers do not need to be safe
-// for concurrent invocation.
-func (s *localSub) dispatch() {
-	defer close(s.dispatcherDone)
-	for {
-		select {
-		case <-s.stop:
-			return
-		case data := <-s.queue:
-			s.listener(s.pubsub.ctx, data, nil)
-		case <-s.dropSignal:
-			s.listener(s.pubsub.ctx, nil, pubsub.ErrDroppedMessages)
-		}
 	}
 }
 
@@ -666,20 +665,20 @@ func (p *Pubsub) Close() error {
 
 		// Drain subscriber connections first so in-flight deliveries
 		// reach listeners, then publisher connections.
-		for i, nc := range p.subscribePool {
+		connections := append([]*natsgo.Conn{}, p.subscribePool...)
+		connections = append(connections, p.publishPool...)
+		for i, nc := range connections {
 			if nc == nil {
 				continue
 			}
-			if err := drainConn(nc, drainTimeout); err != nil {
-				errs = append(errs, xerrors.Errorf("drain sub conn %d: %w", i, err))
-			}
-		}
-		for i, nc := range p.publishPool {
-			if nc == nil {
-				continue
+			kind := "sub"
+			connIndex := i
+			if i >= len(p.subscribePool) {
+				kind = "pub"
+				connIndex = i - len(p.subscribePool)
 			}
 			if err := drainConn(nc, drainTimeout); err != nil {
-				errs = append(errs, xerrors.Errorf("drain pub conn %d: %w", i, err))
+				errs = append(errs, xerrors.Errorf("drain %s conn %d: %w", kind, connIndex, err))
 			}
 		}
 
