@@ -546,26 +546,21 @@ func primaryEmail(attributes scim.ResourceAttributes) string {
 		return ""
 	}
 
+	var fallback string
 	for _, e := range emails {
 		emailMap, ok := e.(map[string]interface{})
 		if !ok {
 			continue
 		}
+		val, ok := AttributeAsString(emailMap, "value")
+		if !ok {
+			continue
+		}
 		if primary, _ := AttributeAsBool(emailMap, "primary"); primary {
-			if val, ok := AttributeAsString(emailMap, "value"); ok {
-				return val
-			}
+			return val
 		}
+		fallback = val
 	}
 
-	// Fallback: if no email is marked primary, use the first one.
-	if len(emails) > 0 {
-		if emailMap, ok := emails[0].(map[string]interface{}); ok {
-			if val, ok := AttributeAsString(emailMap, "value"); ok {
-				return val
-			}
-		}
-	}
-
-	return ""
+	return fallback
 }
