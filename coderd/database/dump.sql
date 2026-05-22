@@ -18,7 +18,8 @@ CREATE TYPE ai_provider_type AS ENUM (
     'google',
     'openai-compat',
     'openrouter',
-    'vercel'
+    'vercel',
+    'copilot'
 );
 
 CREATE TYPE ai_seat_usage_reason AS ENUM (

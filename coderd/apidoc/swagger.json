@@ -13521,7 +13521,8 @@
 				"openai-compat",
 				"openrouter",
 				"vercel",
-				"bedrock"
+				"bedrock",
+				"copilot"
 			],
 			"x-enum-varnames": [
 				"AIProviderTypeOpenAI",
@@ -13531,7 +13532,8 @@
 				"AIProviderTypeOpenAICompat",
 				"AIProviderTypeOpenrouter",
 				"AIProviderTypeVercel",
-				"AIProviderTypeBedrock"
+				"AIProviderTypeBedrock",
+				"AIProviderTypeCopilot"
 			]
 		},
 		"codersdk.APIAllowListTarget": {

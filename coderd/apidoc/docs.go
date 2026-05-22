@@ -15117,7 +15117,8 @@ const docTemplate = `{
                 "openai-compat",
                 "openrouter",
                 "vercel",
-                "bedrock"
+                "bedrock",
+                "copilot"
             ],
             "x-enum-varnames": [
                 "AIProviderTypeOpenAI",
@@ -15127,7 +15128,8 @@ const docTemplate = `{
                 "AIProviderTypeOpenAICompat",
                 "AIProviderTypeOpenrouter",
                 "AIProviderTypeVercel",
-                "AIProviderTypeBedrock"
+                "AIProviderTypeBedrock",
+                "AIProviderTypeCopilot"
             ]
         },
         "codersdk.APIAllowListTarget": {
