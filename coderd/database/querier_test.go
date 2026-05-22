@@ -12576,9 +12576,9 @@ func TestUpdateChatLastTurnSummary(t *testing.T) {
 	require.NoError(t, err)
 
 	affected, err := db.UpdateChatLastTurnSummary(ctx, database.UpdateChatLastTurnSummaryParams{
-		ID:                chat.ID,
-		ExpectedUpdatedAt: chat.UpdatedAt,
-		LastTurnSummary:   sql.NullString{String: "resolved the issue", Valid: true},
+		ID:                     chat.ID,
+		ExpectedHistoryVersion: chat.HistoryVersion,
+		LastTurnSummary:        sql.NullString{String: "resolved the issue", Valid: true},
 	})
 	require.NoError(t, err)
 	require.EqualValues(t, 1, affected)
@@ -12589,9 +12589,9 @@ func TestUpdateChatLastTurnSummary(t *testing.T) {
 	require.Equal(t, chat.UpdatedAt, fetched.UpdatedAt)
 
 	affected, err = db.UpdateChatLastTurnSummary(ctx, database.UpdateChatLastTurnSummaryParams{
-		ID:                chat.ID,
-		ExpectedUpdatedAt: chat.UpdatedAt,
-		LastTurnSummary:   sql.NullString{String: " \n\t ", Valid: true},
+		ID:                     chat.ID,
+		ExpectedHistoryVersion: chat.HistoryVersion,
+		LastTurnSummary:        sql.NullString{String: " \n\t ", Valid: true},
 	})
 	require.NoError(t, err)
 	require.EqualValues(t, 1, affected)
@@ -12602,9 +12602,9 @@ func TestUpdateChatLastTurnSummary(t *testing.T) {
 	require.Equal(t, chat.UpdatedAt, fetched.UpdatedAt)
 
 	affected, err = db.UpdateChatLastTurnSummary(ctx, database.UpdateChatLastTurnSummaryParams{
-		ID:                chat.ID,
-		ExpectedUpdatedAt: chat.UpdatedAt,
-		LastTurnSummary:   sql.NullString{String: "fresh summary", Valid: true},
+		ID:                     chat.ID,
+		ExpectedHistoryVersion: chat.HistoryVersion,
+		LastTurnSummary:        sql.NullString{String: "fresh summary", Valid: true},
 	})
 	require.NoError(t, err)
 	require.EqualValues(t, 1, affected)
@@ -12618,17 +12618,54 @@ func TestUpdateChatLastTurnSummary(t *testing.T) {
 	require.NoError(t, err)
 
 	affected, err = db.UpdateChatLastTurnSummary(ctx, database.UpdateChatLastTurnSummaryParams{
-		ID:                chat.ID,
-		ExpectedUpdatedAt: chat.UpdatedAt,
-		LastTurnSummary:   sql.NullString{String: "stale summary", Valid: true},
+		ID:                     chat.ID,
+		ExpectedHistoryVersion: chat.HistoryVersion,
+		LastTurnSummary:        sql.NullString{String: "still fresh summary", Valid: true},
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, affected)
+
+	fetched, err = db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, sql.NullString{String: "still fresh summary", Valid: true}, fetched.LastTurnSummary)
+	require.Equal(t, advancedUpdatedAt, fetched.UpdatedAt)
+
+	_, err = db.LockChatAndBumpSnapshotVersion(ctx, chat.ID)
+	require.NoError(t, err)
+	_, err = db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+		ChatID:              chat.ID,
+		CreatedBy:           []uuid.UUID{owner.ID},
+		ModelConfigID:       []uuid.UUID{modelCfg.ID},
+		Role:                []database.ChatMessageRole{database.ChatMessageRoleUser},
+		Content:             []string{`[{"type":"text","text":"new request"}]`},
+		ContentVersion:      []int16{chatprompt.CurrentContentVersion},
+		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+		InputTokens:         []int64{0},
+		OutputTokens:        []int64{0},
+		TotalTokens:         []int64{0},
+		ReasoningTokens:     []int64{0},
+		CacheCreationTokens: []int64{0},
+		CacheReadTokens:     []int64{0},
+		ContextLimit:        []int64{0},
+		Compressed:          []bool{false},
+		TotalCostMicros:     []int64{0},
+		RuntimeMs:           []int64{0},
+		ProviderResponseID:  []string{""},
+	})
+	require.NoError(t, err)
+
+	affected, err = db.UpdateChatLastTurnSummary(ctx, database.UpdateChatLastTurnSummaryParams{
+		ID:                     chat.ID,
+		ExpectedHistoryVersion: chat.HistoryVersion,
+		LastTurnSummary:        sql.NullString{String: "stale summary", Valid: true},
 	})
 	require.NoError(t, err)
 	require.Zero(t, affected)
 
 	fetched, err = db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
-	require.Equal(t, sql.NullString{String: "fresh summary", Valid: true}, fetched.LastTurnSummary)
-	require.Equal(t, advancedUpdatedAt, fetched.UpdatedAt)
+	require.Equal(t, sql.NullString{String: "still fresh summary", Valid: true}, fetched.LastTurnSummary)
+	require.NotEqual(t, chat.HistoryVersion, fetched.HistoryVersion)
 }
 
 func TestDeleteChatDebugDataAfterMessageIDIncludesTriggeredRuns(t *testing.T) {
