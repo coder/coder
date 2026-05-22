@@ -169,16 +169,8 @@ func (ru *ResourceUser) Create(r *http.Request, attributes scim.ResourceAttribut
 // Get implements scim.ResourceHandler. Returns a single user by ID.
 func (ru *ResourceUser) Get(r *http.Request, idStr string) (scim.Resource, error) {
 	ctx := r.Context()
-	id, err := uuid.Parse(idStr)
+	usr, err := ru.user(ctx, idStr)
 	if err != nil {
-		return scim.Resource{}, BadUUID(idStr, err)
-	}
-
-	usr, err := ru.store.GetUserByID(ctx, id)
-	if err != nil {
-		if xerrors.Is(err, sql.ErrNoRows) {
-			return scim.Resource{}, scimErrors.ScimErrorResourceNotFound(idStr)
-		}
 		return scim.Resource{}, err
 	}
 
@@ -236,16 +228,8 @@ func (ru *ResourceUser) GetAll(r *http.Request, params scim.ListRequestParams) (
 func (ru *ResourceUser) Replace(r *http.Request, idStr string, attributes scim.ResourceAttributes) (scim.Resource, error) {
 	ctx := r.Context()
 
-	uid, err := uuid.Parse(idStr)
+	dbUser, err := ru.user(ctx, idStr)
 	if err != nil {
-		return scim.Resource{}, BadUUID(idStr, err)
-	}
-
-	dbUser, err := ru.store.GetUserByID(ctx, uid)
-	if err != nil {
-		if xerrors.Is(err, sql.ErrNoRows) {
-			return scim.Resource{}, scimErrors.ScimErrorResourceNotFound(idStr)
-		}
 		return scim.Resource{}, err
 	}
 
@@ -279,16 +263,8 @@ func (ru *ResourceUser) Replace(r *http.Request, idStr string, attributes scim.R
 func (ru *ResourceUser) Delete(r *http.Request, idStr string) error {
 	ctx := r.Context()
 
-	uid, err := uuid.Parse(idStr)
+	dbUser, err := ru.user(ctx, idStr)
 	if err != nil {
-		return scimErrors.ScimErrorResourceNotFound(idStr)
-	}
-
-	dbUser, err := ru.store.GetUserByID(ctx, uid)
-	if err != nil {
-		if xerrors.Is(err, sql.ErrNoRows) {
-			return scimErrors.ScimErrorResourceNotFound(idStr)
-		}
 		return err
 	}
 
@@ -357,6 +333,23 @@ func (ru *ResourceUser) Patch(r *http.Request, idStr string, operations []scim.P
 	}
 
 	return userResource(dbUser), nil
+}
+
+func (ru *ResourceUser) user(ctx context.Context, idStr string) (database.User, error) {
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		return database.User{}, BadUUID(idStr, err)
+	}
+
+	usr, err := ru.store.GetUserByID(ctx, id)
+	if err != nil {
+		if xerrors.Is(err, sql.ErrNoRows) {
+			return database.User{}, scimErrors.ScimErrorResourceNotFound(idStr)
+		}
+		return database.User{}, err
+	}
+
+	return usr, nil
 }
 
 // updateUserStatus is a no-op if the status did not change.
