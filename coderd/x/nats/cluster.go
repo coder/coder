@@ -10,6 +10,43 @@ import (
 	"golang.org/x/xerrors"
 )
 
+// SetPeerAddresses replaces the configured NATS cluster peer routes.
+func (p *Pubsub) SetPeerAddresses(addresses []string) error {
+	p.clusterMu.Lock()
+	defer p.clusterMu.Unlock()
+
+	if p.ctx.Err() != nil {
+		return errClosed
+	}
+	if !p.clustered {
+		return xerrors.New("nats pubsub was not started with clustering enabled")
+	}
+	if p.serverOpts == nil || p.ns == nil {
+		return errClosed
+	}
+
+	selfAddresses := []string{effectiveClusterAddress(p.serverOpts.Cluster.Host, p.serverOpts.Cluster.Port)}
+	if clusterAddr := p.ns.ClusterAddr(); clusterAddr != nil {
+		selfAddresses = append(selfAddresses, clusterAddr.String())
+	}
+	routes, err := parsePeerAddresses(addresses, selfAddresses...)
+	if err != nil {
+		return err
+	}
+	if routeURLsEqual(p.currentRoutes, routes) {
+		return nil
+	}
+
+	newOpts := p.serverOpts.Clone()
+	newOpts.Routes = cloneRouteURLs(routes)
+	if err := p.ns.ReloadOptions(newOpts); err != nil {
+		return xerrors.Errorf("reload nats peer addresses: %w", err)
+	}
+	p.serverOpts = newOpts.Clone()
+	p.currentRoutes = cloneRouteURLs(routes)
+	return nil
+}
+
 func clusterEnabled(opts Options) bool {
 	return opts.ClusterHost != "" ||
 		opts.ClusterPort != 0 ||
@@ -131,41 +168,4 @@ func routeURLString(route *url.URL) string {
 		return ""
 	}
 	return route.String()
-}
-
-// SetPeerAddresses replaces the configured NATS cluster peer routes.
-func (p *Pubsub) SetPeerAddresses(addresses []string) error {
-	p.clusterMu.Lock()
-	defer p.clusterMu.Unlock()
-
-	if p.ctx.Err() != nil {
-		return errClosed
-	}
-	if !p.clustered {
-		return xerrors.New("nats pubsub was not started with clustering enabled")
-	}
-	if p.serverOpts == nil || p.ns == nil {
-		return errClosed
-	}
-
-	selfAddresses := []string{effectiveClusterAddress(p.serverOpts.Cluster.Host, p.serverOpts.Cluster.Port)}
-	if clusterAddr := p.ns.ClusterAddr(); clusterAddr != nil {
-		selfAddresses = append(selfAddresses, clusterAddr.String())
-	}
-	routes, err := parsePeerAddresses(addresses, selfAddresses...)
-	if err != nil {
-		return err
-	}
-	if routeURLsEqual(p.currentRoutes, routes) {
-		return nil
-	}
-
-	newOpts := p.serverOpts.Clone()
-	newOpts.Routes = cloneRouteURLs(routes)
-	if err := p.ns.ReloadOptions(newOpts); err != nil {
-		return xerrors.Errorf("reload nats peer addresses: %w", err)
-	}
-	p.serverOpts = newOpts.Clone()
-	p.currentRoutes = cloneRouteURLs(routes)
-	return nil
 }
