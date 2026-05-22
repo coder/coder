@@ -16,12 +16,10 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 )
 
-// DefaultMaxPending is the per-client outbound pending byte budget
-// (1 GiB), raised from the nats-server default of 64 MiB so wide
-// local fan-out does not trip the slow-consumer threshold.
+// DefaultMaxPending is the per-client outbound pending byte budget.
 const DefaultMaxPending int64 = 128 << 20
 
-var errClosed = xerrors.New("nats pubsub: closed")
+var errClosed = xerrors.New("nats pubsub closed")
 
 // PendingLimits configures per-subscription NATS pending limits set
 // via SetPendingLimits on each *natsgo.Subscription.
