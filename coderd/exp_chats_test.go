@@ -6391,9 +6391,14 @@ func TestSendMessageWithModelOverrideUpdatesLastModelConfigID(t *testing.T) {
 		AfterID: 0,
 	})
 	require.NoError(t, err)
-	require.Len(t, messages, 1)
-	require.True(t, messages[0].ModelConfigID.Valid)
-	require.Equal(t, modelConfigB.ID, messages[0].ModelConfigID.UUID)
+	// The chat daemon may have inserted an assistant response, so find
+	// the user message rather than asserting an exact count.
+	userMsgIdx := slices.IndexFunc(messages, func(m database.ChatMessage) bool {
+		return m.Role == database.ChatMessageRoleUser
+	})
+	require.NotEqual(t, -1, userMsgIdx, "expected to find a user message")
+	require.True(t, messages[userMsgIdx].ModelConfigID.Valid)
+	require.Equal(t, modelConfigB.ID, messages[userMsgIdx].ModelConfigID.UUID)
 }
 
 func TestSendMessageQueuesEffectiveModelConfigID(t *testing.T) {
@@ -6532,9 +6537,14 @@ func TestSubsequentSendWithoutOverrideUsesPersistedModel(t *testing.T) {
 		AfterID: 0,
 	})
 	require.NoError(t, err)
-	require.Len(t, messages, 1)
-	require.True(t, messages[0].ModelConfigID.Valid)
-	require.Equal(t, modelConfigB.ID, messages[0].ModelConfigID.UUID)
+	// The chat daemon may have inserted an assistant response, so find
+	// the user message rather than asserting an exact count.
+	userMsgIdx := slices.IndexFunc(messages, func(m database.ChatMessage) bool {
+		return m.Role == database.ChatMessageRoleUser
+	})
+	require.NotEqual(t, -1, userMsgIdx, "expected to find a user message")
+	require.True(t, messages[userMsgIdx].ModelConfigID.Valid)
+	require.Equal(t, modelConfigB.ID, messages[userMsgIdx].ModelConfigID.UUID)
 }
 
 func TestWatchChatsStatusChangeCarriesUpdatedLastModelConfigID(t *testing.T) {
