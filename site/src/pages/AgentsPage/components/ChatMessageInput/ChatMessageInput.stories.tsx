@@ -219,3 +219,18 @@ export const OutsideClickClosesWithoutReplacing: Story = {
 		expect(editor.textContent).toBe("/");
 	},
 };
+
+export const OutsideClickDismissesTriggerOnRefocus: Story = {
+	play: async ({ canvasElement }) => {
+		const editor = await typeInEditor(canvasElement, "/");
+		await findVisibleText("/reviewer");
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Outside target" }),
+		);
+		await expectNoVisibleText("/reviewer");
+		await userEvent.click(editor);
+		await expectNoVisibleText("/reviewer");
+		expect(editor.textContent).toBe("/");
+	},
+};
