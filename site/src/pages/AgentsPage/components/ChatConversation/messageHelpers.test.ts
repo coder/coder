@@ -133,16 +133,18 @@ const textMessage = (
 	});
 
 const executeMessage = (messageID: number): ParsedMessageEntry => {
+	const args = { command: "pnpm test" };
 	const tool: MergedTool = {
 		id: "execute-1",
 		name: "execute",
+		args,
 		isError: false,
 		status: "completed",
 	};
 	return entry({
 		messageID,
 		parsedOverrides: {
-			toolCalls: [{ id: tool.id, name: tool.name }],
+			toolCalls: [{ id: tool.id, name: tool.name, args }],
 			tools: [tool],
 			blocks: [{ type: "tool", id: tool.id }],
 		},
@@ -272,7 +274,22 @@ describe("deriveMessageDisplayState", () => {
 			"assistant",
 		);
 
-		expect(getDisplayState(message).shouldHide).toBe(false);
+		expect(
+			getDisplayState(message, {
+				parsed: parsed({
+					tools: [
+						{
+							id: "tool-1",
+							name: "execute",
+							args: { command: "pnpm test" },
+							isError: false,
+							status: "completed",
+						},
+					],
+					blocks: [{ type: "tool", id: "tool-1" }],
+				}),
+			}).shouldHide,
+		).toBe(false);
 	});
 
 	it("hides running wait_agent messages until the chat id is available", () => {
