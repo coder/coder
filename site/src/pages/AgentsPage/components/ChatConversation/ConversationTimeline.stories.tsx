@@ -2507,14 +2507,16 @@ export const ThinkingBlockWithToolCall: Story = {
 		const toolButton = canvas.getByRole("button", {
 			name: /read package\.json/i,
 		});
-		const thinkingContainer = thinkingButton.closest("[data-transcript-row]");
-		const toolContainer = toolButton.closest("[data-transcript-row]");
-		expect(thinkingContainer).toBeInstanceOf(HTMLElement);
-		expect(toolContainer).toBeInstanceOf(HTMLElement);
-		expect(toolContainer?.firstElementChild).not.toHaveAttribute("data-state");
-		expect(thinkingContainer?.firstElementChild).not.toHaveAttribute(
-			"data-state",
-		);
+		const thinkingContainer =
+			thinkingButton.closest("[data-transcript-row]") ?? thinkingButton;
+		const toolContainer =
+			toolButton.closest("[data-transcript-row]") ?? toolButton;
+		expect(
+			toolContainer.firstElementChild ?? toolContainer,
+		).not.toHaveAttribute("data-state");
+		expect(
+			thinkingContainer.firstElementChild ?? thinkingContainer,
+		).not.toHaveAttribute("data-state");
 		expect(
 			canvas.queryByTestId("assistant-bottom-spacer"),
 		).not.toBeInTheDocument();
@@ -2601,30 +2603,20 @@ export const ThinkingBlockWithShellTools: Story = {
 			name: /expand process output/i,
 		});
 
-		const thinkingRow = thinkingButton.closest(
-			"[data-transcript-row]",
-		)?.firstElementChild;
-		const executeRow = executeButton.closest(
-			"[data-transcript-row]",
-		)?.firstElementChild;
-		const processOutputRow = processOutputButton.closest(
-			"[data-transcript-row]",
-		)?.firstElementChild;
+		const wrappers = [
+			thinkingButton.closest("[data-transcript-row]") ?? thinkingButton,
+			executeButton.closest("[data-transcript-row]") ?? executeButton,
+			processOutputButton.closest("[data-transcript-row]") ??
+				processOutputButton,
+		];
 
-		expect(thinkingRow).toBeInstanceOf(HTMLElement);
-		expect(executeRow).toBeInstanceOf(HTMLElement);
-		expect(processOutputRow).toBeInstanceOf(HTMLElement);
-
-		const rowHeights = [thinkingRow, executeRow, processOutputRow].map((row) =>
-			Math.round((row as HTMLElement).getBoundingClientRect().height),
+		const rows = wrappers.map(
+			(wrapper) => wrapper.firstElementChild ?? wrapper,
+		);
+		const rowHeights = rows.map((row) =>
+			Math.round(row.getBoundingClientRect().height),
 		);
 		expect(new Set(rowHeights)).toHaveLength(1);
-
-		const wrappers = [
-			thinkingButton.closest("[data-transcript-row]"),
-			executeButton.closest("[data-transcript-row]"),
-			processOutputButton.closest("[data-transcript-row]"),
-		].map((row) => row as HTMLElement);
 		const gaps = [
 			Math.round(
 				wrappers[1].getBoundingClientRect().top -
