@@ -27768,13 +27768,13 @@ WHERE
 	-- Filter by exact username
 	AND CASE
 	  WHEN $4 :: text != '' THEN
-		  username = $4
+		  lower(username) = lower($4)
 	  ELSE true
 	END
   	-- Filter by exact email
   	AND CASE
 	  WHEN $5 :: text != '' THEN
-		  email = $5
+		  lower(email) = lower($5)
 	  ELSE true
 	END
 	-- Filter by status

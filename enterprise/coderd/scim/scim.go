@@ -63,7 +63,10 @@ func New(opts *Options) (*Server, error) {
 					Primary:          true,
 				},
 			},
-			MaxResults:       0,
+			MaxResults: 0,
+			// SupportFiltering is set to false, as all filtering operations are not
+			// supported. A minimal filtering syntax is supported because Okta seems to
+			// ignore this field and attempt to filter anyway.
 			SupportFiltering: false,
 			SupportPatch:     true,
 		},

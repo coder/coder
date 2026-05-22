@@ -35,10 +35,9 @@ func (ru *ResourceUser) scimAudit(ctx context.Context, r *http.Request, action d
 	})
 	auditor := *ru.opts.Auditor.Load()
 
+	// This is a best effort
+	// TODO: Check X-Forwarded-For and others for proxied requests
 	ip := r.RemoteAddr
-	if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
-		ip = forwarded
-	}
 
 	audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.User]{
 		Audit:            auditor,
