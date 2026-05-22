@@ -768,99 +768,99 @@ func TestResponsesInjectedTool(t *testing.T) {
 				},
 			},
 		},
-		// {
-		// 	name:        "blocking_tool_error",
-		// 	fixture:     fixtures.OaiResponsesBlockingSingleInjectedToolError,
-		// 	mcpToolName: "coder_delete_template",
-		// 	expectToolArgs: map[string]any{
-		// 		"template_id": "03cb4fdd-8109-4a22-8e22-bb4975171395",
-		// 	},
-		// 	expectPrompt:    "delete the template with ID 03cb4fdd-8109-4a22-8e22-bb4975171395, don't ask for confirmation",
-		// 	expectToolError: "500 Internal error deleting template: unauthorized: rbac: forbidden",
-		// 	expectTokenUsages: []recorder.TokenUsageRecord{
-		// 		{
-		// 			MsgID:                "resp_06e2afba24b6b2ad00696b774d1df0819eaf1ec802bc8a2ca9",
-		// 			Input:                233, // 6377 input - 6144 cached
-		// 			Output:               119,
-		// 			CacheReadInputTokens: 6144,
-		// 			ExtraTokenTypes: map[string]int64{
-		// 				"output_reasoning": 70,
-		// 				"total_tokens":     6496,
-		// 			},
-		// 		},
-		// 		{
-		// 			MsgID:                "resp_06e2afba24b6b2ad00696b775044e8819ea14840698ef966e2",
-		// 			Input:                395, // 6539 input - 6144 cached
-		// 			Output:               144,
-		// 			CacheReadInputTokens: 6144,
-		// 			ExtraTokenTypes: map[string]int64{
-		// 				"output_reasoning": 28,
-		// 				"total_tokens":     6683,
-		// 			},
-		// 		},
-		// 	},
-		// },
-		// {
-		// 	name:           "streaming_success",
-		// 	fixture:        fixtures.OaiResponsesStreamingSingleInjectedTool,
-		// 	streaming:      true,
-		// 	mcpToolName:    "coder_list_templates",
-		// 	expectToolArgs: map[string]any{},
-		// 	expectPrompt:   "List my coder templates.",
-		// 	expectTokenUsages: []recorder.TokenUsageRecord{
-		// 		{
-		// 			MsgID:  "resp_016595fe42aa62ca0069724419c52081a0b7eb479c6bc8109f",
-		// 			Input:  6269, // 6269 input - 0 cached
-		// 			Output: 18,
-		// 			ExtraTokenTypes: map[string]int64{
-		// 				"output_reasoning": 0,
-		// 				"total_tokens":     6287,
-		// 			},
-		// 		},
-		// 		{
-		// 			MsgID:                "resp_0bc5f54fce6df69a006972442175908194bb81d31f576e6ca6",
-		// 			Input:                319, // 6463 input - 6144 cached
-		// 			Output:               182,
-		// 			CacheReadInputTokens: 6144,
-		// 			ExtraTokenTypes: map[string]int64{
-		// 				"output_reasoning": 0,
-		// 				"total_tokens":     6645,
-		// 			},
-		// 		},
-		// 	},
-		// },
-		// {
-		// 	name:        "streaming_tool_error",
-		// 	fixture:     fixtures.OaiResponsesStreamingSingleInjectedToolError,
-		// 	streaming:   true,
-		// 	mcpToolName: "coder_create_workspace_build",
-		// 	expectToolArgs: map[string]any{
-		// 		"transition":   "start",
-		// 		"workspace_id": "non_existing_id",
-		// 	},
-		// 	expectPrompt:    "Create a new workspace build for an workspace with id: 'non_existing_id'",
-		// 	expectToolError: "workspace_id must be a valid UUID: invalid UUID length: 15",
-		// 	expectTokenUsages: []recorder.TokenUsageRecord{
-		// 		{
-		// 			MsgID:  "resp_0dfed48e1052ad7f0069725ca129f88193b97d6deff1760524",
-		// 			Input:  6280, // 6280 input - 0 cached
-		// 			Output: 30,
-		// 			ExtraTokenTypes: map[string]int64{
-		// 				"output_reasoning": 0,
-		// 				"total_tokens":     6310,
-		// 			},
-		// 		},
-		// 		{
-		// 			MsgID:  "resp_0dfed48e1052ad7f0069725ca39880819390fcc5b2eb8cf8c6",
-		// 			Input:  6346, // 6346 input - 0 cached
-		// 			Output: 56,
-		// 			ExtraTokenTypes: map[string]int64{
-		// 				"output_reasoning": 0,
-		// 				"total_tokens":     6402,
-		// 			},
-		// 		},
-		// 	},
-		// },
+		{
+			name:        "blocking_tool_error",
+			fixture:     fixtures.OaiResponsesBlockingSingleInjectedToolError,
+			mcpToolName: "coder_delete_template",
+			expectToolArgs: map[string]any{
+				"template_id": "03cb4fdd-8109-4a22-8e22-bb4975171395",
+			},
+			expectPrompt:    "delete the template with ID 03cb4fdd-8109-4a22-8e22-bb4975171395, don't ask for confirmation",
+			expectToolError: "500 Internal error deleting template: unauthorized: rbac: forbidden",
+			expectTokenUsages: []recorder.TokenUsageRecord{
+				{
+					MsgID:                "resp_06e2afba24b6b2ad00696b774d1df0819eaf1ec802bc8a2ca9",
+					Input:                233, // 6377 input - 6144 cached
+					Output:               119,
+					CacheReadInputTokens: 6144,
+					ExtraTokenTypes: map[string]int64{
+						"output_reasoning": 70,
+						"total_tokens":     6496,
+					},
+				},
+				{
+					MsgID:                "resp_06e2afba24b6b2ad00696b775044e8819ea14840698ef966e2",
+					Input:                395, // 6539 input - 6144 cached
+					Output:               144,
+					CacheReadInputTokens: 6144,
+					ExtraTokenTypes: map[string]int64{
+						"output_reasoning": 28,
+						"total_tokens":     6683,
+					},
+				},
+			},
+		},
+		{
+			name:           "streaming_success",
+			fixture:        fixtures.OaiResponsesStreamingSingleInjectedTool,
+			streaming:      true,
+			mcpToolName:    "coder_list_templates",
+			expectToolArgs: map[string]any{},
+			expectPrompt:   "List my coder templates.",
+			expectTokenUsages: []recorder.TokenUsageRecord{
+				{
+					MsgID:  "resp_016595fe42aa62ca0069724419c52081a0b7eb479c6bc8109f",
+					Input:  6269, // 6269 input - 0 cached
+					Output: 18,
+					ExtraTokenTypes: map[string]int64{
+						"output_reasoning": 0,
+						"total_tokens":     6287,
+					},
+				},
+				{
+					MsgID:                "resp_0bc5f54fce6df69a006972442175908194bb81d31f576e6ca6",
+					Input:                319, // 6463 input - 6144 cached
+					Output:               182,
+					CacheReadInputTokens: 6144,
+					ExtraTokenTypes: map[string]int64{
+						"output_reasoning": 0,
+						"total_tokens":     6645,
+					},
+				},
+			},
+		},
+		{
+			name:        "streaming_tool_error",
+			fixture:     fixtures.OaiResponsesStreamingSingleInjectedToolError,
+			streaming:   true,
+			mcpToolName: "coder_create_workspace_build",
+			expectToolArgs: map[string]any{
+				"transition":   "start",
+				"workspace_id": "non_existing_id",
+			},
+			expectPrompt:    "Create a new workspace build for an workspace with id: 'non_existing_id'",
+			expectToolError: "workspace_id must be a valid UUID: invalid UUID length: 15",
+			expectTokenUsages: []recorder.TokenUsageRecord{
+				{
+					MsgID:  "resp_0dfed48e1052ad7f0069725ca129f88193b97d6deff1760524",
+					Input:  6280, // 6280 input - 0 cached
+					Output: 30,
+					ExtraTokenTypes: map[string]int64{
+						"output_reasoning": 0,
+						"total_tokens":     6310,
+					},
+				},
+				{
+					MsgID:  "resp_0dfed48e1052ad7f0069725ca39880819390fcc5b2eb8cf8c6",
+					Input:  6346, // 6346 input - 0 cached
+					Output: 56,
+					ExtraTokenTypes: map[string]int64{
+						"output_reasoning": 0,
+						"total_tokens":     6402,
+					},
+				},
+			},
+		},
 	}
 
 	for _, tc := range tests {
