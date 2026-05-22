@@ -18,6 +18,7 @@ import (
 	agpl "github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
@@ -143,10 +144,12 @@ func (ru *ResourceUser) Create(r *http.Request, attributes scim.ResourceAttribut
 		organizations = append(organizations, defaultOrganization.ID)
 	}
 
-	// CreateUser does InsertOrganizationMember internally, which needs
-	// broader permissions than the SCIM provisioner role. Use
-	// AsSystemRestricted for this specific call.
-	dbUser, err = ru.opts.AGPL.CreateUser(ctx, ru.store, agpl.CreateUserRequest{
+	// CreateUser does InsertOrganizationMember internally, and InsertUser
+	// implicitly assigns the member role at site scope. The SCIM provisioner
+	// role cannot assign either, so escalate to a system context for this
+	// specific call, matching the legacy SCIM handler.
+	//nolint:gocritic // SCIM bearer token authenticates as the SCIM provisioner; user creation needs broader rights to assign default roles.
+	dbUser, err = ru.opts.AGPL.CreateUser(dbauthz.AsSystemRestricted(ctx), ru.store, agpl.CreateUserRequest{
 		CreateUserRequestWithOrgs: codersdk.CreateUserRequestWithOrgs{
 			Username:        username,
 			Email:           email,
