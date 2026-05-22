@@ -27,6 +27,11 @@ const renderUserInlineBlock = (block: UserInlineRenderBlock, index: number) => {
 	);
 };
 
+const workspaceFilePlaceholderText = (count: number): string =>
+	count === 1
+		? "Workspace file attached. Display support is coming soon."
+		: `${count} workspace files attached. Display support is coming soon.`;
+
 export const UserMessageContent: FC<{
 	displayState: MessageDisplayState;
 	markdown: string;
@@ -85,6 +90,13 @@ export const UserMessageContent: FC<{
 									showTextStatus
 								/>
 							))}
+						</div>
+					)}
+					{displayState.hasWorkspaceFileReferences && (
+						<div className="rounded-md border border-border-default bg-surface-tertiary px-2.5 py-1.5 text-xs text-content-secondary">
+							{workspaceFilePlaceholderText(
+								displayState.workspaceFileReferenceCount,
+							)}
 						</div>
 					)}
 					{fadeFromBottom && (

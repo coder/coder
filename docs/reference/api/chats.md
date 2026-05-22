@@ -65,8 +65,7 @@ Experimental: this endpoint is subject to change.
         "mime_type": "string",
         "name": "string",
         "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-        "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
-        "size": 0
+        "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
       }
     ],
     "has_unread": true,
@@ -134,7 +133,6 @@ Experimental: this endpoint is subject to change.
         "result_delta": "string",
         "result_reset": true,
         "signature": "string",
-        "size": 0,
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -222,7 +220,6 @@ Status Code **200**
 | `»» name`                         | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
 | `»» organization_id`              | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                  |
 | `»» owner_id`                     | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                  |
-| `»» size`                         | integer                                                                | false    |              |                                                                                                                                                                                                                                                                                                                                  |
 | `» has_unread`                    | boolean                                                                | false    |              | Has unread is true when assistant messages exist beyond the owner's read cursor, which updates on stream connect and disconnect.                                                                                                                                                                                                 |
 | `» id`                            | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                  |
 | `» labels`                        | object                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
@@ -269,7 +266,6 @@ Status Code **200**
 | `»» result_delta`                 | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
 | `»» result_reset`                 | boolean                                                                | false    |              |                                                                                                                                                                                                                                                                                                                                  |
 | `»» signature`                    | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                  |
-| `»» size`                         | integer                                                                | false    |              |                                                                                                                                                                                                                                                                                                                                  |
 | `»» skill_description`            | string                                                                 | false    |              | Skill description is the short description from the skill's SKILL.md frontmatter.                                                                                                                                                                                                                                                |
 | `»» skill_dir`                    | string                                                                 | false    |              | Skill dir is the absolute path to the skill directory inside the workspace filesystem. Internal only: used by read_skill/read_skill_file tools to locate skill files.                                                                                                                                                            |
 | `»» skill_name`                   | string                                                                 | false    |              | Skill name is the kebab-case name of a discovered skill from the workspace's .agents/skills/ directory.                                                                                                                                                                                                                          |
@@ -425,8 +421,7 @@ Experimental: this endpoint is subject to change.
           "mime_type": "string",
           "name": "string",
           "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
-          "size": 0
+          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
         }
       ],
       "has_unread": true,
@@ -494,7 +489,6 @@ Experimental: this endpoint is subject to change.
           "result_delta": "string",
           "result_reset": true,
           "signature": "string",
-          "size": 0,
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -564,8 +558,7 @@ Experimental: this endpoint is subject to change.
       "mime_type": "string",
       "name": "string",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
-      "size": 0
+      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
     }
   ],
   "has_unread": true,
@@ -633,7 +626,6 @@ Experimental: this endpoint is subject to change.
       "result_delta": "string",
       "result_reset": true,
       "signature": "string",
-      "size": 0,
       "skill_description": "string",
       "skill_dir": "string",
       "skill_name": "string",
@@ -854,8 +846,7 @@ Experimental: this endpoint is subject to change.
         "mime_type": "string",
         "name": "string",
         "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-        "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
-        "size": 0
+        "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
       }
     ],
     "has_unread": true,
@@ -923,7 +914,6 @@ Experimental: this endpoint is subject to change.
         "result_delta": "string",
         "result_reset": true,
         "signature": "string",
-        "size": 0,
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -1047,8 +1037,7 @@ Experimental: this endpoint is subject to change.
           "mime_type": "string",
           "name": "string",
           "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
-          "size": 0
+          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
         }
       ],
       "has_unread": true,
@@ -1116,7 +1105,6 @@ Experimental: this endpoint is subject to change.
           "result_delta": "string",
           "result_reset": true,
           "signature": "string",
-          "size": 0,
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -1186,8 +1174,7 @@ Experimental: this endpoint is subject to change.
       "mime_type": "string",
       "name": "string",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
-      "size": 0
+      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
     }
   ],
   "has_unread": true,
@@ -1255,7 +1242,6 @@ Experimental: this endpoint is subject to change.
       "result_delta": "string",
       "result_reset": true,
       "signature": "string",
-      "size": 0,
       "skill_description": "string",
       "skill_dir": "string",
       "skill_name": "string",
@@ -1460,8 +1446,7 @@ Experimental: this endpoint is subject to change.
           "mime_type": "string",
           "name": "string",
           "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
-          "size": 0
+          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
         }
       ],
       "has_unread": true,
@@ -1529,7 +1514,6 @@ Experimental: this endpoint is subject to change.
           "result_delta": "string",
           "result_reset": true,
           "signature": "string",
-          "size": 0,
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -1599,8 +1583,7 @@ Experimental: this endpoint is subject to change.
       "mime_type": "string",
       "name": "string",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
-      "size": 0
+      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
     }
   ],
   "has_unread": true,
@@ -1668,7 +1651,6 @@ Experimental: this endpoint is subject to change.
       "result_delta": "string",
       "result_reset": true,
       "signature": "string",
-      "size": 0,
       "skill_description": "string",
       "skill_dir": "string",
       "skill_name": "string",
@@ -1802,7 +1784,6 @@ Experimental: this endpoint is subject to change.
           "result_delta": "string",
           "result_reset": true,
           "signature": "string",
-          "size": 0,
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -1890,7 +1871,6 @@ Experimental: this endpoint is subject to change.
           "result_delta": "string",
           "result_reset": true,
           "signature": "string",
-          "size": 0,
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -2034,7 +2014,6 @@ Experimental: this endpoint is subject to change.
         "result_delta": "string",
         "result_reset": true,
         "signature": "string",
-        "size": 0,
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -2121,7 +2100,6 @@ Experimental: this endpoint is subject to change.
         "result_delta": "string",
         "result_reset": true,
         "signature": "string",
-        "size": 0,
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -2263,7 +2241,6 @@ Experimental: this endpoint is subject to change.
         "result_delta": "string",
         "result_reset": true,
         "signature": "string",
-        "size": 0,
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -2459,7 +2436,6 @@ Experimental: this endpoint is subject to change.
         "result_delta": "string",
         "result_reset": true,
         "signature": "string",
-        "size": 0,
         "skill_description": "string",
         "skill_dir": "string",
         "skill_name": "string",
@@ -2543,7 +2519,6 @@ Experimental: this endpoint is subject to change.
       "result_delta": "string",
       "result_reset": true,
       "signature": "string",
-      "size": 0,
       "skill_description": "string",
       "skill_dir": "string",
       "skill_name": "string",
@@ -2616,7 +2591,6 @@ Experimental: this endpoint is subject to change.
           "result_delta": "string",
           "result_reset": true,
           "signature": "string",
-          "size": 0,
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -2808,8 +2782,7 @@ Experimental: this endpoint is subject to change.
           "mime_type": "string",
           "name": "string",
           "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
-          "size": 0
+          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
         }
       ],
       "has_unread": true,
@@ -2877,7 +2850,6 @@ Experimental: this endpoint is subject to change.
           "result_delta": "string",
           "result_reset": true,
           "signature": "string",
-          "size": 0,
           "skill_description": "string",
           "skill_dir": "string",
           "skill_name": "string",
@@ -2947,8 +2919,7 @@ Experimental: this endpoint is subject to change.
       "mime_type": "string",
       "name": "string",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
-      "size": 0
+      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
     }
   ],
   "has_unread": true,
@@ -3016,7 +2987,6 @@ Experimental: this endpoint is subject to change.
       "result_delta": "string",
       "result_reset": true,
       "signature": "string",
-      "size": 0,
       "skill_description": "string",
       "skill_dir": "string",
       "skill_name": "string",

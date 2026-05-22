@@ -201,8 +201,8 @@ export const applyMessagePartToStreamState = (
 		// skill parts are metadata-only; no streaming render
 		// needed.
 		case "skill":
-		// workspace-file-reference parts are metadata-only here;
-		// rendering ships in the UI PR.
+		// workspace-file-reference parts are metadata-only in the stream;
+		// historical messages render the compatibility placeholder.
 		case "workspace-file-reference":
 			return prev;
 		default: {

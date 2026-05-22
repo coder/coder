@@ -88,6 +88,18 @@ describe("applyMessagePartToStreamState", () => {
 		expect(result).toBeNull();
 	});
 
+	it("returns prev for workspace file reference parts", () => {
+		const prev = createEmptyStreamState();
+		const result = applyMessagePartToStreamState(prev, {
+			type: "workspace-file-reference",
+			workspace_file_path: "/home/coder/.coder/chats/chat-1/files/data.csv",
+			workspace_file_name: "data.csv",
+			workspace_file_size: 42,
+		});
+
+		expect(result).toBe(prev);
+	});
+
 	it("creates tool call entry from tool-call part", () => {
 		const result = applyMessagePartToStreamState(null, {
 			type: "tool-call",

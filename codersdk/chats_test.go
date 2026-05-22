@@ -179,15 +179,30 @@ func TestUploadChatWorkspaceFileContentType(t *testing.T) {
 	}
 }
 
-func TestChatMessageFile_SizeOptional(t *testing.T) {
+func TestChatMessageWorkspaceFileReference_JSONRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	fileID := uuid.New()
-	withoutSize := codersdk.ChatMessageFile(fileID, "text/plain", "notes.txt")
-	require.Equal(t, int64(0), withoutSize.Size)
+	part := codersdk.ChatMessageWorkspaceFileReference(
+		"/home/coder/.coder/chats/00000000-0000-0000-0000-000000000001/files/notes.txt",
+		"notes.txt",
+		42,
+		"text/plain",
+	)
 
-	withSize := codersdk.ChatMessageFile(fileID, "text/plain", "notes.txt", 42)
-	require.Equal(t, int64(42), withSize.Size)
+	data, err := json.Marshal(part)
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"type":"workspace-file-reference"`)
+	require.Contains(t, string(data), `"workspace_file_path"`)
+	require.Contains(t, string(data), `"workspace_file_name"`)
+	require.Contains(t, string(data), `"workspace_file_size":42`)
+	require.Contains(t, string(data), `"workspace_file_media_type":"text/plain"`)
+	var raw map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(data, &raw))
+	require.NotContains(t, raw, "size")
+
+	var decoded codersdk.ChatMessagePart
+	require.NoError(t, json.Unmarshal(data, &decoded))
+	require.Equal(t, part, decoded)
 }
 
 func TestChatErrorKind_JSONRoundTrip(t *testing.T) {

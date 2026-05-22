@@ -157,7 +157,6 @@ type ChatFileMetadata struct {
 	OrganizationID uuid.UUID `json:"organization_id" format:"uuid"`
 	Name           string    `json:"name"`
 	MimeType       string    `json:"mime_type"`
-	Size           int64     `json:"size"`
 	CreatedAt      time.Time `json:"created_at" format:"date-time"`
 }
 
@@ -277,7 +276,6 @@ type ChatMessagePart struct {
 	Name           string          `json:"name,omitempty" variants:"file?"`
 	Data           []byte          `json:"data,omitempty" variants:"file?"`
 	FileID         uuid.NullUUID   `json:"file_id,omitempty" format:"uuid" variants:"file?"`
-	Size           int64           `json:"size,omitempty" variants:"file?"`
 	FileName       string          `json:"file_name" variants:"file-reference"`
 	StartLine      int             `json:"start_line" variants:"file-reference"`
 	EndLine        int             `json:"end_line" variants:"file-reference"`
@@ -411,17 +409,13 @@ func ChatMessageToolResult(toolCallID, toolName string, result json.RawMessage, 
 }
 
 // ChatMessageFile builds a file chat message part.
-func ChatMessageFile(fileID uuid.UUID, mediaType string, name string, size ...int64) ChatMessagePart {
-	part := ChatMessagePart{
+func ChatMessageFile(fileID uuid.UUID, mediaType string, name string) ChatMessagePart {
+	return ChatMessagePart{
 		Type:      ChatMessagePartTypeFile,
 		FileID:    uuid.NullUUID{UUID: fileID, Valid: true},
 		MediaType: mediaType,
 		Name:      name,
 	}
-	if len(size) > 0 {
-		part.Size = size[0]
-	}
-	return part
 }
 
 // ChatMessageFileReference builds a file-reference chat message part.

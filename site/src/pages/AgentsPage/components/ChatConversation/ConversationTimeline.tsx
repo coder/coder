@@ -521,6 +521,11 @@ const ChatMessageItem = memo<{
 			hasActiveStream,
 			isAwaitingFirstStreamChunk,
 		});
+		const canEditUserMessage =
+			isUser &&
+			Boolean(onEditUserMessage) &&
+			!displayState.hasWorkspaceFileReferences;
+
 		if (displayState.shouldHide) {
 			return null;
 		}
@@ -581,8 +586,7 @@ const ChatMessageItem = memo<{
 					)}
 				</ConversationItem>
 				{!hideActions &&
-					(displayState.hasCopyableContent ||
-						(isUser && onEditUserMessage)) && (
+					(displayState.hasCopyableContent || canEditUserMessage) && (
 						<div
 							className={cn(
 								"mt-0.5 flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/msg:opacity-100",
@@ -598,7 +602,7 @@ const ChatMessageItem = memo<{
 									tooltipSide="bottom"
 								/>
 							)}
-							{isUser && onEditUserMessage && (
+							{canEditUserMessage && (
 								<Tooltip>
 									<TooltipTrigger asChild>
 										<Button
@@ -607,9 +611,16 @@ const ChatMessageItem = memo<{
 											className="size-6"
 											aria-label="Edit message"
 											onClick={() => {
-												const { text, fileBlocks } =
+												const editablePayload =
 													getEditableUserMessagePayload(message);
-												onEditUserMessage(message.id, text, fileBlocks);
+												if (!editablePayload) {
+													return;
+												}
+												onEditUserMessage?.(
+													message.id,
+													editablePayload.text,
+													editablePayload.fileBlocks,
+												);
 											}}
 										>
 											<PencilIcon />

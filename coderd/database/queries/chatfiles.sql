@@ -11,9 +11,9 @@ SELECT * FROM chat_files WHERE id = ANY(@ids::uuid[]);
 
 -- name: GetChatFileMetadataByChatID :many
 -- GetChatFileMetadataByChatID returns lightweight file metadata for
--- all files linked to a chat. The raw data bytes are not returned;
--- only the byte length is computed.
-SELECT cf.id, cf.owner_id, cf.organization_id, cf.name, cf.mimetype, octet_length(cf.data)::bigint AS size, cf.created_at
+-- all files linked to a chat. The data column is excluded to avoid
+-- loading file content.
+SELECT cf.id, cf.owner_id, cf.organization_id, cf.name, cf.mimetype, cf.created_at
 FROM chat_files cf
 JOIN chat_file_links cfl ON cfl.file_id = cf.id
 WHERE cfl.chat_id = @chat_id::uuid

@@ -127,6 +127,16 @@ func TestCreateChatWorkspaceFilePartValidation(t *testing.T) {
 		detail string
 	}{
 		{
+			name: "InitialChatCreationRejectsWorkspaceReference",
+			part: codersdk.ChatInputPart{
+				Type:              codersdk.ChatInputPartTypeWorkspaceFileReference,
+				WorkspaceFilePath: "/home/coder/.coder/chats/00000000-0000-0000-0000-000000000001/files/data.csv",
+				WorkspaceFileName: "data.csv",
+				WorkspaceFileSize: 42,
+			},
+			detail: "content[0].workspace-file-reference requires an existing chat.",
+		},
+		{
 			name: "MissingPath",
 			part: codersdk.ChatInputPart{
 				Type:              codersdk.ChatInputPartTypeWorkspaceFileReference,
@@ -350,6 +360,31 @@ func TestPostChatWorkspaceFile(t *testing.T) {
 		_, err = client.UploadChatWorkspaceFile(ctx, chat.ID, "application/zip", "data.zip", bytes.NewReader([]byte("PK")))
 		sdkErr := requireSDKError(t, err, http.StatusConflict)
 		require.Contains(t, sdkErr.Message, "no workspace")
+	})
+
+	t.Run("NoAgents", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		workspaceBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: firstUser.OrganizationID,
+			OwnerID:        firstUser.UserID,
+		}).Do()
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			WorkspaceID:    &workspaceBuild.Workspace.ID,
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "no agents"},
+			},
+		})
+		require.NoError(t, err)
+
+		_, err = client.UploadChatWorkspaceFile(ctx, chat.ID, "application/zip", "data.zip", bytes.NewReader([]byte("PK")))
+		sdkErr := requireSDKError(t, err, http.StatusConflict)
+		require.Equal(t, "Chat workspace has no agents.", sdkErr.Message)
 	})
 
 	t.Run("NoConnectedAgent", func(t *testing.T) {

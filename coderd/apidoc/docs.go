@@ -16671,9 +16671,6 @@ const docTemplate = `{
                 "owner_id": {
                     "type": "string",
                     "format": "uuid"
-                },
-                "size": {
-                    "type": "integer"
                 }
             }
         },
@@ -16959,9 +16956,6 @@ const docTemplate = `{
                 },
                 "signature": {
                     "type": "string"
-                },
-                "size": {
-                    "type": "integer"
                 },
                 "skill_description": {
                     "description": "SkillDescription is the short description from the skill's\nSKILL.md frontmatter.",

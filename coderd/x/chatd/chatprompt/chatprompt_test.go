@@ -2379,13 +2379,13 @@ func TestConvertMessagesWithFiles_AssistantAttachmentIsNotReplayed(t *testing.T)
 	assistantFileID := uuid.New()
 
 	userContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
-		codersdk.ChatMessageFile(userFileID, "image/png", "user.png", 9),
+		codersdk.ChatMessageFile(userFileID, "image/png", "user.png"),
 	})
 	require.NoError(t, err)
 
 	assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
 		codersdk.ChatMessageText("I attached logs above."),
-		codersdk.ChatMessageFile(assistantFileID, "text/plain", "agent.log", 13),
+		codersdk.ChatMessageFile(assistantFileID, "text/plain", "agent.log"),
 	})
 	require.NoError(t, err)
 

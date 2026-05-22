@@ -1967,7 +1967,6 @@ export interface ChatFileMetadata {
 	readonly organization_id: string;
 	readonly name: string;
 	readonly mime_type: string;
-	readonly size: number;
 	readonly created_at: string;
 }
 
@@ -1978,7 +1977,6 @@ export interface ChatFilePart {
 	readonly name?: string;
 	readonly data?: string;
 	readonly file_id?: string;
-	readonly size?: number;
 }
 
 // From codersdk/chats.go

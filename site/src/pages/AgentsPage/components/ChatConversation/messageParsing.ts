@@ -243,6 +243,13 @@ export const parseMessageContent = (
 	return parsed;
 };
 
+const messageHasWorkspaceFileReferences = (
+	message: TypesGen.ChatMessage,
+): boolean =>
+	(message.content ?? []).some(
+		(part) => part.type === "workspace-file-reference",
+	);
+
 const isEditableAttachmentMediaType = (mediaType: string): boolean =>
 	mediaType.startsWith("image/") ||
 	mediaType === "text/plain" ||
@@ -258,10 +265,16 @@ const isEditableUserMessageFileBlock = (
 
 export const getEditableUserMessagePayload = (
 	message: TypesGen.ChatMessage,
-): {
-	text: string;
-	fileBlocks: readonly TypesGen.ChatMessagePart[] | undefined;
-} => {
+):
+	| {
+			text: string;
+			fileBlocks: readonly TypesGen.ChatMessagePart[] | undefined;
+	  }
+	| undefined => {
+	if (messageHasWorkspaceFileReferences(message)) {
+		return undefined;
+	}
+
 	// Concatenate text parts verbatim to match the server-side string_agg in
 	// GetChatUserPromptsByChatID; parseMessageContent/appendText is for streaming and drops whitespace-only chunks.
 	const text = (message.content ?? [])
