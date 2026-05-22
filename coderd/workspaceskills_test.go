@@ -146,6 +146,16 @@ func TestGetWorkspaceSkills(t *testing.T) {
 	require.Empty(t, skills)
 	require.NotNil(t, skills)
 
+	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStop, codersdk.WorkspaceTransitionDelete)
+	require.NoError(t, db.UpdateWorkspaceDeletedByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceDeletedByIDParams{
+		ID:      workspace.ID,
+		Deleted: false,
+	}))
+	skills, err = expClient.WorkspaceSkills(ctx, workspace.ID)
+	require.NoError(t, err)
+	require.Empty(t, skills)
+	require.NotNil(t, skills)
+
 	require.NoError(t, db.UpdateWorkspaceDeletedByID(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceDeletedByIDParams{
 		ID:      workspace.ID,
 		Deleted: true,
