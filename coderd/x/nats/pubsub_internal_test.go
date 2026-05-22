@@ -1,4 +1,4 @@
-package nats //nolint:testpackage // Uses internal fields for dual-conn assertions.
+package nats //nolint:testpackage // Exercises internal pubsub state and helpers.
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	natsgo "github.com/nats-io/nats.go"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
@@ -16,10 +17,27 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// TestDualConn_ConnectionCount verifies that N subscriptions on a single
-// Pubsub yield exactly two client connections at the embedded server:
-// pubConn and subConn. Subscription count must not affect connection
-// count.
+func TestCoalescing_SameSubjectSharesSubscription(t *testing.T) {
+	t.Parallel()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+	ps, err := New(ctx, logger, Options{})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = ps.Close() })
+
+	cancelA, err := ps.Subscribe("coalesce_evt", func(context.Context, []byte) {})
+	require.NoError(t, err)
+	t.Cleanup(cancelA)
+	cancelB, err := ps.Subscribe("coalesce_evt", func(context.Context, []byte) {})
+	require.NoError(t, err)
+	t.Cleanup(cancelB)
+
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+	require.Len(t, ps.sharedBySubject, 1)
+}
+
 func TestDualConn_ConnectionCount(t *testing.T) {
 	t.Parallel()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
@@ -42,8 +60,6 @@ func TestDualConn_ConnectionCount(t *testing.T) {
 		}
 	})
 
-	// Pubsub's two TCP-loopback connections must be the only clients the
-	// embedded server reports, independent of subscription count.
 	require.Equal(t, 2, ps.ns.NumClients(),
 		"expected exactly 2 client connections (pubConn + subConn), got %d", ps.ns.NumClients())
 	require.Len(t, ps.publishPool, 1, "default PublishConns must be 1")
@@ -51,22 +67,11 @@ func TestDualConn_ConnectionCount(t *testing.T) {
 	require.NotSame(t, ps.publishPool[0], ps.subscribePool[0], "pubConn and subConn must be distinct")
 }
 
-// TestDualConn_SlowListenerIsolation verifies that when one subscription's
-// listener blocks long enough to trip its client-side PendingLimits, only
-// that subscription receives ErrSlowConsumer / ErrDroppedMessages.
-// Subscriptions on other subjects, multiplexed over the same subConn,
-// keep receiving messages.
 func TestDualConn_SlowListenerIsolation(t *testing.T) {
 	t.Parallel()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
-	// Package defaults: per-listener inbox capacity is
-	// defaultListenerQueueSize. Publishing more messages than that to
-	// the parked slow subscriber overflows its inbox and triggers
-	// pubsub.ErrDroppedMessages, while leaving NATS-level pending
-	// limits at the package default so the fast subscriber's inbox
-	// can drain freely.
 	ps, err := New(ctx, logger, Options{})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = ps.Close() })
@@ -93,10 +98,6 @@ func TestDualConn_SlowListenerIsolation(t *testing.T) {
 	require.NoError(t, err)
 	defer fastCancel()
 
-	// Stuff the slow subscription's per-listener inbox far past its
-	// capacity so the local-overflow drop path fires reliably;
-	// meanwhile publish the same number to the fast subject so we
-	// can confirm deliveries continue independently.
 	total := defaultListenerQueueSize + 256
 	payload := make([]byte, 4*1024)
 	for i := 0; i < total; i++ {
@@ -118,12 +119,16 @@ func TestDualConn_SlowListenerIsolation(t *testing.T) {
 		"slow subscriber must receive at least one ErrDroppedMessages async signal")
 	require.GreaterOrEqual(t, fastCount.Load(), int64(total),
 		"fast subscriber must keep receiving despite slow peer on shared subConn")
-
-	// The single default subConn must stay connected throughout: the
-	// slow-consumer signal is per-subscription, not per-conn.
 	require.Len(t, ps.subscribePool, 1)
 	require.False(t, ps.subscribePool[0].IsClosed(), "subConn must not be closed by slow consumer")
 	require.True(t, ps.subscribePool[0].IsConnected(), "subConn must stay connected")
-	// Connection count must still be exactly 2.
 	require.Equal(t, 2, ps.ns.NumClients(), "slow consumer must not disconnect subConn")
+}
+
+func TestPickConn_DifferentSubjectsUseDifferentConns(t *testing.T) {
+	t.Parallel()
+	var a, b natsgo.Conn
+	pool := []*natsgo.Conn{&a, &b}
+
+	require.NotSame(t, pickConn(pool, "a"), pickConn(pool, "b"))
 }
