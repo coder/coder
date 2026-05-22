@@ -3164,6 +3164,100 @@ func TestUserAIBudgetOverrideEveryoneGroup(t *testing.T) {
 	require.EqualValues(t, 500_000_000, override.SpendLimitMicros)
 }
 
+// TestUserAIBudgetOverrideDeletedOnMembershipRemoval verifies that a per-user
+// override is deleted automatically when the user loses membership in the
+// attributed group. Two paths are exercised:
+//
+//   - RegularGroup: membership stored in group_members; removed via
+//     PatchGroup with RemoveUsers.
+//   - EveryoneGroup: membership stored in organization_members; removed
+//     via DeleteOrganizationMember.
+func TestUserAIBudgetOverrideDeletedOnMembershipRemoval(t *testing.T) {
+	t.Parallel()
+
+	dv := coderdtest.DeploymentValues(t)
+	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{DeploymentValues: dv},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+				codersdk.FeatureAIBridge:     1,
+			},
+		},
+	})
+	adminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
+
+	t.Run("RegularGroup", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		_, targetUser := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+
+		group, err := adminClient.CreateGroup(ctx, owner.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "cascade-regular-group",
+		})
+		require.NoError(t, err)
+
+		_, err = adminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+			AddUsers: []string{targetUser.ID.String()},
+		})
+		require.NoError(t, err)
+
+		_, err = adminClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, codersdk.UpsertUserAIBudgetOverrideRequest{
+			GroupID:          group.ID,
+			SpendLimitMicros: 500_000_000,
+		})
+		require.NoError(t, err, "set override")
+
+		// Sanity-check the override exists.
+		_, err = adminClient.UserAIBudgetOverride(ctx, targetUser.ID)
+		require.NoError(t, err, "override should exist before removal")
+
+		_, err = adminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+			RemoveUsers: []string{targetUser.ID.String()},
+		})
+		require.NoError(t, err, "remove user from group")
+
+		_, err = adminClient.UserAIBudgetOverride(ctx, targetUser.ID)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode(),
+			"override should be deleted after user is removed from the attributed group")
+	})
+
+	t.Run("EveryoneGroup", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		_, targetUser := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+
+		// The Everyone group has id == organization_id.
+		everyoneGroupID := owner.OrganizationID
+
+		_, err := adminClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, codersdk.UpsertUserAIBudgetOverrideRequest{
+			GroupID:          everyoneGroupID,
+			SpendLimitMicros: 500_000_000,
+		})
+		require.NoError(t, err, "set override")
+
+		// Sanity-check the override exists.
+		_, err = adminClient.UserAIBudgetOverride(ctx, targetUser.ID)
+		require.NoError(t, err, "override should exist before removal")
+
+		err = adminClient.DeleteOrganizationMember(ctx, owner.OrganizationID, targetUser.ID.String())
+		require.NoError(t, err, "remove user from organization")
+
+		_, err = adminClient.UserAIBudgetOverride(ctx, targetUser.ID)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode(),
+			"override should be deleted after user is removed from the organization")
+	})
+}
+
 // setupUserAIBudgetOverrideTest returns an Admin client, a target user, and a
 // group the target user is a member of.
 func setupUserAIBudgetOverrideTest(t *testing.T) (adminClient *codersdk.Client, targetUser codersdk.User, group codersdk.Group) {
